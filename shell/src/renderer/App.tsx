@@ -363,6 +363,7 @@ const CAREER_PAGE_TITLE_KEYS: Record<CareerPageKind, string> = {
   'career-research': 'tabs.careerResearch',
   'career-interview': 'tabs.careerInterview',
   'career-offer': 'tabs.careerOffer',
+  'career-vault': 'tabs.careerVault',
 };
 
 /** 用户端不再暴露的设置分区：任何导航意图一律落到「通用」。 */
@@ -3304,6 +3305,9 @@ export default function App() {
   const handleOpenCareerOffer = useCallback(() => {
     handleOpenCareerPage('career-offer');
   }, [handleOpenCareerPage]);
+  const handleOpenCareerVault = useCallback(() => {
+    handleOpenCareerPage('career-vault');
+  }, [handleOpenCareerPage]);
 
   const handleOpenWorkspaceFromSidebar = useCallback(
     async (
@@ -4965,6 +4969,7 @@ export default function App() {
       'career-research': careerPageBinding,
       'career-interview': careerPageBinding,
       'career-offer': careerPageBinding,
+      'career-vault': careerPageBinding,
     }),
     [
       capabilitiesBinding,
@@ -4996,6 +5001,7 @@ export default function App() {
             onOpenCareerResearch={handleOpenCareerResearch}
             onOpenCareerInterview={handleOpenCareerInterview}
             onOpenCareerOffer={handleOpenCareerOffer}
+            onOpenCareerVault={handleOpenCareerVault}
             onOpenTaskCenter={handleOpenTaskCenter}
             onCreateTask={handleSidebarCreateTask}
             onOpenSpace={handleOpenSpace}

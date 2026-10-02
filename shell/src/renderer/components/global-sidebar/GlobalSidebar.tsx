@@ -19,6 +19,7 @@ import {
   LayoutGrid,
   Library,
   Loader2,
+  LockKeyhole,
   MessageSquare,
   MessageSquarePlus,
   MicVocal,
@@ -203,6 +204,8 @@ interface GlobalSidebarProps {
   onOpenCareerResearch: () => void;
   onOpenCareerInterview: () => void;
   onOpenCareerOffer: () => void;
+  /** 私密信息（本人资料 / 网站账号 / 经历保密补充），不进模型上下文。 */
+  onOpenCareerVault: () => void;
   onOpenTaskCenter: () => void;
   onCreateTask: () => void;
   /** 保留给 OPEN_SPACE 事件等调用方；侧栏不再渲染团队入口。 */
@@ -405,6 +408,7 @@ export default memo(function GlobalSidebar({
   onOpenCareerResearch,
   onOpenCareerInterview,
   onOpenCareerOffer,
+  onOpenCareerVault,
   onOpenTaskCenter,
   onCreateTask,
   showWorkspaceTree = false,
@@ -1191,6 +1195,13 @@ export default memo(function GlobalSidebar({
             icon={<Handshake className="h-4 w-4" />}
             label={t('globalSidebar.careerOffer')}
             onClick={onOpenCareerOffer}
+          />
+          <SidebarNavButton
+            expanded={expanded}
+            active={activeView === 'career-vault'}
+            icon={<LockKeyhole className="h-4 w-4" />}
+            label={t('globalSidebar.careerVault')}
+            onClick={onOpenCareerVault}
           />
           <div className="group/task-create relative">
             <SidebarNavButton

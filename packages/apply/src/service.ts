@@ -1,4 +1,4 @@
-import { type Repos, type LLM, type Application, type ActionQueueItem, type Handoff, type ApplicationStage, canTransition } from '@career/core'
+import { type Repos, type LLM, type Vault, type Application, type ActionQueueItem, type Handoff, type ApplicationStage, canTransition } from '@career/core'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PageLike } from './page.js'
@@ -22,20 +22,44 @@ export interface ApplyRunOptions extends Omit<DriveOptions, 'adapter' | 'riskGua
   taskId?: string | null
 }
 export interface ApplyRunOutcome {
+  /** 原始结果（含明文填写值）。只能留在 Node 侧，不要直接回传模型。 */
   result: DriveResult
+  /** 已脱敏的摘要：私密库里的明文已换回占位符，可以回传模型 / 展示。 */
+  summary: ApplyRunSummary
   action: ActionQueueItem
   submitAction?: ActionQueueItem
   handoff?: Handoff
   application: Application
   screenshotPath?: string
 }
+export interface ApplyRunSummary {
+  status: DriveResult['status']; reason?: string; message: string; finalUrl: string; adapter: string
+  filled: DriveResult['filled']; needsUser: DriveResult['needsUser']; drafts: DriveResult['drafts']; mismatches: DriveResult['mismatches']; uploads: DriveResult['uploads']
+  submitButton?: string; loginFilled?: DriveResult['loginFilled']; screenshotPath?: string
+  pages: Array<{ index: number; url: string; fieldCount: number; nextButton?: string; errors: string[] }>
+}
+
+export interface ApplyServiceDefaults {
+  adapters?: readonly SiteAdapter[]
+  maxPages?: number
+  /**
+   * 私密信息库。给了之后：
+   *  - buildProfile 的 basics 来自私密库（覆盖 kv:profile.basics）；
+   *  - 填写前把计划值里的 {{vault:...}} 占位符解成明文；
+   *  - 登录墙时代填账号密码（只填不点）；
+   *  - 落库与回传的摘要全部脱敏（明文 → 占位符）。
+   */
+  vault?: Vault
+}
 
 export class ApplyService {
-  constructor(private repos: Repos, private llm: LLM, private defaults: { adapters?: readonly SiteAdapter[]; maxPages?: number } = {}) {}
+  constructor(private repos: Repos, private llm: LLM, private defaults: ApplyServiceDefaults = {}) {}
+  get vault(): Vault | undefined { return this.defaults.vault }
 
-  /** 从 Repos 组装 Profile 的默认实现（basics 来自 kv:profile.basics，经历来自经历库，答案库来自 answer_bank）。 */
+  /** 从 Repos 组装 Profile 的默认实现（basics 来自私密库，兜底 kv:profile.basics；经历来自经历库，答案库来自 answer_bank）。 */
   buildProfile(resumePath?: string): Profile {
-    const basics = this.repos.kvGet<Record<string, string>>('profile.basics') ?? {}
+    const basics: Record<string, string> = { ...(this.repos.kvGet<Record<string, string>>('profile.basics') ?? {}) }
+    if (this.vault) Object.assign(basics, this.vault.profileBasics({ actor: 'form_fill', purpose: '组装网申资料' }))
     const experiences = this.repos.experienceTree().map(e => ({ title: e.title, org: e.org ?? undefined, role: e.role ?? undefined, period: [e.start_date, e.end_date].filter(Boolean).join('~') || undefined, claims: e.claims.filter(c => c.status !== 'pending').map(c => c.text) }))
     const answerBank = this.repos.db.all<{ question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number }>('SELECT question_key, question_text, answer, high_impact, confirmed FROM answer_bank ORDER BY confirmed DESC, updated_at DESC')
       .map(a => ({ question_key: a.question_key, question_text: a.question_text, answer: a.answer, high_impact: !!a.high_impact, confirmed: !!a.confirmed }))
@@ -58,20 +82,25 @@ export class ApplyService {
     const action = this.repos.enqueueAction('fill_form', { url, adapter: adapter.id, job: job ? { title: job.title, company: job.company_name } : null }, applicationId, true)
     this.repos.setActionStatus(action.id, 'executing')
 
+    const vault = this.vault
     const result = await driveApplication(page, this.llm, profile, {
       ...opts, adapter, riskGuard, maxPages: opts.maxPages ?? this.defaults.maxPages,
       interpret: { ...opts.interpret, job: opts.interpret?.job ?? (job ? { title: job.title, company: job.company_name ?? undefined, jd: job.jd_raw ?? undefined } : undefined) },
+      resolveValue: opts.resolveValue ?? (vault ? v => vault.resolve(v, { actor: 'form_fill', purpose: `网申填写 ${applicationId}` }) : undefined),
+      loginFill: opts.loginFill ?? (vault ? u => { const c = vault.credential(u, { actor: 'login_fill', purpose: `登录页代填 ${u}` }); return c && c.autofill ? { username: c.username, password: c.password } : undefined } : undefined),
     })
     let screenshotPath: string | undefined
     if (opts.screenshotDir && result.screenshot) {
       try { mkdirSync(opts.screenshotDir, { recursive: true }); screenshotPath = join(opts.screenshotDir, `${action.id}.jpg`); writeFileSync(screenshotPath, result.screenshot) } catch { /* 忽略截图落盘失败 */ }
     }
-    const summary = {
+    const rawSummary: ApplyRunSummary = {
       status: result.status, reason: result.reason, message: result.message, finalUrl: result.finalUrl, adapter: result.adapterId,
-      filled: result.filled, needsUser: result.needsUser, drafts: result.drafts, mismatches: result.mismatches, uploads: result.uploads, submitButton: result.submitButton, screenshotPath,
+      filled: result.filled, needsUser: result.needsUser, drafts: result.drafts, mismatches: result.mismatches, uploads: result.uploads, submitButton: result.submitButton, loginFilled: result.loginFilled, screenshotPath,
       pages: result.pages.map(p => ({ index: p.index, url: p.url, fieldCount: p.fieldCount, nextButton: p.nextButton, errors: p.errors })),
     }
-    const answersUsed = Object.fromEntries(result.filled.map(f => [f.label, f.value]))
+    // 落库 / 回传的一律脱敏：私密库里的明文换回占位符
+    const summary = vault ? vault.redactDeep(rawSummary) : rawSummary
+    const answersUsed = Object.fromEntries(summary.filled.map(f => [f.label, f.value]))
     let submitAction: ActionQueueItem | undefined
     let handoff: Handoff | undefined
     let to: ApplicationStage = 'pending'
@@ -104,6 +133,6 @@ export class ApplyService {
     if (to === 'pending') this.repos.db.update('application', applicationId, { ...patch, updated_at: new Date().toISOString() })
     else this.repos.transition(applicationId, to, note, patch)
     const application = this.repos.getApplication(applicationId)!
-    return { result, action: this.repos.getAction(action.id)!, submitAction, handoff, application, screenshotPath }
+    return { result, summary, action: this.repos.getAction(action.id)!, submitAction, handoff, application, screenshotPath }
   }
 }

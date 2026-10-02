@@ -42,6 +42,16 @@ export interface ApplyEngineModule {
     profile: Record<string, unknown>,
     options?: Record<string, unknown>,
   ): Promise<Record<string, unknown> & { screenshot?: Uint8Array }>;
+  /** 从 Repos + 私密库组装填表资料（basics 明文只在 Node 侧）。 */
+  ApplyService?: new (repos: unknown, llm: LlmLike, defaults?: { vault?: unknown }) => { buildProfile(resumePath?: string): Record<string, unknown> };
+}
+
+/** `drive` 的资料包：资料本体 + 私密库三个钩子（解占位符 / 登录代填 / 回传脱敏）。 */
+export interface DriveProfileBundle {
+  profile: Record<string, unknown>;
+  resolveValue?: (value: string) => string;
+  loginFill?: (url: string) => { username?: string; password?: string } | undefined;
+  redact?: <T>(value: T) => T;
 }
 
 export interface ApplyPageLike {
@@ -59,9 +69,33 @@ export interface CareerBrowserRouteDependencies {
   loadApply?: () => Promise<ApplyEngineModule | null>;
   /** `drive` 需要模型。由后端组合层通过 {@link registerCareerBrowserLlmResolver} 接入。 */
   resolveLlm?: () => Promise<LlmLike | null>;
+  /**
+   * `drive` 的资料：缺省在 Node 侧从求职 SQLite + 私密库组装（见 {@link defaultDriveProfile}），
+   * 调用方（模型工具）不传、也拿不到 basics 明文。请求体里的 `profile` 只作测试 / 兜底。
+   */
+  resolveDriveProfile?: (body: Record<string, unknown>, apply: ApplyEngineModule, llm: LlmLike) => Promise<DriveProfileBundle | null>;
 }
 
 let registeredLlmResolver: (() => Promise<LlmLike | null>) | null = null;
+
+/** 缺省资料组装：basics 来自私密库（兜底 kv:profile.basics），经历 / 答案库来自 Repos；三个钩子都绑到私密库。 */
+export async function defaultDriveProfile(body: Record<string, unknown>, apply: ApplyEngineModule, llm: LlmLike): Promise<DriveProfileBundle | null> {
+  if (typeof apply.ApplyService !== 'function') return null;
+  const [{ getRepos }, { getVault }] = await Promise.all([import('../career/db'), import('../career/vault')]);
+  const [repos, vault] = await Promise.all([getRepos(), getVault()]);
+  const resumePath = typeof body.resumePath === 'string' && body.resumePath.trim() ? body.resumePath.trim() : undefined;
+  const profile = new apply.ApplyService(repos, llm, { vault }).buildProfile(resumePath);
+  const purpose = typeof body.applicationId === 'string' ? `网申填表 ${body.applicationId}` : '网申填表';
+  return {
+    profile,
+    resolveValue: value => vault.resolve(value, { actor: 'form_fill', purpose }),
+    loginFill: url => {
+      const cred = vault.credential(url, { actor: 'login_fill', purpose: `登录页代填 ${url}` });
+      return cred && cred.autofill ? { username: cred.username, password: cred.password } : undefined;
+    },
+    redact: value => vault.redactDeep(value),
+  };
+}
 
 /** 后端组合层在启动时注册一次；未注册时 `op:'drive'` 返回 501。 */
 export function registerCareerBrowserLlmResolver(resolver: (() => Promise<LlmLike | null>) | null): void {
@@ -331,32 +365,46 @@ async function runOperation(
   }
 
   // op === 'drive'
-  const profile = body.profile;
-  if (!profile || typeof profile !== 'object' || Array.isArray(profile)) {
-    out.emit({ type: 'error', status: 400, error: 'drive 需要 profile 对象（basics / experiences / answerBank）' });
-    return;
-  }
   const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
   if (!llm) {
     out.emit({ type: 'error', status: 501, error: 'drive 需要模型实例，产品组合层尚未注册 LLM' });
     return;
   }
+  // 资料在 Node 侧组装：basics 明文来自私密库，不经过模型；请求体 profile 只作测试 / 兜底
+  let bundle: DriveProfileBundle | null = null;
+  if (body.profile && typeof body.profile === 'object' && !Array.isArray(body.profile)) {
+    bundle = { profile: body.profile as Record<string, unknown> };
+  } else {
+    try {
+      bundle = await (deps.resolveDriveProfile ?? defaultDriveProfile)(body, apply, llm);
+    } catch (error) {
+      out.emit({ type: 'error', status: 503, error: `组装填表资料失败：${error instanceof Error ? error.message : String(error)}` });
+      return;
+    }
+  }
+  if (!bundle) {
+    out.emit({ type: 'error', status: 400, error: 'drive 需要填表资料：请在「私密信息」页填写基本信息，或传 profile 对象（basics / experiences / answerBank）' });
+    return;
+  }
+  const redact = bundle.redact ?? (<T,>(v: T) => v);
   if (url) {
     out.emit({ type: 'progress', phase: 'navigate', message: `打开 ${url}` });
     await engineLikePage.goto(url);
   }
   out.emit({ type: 'progress', phase: 'drive', message: '开始填写（不提交）' });
-  const result = await apply.driveApplication(engineLikePage, llm, profile as Record<string, unknown>, {
+  const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
     maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
     humanTyping: body.humanTyping !== false,
     ...(typeof body.settleMs === 'number' ? { settleMs: body.settleMs } : {}),
-    log: (message: string) => out.emit({ type: 'progress', phase: 'drive', message }),
-    onPage: (record: unknown) => out.emit({ type: 'page', record }),
+    ...(bundle.resolveValue ? { resolveValue: bundle.resolveValue } : {}),
+    ...(bundle.loginFill ? { loginFill: bundle.loginFill } : {}),
+    log: (message: string) => out.emit({ type: 'progress', phase: 'drive', message: redact(message) }),
+    onPage: (record: unknown) => out.emit({ type: 'page', record: redact(record) }),
   });
   const { screenshot, ...rest } = result;
   out.emit({
     type: 'result', op,
-    result: rest,
+    result: redact(rest),
     ...(screenshot ? { screenshot: { mimeType: 'image/jpeg', base64: toBase64(screenshot) } } : {}),
     url: page.url(),
   });

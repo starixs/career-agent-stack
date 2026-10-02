@@ -251,3 +251,28 @@ CREATE TABLE IF NOT EXISTS answer_bank (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_answer_bank_key ON answer_bank(question_key);
+
+-- ===== 私密信息库（不进模型上下文） =====
+-- 值一律 AES-256-GCM 加密后落库；模型侧只能看到 scope/field/preview 与占位符 {{vault:...}}。
+CREATE TABLE IF NOT EXISTS vault_item (
+  id TEXT PRIMARY KEY,
+  scope TEXT NOT NULL,             -- profile（本人基本信息）|site（投递网站账号）|experience（经历的保密补充）
+  ref_id TEXT NOT NULL DEFAULT '', -- site: 站点 host；experience: experience.id；profile: ''
+  field TEXT NOT NULL,             -- profile: name/phone/email/idNumber…；site: username/password/note；experience: 任意字段名
+  label TEXT,                      -- 展示名（用户可改）
+  ciphertext BLOB NOT NULL,        -- iv(12) + tag(16) + data
+  preview TEXT,                    -- 脱敏预览，如 138****0000；密码类为空
+  sensitive INTEGER NOT NULL DEFAULT 1,  -- 1 = 模型侧只给占位符；0 = 允许以明文给模型（如学校/专业）
+  policy_json TEXT NOT NULL DEFAULT '{}',-- {autofill:boolean}
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(scope, ref_id, field)
+);
+CREATE TABLE IF NOT EXISTS vault_access_log (
+  id TEXT PRIMARY KEY,
+  item_id TEXT,
+  actor TEXT NOT NULL,             -- ui|form_fill|login_fill|resume_export|resolve
+  purpose TEXT,
+  at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_vault_item_scope ON vault_item(scope, ref_id);

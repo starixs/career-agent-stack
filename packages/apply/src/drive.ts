@@ -8,6 +8,7 @@ import { detectObstacle, isNextText, isSubmitText } from './guards.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import type { RiskGuard } from './safety.js'
 import { humanDelay, typeLikeHuman, type PacingOptions } from './pacing.js'
+import { fillLoginForm, type LoginCredential } from './login.js'
 
 /**
  * 多页单步驱动循环：每页 extract → interpret → 上传优先 → 填写 → 差异核对 → 找"下一步"。
@@ -44,6 +45,8 @@ export interface DriveResult {
   uploads: UploadCheck[]
   /** 停在哪个提交按钮前（文案）。 */
   submitButton?: string
+  /** 登录接管时，私密库已代填了哪些登录字段（不含值）。 */
+  loginFilled?: Array<'username' | 'password'>
   screenshot?: Uint8Array
   finalUrl: string
   adapterId: string
@@ -61,6 +64,16 @@ export interface DriveOptions extends PacingOptions {
   /** 点击下一步后等待页面稳定的毫秒数。 */
   settleMs?: number
   interpret?: InterpretOptions
+  /**
+   * 填写前把计划值里的私密库占位符（{{vault:profile.phone}} 等）换成明文。
+   * 由 ApplyService 用 Vault.resolve 提供；模型侧产出的草稿里只会出现占位符。
+   */
+  resolveValue?: (value: string) => string
+  /**
+   * 遇到登录墙时按 URL 取账号密码（来自私密库，不经过模型）。返回 undefined 则直接接管。
+   * 只代填不点登录；验证码 / 滑块 / 短信码仍由用户本人完成。
+   */
+  loginFill?: (url: string) => Promise<LoginCredential | undefined> | LoginCredential | undefined
   onPage?: (rec: PageRecord) => void
   log?: (msg: string) => void
 }
@@ -94,7 +107,23 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       const risk = opts.riskGuard?.inspect(sig, adapter) ?? null
       const ob = detectObstacle(sig, adapter)
       if (risk && risk.reason === 'rate_limit') return finish('blocked', `平台限流提示：${risk.evidence}，已上风险锁`)
-      if (ob) return finish('handoff', `需要你本人处理：${ob.reason}（${ob.evidence}）`, { reason: ob.reason })
+      if (ob) {
+        if (ob.reason === 'login' && opts.loginFill) {
+          const cred = await opts.loginFill(page.url())
+          if (cred && (cred.username || cred.password)) {
+            try {
+              const r = await fillLoginForm(page, cred)
+              if (r.filled.length) {
+                const what = r.filled.map(k => (k === 'username' ? '账号' : '密码')).join('和')
+                log(`登录页：已从私密库代填${what}`)
+                return finish('handoff', `需要你本人登录：已代填${what}，请点击登录并完成验证码 / 短信验证${r.skipped.length ? '（' + r.skipped.join('；') + '）' : ''}`, { reason: 'login', loginFilled: r.filled })
+              }
+              log(`登录页：私密库有账号但没找到输入框（${r.skipped.join('；')}）`)
+            } catch (e) { log(`登录页代填失败：${e instanceof Error ? e.message : String(e)}`) }
+          }
+        }
+        return finish('handoff', `需要你本人处理：${ob.reason}（${ob.evidence}）`, { reason: ob.reason })
+      }
 
       // 2. 抽取
       let fields = await extractFields(page)
@@ -112,6 +141,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
 
       // 3. 解释
       const plans = await interpretForm(llm, fields, profile, { adapter, ...opts.interpret })
+      // 占位符 → 明文只发生在这里（Node 侧），之后的填写 / 核对都用明文；回传模型前由 ApplyService 再脱敏
+      if (opts.resolveValue) for (const p of plans) if (p.status === 'fill' && p.value !== undefined) p.value = opts.resolveValue(p.value)
       const byId = new Map(fields.map(f => [f.id, f]))
 
       // 4. 先上传简历（上传后页面可能自动解析填充，再重新抽取）

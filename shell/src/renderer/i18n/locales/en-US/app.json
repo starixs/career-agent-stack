@@ -21,7 +21,8 @@
     "careerApply": "Jobs & Applications",
     "careerResearch": "Research",
     "careerInterview": "Interview",
-    "careerOffer": "Offer"
+    "careerOffer": "Offer",
+    "careerVault": "Private Info"
   },
   "globalSidebar": {
     "navigation": "Global navigation",
@@ -54,7 +55,8 @@
     "careerApply": "Jobs & Applications",
     "careerResearch": "Research",
     "careerInterview": "Interview",
-    "careerOffer": "Offer"
+    "careerOffer": "Offer",
+    "careerVault": "Private Info"
   },
   "titlebar": {
     "helper": "AI Helper",

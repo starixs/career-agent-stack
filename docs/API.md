@@ -40,6 +40,19 @@
 | GET | `/api/career/answer-bank` | answer_bank[] |
 | POST | `/api/career/answer-bank` | `{question_key, question_text, answer, high_impact?, confirmed?}` |
 
+### Global：私密信息库（UI ⇄ 私密库的唯一明文通道；模型工具永远不走这里）
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/career/vault` | `{ status: VaultStatus, items: VaultItemMeta[], profileFields, siteFields }`，只有字段名 / 脱敏预览 / 占位符 |
+| PUT | `/api/career/vault/items` | `{scope:'profile'|'site'|'experience', ref_id?, field, value, label?, sensitive?, policy?}` → `{item}`；`value:''` 等于删除；site 的 ref_id 按域名归一化；experience 的 ref_id 必须是存在的经历 |
+| POST | `/api/career/vault/items/:id/policy` | `{policy:{autofill?:boolean}}`（站点账号是否在登录页自动代填） |
+| DELETE | `/api/career/vault/items/:id` / `/api/career/vault/sites/:host` | 删除一项 / 删除整个站点 |
+| POST | `/api/career/vault/items/:id/reveal` | 用户在页面查看 / 编辑时回显明文 → `{value}`；写访问日志 actor=ui |
+| GET | `/api/career/vault/access-log?limit=` | 谁在什么时候读过哪一项（form_fill / login_fill / resume_export / ui） |
+
+简历导出（`/resumes/:id/export`、`/file`）在渲染前把 `{{vault:...}}` 占位符解成明文；落库的 `schema_json` 不变。
+浏览器 `run` 的 `op:'drive'` 不再要求调用方传 `profile`：资料由 Global 侧车从 SQLite + 私密库组装（`defaultDriveProfile`），返回的 `page` / `result` 事件已脱敏。
+
 ### Global：浏览器（供 Session 工具调用，Bearer token = browser capability token）
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -66,6 +79,7 @@
 | 工具 | 参数 | 行为 |
 |---|---|---|
 | `career_overview` | – | 返回看板三问题 + 待审数 + 进行中的任务 |
+| `vault_status` | – | 私密信息库概览：已填 / 缺的基本信息字段（脱敏预览）、存了账号的站点、经历的保密字段占位符。**永远不返回明文**；所有工具结果回传前都会把私密库明文换回 `{{vault:...}}` |
 | `experience_add` | experience + claims[] | 写经历库（claims 状态 pending） |
 | `experience_list` | – | 经历树 |
 | `claim_confirm` | claim_id | 用户口头确认后调用 |

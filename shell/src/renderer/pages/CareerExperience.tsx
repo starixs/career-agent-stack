@@ -14,6 +14,7 @@ import {
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import type { ClaimNode, ExperienceNode } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
+import { VaultExperienceFields } from '@/components/career/VaultExperienceFields';
 
 const EXPERIENCE_TYPES = [
   { value: 'work', label: '工作' }, { value: 'intern', label: '实习' }, { value: 'project', label: '项目' },
@@ -111,6 +112,7 @@ function ExperienceDetail({ experience, onChanged }: { experience: ExperienceNod
         </div>
         {experience.summary && <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--ink)]">{experience.summary}</p>}
       </Card>
+      <PrivateSupplement experience={experience} />
       <SectionTitle extra={<Button variant="ghost" onClick={() => suggest(`帮我给「${experience.title}」补充主张和证据`)}>在对话里补充</Button>}>
         主张（{experience.claims.length}）
       </SectionTitle>
@@ -123,6 +125,39 @@ function ExperienceDetail({ experience, onChanged }: { experience: ExperienceNod
         {experience.claims.map(claim => <ClaimCard key={claim.id} claim={claim} onChanged={onChanged} />)}
       </ul>
     </div>
+  );
+}
+
+/**
+ * 保密补充：真实公司名 / 客户名 / 保密数据放私密信息库（scope=experience），经历本身只写脱敏说法。
+ * 助理只能看到占位符 {{vault:exp.<id>.<field>}}；导出简历、填网申时产品在本机替换成真实值。
+ */
+function PrivateSupplement({ experience }: { experience: ExperienceNode }) {
+  const vault = useCareerQuery(careerApi.vault, ['vault']);
+  const [open, setOpen] = useState(false);
+  const items = (vault.data?.items ?? []).filter(i => i.scope === 'experience' && i.ref_id === experience.id);
+  return (
+    <Card
+      title="保密补充"
+      extra={(
+        <div className="flex items-center gap-2">
+          <Badge tone={items.length ? 'accent' : 'neutral'}>{items.length ? `${items.length} 项，不进模型` : '未填'}</Badge>
+          <Button variant="ghost" onClick={() => setOpen(v => !v)} aria-expanded={open}>{open ? '收起' : '补充'}</Button>
+        </div>
+      )}
+    >
+      {!open && (
+        <div className="text-xs text-[var(--ink-muted)]">
+          {experience.redacted ? '这段经历只录了脱敏摘要。' : ''}真实公司名、客户名、保密指标放这里，不会进入对话；助理用占位符指代，导出和填表时自动替换。
+        </div>
+      )}
+      {open && (
+        <>
+          {vault.error && <div role="alert" className="mb-2 text-xs text-[var(--error)]">{vault.error}</div>}
+          <VaultExperienceFields experienceId={experience.id} items={items} onChanged={vault.reload} />
+        </>
+      )}
+    </Card>
   );
 }
 

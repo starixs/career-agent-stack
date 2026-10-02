@@ -32,11 +32,13 @@ export async function exportResumeFile(
   format: ExportFormat,
   exportsDir: string,
   loader: () => Promise<typeof import('@career/resume')> = loadResume,
+  /** 渲染前把简历 JSON 里的私密库占位符（{{vault:profile.phone}} 等）解成明文；只在这里发生，落库的 JSON 仍是占位符。 */
+  resolve: (schema: unknown) => unknown = s => s,
 ): Promise<string> {
   const found = store.getResume(id);
   if (!found) throw new ResumeNotFoundError(id);
   const mod = await loader();
-  const resume = mod.parseResume(JSON.parse(found.row.schema_json));
+  const resume = mod.parseResume(resolve(JSON.parse(found.row.schema_json)));
   mkdirSync(exportsDir, { recursive: true });
   const path = join(exportsDir, `${id}.${format}`);
   let buffer: Buffer;

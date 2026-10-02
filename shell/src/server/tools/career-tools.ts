@@ -6,8 +6,9 @@
 // submit / send_greeting / answer_open_q 只能入待审队列（Repos.enqueueAction 已强制）。
 //
 // SDK + zod 只在 createCareerServer() 内动态 import（builtin-mcp-registry 的 lazy 约束）。
+import { existsSync } from 'fs';
 import { basename } from 'path';
-import type { Repos, LLM, Job, JdParsed, Claim } from '@career/core';
+import type { Repos, LLM, Job, JdParsed, Claim, Vault } from '@career/core';
 
 import { loadCore } from '../career/core-module';
 import { getRepos, careerExportsDir } from '../career/db';
@@ -18,6 +19,7 @@ import { getRunRegistry, type RunRegistry } from '../career/runs';
 import { getSearchProvider, type CareerSearchProvider } from '../career/search';
 import { loadSkillPrompt } from '../career/skills';
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
+import { getVault, vaultForRepos } from '../career/vault';
 import { acquireBrowserCapability } from '../browser-host/capability-client';
 import { broadcast as sseBroadcast } from '../sse';
 import { cancellableFetch } from '../utils/cancellation';
@@ -27,6 +29,8 @@ type CallToolResult = { content: Array<{ type: 'text'; text: string }>; isError?
 
 export interface CareerToolDeps {
   repos?: Repos;
+  /** 私密信息库：所有工具结果回传前统一脱敏；缺省按 repos 的连接构造。 */
+  vault?: Vault;
   llm?: LLM;
   broadcast?: (event: string, data: unknown) => void;
   sessionId?: () => string;
@@ -105,8 +109,12 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
   // 数据层：core 惰性加载；Repos 在 server 构建时打开一次（Session 内共享）。
   const core = await loadCore();
   const sharedRepos = deps.repos ?? await getRepos();
+  const sharedVault = deps.vault ?? (deps.repos ? await vaultForRepos(deps.repos) : await getVault());
 
   const repos = () => sharedRepos;
+  const vault = () => sharedVault;
+  /** 入口 hook：任何工具结果回传模型前，把私密库里的明文换回 {{vault:...}} 占位符。 */
+  const redactResult = (res: CallToolResult): CallToolResult => ({ ...res, content: res.content.map(c => (c.type === 'text' ? { ...c, text: sharedVault.redact(c.text) } : c)) });
   const store = () => new CareerStore(sharedRepos, core);
   const llm = () => deps.llm ?? getShellLLM();
   const broadcast = deps.broadcast ?? sseBroadcast;
@@ -186,10 +194,21 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
   });
 
   const wrap = (fn: () => Promise<CallToolResult> | CallToolResult) => async (): Promise<CallToolResult> => {
-    try { return await fn(); } catch (error) {
+    try { return redactResult(await fn()); } catch (error) {
       if (error instanceof DomainUnavailableError) return err(`${error.message}（该能力依赖的领域库尚未就绪）`);
-      return err(error);
+      return redactResult(err(error));
     }
+  };
+  /** 简历导出：渲染前解占位符（只在 Node 侧），落库 JSON 不变。 */
+  const exportWithVault = (resumeId: string, format: 'pdf' | 'docx' | 'png') =>
+    exportResumeFile(store(), resumeId, format, exportsDir(), undefined, schema => vault().resolveDeep(schema, { actor: 'resume_export', purpose: `导出简历 ${resumeId} ${format}` }));
+  /** 投递用的简历文件：定制版已有 PDF 就复用，否则现导（失败不阻塞填表，只是不上传附件）。 */
+  const resumeFileFor = async (resumeId: unknown): Promise<string | undefined> => {
+    if (typeof resumeId !== 'string' || !resumeId) return undefined;
+    const found = store().getResume(resumeId);
+    if (!found) return undefined;
+    if (found.kind === 'tailored' && found.row.export_pdf && existsSync(found.row.export_pdf)) return found.row.export_pdf;
+    try { return await exportWithVault(resumeId, 'pdf'); } catch { return undefined; }
   };
 
   const strengthEnum = z.enum(['nudge', 'keywords', 'full']);
@@ -239,6 +258,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     tools: [
       // ---------- 概览 / 经历库 ----------
       tool('career_overview', '返回看板三问题（今天必须做什么 / 哪里卡住 / 漏斗分布）+ 待审数 + 进行中的任务 + 未关闭的接管。', {}, wrap(() => text(store().overview()))),
+
+      tool('vault_status', '私密信息库概览：哪些基本信息（姓名 / 手机 / 邮箱 / 证件号…）已填、哪些缺；哪些投递网站存了账号；哪些经历有保密补充字段。只返回字段名、脱敏预览和占位符，永远不返回明文。缺项请引导用户到「私密信息」页填写，不要在对话里收集。', {}, wrap(() => {
+        const status = vault().status();
+        return text({
+          ...status,
+          placeholders: { name: '{{vault:profile.name}}', phone: '{{vault:profile.phone}}', email: '{{vault:profile.email}}' },
+          note: '简历 / 网申草稿里需要这些信息时直接写占位符，导出或填表时会在产品内自动替换成真实值；你拿不到也不需要真实值。',
+        });
+      })),
 
       tool('experience_add', '写入一段经历到经历库，并附带若干主张（claims，状态一律 pending，需用户确认后才能进简历）。', {
         title: z.string().describe('经历标题'), role: z.string().optional(), org: z.string().optional(),
@@ -347,17 +375,24 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const name = args.name?.trim() || (args.direction ? `${args.direction}方向` : '主简历');
         const claims = confirmedClaims();
         const pendingCount = repos().listClaims().length - claims.length;
-        const base = { version: 1, basics: args.basics ?? {}, education: args.education ?? [] };
+        // 姓名 / 手机 / 邮箱 / 城市：私密库里有就写占位符（导出时才解成明文），模型给的明文值不覆盖占位符
+        const vaultBasics: Record<string, string> = {};
+        const filled = new Set(vault().status().profile.filled.map(f => f.field));
+        for (const [field, key] of [['name', 'name'], ['phone', 'phone'], ['email', 'email'], ['city', 'city'], ['politics', 'political_status']] as const) {
+          if (filled.has(field)) vaultBasics[key] = core.vaultPlaceholder('profile', '', field);
+        }
+        const basics = { ...(args.basics ?? {}), ...vaultBasics };
+        const base = { version: 1, basics, education: args.education ?? [] };
         let draft: Record<string, unknown> | undefined;
         let missing: unknown = [];
         let usedClaimIds: unknown = [];
         let draftNotes = '';
         if ((args.draft ?? true) && claims.length > 0) {
           progress('resume_master_create', '正在从经历库起草主简历');
-          const out = await askSkill<{ resume?: Record<string, unknown>; missing?: unknown; used_claim_ids?: unknown; notes?: string }>('resume-draft', `用户基本信息：\n${JSON.stringify(args.basics ?? {})}\n\n用户口述的教育背景：\n${JSON.stringify(args.education ?? [])}\n\n求职方向：${args.direction ?? '未指定'}\n用户额外要求：${args.notes ?? '无'}\n\n经历库（只用 user_confirmed / verified 主张）：\n${experienceDigest()}`, { temperature: 0.2 });
+          const out = await askSkill<{ resume?: Record<string, unknown>; missing?: unknown; used_claim_ids?: unknown; notes?: string }>('resume-draft', `用户基本信息：\n${JSON.stringify(basics)}\n\n用户口述的教育背景：\n${JSON.stringify(args.education ?? [])}\n\n求职方向：${args.direction ?? '未指定'}\n用户额外要求：${args.notes ?? '无'}\n\n经历库（只用 user_confirmed / verified 主张）：\n${experienceDigest()}`, { temperature: 0.2 });
           if (out.resume && typeof out.resume === 'object') {
-            // 基本信息与教育以用户亲口给的为准，模型不得覆盖。
-            draft = { ...out.resume, version: 1, basics: { ...(out.resume.basics as Record<string, unknown> | undefined ?? {}), ...(args.basics ?? {}) }, ...(args.education?.length ? { education: args.education } : {}) };
+            // 基本信息与教育以用户亲口给的为准，模型不得覆盖；私密库占位符优先级最高。
+            draft = { ...out.resume, version: 1, basics: { ...(out.resume.basics as Record<string, unknown> | undefined ?? {}), ...basics }, ...(args.education?.length ? { education: args.education } : {}) };
           }
           missing = out.missing ?? [];
           usedClaimIds = out.used_claim_ids ?? [];
@@ -438,7 +473,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       tool('resume_export', '导出简历为 pdf / docx / png，返回文件路径。', { resume_id: z.string(), format: z.enum(EXPORT_FORMATS) }, async (args) => wrap(async () => {
         if (!isExportFormat(args.format)) return err('format 必须是 pdf | docx | png');
         progress('resume_export', `正在导出 ${args.format}`);
-        const path = await exportResumeFile(store(), args.resume_id, args.format, exportsDir());
+        const path = await exportWithVault(args.resume_id, args.format);
         changed('resume_tailored');
         return text({ path });
       })()),
@@ -506,9 +541,10 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const events: Array<Record<string, unknown>> = [];
         let handoffId: string | undefined;
         try {
-          // TODO(@career/apply)：浏览器子代理的 /api/career/browser/run 就绪前，这里只会得到 503；
-          // 后续可直接用 ApplyService + 托管 Page 驱动。
-          await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload }, (ev) => {
+          // 填表资料（姓名 / 手机 / 邮箱 / 证件号…）由浏览器路由在 Node 侧从私密库组装，这里不传、也看不到明文；
+          // 返回的事件已脱敏（明文 → {{vault:...}} 占位符）。
+          const resumePath = await resumeFileFor(payload.resume_id);
+          await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload, url: payload.url, ...(resumePath ? { resumePath } : {}) }, (ev) => {
             events.push(ev);
             const type = String(ev.type ?? '');
             if (type === 'progress') progress('apply_run', String(ev.message ?? ''), { runId, taskId: task.id, progress: ev.progress });

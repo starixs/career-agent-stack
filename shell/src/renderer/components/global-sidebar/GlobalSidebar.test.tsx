@@ -168,6 +168,7 @@ function sidebar(overrides: Partial<SidebarProps> = {}) {
       onOpenCareerResearch={vi.fn()}
       onOpenCareerInterview={vi.fn()}
       onOpenCareerOffer={vi.fn()}
+      onOpenCareerVault={vi.fn()}
       onOpenTaskCenter={vi.fn()}
       onCreateTask={vi.fn()}
       onOpenSpace={vi.fn()}

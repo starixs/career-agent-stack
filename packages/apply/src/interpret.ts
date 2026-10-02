@@ -180,10 +180,12 @@ async function draftOpenQuestions(llm: LLM, fields: FormField[], profile: Profil
 1. 只能用下面给出的经历与主张，不得编造任何经历、数据、头衔；信息不足就写短一点或留空。
 2. 中文、第一人称、具体动作与结果，不写套话（赋能/闭环/抓手）。
 3. 遵守 maxLength。
-4. 只输出 JSON：{"answers":[{"id":"f3","value":"...","confidence":0.7,"experiences_used":["经历标题"]}]}`
+4. 需要写到姓名 / 手机 / 邮箱时用占位符 {{vault:profile.name}} / {{vault:profile.phone}} / {{vault:profile.email}}，不要猜具体值；经历里形如 {{vault:exp.xxx.yyy}} 的占位符原样保留。
+5. 只输出 JSON：{"answers":[{"id":"f3","value":"...","confidence":0.7,"experiences_used":["经历标题"]}]}`
+  // 只给模型非敏感的背景信息；姓名 / 联系方式等私密字段永远不进提示词（草稿里需要时写占位符 {{vault:profile.name}}）
   const user = JSON.stringify({
     job: opts.job ?? null,
-    basics: { name: profile.basics.name, school: profile.basics.school, major: profile.basics.major, degree: profile.basics.degree },
+    basics: { school: profile.basics.school, major: profile.basics.major, degree: profile.basics.degree, graduation: profile.basics.graduation },
     experiences: exps.map(e => ({ title: e.title, org: e.org, role: e.role, period: e.period, claims: e.claims })),
     questions: fields.map(f => ({ id: f.id, label: f.label, type: f.type, maxLength: f.maxLength, placeholder: f.placeholder })),
   })

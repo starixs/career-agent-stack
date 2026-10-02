@@ -13,6 +13,7 @@ import type { CareerApplyTab } from '@/features/career-apply/tabContract';
 import type { CareerResearchTab } from '@/features/career-research/tabContract';
 import type { CareerInterviewTab } from '@/features/career-interview/tabContract';
 import type { CareerOfferTab } from '@/features/career-offer/tabContract';
+import type { CareerVaultTab } from '@/features/career-vault/tabContract';
 
 export type { TabBase } from '@/tab-workspace/contracts';
 export type {
@@ -39,15 +40,17 @@ export type { CareerApplyTab } from '@/features/career-apply/tabContract';
 export type { CareerResearchTab } from '@/features/career-research/tabContract';
 export type { CareerInterviewTab } from '@/features/career-interview/tabContract';
 export type { CareerOfferTab } from '@/features/career-offer/tabContract';
+export type { CareerVaultTab } from '@/features/career-vault/tabContract';
 
-/** 求职助理六个一级功能页的 Tab 种类（单实例）。 */
+/** 求职助理六个一级功能页 + 私密信息页的 Tab 种类（单实例）。 */
 export type CareerPageTab =
   | CareerExperienceTab
   | CareerResumeTab
   | CareerApplyTab
   | CareerResearchTab
   | CareerInterviewTab
-  | CareerOfferTab;
+  | CareerOfferTab
+  | CareerVaultTab;
 export type CareerPageKind = CareerPageTab['view'];
 export const CAREER_PAGE_KINDS: readonly CareerPageKind[] = [
   'career-experience',
@@ -56,6 +59,7 @@ export const CAREER_PAGE_KINDS: readonly CareerPageKind[] = [
   'career-research',
   'career-interview',
   'career-offer',
+  'career-vault',
 ];
 
 /** Closed union for the builtin career-assistant edition. Downstream editions

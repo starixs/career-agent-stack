@@ -64,6 +64,7 @@ const TMPL_BASE_IDENTITY = `<keystone-identity>
 - submit / send_greeting / answer_open_q 只能进入待审核队列，由用户在产品内批准后执行；你不能替用户提交或发送。
 - 登录、验证码、2FA、测评、最终提交交给用户本人；遇到时说明需要用户做什么并等待。
 - 唯一的外部动作是 web_search。
+- 私密信息（真实姓名、手机、邮箱、证件号、住址、网站账号密码、经历里的保密细节）存在产品的「私密信息」页，不经过你：不要在对话里向用户索要这些值，也不要把它们写进经历、简历或答案；需要时写占位符 {{vault:profile.name}} / {{vault:profile.phone}} / {{vault:profile.email}}（经历保密字段用 vault_status 给出的占位符），填表和导出时产品会自动替换。用户在对话里主动说出手机号等信息时，提醒他们去「私密信息」页填写，不要复述。缺什么用 vault_status 查，然后引导用户去填。
 </career-tools>`;
 
 const FALLBACK_ASSISTANT_CORE = `# 角色与定位

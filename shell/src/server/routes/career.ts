@@ -8,7 +8,7 @@
  */
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import type { Repos, ApplicationStage, LLM } from '@career/core';
+import type { Repos, ApplicationStage, LLM, Vault, VaultScope } from '@career/core';
 
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { loadCore, type CoreModule } from '../career/core-module';
@@ -17,10 +17,13 @@ import { DomainUnavailableError } from '../career/domain';
 import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, type ExportFormat } from '../career/export';
 import { getShellLLM } from '../career/llm';
 import { loadSkillPrompt } from '../career/skills';
+import { getVault, vaultForRepos } from '../career/vault';
 import { broadcast as sseBroadcast } from '../sse';
 
 export interface CareerRouteDeps {
   repos?: Repos;
+  /** 私密信息库；缺省按 repos 的连接构造（测试注入 StaticKeyProvider 的实例）。 */
+  vault?: Vault;
   broadcast?: (event: string, data: unknown) => void;
   sessionId?: () => string;
   exportsDir?: string;
@@ -57,6 +60,7 @@ interface Ctx {
   repos: Repos;
   store: CareerStore;
   core: CoreModule;
+  vault: Vault;
   deps: Required<Pick<CareerRouteDeps, 'broadcast' | 'sessionId' | 'exportsDir'>> & CareerRouteDeps;
 }
 
@@ -74,8 +78,12 @@ function dataChanged(ctx: Ctx, tables: string[]): void {
 }
 
 function exportResume(ctx: Ctx, id: string, format: ExportFormat): Promise<string> {
-  return exportResumeFile(ctx.store, id, format, ctx.deps.exportsDir, ctx.deps.resumeModule);
+  // 占位符 → 明文只在渲染这一刻发生；落库 JSON 与模型看到的仍是 {{vault:...}}
+  return exportResumeFile(ctx.store, id, format, ctx.deps.exportsDir, ctx.deps.resumeModule, schema => ctx.vault.resolveDeep(schema, { actor: 'resume_export', purpose: `导出简历 ${id} ${format}` }));
 }
+
+const VAULT_SCOPES: readonly VaultScope[] = ['profile', 'site', 'experience'];
+const isVaultScope = (v: unknown): v is VaultScope => typeof v === 'string' && (VAULT_SCOPES as readonly string[]).includes(v);
 
 const ROUTES: Route[] = [
   route('GET', '/api/career/overview', ({ store }) => ok(store.overview())),
@@ -305,6 +313,58 @@ const ROUTES: Route[] = [
     dataChanged(ctx, ['answer_bank']);
     return ok({ answer: ctx.repos.findAnswer(question_key) });
   }),
+
+  // ---------- 私密信息库（只有这组接口能读写明文；模型工具永远拿不到） ----------
+  route('GET', '/api/career/vault', ({ vault, core }) => ok({ status: vault.status(), items: vault.list(), profileFields: core.PROFILE_FIELDS, siteFields: core.SITE_FIELDS })),
+  route('PUT', '/api/career/vault/items', (ctx) => {
+    const b = ctx.body;
+    if (!isVaultScope(b.scope)) return fail('scope 必须是 profile | site | experience');
+    const field = str(b.field);
+    if (!field) return fail('field 不能为空');
+    if (typeof b.value !== 'string') return fail('value 必须是字符串（空串表示删除）');
+    const ref_id = b.scope === 'site' ? ctx.core.normalizeHost(str(b.ref_id) ?? '') : str(b.ref_id);
+    if (b.scope !== 'profile' && !ref_id) return fail(b.scope === 'site' ? '站点作用域需要 ref_id（网站域名）' : '经历作用域需要 ref_id（经历 id）');
+    if (b.scope === 'experience' && !ctx.repos.db.get('SELECT id FROM experience WHERE id=?', [ref_id!])) return fail(`经历不存在：${ref_id}`, 404);
+    try {
+      const item = ctx.vault.set({
+        scope: b.scope, ref_id, field, value: b.value,
+        label: b.label === undefined ? undefined : strOrNull(b.label),
+        sensitive: typeof b.sensitive === 'boolean' ? b.sensitive : undefined,
+        policy: b.policy && typeof b.policy === 'object' ? b.policy as { autofill?: boolean } : undefined,
+      });
+      dataChanged(ctx, ['vault']);
+      return ok({ item: item ?? null, deleted: !item });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '写入失败');
+    }
+  }),
+  route('POST', '/api/career/vault/items/:id/policy', (ctx) => {
+    try {
+      const policy = ctx.body.policy && typeof ctx.body.policy === 'object' ? ctx.body.policy as { autofill?: boolean } : { autofill: !!ctx.body.autofill };
+      const item = ctx.vault.setPolicy(ctx.params.id, policy);
+      dataChanged(ctx, ['vault']);
+      return ok({ item });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '更新失败', 404);
+    }
+  }),
+  route('DELETE', '/api/career/vault/items/:id', (ctx) => {
+    if (!ctx.vault.delete(ctx.params.id)) return fail('私密项不存在', 404);
+    dataChanged(ctx, ['vault']);
+    return ok({ deleted: true });
+  }),
+  route('DELETE', '/api/career/vault/sites/:host', (ctx) => {
+    const n = ctx.vault.deleteSite(ctx.core.normalizeHost(ctx.params.host));
+    dataChanged(ctx, ['vault']);
+    return ok({ deleted: n });
+  }),
+  /** UI 编辑时回显明文（记访问日志 actor=ui）。此接口不暴露给任何模型工具。 */
+  route('POST', '/api/career/vault/items/:id/reveal', (ctx) => {
+    const value = ctx.vault.reveal(ctx.params.id, { actor: 'ui', purpose: '用户在私密信息页查看 / 编辑' });
+    if (value === undefined) return fail('私密项不存在', 404);
+    return ok({ value });
+  }),
+  route('GET', '/api/career/vault/access-log', (ctx) => ok({ log: ctx.vault.accessLog(Number(ctx.url.searchParams.get('limit') ?? 100) || 100) })),
 ];
 
 function safeHostname(url: string): string {
@@ -323,14 +383,16 @@ export async function handleCareerRoute(pathname: string, request: Request, deps
     r.keys.forEach((k, i) => { params[k] = decodeURIComponent(m[i + 1]); });
     let core: CoreModule;
     let repos: Repos;
+    let vault: Vault;
     try {
       core = await loadCore();
       repos = deps.repos ?? await getRepos();
+      vault = deps.vault ?? (deps.repos ? await vaultForRepos(deps.repos) : await getVault());
     } catch (error) {
       return fail(error instanceof Error ? error.message : '求职数据层不可用', 503);
     }
     const ctx: Ctx = {
-      request, url: new URL(request.url), params, repos, core, store: new CareerStore(repos, core),
+      request, url: new URL(request.url), params, repos, core, vault, store: new CareerStore(repos, core),
       body: method === 'GET' ? {} : await readBody(request),
       deps: { ...deps, broadcast: deps.broadcast ?? sseBroadcast, sessionId: deps.sessionId ?? (() => 'global'), exportsDir: deps.exportsDir ?? careerExportsDir() },
     };

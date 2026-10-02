@@ -2,11 +2,12 @@
  * Global 路由 `/api/career/*` 的前端封装（见 docs/API.md）。
  * 响应统一 `{ ok: true, ...data }`；列表字段名由后端决定，这里做宽容解包。
  */
-import { apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
+import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 
 import type {
   ActionQueueItem, Application, Board, Company, Direction, ExperienceNode, GapPlan, Interview, Job,
   MockInterview, Offer, ProbePrediction, ResumeMaster, ResumeTailored,
+  VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope,
 } from './types';
 
 type Dict = Record<string, unknown>;
@@ -107,6 +108,27 @@ export const careerApi = {
   createOffer: (body: Partial<Offer>) => apiPostJson<unknown>(careerPath('/offers'), body).then(r => pickObject<Offer>(r, 'offer')),
   updateOffer: (id: string, body: Partial<Offer>) =>
     apiPutJson<unknown>(careerPath(`/offers/${encodeURIComponent(id)}`), body).then(r => pickObject<Offer>(r, 'offer')),
+
+  // ----- 私密信息库（明文只在这组接口与用户之间流转，不经过模型） -----
+  vault: () => apiGetJson<unknown>(careerPath('/vault')).then(r => {
+    const d = asDict(r);
+    const empty: VaultOverview['status'] = { profile: { filled: [], missing: [] }, sites: [], experiences: [] };
+    return {
+      status: d.status && typeof d.status === 'object' ? (d.status as VaultOverview['status']) : empty,
+      items: pickList<VaultItemMeta>(d.items),
+      profileFields: pickList<VaultOverview['profileFields'][number]>(d.profileFields),
+      siteFields: pickList<string>(d.siteFields),
+    } satisfies VaultOverview;
+  }),
+  vaultSet: (body: { scope: VaultScope; ref_id?: string; field: string; value: string; label?: string | null; sensitive?: boolean; policy?: { autofill?: boolean } }) =>
+    apiPutJson<unknown>(careerPath('/vault/items'), body).then(r => pickObject<{ item: VaultItemMeta | null; deleted?: boolean }>(r)),
+  vaultSetPolicy: (id: string, policy: { autofill?: boolean }) =>
+    apiPostJson<unknown>(careerPath(`/vault/items/${encodeURIComponent(id)}/policy`), { policy }).then(r => pickObject<VaultItemMeta>(r, 'item')),
+  vaultDelete: (id: string) => apiDelete<unknown>(careerPath(`/vault/items/${encodeURIComponent(id)}`)),
+  vaultDeleteSite: (host: string) => apiDelete<unknown>(careerPath(`/vault/sites/${encodeURIComponent(host)}`)),
+  /** 回显明文供用户查看 / 编辑；后端记访问日志。 */
+  vaultReveal: (id: string) => apiPostJson<unknown>(careerPath(`/vault/items/${encodeURIComponent(id)}/reveal`), {}).then(r => String(asDict(r).value ?? '')),
+  vaultAccessLog: () => apiGetJson<unknown>(careerPath('/vault/access-log?limit=50')).then(r => pickList<VaultAccessLogRow>(r, 'log')),
 };
 
 /** 安全解析 JSON 字段；失败返回 fallback。 */

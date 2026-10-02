@@ -119,6 +119,21 @@ export interface CareerReviewEvent {
 export interface CareerDataChangedEvent {
   sessionId?: string | null; tables: string[];
 }
+// ---------- 私密信息库（镜像 packages/core/src/vault.ts，前端永远只拿元数据） ----------
+export type VaultScope = 'profile' | 'site' | 'experience';
+export interface VaultItemMeta {
+  id: string; scope: VaultScope; ref_id: string; field: string; label: string | null; preview: string | null;
+  sensitive: boolean; policy: { autofill?: boolean }; created_at: string; updated_at: string;
+}
+export interface VaultProfileFieldDef { field: string; label: string; sensitive: boolean; group: 'identity' | 'contact' | 'education' | 'preference'; hint?: string }
+export interface VaultStatus {
+  profile: { filled: Array<{ field: string; label: string; preview: string; sensitive: boolean }>; missing: Array<{ field: string; label: string }> };
+  sites: Array<{ host: string; label: string | null; hasUsername: boolean; hasPassword: boolean; autofill: boolean }>;
+  experiences: Array<{ experience_id: string; fields: Array<{ field: string; label: string | null; placeholder: string }> }>;
+}
+export interface VaultOverview { status: VaultStatus; items: VaultItemMeta[]; profileFields: VaultProfileFieldDef[]; siteFields: string[] }
+export interface VaultAccessLogRow { id: string; item_id: string | null; actor: string; purpose: string | null; at: string }
+
 /** 页面 → Chat Tab：请求执行接管动作（Session 路由）。Chat Tab 处理后回发 career:takeover-handled。 */
 export interface CareerTakeoverActionRequest {
   requestId: string; runId: string; action: 'take' | 'handback'; resumedFromStep?: string;

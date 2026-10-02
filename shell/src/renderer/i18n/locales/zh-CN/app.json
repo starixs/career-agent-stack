@@ -21,7 +21,8 @@
     "careerApply": "岗位与投递",
     "careerResearch": "调研",
     "careerInterview": "面试",
-    "careerOffer": "Offer"
+    "careerOffer": "Offer",
+    "careerVault": "私密信息"
   },
   "globalSidebar": {
     "navigation": "全局导航",
@@ -54,7 +55,8 @@
     "careerApply": "岗位与投递",
     "careerResearch": "调研",
     "careerInterview": "面试",
-    "careerOffer": "Offer"
+    "careerOffer": "Offer",
+    "careerVault": "私密信息"
   },
   "titlebar": {
     "helper": "小助理",
