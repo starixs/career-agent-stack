@@ -1,0 +1,25 @@
+{
+  "name": "career-agent",
+  "private": true,
+  "version": "0.1.0",
+  "description": "中国求职 Agent 工作台（单人全栈版）",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "shell:install": "cd shell && npm install",
+    "shell:dev": "cd shell && npm run dev",
+    "shell:test": "cd shell && npm run test:unit",
+    "build": "pnpm -r build",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "db:init": "pnpm --filter @career/core db:init"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4",
+    "tsx": "^4.20.5"
+  }
+}

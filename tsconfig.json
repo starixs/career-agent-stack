@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/apply" },
+    { "path": "packages/resume" },
+    { "path": "packages/bridges" }
+  ]
+}

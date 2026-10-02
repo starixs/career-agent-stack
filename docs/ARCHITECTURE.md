@@ -1,0 +1,24 @@
+# 产品架构契约（所有包必须遵守）
+
+产品 = `shell/`（keystone 基座的产品分支）+ `packages/*`（求职领域库）+ `skills/`（提示词技能包）。
+
+## 产品决策（已定，不再讨论）
+1. **单一对话**：只有一个"个人助理"对话区，没有多会话 / 工作区 / 多 Tab。一级入口固定为：对话、经历库、简历、岗位与投递、调研、面试、Offer。
+2. **所有功能在产品内完成**；LLM 唯一的外部动作是 Web Search。
+3. **内置国内模型，零配置**：OpenAI 兼容接口，默认 DeepSeek（可在打包时切换 Qwen / 豆包 / Kimi / GLM）。用户端没有任何模型设置项。
+4. **反检测进产品**（"像真人用自己的浏览器"）：真实 Chrome 持久 profile、去自动化标志、拟人节奏、限速与风险锁、被动捕获不注入请求。验证码 / 登录 / 2FA / 需本人作答的测评 / 最终提交 一律交给用户本人。
+5. **提交与发送永远过人**：`submit` / `send_greeting` / `answer_open_q` 三类动作只能从待审核队列被用户批准后执行（`@career/core` 的 `ACTIONS_REQUIRING_REVIEW`）。
+6. **不编造**：经历库里的主张默认 `pending`，只有用户确认或有强证据才能进简历；缺数据标"未知"。
+
+## 包约定
+- 语言 TypeScript，ESM，NodeNext；`tsc -b` 可编译，`vitest` 可测，测试放 `packages/<pkg>/test/*.test.ts`。
+- 只依赖 `@career/core` 提供的：`Db` / `Repos`（SQLite 仓储）、状态枚举、`LLM` 接口（`complete({system, messages, json})`）与 `FakeLLM`、`extractJson`、`loadSkill/skillPrompt`。
+- **不直接依赖任何模型 SDK**。需要模型就接收一个 `LLM` 实例。
+- 中文优先：提示词、错误信息、日志都用中文；输出结构字段用英文。
+- 需要浏览器的代码接收 `playwright-core` 的 `Page`，并额外提供一个可被 fake 的 `PageLike` 最小接口用于测试；**不自行启动浏览器**（浏览器由 shell 的 browser-host 托管）。
+- Python 模块（trident-scanner / docparse / intel-compass）只通过子进程或本地 HTTP 调用，不改它们的源码；路径与端口从环境变量读（见根目录 `.env.example`）。
+- 新增依赖：在包目录 `pnpm add <pkg>`；若遇 lockfile 冲突等几秒重试。
+- 每个包的 `src/index.ts` 导出公开 API，并在包根写 `README.md`（200 字内：做什么、怎么用、哪些是未实测的）。
+
+## 数据模型
+见 `packages/core/src/db/schema.sql`。状态流转见 `packages/core/src/states.ts`。

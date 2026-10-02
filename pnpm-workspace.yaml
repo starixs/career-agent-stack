@@ -1,0 +1,10 @@
+packages:
+  - packages/*
+allowBuilds:
+  esbuild: true
+onlyBuiltDependencies:
+  - esbuild
+  - playwright
+  - playwright-core
+  - sharp
+  - '@napi-rs/canvas'
