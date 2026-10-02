@@ -63,7 +63,12 @@ export class ApplyService {
     const experiences = this.repos.experienceTree().map(e => ({ title: e.title, org: e.org ?? undefined, role: e.role ?? undefined, period: [e.start_date, e.end_date].filter(Boolean).join('~') || undefined, claims: e.claims.filter(c => c.status !== 'pending').map(c => c.text) }))
     const answerBank = this.repos.db.all<{ question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number }>('SELECT question_key, question_text, answer, high_impact, confirmed FROM answer_bank ORDER BY confirmed DESC, updated_at DESC')
       .map(a => ({ question_key: a.question_key, question_text: a.question_text, answer: a.answer, high_impact: !!a.high_impact, confirmed: !!a.confirmed }))
-    return { basics, experiences, answerBank, resumePath }
+    // 教育经历：经历库里 type=education 的经历优先（title=学校，role=专业，summary=学历），否则由基本信息拼一段
+    const eduExps = this.repos.experienceTree().filter(e => e.type === 'education')
+    const education = eduExps.length
+      ? eduExps.map(e => ({ school: e.org ?? e.title, major: e.role ?? undefined, degree: e.summary ?? basics.degree, start: e.start_date ?? undefined, end: e.end_date ?? undefined }))
+      : basics.school ? [{ school: basics.school, major: basics.major, degree: basics.degree, end: basics.graduation }] : []
+    return { basics, experiences: experiences.filter(e => !eduExps.some(x => x.title === e.title)), education, answerBank, resumePath }
   }
 
   async run(page: PageLike, applicationId: string, profile: Profile, opts: ApplyRunOptions = {}): Promise<ApplyRunOutcome> {

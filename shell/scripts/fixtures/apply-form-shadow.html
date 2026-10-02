@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>自绘网申表单（closed shadow DOM）</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; margin: 0; padding: 32px; background: #fff; color: #222; }
+  h1 { font-size: 20px; margin: 0 0 24px; }
+  #host { display: block; }
+</style>
+</head>
+<body>
+<h1>自绘网申表单</h1>
+<div id="host"></div>
+<script>
+  // 所有输入框与按钮都在 closed shadow root 里：document.querySelectorAll 看不到它们，
+  // 只能靠截图识别文字 + 坐标点击 + 键盘输入（视觉兜底层）。
+  const host = document.getElementById('host');
+  const root = host.attachShadow({ mode: 'closed' });
+  root.innerHTML = `
+    <style>
+      .row { display: flex; align-items: center; margin-bottom: 18px; }
+      .row span { width: 100px; font-size: 16px; }
+      .row input { width: 240px; height: 34px; border: 1px solid #889; border-radius: 4px; padding: 0 8px; font-size: 15px; }
+      button { margin-top: 12px; height: 38px; padding: 0 24px; font-size: 15px; border-radius: 4px; border: 1px solid #36c; background: #36c; color: #fff; }
+    </style>
+    <div class="row"><span>姓名</span><input data-k="name"></div>
+    <div class="row"><span>手机号</span><input data-k="phone"></div>
+    <div class="row"><span>邮箱</span><input data-k="email"></div>
+    <div class="row"><span>毕业院校</span><input data-k="school"></div>
+    <button type="button" id="submit">提交申请</button>
+  `;
+  root.getElementById('submit').addEventListener('click', () => { window.__submitted = true; });
+  // 给冒烟脚本读回值用（真实站点没有这个）
+  window.__values = () => Object.fromEntries([...root.querySelectorAll('input')].map(i => [i.dataset.k, i.value]));
+</script>
+</body>
+</html>

@@ -12,7 +12,7 @@ import { useOpenWebLink } from '@/context/BrowserPanelContext';
 
 import { careerApi } from './careerApi';
 import { HANDOFF_REASON_LABELS, TAKEOVER_STATE_LABELS } from './careerConstants';
-import { Badge, Button, type BadgeTone } from './CareerPrimitives';
+import { Badge, Button, suggestToChat, type BadgeTone } from './CareerPrimitives';
 import type { CareerTakeoverEvent } from './types';
 
 const HANDLED_TIMEOUT_MS = 1500;
@@ -72,6 +72,8 @@ export function BrowserStatusBar() {
     setBusy(null);
     if (ok) {
       setTakeover(prev => (prev ? { ...prev, state: action === 'take' ? 'human_active' : 'resuming' } : prev));
+      // 交回后没有人会自动继续填表：把"继续"交给对话，由助理调用 apply_continue 从当前页接着填
+      if (action === 'handback') suggestToChat('浏览器里的事我已经处理完并交回了，请从当前页继续填表');
     } else {
       setNotice('操作失败，请稍后重试');
     }

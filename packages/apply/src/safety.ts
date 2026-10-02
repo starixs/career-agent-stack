@@ -2,6 +2,7 @@ import type { Repos, HandoffReason } from '@career/core'
 import type { PageSignals } from './scripts.js'
 import type { SiteAdapter } from './adapters/types.js'
 import { detectObstacle, detectRateLimit } from './guards.js'
+import { riskBackoffMinutes } from './obstacles.js'
 
 /**
  * RiskGuard：验证码 / 登录墙 / 限流提示 → trip(reason) 写入 kv 风险锁，shouldStop() 立刻为真；
@@ -13,6 +14,7 @@ export interface RiskGuardOptions { platform?: string; dailyPageCap?: number; lo
 
 export const riskLockKey = (platform: string) => `apply:risk_lock:${platform}`
 export const pageCountKey = (platform: string, day: string) => `apply:pages:${platform}:${day}`
+export const tripCountKey = (platform: string, day: string) => `apply:risk_trips:${platform}:${day}`
 export const dayOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 export class RiskGuard {
@@ -37,13 +39,22 @@ export class RiskGuard {
     if (this.pagesToday() >= this.dailyPageCap) return { stop: true, reason: 'daily_page_cap', detail: `今日已打开 ${this.pagesToday()} 页，达到上限 ${this.dailyPageCap}` }
     return { stop: false }
   }
-  /** 写风险锁；minutes 缺省用构造参数。 */
-  trip(reason: RiskReason, detail?: string, minutes = this.lockMinutes): RiskLock {
+  /**
+   * 写风险锁。minutes 缺省按当天第 n 次触发渐进退避（30 分钟 → 2 小时 → 12 小时 → 24 小时），
+   * 构造参数 lockMinutes 作为第一次的下限。
+   */
+  trip(reason: RiskReason, detail?: string, minutes?: number): RiskLock {
     const now = this.clock()
-    const lock: RiskLock = { until: new Date(now.getTime() + Math.max(1, minutes) * 60_000).toISOString(), reason, detail, at: now.toISOString() }
+    const day = dayOf(now)
+    const trips = (this.repos.kvGet<number>(tripCountKey(this.platform, day)) ?? 0)
+    this.repos.kvSet(tripCountKey(this.platform, day), trips + 1)
+    const mins = minutes ?? Math.max(this.lockMinutes, riskBackoffMinutes(trips))
+    const lock: RiskLock = { until: new Date(now.getTime() + Math.max(1, mins) * 60_000).toISOString(), reason, detail, at: now.toISOString() }
     this.repos.kvSet(riskLockKey(this.platform), lock)
     return lock
   }
+  /** 当天已触发风控的次数（给用户看"今天已经被拦了几次"）。 */
+  tripsToday(): number { return this.repos.kvGet<number>(tripCountKey(this.platform, dayOf(this.clock()))) ?? 0 }
   clear(): void { this.repos.kvSet(riskLockKey(this.platform), { until: new Date(0).toISOString(), reason: 'manual', at: this.clock().toISOString() }) }
   pagesToday(): number { return this.repos.kvGet<number>(pageCountKey(this.platform, dayOf(this.clock()))) ?? 0 }
   /** 打开一页前预留额度；超限返回 false（并不自动上锁，让调用方决定）。 */

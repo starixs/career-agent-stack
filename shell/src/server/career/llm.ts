@@ -79,6 +79,14 @@ export class ShellLLM implements LLM {
     return { env, model, baseUrl };
   }
 
+  /** 模型名含 flash / vision / vl / seed / glm-5.3-flash 之类视觉标记即视为支持图片；可用 CAREER_LLM_VISION=1/0 强制。 */
+  supportsImages(): boolean {
+    const forced = process.env.CAREER_LLM_VISION?.trim();
+    if (forced === '1' || forced === 'true') return true;
+    if (forced === '0' || forced === 'false') return false;
+    try { return /flash|vision|-vl|vl-|seed|omni/i.test(this.resolve().model); } catch { return false; }
+  }
+
   async complete(req: LlmRequest): Promise<LlmResponse> {
     const { env, model, baseUrl } = this.resolve();
 
@@ -87,10 +95,15 @@ export class ShellLLM implements LLM {
     if (req.json) systemParts.push(JSON_ONLY_INSTRUCTION);
     const system = systemParts.length > 0 ? systemParts.join('\n\n') : undefined;
 
+    const hasImages = req.messages.some(m => m.images?.length);
+    if (hasImages && !this.supportsImages()) throw new Error(`当前模型（${model}）不支持图片输入`);
     const body: Record<string, unknown> = {
       model,
       max_tokens: req.maxTokens ?? env.maxOutputTokens ?? this.defaultMaxTokens,
-      messages: req.messages.map(m => ({ role: m.role, content: m.content })),
+      // 有图片时用 Anthropic 内容块；纯文本仍用字符串（与现有单测 / 录制保持一致）
+      messages: req.messages.map(m => (m.images?.length
+        ? { role: m.role, content: [...m.images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } })), { type: 'text', text: m.content }] }
+        : { role: m.role, content: m.content })),
     };
     if (system) body.system = system;
     if (typeof req.temperature === 'number') body.temperature = req.temperature;

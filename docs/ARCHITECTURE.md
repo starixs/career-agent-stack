@@ -10,6 +10,7 @@
 5. **提交与发送永远过人**：`submit` / `send_greeting` / `answer_open_q` 三类动作只能从待审核队列被用户批准后执行（`@career/core` 的 `ACTIONS_REQUIRING_REVIEW`）。
 6. **不编造**：经历库里的主张默认 `pending`，只有用户确认或有强证据才能进简历；缺数据标"未知"。
 7. **私密信息不进模型**（`@career/core` 的 `Vault`）：真实姓名 / 手机 / 邮箱 / 证件号 / 住址、投递网站账号密码、经历的保密细节只在「私密信息」页由用户填写，AES-256-GCM 加密落 SQLite（密钥 `CAREER_DATA_DIR/vault.key`，0600）。模型侧只有 `vault_status`（字段名 + 脱敏预览），文本里用占位符 `{{vault:profile.phone}}` / `{{vault:exp.<经历id>.<字段>}}` 指代。两个 hook：**出口**（填表 / 登录代填 / 导出简历时在 Node 侧 `resolve` 成明文并写访问日志）与**入口**（所有 career 工具结果回传前 `redact` 把明文换回占位符）。登录代填只填账号密码输入框、不点登录，仍遵守第 4 条。
+8. **浏览器执行分层**（`@career/apply` 的 `driveApplication`）：L1 DOM 直驱（抽字段 → 规划 → 填写 → 读回核对）；L2 视觉兜底（DOM 抽不到字段 / 填不进去 / 找不到按钮时：截图 → `Perceiver`（DOM 盒子 + macOS Vision OCR，按标签位置合成输入框；可选视觉模型做分类）→ 坐标点击 + 键盘输入，按钮文案做 OCR 容错）；L3 交给用户（`describeObstacle` 说清要做什么：滑块 / 点选 / 短信码 / 图形码 / 浏览器检查，登录可先代填）。感知器只回答"哪里有什么"，点哪里填什么永远是确定性代码，提交类按钮任何一层都不点。风控：限流提示 / 跳转到验证页 → 风险锁按当天次数渐进退避（30 分钟 → 2 小时 → 12 小时 → 24 小时）。重复分区（教育 / 实习 / 项目"表格"）：按锚字段切行、逐行填、不够就点"添加"只填新出现的那一行。接管交还后由 `apply_continue` 从当前页继续。真实 Chrome 冒烟：`shell/scripts/career-browser-smoke.mjs`（不依赖 Tauri 能力令牌）。
 
 ## 包约定
 - 语言 TypeScript，ESM，NodeNext；`tsc -b` 可编译，`vitest` 可测，测试放 `packages/<pkg>/test/*.test.ts`。

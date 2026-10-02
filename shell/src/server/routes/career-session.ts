@@ -27,7 +27,8 @@ export interface CareerSessionRouteDeps {
 /** 通过 Browser capability 调 Global 的 `/api/career/browser/control`。 */
 export async function controlCareerBrowser(control: BrowserControl, reason?: string, fetchImpl: typeof fetch = fetch): Promise<void> {
   const capability = await acquireBrowserCapability();
-  const response = await fetchImpl(`${capability.url}/api/career/browser/control`, {
+  // capability.url 指向 Global 的 `/mcp/playwright`；career 路由在同一 origin 下
+  const response = await fetchImpl(`${new URL(capability.url).origin}/api/career/browser/control`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${capability.token}` },
     body: JSON.stringify({ control, ...(reason ? { reason } : {}) }),

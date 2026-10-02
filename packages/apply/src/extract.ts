@@ -17,6 +17,10 @@ export interface FormField {
   maxLength?: number
   placeholder?: string
   selector: string
+  /** 字段来自哪一层：dom（默认）或 vision（截图感知配对出的伪字段，只能用坐标操作）。 */
+  layer?: 'dom' | 'vision'
+  /** vision 层：输入框在视口中的包围盒。 */
+  box?: { x: number; y: number; w: number; h: number }
 }
 
 /** 确定性抽取：在页面里跑一段纯 DOM 脚本（FakePage 用内存模型回答）。 */

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>网申 · 教育与实习经历（可添加行）</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; margin: 0; padding: 32px; background: #f6f7f9; color: #222; }
+  h2 { font-size: 16px; margin: 24px 0 10px; }
+  .row { display: flex; gap: 12px; margin-bottom: 10px; align-items: center; }
+  .row label { display: flex; flex-direction: column; font-size: 12px; color: #555; }
+  .row input { width: 160px; height: 30px; border: 1px solid #ccd; border-radius: 4px; padding: 0 6px; margin-top: 4px; }
+  button { height: 32px; padding: 0 14px; border-radius: 4px; border: 1px solid #36c; background: #fff; color: #36c; }
+  button.primary { background: #36c; color: #fff; }
+</style>
+</head>
+<body>
+<h1>网申 · 教育与实习经历</h1>
+<div class="row"><label>姓名<input name="name"></label><label>手机号<input name="phone" type="tel"></label></div>
+
+<h2>教育经历</h2>
+<div id="edu">
+  <div class="row"><label>学校名称<input name="edu_school"></label><label>专业<input name="edu_major"></label><label>学历<input name="edu_degree"></label><label>入学时间<input name="edu_start"></label><label>毕业时间<input name="edu_end"></label></div>
+</div>
+<button type="button" id="add-edu">+ 添加教育经历</button>
+
+<h2>实习经历</h2>
+<div id="exp">
+  <div class="row"><label>公司名称<input name="exp_org"></label><label>职位<input name="exp_role"></label><label>开始时间<input name="exp_start"></label><label>结束时间<input name="exp_end"></label></div>
+</div>
+<button type="button" id="add-exp">+ 添加实习经历</button>
+
+<div style="margin-top:28px"><button type="button" class="primary" id="submit" onclick="document.body.insertAdjacentHTML('beforeend','<p id=done>提交成功</p>')">提交申请</button></div>
+<script>
+  const clone = (containerId) => { const c = document.getElementById(containerId); const row = c.firstElementChild.cloneNode(true); row.querySelectorAll('input').forEach(i => { i.value = ''; }); c.appendChild(row); };
+  document.getElementById('add-edu').addEventListener('click', () => clone('edu'));
+  document.getElementById('add-exp').addEventListener('click', () => clone('exp'));
+  window.__rows = () => ({
+    edu: [...document.querySelectorAll('#edu .row')].map(r => [...r.querySelectorAll('input')].map(i => i.value)),
+    exp: [...document.querySelectorAll('#exp .row')].map(r => [...r.querySelectorAll('input')].map(i => i.value)),
+  });
+</script>
+</body>
+</html>

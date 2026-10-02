@@ -3,7 +3,9 @@
  * 真实实现在 @career/agent（Anthropic SDK / OpenAI 兼容），测试用 FakeLLM。
  */
 export type LlmRole = 'user' | 'assistant'
-export interface LlmMessage { role: LlmRole; content: string }
+/** 图片输入（视觉模型）：base64 数据 + MIME。文本模型实现应忽略或报错，不得静默丢弃后继续假装看过图。 */
+export interface LlmImage { mediaType: 'image/jpeg' | 'image/png' | 'image/webp'; data: string }
+export interface LlmMessage { role: LlmRole; content: string; images?: LlmImage[] }
 export interface LlmRequest {
   system?: string
   messages: LlmMessage[]
@@ -17,6 +19,8 @@ export interface LlmResponse { text: string; usage: LlmUsage }
 
 export interface LLM {
   complete(req: LlmRequest): Promise<LlmResponse>
+  /** 是否支持图片输入；缺省视为不支持。 */
+  supportsImages?(): boolean
 }
 
 /** 从模型回复里抽 JSON（容忍 ```json 代码块与前后噪声）。 */

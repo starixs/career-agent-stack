@@ -47,7 +47,61 @@ export const SCRIPT_IDS = {
   extractFields: 'career.extractFields',
   pageSignals: 'career.pageSignals',
   scrollBy: 'career.scrollBy',
+  domBoxes: 'career.domBoxes',
+  elementAt: 'career.elementAt',
 } as const
+
+/** DOM 可见元素的视口包围盒（给视觉层做"DOM 盒子 + OCR 文字"的混合感知）。 */
+export interface DomBox { kind: 'input' | 'button' | 'text' | 'select' | 'checkbox' | 'radio' | 'link'; text: string; x: number; y: number; w: number; h: number }
+export const domBoxesScript: PageScript<void, DomBox[]> = {
+  id: SCRIPT_IDS.domBoxes,
+  fn: () => {
+    const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim().slice(0, 120)
+    const out: DomBox[] = []
+    const vw = window.innerWidth, vh = window.innerHeight
+    const push = (kind: DomBox['kind'], el: Element, text: string) => {
+      const r = el.getBoundingClientRect()
+      if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.right < 0 || r.top > vh || r.left > vw) return
+      out.push({ kind, text: clean(text), x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) })
+    }
+    const vis = (el: Element) => { const h = el as HTMLElement; if (h.offsetParent === null) { try { return getComputedStyle(h).position === 'fixed' } catch { return false } } return true }
+    for (const el of Array.from(document.querySelectorAll('input, textarea, select, [contenteditable="true"], [role="combobox"], [role="textbox"]'))) {
+      if (!vis(el)) continue
+      const input = el as HTMLInputElement
+      const t = (input.type || '').toLowerCase()
+      if (['hidden', 'submit', 'button', 'image', 'reset'].includes(t)) continue
+      const kind: DomBox['kind'] = t === 'checkbox' ? 'checkbox' : t === 'radio' ? 'radio' : (el.tagName === 'SELECT' || el.getAttribute('role') === 'combobox') ? 'select' : 'input'
+      push(kind, el, input.placeholder || input.getAttribute('aria-label') || '')
+    }
+    for (const el of Array.from(document.querySelectorAll('button, a[href], input[type="submit"], input[type="button"], [role="button"]'))) {
+      if (!vis(el)) continue
+      const text = (el as HTMLElement).innerText || (el as HTMLInputElement).value || el.getAttribute('aria-label') || ''
+      if (!clean(text)) continue
+      push(el.tagName === 'A' ? 'link' : 'button', el, text)
+    }
+    for (const el of Array.from(document.querySelectorAll('label, legend, th, dt, [class*="label" i], [class*="title" i], h1, h2, h3, h4, h5, p, span, div'))) {
+      if (out.length > 600) break
+      if (!vis(el)) continue
+      // 只要"叶子"文本：没有块级子元素
+      if (el.children.length > 3) continue
+      const text = clean(el.textContent)
+      if (!text || text.length > 60) continue
+      if (el.closest('button, a, select, option')) continue
+      push('text', el, text)
+    }
+    return out
+  },
+}
+
+/** 坐标处是什么元素（视觉层点击前 / 后回查 DOM）。 */
+export const elementAtScript: PageScript<{ x: number; y: number }, { tag: string; type?: string; label?: string } | null> = {
+  id: SCRIPT_IDS.elementAt,
+  fn: ({ x, y }) => {
+    const el = document.elementFromPoint(x, y)
+    if (!el) return null
+    return { tag: el.tagName.toLowerCase(), type: (el as HTMLInputElement).type || undefined, label: (el.getAttribute('aria-label') || (el as HTMLInputElement).placeholder || el.textContent || '').trim().slice(0, 80) || undefined }
+  },
+}
 
 /** 抽取表单字段并给每个控件打上 data-career-field 标记（radio 组额外打 data-career-option）。 */
 export const extractFieldsScript: PageScript<void, RawField[]> = {

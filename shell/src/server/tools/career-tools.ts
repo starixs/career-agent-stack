@@ -8,7 +8,7 @@
 // SDK + zod 只在 createCareerServer() 内动态 import（builtin-mcp-registry 的 lazy 约束）。
 import { existsSync } from 'fs';
 import { basename } from 'path';
-import type { Repos, LLM, Job, JdParsed, Claim, Vault } from '@career/core';
+import type { Repos, LLM, Job, JdParsed, Claim, Vault, ActionQueueItem, Task } from '@career/core';
 
 import { loadCore } from '../career/core-module';
 import { getRepos, careerExportsDir } from '../career/db';
@@ -169,9 +169,11 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
   const browserRun = deps.browserRun ?? (async (body, onEvent) => {
     const parentSignal = getCurrentTurnSignal(sessionId());
     const cap = await acquireBrowserCapability(parentSignal);
+    // capability.url 指向 Global 的 `/mcp/playwright`，career 路由挂在同一 origin 下（直接拼会 404）
+    const origin = new URL(cap.url).origin;
     // 填表 run 可能持续数分钟（NDJSON 流）；跟随当前 turn 的 abort，并给 10 分钟上限。
     const response = await cancellableFetch(
-      `${cap.url}/api/career/browser/run`,
+      `${origin}/api/career/browser/run`,
       { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cap.token}` }, body: JSON.stringify(body) },
       { parentSignal, timeoutMs: 10 * 60_000 },
     );
@@ -250,6 +252,91 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     school: z.string(), degree: z.string().optional(), major: z.string().optional(), start: z.string().optional().describe('如 2021.09'), end: z.string().optional().describe('如 2025.06 / 至今'),
     gpa: z.string().optional(), courses: z.array(z.string()).optional(),
   });
+
+  /**
+   * apply_run / apply_continue 共用：驱动一次 drive，并按 NDJSON 结果更新动作 / 任务 / 接管 / 阶段。
+   * 浏览器路由只发 progress / page / result / error 四种行；接管体现在 result.status === 'handoff'，
+   * 错误行（501 引擎未就绪 / 400 缺资料 / 401 / 409）一律按失败处理，不再被误记成"已填好"。
+   */
+  async function runDrive(action: ActionQueueItem, mode: 'start' | 'continue'): Promise<CallToolResult> {
+    const r = repos();
+    const payload = parseJson<Record<string, unknown>>(action.payload_json) ?? {};
+    const runId = `run_${action.id}`;
+    const registry = runs();
+    let task = mode === 'continue' ? r.db.get<Task>('SELECT * FROM task WHERE kind=? AND payload_json LIKE ? ORDER BY created_at DESC LIMIT 1', ['apply', `%"action_id":"${action.id}"%`]) : undefined;
+    if (!task) task = r.createTask({ title: `网申填表 ${String(payload.job_id ?? '')}`, kind: 'apply', sessionId: sessionId(), payload: { ...payload, action_id: action.id } });
+    const taskId = task.id;
+    r.updateTask(taskId, { status: 'running' });
+    if (mode === 'continue') for (const h of r.openHandoffs()) if (h.action_id === action.id) r.closeHandoff(h.id, 'apply_continue');
+    r.setActionStatus(action.id, 'executing');
+    if (action.application_id) { try { r.transition(action.application_id, 'pending', mode === 'start' ? 'apply_run 开始' : 'apply_continue 继续'); } catch { /* 阶段已在执行态 */ } }
+    changed('task', 'action_queue', 'application', 'handoff');
+    const existing = registry.get(runId);
+    if (!existing) registry.start(runId, { taskId, actionId: action.id, url: typeof payload.url === 'string' ? payload.url : undefined });
+    else if (existing.state !== 'running') {
+      try {
+        if (existing.state === 'paused' || existing.state === 'human_active') registry.transition(runId, 'resuming');
+        registry.transition(runId, 'running', { handoffId: undefined });
+      } catch { registry.finish(runId); registry.start(runId, { taskId, actionId: action.id }); }
+    }
+    const failRun = (message: string, summary?: Record<string, unknown>, kind: 'blocked' | 'failed' = 'failed') => {
+      r.setActionStatus(action.id, 'failed', { error: message, ...(summary ? { summary } : {}) });
+      r.updateTask(taskId, { status: 'failed' });
+      registry.finish(runId);
+      if (action.application_id) { try { r.transition(action.application_id, 'blocked', message, { blocker_reason: message, next_action: '查看阻塞原因后重试' }); } catch { /* ignore */ } }
+      changed('task', 'action_queue', 'application');
+      return err(`填表${kind === 'blocked' ? '被阻塞' : '执行失败'}：${message}`);
+    };
+    const events: Array<Record<string, unknown>> = [];
+    try {
+      // 填表资料（姓名 / 手机 / 邮箱 / 证件号…）由浏览器路由在 Node 侧从私密库组装，这里不传、也看不到明文；
+      // 返回的事件已脱敏（明文 → {{vault:...}} 占位符）。continue 不传 url：从当前页继续。
+      const resumePath = await resumeFileFor(payload.resume_id);
+      await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload, ...(mode === 'start' && typeof payload.url === 'string' ? { url: payload.url } : {}), ...(resumePath ? { resumePath } : {}) }, (ev) => {
+        events.push(ev);
+        if (ev.type === 'progress') progress('apply_run', String(ev.message ?? ''), { runId, taskId, progress: ev.progress });
+      });
+    } catch (error) {
+      return failRun(error instanceof Error ? error.message : String(error));
+    }
+    const errorLine = events.find(e => e.type === 'error') as { status?: number; error?: string } | undefined;
+    const result = [...events].reverse().find(e => e.type === 'result' && e.op === 'drive')?.result as Record<string, unknown> | undefined;
+    if (!result) return failRun(errorLine ? `${errorLine.error ?? '浏览器路由报错'}（HTTP ${errorLine.status ?? '?'}）` : '浏览器没有返回填表结果');
+    const count = (k: string) => (Array.isArray(result[k]) ? (result[k] as unknown[]).length : 0);
+    const summary: Record<string, unknown> = {
+      status: result.status, reason: result.reason, message: result.message, userAction: result.userAction, finalUrl: result.finalUrl, adapter: result.adapterId,
+      filled: result.filled, needsUser: result.needsUser, drafts: result.drafts, mismatches: result.mismatches, uploads: result.uploads,
+      escalations: result.escalations, layersUsed: result.layersUsed, submitButton: result.submitButton, loginFilled: result.loginFilled,
+    };
+    const status = String(result.status ?? '');
+    if (status === 'handoff') {
+      const reason = String(result.reason ?? 'user_request') as never;
+      const userAction = typeof result.userAction === 'string' ? result.userAction : undefined;
+      const h = r.openHandoff(reason, { actionId: action.id, taskId, message: typeof result.message === 'string' ? result.message : undefined });
+      try { registry.pause(runId, reason, { handoffId: h.id, url: typeof result.finalUrl === 'string' ? result.finalUrl : undefined, message: userAction ?? (typeof result.message === 'string' ? result.message : undefined) }); } catch { /* 已是暂停态 */ }
+      r.setActionStatus(action.id, 'needs_user', summary);
+      if (action.application_id) { try { r.transition(action.application_id, 'needs_user', String(result.message ?? reason), { page_url: typeof result.finalUrl === 'string' ? result.finalUrl : undefined, blocker_reason: `${reason}: ${result.message ?? ''}`, next_action: '处理接管后继续' }); } catch { /* ignore */ } }
+      changed('handoff', 'task', 'action_queue', 'application');
+      return text({ runId, taskId, state: 'paused', handoffId: h.id, reason, userAction, summary, note: '已暂停：请把 userAction 原话告诉用户；用户在浏览器里处理完并点"交回"后，调用 apply_continue(action_id) 从当前页继续。' });
+    }
+    if (status === 'stopped_before_submit') {
+      r.setActionStatus(action.id, 'done', summary);
+      const submitAction = r.enqueueAction('submit', { url: result.finalUrl, submitButton: result.submitButton, summary: { filled: count('filled'), needsUser: count('needsUser'), drafts: count('drafts'), mismatches: count('mismatches') } }, action.application_id);
+      r.updateTask(taskId, { status: 'done', progress: 1 });
+      registry.finish(runId);
+      const pending = count('needsUser') + count('drafts') + count('mismatches');
+      if (action.application_id) {
+        try {
+          if (pending > 0) r.transition(action.application_id, 'needs_user', `需要你补充 ${pending} 项后再提交`, { page_url: typeof result.finalUrl === 'string' ? result.finalUrl : undefined, next_action: '补充缺项后审核提交' });
+          else r.db.update('application', action.application_id, { page_url: typeof result.finalUrl === 'string' ? result.finalUrl : null, next_action: '审核后提交', blocker_reason: null, updated_at: new Date().toISOString() });
+        } catch { /* ignore */ }
+      }
+      review([submitAction.id], 'submit', `表单已填好${result.submitButton ? `，停在「${String(result.submitButton)}」前` : ''}，确认后由你本人提交`);
+      changed('task', 'action_queue', 'application');
+      return text({ runId, taskId, state: 'done', submitActionId: submitAction.id, summary, note: `表单已填好但未提交；提交动作已进待审核队列，用户批准后由本人完成。${pending > 0 ? `有 ${pending} 项需要用户补充 / 确认（见 needsUser / drafts / mismatches）。` : ''}` });
+    }
+    return failRun(String(result.message ?? status), summary, status === 'blocked' ? 'blocked' : 'failed');
+  }
 
   return createSdkMcpServer({
     name: 'career',
@@ -524,55 +611,18 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ application, action, note: '动作已进入待审核队列；用户批准后调用 apply_run(action_id)。' });
       })()),
 
-      tool('apply_run', '在托管浏览器上执行已批准的填表动作（不提交）；遇验证码 / 登录 / 测评等自动暂停并交给用户接管。', { action_id: z.string() }, async (args) => wrap(async () => {
-        const r = repos();
-        const action = r.getAction(args.action_id);
+      tool('apply_run', '在托管浏览器上执行已批准的填表动作（不提交）；遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
+        const action = repos().getAction(args.action_id);
         if (!action) return err(`动作不存在：${args.action_id}`);
-        if (action.status !== 'approved') return err(`动作状态为 ${action.status}，只能执行已批准（approved）的动作`);
-        const payload = parseJson<Record<string, unknown>>(action.payload_json) ?? {};
-        const task = r.createTask({ title: `网申填表 ${String(payload.job_id ?? '')}`, kind: 'apply', sessionId: sessionId(), payload });
-        r.updateTask(task.id, { status: 'running' });
-        r.setActionStatus(action.id, 'executing');
-        if (action.application_id) { try { r.transition(action.application_id, 'pending', 'apply_run 开始'); } catch { /* 阶段已在执行态 */ } }
-        changed('task', 'action_queue', 'application');
-        const runId = `run_${action.id}`;
-        const registry = runs();
-        registry.start(runId, { taskId: task.id, actionId: action.id, url: typeof payload.url === 'string' ? payload.url : undefined });
-        const events: Array<Record<string, unknown>> = [];
-        let handoffId: string | undefined;
-        try {
-          // 填表资料（姓名 / 手机 / 邮箱 / 证件号…）由浏览器路由在 Node 侧从私密库组装，这里不传、也看不到明文；
-          // 返回的事件已脱敏（明文 → {{vault:...}} 占位符）。
-          const resumePath = await resumeFileFor(payload.resume_id);
-          await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload, url: payload.url, ...(resumePath ? { resumePath } : {}) }, (ev) => {
-            events.push(ev);
-            const type = String(ev.type ?? '');
-            if (type === 'progress') progress('apply_run', String(ev.message ?? ''), { runId, taskId: task.id, progress: ev.progress });
-            if (type === 'handoff') {
-              const reason = String(ev.reason ?? 'missing_info') as never;
-              const h = r.openHandoff(reason, { actionId: action.id, taskId: task.id, message: typeof ev.message === 'string' ? ev.message : undefined });
-              handoffId = h.id;
-              registry.pause(runId, reason, { handoffId: h.id, url: typeof ev.url === 'string' ? ev.url : undefined, message: typeof ev.message === 'string' ? ev.message : undefined });
-              changed('handoff', 'task', 'action_queue');
-            }
-          });
-        } catch (error) {
-          r.setActionStatus(action.id, 'failed', { error: error instanceof Error ? error.message : String(error) });
-          r.updateTask(task.id, { status: 'failed' });
-          registry.finish(runId);
-          changed('task', 'action_queue');
-          return err(`填表执行失败：${error instanceof Error ? error.message : String(error)}`);
-        }
-        if (handoffId) {
-          return text({ runId, taskId: task.id, state: 'paused', handoffId, events: events.slice(-20), note: '已暂停等待用户接管；用户处理完后由前端接管条交还。' });
-        }
-        const last = events[events.length - 1];
-        r.setActionStatus(action.id, 'done', last ?? null);
-        r.updateTask(task.id, { status: 'done', progress: 1 });
-        if (action.application_id) { try { r.transition(action.application_id, 'needs_user', '表单已填好，等待用户本人确认提交'); } catch { /* ignore */ } }
-        registry.finish(runId);
-        changed('task', 'action_queue', 'application');
-        return text({ runId, taskId: task.id, state: 'done', events: events.slice(-20), note: '表单已填好但未提交；最终提交必须由用户本人完成。' });
+        if (action.status !== 'approved') return err(`动作状态为 ${action.status}，只能执行已批准（approved）的动作${action.status === 'needs_user' || action.status === 'executing' ? '；要从接管处继续请用 apply_continue' : ''}`);
+        return runDrive(action, 'start');
+      })()),
+
+      tool('apply_continue', '用户在浏览器里处理完登录 / 验证码 / 测评并交还后，从当前页面继续填表（不重新打开链接，不提交）。', { action_id: z.string().describe('之前 apply_run 的 action_id') }, async (args) => wrap(async () => {
+        const action = repos().getAction(args.action_id);
+        if (!action) return err(`动作不存在：${args.action_id}`);
+        if (action.status !== 'needs_user' && action.status !== 'executing') return err(`动作状态为 ${action.status}，只有接管中（needs_user / executing）的填表动作可以继续`);
+        return runDrive(action, 'continue');
       })()),
 
       tool('greeting_compose', '生成平台招呼语（≤120 字）并自评审，入 send_greeting 待审队列；永远不会直接发送。', {

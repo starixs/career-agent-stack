@@ -51,7 +51,8 @@
 | GET | `/api/career/vault/access-log?limit=` | 谁在什么时候读过哪一项（form_fill / login_fill / resume_export / ui） |
 
 简历导出（`/resumes/:id/export`、`/file`）在渲染前把 `{{vault:...}}` 占位符解成明文；落库的 `schema_json` 不变。
-浏览器 `run` 的 `op:'drive'` 不再要求调用方传 `profile`：资料由 Global 侧车从 SQLite + 私密库组装（`defaultDriveProfile`），返回的 `page` / `result` 事件已脱敏。
+浏览器 `run` 的 `op:'drive'` 不再要求调用方传 `profile`：资料由 Global 侧车从 SQLite + 私密库组装（`defaultDriveProfile`），返回的 `page` / `result` 事件已脱敏。`drive` 缺省带视觉兜底感知器（`defaultPerceiver`：DOM 盒子 + macOS Vision OCR；`CAREER_VISION_OCR=0` 关闭；`CAREER_VISION_VLM=1` 且模型支持图片时再加视觉模型），`body.vision:false` 可只走 DOM 层；不传 `url` 表示从当前页继续（apply_continue）。`result` 里多了 `userAction` / `captchaKind` / `escalations` / `layersUsed` / `pages[].sections`。
+`apply_run` 调 Global 路由时用 capability.url 的 origin 拼路径（capability.url 本身指向 `/mcp/playwright`）。
 
 ### Global：浏览器（供 Session 工具调用，Bearer token = browser capability token）
 | 方法 | 路径 | 说明 |
@@ -98,7 +99,8 @@
 | `company_research` | company_name | intel-compass 九段报告 → company 表 |
 | `web_search` | query, count? | 唯一的外部动作 |
 | `apply_prepare` | job_id, resume_id | 入队 fill_form（需审核）并创建 application |
-| `apply_run` | action_id | 在托管浏览器上执行填表 run（不提交）；遇验证码等 → handoff |
+| `apply_run` | action_id | 在托管浏览器上执行填表 run（不提交）。结果按浏览器路由的 `result.status` 处理：`stopped_before_submit` → submit 进待审队列；`handoff` → 开接管、动作 needs_user、返回 `userAction`（该让用户做什么）；`blocked` / `failed` / 路由 `error` 行 → 动作 failed、投递 blocked |
+| `apply_continue` | action_id | 用户在浏览器里处理完登录 / 验证码 / 测评并点"交回"后，从当前页继续填表（不重新打开链接）；复用同一任务，关闭该动作的接管 |
 | `greeting_compose` | job_id | 生成招呼语并入队 send_greeting（待审） |
 | `review_queue` | status? | 列出待审动作 |
 | `interview_*` | … | questions / probe / project_story / retro / predict |

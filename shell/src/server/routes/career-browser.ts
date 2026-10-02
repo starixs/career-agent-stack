@@ -44,6 +44,16 @@ export interface ApplyEngineModule {
   ): Promise<Record<string, unknown> & { screenshot?: Uint8Array }>;
   /** 从 Repos + 私密库组装填表资料（basics 明文只在 Node 侧）。 */
   ApplyService?: new (repos: unknown, llm: LlmLike, defaults?: { vault?: unknown }) => { buildProfile(resumePath?: string): Record<string, unknown> };
+  /** 视觉兜底层（L2）的感知器构件；旧版本的包没有这些导出时只走 DOM 层。 */
+  DomBoxPerceiver?: new (page: ApplyPageLike) => PerceiverLike;
+  composePerceivers?: (perceivers: PerceiverLike[], id?: string) => PerceiverLike;
+  synthesizeInputsFromLabels?: (p: unknown) => unknown;
+  VlmPerceiver?: new (llm: LlmLike, base?: PerceiverLike) => PerceiverLike;
+}
+
+export interface PerceiverLike {
+  id: string;
+  perceive(screenshot: Uint8Array, ctx: { viewport: { width: number; height: number }; url?: string; hint?: string }): Promise<unknown>;
 }
 
 /** `drive` 的资料包：资料本体 + 私密库三个钩子（解占位符 / 登录代填 / 回传脱敏）。 */
@@ -61,6 +71,7 @@ export interface ApplyPageLike {
 
 export interface LlmLike {
   complete(request: unknown): Promise<unknown>;
+  supportsImages?(): boolean;
 }
 
 export interface CareerBrowserRouteDependencies {
@@ -74,9 +85,36 @@ export interface CareerBrowserRouteDependencies {
    * 调用方（模型工具）不传、也拿不到 basics 明文。请求体里的 `profile` 只作测试 / 兜底。
    */
   resolveDriveProfile?: (body: Record<string, unknown>, apply: ApplyEngineModule, llm: LlmLike) => Promise<DriveProfileBundle | null>;
+  /** `drive` 的视觉兜底感知器；缺省 {@link defaultPerceiver}（DOM 盒子 + macOS OCR，可选视觉模型）。返回 undefined 则只走 DOM 层。 */
+  createPerceiver?: (apply: ApplyEngineModule, page: ApplyPageLike, llm: LlmLike) => Promise<PerceiverLike | undefined>;
 }
 
 let registeredLlmResolver: (() => Promise<LlmLike | null>) | null = null;
+
+/**
+ * 缺省感知器：DOM 盒子（零成本）+ macOS Vision OCR（只认字，再按标签位置合成输入框）合并；
+ * 设 CAREER_VISION_VLM=1 且模型支持图片时，再包一层视觉模型做分类 / 补充。任一构件缺失就降级，不报错。
+ */
+export async function defaultPerceiver(apply: ApplyEngineModule, page: ApplyPageLike, llm: LlmLike): Promise<PerceiverLike | undefined> {
+  const layers: PerceiverLike[] = [];
+  if (typeof apply.DomBoxPerceiver === 'function') layers.push(new apply.DomBoxPerceiver(page));
+  if (process.env.CAREER_VISION_OCR !== '0') {
+    try {
+      const { AppleVisionOcrPerceiver, appleVisionAvailable } = await import('../career/perceivers/apple-vision-ocr');
+      if (appleVisionAvailable()) {
+        const ocr = new AppleVisionOcrPerceiver();
+        const synth = apply.synthesizeInputsFromLabels;
+        layers.push(synth ? { id: 'apple-vision-ocr+labels', perceive: async (s, c) => synth(await ocr.perceive(s, c)) } : ocr);
+      }
+    } catch (error) {
+      console.warn('[career] OCR 感知器不可用：', error instanceof Error ? error.message : error);
+    }
+  }
+  if (!layers.length) return undefined;
+  const base = layers.length > 1 && typeof apply.composePerceivers === 'function' ? apply.composePerceivers(layers) : layers[0];
+  if (process.env.CAREER_VISION_VLM === '1' && typeof apply.VlmPerceiver === 'function' && llm.supportsImages?.()) return new apply.VlmPerceiver(llm, base);
+  return base;
+}
 
 /** 缺省资料组装：basics 来自私密库（兜底 kv:profile.basics），经历 / 答案库来自 Repos；三个钩子都绑到私密库。 */
 export async function defaultDriveProfile(body: Record<string, unknown>, apply: ApplyEngineModule, llm: LlmLike): Promise<DriveProfileBundle | null> {
@@ -391,13 +429,18 @@ async function runOperation(
     out.emit({ type: 'progress', phase: 'navigate', message: `打开 ${url}` });
     await engineLikePage.goto(url);
   }
-  out.emit({ type: 'progress', phase: 'drive', message: '开始填写（不提交）' });
+  let perceiver: PerceiverLike | undefined;
+  if (body.vision !== false) {
+    try { perceiver = await (deps.createPerceiver ?? defaultPerceiver)(apply, engineLikePage, llm); } catch (error) { out.emit({ type: 'progress', phase: 'drive', message: `视觉兜底层不可用：${error instanceof Error ? error.message : String(error)}` }); }
+  }
+  out.emit({ type: 'progress', phase: 'drive', message: `开始填写（不提交）${perceiver ? `，视觉兜底：${perceiver.id}` : ''}` });
   const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
     maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
     humanTyping: body.humanTyping !== false,
     ...(typeof body.settleMs === 'number' ? { settleMs: body.settleMs } : {}),
     ...(bundle.resolveValue ? { resolveValue: bundle.resolveValue } : {}),
     ...(bundle.loginFill ? { loginFill: bundle.loginFill } : {}),
+    ...(perceiver ? { perceiver } : {}),
     log: (message: string) => out.emit({ type: 'progress', phase: 'drive', message: redact(message) }),
     onPage: (record: unknown) => out.emit({ type: 'page', record: redact(record) }),
   });

@@ -12,11 +12,14 @@ import type { SiteAdapter } from './adapters/types.js'
  */
 
 export interface ProfileExperience { title: string; org?: string; role?: string; period?: string; claims: string[] }
+export interface ProfileEducation { school: string; major?: string; degree?: string; start?: string; end?: string }
 export interface AnswerBankEntry { question_key: string; question_text?: string; answer: string; high_impact: boolean; confirmed?: boolean }
 export interface Profile {
   /** 键：name/email/phone/gender/birthday/school/major/degree/graduation/city/wechat/politics/hometown/availableDate/linkedin/github/portfolio/idNumber … */
   basics: Record<string, string | undefined>
   experiences: ProfileExperience[]
+  /** 教育经历（多段；缺省由 basics 的学校 / 专业 / 学历拼成一段）。重复分区"教育经历"按它逐行填。 */
+  education?: ProfileEducation[]
   answerBank: AnswerBankEntry[]
   /** 简历文件路径（有则自动上传）。 */
   resumePath?: string
