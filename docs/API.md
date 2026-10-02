@@ -39,6 +39,24 @@
 | POST/PUT | `/api/career/offers[/:id]` | 新建 / 更新 |
 | GET | `/api/career/answer-bank` | answer_bank[] |
 | POST | `/api/career/answer-bank` | `{question_key, question_text, answer, high_impact?, confirmed?}` |
+| GET | `/api/career/today` | 今日队列 `{items: TodayItem[], waiting, inbox_new, pending_review}`（排序：过期 / 今天 → 待审 → 接管 → 今日面试 → 新收件 → 静默） |
+| GET | `/api/career/onboarding` | 首次引导清单 `{checklist}` |
+| GET / POST | `/api/career/inbox` | 收件箱列表（`?status=new`）/ `{text, source?, application_id?}` → 归档结果 `{result}` |
+| POST | `/api/career/inbox/:id/dismiss` · `/retry` | 忽略 / 重新识别（可带 application_id） |
+| GET / POST | `/api/career/deadlines` | 截止事件（`?status=open|open_or_missed|…`）/ `{kind, title, due_at, application_id?, job_id?, url?, note?}` |
+| POST | `/api/career/deadlines/:id/status` | `{status: open|done|missed|cancelled}` |
+| GET | `/api/career/dossiers` · `/dossiers/:applicationId` | 卷宗摘要 / 完整卷宗（简历版本、说过的话、邮件、截止、面试、Offer、待审动作、时间线、预测） |
+| POST | `/api/career/dossiers/:id/notes` | `{kind: note|said|heard|contact|referral, round?, content}` |
+| POST | `/api/career/applications/:id/close-silent` | 静默超时关闭（→ discarded 并写笔记） |
+| GET / POST / PUT / DELETE | `/api/career/materials[/:id]` | 素材库 CRUD（`?kind=`） |
+| GET / POST | `/api/career/materials/uses` | 使用记录（`?application_id=&company_name=&material_id=`）/ `{material_id?, application_id?, company_name?, context, content_snapshot}` |
+| POST | `/api/career/materials/draft` | `{kind, question, length?, job_id?, application_id?, company_name?}` → 草稿 + conflicts（需模型） |
+| GET | `/api/career/review` | `{funnel: {overall, by_category, by_platform}, reviews}` |
+| POST | `/api/career/review/weekly` | `{week_start?, user_note?}` → 生成并保存周复盘（无模型时只存漏斗） |
+| GET / POST | `/api/career/mail/accounts` | 账号与预设 / 绑定 `{address, password?, provider?, display_name?, imap_host?, smtp_host?, verify?}`（立即同步一次验证） |
+| DELETE | `/api/career/mail/accounts/:id` | 解绑并删除本机授权码 |
+| POST | `/api/career/mail/sync` | `{account_id?}` → 同步结果（新邮件进收件箱 / 卷宗） |
+| GET | `/api/career/mail/messages` | `?application_id=&direction=in|out&relevance=job&limit=` |
 
 ### Global：浏览器（供 Session 工具调用，Bearer token = browser capability token）
 | 方法 | 路径 | 说明 |
@@ -59,9 +77,11 @@
 - `career:takeover` `{sessionId, runId, state:'running'|'paused'|'human_active'|'resuming', reason?, url?, message?}`（critical）
 - `career:review` `{sessionId, actionIds:string[], kind, summary}`（critical）
 - `career:data-changed` `{sessionId, tables:string[]}`（coalescible；页面据此刷新）
+- `career:focus` `{sessionId, surface:'today'|'inbox'|'dossier'|'material'|'review'|'guide', id?, application_id?, job_id?, note?}`（critical；App 打开对应的面，面内定位对象）
+- 渲染端内部事件 `career:chat-suggest` `{text, context:{surface, refs, note}}`：面板按钮 → Chat 真正发送（带隐藏对象 id 上下文）
 
 ## 常驻工具集 `career`（Pattern 1 注入，用户不可关）
-工具只做两类事：读写数据层；把需要执行的动作入队或触发 run。**submit / send_greeting / answer_open_q 永远只入待审队列。**
+工具只做两类事：读写数据层；把需要执行的动作入队或触发 run。**submit / send_greeting / answer_open_q / send_mail 永远只入待审队列。** 写库后尽量调用 `focus()` 推 `career:focus`。
 
 | 工具 | 参数 | 行为 |
 |---|---|---|
@@ -91,5 +111,16 @@
 | `direction_explore` | prefs | 结合 web_search 给 2–3 个方向 |
 | `gap_plan` | job_id | 差距三分类 + 可验收任务 |
 | `offer_compare` | offer_ids | 对比表 |
+| `today_queue` | – | 今日队列（给用户最多三件） |
+| `inbox_capture` | text, source?, application_id? | 归档任何内容：建岗位 / 面试 / 截止 / 关闭投递 / Offer |
+| `inbox_list` / `inbox_dismiss` | status? / inbox_id | 收件箱列表 / 忽略 |
+| `deadline_add` / `deadline_done` | kind, title, due_at… / deadline_id | 不能丢的时间点 |
+| `dossier_list` / `dossier_get` | – / application_id \| job_id \| company_name | 卷宗摘要 / 面试前一键摊开 |
+| `dossier_note_add` | application_id, kind, round?, content | 说过的 / 听到的 / 联系人 |
+| `application_set_stage` | application_id, stage, note? | 沿状态机合法路径推进或关闭 |
+| `material_list` / `material_draft` / `material_save` / `material_use_record` | … | 素材库：复用优先 + 一致性核对 |
+| `weekly_review` | week_start?, user_note? | 漏斗 + 代理反馈 + 一个小动作 |
+| `mail_accounts` / `mail_sync` / `mail_list` | – / account_id? / application_id? | 邮箱（绑定在面板完成，授权码不进对话） |
+| `mail_compose` | to, job_id \| application_id, resume_id?, notes? | 起草投递邮件（可附简历 PDF）并入待审队列 `send_mail` |
 
 工具执行中用 `broadcast('career:progress', …)` 推进度；数据变更后 `broadcast('career:data-changed', …)`。

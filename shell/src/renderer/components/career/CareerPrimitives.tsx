@@ -1,5 +1,5 @@
 /**
- * 六个求职页面共用的小组件：页面骨架、「由对话指挥」提示、徽标、按钮、表单项、空态、结构化 JSON 展示。
+ * 求职面板共用的小组件：页面骨架、「交给助理」按钮、徽标、按钮、表单项、空态、结构化 JSON 展示。
  * 样式沿用壳的主题 token（--ink / --paper / --line / --accent …），不引入新的视觉语言。
  */
 import { AlertCircle, Loader2, MessageSquareText } from 'lucide-react';
@@ -12,18 +12,34 @@ import { copyPlainText } from '@/utils/clipboard';
 
 // ─── 由对话指挥 ───
 
-/** 页面把一句建议交给对话：广播给 Chat Tab（收敛侧可订阅 `career:chat-suggest` 预填输入框），并复制到剪贴板兜底。 */
-export function suggestToChat(text: string): void {
-  emitEvent('career:chat-suggest', { text });
-  copyPlainText(text).catch(() => { /* 剪贴板不可用时静默，对话侧仍能收到建议 */ });
+export interface ChatContext { surface?: string; refs?: Record<string, string | null | undefined>; note?: string }
+
+/**
+ * 面板把一句话真的发进唯一的个人助理对话（Chat 订阅 `career:chat-suggest` 后调用 sendMessage，App 同时把焦点切到对话）。
+ * 带上对象 id 作为隐藏上下文，模型无需再问"哪一份"。剪贴板只是兜底：对话尚未就绪时用户仍能粘贴。
+ */
+export function suggestToChat(text: string, context?: ChatContext, mode: 'send' | 'prefill' = 'send'): void {
+  emitEvent('career:chat-suggest', { text, context, mode });
+  copyPlainText(text).catch(() => { /* 剪贴板不可用时静默 */ });
 }
 
-export function useSuggestToChat(): (text: string) => void {
+export function useSuggestToChat(): (text: string, context?: ChatContext) => void {
   const toast = useToastOptional();
-  return (text: string) => {
-    suggestToChat(text);
-    toast?.info(`已把「${text}」交给对话（同时复制到剪贴板）`);
+  return (text: string, context?: ChatContext) => {
+    suggestToChat(text, context);
+    toast?.info(`已交给助理：「${text.length > 24 ? `${text.slice(0, 24)}…` : text}」`);
   };
+}
+
+/** 面板上的"让助理做"按钮：点一下就把带对象上下文的意图发进对话。 */
+export function ChatActionButton({ text, context, children, variant = 'primary', className }: { text: string; context?: ChatContext; children?: ReactNode; variant?: 'primary' | 'secondary' | 'ghost'; className?: string }) {
+  const suggest = useSuggestToChat();
+  return (
+    <Button variant={variant} className={className} onClick={() => suggest(text, context)}>
+      <MessageSquareText className="h-3.5 w-3.5" strokeWidth={1.75} />
+      {children ?? text}
+    </Button>
+  );
 }
 
 export function CommandHint({ examples }: { examples: string[] }) {
@@ -48,9 +64,19 @@ export function CommandHint({ examples }: { examples: string[] }) {
 
 // ─── 页面骨架 ───
 
-export function CareerPage({ title, subtitle, examples, actions, children }: {
+export function CareerPage({ title, subtitle, examples, actions, children, embedded = false }: {
   title: string; subtitle?: string; examples: string[]; actions?: ReactNode; children: ReactNode;
+  /** 作为别的面的一个视图嵌入时不渲染页头与示例话术。 */
+  embedded?: boolean;
 }) {
+  if (embedded) {
+    return (
+      <div className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--paper)] text-[var(--ink)]">
+        {actions && <div className="flex flex-wrap items-center justify-end gap-2 px-4 pt-3">{actions}</div>}
+        <div className="min-h-0 flex-1 overflow-auto">{children}</div>
+      </div>
+    );
+  }
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--paper)] text-[var(--ink)]">
       <div className="flex flex-col gap-2 border-b border-[var(--line-subtle)] px-4 pb-3 pt-4">

@@ -1,4 +1,4 @@
-import type { ApplicationStage, ActionKind, ActionStatus, TaskStatus, HandoffReason } from './states.js'
+import type { ApplicationStage, ActionKind, ActionStatus, TaskStatus, HandoffReason, InboxSource, InboxKind, InboxStatus, DeadlineKind, DeadlineStatus, DossierNoteKind, MaterialKind, MailProvider } from './states.js'
 
 export interface Experience { id: string; title: string; role: string | null; org: string | null; start_date: string | null; end_date: string | null; type: string; summary: string | null; redacted: number; created_at: string; updated_at: string }
 export interface Claim { id: string; experience_id: string; text: string; attribution: 'self' | 'team' | 'unknown'; result_metric: string | null; status: 'verified' | 'pending' | 'user_confirmed'; created_from: string; created_at: string; updated_at: string }
@@ -31,3 +31,13 @@ export interface JdParsed {
   deadline?: string
   notes?: string[]
 }
+
+// ===== 五个面 =====
+export interface InboxItem { id: string; source: InboxSource; raw_text: string; kind: InboxKind | null; status: InboxStatus; parsed_json: string | null; linked_type: string | null; linked_id: string | null; mail_message_id: string | null; note: string | null; created_at: string; processed_at: string | null }
+export interface Deadline { id: string; kind: DeadlineKind; title: string; due_at: string; application_id: string | null; job_id: string | null; interview_id: string | null; offer_id: string | null; source: string; status: DeadlineStatus; url: string | null; note: string | null; created_at: string; updated_at: string }
+export interface DossierNote { id: string; application_id: string; kind: DossierNoteKind; round: string | null; content: string; created_at: string }
+export interface Material { id: string; kind: MaterialKind; title: string; question_key: string | null; content: string; length_variant: string | null; claim_ids_json: string; tags_json: string; company_scope: string | null; confirmed: number; created_at: string; updated_at: string }
+export interface MaterialUse { id: string; material_id: string | null; application_id: string | null; job_id: string | null; company_name: string | null; context: string; content_snapshot: string; used_at: string }
+export interface WeeklyReview { id: string; week_start: string; funnel_json: string; insights_json: string; suggestions_json: string; small_action: string | null; created_at: string }
+export interface MailAccount { id: string; provider: MailProvider; address: string; display_name: string | null; imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; status: string; last_sync_at: string | null; last_uid: number; last_error: string | null; created_at: string; updated_at: string }
+export interface MailMessage { id: string; account_id: string; uid: number | null; message_id: string | null; in_reply_to: string | null; direction: 'in' | 'out'; from_addr: string | null; to_addr: string | null; subject: string | null; snippet: string | null; body_text: string | null; received_at: string | null; relevance: 'unknown' | 'job' | 'ignored'; kind: InboxKind | null; inbox_item_id: string | null; application_id: string | null; action_id: string | null; created_at: string }

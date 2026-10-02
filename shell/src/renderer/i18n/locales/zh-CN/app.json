@@ -16,12 +16,12 @@
     "unread": "有未读消息",
     "switchTo": "切换到 {{title}}",
     "assistantChat": "个人助理",
-    "careerExperience": "经历库",
-    "careerResume": "简历",
-    "careerApply": "岗位与投递",
-    "careerResearch": "调研",
-    "careerInterview": "面试",
-    "careerOffer": "Offer"
+    "careerToday": "今日",
+    "careerInbox": "收件箱",
+    "careerDossier": "卷宗",
+    "careerMaterial": "素材",
+    "careerReview": "复盘",
+    "careerGuide": "指南"
   },
   "globalSidebar": {
     "navigation": "全局导航",
@@ -49,12 +49,12 @@
     "loadMore": "展开更多",
     "brandName": "求职助理",
     "chat": "对话",
-    "careerExperience": "经历库",
-    "careerResume": "简历",
-    "careerApply": "岗位与投递",
-    "careerResearch": "调研",
-    "careerInterview": "面试",
-    "careerOffer": "Offer"
+    "careerToday": "今日",
+    "careerInbox": "收件箱",
+    "careerDossier": "卷宗",
+    "careerMaterial": "素材",
+    "careerReview": "复盘",
+    "careerGuide": "指南"
   },
   "titlebar": {
     "helper": "小助理",

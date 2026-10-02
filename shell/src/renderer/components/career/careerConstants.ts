@@ -28,7 +28,7 @@ export const FUNNEL_ORDER: ApplicationStage[] = [
 
 export const ACTION_KIND_LABELS: Record<ActionKind, string> = {
   fill_form: '填表', submit: '提交', send_greeting: '发招呼', upload: '上传',
-  answer_open_q: '回答开放题', collect: '采集', research: '调研',
+  answer_open_q: '回答开放题', collect: '采集', research: '调研', send_mail: '发送投递邮件',
 };
 
 export const CLAIM_STATUS_LABELS = { verified: '已验证', pending: '待核实', user_confirmed: '你已确认' } as const;

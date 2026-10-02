@@ -251,3 +251,128 @@ CREATE TABLE IF NOT EXISTS answer_bank (
   updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_answer_bank_key ON answer_bank(question_key);
+
+-- ===== 收件箱 / 截止 / 卷宗 / 素材 / 复盘 / 邮箱（围绕时间与状态的五个面，《产品落地计划》§11） =====
+-- 收件箱：任何丢进来的东西（粘贴、邮件、文件）先落这里，再由助理归类成结构化对象。
+CREATE TABLE IF NOT EXISTS inbox_item (
+  id TEXT PRIMARY KEY,
+  source TEXT NOT NULL DEFAULT 'paste',     -- paste|mail|file|url|chat
+  raw_text TEXT NOT NULL,
+  kind TEXT,                                -- jd|interview_invite|assessment|written_test|rejection|offer|referral|deadline|other
+  status TEXT NOT NULL DEFAULT 'new',       -- new|processed|dismissed
+  parsed_json TEXT,                         -- 助理抽取的结构化字段
+  linked_type TEXT,                         -- job|application|interview|offer|deadline
+  linked_id TEXT,
+  mail_message_id TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL,
+  processed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_inbox_status ON inbox_item(status, created_at);
+
+-- 截止与定时事件：不丢球（测评 72h、笔试时间、面试时间、三方 / offer 回复截止、内推码过期）。
+CREATE TABLE IF NOT EXISTS deadline (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,                       -- assessment|written_test|interview|application_deadline|offer_reply|referral_expiry|other
+  title TEXT NOT NULL,
+  due_at TEXT NOT NULL,                     -- ISO 时间
+  application_id TEXT REFERENCES application(id) ON DELETE CASCADE,
+  job_id TEXT,
+  interview_id TEXT,
+  offer_id TEXT,
+  source TEXT NOT NULL DEFAULT 'manual',    -- manual|inbox|mail|agent|job
+  status TEXT NOT NULL DEFAULT 'open',      -- open|done|missed|cancelled
+  url TEXT,
+  note TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_deadline_due ON deadline(status, due_at);
+
+-- 卷宗笔记：这条投递里说过什么 / 听到什么 / 联系人 / 内推人，面试前一键摊开。
+CREATE TABLE IF NOT EXISTS dossier_note (
+  id TEXT PRIMARY KEY,
+  application_id TEXT NOT NULL REFERENCES application(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'note',        -- note|said|heard|contact|referral|mail
+  round TEXT,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_dossier_note_app ON dossier_note(application_id, created_at);
+
+-- 素材：可复用的说法（开放题答案、项目故事、自我介绍……），带来源主张；answer_bank 继续承担网申字段原话。
+CREATE TABLE IF NOT EXISTS material (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,                       -- open_question|project_story|self_intro|why_company|why_role|strength_weakness|career_plan|other
+  title TEXT NOT NULL,
+  question_key TEXT,                        -- 归一化问题键（开放题）
+  content TEXT NOT NULL,
+  length_variant TEXT,                      -- short|medium|long
+  claim_ids_json TEXT NOT NULL DEFAULT '[]',
+  tags_json TEXT NOT NULL DEFAULT '[]',
+  company_scope TEXT,                       -- 只对某家公司适用时填公司名
+  confirmed INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+-- 素材使用记录：对哪家公司、在哪个场合说过什么，保证前后一致。
+CREATE TABLE IF NOT EXISTS material_use (
+  id TEXT PRIMARY KEY,
+  material_id TEXT REFERENCES material(id) ON DELETE SET NULL,
+  application_id TEXT REFERENCES application(id) ON DELETE CASCADE,
+  job_id TEXT,
+  company_name TEXT,
+  context TEXT NOT NULL,                    -- 网申|邮件|招呼语|面试-hr|面试-一面|…
+  content_snapshot TEXT NOT NULL,
+  used_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_material_use_company ON material_use(company_name, used_at);
+
+-- 每周复盘：漏斗 + 代理反馈 + 策略调整建议。
+CREATE TABLE IF NOT EXISTS weekly_review (
+  id TEXT PRIMARY KEY,
+  week_start TEXT NOT NULL,                 -- YYYY-MM-DD（周一）
+  funnel_json TEXT NOT NULL,
+  insights_json TEXT NOT NULL DEFAULT '[]',
+  suggestions_json TEXT NOT NULL DEFAULT '[]',
+  small_action TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_weekly_review_week ON weekly_review(week_start);
+
+-- 邮箱账号与邮件：收件自动进收件箱，发件只能从待审队列执行。授权码不进库（放本机 0600 文件）。
+CREATE TABLE IF NOT EXISTS mail_account (
+  id TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,                   -- qq|163|126|gmail|outlook|imap
+  address TEXT NOT NULL UNIQUE,
+  display_name TEXT,
+  imap_host TEXT NOT NULL, imap_port INTEGER NOT NULL DEFAULT 993,
+  smtp_host TEXT NOT NULL, smtp_port INTEGER NOT NULL DEFAULT 465,
+  status TEXT NOT NULL DEFAULT 'unverified',-- unverified|ok|auth_failed|error
+  last_sync_at TEXT,
+  last_uid INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mail_message (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES mail_account(id) ON DELETE CASCADE,
+  uid INTEGER,
+  message_id TEXT,
+  in_reply_to TEXT,
+  direction TEXT NOT NULL,                  -- in|out
+  from_addr TEXT, to_addr TEXT,
+  subject TEXT,
+  snippet TEXT,
+  body_text TEXT,
+  received_at TEXT,
+  relevance TEXT NOT NULL DEFAULT 'unknown',-- unknown|job|ignored
+  kind TEXT,                                -- 与 inbox_item.kind 同枚举
+  inbox_item_id TEXT,
+  application_id TEXT,
+  action_id TEXT,                           -- 发件对应的待审动作
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_message_uid ON mail_message(account_id, uid);
+CREATE INDEX IF NOT EXISTS idx_mail_message_app ON mail_message(application_id, received_at);

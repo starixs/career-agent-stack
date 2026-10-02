@@ -9,6 +9,8 @@ export interface CareerPageProps {
   isActive: boolean;
   /** 回到唯一的个人助理对话。 */
   onOpenChat: () => void;
+  /** 作为另一个面的视图嵌入时为 true（不渲染页头）。 */
+  embedded?: boolean;
 }
 
 export interface CareerPageRenderBinding {

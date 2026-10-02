@@ -4,7 +4,7 @@
  *   1. 不绕过 Repos 的状态机（投递阶段、动作队列、接管仍走 Repos）；
  *   2. 简历保存前写快照（resume_snapshot）。
  */
-import type { Repos, Company, Interview, Offer, ResumeMaster, ResumeTailored, Application, Task } from '@career/core';
+import type { Repos, Company, Interview, Offer, ResumeMaster, ResumeTailored, Application, Task, Job, Deadline, DossierNote, MaterialUse, MailMessage, ActionQueueItem } from '@career/core';
 import type { CoreModule } from './core-module';
 
 /** CareerStore 只需要 core 的两个纯函数；由调用方在 `await loadCore()` 后注入，避免静态 import。 */
@@ -194,4 +194,56 @@ export class CareerStore {
 
   // ---------- 答案库 ----------
   listAnswerBank(): AnswerBankRow[] { return this.db.all<AnswerBankRow>('SELECT * FROM answer_bank ORDER BY updated_at DESC'); }
+
+  // ---------- 卷宗（每条投递一个档案） ----------
+  /** 卷宗列表：进行中的线 + 已关闭的线，带静默天数与下一个截止。 */
+  dossierSummaries(nowIso = this.now()): DossierSummary[] {
+    const deadlines = this.repos.listDeadlines({ status: 'open' });
+    const interviews = this.listInterviews();
+    return this.repos.applicationsWithJob().map(a => {
+      const next = deadlines.filter(d => d.application_id === a.id).sort((x, y) => x.due_at.localeCompare(y.due_at))[0] ?? null;
+      const itv = interviews.filter(i => i.application_id === a.id);
+      const days = Math.max(0, Math.round((Date.parse(nowIso) - Date.parse(a.updated_at)) / 86_400_000));
+      return { application_id: a.id, job_id: a.job_id, company_name: a.job.company_name, title: a.job.title, stage: a.stage, updated_at: a.updated_at, days_since_update: days, next_deadline: next, interview_count: itv.length, resume_tailored_id: a.resume_tailored_id, closed: ['rejected', 'discarded', 'skip', 'hired'].includes(a.stage) };
+    });
+  }
+  /** 面试前一键摊开的全部材料。 */
+  dossier(applicationId: string): Dossier | undefined {
+    const app = this.repos.getApplication(applicationId);
+    if (!app) return undefined;
+    const job = this.repos.getJob(app.job_id);
+    if (!job) return undefined;
+    const resume = app.resume_tailored_id ? this.getResume(app.resume_tailored_id) : undefined;
+    const company = job.company_name ? this.findCompany(job.company_name) : undefined;
+    const interviews = this.listInterviews().filter(i => i.application_id === applicationId);
+    const offers = this.listOffers().filter(o => o.application_id === applicationId);
+    const history = this.db.all<{ from_stage: string | null; to_stage: string; note: string | null; created_at: string }>('SELECT from_stage, to_stage, note, created_at FROM application_history WHERE application_id=? ORDER BY created_at', [applicationId]);
+    const predictions = resume ? this.db.all<ProbePrediction>('SELECT * FROM probe_prediction WHERE resume_tailored_id=? ORDER BY created_at DESC', [resume.row.id]) : [];
+    return {
+      application: app, job, company: company ?? null,
+      resume: resume ? { kind: resume.kind, id: resume.row.id, schema: safeJson(resume.row.schema_json), confirmed: resume.kind === 'tailored' ? !!resume.row.diff_confirmed_at : true } : null,
+      answers_used: safeJson(app.answers_used_json),
+      material_uses: this.repos.listMaterialUses({ application_id: applicationId }),
+      notes: this.repos.listDossierNotes(applicationId),
+      deadlines: this.repos.listDeadlines({ application_id: applicationId }),
+      interviews, offers, history,
+      mails: this.repos.listMailMessages({ application_id: applicationId, limit: 50 }),
+      actions: this.db.all<ActionQueueItem>('SELECT * FROM action_queue WHERE application_id=? ORDER BY created_at DESC', [applicationId]),
+      predictions,
+    };
+  }
+}
+
+export interface DossierSummary { application_id: string; job_id: string; company_name: string | null; title: string; stage: Application['stage']; updated_at: string; days_since_update: number; next_deadline: Deadline | null; interview_count: number; resume_tailored_id: string | null; closed: boolean }
+export interface Dossier {
+  application: Application; job: Job; company: Company | null;
+  resume: { kind: 'master' | 'tailored'; id: string; schema: unknown; confirmed: boolean } | null;
+  answers_used: unknown; material_uses: MaterialUse[]; notes: DossierNote[]; deadlines: Deadline[];
+  interviews: Interview[]; offers: Offer[]; history: Array<{ from_stage: string | null; to_stage: string; note: string | null; created_at: string }>;
+  mails: MailMessage[]; actions: ActionQueueItem[]; predictions: ProbePrediction[];
+}
+
+function safeJson(raw: string | null | undefined): unknown {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
 }

@@ -16,12 +16,12 @@
     "unread": "Unread messages",
     "switchTo": "Switch to {{title}}",
     "assistantChat": "Assistant",
-    "careerExperience": "Experience",
-    "careerResume": "Resume",
-    "careerApply": "Jobs & Applications",
-    "careerResearch": "Research",
-    "careerInterview": "Interview",
-    "careerOffer": "Offer"
+    "careerToday": "Today",
+    "careerInbox": "Inbox",
+    "careerDossier": "Dossiers",
+    "careerMaterial": "Materials",
+    "careerReview": "Review",
+    "careerGuide": "Guide"
   },
   "globalSidebar": {
     "navigation": "Global navigation",
@@ -49,12 +49,12 @@
     "loadMore": "Show more",
     "brandName": "Career Assistant",
     "chat": "Chat",
-    "careerExperience": "Experience",
-    "careerResume": "Resume",
-    "careerApply": "Jobs & Applications",
-    "careerResearch": "Research",
-    "careerInterview": "Interview",
-    "careerOffer": "Offer"
+    "careerToday": "Today",
+    "careerInbox": "Inbox",
+    "careerDossier": "Dossiers",
+    "careerMaterial": "Materials",
+    "careerReview": "Review",
+    "careerGuide": "Guide"
   },
   "titlebar": {
     "helper": "AI Helper",

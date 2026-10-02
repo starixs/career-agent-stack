@@ -3632,6 +3632,13 @@ export default function TabProvider({
                 emitEvent('career:data-changed', { sessionId: payload.sessionId ?? null, tables: Array.isArray(payload.tables) ? payload.tables : [] });
                 break;
             }
+            case 'career:focus': {
+                const payload = data as { sessionId?: string | null; surface?: string; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string } | null;
+                if (!payload || typeof payload.surface !== 'string') break;
+                if (!shouldAcceptInteractiveEvent(payload.sessionId)) break;
+                emitEvent('career:focus', payload);
+                break;
+            }
 
             case 'ask-user-question:request': {
                 // Agent is asking user structured questions

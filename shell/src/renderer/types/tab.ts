@@ -7,12 +7,12 @@ import type { CapabilitiesTab } from '@/features/capabilities/tabContract';
 import type { TaskCenterTab } from '@/features/task-center/tabContract';
 import type { SpaceTab } from '@/features/space/tabContract';
 import type { RecordTab } from '@/features/record/tabContract';
-import type { CareerExperienceTab } from '@/features/career-experience/tabContract';
-import type { CareerResumeTab } from '@/features/career-resume/tabContract';
-import type { CareerApplyTab } from '@/features/career-apply/tabContract';
-import type { CareerResearchTab } from '@/features/career-research/tabContract';
-import type { CareerInterviewTab } from '@/features/career-interview/tabContract';
-import type { CareerOfferTab } from '@/features/career-offer/tabContract';
+import type { CareerTodayTab } from '@/features/career-today/tabContract';
+import type { CareerInboxTab } from '@/features/career-inbox/tabContract';
+import type { CareerDossierTab } from '@/features/career-dossier/tabContract';
+import type { CareerMaterialTab } from '@/features/career-material/tabContract';
+import type { CareerReviewTab } from '@/features/career-review/tabContract';
+import type { CareerGuideTab } from '@/features/career-guide/tabContract';
 
 export type { TabBase } from '@/tab-workspace/contracts';
 export type {
@@ -33,29 +33,29 @@ export type {
 export type { TaskCenterSearchIntent, TaskCenterTab } from '@/features/task-center/tabContract';
 export type { SpaceTab } from '@/features/space/tabContract';
 export type { RecordTab } from '@/features/record/tabContract';
-export type { CareerExperienceTab } from '@/features/career-experience/tabContract';
-export type { CareerResumeTab } from '@/features/career-resume/tabContract';
-export type { CareerApplyTab } from '@/features/career-apply/tabContract';
-export type { CareerResearchTab } from '@/features/career-research/tabContract';
-export type { CareerInterviewTab } from '@/features/career-interview/tabContract';
-export type { CareerOfferTab } from '@/features/career-offer/tabContract';
+export type { CareerTodayTab } from '@/features/career-today/tabContract';
+export type { CareerInboxTab } from '@/features/career-inbox/tabContract';
+export type { CareerDossierTab } from '@/features/career-dossier/tabContract';
+export type { CareerMaterialTab } from '@/features/career-material/tabContract';
+export type { CareerReviewTab } from '@/features/career-review/tabContract';
+export type { CareerGuideTab } from '@/features/career-guide/tabContract';
 
-/** 求职助理六个一级功能页的 Tab 种类（单实例）。 */
+/** 求职工作台五个面 + 指南的 Tab 种类（单实例）；清单以 features/career-shared/nav.ts 为准。 */
 export type CareerPageTab =
-  | CareerExperienceTab
-  | CareerResumeTab
-  | CareerApplyTab
-  | CareerResearchTab
-  | CareerInterviewTab
-  | CareerOfferTab;
+  | CareerTodayTab
+  | CareerInboxTab
+  | CareerDossierTab
+  | CareerMaterialTab
+  | CareerReviewTab
+  | CareerGuideTab;
 export type CareerPageKind = CareerPageTab['view'];
 export const CAREER_PAGE_KINDS: readonly CareerPageKind[] = [
-  'career-experience',
-  'career-resume',
-  'career-apply',
-  'career-research',
-  'career-interview',
-  'career-offer',
+  'career-today',
+  'career-inbox',
+  'career-dossier',
+  'career-material',
+  'career-review',
+  'career-guide',
 ];
 
 /** Closed union for the builtin career-assistant edition. Downstream editions
