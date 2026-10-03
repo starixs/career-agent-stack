@@ -74,6 +74,7 @@ import {
   type SidecarConfigDisposition,
   type FilePreviewIntent,
   type CareerPageKind,
+  CAREER_PAGE_KINDS,
   createNewTab,
   findAssistantChatTab,
   getFolderName,
@@ -121,6 +122,8 @@ import {
   type CronTaskRecoveredPayload,
   CRON_EVENTS,
 } from '@/types/cronEvents';
+import { onEvent as onCareerBusEvent } from '@/api/eventBus';
+import { CareerLiveBridge } from '@/components/career/CareerLiveBridge';
 import { isBrowserDevMode, isTauriEnvironment } from '@/utils/browserMock';
 import { apiGetJson } from '@/api/apiFetch';
 import {
@@ -364,6 +367,7 @@ const CAREER_PAGE_TITLE_KEYS: Record<CareerPageKind, string> = {
   'career-interview': 'tabs.careerInterview',
   'career-offer': 'tabs.careerOffer',
   'career-vault': 'tabs.careerVault',
+  'career-live': 'tabs.careerLive',
 };
 
 /** 用户端不再暴露的设置分区：任何导航意图一律落到「通用」。 */
@@ -3308,6 +3312,10 @@ export default function App() {
   const handleOpenCareerVault = useCallback(() => {
     handleOpenCareerPage('career-vault');
   }, [handleOpenCareerPage]);
+  // 其他页面（浏览器状态条等）通过 eventBus 请求打开某个一级功能页，例如「浏览器现场」
+  useEffect(() => onCareerBusEvent<{ kind?: CareerPageKind }>('career:open-page', payload => {
+    if (payload?.kind && (CAREER_PAGE_KINDS as readonly string[]).includes(payload.kind)) handleOpenCareerPage(payload.kind);
+  }), [handleOpenCareerPage]);
 
   const handleOpenWorkspaceFromSidebar = useCallback(
     async (
@@ -4970,6 +4978,7 @@ export default function App() {
       'career-interview': careerPageBinding,
       'career-offer': careerPageBinding,
       'career-vault': careerPageBinding,
+      'career-live': careerPageBinding,
     }),
     [
       capabilitiesBinding,
@@ -4987,6 +4996,7 @@ export default function App() {
     <SessionDeletionContext.Provider value={handleDeleteSession}>
       <LinkContextMenuProvider>
         <div className="flex h-screen bg-[var(--paper)]">
+          <CareerLiveBridge />
           <GlobalSidebar
             tabs={tabs}
             activeTab={activeTab}

@@ -1914,6 +1914,8 @@ async function main() {
     }
     return browserHostPromise;
   };
+  // 批量投递运行器（Global 后台）需要免令牌借用浏览器宿主
+  void import('./career/batch-service').then(({ registerBatchBrowserHost }) => registerBatchBrowserHost(ensureBrowserHost)).catch(() => {});
   gracefulShutdownHook = async () => {
     await Promise.all([
       drainSessionTranscripts(),
@@ -2155,6 +2157,15 @@ async function main() {
         const { handleCareerBrowserRoute } = await import('./routes/career-browser');
         const careerBrowserResponse = await handleCareerBrowserRoute(pathname, request, { host: browserHost });
         if (careerBrowserResponse) return careerBrowserResponse;
+      }
+      // 浏览器现场直播 + 批量投递控制：渲染层用原生 fetch 直连（免令牌，loopback），同样先于初始化门。
+      if (pathname.startsWith('/api/career/live/') || pathname.startsWith('/api/career/batch/')) {
+        const browserHost = await ensureBrowserHost();
+        const { handleCareerLiveRoute } = await import('./routes/career-live');
+        const { getBatchRunner, liveHub, careerProductSessionId } = await import('./career/batch-service');
+        const { getRepos } = await import('./career/db');
+        const liveResponse = await handleCareerLiveRoute(pathname, request, { host: browserHost, hub: liveHub, repos: await getRepos(), runner: await getBatchRunner(), productSessionId: careerProductSessionId });
+        if (liveResponse) return liveResponse;
       }
       // ── Deferred init gate ────────────────────────────────────────────────
       // All other routes depend on agent state (currentAgentDir, MCP servers,
@@ -9121,6 +9132,8 @@ description: >
             };
             runLogRetentionSweep({ activeFilePaths: collectActivePaths() });
             startPeriodicSweep(collectActivePaths);
+            // 批量投递：上次侧车退出时还在跑的话续上（队列与进度在 SQLite / kv）
+            void import('./career/batch-service').then(({ resumeBatchIfRunning }) => resumeBatchIfRunning()).catch(() => {});
             try {
               const { scrubStaleRuntimeConfig } = await import('./migrations/scrub-stale-runtime-config');
               const result = await scrubStaleRuntimeConfig();

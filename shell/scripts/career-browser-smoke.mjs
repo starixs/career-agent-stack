@@ -50,10 +50,12 @@ const host = {
     }
     return fn(context, { productSessionId: 'smoke', workspacePath: '', hostGeneration: 1 });
   },
-  hasContext: () => true,
+  hasContext: () => !!context,
   getControl: () => ({ control: 'agent', reason: null, since: Date.now() }),
   setControl: () => ({ control: 'agent', reason: null, since: Date.now() }),
   browserChannel: () => 'chrome',
+  // 现场直播路由（免令牌借用）
+  withProductSession: async (_id, fn) => { if (!context) throw new Error('no context'); return fn(context); },
 };
 const deps = {
   host,
@@ -124,6 +126,46 @@ if (only === 'all' || only === 'sections') {
   const sections = r?.pages?.[0]?.sections ?? [];
   check(sections.some(s => s.key === 'education' && s.added === 1) && sections.some(s => s.key === 'experience' && s.added === 1), `分区摘要：${JSON.stringify(sections)}`);
   check(!(await page.evaluate(() => !!document.getElementById('done'))), '没有提交');
+}
+
+if (only === 'all' || only === 'live') {
+  console.log('\n[4] 浏览器现场直播（CDP screencast → NDJSON 帧）');
+  if (!context) { await host.withContext(TOKEN, async () => {}); await context.newPage().then(p => p.goto(fixture('apply-form.html'))); }
+  const { handleCareerLiveRoute } = await import('../src/server/routes/career-live.ts');
+  const { LiveHub } = await import('../src/server/career/live-hub.ts');
+  const hub = new LiveHub();
+  const controller = new AbortController();
+  const res = await handleCareerLiveRoute('/api/career/live/stream', new Request('http://local/api/career/live/stream?frames=1', { signal: controller.signal }), {
+    host, hub, repos: { openHandoffs: () => [], getAction: () => undefined, closeHandoff: () => {}, kvSet: () => {} }, productSessionId: () => 'smoke', heartbeatMs: 1000,
+  });
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = ''; let frames = 0; let snapshot = null; let firstFrame = null;
+  // 让页面持续有变化（真实场景是助理在填表），触发新帧；4 秒后断开连接
+  const poke = setInterval(() => { context.pages()[0].evaluate(() => { window.scrollBy(0, 40); document.body.style.background = `hsl(${Date.now() % 360},40%,95%)`; }).catch(() => {}); }, 300);
+  const deadline = setTimeout(() => controller.abort(), 4000);
+  try {
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === 'snapshot') snapshot = ev;
+        if (ev.type === 'frame') { frames++; firstFrame ??= ev; }
+        if (ev.type === 'frame-error') console.log(`  ✗ frame-error: ${ev.error}`);
+      }
+      if (frames >= 5) controller.abort();
+    }
+  } catch { /* abort */ }
+  clearInterval(poke); clearTimeout(deadline);
+  check(!!snapshot && snapshot.browser.hasBrowser, `snapshot：hasBrowser=${snapshot?.browser?.hasBrowser} url=${snapshot?.browser?.url}`);
+  check(frames >= 1, `收到 ${frames} 帧`);
+  check(!!firstFrame && firstFrame.data.length > 1000 && firstFrame.width > 0, `首帧 ${firstFrame?.width}x${firstFrame?.height}，JPEG base64 ${firstFrame?.data?.length ?? 0} 字节`);
+  check(hub.size === 0, '断开后 hub 订阅清空');
 }
 
 await browser?.close();

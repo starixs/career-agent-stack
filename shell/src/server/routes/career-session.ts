@@ -74,9 +74,23 @@ export async function handleCareerSessionRoute(pathname: string, request: Reques
     if (action !== 'take' && action !== 'handback') return fail("action 必须是 'take' | 'handback'");
     const runs = deps.runs ?? getRunRegistry({ broadcast, sessionId });
     const run = runs.get(runId);
-    if (!run) return fail(`run 不存在或已结束：${runId}`, 404);
     const control = deps.browserControl ?? controlCareerBrowser;
     const repos = deps.repos ?? await getRepos();
+    if (!run) {
+      // 不是本会话发起的 run（例如 Global 批量运行器）：按数据库里的接管记录处理，交回即关闭等待中的填表接管
+      let warning: string | undefined;
+      try { await control(action === 'take' ? 'human' : 'agent', action === 'take' ? 'user_request' : undefined); } catch (error) { warning = error instanceof Error ? error.message : String(error); }
+      let closed = 0;
+      if (action === 'handback') {
+        for (const h of repos.openHandoffs()) {
+          const a = h.action_id ? repos.getAction(h.action_id) : undefined;
+          if (!a || a.kind === 'fill_form') { try { repos.closeHandoff(h.id, typeof body.resumedFromStep === 'string' ? body.resumedFromStep : 'handback'); closed++; } catch { /* ignore */ } }
+        }
+        if (closed) broadcast('career:data-changed', { sessionId: sessionId(), tables: ['handoff', 'task', 'action_queue'] });
+      }
+      broadcast('career:takeover', { sessionId: sessionId(), runId, state: action === 'take' ? 'human_active' : 'resuming' });
+      return ok({ run: null, closedHandoffs: closed, ...(warning ? { warning } : {}) });
+    }
     try {
       let warning: string | undefined;
       if (action === 'take') {

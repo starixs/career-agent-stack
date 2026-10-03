@@ -8,6 +8,7 @@ import type {
   ActionQueueItem, Application, Board, Company, Direction, ExperienceNode, GapPlan, Interview, Job,
   MockInterview, Offer, ProbePrediction, ResumeMaster, ResumeTailored,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope,
+  BatchState, LiveSnapshot,
 } from './types';
 
 type Dict = Record<string, unknown>;
@@ -129,6 +130,12 @@ export const careerApi = {
   /** 回显明文供用户查看 / 编辑；后端记访问日志。 */
   vaultReveal: (id: string) => apiPostJson<unknown>(careerPath(`/vault/items/${encodeURIComponent(id)}/reveal`), {}).then(r => String(asDict(r).value ?? '')),
   vaultAccessLog: () => apiGetJson<unknown>(careerPath('/vault/access-log?limit=50')).then(r => pickList<VaultAccessLogRow>(r, 'log')),
+
+  // ----- 浏览器现场 / 批量投递（免令牌的 Global 路由；长连接流在 useGlobalLive 里走原生 fetch） -----
+  liveState: () => apiGetJson<unknown>(careerPath('/live/state')).then(r => { const { ok: _ok, ...rest } = asDict(r); return rest as unknown as LiveSnapshot; }),
+  liveControl: (control: 'human' | 'agent', reason?: string) => apiPostJson<unknown>(careerPath('/live/control'), { control, reason }).then(r => pickObject<{ control?: { control: string } }>(r)),
+  batchCommand: (cmd: 'start' | 'pause' | 'stop') => apiPostJson<unknown>(careerPath('/batch/command'), { cmd }).then(r => asDict(r).batch as BatchState | undefined),
+  batchState: () => apiGetJson<unknown>(careerPath('/batch/state')).then(r => (asDict(r).batch ?? null) as BatchState | null),
 };
 
 /** 安全解析 JSON 字段；失败返回 fallback。 */

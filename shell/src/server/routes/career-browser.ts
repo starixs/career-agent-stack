@@ -339,9 +339,9 @@ function toBase64(bytes: Uint8Array): string {
 // NDJSON run
 // ---------------------------------------------------------------------------
 
-type NdjsonLine = Record<string, unknown> & { type: 'progress' | 'page' | 'capture' | 'result' | 'error' };
+export type NdjsonLine = Record<string, unknown> & { type: 'progress' | 'page' | 'capture' | 'result' | 'error' };
 
-interface RunEmitter {
+export interface RunEmitter {
   emit(line: NdjsonLine): void;
   aborted(): boolean;
 }
@@ -350,7 +350,8 @@ export type CareerBrowserOp = 'screenshot' | 'diagnose' | 'drive' | 'collect_pas
 
 const OPS: ReadonlySet<string> = new Set<CareerBrowserOp>(['screenshot', 'diagnose', 'drive', 'collect_passive']);
 
-async function runOperation(
+/** 在已借到的 Context 上执行一次操作（路由与 Global 批量运行器共用）。 */
+export async function runOperation(
   op: CareerBrowserOp,
   body: Record<string, unknown>,
   context: BrowserContext,

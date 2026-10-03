@@ -35,7 +35,8 @@ export function dispatchTakeoverAction(runId: string, action: 'take' | 'handback
     });
     const timer = setTimeout(() => {
       if (settled) return;
-      careerApi.browserControl(action === 'take' ? 'human' : 'agent', action === 'take' ? 'user_request' : undefined)
+      // 没有 Chat Tab 认领（例如批量运行器的 run 不在 Session 的注册表里）：走免令牌的 Global 现场控制接口
+      careerApi.liveControl(action === 'take' ? 'human' : 'agent', action === 'take' ? 'user_request' : undefined)
         .then(() => finish(true))
         .catch(() => finish(false));
     }, HANDLED_TIMEOUT_MS);
@@ -92,7 +93,8 @@ export function BrowserStatusBar() {
       {state === 'idle' && <span className="text-[var(--ink-subtle)]">没有进行中的浏览器任务</span>}
       {notice && <span role="alert" className="text-[var(--error)]">{notice}</span>}
       <div className="ml-auto flex items-center gap-1.5">
-        {takeover?.url && <Button variant="ghost" onClick={() => openWebLink(takeover.url!)}>查看现场</Button>}
+        <Button variant="ghost" onClick={() => emitEvent('career:open-page', { kind: 'career-live' })}>浏览器现场</Button>
+        {takeover?.url && <Button variant="ghost" onClick={() => openWebLink(takeover.url!)}>打开网址</Button>}
         {state === 'paused' && (
           <Button variant="primary" busy={busy === 'take'} disabled={busy !== null} onClick={() => void act('take')}>接管</Button>
         )}

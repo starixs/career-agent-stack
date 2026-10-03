@@ -11,6 +11,7 @@
 6. **不编造**：经历库里的主张默认 `pending`，只有用户确认或有强证据才能进简历；缺数据标"未知"。
 7. **私密信息不进模型**（`@career/core` 的 `Vault`）：真实姓名 / 手机 / 邮箱 / 证件号 / 住址、投递网站账号密码、经历的保密细节只在「私密信息」页由用户填写，AES-256-GCM 加密落 SQLite（密钥 `CAREER_DATA_DIR/vault.key`，0600）。模型侧只有 `vault_status`（字段名 + 脱敏预览），文本里用占位符 `{{vault:profile.phone}}` / `{{vault:exp.<经历id>.<字段>}}` 指代。两个 hook：**出口**（填表 / 登录代填 / 导出简历时在 Node 侧 `resolve` 成明文并写访问日志）与**入口**（所有 career 工具结果回传前 `redact` 把明文换回占位符）。登录代填只填账号密码输入框、不点登录，仍遵守第 4 条。
 8. **浏览器执行分层**（`@career/apply` 的 `driveApplication`）：L1 DOM 直驱（抽字段 → 规划 → 填写 → 读回核对）；L2 视觉兜底（DOM 抽不到字段 / 填不进去 / 找不到按钮时：截图 → `Perceiver`（DOM 盒子 + macOS Vision OCR，按标签位置合成输入框；可选视觉模型做分类）→ 坐标点击 + 键盘输入，按钮文案做 OCR 容错）；L3 交给用户（`describeObstacle` 说清要做什么：滑块 / 点选 / 短信码 / 图形码 / 浏览器检查，登录可先代填）。感知器只回答"哪里有什么"，点哪里填什么永远是确定性代码，提交类按钮任何一层都不点。风控：限流提示 / 跳转到验证页 → 风险锁按当天次数渐进退避（30 分钟 → 2 小时 → 12 小时 → 24 小时）。重复分区（教育 / 实习 / 项目"表格"）：按锚字段切行、逐行填、不够就点"添加"只填新出现的那一行。接管交还后由 `apply_continue` 从当前页继续。真实 Chrome 冒烟：`shell/scripts/career-browser-smoke.mjs`（不依赖 Tauri 能力令牌）。
+9. **可视 + 长程**：用户随时能看、能关、后台不停。「浏览器现场」页签（`career-live`）从 Global 侧车拉 CDP screencast 帧（`/api/career/live/stream`，渲染层原生 fetch 直连 Global 端口，因为 Rust 代理不流式），画面只读；「接管」前置真实 Chrome 由本人操作，「交回」关闭等待中的接管让后台继续。批量投递由 Global 后台运行器（`career/batch-runner.ts`）执行：已批准的 fill_form 排队、逐份 drive、遇接管等用户交回自动续跑、两份之间拟人间歇、平台风险锁跳过、每日上限、状态与命令持久化在 kv（侧车重启自动续跑）。Global 事件经内部 `LiveHub` → stream → 渲染层 `CareerLiveBridge` 转发到 eventBus（Global 的 SSE broadcast 没有客户端）。浏览器宿主新增免令牌的 `withProductSession`（仅同进程调用）。
 
 ## 包约定
 - 语言 TypeScript，ESM，NodeNext；`tsc -b` 可编译，`vitest` 可测，测试放 `packages/<pkg>/test/*.test.ts`。

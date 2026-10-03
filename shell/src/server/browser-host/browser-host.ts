@@ -316,6 +316,45 @@ export class PlaywrightBrowserHost {
     }
   }
 
+  /**
+   * 产品内（Global 自己）免令牌借用 Product Session 的 Context：批量投递运行器 / 浏览器现场直播用。
+   * 不经 Rust 鉴权，只能被同进程调用，调用方必须是 loopback 路由或后台任务。
+   * 默认不新建浏览器（没有 Context 就抛 BROWSER_CONTEXT_MISSING）；给了 `create.workspacePath` 才会启动。
+   */
+  async withProductSession<T>(
+    productSessionId: string,
+    fn: (context: BrowserContext) => Promise<T>,
+    options: { allowHumanControl?: boolean; signal?: AbortSignal; create?: { workspacePath: string; hostGeneration?: number } } = {},
+  ): Promise<T> {
+    if (this.closing) {
+      const stopping = new Error('Browser Host is stopping');
+      stopping.name = 'BROWSER_HOST_STOPPING';
+      throw stopping;
+    }
+    const { registry } = this.dependencies;
+    if (!registry.hasContext(productSessionId) && !options.create) {
+      const missing = new Error('没有可用的浏览器会话：先让助理打开一次浏览器，或开始批量投递');
+      missing.name = 'BROWSER_CONTEXT_MISSING';
+      throw missing;
+    }
+    if (!options.allowHumanControl) registry.assertAgentControl(productSessionId);
+    const binding: VerifiedBrowserCapability = { productSessionId, workspacePath: options.create?.workspacePath ?? '', hostGeneration: options.create?.hostGeneration ?? 0 };
+    this.activeHostRequests += 1;
+    registry.retainConnection(productSessionId);
+    try {
+      const context = await registry.getContext(binding, options.signal);
+      try {
+        return await fn(context);
+      } finally {
+        await context.close().catch(() => {});
+        registry.scheduleCheckpoint(productSessionId);
+      }
+    } finally {
+      registry.releaseConnection(productSessionId);
+      this.releaseHostRequest();
+    }
+  }
+
   private async handleAdmittedRequest(request: Request): Promise<Response> {
     if (!['POST', 'GET', 'DELETE'].includes(request.method)) {
       return jsonError(405, 'METHOD_NOT_ALLOWED', 'Method not allowed');

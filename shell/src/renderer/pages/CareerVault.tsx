@@ -54,7 +54,7 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
       <div className="space-y-5 px-4 py-3">
         <div className="flex items-start gap-2 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-3 py-2 text-xs text-[var(--ink-muted)]">
           <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>这一页的内容不会进入个人助理的对话上下文。助理只知道"哪些项已填"，需要时用占位符（如 <code className="rounded bg-[var(--paper)] px-1">{'{{vault:profile.phone}}'}</code>）指代；填网申、登录投递网站、导出简历时，产品在本机把占位符替换成真实值，并记录每一次使用。</span>
+          <span>这一页的内容不会进入个人助理的对话上下文。助理只知道「哪些项已填」，需要时用占位符（如 <code className="rounded bg-[var(--paper)] px-1">{'{{vault:profile.phone}}'}</code>）指代；填网申、登录投递网站、导出简历时，产品在本机把占位符替换成真实值，并记录每一次使用。</span>
         </div>
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !data && <LoadingRow />}
@@ -177,7 +177,7 @@ function SitesSection({ data, onChanged }: { data: VaultOverview; onChanged: () 
         投递网站账号（{sites.length}）
       </SectionTitle>
       <p className="mb-2 text-xs text-[var(--ink-muted)]">
-        遇到登录页时，产品可以在本机把账号密码填进输入框（需要你打开"自动代填"），但登录按钮、验证码、短信码仍由你本人完成。密码不会给助理，也不会出现在对话里。
+        遇到登录页时，产品可以在本机把账号密码填进输入框（需要你打开「自动代填」），但登录按钮、验证码、短信码仍由你本人完成。密码不会给助理，也不会出现在对话里。
       </p>
       {adding && <SiteForm onDone={() => { setAdding(false); onChanged(); }} onCancel={() => setAdding(false)} />}
       {sites.length === 0 && !adding && <EmptyState title="还没有保存网站账号" hint="例如智联、前程无忧、牛客、各公司官网的网申账号。" />}
@@ -260,10 +260,11 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
     for (const i of data.items) if (i.scope === 'experience') map.set(i.ref_id, [...(map.get(i.ref_id) ?? []), i]);
     return map;
   }, [data.items]);
+  // 初始展开从经历库跳过来的那一段；之后由用户点击控制
   const [openId, setOpenId] = useState<string | null>(focusExperienceId ?? null);
   const focusRef = useRef<HTMLLIElement | null>(null);
   useEffect(() => {
-    if (focusExperienceId) { setOpenId(focusExperienceId); focusRef.current?.scrollIntoView?.({ block: 'start' }); }
+    if (focusExperienceId) focusRef.current?.scrollIntoView?.({ block: 'start' });
   }, [focusExperienceId]);
   const list = experiences.length ? experiences : [...byExp.keys()].map(id => ({ id, title: id } as ExperienceNode));
 
@@ -271,7 +272,7 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
     <section>
       <SectionTitle>经历的保密补充</SectionTitle>
       <p className="mb-2 text-xs text-[var(--ink-muted)]">
-        经历库里只写脱敏说法（如"某头部电商"），真实公司名、客户名、保密数据放这里。助理只能看到占位符，导出简历或填网申时产品会替换成真实值。
+        经历库里只写脱敏说法（如「某头部电商」），真实公司名、客户名、保密数据放这里。助理只能看到占位符，导出简历或填网申时产品会替换成真实值。
       </p>
       {list.length === 0 && <EmptyState title="经历库还是空的" hint="先在「经历库」添加经历，再回来补充它的保密信息。" />}
       <ul className="space-y-2">

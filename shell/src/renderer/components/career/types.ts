@@ -134,6 +134,22 @@ export interface VaultStatus {
 export interface VaultOverview { status: VaultStatus; items: VaultItemMeta[]; profileFields: VaultProfileFieldDef[]; siteFields: string[] }
 export interface VaultAccessLogRow { id: string; item_id: string | null; actor: string; purpose: string | null; at: string }
 
+// ---------- 浏览器现场 / 批量投递（Global 路由 /api/career/live、/api/career/batch） ----------
+export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
+export interface BatchState {
+  status: BatchStatus; startedAt?: string; updatedAt: string; currentActionId?: string; currentTitle?: string;
+  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked' | 'daily_cap';
+  message?: string; done: number; failed: number; handoffs: number; queued: number; todayCount: number; lastError?: string;
+}
+export interface LiveSnapshot {
+  productSessionId: string | null;
+  browser: { hasBrowser: boolean; control: 'agent' | 'human' | 'none'; reason: string | null; url?: string; title?: string; channel: string };
+  batch: BatchState | null;
+  openHandoffs: number;
+}
+export interface LiveFrame { type: 'frame'; data: string; width: number; height: number; ts: number; url?: string }
+export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
+
 /** 页面 → Chat Tab：请求执行接管动作（Session 路由）。Chat Tab 处理后回发 career:takeover-handled。 */
 export interface CareerTakeoverActionRequest {
   requestId: string; runId: string; action: 'take' | 'handback'; resumedFromStep?: string;

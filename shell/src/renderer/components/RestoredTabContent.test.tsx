@@ -102,6 +102,7 @@ function bindings(overrides: Partial<BuiltinTabBindings> = {}): BuiltinTabBindin
     'career-interview': careerPageBinding,
     'career-offer': careerPageBinding,
     'career-vault': careerPageBinding,
+    'career-live': careerPageBinding,
     chat: {
       windowPresentation: AVAILABLE_PRESENTATION,
       onOpenHistorySession: vi.fn(async () => {}),

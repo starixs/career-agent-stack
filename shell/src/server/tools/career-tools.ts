@@ -20,6 +20,7 @@ import { getSearchProvider, type CareerSearchProvider } from '../career/search';
 import { loadSkillPrompt } from '../career/skills';
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { getVault, vaultForRepos } from '../career/vault';
+import { persistDriveOutcome } from '../career/drive-outcome';
 import { acquireBrowserCapability } from '../browser-host/capability-client';
 import { broadcast as sseBroadcast } from '../sse';
 import { cancellableFetch } from '../utils/cancellation';
@@ -299,43 +300,17 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     } catch (error) {
       return failRun(error instanceof Error ? error.message : String(error));
     }
-    const errorLine = events.find(e => e.type === 'error') as { status?: number; error?: string } | undefined;
-    const result = [...events].reverse().find(e => e.type === 'result' && e.op === 'drive')?.result as Record<string, unknown> | undefined;
-    if (!result) return failRun(errorLine ? `${errorLine.error ?? '浏览器路由报错'}（HTTP ${errorLine.status ?? '?'}）` : '浏览器没有返回填表结果');
-    const count = (k: string) => (Array.isArray(result[k]) ? (result[k] as unknown[]).length : 0);
-    const summary: Record<string, unknown> = {
-      status: result.status, reason: result.reason, message: result.message, userAction: result.userAction, finalUrl: result.finalUrl, adapter: result.adapterId,
-      filled: result.filled, needsUser: result.needsUser, drafts: result.drafts, mismatches: result.mismatches, uploads: result.uploads,
-      escalations: result.escalations, layersUsed: result.layersUsed, submitButton: result.submitButton, loginFilled: result.loginFilled,
-    };
-    const status = String(result.status ?? '');
-    if (status === 'handoff') {
-      const reason = String(result.reason ?? 'user_request') as never;
-      const userAction = typeof result.userAction === 'string' ? result.userAction : undefined;
-      const h = r.openHandoff(reason, { actionId: action.id, taskId, message: typeof result.message === 'string' ? result.message : undefined });
-      try { registry.pause(runId, reason, { handoffId: h.id, url: typeof result.finalUrl === 'string' ? result.finalUrl : undefined, message: userAction ?? (typeof result.message === 'string' ? result.message : undefined) }); } catch { /* 已是暂停态 */ }
-      r.setActionStatus(action.id, 'needs_user', summary);
-      if (action.application_id) { try { r.transition(action.application_id, 'needs_user', String(result.message ?? reason), { page_url: typeof result.finalUrl === 'string' ? result.finalUrl : undefined, blocker_reason: `${reason}: ${result.message ?? ''}`, next_action: '处理接管后继续' }); } catch { /* ignore */ } }
-      changed('handoff', 'task', 'action_queue', 'application');
-      return text({ runId, taskId, state: 'paused', handoffId: h.id, reason, userAction, summary, note: '已暂停：请把 userAction 原话告诉用户；用户在浏览器里处理完并点"交回"后，调用 apply_continue(action_id) 从当前页继续。' });
-    }
-    if (status === 'stopped_before_submit') {
-      r.setActionStatus(action.id, 'done', summary);
-      const submitAction = r.enqueueAction('submit', { url: result.finalUrl, submitButton: result.submitButton, summary: { filled: count('filled'), needsUser: count('needsUser'), drafts: count('drafts'), mismatches: count('mismatches') } }, action.application_id);
-      r.updateTask(taskId, { status: 'done', progress: 1 });
+    const outcome = persistDriveOutcome({ repos: r, action, taskId, events, changed, review });
+    if (outcome.kind === 'failed') {
       registry.finish(runId);
-      const pending = count('needsUser') + count('drafts') + count('mismatches');
-      if (action.application_id) {
-        try {
-          if (pending > 0) r.transition(action.application_id, 'needs_user', `需要你补充 ${pending} 项后再提交`, { page_url: typeof result.finalUrl === 'string' ? result.finalUrl : undefined, next_action: '补充缺项后审核提交' });
-          else r.db.update('application', action.application_id, { page_url: typeof result.finalUrl === 'string' ? result.finalUrl : null, next_action: '审核后提交', blocker_reason: null, updated_at: new Date().toISOString() });
-        } catch { /* ignore */ }
-      }
-      review([submitAction.id], 'submit', `表单已填好${result.submitButton ? `，停在「${String(result.submitButton)}」前` : ''}，确认后由你本人提交`);
-      changed('task', 'action_queue', 'application');
-      return text({ runId, taskId, state: 'done', submitActionId: submitAction.id, summary, note: `表单已填好但未提交；提交动作已进待审核队列，用户批准后由本人完成。${pending > 0 ? `有 ${pending} 项需要用户补充 / 确认（见 needsUser / drafts / mismatches）。` : ''}` });
+      return err(`填表${outcome.blocked ? '被阻塞' : '执行失败'}：${outcome.message}`);
     }
-    return failRun(String(result.message ?? status), summary, status === 'blocked' ? 'blocked' : 'failed');
+    if (outcome.kind === 'handoff') {
+      try { registry.pause(runId, outcome.reason, { handoffId: outcome.handoffId, url: outcome.finalUrl, message: outcome.userAction ?? outcome.message }); } catch { /* 已是暂停态 */ }
+      return text({ runId, taskId, state: 'paused', handoffId: outcome.handoffId, reason: outcome.reason, userAction: outcome.userAction, summary: outcome.summary, note: '已暂停：请把 userAction 原话告诉用户；用户在浏览器里处理完并点"交回"后，调用 apply_continue(action_id) 从当前页继续。' });
+    }
+    registry.finish(runId);
+    return text({ runId, taskId, state: 'done', submitActionId: outcome.submitActionId, summary: outcome.summary, note: `表单已填好但未提交；提交动作已进待审核队列，用户批准后由本人完成。${outcome.pending > 0 ? `有 ${outcome.pending} 项需要用户补充 / 确认（见 needsUser / drafts / mismatches）。` : ''}` });
   }
 
   return createSdkMcpServer({
@@ -616,6 +591,23 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (!action) return err(`动作不存在：${args.action_id}`);
         if (action.status !== 'approved') return err(`动作状态为 ${action.status}，只能执行已批准（approved）的动作${action.status === 'needs_user' || action.status === 'executing' ? '；要从接管处继续请用 apply_continue' : ''}`);
         return runDrive(action, 'start');
+      })()),
+
+      tool('apply_batch', '批量投递（后台长程）：把「岗位与投递」里所有已批准的填表动作排队，由产品后台一份份填（遇登录 / 验证码停下等用户，交回后自动继续，两份之间拟人停顿，平台风控时跳过）。command=start 开始或继续、pause 当前这份填完就停、stop 立即停、status 只看进度。用户可在「浏览器现场」页实时观看。', {
+        command: z.enum(['start', 'pause', 'stop', 'status']),
+      }, async (args) => wrap(async () => {
+        const { BatchRunner } = await import('../career/batch-runner');
+        const r = repos();
+        const peek = new BatchRunner({ repos: r, drive: async () => { throw new Error('只读'); }, control: () => 'agent', broadcast: () => {} });
+        if (args.command !== 'status') {
+          BatchRunner.command(r, args.command, 'assistant');
+          changed('task');
+        }
+        const state = peek.state();
+        const note = args.command === 'status'
+          ? '以上是后台批量投递的当前状态；想看画面让用户打开「浏览器现场」页。'
+          : `已向后台下发 ${args.command}；状态几秒内更新，可再用 status 查看。注意：批量运行器只在桌面端（Global 侧车）运行。`;
+        return text({ command: args.command, batch: state, note });
       })()),
 
       tool('apply_continue', '用户在浏览器里处理完登录 / 验证码 / 测评并交还后，从当前页面继续填表（不重新打开链接，不提交）。', { action_id: z.string().describe('之前 apply_run 的 action_id') }, async (args) => wrap(async () => {

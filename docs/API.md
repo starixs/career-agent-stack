@@ -54,6 +54,17 @@
 浏览器 `run` 的 `op:'drive'` 不再要求调用方传 `profile`：资料由 Global 侧车从 SQLite + 私密库组装（`defaultDriveProfile`），返回的 `page` / `result` 事件已脱敏。`drive` 缺省带视觉兜底感知器（`defaultPerceiver`：DOM 盒子 + macOS Vision OCR；`CAREER_VISION_OCR=0` 关闭；`CAREER_VISION_VLM=1` 且模型支持图片时再加视觉模型），`body.vision:false` 可只走 DOM 层；不传 `url` 表示从当前页继续（apply_continue）。`result` 里多了 `userAction` / `captchaKind` / `escalations` / `layersUsed` / `pages[].sections`。
 `apply_run` 调 Global 路由时用 capability.url 的 origin 拼路径（capability.url 本身指向 `/mcp/playwright`）。
 
+### Global：浏览器现场 + 批量投递（免令牌；渲染层原生 fetch 直连 Global 端口，响应带 CORS）
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/career/live/state` | `{ productSessionId, browser:{hasBrowser, control, url, title, channel}, batch: BatchState|null, openHandoffs }` |
+| GET | `/api/career/live/stream?frames=1` | NDJSON 长连接：`snapshot` → Global 内部事件（`career:batch` / `career:takeover` / `career:progress` / `career:data-changed` / `career:review`）→ `frame`（CDP screencast JPEG base64，frames=1 时）→ `heartbeat`。**不能走 apiFetch**（Rust 缓冲代理，120s 上限），渲染层用 `useGlobalLive` 直连 |
+| POST | `/api/career/live/control` | `{control:'human'|'agent', reason?}`：human 前置真实 Chrome；agent 关闭等待中的填表接管，批量运行器据此续跑 |
+| GET | `/api/career/batch/state` | 批量运行器状态 |
+| POST | `/api/career/batch/command` | `{cmd:'start'|'pause'|'stop'}`；Global 里没有运行器实例时写 kv `apply:batch:command` 由运行器轮询 |
+
+渲染层常驻 `CareerLiveBridge` 连一路不带帧的 stream，把 Global 事件转发到本地 eventBus（Global 的 `sse.broadcast` 没有任何客户端，到不了前端）。「浏览器现场」页签（`career-live`）连带帧的 stream；关掉页签只断画面，不影响后台。
+
 ### Global：浏览器（供 Session 工具调用，Bearer token = browser capability token）
 | 方法 | 路径 | 说明 |
 |---|---|---|
@@ -101,6 +112,7 @@
 | `apply_prepare` | job_id, resume_id | 入队 fill_form（需审核）并创建 application |
 | `apply_run` | action_id | 在托管浏览器上执行填表 run（不提交）。结果按浏览器路由的 `result.status` 处理：`stopped_before_submit` → submit 进待审队列；`handoff` → 开接管、动作 needs_user、返回 `userAction`（该让用户做什么）；`blocked` / `failed` / 路由 `error` 行 → 动作 failed、投递 blocked |
 | `apply_continue` | action_id | 用户在浏览器里处理完登录 / 验证码 / 测评并点"交回"后，从当前页继续填表（不重新打开链接）；复用同一任务，关闭该动作的接管 |
+| `apply_batch` | command: start / pause / stop / status | 后台长程批量：把所有已批准的 fill_form 排队由 Global 运行器一份份填（接管等用户交回后自动续跑、拟人间歇、平台风控跳过、每日上限、侧车重启续跑）。命令经 kv `apply:batch:command` 下发；进度在「浏览器现场」页实时可见 |
 | `greeting_compose` | job_id | 生成招呼语并入队 send_greeting（待审） |
 | `review_queue` | status? | 列出待审动作 |
 | `interview_*` | … | questions / probe / project_story / retro / predict |
