@@ -39,7 +39,7 @@ async function loadAll() {
   return { ...resumes, jobs };
 }
 
-export default function CareerResume() {
+export default function CareerResume({ embedded = false }: { embedded?: boolean } = {}) {
   const query = useCareerQuery(loadAll, ['resume_master', 'resume_tailored', 'resume_snapshot', 'job']);
   const masters = useMemo(() => query.data?.masters ?? [], [query.data]);
   const tailored = useMemo(() => query.data?.tailored ?? [], [query.data]);
@@ -58,7 +58,7 @@ export default function CareerResume() {
   const jobById = useMemo(() => new Map(jobs.map(j => [j.id, j])), [jobs]);
 
   return (
-    <CareerPage title="简历" examples={['帮我生成主简历', '帮我针对这个岗位改一版简历', '把简历导出成 PDF']}>
+    <CareerPage embedded={embedded} title="简历" examples={['帮我生成主简历', '帮我针对这个岗位改一版简历', '把简历导出成 PDF']}>
       <div className="px-4 py-3">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !query.data && <LoadingRow />}

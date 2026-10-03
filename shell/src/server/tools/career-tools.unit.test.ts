@@ -131,3 +131,71 @@ describe('career 简历工具', () => {
     expect(bad.isError).toBe(true);
   });
 });
+
+describe('career 五个面的工具', () => {
+  let llm: FakeLLM;
+  let events: Array<{ event: string; data: unknown }>;
+  let repos: ReturnType<typeof createMemoryRepos>;
+
+  beforeEach(async () => {
+    mocks.handlers.clear();
+    llm = new FakeLLM();
+    events = [];
+    repos = createMemoryRepos();
+    await createCareerServer({ repos, llm, broadcast: (event, data) => events.push({ event, data }), sessionId: () => 'sess-1', resumeModule: async () => ({ parseResume }) });
+  });
+
+  it('注册了全部新工具', () => {
+    for (const name of ['today_queue', 'inbox_capture', 'inbox_list', 'inbox_dismiss', 'deadline_add', 'deadline_done', 'dossier_list', 'dossier_get', 'dossier_note_add', 'application_set_stage', 'material_list', 'material_draft', 'material_save', 'material_use_record', 'weekly_review', 'mail_accounts', 'mail_sync', 'mail_list', 'mail_compose']) {
+      expect(mocks.handlers.has(name), name).toBe(true);
+    }
+  });
+
+  it('inbox_capture 走 inbox-triage 技能并推 focus；today_queue 能看到新建的截止事件', async () => {
+    const job = repos.upsertJob({ source_platform: 'manual', title: '运营实习生', company_name: '甲公司' });
+    const app = repos.createApplication(job.id);
+    llm.push(JSON.stringify({ kind: 'written_test', relevance: 'job', fields: { company: '甲公司', due_at: new Date(Date.now() + 3600_000).toISOString() }, match: { application_id: app.id }, summary: '甲公司笔试，一小时后' }));
+    const out = (await call('inbox_capture', { text: '笔试通知……' })).json();
+    expect(out.kind).toBe('written_test');
+    expect(out.status).toBe('processed');
+    expect((out.created as { deadline_ids: string[] }).deadline_ids).toHaveLength(1);
+    expect(events.some(e => e.event === 'career:focus' && (e.data as { surface: string }).surface === 'dossier')).toBe(true);
+    const today = (await call('today_queue')).json();
+    expect((today.items as Array<{ kind: string; title: string }>).some(i => i.kind === 'deadline' && i.title.includes('笔试'))).toBe(true);
+  });
+
+  it('dossier_get 按公司名找到唯一投递；application_set_stage 沿合法路径推进；dossier_note_add 记"我说过"', async () => {
+    const job = repos.upsertJob({ source_platform: 'manual', title: '产品', company_name: '乙公司' });
+    const app = repos.createApplication(job.id);
+    const moved = (await call('application_set_stage', { application_id: app.id, stage: 'interview', note: '进面了' })).json();
+    expect((moved.application as { stage: string }).stage).toBe('interview');
+    await call('dossier_note_add', { application_id: app.id, kind: 'said', round: 'first', content: '可以 7 月到岗' });
+    const dossier = (await call('dossier_get', { company_name: '乙公司' })).json();
+    expect((dossier.notes as Array<{ content: string }>)[0].content).toContain('7 月');
+    expect((dossier.history as unknown[]).length).toBeGreaterThan(1);
+    const missing = await call('dossier_get', { company_name: '不存在' });
+    expect(missing.isError).toBe(true);
+  });
+
+  it('material_save 落库并推 focus；mail_compose 只入待审队列，不发送', async () => {
+    const saved = (await call('material_save', { kind: 'why_company', title: '为什么选甲', content: '因为……' })).json();
+    expect((saved.material as { confirmed: number }).confirmed).toBe(1);
+    expect(events.some(e => e.event === 'career:focus' && (e.data as { surface: string }).surface === 'material')).toBe(true);
+
+    const noAccount = await call('mail_compose', { to: 'hr@a.com', job_id: 'job_x' });
+    expect(noAccount.isError).toBe(true);
+    expect(noAccount.content[0].text).toContain('绑定邮箱');
+
+    repos.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' });
+    const job = repos.upsertJob({ source_platform: 'manual', title: '数据分析', company_name: '甲公司', jd_raw: 'JD' });
+    llm.push(JSON.stringify({ email: { subject: '应聘【数据分析】-某校-张三', body: '您好……', signature: '张三' }, attachment_name: '', short_message: '' }));
+    const out = (await call('mail_compose', { to: 'hr@a.com', job_id: job.id })).json();
+    expect(out.subject).toContain('应聘');
+    const action = repos.getAction(out.action_id as string)!;
+    expect(action.kind).toBe('send_mail');
+    expect(action.status).toBe('pending_review');
+    expect(JSON.parse(action.payload_json).to).toBe('hr@a.com');
+    expect(repos.listMailMessages({ direction: 'out' })).toHaveLength(0);
+    expect(events.some(e => e.event === 'career:review')).toBe(true);
+  });
+});

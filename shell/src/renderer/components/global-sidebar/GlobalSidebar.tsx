@@ -5,24 +5,24 @@ import {
   Archive,
   Bell,
   Bot,
-  BriefcaseBusiness,
   Check,
   CheckSquare,
   ChevronDown,
   ChevronRight,
   Eye,
   EyeOff,
-  FileText,
   FolderOpen,
   FolderTree,
-  Handshake,
+  Inbox,
+  LineChart,
+  Compass,
+  Sun,
   LayoutGrid,
   Library,
   Loader2,
   LockKeyhole,
   MessageSquare,
   MessageSquarePlus,
-  MicVocal,
   MoreHorizontal,
   PanelLeft,
   Pin,
@@ -38,6 +38,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import { CAREER_SURFACES, type CareerSurfaceKind } from '@/features/career-shared/nav';
 import {
   lazy,
   memo,
@@ -187,6 +188,18 @@ export function sortWorkspaceSessions(sessions: readonly SessionMetadata[]): Ses
 
 export type CapabilitySection = 'skills' | 'plugins' | 'mcp';
 
+/** 侧栏图标按 nav.ts 的 icon 名取，避免每个面各写一处。 */
+const CAREER_SURFACE_ICONS: Record<typeof CAREER_SURFACES[number]['icon'], ReactNode> = {
+  sun: <Sun className="h-4 w-4" />,
+  inbox: <Inbox className="h-4 w-4" />,
+  folder: <FolderOpen className="h-4 w-4" />,
+  library: <Library className="h-4 w-4" />,
+  chart: <LineChart className="h-4 w-4" />,
+  compass: <Compass className="h-4 w-4" />,
+  eye: <Eye className="h-4 w-4" />,
+  lock: <LockKeyhole className="h-4 w-4" />,
+};
+
 interface GlobalSidebarProps {
   tabs: readonly Tab[];
   activeTab: Tab | undefined;
@@ -198,14 +211,8 @@ interface GlobalSidebarProps {
   onNewTab: () => void;
   /** 一级入口「对话」：聚焦唯一的个人助理 Chat。 */
   onOpenChat: () => void;
-  onOpenCareerExperience: () => void;
-  onOpenCareerResume: () => void;
-  onOpenCareerApply: () => void;
-  onOpenCareerResearch: () => void;
-  onOpenCareerInterview: () => void;
-  onOpenCareerOffer: () => void;
-  /** 私密信息（本人资料 / 网站账号 / 经历保密补充），不进模型上下文。 */
-  onOpenCareerVault: () => void;
+  /** 五个面 + 指南（清单见 features/career-shared/nav.ts）。 */
+  onOpenCareerPage: (kind: CareerSurfaceKind) => void;
   onOpenTaskCenter: () => void;
   onCreateTask: () => void;
   /** 保留给 OPEN_SPACE 事件等调用方；侧栏不再渲染团队入口。 */
@@ -402,13 +409,7 @@ export default memo(function GlobalSidebar({
   sessionNotificationBadgeCounts,
   onNewTab: _onNewTab,
   onOpenChat,
-  onOpenCareerExperience,
-  onOpenCareerResume,
-  onOpenCareerApply,
-  onOpenCareerResearch,
-  onOpenCareerInterview,
-  onOpenCareerOffer,
-  onOpenCareerVault,
+  onOpenCareerPage,
   onOpenTaskCenter,
   onCreateTask,
   showWorkspaceTree = false,
@@ -1154,55 +1155,16 @@ export default memo(function GlobalSidebar({
             label={t('globalSidebar.chat')}
             onClick={onOpenChat}
           />
-          <SidebarNavButton
-            expanded={expanded}
-            active={activeView === 'career-experience'}
-            icon={<Library className="h-4 w-4" />}
-            label={t('globalSidebar.careerExperience')}
-            onClick={onOpenCareerExperience}
-          />
-          <SidebarNavButton
-            expanded={expanded}
-            active={activeView === 'career-resume'}
-            icon={<FileText className="h-4 w-4" />}
-            label={t('globalSidebar.careerResume')}
-            onClick={onOpenCareerResume}
-          />
-          <SidebarNavButton
-            expanded={expanded}
-            active={activeView === 'career-apply'}
-            icon={<BriefcaseBusiness className="h-4 w-4" />}
-            label={t('globalSidebar.careerApply')}
-            onClick={onOpenCareerApply}
-          />
-          <SidebarNavButton
-            expanded={expanded}
-            active={activeView === 'career-research'}
-            icon={<Search className="h-4 w-4" />}
-            label={t('globalSidebar.careerResearch')}
-            onClick={onOpenCareerResearch}
-          />
-          <SidebarNavButton
-            expanded={expanded}
-            active={activeView === 'career-interview'}
-            icon={<MicVocal className="h-4 w-4" />}
-            label={t('globalSidebar.careerInterview')}
-            onClick={onOpenCareerInterview}
-          />
-          <SidebarNavButton
-            expanded={expanded}
-            active={activeView === 'career-offer'}
-            icon={<Handshake className="h-4 w-4" />}
-            label={t('globalSidebar.careerOffer')}
-            onClick={onOpenCareerOffer}
-          />
-          <SidebarNavButton
-            expanded={expanded}
-            active={activeView === 'career-vault'}
-            icon={<LockKeyhole className="h-4 w-4" />}
-            label={t('globalSidebar.careerVault')}
-            onClick={onOpenCareerVault}
-          />
+          {CAREER_SURFACES.map(surface => (
+            <SidebarNavButton
+              key={surface.kind}
+              expanded={expanded}
+              active={activeView === surface.kind}
+              icon={CAREER_SURFACE_ICONS[surface.icon]}
+              label={t(surface.navKey)}
+              onClick={() => onOpenCareerPage(surface.kind)}
+            />
+          ))}
           <div className="group/task-create relative">
             <SidebarNavButton
               expanded={expanded}

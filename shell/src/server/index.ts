@@ -76,10 +76,12 @@ import { fetchWithGeneralProxy } from './utils/cancellation';
 import { startOAuthMaintenanceForSidecarRole } from './mcp-oauth';
 import {
   composeSidecarRequestHandler,
+  hasSidecarCapability,
   resolveSidecarComposition,
   runSidecarBootstrap,
   type SidecarComposition,
 } from './sidecar-composition';
+import { startCareerMailPoller } from './career/mail/poller';
 import {
   aggregateGlobalUsageStats,
   buildSessionDetailedUsageStats,
@@ -1767,6 +1769,9 @@ async function main() {
 
   let currentAgentDir = await ensureAgentDir(agentDir);
   startupBeacon('ensureAgentDir done');
+
+  // 求职产品：邮箱轮询只在 Global 侧车跑一份（收到面试邀请 / 测评 / 拒信自动进收件箱与卷宗）。
+  if (hasSidecarCapability(sidecarComposition, 'global')) startCareerMailPoller();
 
   // Initialize unified logging system (intercepts console.log and sends to SSE)
   // PRD — wire the stdio-broken probe + marker so the logger wrapper

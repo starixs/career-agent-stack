@@ -20,7 +20,7 @@ app/
 │  ├─ resume/    简历 schema、JD 解析、tailor（JSON Patch + 编造检测）、PDF/DOCX/PNG 渲染
 │  ├─ apply/     网申表单引擎（永不提交）、国内站适配器、Boss 招呼语节奏、风险锁、拟人节奏
 │  └─ bridges/   trident-scanner / docparse / intel-compass 桥接、repo 证据挖掘、Web Search、校招数据
-├─ skills/                19 个技能包（SKILL.md + references）
+├─ skills/                22 个技能包（SKILL.md + references）
 └─ docs/
 ```
 

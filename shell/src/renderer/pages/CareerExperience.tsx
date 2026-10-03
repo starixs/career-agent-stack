@@ -30,7 +30,7 @@ export function sortExperiences(list: ExperienceNode[]): ExperienceNode[] {
   return [...list].sort((a, b) => (key(a) < key(b) ? 1 : key(a) > key(b) ? -1 : 0));
 }
 
-export default function CareerExperience() {
+export default function CareerExperience({ embedded = false }: { embedded?: boolean } = {}) {
   const query = useCareerQuery(careerApi.experiences, ['experience', 'claim', 'evidence']);
   const experiences = useMemo(() => sortExperiences(query.data ?? []), [query.data]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -44,6 +44,7 @@ export default function CareerExperience() {
 
   return (
     <CareerPage
+      embedded={embedded}
       title="经历库"
       subtitle={pendingTotal > 0 ? `${pendingTotal} 条主张待你核实` : undefined}
       examples={['帮我整理经历', '帮我从这份简历里提取经历', '帮我补充这段实习的证据']}

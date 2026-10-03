@@ -150,6 +150,7 @@ export const SSE_EVENT_PRIORITIES: Readonly<Record<string, SseEventPriority>> = 
   'career:data-changed': 'coalescible',
   'career:takeover': 'critical',
   'career:review': 'critical',
+  'career:focus': 'critical', // 工具完成后让面板跳到对应对象（收件箱 / 卷宗 / 复盘）
 });
 
 function resolvePriority(event: string): SseEventPriority {

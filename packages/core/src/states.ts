@@ -24,10 +24,10 @@ export function canTransition(from: ApplicationStage, to: ApplicationStage): boo
   return (STAGE_TRANSITIONS[from] ?? []).includes(to)
 }
 
-export const ACTION_KINDS = ['fill_form', 'submit', 'send_greeting', 'upload', 'answer_open_q', 'collect', 'research'] as const
+export const ACTION_KINDS = ['fill_form', 'submit', 'send_greeting', 'upload', 'answer_open_q', 'collect', 'research', 'send_mail'] as const
 export type ActionKind = typeof ACTION_KINDS[number]
 /** 这些动作永远需要用户审核后才能执行（提交 / 发送永远过人）。 */
-export const ACTIONS_REQUIRING_REVIEW: readonly ActionKind[] = ['submit', 'send_greeting', 'answer_open_q']
+export const ACTIONS_REQUIRING_REVIEW: readonly ActionKind[] = ['submit', 'send_greeting', 'answer_open_q', 'send_mail']
 
 export const ACTION_STATUSES = ['pending_review', 'approved', 'executing', 'needs_user', 'done', 'failed', 'rejected'] as const
 export type ActionStatus = typeof ACTION_STATUSES[number]
@@ -54,3 +54,28 @@ export const CLAIM_ATTRIBUTIONS = ['self', 'team', 'unknown'] as const
 export const EVIDENCE_STRENGTHS = ['strong', 'mid', 'weak'] as const
 export const INTERVIEW_RESULTS = ['none', 'rejected', 'advanced', 'no_feedback_inferred'] as const
 export const INTERVIEW_RESULT_SOURCES = ['none', 'official', 'inferred'] as const
+
+// ===== 五个面（收件箱 / 今日 / 卷宗 / 素材 / 复盘）用到的枚举 =====
+export const INBOX_SOURCES = ['paste', 'mail', 'file', 'url', 'chat'] as const
+export type InboxSource = typeof INBOX_SOURCES[number]
+export const INBOX_KINDS = ['jd', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other'] as const
+export type InboxKind = typeof INBOX_KINDS[number]
+export const INBOX_STATUSES = ['new', 'processed', 'dismissed'] as const
+export type InboxStatus = typeof INBOX_STATUSES[number]
+
+export const DEADLINE_KINDS = ['assessment', 'written_test', 'interview', 'application_deadline', 'offer_reply', 'referral_expiry', 'other'] as const
+export type DeadlineKind = typeof DEADLINE_KINDS[number]
+export const DEADLINE_STATUSES = ['open', 'done', 'missed', 'cancelled'] as const
+export type DeadlineStatus = typeof DEADLINE_STATUSES[number]
+
+export const DOSSIER_NOTE_KINDS = ['note', 'said', 'heard', 'contact', 'referral', 'mail'] as const
+export type DossierNoteKind = typeof DOSSIER_NOTE_KINDS[number]
+
+export const MATERIAL_KINDS = ['open_question', 'project_story', 'self_intro', 'why_company', 'why_role', 'strength_weakness', 'career_plan', 'other'] as const
+export type MaterialKind = typeof MATERIAL_KINDS[number]
+
+export const MAIL_PROVIDERS = ['qq', '163', '126', 'gmail', 'outlook', 'imap'] as const
+export type MailProvider = typeof MAIL_PROVIDERS[number]
+
+/** 投递静默判定：某阶段停留超过 N 天且没有任何新事件，视为"可关闭的静默"。 */
+export const SILENCE_DAYS: Partial<Record<ApplicationStage, number>> = { applied: 21, responded: 14, interview: 14, pending: 7 }

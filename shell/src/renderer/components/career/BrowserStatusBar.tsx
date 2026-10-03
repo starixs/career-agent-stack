@@ -93,7 +93,7 @@ export function BrowserStatusBar() {
       {state === 'idle' && <span className="text-[var(--ink-subtle)]">没有进行中的浏览器任务</span>}
       {notice && <span role="alert" className="text-[var(--error)]">{notice}</span>}
       <div className="ml-auto flex items-center gap-1.5">
-        <Button variant="ghost" onClick={() => emitEvent('career:open-page', { kind: 'career-live' })}>浏览器现场</Button>
+        <Button variant="ghost" onClick={() => emitEvent('career:focus', { surface: 'live' })}>浏览器现场</Button>
         {takeover?.url && <Button variant="ghost" onClick={() => openWebLink(takeover.url!)}>打开网址</Button>}
         {state === 'paused' && (
           <Button variant="primary" busy={busy === 'take'} disabled={busy !== null} onClick={() => void act('take')}>接管</Button>

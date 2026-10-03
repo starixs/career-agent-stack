@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { onEvent } from '@/api/eventBus';
+import { CAREER_PAGE_TITLE_KEYS as CAREER_SURFACE_TITLE_KEYS, surfaceToKind } from '@/features/career-shared/nav';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
@@ -74,7 +76,6 @@ import {
   type SidecarConfigDisposition,
   type FilePreviewIntent,
   type CareerPageKind,
-  CAREER_PAGE_KINDS,
   createNewTab,
   findAssistantChatTab,
   getFolderName,
@@ -122,7 +123,6 @@ import {
   type CronTaskRecoveredPayload,
   CRON_EVENTS,
 } from '@/types/cronEvents';
-import { onEvent as onCareerBusEvent } from '@/api/eventBus';
 import { CareerLiveBridge } from '@/components/career/CareerLiveBridge';
 import { isBrowserDevMode, isTauriEnvironment } from '@/utils/browserMock';
 import { apiGetJson } from '@/api/apiFetch';
@@ -358,17 +358,8 @@ export interface LaunchProjectAnalyticsContext {
 // 求职助理：单一对话壳
 // ============================================================================
 
-/** 六个一级功能页的 Tab 标题 i18n key（app 命名空间）。 */
-const CAREER_PAGE_TITLE_KEYS: Record<CareerPageKind, string> = {
-  'career-experience': 'tabs.careerExperience',
-  'career-resume': 'tabs.careerResume',
-  'career-apply': 'tabs.careerApply',
-  'career-research': 'tabs.careerResearch',
-  'career-interview': 'tabs.careerInterview',
-  'career-offer': 'tabs.careerOffer',
-  'career-vault': 'tabs.careerVault',
-  'career-live': 'tabs.careerLive',
-};
+/** 五个面 + 指南的 Tab 标题 i18n key（app 命名空间），清单来自 features/career-shared/nav.ts。 */
+const CAREER_PAGE_TITLE_KEYS: Record<CareerPageKind, string> = CAREER_SURFACE_TITLE_KEYS;
 
 /** 用户端不再暴露的设置分区：任何导航意图一律落到「通用」。 */
 const HIDDEN_SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
@@ -3291,30 +3282,15 @@ export default function App() {
     },
     [t, tabWorkspaceController],
   );
-  const handleOpenCareerExperience = useCallback(() => {
-    handleOpenCareerPage('career-experience');
-  }, [handleOpenCareerPage]);
-  const handleOpenCareerResume = useCallback(() => {
-    handleOpenCareerPage('career-resume');
-  }, [handleOpenCareerPage]);
-  const handleOpenCareerApply = useCallback(() => {
-    handleOpenCareerPage('career-apply');
-  }, [handleOpenCareerPage]);
-  const handleOpenCareerResearch = useCallback(() => {
-    handleOpenCareerPage('career-research');
-  }, [handleOpenCareerPage]);
-  const handleOpenCareerInterview = useCallback(() => {
-    handleOpenCareerPage('career-interview');
-  }, [handleOpenCareerPage]);
-  const handleOpenCareerOffer = useCallback(() => {
-    handleOpenCareerPage('career-offer');
-  }, [handleOpenCareerPage]);
-  const handleOpenCareerVault = useCallback(() => {
-    handleOpenCareerPage('career-vault');
-  }, [handleOpenCareerPage]);
-  // 其他页面（浏览器状态条等）通过 eventBus 请求打开某个一级功能页，例如「浏览器现场」
-  useEffect(() => onCareerBusEvent<{ kind?: CareerPageKind }>('career:open-page', payload => {
-    if (payload?.kind && (CAREER_PAGE_KINDS as readonly string[]).includes(payload.kind)) handleOpenCareerPage(payload.kind);
+  // 面板按钮把话交给对话（career:chat-suggest）：Chat 负责真正发送，这里只把焦点切回唯一的个人助理对话。
+  useEffect(() => onEvent<{ text?: string }>('career:chat-suggest', payload => {
+    if (!payload?.text) return;
+    handleOpenAssistantChat();
+  }), [handleOpenAssistantChat]);
+  // 工具 / 路由完成后推 focus：打开对应的面（对象定位由该面自己订阅同一事件完成）。
+  useEffect(() => onEvent<{ surface?: string }>('career:focus', payload => {
+    const kind = surfaceToKind(payload?.surface);
+    if (kind) handleOpenCareerPage(kind);
   }), [handleOpenCareerPage]);
 
   const handleOpenWorkspaceFromSidebar = useCallback(
@@ -4957,7 +4933,7 @@ export default function App() {
       registerPendingRecordNoteSubmitter,
     ],
   );
-  // 六个一级功能页共用同一份绑定：它们只需要"回到对话"。
+  // 五个面 + 指南共用同一份绑定：它们只需要"回到对话"。
   const careerPageBinding = useMemo(
     () => ({ onOpenChat: handleOpenAssistantChat }),
     [handleOpenAssistantChat],
@@ -4971,14 +4947,14 @@ export default function App() {
       taskcenter: taskCenterBinding,
       space: spaceBinding,
       record: recordBinding,
-      'career-experience': careerPageBinding,
-      'career-resume': careerPageBinding,
-      'career-apply': careerPageBinding,
-      'career-research': careerPageBinding,
-      'career-interview': careerPageBinding,
-      'career-offer': careerPageBinding,
-      'career-vault': careerPageBinding,
+      'career-today': careerPageBinding,
+      'career-inbox': careerPageBinding,
+      'career-dossier': careerPageBinding,
+      'career-material': careerPageBinding,
+      'career-review': careerPageBinding,
+      'career-guide': careerPageBinding,
       'career-live': careerPageBinding,
+      'career-vault': careerPageBinding,
     }),
     [
       capabilitiesBinding,
@@ -5005,13 +4981,7 @@ export default function App() {
             teamSpaceAvailable={teamSpaceAvailable}
             onNewTab={handleSidebarNewChat}
             onOpenChat={handleOpenAssistantChat}
-            onOpenCareerExperience={handleOpenCareerExperience}
-            onOpenCareerResume={handleOpenCareerResume}
-            onOpenCareerApply={handleOpenCareerApply}
-            onOpenCareerResearch={handleOpenCareerResearch}
-            onOpenCareerInterview={handleOpenCareerInterview}
-            onOpenCareerOffer={handleOpenCareerOffer}
-            onOpenCareerVault={handleOpenCareerVault}
+            onOpenCareerPage={handleOpenCareerPage}
             onOpenTaskCenter={handleOpenTaskCenter}
             onCreateTask={handleSidebarCreateTask}
             onOpenSpace={handleOpenSpace}

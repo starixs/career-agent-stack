@@ -7,7 +7,7 @@ export type ApplicationStage =
   | 'evaluated' | 'ready' | 'approved' | 'applied' | 'responded' | 'interview' | 'offer'
   | 'rejected' | 'discarded' | 'skip' | 'hired' | 'blocked' | 'needs_user' | 'pending';
 
-export type ActionKind = 'fill_form' | 'submit' | 'send_greeting' | 'upload' | 'answer_open_q' | 'collect' | 'research';
+export type ActionKind = 'fill_form' | 'submit' | 'send_greeting' | 'upload' | 'answer_open_q' | 'collect' | 'research' | 'send_mail';
 export type ActionStatus = 'pending_review' | 'approved' | 'executing' | 'needs_user' | 'done' | 'failed' | 'rejected';
 export type HandoffReason = 'captcha' | 'login' | '2fa' | 'assessment' | 'submit_confirm' | 'missing_info' | 'user_request';
 export type BrowserControlState = 'idle' | 'running' | 'paused' | 'human_active' | 'resuming';
@@ -154,3 +154,62 @@ export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) 
 export interface CareerTakeoverActionRequest {
   requestId: string; runId: string; action: 'take' | 'handback'; resumedFromStep?: string;
 }
+
+// ===== 五个面：收件箱 / 今日 / 卷宗 / 素材 / 复盘 + 邮箱 =====
+export type InboxKind = 'jd' | 'interview_invite' | 'assessment' | 'written_test' | 'rejection' | 'offer' | 'referral' | 'deadline' | 'other';
+export interface InboxItem {
+  id: string; source: 'paste' | 'mail' | 'file' | 'url' | 'chat'; raw_text: string; kind: InboxKind | null;
+  status: 'new' | 'processed' | 'dismissed'; parsed_json: string | null; linked_type: string | null; linked_id: string | null;
+  mail_message_id: string | null; note: string | null; created_at: string; processed_at: string | null;
+}
+export type DeadlineKind = 'assessment' | 'written_test' | 'interview' | 'application_deadline' | 'offer_reply' | 'referral_expiry' | 'other';
+export interface Deadline {
+  id: string; kind: DeadlineKind; title: string; due_at: string; application_id: string | null; job_id: string | null;
+  interview_id: string | null; offer_id: string | null; source: string; status: 'open' | 'done' | 'missed' | 'cancelled';
+  url: string | null; note: string | null; created_at: string; updated_at: string;
+}
+export interface DossierNote { id: string; application_id: string; kind: 'note' | 'said' | 'heard' | 'contact' | 'referral' | 'mail'; round: string | null; content: string; created_at: string }
+export type MaterialKind = 'open_question' | 'project_story' | 'self_intro' | 'why_company' | 'why_role' | 'strength_weakness' | 'career_plan' | 'other';
+export interface Material {
+  id: string; kind: MaterialKind; title: string; question_key: string | null; content: string; length_variant: string | null;
+  claim_ids_json: string; tags_json: string; company_scope: string | null; confirmed: number; created_at: string; updated_at: string;
+}
+export interface MaterialUse { id: string; material_id: string | null; application_id: string | null; job_id: string | null; company_name: string | null; context: string; content_snapshot: string; used_at: string }
+export interface WeeklyReview { id: string; week_start: string; funnel_json: string; insights_json: string; suggestions_json: string; small_action: string | null; created_at: string }
+export interface MailAccount {
+  id: string; provider: 'qq' | '163' | '126' | 'gmail' | 'outlook' | 'imap'; address: string; display_name: string | null;
+  imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; status: 'unverified' | 'ok' | 'auth_failed' | 'error';
+  last_sync_at: string | null; last_uid: number; last_error: string | null; created_at: string; updated_at: string;
+}
+export interface MailPreset { provider: string; label: string; imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; help: string }
+export interface MailMessage {
+  id: string; account_id: string; uid: number | null; message_id: string | null; in_reply_to: string | null; direction: 'in' | 'out';
+  from_addr: string | null; to_addr: string | null; subject: string | null; snippet: string | null; body_text: string | null; received_at: string | null;
+  relevance: 'unknown' | 'job' | 'ignored'; kind: InboxKind | null; inbox_item_id: string | null; application_id: string | null; action_id: string | null; created_at: string;
+}
+export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'followup';
+export interface TodayItem { kind: TodayItemKind; priority: number; title: string; detail?: string; due_at?: string | null; ref: { type: string; id: string }; suggest?: string }
+export interface TodayQueue { items: TodayItem[]; waiting: { count: number; by_stage: Array<{ stage: string; n: number }> }; inbox_new: number; pending_review: number }
+export interface OnboardingChecklist { has_experience: boolean; has_confirmed_claim: boolean; has_master_resume: boolean; has_mail_account: boolean; has_job: boolean; has_application: boolean; has_material: boolean }
+export interface DossierSummary {
+  application_id: string; job_id: string; company_name: string | null; title: string; stage: ApplicationStage; updated_at: string;
+  days_since_update: number; next_deadline: Deadline | null; interview_count: number; resume_tailored_id: string | null; closed: boolean;
+}
+export interface Dossier {
+  application: Application; job: Job; company: Company | null;
+  resume: { kind: 'master' | 'tailored'; id: string; schema: unknown; confirmed: boolean } | null;
+  answers_used: unknown; material_uses: MaterialUse[]; notes: DossierNote[]; deadlines: Deadline[];
+  interviews: Interview[]; offers: Offer[]; history: Array<{ from_stage: string | null; to_stage: string; note: string | null; created_at: string }>;
+  mails: MailMessage[]; actions: ActionQueueItem[]; predictions: ProbePrediction[];
+}
+export interface FunnelRow { key: string; total: number; applied: number; responded: number; interview: number; offer: number; rejected: number; silent: number }
+export interface Funnel { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null }
+export interface IntakeResult {
+  item: InboxItem; triage: { kind?: string; summary?: string; urgency?: string } | null;
+  created: { job_id?: string; application_id?: string; interview_id?: string; offer_id?: string; deadline_ids: string[]; closed_application_id?: string };
+  focus: CareerFocusEvent; summary: string;
+}
+/** 工具 / 路由完成后让面板跳到对应对象。 */
+export interface CareerFocusEvent { sessionId?: string | null; surface: 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string }
+/** 面板 → 对话：把一句带对象上下文的话真的发进对话。 */
+export interface CareerChatSuggestEvent { text: string; context?: { surface?: string; refs?: Record<string, string | null | undefined>; note?: string }; mode?: 'send' | 'prefill' }

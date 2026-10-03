@@ -31,7 +31,7 @@ const ROUND_OPTIONS = Object.entries(INTERVIEW_ROUND_LABELS).map(([value, label]
 const RESULT_OPTIONS = Object.entries(INTERVIEW_RESULT_LABELS).map(([value, label]) => ({ value, label }));
 const SOURCE_OPTIONS = Object.entries(INTERVIEW_RESULT_SOURCE_LABELS).map(([value, label]) => ({ value, label }));
 
-export default function CareerInterview() {
+export default function CareerInterview({ embedded = false }: { embedded?: boolean } = {}) {
   const query = useCareerQuery(loadAll, ['interview', 'mock_interview', 'probe_prediction']);
   const interviews = useMemo(() => [...(query.data?.interviews ?? [])].sort((a, b) => ((b.date ?? b.created_at) > (a.date ?? a.created_at) ? 1 : -1)), [query.data]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -42,6 +42,7 @@ export default function CareerInterview() {
 
   return (
     <CareerPage
+      embedded={embedded}
       title="面试"
       examples={['帮我准备这场面试', '帮我复盘昨天的面试', '帮我模拟一场深挖追问']}
       actions={<Button onClick={() => setShowForm(v => !v)}><Plus className="h-3.5 w-3.5" />新建记录</Button>}

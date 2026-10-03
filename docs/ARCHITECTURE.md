@@ -3,11 +3,11 @@
 产品 = `shell/`（keystone 基座的产品分支）+ `packages/*`（求职领域库）+ `skills/`（提示词技能包）。
 
 ## 产品决策（已定，不再讨论）
-1. **单一对话**：只有一个"个人助理"对话区，没有多会话 / 工作区 / 多 Tab。一级入口固定为：对话、经历库、简历、岗位与投递、调研、面试、Offer。
+1. **单一对话**：只有一个"个人助理"对话区，没有多会话 / 工作区 / 多 Tab。一级入口是围绕时间与状态的五个面 + 指南：**今日、收件箱、卷宗、素材、复盘、指南**（2026-10-03 重构，见《产品落地计划》§11；经历库 / 简历 / 岗位与投递 / 面试 / Offer / 调研降为面内视图）。
 2. **所有功能在产品内完成**；LLM 唯一的外部动作是 Web Search。
 3. **内置国内模型，零配置**：OpenAI 兼容接口，默认 DeepSeek（可在打包时切换 Qwen / 豆包 / Kimi / GLM）。用户端没有任何模型设置项。
 4. **反检测进产品**（"像真人用自己的浏览器"）：真实 Chrome 持久 profile、去自动化标志、拟人节奏、限速与风险锁、被动捕获不注入请求。验证码 / 登录 / 2FA / 需本人作答的测评 / 最终提交 一律交给用户本人。
-5. **提交与发送永远过人**：`submit` / `send_greeting` / `answer_open_q` 三类动作只能从待审核队列被用户批准后执行（`@career/core` 的 `ACTIONS_REQUIRING_REVIEW`）。
+5. **提交与发送永远过人**：`submit` / `send_greeting` / `answer_open_q` / `send_mail` 四类动作只能从待审核队列被用户批准后执行（`@career/core` 的 `ACTIONS_REQUIRING_REVIEW`）。
 6. **不编造**：经历库里的主张默认 `pending`，只有用户确认或有强证据才能进简历；缺数据标"未知"。
 7. **私密信息不进模型**（`@career/core` 的 `Vault`）：真实姓名 / 手机 / 邮箱 / 证件号 / 住址、投递网站账号密码、经历的保密细节只在「私密信息」页由用户填写，AES-256-GCM 加密落 SQLite（密钥 `CAREER_DATA_DIR/vault.key`，0600）。模型侧只有 `vault_status`（字段名 + 脱敏预览），文本里用占位符 `{{vault:profile.phone}}` / `{{vault:exp.<经历id>.<字段>}}` 指代。两个 hook：**出口**（填表 / 登录代填 / 导出简历时在 Node 侧 `resolve` 成明文并写访问日志）与**入口**（所有 career 工具结果回传前 `redact` 把明文换回占位符）。登录代填只填账号密码输入框、不点登录，仍遵守第 4 条。
 8. **浏览器执行分层**（`@career/apply` 的 `driveApplication`）：L1 DOM 直驱（抽字段 → 规划 → 填写 → 读回核对）；L1.5 页内执行器（借鉴 quillfill：按 UI 框架指纹走 antd / element / iview / layui / 美团 / 饿了么 / Fusion / My97 等下拉与日期控件的"打开 → 等渲染 → 文本匹配 → 点选"，原生控件 React 安全赋值；配字典归一、日期格式推断、几何标签兜底、站点映射记忆、向用户学答案）；L2 视觉兜底（DOM 抽不到字段 / 填不进去 / 找不到按钮时：截图 → `Perceiver`（DOM 盒子 + macOS Vision OCR，按标签位置合成输入框；可选视觉模型做分类）→ 坐标点击 + 键盘输入，按钮文案做 OCR 容错）；L3 交给用户（`describeObstacle` 说清要做什么：滑块 / 点选 / 短信码 / 图形码 / 浏览器检查，登录可先代填）。感知器只回答"哪里有什么"，点哪里填什么永远是确定性代码，提交类按钮任何一层都不点。风控：限流提示 / 跳转到验证页 → 风险锁按当天次数渐进退避（30 分钟 → 2 小时 → 12 小时 → 24 小时）。重复分区（教育 / 实习 / 项目"表格"）：按锚字段切行、逐行填、不够就点"添加"只填新出现的那一行。接管交还后由 `apply_continue` 从当前页继续。真实 Chrome 冒烟：`shell/scripts/career-browser-smoke.mjs`（不依赖 Tauri 能力令牌）。
@@ -25,3 +25,10 @@
 
 ## 数据模型
 见 `packages/core/src/db/schema.sql`。状态流转见 `packages/core/src/states.ts`。私密信息库（`vault_item` / `vault_access_log`）与占位符规则见 `packages/core/src/vault.ts`。
+
+## 五个面与闭环（shell 侧契约）
+- **面板 → 对话**：面板按钮只能通过 `suggestToChat(text, context)`（`CareerPrimitives.tsx`）把话发进对话，事件 `career:chat-suggest` 由 Chat 订阅并真正 `sendMessage`；`context.refs` 里只放对象 id，由 `buildCareerContextReminder` 变成隐藏的 `<CAREER_CONTEXT>` 块。禁止再做"复制提示词"按钮。
+- **对话 → 面板**：写库的工具 / 路由完成后调用 `focus()`（`career/intake.ts`）广播 `career:focus {surface, id, application_id, job_id}`；App 打开对应的面（`features/career-shared/nav.ts` 是面的唯一清单），面内自行订阅同一事件定位对象。
+- **模型提案、面板处置**：任何需要用户决定的东西都要落成有状态的对象（待审动作、pending 主张、截止事件、收件箱条目、未确认素材），面板一键处置；模型不要在对话里逐条追问。
+- **收件箱是唯一进水口**：粘贴 / 邮件 / 文件都先 `inbox_item`，再由 `captureIntake` 归档；新的来源接到这里，不要另起一套。
+- **邮箱**：授权码只存 `$CAREER_DATA_DIR/mail-credentials.json`（0600），不进 SQLite、不进日志、不进对话；轮询只在 Global 侧车跑一份；发送只能由 `executeSendMailAction` 对已批准的 `send_mail` 执行。

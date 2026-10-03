@@ -14,7 +14,12 @@ import { loadCore } from '../career/core-module';
 import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
+import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
 import { getShellLLM } from '../career/llm';
+import { MAIL_PRESETS } from '../career/mail/providers';
+import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
+import { draftMaterial } from '../career/materials';
+import { generateWeeklyReview } from '../career/review';
 import { getRunRegistry, type RunRegistry } from '../career/runs';
 import { getSearchProvider, type CareerSearchProvider } from '../career/search';
 import { loadSkillPrompt } from '../career/skills';
@@ -152,19 +157,11 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
   const jobDigest = (job: Job): string => `公司：${job.company_name ?? '未知'}\n岗位：${job.title}\n地点：${job.location ?? '未知'}\n${job.jd_parsed_json ? `JdParsed：${job.jd_parsed_json}` : `JD 原文：${job.jd_raw ?? '（无）'}`}`;
   const prefs = (): unknown => repos().kvGet('preferences') ?? {};
 
-  async function parseAndStoreJd(input: { jd_raw?: string; url?: string; job_id?: string; company_name?: string; title?: string; source_platform?: string }): Promise<{ job: Job; parsed: JdParsed }> {
-    let job = input.job_id ? requireJob(input.job_id) : undefined;
-    const jdRaw = input.jd_raw ?? job?.jd_raw ?? undefined;
-    if (!jdRaw) throw new Error('需要 jd_raw（链接导入目前只记录 url，不抓取页面；请把 JD 文本一起给我）');
-    const parsed = await askSkill<JdParsed>('jd-parse', `公司：${input.company_name ?? job?.company_name ?? '未知'}\n岗位：${input.title ?? job?.title ?? '未知'}\n\nJD 原文：\n${jdRaw}\n\n经历库摘要：\n${experienceDigest()}`, { temperature: 0.2 });
-    const title = input.title ?? job?.title ?? parsed.title ?? jdRaw.split('\n').map(l => l.trim()).find(Boolean)?.slice(0, 60) ?? '未命名岗位';
-    if (!job) {
-      job = repos().upsertJob({ source_platform: input.source_platform ?? 'manual', title, url: input.url ?? null, jd_raw: jdRaw, company_name: input.company_name ?? parsed.company ?? null, location: parsed.location?.join('/') ?? null, deadline: parsed.deadline || null });
-    }
-    repos().db.update('job', job.id, { jd_parsed_json: JSON.stringify(parsed), ...(parsed.deadline && !job.deadline ? { deadline: parsed.deadline } : {}), updated_at: new Date().toISOString() });
-    changed('job');
-    return { job: repos().getJob(job.id)!, parsed };
-  }
+  /** 共享服务（收件箱 / 复盘 / 素材 / 邮箱）的依赖。 */
+  const intakeDeps = (): IntakeDeps => ({ repos: repos(), core, llm: llm(), broadcast, sessionId });
+  const focus = (hint: Parameters<typeof focusPanel>[1]) => focusPanel({ broadcast, sessionId }, hint);
+  const parseAndStoreJd = (input: { jd_raw?: string; url?: string; job_id?: string; company_name?: string; title?: string; source_platform?: string }): Promise<{ job: Job; parsed: JdParsed }> =>
+    parseAndStoreJdShared(intakeDeps(), input);
 
   /** 通过 Browser capability 调 Global `/api/career/browser/run`（NDJSON 流）。 */
   const browserRun = deps.browserRun ?? (async (body, onEvent) => {
@@ -332,6 +329,165 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
           note: '简历 / 网申草稿里需要这些信息时直接写占位符，导出或填表时会在产品内自动替换成真实值；你拿不到也不需要真实值。',
         });
       })),
+      // ---------- 今日 / 收件箱 / 截止 ----------
+      tool('today_queue', '今天必须做的事（已排序：过期 / 今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线）+ 等待中的投递数。给用户最多三件。', {}, wrap(() => text(repos().today()))),
+
+      tool('inbox_capture', '把用户丢进来的任何内容（JD、面试邀请、测评 / 笔试通知、拒信、Offer、内推码、截止提醒）归档成结构化对象：自动建岗位 / 面试 / 截止事件 / 关闭投递 / Offer，并关联到卷宗。', {
+        text: z.string().describe('原文'), source: z.enum(['paste', 'file', 'url', 'chat']).optional(), application_id: z.string().optional().describe('用户已明确归属的投递'),
+      }, async (args) => wrap(async () => {
+        progress('inbox_capture', '正在归档收件箱内容');
+        const result = await captureIntake(intakeDeps(), { text: args.text, source: args.source ?? 'chat', application_id: args.application_id ?? null });
+        return text({ item_id: result.item.id, kind: result.item.kind, status: result.item.status, created: result.created, summary: result.summary, urgency: result.triage?.urgency ?? null, note: result.item.status === 'new' ? '没能自动归档完，请问用户这属于哪条投递或该怎么处理。' : '已归档，告诉用户落到了哪里即可。' });
+      })()),
+
+      tool('inbox_list', '列出收件箱条目（缺省只列待处理的 new）。', { status: z.enum(['new', 'processed', 'dismissed']).optional() }, async (args) => wrap(() => text({ items: repos().listInbox(args.status ?? 'new').map(i => ({ id: i.id, source: i.source, kind: i.kind, status: i.status, note: i.note, preview: i.raw_text.slice(0, 160), created_at: i.created_at })) }))()),
+
+      tool('inbox_dismiss', '把一条收件箱内容标记为忽略（广告、无关邮件、用户说不用管）。', { inbox_id: z.string() }, async (args) => wrap(() => {
+        if (!repos().getInboxItem(args.inbox_id)) return err(`收件箱条目不存在：${args.inbox_id}`);
+        const item = repos().dismissInboxItem(args.inbox_id);
+        changed('inbox_item');
+        return text({ item });
+      })()),
+
+      tool('deadline_add', '记一个不能丢的时间点：测评 / 笔试 / 面试 / 网申截止 / Offer 回复 / 内推码过期。', {
+        kind: z.enum(['assessment', 'written_test', 'interview', 'application_deadline', 'offer_reply', 'referral_expiry', 'other']), title: z.string(), due_at: z.string().describe('ISO 时间，如 2026-10-05T14:00:00+08:00'),
+        application_id: z.string().optional(), job_id: z.string().optional(), url: z.string().optional(), note: z.string().optional(),
+      }, async (args) => wrap(() => {
+        if (Number.isNaN(Date.parse(args.due_at))) return err('due_at 不是可解析的时间');
+        const deadline = repos().createDeadline({ kind: args.kind, title: args.title, due_at: new Date(args.due_at).toISOString(), application_id: args.application_id ?? null, job_id: args.job_id ?? null, url: args.url ?? null, note: args.note ?? null, source: 'agent' });
+        changed('deadline');
+        if (args.application_id) focus({ surface: 'dossier', application_id: args.application_id });
+        return text({ deadline });
+      })()),
+
+      tool('deadline_done', '把一个时间点标记为已完成 / 取消。', { deadline_id: z.string(), status: z.enum(['done', 'cancelled', 'missed']).optional() }, async (args) => wrap(() => {
+        const deadline = repos().setDeadlineStatus(args.deadline_id, args.status ?? 'done');
+        changed('deadline');
+        return text({ deadline });
+      })()),
+
+      // ---------- 卷宗 ----------
+      tool('dossier_list', '所有投递的档案摘要（公司、岗位、阶段、静默天数、下一个截止、面试次数）。', {}, wrap(() => text({ dossiers: store().dossierSummaries() }))),
+
+      tool('dossier_get', '面试前一键摊开：这条投递用的哪版简历、开放题填了什么、说过什么、公司调研、预测追问、所有邮件与时间点。按 application_id / job_id / 公司名任一查找。', {
+        application_id: z.string().optional(), job_id: z.string().optional(), company_name: z.string().optional(),
+      }, async (args) => wrap(() => {
+        let appId = args.application_id;
+        if (!appId && args.job_id) appId = repos().listApplications().find(a => a.job_id === args.job_id)?.id;
+        if (!appId && args.company_name) {
+          const hits = repos().findOpenApplicationsByCompany(args.company_name);
+          if (hits.length > 1) return err(`${args.company_name} 有 ${hits.length} 条投递，请让用户选：${hits.map(h => `${h.job.title}（${h.id}）`).join('、')}`);
+          appId = hits[0]?.id;
+        }
+        if (!appId) return err('没有找到对应的投递；可以先用 dossier_list 看看');
+        const dossier = store().dossier(appId);
+        if (!dossier) return err(`投递不存在：${appId}`);
+        focus({ surface: 'dossier', application_id: appId });
+        return text(dossier);
+      })()),
+
+      tool('dossier_note_add', '往卷宗里记一条：对这家公司说过的话（said）、听到的信息（heard）、联系人 / 内推人、备注。面试复盘里的关键表述务必记 said，保证下一轮前后一致。', {
+        application_id: z.string(), kind: z.enum(['note', 'said', 'heard', 'contact', 'referral']).optional(), round: z.string().optional(), content: z.string(),
+      }, async (args) => wrap(() => {
+        const note = repos().addDossierNote({ application_id: args.application_id, kind: args.kind ?? 'note', round: args.round ?? null, content: args.content });
+        changed('dossier_note');
+        return text({ note });
+      })()),
+
+      tool('application_set_stage', '按用户告知推进或关闭一条投递（收到回复 / 进面 / 拿到 Offer / 被拒 / 静默关闭）。沿状态机合法路径自动补中间步骤。', {
+        application_id: z.string(), stage: z.enum(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired', 'skip']), note: z.string().optional(),
+      }, async (args) => wrap(() => {
+        const application = repos().jumpTo(args.application_id, args.stage, args.note);
+        changed('application', 'application_history');
+        focus({ surface: 'dossier', application_id: application.id });
+        return text({ application });
+      })()),
+
+      // ---------- 素材 ----------
+      tool('material_list', '素材库：开放题答案、项目故事、自我介绍等可复用说法（含是否已确认、适用公司）。', { kind: z.enum(['open_question', 'project_story', 'self_intro', 'why_company', 'why_role', 'strength_weakness', 'career_plan', 'other']).optional() }, async (args) => wrap(() => text({ materials: repos().listMaterials(args.kind ? { kind: args.kind } : {}) }))()),
+
+      tool('material_draft', '起草一段素材（开放题 / 项目故事 / 自我介绍 / 为什么选我们）：优先复用已有素材，只用已确认主张，并核对对这家公司前后说法是否矛盾。返回草稿与 conflicts；用户确认后用 material_save 存。', {
+        kind: z.enum(['open_question', 'project_story', 'self_intro', 'why_company', 'why_role', 'strength_weakness', 'career_plan', 'other']), question: z.string(), length: z.string().optional().describe('如 "300 字" 或 short|medium|long'),
+        job_id: z.string().optional(), application_id: z.string().optional(), company_name: z.string().optional(), extra: z.string().optional(),
+      }, async (args) => wrap(async () => {
+        progress('material_draft', '正在起草并核对一致性');
+        const out = await draftMaterial(intakeDeps(), { kind: args.kind, question: args.question, length: args.length, job_id: args.job_id ?? null, application_id: args.application_id ?? null, company_name: args.company_name ?? null, extra: args.extra });
+        return text({ ...out.output, reused_count: out.reused.length, said_before_count: out.said_before.length, note: out.output.conflicts?.length ? '存在与之前说法的矛盾，先让用户决定以哪个版本为准，再保存。' : '把草稿给用户看；确认后调用 material_save，并在实际使用时调用 material_use_record。' });
+      })()),
+
+      tool('material_save', '把用户确认的说法存进素材库。', {
+        kind: z.enum(['open_question', 'project_story', 'self_intro', 'why_company', 'why_role', 'strength_weakness', 'career_plan', 'other']), title: z.string(), content: z.string(),
+        question_key: z.string().optional(), length_variant: z.enum(['short', 'medium', 'long']).optional(), claim_ids: z.array(z.string()).optional(), company_scope: z.string().optional().describe('只对某家公司适用时填'), confirmed: z.boolean().optional(),
+      }, async (args) => wrap(() => {
+        const material = repos().createMaterial({ kind: args.kind, title: args.title, content: args.content, question_key: args.question_key ?? null, length_variant: args.length_variant ?? null, claim_ids: args.claim_ids ?? [], company_scope: args.company_scope ?? null, confirmed: args.confirmed ?? true });
+        changed('material');
+        focus({ surface: 'material', id: material.id });
+        return text({ material });
+      })()),
+
+      tool('material_use_record', '记录"对哪家公司在什么场合说了什么"，用于一致性核对。网申填开放题、发邮件、面试里讲项目之后都要记。', {
+        material_id: z.string().optional(), application_id: z.string().optional(), job_id: z.string().optional(), company_name: z.string().optional(), context: z.string().describe('网申 / 邮件 / 招呼语 / 面试-一面 …'), content_snapshot: z.string(),
+      }, async (args) => wrap(() => {
+        const use = repos().recordMaterialUse({ material_id: args.material_id ?? null, application_id: args.application_id ?? null, job_id: args.job_id ?? null, company_name: args.company_name ?? null, context: args.context, content_snapshot: args.content_snapshot });
+        changed('material_use');
+        return text({ use });
+      })()),
+
+      // ---------- 复盘 ----------
+      tool('weekly_review', '生成本周复盘：漏斗 + 代理反馈（哪类岗位走得远、挂在哪一环、静默比例）+ 下周策略 + 一个今天就能做的小动作。用户表达自我怀疑时也用它拿数字说话。', {
+        week_start: z.string().optional().describe('YYYY-MM-DD，缺省本周一'), user_note: z.string().optional().describe('用户想补充的情况或情绪'),
+      }, async (args) => wrap(async () => {
+        progress('weekly_review', '正在统计漏斗并生成复盘');
+        const out = await generateWeeklyReview(intakeDeps(), { week_start: args.week_start, user_note: args.user_note });
+        return text({ review_id: out.review.id, ...out.output, funnel: out.funnel });
+      })()),
+
+      // ---------- 邮箱 ----------
+      tool('mail_accounts', '已绑定的邮箱与各家邮箱的绑定说明（绑定本身在「收件箱」面板里填授权码完成，不要让用户把授权码发到对话里）。', {}, wrap(() => text({ accounts: repos().listMailAccounts().map(a => ({ id: a.id, provider: a.provider, address: a.address, status: a.status, last_sync_at: a.last_sync_at, last_error: a.last_error })), presets: Object.values(MAIL_PRESETS).map(p => ({ provider: p.provider, label: p.label, help: p.help })) }))),
+
+      tool('mail_sync', '立刻同步邮箱：新邮件里的面试邀请 / 测评 / 拒信 / Offer 会自动归档到收件箱与卷宗。', { account_id: z.string().optional() }, async (args) => wrap(async () => {
+        progress('mail_sync', '正在同步邮箱');
+        const deps = intakeDeps();
+        if (args.account_id) {
+          const account = repos().getMailAccount(args.account_id);
+          if (!account) return err(`邮箱账号不存在：${args.account_id}`);
+          return text({ results: [await syncMailAccount(deps, account)] });
+        }
+        if (repos().listMailAccounts().length === 0) return err('还没有绑定邮箱，请让用户在「收件箱」面板绑定（QQ / 163 / Gmail 等填授权码即可）。');
+        return text({ results: await syncAllMailAccounts(deps) });
+      })()),
+
+      tool('mail_list', '列出与求职相关的邮件（可按投递过滤）；发出去的投递邮件也在这里。', { application_id: z.string().optional(), direction: z.enum(['in', 'out']).optional(), limit: z.number().int().min(1).max(100).optional() }, async (args) => wrap(() => text({ messages: repos().listMailMessages({ application_id: args.application_id, direction: args.direction, relevance: args.application_id ? undefined : 'job', limit: args.limit ?? 30 }).map(m => ({ id: m.id, direction: m.direction, from: m.from_addr, to: m.to_addr, subject: m.subject, snippet: m.snippet, received_at: m.received_at, kind: m.kind, application_id: m.application_id })) }))()),
+
+      tool('mail_compose', '起草投递邮件（derivatives 技能：标题规范、三段正文、附件命名）并入待审队列；用户在面板批准后才会真正发送。resume_id 给定时自动导出 PDF 作为附件。', {
+        to: z.string().describe('收件邮箱'), job_id: z.string().optional(), application_id: z.string().optional(), resume_id: z.string().optional(), account_id: z.string().optional(), notes: z.string().optional().describe('用户对邮件的要求'),
+      }, async (args) => wrap(async () => {
+        const accounts = repos().listMailAccounts();
+        const account = args.account_id ? accounts.find(a => a.id === args.account_id) : accounts[0];
+        if (!account) return err('还没有绑定邮箱，请让用户在「收件箱」面板绑定后再发投递邮件。');
+        let app = args.application_id ? repos().getApplication(args.application_id) : undefined;
+        const job = args.job_id ? requireJob(args.job_id) : app ? repos().getJob(app.job_id) : undefined;
+        if (!job) return err('需要 job_id 或 application_id');
+        if (!app) app = repos().listApplications().find(a => a.job_id === job.id) ?? repos().createApplication(job.id, args.resume_id && store().getResume(args.resume_id)?.kind === 'tailored' ? args.resume_id : null);
+        const resume = args.resume_id ? store().getResume(args.resume_id) : undefined;
+        let attachment: { path: string; filename: string } | null = null;
+        if (resume) {
+          progress('mail_compose', '正在导出简历 PDF');
+          const path = await exportWithVault(resume.row.id, 'pdf'); // 渲染前解私密库占位符
+          attachment = { path, filename: basename(path) };
+        }
+        progress('mail_compose', '正在起草邮件');
+        const basics = resume ? (parseJson<{ basics?: Record<string, string> }>(resume.row.schema_json)?.basics ?? {}) : {};
+        const out = await askSkill<{ email?: { subject?: string; body?: string; signature?: string }; attachment_name?: string; matches_used?: unknown; unresolved?: unknown }>('derivatives', `${jobDigest(job)}\n\n用户基本信息：${JSON.stringify(basics)}\n\n已确认主张：\n${experienceDigest()}\n\n附件实际文件名：${attachment?.filename ?? '（无附件）'}\n用户要求：${args.notes ?? '无'}`, { temperature: 0.3 });
+        if (attachment && out.attachment_name && /\.pdf$/i.test(out.attachment_name)) attachment = { ...attachment, filename: out.attachment_name };
+        const subject = out.email?.subject ?? `应聘 ${job.title}`;
+        const body = [out.email?.body ?? '', out.email?.signature ?? ''].filter(Boolean).join('\n\n');
+        const action = repos().enqueueAction('send_mail', { account_id: account.id, to: args.to, subject, body, attachments: attachment ? [attachment] : [], application_id: app.id, job_id: job.id, context: '邮件' }, app.id);
+        changed('action_queue', 'application');
+        review([action.id], 'send_mail', `发送投递邮件给 ${args.to}：${subject}`);
+        focus({ surface: 'today' });
+        return text({ action_id: action.id, subject, body, attachment: attachment?.filename ?? null, unresolved: out.unresolved ?? [], note: '邮件已进入待审核队列，用户在「今日」或卷宗里批准后才会发送；请把主题与正文给用户确认。' });
+      })()),
 
       tool('experience_add', '写入一段经历到经历库，并附带若干主张（claims，状态一律 pending，需用户确认后才能进简历）。', {
         title: z.string().describe('经历标题'), role: z.string().optional(), org: z.string().optional(),
@@ -466,6 +622,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const schema = await normalizeResume(draft ?? base);
         const master = s.createResumeMaster({ name, direction: args.direction ?? null, schema_json: schema });
         changed('resume_master');
+        focus({ surface: 'material', id: master.id, note: '主简历已创建' });
         const note = draft
           ? '主简历已起草并保存，请把各分区内容简要复述给用户确认；用户想改哪里就用 resume_save 改，之后可用 resume_tailor 按岗位定制。'
           : claims.length === 0

@@ -367,7 +367,7 @@ vi.mock('@/components/LinkContextMenuProvider', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-for (const page of ['CareerExperience', 'CareerResume', 'CareerApply', 'CareerResearch', 'CareerInterview', 'CareerOffer']) {
+for (const page of ['CareerToday', 'CareerInbox', 'CareerDossier', 'CareerMaterial', 'CareerReview', 'CareerGuide']) {
   vi.doMock(`@/pages/${page}`, () => ({
     default: () => <div data-testid={`career-page-${page}`} />,
   }));
@@ -700,8 +700,7 @@ describe('App helper launch', () => {
     return props as {
       onNewTab: () => void;
       onOpenChat: () => void;
-      onOpenCareerResume: () => void;
-      onOpenCareerApply: () => void;
+      onOpenCareerPage: (kind: string) => void;
       onOpenCapabilities: () => void;
       onOpenSettings: () => void;
       onOpenTaskCenter: () => void;
@@ -800,18 +799,18 @@ describe('App helper launch', () => {
     });
     const chatTab = latestTabbarProps().tabs.find((tab) => tab.view === 'chat')!;
 
-    act(() => latestSidebarProps().onOpenCareerResume());
-    act(() => latestSidebarProps().onOpenCareerResume());
-    expect(latestTabbarProps().tabs.filter((tab) => tab.view === 'career-resume')).toHaveLength(1);
-    act(() => latestSidebarProps().onOpenCareerApply());
-    expect(latestTabbarProps().tabs.map((tab) => tab.view)).toEqual(['chat', 'career-resume', 'career-apply']);
-    const applyTab = latestTabbarProps().tabs.find((tab) => tab.view === 'career-apply')!;
+    act(() => latestSidebarProps().onOpenCareerPage('career-material'));
+    act(() => latestSidebarProps().onOpenCareerPage('career-material'));
+    expect(latestTabbarProps().tabs.filter((tab) => tab.view === 'career-material')).toHaveLength(1);
+    act(() => latestSidebarProps().onOpenCareerPage('career-dossier'));
+    expect(latestTabbarProps().tabs.map((tab) => tab.view)).toEqual(['chat', 'career-material', 'career-dossier']);
+    const applyTab = latestTabbarProps().tabs.find((tab) => tab.view === 'career-dossier')!;
     expect(latestTabbarProps().activeTabId).toBe(applyTab.id);
 
     await act(async () => {
       await latestTabbarProps().onCloseTab(applyTab.id);
     });
-    expect(latestTabbarProps().tabs.map((tab) => tab.view)).toEqual(['chat', 'career-resume']);
+    expect(latestTabbarProps().tabs.map((tab) => tab.view)).toEqual(['chat', 'career-material']);
     expect(latestTabbarProps().activeTabId).toBe(chatTab.id);
   });
 

@@ -68,7 +68,7 @@ export default function CareerLive() {
         <>
           {!humanActive && <Button variant="primary" busy={action.busy} disabled={!snapshot?.browser.hasBrowser} onClick={() => void take()}>接管</Button>}
           {humanActive && <Button variant="primary" busy={action.busy} onClick={() => void handback()}>交回，继续</Button>}
-          <Button variant="ghost" onClick={() => emitEvent('career:open-page', { kind: 'career-apply' })}>岗位与投递</Button>
+          <Button variant="ghost" onClick={() => emitEvent('career:focus', { surface: 'today' })}>今日</Button>
         </>
       )}
     >

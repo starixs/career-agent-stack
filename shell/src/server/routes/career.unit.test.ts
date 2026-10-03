@@ -214,3 +214,84 @@ describe('handleCareerRoute', () => {
     expect((bank.json.answers as Array<{ high_impact: number }>)[0].high_impact).toBe(1);
   });
 });
+
+describe('五个面的路由', () => {
+  let repos: Repos;
+  let deps: ReturnType<typeof makeDeps>;
+  beforeEach(() => { repos = createMemoryRepos(); deps = makeDeps(repos); });
+  afterEach(() => { repos.db.close(); for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
+
+  it('today / onboarding / inbox（无模型时只落收件箱）', async () => {
+    const today = await call(deps, 'GET', '/api/career/today');
+    expect(today.json.ok).toBe(true);
+    expect((today.json as { items: unknown[] }).items).toEqual([]);
+    const ob = await call(deps, 'GET', '/api/career/onboarding');
+    expect((ob.json.checklist as Record<string, boolean>).has_experience).toBe(false);
+    const cap = await call(deps, 'POST', '/api/career/inbox', { text: '一封面试邀请' });
+    expect(cap.status).toBe(200);
+    const result = cap.json.result as { item: { id: string; status: string } };
+    expect(result.item.status).toBe('new');
+    const list = await call(deps, 'GET', '/api/career/inbox?status=new');
+    expect((list.json.items as unknown[]).length).toBe(1);
+    const dis = await call(deps, 'POST', `/api/career/inbox/${result.item.id}/dismiss`);
+    expect((dis.json.item as { status: string }).status).toBe('dismissed');
+    expect(deps.events.some(e => e.event === 'career:focus')).toBe(true);
+  });
+
+  it('deadlines / dossiers / notes / close-silent', async () => {
+    const job = repos.upsertJob({ source_platform: 'manual', title: '产品', company_name: '甲' });
+    const app = repos.createApplication(job.id);
+    const dl = await call(deps, 'POST', '/api/career/deadlines', { kind: 'written_test', title: '甲笔试', due_at: '2026-10-05T12:00:00+08:00', application_id: app.id });
+    expect((dl.json.deadline as { due_at: string }).due_at).toBe('2026-10-05T04:00:00.000Z');
+    const bad = await call(deps, 'POST', '/api/career/deadlines', { title: 'x', due_at: '不是时间' });
+    expect(bad.status).toBe(400);
+    const list = await call(deps, 'GET', '/api/career/dossiers');
+    expect((list.json.dossiers as Array<{ application_id: string; next_deadline: { title: string } }>)[0]).toMatchObject({ application_id: app.id, next_deadline: { title: '甲笔试' } });
+    await call(deps, 'POST', `/api/career/dossiers/${app.id}/notes`, { kind: 'said', round: 'hr', content: '可实习 6 个月' });
+    const dossier = await call(deps, 'GET', `/api/career/dossiers/${app.id}`);
+    const d = dossier.json.dossier as { notes: Array<{ content: string }>; deadlines: unknown[]; job: { title: string } };
+    expect(d.job.title).toBe('产品');
+    expect(d.notes[0].content).toContain('6 个月');
+    expect(d.deadlines).toHaveLength(1);
+    expect((await call(deps, 'GET', '/api/career/dossiers/nope')).status).toBe(404);
+    const closed = await call(deps, 'POST', `/api/career/applications/${app.id}/close-silent`);
+    expect((closed.json.application as { stage: string }).stage).toBe('discarded');
+  });
+
+  it('materials CRUD 与使用记录；review 读取', async () => {
+    const created = await call(deps, 'POST', '/api/career/materials', { kind: 'why_company', title: '为什么选我们', content: '因为', confirmed: true });
+    const id = (created.json.material as { id: string }).id;
+    const upd = await call(deps, 'PUT', `/api/career/materials/${id}`, { content: '因为……', tags: ['校招'] });
+    expect((upd.json.material as { content: string; tags_json: string }).tags_json).toBe('["校招"]');
+    await call(deps, 'POST', '/api/career/materials/uses', { material_id: id, company_name: '甲', context: '网申', content_snapshot: '因为……' });
+    const uses = await call(deps, 'GET', '/api/career/materials/uses?company_name=甲');
+    expect((uses.json.uses as unknown[]).length).toBe(1);
+    expect((await call(deps, 'DELETE', `/api/career/materials/${id}`)).json.ok).toBe(true);
+    expect((await call(deps, 'GET', '/api/career/materials')).json.materials).toEqual([]);
+    const review = await call(deps, 'GET', '/api/career/review');
+    expect((review.json.funnel as { overall: unknown }).overall).toBeNull();
+    // 无模型时周复盘仍落一条只含漏斗的记录
+    const weekly = await call(deps, 'POST', '/api/career/review/weekly', {});
+    expect(weekly.status).toBe(200);
+    expect((weekly.json.review as { week_start: string }).week_start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('mail accounts：绑定需要授权码，预设按域名补齐，删除时清掉授权码', async () => {
+    const { setMailCredentialsPath, getMailPassword } = await import('../career/mail/credentials');
+    const dir = mkdtempSync(join(tmpdir(), 'career-mail-route-')); tempDirs.push(dir);
+    setMailCredentialsPath(join(dir, 'c.json'));
+    try {
+      expect((await call(deps, 'POST', '/api/career/mail/accounts', { address: 'me@qq.com' })).status).toBe(400);
+      const bound = await call(deps, 'POST', '/api/career/mail/accounts', { address: 'Me@QQ.com', password: 'authcode', verify: false });
+      const account = bound.json.account as { id: string; address: string; imap_host: string; smtp_port: number };
+      expect(account).toMatchObject({ address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_port: 465 });
+      expect(getMailPassword(account.id)).toBe('authcode');
+      const list = await call(deps, 'GET', '/api/career/mail/accounts');
+      expect((list.json.accounts as unknown[]).length).toBe(1);
+      expect((list.json.presets as Record<string, unknown>).qq).toBeTruthy();
+      expect((await call(deps, 'POST', '/api/career/mail/accounts', { address: 'me@unknown-domain.cn', password: 'x' })).status).toBe(400);
+      expect((await call(deps, 'DELETE', `/api/career/mail/accounts/${account.id}`)).json.ok).toBe(true);
+      expect(getMailPassword(account.id)).toBeNull();
+    } finally { setMailCredentialsPath(null); }
+  });
+});

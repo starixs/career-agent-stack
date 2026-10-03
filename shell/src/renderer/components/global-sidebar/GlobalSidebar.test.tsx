@@ -162,13 +162,7 @@ function sidebar(overrides: Partial<SidebarProps> = {}) {
       showWorkspaceTree
       onNewTab={vi.fn()}
       onOpenChat={vi.fn()}
-      onOpenCareerExperience={vi.fn()}
-      onOpenCareerResume={vi.fn()}
-      onOpenCareerApply={vi.fn()}
-      onOpenCareerResearch={vi.fn()}
-      onOpenCareerInterview={vi.fn()}
-      onOpenCareerOffer={vi.fn()}
-      onOpenCareerVault={vi.fn()}
+      onOpenCareerPage={vi.fn()}
       onOpenTaskCenter={vi.fn()}
       onCreateTask={vi.fn()}
       onOpenSpace={vi.fn()}
@@ -1208,12 +1202,12 @@ describe('GlobalSidebar rail flyout', () => {
 
     for (const label of [
       i18n.t('app:globalSidebar.chat'),
-      i18n.t('app:globalSidebar.careerExperience'),
-      i18n.t('app:globalSidebar.careerResume'),
-      i18n.t('app:globalSidebar.careerApply'),
-      i18n.t('app:globalSidebar.careerResearch'),
-      i18n.t('app:globalSidebar.careerInterview'),
-      i18n.t('app:globalSidebar.careerOffer'),
+      i18n.t('app:globalSidebar.careerToday'),
+      i18n.t('app:globalSidebar.careerInbox'),
+      i18n.t('app:globalSidebar.careerDossier'),
+      i18n.t('app:globalSidebar.careerMaterial'),
+      i18n.t('app:globalSidebar.careerReview'),
+      i18n.t('app:globalSidebar.careerGuide'),
       i18n.t('app:globalSidebar.tasks'),
       i18n.t('app:globalSidebar.capabilities'),
       i18n.t('app:globalSidebar.helper'),

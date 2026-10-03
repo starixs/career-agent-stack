@@ -9,14 +9,14 @@ import { capabilitiesTabModule } from '@/features/capabilities/tabModule';
 import { taskCenterTabModule } from '@/features/task-center/tabModule';
 import { spaceTabModule } from '@/features/space/tabModule';
 import { recordTabModule } from '@/features/record/tabModule';
-import { careerExperienceTabModule } from '@/features/career-experience/tabModule';
-import { careerResumeTabModule } from '@/features/career-resume/tabModule';
-import { careerApplyTabModule } from '@/features/career-apply/tabModule';
-import { careerResearchTabModule } from '@/features/career-research/tabModule';
-import { careerInterviewTabModule } from '@/features/career-interview/tabModule';
-import { careerOfferTabModule } from '@/features/career-offer/tabModule';
-import { careerVaultTabModule } from '@/features/career-vault/tabModule';
+import { careerTodayTabModule } from '@/features/career-today/tabModule';
+import { careerInboxTabModule } from '@/features/career-inbox/tabModule';
+import { careerDossierTabModule } from '@/features/career-dossier/tabModule';
+import { careerMaterialTabModule } from '@/features/career-material/tabModule';
+import { careerReviewTabModule } from '@/features/career-review/tabModule';
+import { careerGuideTabModule } from '@/features/career-guide/tabModule';
 import { careerLiveTabModule } from '@/features/career-live/tabModule';
+import { careerVaultTabModule } from '@/features/career-vault/tabModule';
 import type { RecordTabCloseReason } from '@/features/record/useRecordTabLifecycle';
 
 /** The single composition root for the builtin keystone edition. */
@@ -28,14 +28,14 @@ export const builtinTabModules = defineTabModules<Tab>()({
   taskcenter: taskCenterTabModule,
   space: spaceTabModule,
   record: recordTabModule,
-  'career-experience': careerExperienceTabModule,
-  'career-resume': careerResumeTabModule,
-  'career-apply': careerApplyTabModule,
-  'career-research': careerResearchTabModule,
-  'career-interview': careerInterviewTabModule,
-  'career-offer': careerOfferTabModule,
-  'career-vault': careerVaultTabModule,
+  'career-today': careerTodayTabModule,
+  'career-inbox': careerInboxTabModule,
+  'career-dossier': careerDossierTabModule,
+  'career-material': careerMaterialTabModule,
+  'career-review': careerReviewTabModule,
+  'career-guide': careerGuideTabModule,
   'career-live': careerLiveTabModule,
+  'career-vault': careerVaultTabModule,
 });
 
 export type BuiltinTabModules = typeof builtinTabModules;

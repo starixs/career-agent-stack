@@ -5,10 +5,10 @@
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 
 import type {
-  ActionQueueItem, Application, Board, Company, Direction, ExperienceNode, GapPlan, Interview, Job,
-  MockInterview, Offer, ProbePrediction, ResumeMaster, ResumeTailored,
-  VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope,
-  BatchState, LiveSnapshot,
+  ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
+  InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
+  ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
+  VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
 } from './types';
 
 type Dict = Record<string, unknown>;
@@ -136,6 +136,62 @@ export const careerApi = {
   liveControl: (control: 'human' | 'agent', reason?: string) => apiPostJson<unknown>(careerPath('/live/control'), { control, reason }).then(r => pickObject<{ control?: { control: string } }>(r)),
   batchCommand: (cmd: 'start' | 'pause' | 'stop') => apiPostJson<unknown>(careerPath('/batch/command'), { cmd }).then(r => asDict(r).batch as BatchState | undefined),
   batchState: () => apiGetJson<unknown>(careerPath('/batch/state')).then(r => (asDict(r).batch ?? null) as BatchState | null),
+  // ----- 今日 / 引导 -----
+  today: () => apiGetJson<unknown>(careerPath('/today')).then(r => {
+    const d = asDict(r);
+    return { items: pickList<TodayQueue['items'][number]>(d.items), waiting: (d.waiting as TodayQueue['waiting']) ?? { count: 0, by_stage: [] }, inbox_new: typeof d.inbox_new === 'number' ? d.inbox_new : 0, pending_review: typeof d.pending_review === 'number' ? d.pending_review : 0 } satisfies TodayQueue;
+  }),
+  onboarding: () => apiGetJson<unknown>(careerPath('/onboarding')).then(r => pickObject<OnboardingChecklist>(r, 'checklist')),
+  handoffs: () => apiGetJson<unknown>(careerPath('/handoffs')).then(r => pickList<{ id: string; reason: string; message: string | null; paused_at: string }>(r, 'handoffs')),
+
+  // ----- 收件箱 -----
+  inbox: (status?: 'new' | 'processed' | 'dismissed') => apiGetJson<unknown>(careerPath(`/inbox${status ? `?status=${status}` : ''}`)).then(r => pickList<InboxItem>(r, 'items')),
+  captureInbox: (body: { text: string; source?: 'paste' | 'file' | 'url'; application_id?: string | null }) => apiPostJson<unknown>(careerPath('/inbox'), body).then(r => pickObject<IntakeResult>(r, 'result')),
+  dismissInbox: (id: string) => apiPostJson<unknown>(careerPath(`/inbox/${encodeURIComponent(id)}/dismiss`), {}).then(r => pickObject<InboxItem>(r, 'item')),
+  retryInbox: (id: string, application_id?: string | null) => apiPostJson<unknown>(careerPath(`/inbox/${encodeURIComponent(id)}/retry`), { application_id }).then(r => pickObject<IntakeResult>(r, 'result')),
+
+  // ----- 截止事件 -----
+  deadlines: (status?: 'open' | 'done' | 'missed' | 'cancelled' | 'open_or_missed') => apiGetJson<unknown>(careerPath(`/deadlines${status ? `?status=${status}` : ''}`)).then(r => pickList<Deadline>(r, 'deadlines')),
+  createDeadline: (body: { kind: Deadline['kind']; title: string; due_at: string; application_id?: string | null; job_id?: string | null; url?: string | null; note?: string | null }) => apiPostJson<unknown>(careerPath('/deadlines'), body).then(r => pickObject<Deadline>(r, 'deadline')),
+  setDeadlineStatus: (id: string, status: Deadline['status']) => apiPostJson<unknown>(careerPath(`/deadlines/${encodeURIComponent(id)}/status`), { status }).then(r => pickObject<Deadline>(r, 'deadline')),
+
+  // ----- 卷宗 -----
+  dossiers: () => apiGetJson<unknown>(careerPath('/dossiers')).then(r => pickList<DossierSummary>(r, 'dossiers')),
+  dossier: (applicationId: string) => apiGetJson<unknown>(careerPath(`/dossiers/${encodeURIComponent(applicationId)}`)).then(r => pickObject<Dossier>(r, 'dossier')),
+  addDossierNote: (applicationId: string, body: { kind?: DossierNote['kind']; round?: string | null; content: string }) => apiPostJson<unknown>(careerPath(`/dossiers/${encodeURIComponent(applicationId)}/notes`), body).then(r => pickObject<DossierNote>(r, 'note')),
+  closeSilent: (applicationId: string, note?: string) => apiPostJson<unknown>(careerPath(`/applications/${encodeURIComponent(applicationId)}/close-silent`), { note }).then(r => pickObject<Application>(r, 'application')),
+
+  // ----- 素材 -----
+  materials: (kind?: Material['kind']) => apiGetJson<unknown>(careerPath(`/materials${kind ? `?kind=${kind}` : ''}`)).then(r => pickList<Material>(r, 'materials')),
+  createMaterial: (body: { kind: Material['kind']; title: string; content: string; question_key?: string | null; length_variant?: string | null; company_scope?: string | null; confirmed?: boolean; claim_ids?: string[]; tags?: string[] }) => apiPostJson<unknown>(careerPath('/materials'), body).then(r => pickObject<Material>(r, 'material')),
+  updateMaterial: (id: string, body: { title?: string; content?: string; confirmed?: boolean; company_scope?: string | null; tags?: string[] }) => apiPutJson<unknown>(careerPath(`/materials/${encodeURIComponent(id)}`), body).then(r => pickObject<Material>(r, 'material')),
+  deleteMaterial: (id: string) => apiDelete<unknown>(careerPath(`/materials/${encodeURIComponent(id)}`)),
+  materialUses: (filter: { application_id?: string; company_name?: string; material_id?: string } = {}) => {
+    const q = new URLSearchParams(Object.entries(filter).filter((e): e is [string, string] => typeof e[1] === 'string' && e[1].length > 0)).toString();
+    return apiGetJson<unknown>(careerPath(`/materials/uses${q ? `?${q}` : ''}`)).then(r => pickList<MaterialUse>(r, 'uses'));
+  },
+  recordMaterialUse: (body: { material_id?: string | null; application_id?: string | null; job_id?: string | null; company_name?: string | null; context: string; content_snapshot: string }) => apiPostJson<unknown>(careerPath('/materials/uses'), body).then(r => pickObject<MaterialUse>(r, 'use')),
+
+  // ----- 复盘 -----
+  review: () => apiGetJson<unknown>(careerPath('/review')).then(r => {
+    const d = asDict(r);
+    return { funnel: (d.funnel as Funnel) ?? { by_category: [], by_platform: [], overall: null }, reviews: pickList<WeeklyReview>(d.reviews) };
+  }),
+  generateWeeklyReview: (body: { week_start?: string; user_note?: string } = {}) => apiPostJson<unknown>(careerPath('/review/weekly'), body).then(r => asDict(r) as { review?: WeeklyReview; output?: Record<string, unknown> }),
+
+  // ----- 邮箱 -----
+  mailAccounts: () => apiGetJson<unknown>(careerPath('/mail/accounts')).then(r => {
+    const d = asDict(r);
+    return { accounts: pickList<MailAccount>(d.accounts), presets: (d.presets as Record<string, MailPreset>) ?? {} };
+  }),
+  bindMailAccount: (body: { address: string; password?: string; provider?: string; display_name?: string; imap_host?: string; imap_port?: number; smtp_host?: string; smtp_port?: number; verify?: boolean }) =>
+    apiPostJson<unknown>(careerPath('/mail/accounts'), body).then(r => asDict(r) as { account?: MailAccount; verify?: { error?: string; fetched?: number; job_related?: number } | null }),
+  deleteMailAccount: (id: string) => apiDelete<unknown>(careerPath(`/mail/accounts/${encodeURIComponent(id)}`)),
+  syncMail: (account_id?: string) => apiPostJson<unknown>(careerPath('/mail/sync'), { account_id }).then(r => pickList<{ account_id: string; fetched: number; stored: number; job_related: number; ignored: number; error?: string; archived: Array<{ summary: string }> }>(r, 'results')),
+  mailMessages: (filter: { application_id?: string; direction?: 'in' | 'out'; relevance?: 'job' | 'ignored' | 'unknown'; limit?: number } = {}) => {
+    const q = new URLSearchParams(Object.entries(filter).filter((e): e is [string, string | number] => e[1] !== undefined).map(([k, v]) => [k, String(v)])).toString();
+    return apiGetJson<unknown>(careerPath(`/mail/messages${q ? `?${q}` : ''}`)).then(r => pickList<MailMessage>(r, 'messages'));
+  },
 };
 
 /** 安全解析 JSON 字段；失败返回 fallback。 */

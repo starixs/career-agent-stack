@@ -51,13 +51,14 @@ export function decisionItems(offers: Offer[]): string[] {
   return items;
 }
 
-export default function CareerOffer() {
+export default function CareerOffer({ embedded = false }: { embedded?: boolean } = {}) {
   const query = useCareerQuery(careerApi.offers, ['offer']);
   const offers = useMemo(() => query.data ?? [], [query.data]);
   const [editing, setEditing] = useState<Offer | 'new' | null>(null);
 
   return (
     <CareerPage
+      embedded={embedded}
       title="Offer"
       examples={['帮我对比这几个 Offer', '帮我录入一个 Offer', '帮我分析这个 Offer 的风险']}
       actions={<Button onClick={() => setEditing(editing === 'new' ? null : 'new')}><Plus className="h-3.5 w-3.5" />新建 Offer</Button>}
