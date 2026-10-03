@@ -23,8 +23,9 @@ if (sched.canSendNow().ok) { const { text, selfReview } = await composeGreeting(
 - 登录墙：站点账号开了 `autofill` 时用 `fillLoginForm` 代填账号 / 密码输入框（`login.ts`，纯关键词匹配，不点登录、不碰验证码），然后仍然 `handoff(login)`；
 - 落库（`action_queue.result_json` / `answers_used_json`）与返回的 `summary` 全部 `redactDeep`：明文换回占位符。`result` 保留原始值，不要直接回传模型。
 
-## 分层执行（L1 DOM → L2 视觉 → L3 用户）
+## 分层执行（L1 DOM → L1.5 页内执行器 → L2 视觉 → L3 用户）
 - **L1 DOM 直驱**：上面的流程。`FormField.layer === 'dom'`。
+- **L1.5 页内执行器**（`scripts.ts` 的 `fillValueScript`，借鉴 quillfill dom-actuator）：Playwright 填不进去的第三方控件在页面里按 UI 框架指纹（`FormField.framework`：antd / element / iview / layui / mtd / kuma / fusion / phoenix / atsx / my97 / angular）走"打开下拉 → 等选项渲染 → 文本匹配 → 模拟点击 → blur"；原生控件走 React 安全赋值（原型链 setter + input / change 事件）；富文本 execCommand insertText。自定义下拉与第三方日期控件先走它，读回不一致时它是第一轮重试。配套：`normalize.ts` 字典归一（学历 / 性别 / 政治面貌 / 婚姻同义词、日期按 placeholder / type 推断 YYYY-MM 等 9 种格式、中英文月份名）与 `matchOption`；抽取脚本新增几何位置的标签兜底（同一行左侧 / 正上方最近的短文本）、稳定 XPath、框架指纹；`memory.ts` 站点映射记忆（name / xpath / 标签三种签名 → 资料键，读回核对通过才记，用户纠正不被覆盖），续跑时 `learnFrom` 把用户自己填好的 needs_user 字段学进答案库。
 - **L2 视觉兜底**（`DriveOptions.perceiver` + 页面支持 `mouse`）：三种触发——DOM 抽不到字段（canvas / closed shadow DOM / 跨域 iframe）、DOM 填了读回不一致（吞掉程序化输入的组件）、DOM 找不到下一步 / 提交按钮。做法：截图 → `Perceiver.perceive` 得到带包围盒的元素 → `locateInputForLabel`（标签右侧 / 下方最近的输入框）→ `mouse.click` + 全选删除 + 逐字 `keyboard.type`；按钮用 `locateButton`（文案 OCR 容错 `fuzzyEquals`，一字之差也认）。提交类文案任何一层都不点。每次降级记在 `escalations`，`layersUsed` 说明用到了哪几层。
 - 感知器实现（`perceivers.ts`）：`DomBoxPerceiver`（DOM 盒子，零成本）；OCR 感知器在壳里（macOS Vision），只认字，再用 `synthesizeInputsFromLabels` 按标签位置合成输入框；`VlmPerceiver`（视觉模型，给 OCR 编号表做 Set-of-Mark，只做分类 / 补充，需要 `LLM.supportsImages`）；`composePerceivers` 合并去重。
 - **L3 交给用户**：`obstacles.ts` 把 handoff 细分（滑块 / 点选 / 短信码 / 图形码 / 浏览器检查，登录是否已代填），`DriveResult.userAction` 是给用户的原话；风控：限流 / 跳转到 verify 页 → `RiskGuard.trip` 按当天次数渐进退避 30 分钟 → 2 小时 → 12 小时 → 24 小时。

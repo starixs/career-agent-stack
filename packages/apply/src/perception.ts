@@ -1,4 +1,5 @@
-import { normKey } from './interpret.js'
+import { normKey, fuzzyEquals } from './text.js'
+export { editDistance, fuzzyEquals } from './text.js'
 
 /**
  * 视觉感知层（L2 兜底）的数据契约。
@@ -34,31 +35,6 @@ export interface Perceiver {
 export const center = (b: UiBox) => ({ x: Math.round(b.x + b.w / 2), y: Math.round(b.y + b.h / 2) })
 const INPUT_KINDS: readonly UiKind[] = ['input', 'select', 'checkbox', 'radio']
 const isInputKind = (k: UiKind) => INPUT_KINDS.includes(k)
-
-/** 编辑距离（短文本用）。 */
-export function editDistance(a: string, b: string): number {
-  const m = a.length, n = b.length
-  if (!m) return n; if (!n) return m
-  let prev = Array.from({ length: n + 1 }, (_, j) => j)
-  for (let i = 1; i <= m; i++) {
-    const cur = [i]
-    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
-    prev = cur
-  }
-  return prev[n]
-}
-/**
- * OCR 容错的"等于"：归一化后相等；或两者都是短文本（≤ 12 字）且编辑距离 ≤ max(1, 长度/4)。
- * 例："提交申谱" ≈ "提交申请"，"下-步" ≈ "下一步"；但 "提交" ≠ "提交申请"（长度差太大）。
- */
-export function fuzzyEquals(a: string, b: string): boolean {
-  const x = normKey(a), y = normKey(b)
-  if (!x || !y) return false
-  if (x === y) return true
-  if (x.length > 12 || y.length > 12) return false
-  const tol = Math.max(1, Math.floor(Math.max(x.length, y.length) / 4))
-  return Math.abs(x.length - y.length) <= tol && editDistance(x, y) <= tol
-}
 
 /** 文本匹配：归一化后包含即命中；exact 时相等或模糊相等（OCR 容错）；长度最接近的优先。 */
 export function findTextElements(p: Perception, needle: string, opts: { kinds?: readonly UiKind[]; exact?: boolean } = {}): UiElement[] {

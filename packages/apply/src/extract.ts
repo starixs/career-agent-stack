@@ -21,6 +21,10 @@ export interface FormField {
   layer?: 'dom' | 'vision'
   /** vision 层：输入框在视口中的包围盒。 */
   box?: { x: number; y: number; w: number; h: number }
+  /** 稳定定位键（站点记忆用）。 */
+  xpath?: string
+  /** UI 框架指纹（antd / element / … / native），决定页内执行器走哪个适配器。 */
+  framework?: string
 }
 
 /** 确定性抽取：在页面里跑一段纯 DOM 脚本（FakePage 用内存模型回答）。 */
@@ -44,6 +48,8 @@ export function normalizeField(r: RawField): FormField {
     maxLength: r.maxLength,
     placeholder: r.placeholder,
     selector: `[data-career-field="${r.id}"]`,
+    xpath: r.xpath,
+    framework: r.framework,
   }
 }
 

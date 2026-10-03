@@ -293,7 +293,10 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       // 填表资料（姓名 / 手机 / 邮箱 / 证件号…）由浏览器路由在 Node 侧从私密库组装，这里不传、也看不到明文；
       // 返回的事件已脱敏（明文 → {{vault:...}} 占位符）。continue 不传 url：从当前页继续。
       const resumePath = await resumeFileFor(payload.resume_id);
-      await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload, ...(mode === 'start' && typeof payload.url === 'string' ? { url: payload.url } : {}), ...(resumePath ? { resumePath } : {}) }, (ev) => {
+      // 续跑：上次 needs_user 的标签交给引擎，用户在接管期间自己填好的值会被学进答案库
+      const prevSummary = mode === 'continue' ? parseJson<{ needsUser?: Array<{ label?: string }> }>(action.result_json) : undefined;
+      const learnFrom = (prevSummary?.needsUser ?? []).map(p => p.label).filter((l): l is string => typeof l === 'string' && !!l);
+      await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload, ...(mode === 'start' && typeof payload.url === 'string' ? { url: payload.url } : {}), ...(resumePath ? { resumePath } : {}), ...(learnFrom.length ? { learnFrom } : {}) }, (ev) => {
         events.push(ev);
         if (ev.type === 'progress') progress('apply_run', String(ev.message ?? ''), { runId, taskId, progress: ev.progress });
       });

@@ -1,6 +1,8 @@
 import { extractJson, type LLM } from '@career/core'
 import type { FormField } from './extract.js'
 import type { SiteAdapter } from './adapters/types.js'
+import { normKey } from './text.js'
+import { matchOption, normalizeValueForField } from './normalize.js'
 
 /**
  * 把表单字段解释成填写计划：
@@ -34,6 +36,8 @@ export interface FieldPlan {
   source: PlanSource
   confidence: number
   value?: string
+  /** 资料键（profile 来源时有，如 phone / school）；站点记忆据此记录"该字段 ↔ 该键"。 */
+  key?: string
   note?: string
   /** 草稿用到了哪些经历（先告知用户再复用）。 */
   experiencesUsed?: string[]
@@ -47,6 +51,8 @@ export interface InterpretOptions {
   job?: { title?: string; company?: string; jd?: string }
   /** 已确认的草稿（label → 文本）：命中则直接 fill（source=draft, 已确认）。 */
   confirmedDrafts?: Record<string, string>
+  /** 站点记忆：别名匹配不到时按字段签名（name / xpath / 标签）回忆上次填的资料键。 */
+  recallKey?: (field: FormField) => string | undefined
 }
 
 /** 通用字段别名（label 包含别名即命中；长别名优先）。 */
@@ -78,9 +84,7 @@ export const HIGH_IMPACT_RX = /(薪资|薪酬|期望薪|待遇|年薪|月薪|sal
 /** 开放题：起草后要用户确认。 */
 export const OPEN_QUESTION_RX = /(为什么|为何|请描述|请简述|请介绍|请说明|请谈谈|请举例|自我评价|自我介绍|个人优势|个人简介|职业规划|求职动机|申请理由|应聘理由|动机|经历描述|项目描述|实习经历|项目经历|获奖|荣誉|自荐|cover letter|why |describe|tell us|motivation)/i
 
-export function normKey(s: string): string {
-  return s.toLowerCase().replace(/[\s*＊:：（）()\[\]【】.,，。、?？!！\-_/]/g, '')
-}
+export { normKey } from './text.js'
 
 function matchBasic(label: string, aliases: Record<string, string[]>): string | null {
   const l = normKey(label)
@@ -106,10 +110,13 @@ export function findBankAnswer(label: string, bank: AnswerBankEntry[]): AnswerBa
   return hits[0]
 }
 
-function pickOption(options: string[], value: string | undefined): string | undefined {
-  if (!value || !options.length) return undefined
-  const v = normKey(value)
-  return options.find(o => normKey(o) === v) ?? options.find(o => normKey(o).includes(v) || v.includes(normKey(o)))
+/** 选项匹配：字典归一（学历 / 性别 / 政治面貌）+ 月份名 + 包含 + 模糊相等（见 normalize.ts）。 */
+function pickOption(options: string[], value: string | undefined, hint: { key?: string; label?: string } = {}): string | undefined {
+  return matchOption(options, value, hint)
+}
+/** 资料值按字段整形：字典归一、日期按 placeholder / type 推断格式。 */
+function shapeValue(value: string, f: FormField, key?: string): string {
+  return normalizeValueForField(value, { key, label: f.label, placeholder: f.placeholder, type: f.type, options: f.options, sample: f.value })
 }
 
 export async function interpretForm(llm: LLM, fields: FormField[], profile: Profile, opts: InterpretOptions = {}): Promise<FieldPlan[]> {
@@ -151,19 +158,25 @@ export async function interpretForm(llm: LLM, fields: FormField[], profile: Prof
       const v = f.options.length ? pickOption(f.options, bank.answer) : bank.answer
       if (v) { plans.push({ ...base, status: 'fill', source: 'answer_bank', confidence: bank.confirmed ? 0.9 : 0.75, value: v }); continue }
     }
-    // 基本信息
-    const key = matchBasic(label, aliases)
+    // 基本信息：别名匹配 → 站点记忆（上次在这站这个字段填的是哪个键）
+    let key = matchBasic(label, aliases)
+    let viaMemory = false
+    if (!key && opts.recallKey) { const k = opts.recallKey(f); if (k && profile.basics[k] !== undefined) { key = k; viaMemory = true } }
     const basicValue = key ? profile.basics[key] : undefined
     if (key && basicValue) {
       if (f.type === 'checkbox') { plans.push({ ...base, status: 'skip', source: 'none', confidence: 0, note: '复选框不自动勾选' }); continue }
+      const memoryNote = viaMemory ? '按站点记忆匹配' : undefined
       if (f.options.length) {
-        const v = pickOption(f.options, basicValue)
-        if (v) plans.push({ ...base, status: 'fill', source: 'profile', confidence: 0.85, value: v })
-        else plans.push({ ...base, status: f.required ? 'needs_user' : 'skip', source: 'profile', confidence: 0.3, note: `资料值「${basicValue}」匹配不到选项` })
-      } else plans.push({ ...base, status: 'fill', source: 'profile', confidence: 0.9, value: f.maxLength ? basicValue.slice(0, f.maxLength) : basicValue })
+        const v = pickOption(f.options, basicValue, { key, label })
+        if (v) plans.push({ ...base, status: 'fill', source: 'profile', confidence: viaMemory ? 0.75 : 0.85, value: v, key, note: memoryNote })
+        else plans.push({ ...base, status: f.required ? 'needs_user' : 'skip', source: 'profile', confidence: 0.3, key, note: `资料值「${basicValue}」匹配不到选项` })
+      } else {
+        const shaped = shapeValue(basicValue, f, key)
+        plans.push({ ...base, status: 'fill', source: 'profile', confidence: viaMemory ? 0.8 : 0.9, value: f.maxLength ? shaped.slice(0, f.maxLength) : shaped, key, note: memoryNote })
+      }
       continue
     }
-    if (key && !basicValue) { plans.push({ ...base, status: f.required ? 'needs_user' : 'skip', source: 'none', confidence: 0, note: `资料里缺少 ${key}` }); continue }
+    if (key && !basicValue) { plans.push({ ...base, status: f.required ? 'needs_user' : 'skip', source: 'none', confidence: 0, key, note: `资料里缺少 ${key}` }); continue }
 
     // 开放题 → 起草
     if (isOpen && f.type !== 'checkbox' && !f.options.length) { toDraft.push(f); continue }

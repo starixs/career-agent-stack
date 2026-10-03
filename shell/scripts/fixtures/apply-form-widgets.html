@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>网申 · 第三方控件（antd 风格下拉 / element 风格日期 / 受控输入）</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", sans-serif; margin: 0; padding: 32px; background: #f6f7f9; color: #222; }
+  .form-item { display: flex; align-items: center; margin-bottom: 16px; }
+  .form-item > label { width: 110px; font-size: 14px; }
+  input { width: 240px; height: 32px; border: 1px solid #ccd; border-radius: 4px; padding: 0 8px; font-size: 14px; }
+  /* antd 风格 Select（非搜索型：键入无效，只能点选） */
+  .ant-select { position: relative; width: 240px; }
+  .ant-select-selector { height: 32px; border: 1px solid #ccd; border-radius: 4px; padding: 0 8px; display: flex; align-items: center; background: #fff; cursor: pointer; }
+  .ant-select-selection-search-input { opacity: 0; width: 1px; height: 1px; border: 0; position: absolute; }
+  .ant-select-selection-placeholder { color: #999; }
+  .ant-select-dropdown { position: absolute; top: 36px; left: 0; width: 240px; background: #fff; border: 1px solid #ccd; border-radius: 4px; z-index: 10; }
+  .ant-select-dropdown-hidden { display: none; }
+  .ant-select-item-option { padding: 6px 10px; cursor: pointer; }
+  .ant-select-item-option:hover { background: #eef; }
+  .el-date-editor { position: relative; }
+  button { height: 36px; padding: 0 20px; border-radius: 4px; border: 1px solid #36c; background: #36c; color: #fff; }
+</style>
+</head>
+<body>
+<h1>网申 · 第三方控件</h1>
+<form onsubmit="return false">
+  <div class="form-item"><label>姓名</label><input id="name" name="name"></div>
+  <div class="form-item">
+    <label>最高学历</label>
+    <div class="ant-select" id="degree-select">
+      <div class="ant-select-selector"><span class="ant-select-selection-placeholder">请选择</span><span class="ant-select-selection-item"></span><input class="ant-select-selection-search-input" role="combobox" aria-label="最高学历"></div>
+      <div class="ant-select-dropdown ant-select-dropdown-hidden"><div class="ant-select-item-option">大学本科</div><div class="ant-select-item-option">硕士研究生</div><div class="ant-select-item-option">博士研究生</div></div>
+    </div>
+  </div>
+  <div class="form-item"><label>毕业时间</label><div class="el-date-editor"><input id="grad" name="grad" placeholder="YYYY/MM"></div></div>
+  <div class="form-item"><label>手机号</label><input id="phone" name="phone"></div>
+  <button type="button" id="submit" onclick="document.body.insertAdjacentHTML('beforeend','<p id=done>提交成功</p>')">提交申请</button>
+</form>
+<script>
+  // antd 风格 Select：键入被忽略；点 selector 开下拉；点 option 才会写入选中项
+  const sel = document.getElementById('degree-select');
+  const dd = sel.querySelector('.ant-select-dropdown');
+  const item = sel.querySelector('.ant-select-selection-item');
+  const ph = sel.querySelector('.ant-select-selection-placeholder');
+  let degree = '';
+  sel.querySelector('.ant-select-selector').addEventListener('click', () => dd.classList.toggle('ant-select-dropdown-hidden'));
+  sel.querySelector('.ant-select-selection-search-input').addEventListener('input', e => { e.target.value = ''; }); // 非搜索型：吞掉键入
+  dd.querySelectorAll('.ant-select-item-option').forEach(o => o.addEventListener('click', () => { degree = o.textContent; item.textContent = degree; ph.style.display = 'none'; dd.classList.add('ant-select-dropdown-hidden'); }));
+  // element 风格日期：失焦时校验 YYYY/MM，不合法就清空（Playwright 直接 fill 一个 2026.06 会被清掉）
+  const grad = document.getElementById('grad');
+  grad.addEventListener('blur', () => { if (!/^\d{4}\/\d{2}$/.test(grad.value)) grad.value = ''; });
+  // React 风格受控输入：只接受来自原生 setter + input 事件的值；任何值都会被"重渲染"回状态
+  const phone = document.getElementById('phone');
+  let phoneState = '';
+  phone.addEventListener('input', e => { phoneState = e.target.value; });
+  setInterval(() => { if (phone.value !== phoneState) phone.value = phoneState; }, 50);
+  window.__values = () => ({ name: document.getElementById('name').value, degree, grad: grad.value, phone: phoneState });
+</script>
+</body>
+</html>

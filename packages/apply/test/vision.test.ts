@@ -94,7 +94,8 @@ describe('driveApplication 分层降级', () => {
     expect(page.submitted).toBe(false)
   })
   it('DOM 填不进去（自定义组件吞输入）→ 视觉层坐标重填并用 DOM 核对通过', async () => {
-    const page = new FakePage({ url: 'https://x.com/apply', fields: [{ label: '姓名' }, { label: '手机号', rejectFill: true, box: [140, 156, 240, 32] }], buttons: ['提交'] })
+    // rejectFill + actuatorFails：Playwright 填不进、页内执行器也填不进（完全自绘控件）→ 只剩视觉层
+    const page = new FakePage({ url: 'https://x.com/apply', fields: [{ label: '姓名' }, { label: '手机号', rejectFill: true, actuatorFails: true, box: [140, 156, 240, 32] }], buttons: ['提交'] })
     const perceiver = new FakePerceiver(formFrame())
     const r = await driveApplication(page, noLLM(), profile, { ...quiet, perceiver })
     expect(r.status).toBe('stopped_before_submit')

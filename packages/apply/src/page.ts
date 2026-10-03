@@ -96,8 +96,12 @@ export interface FakeFieldSpec {
   box?: [number, number, number, number]
   /** DOM 抽取看不到它（模拟 canvas / 跨域 iframe / 自绘控件），但仍可被坐标点击 + 键盘输入。 */
   domHidden?: boolean
-  /** page.fill 对它无效（模拟吞掉程序化输入的自定义组件），只有逐字键入才生效。 */
+  /** page.fill 对它无效（模拟吞掉程序化输入的自定义组件），只有逐字键入 / 页内执行器（原型链 setter）才生效。 */
   rejectFill?: boolean
+  /** 页内执行器也填不进去（模拟完全自绘的控件），只剩视觉层。 */
+  actuatorFails?: boolean
+  /** UI 框架指纹（给 RawField.framework）。 */
+  framework?: string
 }
 export interface FakeButtonSpec {
   text: string; goto?: string; submit?: boolean; disabled?: boolean; box?: [number, number, number, number]; domHidden?: boolean
@@ -124,7 +128,7 @@ export interface FakePageSpec {
   uploadAutofill?: Record<string, string>
 }
 
-interface LiveField extends Required<Pick<FakeFieldSpec, 'label' | 'type' | 'required'>> { id: string; name?: string; options?: string[]; value?: string; maxLength?: number; placeholder?: string; files?: string[]; box?: [number, number, number, number]; domHidden?: boolean; rejectFill?: boolean }
+interface LiveField extends Required<Pick<FakeFieldSpec, 'label' | 'type' | 'required'>> { id: string; name?: string; options?: string[]; value?: string; maxLength?: number; placeholder?: string; files?: string[]; box?: [number, number, number, number]; domHidden?: boolean; rejectFill?: boolean; actuatorFails?: boolean; framework?: string }
 interface LivePage { spec: FakePageSpec; fields: LiveField[]; buttons: Array<FakeButtonSpec & { id: string }>; captcha: boolean; login: boolean; extraText: string; errors: string[]; scrollY: number }
 
 export interface FakeAction { kind: 'goto' | 'fill' | 'click' | 'select' | 'upload' | 'type' | 'press' | 'scroll' | 'screenshot' | 'mouse'; target?: string; value?: string }
@@ -203,7 +207,23 @@ export class FakePage {
 
   async evaluate<A, R>(script: PageScript<A, R>, arg?: A): Promise<R> {
     switch (script.id) {
-      case SCRIPT_IDS.extractFields: return this.current.fields.filter(f => !f.domHidden).map(f => ({ id: f.id, label: f.label, name: f.name, type: f.type, options: f.options, required: f.required, value: f.value, maxLength: f.maxLength, placeholder: f.placeholder } satisfies RawField)) as unknown as R
+      case SCRIPT_IDS.extractFields: return this.current.fields.filter(f => !f.domHidden).map(f => ({ id: f.id, label: f.label, name: f.name, type: f.type, options: f.options, required: f.required, value: f.value, maxLength: f.maxLength, placeholder: f.placeholder, custom: f.framework ? true : undefined, xpath: `/html/body/form/${f.type}[${f.id}]`, framework: f.framework ?? 'native' } satisfies RawField)) as unknown as R
+      case SCRIPT_IDS.fillValue: {
+        // 页内执行器：原型链 setter 能绕过 rejectFill（React 受控组件）；actuatorFails 模拟完全自绘控件
+        const a = arg as unknown as { selector: string; value: string; kind?: string }
+        const { field } = this.resolve(a.selector)
+        this.actions.push({ kind: 'fill', target: field?.id ?? a.selector, value: `actuator:${a.value}` })
+        if (!field) return { ok: false, strategy: 'none', framework: 'native', detail: '元素不存在' } as unknown as R
+        if (field.actuatorFails) return { ok: false, strategy: 'native-input', framework: field.framework ?? 'native', detail: '读回为空' } as unknown as R
+        if (field.type === 'select') {
+          const hit = matchOption(field.options ?? [], a.value)
+          if (!hit) return { ok: false, strategy: `${field.framework ?? 'native'}-select`, framework: field.framework ?? 'native', detail: '选项不存在' } as unknown as R
+          field.value = hit
+          return { ok: true, strategy: `${field.framework ?? 'native'}-select`, framework: field.framework ?? 'native' } as unknown as R
+        }
+        field.value = field.maxLength ? a.value.slice(0, field.maxLength) : a.value
+        return { ok: true, strategy: field.framework && field.framework !== 'native' ? `${field.framework}-date` : 'native-input', framework: field.framework ?? 'native' } as unknown as R
+      }
       case SCRIPT_IDS.pageSignals: return this.signals() as unknown as R
       case SCRIPT_IDS.scrollBy: { this.current.scrollY += Number(arg ?? 0); this.actions.push({ kind: 'scroll', value: String(arg) }); return this.current.scrollY as unknown as R }
       case SCRIPT_IDS.domBoxes: {
@@ -323,7 +343,7 @@ export class FakePage {
 }
 
 function materialize(spec: FakePageSpec): LivePage {
-  const fields: LiveField[] = (spec.fields ?? []).map((f, i) => ({ id: `f${i}`, label: f.label, name: f.name, type: f.type ?? 'text', options: f.options, required: !!f.required, value: f.type === 'checkbox' ? (f.value ?? 'false') : f.value, maxLength: f.maxLength, placeholder: f.placeholder, box: f.box, domHidden: f.domHidden, rejectFill: f.rejectFill }))
+  const fields: LiveField[] = (spec.fields ?? []).map((f, i) => ({ id: `f${i}`, label: f.label, name: f.name, type: f.type ?? 'text', options: f.options, required: !!f.required, value: f.type === 'checkbox' ? (f.value ?? 'false') : f.value, maxLength: f.maxLength, placeholder: f.placeholder, box: f.box, domHidden: f.domHidden, rejectFill: f.rejectFill, actuatorFails: f.actuatorFails, framework: f.framework }))
   const buttons = (spec.buttons ?? []).map((b, i) => ({ ...(typeof b === 'string' ? { text: b } : b), id: `b${i}` }))
   return { spec, fields, buttons, captcha: !!spec.captcha, login: !!spec.login, extraText: '', errors: [...(spec.errors ?? [])], scrollY: 0 }
 }

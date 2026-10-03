@@ -27,7 +27,7 @@ const stubLlm = {
   complete: async () => ({ text: JSON.stringify({ answers: [] }), usage: { input_tokens: 0, output_tokens: 0 } }),
 };
 const profile = {
-  basics: { name: '张三', phone: '13800138000', email: 'zhangsan@example.com', school: '某某大学', major: '计算机科学', degree: '硕士', city: '上海', wechat: 'zs_wx' },
+  basics: { name: '张三', phone: '13800138000', email: 'zhangsan@example.com', school: '某某大学', major: '计算机科学', degree: '硕士', graduation: '2027.06', city: '上海', wechat: 'zs_wx' },
   experiences: [
     { title: '推荐系统重构', org: 'A 公司', role: '算法实习生', period: '2025.03~2025.08', claims: ['把离线特征计算从 6h 压到 40min'] },
     { title: '数据平台', org: 'B 公司', role: '数据实习生', period: '2024.07~2024.09', claims: ['搭建埋点报表'] },
@@ -120,12 +120,28 @@ if (only === 'all' || only === 'sections') {
   const page = context.pages()[0];
   const rows = await page.evaluate(() => window.__rows());
   check(rows.edu.length === 2 && rows.edu[0]?.[0] === '某某大学' && rows.edu[1]?.[0] === '某某学院', `教育经历两行：${JSON.stringify(rows.edu)}`);
-  check(rows.edu[1]?.[1] === '软件工程' && rows.edu[1]?.[2] === '本科' && rows.edu[1]?.[3] === '2020.09', `第 2 行专业 / 学历 / 入学时间：${JSON.stringify(rows.edu[1])}`);
-  check(rows.edu[0]?.[4] === '2027.06', `第 1 行毕业时间来自教育经历而不是实习：${rows.edu[0]?.[4]}`);
+  // 日期字段没有 placeholder 时统一整形成 YYYY-MM（资料里写的是 2020.09 / 2027.06）
+  check(rows.edu[1]?.[1] === '软件工程' && rows.edu[1]?.[2] === '本科' && rows.edu[1]?.[3] === '2020-09', `第 2 行专业 / 学历 / 入学时间（已整形）：${JSON.stringify(rows.edu[1])}`);
+  check(rows.edu[0]?.[4] === '2027-06', `第 1 行毕业时间来自教育经历而不是实习（已整形）：${rows.edu[0]?.[4]}`);
   check(rows.exp.length === 2 && rows.exp[0]?.[0] === 'A 公司' && rows.exp[1]?.[0] === 'B 公司' && rows.exp[1]?.[1] === '数据实习生', `实习经历两行：${JSON.stringify(rows.exp)}`);
   const sections = r?.pages?.[0]?.sections ?? [];
   check(sections.some(s => s.key === 'education' && s.added === 1) && sections.some(s => s.key === 'experience' && s.added === 1), `分区摘要：${JSON.stringify(sections)}`);
   check(!(await page.evaluate(() => !!document.getElementById('done'))), '没有提交');
+}
+
+if (only === 'all' || only === 'widgets') {
+  console.log('\n[5] 第三方控件（antd 风格非搜索下拉 / element 风格日期校验 / React 风格受控输入）→ 页内执行器');
+  const r = await run({ op: 'drive', url: fixture('apply-form-widgets.html'), humanTyping: false, settleMs: 300, maxPages: 1 });
+  check(r?.status === 'stopped_before_submit', `status=${r?.status} message=${r?.message}`);
+  const page = context.pages()[0];
+  const values = await page.evaluate(() => window.__values());
+  check(values.name === '张三', `姓名=${values.name}`);
+  check(values.degree === '硕士研究生', `antd 下拉按字典归一点选：degree=${values.degree}（资料写的是"硕士"）`);
+  check(values.grad === '2027/06', `日期按 placeholder 整形并通过失焦校验：grad=${values.grad}`);
+  check(values.phone === '13800138000', `受控输入：phone=${values.phone}`);
+  check((r?.mismatches ?? []).length === 0, `差异核对：${JSON.stringify(r?.mismatches ?? [])}`);
+  check(!(await page.evaluate(() => !!document.getElementById('done'))), '没有提交');
+  console.log(`  escalations=${JSON.stringify(r?.escalations)} layersUsed=${JSON.stringify(r?.layersUsed)}`);
 }
 
 if (only === 'all' || only === 'live') {

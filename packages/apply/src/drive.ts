@@ -13,6 +13,9 @@ import { looksLikeFormVisually, pairVisualFields, type Perceiver, type UiKind } 
 import { visionScan, visionFill, visionClickText, visionFindButton, type VisionOptions } from './vision.js'
 import { describeObstacle, looksLikeRiskUrl, type CaptchaKind } from './obstacles.js'
 import { fillRepeatingSections, type SectionSummary } from './sections.js'
+import { fillValueScript } from './scripts.js'
+import { normalizeHost, type SiteMemory } from './memory.js'
+import { DATE_FIELD_RX, matchOption } from './normalize.js'
 import type { FieldType } from './scripts.js'
 
 /**
@@ -69,6 +72,10 @@ export interface DriveResult {
   submitButton?: string
   /** 登录接管时，私密库已代填了哪些登录字段（不含值）。 */
   loginFilled?: Array<'username' | 'password'>
+  /** 用户在接管期间自己填好的字段（learnFrom 里的标签），调用方可存进答案库。 */
+  learned: Array<{ label: string; value: string }>
+  /** 本次写进站点记忆的映射数。 */
+  memorized: number
   screenshot?: Uint8Array
   finalUrl: string
   adapterId: string
@@ -99,6 +106,10 @@ export interface DriveOptions extends PacingOptions {
   /** 视觉兜底层的感知器（OCR / 视觉模型）。不给则只有 DOM 层。 */
   perceiver?: Perceiver
   vision?: { maxFieldsPerPage?: number; maxScrolls?: number }
+  /** 站点映射记忆：别名匹配不到的字段按上次记录直填；读回核对通过的 profile 字段记下来。 */
+  siteMemory?: SiteMemory
+  /** 续跑时：这些标签上次是 needs_user，若现在页面上已有值（用户自己填的），回传给调用方存进答案库。 */
+  learnFrom?: string[]
   onPage?: (rec: PageRecord) => void
   log?: (msg: string) => void
 }
@@ -113,7 +124,17 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   const pause = opts.pause ?? [300, 900]
   const log = opts.log ?? (() => {})
   const pages: PageRecord[] = []
-  const all = { filled: [] as FilledRecord[], needsUser: [] as FieldPlan[], drafts: [] as FieldPlan[], mismatches: [] as Mismatch[], uploads: [] as UploadCheck[], escalations: [] as Escalation[] }
+  const all = { filled: [] as FilledRecord[], needsUser: [] as FieldPlan[], drafts: [] as FieldPlan[], mismatches: [] as Mismatch[], uploads: [] as UploadCheck[], escalations: [] as Escalation[], learned: [] as Array<{ label: string; value: string }>, memorized: 0 }
+  const host = normalizeHost(page.url())
+  const recallKey = opts.siteMemory ? opts.siteMemory.recaller(host) : undefined
+  /** 页内执行器（框架适配 / React 安全赋值）；失败返回 false，调用方再走其他路。 */
+  const actuate = async (f: FormField, value: string, kind: 'auto' | 'text' | 'select' | 'date' | 'richtext' = 'auto'): Promise<boolean> => {
+    try {
+      const r = await page.evaluate(fillValueScript, { selector: f.selector, value, kind, fieldKey: `${f.label} ${f.name ?? ''}` })
+      if (r.ok) log(`页内执行器：「${f.label}」← ${r.strategy}`)
+      return r.ok
+    } catch { return false }
+  }
   const layersUsed = new Set<DriveLayer>()
   const visionOpts: VisionOptions | null = opts.perceiver && page.mouse
     ? { perceiver: opts.perceiver, maxScrolls: opts.vision?.maxScrolls, pause: [Math.min(pause[0], 200), Math.min(pause[1], 500)], typeDelayMs: pause[1] === 0 ? 0 : undefined, log, rng: opts.rng, sleep: opts.sleep }
@@ -192,9 +213,15 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       rec.layer = layer
       layersUsed.add(layer)
       log(`第 ${index} 页：${fields.length} 个字段（${layer}）`)
+      // 续跑：用户在接管期间自己填好的字段（上次 needs_user）→ 回传给调用方存答案库
+      if (index === 1 && opts.learnFrom?.length && layer === 'dom') {
+        const want = new Set(opts.learnFrom.map(normKey))
+        for (const f of fields) if (want.has(normKey(f.label)) && f.value && f.value.trim() && !f.isFile) all.learned.push({ label: f.label, value: f.value.trim() })
+        if (all.learned.length) log(`学到 ${all.learned.length} 个用户自己填的答案：${all.learned.map(l => l.label).join('、')}`)
+      }
 
-      // 3. 解释
-      const plans = await interpretForm(llm, fields, profile, { adapter, ...opts.interpret })
+      // 3. 解释（别名匹配不到的字段交给站点记忆回忆）
+      const plans = await interpretForm(llm, fields, profile, { adapter, recallKey, ...opts.interpret })
       // 占位符 → 明文只发生在这里（Node 侧），之后的填写 / 核对都用明文；回传模型前由 ApplyService 再脱敏
       if (opts.resolveValue) for (const p of plans) if (p.status === 'fill' && p.value !== undefined) p.value = opts.resolveValue(p.value)
       const byId = new Map(fields.map(f => [f.id, f]))
@@ -234,7 +261,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         }
         if (sameValue(f, p.value)) { rec.filled.push({ fieldId: f.id, label: f.label, value: p.value, source: p.source, layer: 'dom' }); continue }
         try {
-          await fillField(page, f, p.value, opts)
+          await fillField(page, f, p.value, opts, actuate)
           rec.filled.push({ fieldId: f.id, label: f.label, value: p.value, source: p.source, layer: 'dom' })
           await humanDelay(pause[0], pause[1], opts)
         } catch (e) {
@@ -248,7 +275,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           // 重新抽取：拿到第 5 步填完后的当前值，已有值的行不覆盖
           fields = await extractFields(page); for (const f of fields) byId.set(f.id, f)
           const sec = await fillRepeatingSections(page, fields, profile, {
-            fill: (f, v) => fillField(page, f, v, opts), settleMs: opts.settleMs, log, isSubmit: t => isSubmitText(t, adapter), resolveValue: opts.resolveValue,
+            fill: (f, v) => fillField(page, f, v, opts, actuate), settleMs: opts.settleMs, log, isSubmit: t => isSubmitText(t, adapter), resolveValue: opts.resolveValue,
           })
           for (const f of sec.filled) rec.filled.push({ fieldId: f.fieldId, label: f.label, value: f.value, source: 'profile', layer: 'dom' })
           if (sec.sections.length) rec.sections = sec.sections
@@ -265,6 +292,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         for (const d of diffs) {
           const f = after.find(x => x.id === d.fieldId)
           if (!f) { rec.mismatches.push(d); continue }
+          // 第一次重试：页内执行器（原型链 setter / 框架适配器），不行再用 Playwright 原路径
+          if (await actuate(f, d.expected, 'auto')) { rec.escalations.push({ reason: 'fill_mismatch', field: f.label, outcome: 'recovered', evidence: '页内执行器重填' }); continue }
           try { await fillField(page, f, d.expected, opts) } catch { /* 下面再核对一次 */ }
         }
         if (diffs.length) {
@@ -281,6 +310,17 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
             for (const e of rec.escalations) if (e.reason === 'fill_mismatch' && e.outcome === 'recovered' && remaining.some(m => m.label === e.field)) e.outcome = 'failed'
           }
           rec.mismatches.push(...remaining)
+          for (const e of rec.escalations) if (e.reason === 'fill_mismatch' && e.outcome === 'recovered' && remaining.some(m => m.label === e.field)) e.outcome = 'failed'
+        }
+        // 站点记忆：读回核对通过的 profile 字段，记下"这站这个字段 ↔ 资料键"，下次别名匹配不到也能直填
+        if (opts.siteMemory) {
+          const bad = new Set(rec.mismatches.map(m => m.fieldId))
+          for (const p of plans) {
+            const f = byId.get(p.fieldId)
+            if (!f || !p.key || p.status !== 'fill' || bad.has(p.fieldId) || !rec.filled.some(r => r.fieldId === p.fieldId)) continue
+            opts.siteMemory.remember(host, { name: f.name, xpath: f.xpath, label: f.label }, p.key, p.note === '按站点记忆匹配' ? 'learned' : 'alias')
+            all.memorized++
+          }
         }
       }
       sig = await page.evaluate(pageSignalsScript)
@@ -342,21 +382,36 @@ async function clickButton(page: PageLike, b: ButtonInfo, adapter: SiteAdapter):
   await page.click(b.selector)
 }
 
-async function fillField(page: PageLike, f: FormField, value: string, opts: DriveOptions): Promise<void> {
+type Actuate = (f: FormField, value: string, kind?: 'auto' | 'text' | 'select' | 'date' | 'richtext') => Promise<boolean>
+const isDateLike = (f: FormField) => f.type === 'date' || DATE_FIELD_RX.test(`${f.label} ${f.placeholder ?? ''}`) || /yyyy|年|月/i.test(f.placeholder ?? '')
+
+/**
+ * 填一个字段。顺序：
+ *  - 自定义下拉 / 第三方日期控件：先页内执行器（antd / element / … 按框架指纹点选），再退回"点开 → 键入 → 回车"；
+ *  - 原生控件：Playwright fill / selectOption / click；
+ *  - 富文本：fill 不行再页内 insertText。
+ */
+async function fillField(page: PageLike, f: FormField, value: string, opts: DriveOptions, actuate?: Actuate): Promise<void> {
   switch (f.type) {
     case 'select': {
       if (f.custom) {
+        if (actuate && await actuate(f, value, 'select')) return
         if (page.keyboard) { await page.locator(f.selector).click(); await page.keyboard.type(value); await page.keyboard.press('Enter') }
         else await page.fill(f.selector, value)
         return
       }
-      try { await page.selectOption(f.selector, { label: value }) } catch { await page.selectOption(f.selector, value) }
+      try { await page.selectOption(f.selector, { label: value }) } catch { try { await page.selectOption(f.selector, value) } catch (e) { if (!actuate || !(await actuate(f, value, 'select'))) throw e } }
       return
     }
     case 'radio': await page.click(radioOptionSelector(f, value)); return
     case 'checkbox': { const want = /^(true|1|yes|是)$/i.test(value); if ((f.value === 'true') !== want) await page.click(f.selector); return }
     case 'file': await page.setInputFiles(f.selector, value); return
+    case 'richtext':
+      try { await page.fill(f.selector, value) } catch (e) { if (!actuate || !(await actuate(f, value, 'richtext'))) throw e }
+      return
     default:
+      // 第三方日期控件（antd / element / My97…）直接 fill 往往被面板吞掉：先走页内执行器
+      if (actuate && f.framework && f.framework !== 'native' && isDateLike(f) && await actuate(f, value, 'date')) return
       if (opts.humanTyping) await typeLikeHuman(page, f.selector, value, opts)
       else await page.fill(f.selector, value)
   }
@@ -365,7 +420,10 @@ async function fillField(page: PageLike, f: FormField, value: string, opts: Driv
 function sameValue(f: FormField, v: string): boolean {
   if (f.value === undefined || f.value === '') return false
   if (f.type === 'checkbox') return (f.value === 'true') === /^(true|1|yes|是)$/i.test(v)
-  return normKey(f.value) === normKey(v)
+  if (normKey(f.value) === normKey(v)) return true
+  // 下拉：页面显示的是选项文案（"硕士研究生"），计划值可能是资料写法（"硕士"）→ 字典 / 包含匹配算一致
+  if (f.type === 'select') return !!matchOption([f.value], v, { label: f.label })
+  return false
 }
 
 /** 比对"页面现在的值"与"计划值"。 */

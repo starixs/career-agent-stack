@@ -44,6 +44,8 @@ export interface ApplyEngineModule {
   ): Promise<Record<string, unknown> & { screenshot?: Uint8Array }>;
   /** 从 Repos + 私密库组装填表资料（basics 明文只在 Node 侧）。 */
   ApplyService?: new (repos: unknown, llm: LlmLike, defaults?: { vault?: unknown }) => { buildProfile(resumePath?: string): Record<string, unknown> };
+  /** 站点映射记忆（kv）：别名认不出的字段按上次记录直填；读回核对通过的记下来。 */
+  SiteMemory?: new (store: { kvGet<T>(key: string): T | undefined; kvSet(key: string, value: unknown): void }) => unknown;
   /** 视觉兜底层（L2）的感知器构件；旧版本的包没有这些导出时只走 DOM 层。 */
   DomBoxPerceiver?: new (page: ApplyPageLike) => PerceiverLike;
   composePerceivers?: (perceivers: PerceiverLike[], id?: string) => PerceiverLike;
@@ -434,6 +436,11 @@ export async function runOperation(
   if (body.vision !== false) {
     try { perceiver = await (deps.createPerceiver ?? defaultPerceiver)(apply, engineLikePage, llm); } catch (error) { out.emit({ type: 'progress', phase: 'drive', message: `视觉兜底层不可用：${error instanceof Error ? error.message : String(error)}` }); }
   }
+  // 站点映射记忆（kv，与求职库同一连接）；测试给 body.profile 时不动真实库
+  let siteMemory: unknown;
+  if (typeof apply.SiteMemory === 'function' && !body.profile) {
+    try { const { getRepos } = await import('../career/db'); siteMemory = new apply.SiteMemory(await getRepos()); } catch { /* 数据层未就绪就不记 */ }
+  }
   out.emit({ type: 'progress', phase: 'drive', message: `开始填写（不提交）${perceiver ? `，视觉兜底：${perceiver.id}` : ''}` });
   const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
     maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
@@ -442,6 +449,8 @@ export async function runOperation(
     ...(bundle.resolveValue ? { resolveValue: bundle.resolveValue } : {}),
     ...(bundle.loginFill ? { loginFill: bundle.loginFill } : {}),
     ...(perceiver ? { perceiver } : {}),
+    ...(siteMemory ? { siteMemory } : {}),
+    ...(Array.isArray(body.learnFrom) ? { learnFrom: (body.learnFrom as unknown[]).filter((x): x is string => typeof x === 'string') } : {}),
     log: (message: string) => out.emit({ type: 'progress', phase: 'drive', message: redact(message) }),
     onPage: (record: unknown) => out.emit({ type: 'page', record: redact(record) }),
   });

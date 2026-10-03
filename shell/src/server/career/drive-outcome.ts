@@ -52,6 +52,15 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
   };
   if (!result) return fail(errorLine ? `${errorLine.error ?? '浏览器路由报错'}（HTTP ${errorLine.status ?? '?'}）` : '浏览器没有返回填表结果');
   const summary = summarizeDriveResult(result);
+  // 用户接管期间自己填好的字段 → 答案库（未确认），下次同类问题直接用原话
+  if (Array.isArray(result.learned)) {
+    for (const item of result.learned as Array<{ label?: string; value?: string }>) {
+      if (!item?.label || !item?.value) continue
+      if (r.findAnswer(item.label)) continue
+      try { r.saveAnswer({ question_key: item.label, question_text: item.label, answer: item.value, high_impact: false, confirmed: false }); } catch { /* ignore */ }
+    }
+    if ((result.learned as unknown[]).length) deps.changed('answer_bank');
+  }
   const count = (k: string) => (Array.isArray(result[k]) ? (result[k] as unknown[]).length : 0);
   const status = String(result.status ?? '');
   const finalUrl = typeof result.finalUrl === 'string' ? result.finalUrl : undefined;

@@ -3,6 +3,7 @@ import { extractFields, type FormField } from './extract.js'
 import { normKey, type Profile } from './interpret.js'
 import { pageSignalsScript, type ButtonInfo } from './scripts.js'
 import { isSubmitText } from './guards.js'
+import { normalizeValueForField } from './normalize.js'
 
 /**
  * 重复分区（"表格"）：教育经历 / 实习工作经历 / 项目经历这类"一行一段、可以『添加一行』"的模块。
@@ -102,7 +103,8 @@ export async function fillRepeatingSections(page: PageLike, fields: FormField[],
       const raw = entry[key]
       if (!raw) continue
       if (field.value && field.value.trim()) continue // 已有值（基本信息层或用户自己填的）不覆盖
-      const value = opts.resolveValue ? opts.resolveValue(raw) : raw
+      // 占位符 → 明文，再按字段整形（学历字典、日期按 placeholder / type 推断格式）
+      const value = normalizeValueForField(opts.resolveValue ? opts.resolveValue(raw) : raw, { key, label: field.label, placeholder: field.placeholder, type: field.type, options: field.options, sample: field.value })
       try {
         await opts.fill(field, field.maxLength ? value.slice(0, field.maxLength) : value)
         filled.push({ fieldId: field.id, label: field.label, value, section: spec.key, row: rowIndex })

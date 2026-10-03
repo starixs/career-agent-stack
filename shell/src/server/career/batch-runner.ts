@@ -33,7 +33,7 @@ export const BATCH_STATE_KEY = 'apply:batch:state';
 export const BATCH_COMMAND_KEY = 'apply:batch:command';
 const DAILY_KEY = (day: string) => `apply:batch:count:${day}`;
 
-export interface DriveRequest { action: ActionQueueItem; payload: Record<string, unknown>; mode: 'start' | 'continue'; resumePath?: string }
+export interface DriveRequest { action: ActionQueueItem; payload: Record<string, unknown>; mode: 'start' | 'continue'; resumePath?: string; /** 续跑时上次 needs_user 的标签：用户自己填好的值学进答案库 */ learnFrom?: string[] }
 export interface BatchRunnerDeps {
   repos: Repos;
   /** 跑一次 drive（Global 内直接用浏览器宿主），返回 NDJSON 事件数组。 */
@@ -187,7 +187,11 @@ export class BatchRunner {
     const events: DriveEvent[] = [];
     try {
       const resumePath = await this.deps.resumeFileFor?.(payload.resume_id);
-      await this.deps.drive({ action, payload, mode, resumePath }, ev => {
+      let learnFrom: string[] | undefined;
+      if (mode === 'continue') {
+        try { const prev = JSON.parse(action.result_json ?? 'null') as { needsUser?: Array<{ label?: string }> } | null; learnFrom = (prev?.needsUser ?? []).map(p => p.label).filter((l): l is string => typeof l === 'string' && !!l); } catch { /* ignore */ }
+      }
+      await this.deps.drive({ action, payload, mode, resumePath, ...(learnFrom?.length ? { learnFrom } : {}) }, ev => {
         events.push(ev);
         if (ev.type === 'progress') this.deps.broadcast('career:progress', { sessionId: this.deps.sessionId?.() ?? 'global', runId, taskId: task.id, phase: 'apply_batch', message: String(ev.message ?? '') });
       });

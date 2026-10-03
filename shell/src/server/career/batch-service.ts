@@ -65,6 +65,7 @@ export async function getBatchRunner(): Promise<BatchRunner> {
             op: 'drive', actionId: req.action.id, applicationId: req.action.application_id, payload: req.payload,
             ...(req.mode === 'start' && typeof req.payload.url === 'string' ? { url: req.payload.url } : {}),
             ...(req.resumePath ? { resumePath: req.resumePath } : {}),
+            ...(req.learnFrom?.length ? { learnFrom: req.learnFrom } : {}),
           };
           await host.withProductSession(id, context => runOperation('drive', body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost }), { create: { workspacePath: careerWorkspacePath() } });
           return events;
