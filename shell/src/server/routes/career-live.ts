@@ -198,6 +198,19 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
     }
   }
 
+  /** 简历模板字体（渲染层 CSP 不能直连 CDN）：白名单内的地址下载一次后从本机缓存返回。 */
+  if (pathname === `${CAREER_LIVE_PREFIX}font` && method === 'GET') {
+    const u = new URL(request.url).searchParams.get('u') ?? '';
+    try {
+      const { readCachedFont } = await import('../career/font-cache');
+      const { bytes, mime } = await readCachedFont(u);
+      return new Response(new Uint8Array(bytes), { status: 200, headers: { 'Content-Type': mime, 'Cache-Control': 'public, max-age=31536000, immutable', ...CORS } });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      return fail(error instanceof Error ? error.message : '字体获取失败', name === 'FontNotAllowedError' ? 403 : 502);
+    }
+  }
+
   if (pathname === `${CAREER_BATCH_PREFIX}state` && method === 'GET') return ok({ batch: deps.runner?.state() ?? null });
   if (pathname === `${CAREER_BATCH_PREFIX}command` && method === 'POST') {
     const body = await readBody(request);

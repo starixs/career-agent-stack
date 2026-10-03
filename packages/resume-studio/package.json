@@ -34,7 +34,6 @@
     "@react-pdf/hyphenate": "0.1.0",
     "@react-pdf/renderer": "^4.9.0",
     "@react-pdf/stylesheet": "^6.3.2",
-    "@uiw/color-convert": "^2.10.3",
     "cjk-regex": "^3.5.0",
     "css-tree": "^3.2.1",
     "fast-png": "^8.0.0",

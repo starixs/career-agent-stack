@@ -1,4 +1,12 @@
-import { hsvaToHex, rgbaStringToHsva } from "@uiw/color-convert";
+/**
+ * 原实现的兜底用 @uiw/color-convert（CommonJS，在 Node ESM 里会触发 require(esm) 循环）。
+ * 兜底只覆盖百分比写法的 rgb()/rgba()，这里直接解析；其它无法解析的颜色和原来一样回落成黑色。
+ */
+function percentRgbToHex(input: string): string {
+	const m = input.trim().match(/^rgba?\(\s*([\d.]+)%\s*,?\s*([\d.]+)%\s*,?\s*([\d.]+)%/i);
+	if (!m) return "#000000";
+	return `#${[m[1], m[2], m[3]].map((p) => toHexComponent(Math.round((Number(p) / 100) * 255))).join("")}`;
+}
 
 type ParsedColor = { r: number; g: number; b: number; a: number };
 
@@ -6,9 +14,9 @@ export function rgbaStringToHex(rgba: string): string {
 	const color = parseColorString(rgba);
 	if (color) return `#${toHexComponent(color.r)}${toHexComponent(color.g)}${toHexComponent(color.b)}`;
 	// Fallback: the local parser is integer-only, so percentage-notation rgb() (e.g. "rgb(100%,0%,0%)")
-	// reaches here — @uiw converts it. Everything @uiw can't parse (named colors, hsl, transparent)
+	// reaches here — percentRgbToHex converts it. Everything else (named colors, hsl, transparent)
 	// yields black, same as it always has. Custom style-rule colors are arbitrary strings, so keep this.
-	return hsvaToHex(rgbaStringToHsva(rgba));
+	return percentRgbToHex(rgba);
 }
 
 function toHexComponent(value: number): string {

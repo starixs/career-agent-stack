@@ -33,7 +33,8 @@ export function CareerResumeDrawer() {
       setResumeId(id);
       setNonce(n => n + 1);
       setOpen(true);
-      if (typeof fs === 'boolean') setFullscreen(fs);
+      // 工作台三栏需要宽度：默认铺满，可以收回侧栏（窄时自动变成标签页）
+      setFullscreen(typeof fs === 'boolean' ? fs : true);
       emitEvent(DRAWER_OPENED_EVENT, { name: 'resume' });
     };
     const offOpen = onEvent<{ open?: boolean; resumeId?: string | null; fullscreen?: boolean }>(RESUME_DRAWER_EVENT, p => {
@@ -58,15 +59,15 @@ export function CareerResumeDrawer() {
       <div className="flex items-center gap-2 border-b border-[var(--line-subtle)] px-3 py-2 text-xs text-[var(--ink-muted)]">
         <FileText className="h-3.5 w-3.5" />
         <span className="text-sm font-medium text-[var(--ink)]">简历在线编辑</span>
-        <span className="ml-auto">改完点「保存」，助理会读到最新版本</span>
+        <span className="ml-auto">自动保存，助理会读到最新内容</span>
         <Button variant="ghost" onClick={() => setFullscreen(f => !f)} aria-label={fullscreen ? '退出全屏' : '全屏'}>
           {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </Button>
         <Button variant="ghost" onClick={() => { setOpen(false); setFullscreen(false); }} aria-label="收起简历编辑"><X className="h-3.5 w-3.5" /></Button>
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <Suspense fallback={<LoadingRow />}>
-          <CareerResume key={`${resumeId ?? 'default'}:${nonce}`} embedded initialResumeId={resumeId} compact={!fullscreen} />
+          <CareerResume key={`${resumeId ?? 'default'}:${nonce}`} initialResumeId={resumeId} />
         </Suspense>
       </div>
     </aside>

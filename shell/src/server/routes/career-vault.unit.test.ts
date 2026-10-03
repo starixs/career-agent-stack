@@ -93,6 +93,8 @@ describe('私密信息库路由', () => {
     await call(deps, 'PUT', '/api/career/vault/items', { scope: 'profile', field: 'phone', value: '13800138000' });
     const master = (await call(deps, 'POST', '/api/career/resumes/master', { name: '通用版', schema_json: { basics: { name: '{{vault:profile.name}}', phone: '{{vault:profile.phone}}' } } })).json.master as { id: string };
     const rendered: unknown[] = [];
+    // 这里验证默认模板路径的占位符解析；工作台模板路径由 resume-studio 冒烟脚本覆盖（需要真实字体）
+    deps.studioExport = false;
     deps.resumeModule = async () => ({
       parseResume: (x: unknown) => x,
       renderPdf: async (resume: unknown) => { rendered.push(resume); return Buffer.from('pdf'); },

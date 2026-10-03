@@ -1,9 +1,13 @@
 /**
- * 简历导出：schema_json → @career/resume 渲染 → 写到 `CAREER_DATA_DIR/exports/<id>.<ext>`。
- * 路由与工具共用；领域库未就绪时抛 DomainUnavailableError。
+ * 简历导出：写到 `CAREER_DATA_DIR/exports/<id>.<ext>`。路由与工具共用；领域库未就绪时抛 DomainUnavailableError。
+ *  - PDF / 图片：传了 studio（repos）时用简历工作台的模板（与工作台预览同一套），否则用 @career/resume 的默认模板；
+ *  - Word：始终按内容由 @career/resume 生成（模板是 PDF 专用的）。
  */
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import type { Repos } from '@career/core';
+
+import { renderStudioPdfBuffer } from './resume-studio';
 import type { CareerStore } from './store';
 import { loadResume } from './domain';
 
@@ -34,6 +38,7 @@ export async function exportResumeFile(
   loader: () => Promise<typeof import('@career/resume')> = loadResume,
   /** 渲染前把简历 JSON 里的私密库占位符（{{vault:profile.phone}} 等）解成明文；只在这里发生，落库的 JSON 仍是占位符。 */
   resolve: (schema: unknown) => unknown = s => s,
+  studio?: { repos: Repos } | null,
 ): Promise<string> {
   const found = store.getResume(id);
   if (!found) throw new ResumeNotFoundError(id);
@@ -44,7 +49,9 @@ export async function exportResumeFile(
   let buffer: Buffer;
   if (format === 'docx') buffer = await mod.renderDocx(resume);
   else {
-    const pdf = await mod.renderPdf(resume);
+    const pdf = studio
+      ? await renderStudioPdfBuffer({ repos: studio.repos, store }, id, resolve)
+      : await mod.renderPdf(resume);
     buffer = format === 'pdf' ? pdf : await mod.renderPng(pdf);
   }
   writeFileSync(path, buffer);

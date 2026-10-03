@@ -165,12 +165,27 @@ export function getWebFont(family: string) {
 	return webFontMap.get(family);
 }
 
+/**
+ * 字体地址改写（产品接入点）：桌面端渲染层的 CSP 不允许直接连字体 CDN，
+ * 改走本机侧车的字体缓存；侧车导出时改写成本地缓存文件路径（离线可用）。
+ */
+let fontUrlRewriter: ((url: string) => string) | null = null;
+export function setWebFontUrlRewriter(rewrite: ((url: string) => string) | null): void {
+	fontUrlRewriter = rewrite;
+}
+
 export function getWebFontSource(family: string, weight: FontWeight = "400", italic = false) {
 	const webFont = getWebFont(family);
 	if (!webFont) return null;
 
 	const key = `${weight}${italic ? "italic" : ""}` as FontFileWeight;
-	return webFont.files[key] ?? (italic ? webFont.files[weight] : undefined) ?? webFont.preview;
+	const url = webFont.files[key] ?? (italic ? webFont.files[weight] : undefined) ?? webFont.preview;
+	return url && fontUrlRewriter ? fontUrlRewriter(url) : url;
+}
+
+/** 所有网络字体地址（侧车预取 / 缓存白名单用）。 */
+export function allWebFontUrls(): string[] {
+	return [...webFontMap.values()].flatMap((font) => [...Object.values(font.files), font.preview]).filter((u): u is string => typeof u === "string");
 }
 
 export function sortFontWeights<T extends string>(fontWeights: T[]): T[] {

@@ -21,23 +21,26 @@ describe('CareerResumeDrawer', () => {
     act(() => emitEvent('career:focus', { surface: 'resume_editor', id: 'rt_1' }));
     const editor = await screen.findByTestId('resume-editor');
     expect(editor).toHaveAttribute('data-resume', 'rt_1');
-    expect(editor).toHaveAttribute('data-compact', 'true');
+    // 工作台三栏需要宽度：默认铺满
+    expect(screen.getByTestId('career-resume-drawer')).toHaveAttribute('data-fullscreen', 'true');
 
     act(() => emitEvent('career:focus', { surface: 'resume_editor', id: 'rm_2' }));
     expect(await screen.findByTestId('resume-editor')).toHaveAttribute('data-resume', 'rm_2');
   });
 
-  it('可全屏（编辑器切回宽布局），收起后不影响下次打开', async () => {
+  it('默认铺满，可以收回侧栏；收起后下次打开仍铺满', async () => {
     render(<CareerResumeDrawer />);
     act(() => openResumeDrawer('rm_1'));
     await screen.findByTestId('resume-editor');
-    fireEvent.click(screen.getByRole('button', { name: '全屏' }));
     expect(screen.getByTestId('career-resume-drawer')).toHaveAttribute('data-fullscreen', 'true');
-    expect(screen.getByTestId('resume-editor')).toHaveAttribute('data-compact', 'false');
+    fireEvent.click(screen.getByRole('button', { name: '退出全屏' }));
+    expect(screen.getByTestId('career-resume-drawer')).toHaveAttribute('data-fullscreen', 'false');
     fireEvent.click(screen.getByRole('button', { name: '收起简历编辑' }));
     expect(screen.queryByTestId('career-resume-drawer')).not.toBeInTheDocument();
-    act(() => openResumeDrawer('rm_1'));
+    act(() => openResumeDrawer('rm_1', { fullscreen: false }));
     expect(await screen.findByTestId('career-resume-drawer')).toHaveAttribute('data-fullscreen', 'false');
+    act(() => openResumeDrawer('rm_1'));
+    expect(await screen.findByTestId('career-resume-drawer')).toHaveAttribute('data-fullscreen', 'true');
   });
 
   it('和浏览器现场抽屉互斥：一个打开另一个收起；ui_open(live) 打开现场', async () => {

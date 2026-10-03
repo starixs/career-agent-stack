@@ -2,6 +2,8 @@
  * Global 路由 `/api/career/*` 的前端封装（见 docs/API.md）。
  * 响应统一 `{ ok: true, ...data }`；列表字段名由后端决定，这里做宽容解包。
  */
+import type { ResumeData as StudioResumeData } from '@career/resume-studio/schema';
+
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 
 import type {
@@ -52,6 +54,15 @@ export const careerApi = {
   experiences: () => apiGetJson<unknown>(careerPath('/experiences')).then(r => pickList<ExperienceNode>(r, 'experiences', 'tree', 'items')),
   addExperience: (body: Partial<ExperienceNode>) => apiPostJson<unknown>(careerPath('/experiences'), body).then(r => pickObject<ExperienceNode>(r, 'experience')),
   confirmClaim: (id: string) => apiPostJson<unknown>(careerPath(`/claims/${encodeURIComponent(id)}/confirm`), {}),
+  /** 简历工作台文档（resume-studio ResumeData）；preview 是占位符 → 明文，只给预览用。 */
+  getStudio: (id: string) => apiGetJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/studio`)).then(r => {
+    const d = asDict(r);
+    return { data: d.data as StudioResumeData, contentUpdatedAt: String(d.content_updated_at ?? ''), preview: (d.preview as Record<string, string>) ?? {} };
+  }),
+  saveStudio: (id: string, data: StudioResumeData) => apiPutJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/studio`), { data }).then(r => {
+    const d = asDict(r);
+    return { contentUpdatedAt: String(d.content_updated_at ?? ''), preview: (d.preview as Record<string, string>) ?? {} };
+  }),
   /** 模型 / 搜索 Key 是否已配置（只有状态，不含 Key）。 */
   setupStatus: () => apiGetJson<unknown>(careerPath('/setup')).then(r => asDict(r).setup as CareerSetupStatus),
   /** 对话内卡片（持久化）：按会话读回；完成 / 忽略 / 重新打开。 */

@@ -50,6 +50,8 @@ export interface CareerToolDeps {
   browserRun?: (body: Record<string, unknown>, onEvent: (ev: Record<string, unknown>) => void) => Promise<void>;
   /** 简历 schema 校验；缺省惰性加载 @career/resume（测试可注入只含 parseResume 的轻量实现）。 */
   resumeModule?: () => Promise<Pick<typeof import('@career/resume'), 'parseResume'>>;
+  /** false：导出 PDF 不用简历工作台模板（测试用）。 */
+  studioExport?: boolean;
 }
 
 const sessionCtx = { sessionId: 'default' };
@@ -223,7 +225,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
   };
   /** 简历导出：渲染前解占位符（只在 Node 侧），落库 JSON 不变。 */
   const exportWithVault = (resumeId: string, format: 'pdf' | 'docx' | 'png') =>
-    exportResumeFile(store(), resumeId, format, exportsDir(), undefined, schema => vault().resolveDeep(schema, { actor: 'resume_export', purpose: `导出简历 ${resumeId} ${format}` }));
+    exportResumeFile(store(), resumeId, format, exportsDir(), undefined, schema => vault().resolveDeep(schema, { actor: 'resume_export', purpose: `导出简历 ${resumeId} ${format}` }), deps.studioExport === false ? null : { repos: repos() });
   /** 投递用的简历文件：定制版已有 PDF 就复用，否则现导（失败不阻塞填表，只是不上传附件）。 */
   const resumeFileFor = async (resumeId: unknown): Promise<string | undefined> => {
     if (typeof resumeId !== 'string' || !resumeId) return undefined;

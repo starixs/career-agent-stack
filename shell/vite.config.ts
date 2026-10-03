@@ -33,6 +33,9 @@ export default defineConfig({
   root: resolve(__dirname, 'src/renderer'),
   plugins: [react(), tailwindcss()],
   resolve: {
+    // @career/resume-studio（pnpm 工作区包）自带一份 react：不去重的话它的模板组件和
+    // react-pdf 用的是两份 React，hooks 读不到 dispatcher（"reading 'useMemo' of null"）
+    dedupe: ['react', 'react-dom'],
     alias: [
       { find: '@', replacement: resolve(__dirname, 'src/renderer') },
       // Force pdf.js's LEGACY (polyfilled) build everywhere. The modern build

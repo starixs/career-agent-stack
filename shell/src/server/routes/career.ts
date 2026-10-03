@@ -40,6 +40,8 @@ export interface CareerRouteDeps {
   /** undefined → 进程共享 ShellLLM；null → 不调用模型（导入岗位时不解析 JD）。 */
   llm?: LLM | null;
   resumeModule?: () => Promise<typeof import('@career/resume')>;
+  /** false：导出不用简历工作台模板（测试里没有 react-pdf 字体网络时用）。 */
+  studioExport?: boolean;
 }
 
 type Json = Record<string, unknown>;
@@ -97,7 +99,7 @@ const isoOrUndefined = (v: unknown): string | undefined => (typeof v === 'string
 
 function exportResume(ctx: Ctx, id: string, format: ExportFormat): Promise<string> {
   // 占位符 → 明文只在渲染这一刻发生；落库 JSON 与模型看到的仍是 {{vault:...}}
-  return exportResumeFile(ctx.store, id, format, ctx.deps.exportsDir, ctx.deps.resumeModule, schema => ctx.vault.resolveDeep(schema, { actor: 'resume_export', purpose: `导出简历 ${id} ${format}` }));
+  return exportResumeFile(ctx.store, id, format, ctx.deps.exportsDir, ctx.deps.resumeModule, schema => ctx.vault.resolveDeep(schema, { actor: 'resume_export', purpose: `导出简历 ${id} ${format}` }), ctx.deps.studioExport === false ? null : { repos: ctx.repos });
 }
 
 const VAULT_SCOPES: readonly VaultScope[] = ['profile', 'site', 'experience'];

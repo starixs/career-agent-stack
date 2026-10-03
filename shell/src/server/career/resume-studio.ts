@@ -85,3 +85,26 @@ export function previewPlaceholders(deps: Pick<StudioDeps, 'vault'>, data: unkno
   if (Array.isArray(resolved)) keys.forEach((k, i) => { const v = resolved[i]; if (typeof v === 'string' && v !== k) out[k] = v; });
   return out;
 }
+
+let nodeFontsReady = false;
+/** 侧车渲染：模板字体优先用本机缓存文件，没缓存就用原 CDN 地址并在后台缓存一份（下次离线也能导出）。 */
+async function prepareNodeFonts(): Promise<void> {
+  if (nodeFontsReady) return;
+  const [{ setWebFontUrlRewriter }, cache, fs] = await Promise.all([import('@career/resume-studio/fonts'), import('./font-cache'), import('fs')]);
+  setWebFontUrlRewriter(url => {
+    const path = cache.cachedFontPath(url);
+    if (path && fs.existsSync(path)) return path;
+    void cache.ensureFontCached(url).catch(() => { /* 下次再试 */ });
+    return url;
+  });
+  nodeFontsReady = true;
+}
+
+/** 用工作台模板渲染 PDF（与预览同一套）；私密库占位符在这里解成明文，只进 PDF，不回写。 */
+export async function renderStudioPdfBuffer(deps: StudioDeps, id: string, resolve: (doc: unknown) => unknown = d => d): Promise<Buffer> {
+  const { data } = await loadStudio(deps, id);
+  await prepareNodeFonts();
+  const { createResumePdfFile } = await import('@career/resume-studio/server');
+  const file = await createResumePdfFile({ data: resolve(data) as ResumeData, filename: `${id}.pdf` });
+  return Buffer.from(await file.arrayBuffer());
+}

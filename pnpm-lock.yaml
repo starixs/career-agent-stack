@@ -135,9 +135,6 @@ importers:
       '@react-pdf/stylesheet':
         specifier: ^6.3.2
         version: 6.3.2
-      '@uiw/color-convert':
-        specifier: ^2.10.3
-        version: 2.10.3(@babel/runtime@7.29.7)
       cjk-regex:
         specifier: ^3.5.0
         version: 3.5.0
@@ -660,11 +657,6 @@ packages:
 
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
-
-  '@uiw/color-convert@2.10.3':
-    resolution: {integrity: sha512-5tIjb4CZzGR7K3Sshswsuuc6FOAFNFwjtF0hkhKH3f+CMauC4Akv7LPq6o9v68S7dIAeKvfj8qWg5Tc2I1TVSA==}
-    peerDependencies:
-      '@babel/runtime': '>=7.19.0'
 
   '@vitest/expect@3.2.7':
     resolution: {integrity: sha512-E8eBXaKibuvH2pSZErOjdVb5vF4PbKYcrnluBTYxEk1l/VhhwZg1kZQsdtjq+CsF5CFydf2Rdkz7jDHKSisi3w==}
@@ -1606,10 +1598,6 @@ snapshots:
   '@types/react@19.3.0':
     dependencies:
       csstype: 3.2.3
-
-  '@uiw/color-convert@2.10.3(@babel/runtime@7.29.7)':
-    dependencies:
-      '@babel/runtime': 7.29.7
 
   '@vitest/expect@3.2.7':
     dependencies:
