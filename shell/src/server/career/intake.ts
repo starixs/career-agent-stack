@@ -11,7 +11,11 @@ import type { CoreModule } from './core-module';
 import { loadSkillPrompt } from './skills';
 import { CareerStore } from './store';
 
-export type FocusSurface = 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide';
+/**
+ * 面板定位：前六个是一级入口（打开对应页签）；resume_editor / live_drawer 是聊天旁的抽屉（不跳转），
+ * vault 打开私密信息页。
+ */
+export type FocusSurface = 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide' | 'vault' | 'resume_editor' | 'live_drawer';
 export interface FocusHint { surface: FocusSurface; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string }
 
 export interface IntakeDeps {

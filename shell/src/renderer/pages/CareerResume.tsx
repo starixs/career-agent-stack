@@ -39,12 +39,18 @@ async function loadAll() {
   return { ...resumes, jobs };
 }
 
-export default function CareerResume({ embedded = false }: { embedded?: boolean } = {}) {
+export default function CareerResume({ embedded = false, initialResumeId = null, compact = false }: {
+  embedded?: boolean;
+  /** 打开时先选中的简历（聊天旁抽屉按助理给的 id 定位；换 id 时由调用方用 key 重挂）。 */
+  initialResumeId?: string | null;
+  /** 窄容器（聊天旁抽屉）：单列布局，预览放在编辑区下面。 */
+  compact?: boolean;
+} = {}) {
   const query = useCareerQuery(loadAll, ['resume_master', 'resume_tailored', 'resume_snapshot', 'job']);
   const masters = useMemo(() => query.data?.masters ?? [], [query.data]);
   const tailored = useMemo(() => query.data?.tailored ?? [], [query.data]);
   const jobs = useMemo(() => query.data?.jobs ?? [], [query.data]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialResumeId);
 
   const selected: SelectedResume | null = useMemo(() => {
     const m = masters.find(x => x.id === selectedId);
@@ -66,7 +72,7 @@ export default function CareerResume({ embedded = false }: { embedded?: boolean 
           <EmptyState title="还没有简历" hint="先把经历库整理好，再让助理生成主简历；针对岗位的版本会挂在主简历下面。" example="帮我生成主简历" />
         )}
         {masters.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)_minmax(280px,38%)]">
+          <div className={compact ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 gap-4 lg:grid-cols-[240px_minmax(0,1fr)_minmax(280px,38%)]'}>
             <div>
               <SectionTitle>版本树</SectionTitle>
               <ul className="space-y-2">

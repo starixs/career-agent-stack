@@ -155,4 +155,24 @@ describe('对话内流程卡片', () => {
     expect(c?.card.id).toBe('mail_bind');
     expect((c?.card.data.presets as unknown[]).length).toBeGreaterThan(0);
   });
+
+  it('ui_open：简历编辑器在聊天旁打开并定位；不存在的 id 报错；live 打开现场抽屉；其余打开一级面板', async () => {
+    const master = (await call('resume_master_create', { name: '主简历', basics: { name: '张三' } })).json();
+    events = [];
+    const opened = (await call('ui_open', { target: 'resume_editor' })).json();
+    expect(opened).toMatchObject({ opened: 'resume_editor', resume_id: master.master_id });
+    expect(events.find(e => e.event === 'career:focus')?.data).toMatchObject({ sessionId: 'sess-1', surface: 'resume_editor', id: master.master_id });
+
+    const bad = await call('ui_open', { target: 'resume_editor', resume_id: 'nope' });
+    expect(bad.isError).toBe(true);
+
+    events = [];
+    await call('ui_open', { target: 'live' });
+    expect(events.find(e => e.event === 'career:focus')?.data).toMatchObject({ surface: 'live_drawer' });
+
+    events = [];
+    await call('ui_open', { target: 'dossier', application_id: 'app_1' });
+    expect(events.find(e => e.event === 'career:focus')?.data).toMatchObject({ surface: 'dossier', application_id: 'app_1' });
+  });
 });
+

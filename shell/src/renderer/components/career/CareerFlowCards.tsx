@@ -20,6 +20,7 @@ import { onEvent } from '@/api/eventBus';
 
 import { careerApi } from './careerApi';
 import { openLiveDrawer } from './CareerLiveDrawer';
+import { openResumeDrawer } from './CareerResumeDrawer';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
 import type { BatchState, CareerCard } from './types';
 
@@ -236,7 +237,9 @@ export function ResumeDiffCard({ card, onDone }: { card: CareerCard; onDone: () 
   }).then(ok => {
     if (!ok) return;
     onDone();
-    suggestToChat(`定制简历已应用 ${chosen.length} 处改动${ops.length - chosen.length ? `（另 ${ops.length - chosen.length} 处没采用）` : ''}，请导出给我看看`);
+    // 应用后直接在聊天旁打开这一版，用户可以接着手改、看预览、导出
+    openResumeDrawer(tailoredId);
+    suggestToChat(`定制简历已应用 ${chosen.length} 处改动${ops.length - chosen.length ? `（另 ${ops.length - chosen.length} 处没采用）` : ''}，我在旁边的编辑器里看一下`);
   });
   return (
     <CardShell testId="career-card-resume_diff" icon={<FileDiff className="size-4" />} title={card.title} badge={<Badge tone="accent">待应用</Badge>} onDismiss={onDone}>
@@ -260,6 +263,7 @@ export function ResumeDiffCard({ card, onDone }: { card: CareerCard; onDone: () 
       <ErrorLine error={error} />
       <div className="mt-3 flex items-center gap-2">
         <Button variant="primary" busy={busy} disabled={!chosen.length || !tailoredId} onClick={() => void save()}>应用所选 {chosen.length} 处</Button>
+        <Button variant="ghost" disabled={!tailoredId} onClick={() => openResumeDrawer(tailoredId)}>在旁边打开简历</Button>
       </div>
     </CardShell>
   );

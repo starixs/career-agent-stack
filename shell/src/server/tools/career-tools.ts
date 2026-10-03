@@ -326,6 +326,26 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       // ---------- 概览 / 经历库 ----------
       tool('career_overview', '返回看板三问题（今天必须做什么 / 哪里卡住 / 漏斗分布）+ 待审数 + 进行中的任务 + 未关闭的接管。', {}, wrap(() => text(store().overview()))),
 
+      tool('ui_open', '在产品里替用户打开界面：resume_editor = 在聊天旁打开简历在线编辑器（可传 resume_id 定位到某一版，用户可直接改、预览、导出）；live = 在聊天旁打开浏览器现场；其余打开对应一级面板（today / inbox / dossier / material / review / guide / vault），可带对象 id 定位。用户说"打开 / 调出 / 我想自己改 / 让我看看"时直接调用，不要让用户自己去找入口。', {
+        target: z.enum(['resume_editor', 'live', 'today', 'inbox', 'dossier', 'material', 'review', 'guide', 'vault']),
+        resume_id: z.string().optional().describe('resume_editor：要打开的简历（主简历或定制版）；缺省打开唯一 / 最近的主简历'),
+        application_id: z.string().optional(), job_id: z.string().optional(), id: z.string().optional().describe('面板内要定位的对象 id'),
+      }, async (args) => wrap(() => {
+        if (args.target === 'resume_editor') {
+          let resumeId = args.resume_id ?? null;
+          if (resumeId && !store().getResume(resumeId)) return err(`简历不存在：${resumeId}；先用 resume_list 查 id`);
+          if (!resumeId) { try { resumeId = resolveMaster().id; } catch { resumeId = null; } }
+          focus({ surface: 'resume_editor', id: resumeId });
+          return text({ opened: 'resume_editor', resume_id: resumeId, note: resumeId ? '已在聊天旁打开简历编辑器，用户可以直接改；改完保存后你可以用 resume_get 读最新内容。' : '已打开简历编辑器，但还没有简历；先用 resume_master_create 生成主简历。' });
+        }
+        if (args.target === 'live') {
+          focus({ surface: 'live_drawer' });
+          return text({ opened: 'live_drawer', note: '已在聊天旁打开浏览器现场；用户点画面即可接管。' });
+        }
+        focus({ surface: args.target, id: args.id ?? null, application_id: args.application_id ?? null, job_id: args.job_id ?? null });
+        return text({ opened: args.target });
+      })()),
+
       tool('vault_status', '私密信息库概览：哪些基本信息（姓名 / 手机 / 邮箱 / 证件号…）已填、哪些缺；哪些投递网站存了账号；哪些经历有保密补充字段。只返回字段名、脱敏预览和占位符，永远不返回明文。缺项时对话里会自动出现「补齐基本信息」卡片，用户直接在卡片里填（值不经过你）；不要让用户把这些值打在对话里。', {}, wrap(() => {
         const status = vault().status();
         const core3 = new Set(['name', 'phone', 'email', 'school', 'major', 'degree', 'graduation']);

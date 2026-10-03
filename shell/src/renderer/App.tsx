@@ -125,6 +125,7 @@ import {
 } from '@/types/cronEvents';
 import { CareerLiveBridge } from '@/components/career/CareerLiveBridge';
 import { CareerLiveDrawer } from '@/components/career/CareerLiveDrawer';
+import { CareerResumeDrawer } from '@/components/career/CareerResumeDrawer';
 import { isBrowserDevMode, isTauriEnvironment } from '@/utils/browserMock';
 import { apiGetJson } from '@/api/apiFetch';
 import {
@@ -4975,6 +4976,7 @@ export default function App() {
         <div className="flex h-screen bg-[var(--paper)]">
           <CareerLiveBridge />
           <CareerLiveDrawer />
+          <CareerResumeDrawer />
           <GlobalSidebar
             tabs={tabs}
             activeTab={activeTab}

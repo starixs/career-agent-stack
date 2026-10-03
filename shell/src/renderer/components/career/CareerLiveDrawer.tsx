@@ -17,6 +17,7 @@ import { emitEvent, onEvent } from '@/api/eventBus';
 import { dispatchTakeoverAction } from './BrowserStatusBar';
 import { careerApi } from './careerApi';
 import { HANDOFF_REASON_LABELS } from './careerConstants';
+import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport } from './CareerLiveViewport';
 import { Badge, Button, suggestToChat } from './CareerPrimitives';
 import type { BatchState, CareerTakeoverEvent, LiveFileChooser, LiveFileChooserEvent, LiveFrame, LiveSnapshot, LiveStreamEvent } from './types';
@@ -33,7 +34,14 @@ export function CareerLiveDrawer({ autoOpenOnHandoff = true }: { autoOpenOnHando
   useEffect(() => onEvent<{ open?: boolean; fullscreen?: boolean }>(DRAWER_EVENT, p => {
     setOpen(p?.open !== false);
     if (typeof p?.fullscreen === 'boolean') setFullscreen(p.fullscreen);
+    if (p?.open !== false) emitEvent(DRAWER_OPENED_EVENT, { name: 'live' });
   }), []);
+  // 助理调用 ui_open(live)：career:focus {surface:'live_drawer'}
+  useEffect(() => onEvent<{ surface?: string }>('career:focus', p => {
+    if (p?.surface === 'live_drawer') { setOpen(true); emitEvent(DRAWER_OPENED_EVENT, { name: 'live' }); }
+  }), []);
+  // 抽屉互斥：简历编辑器打开时收起现场
+  useEffect(() => onEvent<{ name?: string }>(DRAWER_OPENED_EVENT, p => { if (p?.name !== 'live') setOpen(false); }), []);
   useEffect(() => onEvent<CareerTakeoverEvent>('career:takeover', p => {
     if (!p?.runId) return;
     setTakeover(p);

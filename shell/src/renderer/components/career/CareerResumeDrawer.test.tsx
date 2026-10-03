@@ -1,0 +1,57 @@
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
+vi.mock('@/pages/CareerResume', () => ({
+  default: ({ initialResumeId, compact }: { initialResumeId?: string | null; compact?: boolean }) => (
+    <div data-testid="resume-editor" data-resume={initialResumeId ?? ''} data-compact={compact ? 'true' : 'false'} />
+  ),
+}));
+vi.mock('./useGlobalLive', () => ({ useLiveStream: () => ({ status: 'open', detail: null }), globalBaseUrl: async () => '' }));
+
+import { emitEvent } from '@/api/eventBus';
+
+import { CareerLiveDrawer, openLiveDrawer } from './CareerLiveDrawer';
+import { CareerResumeDrawer, openResumeDrawer } from './CareerResumeDrawer';
+
+describe('CareerResumeDrawer', () => {
+  it('助理 ui_open(resume_editor) → career:focus 打开聊天旁编辑器并定位到那一版', async () => {
+    render(<CareerResumeDrawer />);
+    expect(screen.queryByTestId('career-resume-drawer')).not.toBeInTheDocument();
+    act(() => emitEvent('career:focus', { surface: 'resume_editor', id: 'rt_1' }));
+    const editor = await screen.findByTestId('resume-editor');
+    expect(editor).toHaveAttribute('data-resume', 'rt_1');
+    expect(editor).toHaveAttribute('data-compact', 'true');
+
+    act(() => emitEvent('career:focus', { surface: 'resume_editor', id: 'rm_2' }));
+    expect(await screen.findByTestId('resume-editor')).toHaveAttribute('data-resume', 'rm_2');
+  });
+
+  it('可全屏（编辑器切回宽布局），收起后不影响下次打开', async () => {
+    render(<CareerResumeDrawer />);
+    act(() => openResumeDrawer('rm_1'));
+    await screen.findByTestId('resume-editor');
+    fireEvent.click(screen.getByRole('button', { name: '全屏' }));
+    expect(screen.getByTestId('career-resume-drawer')).toHaveAttribute('data-fullscreen', 'true');
+    expect(screen.getByTestId('resume-editor')).toHaveAttribute('data-compact', 'false');
+    fireEvent.click(screen.getByRole('button', { name: '收起简历编辑' }));
+    expect(screen.queryByTestId('career-resume-drawer')).not.toBeInTheDocument();
+    act(() => openResumeDrawer('rm_1'));
+    expect(await screen.findByTestId('career-resume-drawer')).toHaveAttribute('data-fullscreen', 'false');
+  });
+
+  it('和浏览器现场抽屉互斥：一个打开另一个收起；ui_open(live) 打开现场', async () => {
+    render(<><CareerResumeDrawer /><CareerLiveDrawer /></>);
+    act(() => openResumeDrawer('rm_1'));
+    await screen.findByTestId('career-resume-drawer');
+    act(() => openLiveDrawer());
+    expect(await screen.findByTestId('career-live-drawer')).toBeInTheDocument();
+    expect(screen.queryByTestId('career-resume-drawer')).not.toBeInTheDocument();
+    act(() => openResumeDrawer('rm_1'));
+    await screen.findByTestId('career-resume-drawer');
+    expect(screen.queryByTestId('career-live-drawer')).not.toBeInTheDocument();
+    act(() => emitEvent('career:focus', { surface: 'live_drawer' }));
+    expect(await screen.findByTestId('career-live-drawer')).toBeInTheDocument();
+    expect(screen.queryByTestId('career-resume-drawer')).not.toBeInTheDocument();
+  });
+});
