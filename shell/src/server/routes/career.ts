@@ -11,6 +11,7 @@ import { join } from 'path';
 import type { Repos, ApplicationStage, LLM, Vault, VaultScope } from '@career/core';
 
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
+import { careerSetupStatus } from '../career/setup';
 import { confirmTailorProposal } from '../career/tailor';
 import { loadCore, type CoreModule } from '../career/core-module';
 import { getRepos, careerExportsDir } from '../career/db';
@@ -330,6 +331,23 @@ const ROUTES: Route[] = [
     }
   }),
 
+  // ---------- 外部依赖配置状态（模型 Key 必需 / 搜索 Key 建议）：只回状态，不回 Key ----------
+  route('GET', '/api/career/setup', () => ok({ setup: careerSetupStatus() })),
+
+  // ---------- 对话内流程卡片（持久化；锚定在产生它的工具调用下面） ----------
+  route('GET', '/api/career/cards', ({ repos, url }) => {
+    const sessionId = url.searchParams.get('session_id');
+    if (!sessionId) return fail('session_id 不能为空');
+    return ok({ cards: repos.listChatCards(sessionId).map(toCardDto) });
+  }),
+  route('POST', '/api/career/cards/:id/state', (ctx) => {
+    const state = ctx.body.state;
+    if (state !== 'pending' && state !== 'completed' && state !== 'dismissed') return fail("state 必须是 'pending' | 'completed' | 'dismissed'");
+    const row = ctx.repos.setChatCardState(ctx.params.id, state);
+    if (!row) return fail(`卡片不存在：${ctx.params.id}`, 404);
+    return ok({ card: toCardDto(row) });
+  }),
+
   // ---------- 答案库 ----------
   route('GET', '/api/career/answer-bank', ({ store }) => ok({ answers: store.listAnswerBank() })),
   route('POST', '/api/career/answer-bank', (ctx) => {
@@ -587,6 +605,12 @@ function safeHostname(url: string): string {
 }
 
 /** 入口：非 `/api/career/` 或浏览器子路径返回 null。 */
+function toCardDto(row: import('@career/core').ChatCardRow) {
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(row.data_json) as Record<string, unknown>; } catch { /* 坏数据按空处理 */ }
+  return { id: row.id, kind: row.kind, title: row.title, data, createdAt: row.created_at, sessionId: row.session_id, toolUseId: row.tool_use_id, state: row.state };
+}
+
 export async function handleCareerRoute(pathname: string, request: Request, deps: CareerRouteDeps = {}): Promise<Response | null> {
   if (!pathname.startsWith('/api/career/') || pathname.startsWith('/api/career/browser/')) return null;
   const method = request.method.toUpperCase();

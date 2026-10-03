@@ -41,7 +41,9 @@ import type { ImageAttachment } from '@/components/SimpleChatInput';
 import type { PermissionRequest } from '@/components/PermissionPrompt';
 import type { AskUserQuestionRequest, AskUserQuestion } from '../../shared/types/askUserQuestion';
 import { emitEvent, onEvent } from '@/api/eventBus';
-import type { CareerCard, CareerCardEvent, CareerProgressEvent, CareerReviewEvent, CareerTakeoverActionRequest, CareerTakeoverEvent } from '@/components/career/types';
+import { careerApi } from '@/components/career/careerApi';
+import { CareerCardsContext } from '@/context/CareerCardsContext';
+import type { CareerCard, CareerCardEvent, CareerCardState, CareerProgressEvent, CareerReviewEvent, CareerTakeoverActionRequest, CareerTakeoverEvent } from '@/components/career/types';
 import type { ExitPlanModeRequest, EnterPlanModeRequest, ExitPlanModeAllowedPrompt } from '../../shared/types/planMode';
 import { CUSTOM_EVENTS, isPendingSessionId } from '../../shared/constants';
 import { TabContext, TabApiContext, TabActiveContext, type AdoptMigratedSessionOptions, type CurrentSessionRestoreResult, type LoadOlderMessagesOptions, type SessionState, type SystemNotice, type TabContextValue, type TabApiContextValue } from './TabContext';
@@ -3639,8 +3641,12 @@ export default function TabProvider({
                 const card = payload?.card;
                 if (!card || typeof card.id !== 'string' || typeof card.kind !== 'string') break;
                 if (!shouldAcceptInteractiveEvent(payload?.sessionId ?? card.sessionId)) break;
-                // 同 id 覆盖（工具重跑时更新卡片内容），最多保留 8 张，避免对话底部被卡片淹没
-                setCareerCards(prev => [...prev.filter(c => c.id !== card.id), card].slice(-8));
+                // 同 id 覆盖（工具重跑时更新内容并回到 pending）；锚点沿用已有的，避免卡片在回复之间跳动
+                setCareerCards(prev => {
+                    const old = prev.find(c => c.id === card.id);
+                    const next: CareerCard = { ...card, state: card.state ?? 'pending', toolUseId: card.toolUseId ?? old?.toolUseId ?? null };
+                    return [...prev.filter(c => c.id !== card.id), next];
+                });
                 emitEvent('career:card', payload);
                 if (!isActiveRef.current || shouldNotifyUser()) {
                     onUnreadChangeRef.current?.(true);
@@ -5452,7 +5458,20 @@ export default function TabProvider({
     }, [postJson]);
 
     const dismissCareerProgress = useCallback(() => setCareerProgress(null), []);
-    const dismissCareerCard = useCallback((id: string) => setCareerCards(prev => prev.filter(c => c.id !== id)), []);
+    const setCareerCardState = useCallback((id: string, state: CareerCardState) => {
+        setCareerCards(prev => prev.map(c => (c.id === id ? { ...c, state } : c)));
+        void careerApi.setCardState(id, state).catch(err => console.warn('[TabProvider] career card state save failed', err));
+    }, []);
+    const dismissCareerCard = useCallback((id: string) => setCareerCardState(id, 'dismissed'), [setCareerCardState]);
+    // 会话打开 / 切换时读回该会话的卡片（持久化）；非求职会话返回空列表
+    useEffect(() => {
+        if (!currentSessionId || currentSessionId.startsWith('pending-')) { setCareerCards([]); return; }
+        let cancelled = false;
+        careerApi.listCards(currentSessionId)
+            .then(cards => { if (!cancelled) setCareerCards(cards); })
+            .catch(() => { /* Global 侧车未就绪等：保留 SSE 推来的卡片 */ });
+        return () => { cancelled = true; };
+    }, [currentSessionId]);
 
     // 其他页面（岗位与投递的浏览器状态条）通过 eventBus 把接管动作交给当前会话的 Chat Tab 执行。
     const careerTakeoverRunId = careerTakeover?.runId ?? null;
@@ -5542,6 +5561,7 @@ export default function TabProvider({
         requestCareerTakeover,
         dismissCareerProgress,
         dismissCareerCard,
+        setCareerCardState,
         setMessages,
         setIsLoading,
         setSessionState,
@@ -5574,7 +5594,7 @@ export default function TabProvider({
         logs, unifiedLogs, systemInitInfo, mcpEffectiveSnapshot, sdkSlashCommands, runtimeDiagnostics, agentError, systemStatus, systemNotice, contextUsage, agentPlanTodos, lastTerminalReason, pendingPermission, pendingAskUserQuestion, pendingExitPlanMode, pendingEnterPlanMode, toolCompleteCount, queuedMessages, isConnected,
         getQueryElapsedSeconds, setMessages, appendLog, appendUnifiedLog, clearUnifiedLogs, sendMessage, stopResponse, retryCurrentSessionRestore, loadOlderMessages, resetSession, adoptMigratedSession,
         apiGetJson, postJson, apiPutJson, apiDeleteJson, respondPermission, respondAskUserQuestion, respondExitPlanMode, cancelQueuedMessage, forceExecuteQueuedMessage,
-        pendingCareerReview, careerTakeover, careerProgress, careerCards, respondCareerReview, requestCareerTakeover, dismissCareerProgress, dismissCareerCard
+        pendingCareerReview, careerTakeover, careerProgress, careerCards, respondCareerReview, requestCareerTakeover, dismissCareerProgress, dismissCareerCard, setCareerCardState
     ]);
 
     // Lightweight API-only context value — deps are all stable (created once per tabId),
@@ -5589,12 +5609,15 @@ export default function TabProvider({
     }), [tabId, agentDir, apiGetJson, postJson, apiPutJson, apiDeleteJson]);
 
     const isActiveValue = isActive ?? false;
+    const careerCardsValue = useMemo(() => ({ cards: careerCards, setState: setCareerCardState }), [careerCards, setCareerCardState]);
 
     return (
         <TabActiveContext.Provider value={isActiveValue}>
             <TabApiContext.Provider value={apiContextValue}>
                 <TabContext.Provider value={contextValue}>
-                    {children}
+                    <CareerCardsContext.Provider value={careerCardsValue}>
+                        {children}
+                    </CareerCardsContext.Provider>
                 </TabContext.Provider>
             </TabApiContext.Provider>
         </TabActiveContext.Provider>

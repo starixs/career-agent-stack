@@ -13,16 +13,17 @@
  * 卡片由 SSE `career:card` 推来（TabProvider.careerCards），按 id 去重；完成或忽略后从对话里移除。
  * 写入走产品自己的接口；完成后用 suggestToChat 告诉助理"做完了，继续"，助理据此接着干。
  */
-import { ClipboardCheck, FileDiff, KeyRound, ListTodo, Mail, PenLine, Play, UserRound } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, Search, FileDiff, KeyRound, ListTodo, Mail, PenLine, Play, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { onEvent } from '@/api/eventBus';
 
 import { careerApi } from './careerApi';
+import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { openResumeDrawer } from './CareerResumeDrawer';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
-import type { BatchState, CareerCard } from './types';
+import type { BatchState, CareerCard, CareerCardState } from './types';
 
 // ---------- 数据解析（card.data 来自服务端，逐项校验） ----------
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -76,8 +77,11 @@ function useSubmit() {
 const ErrorLine = ({ error }: { error: string | null }) => (error ? <div role="alert" className="mt-2 text-xs text-[var(--error)]">{error}</div> : null);
 const PrivacyNote = () => <p className="mt-2 text-xs text-[var(--ink-subtle)]">只存进本机私密库，填表时在本地替换，助理看不到原文。</p>;
 
+/** onDone：用户在卡片里做完了（completed）；onDismiss：稍后再说（dismissed，可重新打开）。 */
+interface CardProps { card: CareerCard; onDone: () => void; onDismiss: () => void }
+
 // ---------- 补齐基本信息 ----------
-export function VaultMissingCard({ card, onDone }: { card: CareerCard; onDone: () => void }) {
+export function VaultMissingCard({ card, onDone, onDismiss }: CardProps) {
   const fields = list(card.data.fields).map(f => ({ field: str(f.field) ?? '', label: str(f.label) ?? String(f.field), hint: str(f.hint), sensitive: f.sensitive === true })).filter(f => f.field);
   const [values, setValues] = useState<Record<string, string>>({});
   const { busy, error, run } = useSubmit();
@@ -90,7 +94,7 @@ export function VaultMissingCard({ card, onDone }: { card: CareerCard; onDone: (
     suggestToChat(`基本信息已在卡片里补齐（${filled.map(f => f.label).join('、')}），请继续`);
   });
   return (
-    <CardShell testId="career-card-vault_missing" icon={<KeyRound className="size-4" />} title={card.title} badge={<Badge tone="warning">缺 {fields.length} 项</Badge>} onDismiss={onDone}>
+    <CardShell testId="career-card-vault_missing" icon={<KeyRound className="size-4" />} title={card.title} badge={<Badge tone="warning">缺 {fields.length} 项</Badge>} onDismiss={onDismiss}>
       <div className="grid gap-2 sm:grid-cols-2">
         {fields.map(f => (
           <label key={f.field} className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
@@ -109,7 +113,7 @@ export function VaultMissingCard({ card, onDone }: { card: CareerCard; onDone: (
 }
 
 // ---------- 网申里需要你填的项 ----------
-export function NeedsUserCard({ card, onDone }: { card: CareerCard; onDone: () => void }) {
+export function NeedsUserCard({ card, onDone, onDismiss }: CardProps) {
   const actionId = str(card.data.action_id);
   const items = list(card.data.items).map(i => ({ label: str(i.label) ?? '', note: str(i.note), vaultField: str(i.vault_field), sensitive: i.sensitive === true })).filter(i => i.label);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -127,7 +131,7 @@ export function NeedsUserCard({ card, onDone }: { card: CareerCard; onDone: () =
     suggestToChat(`网申里需要我填的 ${filled.length} 项已在卡片里补齐，请从当前页继续填表${actionId ? `（action_id: ${actionId}）` : ''}`);
   });
   return (
-    <CardShell testId="career-card-needs_user" icon={<ListTodo className="size-4" />} title={card.title} badge={<Badge tone="warning">等你填</Badge>} onDismiss={onDone}>
+    <CardShell testId="career-card-needs_user" icon={<ListTodo className="size-4" />} title={card.title} badge={<Badge tone="warning">等你填</Badge>} onDismiss={onDismiss}>
       <div className="space-y-2">
         {items.map(i => (
           <label key={i.label} className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
@@ -147,7 +151,7 @@ export function NeedsUserCard({ card, onDone }: { card: CareerCard; onDone: () =
 }
 
 // ---------- 开放题草稿 ----------
-export function DraftsCard({ card, onDone }: { card: CareerCard; onDone: () => void }) {
+export function DraftsCard({ card, onDone, onDismiss }: CardProps) {
   const actionId = str(card.data.action_id);
   const items = list(card.data.items).map(i => ({ label: str(i.label) ?? '', value: typeof i.value === 'string' ? i.value : '', note: str(i.note) })).filter(i => i.label);
   const [texts, setTexts] = useState<Record<string, string>>(() => Object.fromEntries(items.map(i => [i.label, i.value])));
@@ -162,7 +166,7 @@ export function DraftsCard({ card, onDone }: { card: CareerCard; onDone: () => v
     suggestToChat(`我确认了 ${chosen.length} 道开放题的回答，请用确认后的版本继续填表${actionId ? `（action_id: ${actionId}）` : ''}`);
   });
   return (
-    <CardShell testId="career-card-drafts" icon={<PenLine className="size-4" />} title={card.title} badge={<Badge tone="info">草稿</Badge>} onDismiss={onDone}>
+    <CardShell testId="career-card-drafts" icon={<PenLine className="size-4" />} title={card.title} badge={<Badge tone="info">草稿</Badge>} onDismiss={onDismiss}>
       <div className="space-y-3">
         {items.map(i => (
           <div key={i.label}>
@@ -184,7 +188,7 @@ export function DraftsCard({ card, onDone }: { card: CareerCard; onDone: () => v
 }
 
 // ---------- 经历里的说法 ----------
-export function ClaimsConfirmCard({ card, onDone }: { card: CareerCard; onDone: () => void }) {
+export function ClaimsConfirmCard({ card, onDone, onDismiss }: CardProps) {
   const title = str(card.data.experience_title) ?? '这段经历';
   const claims = list(card.data.claims).map(c => ({ id: str(c.id) ?? '', text: str(c.text) ?? '', metric: str(c.result_metric), attribution: str(c.attribution) })).filter(c => c.id && c.text);
   const [picked, setPicked] = useState<Record<string, boolean>>(() => Object.fromEntries(claims.map(c => [c.id, true])));
@@ -199,7 +203,7 @@ export function ClaimsConfirmCard({ card, onDone }: { card: CareerCard; onDone: 
     suggestToChat(`我确认了「${title}」里的 ${chosen.length} 条说法${left ? `，另外 ${left} 条先不用` : ''}`);
   });
   return (
-    <CardShell testId="career-card-claims_confirm" icon={<ClipboardCheck className="size-4" />} title={card.title} badge={<Badge tone="accent">待确认</Badge>} onDismiss={onDone}>
+    <CardShell testId="career-card-claims_confirm" icon={<ClipboardCheck className="size-4" />} title={card.title} badge={<Badge tone="accent">待确认</Badge>} onDismiss={onDismiss}>
       <ul className="space-y-1.5">
         {claims.map(c => (
           <li key={c.id}>
@@ -224,7 +228,7 @@ export function ClaimsConfirmCard({ card, onDone }: { card: CareerCard; onDone: 
 }
 
 // ---------- 定制简历改动 ----------
-export function ResumeDiffCard({ card, onDone }: { card: CareerCard; onDone: () => void }) {
+export function ResumeDiffCard({ card, onDone, onDismiss }: CardProps) {
   const tailoredId = str(card.data.tailored_id);
   const ops = list(card.data.ops).map(o => ({ op: str(o.op) ?? 'replace', path: str(o.path) ?? '', value: typeof o.value === 'string' ? o.value : null, reason: str(o.reason) })).filter(o => o.path);
   const unresolved = Array.isArray(card.data.unresolved) ? (card.data.unresolved as unknown[]).map(u => (typeof u === 'string' ? u : JSON.stringify(u))) : [];
@@ -242,7 +246,7 @@ export function ResumeDiffCard({ card, onDone }: { card: CareerCard; onDone: () 
     suggestToChat(`定制简历已应用 ${chosen.length} 处改动${ops.length - chosen.length ? `（另 ${ops.length - chosen.length} 处没采用）` : ''}，我在旁边的编辑器里看一下`);
   });
   return (
-    <CardShell testId="career-card-resume_diff" icon={<FileDiff className="size-4" />} title={card.title} badge={<Badge tone="accent">待应用</Badge>} onDismiss={onDone}>
+    <CardShell testId="career-card-resume_diff" icon={<FileDiff className="size-4" />} title={card.title} badge={<Badge tone="accent">待应用</Badge>} onDismiss={onDismiss}>
       <ul className="space-y-2">
         {ops.map(o => (
           <li key={o.path} className="rounded-md border border-[var(--line-subtle)] px-2.5 py-2">
@@ -270,7 +274,7 @@ export function ResumeDiffCard({ card, onDone }: { card: CareerCard; onDone: () 
 }
 
 // ---------- 保存登录账号 ----------
-export function SiteLoginCard({ card, onDone }: { card: CareerCard; onDone: () => void }) {
+export function SiteLoginCard({ card, onDone, onDismiss }: CardProps) {
   const host = str(card.data.host) ?? '';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -286,7 +290,7 @@ export function SiteLoginCard({ card, onDone }: { card: CareerCard; onDone: () =
     openLiveDrawer();
   });
   return (
-    <CardShell testId="career-card-site_login" icon={<UserRound className="size-4" />} title={card.title} badge={<Badge tone="warning">需要登录</Badge>} onDismiss={onDone}>
+    <CardShell testId="career-card-site_login" icon={<UserRound className="size-4" />} title={card.title} badge={<Badge tone="warning">需要登录</Badge>} onDismiss={onDismiss}>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
           <span>账号（手机号 / 邮箱 / 用户名）</span>
@@ -312,7 +316,7 @@ export function SiteLoginCard({ card, onDone }: { card: CareerCard; onDone: () =
 }
 
 // ---------- 绑定求职邮箱 ----------
-export function MailBindCard({ card, onDone }: { card: CareerCard; onDone: () => void }) {
+export function MailBindCard({ card, onDone, onDismiss }: CardProps) {
   const presets = list(card.data.presets).map(p => ({ provider: str(p.provider) ?? '', label: str(p.label) ?? '', help: str(p.help) ?? '' })).filter(p => p.provider);
   const [address, setAddress] = useState('');
   const [password, setPassword] = useState('');
@@ -330,7 +334,7 @@ export function MailBindCard({ card, onDone }: { card: CareerCard; onDone: () =>
     suggestToChat('邮箱已在卡片里绑定好了，请把新邮件里和求职有关的归档一下');
   });
   return (
-    <CardShell testId="career-card-mail_bind" icon={<Mail className="size-4" />} title={card.title} onDismiss={onDone}>
+    <CardShell testId="career-card-mail_bind" icon={<Mail className="size-4" />} title={card.title} onDismiss={onDismiss}>
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
           <span>邮箱地址</span>
@@ -348,6 +352,15 @@ export function MailBindCard({ card, onDone }: { card: CareerCard; onDone: () =>
       <div className="mt-3 flex items-center gap-2">
         <Button variant="primary" busy={busy} disabled={!address.includes('@') || !password} onClick={() => void bind()}>绑定并同步</Button>
       </div>
+    </CardShell>
+  );
+}
+
+// ---------- 配置搜索 Key（web_search / company_research 发现没配置时推出） ----------
+export function SearchSetupCard({ card, onDone, onDismiss }: CardProps) {
+  return (
+    <CardShell testId="career-card-search_setup" icon={<Search className="size-4" />} title={card.title} badge={<Badge tone="info">建议</Badge>} onDismiss={onDismiss}>
+      <CareerKeysPanel show="search" onSaved={() => { onDone(); suggestToChat('搜索 Key 已在卡片里配好了，请重新搜索'); }} />
     </CardShell>
   );
 }
@@ -382,7 +395,7 @@ export function BatchProgressCard({ batch }: { batch: BatchState }) {
 }
 
 // ---------- 注册表 ----------
-const RENDERERS: Record<string, (props: { card: CareerCard; onDone: () => void }) => ReactNode> = {
+const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   vault_missing: props => <VaultMissingCard {...props} />,
   needs_user: props => <NeedsUserCard {...props} />,
   drafts: props => <DraftsCard {...props} />,
@@ -390,16 +403,45 @@ const RENDERERS: Record<string, (props: { card: CareerCard; onDone: () => void }
   resume_diff: props => <ResumeDiffCard {...props} />,
   site_login: props => <SiteLoginCard {...props} />,
   mail_bind: props => <MailBindCard {...props} />,
+  search_setup: props => <SearchSetupCard {...props} />,
 };
 
-export function CareerFlowCards({ cards, batch, onDismiss }: { cards: CareerCard[]; batch?: BatchState | null; onDismiss: (id: string) => void }) {
-  const known = useMemo(() => cards.filter(c => RENDERERS[c.kind]), [cards]);
+export const isRenderableCard = (c: CareerCard): boolean => !!RENDERERS[c.kind];
+
+/** 已处理的卡片折叠成一行：完成显示"已完成"，忽略的可以重新打开。 */
+function CollapsedCardRow({ card, onReopen }: { card: CareerCard; onReopen: () => void }) {
+  const done = card.state === 'completed';
+  return (
+    <div data-testid={`career-card-collapsed-${card.kind}`} className="flex items-center gap-2 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-3 py-1.5 text-xs text-[var(--ink-muted)]">
+      {done ? <CheckCircle2 className="size-3.5 text-[var(--success)]" /> : <ListTodo className="size-3.5" />}
+      <span className="min-w-0 flex-1 truncate">{done ? '已完成' : '已跳过'}：{card.title}</span>
+      {!done && <Button variant="ghost" onClick={onReopen}>重新打开</Button>}
+    </div>
+  );
+}
+
+/**
+ * 渲染一组卡片：pending 显示完整卡片，completed / dismissed 折叠成一行。
+ * 既用于回复下面的锚定卡片（Message.tsx），也用于对话底部的无锚点卡片（CareerChatCards）。
+ */
+export function CareerFlowCards({ cards, batch, onStateChange }: {
+  cards: CareerCard[];
+  batch?: BatchState | null;
+  onStateChange: (id: string, state: CareerCardState) => void;
+}) {
+  const known = useMemo(() => cards.filter(isRenderableCard), [cards]);
   const showBatch = !!batch && (batch.status === 'running' || batch.status === 'paused');
   if (!known.length && !showBatch) return null;
   return (
     <>
       {showBatch && <BatchProgressCard batch={batch!} />}
-      {known.map(c => <div key={c.id}>{RENDERERS[c.kind]({ card: c, onDone: () => onDismiss(c.id) })}</div>)}
+      {known.map(c => (
+        <div key={c.id}>
+          {(c.state ?? 'pending') === 'pending'
+            ? RENDERERS[c.kind]({ card: c, onDone: () => onStateChange(c.id, 'completed'), onDismiss: () => onStateChange(c.id, 'dismissed') })
+            : <CollapsedCardRow card={c} onReopen={() => onStateChange(c.id, 'pending')} />}
+        </div>
+      ))}
     </>
   );
 }

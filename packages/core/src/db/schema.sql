@@ -241,6 +241,19 @@ CREATE TABLE IF NOT EXISTS offer (
 
 -- ===== 用户设置与答案库（网申） =====
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TEXT NOT NULL);
+
+-- ===== 对话内流程卡片（挂在产生它的那次工具调用下面；完成 / 忽略后折叠） =====
+CREATE TABLE IF NOT EXISTS chat_card (
+  id TEXT PRIMARY KEY,               -- 稳定的领域 id（needs_user:<action> / claims:<exp> …），同 id 覆盖
+  session_id TEXT,                   -- 产生它的对话
+  tool_use_id TEXT,                  -- 锚点：产生它的工具调用；后台批量等无锚点时为空
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  data_json TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT 'pending',  -- pending | completed | dismissed
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_card_session ON chat_card(session_id, created_at);
 CREATE TABLE IF NOT EXISTS answer_bank (
   id TEXT PRIMARY KEY,
   question_key TEXT NOT NULL,      -- 归一化后的问题键

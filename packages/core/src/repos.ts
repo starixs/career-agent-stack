@@ -5,6 +5,8 @@ import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, Ha
 import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
+export interface ChatCardRow { id: string; session_id: string | null; tool_use_id: string | null; kind: string; title: string; data_json: string; state: 'pending' | 'completed' | 'dismissed'; created_at: string; updated_at: string }
+
 export class Repos {
   constructor(public readonly db: Db) {}
 
@@ -168,6 +170,21 @@ export class Repos {
   listMessages(sessionId: string): Message[] { return this.db.all<Message>('SELECT * FROM message WHERE session_id=? ORDER BY created_at', [sessionId]) }
 
   // ---------- KV / 答案库 ----------
+  // ---------- 对话内流程卡片 ----------
+  /** 同 id 覆盖内容；已完成 / 已忽略的卡片被重新推出时回到 pending（说明又需要用户了）。 */
+  upsertChatCard(c: { id: string; session_id?: string | null; tool_use_id?: string | null; kind: string; title: string; data: unknown }): ChatCardRow {
+    const t = now()
+    this.db.run(`INSERT INTO chat_card(id, session_id, tool_use_id, kind, title, data_json, state, created_at, updated_at) VALUES(?,?,?,?,?,?, 'pending', ?, ?)
+      ON CONFLICT(id) DO UPDATE SET session_id=COALESCE(excluded.session_id, chat_card.session_id), tool_use_id=COALESCE(excluded.tool_use_id, chat_card.tool_use_id), kind=excluded.kind, title=excluded.title, data_json=excluded.data_json, state='pending', updated_at=excluded.updated_at`,
+    [c.id, c.session_id ?? null, c.tool_use_id ?? null, c.kind, c.title, JSON.stringify(c.data ?? {}), t, t])
+    return this.getChatCard(c.id)!
+  }
+  getChatCard(id: string): ChatCardRow | undefined { return this.db.get<ChatCardRow>('SELECT * FROM chat_card WHERE id=?', [id]) }
+  listChatCards(sessionId: string, limit = 200): ChatCardRow[] { return this.db.all<ChatCardRow>('SELECT * FROM chat_card WHERE session_id=? ORDER BY created_at DESC LIMIT ?', [sessionId, limit]).reverse() }
+  setChatCardState(id: string, state: 'pending' | 'completed' | 'dismissed'): ChatCardRow | undefined {
+    this.db.run('UPDATE chat_card SET state=?, updated_at=? WHERE id=?', [state, now(), id])
+    return this.getChatCard(id)
+  }
   kvGet<T = unknown>(key: string): T | undefined { const r = this.db.get<{ value_json: string }>('SELECT value_json FROM kv WHERE key=?', [key]); return r ? JSON.parse(r.value_json) as T : undefined }
   kvSet(key: string, value: unknown): void { this.db.run('INSERT INTO kv(key,value_json,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at', [key, JSON.stringify(value), now()]) }
   findAnswer(questionKey: string) { return this.db.get<{ id: string; answer: string; high_impact: number; confirmed: number }>('SELECT id, answer, high_impact, confirmed FROM answer_bank WHERE question_key=? ORDER BY confirmed DESC, updated_at DESC LIMIT 1', [questionKey]) }

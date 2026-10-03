@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ANTHROPIC_VERSION, JSON_ONLY_INSTRUCTION, LlmUnavailableError, ShellLLM } from './llm';
+import { ANTHROPIC_VERSION, JSON_ONLY_INSTRUCTION, LlmUnavailableError, ShellLLM, isClaudeModel } from './llm';
 
 const env = {
   providerId: 'career-llm',
@@ -83,6 +83,29 @@ describe('ShellLLM (Anthropic Messages API)', () => {
     const res = await llm.complete({ messages: [{ role: 'user', content: 'x' }] });
     expect(res.text).toBe('hello');
     expect(res.usage).toEqual({ input_tokens: 0, output_tokens: 0 });
+  });
+
+  it('第三方混合推理模型显式关闭 thinking，默认输出上限 8192；Claude 模型不发 thinking 字段', async () => {
+    const fetchImpl = fetchMock(200, { content: [{ type: 'text', text: '{}' }] });
+    await new ShellLLM({ providerId: 'career-llm', resolveEnv: () => env, fetchImpl }).complete({ messages: [{ role: 'user', content: 'x' }], json: true });
+    const { body } = lastCall(fetchImpl);
+    expect(body.thinking).toEqual({ type: 'disabled' });
+    expect(body.max_tokens).toBe(8192);
+
+    const claudeFetch = fetchMock(200, { content: [{ type: 'text', text: '{}' }] });
+    const claudeEnv = { ...env, modelAliases: { fable: 'claude-sonnet-5-5', sonnet: 'claude-sonnet-5-5', opus: 'claude-sonnet-5-5', haiku: 'claude-sonnet-5-5' } };
+    await new ShellLLM({ providerId: 'career-llm', resolveEnv: () => claudeEnv, fetchImpl: claudeFetch }).complete({ messages: [{ role: 'user', content: 'x' }] });
+    expect(lastCall(claudeFetch).body.thinking).toBeUndefined();
+    expect(isClaudeModel('deepseek-flash')).toBe(false);
+    expect(isClaudeModel('claude-opus-5-5')).toBe(true);
+  });
+
+  it('只返回 thinking、被 max_tokens 截断时给出明确错误，而不是空字符串', async () => {
+    const fetchImpl = fetchMock(200, { content: [{ type: 'thinking', thinking: '……' }], stop_reason: 'max_tokens' });
+    const llm = new ShellLLM({ providerId: 'career-llm', resolveEnv: () => env, fetchImpl });
+    await expect(llm.complete({ messages: [{ role: 'user', content: 'x' }] })).rejects.toThrow(/截断.*thinking/);
+    const empty = new ShellLLM({ providerId: 'career-llm', resolveEnv: () => env, fetchImpl: fetchMock(200, { content: [], stop_reason: 'end_turn' }) });
+    await expect(empty.complete({ messages: [{ role: 'user', content: 'x' }] })).rejects.toThrow(/没有返回正文/);
   });
 
   it('surfaces upstream HTTP errors with status and DeepSeek error.message', async () => {

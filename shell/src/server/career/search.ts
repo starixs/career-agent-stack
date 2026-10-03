@@ -1,10 +1,10 @@
 /**
- * Web Search 提供方：LLM 唯一允许的外部动作。key / provider 来自构建常量
+ * Web Search 提供方：LLM 唯一允许的外部动作。优先用用户在设置页 / 对话卡片保存的 Key（setup.ts），其次构建常量
  * （CAREER_SEARCH_API_KEY / CAREER_SEARCH_PROVIDER），也接受 @career/bridges 认的环境变量
  * （SEARCH_PROVIDER / SEARCH_API_KEY / BOCHA_API_KEY / TAVILY_API_KEY / SERPER_API_KEY）。
  */
-import { getCareerBuildConstants } from '../../shared/career-build-constants';
 import { loadBridges } from './domain';
+import { resolveCareerSearchConfig } from './setup';
 
 export interface SearchHit { title: string; url: string; snippet: string; publishedAt?: string }
 export interface CareerSearchProvider { readonly name: string; search(query: string, opts?: { count?: number }): Promise<SearchHit[]> }
@@ -15,10 +15,16 @@ let override: CareerSearchProvider | null | undefined;
 export async function getSearchProvider(): Promise<CareerSearchProvider | null> {
   if (override !== undefined) return override;
   const bridges = await loadBridges();
-  const c = getCareerBuildConstants();
+  const cfg = resolveCareerSearchConfig();
   const env: NodeJS.ProcessEnv = { ...process.env };
-  if (c.searchProvider && !env.SEARCH_PROVIDER) env.SEARCH_PROVIDER = c.searchProvider;
-  if (c.searchApiKey && !env.SEARCH_API_KEY) env.SEARCH_API_KEY = c.searchApiKey;
+  if (cfg.source === 'settings') {
+    // 用户在产品里保存的配置覆盖一切环境变量
+    env.SEARCH_PROVIDER = cfg.provider ?? 'bocha';
+    env.SEARCH_API_KEY = cfg.apiKey;
+  } else if (cfg.source === 'build') {
+    if (cfg.provider && !env.SEARCH_PROVIDER) env.SEARCH_PROVIDER = cfg.provider;
+    if (!env.SEARCH_API_KEY) env.SEARCH_API_KEY = cfg.apiKey;
+  }
   return bridges.tryCreateSearchProvider(env);
 }
 

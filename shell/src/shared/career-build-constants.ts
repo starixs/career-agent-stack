@@ -19,6 +19,10 @@ declare const __CAREER_SEARCH_PROVIDER__: string | undefined;
 
 /** 内置国内模型的 provider id（用户不可见、不可配置）。 */
 export const CAREER_LLM_PROVIDER_ID = 'career-llm';
+/** 搜索 Key 存在 config.providerApiKeys 里的键名（与模型 Key 同一处，设置页 / 对话卡片写入）。 */
+export const CAREER_SEARCH_KEY_ID = 'career-search';
+export const CAREER_SEARCH_PROVIDERS = ['bocha', 'tavily', 'serper'] as const;
+export type CareerSearchProviderName = typeof CAREER_SEARCH_PROVIDERS[number];
 /** DeepSeek 的 Anthropic 兼容入口；ShellLLM 与 SDK 都在其后拼 `/v1/messages`。 */
 export const CAREER_LLM_DEFAULT_BASE_URL = 'https://api.deepseek.com/anthropic';
 export const CAREER_LLM_DEFAULT_MODEL = 'deepseek-flash'; // 支持图片输入；deepseek-chat 为纯文本

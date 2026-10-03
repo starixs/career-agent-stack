@@ -31,7 +31,7 @@ import type { SlashCommand } from '../../shared/slashCommands';
 import type { ProviderRoute } from '../../shared/providerRoute';
 import type { ProductSystemSkillRequirement } from '../../shared/systemSkills';
 import type { McpEffectiveSnapshot } from '../../shared/mcpEffectiveState';
-import type { CareerCard, CareerProgressEvent, CareerReviewEvent, CareerTakeoverEvent } from '@/components/career/types';
+import type { CareerCard, CareerCardState, CareerProgressEvent, CareerReviewEvent, CareerTakeoverEvent } from '@/components/career/types';
 
 type ChatProviderEnv = { providerId?: string; providerName?: string; baseUrl?: string; apiKey?: string; authType?: 'auth_token' | 'api_key' | 'both' | 'auth_token_clear_api_key'; apiProtocol?: 'anthropic' | 'openai'; maxOutputTokens?: number; maxOutputTokensParamName?: 'max_tokens' | 'max_completion_tokens' | 'max_output_tokens'; upstreamFormat?: 'chat_completions' | 'responses'; modelAliases?: { fable?: string; sonnet?: string; opus?: string; haiku?: string } };
 
@@ -172,7 +172,10 @@ export interface TabState {
     pendingCareerReview: CareerReviewEvent | null;
     careerTakeover: CareerTakeoverEvent | null;
     careerProgress: CareerProgressEvent | null;
-    /** 对话内流程卡片（SSE career:card）：缺资料 / 需要你回答 / 草稿 / 待确认经历 / 简历改动。按 id 去重，最新在后。 */
+    /**
+     * 对话内流程卡片：会话打开时从库里读回，SSE career:card 增量更新，按 id 去重。
+     * 有 toolUseId 的渲染在那次工具调用所在的回复下面；完成 / 忽略后折叠成一行。
+     */
     careerCards: CareerCard[];
 }
 
@@ -272,6 +275,8 @@ export interface TabContextValue extends TabState {
     requestCareerTakeover: (runId: string, action: 'take' | 'handback', resumedFromStep?: string) => Promise<boolean>;
     dismissCareerProgress: () => void;
     dismissCareerCard: (id: string) => void;
+    /** 卡片状态（completed / dismissed / pending 重新打开）：先改本地再落库。 */
+    setCareerCardState: (id: string, state: CareerCardState) => void;
 
     // Cron task exit event handler (set by useCronTask hook)
 }
@@ -350,6 +355,7 @@ const defaultContextValue: TabContextValue = {
     requestCareerTakeover: async () => false,
     dismissCareerProgress: () => {},
     dismissCareerCard: () => {},
+    setCareerCardState: () => {},
 };
 
 /**

@@ -1,4 +1,5 @@
 import { getPlatformHiddenProviderIds, isLinuxDesktop } from '@/utils/desktopPlatform';
+import { CareerKeysPanel } from '@/components/career/CareerKeysPanel';
 import { isImeComposingEvent } from '@/utils/imeKeyboard';
 import {
   Check,
@@ -5446,6 +5447,13 @@ export default function Settings({
                 <p className="mt-1 text-xs text-[var(--ink-muted)]">
                   {tSettings('general.description')}
                 </p>
+              </div>
+
+              {/* 求职助理：模型 Key（必需）与搜索 Key（建议）。放在通用页最上面，不用去命令行注入 */}
+              <div data-testid="settings-career-keys" className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                <h3 className="text-base font-medium text-[var(--ink)]">求职助理：模型与搜索</h3>
+                <p className="mt-1 mb-4 text-xs text-[var(--ink-muted)]">模型 Key 必需，搜索 Key 建议配置。保存在本机，助理看不到。</p>
+                <CareerKeysPanel />
               </div>
 
               <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">

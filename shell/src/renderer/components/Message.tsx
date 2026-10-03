@@ -13,7 +13,9 @@ import { parseWidgetTags, hasWidgetTags } from '@/components/tools/widgetTagPars
 import Tip from '@/components/Tip';
 import ToolAttachmentGallery from '@/components/tools/ToolAttachmentGallery';
 import { TurnFileEditSummary } from '@/components/TurnFileEditSummary';
+import { CareerFlowCards } from '@/components/career/CareerFlowCards';
 import { useNotifyRowLayoutChanged } from '@/context/ChatRowLayoutContext';
+import { useCareerCards } from '@/context/CareerCardsContext';
 import { buildReplyMarkdown, downloadMarkdown, localDateStr } from '@/utils/markdownExport';
 import { formatDuration, formatTokens } from '@/utils/formatTokens';
 import { groupContentBlocksForDisplay } from '@/utils/contentBlockDisplay';
@@ -284,6 +286,7 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
   const { openPreview } = useImagePreview();
   const toast = useToastOptional();
   const notifyRowLayoutChanged = useNotifyRowLayoutChanged();
+  const { cards: careerCards, setState: setCareerCardState } = useCareerCards();
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   // User message collapse: default collapsed, expand on click (no re-collapse)
@@ -619,6 +622,10 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
                   ? (b.tool?.attachments ?? []).filter((a) => a.presentation !== 'process')
                   : []
               );
+              // 求职流程卡片挂在产生它的那次工具调用所在的回复下面（不堆在对话底部）
+              const groupCards = careerCards.length
+                ? careerCards.filter(c => c.toolUseId && item.some(b => (b.type === 'tool_use' || b.type === 'server_tool_use') && b.tool?.id === c.toolUseId))
+                : [];
               return (
                 <Fragment key={`group-${index}`}>
                   <BlockGroup
@@ -629,6 +636,11 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
                   {groupAttachments.length > 0 && (
                     <div className="px-1">
                       <ToolAttachmentGallery attachments={groupAttachments} />
+                    </div>
+                  )}
+                  {groupCards.length > 0 && (
+                    <div data-testid="career-inline-cards" className="space-y-2 px-1 py-1">
+                      <CareerFlowCards cards={groupCards} onStateChange={setCareerCardState} />
                     </div>
                   )}
                   {index === exitPlanModeGroupIndex && exitPlanModeSlot}

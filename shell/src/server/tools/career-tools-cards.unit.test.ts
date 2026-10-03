@@ -16,9 +16,10 @@ vi.mock('../sse', () => ({ broadcast: vi.fn() }));
 import { FakeLLM, StaticKeyProvider, Vault } from '@career/core';
 
 import { RunRegistry } from '../career/runs';
+import { setSearchProvider } from '../career/search';
 import { createMemoryRepos } from '../career/test-db';
 import { handleCareerRoute } from '../routes/career';
-import { createCareerServer } from './career-tools';
+import { createCareerServer, toolUseIdFrom } from './career-tools';
 
 const call = async (name: string, args: Record<string, unknown> = {}) => {
   const h = mocks.handlers.get(name);
@@ -173,6 +174,48 @@ describe('对话内流程卡片', () => {
     events = [];
     await call('ui_open', { target: 'dossier', application_id: 'app_1' });
     expect(events.find(e => e.event === 'career:focus')?.data).toMatchObject({ surface: 'dossier', application_id: 'app_1' });
+  });
+
+  it('卡片锚定到产生它的工具调用并落库；状态接口改 completed，重新推出回到 pending', async () => {
+    const handler = mocks.handlers.get('experience_add')! as unknown as (args: Record<string, unknown>, extra: unknown) => Promise<{ content: Array<{ text: string }> }>;
+    const res = await handler({ title: '字节实习', claims: [{ text: '主导召回重构' }] }, { _meta: { 'claudecode/toolUseId': 'toolu_anchor' } });
+    const expId = (JSON.parse(res.content[0].text) as { experience: { id: string } }).experience.id;
+    const pushed = cards().find(c => c.card.kind === 'claims_confirm')!;
+    expect(pushed.card).toMatchObject({ id: `claims:${expId}`, toolUseId: 'toolu_anchor', state: 'pending' });
+    expect(repos.listChatCards('sess-1').map(r => [r.id, r.tool_use_id, r.state])).toEqual([[`claims:${expId}`, 'toolu_anchor', 'pending']]);
+
+    const req = (path: string, body?: unknown) => new Request(`http://local${path}`, body ? { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } } : {});
+    const routeDeps = { repos, vault, llm: null, broadcast: () => {}, sessionId: () => 'sess-1' };
+    const setRes = await handleCareerRoute(`/api/career/cards/claims:${expId}/state`, req(`/api/career/cards/claims:${expId}/state`, { state: 'completed' }), routeDeps);
+    expect(await setRes!.json()).toMatchObject({ ok: true, card: { state: 'completed', toolUseId: 'toolu_anchor' } });
+    const list = await (await handleCareerRoute('/api/career/cards', req('/api/career/cards?session_id=sess-1'), routeDeps))!.json() as { cards: Array<{ id: string; state: string; data: Record<string, unknown> }> };
+    expect(list.cards).toHaveLength(1);
+    expect(list.cards[0]).toMatchObject({ state: 'completed', data: { experience_title: '字节实习' } });
+
+    // 同 id 重新推出（无锚点的调用）：回到 pending，锚点保留
+    repos.upsertChatCard({ id: `claims:${expId}`, session_id: 'sess-1', tool_use_id: null, kind: 'claims_confirm', title: 't', data: {} });
+    expect(repos.getChatCard(`claims:${expId}`)).toMatchObject({ state: 'pending', tool_use_id: 'toolu_anchor' });
+
+    const bad = await handleCareerRoute('/api/career/cards/x/state', req('/api/career/cards/x/state', { state: 'nope' }), routeDeps);
+    expect(bad!.status).toBe(400);
+  });
+
+  it('toolUseIdFrom 只认 CLI 的 _meta 字段', () => {
+    expect(toolUseIdFrom({ _meta: { 'claudecode/toolUseId': 'toolu_1' } })).toBe('toolu_1');
+    expect(toolUseIdFrom({})).toBeNull();
+    expect(toolUseIdFrom(undefined)).toBeNull();
+  });
+
+  it('web_search 没配置搜索：推「配置搜索 Key」卡片，错误里告诉助理去哪配', async () => {
+    setSearchProvider(null);
+    try {
+      const res = await call('web_search', { query: '海康威视 评价' });
+      expect(res.isError).toBe(true);
+      expect(res.text).toContain('配置搜索 Key');
+      expect(cards().find(c => c.card.kind === 'search_setup')?.card).toMatchObject({ id: 'search_setup', state: 'pending' });
+    } finally {
+      setSearchProvider(undefined);
+    }
   });
 });
 

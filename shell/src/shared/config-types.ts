@@ -1011,6 +1011,8 @@ export interface AppConfig {
   notificationBadge?: boolean;
   // API Keys for providers (stored separately for security)
   providerApiKeys?: Record<string, string>;
+  /** 求职助理 Web 搜索提供方（Key 在 providerApiKeys['career-search']）；缺省 bocha。 */
+  careerSearchProvider?: 'bocha' | 'tavily' | 'serper';
   // Provider verification status (persisted after API key validation)
   // Key is provider ID (e.g., 'anthropic-sub', 'deepseek')
   providerVerifyStatus?: Record<string, ProviderVerifyStatus>;

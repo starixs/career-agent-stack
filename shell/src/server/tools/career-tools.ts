@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 // 求职常驻工具集 `career`（docs/API.md 工具表）。Pattern 1 常驻注入，用户不可关。
 //
 // 工具只做两类事：读写数据层（@career/core Repos / CareerStore）；把需要执行的动作入队或触发 run。
@@ -24,6 +25,7 @@ import { getRunRegistry, type RunRegistry } from '../career/runs';
 import { getSearchProvider, type CareerSearchProvider } from '../career/search';
 import { loadSkillPrompt } from '../career/skills';
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
+import { SEARCH_NOT_CONFIGURED_MESSAGE } from '../career/setup';
 import { applyJsonPatch, confirmTailorProposal, readTailorProposal } from '../career/tailor';
 import { getVault, vaultForRepos } from '../career/vault';
 import { persistDriveOutcome } from '../career/drive-outcome';
@@ -77,10 +79,26 @@ function parseJson<T = unknown>(raw: string | null | undefined): T | undefined {
 
 export { applyJsonPatch } from '../career/tailor';
 
+// ============= 工具调用上下文（卡片锚点） =============
+const toolCallContext = new AsyncLocalStorage<{ toolUseId: string | null }>();
+/** SDK 的 handler extra 未声明类型；CLI 在 tools/call 的 _meta 里带 tool_use id。 */
+export function toolUseIdFrom(extra: unknown): string | null {
+  const meta = (extra as { _meta?: Record<string, unknown> } | undefined)?._meta;
+  const id = meta?.['claudecode/toolUseId'];
+  return typeof id === 'string' && id ? id : null;
+}
+
 // ============= Server =============
 
 export async function createCareerServer(deps: CareerToolDeps = {}) {
-  const { createSdkMcpServer, tool } = await import('@anthropic-ai/claude-agent-sdk');
+  const { createSdkMcpServer, tool: sdkTool } = await import('@anthropic-ai/claude-agent-sdk');
+  /**
+   * 包一层工具注册：Claude Code CLI 调 MCP 工具时在 `_meta['claudecode/toolUseId']` 带上本次 tool_use id，
+   * 放进 AsyncLocalStorage，card() 据此把卡片锚定到产生它的那次工具调用（渲染在那条回复下面）。
+   */
+  const tool = ((name: string, description: string, schema: unknown, handler: (args: never, extra: unknown) => Promise<CallToolResult>) =>
+    (sdkTool as (...a: unknown[]) => unknown)(name, description, schema, (args: never, extra: unknown) =>
+      toolCallContext.run({ toolUseId: toolUseIdFrom(extra) }, () => handler(args, extra)))) as unknown as typeof sdkTool;
   const { z } = await import('zod/v4');
   // 数据层：core 惰性加载；Repos 在 server 构建时打开一次（Session 内共享）。
   const core = await loadCore();
@@ -108,8 +126,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
    * 对话内流程卡片：把"要用户动手的一步"直接放进对话（填资料 / 回答 / 确认），用户在卡片里完成，
    * 值走产品自己的接口落库（私密信息进私密库），不经过模型上下文。同 id 的卡片会被覆盖。
    */
-  const card = (id: string, kind: string, title: string, data: Record<string, unknown>) =>
-    broadcast('career:card', { sessionId: sessionId(), card: { id, kind, title, data, createdAt: new Date().toISOString(), sessionId: sessionId() } });
+  const card = (id: string, kind: string, title: string, data: Record<string, unknown>) => {
+    const sid = sessionId() ?? null;
+    const toolUseId = toolCallContext.getStore()?.toolUseId ?? null;
+    // 持久化：重载后按会话读回，已完成 / 已忽略的折叠成一行；重新推出时回到 pending
+    let createdAt = new Date().toISOString();
+    try { createdAt = repos().upsertChatCard({ id, session_id: sid, tool_use_id: toolUseId, kind, title, data }).created_at; } catch { /* 落库失败也照常推送 */ }
+    broadcast('career:card', { sessionId: sid, card: { id, kind, title, data, createdAt, sessionId: sid, toolUseId, state: 'pending' } });
+  };
   const profileFieldSet = new Set<string>(core.PROFILE_FIELDS.map(f => f.field));
   /** 填表需要用户补充 / 确认的项 → needs_user / drafts 卡片。资料类字段写私密库，其余写答案库。 */
   const emitDriveCards = (actionId: string, summary: Record<string, unknown> | undefined) => {
@@ -747,6 +771,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const hits: unknown[] = [];
         try {
           const provider = await search();
+          if (!provider) card('search_setup', 'search_setup', '配置搜索 Key（建议）', { reason: 'company_research' });
           if (provider) {
             progress('company_research', `正在搜索 ${args.company_name}`);
             const queries = [`${args.company_name} 公司 招聘 评价`, `${args.company_name} 工商 信息 风险`, `${args.company_name} 面试 经验`];
@@ -760,14 +785,17 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const trafficLight = typeof out.traffic_light === 'string' ? out.traffic_light : null;
         const company = store().upsertCompany(args.company_name, { dd_report_json: out, traffic_light: trafficLight, manual_checks: out.manual_checks ?? [] });
         changed('company');
-        return text({ company, report: out, search_hits: hits.length });
+        return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实；搜索没配置时对话里会出现「配置搜索 Key」卡片。' }) });
       })()),
 
       tool('web_search', '唯一允许的外部动作：Web 搜索（博查 / Tavily / Serper）。', {
         query: z.string(), count: z.number().int().min(1).max(20).optional(),
       }, async (args) => wrap(async () => {
         const provider = await search();
-        if (!provider) return err('搜索不可用：打包时未注入 CAREER_SEARCH_API_KEY / CAREER_SEARCH_PROVIDER');
+        if (!provider) {
+          card('search_setup', 'search_setup', '配置搜索 Key（建议）', { reason: 'web_search' });
+          return err(SEARCH_NOT_CONFIGURED_MESSAGE);
+        }
         progress('web_search', `搜索：${args.query}`);
         return text(await provider.search(args.query, { count: args.count ?? 8 }));
       })()),

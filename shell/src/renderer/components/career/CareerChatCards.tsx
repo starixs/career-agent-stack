@@ -4,11 +4,12 @@
  * 在 TabProvider 之外渲染时返回 null，MessageList 的既有测试不受影响。
  */
 import { ChevronDown, ChevronRight, Globe, ListChecks, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useTabStateOptional } from '@/context/TabContext';
 
 import { CareerFlowCards, useBatchState } from './CareerFlowCards';
+import { CareerKeysPanel, useCareerSetupStatus } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 
 import { ACTION_KIND_LABELS, HANDOFF_REASON_LABELS, TAKEOVER_STATE_LABELS } from './careerConstants';
@@ -24,19 +25,60 @@ export function CareerChatCards() {
 function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useTabStateOptional>> }) {
   const batch = useBatchState();
   const { pendingCareerReview, careerTakeover, careerProgress } = tab;
-  const cards = tab.careerCards ?? [];
-  const batchActive = !!batch && (batch.status === 'running' || batch.status === 'paused');
-  if (!pendingCareerReview && !careerTakeover && !careerProgress && !cards.length && !batchActive) return null;
+  // 底部只放"无处可挂"的待处理卡片：没有锚点（后台批量等），或锚点那次工具调用不在已加载的消息里。
+  // 有锚点的卡片渲染在对应回复下面（Message.tsx），处理完折叠，不在底部堆叠。
+  const anchoredIds = useMemo(() => collectToolUseIds(tab.messages ?? []), [tab.messages]);
+  const cards = useMemo(() => (tab.careerCards ?? []).filter(c => (c.state ?? 'pending') === 'pending' && (!c.toolUseId || !anchoredIds.has(c.toolUseId))), [tab.careerCards, anchoredIds]);
   return (
     <div className="space-y-2 py-2">
+      <CareerSetupCards />
       {careerProgress && <CareerProgressRow progress={careerProgress} onDismiss={tab.dismissCareerProgress} />}
       {careerTakeover && careerTakeover.state !== 'running' && (
         <CareerTakeoverCard takeover={careerTakeover} onAction={tab.requestCareerTakeover} />
       )}
-      <CareerFlowCards cards={cards} batch={batch} onDismiss={id => tab.dismissCareerCard?.(id)} />
+      <CareerFlowCards cards={cards} batch={batch} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
       {pendingCareerReview && <CareerReviewCard review={pendingCareerReview} onDecision={tab.respondCareerReview} />}
     </div>
   );
+}
+
+const SEARCH_SETUP_DISMISSED_KEY = 'career.searchSetupDismissed';
+function readDismissed(): boolean { try { return window.localStorage.getItem(SEARCH_SETUP_DISMISSED_KEY) === '1'; } catch { return false; } }
+
+/**
+ * 依赖配置卡：没有模型 Key 时助理根本跑不起来，固定在对话底部直到配好（必需）；
+ * 搜索 Key 没配时给一张可"暂不配置"的建议卡（记住选择，不再打扰）。
+ */
+export function CareerSetupCards() {
+  const { status } = useCareerSetupStatus();
+  const [searchDismissed, setSearchDismissed] = useState(readDismissed);
+  if (!status) return null;
+  const needLlm = !status.llm.configured;
+  const suggestSearch = !status.search.configured && !searchDismissed;
+  if (!needLlm && !suggestSearch) return null;
+  const dismissSearch = () => { try { window.localStorage.setItem(SEARCH_SETUP_DISMISSED_KEY, '1'); } catch { /* 隐私模式 */ } setSearchDismissed(true); };
+  return (
+    <div data-testid="career-setup-cards" className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-[var(--ink)]">{needLlm ? '先配置模型 Key，助理才能开始工作' : '建议配置搜索 Key'}</span>
+        {needLlm ? <Badge tone="warning">必需</Badge> : <Badge tone="info">建议</Badge>}
+        {!needLlm && <Button variant="ghost" className="ml-auto" onClick={dismissSearch}>暂不配置</Button>}
+      </div>
+      <div className="mt-3"><CareerKeysPanel show={needLlm ? (suggestSearch ? 'all' : 'llm') : 'search'} /></div>
+    </div>
+  );
+}
+
+/** 已加载消息里所有顶层工具调用的 id（卡片锚点）。 */
+export function collectToolUseIds(messages: ReadonlyArray<{ content: unknown }>): Set<string> {
+  const ids = new Set<string>();
+  for (const m of messages) {
+    if (!Array.isArray(m.content)) continue;
+    for (const b of m.content as Array<{ type?: string; tool?: { id?: string } }>) {
+      if ((b.type === 'tool_use' || b.type === 'server_tool_use') && b.tool?.id) ids.add(b.tool.id);
+    }
+  }
+  return ids;
 }
 
 export function CareerReviewCard({ review, onDecision }: {

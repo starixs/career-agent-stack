@@ -5,6 +5,7 @@
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 
 import type {
+  CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
   InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
@@ -51,6 +52,11 @@ export const careerApi = {
   experiences: () => apiGetJson<unknown>(careerPath('/experiences')).then(r => pickList<ExperienceNode>(r, 'experiences', 'tree', 'items')),
   addExperience: (body: Partial<ExperienceNode>) => apiPostJson<unknown>(careerPath('/experiences'), body).then(r => pickObject<ExperienceNode>(r, 'experience')),
   confirmClaim: (id: string) => apiPostJson<unknown>(careerPath(`/claims/${encodeURIComponent(id)}/confirm`), {}),
+  /** 模型 / 搜索 Key 是否已配置（只有状态，不含 Key）。 */
+  setupStatus: () => apiGetJson<unknown>(careerPath('/setup')).then(r => asDict(r).setup as CareerSetupStatus),
+  /** 对话内卡片（持久化）：按会话读回；完成 / 忽略 / 重新打开。 */
+  listCards: (sessionId: string) => apiGetJson<unknown>(careerPath(`/cards?session_id=${encodeURIComponent(sessionId)}`)).then(r => pickList<CareerCard>(r, 'cards')),
+  setCardState: (id: string, state: CareerCardState) => apiPostJson<unknown>(careerPath(`/cards/${encodeURIComponent(id)}/state`), { state }).then(r => asDict(r)),
   /** 答案库：网申里需要用户回答 / 确认过的草稿；question_key 用表单标签，下次填表按标签命中。 */
   saveAnswer: (body: { question_key: string; question_text: string; answer: string; high_impact?: boolean; confirmed?: boolean }) =>
     apiPostJson<unknown>(careerPath('/answer-bank'), body).then(r => asDict(r)),

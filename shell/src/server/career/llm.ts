@@ -54,7 +54,8 @@ export class ShellLLM implements LLM {
     this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
     this.resolveEnv = options.resolveEnv ?? ((id) => resolveProviderEnv(id));
     this.timeoutMs = options.timeoutMs ?? 120_000;
-    this.defaultMaxTokens = options.defaultMaxTokens ?? 4096;
+    // 技能产出（简历 JSON、调研报告）常超过 4K；8K 是 DeepSeek / 主流第三方端点都接受的上限
+    this.defaultMaxTokens = options.defaultMaxTokens ?? 8192;
   }
 
   /** 解析当前可用的 provider；不可用时抛 LlmUnavailableError（中文说明）。 */
@@ -63,7 +64,7 @@ export class ShellLLM implements LLM {
     let env = this.resolveEnv(providerId);
     if (!env && providerId !== CAREER_LLM_PROVIDER_ID) env = this.resolveEnv(CAREER_LLM_PROVIDER_ID);
     if (!env) {
-      throw new LlmUnavailableError('内置模型不可用：打包时未注入 CAREER_LLM_API_KEY，且用户未配置任何可用模型');
+      throw new LlmUnavailableError('内置模型还没有 API Key：请在「设置 → 通用 → 求职助理：模型与搜索」或对话里的「配置模型 Key」卡片填写');
     }
     if (env.apiProtocol && env.apiProtocol !== 'anthropic') {
       throw new LlmUnavailableError(`求职助理只支持 Anthropic Messages 协议，当前 provider（${env.providerId ?? providerId}）协议为 ${env.apiProtocol}`);
@@ -73,7 +74,7 @@ export class ShellLLM implements LLM {
     }
     const baseUrl = (env.baseUrl ?? '').replace(/\/+$/, '');
     if (!baseUrl) throw new LlmUnavailableError('模型 baseUrl 为空');
-    if (!env.apiKey?.trim()) throw new LlmUnavailableError('模型 API key 为空');
+    if (!env.apiKey?.trim()) throw new LlmUnavailableError('模型 API Key 为空：请在「设置 → 通用 → 求职助理：模型与搜索」填写');
     const model = this.options.model ?? env.modelAliases?.sonnet ?? env.modelAliases?.opus ?? env.modelAliases?.haiku;
     if (!model) throw new LlmUnavailableError('无法确定模型名');
     return { env, model, baseUrl };
@@ -107,6 +108,9 @@ export class ShellLLM implements LLM {
     };
     if (system) body.system = system;
     if (typeof req.temperature === 'number') body.temperature = req.temperature;
+    // 混合推理模型（DeepSeek V4 等）不传 thinking 时默认开启思考：思考吃光 max_tokens 后只剩 thinking 块，
+    // text 为空 → 工具报"模型回复中没有 JSON"。主对话对非 Claude 模型也是显式关闭（agent-session thinkingConfig）。
+    if (!isClaudeModel(model)) body.thinking = { type: 'disabled' };
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -140,6 +144,12 @@ export class ShellLLM implements LLM {
     const outText = Array.isArray(parsed.content)
       ? parsed.content.filter(block => block?.type === 'text').map(block => block.text ?? '').join('')
       : '';
+    if (!outText.trim()) {
+      const kinds = Array.isArray(parsed.content) ? [...new Set(parsed.content.map(b => b?.type ?? '?'))].join(',') : 'none';
+      throw new Error(parsed.stop_reason === 'max_tokens'
+        ? `模型输出被截断（只返回了 ${kinds}，没有正文）：请重试或换用更大输出上限的模型`
+        : `模型没有返回正文（stop_reason=${parsed.stop_reason ?? '未知'}，内容块：${kinds}）`);
+    }
     return {
       text: outText,
       usage: {
@@ -185,4 +195,10 @@ export function getShellLLM(): ShellLLM {
 
 export function setShellLLM(llm: ShellLLM | null): void {
   shared = llm;
+}
+
+/** 与 agent-session 的判定一致：只有 Claude 系模型才保留思考；第三方混合推理模型一律关闭。 */
+export function isClaudeModel(model: string): boolean {
+  const m = model.toLowerCase();
+  return /claude|sonnet-[45]|opus-[45]|fable-5|mythos-5|haiku-4/.test(m);
 }

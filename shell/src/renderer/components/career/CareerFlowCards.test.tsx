@@ -7,14 +7,14 @@ import { apiPostJson, apiPutJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { TabContext, type TabContextValue } from '@/context/TabContext';
 
-import { CareerChatCards } from './CareerChatCards';
-import { humanizePath } from './CareerFlowCards';
+import { CareerChatCards, collectToolUseIds } from './CareerChatCards';
+import { CareerFlowCards, humanizePath } from './CareerFlowCards';
 import type { CareerCard } from './types';
 
 const card = (kind: CareerCard['kind'], data: Record<string, unknown>, title = '卡片'): CareerCard => ({ id: `${kind}:1`, kind, title, data, createdAt: '2026-10-03T00:00:00Z' });
 
-function renderCards(cards: CareerCard[], dismiss = vi.fn()) {
-  const value = { tabId: 't', agentDir: '/tmp', pendingCareerReview: null, careerTakeover: null, careerProgress: null, careerCards: cards, dismissCareerCard: dismiss } as unknown as TabContextValue;
+function renderCards(cards: CareerCard[], dismiss = vi.fn(), messages: unknown[] = []) {
+  const value = { tabId: 't', agentDir: '/tmp', pendingCareerReview: null, careerTakeover: null, careerProgress: null, careerCards: cards, setCareerCardState: dismiss, messages } as unknown as TabContextValue;
   render(<TabContext.Provider value={value}><CareerChatCards /></TabContext.Provider>);
   return dismiss;
 }
@@ -37,7 +37,7 @@ describe('对话内流程卡片', () => {
     expect(screen.getByTestId('career-card-vault_missing')).toHaveTextContent('缺 2 项');
     fireEvent.change(screen.getByLabelText('手机号'), { target: { value: '13800138000' } });
     fireEvent.click(screen.getByRole('button', { name: '保存 1 项' }));
-    await waitFor(() => expect(dismiss).toHaveBeenCalledWith('vault_missing:1'));
+    await waitFor(() => expect(dismiss).toHaveBeenCalledWith('vault_missing:1', 'completed'));
     expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'profile', field: 'phone', value: '13800138000' });
     expect(seen).toEqual(['基本信息已在卡片里补齐（手机号），请继续']);
     expect(seen.join('')).not.toContain('13800138000');
@@ -98,7 +98,7 @@ describe('对话内流程卡片', () => {
   it('稍后再说：只是从对话里移除', () => {
     const dismiss = renderCards([card('vault_missing', { fields: [{ field: 'email', label: '邮箱' }] })]);
     fireEvent.click(screen.getByRole('button', { name: '稍后再说' }));
-    expect(dismiss).toHaveBeenCalledWith('vault_missing:1');
+    expect(dismiss).toHaveBeenCalledWith('vault_missing:1', 'dismissed');
   });
 
   it('保存登录账号：写私密库站点作用域并开代填，然后打开现场', async () => {
@@ -109,7 +109,7 @@ describe('对话内流程卡片', () => {
     fireEvent.change(screen.getByLabelText('账号'), { target: { value: 'me@x.com' } });
     fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Secret#1' } });
     fireEvent.click(screen.getByRole('button', { name: '保存并去登录' }));
-    await waitFor(() => expect(dismiss).toHaveBeenCalledWith('site_login:1'));
+    await waitFor(() => expect(dismiss).toHaveBeenCalledWith('site_login:1', 'completed'));
     expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'site', ref_id: 'campus.example.com', field: 'username', value: 'me@x.com', policy: { autofill: true } });
     expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'site', ref_id: 'campus.example.com', field: 'password', value: 'Secret#1', policy: { autofill: true } });
     expect(drawer).toHaveLength(1);
@@ -138,6 +138,32 @@ describe('对话内流程卡片', () => {
     fireEvent.click(screen.getByRole('button', { name: '绑定并同步' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('AUTHENTICATIONFAILED');
     expect(dismiss).not.toHaveBeenCalled();
+  });
+
+  it('底部只放无锚点 / 锚点不在消息里的待处理卡片；已处理的不在底部堆叠', () => {
+    const anchored = { ...card('drafts', { items: [{ label: 'Q', value: 'A' }] }, '锚定卡'), id: 'a', toolUseId: 'toolu_1' };
+    const orphan = { ...card('vault_missing', { fields: [{ field: 'email', label: '邮箱' }] }, '孤儿卡'), id: 'b', toolUseId: null };
+    const done = { ...card('vault_missing', { fields: [] }, '已完成卡'), id: 'c', state: 'completed' as const };
+    renderCards([anchored, orphan, done], vi.fn(), [{ content: [{ type: 'tool_use', tool: { id: 'toolu_1' } }] }]);
+    expect(screen.getByTestId('career-card-vault_missing')).toHaveTextContent('孤儿卡');
+    expect(screen.queryByTestId('career-card-drafts')).not.toBeInTheDocument();
+    expect(screen.queryByText(/已完成卡/)).not.toBeInTheDocument();
+  });
+
+  it('已处理的卡片折叠成一行；跳过的可以重新打开', () => {
+    const onState = vi.fn();
+    render(<CareerFlowCards cards={[
+      { ...card('claims_confirm', { claims: [] }, '确认说法'), id: 'x', state: 'completed' },
+      { ...card('vault_missing', { fields: [] }, '补齐资料'), id: 'y', state: 'dismissed' },
+    ]} onStateChange={onState} />);
+    expect(screen.getByTestId('career-card-collapsed-claims_confirm')).toHaveTextContent('已完成：确认说法');
+    expect(screen.getByTestId('career-card-collapsed-vault_missing')).toHaveTextContent('已跳过：补齐资料');
+    fireEvent.click(screen.getByRole('button', { name: '重新打开' }));
+    expect(onState).toHaveBeenCalledWith('y', 'pending');
+  });
+
+  it('collectToolUseIds 只收集顶层工具调用', () => {
+    expect([...collectToolUseIds([{ content: 'text' }, { content: [{ type: 'text' }, { type: 'tool_use', tool: { id: 't1' } }, { type: 'server_tool_use', tool: { id: 't2' } }] }])]).toEqual(['t1', 't2']);
   });
 
   it('humanizePath', () => {
