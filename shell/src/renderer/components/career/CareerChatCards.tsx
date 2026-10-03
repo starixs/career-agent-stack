@@ -8,6 +8,7 @@ import { useState } from 'react';
 
 import { useTabStateOptional } from '@/context/TabContext';
 
+import { CareerFlowCards, useBatchState } from './CareerFlowCards';
 import { openLiveDrawer } from './CareerLiveDrawer';
 
 import { ACTION_KIND_LABELS, HANDOFF_REASON_LABELS, TAKEOVER_STATE_LABELS } from './careerConstants';
@@ -17,14 +18,22 @@ import type { ActionKind, CareerProgressEvent, CareerReviewEvent, CareerTakeover
 export function CareerChatCards() {
   const tab = useTabStateOptional();
   if (!tab) return null;
+  return <CareerChatCardsInner tab={tab} />;
+}
+
+function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useTabStateOptional>> }) {
+  const batch = useBatchState();
   const { pendingCareerReview, careerTakeover, careerProgress } = tab;
-  if (!pendingCareerReview && !careerTakeover && !careerProgress) return null;
+  const cards = tab.careerCards ?? [];
+  const batchActive = !!batch && (batch.status === 'running' || batch.status === 'paused');
+  if (!pendingCareerReview && !careerTakeover && !careerProgress && !cards.length && !batchActive) return null;
   return (
     <div className="space-y-2 py-2">
       {careerProgress && <CareerProgressRow progress={careerProgress} onDismiss={tab.dismissCareerProgress} />}
       {careerTakeover && careerTakeover.state !== 'running' && (
         <CareerTakeoverCard takeover={careerTakeover} onAction={tab.requestCareerTakeover} />
       )}
+      <CareerFlowCards cards={cards} batch={batch} onDismiss={id => tab.dismissCareerCard?.(id)} />
       {pendingCareerReview && <CareerReviewCard review={pendingCareerReview} onDecision={tab.respondCareerReview} />}
     </div>
   );

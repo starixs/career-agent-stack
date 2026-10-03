@@ -155,7 +155,7 @@ export interface LiveFrame { type: 'frame'; data: string; width: number; height:
 export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
 
 // ---------- 对话内流程卡片（SSE career:card；对话是主场，卡片把"要用户动手的一步"就地解决） ----------
-export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'resume_diff';
+export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'resume_diff' | 'site_login' | 'mail_bind';
 export interface CareerCard { id: string; kind: CareerCardKind; title: string; data: Record<string, unknown>; createdAt: string; sessionId?: string | null }
 export interface CareerCardEvent { sessionId?: string | null; card: CareerCard }
 

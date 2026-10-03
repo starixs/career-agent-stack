@@ -51,6 +51,12 @@ export const careerApi = {
   experiences: () => apiGetJson<unknown>(careerPath('/experiences')).then(r => pickList<ExperienceNode>(r, 'experiences', 'tree', 'items')),
   addExperience: (body: Partial<ExperienceNode>) => apiPostJson<unknown>(careerPath('/experiences'), body).then(r => pickObject<ExperienceNode>(r, 'experience')),
   confirmClaim: (id: string) => apiPostJson<unknown>(careerPath(`/claims/${encodeURIComponent(id)}/confirm`), {}),
+  /** 答案库：网申里需要用户回答 / 确认过的草稿；question_key 用表单标签，下次填表按标签命中。 */
+  saveAnswer: (body: { question_key: string; question_text: string; answer: string; high_impact?: boolean; confirmed?: boolean }) =>
+    apiPostJson<unknown>(careerPath('/answer-bank'), body).then(r => asDict(r)),
+  /** 应用定制简历提案（只取勾选的 JSON Pointer 路径；缺省全部）并确认。 */
+  confirmResume: (id: string, acceptedPaths?: string[]) =>
+    apiPostJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/confirm`), acceptedPaths ? { accepted_paths: acceptedPaths } : {}).then(r => asDict(r)),
 
   // ----- 简历 -----
   resumes: () => apiGetJson<unknown>(careerPath('/resumes')).then(r => {

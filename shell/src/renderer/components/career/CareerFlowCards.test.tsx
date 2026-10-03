@@ -1,0 +1,147 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
+
+import { apiPostJson, apiPutJson } from '@/api/apiFetch';
+import { emitEvent, onEvent } from '@/api/eventBus';
+import { TabContext, type TabContextValue } from '@/context/TabContext';
+
+import { CareerChatCards } from './CareerChatCards';
+import { humanizePath } from './CareerFlowCards';
+import type { CareerCard } from './types';
+
+const card = (kind: CareerCard['kind'], data: Record<string, unknown>, title = '卡片'): CareerCard => ({ id: `${kind}:1`, kind, title, data, createdAt: '2026-10-03T00:00:00Z' });
+
+function renderCards(cards: CareerCard[], dismiss = vi.fn()) {
+  const value = { tabId: 't', agentDir: '/tmp', pendingCareerReview: null, careerTakeover: null, careerProgress: null, careerCards: cards, dismissCareerCard: dismiss } as unknown as TabContextValue;
+  render(<TabContext.Provider value={value}><CareerChatCards /></TabContext.Provider>);
+  return dismiss;
+}
+
+function captureSuggest() {
+  const seen: string[] = [];
+  const off = onEvent<{ text: string }>('career:chat-suggest', p => { seen.push(p.text); });
+  return { seen, off };
+}
+
+describe('对话内流程卡片', () => {
+  beforeEach(() => {
+    vi.mocked(apiPostJson).mockReset().mockResolvedValue({ ok: true });
+    vi.mocked(apiPutJson).mockReset().mockResolvedValue({ ok: true, item: {} });
+  });
+
+  it('补齐基本信息：写私密库（不进对话），完成后告诉助理继续并移除卡片', async () => {
+    const { seen, off } = captureSuggest();
+    const dismiss = renderCards([card('vault_missing', { fields: [{ field: 'name', label: '真实姓名', sensitive: true }, { field: 'phone', label: '手机号', sensitive: true }] }, '补齐网申基本信息')]);
+    expect(screen.getByTestId('career-card-vault_missing')).toHaveTextContent('缺 2 项');
+    fireEvent.change(screen.getByLabelText('手机号'), { target: { value: '13800138000' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存 1 项' }));
+    await waitFor(() => expect(dismiss).toHaveBeenCalledWith('vault_missing:1'));
+    expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'profile', field: 'phone', value: '13800138000' });
+    expect(seen).toEqual(['基本信息已在卡片里补齐（手机号），请继续']);
+    expect(seen.join('')).not.toContain('13800138000');
+    off();
+  });
+
+  it('网申缺项：资料字段进私密库、其余进答案库，然后请助理从当前页继续', async () => {
+    const { seen, off } = captureSuggest();
+    renderCards([card('needs_user', { action_id: 'act1', items: [{ label: '身份证号', vault_field: 'idNumber', sensitive: true }, { label: '期望薪资', note: '月薪' }] })]);
+    fireEvent.change(screen.getByLabelText('身份证号'), { target: { value: '110101200001011234' } });
+    fireEvent.change(screen.getByLabelText('期望薪资'), { target: { value: '面议' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存并继续填表' }));
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'profile', field: 'idNumber', value: '110101200001011234' });
+    expect(apiPostJson).toHaveBeenCalledWith('/api/career/answer-bank', { question_key: '期望薪资', question_text: '期望薪资', answer: '面议', confirmed: true });
+    expect(seen[0]).toContain('action_id: act1');
+    expect(seen[0]).not.toContain('110101');
+    off();
+  });
+
+  it('开放题草稿：可改、可不采用，确认的写进答案库', async () => {
+    renderCards([card('drafts', { action_id: 'act1', items: [{ label: '为什么选择我们', value: '草稿A' }, { label: '职业规划', value: '草稿B' }] })]);
+    fireEvent.change(screen.getByLabelText('回答：为什么选择我们'), { target: { value: '改过的A' } });
+    fireEvent.click(screen.getByLabelText('采用：职业规划'));
+    fireEvent.click(screen.getByRole('button', { name: '确认 1 条并继续' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledTimes(1));
+    expect(apiPostJson).toHaveBeenCalledWith('/api/career/answer-bank', { question_key: '为什么选择我们', question_text: '为什么选择我们', answer: '改过的A', confirmed: true, high_impact: true });
+  });
+
+  it('经历说法：只确认勾选的', async () => {
+    renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '字节实习', claims: [{ id: 'c1', text: '主导推荐召回重构', result_metric: 'CTR +3%' }, { id: 'c2', text: '带 3 人小组', attribution: 'team' }] })]);
+    fireEvent.click(screen.getByLabelText('带 3 人小组'));
+    fireEvent.click(screen.getByRole('button', { name: '确认所选 1 条' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/claims/c1/confirm', {}));
+    expect(apiPostJson).not.toHaveBeenCalledWith('/api/career/claims/c2/confirm', {});
+  });
+
+  it('简历改动：按勾选路径应用', async () => {
+    renderCards([card('resume_diff', { tailored_id: 'rt1', ops: [{ op: 'replace', path: '/experiences/0/bullets/1', value: '新要点', reason: '对齐 JD 关键词' }, { op: 'remove', path: '/skills/3' }], unresolved: ['想补 Kafka 经验'] })]);
+    expect(screen.getByText('改写 · 经历 1 · 要点 2')).toBeInTheDocument();
+    expect(screen.getByText('理由：对齐 JD 关键词')).toBeInTheDocument();
+    expect(screen.getByText(/缺少已确认的经历支撑/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('应用：技能 4'));
+    fireEvent.click(screen.getByRole('button', { name: '应用所选 1 处' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/resumes/rt1/confirm', { accepted_paths: ['/experiences/0/bullets/1'] }));
+  });
+
+  it('批量投递进行中：对话里出现进度卡，可暂停', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, batch: { status: 'paused', updatedAt: '', done: 2, failed: 0, handoffs: 0, queued: 3, todayCount: 2 } });
+    renderCards([]);
+    act(() => emitEvent('career:batch', { status: 'running', updatedAt: '', done: 2, failed: 0, handoffs: 1, queued: 3, todayCount: 2, message: '正在填写：B 公司' }));
+    expect(await screen.findByTestId('career-card-batch')).toHaveTextContent('正在填写：B 公司');
+    fireEvent.click(screen.getByRole('button', { name: '暂停' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/batch/command', { cmd: 'pause' }));
+    expect(await screen.findByRole('button', { name: '继续' })).toBeInTheDocument();
+  });
+
+  it('稍后再说：只是从对话里移除', () => {
+    const dismiss = renderCards([card('vault_missing', { fields: [{ field: 'email', label: '邮箱' }] })]);
+    fireEvent.click(screen.getByRole('button', { name: '稍后再说' }));
+    expect(dismiss).toHaveBeenCalledWith('vault_missing:1');
+  });
+
+  it('保存登录账号：写私密库站点作用域并开代填，然后打开现场', async () => {
+    const drawer: unknown[] = [];
+    const off = onEvent('career:live-drawer', p => { drawer.push(p); });
+    const dismiss = renderCards([card('site_login', { host: 'campus.example.com', action_id: 'act1' }, '保存 campus.example.com 的登录账号')]);
+    expect(screen.getByRole('button', { name: '保存并去登录' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('账号'), { target: { value: 'me@x.com' } });
+    fireEvent.change(screen.getByLabelText('密码'), { target: { value: 'Secret#1' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存并去登录' }));
+    await waitFor(() => expect(dismiss).toHaveBeenCalledWith('site_login:1'));
+    expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'site', ref_id: 'campus.example.com', field: 'username', value: 'me@x.com', policy: { autofill: true } });
+    expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'site', ref_id: 'campus.example.com', field: 'password', value: 'Secret#1', policy: { autofill: true } });
+    expect(drawer).toHaveLength(1);
+    off();
+  });
+
+  it('绑定邮箱：按域名给授权码说明，绑定成功后请助理归档，消息里不带地址和授权码', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { id: 'm1' }, verify: { fetched: 12, job_related: 3 } });
+    const { seen, off } = captureSuggest();
+    renderCards([card('mail_bind', { presets: [{ provider: 'qq', label: 'QQ 邮箱', help: '设置 → 账户 → 开启 IMAP 并生成授权码' }] }, '绑定求职邮箱')]);
+    fireEvent.change(screen.getByLabelText('邮箱地址'), { target: { value: 'me@qq.com' } });
+    expect(screen.getByText(/开启 IMAP 并生成授权码/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'abcd1234' } });
+    fireEvent.click(screen.getByRole('button', { name: '绑定并同步' }));
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/accounts', { address: 'me@qq.com', password: 'abcd1234' });
+    expect(seen[0]).not.toMatch(/me@qq.com|abcd1234/);
+    off();
+  });
+
+  it('绑定邮箱：连接失败时留在卡片上显示原因', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { id: 'm1' }, verify: { error: 'AUTHENTICATIONFAILED' } });
+    const dismiss = renderCards([card('mail_bind', { presets: [] })]);
+    fireEvent.change(screen.getByLabelText('邮箱地址'), { target: { value: 'me@163.com' } });
+    fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'x' } });
+    fireEvent.click(screen.getByRole('button', { name: '绑定并同步' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('AUTHENTICATIONFAILED');
+    expect(dismiss).not.toHaveBeenCalled();
+  });
+
+  it('humanizePath', () => {
+    expect(humanizePath('/basics/summary')).toBe('基本信息 · 个人简介');
+    expect(humanizePath('/projects/-')).toBe('项目（末尾）');
+  });
+});

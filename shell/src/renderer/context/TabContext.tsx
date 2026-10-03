@@ -31,7 +31,7 @@ import type { SlashCommand } from '../../shared/slashCommands';
 import type { ProviderRoute } from '../../shared/providerRoute';
 import type { ProductSystemSkillRequirement } from '../../shared/systemSkills';
 import type { McpEffectiveSnapshot } from '../../shared/mcpEffectiveState';
-import type { CareerProgressEvent, CareerReviewEvent, CareerTakeoverEvent } from '@/components/career/types';
+import type { CareerCard, CareerProgressEvent, CareerReviewEvent, CareerTakeoverEvent } from '@/components/career/types';
 
 type ChatProviderEnv = { providerId?: string; providerName?: string; baseUrl?: string; apiKey?: string; authType?: 'auth_token' | 'api_key' | 'both' | 'auth_token_clear_api_key'; apiProtocol?: 'anthropic' | 'openai'; maxOutputTokens?: number; maxOutputTokensParamName?: 'max_tokens' | 'max_completion_tokens' | 'max_output_tokens'; upstreamFormat?: 'chat_completions' | 'responses'; modelAliases?: { fable?: string; sonnet?: string; opus?: string; haiku?: string } };
 
@@ -172,6 +172,8 @@ export interface TabState {
     pendingCareerReview: CareerReviewEvent | null;
     careerTakeover: CareerTakeoverEvent | null;
     careerProgress: CareerProgressEvent | null;
+    /** 对话内流程卡片（SSE career:card）：缺资料 / 需要你回答 / 草稿 / 待确认经历 / 简历改动。按 id 去重，最新在后。 */
+    careerCards: CareerCard[];
 }
 
 /**
@@ -269,6 +271,7 @@ export interface TabContextValue extends TabState {
     respondCareerReview: (actionIds: string[], decision: 'approved' | 'rejected') => Promise<boolean>;
     requestCareerTakeover: (runId: string, action: 'take' | 'handback', resumedFromStep?: string) => Promise<boolean>;
     dismissCareerProgress: () => void;
+    dismissCareerCard: (id: string) => void;
 
     // Cron task exit event handler (set by useCronTask hook)
 }
@@ -342,9 +345,11 @@ const defaultContextValue: TabContextValue = {
     pendingCareerReview: null,
     careerTakeover: null,
     careerProgress: null,
+    careerCards: [],
     respondCareerReview: async () => false,
     requestCareerTakeover: async () => false,
     dismissCareerProgress: () => {},
+    dismissCareerCard: () => {},
 };
 
 /**

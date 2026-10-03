@@ -38,6 +38,7 @@
 | GET | `/api/career/offers` | offer[] |
 | POST/PUT | `/api/career/offers[/:id]` | 新建 / 更新 |
 | GET | `/api/career/answer-bank` | answer_bank[] |
+| POST | `/api/career/resumes/:id/confirm` | `{accepted_paths?: string[]}`：把 resume_tailor 的提案（只取勾选的 JSON Pointer 路径，缺省全部）应用到定制简历并确认；与 resume_confirm 工具共用 `career/tailor.ts`。对话内「简历改动」卡片用 |
 | POST | `/api/career/answer-bank` | `{question_key, question_text, answer, high_impact?, confirmed?}` |
 | GET | `/api/career/today` | 今日队列 `{items: TodayItem[], waiting, inbox_new, pending_review}`（排序：过期 / 今天 → 待审 → 接管 → 今日面试 → 新收件 → 静默） |
 | GET | `/api/career/onboarding` | 首次引导清单 `{checklist}` |

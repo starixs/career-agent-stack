@@ -11,6 +11,7 @@ import { join } from 'path';
 import type { Repos, ApplicationStage, LLM, Vault, VaultScope } from '@career/core';
 
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
+import { confirmTailorProposal } from '../career/tailor';
 import { loadCore, type CoreModule } from '../career/core-module';
 import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError } from '../career/domain';
@@ -170,6 +171,14 @@ const ROUTES: Route[] = [
     } catch (error) {
       return fail(error instanceof Error ? error.message : '保存失败', 404);
     }
+  }),
+  /** 对话内「简历改动」卡片：只应用用户勾选的路径（缺省全部），与 resume_confirm 工具同一条路径。 */
+  route('POST', '/api/career/resumes/:id/confirm', (ctx) => {
+    const accepted = Array.isArray(ctx.body.accepted_paths) ? (ctx.body.accepted_paths as unknown[]).filter((p): p is string => typeof p === 'string') : undefined;
+    const result = confirmTailorProposal(ctx.store, ctx.repos, ctx.params.id, accepted);
+    if (!result) return fail(`定制简历不存在：${ctx.params.id}`, 404);
+    dataChanged(ctx, ['resume_tailored', 'resume_snapshot']);
+    return ok({ tailored: result.tailored, applied_ops: result.applied });
   }),
   route('POST', '/api/career/resumes/:id/export', async (ctx) => {
     const format = ctx.body.format;
