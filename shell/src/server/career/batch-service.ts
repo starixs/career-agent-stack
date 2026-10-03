@@ -50,6 +50,11 @@ export async function getBatchRunner(): Promise<BatchRunner> {
           if (!id || !hostCache) return 'agent';
           try { return hostCache.hasContext(id) ? hostCache.getControl(id).control : 'agent'; } catch { return 'agent'; }
         },
+        hasBrowser: () => {
+          const id = careerProductSessionId();
+          if (!id || !hostCache) return false;
+          try { return hostCache.hasContext(id); } catch { return false; }
+        },
         resumeFileFor: async resumeId => {
           if (typeof resumeId !== 'string' || !resumeId) return undefined;
           const row = repos.db.get<{ export_pdf: string | null }>('SELECT export_pdf FROM resume_tailored WHERE id=?', [resumeId]);
@@ -81,7 +86,31 @@ export async function getBatchRunner(): Promise<BatchRunner> {
 }
 let hostCache: PlaywrightBrowserHost | null = null;
 
-/** bootstrap（global）：上次还在跑就续上。 */
+/** bootstrap（global）：上次还在跑就续上；同时启动接管守护。 */
 export async function resumeBatchIfRunning(): Promise<void> {
+  startHandoffKeeper();
   try { (await getBatchRunner()).resumeIfRunning(); } catch (error) { console.warn('[career] 批量运行器恢复失败：', error instanceof Error ? error.message : error); }
+}
+
+/**
+ * 接管守护：只要还有等用户处理的接管（批量或对话里的 apply_run 都算），就持有浏览器，
+ * 防止填表引擎跑完后 15 秒空闲宽限把 Chrome 关掉——否则用户打开现场时要处理的页面已经没了。
+ * 每 3 秒对一次账（宽限 15 秒，足够在回收前接上）。
+ */
+let keeperTimer: ReturnType<typeof setInterval> | null = null;
+export function startHandoffKeeper(intervalMs = 3000): void {
+  if (keeperTimer) return;
+  keeperTimer = setInterval(() => { void syncHandoffHold().catch(() => { /* 下一轮再试 */ }); }, intervalMs);
+  keeperTimer.unref?.();
+}
+
+export async function syncHandoffHold(deps: { repos?: { openHandoffs(): unknown[] }; host?: Pick<PlaywrightBrowserHost, 'hasContext' | 'setHandoffHold'> | null; sessionId?: string } = {}): Promise<boolean> {
+  const id = deps.sessionId ?? careerProductSessionId();
+  const host = deps.host !== undefined ? deps.host : (hostCache ?? (hostResolver ? hostCache = await hostResolver() : null));
+  if (!id || !host) return false;
+  const repos = deps.repos ?? await getRepos();
+  // 浏览器不在就不持有（stale 接管由批量运行器重新排队）；接管全部关闭后释放
+  const held = repos.openHandoffs().length > 0 && host.hasContext(id);
+  host.setHandoffHold(id, held);
+  return held;
 }

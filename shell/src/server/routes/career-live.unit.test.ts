@@ -197,4 +197,29 @@ describe('career live route', () => {
       vi.useRealTimers();
     }
   });
+
+  it('画面流：连上时浏览器还没开，开了之后自动接上画面（不用重开现场）', async () => {
+    const repos = createMemoryRepos();
+    const host = fakeHost(false);
+    let open = false;
+    host.hasContext = () => open;
+    const borrowed = vi.fn();
+    const original = host.withProductSession;
+    host.withProductSession = (async (id: string, fn: (ctx: never) => Promise<unknown>, opts?: unknown) => { borrowed(id); return original(id, fn as never, opts as never); }) as typeof host.withProductSession;
+    const d = { ...deps(repos, host), framesPollMs: 10 };
+    const controller = new AbortController();
+    const res = await handleCareerLiveRoute('/api/career/live/stream', new Request('http://local/api/career/live/stream?frames=1', { signal: controller.signal }), d);
+    const reader = res!.body!.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    const until = async (pred: () => boolean) => { for (let i = 0; i < 100 && !pred(); i++) { const r = await Promise.race([reader.read(), new Promise<{ value?: Uint8Array; done: boolean }>(ok => setTimeout(() => ok({ done: false }), 20))]); if (r.value) buf += decoder.decode(r.value); } };
+    await until(() => buf.includes('frame-error'));
+    expect(buf).toContain('浏览器还没有打开');
+    expect(borrowed).not.toHaveBeenCalled();
+    open = true;
+    await until(() => borrowed.mock.calls.length > 0);
+    expect(borrowed).toHaveBeenCalledWith('sess-career');
+    controller.abort();
+  });
 });
+

@@ -40,6 +40,11 @@ export interface BatchRunnerDeps {
   drive: (req: DriveRequest, onEvent: (ev: DriveEvent) => void) => Promise<DriveEvent[]>;
   /** 浏览器当前控制权；human 时等待。 */
   control: () => 'agent' | 'human';
+  /**
+   * 托管浏览器当前是否开着。等用户处理的接管只有在浏览器还开着时才有意义；
+   * 浏览器没了（App 重启 / 被回收）就重新排队、从头打开那一份，不再干等。缺省视为开着。
+   */
+  hasBrowser?: () => boolean;
   broadcast: (event: string, data: unknown) => void;
   sessionId?: () => string;
   /** 平台是否有风险锁（RiskGuard 的 kv）。 */
@@ -148,6 +153,10 @@ export class BatchRunner {
         next = q.find(a => !this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a))));
         if (!next && q.length) { this.setState({ phase: 'rate_locked', message: `队列里 ${q.length} 份所在平台都在风险锁中，稍后再试` }); await this.idle(60_000); continue; }
       }
+      if (!next && waiting > 0 && this.deps.hasBrowser && !this.deps.hasBrowser()) {
+        const n = this.requeueStaleHandoffs();
+        if (n > 0) { this.setState({ message: `浏览器已关闭，重新打开 ${n} 份等你处理的网申` }); continue; }
+      }
       if (!next) {
         if (waiting > 0) { this.setState({ phase: 'waiting_user', currentActionId: undefined, message: `有 ${waiting} 份等你在浏览器里处理后交回` }); await this.idle(poll); continue; }
         this.setState({ status: 'idle', phase: undefined, currentActionId: undefined, message: '队列已空，全部处理完' });
@@ -160,6 +169,27 @@ export class BatchRunner {
       await this.idle(ms);
     }
     this.setState({ status: 'stopped', phase: undefined, currentActionId: undefined, message: '已停止' });
+  }
+
+  /**
+   * 浏览器已经不在时，等用户处理的接管页面也没了：关掉这些接管，把动作放回队列（approved），
+   * 下一轮按 start 模式从岗位网址重新打开；遇到登录 / 验证码会生成新的、页面还在的接管。
+   */
+  requeueStaleHandoffs(): number {
+    const stale = this.repos.db.all<{ action_id: string; handoff_id: string }>(
+      `SELECT a.id AS action_id, h.id AS handoff_id FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status='needs_user' AND h.resumed_at IS NULL`,
+    );
+    const actions = new Set<string>();
+    for (const row of stale) {
+      try { this.repos.closeHandoff(row.handoff_id, 'browser_closed'); } catch { /* 已关闭 */ }
+      actions.add(row.action_id);
+    }
+    for (const id of actions) this.repos.setActionStatus(id, 'approved');
+    if (actions.size) {
+      this.log(`requeued ${actions.size} stale handoff action(s): browser closed`);
+      this.deps.broadcast('career:data-changed', { sessionId: this.deps.sessionId?.() ?? 'global', tables: ['handoff', 'action_queue'] });
+    }
+    return actions.size;
   }
 
   private payloadOf(a: ActionQueueItem): Record<string, unknown> { try { return JSON.parse(a.payload_json) as Record<string, unknown>; } catch { return {}; } }

@@ -118,6 +118,28 @@ describe('BrowserContextRegistry control lock', () => {
     }
   });
 
+  it('keeps the Context alive while a handoff waits for the user, and releases it afterwards', async () => {
+    vi.useFakeTimers();
+    try {
+      const { registry, context } = harness({ persistentProfile: false, systemChrome: false });
+      registry.retainConnection('a');
+      await registry.getContext(binding('a'));
+      registry.setHandoffHold('a', true);
+      registry.setHandoffHold('a', true); // 幂等
+      registry.releaseConnection('a');
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(context.close).not.toHaveBeenCalled();
+      expect(registry.hasHandoffHold('a')).toBe(true);
+
+      registry.setHandoffHold('a', false);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(context.close).toHaveBeenCalledOnce();
+      expect(registry.hasContext('a')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('returns control to the agent when the user closes the browser', async () => {
     const { registry, context } = harness({ persistentProfile: false, systemChrome: false });
     await registry.getContext(binding('a'));

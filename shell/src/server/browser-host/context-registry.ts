@@ -270,6 +270,11 @@ export class BrowserContextRegistry {
   private readonly detachedControls = new Map<string, BrowserControlState>();
   /** 接管期间持有的连接租约：防止 15 秒空闲宽限把用户正在用的 Chrome 关掉。 */
   private readonly controlLeases = new Set<string>();
+  /**
+   * 等用户处理的接管（登录 / 验证码…）期间持有的连接租约：填表引擎跑完后不再借用浏览器，
+   * 没有这个租约 15 秒宽限一过 Chrome 就被关掉，用户打开现场时要处理的页面已经没了。
+   */
+  private readonly handoffLeases = new Set<string>();
   private browser: Browser | null = null;
   private browserPromise: Promise<Browser> | null = null;
   private shutdownPromise: Promise<void> | null = null;
@@ -345,6 +350,20 @@ export class BrowserContextRegistry {
     return state;
   }
 
+  /** 有未关闭的接管时持有浏览器（幂等）；接管全部关闭后释放，回到正常的空闲回收。 */
+  setHandoffHold(productSessionId: string, held: boolean): void {
+    if (held && !this.handoffLeases.has(productSessionId)) {
+      this.handoffLeases.add(productSessionId);
+      this.retainConnection(productSessionId);
+    } else if (!held && this.handoffLeases.delete(productSessionId)) {
+      this.releaseConnection(productSessionId);
+    }
+  }
+
+  hasHandoffHold(productSessionId: string): boolean {
+    return this.handoffLeases.has(productSessionId);
+  }
+
   retainConnection(productSessionId: string): void {
     const owner = this.connectionOwners.get(productSessionId) ?? { count: 0, releaseTimer: null };
     if (owner.releaseTimer) {
@@ -407,7 +426,10 @@ export class BrowserContextRegistry {
     }
     // A human-takeover lease is one counted connection of the provisional
     // owner; it follows the adoption together with the live MCP connection.
-    const movedConnections = this.controlLeases.delete(previousId) ? 2 : 1;
+    // 接管等待期的租约同理随会话迁移
+    const movedControl = this.controlLeases.delete(previousId);
+    const movedHandoff = this.handoffLeases.delete(previousId);
+    const movedConnections = 1 + (movedControl ? 1 : 0) + (movedHandoff ? 1 : 0);
     previousOwner.count = Math.max(0, previousOwner.count - movedConnections);
     if (previousOwner.count === 0) this.connectionOwners.delete(previousId);
 
@@ -418,7 +440,8 @@ export class BrowserContextRegistry {
     }
     nextOwner.count += movedConnections;
     this.connectionOwners.set(nextId, nextOwner);
-    if (movedConnections === 2) this.controlLeases.add(nextId);
+    if (movedControl) this.controlLeases.add(nextId);
+    if (movedHandoff) this.handoffLeases.add(nextId);
 
     const detachedControl = this.detachedControls.get(previousId);
     if (detachedControl) {

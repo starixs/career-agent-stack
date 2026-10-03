@@ -46,6 +46,8 @@ export interface CareerLiveDeps {
   files?: FileChooserBroker | null;
   bringToFront?: (context: BrowserContext, channel: BrowserChannel) => Promise<unknown>;
   heartbeatMs?: number;
+  /** 画面流：浏览器还没开时多久再看一次（测试注入）。 */
+  framesPollMs?: number;
 }
 
 const defaultBringToFront = (context: BrowserContext, channel: BrowserChannel) => bringContextToFront(context, { channel });
@@ -229,9 +231,20 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
       const heartbeat = setInterval(() => write({ type: 'heartbeat', ts: Date.now() }), deps.heartbeatMs ?? 10_000);
 
       let unsubFrames: (() => void) | null = null;
+      let framesTimer: ReturnType<typeof setInterval> | null = null;
       if (wantFrames) {
-        const id = deps.productSessionId();
-        if (id && deps.host.hasContext(id)) {
+        let attached = false;
+        let notified = false;
+        // 浏览器可能在连上之后才打开（批量 / 填表开始时）：没打开就每 2 秒再看一次，打开了立刻接上画面
+        const tryAttach = () => {
+          if (attached || abort.signal.aborted) return;
+          const id = deps.productSessionId();
+          if (!id || !deps.host.hasContext(id)) {
+            if (!notified) { notified = true; write({ type: 'frame-error', error: id ? '浏览器还没有打开；助理开始填表或你开始批量投递后画面会出现' : '还没有个人助理会话' }); }
+            return;
+          }
+          attached = true;
+          if (framesTimer) { clearInterval(framesTimer); framesTimer = null; }
           // 持有一个租约直到连接断开：没有租约的话 15 秒后 Context 会被回收
           void deps.host.withProductSession(id, async context => {
             const hub = new ScreencastHub(async () => fromPlaywrightPage(await activePage(context)), { quality: 55, maxWidth: 1280, maxHeight: 900, everyNthFrame: 2, log: msg => { console.warn(`[career-live] ${msg}`); if (/失败/.test(msg)) write({ type: 'frame-error', error: msg }); } });
@@ -241,14 +254,20 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
             await new Promise<void>(resolve => { if (abort.signal.aborted) resolve(); else abort.signal.addEventListener('abort', () => resolve(), { once: true }); });
             unsubFrames?.(); unsubFrames = null;
             await hub.stop();
-          }, { allowHumanControl: true, signal: abort.signal }).catch(e => write({ type: 'frame-error', error: e instanceof Error ? e.message : String(e) }));
-        } else {
-          write({ type: 'frame-error', error: id ? '浏览器还没有打开；助理开始填表或你开始批量投递后画面会出现' : '还没有个人助理会话' });
-        }
+          }, { allowHumanControl: true, signal: abort.signal }).catch(e => {
+            write({ type: 'frame-error', error: e instanceof Error ? e.message : String(e) });
+            // 浏览器在接上前被关掉：回到等待状态，下次打开再接
+            attached = false; notified = false;
+            if (!framesTimer && !abort.signal.aborted) framesTimer = setInterval(tryAttach, deps.framesPollMs ?? 2000);
+          });
+        };
+        tryAttach();
+        if (!attached) framesTimer = setInterval(tryAttach, deps.framesPollMs ?? 2000);
       }
 
       abort.signal.addEventListener('abort', () => {
         clearInterval(heartbeat);
+        if (framesTimer) clearInterval(framesTimer);
         unsub();
         unsubFrames?.();
         request.signal.removeEventListener('abort', onAbort);

@@ -269,6 +269,11 @@ export class PlaywrightBrowserHost {
     return this.dependencies.registry.runtimePolicy.systemChrome ? 'chrome' : 'managed-chromium';
   }
 
+  /** 有等用户处理的接管时保持浏览器不被空闲回收。 */
+  setHandoffHold(productSessionId: string, held: boolean): void {
+    this.dependencies.registry.setHandoffHold(productSessionId, held);
+  }
+
   /** 真实 Chrome 窗口是否藏在产品内（只通过现场画面看 / 操作）。 */
   embeddedWindow(): boolean {
     return this.dependencies.registry.runtimePolicy.embeddedWindow === true;

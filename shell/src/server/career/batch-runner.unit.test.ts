@@ -119,4 +119,33 @@ describe('BatchRunner', () => {
     for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
     expect(runner.state().status).toBe('idle');
   });
+
+  it('浏览器已关闭（App 重启 / 被回收）：等待中的接管作废，动作重新排队、从岗位网址重新打开', async () => {
+    const repos = createMemoryRepos();
+    const [id] = seed(repos, 1);
+    let browserOpen = true;
+    let round = 0;
+    const { runner, calls } = makeRunner(repos, () => {
+      round++;
+      return round === 1
+        ? [result('handoff', { reason: 'login', userAction: '请登录' })]
+        : [result('stopped_before_submit', { submitButton: '提交' })];
+    }, { hasBrowser: () => browserOpen });
+    runner.start();
+    for (let i = 0; i < 50 && runner.state().phase !== 'waiting_user'; i++) await settle();
+    expect(runner.state().phase).toBe('waiting_user');
+    expect(repos.openHandoffs()).toHaveLength(1);
+    // 浏览器还开着：老老实实等用户
+    await settle();
+    expect(calls).toHaveLength(1);
+
+    browserOpen = false;
+    for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toMatchObject({ mode: 'start' });
+    expect(calls[1].action.id).toBe(id);
+    expect(repos.openHandoffs()).toHaveLength(0);
+    expect(runner.state()).toMatchObject({ status: 'idle', done: 1 });
+  });
 });
+
