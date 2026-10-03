@@ -184,6 +184,51 @@ if (only === 'all' || only === 'live') {
   check(hub.size === 0, '断开后 hub 订阅清空');
 }
 
+if (only === 'all' || only === 'embedded') {
+  console.log('\n[5] 内嵌窗口：真实 Chrome 停在角落，仍能截图 / 出帧 / 接收输入；选文件框被拦下改由产品内上传');
+  const { compileBrowserRuntimeSettings } = await import('../src/server/browser-host/runtime-settings.ts');
+  const { parkWindow } = await import('../src/server/browser-host/page-control.ts');
+  const { FileChooserBroker } = await import('../src/server/career/file-chooser.ts');
+  const { LiveHub } = await import('../src/server/career/live-hub.ts');
+  const compiled = compileBrowserRuntimeSettings('smoke-embedded', process.cwd(), { persistentProfile: true, systemChrome: true, mirrorIdentity: false, profileRoot: tmpdir(), embeddedWindow: true });
+  const ctx = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), 'career-embedded-')), { ...compiled.launchOptions, ...compiled.contextOptions });
+  try {
+    const hub = new LiveHub();
+    const broker = new FileChooserBroker(hub);
+    const page = ctx.pages()[0] ?? await ctx.newPage();
+    page.on('filechooser', chooser => { void broker.offer('smoke', chooser); });
+    await page.setContent('<button id=b style="position:absolute;left:100px;top:100px;width:200px;height:60px" onclick="document.title=\'clicked\'">点我</button><input id=f type=file accept=".pdf" style="position:absolute;left:100px;top:300px"><div id=t></div><script>setInterval(()=>t.textContent=Date.now(),100)</script>');
+    check(await parkWindow(ctx, page), '窗口停到角落');
+    const cdp = await ctx.newCDPSession(page);
+    const { bounds } = await cdp.send('Browser.getWindowForTarget');
+    check(bounds.left < 0 || bounds.top > 400, `窗口位置 left=${bounds.left} top=${bounds.top} ${bounds.width}x${bounds.height}`);
+    const vis = await page.evaluate(() => [innerWidth, innerHeight, document.visibilityState]);
+    check(vis[0] === 1366 && vis[2] === 'visible', `视口仍是 ${vis[0]}x${vis[1]}，visibility=${vis[2]}`);
+    const shot = await page.screenshot({ timeout: 8000 }).catch(() => null);
+    check(!!shot && shot.length > 1000, `停靠状态下截图 ${shot?.length ?? 0} 字节（视觉层依赖）`);
+    let frames = 0;
+    cdp.on('Page.screencastFrame', ev => { frames++; void cdp.send('Page.screencastFrameAck', { sessionId: ev.sessionId }).catch(() => {}); });
+    await cdp.send('Page.enable'); await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 50 });
+    await new Promise(r => setTimeout(r, 1500));
+    await cdp.send('Page.stopScreencast');
+    check(frames > 0, `停靠状态下 screencast ${frames} 帧`);
+    await page.mouse.click(150, 120);
+    check(await page.title() === 'clicked', '坐标点击生效');
+    let opened = null;
+    hub.subscribe(ev => { if (ev.type === 'career:live-filechooser' && ev.state === 'open') opened = ev; });
+    await page.mouse.click(150, 310);
+    for (let i = 0; i < 30 && !opened; i++) await new Promise(r => setTimeout(r, 100));
+    check(!!opened && opened.accept === '.pdf', `选文件框被拦下：accept=${opened?.accept}`);
+    if (opened) {
+      await broker.fulfill(opened.id, [{ name: '简历.pdf', mimeType: 'application/pdf', data: Buffer.from('%PDF-1.4 smoke').toString('base64') }]);
+      const picked = await page.evaluate(() => { const f = document.getElementById('f').files[0]; return f ? `${f.name}:${f.size}` : null; });
+      check(picked === '简历.pdf:14', `产品内上传交给页面：${picked}`);
+    }
+  } finally {
+    await ctx.close();
+  }
+}
+
 await browser?.close();
 console.log(failed ? `\n✗ ${failed} 项失败` : '\n✓ 全部通过');
 process.exit(failed ? 1 : 0);

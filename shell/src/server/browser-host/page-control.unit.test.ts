@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BrowserContext, Page } from 'playwright';
 
-import { activePage, bringToFront } from './page-control';
+import { activePage, bringToFront, parkWindow, PARKED_WINDOW_BOUNDS } from './page-control';
 
 function fakePage(closed = false): Page {
   return {
@@ -65,5 +65,32 @@ describe('bringToFront', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('embedded window', () => {
+  it('bringToFront 在内嵌模式下不切前台、不碰窗口、不激活应用', async () => {
+    const page = fakePage();
+    const newCDPSession = vi.fn();
+    const activateApp = vi.fn(async () => {});
+    const context = { pages: () => [page], newCDPSession } as unknown as BrowserContext;
+    expect(await bringToFront(context, { embedded: true, platform: 'darwin', activateApp })).toBe(page);
+    expect(page.bringToFront).not.toHaveBeenCalled();
+    expect(newCDPSession).not.toHaveBeenCalled();
+    expect(activateApp).not.toHaveBeenCalled();
+  });
+
+  it('parkWindow 先回 normal 再停到角落', async () => {
+    const page = fakePage();
+    const sent: Array<[string, unknown]> = [];
+    const session = { send: vi.fn(async (method: string, params?: unknown) => { sent.push([method, params]); return method === 'Browser.getWindowForTarget' ? { windowId: 7 } : {}; }), detach: vi.fn(async () => {}) };
+    const context = { newCDPSession: vi.fn(async () => session) } as unknown as BrowserContext;
+    expect(await parkWindow(context, page)).toBe(true);
+    expect(sent).toEqual([
+      ['Browser.getWindowForTarget', undefined],
+      ['Browser.setWindowBounds', { windowId: 7, bounds: { windowState: 'normal' } }],
+      ['Browser.setWindowBounds', { windowId: 7, bounds: { ...PARKED_WINDOW_BOUNDS } }],
+    ]);
+    expect(session.detach).toHaveBeenCalled();
   });
 });

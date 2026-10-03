@@ -124,6 +124,7 @@ import {
   CRON_EVENTS,
 } from '@/types/cronEvents';
 import { CareerLiveBridge } from '@/components/career/CareerLiveBridge';
+import { CareerLiveDrawer } from '@/components/career/CareerLiveDrawer';
 import { isBrowserDevMode, isTauriEnvironment } from '@/utils/browserMock';
 import { apiGetJson } from '@/api/apiFetch';
 import {
@@ -4973,6 +4974,7 @@ export default function App() {
       <LinkContextMenuProvider>
         <div className="flex h-screen bg-[var(--paper)]">
           <CareerLiveBridge />
+          <CareerLiveDrawer />
           <GlobalSidebar
             tabs={tabs}
             activeTab={activeTab}

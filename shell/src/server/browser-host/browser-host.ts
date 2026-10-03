@@ -13,7 +13,9 @@ import {
   HUMAN_CONTROL_MESSAGE,
   type BrowserControl,
   type BrowserControlState,
+  type FileChooserListener,
 } from './context-registry';
+import { revealWindow } from './page-control';
 import { verifyBrowserCapability, type VerifiedBrowserCapability } from './capability-client';
 import { compileBrowserRuntimeSettings, type BrowserChannel } from './runtime-settings';
 
@@ -265,6 +267,35 @@ export class PlaywrightBrowserHost {
 
   browserChannel(): BrowserChannel {
     return this.dependencies.registry.runtimePolicy.systemChrome ? 'chrome' : 'managed-chromium';
+  }
+
+  /** 真实 Chrome 窗口是否藏在产品内（只通过现场画面看 / 操作）。 */
+  embeddedWindow(): boolean {
+    return this.dependencies.registry.runtimePolicy.embeddedWindow === true;
+  }
+
+  /** 真实窗口当前是否被用户临时放出来。 */
+  isWindowRevealed(productSessionId: string): boolean {
+    return this.dependencies.registry.isWindowRevealed(productSessionId);
+  }
+
+  setFileChooserListener(listener: FileChooserListener | null): void {
+    this.dependencies.registry.setFileChooserListener(listener);
+  }
+
+  /**
+   * 临时放出 / 收回真实窗口（内嵌模式的逃生口：插件弹窗、原生对话框等画面里处理不了的情况）。
+   * 非内嵌模式下 visible=true 等同于前置窗口，visible=false 不做事。
+   */
+  async setWindowVisible(productSessionId: string, visible: boolean): Promise<{ revealed: boolean }> {
+    const registry = this.dependencies.registry;
+    if (visible) {
+      await registry.setWindowRevealed(productSessionId, true);
+      await this.withProductSession(productSessionId, context => revealWindow(context, { channel: this.browserChannel() }), { allowHumanControl: true });
+      return { revealed: true };
+    }
+    await registry.setWindowRevealed(productSessionId, false);
+    return { revealed: false };
   }
 
   hasContext(productSessionId: string): boolean {

@@ -32,6 +32,50 @@ export interface BringToFrontOptions {
   platform?: NodeJS.Platform;
   /** 可替换的 OS 级激活（测试注入）。 */
   activateApp?: (channel: BrowserChannel) => Promise<void>;
+  /**
+   * 内嵌窗口模式：用户在产品内的现场画面里操作，不能把真实 Chrome 拉到前面打断心流。
+   * 只返回当前页，不切前台、不恢复窗口、不激活应用。
+   */
+  embedded?: boolean;
+}
+
+/** 内嵌模式下窗口停靠的位置：极远的左下角，macOS 会夹回屏幕内只露出一小角。 */
+export const PARKED_WINDOW_BOUNDS = { left: -10000, top: 10000, width: 500, height: 375 } as const;
+/** 用户临时要看真实窗口时放出来的位置。 */
+export const REVEALED_WINDOW_BOUNDS = { left: 80, top: 60, width: 1400, height: 900 } as const;
+
+async function setPageWindowBounds(
+  context: BrowserContext,
+  page: Page,
+  bounds: Record<string, number | string>,
+): Promise<boolean> {
+  try {
+    const session = await context.newCDPSession(page);
+    try {
+      const { windowId } = await session.send('Browser.getWindowForTarget') as { windowId: number };
+      // 最小化 / 全屏状态下不能直接改位置，先回到 normal
+      await session.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } });
+      await session.send('Browser.setWindowBounds', { windowId, bounds });
+      return true;
+    } finally {
+      await session.detach().catch(() => {});
+    }
+  } catch (error) {
+    console.warn(`[browser-host] window-bounds=failed error=${error instanceof Error ? error.name : 'unknown'}`);
+    return false;
+  }
+}
+
+/** 把页面所在的窗口停到屏幕角落（内嵌模式）。失败只记日志。 */
+export function parkWindow(context: BrowserContext, page: Page): Promise<boolean> {
+  return setPageWindowBounds(context, page, { ...PARKED_WINDOW_BOUNDS });
+}
+
+/** 临时把真实窗口放出来并前置（文件框、插件弹窗等现场画面处理不了的情况）。 */
+export async function revealWindow(context: BrowserContext, options: Omit<BringToFrontOptions, 'embedded'> = {}): Promise<Page> {
+  const page = await activePage(context);
+  await setPageWindowBounds(context, page, { ...REVEALED_WINDOW_BOUNDS });
+  return bringToFront(context, options);
 }
 
 /**
@@ -43,6 +87,7 @@ export async function bringToFront(
   options: BringToFrontOptions = {},
 ): Promise<Page> {
   const page = await activePage(context);
+  if (options.embedded) return page;
   await page.bringToFront().catch(error => {
     console.warn(`[browser-host] bring-to-front=page-failed error=${error instanceof Error ? error.name : 'unknown'}`);
   });

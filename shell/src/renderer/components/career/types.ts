@@ -143,12 +143,21 @@ export interface BatchState {
 }
 export interface LiveSnapshot {
   productSessionId: string | null;
-  browser: { hasBrowser: boolean; control: 'agent' | 'human' | 'none'; reason: string | null; url?: string; title?: string; channel: string };
+  browser: { hasBrowser: boolean; control: 'agent' | 'human' | 'none'; reason: string | null; url?: string; title?: string; channel: string; embedded?: boolean; windowRevealed?: boolean };
   batch: BatchState | null;
   openHandoffs: number;
+  fileChooser?: LiveFileChooser | null;
 }
+/** 页面请求选文件（系统选文件框被拦下，改在产品里选）。 */
+export interface LiveFileChooser { id: string; sessionId: string; multiple: boolean; accept: string | null; url: string; ts: number }
+export interface LiveFileChooserEvent extends Partial<LiveFileChooser> { id: string; state: 'open' | 'done' | 'cancelled' | 'expired'; count?: number; names?: string[] }
 export interface LiveFrame { type: 'frame'; data: string; width: number; height: number; ts: number; url?: string }
 export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
+
+// ---------- 对话内流程卡片（SSE career:card；对话是主场，卡片把"要用户动手的一步"就地解决） ----------
+export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'resume_diff';
+export interface CareerCard { id: string; kind: CareerCardKind; title: string; data: Record<string, unknown>; createdAt: string; sessionId?: string | null }
+export interface CareerCardEvent { sessionId?: string | null; card: CareerCard }
 
 /** 页面 → Chat Tab：请求执行接管动作（Session 路由）。Chat Tab 处理后回发 career:takeover-handled。 */
 export interface CareerTakeoverActionRequest {

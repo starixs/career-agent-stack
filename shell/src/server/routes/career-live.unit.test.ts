@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Repos } from '@career/core';
 
+import { FileChooserBroker, type FileChooserLike } from '../career/file-chooser';
 import { LiveHub } from '../career/live-hub';
 import { createMemoryRepos } from '../career/test-db';
 import { handleCareerLiveRoute, type CareerLiveDeps, type CareerLiveHost } from './career-live';
@@ -92,5 +93,108 @@ describe('career live route', () => {
     const res2 = await handleCareerLiveRoute('/api/career/batch/command', req('/api/career/batch/command', { cmd: 'start' }), { ...d, runner: spyRunner as never });
     expect((await res2!.json() as { batch: { status: string } }).batch.status).toBe('running');
     expect(spyRunner.start).toHaveBeenCalled();
+  });
+
+  it('input：只有接管中才转发；坐标按帧尺寸换算到视口；type / press 走键盘', async () => {
+    const repos = createMemoryRepos();
+    const host = fakeHost();
+    const calls: Array<[string, unknown[]]> = [];
+    const page = {
+      url: () => 'https://x.com/apply', title: async () => '网申', isClosed: () => false,
+      viewportSize: () => ({ width: 1280, height: 900 }),
+      mouse: { click: async (...a: unknown[]) => { calls.push(['click', a]); }, move: async (...a: unknown[]) => { calls.push(['move', a]); }, wheel: async (...a: unknown[]) => { calls.push(['wheel', a]); } },
+      keyboard: { type: async (...a: unknown[]) => { calls.push(['type', a]); }, press: async (...a: unknown[]) => { calls.push(['press', a]); } },
+    };
+    host.withProductSession = async <T,>(_id: string, fn: (ctx: never) => Promise<T>) => fn({ pages: () => [page], newPage: async () => page, on: () => {} } as never);
+    const d = deps(repos, host);
+    const denied = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'click', x: 10, y: 10 }), d);
+    expect(denied!.status).toBe(409);
+    host.control = 'human';
+    const clicked = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'click', x: 320, y: 225, frame: { width: 640, height: 450 } }), d);
+    expect((await clicked!.json() as { x: number; y: number }).x).toBe(640);
+    expect(calls[0]).toEqual(['click', [640, 450, { clickCount: 1 }]]);
+    await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'type', text: '张三' }), d);
+    await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'press', key: 'Enter' }), d);
+    await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'wheel', dy: 100, frame: { width: 640, height: 450 } }), d);
+    expect(calls.slice(1).map(c => c[0])).toEqual(['type', 'press', 'wheel']);
+    expect(calls[1][1]).toEqual(['张三']);
+    expect(calls[3][1]).toEqual([0, 200]);
+    const bad = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'nope' }), d);
+    expect(bad!.status).toBe(400);
+  });
+
+  it('内嵌窗口：接管不前置真实 Chrome；放出窗口后才前置；/live/window 切换并广播', async () => {
+    const repos = createMemoryRepos();
+    const host = Object.assign(fakeHost(), {
+      revealed: false,
+      embeddedWindow: () => true,
+      isWindowRevealed() { return this.revealed; },
+      async setWindowVisible(_id: string, visible: boolean) { this.revealed = visible; return { revealed: visible }; },
+    });
+    const d = deps(repos, host);
+    const events: string[] = [];
+    d.hub.subscribe(ev => { events.push(String(ev.type)); });
+    await handleCareerLiveRoute('/api/career/live/control', req('/api/career/live/control', { control: 'human' }), d);
+    expect(host.control).toBe('human');
+    expect(host.front).toBe(0);
+
+    const state = await (await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), d))!.json() as { browser: { embedded: boolean; windowRevealed: boolean } };
+    expect(state.browser).toMatchObject({ embedded: true, windowRevealed: false });
+
+    const shown = await (await handleCareerLiveRoute('/api/career/live/window', req('/api/career/live/window', { visible: true }), d))!.json() as { revealed: boolean };
+    expect(shown.revealed).toBe(true);
+    expect(events).toContain('career:live-window');
+    await handleCareerLiveRoute('/api/career/live/control', req('/api/career/live/control', { control: 'human' }), d);
+    expect(host.front).toBe(1);
+
+    const bad = await handleCareerLiveRoute('/api/career/live/window', req('/api/career/live/window', { visible: 'yes' }), d);
+    expect(bad!.status).toBe(400);
+  });
+
+  it('产品内选文件：拦下的选文件框出现在快照里，上传后交给页面并广播 done', async () => {
+    const repos = createMemoryRepos();
+    const hub = new LiveHub();
+    const files = new FileChooserBroker(hub);
+    const d = { ...deps(repos, fakeHost(), hub), files };
+    const setFiles = vi.fn(async () => {});
+    const chooser: FileChooserLike = { isMultiple: () => false, element: () => ({ getAttribute: async () => '.pdf,.doc' }), page: () => ({ url: () => 'https://x.com/apply' }), setFiles };
+    const events: Array<Record<string, unknown>> = [];
+    hub.subscribe(ev => { events.push(ev); });
+    const offered = await files.offer('sess-career', chooser);
+    expect(events.at(-1)).toMatchObject({ type: 'career:live-filechooser', state: 'open', accept: '.pdf,.doc', multiple: false });
+
+    const state = await (await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), d))!.json() as { fileChooser: { id: string } | null };
+    expect(state.fileChooser?.id).toBe(offered.id);
+
+    const two = await handleCareerLiveRoute('/api/career/live/file', req('/api/career/live/file', { id: offered.id, files: [{ name: 'a.pdf', data: 'YQ==' }, { name: 'b.pdf', data: 'Yg==' }] }), d);
+    expect(two!.status).toBe(400);
+
+    const res = await handleCareerLiveRoute('/api/career/live/file', req('/api/career/live/file', { id: offered.id, files: [{ name: '../简历.pdf', mimeType: 'application/pdf', data: Buffer.from('%PDF-1.4').toString('base64') }] }), d);
+    expect(await res!.json()).toMatchObject({ ok: true, count: 1, bytes: 8 });
+    expect(setFiles).toHaveBeenCalledWith([{ name: '.._简历.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') }]);
+    expect(events.at(-1)).toMatchObject({ type: 'career:live-filechooser', state: 'done', count: 1 });
+    expect(files.current()).toBeNull();
+
+    const stale = await handleCareerLiveRoute('/api/career/live/file', req('/api/career/live/file', { id: offered.id, files: [{ name: 'a.pdf', data: 'YQ==' }] }), d);
+    expect(stale!.status).toBe(400);
+  });
+
+  it('产品内选文件：取消与超时都会清掉待处理请求', async () => {
+    vi.useFakeTimers();
+    try {
+      const hub = new LiveHub();
+      const files = new FileChooserBroker(hub, 1000);
+      const chooser: FileChooserLike = { isMultiple: () => true, element: () => ({ getAttribute: async () => null }), page: () => ({ url: () => 'u' }), setFiles: async () => {} };
+      const first = await files.offer('s', chooser);
+      expect(files.cancel('nope')).toBe(false);
+      expect(files.cancel(first.id)).toBe(true);
+      expect(files.current()).toBeNull();
+      await files.offer('s', chooser);
+      vi.advanceTimersByTime(1500);
+      expect(files.current()).toBeNull();
+      expect(hub.latest('career:live-filechooser')).toMatchObject({ state: 'expired' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

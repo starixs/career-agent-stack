@@ -4,7 +4,9 @@
  * - 渲染层到 Global 的普通请求走 Rust 的缓冲代理（120s 上限，不能流式），所以 `stream` 必须由渲染层
  *   用原生 fetch 直连 Global 端口；响应带 `Access-Control-Allow-Origin: *`（与 /refs/ 一致）。
  * - 这组接口免能力令牌（和 /api/career/* 数据接口同一信任级别：仅 loopback、产品自己的渲染层）。
- * - 看不等于控：画面只读；接管 / 交回改控制权并前置真实 Chrome 窗口。
+ * - 看不等于控：画面只读；接管 / 交回改控制权。内嵌窗口模式（默认）下接管不前置真实 Chrome，
+ *   用户直接在产品内的画面里操作；`/live/window` 是临时放出真实窗口的逃生口，
+ *   `/live/file` 接住被拦截的系统选文件框。
  */
 import type { BrowserContext } from 'playwright';
 import type { Repos } from '@career/core';
@@ -13,6 +15,7 @@ import type { BrowserControl, BrowserControlState } from '../browser-host/contex
 import { activePage, bringToFront as bringContextToFront } from '../browser-host/page-control';
 import type { BrowserChannel } from '../browser-host/runtime-settings';
 import type { BatchRunner, BatchState } from '../career/batch-runner';
+import type { FileChooserBroker, PendingFileChooser, UploadedFile } from '../career/file-chooser';
 import { BatchRunner as BatchRunnerClass } from '../career/batch-runner';
 import type { LiveHub } from '../career/live-hub';
 import { ScreencastHub, fromPlaywrightPage } from '../career/screencast';
@@ -26,6 +29,10 @@ export interface CareerLiveHost {
   setControl(productSessionId: string, control: BrowserControl, reason?: string): BrowserControlState;
   withProductSession<T>(productSessionId: string, fn: (context: BrowserContext) => Promise<T>, options?: { allowHumanControl?: boolean; signal?: AbortSignal; create?: { workspacePath: string; hostGeneration?: number } }): Promise<T>;
   browserChannel(): BrowserChannel;
+  /** 内嵌窗口模式（真实 Chrome 停在屏幕角落）；缺省视为 false。 */
+  embeddedWindow?(): boolean;
+  isWindowRevealed?(productSessionId: string): boolean;
+  setWindowVisible?(productSessionId: string, visible: boolean): Promise<{ revealed: boolean }>;
 }
 
 export interface CareerLiveDeps {
@@ -35,9 +42,13 @@ export interface CareerLiveDeps {
   /** 唯一的个人助理会话 id（config.careerSessionId）；没有就说明用户还没打开过对话。 */
   productSessionId: () => string | undefined;
   runner?: BatchRunner | null;
+  /** 产品内选文件代理；缺省则 `/live/file` 不可用。 */
+  files?: FileChooserBroker | null;
   bringToFront?: (context: BrowserContext, channel: BrowserChannel) => Promise<unknown>;
   heartbeatMs?: number;
 }
+
+const defaultBringToFront = (context: BrowserContext, channel: BrowserChannel) => bringContextToFront(context, { channel });
 
 const CORS = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' };
 const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...CORS } });
@@ -50,9 +61,11 @@ async function readBody(request: Request): Promise<Record<string, unknown>> {
 
 export interface LiveSnapshot {
   productSessionId: string | null;
-  browser: { hasBrowser: boolean; control: BrowserControl | 'none'; reason: string | null; url?: string; title?: string; channel: BrowserChannel };
+  browser: { hasBrowser: boolean; control: BrowserControl | 'none'; reason: string | null; url?: string; title?: string; channel: BrowserChannel; embedded: boolean; windowRevealed: boolean };
   batch: BatchState | null;
   openHandoffs: number;
+  /** 等用户在产品里选文件的上传请求。 */
+  fileChooser: PendingFileChooser | null;
 }
 
 export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> {
@@ -67,9 +80,14 @@ export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> 
   const control = id && hasBrowser ? deps.host.getControl(id) : null;
   return {
     productSessionId: id ?? null,
-    browser: { hasBrowser, control: control?.control ?? 'none', reason: control?.reason ?? null, url, title, channel: deps.host.browserChannel() },
+    browser: {
+      hasBrowser, control: control?.control ?? 'none', reason: control?.reason ?? null, url, title, channel: deps.host.browserChannel(),
+      embedded: deps.host.embeddedWindow?.() ?? false,
+      windowRevealed: !!id && (deps.host.isWindowRevealed?.(id) ?? false),
+    },
     batch: deps.runner?.state() ?? null,
     openHandoffs: deps.repos.openHandoffs().length,
+    fileChooser: deps.files?.current() ?? null,
   };
 }
 
@@ -92,7 +110,11 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
     const state = deps.host.setControl(id, control, typeof body.reason === 'string' ? body.reason : control === 'human' ? 'user_request' : undefined);
     let warning: string | undefined;
     if (control === 'human') {
-      try { await deps.host.withProductSession(id, context => (deps.bringToFront ?? bringContextToFront)(context, deps.host.browserChannel()), { allowHumanControl: true }); } catch (error) { warning = error instanceof Error ? error.message : String(error); }
+      // 内嵌模式：用户就在产品画面里操作，不能把真实 Chrome 拉到前面；放出真实窗口时才前置
+      const embedded = (deps.host.embeddedWindow?.() ?? false) && !(deps.host.isWindowRevealed?.(id) ?? false);
+      if (!embedded) {
+        try { await deps.host.withProductSession(id, context => (deps.bringToFront ?? defaultBringToFront)(context, deps.host.browserChannel()), { allowHumanControl: true }); } catch (error) { warning = error instanceof Error ? error.message : String(error); }
+      }
       deps.hub.publish('career:takeover', { sessionId: id, runId: 'live', state: 'human_active', message: '你正在操作浏览器' });
     } else {
       // 交回：关掉等用户处理的填表接管，批量运行器据此从当前页继续
@@ -105,6 +127,73 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
       if (closed) deps.hub.publish('career:data-changed', { sessionId: id, tables: ['handoff', 'action_queue', 'task'] });
     }
     return ok({ control: state, ...(warning ? { warning } : {}) });
+  }
+
+  /**
+   * 接管期间把现场窗里的鼠标 / 键盘转发到托管 Chrome（"云电脑"式直接操作）。
+   * 坐标按客户端看到的帧尺寸给，这里换算到视口 CSS 像素；只在用户持有控制权时允许，避免和助理抢。
+   */
+  if (pathname === `${CAREER_LIVE_PREFIX}input` && method === 'POST') {
+    const body = await readBody(request);
+    const id = deps.productSessionId();
+    if (!id) return fail('还没有个人助理会话', 409);
+    if (!deps.host.hasContext(id)) return fail('浏览器还没有打开', 409);
+    if (deps.host.getControl(id).control !== 'human') return fail('先点「接管」再直接操作画面', 409);
+    const type = body.type;
+    try {
+      const result = await deps.host.withProductSession(id, async context => {
+        const page = await activePage(context);
+        const frame = body.frame && typeof body.frame === 'object' ? body.frame as { width?: number; height?: number } : {};
+        const vp = page.viewportSize() ?? { width: frame.width ?? 1280, height: frame.height ?? 800 };
+        const sx = frame.width ? vp.width / frame.width : 1;
+        const sy = frame.height ? vp.height / frame.height : sx;
+        const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+        switch (type) {
+          case 'click': { const x = Math.round(num(body.x) * sx), y = Math.round(num(body.y) * sy); await page.mouse.click(x, y, { clickCount: body.double === true ? 2 : 1 }); return { x, y }; }
+          case 'move': { await page.mouse.move(Math.round(num(body.x) * sx), Math.round(num(body.y) * sy)); return {}; }
+          case 'wheel': { await page.mouse.wheel(Math.round(num(body.dx) * sx), Math.round(num(body.dy) * sy)); return {}; }
+          case 'type': { const text = typeof body.text === 'string' ? body.text.slice(0, 2000) : ''; if (text) await page.keyboard.type(text); return { typed: text.length }; }
+          case 'press': { const key = typeof body.key === 'string' ? body.key.slice(0, 40) : ''; if (!key) throw new Error('key 不能为空'); await page.keyboard.press(key); return { key }; }
+          default: throw new Error(`不支持的输入类型：${String(type)}`);
+        }
+      }, { allowHumanControl: true });
+      return ok({ applied: true, ...result });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '输入转发失败', 400);
+    }
+  }
+
+  /** 临时放出 / 收回真实 Chrome 窗口（内嵌模式的逃生口）。 */
+  if (pathname === `${CAREER_LIVE_PREFIX}window` && method === 'POST') {
+    const body = await readBody(request);
+    if (typeof body.visible !== 'boolean') return fail('visible 必须是 true | false');
+    const id = deps.productSessionId();
+    if (!id) return fail('还没有个人助理会话', 409);
+    if (!deps.host.hasContext(id)) return fail('浏览器还没有打开', 409);
+    if (!deps.host.setWindowVisible) return fail('当前浏览器宿主不支持切换窗口', 501);
+    try {
+      const result = await deps.host.setWindowVisible(id, body.visible);
+      deps.hub.publish('career:live-window', { sessionId: id, ...result });
+      return ok(result);
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '切换窗口失败', 500);
+    }
+  }
+
+  /** 产品内选文件：把用户选好的文件交给被拦截的系统选文件框。 */
+  if (pathname === `${CAREER_LIVE_PREFIX}file` && method === 'POST') {
+    if (!deps.files) return fail('选文件代理未启用', 501);
+    const body = await readBody(request);
+    const reqId = typeof body.id === 'string' ? body.id : '';
+    if (body.cancel === true) return ok({ cancelled: deps.files.cancel(reqId) });
+    const files = Array.isArray(body.files)
+      ? (body.files as unknown[]).filter((f): f is UploadedFile => !!f && typeof f === 'object' && typeof (f as UploadedFile).data === 'string' && typeof (f as UploadedFile).name === 'string')
+      : [];
+    try {
+      return ok({ ...(await deps.files.fulfill(reqId, files)) });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '上传失败', 400);
+    }
   }
 
   if (pathname === `${CAREER_BATCH_PREFIX}state` && method === 'GET') return ok({ batch: deps.runner?.state() ?? null });

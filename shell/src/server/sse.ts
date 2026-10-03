@@ -151,6 +151,7 @@ export const SSE_EVENT_PRIORITIES: Readonly<Record<string, SseEventPriority>> = 
   'career:takeover': 'critical',
   'career:review': 'critical',
   'career:focus': 'critical', // 工具完成后让面板跳到对应对象（收件箱 / 卷宗 / 复盘）
+  'career:card': 'critical', // 对话内流程卡片（补资料 / 缺项 / 草稿确认 / 主张确认 / 简历改动确认）
 });
 
 function resolvePriority(event: string): SseEventPriority {

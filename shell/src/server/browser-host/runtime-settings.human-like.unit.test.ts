@@ -86,18 +86,33 @@ describe('resolveBrowserRuntimePolicy', () => {
       systemChrome: true,
       mirrorIdentity: false,
       profileRoot: '/home/tester/.keystone/browser-profile',
+      embeddedWindow: true,
     });
 
     expect(resolveBrowserRuntimePolicy({
       CAREER_BROWSER_PERSISTENT: '0',
       CAREER_BROWSER_CHANNEL: 'chromium',
       CAREER_BROWSER_IDENTITY_MIRROR: '1',
+      CAREER_BROWSER_WINDOW: 'window',
     }, '/home/tester', 'linux')).toEqual({
       persistentProfile: false,
       systemChrome: false,
       mirrorIdentity: true,
       profileRoot: '/home/tester/.keystone/browser-profile',
+      embeddedWindow: false,
     });
+  });
+
+  it('embedded window keeps Chrome headed but parks it and disables occlusion throttling', () => {
+    const embedded = compileBrowserRuntimeSettings('session-a', '/workspace/a', policy({ embeddedWindow: true }));
+    expect(embedded.launchOptions.headless).toBe(false);
+    expect(embedded.launchOptions.args).toEqual(expect.arrayContaining([
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-background-timer-throttling',
+    ]));
+    const windowed = compileBrowserRuntimeSettings('session-a', '/workspace/a', policy({ embeddedWindow: false }));
+    expect(windowed.launchOptions.args).not.toContain('--disable-backgrounding-occluded-windows');
   });
 
   it('detects Google Chrome from the platform install locations only', () => {

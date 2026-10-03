@@ -1913,9 +1913,17 @@ async function main() {
   let browserHostPromise: Promise<import('./browser-host').PlaywrightBrowserHost> | null = null;
   const ensureBrowserHost = async (): Promise<import('./browser-host').PlaywrightBrowserHost> => {
     if (!browserHostPromise) {
-      browserHostPromise = import('./browser-host').then(({ PlaywrightBrowserHost }) => (
-        new PlaywrightBrowserHost(port)
-      ));
+      browserHostPromise = import('./browser-host').then(async ({ PlaywrightBrowserHost }) => {
+        const host = new PlaywrightBrowserHost(port);
+        // 内嵌窗口模式：系统选文件框改由聊天旁的现场抽屉处理
+        try {
+          const { fileChooserBroker } = await import('./career/batch-service');
+          host.setFileChooserListener((productSessionId, chooser) => { void fileChooserBroker.offer(productSessionId, chooser).catch(() => {}); });
+        } catch (error) {
+          console.warn(`[career-live] file-chooser=wire-failed error=${error instanceof Error ? error.message : String(error)}`);
+        }
+        return host;
+      });
     }
     return browserHostPromise;
   };
@@ -2167,9 +2175,9 @@ async function main() {
       if (pathname.startsWith('/api/career/live/') || pathname.startsWith('/api/career/batch/')) {
         const browserHost = await ensureBrowserHost();
         const { handleCareerLiveRoute } = await import('./routes/career-live');
-        const { getBatchRunner, liveHub, careerProductSessionId } = await import('./career/batch-service');
+        const { getBatchRunner, liveHub, careerProductSessionId, fileChooserBroker } = await import('./career/batch-service');
         const { getRepos } = await import('./career/db');
-        const liveResponse = await handleCareerLiveRoute(pathname, request, { host: browserHost, hub: liveHub, repos: await getRepos(), runner: await getBatchRunner(), productSessionId: careerProductSessionId });
+        const liveResponse = await handleCareerLiveRoute(pathname, request, { host: browserHost, hub: liveHub, repos: await getRepos(), runner: await getBatchRunner(), productSessionId: careerProductSessionId, files: fileChooserBroker });
         if (liveResponse) return liveResponse;
       }
       // ── Deferred init gate ────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import type {
   Browser,
   BrowserContext,
   BrowserType,
+  FileChooser,
   Page,
 } from 'playwright';
 
@@ -20,7 +21,11 @@ import {
   type BrowserRuntimePolicy,
   type CompiledBrowserRuntimeSettings,
 } from './runtime-settings';
+import { parkWindow } from './page-control';
 import { waitForBrowserResource, type BrowserResourceResolution } from './resource-client';
+
+/** 页面弹出系统选文件框时的回调（内嵌模式下原生框挂在看不见的窗口上，改由产品内选文件）。 */
+export type FileChooserListener = (productSessionId: string, chooser: FileChooser) => void;
 
 type BrowserCookie = Parameters<BrowserContext['addCookies']>[0][number];
 
@@ -268,6 +273,9 @@ export class BrowserContextRegistry {
   private browser: Browser | null = null;
   private browserPromise: Promise<Browser> | null = null;
   private shutdownPromise: Promise<void> | null = null;
+  /** 用户临时放出真实窗口的 Session：新开的页面不再自动停到角落。 */
+  private readonly revealedWindows = new Set<string>();
+  private fileChooserListener: FileChooserListener | null = null;
 
   constructor(dependencies: Partial<BrowserContextRegistryDependencies> = {}) {
     this.dependencies = { ...DEFAULT_DEPENDENCIES, ...dependencies };
@@ -276,6 +284,29 @@ export class BrowserContextRegistry {
 
   hasContext(productSessionId: string): boolean {
     return this.entries.has(productSessionId);
+  }
+
+  /**
+   * 内嵌模式下拦截系统选文件框（Playwright 注册 filechooser 监听后不再弹原生框），
+   * 交给产品内的选文件入口。只影响之后新建 / 已打开的页面。
+   */
+  setFileChooserListener(listener: FileChooserListener | null): void {
+    this.fileChooserListener = listener;
+  }
+
+  isWindowRevealed(productSessionId: string): boolean {
+    return this.revealedWindows.has(productSessionId);
+  }
+
+  /** 记录真实窗口是否被临时放出；收回时把当前所有页面重新停到角落。 */
+  async setWindowRevealed(productSessionId: string, revealed: boolean): Promise<void> {
+    if (revealed) { this.revealedWindows.add(productSessionId); return; }
+    this.revealedWindows.delete(productSessionId);
+    const entry = this.entries.get(productSessionId);
+    if (!entry || !this.runtimePolicy.embeddedWindow) return;
+    for (const page of entry.context.pages()) {
+      if (!page.isClosed()) await parkWindow(entry.context, page);
+    }
   }
 
   getControl(productSessionId: string): BrowserControlState {
@@ -567,7 +598,15 @@ export class BrowserContextRegistry {
     this.entries.set(binding.productSessionId, entry);
     // Selection/order live through MCP disconnect and reattach grace, so their
     // Page-close observer belongs to the real Context, not to a backend borrow.
+    const embedded = this.runtimePolicy.embeddedWindow === true;
+    const onFileChooser = (chooser: FileChooser) => {
+      this.fileChooserListener?.(binding.productSessionId, chooser);
+    };
     const observePage = (page: Page) => {
+      if (embedded) {
+        if (!this.revealedWindows.has(binding.productSessionId)) void parkWindow(context, page);
+        page.on('filechooser', onFileChooser);
+      }
       page.once('close', () => {
         const index = entry.backendPageOrder.indexOf(page);
         entry.backendPageOrder = entry.backendPageOrder.filter(candidate => candidate !== page);

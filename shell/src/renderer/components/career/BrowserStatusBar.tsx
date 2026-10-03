@@ -8,7 +8,6 @@ import { Globe } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { emitEvent, onEvent } from '@/api/eventBus';
-import { useOpenWebLink } from '@/context/BrowserPanelContext';
 
 import { careerApi } from './careerApi';
 import { HANDOFF_REASON_LABELS, TAKEOVER_STATE_LABELS } from './careerConstants';
@@ -52,7 +51,6 @@ export function BrowserStatusBar() {
   const [takeover, setTakeover] = useState<CareerTakeoverEvent | null>(null);
   const [busy, setBusy] = useState<'take' | 'handback' | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const openWebLink = useOpenWebLink();
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -73,6 +71,8 @@ export function BrowserStatusBar() {
     setBusy(null);
     if (ok) {
       setTakeover(prev => (prev ? { ...prev, state: action === 'take' ? 'human_active' : 'resuming' } : prev));
+      // 接管后在聊天旁的现场抽屉里直接操作（不能 import CareerLiveDrawer：它反向依赖本文件）
+      if (action === 'take') emitEvent('career:live-drawer', { open: true });
       // 交回后没有人会自动继续填表：把"继续"交给对话，由助理调用 apply_continue 从当前页接着填
       if (action === 'handback') suggestToChat('浏览器里的事我已经处理完并交回了，请从当前页继续填表');
     } else {
@@ -93,8 +93,7 @@ export function BrowserStatusBar() {
       {state === 'idle' && <span className="text-[var(--ink-subtle)]">没有进行中的浏览器任务</span>}
       {notice && <span role="alert" className="text-[var(--error)]">{notice}</span>}
       <div className="ml-auto flex items-center gap-1.5">
-        <Button variant="ghost" onClick={() => emitEvent('career:focus', { surface: 'live' })}>浏览器现场</Button>
-        {takeover?.url && <Button variant="ghost" onClick={() => openWebLink(takeover.url!)}>打开网址</Button>}
+        <Button variant="ghost" onClick={() => emitEvent('career:live-drawer', { open: true })}>浏览器现场</Button>
         {state === 'paused' && (
           <Button variant="primary" busy={busy === 'take'} disabled={busy !== null} onClick={() => void act('take')}>接管</Button>
         )}

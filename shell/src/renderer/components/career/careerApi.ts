@@ -136,6 +136,15 @@ export const careerApi = {
   liveControl: (control: 'human' | 'agent', reason?: string) => apiPostJson<unknown>(careerPath('/live/control'), { control, reason }).then(r => pickObject<{ control?: { control: string } }>(r)),
   batchCommand: (cmd: 'start' | 'pause' | 'stop') => apiPostJson<unknown>(careerPath('/batch/command'), { cmd }).then(r => asDict(r).batch as BatchState | undefined),
   batchState: () => apiGetJson<unknown>(careerPath('/batch/state')).then(r => (asDict(r).batch ?? null) as BatchState | null),
+  /** 接管期间把现场窗里的鼠标 / 键盘转发到托管 Chrome；坐标按帧尺寸给。 */
+  liveInput: (input: { type: 'click' | 'move' | 'wheel' | 'type' | 'press'; x?: number; y?: number; dx?: number; dy?: number; text?: string; key?: string; double?: boolean; frame?: { width: number; height: number } }) =>
+    apiPostJson<unknown>(careerPath('/live/input'), input).then(r => asDict(r)),
+  /** 临时放出 / 收回真实 Chrome 窗口（默认浏览器只在产品画面里出现）。 */
+  liveWindow: (visible: boolean) => apiPostJson<unknown>(careerPath('/live/window'), { visible }).then(r => asDict(r).revealed === true),
+  /** 把产品里选好的文件交给页面被拦截的选文件框；data 为 base64。 */
+  liveFile: (id: string, files: Array<{ name: string; mimeType?: string; data: string }>) =>
+    apiPostJson<unknown>(careerPath('/live/file'), { id, files }).then(r => asDict(r)),
+  liveFileCancel: (id: string) => apiPostJson<unknown>(careerPath('/live/file'), { id, cancel: true }).then(r => asDict(r).cancelled === true),
   // ----- 今日 / 引导 -----
   today: () => apiGetJson<unknown>(careerPath('/today')).then(r => {
     const d = asDict(r);

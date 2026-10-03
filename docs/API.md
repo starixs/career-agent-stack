@@ -75,9 +75,12 @@
 ### Global：浏览器现场 + 批量投递（免令牌；渲染层原生 fetch 直连 Global 端口，响应带 CORS）
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/career/live/state` | `{ productSessionId, browser:{hasBrowser, control, url, title, channel}, batch: BatchState|null, openHandoffs }` |
+| GET | `/api/career/live/state` | `{ productSessionId, browser:{hasBrowser, control, url, title, channel, embedded, windowRevealed}, batch: BatchState|null, openHandoffs, fileChooser: {id, multiple, accept, url}|null }` |
 | GET | `/api/career/live/stream?frames=1` | NDJSON 长连接：`snapshot` → Global 内部事件（`career:batch` / `career:takeover` / `career:progress` / `career:data-changed` / `career:review`）→ `frame`（CDP screencast JPEG base64，frames=1 时）→ `heartbeat`。**不能走 apiFetch**（Rust 缓冲代理，120s 上限），渲染层用 `useGlobalLive` 直连 |
-| POST | `/api/career/live/control` | `{control:'human'|'agent', reason?}`：human 前置真实 Chrome；agent 关闭等待中的填表接管，批量运行器据此续跑 |
+| POST | `/api/career/live/control` | `{control:'human'|'agent', reason?}`：human 切到用户控制（内嵌窗口模式下不前置真实 Chrome，只有放出真实窗口时才前置）；agent 关闭等待中的填表接管，批量运行器据此续跑 |
+| POST | `/api/career/live/input` | `{type:'click'|'move'|'wheel'|'type'|'press', x?, y?, dx?, dy?, text?, key?, double?, frame:{width,height}}`：现场画面里的鼠标 / 键盘转发到托管 Chrome，坐标按帧尺寸换算；只在用户持有控制权时允许（409） |
+| POST | `/api/career/live/window` | `{visible:boolean}` → `{revealed}`：临时显示 / 收回真实 Chrome 窗口（内嵌模式的逃生口）；广播 `career:live-window` |
+| POST | `/api/career/live/file` | `{id, files:[{name, mimeType?, data(base64)}]}` 把产品内选的文件交给被拦截的选文件框（总计 ≤25MB，单选框只收 1 个）；`{id, cancel:true}` 取消。事件 `career:live-filechooser {state:'open'|'done'|'cancelled'|'expired'}` |
 | GET | `/api/career/batch/state` | 批量运行器状态 |
 | POST | `/api/career/batch/command` | `{cmd:'start'|'pause'|'stop'}`；Global 里没有运行器实例时写 kv `apply:batch:command` 由运行器轮询 |
 

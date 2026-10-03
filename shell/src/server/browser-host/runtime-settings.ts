@@ -24,6 +24,11 @@ export interface BrowserRuntimePolicy {
   mirrorIdentity: boolean;
   /** 持久 profile 根目录（每个 Product Session 一个子目录）。 */
   profileRoot: string;
+  /**
+   * 内嵌窗口：真实 Chrome 仍是 headed（反检测），但窗口停在屏幕角落几乎不可见，
+   * 用户只在产品内的现场画面里看 / 操作。`CAREER_BROWSER_WINDOW=window` 退回独立窗口。
+   */
+  embeddedWindow?: boolean;
 }
 
 export interface CompiledBrowserRuntimeSettings {
@@ -44,6 +49,20 @@ export const HUMAN_LIKE_CHROMIUM_ARGS: readonly string[] = [
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-infobars",
+];
+
+/**
+ * 内嵌窗口模式的额外参数：窗口被遮挡 / 停在屏幕外时 Chrome 默认会暂停绘制，
+ * 截图、screencast、计时器都会卡住，必须关掉这三种节流。初始窗口尽量小、尽量靠外，
+ * 启动后 Registry 再用 CDP 把每个窗口停到角落（macOS 会把位置夹回屏幕内，只露出一小角）。
+ * 不用最小化 / 隐藏应用：实测这两种状态下 Page.captureScreenshot 会一直挂住。
+ */
+export const EMBEDDED_WINDOW_CHROMIUM_ARGS: readonly string[] = [
+  "--disable-backgrounding-occluded-windows",
+  "--disable-renderer-backgrounding",
+  "--disable-background-timer-throttling",
+  "--window-size=500,375",
+  "--window-position=-10000,10000",
 ];
 
 export const IGNORED_DEFAULT_CHROMIUM_ARGS: readonly string[] = ["--enable-automation"];
@@ -136,6 +155,7 @@ export function resolveBrowserRuntimePolicy(
         : detectSystemChrome(platform, env, home),
     mirrorIdentity: env.CAREER_BROWSER_IDENTITY_MIRROR?.trim() === "1",
     profileRoot: join(home, ".keystone", "browser-profile"),
+    embeddedWindow: env.CAREER_BROWSER_WINDOW?.trim().toLowerCase() !== "window",
   };
 }
 
@@ -200,7 +220,7 @@ export function compileBrowserRuntimeSettings(
     // 本机 Chrome 由 Playwright 按 channel 自己定位；托管 Chromium 的
     // executablePath 由 Registry 在解析完 Rust 资源后再补上。
     ...(channel === "chrome" ? { channel: "chrome" } : {}),
-    args: [...HUMAN_LIKE_CHROMIUM_ARGS],
+    args: [...HUMAN_LIKE_CHROMIUM_ARGS, ...(policy.embeddedWindow ? EMBEDDED_WINDOW_CHROMIUM_ARGS : [])],
     ignoreDefaultArgs: [...IGNORED_DEFAULT_CHROMIUM_ARGS],
   };
   const contextOptions: BrowserContextOptions = {

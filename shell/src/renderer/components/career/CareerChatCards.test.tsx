@@ -39,7 +39,7 @@ describe('CareerChatCards', () => {
       requestCareerTakeover: takeover,
     });
     expect(screen.getByTestId('career-takeover-card')).toHaveTextContent('原因：需要登录');
-    expect(screen.getByRole('button', { name: '查看现场' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '在旁边打开现场' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '接管' }));
     await waitFor(() => expect(takeover).toHaveBeenCalledWith('run1', 'take'));
   });

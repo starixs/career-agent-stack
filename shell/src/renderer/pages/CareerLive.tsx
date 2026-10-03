@@ -12,6 +12,7 @@ import { Badge, Button, CareerPage, Card, SectionTitle, type BadgeTone } from '@
 import type { BatchState, LiveFrame, LiveSnapshot, LiveStreamEvent } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { useLiveStream } from '@/components/career/useGlobalLive';
+import { CareerLiveViewport } from '@/components/career/CareerLiveViewport';
 
 const BATCH_LABELS: Record<BatchState['status'], string> = { idle: '空闲', running: '运行中', paused: '已暂停', stopped: '已停止' };
 const BATCH_TONES: Record<BatchState['status'], BadgeTone> = { idle: 'neutral', running: 'success', paused: 'warning', stopped: 'neutral' };
@@ -81,19 +82,17 @@ export default function CareerLive() {
             {takeover?.state === 'paused' && <Badge tone="warning">等你处理：{(takeover.reason && HANDOFF_REASON_LABELS[takeover.reason]) ?? takeover.reason ?? ''}</Badge>}
             {snapshot?.browser.url && <span className="min-w-0 flex-1 truncate" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
           </div>
-          <div className="relative overflow-hidden rounded-lg border border-[var(--line)] bg-black/90" style={{ aspectRatio: frame && frame.width && frame.height ? `${frame.width} / ${frame.height}` : '16 / 10' }} data-testid="live-viewport">
-            {frame
-              ? <img alt="浏览器实时画面" src={`data:image/jpeg;base64,${frame.data}`} className="h-full w-full object-contain" draggable={false} />
-              : (
-                <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-white/70">
-                  {frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开。让助理开始填表，或在右侧开始批量投递，画面就会出现。' : '等待画面…')}
-                </div>
-              )}
-            {takeover?.message && takeover.state === 'paused' && (
-              <div role="status" className="absolute inset-x-0 bottom-0 bg-[var(--warning-bg,rgba(0,0,0,.6))] px-3 py-2 text-xs text-white">{takeover.message}</div>
-            )}
-          </div>
-          <p className="mt-2 text-xs text-[var(--ink-subtle)]">画面只读。要自己操作（登录、滑块、短信码）请点「接管」，产品会把真实 Chrome 窗口前置；做完点「交回，继续」，助理从当前页接着填。</p>
+          <CareerLiveViewport
+            frame={frame}
+            interactive={humanActive}
+            onRequestControl={snapshot?.browser.hasBrowser ? async () => { await take(); return true; } : undefined}
+            onInputError={msg => action.run(async () => { throw new Error(msg); })}
+            placeholder={frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开。让助理开始填表，或在右侧开始批量投递，画面就会出现。' : '等待画面…')}
+          />
+          {takeover?.message && takeover.state === 'paused' && (
+            <div role="status" className="mt-2 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--ink)]">{takeover.message}</div>
+          )}
+          <p className="mt-2 text-xs text-[var(--ink-subtle)]">{humanActive ? '你已接管：直接在画面里点、输入、滚动，真实 Chrome 同步执行；做完点「交回，继续」，助理从当前页接着填。' : '遇到登录、滑块、短信码时直接点画面即可接管，然后在画面里操作；浏览器一直留在产品里。'}</p>
           {action.error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{action.error}</div>}
         </div>
         <div className="space-y-3">

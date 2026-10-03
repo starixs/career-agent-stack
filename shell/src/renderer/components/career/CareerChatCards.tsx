@@ -6,8 +6,9 @@
 import { ChevronDown, ChevronRight, Globe, ListChecks, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
-import { useOpenWebLink } from '@/context/BrowserPanelContext';
 import { useTabStateOptional } from '@/context/TabContext';
+
+import { openLiveDrawer } from './CareerLiveDrawer';
 
 import { ACTION_KIND_LABELS, HANDOFF_REASON_LABELS, TAKEOVER_STATE_LABELS } from './careerConstants';
 import { Badge, Button } from './CareerPrimitives';
@@ -72,7 +73,6 @@ export function CareerTakeoverCard({ takeover, onAction }: {
   takeover: CareerTakeoverEvent;
   onAction: (runId: string, action: 'take' | 'handback') => Promise<boolean>;
 }) {
-  const openWebLink = useOpenWebLink();
   const [busy, setBusy] = useState<'take' | 'handback' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const act = async (action: 'take' | 'handback') => {
@@ -80,6 +80,8 @@ export function CareerTakeoverCard({ takeover, onAction }: {
     setError(null);
     const ok = await onAction(takeover.runId, action);
     if (!ok) setError('操作失败，请重试');
+    // 接管后直接在聊天旁的画面里操作，不切窗口、不跳页
+    else if (action === 'take') openLiveDrawer();
     setBusy(null);
   };
   const reason = takeover.reason ? (HANDOFF_REASON_LABELS[takeover.reason] ?? takeover.reason) : null;
@@ -105,7 +107,7 @@ export function CareerTakeoverCard({ takeover, onAction }: {
       </div>
       {error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{error}</div>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {takeover.url && <Button onClick={() => openWebLink(takeover.url!)}>查看现场</Button>}
+        <Button onClick={() => openLiveDrawer()}>在旁边打开现场</Button>
         {takeover.state === 'paused' && (
           <Button variant="primary" busy={busy === 'take'} disabled={busy !== null} onClick={() => void act('take')}>接管</Button>
         )}

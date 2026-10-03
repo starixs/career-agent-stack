@@ -10,6 +10,7 @@ import type { PlaywrightBrowserHost } from '../browser-host';
 import { loadConfig } from '../utils/admin-config';
 import { BatchRunner } from './batch-runner';
 import { getRepos } from './db';
+import { FileChooserBroker } from './file-chooser';
 import { liveHub } from './live-hub';
 import type { CareerBrowserHost, RunEmitter } from '../routes/career-browser';
 
@@ -27,6 +28,8 @@ export function careerProductSessionId(): string | undefined {
 export function careerWorkspacePath(): string { return join(homedir(), '.keystone', 'projects', 'career'); }
 
 export { liveHub };
+/** 产品内选文件（内嵌窗口模式下拦截的系统选文件框）。 */
+export const fileChooserBroker = new FileChooserBroker(liveHub);
 
 export async function getBatchRunner(): Promise<BatchRunner> {
   if (!runnerPromise) {

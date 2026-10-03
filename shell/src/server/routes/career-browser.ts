@@ -30,6 +30,9 @@ export interface CareerBrowserHost {
   getControl(productSessionId: string): BrowserControlState;
   setControl(productSessionId: string, control: BrowserControl, reason?: string): BrowserControlState;
   browserChannel(): BrowserChannel;
+  /** 内嵌窗口模式：接管时不前置真实 Chrome（用户在产品画面里操作）。 */
+  embeddedWindow?(): boolean;
+  isWindowRevealed?(productSessionId: string): boolean;
 }
 
 /** 只依赖 `@career/apply` 公开 API 的最小形状；包本体按需动态加载。 */
@@ -569,10 +572,13 @@ export async function handleCareerBrowserRoute(
         return jsonResponse({ ok: true, ...host.setControl(binding.productSessionId, 'agent', reason) });
       }
       const state = await host.withContext(token, async (context, binding) => {
-        try {
-          await (deps.bringToFront ?? bringContextToFront)(context, host.browserChannel());
-        } catch (error) {
-          console.warn(`[career-browser] bring-to-front=failed error=${errorName(error) || 'unknown'}`);
+        const embedded = (host.embeddedWindow?.() ?? false) && !(host.isWindowRevealed?.(binding.productSessionId) ?? false);
+        if (!embedded) {
+          try {
+            await (deps.bringToFront ?? ((ctx, channel) => bringContextToFront(ctx, { channel })))(context, host.browserChannel());
+          } catch (error) {
+            console.warn(`[career-browser] bring-to-front=failed error=${errorName(error) || 'unknown'}`);
+          }
         }
         return host.setControl(binding.productSessionId, 'human', reason);
       }, { allowHumanControl: true, signal: request.signal });
