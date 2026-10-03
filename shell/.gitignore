@@ -67,6 +67,8 @@ src-tauri/resources/cli/keystone.js
 src-tauri/resources/cli/keystone.cjs
 src-tauri/resources/cli/keystone.cmd
 src-tauri/resources/sharp-runtime
+# 发布包携带的求职领域库副本（scripts/stage-career-packages.mjs 生成）
+src-tauri/resources/career-modules
 src-tauri/resources/document-processing/*
 !src-tauri/resources/document-processing/.gitkeep
 src-tauri/resources/speech-inference/*

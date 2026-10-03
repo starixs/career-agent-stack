@@ -71,7 +71,8 @@
     "clean:rust": "cargo clean --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target",
     "clean": "rm -rf node_modules dist .turbo .eslintcache *.tsbuildinfo src-tauri/target",
     "version": "0.1.0",
-    "build:assets": "npm run build:web && npm run build:server && npm run build:bridge && npm run build:cli",
+    "build:assets": "npm run build:web && npm run build:server && npm run build:bridge && npm run build:cli && npm run stage:career",
+    "stage:career": "node scripts/stage-career-packages.mjs",
     "build:sharp-runtime": "node scripts/prepare-sharp-runtime.mjs",
     "sync:career-skills": "node scripts/sync-career-skills.mjs",
     "build:web": "vite build"

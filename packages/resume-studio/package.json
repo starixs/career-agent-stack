@@ -27,7 +27,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json"
+    "build": "rm -rf dist && tsc -p tsconfig.json --emitDeclarationOnly && node build.mjs"
   },
   "dependencies": {
     "@bramus/specificity": "^2.4.2",
@@ -52,6 +52,10 @@
     "@types/react": "^19.1.0",
     "react": "^19.1.0",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
-  }
+    "vitest": "^3.2.4",
+    "esbuild": "^0.28.2"
+  },
+  "files": [
+    "dist"
+  ]
 }
