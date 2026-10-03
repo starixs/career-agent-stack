@@ -16,7 +16,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const shellRoot = resolve(here, '..');
 const packagesRoot = resolve(shellRoot, '..', 'packages');
 const scopeDir = join(shellRoot, 'node_modules', '@career');
-const PACKAGES = ['core', 'resume', 'apply', 'bridges'];
+const PACKAGES = ['core', 'resume', 'resume-studio', 'apply', 'bridges'];
 
 export function linkCareerPackages({ log = console.log, warn = console.warn } = {}) {
   if (!existsSync(packagesRoot)) {
@@ -56,7 +56,8 @@ export function linkCareerPackages({ log = console.log, warn = console.warn } = 
       log('[link-career-packages] 已同步 @career/core dist/db/schema.sql');
     }
   }
-  const unbuilt = linked.filter(name => !existsSync(join(packagesRoot, name, 'dist', 'index.js')));
+  // resume-studio 只有子路径入口（./schema / ./browser …），没有 dist/index.js：看 dist 目录是否存在
+  const unbuilt = linked.filter(name => !existsSync(join(packagesRoot, name, 'dist', 'index.js')) && !existsSync(join(packagesRoot, name, 'dist', 'schema', 'index.js')));
   if (unbuilt.length) {
     warn(`[link-career-packages] 以下领域库尚未构建（运行 \`pnpm -r build\`）：${unbuilt.map(n => `@career/${n}`).join(', ')}`);
   }

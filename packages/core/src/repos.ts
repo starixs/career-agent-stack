@@ -170,6 +170,15 @@ export class Repos {
   listMessages(sessionId: string): Message[] { return this.db.all<Message>('SELECT * FROM message WHERE session_id=? ORDER BY created_at', [sessionId]) }
 
   // ---------- KV / 答案库 ----------
+  // ---------- 简历工作台排版数据 ----------
+  getResumeDesign(resumeId: string): { resume_id: string; data_json: string; content_updated_at: string | null; updated_at: string } | undefined {
+    return this.db.get('SELECT * FROM resume_design WHERE resume_id=?', [resumeId])
+  }
+  setResumeDesign(resumeId: string, data: unknown, contentUpdatedAt: string | null): void {
+    this.db.run('INSERT INTO resume_design(resume_id, data_json, content_updated_at, updated_at) VALUES(?,?,?,?) ON CONFLICT(resume_id) DO UPDATE SET data_json=excluded.data_json, content_updated_at=excluded.content_updated_at, updated_at=excluded.updated_at',
+      [resumeId, JSON.stringify(data), contentUpdatedAt, now()])
+  }
+
   // ---------- 对话内流程卡片 ----------
   /** 同 id 覆盖内容；已完成 / 已忽略的卡片被重新推出时回到 pending（说明又需要用户了）。 */
   upsertChatCard(c: { id: string; session_id?: string | null; tool_use_id?: string | null; kind: string; title: string; data: unknown }): ChatCardRow {

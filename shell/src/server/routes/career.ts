@@ -11,6 +11,7 @@ import { join } from 'path';
 import type { Repos, ApplicationStage, LLM, Vault, VaultScope } from '@career/core';
 
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
+import { StudioResumeNotFoundError, loadStudio, previewPlaceholders, saveStudio } from '../career/resume-studio';
 import { careerSetupStatus } from '../career/setup';
 import { confirmTailorProposal } from '../career/tailor';
 import { loadCore, type CoreModule } from '../career/core-module';
@@ -173,6 +174,28 @@ const ROUTES: Route[] = [
       return fail(error instanceof Error ? error.message : '保存失败', 404);
     }
   }),
+  // ---------- 简历工作台（resume-studio 文档：内容 + 模板 / 布局 / 字体 / 配色） ----------
+  route('GET', '/api/career/resumes/:id/studio', async (ctx) => {
+    try {
+      const out = await loadStudio({ repos: ctx.repos, store: ctx.store, vault: ctx.vault }, ctx.params.id);
+      return ok({ data: out.data, content_updated_at: out.contentUpdatedAt, rebuilt: out.rebuilt, preview: previewPlaceholders({ vault: ctx.vault }, out.data, ctx.params.id) });
+    } catch (error) {
+      if (error instanceof StudioResumeNotFoundError) return fail(error.message, 404);
+      return fail(error instanceof Error ? error.message : '读取简历工作台失败', 500);
+    }
+  }),
+  route('PUT', '/api/career/resumes/:id/studio', async (ctx) => {
+    if (!ctx.body.data || typeof ctx.body.data !== 'object') return fail('data 必须是简历工作台文档');
+    try {
+      const out = await saveStudio({ repos: ctx.repos, store: ctx.store }, ctx.params.id, ctx.body.data);
+      dataChanged(ctx, ['resume_master', 'resume_tailored', ...(out.snapshot ? ['resume_snapshot'] : [])]);
+      return ok({ content_updated_at: out.contentUpdatedAt, snapshot: out.snapshot, preview: previewPlaceholders({ vault: ctx.vault }, out.data, ctx.params.id) });
+    } catch (error) {
+      if (error instanceof StudioResumeNotFoundError) return fail(error.message, 404);
+      return fail(error instanceof Error ? error.message : '保存失败', 400);
+    }
+  }),
+
   /** 对话内「简历改动」卡片：只应用用户勾选的路径（缺省全部），与 resume_confirm 工具同一条路径。 */
   route('POST', '/api/career/resumes/:id/confirm', (ctx) => {
     const accepted = Array.isArray(ctx.body.accepted_paths) ? (ctx.body.accepted_paths as unknown[]).filter((p): p is string => typeof p === 'string') : undefined;

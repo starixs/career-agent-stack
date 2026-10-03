@@ -242,6 +242,16 @@ CREATE TABLE IF NOT EXISTS offer (
 -- ===== 用户设置与答案库（网申） =====
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value_json TEXT NOT NULL, updated_at TEXT NOT NULL);
 
+-- ===== 简历工作台的排版数据（resume-studio ResumeData：模板 / 布局 / 字体 / 配色 / 富文本） =====
+-- 内容的权威仍是 resume_master / resume_tailored.schema_json（工具、定制、导出都读它）；
+-- 这里存工作台的完整文档。编辑器保存时回写内容；内容被工具改过（updated_at 更新）时按新内容重建、保留排版。
+CREATE TABLE IF NOT EXISTS resume_design (
+  resume_id TEXT PRIMARY KEY,        -- resume_master.id 或 resume_tailored.id
+  data_json TEXT NOT NULL,
+  content_updated_at TEXT,           -- 生成 / 保存这份排版时对应的内容版本（resume.updated_at）
+  updated_at TEXT NOT NULL
+);
+
 -- ===== 对话内流程卡片（挂在产生它的那次工具调用下面；完成 / 忽略后折叠） =====
 CREATE TABLE IF NOT EXISTS chat_card (
   id TEXT PRIMARY KEY,               -- 稳定的领域 id（needs_user:<action> / claims:<exp> …），同 id 覆盖

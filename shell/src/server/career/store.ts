@@ -57,16 +57,20 @@ export class CareerStore {
     return t ? { kind: 'tailored', row: t } : undefined;
   }
   /** 保存并写快照；返回更新后的行。 */
-  saveResume(id: string, schema: unknown, note = '保存前快照'): ResumeMaster | ResumeTailored {
+  saveResume(id: string, schema: unknown, note = '保存前快照', opts: { snapshot?: boolean } = {}): ResumeMaster | ResumeTailored {
     const cur = this.getResume(id);
     if (!cur) throw new Error(`简历不存在：${id}`);
     const table = cur.kind === 'master' ? 'resume_master' : 'resume_tailored';
     const t = this.now();
     this.db.transaction(() => {
-      this.db.insert('resume_snapshot', { id: this.newId('rss'), resume_id: id, schema_json: cur.row.schema_json, note, created_at: t });
+      if (opts.snapshot !== false) this.db.insert('resume_snapshot', { id: this.newId('rss'), resume_id: id, schema_json: cur.row.schema_json, note, created_at: t });
       this.db.update(table, id, { schema_json: jsonOrEmpty(schema), updated_at: t });
     });
     return this.getResume(id)!.row;
+  }
+  /** 最近一次快照时间（工作台自动保存按它节流快照）。 */
+  lastSnapshotAt(id: string): string | null {
+    return this.db.get<{ at: string | null }>('SELECT MAX(created_at) AS at FROM resume_snapshot WHERE resume_id=?', [id])?.at ?? null;
   }
   createTailored(input: { master_id: string; job_id?: string | null; schema_json: unknown; strength?: ResumeTailored['strength'] }): ResumeTailored {
     const t = this.now(); const id = this.newId('rst');
