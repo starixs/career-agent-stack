@@ -2,8 +2,9 @@ import type { BrowserContext, Page } from 'playwright';
 
 import type { VerifiedBrowserCapability } from '../browser-host/capability-client';
 import type { BrowserControl, BrowserControlState } from '../browser-host/context-registry';
-import { activePage, bringToFront as bringContextToFront } from '../browser-host/page-control';
+import { bringToFront as bringContextToFront } from '../browser-host/page-control';
 import type { BrowserChannel } from '../browser-host/runtime-settings';
+import { lockPage, pageForApplication, releaseApplicationPage, unlockPage } from '../career/app-pages';
 
 /**
  * Global 路由 `/api/career/browser/*`：接管状态锁、窗口前置、把托管 Context 的
@@ -33,6 +34,8 @@ export interface CareerBrowserHost {
   /** 内嵌窗口模式：接管时不前置真实 Chrome（用户在产品画面里操作）。 */
   embeddedWindow?(): boolean;
   isWindowRevealed?(productSessionId: string): boolean;
+  /** 让现场画面 / 输入转发切到这一页（多份网申各有页面时）。 */
+  focusPage?(productSessionId: string, page: Page): void;
 }
 
 /** 只依赖 `@career/apply` 公开 API 的最小形状；包本体按需动态加载。 */
@@ -54,6 +57,8 @@ export interface ApplyEngineModule {
   composePerceivers?: (perceivers: PerceiverLike[], id?: string) => PerceiverLike;
   synthesizeInputsFromLabels?: (p: unknown) => unknown;
   VlmPerceiver?: new (llm: LlmLike, base?: PerceiverLike) => PerceiverLike;
+  /** 提交执行器（只在 submit 动作被批准后调用）。 */
+  submitApplication?: (page: ApplyPageLike, options?: Record<string, unknown>) => Promise<Record<string, unknown> & { screenshot?: Uint8Array }>;
 }
 
 export interface PerceiverLike {
@@ -92,6 +97,12 @@ export interface CareerBrowserRouteDependencies {
   resolveDriveProfile?: (body: Record<string, unknown>, apply: ApplyEngineModule, llm: LlmLike) => Promise<DriveProfileBundle | null>;
   /** `drive` 的视觉兜底感知器；缺省 {@link defaultPerceiver}（DOM 盒子 + macOS OCR，可选视觉模型）。返回 undefined 则只走 DOM 层。 */
   createPerceiver?: (apply: ApplyEngineModule, page: ApplyPageLike, llm: LlmLike) => Promise<PerceiverLike | undefined>;
+  /** 产品会话 id：每份网申一个页面、页面锁都按它分区（借用代理每次都是新对象，不能拿 context 当键）。 */
+  productSessionId?: string;
+  /** 让现场画面切到这一页（registry 的选中页）。 */
+  focusPage?: (page: Page) => void;
+  /** submit 的私密库钩子：把 filled 里的占位符解成明文再与页面比对、回传前脱敏。缺省用私密库单例。 */
+  resolveSubmitVault?: () => Promise<{ resolve(v: string): string; redact<T>(v: T): T } | null>;
 }
 
 let registeredLlmResolver: (() => Promise<LlmLike | null>) | null = null;
@@ -351,8 +362,12 @@ export interface RunEmitter {
   aborted(): boolean;
 }
 
-export type CareerBrowserOp = 'screenshot' | 'diagnose' | 'drive' | 'collect_passive';
+export type CareerBrowserOp = 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'submit' | 'release';
 
+/**
+ * HTTP 路由（能力令牌）只开放这四种；submit / release 只能由 Global 进程内的提交执行器直接调用 runOperation——
+ * 提交必须先在动作队列里被批准并认领，不能被任何持有浏览器令牌的调用方绕过。
+ */
 const OPS: ReadonlySet<string> = new Set<CareerBrowserOp>(['screenshot', 'diagnose', 'drive', 'collect_passive']);
 
 /** 在已借到的 Context 上执行一次操作（路由与 Global 批量运行器共用）。 */
@@ -364,7 +379,22 @@ export async function runOperation(
   signal: AbortSignal,
   deps: CareerBrowserRouteDependencies,
 ): Promise<void> {
-  const page = await activePage(context);
+  // 每份网申一个页面：带 applicationId（或 actionId）的操作落到这份网申自己的页上
+  const sessionKey = deps.productSessionId ?? 'default';
+  const appKey = typeof body.applicationId === 'string' && body.applicationId ? body.applicationId : typeof body.actionId === 'string' && body.actionId ? body.actionId : undefined;
+  if (op === 'release') {
+    if (appKey) await releaseApplicationPage(context, sessionKey, appKey);
+    out.emit({ type: 'result', op, released: !!appKey });
+    return;
+  }
+  let page: Page;
+  try {
+    page = await pageForApplication(context, sessionKey, appKey, op === 'submit' ? 'submit' : op === 'drive' && !(typeof body.url === 'string' && body.url.trim()) ? 'continue' : 'start');
+  } catch (error) {
+    out.emit({ type: 'error', status: 410, code: errorName(error) ?? 'APPLICATION_PAGE_GONE', error: error instanceof Error ? error.message : String(error) });
+    return;
+  }
+  if (appKey) deps.focusPage?.(page);
   if (op === 'screenshot') {
     out.emit({ type: 'progress', phase: 'screenshot', message: '正在截图' });
     const bytes = await page.screenshot({ type: 'jpeg', quality: 60, fullPage: body.fullPage === true });
@@ -408,14 +438,18 @@ export async function runOperation(
     return;
   }
 
-  // op === 'drive'：同一个浏览器上下文同时只允许一份网申在填（对话 apply_run 与后台批量共用一个页面）
-  const owner = typeof body.actionId === 'string' && body.actionId ? body.actionId : typeof body.runId === 'string' ? body.runId : 'anonymous';
-  const holder = driveOwners.get(context);
-  if (holder && holder !== owner) {
-    out.emit({ type: 'error', status: 409, code: 'BROWSER_BUSY', error: `浏览器正在填另一份网申（${holder}），等它填完或先暂停后台批量投递` });
+  if (op === 'submit') {
+    await runSubmit(apply, page, body, out, deps, sessionKey, appKey, context);
     return;
   }
-  driveOwners.set(context, owner);
+
+  // op === 'drive'：同一个页面同时只允许一处在操作（对话 apply_run 与后台批量可能指向同一份网申）
+  const owner = typeof body.actionId === 'string' && body.actionId ? body.actionId : typeof body.runId === 'string' ? body.runId : 'anonymous';
+  const holder = lockPage(page, owner);
+  if (holder) {
+    out.emit({ type: 'error', status: 409, code: 'BROWSER_BUSY', error: `这份网申的页面正在被另一处操作（${holder}），等它结束或先暂停后台批量投递` });
+    return;
+  }
   try {
     const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
     if (!llm) {
@@ -473,14 +507,47 @@ export async function runOperation(
       url: page.url(),
     });
   } finally {
-    if (driveOwners.get(context) === owner) driveOwners.delete(context);
+    unlockPage(page, owner);
   }
 }
 
-/** 正在 drive 的动作（按浏览器上下文）。Global 侧车进程内唯一，批量运行器与对话路由都经 runOperation。 */
-const driveOwners = new WeakMap<BrowserContext, string>();
-/** 这个上下文是否有网申正在填（批量运行器据此等待）。 */
-export function driveBusy(context: BrowserContext): string | undefined { return driveOwners.get(context); }
+/**
+ * 提交：只由提交执行器在 submit 动作被认领（approved → executing）之后调用。
+ * filled 里的私密库占位符先解成明文再与页面比对（否则会被误判成"用户改过"）；回传前统一脱敏。
+ * 提交成功后关掉这份网申的页面。
+ */
+async function runSubmit(apply: ApplyEngineModule, page: Page, body: Record<string, unknown>, out: RunEmitter, deps: CareerBrowserRouteDependencies, sessionKey: string, appKey: string | undefined, context: BrowserContext): Promise<void> {
+  if (typeof apply.submitApplication !== 'function') {
+    out.emit({ type: 'error', status: 501, error: '表单引擎版本过旧，没有提交执行器（请重新构建 @career/apply）' });
+    return;
+  }
+  const owner = `submit:${typeof body.actionId === 'string' ? body.actionId : appKey ?? 'anonymous'}`;
+  const holder = lockPage(page, owner);
+  if (holder) { out.emit({ type: 'error', status: 409, code: 'BROWSER_BUSY', error: `这份网申的页面正在被另一处操作（${holder}）` }); return; }
+  try {
+    const vault = body.profile ? null : await (deps.resolveSubmitVault ?? defaultSubmitVault)().catch(() => null);
+    const filled = Array.isArray(body.filled) ? (body.filled as Array<Record<string, unknown>>).map(f => ({ ...f, value: vault && typeof f.value === 'string' ? vault.resolve(f.value) : f.value })) : undefined;
+    out.emit({ type: 'progress', phase: 'submit', message: `正在提交${typeof body.submitButton === 'string' ? `（「${body.submitButton}」）` : ''}` });
+    const result = await apply.submitApplication(apply.fromPlaywright(page), {
+      ...(typeof body.submitButton === 'string' ? { expectedButton: body.submitButton } : {}),
+      ...(filled ? { filled } : {}),
+      ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
+      ...(typeof body.pollMs === 'number' ? { pollMs: body.pollMs } : {}),
+      log: (message: string) => out.emit({ type: 'progress', phase: 'submit', message }),
+    });
+    const { screenshot, ...rest } = result;
+    out.emit({ type: 'result', op: 'submit', result: vault ? vault.redact(rest) : rest, ...(screenshot ? { screenshot: { mimeType: 'image/jpeg', base64: toBase64(screenshot) } } : {}), url: page.url() });
+    if (rest.status === 'submitted' && appKey) await releaseApplicationPage(context, sessionKey, appKey);
+  } finally {
+    unlockPage(page, owner);
+  }
+}
+
+async function defaultSubmitVault(): Promise<{ resolve(v: string): string; redact<T>(v: T): T }> {
+  const { getVault } = await import('../career/vault');
+  const vault = await getVault();
+  return { resolve: v => vault.resolve(v, { actor: 'form_fill', purpose: '提交前核对页面值' }), redact: v => vault.redactDeep(v) };
+}
 
 function ndjsonStream(
   request: Request,
@@ -619,7 +686,7 @@ export async function handleCareerBrowserRoute(
   }
   return ndjsonStream(request, (out, signal) => host.withContext(
     token,
-    context => runOperation(op, body, context, out, signal, deps),
+    (context, b) => runOperation(op, body, context, out, signal, { ...deps, productSessionId: b.productSessionId, focusPage: page => host.focusPage?.(b.productSessionId, page) }),
     { signal },
   ));
 }

@@ -12,6 +12,7 @@ import { careerExportsDir, getRepos } from './db';
 import { FileChooserBroker } from './file-chooser';
 import { liveHub } from './live-hub';
 import { packetResumeFile } from './packets';
+import { SubmitExecutor } from './submit-executor';
 import type { CareerBrowserHost, RunEmitter } from '../routes/career-browser';
 
 type HostResolver = () => Promise<PlaywrightBrowserHost>;
@@ -71,7 +72,7 @@ export async function getBatchRunner(): Promise<BatchRunner> {
             ...(req.resumePath ? { resumePath: req.resumePath } : {}),
             ...(req.learnFrom?.length ? { learnFrom: req.learnFrom } : {}),
           };
-          await host.withProductSession(id, context => runOperation('drive', body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost }), { create: { workspacePath: careerWorkspacePath() } });
+          await host.withProductSession(id, context => runOperation('drive', body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost, productSessionId: id, focusPage: page => host.focusPage(id, page) }), { create: { workspacePath: careerWorkspacePath() } });
           return events;
         },
         log: msg => console.log(`[career] ${msg}`),
@@ -98,9 +99,51 @@ async function legacyResumeFile(resumeId: unknown): Promise<string | undefined> 
   }
 }
 
-/** bootstrap（global）：上次还在跑就续上；同时启动接管守护。 */
+/** 在产品会话的浏览器上跑一次操作（submit / release），收集 NDJSON 事件。浏览器不在时不会新开。 */
+async function runOnProductBrowser(body: Record<string, unknown>, onEvent: (ev: Record<string, unknown>) => void): Promise<Array<Record<string, unknown>>> {
+  if (!hostResolver) throw new Error('浏览器宿主尚未就绪（只能在 Global 侧车执行）');
+  const host = await hostResolver();
+  hostCache = host;
+  const id = careerProductSessionId();
+  if (!id) throw new Error('还没有个人助理会话');
+  if (!host.hasContext(id)) throw Object.assign(new Error('浏览器已经关闭，填好的页面不在了，需要重新填写这份网申'), { name: 'APPLICATION_PAGE_GONE' });
+  const { runOperation } = await import('../routes/career-browser');
+  const events: Array<Record<string, unknown>> = [];
+  const out: RunEmitter = { emit: line => { events.push(line); onEvent(line); }, aborted: () => false };
+  const op = body.op === 'release' ? 'release' : 'submit';
+  await host.withProductSession(id, context => runOperation(op, body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost, productSessionId: id, focusPage: page => host.focusPage(id, page) }));
+  return events;
+}
+
+let submitExecutorPromise: Promise<SubmitExecutor> | null = null;
+export async function getSubmitExecutor(): Promise<SubmitExecutor> {
+  if (!submitExecutorPromise) {
+    submitExecutorPromise = (async () => {
+      const repos = await getRepos();
+      return new SubmitExecutor({
+        repos,
+        run: runOnProductBrowser,
+        broadcast: (event, data) => { liveHub.publish(event, data as Record<string, unknown>); },
+        sessionId: () => careerProductSessionId() ?? 'global',
+        log: msg => console.log(`[career] ${msg}`),
+      });
+    })();
+  }
+  return submitExecutorPromise;
+}
+/** 审批路由批准 submit 后立即执行一轮（不等轮询）。 */
+export async function kickSubmitExecutor(): Promise<void> {
+  try { await (await getSubmitExecutor()).tick(); } catch (error) { console.warn('[career] 提交执行失败：', error instanceof Error ? error.message : error); }
+}
+/** 网申放弃 / 提交被拒：关掉它的页面。 */
+export async function releaseApplicationPageFor(applicationId: string): Promise<void> {
+  try { await runOnProductBrowser({ op: 'release', applicationId }, () => {}); } catch { /* 浏览器不在就无需释放 */ }
+}
+
+/** bootstrap（global）：上次还在跑就续上；同时启动接管守护与提交执行器。 */
 export async function resumeBatchIfRunning(): Promise<void> {
   startHandoffKeeper();
+  try { (await getSubmitExecutor()).start(); } catch (error) { console.warn('[career] 提交执行器启动失败：', error instanceof Error ? error.message : error); }
   try { (await getBatchRunner()).resumeIfRunning(); } catch (error) { console.warn('[career] 批量运行器恢复失败：', error instanceof Error ? error.message : error); }
 }
 
@@ -116,13 +159,15 @@ export function startHandoffKeeper(intervalMs = 3000): void {
   keeperTimer.unref?.();
 }
 
-export async function syncHandoffHold(deps: { repos?: { openHandoffs(): unknown[] }; host?: Pick<PlaywrightBrowserHost, 'hasContext' | 'setHandoffHold'> | null; sessionId?: string } = {}): Promise<boolean> {
+export async function syncHandoffHold(deps: { repos?: { openHandoffs(): unknown[]; listActions?(status?: string): Array<{ kind: string }> }; host?: Pick<PlaywrightBrowserHost, 'hasContext' | 'setHandoffHold'> | null; sessionId?: string } = {}): Promise<boolean> {
   const id = deps.sessionId ?? careerProductSessionId();
   const host = deps.host !== undefined ? deps.host : (hostCache ?? (hostResolver ? hostCache = await hostResolver() : null));
   if (!id || !host) return false;
   const repos = deps.repos ?? await getRepos();
   // 浏览器不在就不持有（stale 接管由批量运行器重新排队）；接管全部关闭后释放
-  const held = repos.openHandoffs().length > 0 && host.hasContext(id);
+  // 等提交的网申（填好了停在提交前、待审或已批准待执行）也要持有：它们的页面就在这个浏览器里
+  const pendingSubmits = ['pending_review', 'approved', 'executing'].some(status => repos.listActions?.(status).some(a => a.kind === 'submit'));
+  const held = (repos.openHandoffs().length > 0 || !!pendingSubmits) && host.hasContext(id);
   host.setHandoffHold(id, held);
   return held;
 }

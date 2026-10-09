@@ -264,6 +264,9 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
             unsubFrames = hub.subscribe(frame => write({ type: 'frame', ...frame }));
             const onPage = () => { void hub.refresh(); };
             context.on('page', onPage);
+            // 多份网申各有页面：选中页切换（focusPage）时画面跟过去
+            const follow = setInterval(() => { void hub.refresh(); }, 1500);
+            abort.signal.addEventListener('abort', () => clearInterval(follow), { once: true });
             await new Promise<void>(resolve => { if (abort.signal.aborted) resolve(); else abort.signal.addEventListener('abort', () => resolve(), { once: true }); });
             unsubFrames?.(); unsubFrames = null;
             await hub.stop();

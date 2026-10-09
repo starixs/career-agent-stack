@@ -107,6 +107,8 @@ export interface FakeButtonSpec {
   text: string; goto?: string; submit?: boolean; disabled?: boolean; box?: [number, number, number, number]; domHidden?: boolean
   /** "添加一行"类按钮：点击后在当前页追加这些字段（模拟重复分区）。 */
   addFields?: FakeFieldSpec[]
+  /** 提交类按钮：点击后站点报这些校验错误（不跳转）。 */
+  submitErrors?: string[]
 }
 export interface FakePageSpec {
   url: string
@@ -316,7 +318,14 @@ export class FakePage {
   private async pressButton(button: FakeButtonSpec & { id: string }): Promise<void> {
     this.actions.push({ kind: 'click', target: `button:${button.text}` })
     if (button.disabled) return
-    if (button.submit || (!button.goto && !button.addFields && SUBMITISH.test(button.text))) { this.submitted = true; return }
+    if (button.submit || (!button.goto && !button.addFields && SUBMITISH.test(button.text))) {
+      // 提交被站点拒绝（如必填校验）：页面出现错误提示，不跳转
+      if (button.submitErrors?.length) { this.current.errors.push(...button.submitErrors); return }
+      this.submitted = true
+      // 提交后跳到结果页（测试提交执行器的成功判定）
+      if (button.goto) await this.goto(button.goto)
+      return
+    }
     if (button.addFields) {
       const base = this.current.fields.length
       this.current.fields.push(...button.addFields.map((f, i) => ({ id: `f${base + i}`, label: f.label, name: f.name, type: f.type ?? 'text', options: f.options, required: !!f.required, value: f.type === 'checkbox' ? (f.value ?? 'false') : f.value, maxLength: f.maxLength, placeholder: f.placeholder, box: f.box, domHidden: f.domHidden, rejectFill: f.rejectFill } satisfies LiveField)))

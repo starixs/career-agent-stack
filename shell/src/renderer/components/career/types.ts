@@ -64,7 +64,16 @@ export interface Application {
 export interface ActionQueueItem {
   id: string; application_id: string | null; kind: ActionKind; payload_json: string; status: ActionStatus;
   result_json: string | null; reviewed_at: string | null; created_at: string; updated_at: string;
+  /** 谁批准的：user / auto（auto 模式）/ learned（自学习免审）/ system */
+  approved_by?: string | null; packet_id?: string | null;
 }
+/** 填后检查的审阅清单（submit 动作 payload.review.rows）。 */
+export type SubmitReviewStatus = 'ok' | 'empty' | 'mismatch' | 'needs_user' | 'draft' | 'site_error' | 'upload_unconfirmed';
+export interface SubmitReviewRow { fieldId?: string; label: string; required: boolean; status: SubmitReviewStatus; value?: string; source?: string; reason?: string }
+export interface SubmitReviewSummary { rows: SubmitReviewRow[]; attention: number; requiredTotal: number; requiredFilled: number }
+export interface ApplySettings { auto_mode: boolean; learn_threshold: number }
+export type AnswerStatus = 'active' | 'pinned' | 'archived';
+export interface AnswerBankEntry { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: 'normal' | 'personal' | 'self_id' | 'excluded'; source: string; use_count: number; last_used_at: string | null; updated_at: string }
 export interface Handoff {
   id: string; action_id: string | null; task_id: string | null; reason: HandoffReason; message: string | null;
   paused_at: string; resumed_at: string | null; resumed_from_step: string | null;

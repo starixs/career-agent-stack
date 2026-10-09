@@ -6,7 +6,7 @@ import { pathToFileURL } from 'url';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
 
-import type { BrowserContext } from 'playwright';
+import type { BrowserContext, Page } from 'playwright';
 
 import {
   BrowserContextRegistry,
@@ -272,6 +272,11 @@ export class PlaywrightBrowserHost {
   /** 有等用户处理的接管时保持浏览器不被空闲回收。 */
   setHandoffHold(productSessionId: string, held: boolean): void {
     this.dependencies.registry.setHandoffHold(productSessionId, held);
+  }
+
+  /** 把这一页设为选中页：现场画面、输入转发、activePage 都跟着它。 */
+  focusPage(productSessionId: string, page: Page): void {
+    this.dependencies.registry.focusPage(productSessionId, page);
   }
 
   /** 真实 Chrome 窗口是否藏在产品内（只通过现场画面看 / 操作）。 */

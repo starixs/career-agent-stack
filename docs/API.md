@@ -24,6 +24,11 @@
 | POST | `/api/career/applications/:id/stage` | `{to, note?, extra?}` → application |
 | GET | `/api/career/actions?status=pending_review` | 动作队列 |
 | POST | `/api/career/actions/review` | `{ids:string[], decision:'approved'|'rejected'}` → `{n}`（只改仍在待审的；n 是实际改动条数，已执行 / 已发送的不会被再次批准） |
+| POST | `/api/career/actions/:id/confirm-submit` | `{submitted:boolean}`：提交结果不确定 / 接管后，用户确认是否已投递成功（true → applied；false → 回到待审） |
+| GET / POST | `/api/career/apply/settings` | `{auto_mode:boolean}` → `{auto_mode, learn_threshold}`；auto 模式：填后检查全部通过的网申直接提交 |
+| GET | `/api/career/answer-bank?archived=1` | 答案库（含停用）+ `pending_upload` 待同步条数 |
+| POST | `/api/career/answer-bank/:id/status` | `{status:'active'|'pinned'|'archived'}` 固定 / 恢复 / 停用 |
+| DELETE | `/api/career/answer-bank/:id` | 删除答案 |
 | GET | `/api/career/handoffs` | 未关闭的接管 |
 | POST | `/api/career/handoffs/:id/close` | `{resumed_from_step?}` |
 | GET | `/api/career/tasks` | task[] |
@@ -137,10 +142,11 @@
 | `resume_export` | resume_id, format | 导出并返回路径 |
 | `company_research` | company_name | intel-compass 九段报告 → company 表 |
 | `web_search` | query, count? | 唯一的外部动作 |
-| `apply_prepare` | job_id, resume_id | 入队 fill_form（需审核）并创建 application |
+| `apply_prepare` | job_id, resume_id? | 创建 application，冻结材料包（简历快照 + PDF + JD），入队 fill_form（需审核）；不传 resume_id 时用该岗位定制版或唯一主简历 |
 | `apply_run` | action_id | 在托管浏览器上执行填表 run（不提交）。结果按浏览器路由的 `result.status` 处理：`stopped_before_submit` → submit 进待审队列；`handoff` → 开接管、动作 needs_user、返回 `userAction`（该让用户做什么）；`blocked` / `failed` / 路由 `error` 行 → 动作 failed、投递 blocked |
 | `apply_continue` | action_id | 用户在浏览器里处理完登录 / 验证码 / 测评并点"交回"后，从当前页继续填表（不重新打开链接）；复用同一任务，关闭该动作的接管 |
 | `apply_batch` | command: start / pause / stop / status | 后台长程批量：把所有已批准的 fill_form 排队由 Global 运行器一份份填（接管等用户交回后自动续跑、拟人间歇、平台风控跳过、每日上限、侧车重启续跑）。命令经 kv `apply:batch:command` 下发；进度在「浏览器现场」页实时可见 |
+| `apply_auto_mode` | enabled?: boolean | 查看 / 切换 auto 模式（只在用户明确要求时切换）；同时返回自学习免审阈值 |
 | `greeting_compose` | job_id | 生成招呼语并入队 send_greeting（待审） |
 | `review_queue` | status? | 列出待审动作 |
 | `interview_*` | … | questions / probe / project_story / retro / predict |

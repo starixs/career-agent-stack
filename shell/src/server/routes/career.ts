@@ -28,6 +28,8 @@ import { draftMaterial } from '../career/materials';
 import { generateWeeklyReview } from '../career/review';
 import { loadSkillPrompt } from '../career/skills';
 import { getVault, vaultForRepos } from '../career/vault';
+import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
+import { confirmSubmitResult } from '../career/submit-executor';
 import { broadcast as sseBroadcast } from '../sse';
 
 export interface CareerRouteDeps {
@@ -51,6 +53,17 @@ export function careerJson(body: Json, status = 200): Response {
 }
 export const ok = (data: Json = {}, status = 200) => careerJson({ ok: true, ...data }, status);
 export const fail = (error: string, status = 400) => careerJson({ ok: false, error }, status);
+
+function parseJsonObj(raw: string | null | undefined): Json {
+  try { const v = JSON.parse(raw ?? '{}'); return v && typeof v === 'object' ? v as Json : {}; } catch { return {}; }
+}
+/** 提交执行器与页面释放只在 Global 侧车（浏览器宿主所在进程）可用；动态加载避免路由模块拉起浏览器依赖。 */
+async function kickSubmit(): Promise<void> {
+  try { const { kickSubmitExecutor } = await import('../career/batch-service'); await kickSubmitExecutor(); } catch { /* 轮询会兜底 */ }
+}
+async function releasePage(applicationId: string): Promise<void> {
+  try { const { releaseApplicationPageFor } = await import('../career/batch-service'); await releaseApplicationPageFor(applicationId); } catch { /* ignore */ }
+}
 
 async function readBody(request: Request): Promise<Json> {
   try {
@@ -285,11 +298,37 @@ const ROUTES: Route[] = [
     const decision = ctx.body.decision;
     if (!ids.length) return fail('ids 不能为空');
     if (decision !== 'approved' && decision !== 'rejected') return fail("decision 必须是 'approved' | 'rejected'");
-    const n = ctx.repos.reviewActions(ids, decision);
+    const actions = ids.map(id => ctx.repos.getAction(id)).filter((a): a is NonNullable<typeof a> => !!a && a.status === 'pending_review');
+    const n = ctx.repos.reviewActions(ids, decision, 'user');
     dataChanged(ctx, ['action_queue']);
-    // 批准即执行：发送投递邮件（提交与发送永远过人，这里已经过人）。
+    const submits = actions.filter(a => a.kind === 'submit');
+    if (decision === 'rejected') {
+      // 拒绝提交：这张表的自学习计数清零，关掉这份网申的页面
+      for (const a of submits) {
+        const p = parseJsonObj(a.payload_json);
+        resetPageTrust(ctx.repos, typeof p.formSignature === 'string' ? p.formSignature : null);
+        if (a.application_id) void releasePage(a.application_id);
+      }
+    }
+    // 批准即执行：发送投递邮件；提交交给提交执行器（立即踢一轮，不等轮询）
     const sent = decision === 'approved' ? await executeApprovedSendMails(intakeDeps(ctx), ids) : [];
-    return ok({ n, sent });
+    if (decision === 'approved' && submits.length) void kickSubmit();
+    return ok({ n, sent, submitting: decision === 'approved' ? submits.map(a => a.id) : [] });
+  }),
+
+  route('POST', '/api/career/actions/:id/confirm-submit', (ctx) => {
+    const a = confirmSubmitResult(ctx.repos, ctx.params.id, ctx.body.submitted === true);
+    if (!a) return fail(`提交动作不存在：${ctx.params.id}`, 404);
+    dataChanged(ctx, ['action_queue', 'application', 'handoff']);
+    return ok({ action: a });
+  }),
+  // ---------- 投递设置：auto 模式 / 自学习 ----------
+  route('GET', '/api/career/apply/settings', ({ repos }) => ok({ auto_mode: getAutoMode(repos).enabled, learn_threshold: LEARN_THRESHOLD })),
+  route('POST', '/api/career/apply/settings', (ctx) => {
+    if (typeof ctx.body.auto_mode !== 'boolean') return fail('auto_mode 必须是布尔值');
+    const s = setAutoMode(ctx.repos, ctx.body.auto_mode);
+    dataChanged(ctx, ['kv']);
+    return ok({ auto_mode: s.enabled, learn_threshold: LEARN_THRESHOLD });
   }),
 
   // ---------- 接管 ----------
@@ -375,13 +414,28 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 答案库 ----------
-  route('GET', '/api/career/answer-bank', ({ store }) => ok({ answers: store.listAnswerBank() })),
+  route('GET', '/api/career/answer-bank', ({ repos, url }) => ok({ answers: repos.listAnswers({ includeArchived: url.searchParams.get('archived') === '1' }), pending_upload: repos.pendingAnswerEvents(1000).length })),
   route('POST', '/api/career/answer-bank', (ctx) => {
     const question_key = str(ctx.body.question_key); const question_text = str(ctx.body.question_text); const answer = str(ctx.body.answer);
     if (!question_key || !question_text || !answer) return fail('question_key / question_text / answer 不能为空');
-    ctx.repos.saveAnswer({ question_key, question_text, answer, high_impact: !!ctx.body.high_impact, confirmed: !!ctx.body.confirmed });
+    const saved = ctx.repos.saveAnswer({ question_key, question_text, answer, high_impact: !!ctx.body.high_impact, confirmed: !!ctx.body.confirmed, source: 'user' });
+    if (!saved) return fail('这类问题（证件号 / 密码 / 是否使用 AI 作答等）不会存进答案库，每次请本人如实填写', 422);
     dataChanged(ctx, ['answer_bank']);
-    return ok({ answer: ctx.repos.findAnswer(question_key) });
+    return ok({ answer: saved });
+  }),
+  route('POST', '/api/career/answer-bank/:id/status', (ctx) => {
+    const status = ctx.body.status;
+    if (status !== 'active' && status !== 'pinned' && status !== 'archived') return fail("status 必须是 'active' | 'pinned' | 'archived'");
+    try {
+      const answer = ctx.repos.setAnswerStatus(ctx.params.id, status);
+      dataChanged(ctx, ['answer_bank']);
+      return ok({ answer });
+    } catch (error) { return fail(error instanceof Error ? error.message : '更新失败', 404); }
+  }),
+  route('DELETE', '/api/career/answer-bank/:id', (ctx) => {
+    ctx.repos.deleteAnswer(ctx.params.id);
+    dataChanged(ctx, ['answer_bank']);
+    return ok({});
   }),
 
   // ---------- 私密信息库（只有这组接口能读写明文；模型工具永远拿不到） ----------

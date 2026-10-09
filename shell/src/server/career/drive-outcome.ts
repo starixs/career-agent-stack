@@ -7,10 +7,16 @@
  */
 import type { ActionQueueItem, Repos } from '@career/core';
 
+import { decideSubmit } from './submit-policy';
+
+/** @career/apply 的 SubmitReview（只用到这些字段）。 */
+interface SubmitReviewLike { rows: unknown[]; attention: number; requiredTotal: number; requiredFilled: number; formSignature?: string; openAnswersHash?: string }
+const parseObj = (raw: string | null | undefined): Record<string, unknown> => { try { const v = JSON.parse(raw ?? '{}'); return v && typeof v === 'object' ? v as Record<string, unknown> : {}; } catch { return {}; } };
+
 export type DriveEvent = Record<string, unknown>;
 export type DriveOutcome =
   | { kind: 'handoff'; handoffId: string; reason: string; userAction?: string; message: string; finalUrl?: string; summary: Record<string, unknown> }
-  | { kind: 'done'; submitActionId: string; pending: number; summary: Record<string, unknown>; submitButton?: string }
+  | { kind: 'done'; submitActionId: string; pending: number; summary: Record<string, unknown>; submitButton?: string; /** auto 模式 / 自学习免审时已直接批准 */ autoApproved?: 'auto' | 'learned'; decision?: string }
   | { kind: 'failed'; blocked: boolean; message: string; summary?: Record<string, unknown> };
 
 export interface PersistDeps {
@@ -35,6 +41,7 @@ export function summarizeDriveResult(result: Record<string, unknown>): Record<st
     status: result.status, reason: result.reason, message: result.message, userAction: result.userAction, finalUrl: result.finalUrl, adapter: result.adapterId,
     filled: result.filled, needsUser: result.needsUser, drafts: result.drafts, mismatches: result.mismatches, uploads: result.uploads,
     escalations: result.escalations, layersUsed: result.layersUsed, submitButton: result.submitButton, loginFilled: result.loginFilled,
+    review: result.review,
     sections: Array.isArray(result.pages) ? (result.pages as Array<{ sections?: unknown }>).flatMap(p => (Array.isArray(p.sections) ? p.sections : [])) : undefined,
   };
 }
@@ -57,7 +64,7 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     for (const item of result.learned as Array<{ label?: string; value?: string }>) {
       if (!item?.label || !item?.value) continue
       if (r.findAnswer(item.label)) continue
-      try { r.saveAnswer({ question_key: item.label, question_text: item.label, answer: item.value, high_impact: false, confirmed: false }); } catch { /* ignore */ }
+      try { r.saveAnswer({ question_key: item.label, question_text: item.label, answer: item.value, high_impact: false, confirmed: false, source: 'learned', event: 'corrected', application_id: action.application_id }); } catch { /* ignore */ }
     }
     if ((result.learned as unknown[]).length) deps.changed('answer_bank');
   }
@@ -77,18 +84,35 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
   }
   if (status === 'stopped_before_submit') {
     r.setActionStatus(action.id, 'done', summary);
-    const submitAction = r.enqueueAction('submit', { url: finalUrl, submitButton: result.submitButton, summary: { filled: count('filled'), needsUser: count('needsUser'), drafts: count('drafts'), mismatches: count('mismatches') } }, action.application_id);
+    const review = result.review as SubmitReviewLike | undefined;
+    const fillPayload = parseObj(action.payload_json);
+    const packet = typeof fillPayload.packet_id === 'string' ? r.getPacket(fillPayload.packet_id) : undefined;
+    const resumeSha = packet ? packet.resume_pdf_sha256 ?? packet.resume_sha256 : null;
+    const filled = Array.isArray(result.filled) ? (result.filled as Array<{ fieldId?: string; label?: string; value?: string; source?: string }>).map(f => ({ fieldId: f.fieldId, label: f.label, value: f.value, source: f.source })) : [];
+    // 审核的对象就是这份 payload：页面停在哪个按钮、填了什么、审阅清单、两枚免审指纹；批准即绑定这些内容
+    const submitAction = r.enqueueAction('submit', {
+      url: finalUrl, submitButton: result.submitButton, application_id: action.application_id, fill_action_id: action.id,
+      ...(packet ? { packet_id: packet.id } : {}),
+      summary: { filled: count('filled'), needsUser: count('needsUser'), drafts: count('drafts'), mismatches: count('mismatches') },
+      filled,
+      review: review ? { rows: review.rows, attention: review.attention, requiredTotal: review.requiredTotal, requiredFilled: review.requiredFilled } : null,
+      formSignature: review?.formSignature ?? null, openAnswersHash: review?.openAnswersHash ?? null, resumeSha,
+    }, action.application_id);
     r.updateTask(taskId, { status: 'done', progress: 1 });
     const pending = count('needsUser') + count('drafts') + count('mismatches');
+    // 没有填后检查结果（旧引擎 / 检查失败）一律按"需要人看"
+    const attention = review ? review.attention : Math.max(pending, 1);
+    const decision = decideSubmit(r, { attention, formSignature: review?.formSignature, openAnswersHash: review?.openAnswersHash, resumeSha });
+    if (decision.approve) r.reviewActions([submitAction.id], 'approved', decision.by);
     if (action.application_id) {
       try {
         if (pending > 0) r.transition(action.application_id, 'needs_user', `需要你补充 ${pending} 项后再提交`, { page_url: finalUrl, next_action: '补充缺项后审核提交' });
-        else r.db.update('application', action.application_id, { page_url: finalUrl ?? null, next_action: '审核后提交', blocker_reason: null, updated_at: new Date().toISOString() });
+        else r.db.update('application', action.application_id, { page_url: finalUrl ?? null, next_action: decision.approve ? '正在提交' : '审核后提交', blocker_reason: null, updated_at: new Date().toISOString() });
       } catch { /* ignore */ }
     }
-    deps.review?.([submitAction.id], 'submit', `表单已填好${result.submitButton ? `，停在「${String(result.submitButton)}」前` : ''}，确认后由你本人提交`);
+    if (!decision.approve) deps.review?.([submitAction.id], 'submit', `表单已填好${result.submitButton ? `，停在「${String(result.submitButton)}」前` : ''}，看一遍审阅清单后批准，产品会替你点提交`);
     deps.changed('task', 'action_queue', 'application');
-    return { kind: 'done', submitActionId: submitAction.id, pending, summary, submitButton: typeof result.submitButton === 'string' ? result.submitButton : undefined };
+    return { kind: 'done', submitActionId: submitAction.id, pending, summary, submitButton: typeof result.submitButton === 'string' ? result.submitButton : undefined, autoApproved: decision.approve ? decision.by : undefined, decision: decision.reason };
   }
   return fail(message, summary, status === 'blocked');
 }

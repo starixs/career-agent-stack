@@ -13,7 +13,15 @@ const board = {
   funnel: [{ stage: 'applied', n: 3 }, { stage: 'interview', n: 1 }],
   pendingReview: 1,
 };
-const actions = [{ id: 'act1', application_id: 'a1', kind: 'submit', payload_json: JSON.stringify({ summary: '提交丙公司网申' }), status: 'pending_review', result_json: null, reviewed_at: null, created_at: '2026-10-01', updated_at: '2026-10-01' }];
+const review = { attention: 1, requiredTotal: 2, requiredFilled: 1, rows: [
+  { fieldId: 'f0', label: '姓名', required: true, status: 'ok', value: '张三', source: 'profile' },
+  { fieldId: 'f1', label: '紧急联系人', required: true, status: 'empty', reason: '必填项还是空的' },
+] };
+const actions = [
+  { id: 'act1', application_id: 'a1', kind: 'submit', payload_json: JSON.stringify({ submitButton: '提交申请', review }), status: 'pending_review', result_json: null, reviewed_at: null, created_at: '2026-10-01', updated_at: '2026-10-01' },
+  { id: 'act2', application_id: 'a2', kind: 'send_mail', payload_json: JSON.stringify({ subject: '应聘算法工程师', to: 'hr@d.com' }), status: 'pending_review', result_json: null, reviewed_at: null, created_at: '2026-10-01', updated_at: '2026-10-01' },
+];
+const uncertain = { id: 'act9', application_id: 'a1', kind: 'submit', payload_json: '{}', status: 'needs_user', result_json: JSON.stringify({ message: '点了提交，但没等到成功提示' }), reviewed_at: null, approved_by: 'learned', created_at: '2026-10-01', updated_at: '2026-10-01' };
 const jobs = [
   { id: 'j1', source_platform: 'boss', title: '后端工程师', company_name: '丙公司', location: '上海', salary: '20-30K', score_json: JSON.stringify({ total: 4.2 }), deadline: '2026-10-10', deadline_verified_at: null, url: 'https://example.com/j1' },
   { id: 'j2', source_platform: 'boss', title: '算法工程师', company_name: '丁公司', location: null, salary: null, score_json: null, deadline: null },
@@ -26,7 +34,9 @@ const applications = [
 function mockGet(empty = false) {
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
     if (path.startsWith('/api/career/board')) return empty ? { ok: true, board: { due: [], blocked: [], funnel: [], pendingReview: 0 } } : { ok: true, board };
+    if (path.startsWith('/api/career/actions?status=needs_user')) return { ok: true, actions: empty ? [] : [uncertain] };
     if (path.startsWith('/api/career/actions')) return { ok: true, actions: empty ? [] : actions };
+    if (path.startsWith('/api/career/apply/settings')) return { ok: true, auto_mode: false, learn_threshold: 3 };
     if (path.startsWith('/api/career/jobs')) return { ok: true, jobs: empty ? [] : jobs };
     if (path.startsWith('/api/career/applications')) return { ok: true, applications: empty ? [] : applications };
     return { ok: true };
@@ -53,7 +63,14 @@ describe('CareerApply', () => {
     expect(await screen.findByText('今天必须做（1）')).toBeInTheDocument();
     expect(screen.getByText('原因：需要验证码')).toBeInTheDocument();
     expect(screen.getByText('重试策略：明早重试')).toBeInTheDocument();
-    expect(screen.getByText('提交丙公司网申')).toBeInTheDocument();
+    expect(screen.getByText('停在「提交申请」前，批准后产品替你点提交')).toBeInTheDocument();
+    // 审阅清单：需要看的项先展示，已填好的收起
+    expect(screen.getByText('紧急联系人')).toBeInTheDocument();
+    expect(screen.getByText('必填为空')).toBeInTheDocument();
+    expect(screen.queryByText('张三')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('查看已填好的 1 项'));
+    expect(screen.getByText('张三')).toBeInTheDocument();
+    expect(screen.getByText('应聘算法工程师 → hr@d.com')).toBeInTheDocument();
     expect(screen.getByText('4.2')).toBeInTheDocument();
     expect(screen.getByText('20-30K')).toBeInTheDocument();
   });
@@ -65,6 +82,21 @@ describe('CareerApply', () => {
     fireEvent.click(await screen.findByLabelText('选择动作 act1'));
     fireEvent.click(screen.getByRole('button', { name: '批准（1）' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', { ids: ['act1'], decision: 'approved' }));
+  });
+
+  it('全选后一次批准全部；auto 模式开关；结果不确定的提交等你确认', async () => {
+    mockGet();
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, n: 2 });
+    render(<CareerApply />);
+    fireEvent.click(await screen.findByLabelText('全选'));
+    fireEvent.click(screen.getByRole('button', { name: '批准（2）' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', { ids: ['act1', 'act2'], decision: 'approved' }));
+    fireEvent.click(screen.getByLabelText('auto 模式'));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/apply/settings', { auto_mode: true }));
+    expect(screen.getByText('点了提交，但没等到成功提示')).toBeInTheDocument();
+    expect(screen.getByText('（自学习免确认）')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '已投递成功' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/act9/confirm-submit', { submitted: true }));
   });
 
   it('行内只展示允许的目标阶段，切换后调用 applications/:id/stage', async () => {

@@ -13,16 +13,18 @@ import {
   formatDate, textOrUnknown,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
-import type { ActionQueueItem, Application, ApplicationStage, Board, Job } from '@/components/career/types';
+import { SubmitReviewList, approvalLabel } from '@/components/career/SubmitReviewList';
+import type { ActionQueueItem, Application, ApplicationStage, ApplySettings, Board, Job, SubmitReviewSummary } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 
-interface ApplyData { board: Board; actions: ActionQueueItem[]; jobs: Job[]; applications: Application[] }
+interface ApplyData { board: Board; actions: ActionQueueItem[]; confirming: ActionQueueItem[]; jobs: Job[]; applications: Application[]; settings: ApplySettings }
 
 async function loadAll(): Promise<ApplyData> {
-  const [board, actions, jobs, applications] = await Promise.all([
-    careerApi.board(), careerApi.pendingActions(), careerApi.jobs(), careerApi.applications(),
+  const [board, actions, confirming, jobs, applications, settings] = await Promise.all([
+    careerApi.board(), careerApi.pendingActions(), careerApi.submitsNeedingUser().catch(() => []), careerApi.jobs(), careerApi.applications(),
+    careerApi.applySettings().catch((): ApplySettings => ({ auto_mode: false, learn_threshold: 3 })),
   ]);
-  return { board, actions, jobs, applications };
+  return { board, actions, confirming, jobs, applications, settings };
 }
 
 const STAGE_TONE: Partial<Record<ApplicationStage, BadgeTone>> = {
@@ -42,7 +44,7 @@ export default function CareerApply({ embedded = false }: { embedded?: boolean }
         {data && (
           <>
             <BoardSection board={data.board} />
-            <ActionsSection actions={data.actions} applications={data.applications} jobs={data.jobs} onChanged={query.reload} />
+            <ActionsSection actions={data.actions} confirming={data.confirming} settings={data.settings} applications={data.applications} jobs={data.jobs} onChanged={query.reload} />
             <JobsSection jobs={data.jobs} applications={data.applications} onChanged={query.reload} />
           </>
         )}
@@ -106,64 +108,112 @@ function BoardSection({ board }: { board: Board }) {
   );
 }
 
-function ActionsSection({ actions, applications, jobs, onChanged }: { actions: ActionQueueItem[]; applications: Application[]; jobs: Job[]; onChanged: () => void }) {
+function ActionsSection({ actions, confirming, settings, applications, jobs, onChanged }: { actions: ActionQueueItem[]; confirming: ActionQueueItem[]; settings: ApplySettings; applications: Application[]; jobs: Job[]; onChanged: () => void }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const review = useCareerAction();
+  const modeAction = useCareerAction();
   const appById = useMemo(() => new Map(applications.map(a => [a.id, a])), [applications]);
   const jobById = useMemo(() => new Map(jobs.map(j => [j.id, j])), [jobs]);
+  // 只保留仍在列表里的勾选（列表刷新后旧 id 自动失效）
+  const live = useMemo(() => new Set([...selected].filter(id => actions.some(a => a.id === id))), [selected, actions]);
+  const allChecked = actions.length > 0 && live.size === actions.length;
 
   const toggle = (id: string) => setSelected(prev => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
+  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(actions.map(a => a.id)));
   const decide = (decision: 'approved' | 'rejected') => review.run(async () => {
-    const ids = [...selected];
+    const ids = [...live];
     if (ids.length === 0) throw new Error('先勾选要处理的动作');
     await careerApi.reviewActions(ids, decision);
     setSelected(new Set());
     onChanged();
   });
+  const setAuto = (enabled: boolean) => modeAction.run(async () => { await careerApi.setAutoMode(enabled); onChanged(); });
+  const labelOf = (action: ActionQueueItem) => {
+    const app = action.application_id ? appById.get(action.application_id) : undefined;
+    const job = app ? jobById.get(app.job_id) : undefined;
+    return job ? `${job.company_name ?? '未知公司'} · ${job.title}` : app?.title ? `${app.company_name ?? '未知公司'} · ${app.title}` : '未关联岗位';
+  };
 
   return (
     <section>
       <SectionTitle extra={(
         <>
-          <Button variant="primary" busy={review.busy} disabled={selected.size === 0} onClick={() => void decide('approved')}>批准（{selected.size}）</Button>
-          <Button variant="danger" busy={review.busy} disabled={selected.size === 0} onClick={() => void decide('rejected')}>拒绝</Button>
+          <label className="mr-2 flex items-center gap-1.5 text-xs text-[var(--muted)]" title={`开启后：填完检查全部通过的网申直接提交，有需要你看的项仍会停下。另外，同一张表你连续 ${settings.learn_threshold} 次没改直接批准、简历和开放题答案没变时，会自动免确认。`}>
+            <input type="checkbox" aria-label="auto 模式" checked={settings.auto_mode} disabled={modeAction.busy} onChange={e => void setAuto(e.target.checked)} />
+            auto 模式（检查通过直接提交）
+          </label>
+          <Button variant="primary" busy={review.busy} disabled={live.size === 0} onClick={() => void decide('approved')}>批准（{live.size}）</Button>
+          <Button variant="danger" busy={review.busy} disabled={live.size === 0} onClick={() => void decide('rejected')}>拒绝</Button>
         </>
       )}>
-        待审核动作（{actions.length}）
+        待投清单 / 待审核动作（{actions.length}）
       </SectionTitle>
       {review.error && <ErrorRow message={review.error} />}
-      {actions.length === 0 && <div className="text-xs text-[var(--subtle)]">没有待审核的动作。提交 / 发招呼 / 回答开放题永远会先到这里。</div>}
+      {modeAction.error && <ErrorRow message={modeAction.error} />}
+      {confirming.length > 0 && <ConfirmSubmits actions={confirming} labelOf={labelOf} onChanged={onChanged} />}
+      {actions.length === 0 && <div className="text-xs text-[var(--subtle)]">没有待审核的动作。网申填好后会停在提交前到这里，你看过审阅清单批准后，产品替你点提交。</div>}
+      {actions.length > 0 && (
+        <label className="mb-1.5 flex items-center gap-2 px-3 text-xs text-[var(--muted)]">
+          <input type="checkbox" aria-label="全选" checked={allChecked} ref={el => { if (el) el.indeterminate = live.size > 0 && !allChecked; }} onChange={toggleAll} />
+          全选（{live.size} / {actions.length}）
+        </label>
+      )}
       <ul className="space-y-1.5">
         {actions.map(action => {
-          const app = action.application_id ? appById.get(action.application_id) : undefined;
-          const job = app ? jobById.get(app.job_id) : undefined;
           const payload = safeJson<Record<string, unknown>>(action.payload_json, {});
-          const summary = typeof payload.summary === 'string' ? payload.summary
-            : typeof payload.text === 'string' ? payload.text
-              : typeof payload.message === 'string' ? payload.message
-                : Object.keys(payload).length ? JSON.stringify(payload).slice(0, 160) : '（无摘要）';
+          const isSubmit = action.kind === 'submit';
+          const summary = isSubmit ? `停在「${typeof payload.submitButton === 'string' ? payload.submitButton : '提交'}」前，批准后产品替你点提交`
+            : typeof payload.summary === 'string' ? payload.summary
+              : typeof payload.subject === 'string' ? `${payload.subject}${typeof payload.to === 'string' ? ` → ${payload.to}` : ''}`
+                : typeof payload.text === 'string' ? payload.text
+                  : typeof payload.message === 'string' ? payload.message
+                    : Object.keys(payload).length ? JSON.stringify(payload).slice(0, 160) : '（无摘要）';
           return (
             <li key={action.id} className="flex items-start gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
-              <input type="checkbox" aria-label={`选择动作 ${action.id}`} checked={selected.has(action.id)} onChange={() => toggle(action.id)} className="mt-1" />
+              <input type="checkbox" aria-label={`选择动作 ${action.id}`} checked={live.has(action.id)} onChange={() => toggle(action.id)} className="mt-1" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge tone="accent">{ACTION_KIND_LABELS[action.kind] ?? action.kind}</Badge>
-                  <span className="text-xs text-[var(--muted)]">
-                    {job ? `${job.company_name ?? '未知公司'} · ${job.title}` : app?.title ? `${app.company_name ?? '未知公司'} · ${app.title}` : '未关联岗位'}
-                  </span>
+                  <span className="text-xs text-[var(--muted)]">{labelOf(action)}</span>
                   <span className="text-xs text-[var(--subtle)]">{formatDate(action.created_at)}</span>
                 </div>
                 <div className="mt-0.5 break-words text-sm text-[var(--ink)]">{summary}</div>
+                {isSubmit && <SubmitReviewList review={payload.review as SubmitReviewSummary | null} />}
               </div>
             </li>
           );
         })}
       </ul>
     </section>
+  );
+}
+
+/** 点了提交但没等到成功提示 / 提交时遇到验证码：等用户到页面上确认结果。 */
+function ConfirmSubmits({ actions, labelOf, onChanged }: { actions: ActionQueueItem[]; labelOf: (a: ActionQueueItem) => string; onChanged: () => void }) {
+  const act = useCareerAction();
+  const confirm = (id: string, submitted: boolean) => act.run(async () => { await careerApi.confirmSubmit(id, submitted); onChanged(); });
+  return (
+    <div className="mb-3 space-y-1.5">
+      {actions.map(a => {
+        const result = safeJson<Record<string, unknown>>(a.result_json, {});
+        return (
+          <div key={a.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--warning)] bg-[var(--paper)] px-3 py-2 text-xs">
+            <Badge tone="warning">等你确认</Badge>
+            <span className="font-medium text-[var(--ink)]">{labelOf(a)}</span>
+            <span className="text-[var(--muted)]">{typeof result.message === 'string' ? result.message : '提交结果不确定，请到页面上看一下'}</span>
+            {approvalLabel(a.approved_by) && <span className="text-[var(--subtle)]">（{approvalLabel(a.approved_by)}）</span>}
+            <span className="flex-1" />
+            <Button size="sm" variant="primary" busy={act.busy} onClick={() => void confirm(a.id, true)}>已投递成功</Button>
+            <Button size="sm" busy={act.busy} onClick={() => void confirm(a.id, false)}>没投出去，重新审核</Button>
+          </div>
+        );
+      })}
+      {act.error && <ErrorRow message={act.error} />}
+    </div>
   );
 }
 

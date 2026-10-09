@@ -9,6 +9,7 @@ import type { Repos } from '@career/core';
 
 import { acquireBrowserCapability } from '../browser-host/capability-client';
 import { getRepos } from '../career/db';
+import { resetPageTrust } from '../career/submit-policy';
 import { getRunRegistry, type RunRegistry } from '../career/runs';
 import { broadcast as sseBroadcast } from '../sse';
 import { fail, ok } from './career';
@@ -62,7 +63,10 @@ export async function handleCareerSessionRoute(pathname: string, request: Reques
     if (!ids.length) return fail('actionIds 不能为空');
     if (decision !== 'approved' && decision !== 'rejected') return fail("decision 必须是 'approved' | 'rejected'");
     const repos = deps.repos ?? await getRepos();
-    const n = repos.reviewActions(ids, decision);
+    const rejectedSubmits = decision === 'rejected' ? ids.map(id => repos.getAction(id)).filter(a => a?.kind === 'submit' && a.status === 'pending_review') : [];
+    const n = repos.reviewActions(ids, decision, 'user');
+    // 拒绝提交：这张表的自学习计数清零（批准的提交由 Global 的提交执行器在几秒内执行）
+    for (const a of rejectedSubmits) { try { const p = JSON.parse(a!.payload_json) as { formSignature?: string }; resetPageTrust(repos, p.formSignature); } catch { /* ignore */ } }
     broadcast('career:data-changed', { sessionId: sessionId(), tables: ['action_queue'] });
     return ok({ n });
   }

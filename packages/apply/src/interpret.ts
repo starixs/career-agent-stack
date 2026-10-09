@@ -15,7 +15,7 @@ import { matchOption, normalizeValueForField } from './normalize.js'
 
 export interface ProfileExperience { title: string; org?: string; role?: string; period?: string; claims: string[] }
 export interface ProfileEducation { school: string; major?: string; degree?: string; start?: string; end?: string }
-export interface AnswerBankEntry { question_key: string; question_text?: string; answer: string; high_impact: boolean; confirmed?: boolean }
+export interface AnswerBankEntry { question_key: string; question_text?: string; answer: string; high_impact: boolean; confirmed?: boolean; /** 用户固定（总是用这条） */ pinned?: boolean }
 export interface Profile {
   /** 键：name/email/phone/gender/birthday/school/major/degree/graduation/city/wechat/politics/hometown/availableDate/linkedin/github/portfolio/idNumber … */
   basics: Record<string, string | undefined>
@@ -106,7 +106,7 @@ export function findBankAnswer(label: string, bank: AnswerBankEntry[]): AnswerBa
     return (k && (l === k || l.includes(k) || k.includes(l))) || (t && (l === t || l.includes(t) || t.includes(l)))
   })
   if (!hits.length) return null
-  hits.sort((a, b) => Number(!!b.confirmed) - Number(!!a.confirmed) || normKey(b.question_key).length - normKey(a.question_key).length)
+  hits.sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || Number(!!b.confirmed) - Number(!!a.confirmed) || normKey(b.question_key).length - normKey(a.question_key).length)
   return hits[0]
 }
 

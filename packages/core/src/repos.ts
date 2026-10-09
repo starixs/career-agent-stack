@@ -1,11 +1,14 @@
 import { Db, now } from './db/db.js'
 import { newId } from './ids.js'
 import { canonicalJson, jobKey, sha256 } from './keys.js'
+import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage } from './types.js'
 import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
+export interface AnswerRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: AnswerSensitivity; source: string; use_count: number; last_used_at: string | null; updated_at: string }
+export interface AnswerEventRow { id: string; kind: AnswerEventKind; question_key: string; question_text: string; answer: string | null; previous_value: string | null; source: string | null; sensitivity: AnswerSensitivity; application_id: string | null; job_key: string | null; site_host: string | null; created_at: string; uploaded_at: string | null; upload_error: string | null }
 export interface ChatCardRow { id: string; session_id: string | null; tool_use_id: string | null; kind: string; title: string; data_json: string; state: 'pending' | 'completed' | 'dismissed'; created_at: string; updated_at: string }
 
 export class Repos {
@@ -162,6 +165,10 @@ export class Repos {
     this.db.run(`UPDATE action_queue SET payload_json=?, content_hash=?, packet_id=?, status='pending_review', approved_hash=NULL, approved_by=NULL, updated_at=? WHERE id=?`, [json, sha256(json), packetId, now(), id])
     return this.getAction(id)!
   }
+  /** 执行没成功、需要用户处理后重新确认（如提交时网站报校验错误）：回到待审，原批准作废。 */
+  reopenAction(id: string, result?: unknown): boolean {
+    return this.db.run(`UPDATE action_queue SET status='pending_review', approved_hash=NULL, approved_by=NULL, result_json=COALESCE(?, result_json), updated_at=? WHERE id=? AND status IN ('executing','needs_user','failed','approved')`, [result === undefined ? null : JSON.stringify(result), now(), id]).changes > 0
+  }
   /** 失败 / 浏览器关闭后重新排队：只有执行态（executing / needs_user）可以回到 approved，原批准仍然有效。 */
   requeueAction(id: string): boolean {
     return this.db.run(`UPDATE action_queue SET status='approved', updated_at=? WHERE id=? AND status IN ('executing','needs_user') AND approved_hash IS NOT NULL`, [now(), id]).changes > 0
@@ -265,9 +272,74 @@ export class Repos {
   }
   kvGet<T = unknown>(key: string): T | undefined { const r = this.db.get<{ value_json: string }>('SELECT value_json FROM kv WHERE key=?', [key]); return r ? JSON.parse(r.value_json) as T : undefined }
   kvSet(key: string, value: unknown): void { this.db.run('INSERT INTO kv(key,value_json,updated_at) VALUES(?,?,?) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=excluded.updated_at', [key, JSON.stringify(value), now()]) }
-  findAnswer(questionKey: string) { return this.db.get<{ id: string; answer: string; high_impact: number; confirmed: number }>('SELECT id, answer, high_impact, confirmed FROM answer_bank WHERE question_key=? ORDER BY confirmed DESC, updated_at DESC LIMIT 1', [questionKey]) }
-  saveAnswer(a: { question_key: string; question_text: string; answer: string; high_impact?: boolean; confirmed?: boolean }): void {
-    this.db.insert('answer_bank', { id: newId('ans'), question_key: a.question_key, question_text: a.question_text, answer: a.answer, high_impact: a.high_impact ? 1 : 0, confirmed: a.confirmed ? 1 : 0, updated_at: now() })
+  /** 按问题键取当前答案：固定的优先，停用的不用。 */
+  findAnswer(questionKey: string) {
+    return this.db.get<{ id: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: AnswerSensitivity }>(
+      `SELECT id, answer, high_impact, confirmed, status, sensitivity FROM answer_bank WHERE question_key=? AND status!='archived' ORDER BY (status='pinned') DESC, confirmed DESC, updated_at DESC LIMIT 1`, [normalizeQuestionKey(questionKey)])
+  }
+  /**
+   * 存答案。excluded 类问题（证件 / 密码 / 是否使用 AI / 反机器人）不存，返回 null。
+   * 同一问题已有不同答案：旧的停用（保留历史），记一条 edited 事件（带旧值）；答案相同只刷新时间。
+   */
+  saveAnswer(a: { question_key: string; question_text: string; answer: string; high_impact?: boolean; confirmed?: boolean; source?: string; application_id?: string | null; site_host?: string | null; event?: AnswerEventKind }): AnswerRow | null {
+    const sensitivity = classifyAnswerSensitivity(`${a.question_text} ${a.question_key}`)
+    if (sensitivity === 'excluded') return null
+    const key = normalizeQuestionKey(a.question_key)
+    const t = now()
+    const prev = this.findAnswer(key)
+    if (prev && prev.answer === a.answer) {
+      this.db.update('answer_bank', prev.id, { updated_at: t, ...(a.confirmed ? { confirmed: 1 } : {}), ...(a.high_impact ? { high_impact: 1 } : {}) })
+      return this.getAnswer(prev.id)!
+    }
+    const id = newId('ans')
+    this.db.transaction(() => {
+      if (prev) this.db.run(`UPDATE answer_bank SET status='archived', updated_at=? WHERE question_key=? AND status='active'`, [t, key])
+      this.db.insert('answer_bank', { id, question_key: key, question_text: a.question_text, answer: a.answer, high_impact: a.high_impact ? 1 : 0, confirmed: a.confirmed ? 1 : 0, status: prev?.status === 'pinned' ? 'pinned' : 'active', sensitivity, source: a.source ?? 'user', updated_at: t })
+      if (prev?.status === 'pinned') this.db.run(`UPDATE answer_bank SET status='archived' WHERE id=?`, [prev.id])
+      this.recordAnswerEvent({ kind: a.event ?? (prev ? 'edited' : 'answered'), question_key: key, question_text: a.question_text, answer: a.answer, previous_value: prev?.answer ?? null, source: a.source ?? 'user', application_id: a.application_id ?? null, site_host: a.site_host ?? null })
+    })
+    return this.getAnswer(id)!
+  }
+  getAnswer(id: string): AnswerRow | undefined { return this.db.get<AnswerRow>('SELECT * FROM answer_bank WHERE id=?', [id]) }
+  listAnswers(f: { includeArchived?: boolean } = {}): AnswerRow[] {
+    return this.db.all<AnswerRow>(`SELECT * FROM answer_bank ${f.includeArchived ? '' : `WHERE status!='archived'`} ORDER BY (status='pinned') DESC, updated_at DESC`)
+  }
+  /** 固定（总是用这条）/ 恢复 / 停用（保留历史，不再自动填）。固定一条时同问题的其他固定条目降为普通。 */
+  setAnswerStatus(id: string, status: AnswerStatus): AnswerRow {
+    const row = this.getAnswer(id); if (!row) throw new Error(`答案不存在：${id}`)
+    this.db.transaction(() => {
+      if (status === 'pinned') this.db.run(`UPDATE answer_bank SET status='active' WHERE question_key=? AND status='pinned' AND id!=?`, [row.question_key, id])
+      this.db.update('answer_bank', id, { status, updated_at: now() })
+      if (status === 'archived') this.recordAnswerEvent({ kind: 'archived', question_key: row.question_key, question_text: row.question_text, answer: null, previous_value: row.answer, source: 'user' })
+    })
+    return this.getAnswer(id)!
+  }
+  deleteAnswer(id: string): void {
+    const row = this.getAnswer(id); if (!row) return
+    this.db.transaction(() => {
+      this.db.run('DELETE FROM answer_bank WHERE id=?', [id])
+      this.recordAnswerEvent({ kind: 'deleted', question_key: row.question_key, question_text: row.question_text, answer: null, previous_value: null, source: 'user' })
+    })
+  }
+  markAnswersUsed(ids: string[]): void {
+    const t = now()
+    for (const id of ids) this.db.run('UPDATE answer_bank SET use_count=use_count+1, last_used_at=? WHERE id=?', [t, id])
+  }
+  /** 记答案事件（上传队列）。excluded 永不记；personal / self_id 不记值。 */
+  recordAnswerEvent(e: { kind: AnswerEventKind; question_key: string; question_text: string; answer?: string | null; previous_value?: string | null; source?: string | null; application_id?: string | null; job_key?: string | null; site_host?: string | null }): AnswerEventRow | null {
+    const sensitivity = classifyAnswerSensitivity(`${e.question_text} ${e.question_key}`)
+    if (sensitivity === 'excluded') return null
+    const withValue = sensitivity === 'normal'
+    const id = newId('aev')
+    let jobKeyValue = e.job_key ?? null
+    if (!jobKeyValue && e.application_id) { const app = this.getApplication(e.application_id); jobKeyValue = app ? this.getJob(app.job_id)?.job_key ?? null : null }
+    this.db.insert('answer_event', { id, kind: e.kind, question_key: normalizeQuestionKey(e.question_key), question_text: e.question_text, answer: withValue ? e.answer ?? null : null, previous_value: withValue ? e.previous_value ?? null : null, source: e.source ?? null, sensitivity, application_id: e.application_id ?? null, job_key: jobKeyValue, site_host: e.site_host ?? null, created_at: now(), uploaded_at: null, upload_error: null })
+    return this.db.get<AnswerEventRow>('SELECT * FROM answer_event WHERE id=?', [id])!
+  }
+  pendingAnswerEvents(limit = 200): AnswerEventRow[] { return this.db.all<AnswerEventRow>('SELECT * FROM answer_event WHERE uploaded_at IS NULL ORDER BY created_at LIMIT ?', [limit]) }
+  markAnswerEventsUploaded(ids: string[], error?: string): void {
+    const t = now()
+    for (const id of ids) this.db.run('UPDATE answer_event SET uploaded_at=?, upload_error=? WHERE id=?', [error ? null : t, error ?? null, id])
   }
 
   // ======================================================================

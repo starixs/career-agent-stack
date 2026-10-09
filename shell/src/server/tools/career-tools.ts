@@ -364,13 +364,16 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       return text({ runId, taskId, state: 'paused', handoffId: outcome.handoffId, reason: outcome.reason, userAction: outcome.userAction, summary: outcome.summary, note: '已暂停：请把 userAction 原话告诉用户；用户在浏览器里处理完并点"交回"后，调用 apply_continue(action_id) 从当前页继续。' });
     }
     registry.finish(runId);
-    return text({ runId, taskId, state: 'done', submitActionId: outcome.submitActionId, summary: outcome.summary, note: `表单已填好但未提交；提交动作已进待审核队列，用户批准后由本人完成。${outcome.pending > 0 ? `有 ${outcome.pending} 项需要用户补充 / 确认（见 needsUser / drafts / mismatches）。` : ''}` });
+    return text({ runId, taskId, state: 'done', submitActionId: outcome.submitActionId, autoApproved: outcome.autoApproved ?? null, decision: outcome.decision, summary: outcome.summary,
+      note: outcome.autoApproved
+        ? `表单已填好，${outcome.decision}；产品会在几秒内自动点提交，结果会更新到这份投递。`
+        : `表单已填好但未提交；提交动作已进待审核队列（${outcome.decision ?? '需要你确认'}）。用户看过审阅清单批准后，产品替用户点提交。${outcome.pending > 0 ? `有 ${outcome.pending} 项需要用户补充 / 确认（见 needsUser / drafts / mismatches）。` : ''}` });
   }
 
   return createSdkMcpServer({
     name: 'career',
     version: '1.0.0',
-    instructions: '求职助理的数据与执行工具。读写一律走这些工具；submit / send_greeting / answer_open_q 只会进入待审核队列，由用户批准后执行。',
+    instructions: '求职助理的数据与执行工具。读写一律走这些工具；submit / send_greeting / answer_open_q / send_mail 进入待审核队列，由用户批准后执行（网申提交例外：用户开了 auto 模式，或同一张表已自学习免审时会直接提交）。',
     tools: [
       // ---------- 概览 / 经历库 ----------
       tool('career_overview', '返回看板三问题（今天必须做什么 / 哪里卡住 / 漏斗分布）+ 待审数 + 进行中的任务 + 未关闭的接管。', {}, wrap(() => text(store().overview()))),
@@ -890,6 +893,16 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         changed('action_queue');
         review([action.id], 'send_greeting', `向「${job.company_name ?? ''} ${job.title}」发送招呼语`);
         return text({ action_id: action.id, greeting: out.greeting, review: out.review, status: action.status });
+      })()),
+
+      tool('apply_auto_mode', '查看或切换投递 auto 模式。开启后：填完检查全部通过的网申会直接提交，不再等用户批准；有任何需要人看的项仍会停下。只在用户明确要求时开启 / 关闭。另：同一张表用户连续 3 次直接批准、简历与开放题答案没变时，会自动免确认（自学习，不受此开关影响）。', {
+        enabled: z.boolean().optional().describe('不传只查看'),
+      }, async (args) => wrap(async () => {
+        const { getAutoMode, setAutoMode, LEARN_THRESHOLD } = await import('../career/submit-policy');
+        const r = repos();
+        const cur = args.enabled === undefined ? getAutoMode(r) : setAutoMode(r, args.enabled);
+        if (args.enabled !== undefined) changed('kv');
+        return text({ auto_mode: cur.enabled, learn_threshold: LEARN_THRESHOLD });
       })()),
 
       tool('review_queue', '列出动作队列（默认 pending_review）。', {

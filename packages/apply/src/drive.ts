@@ -17,6 +17,7 @@ import { fillValueScript } from './scripts.js'
 import { normalizeHost, type SiteMemory } from './memory.js'
 import { DATE_FIELD_RX, matchOption } from './normalize.js'
 import type { FieldType } from './scripts.js'
+import { buildSubmitReview, type SubmitReview } from './review.js'
 
 /**
  * 多页单步驱动循环：每页 extract → interpret → 上传优先 → 填写 → 差异核对 → 找"下一步"。
@@ -79,6 +80,8 @@ export interface DriveResult {
   screenshot?: Uint8Array
   finalUrl: string
   adapterId: string
+  /** stopped_before_submit 时的填后检查（审阅清单 + 免审指纹）。 */
+  review?: SubmitReview
 }
 
 export interface DriveOptions extends PacingOptions {
@@ -142,7 +145,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   const finish = async (status: DriveStatus, message: string, extra: Partial<DriveResult> = {}): Promise<DriveResult> => {
     let screenshot: Uint8Array | undefined
     try { screenshot = await page.screenshot() } catch { /* 截图失败不影响结果 */ }
-    return { status, message, pages, ...all, layersUsed: [...layersUsed], screenshot, finalUrl: page.url(), adapterId: adapter.id, ...extra }
+    // 停在提交前：做一遍填后检查，给审核卡片的审阅清单与免审判断
+    let review: SubmitReview | undefined
+    if (status === 'stopped_before_submit') { try { review = await buildSubmitReview(page, all) } catch { /* 检查失败时调用方按"需要人看"处理 */ } }
+    return { status, message, pages, ...all, layersUsed: [...layersUsed], screenshot, finalUrl: page.url(), adapterId: adapter.id, ...(review ? { review } : {}), ...extra }
   }
   const handoff = (reason: HandoffReason, sig: PageSignals, evidence: string, prefix: string, extra: Partial<DriveResult> = {}) => {
     const d = describeObstacle(reason, sig, evidence, { loginFilled: extra.loginFilled })

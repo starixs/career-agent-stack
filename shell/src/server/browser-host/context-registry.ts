@@ -461,6 +461,18 @@ export class BrowserContextRegistry {
     return true;
   }
 
+  /**
+   * 产品内选中某一页（每份网申一个页面时切换现场画面）。传入的可能是借用代理，
+   * 按 mainFrame()（Playwright 缓存的同一个 Frame）找回真实 Page。
+   */
+  focusPage(productSessionId: string, page: Page): void {
+    const entry = this.entries.get(productSessionId);
+    if (!entry) return;
+    const frame = page.mainFrame();
+    const real = entry.context.pages().find(candidate => candidate.mainFrame() === frame);
+    if (real) entry.selection.page = real;
+  }
+
   reconcileTabAction(
     productSessionId: string,
     action: unknown,

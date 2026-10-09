@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { jobKey } from '../keys.js'
+import { classifyAnswerSensitivity } from '../answers.js'
 
 /**
  * 增量迁移。schema.sql 是版本 1 的基线（新库整份建出来，老库靠 IF NOT EXISTS 补新表）；
@@ -55,6 +56,39 @@ export const MIGRATIONS: readonly Migration[] = [
       )`)
       db.exec('CREATE INDEX IF NOT EXISTS idx_packet_application ON application_packet(application_id, created_at)')
       addColumn(db, 'application', 'packet_id', 'TEXT')
+    },
+  },
+  {
+    version: 3,
+    name: 'answer-bank-governance',
+    up(db) {
+      // 答案库：固定 / 停用（保留历史）/ 删除；敏感度分级；来源；使用次数
+      addColumn(db, 'answer_bank', 'status', "TEXT NOT NULL DEFAULT 'active'")
+      addColumn(db, 'answer_bank', 'sensitivity', "TEXT NOT NULL DEFAULT 'normal'")
+      addColumn(db, 'answer_bank', 'source', "TEXT NOT NULL DEFAULT 'user'")
+      addColumn(db, 'answer_bank', 'use_count', 'INTEGER NOT NULL DEFAULT 0')
+      addColumn(db, 'answer_bank', 'last_used_at', 'TEXT')
+      const rows = db.prepare('SELECT id, question_text FROM answer_bank').all() as Array<{ id: string; question_text: string }>
+      const set = db.prepare('UPDATE answer_bank SET sensitivity=?, status=CASE WHEN ?=\'excluded\' THEN \'archived\' ELSE status END WHERE id=?')
+      for (const r of rows) { const s = classifyAnswerSensitivity(r.question_text); set.run(s, s, r.id) }
+      // 答案事件：答过 / 改过 / 页面上被纠正；uploaded_at 为空即待上传（服务端未配置时只在本地累积）
+      db.exec(`CREATE TABLE IF NOT EXISTS answer_event (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        question_key TEXT NOT NULL,
+        question_text TEXT NOT NULL,
+        answer TEXT,
+        previous_value TEXT,
+        source TEXT,
+        sensitivity TEXT NOT NULL DEFAULT 'normal',
+        application_id TEXT,
+        job_key TEXT,
+        site_host TEXT,
+        created_at TEXT NOT NULL,
+        uploaded_at TEXT,
+        upload_error TEXT
+      )`)
+      db.exec('CREATE INDEX IF NOT EXISTS idx_answer_event_upload ON answer_event(uploaded_at, created_at)')
     },
   },
 ]

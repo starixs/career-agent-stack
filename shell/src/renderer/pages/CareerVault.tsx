@@ -7,6 +7,7 @@
 import { Eye, EyeOff, LockKeyhole, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { AnswerBankPanel } from '@/components/career/AnswerBankPanel';
 import { careerApi } from '@/components/career/careerApi';
 import {
   Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextInput, formatDate,
@@ -62,6 +63,7 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
           <>
             {showLog && <AccessLog />}
             <ProfileSection data={data} onChanged={query.reload} />
+            <AnswerBankPanel />
             <SitesSection data={data} onChanged={query.reload} />
             <ExperienceSection data={data} experiences={experiences.data ?? []} focusExperienceId={focusExperienceId} onChanged={query.reload} />
           </>

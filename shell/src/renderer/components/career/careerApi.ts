@@ -14,6 +14,7 @@ import type {
   InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
+  AnswerBankEntry, AnswerStatus, ApplySettings,
 } from './types';
 
 type Dict = Record<string, unknown>;
@@ -106,7 +107,18 @@ export const careerApi = {
     apiPostJson<unknown>(careerPath(`/applications/${encodeURIComponent(id)}/stage`), { to, note }).then(r => pickObject<Application>(r, 'application')),
   pendingActions: () => apiGetJson<unknown>(careerPath('/actions?status=pending_review')).then(r => pickList<ActionQueueItem>(r, 'actions', 'items')),
   reviewActions: (ids: string[], decision: 'approved' | 'rejected') =>
-    apiPostJson<unknown>(careerPath('/actions/review'), { ids, decision }).then(r => pickObject<{ n?: number }>(r)),
+    apiPostJson<unknown>(careerPath('/actions/review'), { ids, decision }).then(r => pickObject<{ n?: number; submitting?: string[] }>(r)),
+  /** 提交结果不确定 / 接管后：用户确认是否已经投递成功。 */
+  confirmSubmit: (id: string, submitted: boolean) =>
+    apiPostJson<unknown>(careerPath(`/actions/${encodeURIComponent(id)}/confirm-submit`), { submitted }).then(r => pickObject<ActionQueueItem>(r, 'action')),
+  /** 等用户确认结果的提交（status=needs_user 的 submit）。 */
+  submitsNeedingUser: () => apiGetJson<unknown>(careerPath('/actions?status=needs_user')).then(r => pickList<ActionQueueItem>(r, 'actions', 'items').filter(a => a.kind === 'submit')),
+  applySettings: () => apiGetJson<unknown>(careerPath('/apply/settings')).then(r => pickObject<ApplySettings>(r)),
+  setAutoMode: (enabled: boolean) => apiPostJson<unknown>(careerPath('/apply/settings'), { auto_mode: enabled }).then(r => pickObject<ApplySettings>(r)),
+  /** 答案库：固定（总是用这条）/ 停用（保留历史）/ 删除。 */
+  answerBank: (includeArchived = false) => apiGetJson<unknown>(careerPath(`/answer-bank${includeArchived ? '?archived=1' : ''}`)).then(r => ({ answers: pickList<AnswerBankEntry>(r, 'answers'), pendingUpload: typeof asDict(r).pending_upload === 'number' ? asDict(r).pending_upload as number : 0 })),
+  setAnswerStatus: (id: string, status: AnswerStatus) => apiPostJson<unknown>(careerPath(`/answer-bank/${encodeURIComponent(id)}/status`), { status }).then(r => pickObject<AnswerBankEntry>(r, 'answer')),
+  deleteAnswer: (id: string) => apiDelete(careerPath(`/answer-bank/${encodeURIComponent(id)}`)),
   browserControl: (control: 'agent' | 'human', reason?: string) =>
     apiPostJson<unknown>(careerPath('/browser/control'), { control, reason }).then(r => pickObject<{ control?: string }>(r)),
   browserState: () => apiGetJson<unknown>(careerPath('/browser/state')).then(r => pickObject<{ control?: string; url?: string; title?: string }>(r, 'state')),
