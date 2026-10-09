@@ -49,10 +49,11 @@ describe('Theme architecture guardrails', () => {
       .filter(file => source(file.slice(root.length + 1)).includes('var(--rail)'))
       .map(file => file.slice(root.length + 1));
 
-    expect(consumers).toEqual([
+    expect(consumers.sort()).toEqual([
       'src/renderer/components/CustomTitleBar.tsx',
       'src/renderer/components/TabBar.tsx',
       'src/renderer/components/global-sidebar/GlobalSidebar.tsx',
+      'src/renderer/features/career-shell/CareerNavShell.tsx',
     ]);
   });
 
