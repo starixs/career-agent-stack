@@ -119,7 +119,7 @@ export function ToolboxSection({
             <div
               key={tool.id}
               id={`official-tool-${tool.id}`}
-              className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
+              className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -237,7 +237,7 @@ export function ToolboxSection({
           return (
             <div
               key={server.id}
-              className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
+              className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">

@@ -177,7 +177,7 @@ export function ExternalCliSettingsSection() {
         </p>
       </div>
 
-      <section className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+      <section className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-semibold text-[var(--ink)]">
@@ -264,7 +264,7 @@ export function ExternalCliSettingsSection() {
         )}
       </section>
 
-      <section className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+      <section className="space-y-4 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
         <div>
           <h3 className="text-sm font-semibold text-[var(--ink)]">
             {t('externalCli.usageTitle')}

@@ -4169,7 +4169,7 @@ export default function Settings({
     return (
       <div
         key={provider.id}
-        className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
+        className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5"
       >
         <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -4595,7 +4595,7 @@ export default function Settings({
                 <img
                   src={codexModelSelectorOnboarding}
                   alt={tSettings('providers.loginDialog.codexModelSelectorAlt')}
-                  className="mx-auto mt-5 block h-auto w-full max-w-xs rounded-xl border border-[var(--line)]"
+                  className="mx-auto mt-5 block h-auto w-full max-w-xs rounded-lg border border-[var(--line)]"
                 />
               </section>
             )}
@@ -5115,7 +5115,7 @@ export default function Settings({
                 ) : (
                   <div
                     key={provider.id}
-                    className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
+                    className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5"
                   >
                     {/* Provider header */}
                     <div className="mb-4 flex items-start justify-between gap-2">
@@ -5206,7 +5206,7 @@ export default function Settings({
                 ),
               )}
               {visibleProviders.length === 0 && (
-                <div className="col-span-2 rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)] p-8 text-center">
+                <div className="col-span-2 rounded-lg border border-dashed border-[var(--line)] bg-[var(--paper)] p-8 text-center">
                   <p className="text-sm font-medium text-[var(--ink)]">
                     {tSettings('providers.noEnabledTitle')}
                   </p>
@@ -5275,7 +5275,7 @@ export default function Settings({
 
               {/* 消息发送 — applies to every "AI conversation" composer:
                                 主对话框 / AI 小助理 / 问题反馈 (shared via utils/chatSendKey). */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('shortcuts.messageSend.title')}
                 </h3>
@@ -5325,7 +5325,7 @@ export default function Settings({
 
               {/* Global Summon Shortcut (PRD 0.2.16) — relocated here from
                                 通用设置 in 0.2.29 so all keyboard shortcuts live together. */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('shortcuts.summon.title')}
                 </h3>
@@ -5422,7 +5422,7 @@ export default function Settings({
 
               {/* 应用快捷键 reference — read-only, sourced from the same
                                 APP_SHORTCUTS table App.tsx dispatches from (no drift). */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('shortcuts.app.title')}
                 </h3>
@@ -5460,19 +5460,19 @@ export default function Settings({
               </div>
 
               {/* 求职助理：模型 Key（必需）与搜索 Key（建议）。放在通用页最上面，不用去命令行注入 */}
-              <div data-testid="settings-career-keys" className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div data-testid="settings-career-keys" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">求职助理：模型与搜索</h3>
                 <p className="mt-1 mb-4 text-xs text-[var(--muted)]">模型 Key 必需，搜索 Key 建议配置。保存在本机，助理看不到。</p>
                 <CareerKeysPanel />
               </div>
 
-              <div data-testid="settings-career-server" className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div data-testid="settings-career-server" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">求职助理：服务端</h3>
                 <p className="mt-1 mb-4 text-xs text-[var(--muted)]">共享的校招 / 实习岗位库，以及答案改动回传（个人信息只传「有改动」，不带内容）。不填就只用本机数据。</p>
                 <CareerServerPanel />
               </div>
 
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.appearanceTitle')}
                 </h3>
@@ -5521,7 +5521,7 @@ export default function Settings({
               </div>
 
               {/* Startup Settings */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.startupTitle')}
                 </h3>
@@ -5721,7 +5721,7 @@ export default function Settings({
               </div>
 
               {/* Chat Queue Response Mode */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.queueTitle')}
                 </h3>
@@ -5781,7 +5781,7 @@ export default function Settings({
               </div>
 
               {/* Notification Settings */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.notificationTitle')}
                 </h3>
@@ -5925,7 +5925,7 @@ export default function Settings({
               </div>
 
               {/* Network Proxy Settings */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 {/* Enable toggle */}
                 <div className="flex items-center justify-between">
                   <div className="flex-1 pr-4">
@@ -6143,7 +6143,7 @@ export default function Settings({
           {activeSection === 'general' && (
             <div className="mt-6 space-y-6">
               {/* Log Export */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-medium text-[var(--ink)]">
@@ -6313,7 +6313,7 @@ export default function Settings({
               </div>
 
               {/* Product Description — Developer Letter */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-7 py-6">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-7 py-6">
                 <p className="text-xs font-medium uppercase tracking-widest text-[var(--muted)]/50">
                   {tSettings('about.developerLabel')}
                 </p>
@@ -6328,7 +6328,7 @@ export default function Settings({
               </div>
 
               {/* 实验室 */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('about.labTitle')}
                 </h3>
@@ -6458,7 +6458,7 @@ export default function Settings({
               </div>
 
               {/* AI Feedback */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-medium text-[var(--ink)]">
@@ -6479,7 +6479,7 @@ export default function Settings({
 
               {/* User Community QR Code - Show loading state, then image when ready */}
               {(qrCodeLoading || qrCodeDataUrl) && (
-                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                   <div className="flex flex-col items-center text-center">
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('about.communityTitle')}
@@ -6503,7 +6503,7 @@ export default function Settings({
               )}
 
               {/* Contact & Links */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
@@ -6548,7 +6548,7 @@ export default function Settings({
               </div>
 
               {/* Open-source and commercial licensing */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('about.licensingTitle')}
                 </h3>
@@ -6596,7 +6596,7 @@ export default function Settings({
                   </h2>
                   <div className="space-y-4">
                     {/* Developer Mode Toggle */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6628,7 +6628,7 @@ export default function Settings({
                     </div>
 
                     {/* Legacy Chat History Entry */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6670,7 +6670,7 @@ export default function Settings({
                     </div>
 
                     {/* Desktop Pet Gate */}
-                    {!linuxDesktop && (<div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    {!linuxDesktop && (<div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6702,7 +6702,7 @@ export default function Settings({
                     </div>)}
 
                     {/* Managed Codex Provider Gate */}
-                    {!linuxDesktop && (<div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    {!linuxDesktop && (<div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6753,7 +6753,7 @@ export default function Settings({
                       )}
 
                     {/* Split View Toggle */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6789,7 +6789,7 @@ export default function Settings({
                     </div>
 
                     {/* — Background-agent permission policy */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6838,7 +6838,7 @@ export default function Settings({
                     </div>
 
                     {/* LiteLLM Model Data Refresh Toggle */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6876,7 +6876,7 @@ export default function Settings({
                     </div>
 
                     {/* Claude transcript retention */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6921,7 +6921,7 @@ export default function Settings({
                     </div>
 
                     {/* Build Versions */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <h3 className="mb-3 text-sm font-medium text-[var(--ink)]">
                         {tSettings('about.developer.buildInfoTitle')}
                       </h3>
@@ -6961,7 +6961,7 @@ export default function Settings({
                     </div>
 
                     {/* Cron Task Debug Panel */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -8517,7 +8517,7 @@ export default function Settings({
                           onClick={() =>
                             setMcpForm((p) => ({ ...p, type: t.type }))
                           }
-                          className={`flex flex-col items-center rounded-xl border p-3 transition-all ${
+                          className={`flex flex-col items-center rounded-lg border p-3 transition-all ${
                             mcpForm.type === t.type
                               ? 'border-[var(--ink)] bg-[var(--inset)]'
                               : 'border-[var(--line)] hover:border-[var(--muted)]'
@@ -8619,7 +8619,7 @@ export default function Settings({
                         </div>
 
                         {/* Args - array input */}
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)] p-4">
+                        <div className="rounded-lg border border-[var(--line)] bg-[var(--inset)] p-4">
                           <label className="mb-3 block text-sm font-medium text-[var(--ink)]">
                             {tSettings('toolbox.dialogs.customMcp.args')}{' '}
                             <span className="font-mono text-[var(--muted)]">
@@ -8706,7 +8706,7 @@ export default function Settings({
                         </div>
 
                         {/* Environment Variables */}
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)] p-4">
+                        <div className="rounded-lg border border-[var(--line)] bg-[var(--inset)] p-4">
                           <label className="mb-3 flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
                             <span>🔐</span>{' '}
                             {tSettings('toolbox.dialogs.customMcp.envVars')}{' '}
@@ -8867,7 +8867,7 @@ export default function Settings({
                         </div>
 
                         {/* HTTP Headers — collapsible */}
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)]">
+                        <div className="rounded-lg border border-[var(--line)] bg-[var(--inset)]">
                           <button
                             type="button"
                             onClick={() => setMcpHeadersExpanded((v) => !v)}
@@ -9017,7 +9017,7 @@ export default function Settings({
                         </div>
 
                         {/* OAuth 2.0 Section — auto-discover + one-click authorize */}
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)]">
+                        <div className="rounded-lg border border-[var(--line)] bg-[var(--inset)]">
                           <div className="p-4">
                             <div className="flex items-center justify-between">
                               <span className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
