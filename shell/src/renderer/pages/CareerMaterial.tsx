@@ -21,10 +21,10 @@ const CareerResume = lazy(() => import('@/pages/CareerResume'));
 
 // 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
 type View = 'library' | 'experience' | 'resume';
-const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
-  experience: { title: '经历', subtitle: '做过的事和能拿出来讲的主张' },
-  resume: { title: '简历', subtitle: '每一份都记得投给了谁' },
-  library: { title: '常用表达', subtitle: '一套说法复用到几十家，前后一致' },
+const VIEW_HEADINGS: Record<View, { title: string; subtitle: string; examples: string[] }> = {
+  experience: { title: '经历', subtitle: '做过的事和能拿出来讲的主张', examples: ['帮我整理经历，我先口述一段实习', '帮我补充这段实习的量化结果'] },
+  resume: { title: '简历', subtitle: '每一份都记得投给了谁', examples: ['帮我生成主简历', '对着这个岗位改一版简历', '导出 PDF'] },
+  library: { title: '常用表达', subtitle: '一套说法复用到几十家，前后一致', examples: ['帮我写一段“为什么选择我们”', '给我一分钟版自我介绍', '把这个项目写成 STAR 故事'] },
 };
 
 /** 素材类型文案（共享常量里没有，先放在本页）。 */
@@ -67,10 +67,10 @@ export default function CareerMaterial({ embedded = false }: CareerPageProps) {
       embedded={embedded}
       title={VIEW_HEADINGS[effectiveView].title}
       subtitle={VIEW_HEADINGS[effectiveView].subtitle}
-      examples={['帮我写一段“为什么选择我们”', '给我一分钟版自我介绍', '把这个项目写成 STAR 故事']}
+      examples={VIEW_HEADINGS[effectiveView].examples}
     >
       {effectiveView === 'library' && (
-        <div className="space-y-4 px-4 py-3">
+        <div className="space-y-6 px-6 py-6">
           {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
           {query.loading && !data && <LoadingRow />}
           {data && <Library data={data} highlightId={highlightId} onChanged={query.reload} />}
@@ -114,9 +114,9 @@ function Library({ data, highlightId, onChanged }: { data: MaterialData; highlig
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <ChatActionButton text="帮我写一段“为什么选择我们”" context={{ surface: 'material' }} />
-        <ChatActionButton variant="secondary" text="给我一分钟和三分钟两个版本的自我介绍" context={{ surface: 'material' }} />
-        <ChatActionButton variant="secondary" text="把我最强的项目写成一个 STAR 故事" context={{ surface: 'material' }} />
+        <ChatActionButton variant="ghost" size="sm" text="帮我写一段“为什么选择我们”" context={{ surface: 'material' }} />
+        <ChatActionButton variant="ghost" size="sm" text="给我一分钟和三分钟两个版本的自我介绍" context={{ surface: 'material' }} />
+        <ChatActionButton variant="ghost" size="sm" text="把我最强的项目写成一个 STAR 故事" context={{ surface: 'material' }} />
         <Button className="ml-auto" variant={creating ? 'ghost' : 'secondary'} onClick={() => setCreating(v => !v)}>{creating ? '收起' : '手动新增'}</Button>
       </div>
       {creating && <CreateForm onDone={() => { setCreating(false); onChanged(); }} />}
@@ -133,7 +133,7 @@ function Library({ data, highlightId, onChanged }: { data: MaterialData; highlig
       )}
       {data.materials.length > 0 && visible.length === 0 && <div className="py-6 text-center text-xs text-[var(--subtle)]">这个类型下还没有素材。</div>}
       {visible.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-x-10 gap-y-8 lg:grid-cols-2">
           {visible.map(m => (
             <MaterialCard key={m.id} material={m} uses={usesByMaterial.get(m.id) ?? []} highlighted={m.id === highlightId} onChanged={onChanged} />
           ))}
@@ -149,7 +149,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${active ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]' : 'border-[var(--line)] text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]'}`}
+      className={`h-7 rounded-full border px-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${active ? 'border-[var(--ink)] bg-[var(--ink)] font-medium text-[var(--bg)]' : 'border-[var(--line-2)] text-[var(--muted)] hover:text-[var(--ink)]'}`}
     >
       {children}
     </button>
@@ -222,14 +222,14 @@ function MaterialCard({ material: m, uses, highlighted, onChanged }: { material:
   return (
     <div id={`material-${m.id}`}>
       <Card
-        className={highlighted ? 'ring-2 ring-[var(--primary)]' : ''}
+        className={highlighted ? '-mx-3 rounded-md bg-[var(--primary-soft)] px-3' : ''}
         title={editing ? <TextInput aria-label="编辑标题" value={title} onChange={e => setTitle(e.target.value)} /> : m.title}
         extra={(
           <>
-            <Badge tone="accent">{MATERIAL_KIND_LABELS[m.kind] ?? m.kind}</Badge>
             <Badge tone={confirmed ? 'success' : 'neutral'}>{confirmed ? '已确认' : '草稿'}</Badge>
-            {m.company_scope && <Badge tone="info">{m.company_scope}</Badge>}
-            {m.length_variant && <Badge>{m.length_variant}</Badge>}
+            <span className="text-xs text-[var(--muted)]">{MATERIAL_KIND_LABELS[m.kind] ?? m.kind}</span>
+            {m.length_variant && <span className="text-xs text-[var(--muted)]">{m.length_variant}</span>}
+            {m.company_scope && <span className="text-xs font-medium text-[var(--ink-2)]">{m.company_scope}</span>}
           </>
         )}
       >
@@ -238,7 +238,7 @@ function MaterialCard({ material: m, uses, highlighted, onChanged }: { material:
           <TextArea aria-label="编辑内容" value={content} onChange={e => setContent(e.target.value)} className="min-h-[120px]" />
         ) : (
           <div>
-            <div className={`whitespace-pre-wrap break-words text-sm text-[var(--ink)] ${expanded ? '' : 'line-clamp-4'}`}>{m.content}</div>
+            <div className={`whitespace-pre-wrap break-words text-base leading-7 text-[var(--ink)] ${expanded ? '' : 'line-clamp-4'}`}>{m.content}</div>
             {m.content.length > 100 && (
               <button type="button" onClick={() => setExpanded(v => !v)} className="mt-0.5 text-xs text-[var(--primary)] underline-offset-2 hover:underline">{expanded ? '收起' : '展开'}</button>
             )}
@@ -269,10 +269,10 @@ function MaterialCard({ material: m, uses, highlighted, onChanged }: { material:
             </>
           ) : (
             <>
-              <Button variant={confirmed ? 'ghost' : 'secondary'} busy={action.busy} onClick={() => void setConfirmed(!confirmed)}>{confirmed ? '取消确认' : '确认'}</Button>
-              <Button variant="ghost" onClick={startEdit}>编辑</Button>
-              <Button variant="ghost" busy={action.busy} onClick={() => void remove()}>删除</Button>
-              <ChatActionButton className="ml-auto" variant="secondary" text="按这个素材给某公司改一版" context={{ surface: 'material', refs: { material_id: m.id } }} />
+              <Button variant={confirmed ? 'ghost' : 'secondary'} size="sm" busy={action.busy} onClick={() => void setConfirmed(!confirmed)}>{confirmed ? '取消确认' : '确认'}</Button>
+              <Button variant="ghost" size="sm" onClick={startEdit}>编辑</Button>
+              <Button variant="ghost" size="sm" busy={action.busy} onClick={() => void remove()}>删除</Button>
+              <ChatActionButton className="ml-auto" variant="ghost" size="sm" text="按这个素材给某公司改一版" context={{ surface: 'material', refs: { material_id: m.id } }} />
             </>
           )}
         </div>

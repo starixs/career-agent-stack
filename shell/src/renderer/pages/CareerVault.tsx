@@ -47,13 +47,13 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
 
   return (
     <CareerPage
-      title="私密信息"
+      title="基本资料"
       subtitle={data ? `${filledCount} 项基本信息 · ${data.status.sites.length} 个网站账号 · 加密保存在本机，不进入模型对话` : '加密保存在本机，不进入模型对话'}
       examples={['检查我的私密信息还缺什么', '把联系方式用占位符写进简历', '帮我投这个岗位（会自动用这里的资料填表）']}
       actions={<Button variant="ghost" onClick={() => setShowLog(v => !v)}>{showLog ? '收起访问记录' : '访问记录'}</Button>}
     >
-      <div className="space-y-5 px-4 py-3">
-        <div className="flex items-start gap-2 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-3 py-2 text-xs text-[var(--muted)]">
+      <div className="max-w-5xl space-y-8 px-6 py-6">
+        <div className="flex items-start gap-2 border-l-2 border-[var(--line-2)] pl-3 text-xs text-[var(--muted)]">
           <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>这一页的内容不会进入个人助理的对话上下文。助理只知道「哪些项已填」，需要时用占位符（如 <code className="rounded bg-[var(--bg)] px-1">{'{{vault:profile.phone}}'}</code>）指代；填网申、登录投递网站、导出简历时，产品在本机把占位符替换成真实值，并记录每一次使用。</span>
         </div>
@@ -183,7 +183,7 @@ function SitesSection({ data, onChanged }: { data: VaultOverview; onChanged: () 
       </p>
       {adding && <SiteForm onDone={() => { setAdding(false); onChanged(); }} onCancel={() => setAdding(false)} />}
       {sites.length === 0 && !adding && <EmptyState title="还没有保存网站账号" hint="例如智联、前程无忧、牛客、各公司官网的网申账号。" />}
-      <ul className="space-y-2">
+      <ul className="divide-y divide-[var(--line)]">
         {sites.map(site => <SiteRow key={site.host} site={site} onChanged={onChanged} />)}
       </ul>
     </section>
@@ -202,7 +202,7 @@ function SiteRow({ site, onChanged }: { site: ReturnType<typeof groupSites>[numb
     onChanged();
   });
   return (
-    <li className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+    <li className="flex min-h-10 flex-wrap items-center gap-2 py-2">
       <div className="min-w-0 flex-1">
         <div className="text-sm text-[var(--ink)]">{site.label ? `${site.label} · ` : ''}{site.host}</div>
         <div className="text-xs text-[var(--muted)]">账号 {site.usernamePreview || '未填'} · 密码 {site.hasPassword ? '已设置' : '未填'}</div>
@@ -277,12 +277,12 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
         经历库里只写脱敏说法（如「某头部电商」），真实公司名、客户名、保密数据放这里。助理只能看到占位符，导出简历或填网申时产品会替换成真实值。
       </p>
       {list.length === 0 && <EmptyState title="经历库还是空的" hint="先在「经历库」添加经历，再回来补充它的保密信息。" />}
-      <ul className="space-y-2">
+      <ul className="divide-y divide-[var(--line)]">
         {list.map(e => {
           const items = byExp.get(e.id) ?? [];
           const open = openId === e.id;
           return (
-            <li key={e.id} ref={e.id === focusExperienceId ? focusRef : undefined} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+            <li key={e.id} ref={e.id === focusExperienceId ? focusRef : undefined} className="py-2">
               <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setOpenId(open ? null : e.id)} aria-expanded={open}>
                 <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]">{e.title}</span>
                 <span className="text-xs text-[var(--muted)]">{[e.org, e.role].filter(Boolean).join(' · ')}{e.start_date ? ` · ${formatDate(e.start_date)}` : ''}</span>

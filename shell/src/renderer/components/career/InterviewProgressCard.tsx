@@ -15,7 +15,7 @@ export function InterviewProgressCard() {
   if (!p || !Array.isArray(p.rounds)) return null;
   const next = p.rounds.find(r => r.key === p.next_round);
   return (
-    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-xs">
+    <div className="border-l-[3px] border-[var(--primary)] py-1 pl-4 text-sm">
       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
         <span className="font-medium text-[var(--ink)]">经历访谈 {p.done} / {p.rounds.length}</span>
         {p.rounds.map(r => <Badge key={r.key} tone={TONE[r.status]}>{r.label} · {LABEL[r.status]}</Badge>)}

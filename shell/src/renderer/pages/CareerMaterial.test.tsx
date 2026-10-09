@@ -129,7 +129,7 @@ describe('CareerMaterial', () => {
     render(<CareerMaterial isActive onOpenChat={vi.fn()} />);
     await screen.findByText('为什么选丙公司');
     act(() => { emitEvent('career:focus', { surface: 'material', id: 'm2' }); });
-    expect(document.getElementById('material-m2')?.querySelector('.ring-2')).not.toBeNull();
+    expect(document.getElementById('material-m2')?.querySelector('[class*="primary-soft"]')).not.toBeNull();
     act(() => { emitEvent('career:focus', { surface: 'material', id: 'resume-master-1' }); });
     expect(await screen.findByTestId('embedded-resume')).toBeInTheDocument();
     act(() => { setCareerSubView('career-material', 'experience'); });

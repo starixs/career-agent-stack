@@ -32,7 +32,7 @@ export const ACTION_KIND_LABELS: Record<ActionKind, string> = {
   answer_open_q: '回答开放题', collect: '采集', research: '调研', send_mail: '发送投递邮件',
 };
 
-export const CLAIM_STATUS_LABELS = { verified: '已验证', pending: '待核实', user_confirmed: '你已确认' } as const;
+export const CLAIM_STATUS_LABELS = { verified: '已验证', pending: '待确认', user_confirmed: '你已确认' } as const;
 export const ATTRIBUTION_LABELS = { self: '本人', team: '团队', unknown: '未知' } as const;
 export const STRENGTH_LABELS = { strong: '强', mid: '中', weak: '弱' } as const;
 export const RESUME_STRENGTH_LABELS = { nudge: '轻调', keywords: '关键词', full: '深改' } as const;

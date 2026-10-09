@@ -22,8 +22,14 @@ const EXPERIENCE_TYPES = [
   { value: 'education', label: '教育' }, { value: 'competition', label: '竞赛' }, { value: 'other', label: '其他' },
 ];
 
-const STATUS_TONE: Record<ClaimNode['status'], BadgeTone> = { verified: 'success', pending: 'warning', user_confirmed: 'info' };
+/** 6.3：助理生成、你还没确认的主张用中性「待确认」，确认后不再加标记色。 */
+const STATUS_TONE: Record<ClaimNode['status'], BadgeTone> = { verified: 'success', pending: 'neutral', user_confirmed: 'success' };
 const STRENGTH_TONE: Record<ClaimNode['evidence'][number]['strength'], BadgeTone> = { strong: 'success', mid: 'info', weak: 'neutral' };
+
+/** 助理有时写 internship（core 的访谈轮次用这个 key），展示时归到「实习」。 */
+function experienceTypeLabel(type: string): string {
+  return EXPERIENCE_TYPES.find(t => t.value === (type === 'internship' ? 'intern' : type))?.label ?? type;
+}
 
 /** 时间倒序：进行中（无结束时间）在前，然后按结束 / 开始时间倒序。 */
 export function sortExperiences(list: ExperienceNode[]): ExperienceNode[] {
@@ -47,16 +53,16 @@ export default function CareerExperience({ embedded = false }: { embedded?: bool
     <CareerPage
       embedded={embedded}
       title="经历库"
-      subtitle={pendingTotal > 0 ? `${pendingTotal} 条主张待你核实` : undefined}
+      subtitle={pendingTotal > 0 ? `${pendingTotal} 条主张待你确认` : undefined}
       examples={['帮我整理经历', '帮我从这份简历里提取经历', '帮我补充这段实习的证据']}
       actions={(
         <>
-          <Button onClick={() => setShowForm(v => !v)}><Plus className="h-3.5 w-3.5" />添加经历</Button>
-          <Button onClick={() => suggest('帮我整理这份材料里的经历：')}><Upload className="h-3.5 w-3.5" />上传材料（调用对话）</Button>
+          <Button variant="ghost" onClick={() => suggest('帮我整理这份材料里的经历：')}><Upload className="h-4 w-4" />上传材料（调用对话）</Button>
+          <Button onClick={() => setShowForm(v => !v)}><Plus className="h-4 w-4" />添加经历</Button>
         </>
       )}
     >
-      <div className="px-4 py-3">
+      <div className="space-y-6 px-6 py-6">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         <InterviewProgressCard />
         {showForm && <ExperienceForm onDone={() => { setShowForm(false); query.reload(); }} onCancel={() => setShowForm(false)} />}
@@ -65,10 +71,10 @@ export default function CareerExperience({ embedded = false }: { embedded?: bool
           <EmptyState title="还没有经历" hint="经历是简历和面试的根。可以口述、上传旧简历或项目仓库。" example="帮我整理经历" />
         )}
         {experiences.length > 0 && (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-[280px_1fr]">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-[280px_1fr]">
             <div>
               <SectionTitle>经历（{experiences.length}）</SectionTitle>
-              <ul className="space-y-1.5">
+              <ul>
                 {experiences.map(e => {
                   const pending = e.claims.filter(c => c.status === 'pending').length;
                   const active = e.id === activeId;
@@ -78,16 +84,16 @@ export default function CareerExperience({ embedded = false }: { embedded?: bool
                         type="button"
                         onClick={() => setSelectedId(e.id)}
                         aria-current={active ? 'true' : undefined}
-                        className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${active ? 'border-[var(--primary)] bg-[var(--primary)]/5' : 'border-[var(--line)] hover:bg-[var(--inset)]'}`}
+                        className={`relative w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${active ? 'bg-[var(--selected)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-[var(--primary)]' : 'hover:bg-[var(--hover)]'}`}
                       >
                         <div className="flex items-center gap-2">
                           <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--ink)]">{e.title}</span>
-                          {pending > 0 && <Badge tone="warning">待核实 {pending}</Badge>}
+                          {pending > 0 && <Badge>待确认 {pending}</Badge>}
                         </div>
                         <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
                           {[e.org, e.role].filter(Boolean).join(' · ') || '未知机构'}
                         </div>
-                        <div className="text-xs text-[var(--subtle)]">{formatDate(e.start_date)} – {e.end_date ? formatDate(e.end_date) : '至今'}</div>
+                        <div className="text-xs tabular-nums text-[var(--muted)]">{formatDate(e.start_date)} – {e.end_date ? formatDate(e.end_date) : '至今'}</div>
                       </button>
                     </li>
                   );
@@ -105,26 +111,27 @@ export default function CareerExperience({ embedded = false }: { embedded?: bool
 function ExperienceDetail({ experience, onChanged }: { experience: ExperienceNode; onChanged: () => void }) {
   const suggest = useSuggestToChat();
   return (
-    <div className="space-y-3">
-      <Card
-        title={experience.title}
-        extra={<Badge>{EXPERIENCE_TYPES.find(t => t.value === experience.type)?.label ?? experience.type}</Badge>}
-      >
-        <div className="text-xs text-[var(--muted)]">
+    <div className="space-y-6">
+      <header>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 className="font-human text-xl font-semibold text-[var(--ink)]">{experience.title}</h2>
+          <span className="text-xs text-[var(--muted)]">{experienceTypeLabel(experience.type)}</span>
+        </div>
+        <div className="mt-1 text-sm text-[var(--muted)]">
           {[experience.org, experience.role].filter(Boolean).join(' · ') || '机构 / 角色未知'} · {formatDate(experience.start_date)} – {experience.end_date ? formatDate(experience.end_date) : '至今'}
         </div>
-        {experience.summary && <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--ink)]">{experience.summary}</p>}
-      </Card>
+        {experience.summary && <p className="mt-2 whitespace-pre-wrap text-base leading-7 text-[var(--ink)]">{experience.summary}</p>}
+      </header>
       <PrivateSupplement experience={experience} />
-      <SectionTitle extra={<Button variant="ghost" onClick={() => suggest(`帮我给「${experience.title}」补充主张和证据`)}>在对话里补充</Button>}>
+      <SectionTitle extra={<Button variant="ghost" size="sm" onClick={() => suggest(`帮我给「${experience.title}」补充主张和证据`)}>在对话里补充</Button>}>
         主张（{experience.claims.length}）
       </SectionTitle>
       {experience.claims.length === 0 && (
-        <div className="rounded-lg border border-dashed border-[var(--line)] px-3 py-4 text-xs text-[var(--muted)]">
+        <div className="text-sm text-[var(--muted)]">
           这段经历还没有主张。在对话里说「帮我拆解这段经历的贡献」。
         </div>
       )}
-      <ul className="space-y-2">
+      <ul className="divide-y divide-[var(--line)]">
         {experience.claims.map(claim => <ClaimCard key={claim.id} claim={claim} onChanged={onChanged} />)}
       </ul>
     </div>
@@ -145,7 +152,7 @@ function PrivateSupplement({ experience }: { experience: ExperienceNode }) {
       extra={(
         <div className="flex items-center gap-2">
           <Badge tone={items.length ? 'accent' : 'neutral'}>{items.length ? `${items.length} 项，不进模型` : '未填'}</Badge>
-          <Button variant="ghost" onClick={() => setOpen(v => !v)} aria-expanded={open}>{open ? '收起' : '补充'}</Button>
+          <Button variant="ghost" size="sm" onClick={() => setOpen(v => !v)} aria-expanded={open}>{open ? '收起' : '补充'}</Button>
         </div>
       )}
     >
@@ -171,13 +178,13 @@ function ClaimCard({ claim, onChanged }: { claim: ClaimNode; onChanged: () => vo
     onChanged();
   });
   return (
-    <li className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3">
+    <li className={`py-3 pl-3 ${claim.status === 'pending' ? 'border-l-2 border-dashed border-[var(--line-2)]' : 'border-l-2 border-transparent'}`}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-sm text-[var(--ink)]">{claim.text}</div>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             <Badge tone={STATUS_TONE[claim.status] ?? 'neutral'}>{CLAIM_STATUS_LABELS[claim.status] ?? claim.status}</Badge>
-            <Badge tone={claim.attribution === 'self' ? 'accent' : 'neutral'} title="贡献归属">{ATTRIBUTION_LABELS[claim.attribution] ?? claim.attribution}</Badge>
+            <span className="text-xs text-[var(--muted)]" title="贡献归属">{ATTRIBUTION_LABELS[claim.attribution] ?? claim.attribution}</span>
             {claim.result_metric && <Badge tone="info" title="结果指标">{claim.result_metric}</Badge>}
             <span className="text-xs text-[var(--subtle)]">来源：{claim.created_from}</span>
           </div>

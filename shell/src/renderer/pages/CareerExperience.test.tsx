@@ -40,7 +40,7 @@ describe('CareerExperience', () => {
   it('按时间倒序渲染经历，并显示待核实数量与证据强度', async () => {
     vi.mocked(apiGetJson).mockResolvedValue({ ok: true, experiences: tree });
     render(<CareerExperience />);
-    expect(await screen.findByText('1 条主张待你核实')).toBeInTheDocument();
+    expect(await screen.findByText('1 条主张待你确认')).toBeInTheDocument();
     const items = screen.getAllByRole('button', { name: /后端实习|毕业设计/ });
     expect(items[0]).toHaveTextContent('后端实习');
     expect(items[1]).toHaveTextContent('毕业设计');
@@ -62,7 +62,7 @@ describe('CareerExperience', () => {
   it('收到 career:data-changed 后自动刷新', async () => {
     vi.mocked(apiGetJson).mockResolvedValue({ ok: true, experiences: tree });
     render(<CareerExperience />);
-    await screen.findByText('1 条主张待你核实');
+    await screen.findByText('1 条主张待你确认');
     emitEvent('career:data-changed', { sessionId: 's1', tables: ['claim'] });
     await waitFor(() => expect(vi.mocked(apiGetJson).mock.calls.filter(([path]) => String(path).startsWith('/api/career/experiences'))).toHaveLength(2));
   });

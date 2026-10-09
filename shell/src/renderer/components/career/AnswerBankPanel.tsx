@@ -32,7 +32,7 @@ export function AnswerBankPanel() {
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       {query.loading && !data && <LoadingRow />}
       {data && data.answers.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有答案。填网申时需要你回答的问题，答过一次就会记在这里。</div>}
-      <ul className="space-y-1.5">
+      <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
         {data?.answers.map(a => <AnswerRow key={a.id} answer={a} onChanged={query.reload} />)}
       </ul>
     </section>
@@ -47,7 +47,7 @@ function AnswerRow({ answer, onChanged }: { answer: AnswerBankEntry; onChanged: 
   const remove = () => act.run(async () => { await careerApi.deleteAnswer(answer.id); onChanged(); });
   const archived = answer.status === 'archived';
   return (
-    <li className={`rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 ${archived ? 'opacity-60' : ''}`}>
+    <li className={`py-3 ${archived ? 'text-[var(--subtle)]' : ''}`}>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <span className="font-medium text-[var(--ink)]">{answer.question_text}</span>
         {answer.status === 'pinned' && <Badge tone="accent">总是用这条</Badge>}
