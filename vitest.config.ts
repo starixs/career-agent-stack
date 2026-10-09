@@ -6,7 +6,7 @@ export default defineConfig({
     alias: { '@career/core': fileURLToPath(new URL('./packages/core/src/index.ts', import.meta.url)) },
   },
   test: {
-    include: ['packages/*/src/**/*.test.ts', 'packages/*/test/**/*.test.ts'],
+    include: ['packages/*/src/**/*.test.ts', 'packages/*/test/**/*.test.ts', 'evals/asserts/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
     testTimeout: 20000,
   },

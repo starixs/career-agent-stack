@@ -14,7 +14,7 @@ import type {
   InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
-  AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs,
+  AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
 } from './types';
 
 type Dict = Record<string, unknown>;
@@ -114,6 +114,19 @@ export const careerApi = {
   syncJobs: (source: 'campus' | 'server') => apiPostJson<unknown>(careerPath('/jobs/sync'), { source }).then(r => pickObject<{ fetched?: number; stored?: number; matched?: number }>(r)),
   prepareJobs: (jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/prepare'), { job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
     .then(r => pickObject<{ queued?: number; results?: Array<{ job_id: string; ok: boolean; reason?: string }> }>(r)),
+  questions: (f: { kind?: string; source?: string; company?: string; q?: string; weak_only?: boolean } = {}) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== '' && v !== false) p.set(k, v === true ? '1' : String(v));
+    return apiGetJson<unknown>(careerPath(`/questions?${p}`)).then(r => pickList<QuestionItem>(r, 'questions'));
+  },
+  addQuestion: (body: { content: string; kind?: string; category?: string; company_name?: string; title?: string; source?: 'seen' | 'public' }) =>
+    apiPostJson<unknown>(careerPath('/questions'), body).then(r => pickObject<QuestionItem>(r, 'question')),
+  deleteQuestion: (id: string) => apiDelete(careerPath(`/questions/${encodeURIComponent(id)}`)),
+  questionAttempts: (id: string) => apiGetJson<unknown>(careerPath(`/questions/${encodeURIComponent(id)}/attempts`)).then(r => pickList<QuestionAttempt>(r, 'attempts')),
+  resumeAts: (id: string) => apiGetJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/ats`)).then(r => pickObject<{ enabled?: boolean }>(r)),
+  setResumeAts: (id: string, enabled: boolean) => apiPutJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/ats`), { enabled }),
+  atsCheck: (id: string) => apiPostJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/ats-check`), {}).then(r => pickObject<AtsReport>(r, 'report')),
+  experienceProgress: () => apiGetJson<unknown>(careerPath('/experience-progress')).then(r => pickObject<InterviewProgress>(r, 'progress')),
   exportWorkbook: () => apiPostJson<unknown>(careerPath('/export/workbook'), {}).then(r => pickObject<{ path?: string; sheets?: Record<string, number> }>(r)),
   setStage: (id: string, to: string, note?: string) =>
     apiPostJson<unknown>(careerPath(`/applications/${encodeURIComponent(id)}/stage`), { to, note }).then(r => pickObject<Application>(r, 'application')),

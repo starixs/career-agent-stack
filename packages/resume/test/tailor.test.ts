@@ -44,7 +44,7 @@ describe('tailorResume', () => {
     ] })])
     const r = await tailorResume(mk(), { master: sampleResume(), jd: sampleJd(), claims: sampleClaims(), strength: 'nudge' })
     expect(r.patch).toHaveLength(1)
-    expect(r.truthfulnessFlags.map(f => `${f.kind}:${f.token}`).sort()).toEqual(['number:80', 'term:spark'])
+    expect(r.truthfulnessFlags.map(f => `${f.kind}:${f.token}`).sort()).toEqual(['number:80万', 'term:spark'])
     expect(r.truthfulnessFlags[0].path).toBe('/projects/0/bullets/0')
     const strict = await tailorResume(mk(), { master: sampleResume(), jd: sampleJd(), claims: sampleClaims(), strength: 'nudge', rejectFlagged: true })
     expect(strict.patch).toHaveLength(0)

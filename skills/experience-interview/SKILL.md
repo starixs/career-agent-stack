@@ -19,6 +19,9 @@ triggers: 经历,实习,项目经历,补充经历,挖一下,深挖经历,建档,
 4. 抽取主张：每条写成"动作 + 落地方式 + 结果"，标归属（self / team / unknown）、结果指标、可能的证据载体。
 5. 停止条件：用户喊停、六维度（业务背景、规模数据、个人贡献、成果、困难与解决、关键判断）都有着落、或连续两轮没有新信息。
 
+# 进度
+每轮开始时调用 `experience_interview(round, status: in_progress)`，一轮结束记 `done`，用户确实没有这类经历（降级问过两次）记 `none`；把下一轮要问的问题写进 `follow_up_questions`。新对话先调 `experience_interview()` 看上次聊到哪、还缺什么，接着来，不要从头问。
+
 # 输出
 ```json
 {

@@ -205,16 +205,55 @@ function sameMultiset(a: unknown[], b: unknown[]): boolean {
 
 // ---------- 编造检测 ----------
 
-export interface TruthCorpus { numbers: Set<string>; terms: Set<string> }
+export interface TruthCorpus { numbers: Set<string>; terms: Set<string>; /** 原文（规范化），中文专名与职位按子串核对。 */ raw: string }
 
 export function buildCorpus(master: Resume, claims: Claim[]): TruthCorpus {
   const text = [resumeText(master), ...claims.map(c => `${c.text} ${c.result_metric ?? ''}`)].join('\n')
-  return { numbers: new Set(extractNumbers(text)), terms: new Set(extractTerms(text)) }
+  return { numbers: new Set(extractNumbers(text)), terms: new Set(extractTerms(text)), raw: normalizeCn(text) }
 }
 
-/** 数字（含小数、千分位、百分比、中文单位前的数字）；归一化去掉千分位逗号。 */
-export function extractNumbers(text: string): string[] {
-  return (text.match(/\d+(?:[.,]\d+)*/g) ?? []).map(n => n.replace(/,/g, ''))
+const CN_DIGIT: Record<string, number> = { 零: 0, 〇: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+const CN_UNIT: Record<string, number> = { 十: 10, 百: 100, 千: 1000 }
+const CN_BIG: Record<string, number> = { 万: 1e4, 亿: 1e8 }
+
+/** 中文数字 → 数值（"三百二十" → 320，"两万五千" → 25000，"十二" → 12）。不合法返回 null。 */
+export function cnToNumber(s: string): number | null {
+  let total = 0; let section = 0; let digit = 0; let seen = false
+  for (const ch of s) {
+    if (ch in CN_DIGIT) { digit = CN_DIGIT[ch]; seen = true }
+    else if (ch in CN_UNIT) { section += (digit || (seen ? 0 : 1) || 1) * CN_UNIT[ch]; digit = 0; seen = true }
+    else if (ch in CN_BIG) { total += (section + digit) * CN_BIG[ch]; section = 0; digit = 0; seen = true }
+    else return null
+  }
+  return seen ? total + section + digit : null
+}
+
+const fmt = (n: number) => (Number.isInteger(n) ? String(n) : String(Number(n.toFixed(4))))
+
+/**
+ * 数字（含小数、千分位、百分比、"万 / 亿"量级、中文数字）。统一成数值字符串：
+ * "1,200" → 1200；"1.5万" → 15000；"三百万" → 3000000；"百分之三十" → 30。
+ * 只有一个"一 / 两"的中文数字（"一个""两次"）太常见，不算。
+ */
+export function extractNumbers(text: string): string[] { return numberTokens(text).map(t => t.value) }
+
+/** 数字及其原文写法（报告给用户看原文，比对用数值）。 */
+export function numberTokens(text: string): Array<{ value: string; raw: string }> {
+  const out: Array<{ value: string; raw: string }> = []
+  const src = text.normalize('NFKC')
+  for (const m of src.matchAll(/(\d+(?:[.,]\d+)*)\s*(万|亿)?/g)) {
+    const n = Number(m[1].replace(/,/g, ''))
+    if (Number.isFinite(n)) out.push({ value: fmt(m[2] ? n * CN_BIG[m[2]] : n), raw: m[0].replace(/\s+/g, '') })
+  }
+  for (const m of src.matchAll(/百分之([零〇一二两三四五六七八九十百]+)/g)) { const v = cnToNumber(m[1]); if (v !== null) out.push({ value: fmt(v), raw: m[0] }) }
+  for (const m of src.replace(/百分之[零〇一二两三四五六七八九十百]+/g, ' ').matchAll(/[零〇一二两三四五六七八九十百千万亿]{1,12}/g)) {
+    const tok = m[0]
+    if (tok.length === 1 && '一两二'.includes(tok)) continue
+    if (/^[万亿千百]+$/.test(tok)) continue
+    const v = cnToNumber(tok)
+    if (v !== null && v >= 2) out.push({ value: fmt(v), raw: tok })
+  }
+  return out
 }
 
 /** 专有名词：拉丁字母词（工具、框架、机构缩写）与书名号 / 引号内的短语，统一小写。 */
@@ -224,13 +263,30 @@ export function extractTerms(text: string): string[] {
   return [...latin, ...quoted]
 }
 
+/** 中文机构名（以公司 / 集团 / 银行 / 大学… 结尾）、职位头衔与领导力说法（带领 / 主导 / 独立负责…）：新文本里出现、原文里没有就算编造。 */
+const CN_ORG_RX = /[\u4e00-\u9fa5A-Za-z]{2,14}?(?:有限公司|公司|集团|银行|大学|学院|研究院|研究所|实验室|证券|基金|医院|事务所)/g
+const CN_TITLE_RX = /(?:总监|经理|主管|负责人|组长|队长|主席|副主席|部长|社长|会长|班长|leader|Leader|创始人|联合创始人|CEO|CTO|带领|领导|主导|牵头|独立负责)/g
+const normalizeCn = (s: string) => s.normalize('NFKC').replace(/\s+/g, '')
+
 const TERM_WHITELIST = new Set(['pdf', 'docx', 'png', 'jd', 'hr', 'word', 'excel', 'ppt', 'office', 'ok'])
 
-/** 新文本里出现、但语料（master + 已确认主张）里没有的数字 / 专有名词。 */
+/** 新文本里出现、但语料（master + 已确认主张）里没有的数字 / 专有名词 / 中文机构名 / 职位头衔。 */
 export function findFabrications(text: string, corpus: TruthCorpus): Omit<TruthFlag, 'path'>[] {
   const out: Omit<TruthFlag, 'path'>[] = []
-  for (const n of new Set(extractNumbers(text))) if (!corpus.numbers.has(n)) out.push({ kind: 'number', token: n, text, reason: `数字 ${n} 未在简历原文或已确认主张中出现` })
+  const seenNum = new Set<string>()
+  for (const n of numberTokens(text)) {
+    if (corpus.numbers.has(n.value) || seenNum.has(n.value)) continue
+    seenNum.add(n.value)
+    out.push({ kind: 'number', token: n.raw, text, reason: `数字 ${n.raw} 未在简历原文或已确认主张中出现` })
+  }
   for (const t of new Set(extractTerms(text))) if (!corpus.terms.has(t) && !TERM_WHITELIST.has(t)) out.push({ kind: 'term', token: t, text, reason: `名词 ${t} 未在简历原文或已确认主张中出现` })
+  const raw = corpus.raw ?? ''
+  for (const match of new Set(normalizeCn(text).match(CN_ORG_RX) ?? [])) {
+    // 去掉前面粘着的动词（"曾在 / 就职于 / 加入"），整段机构名到原文里核对
+    const org = match.replace(/^(?:曾经|曾|先后|后|并)?(?:就职于|任职于|实习于|加入|进入|在|于|到|赴)/, '')
+    if (org.length >= 4 && !raw.includes(org)) out.push({ kind: 'term', token: org, text, reason: `机构 ${org} 未在简历原文或已确认主张中出现` })
+  }
+  for (const title of new Set(normalizeCn(text).match(CN_TITLE_RX) ?? [])) if (!raw.includes(title)) out.push({ kind: 'term', token: title, text, reason: `头衔「${title}」未在简历原文或已确认主张中出现` })
   return out
 }
 

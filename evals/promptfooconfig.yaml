@@ -1,0 +1,15 @@
+# 求职助理回答质量回归（合成 / 脱敏样本；只在开发与 CI 跑，不进产品）
+# 运行：cd app && pnpm -r build && CAREER_LLM_API_KEY=sk-... pnpm eval
+# 断言本身的单测：app/evals/asserts/checks.test.ts（随 pnpm test 跑，不需要模型 Key）
+description: career-agent 回答质量回归
+providers:
+  - id: file://provider.mjs
+    label: 产品流水线（DeepSeek）
+prompts:
+  - '{{task}}'
+tests:
+  - file://cases/tailor.yaml
+  - file://cases/job-evaluate.yaml
+  - file://cases/interview-questions.yaml
+  - file://cases/exam-grade.yaml
+outputPath: ./results/latest.json

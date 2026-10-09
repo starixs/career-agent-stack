@@ -8,6 +8,7 @@ import { careerApi, safeJson } from '@/components/career/careerApi';
 import {
   INTERVIEW_RESULT_LABELS, INTERVIEW_RESULT_SOURCE_LABELS, INTERVIEW_ROUND_LABELS, MOCK_MODE_LABELS,
 } from '@/components/career/careerConstants';
+import { QuestionBankPanel } from '@/components/career/QuestionBankPanel';
 import {
   Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, Select, StructuredJson, TextArea, TextInput,
   formatDate, textOrUnknown,
@@ -82,6 +83,7 @@ export default function CareerInterview({ embedded = false }: { embedded?: boole
                 </div>
               )}
             </section>
+            <QuestionBankPanel />
             <MockSection mocks={query.data.mocks} />
             <PredictionSection predictions={query.data.predictions} />
           </>

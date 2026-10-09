@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react';
 
 import { careerApi } from '@/components/career/careerApi';
 import { ATTRIBUTION_LABELS, CLAIM_STATUS_LABELS, STRENGTH_LABELS } from '@/components/career/careerConstants';
+import { InterviewProgressCard } from '@/components/career/InterviewProgressCard';
 import {
   Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, Select, TextArea, TextInput,
   formatDate, useSuggestToChat,
@@ -57,6 +58,7 @@ export default function CareerExperience({ embedded = false }: { embedded?: bool
     >
       <div className="px-4 py-3">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
+        <InterviewProgressCard />
         {showForm && <ExperienceForm onDone={() => { setShowForm(false); query.reload(); }} onCancel={() => setShowForm(false)} />}
         {query.loading && !query.data && <LoadingRow />}
         {!query.loading && experiences.length === 0 && (

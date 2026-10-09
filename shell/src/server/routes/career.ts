@@ -17,7 +17,8 @@ import { confirmTailorProposal } from '../career/tailor';
 import { loadCore, type CoreModule } from '../career/core-module';
 import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges } from '../career/domain';
-import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, type ExportFormat } from '../career/export';
+import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isAtsMode, setAtsMode, type ExportFormat } from '../career/export';
+import { runAtsCheck } from '../career/ats-check';
 import { getShellLLM } from '../career/llm';
 import { captureIntake, type IntakeDeps } from '../career/intake';
 import { deleteMailPassword, setMailPassword } from '../career/mail/credentials';
@@ -222,6 +223,23 @@ const ROUTES: Route[] = [
     dataChanged(ctx, ['resume_tailored', 'resume_snapshot']);
     return ok({ tailored: result.tailored, applied_ops: result.applied });
   }),
+  // 过机筛开关：开了之后导出与投递材料包都用单栏无照片的 ATS 版；自检按当前设置导出后抽文字对照
+  route('GET', '/api/career/resumes/:id/ats', ({ repos, params }) => ok({ enabled: isAtsMode(repos, params.id) })),
+  route('PUT', '/api/career/resumes/:id/ats', (ctx) => {
+    if (!ctx.store.getResume(ctx.params.id)) return fail(`简历不存在：${ctx.params.id}`, 404);
+    setAtsMode(ctx.repos, ctx.params.id, ctx.body.enabled === true);
+    dataChanged(ctx, ['kv', 'resume']);
+    return ok({ enabled: ctx.body.enabled === true });
+  }),
+  route('POST', '/api/career/resumes/:id/ats-check', async (ctx) => {
+    try {
+      const report = await runAtsCheck({ store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), resolve: schema => ctx.vault.resolveDeep(schema, { actor: 'resume_export', purpose: `过机筛自检 ${ctx.params.id}` }) }, ctx.params.id);
+      return ok({ report: { ...report, pdf_path: undefined }, ats_mode: isAtsMode(ctx.repos, ctx.params.id) });
+    } catch (error) {
+      if (error instanceof DomainUnavailableError) return fail(error.message, 501);
+      return fail(error instanceof Error ? error.message : '自检失败', error instanceof Error && error.message.includes('不存在') ? 404 : 500);
+    }
+  }),
   route('POST', '/api/career/resumes/:id/export', async (ctx) => {
     const format = ctx.body.format;
     if (!EXPORT_FORMATS.includes(format as ExportFormat)) return fail("format 必须是 'pdf' | 'docx' | 'png'");
@@ -357,6 +375,30 @@ const ROUTES: Route[] = [
     dataChanged(ctx, ['kv']);
     return ok({ configured: !!base });
   }),
+
+  // ---------- 经历访谈进度（R03） ----------
+  route('GET', '/api/career/experience-progress', ({ repos, core }) => ok({ progress: core.interviewProgress(repos.experienceTree(), repos.kvGet(core.INTERVIEW_STATE_KEY) ?? { rounds: {} }) })),
+
+  // ---------- 题库（R09） ----------
+  route('GET', '/api/career/questions', ({ repos, url }) => {
+    const p = url.searchParams;
+    const kind = p.get('kind'); const source = p.get('source');
+    return ok({ questions: repos.listQuestions({
+      kind: kind === 'interview' || kind === 'written' || kind === 'assessment' ? kind : undefined,
+      source: source === 'public' || source === 'seen' || source === 'generated' ? source : undefined,
+      company: p.get('company') ?? undefined, q: p.get('q') ?? undefined, weak_only: p.get('weak_only') === '1', job_id: p.get('job_id') ?? undefined,
+    }) });
+  }),
+  route('POST', '/api/career/questions', (ctx) => {
+    const content = str(ctx.body.content);
+    if (!content) return fail('content 不能为空');
+    const kind = ctx.body.kind === 'written' || ctx.body.kind === 'assessment' ? ctx.body.kind : 'interview';
+    const q = ctx.repos.upsertQuestion({ content, kind, category: strOrNull(ctx.body.category), company_name: strOrNull(ctx.body.company_name), title: strOrNull(ctx.body.title), source: ctx.body.source === 'public' ? 'public' : 'seen', source_ref: 'user' });
+    dataChanged(ctx, ['question']);
+    return ok({ question: q });
+  }),
+  route('DELETE', '/api/career/questions/:id', (ctx) => { ctx.repos.deleteQuestion(ctx.params.id); dataChanged(ctx, ['question']); return ok({}); }),
+  route('GET', '/api/career/questions/:id/attempts', ({ repos, params }) => ok({ attempts: repos.listAttempts(params.id) })),
 
   // ---------- 投递台 ----------
   route('GET', '/api/career/applications', ({ store }) => ok({ applications: store.listApplicationsWithJob() })),

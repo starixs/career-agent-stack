@@ -10,6 +10,7 @@ import { getFont } from '@career/resume-studio/fonts';
 import CustomSelect from '@/components/CustomSelect';
 
 import { EDITABLE_SECTIONS, edit } from './studioEdit';
+import { AtsPanel } from './AtsPanel';
 
 type Update = (recipe: (d: ResumeData) => ResumeData, opts?: { merge?: string }) => void;
 
@@ -71,7 +72,7 @@ function weightsFor(family: string, want: string[]): string[] {
   return pick.length ? pick : [available.includes('400' as never) ? '400' : available[0]];
 }
 
-export function DesignPanel({ data, update }: { data: ResumeData; update: Update }) {
+export function DesignPanel({ data, update, resumeId }: { data: ResumeData; update: Update; resumeId?: string }) {
   const m = data.metadata;
   const page0 = m.layout.pages[0];
   const [customColor, setCustomColor] = useState(rgbaToHex(m.design.colors.primary));
@@ -90,6 +91,7 @@ export function DesignPanel({ data, update }: { data: ResumeData; update: Update
 
   return (
     <div data-testid="studio-design" className="text-sm">
+      {resumeId && <Group title="过机筛"><AtsPanel resumeId={resumeId} /></Group>}
       <Group title="模板">
         <div className="grid grid-cols-3 gap-2">
           {TEMPLATES.map(t => {

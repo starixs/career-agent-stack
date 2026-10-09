@@ -977,8 +977,12 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         category: z.enum(['开发', '数据分析', '产品', '运营', '设计', '市场营销', '销售', 'HR', '财务', '审计', '法务', '战略咨询']).optional(),
       }, async (args) => wrap(async () => {
         const job = requireJob(args.job_id);
-        const out = await askSkill('interview-questions', `${jobDigest(job)}\n岗位类别：${args.category ?? '未知'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n用户经历摘要：\n${experienceDigest()}`, { refs: args.category ? [args.category] : [], temperature: 0.5 });
-        return text(out);
+        const out = await askSkill<{ questions?: Array<{ type?: string; question?: string; probe_points?: string[]; difficulty?: string; jd_requirement?: string }>; coverage_note?: string }>('interview-questions', `${jobDigest(job)}\n岗位类别：${args.category ?? '未知'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n用户经历摘要：\n${experienceDigest()}`, { refs: args.category ? [args.category] : [], temperature: 0.5 });
+        // 出的题进题库（来源 generated，绑定岗位），之后练习、真实面试遇到都能对上同一道题
+        const r = repos();
+        const questions = (out.questions ?? []).filter(q => q?.question).map(q => ({ ...q, question_id: r.upsertQuestion({ content: q.question!, kind: 'interview', category: q.type ?? null, probe_points: q.probe_points ?? [], jd_requirement: q.jd_requirement ?? null, company_name: job.company_name, title: job.title, job_id: job.id, source: 'generated', source_ref: `generated:${job.id}`, tags: q.difficulty ? [q.difficulty] : [] }).id }));
+        if (questions.length) changed('question');
+        return text({ ...out, questions, note: '题目已存进题库（question_id）。用户练习作答后用 question_attempt 打分记录，便于比较进步。' });
       })()),
 
       tool('interview_probe', '模拟面试 / 简历深挖：漏斗追问。首轮不传 transcript 时给开场问题；传 transcript 时给追问或结束复盘。结果记录到 mock_interview。', {
@@ -1002,15 +1006,88 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         answers: z.array(z.object({ index: z.number().int().min(0), answer: z.string() })).optional().describe('用户的作答，index 从 0 开始'),
         review: z.array(z.object({ index: z.number().int().min(0), verdict: z.enum(['对', '错', '部分对']), comment: z.string().optional() })).optional(),
         summary: z.string().optional(), finish: z.boolean().optional().describe('批改完成'),
+        seen: z.boolean().optional().describe('这些题是用户在真实笔试 / 测评里遇到的（进题库时标为"我见过的"）'),
       }, async (args) => wrap(async () => {
         const exam = store().saveExamPractice({
           id: args.exam_id, title: args.title, company_name: args.company_name, job_id: args.job_id, kind: args.kind,
           questions: args.questions, answers: args.answers, review: args.review, summary: args.summary, finish: args.finish,
         });
-        changed('exam_practice');
+        // 题目进题库；批改结果按题记作答（对 100 / 部分对 50 / 错 0）
+        const r = repos();
+        const all = JSON.parse(exam.questions_json) as Array<{ q: string; kind?: string; reference?: string }>;
+        const qKind = exam.kind === '测评' ? 'assessment' as const : 'written' as const;
+        const ids = all.map(q => r.upsertQuestion({ content: q.q, kind: qKind, category: q.kind ?? exam.kind ?? null, reference: q.reference ?? null, company_name: exam.company_name, job_id: exam.job_id, source: args.seen ? 'seen' : 'generated', source_ref: `exam:${exam.id}` }).id);
+        if (args.review?.length) {
+          const answers = JSON.parse(exam.answers_json) as Array<{ index: number; answer: string }>;
+          for (const v of args.review) if (ids[v.index]) r.recordAttempt({ question_id: ids[v.index], mode: 'written', answer_text: answers.find(a => a.index === v.index)?.answer ?? null, score: v.verdict === '对' ? 100 : v.verdict === '部分对' ? 50 : 0, feedback: { verdict: v.verdict, comment: v.comment }, job_id: exam.job_id, exam_id: exam.id });
+        }
+        changed('exam_practice', 'question');
         const questions = JSON.parse(exam.questions_json) as unknown[];
         const answered = (JSON.parse(exam.answers_json) as unknown[]).length;
         return text({ exam_id: exam.id, status: exam.status, questions: questions.length, answered });
+      })()),
+
+      tool('resume_ats', '过机筛（ATS）开关与自检：enabled=true 后这份简历导出和投递都用单栏、无照片、标准分区标题的版本；check=true 按当前设置导出后用机器抽文字对照，报告读不出的内容、被打乱的顺序、图标字体等。用户说"过机筛 / 机器筛选 / ATS / 网申系统解析不出来"时用。', {
+        resume_id: z.string(), enabled: z.boolean().optional(), check: z.boolean().optional(),
+      }, async (args) => wrap(async () => {
+        const { isAtsMode, setAtsMode } = await import('../career/export');
+        if (!store().getResume(args.resume_id)) return err(`简历不存在：${args.resume_id}`);
+        if (args.enabled !== undefined) { setAtsMode(repos(), args.resume_id, args.enabled); changed('kv'); }
+        let report: unknown = null;
+        if (args.check) {
+          progress('resume_ats', '正在导出并做过机筛自检');
+          const { runAtsCheck } = await import('../career/ats-check');
+          const res = await runAtsCheck({ store: store(), exportPdf: id => exportWithVault(id, 'pdf'), resolve: schema => vault().resolveDeep(schema, { actor: 'resume_export', purpose: `过机筛自检 ${args.resume_id}` }) }, args.resume_id);
+          report = { ok: res.ok, score: res.score, issues: res.issues, pages: res.pages };
+        }
+        return text({ resume_id: args.resume_id, ats_mode: isAtsMode(repos(), args.resume_id), report });
+      })()),
+
+      tool('experience_interview', '经历访谈进度（跨对话延续）：六轮普查（education 教育 / course_project 课程项目 / internship 实习 / campus 校园 / competition_personal 比赛与个人项目 / skills 技能证书）每轮状态与下一轮要问的问题；同时给出经历库的缺口（没有确认主张的经历、缺量化结果的主张、待确认数）。每轮访谈开始 / 结束时更新；用户确实没有某类经历（降级问过两次）记 none。', {
+        round: z.enum(['education', 'course_project', 'internship', 'campus', 'competition_personal', 'skills']).optional(),
+        status: z.enum(['todo', 'in_progress', 'done', 'none']).optional(),
+        experience_id: z.string().optional().describe('当前在聊的经历'),
+        follow_up_questions: z.array(z.string()).max(5).optional().describe('下一轮要问的 3–5 个事实问题'),
+      }, async (args) => wrap(() => {
+        const r = repos();
+        const cur = r.kvGet<import('@career/core').InterviewState>(core.INTERVIEW_STATE_KEY) ?? { rounds: {} };
+        if (args.round || args.status || args.experience_id !== undefined || args.follow_up_questions) {
+          const next = { ...cur, rounds: { ...cur.rounds, ...(args.round && args.status ? { [args.round]: args.status } : {}) }, ...(args.round ? { current_round: args.round } : {}), ...(args.experience_id !== undefined ? { current_experience_id: args.experience_id } : {}), ...(args.follow_up_questions ? { follow_up_questions: args.follow_up_questions } : {}), updated_at: new Date().toISOString() };
+          r.kvSet(core.INTERVIEW_STATE_KEY, next);
+          changed('kv');
+          return text(core.interviewProgress(r.experienceTree(), next));
+        }
+        return text(core.interviewProgress(r.experienceTree(), cur));
+      })()),
+
+      tool('question_bank', '题库：总题库 + 用户见过的题 + 按 JD 出的题。按公司 / 来源 / 类型 / 关键词查，或只看没练过 / 得分低于 60 的薄弱题。每题带见过次数与最近 / 最好得分。', {
+        kind: z.enum(['interview', 'written', 'assessment']).optional(), source: z.enum(['public', 'seen', 'generated']).optional(),
+        company: z.string().optional(), job_id: z.string().optional(), q: z.string().optional(), weak_only: z.boolean().optional(), limit: z.number().int().min(1).max(100).optional(),
+      }, async (args) => wrap(() => text({ questions: repos().listQuestions({ ...args, limit: args.limit ?? 30 }).map(q => ({ id: q.id, kind: q.kind, category: q.category, content: q.content, company: q.company_name, title: q.title, source: q.source, seen_count: q.seen_count, attempts: q.attempt_count, last_score: q.last_attempt_score, best_score: q.best_attempt_score, probe_points: JSON.parse(q.probe_points_json) })) }))()),
+
+      tool('question_add', '把用户自己见过的题（真实面试 / 笔试 / 测评里遇到的，或从面经看到的）加进题库。只记用户说的原题，不改写。', {
+        questions: z.array(z.object({ content: z.string(), kind: z.enum(['interview', 'written', 'assessment']).optional(), category: z.string().optional(), reference: z.string().optional() })).min(1).max(50),
+        company_name: z.string().optional(), title: z.string().optional(), job_id: z.string().optional(),
+        source: z.enum(['seen', 'public']).optional().describe('seen = 用户本人遇到；public = 面经 / 公开题'),
+      }, async (args) => wrap(() => {
+        const r = repos();
+        const rows = args.questions.map(q => r.upsertQuestion({ content: q.content, kind: q.kind ?? 'interview', category: q.category ?? null, reference: q.reference ?? null, company_name: args.company_name ?? null, title: args.title ?? null, job_id: args.job_id ?? null, source: args.source ?? 'seen', source_ref: 'user' }));
+        changed('question');
+        return text({ saved: rows.map(q => ({ id: q.id, content: q.content, seen_count: q.seen_count })) });
+      })()),
+
+      tool('question_attempt', '记录用户对某道题的一次作答与评分（模拟面试 / 自练 / 笔试），绑定当时的简历与岗位，用于比较练习进步。评分 0–100，依据写进 feedback（对照 probe_points 与 JD 要求，指出缺的事实，不替用户编造经历）。', {
+        question_id: z.string(), answer_text: z.string(), score: z.number().min(0).max(100),
+        feedback: z.object({ strengths: z.array(z.string()).optional(), gaps: z.array(z.string()).optional(), rewrite_hint: z.string().optional() }).optional(),
+        mode: z.enum(['self', 'mock', 'written', 'real']).optional(), resume_id: z.string().optional(), job_id: z.string().optional(), mock_interview_id: z.string().optional(),
+      }, async (args) => wrap(() => {
+        const r = repos();
+        const resume = args.resume_id ? store().getResume(args.resume_id) : undefined;
+        const snapshot = resume ? r.db.get<{ id: string }>('SELECT id FROM resume_snapshot WHERE resume_id=? ORDER BY created_at DESC LIMIT 1', [resume.row.id])?.id ?? null : null;
+        const a = r.recordAttempt({ question_id: args.question_id, mode: args.mode ?? 'mock', answer_text: args.answer_text, score: args.score, feedback: args.feedback ?? {}, resume_id: args.resume_id ?? null, resume_snapshot_id: snapshot, job_id: args.job_id ?? null, mock_interview_id: args.mock_interview_id ?? null });
+        const history = r.listAttempts(args.question_id).map(x => x.score);
+        changed('question');
+        return text({ attempt_id: a.id, history, trend: history.length > 1 ? (history.at(-1)! - history[0]!) : null });
       })()),
 
       tool('interview_project_story', '项目讲述练习打分：结构 / 时长 / 框架 / 数据可信度，只用用户已说过的事实给改进版。', {
@@ -1031,8 +1108,11 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const s = store();
         const patch = { transcript: args.transcript, retro_json: out, tags_json: out.tags ?? [], result: args.result, result_source: args.result_source, company_name: args.company_name, title: args.title, round: args.round, date: args.date };
         const interview = args.interview_id ? s.updateInterview(args.interview_id, patch as never) : s.createInterview(patch as never);
-        changed('interview');
-        return text({ interview_id: interview.id, retro: out });
+        // 真实面试里被问到的题进题库（"我见过的"），同一题跨场次累计
+        const asked = Array.isArray((out as { questions?: unknown }).questions) ? (out as { questions: Array<{ quote?: string; type?: string; content_tags?: string[] }> }).questions : [];
+        const seen = asked.filter(q => q?.quote && q.quote.trim().length >= 4).map(q => repos().upsertQuestion({ content: q.quote!, kind: 'interview', category: q.type ?? null, company_name: args.company_name ?? null, title: args.title ?? null, source: 'seen', source_ref: `interview:${interview.id}`, tags: q.content_tags ?? [] }).id);
+        changed('interview', ...(seen.length ? ['question'] : []));
+        return text({ interview_id: interview.id, retro: out, questions_saved: seen.length });
       })()),
 
       tool('interview_predict', '从简历 / 主张预测面试深挖点：靶子类型、预期追问链、露馅风险，写入 probe_prediction。', {

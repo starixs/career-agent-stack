@@ -30,6 +30,13 @@
 | POST | `/api/career/jobs/prepare` | `{job_ids, resume_id?}` 勾选的岗位加入待投清单（逐个冻结材料包 + fill_form 待审） |
 | POST | `/api/career/export/workbook` | 导出求职表格（岗位汇总 / 投递进度 / 网申答案 / 题库）→ `{path, sheets}` |
 | GET / PUT | `/api/career/server-config` | 服务端地址与令牌（令牌只写不读） |
+| GET | `/api/career/questions?kind&source&company&q&weak_only=1` | 题库（R09） |
+| POST | `/api/career/questions` | `{content, kind?, category?, company_name?, source?:'seen'|'public'}` 补录见过的题 |
+| DELETE | `/api/career/questions/:id` | 删除题目 |
+| GET | `/api/career/questions/:id/attempts` | 作答记录（分数变化） |
+| GET / PUT | `/api/career/resumes/:id/ats` | 过机筛开关 `{enabled}` |
+| POST | `/api/career/resumes/:id/ats-check` | 过机筛自检 → `{report:{ok, score, issues, pages}}` |
+| GET | `/api/career/experience-progress` | 经历访谈进度（六轮状态 + 缺口 + 建议） |
 | POST | `/api/career/actions/review` | `{ids:string[], decision:'approved'|'rejected'}` → `{n}`（只改仍在待审的；n 是实际改动条数，已执行 / 已发送的不会被再次批准） |
 | POST | `/api/career/actions/:id/confirm-submit` | `{submitted:boolean}`：提交结果不确定 / 接管后，用户确认是否已投递成功（true → applied；false → 回到待审） |
 | GET / POST | `/api/career/apply/settings` | `{auto_mode:boolean}` → `{auto_mode, learn_threshold}`；auto 模式：填后检查全部通过的网申直接提交 |
@@ -157,6 +164,11 @@
 | `jobs_sync` | source: campus / server | 同步岗位并重算匹配 |
 | `job_prefs` | cohort / degree / cities / employment_types / keywords | 查看 / 设置求职条件（硬条件） |
 | `jobs_prepare` | job_ids, resume_id? | 多个岗位一次加入待投清单 |
+| `question_bank` | kind / source / company / q / weak_only | 查题库（见过次数、最近 / 最好得分） |
+| `question_add` | questions[], company_name?, source? | 补录用户见过的题（原题） |
+| `question_attempt` | question_id, answer_text, score, feedback? | 记一次作答与评分，返回分数趋势 |
+| `resume_ats` | resume_id, enabled?, check? | 过机筛开关与自检 |
+| `experience_interview` | round?, status?, experience_id?, follow_up_questions? | 经历访谈进度（跨对话） |
 | `apply_auto_mode` | enabled?: boolean | 查看 / 切换 auto 模式（只在用户明确要求时切换）；同时返回自学习免审阈值 |
 | `greeting_compose` | job_id | 生成招呼语并入队 send_greeting（待审） |
 | `review_queue` | status? | 列出待审动作 |

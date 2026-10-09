@@ -152,7 +152,7 @@ function WorkbenchBody({ resumeId, options, onPick }: { resumeId: string; option
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(340px,400px)_minmax(0,1fr)_300px]">
           <div className="min-h-0 overflow-y-auto border-r border-[var(--line)] p-3"><SectionsPanel data={data} update={doc.update} /></div>
           <div className="min-h-0">{preview}</div>
-          <div className="min-h-0 overflow-y-auto border-l border-[var(--line)]"><DesignPanel data={data} update={doc.update} /></div>
+          <div className="min-h-0 overflow-y-auto border-l border-[var(--line)]"><DesignPanel data={data} update={doc.update} resumeId={resumeId} /></div>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -165,7 +165,7 @@ function WorkbenchBody({ resumeId, options, onPick }: { resumeId: string; option
           <div className="min-h-0 flex-1 overflow-y-auto">
             {tab === 'content' && <div className="p-3"><SectionsPanel data={data} update={doc.update} /></div>}
             {tab === 'preview' && preview}
-            {tab === 'design' && <DesignPanel data={data} update={doc.update} />}
+            {tab === 'design' && <DesignPanel data={data} update={doc.update} resumeId={resumeId} />}
           </div>
         </div>
       )}

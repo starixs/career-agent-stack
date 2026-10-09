@@ -1,0 +1,21 @@
+# 笔试批改要对：对 / 错 / 部分对 与参考答案一致
+- description: 行测数量关系
+  vars:
+    task: exam_grade
+    questions:
+      - { q: '某商品先涨价 20% 再降价 20%，现价是原价的百分之几？', reference: '96%' }
+      - { q: '甲单独 6 天完成一项工作，乙单独 3 天完成，两人合作几天完成？', reference: '2 天' }
+      - { q: '1, 4, 9, 16, ( )', reference: '25' }
+    answers:
+      - { index: 0, answer: '100%' }
+      - { index: 1, answer: '2天' }
+      - { index: 2, answer: '25' }
+    expected: [错, 对, 对]
+- description: 简答题部分正确
+  vars:
+    task: exam_grade
+    questions:
+      - { q: '列出 SQL 中 WHERE 与 HAVING 的两点区别', reference: '1) WHERE 在分组前过滤行，HAVING 在分组后过滤组；2) HAVING 可以用聚合函数，WHERE 不能' }
+    answers:
+      - { index: 0, answer: 'WHERE 在分组前过滤，HAVING 在分组后过滤' }
+    expected: [部分对]

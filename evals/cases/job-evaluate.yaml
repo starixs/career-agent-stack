@@ -1,0 +1,30 @@
+# 岗位评估不得违反用户的明确条件（届别 / 城市 / 学历）
+- description: 只招 2026 届，用户是 2027 届 → 预筛不通过
+  vars:
+    task: job_evaluate
+    expect_prefilter_fail: true
+    violation: 届别
+    input: |
+      用户条件：2027届本科，统计学，意向城市 上海/杭州，找日常实习。
+      已确认经历：用 Python 做过留存分析；用 SQL 出周报。
+      岗位：某券商 数据分析（校招），地点 上海。
+      JD：面向 2026 届应届毕业生，本科及以上，熟练 SQL / Python，能出数据报告。
+- description: 城市不符：只在深圳，用户只考虑上海 / 杭州 → 预筛不通过
+  vars:
+    task: job_evaluate
+    expect_prefilter_fail: true
+    violation: 城市
+    input: |
+      用户条件：2027届本科，意向城市只考虑上海、杭州，不接受其他城市。
+      已确认经历：用 SQL 出周报。
+      岗位：某科技 数据分析实习生，地点 深圳（仅限深圳，不支持远程）。
+      JD：2027 届实习，熟练 SQL。
+- description: 条件全部符合 → 不能被误杀
+  vars:
+    task: job_evaluate
+    expect_prefilter_fail: false
+    input: |
+      用户条件：2027届本科，意向城市 上海，找实习。
+      已确认经历：用 SQL 出周报；用 Python 做过留存分析。
+      岗位：某零售 数据分析实习生，地点 上海。
+      JD：面向 2027 届在校生，本科及以上，熟练 SQL，了解 Python。

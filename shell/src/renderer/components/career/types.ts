@@ -266,3 +266,23 @@ export interface JobBoardRow {
   application: { id: string; stage: ApplicationStage; next_action: string | null; updated_at: string } | null;
 }
 export interface JobBoardFilter { q?: string; employment_type?: string; city?: string; cohort?: string; open_only?: boolean; fits_only?: boolean; progress?: 'none' | 'active' | 'done'; sort?: 'match' | 'deadline' | 'updated' }
+
+// ===== 题库 =====
+export interface QuestionItem {
+  id: string; question_key: string; kind: 'interview' | 'written' | 'assessment'; category: string | null; content: string; reference: string | null; probe_points_json: string; jd_requirement: string | null;
+  company_name: string | null; title: string | null; job_id: string | null; source: 'public' | 'seen' | 'generated'; sources_json: string; tags_json: string;
+  seen_count: number; attempt_count: number; last_attempt_score: number | null; best_attempt_score: number | null; first_seen_at: string | null; last_seen_at: string | null; updated_at: string;
+}
+export interface QuestionAttempt { id: string; question_id: string; mode: string; answer_text: string | null; score: number | null; feedback_json: string; resume_id: string | null; job_id: string | null; created_at: string }
+
+// ===== 过机筛 =====
+export interface AtsIssue { level: 'error' | 'warn'; code: string; message: string }
+export interface AtsReport { ok: boolean; score: number; issues: AtsIssue[]; extracted_chars: number; expected_chars: number; pages: number }
+
+// ===== 经历访谈进度 =====
+export interface InterviewProgress {
+  rounds: Array<{ key: string; label: string; status: 'todo' | 'in_progress' | 'done' | 'none' }>;
+  done: number; next_round: string | null; current_experience_id: string | null; follow_up_questions: string[];
+  gaps: { experiences_without_confirmed: Array<{ id: string; title: string }>; claims_without_metric: Array<{ id: string; text: string; experience: string }>; pending_claims: number };
+  suggestion: string;
+}

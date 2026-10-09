@@ -2,6 +2,7 @@ import { Db, now } from './db/db.js'
 import { newId } from './ids.js'
 import { canonicalJson, jobKey, sha256 } from './keys.js'
 import { inferEmploymentType, normalizeCohort } from './jobs.js'
+import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage } from './types.js'
@@ -343,6 +344,63 @@ export class Repos {
     const t = now()
     for (const id of ids) this.db.run('UPDATE answer_event SET uploaded_at=?, upload_error=? WHERE id=?', [error ? null : t, error ?? null, id])
   }
+
+  // ---------- 题库 ----------
+  /**
+   * 收一道题：同一道题（questionKey）只存一条，来源累加；"我见过的"（seen）计次并记时间。
+   * 优先级：seen > public > generated（一道题被真实遇到过就标为见过）。
+   */
+  upsertQuestion(q: { content: string; kind?: QuestionKind; category?: string | null; reference?: string | null; probe_points?: string[]; jd_requirement?: string | null; company_name?: string | null; title?: string | null; job_id?: string | null; source: QuestionSource; source_ref?: string | null; tags?: string[] }): QuestionRow {
+    const kind = q.kind ?? 'interview'
+    const key = questionKey(q.content, kind, q.company_name)
+    const t = now()
+    const cur = this.db.get<QuestionRow>('SELECT * FROM question WHERE question_key=?', [key])
+    const ref = q.source_ref ?? null
+    if (cur) {
+      const sources = new Set(JSON.parse(cur.sources_json) as string[]); if (ref) sources.add(ref)
+      const rank = (s: string) => (s === 'seen' ? 3 : s === 'public' ? 2 : 1)
+      const tags = new Set([...(JSON.parse(cur.tags_json) as string[]), ...(q.tags ?? [])])
+      this.db.update('question', cur.id, {
+        source: rank(q.source) > rank(cur.source) ? q.source : cur.source, sources_json: JSON.stringify([...sources]), tags_json: JSON.stringify([...tags]),
+        category: cur.category ?? q.category ?? null, reference: cur.reference ?? q.reference ?? null, jd_requirement: cur.jd_requirement ?? q.jd_requirement ?? null,
+        job_id: cur.job_id ?? q.job_id ?? null, title: cur.title ?? q.title ?? null,
+        ...(q.source === 'seen' ? { seen_count: cur.seen_count + 1, last_seen_at: t, first_seen_at: cur.first_seen_at ?? t } : {}), updated_at: t,
+      })
+      return this.getQuestion(cur.id)!
+    }
+    const id = newId('qst')
+    this.db.insert('question', {
+      id, question_key: key, kind, category: q.category ?? null, content: q.content.trim(), reference: q.reference ?? null, probe_points_json: JSON.stringify(q.probe_points ?? []), jd_requirement: q.jd_requirement ?? null,
+      company_name: q.company_name ?? null, title: q.title ?? null, job_id: q.job_id ?? null, source: q.source, sources_json: JSON.stringify(ref ? [ref] : []), tags_json: JSON.stringify(q.tags ?? []),
+      seen_count: q.source === 'seen' ? 1 : 0, attempt_count: 0, first_seen_at: q.source === 'seen' ? t : null, last_seen_at: q.source === 'seen' ? t : null, created_at: t, updated_at: t,
+    })
+    return this.getQuestion(id)!
+  }
+  getQuestion(id: string): QuestionRow | undefined { return this.db.get<QuestionRow>('SELECT * FROM question WHERE id=?', [id]) }
+  listQuestions(f: { kind?: QuestionKind; source?: QuestionSource; company?: string; job_id?: string; q?: string; weak_only?: boolean; limit?: number } = {}): QuestionRow[] {
+    const where: string[] = []; const params: (string | number)[] = []
+    if (f.kind) { where.push('kind=?'); params.push(f.kind) }
+    if (f.source) { where.push('source=?'); params.push(f.source) }
+    if (f.company) { where.push('company_name LIKE ?'); params.push(`%${f.company}%`) }
+    if (f.job_id) { where.push('job_id=?'); params.push(f.job_id) }
+    if (f.q) { where.push('(content LIKE ? OR category LIKE ? OR tags_json LIKE ?)'); params.push(`%${f.q}%`, `%${f.q}%`, `%${f.q}%`) }
+    if (f.weak_only) where.push('(attempt_count=0 OR last_attempt_score < 60)')
+    params.push(f.limit ?? 500)
+    return this.db.all<QuestionRow>(`SELECT * FROM question ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY (source='seen') DESC, seen_count DESC, updated_at DESC LIMIT ?`, params)
+  }
+  deleteQuestion(id: string): void { this.db.run('DELETE FROM question WHERE id=?', [id]) }
+  /** 记一次作答：绑定简历版本与岗位，更新最近 / 最好得分。 */
+  recordAttempt(a: { question_id: string; mode?: AttemptMode; answer_text?: string | null; score?: number | null; feedback?: unknown; resume_id?: string | null; resume_snapshot_id?: string | null; job_id?: string | null; mock_interview_id?: string | null; exam_id?: string | null; interview_id?: string | null }): QuestionAttemptRow {
+    const q = this.getQuestion(a.question_id); if (!q) throw new Error(`题目不存在：${a.question_id}`)
+    const id = newId('qat'); const t = now()
+    const score = typeof a.score === 'number' && Number.isFinite(a.score) ? Math.max(0, Math.min(100, a.score)) : null
+    this.db.transaction(() => {
+      this.db.insert('question_attempt', { id, question_id: q.id, mode: a.mode ?? 'self', answer_text: a.answer_text ?? null, score, feedback_json: JSON.stringify(a.feedback ?? {}), resume_id: a.resume_id ?? null, resume_snapshot_id: a.resume_snapshot_id ?? null, job_id: a.job_id ?? null, mock_interview_id: a.mock_interview_id ?? null, exam_id: a.exam_id ?? null, interview_id: a.interview_id ?? null, created_at: t })
+      this.db.update('question', q.id, { attempt_count: q.attempt_count + 1, ...(score !== null ? { last_attempt_score: score, best_attempt_score: Math.max(score, q.best_attempt_score ?? 0) } : {}), updated_at: t })
+    })
+    return this.db.get<QuestionAttemptRow>('SELECT * FROM question_attempt WHERE id=?', [id])!
+  }
+  listAttempts(questionId: string): QuestionAttemptRow[] { return this.db.all<QuestionAttemptRow>('SELECT * FROM question_attempt WHERE question_id=? ORDER BY created_at', [questionId]) }
 
   // ======================================================================
   // 五个面：收件箱 / 今日 / 卷宗 / 素材 / 复盘 / 邮箱

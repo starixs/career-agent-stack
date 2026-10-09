@@ -22,5 +22,5 @@ PDF：西文用内置 Times-Roman/Times-Bold，中文用 `@fontsource/noto-sans-
 ## 未实测 / 已知限制
 
 - 中文字体是 Noto Sans（黑体风格），不是宋体；`basics.photo_url` 在 DOCX 里只支持本地文件。
-- 编造检测不识别中文数字与中文专有名词；`estimateLines` 是估算，一页铁律以 `pdfPageCount` 为准。
+- 编造检测：中文数字（含万 / 亿、百分之几）按数值比对；中文机构名只认以公司 / 大学 / 银行等结尾的写法，头衔按常见词表；其余中文专名（如产品名）仍需人工确认；`estimateLines` 是估算，一页铁律以 `pdfPageCount` 为准。
 - 只有一套 PDF 模板 `ClassicCN`；未在 Windows 上验证 DOCX 字体回退。

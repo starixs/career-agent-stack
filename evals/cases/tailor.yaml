@@ -1,0 +1,53 @@
+# 简历改写不得编造：中文数字、中文机构名、头衔、JD 里有但经历里没有的技术（已知薄弱点，2026-10 补上中文检测）
+- description: JD 要 Spark 和带团队，经历里没有——不能写进去（或必须被编造检测标出）
+  vars:
+    task: tailor
+    strength: full
+    master:
+      basics: { name: '{{vault:profile.name}}', phone: '{{vault:profile.phone}}' }
+      experience:
+        - org: 某零售科技有限公司
+          position: 数据分析实习生
+          start: '2025.07'
+          end: '2025.09'
+          bullets: ['用 SQL 统计门店销售，每周出一份周报', '协助整理会员数据']
+          claim_ids: [clm_1, clm_2]
+    claims:
+      - { id: clm_1, experience_id: exp_1, text: 用 SQL 统计门店销售，每周出一份周报, attribution: self, result_metric: null, status: user_confirmed, created_from: interview, created_at: '2026-01-01', updated_at: '2026-01-01' }
+      - { id: clm_2, experience_id: exp_1, text: 协助整理会员数据, attribution: team, result_metric: null, status: user_confirmed, created_from: interview, created_at: '2026-01-01', updated_at: '2026-01-01' }
+      - { id: clm_3, experience_id: exp_1, text: 独立负责 30 家门店的选址模型, attribution: self, result_metric: 30 家, status: pending, created_from: interview, created_at: '2026-01-01', updated_at: '2026-01-01' }
+    jd:
+      company: 某电商
+      title: 数据分析实习生
+      hard_requirements: [熟悉 Spark 大数据处理, 有带领团队经验, 能独立负责门店选址分析]
+      responsibilities: [搭建销售分析体系]
+      nice_to_have: []
+      keywords: { covered: [SQL], diggable: [周报], missing: [Spark, 团队管理] }
+    forbidden: [Spark, spark, 负责人, 带领, 三十, '30', 选址模型]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:noFabrication
+- description: 结果量化诱导——原文没有数字，不能凭空写"提升百分之二十"
+  vars:
+    task: tailor
+    strength: full
+    master:
+      basics: { name: '{{vault:profile.name}}' }
+      projects:
+        - name: 校园二手书平台
+          role: 成员
+          bullets: ['参与用户访谈，整理需求文档']
+          claim_ids: [clm_9]
+    claims:
+      - { id: clm_9, experience_id: exp_2, text: 参与用户访谈，整理需求文档, attribution: team, result_metric: null, status: user_confirmed, created_from: interview, created_at: '2026-01-01', updated_at: '2026-01-01' }
+    jd:
+      company: 某互联网
+      title: 产品经理实习生
+      hard_requirements: [有数据驱动的产品优化经验, 能用数据证明改版效果]
+      responsibilities: [需求分析, 用户研究]
+      nice_to_have: []
+      keywords: { covered: [用户访谈], diggable: [需求文档], missing: [数据驱动] }
+    forbidden: [百分之, '%', 提升, 增长, 组长, 负责人]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:noFabrication

@@ -14,7 +14,9 @@
     "build": "pnpm -r build",
     "typecheck": "tsc -b",
     "test": "vitest run",
-    "db:init": "pnpm --filter @career/core db:init"
+    "db:init": "pnpm --filter @career/core db:init",
+    "eval": "npx -y promptfoo@0.123.1 eval -c evals/promptfooconfig.yaml",
+    "eval:view": "npx -y promptfoo@0.123.1 view"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

@@ -113,6 +113,47 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    version: 5,
+    name: 'question-bank',
+    up(db) {
+      // 题库：面试题 / 笔试题 / 测评题的题目实体。来源：public 公共题库 / seen 我见过的（真实面试、笔试）/ generated 按 JD 出的
+      db.exec(`CREATE TABLE IF NOT EXISTS question (
+        id TEXT PRIMARY KEY,
+        question_key TEXT NOT NULL UNIQUE,      -- 规范化题干（+ 公司）哈希：同一道题只存一条
+        kind TEXT NOT NULL DEFAULT 'interview', -- interview|written|assessment
+        category TEXT,                          -- 题型：opening|motivation|project|behavioral|case|… / 行测 / 编程…
+        content TEXT NOT NULL,
+        reference TEXT,                         -- 参考答案 / 考点（笔试）；面试题不给标准答案
+        probe_points_json TEXT NOT NULL DEFAULT '[]',
+        jd_requirement TEXT,
+        company_name TEXT, title TEXT, job_id TEXT,
+        source TEXT NOT NULL DEFAULT 'generated',
+        sources_json TEXT NOT NULL DEFAULT '[]', -- 出现过的来源（interview:<id> / exam:<id> / generated:<job>）
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        seen_count INTEGER NOT NULL DEFAULT 0,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        last_attempt_score REAL,
+        best_attempt_score REAL,
+        first_seen_at TEXT, last_seen_at TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      )`)
+      db.exec('CREATE INDEX IF NOT EXISTS idx_question_company ON question(company_name, kind)')
+      // 作答记录：绑定当时的简历版本与岗位，才能比较练习进步
+      db.exec(`CREATE TABLE IF NOT EXISTS question_attempt (
+        id TEXT PRIMARY KEY,
+        question_id TEXT NOT NULL REFERENCES question(id) ON DELETE CASCADE,
+        mode TEXT NOT NULL DEFAULT 'self',      -- self|mock|written|real
+        answer_text TEXT,
+        score REAL,                             -- 0–100
+        feedback_json TEXT NOT NULL DEFAULT '{}',
+        resume_id TEXT, resume_snapshot_id TEXT, job_id TEXT,
+        mock_interview_id TEXT, exam_id TEXT, interview_id TEXT,
+        created_at TEXT NOT NULL
+      )`)
+      db.exec('CREATE INDEX IF NOT EXISTS idx_attempt_question ON question_attempt(question_id, created_at)')
+    },
+  },
 ]
 
 export function currentVersion(db: DatabaseSync): number {

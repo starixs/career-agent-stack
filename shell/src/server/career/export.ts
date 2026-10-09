@@ -39,6 +39,8 @@ export async function exportResumeFile(
   /** 渲染前把简历 JSON 里的私密库占位符（{{vault:profile.phone}} 等）解成明文；只在这里发生，落库的 JSON 仍是占位符。 */
   resolve: (schema: unknown) => unknown = s => s,
   studio?: { repos: Repos } | null,
+  /** 过机筛模式：单栏、无照片的标准模板（不用工作台模板）；缺省按 kv `resume:ats:<id>`。 */
+  opts: { ats?: boolean } = {},
 ): Promise<string> {
   const found = store.getResume(id);
   if (!found) throw new ResumeNotFoundError(id);
@@ -46,10 +48,13 @@ export async function exportResumeFile(
   const resume = mod.parseResume(resolve(JSON.parse(found.row.schema_json)));
   mkdirSync(exportsDir, { recursive: true });
   const path = join(exportsDir, `${id}.${format}`);
+  const ats = opts.ats ?? (studio ? isAtsMode(studio.repos, id) : false);
   let buffer: Buffer;
   if (format === 'docx') buffer = await mod.renderDocx(resume);
   else {
-    const pdf = studio
+    const pdf = ats
+      ? await mod.renderPdf(resume, { ats: true })
+      : studio
       ? await renderStudioPdfBuffer({ repos: studio.repos, store }, id, resolve)
       : await mod.renderPdf(resume);
     buffer = format === 'pdf' ? pdf : await mod.renderPng(pdf);
@@ -58,3 +63,8 @@ export async function exportResumeFile(
   store.recordExport(id, format, path);
   return path;
 }
+
+/** 这份简历是否开了过机筛模式（导出、投递材料包都用 ATS 版）。 */
+export const atsKey = (resumeId: string) => `resume:ats:${resumeId}`;
+export function isAtsMode(repos: Pick<Repos, 'kvGet'>, resumeId: string): boolean { return repos.kvGet<boolean>(atsKey(resumeId)) === true; }
+export function setAtsMode(repos: Pick<Repos, 'kvSet'>, resumeId: string, enabled: boolean): void { repos.kvSet(atsKey(resumeId), enabled); }

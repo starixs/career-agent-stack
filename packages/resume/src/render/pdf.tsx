@@ -9,7 +9,14 @@ import { fontStackFor, cjkHyphenation, type FontStack } from './fonts.js'
 import { wrapText, packSegments, measureText, CLASSIC_CN } from './measure.js'
 
 export type PdfTemplate = 'ClassicCN'
-export interface RenderPdfOptions { template?: PdfTemplate }
+export interface RenderPdfOptions {
+  template?: PdfTemplate
+  /**
+   * 过机筛（ATS）模式：单栏、无照片、页眉不分左右栏，联系方式逐行写全；分区标题用标准名。
+   * 招聘系统按文字解析简历，照片和多栏会打乱读取顺序。
+   */
+  ats?: boolean
+}
 
 const mm = (v: number) => (v * 72) / 25.4
 const BODY = 10
@@ -149,10 +156,10 @@ function renderSection(ctx: Ctx, resume: Resume, key: SectionKey): ReactElement 
   }
 }
 
-export function ClassicCN({ resume, fonts }: { resume: Resume; fonts: FontStack }) {
+export function ClassicCN({ resume, fonts, ats = false }: { resume: Resume; fonts: FontStack; ats?: boolean }) {
   const ctx: Ctx = { fonts }
   const b = resume.basics
-  const midW = CLASSIC_CN.contentWidth - 2 * CLASSIC_CN.headerSide
+  const midW = ats ? CLASSIC_CN.contentWidth : CLASSIC_CN.contentWidth - 2 * CLASSIC_CN.headerSide
   const SEP = '  |  '
   const contactLines = [
     ...packSegments([b.phone, b.email, b.city], SEP, midW, BODY),
@@ -162,28 +169,35 @@ export function ClassicCN({ resume, fonts }: { resume: Resume; fonts: FontStack 
   return (
     <Document title={`${b.name} 简历`} author={b.name} language="zh-CN">
       <Page size="A4" style={S.page}>
-        <View style={S.header}>
-          <View style={S.headerSide} />
-          <View style={S.headerMid}>
+        {ats ? (
+          <View style={{ marginBottom: mm(1) }}>
             <T ctx={ctx} bold style={S.name}>{b.name || '姓名'}</T>
-            {contactLines.map((line, i) => <T key={i} ctx={ctx} style={S.contact}>{line}</T>)}
+            {contactLines.map((line, i) => <T key={i} ctx={ctx}>{line}</T>)}
           </View>
-          <View style={S.headerSide}>{b.photo_url ? <Image src={b.photo_url} style={S.photo} /> : null}</View>
-        </View>
+        ) : (
+          <View style={S.header}>
+            <View style={S.headerSide} />
+            <View style={S.headerMid}>
+              <T ctx={ctx} bold style={S.name}>{b.name || '姓名'}</T>
+              {contactLines.map((line, i) => <T key={i} ctx={ctx} style={S.contact}>{line}</T>)}
+            </View>
+            <View style={S.headerSide}>{b.photo_url ? <Image src={b.photo_url} style={S.photo} /> : null}</View>
+          </View>
+        )}
         {orderedSections(resume).map(k => <View key={k}>{renderSection(ctx, resume, k)}</View>)}
       </Page>
     </Document>
   )
 }
 
-const TEMPLATES: Record<PdfTemplate, (p: { resume: Resume; fonts: FontStack }) => ReactElement> = { ClassicCN }
+const TEMPLATES: Record<PdfTemplate, (p: { resume: Resume; fonts: FontStack; ats?: boolean }) => ReactElement> = { ClassicCN }
 
 /** 渲染为 PDF Buffer。字体子集按简历文本按需注册。 */
 export async function renderPdf(resume: Resume, opts: RenderPdfOptions = {}): Promise<Buffer> {
   const Template = TEMPLATES[opts.template ?? 'ClassicCN']
   if (!Template) throw new Error(`未知 PDF 模板：${opts.template}`)
   const fonts = fontStackFor(resumeText(resume) + '核心课程：求职意向：期望城市：期望薪资：政治面貌：到岗：姓名•')
-  const buf = await renderToBuffer(<Template resume={resume} fonts={fonts} />)
+  const buf = await renderToBuffer(<Template resume={resume} fonts={fonts} ats={opts.ats} />)
   return Buffer.isBuffer(buf) ? buf : Buffer.from(buf)
 }
 

@@ -56,7 +56,7 @@ describe('CareerExperience', () => {
     render(<CareerExperience />);
     fireEvent.click(await screen.findByRole('button', { name: '确认' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/claims/c1/confirm', {}));
-    await waitFor(() => expect(apiGetJson).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(vi.mocked(apiGetJson).mock.calls.filter(([path]) => String(path).startsWith('/api/career/experiences'))).toHaveLength(2));
   });
 
   it('收到 career:data-changed 后自动刷新', async () => {
@@ -64,7 +64,7 @@ describe('CareerExperience', () => {
     render(<CareerExperience />);
     await screen.findByText('1 条主张待你核实');
     emitEvent('career:data-changed', { sessionId: 's1', tables: ['claim'] });
-    await waitFor(() => expect(apiGetJson).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(vi.mocked(apiGetJson).mock.calls.filter(([path]) => String(path).startsWith('/api/career/experiences'))).toHaveLength(2));
   });
 
   it('sortExperiences：进行中在前，然后按结束时间倒序', () => {
