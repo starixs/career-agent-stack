@@ -2,6 +2,7 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { readFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { runMigrations } from './migrations.js'
 
 export type Row = Record<string, unknown>
 export type Params = Record<string, SQLInputValue> | SQLInputValue[]
@@ -19,7 +20,8 @@ export class Db {
     const sql = readFileSync(join(here, 'schema.sql'), 'utf8')
     this.raw.exec(sql)
     const v = this.raw.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number | null }
-    if (!v.v) this.raw.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?)').run(now())
+    if (!v.v) this.raw.prepare('INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, ?)').run(now())
+    runMigrations(this.raw)
   }
   run(sql: string, params: Params = []): { changes: number } {
     const st = this.raw.prepare(sql)

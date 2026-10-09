@@ -214,6 +214,27 @@ describe('career browser route: run', () => {
     expect(apply.driveApplication).toHaveBeenCalledWith(expect.anything(), expect.anything(), { basics: {} }, expect.objectContaining({ maxPages: 2, humanTyping: true }));
   });
 
+  it('同一浏览器上下文同时只允许一份网申在填：第二份拿到 BROWSER_BUSY，第一份填完后释放', async () => {
+    const { host, page } = fakeHost();
+    let release!: () => void;
+    const gate = new Promise<void>(r => { release = r; });
+    const apply: ApplyEngineModule = {
+      fromPlaywright: vi.fn(() => ({ goto: async () => {}, url: () => page.url() })),
+      diagnosePage: vi.fn(async () => ({})),
+      driveApplication: vi.fn(async () => { await gate; return { status: 'stopped_before_submit' }; }),
+    };
+    const deps = { host, loadApply: async () => apply, resolveLlm: async () => ({ complete: async () => ({}) }) };
+    const first = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'drive', actionId: 'act_a', profile: { basics: {} } } }), deps);
+    const firstLines = ndjson(first!);
+    await vi.waitFor(() => expect(apply.driveApplication).toHaveBeenCalledTimes(1));
+    const second = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'drive', actionId: 'act_b', profile: { basics: {} } } }), deps);
+    expect((await ndjson(second!)).at(-1)).toMatchObject({ type: 'error', status: 409, code: 'BROWSER_BUSY' });
+    release();
+    expect((await firstLines).at(-1)).toMatchObject({ type: 'result', op: 'drive' });
+    const third = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'drive', actionId: 'act_b', profile: { basics: {} } } }), deps);
+    expect((await ndjson(third!)).at(-1)).toMatchObject({ type: 'result', op: 'drive' });
+  });
+
   it('surfaces errors thrown mid-run as a final NDJSON error line', async () => {
     const { host, page } = fakeHost();
     vi.mocked(page.screenshot).mockRejectedValueOnce(new Error('页面已关闭'));

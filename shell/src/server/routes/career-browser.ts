@@ -408,63 +408,79 @@ export async function runOperation(
     return;
   }
 
-  // op === 'drive'
-  const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
-  if (!llm) {
-    out.emit({ type: 'error', status: 501, error: 'drive 需要模型实例，产品组合层尚未注册 LLM' });
+  // op === 'drive'：同一个浏览器上下文同时只允许一份网申在填（对话 apply_run 与后台批量共用一个页面）
+  const owner = typeof body.actionId === 'string' && body.actionId ? body.actionId : typeof body.runId === 'string' ? body.runId : 'anonymous';
+  const holder = driveOwners.get(context);
+  if (holder && holder !== owner) {
+    out.emit({ type: 'error', status: 409, code: 'BROWSER_BUSY', error: `浏览器正在填另一份网申（${holder}），等它填完或先暂停后台批量投递` });
     return;
   }
-  // 资料在 Node 侧组装：basics 明文来自私密库，不经过模型；请求体 profile 只作测试 / 兜底
-  let bundle: DriveProfileBundle | null = null;
-  if (body.profile && typeof body.profile === 'object' && !Array.isArray(body.profile)) {
-    bundle = { profile: body.profile as Record<string, unknown> };
-  } else {
-    try {
-      bundle = await (deps.resolveDriveProfile ?? defaultDriveProfile)(body, apply, llm);
-    } catch (error) {
-      out.emit({ type: 'error', status: 503, error: `组装填表资料失败：${error instanceof Error ? error.message : String(error)}` });
+  driveOwners.set(context, owner);
+  try {
+    const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
+    if (!llm) {
+      out.emit({ type: 'error', status: 501, error: 'drive 需要模型实例，产品组合层尚未注册 LLM' });
       return;
     }
+    // 资料在 Node 侧组装：basics 明文来自私密库，不经过模型；请求体 profile 只作测试 / 兜底
+    let bundle: DriveProfileBundle | null = null;
+    if (body.profile && typeof body.profile === 'object' && !Array.isArray(body.profile)) {
+      bundle = { profile: body.profile as Record<string, unknown> };
+    } else {
+      try {
+        bundle = await (deps.resolveDriveProfile ?? defaultDriveProfile)(body, apply, llm);
+      } catch (error) {
+        out.emit({ type: 'error', status: 503, error: `组装填表资料失败：${error instanceof Error ? error.message : String(error)}` });
+        return;
+      }
+    }
+    if (!bundle) {
+      out.emit({ type: 'error', status: 400, error: 'drive 需要填表资料：请在「私密信息」页填写基本信息，或传 profile 对象（basics / experiences / answerBank）' });
+      return;
+    }
+    const redact = bundle.redact ?? (<T,>(v: T) => v);
+    if (url) {
+      out.emit({ type: 'progress', phase: 'navigate', message: `打开 ${url}` });
+      await engineLikePage.goto(url);
+    }
+    let perceiver: PerceiverLike | undefined;
+    if (body.vision !== false) {
+      try { perceiver = await (deps.createPerceiver ?? defaultPerceiver)(apply, engineLikePage, llm); } catch (error) { out.emit({ type: 'progress', phase: 'drive', message: `视觉兜底层不可用：${error instanceof Error ? error.message : String(error)}` }); }
+    }
+    // 站点映射记忆（kv，与求职库同一连接）；测试给 body.profile 时不动真实库
+    let siteMemory: unknown;
+    if (typeof apply.SiteMemory === 'function' && !body.profile) {
+      try { const { getRepos } = await import('../career/db'); siteMemory = new apply.SiteMemory(await getRepos()); } catch { /* 数据层未就绪就不记 */ }
+    }
+    out.emit({ type: 'progress', phase: 'drive', message: `开始填写（不提交）${perceiver ? `，视觉兜底：${perceiver.id}` : ''}` });
+    const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
+      maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
+      humanTyping: body.humanTyping !== false,
+      ...(typeof body.settleMs === 'number' ? { settleMs: body.settleMs } : {}),
+      ...(bundle.resolveValue ? { resolveValue: bundle.resolveValue } : {}),
+      ...(bundle.loginFill ? { loginFill: bundle.loginFill } : {}),
+      ...(perceiver ? { perceiver } : {}),
+      ...(siteMemory ? { siteMemory } : {}),
+      ...(Array.isArray(body.learnFrom) ? { learnFrom: (body.learnFrom as unknown[]).filter((x): x is string => typeof x === 'string') } : {}),
+      log: (message: string) => out.emit({ type: 'progress', phase: 'drive', message: redact(message) }),
+      onPage: (record: unknown) => out.emit({ type: 'page', record: redact(record) }),
+    });
+    const { screenshot, ...rest } = result;
+    out.emit({
+      type: 'result', op,
+      result: redact(rest),
+      ...(screenshot ? { screenshot: { mimeType: 'image/jpeg', base64: toBase64(screenshot) } } : {}),
+      url: page.url(),
+    });
+  } finally {
+    if (driveOwners.get(context) === owner) driveOwners.delete(context);
   }
-  if (!bundle) {
-    out.emit({ type: 'error', status: 400, error: 'drive 需要填表资料：请在「私密信息」页填写基本信息，或传 profile 对象（basics / experiences / answerBank）' });
-    return;
-  }
-  const redact = bundle.redact ?? (<T,>(v: T) => v);
-  if (url) {
-    out.emit({ type: 'progress', phase: 'navigate', message: `打开 ${url}` });
-    await engineLikePage.goto(url);
-  }
-  let perceiver: PerceiverLike | undefined;
-  if (body.vision !== false) {
-    try { perceiver = await (deps.createPerceiver ?? defaultPerceiver)(apply, engineLikePage, llm); } catch (error) { out.emit({ type: 'progress', phase: 'drive', message: `视觉兜底层不可用：${error instanceof Error ? error.message : String(error)}` }); }
-  }
-  // 站点映射记忆（kv，与求职库同一连接）；测试给 body.profile 时不动真实库
-  let siteMemory: unknown;
-  if (typeof apply.SiteMemory === 'function' && !body.profile) {
-    try { const { getRepos } = await import('../career/db'); siteMemory = new apply.SiteMemory(await getRepos()); } catch { /* 数据层未就绪就不记 */ }
-  }
-  out.emit({ type: 'progress', phase: 'drive', message: `开始填写（不提交）${perceiver ? `，视觉兜底：${perceiver.id}` : ''}` });
-  const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
-    maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
-    humanTyping: body.humanTyping !== false,
-    ...(typeof body.settleMs === 'number' ? { settleMs: body.settleMs } : {}),
-    ...(bundle.resolveValue ? { resolveValue: bundle.resolveValue } : {}),
-    ...(bundle.loginFill ? { loginFill: bundle.loginFill } : {}),
-    ...(perceiver ? { perceiver } : {}),
-    ...(siteMemory ? { siteMemory } : {}),
-    ...(Array.isArray(body.learnFrom) ? { learnFrom: (body.learnFrom as unknown[]).filter((x): x is string => typeof x === 'string') } : {}),
-    log: (message: string) => out.emit({ type: 'progress', phase: 'drive', message: redact(message) }),
-    onPage: (record: unknown) => out.emit({ type: 'page', record: redact(record) }),
-  });
-  const { screenshot, ...rest } = result;
-  out.emit({
-    type: 'result', op,
-    result: redact(rest),
-    ...(screenshot ? { screenshot: { mimeType: 'image/jpeg', base64: toBase64(screenshot) } } : {}),
-    url: page.url(),
-  });
 }
+
+/** 正在 drive 的动作（按浏览器上下文）。Global 侧车进程内唯一，批量运行器与对话路由都经 runOperation。 */
+const driveOwners = new WeakMap<BrowserContext, string>();
+/** 这个上下文是否有网申正在填（批量运行器据此等待）。 */
+export function driveBusy(context: BrowserContext): string | undefined { return driveOwners.get(context); }
 
 function ndjsonStream(
   request: Request,

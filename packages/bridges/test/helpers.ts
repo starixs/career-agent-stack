@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { Db, Repos } from '@career/core'
+import { Db, Repos, runMigrations } from '@career/core'
 
-/** 内存库：直接执行 core 的 schema.sql（core 的 dist 里不带 .sql，所以不用 migrate()）。 */
+/** 内存库：直接执行 core 源码里的 schema.sql 基线，再跑增量迁移（与 Db.migrate() 结果一致）。 */
 export function memRepos(): Repos {
   const db = new Db(':memory:')
   const sql = readFileSync(fileURLToPath(new URL('../../core/src/db/schema.sql', import.meta.url)), 'utf8')
   db.raw.exec(sql)
+  db.raw.prepare('INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?)').run(new Date().toISOString())
+  runMigrations(db.raw)
   return new Repos(db)
 }
 

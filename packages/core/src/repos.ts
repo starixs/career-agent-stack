@@ -1,7 +1,8 @@
 import { Db, now } from './db/db.js'
 import { newId } from './ids.js'
+import { canonicalJson, jobKey, sha256 } from './keys.js'
 import { canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
-import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage } from './types.js'
+import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage } from './types.js'
 import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
@@ -40,13 +41,16 @@ export class Repos {
   // ---------- 岗位 ----------
   upsertJob(j: Partial<Job> & { source_platform: string; title: string }): Job {
     const t = now()
-    const existing = j.source_job_id ? this.db.get<Job>('SELECT * FROM job WHERE source_platform=? AND source_job_id=?', [j.source_platform, j.source_job_id]) : undefined
-    if (existing) { this.db.update('job', existing.id, { ...stripUndefined(j), updated_at: t }); return this.db.get<Job>('SELECT * FROM job WHERE id=?', [existing.id])! }
+    const key = j.job_key ?? jobKey(j)
+    const existing = (j.source_job_id ? this.db.get<Job>('SELECT * FROM job WHERE source_platform=? AND source_job_id=?', [j.source_platform, j.source_job_id]) : undefined)
+      ?? this.db.get<Job>('SELECT * FROM job WHERE job_key=? LIMIT 1', [key])
+    if (existing) { this.db.update('job', existing.id, { ...stripUndefined(j), job_key: existing.job_key ?? key, updated_at: t }); return this.db.get<Job>('SELECT * FROM job WHERE id=?', [existing.id])! }
     const id = newId('job')
-    this.db.insert('job', { id, source_platform: j.source_platform, source_job_id: j.source_job_id ?? null, url: j.url ?? null, company_id: j.company_id ?? null, company_name: j.company_name ?? null, title: j.title, location: j.location ?? null, salary: j.salary ?? null, jd_raw: j.jd_raw ?? null, jd_parsed_json: j.jd_parsed_json ?? null, prefilter_json: j.prefilter_json ?? null, score_json: j.score_json ?? null, deadline: j.deadline ?? null, deadline_verified_at: j.deadline_verified_at ?? null, created_at: t, updated_at: t })
+    this.db.insert('job', { id, source_platform: j.source_platform, source_job_id: j.source_job_id ?? null, url: j.url ?? null, company_id: j.company_id ?? null, company_name: j.company_name ?? null, title: j.title, location: j.location ?? null, salary: j.salary ?? null, jd_raw: j.jd_raw ?? null, jd_parsed_json: j.jd_parsed_json ?? null, prefilter_json: j.prefilter_json ?? null, score_json: j.score_json ?? null, deadline: j.deadline ?? null, deadline_verified_at: j.deadline_verified_at ?? null, job_key: key, remote_id: j.remote_id ?? null, created_at: t, updated_at: t })
     return this.db.get<Job>('SELECT * FROM job WHERE id=?', [id])!
   }
   getJob(id: string): Job | undefined { return this.db.get<Job>('SELECT * FROM job WHERE id=?', [id]) }
+  getJobByKey(key: string): Job | undefined { return this.db.get<Job>('SELECT * FROM job WHERE job_key=? LIMIT 1', [key]) }
   listJobs(): Job[] { return this.db.all<Job>('SELECT * FROM job ORDER BY created_at DESC') }
   /** 两级去重：(platform, job_id) 由唯一索引保证；这里做 (company, title, location) 软去重。 */
   findDuplicateJob(companyName: string, title: string, location?: string | null): Job | undefined {
@@ -99,22 +103,87 @@ export class Repos {
     return { due, blocked, funnel, pendingReview }
   }
 
-  // ---------- 动作队列（提交/发送永远过人） ----------
+  // ---------- 动作队列（审批绑定内容） ----------
+  /**
+   * 入队。content_hash 是 payload 的规范化哈希；需要审核的动作批准时把它记成 approved_hash，
+   * 执行前 claimAction 再比一次——批准之后内容变了就退回待审，执行的永远是用户批准时看到的那一份。
+   * payload 里引用的简历 / 附件要先冻结成材料包（createPacket），payload 只放 packet_id。
+   */
   enqueueAction(kind: ActionKind, payload: unknown, applicationId?: string | null, autoApprove = false): ActionQueueItem {
     const t = now(); const id = newId('act')
-    const status = autoApprove && !ACTIONS_REQUIRING_REVIEW.includes(kind) ? 'approved' : 'pending_review'
-    this.db.insert('action_queue', { id, application_id: applicationId ?? null, kind, payload_json: JSON.stringify(payload ?? {}), status, created_at: t, updated_at: t })
+    const payloadJson = canonicalJson(payload ?? {})
+    const hash = sha256(payloadJson)
+    const approve = autoApprove && !ACTIONS_REQUIRING_REVIEW.includes(kind)
+    const packetId = typeof (payload as { packet_id?: unknown } | null)?.packet_id === 'string' ? (payload as { packet_id: string }).packet_id : null
+    this.db.insert('action_queue', { id, application_id: applicationId ?? null, kind, payload_json: payloadJson, status: approve ? 'approved' : 'pending_review', content_hash: hash, approved_hash: approve ? hash : null, approved_by: approve ? 'system' : null, packet_id: packetId, reviewed_at: approve ? t : null, created_at: t, updated_at: t })
     return this.getAction(id)!
   }
   getAction(id: string): ActionQueueItem | undefined { return this.db.get<ActionQueueItem>('SELECT * FROM action_queue WHERE id=?', [id]) }
   listActions(status?: string): ActionQueueItem[] {
     return status ? this.db.all<ActionQueueItem>('SELECT * FROM action_queue WHERE status=? ORDER BY created_at', [status]) : this.db.all<ActionQueueItem>('SELECT * FROM action_queue ORDER BY created_at DESC')
   }
-  reviewActions(ids: string[], decision: 'approved' | 'rejected'): number {
+  /**
+   * 审核：只处理仍在待审（pending_review）的动作——已执行 / 已发送 / 已拒绝的不能被再次批准（防重复发送）。
+   * 批准时把当时的内容哈希记下来；返回实际被改动的条数。
+   */
+  reviewActions(ids: string[], decision: 'approved' | 'rejected', by: ApprovalSource = 'user'): number {
     const t = now(); let n = 0
-    this.db.transaction(() => { for (const id of ids) n += this.db.update('action_queue', id, { status: decision, reviewed_at: t, updated_at: t }) })
+    this.db.transaction(() => {
+      for (const id of ids) {
+        n += decision === 'approved'
+          ? this.db.run(`UPDATE action_queue SET status='approved', approved_hash=content_hash, approved_by=?, reviewed_at=?, updated_at=? WHERE id=? AND status='pending_review'`, [by, t, t, id]).changes
+          : this.db.run(`UPDATE action_queue SET status='rejected', approved_hash=NULL, approved_by=NULL, reviewed_at=?, updated_at=? WHERE id=? AND status='pending_review'`, [t, t, id]).changes
+      }
+    })
     return n
   }
+  /**
+   * 执行前认领：approved → executing 原子切换，同时核对内容哈希。
+   * 返回 ok=false 时动作没有被认领：已被别处执行 / 状态不对 / 批准后内容变了（这种情况退回待审）。
+   */
+  claimAction(id: string): { ok: true; action: ActionQueueItem } | { ok: false; reason: 'not_found' | 'not_approved' | 'content_changed'; action?: ActionQueueItem } {
+    const a = this.getAction(id)
+    if (!a) return { ok: false, reason: 'not_found' }
+    if (a.status !== 'approved') return { ok: false, reason: 'not_approved', action: a }
+    const live = sha256(a.payload_json)
+    if (!a.approved_hash || a.approved_hash !== live || (a.content_hash && a.content_hash !== live)) {
+      this.db.run(`UPDATE action_queue SET status='pending_review', content_hash=?, approved_hash=NULL, approved_by=NULL, updated_at=? WHERE id=? AND status='approved'`, [live, now(), id])
+      return { ok: false, reason: 'content_changed', action: this.getAction(id) }
+    }
+    const n = this.db.run(`UPDATE action_queue SET status='executing', updated_at=? WHERE id=? AND status='approved'`, [now(), id]).changes
+    return n ? { ok: true, action: this.getAction(id)! } : { ok: false, reason: 'not_approved', action: this.getAction(id) }
+  }
+  /** 改动作内容（如编辑邮件正文）：任何修改都让之前的批准失效，回到待审。 */
+  updateActionPayload(id: string, payload: unknown): ActionQueueItem {
+    const a = this.getAction(id); if (!a) throw new Error(`动作不存在：${id}`)
+    if (a.status !== 'pending_review' && a.status !== 'approved') throw new Error(`动作状态为 ${a.status}，不能再修改内容`)
+    const json = canonicalJson(payload ?? {})
+    const packetId = typeof (payload as { packet_id?: unknown } | null)?.packet_id === 'string' ? (payload as { packet_id: string }).packet_id : null
+    this.db.run(`UPDATE action_queue SET payload_json=?, content_hash=?, packet_id=?, status='pending_review', approved_hash=NULL, approved_by=NULL, updated_at=? WHERE id=?`, [json, sha256(json), packetId, now(), id])
+    return this.getAction(id)!
+  }
+  /** 失败 / 浏览器关闭后重新排队：只有执行态（executing / needs_user）可以回到 approved，原批准仍然有效。 */
+  requeueAction(id: string): boolean {
+    return this.db.run(`UPDATE action_queue SET status='approved', updated_at=? WHERE id=? AND status IN ('executing','needs_user') AND approved_hash IS NOT NULL`, [now(), id]).changes > 0
+  }
+
+  // ---------- 投递材料包（冻结批准时的简历与 JD） ----------
+  createPacket(p: { application_id?: string | null; job_id?: string | null; resume_id?: string | null; resume_kind?: string | null; resume_schema_json?: string | null; resume_pdf_path?: string | null; resume_pdf_sha256?: string | null; answers?: unknown }): ApplicationPacket {
+    const t = now(); const id = newId('pkt')
+    const job = p.job_id ? this.getJob(p.job_id) : undefined
+    let snapshotId: string | null = null; let resumeSha: string | null = null
+    if (p.resume_id && p.resume_schema_json) {
+      resumeSha = sha256(p.resume_schema_json)
+      snapshotId = newId('snap')
+      this.db.insert('resume_snapshot', { id: snapshotId, resume_id: p.resume_id, schema_json: p.resume_schema_json, note: `投递材料包 ${id}`, created_at: t })
+    }
+    const jd = job ? { title: job.title, company_name: job.company_name, location: job.location, url: job.url, jd_raw: job.jd_raw, deadline: job.deadline, source_platform: job.source_platform, source_job_id: job.source_job_id } : {}
+    this.db.insert('application_packet', { id, application_id: p.application_id ?? null, job_id: p.job_id ?? null, job_key: job?.job_key ?? null, resume_id: p.resume_id ?? null, resume_kind: p.resume_kind ?? null, resume_snapshot_id: snapshotId, resume_sha256: resumeSha, resume_pdf_path: p.resume_pdf_path ?? null, resume_pdf_sha256: p.resume_pdf_sha256 ?? null, jd_snapshot_json: JSON.stringify(jd), answers_json: JSON.stringify(p.answers ?? {}), created_at: t })
+    if (p.application_id) this.db.update('application', p.application_id, { packet_id: id, updated_at: t })
+    return this.getPacket(id)!
+  }
+  getPacket(id: string): ApplicationPacket | undefined { return this.db.get<ApplicationPacket>('SELECT * FROM application_packet WHERE id=?', [id]) }
+  listPackets(applicationId: string): ApplicationPacket[] { return this.db.all<ApplicationPacket>('SELECT * FROM application_packet WHERE application_id=? ORDER BY created_at DESC', [applicationId]) }
   setActionStatus(id: string, status: ActionQueueItem['status'], result?: unknown): void {
     this.db.update('action_queue', id, { status, result_json: result === undefined ? undefined : JSON.stringify(result), updated_at: now() })
   }
@@ -435,6 +504,9 @@ export function shortestStagePath(from: ApplicationStage, to: ApplicationStage):
   }
   return null
 }
+
+/** 谁批准的：用户本人 / auto 模式 / 自学习免审 / 系统（不需要审核的动作）。 */
+export type ApprovalSource = 'user' | 'auto' | 'learned' | 'system'
 
 function stripUndefined<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>

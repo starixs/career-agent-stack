@@ -4,14 +4,14 @@
  */
 import { homedir } from 'os';
 import { join } from 'path';
-import { existsSync } from 'fs';
 
 import type { PlaywrightBrowserHost } from '../browser-host';
 import { loadConfig } from '../utils/admin-config';
 import { BatchRunner } from './batch-runner';
-import { getRepos } from './db';
+import { careerExportsDir, getRepos } from './db';
 import { FileChooserBroker } from './file-chooser';
 import { liveHub } from './live-hub';
+import { packetResumeFile } from './packets';
 import type { CareerBrowserHost, RunEmitter } from '../routes/career-browser';
 
 type HostResolver = () => Promise<PlaywrightBrowserHost>;
@@ -55,11 +55,7 @@ export async function getBatchRunner(): Promise<BatchRunner> {
           if (!id || !hostCache) return false;
           try { return hostCache.hasContext(id); } catch { return false; }
         },
-        resumeFileFor: async resumeId => {
-          if (typeof resumeId !== 'string' || !resumeId) return undefined;
-          const row = repos.db.get<{ export_pdf: string | null }>('SELECT export_pdf FROM resume_tailored WHERE id=?', [resumeId]);
-          return row?.export_pdf && existsSync(row.export_pdf) ? row.export_pdf : undefined;
-        },
+        resumeFileFor: payload => packetResumeFile(repos, payload, legacyResumeFile),
         drive: async (req, onEvent) => {
           if (!hostResolver) throw new Error('浏览器宿主尚未就绪（批量运行器只能在 Global 侧车运行）');
           const host = await hostResolver();
@@ -85,6 +81,22 @@ export async function getBatchRunner(): Promise<BatchRunner> {
   return runnerPromise;
 }
 let hostCache: PlaywrightBrowserHost | null = null;
+
+/** 没有材料包的旧动作：按 resume_id 现导（主简历与定制简历都导，渲染前解私密库占位符）。 */
+async function legacyResumeFile(resumeId: unknown): Promise<string | undefined> {
+  if (typeof resumeId !== 'string' || !resumeId) return undefined;
+  try {
+    // 动态加载：导出链路会拉起 react-pdf 模板，不能拖慢侧车冷启动
+    const [{ loadCore }, { getVault }, { CareerStore }, { exportResumeFile }] = await Promise.all([import('./core-module'), import('./vault'), import('./store'), import('./export')]);
+    const [core, repos, vault] = await Promise.all([loadCore(), getRepos(), getVault()]);
+    const store = new CareerStore(repos, core);
+    if (!store.getResume(resumeId)) return undefined;
+    return await exportResumeFile(store, resumeId, 'pdf', careerExportsDir(), undefined, schema => vault.resolveDeep(schema, { actor: 'resume_export', purpose: `批量投递导出简历 ${resumeId}` }), { repos });
+  } catch (error) {
+    console.warn('[career] 批量投递导出简历失败：', error instanceof Error ? error.message : error);
+    return undefined;
+  }
+}
 
 /** bootstrap（global）：上次还在跑就续上；同时启动接管守护。 */
 export async function resumeBatchIfRunning(): Promise<void> {

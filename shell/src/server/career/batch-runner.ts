@@ -49,7 +49,8 @@ export interface BatchRunnerDeps {
   sessionId?: () => string;
   /** 平台是否有风险锁（RiskGuard 的 kv）。 */
   riskLocked?: (platform: string) => boolean;
-  resumeFileFor?: (resumeId: unknown) => Promise<string | undefined>;
+  /** 这份投递要上传的简历文件：优先材料包（核对哈希），旧动作按 resume_id 现导。 */
+  resumeFileFor?: (payload: Record<string, unknown>) => Promise<{ path?: string; error?: string }>;
   pacingMs?: [number, number];
   dailyCap?: number;
   pollMs?: number;
@@ -184,7 +185,7 @@ export class BatchRunner {
       try { this.repos.closeHandoff(row.handoff_id, 'browser_closed'); } catch { /* 已关闭 */ }
       actions.add(row.action_id);
     }
-    for (const id of actions) this.repos.setActionStatus(id, 'approved');
+    for (const id of actions) this.repos.requeueAction(id);
     if (actions.size) {
       this.log(`requeued ${actions.size} stale handoff action(s): browser closed`);
       this.deps.broadcast('career:data-changed', { sessionId: this.deps.sessionId?.() ?? 'global', tables: ['handoff', 'action_queue'] });
@@ -204,9 +205,18 @@ export class BatchRunner {
     const payload = this.payloadOf(action);
     const job = typeof payload.job_id === 'string' ? r.getJob(payload.job_id) : undefined;
     const title = job ? `${job.company_name ?? ''} ${job.title}`.trim() : String(payload.url ?? action.id);
+    if (mode === 'start') {
+      // 认领：对话里的 apply_run 可能已经拿走了这一份；批准后内容变了会退回待审
+      const claim = r.claimAction(action.id);
+      if (!claim.ok) {
+        this.log(`skip ${action.id}: ${claim.reason}`);
+        this.deps.broadcast('career:data-changed', { sessionId: this.deps.sessionId?.() ?? 'global', tables: ['action_queue'] });
+        return { kind: 'failed', blocked: false, message: claim.reason === 'content_changed' ? '批准后内容有变化，已退回待审' : '已被其他执行者认领' };
+      }
+    }
     const task = this.taskFor(action, payload, mode);
     r.updateTask(task.id, { status: 'running' });
-    r.setActionStatus(action.id, 'executing');
+    if (mode === 'continue') r.setActionStatus(action.id, 'executing');
     if (action.application_id) { try { r.transition(action.application_id, 'pending', mode === 'start' ? '批量投递开始' : '批量投递续跑'); } catch { /* 已在执行态 */ } }
     const changed = (...tables: string[]) => this.deps.broadcast('career:data-changed', { sessionId: this.deps.sessionId?.() ?? 'global', tables });
     changed('task', 'action_queue', 'application');
@@ -216,7 +226,9 @@ export class BatchRunner {
     takeover('running', { url: payload.url });
     const events: DriveEvent[] = [];
     try {
-      const resumePath = await this.deps.resumeFileFor?.(payload.resume_id);
+      const file = await this.deps.resumeFileFor?.(payload);
+      if (file?.error) throw new Error(file.error);
+      const resumePath = file?.path;
       let learnFrom: string[] | undefined;
       if (mode === 'continue') {
         try { const prev = JSON.parse(action.result_json ?? 'null') as { needsUser?: Array<{ label?: string }> } | null; learnFrom = (prev?.needsUser ?? []).map(p => p.label).filter((l): l is string => typeof l === 'string' && !!l); } catch { /* ignore */ }
@@ -227,6 +239,15 @@ export class BatchRunner {
       });
     } catch (e) {
       events.push({ type: 'error', status: 500, error: e instanceof Error ? e.message : String(e) });
+    }
+    // 浏览器正被对话里的 apply_run 占用：这份放回队列，不算失败、不占当天名额
+    if (events.some(e => e.type === 'error' && e.code === 'BROWSER_BUSY')) {
+      if (mode === 'start') r.requeueAction(action.id); else r.setActionStatus(action.id, 'needs_user');
+      r.updateTask(task.id, { status: 'queued' });
+      takeover('idle');
+      changed('task', 'action_queue');
+      this.setState({ phase: 'waiting_control', message: '浏览器正在填对话里的另一份网申，稍后继续' });
+      return { kind: 'failed', blocked: false, message: '浏览器被占用，已放回队列' };
     }
     const outcome = persistDriveOutcome({
       repos: r, action, taskId: task.id, events, changed,

@@ -85,7 +85,7 @@ export class ApplyService {
       this.repos.transition(applicationId, 'pending', '开始网申填写', { page_url: url, blocker_reason: null })
     }
     const action = this.repos.enqueueAction('fill_form', { url, adapter: adapter.id, job: job ? { title: job.title, company: job.company_name } : null }, applicationId, true)
-    this.repos.setActionStatus(action.id, 'executing')
+    this.repos.claimAction(action.id)
 
     const vault = this.vault
     const result = await driveApplication(page, this.llm, profile, {

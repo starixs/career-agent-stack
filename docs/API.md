@@ -23,7 +23,7 @@
 | GET | `/api/career/board` | `Repos.board()` |
 | POST | `/api/career/applications/:id/stage` | `{to, note?, extra?}` → application |
 | GET | `/api/career/actions?status=pending_review` | 动作队列 |
-| POST | `/api/career/actions/review` | `{ids:string[], decision:'approved'|'rejected'}` → `{n}` |
+| POST | `/api/career/actions/review` | `{ids:string[], decision:'approved'|'rejected'}` → `{n}`（只改仍在待审的；n 是实际改动条数，已执行 / 已发送的不会被再次批准） |
 | GET | `/api/career/handoffs` | 未关闭的接管 |
 | POST | `/api/career/handoffs/:id/close` | `{resumed_from_step?}` |
 | GET | `/api/career/tasks` | task[] |

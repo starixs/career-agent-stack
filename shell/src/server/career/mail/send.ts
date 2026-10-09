@@ -7,6 +7,7 @@ import { basename } from 'path';
 import type { Repos, ActionQueueItem, MailAccount } from '@career/core';
 
 import { dataChanged, focus, type IntakeDeps } from '../intake';
+import { fileSha256 } from '../packets';
 import { getMailPassword } from './credentials';
 import { smtpSecure } from './providers';
 
@@ -16,7 +17,7 @@ export interface SendMailPayload {
   cc?: string;
   subject: string;
   body: string;
-  attachments?: Array<{ path: string; filename?: string }>;
+  attachments?: Array<{ path: string; filename?: string; /** 批准时冻结的文件哈希（材料包） */ sha256?: string }>;
   application_id?: string | null;
   job_id?: string | null;
   material_ids?: string[];
@@ -35,7 +36,7 @@ async function sendViaSmtp(account: MailAccount, password: string, mail: SendMai
   const info = await transporter.sendMail({
     from: account.display_name ? `"${account.display_name}" <${account.address}>` : account.address,
     to: mail.to, cc: mail.cc || undefined, subject: mail.subject, text: mail.body,
-    attachments: (mail.attachments ?? []).filter(a => existsSync(a.path)).map(a => ({ path: a.path, filename: a.filename ?? basename(a.path) })),
+    attachments: (mail.attachments ?? []).map(a => ({ path: a.path, filename: a.filename ?? basename(a.path) })),
   });
   return { messageId: info.messageId ?? null };
 }
@@ -51,7 +52,21 @@ export async function executeSendMailAction(deps: MailSendDeps, action: ActionQu
   const password = getMailPassword(account.id);
   if (!password) throw new Error(`邮箱 ${account.address} 没有保存授权码，请重新绑定`);
   if (!payload.to || !payload.subject) throw new Error('收件人与主题不能为空');
-  r.setActionStatus(action.id, 'executing');
+  // 认领：同一封只会被发一次；批准之后内容变了会退回待审
+  const claim = r.claimAction(action.id);
+  if (!claim.ok) {
+    dataChanged(deps, ['action_queue']);
+    throw new Error(claim.reason === 'content_changed' ? '这封邮件在批准后内容有变化，已退回待审核，请重新确认' : `这封邮件已不是待发送状态（${claim.action?.status ?? '不存在'}），不会重复发送`);
+  }
+  // 附件必须是批准时冻结的那一份
+  for (const a of payload.attachments ?? []) {
+    const changedFile = !existsSync(a.path) ? '附件文件不见了' : a.sha256 && fileSha256(a.path) !== a.sha256 ? '附件内容与批准时不一致' : '';
+    if (changedFile) {
+      r.setActionStatus(action.id, 'failed', { error: `${changedFile}：${a.filename ?? basename(a.path)}` });
+      dataChanged(deps, ['action_queue']);
+      throw new Error(`${changedFile}，没有发送：${a.filename ?? basename(a.path)}`);
+    }
+  }
   let messageId: string | null;
   try {
     ({ messageId } = await (deps.transport ?? sendViaSmtp)(account, password, payload));

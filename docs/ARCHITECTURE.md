@@ -28,7 +28,13 @@
 - 每个包的 `src/index.ts` 导出公开 API，并在包根写 `README.md`（200 字内：做什么、怎么用、哪些是未实测的）。
 
 ## 数据模型
-见 `packages/core/src/db/schema.sql`。状态流转见 `packages/core/src/states.ts`。私密信息库（`vault_item` / `vault_access_log`）与占位符规则见 `packages/core/src/vault.ts`。
+见 `packages/core/src/db/schema.sql`（版本 1 基线）+ `packages/core/src/db/migrations.ts`（增量迁移）。**改已有表的结构只能新增迁移**：版本号递增、只追加不修改，`BEGIN IMMEDIATE` 里执行（两个侧车同时开库也只跑一次），加列用 `addColumn`。新表可以写进迁移，不要再往基线里加列。
+
+**审批绑定内容**（迁移 v2）：`action_queue.content_hash` 是 payload 规范化 JSON 的 sha256；`reviewActions` 只处理 `pending_review`，批准时记 `approved_hash` 与 `approved_by`（user / auto / learned / system）；执行方一律先 `claimAction(id)`——原子地 approved → executing 并核对哈希，内容变了就退回待审，已被认领 / 已执行的拿不到（防重复发送、防批量与对话双跑）。改内容用 `updateActionPayload`（批准失效），失败或浏览器关闭后重排用 `requeueAction`（批准仍有效）。
+**投递材料包**（`application_packet`）：`apply_prepare` / `mail_compose` 入队前把简历冻结——内容进 `resume_snapshot`，PDF 按内容哈希存 `exports/packets/<sha256>.pdf`，JD 原文进 `jd_snapshot_json`；payload 只带 `packet_id`，执行时（对话、批量、邮件）从材料包取文件并核对哈希，对不上就停。选简历：指定 → 该岗位定制版 → 唯一主简历；多份主简历不替用户猜。
+**稳定岗位键**（`job.job_key`）：`<platform>:<原站岗位号>`，没有就按规范化网址 / 公司职位地点哈希（`jobKey()`）；本地库与服务端岗位库共用这个身份，`remote_id` 记服务端 id。
+**浏览器互斥**：Global 的 `runOperation('drive')` 按浏览器上下文加锁，第二份拿到 `BROWSER_BUSY`（409）；批量运行器与 `apply_run` 收到后把动作放回队列，不记失败。
+状态流转见 `packages/core/src/states.ts`。私密信息库（`vault_item` / `vault_access_log`）与占位符规则见 `packages/core/src/vault.ts`。
 
 ## 五个面与闭环（shell 侧契约）
 - **面板 → 对话**：面板按钮只能通过 `suggestToChat(text, context)`（`CareerPrimitives.tsx`）把话发进对话，事件 `career:chat-suggest` 由 Chat 订阅并真正 `sendMessage`；`context.refs` 里只放对象 id，由 `buildCareerContextReminder` 变成隐藏的 `<CAREER_CONTEXT>` 块。禁止再做"复制提示词"按钮。

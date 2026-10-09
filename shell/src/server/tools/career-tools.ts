@@ -29,6 +29,7 @@ import { SEARCH_NOT_CONFIGURED_MESSAGE } from '../career/setup';
 import { applyJsonPatch, confirmTailorProposal, readTailorProposal } from '../career/tailor';
 import { getVault, vaultForRepos } from '../career/vault';
 import { persistDriveOutcome } from '../career/drive-outcome';
+import { freezePacket, packetResumeFile, pickResumeForJob } from '../career/packets';
 import { acquireBrowserCapability } from '../browser-host/capability-client';
 import { broadcast as sseBroadcast } from '../sse';
 import { cancellableFetch } from '../utils/cancellation';
@@ -235,6 +236,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     try { return await exportWithVault(resumeId, 'pdf'); } catch { return undefined; }
   };
 
+  const packetDeps = () => ({ repos: repos(), store: store(), exportPdf: (id: string) => exportWithVault(id, 'pdf'), exportsDir: exportsDir() });
+
   const strengthEnum = z.enum(['nudge', 'keywords', 'full']);
 
   /** 简历 JSON 过一遍 schema（补默认值、拒绝不合法结构）；领域库未就绪时原样返回，避免阻塞起草。 */
@@ -289,8 +292,18 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     if (!task) task = r.createTask({ title: `网申填表 ${String(payload.job_id ?? '')}`, kind: 'apply', sessionId: sessionId(), payload: { ...payload, action_id: action.id } });
     const taskId = task.id;
     r.updateTask(taskId, { status: 'running' });
-    if (mode === 'continue') for (const h of r.openHandoffs()) if (h.action_id === action.id) r.closeHandoff(h.id, 'apply_continue');
-    r.setActionStatus(action.id, 'executing');
+    if (mode === 'continue') {
+      for (const h of r.openHandoffs()) if (h.action_id === action.id) r.closeHandoff(h.id, 'apply_continue');
+      r.setActionStatus(action.id, 'executing');
+    } else {
+      // 认领：approved → executing 原子切换并核对批准时的内容哈希；后台批量已经拿走 / 批准后内容变了都会失败
+      const claim = r.claimAction(action.id);
+      if (!claim.ok) {
+        r.updateTask(taskId, { status: 'failed' });
+        changed('task', 'action_queue');
+        return err(claim.reason === 'content_changed' ? '这份网申在批准之后内容有变化，已退回待审核，请让用户重新确认后再执行' : `动作已不是待执行状态（${claim.action?.status ?? '不存在'}），可能后台批量投递正在处理它`);
+      }
+    }
     if (action.application_id) { try { r.transition(action.application_id, 'pending', mode === 'start' ? 'apply_run 开始' : 'apply_continue 继续'); } catch { /* 阶段已在执行态 */ } }
     changed('task', 'action_queue', 'application', 'handoff');
     const existing = registry.get(runId);
@@ -313,7 +326,9 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     try {
       // 填表资料（姓名 / 手机 / 邮箱 / 证件号…）由浏览器路由在 Node 侧从私密库组装，这里不传、也看不到明文；
       // 返回的事件已脱敏（明文 → {{vault:...}} 占位符）。continue 不传 url：从当前页继续。
-      const resumePath = await resumeFileFor(payload.resume_id);
+      const file = await packetResumeFile(r, payload, resumeFileFor);
+      if (file.error) return failRun(file.error);
+      const resumePath = file.path;
       // 续跑：上次 needs_user 的标签交给引擎，用户在接管期间自己填好的值会被学进答案库
       const prevSummary = mode === 'continue' ? parseJson<{ needsUser?: Array<{ label?: string }> }>(action.result_json) : undefined;
       const learnFrom = (prevSummary?.needsUser ?? []).map(p => p.label).filter((l): l is string => typeof l === 'string' && !!l);
@@ -323,6 +338,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       });
     } catch (error) {
       return failRun(error instanceof Error ? error.message : String(error));
+    }
+    if (events.some(e => e.type === 'error' && e.code === 'BROWSER_BUSY')) {
+      // 后台批量正在用浏览器：动作放回 approved（批准仍有效），不记失败
+      if (mode === 'start') r.requeueAction(action.id); else r.setActionStatus(action.id, 'needs_user');
+      r.updateTask(taskId, { status: 'queued' });
+      registry.finish(runId);
+      changed('task', 'action_queue');
+      return err('后台批量投递正在使用浏览器填另一份网申。这份已放回队列（批准仍有效）：可以等批量顺带处理，或让用户先暂停批量再执行。');
     }
     const outcome = persistDriveOutcome({ repos: r, action, taskId, events, changed, review });
     if (outcome.kind !== 'failed') emitDriveCards(action.id, outcome.summary);
@@ -534,10 +557,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (!app) app = repos().listApplications().find(a => a.job_id === job.id) ?? repos().createApplication(job.id, args.resume_id && store().getResume(args.resume_id)?.kind === 'tailored' ? args.resume_id : null);
         const resume = args.resume_id ? store().getResume(args.resume_id) : undefined;
         let attachment: { path: string; filename: string } | null = null;
+        let packetId: string | null = null;
         if (resume) {
-          progress('mail_compose', '正在导出简历 PDF');
-          const path = await exportWithVault(resume.row.id, 'pdf'); // 渲染前解私密库占位符
-          attachment = { path, filename: basename(path) };
+          progress('mail_compose', '正在冻结简历附件（快照 + PDF）');
+          // 附件按内容哈希冻结：批准后再导出 / 改简历，发出去的仍是批准时那一份
+          const { packet, warning } = await freezePacket(packetDeps(), { applicationId: app.id, jobId: job.id, resumeId: resume.row.id });
+          if (warning || !packet.resume_pdf_path) return err(warning ?? '简历 PDF 导出失败');
+          packetId = packet.id;
+          attachment = { path: packet.resume_pdf_path, filename: `${resume.kind === 'master' ? (resume.row as { name?: string }).name ?? '简历' : '简历'}.pdf` };
         }
         progress('mail_compose', '正在起草邮件');
         const basics = resume ? (parseJson<{ basics?: Record<string, string> }>(resume.row.schema_json)?.basics ?? {}) : {};
@@ -545,7 +572,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (attachment && out.attachment_name && /\.pdf$/i.test(out.attachment_name)) attachment = { ...attachment, filename: out.attachment_name };
         const subject = out.email?.subject ?? `应聘 ${job.title}`;
         const body = [out.email?.body ?? '', out.email?.signature ?? ''].filter(Boolean).join('\n\n');
-        const action = repos().enqueueAction('send_mail', { account_id: account.id, to: args.to, subject, body, attachments: attachment ? [attachment] : [], application_id: app.id, job_id: job.id, context: '邮件' }, app.id);
+        const action = repos().enqueueAction('send_mail', { account_id: account.id, to: args.to, subject, body, attachments: attachment ? [{ ...attachment, sha256: packetId ? repos().getPacket(packetId)?.resume_pdf_sha256 ?? undefined : undefined }] : [], application_id: app.id, job_id: job.id, context: '邮件', ...(packetId ? { packet_id: packetId } : {}) }, app.id);
         changed('action_queue', 'application');
         review([action.id], 'send_mail', `发送投递邮件给 ${args.to}：${subject}`);
         focus({ surface: 'today' });
@@ -803,17 +830,21 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       })()),
 
       // ---------- 投递 ----------
-      tool('apply_prepare', '为岗位创建投递记录并把 fill_form 动作入待审队列；用户批准后再用 apply_run 执行。', {
-        job_id: z.string(), resume_id: z.string().optional().describe('定制简历 id（resume_tailored）'),
-      }, async (args) => wrap(() => {
+      tool('apply_prepare', '为岗位创建投递记录，把要投的简历冻结成材料包（简历快照 + PDF + JD 原文），并把 fill_form 动作入待审队列；用户批准后再用 apply_run 执行。不传 resume_id 时：用这个岗位的定制简历，没有就用唯一一份主简历；有多份主简历时会报错，请先让用户选。', {
+        job_id: z.string(), resume_id: z.string().optional().describe('要投的简历 id（主简历或定制简历）'),
+      }, async (args) => wrap(async () => {
         const job = requireJob(args.job_id);
         const r = repos();
-        const tailoredId = args.resume_id && store().getResume(args.resume_id)?.kind === 'tailored' ? args.resume_id : null;
-        const application = r.createApplication(job.id, tailoredId);
-        const action = r.enqueueAction('fill_form', { job_id: job.id, resume_id: args.resume_id ?? null, application_id: application.id, url: job.url }, application.id);
+        const picked = pickResumeForJob(store(), job.id, args.resume_id);
+        if (args.resume_id && !picked) return err(`简历不存在：${args.resume_id}`);
+        if (!picked && store().listResumeMasters().length > 1) return err(`有多份主简历，请先调用 resume_list 让用户选择这次投哪一份，再带上 resume_id：${store().listResumeMasters().map(m => `${m.id}（${m.name}）`).join('、')}`);
+        const application = r.createApplication(job.id, picked?.kind === 'tailored' ? picked.id : null);
+        progress('apply_prepare', '正在冻结投递材料包（简历快照 + PDF）');
+        const { packet, warning } = await freezePacket(packetDeps(), { applicationId: application.id, jobId: job.id, resumeId: picked?.id ?? null });
+        const action = r.enqueueAction('fill_form', { job_id: job.id, resume_id: picked?.id ?? null, packet_id: packet.id, application_id: application.id, url: job.url }, application.id);
         changed('application', 'action_queue');
-        review([action.id], 'fill_form', `为「${job.company_name ?? ''} ${job.title}」填写网申表单`);
-        return text({ application, action, note: '动作已进入待审核队列；用户批准后调用 apply_run(action_id)。' });
+        review([action.id], 'fill_form', `为「${job.company_name ?? ''} ${job.title}」填写网申表单${picked ? `（简历：${picked.reason}）` : '（没有简历附件）'}`);
+        return text({ application, action, packet: { id: packet.id, resume_id: packet.resume_id, resume_kind: packet.resume_kind, resume_pick_reason: picked?.reason ?? null, has_pdf: !!packet.resume_pdf_path }, ...(warning ? { warning } : {}), note: '动作已进入待审核队列；批准的是这份材料包（之后再改简历不影响这次投递）。用户批准后调用 apply_run(action_id)。' });
       })()),
 
       tool('apply_run', '在托管浏览器上执行已批准的填表动作（不提交）；遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
