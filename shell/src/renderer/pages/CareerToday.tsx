@@ -79,7 +79,7 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
 
   return (
     <CareerPage embedded={embedded} title="今日" subtitle="今天只做三件事，其余交给等待" examples={['帮我看看今天该做什么', '帮我准备明天的面试', '帮我看看接下来该投什么']}>
-      <div ref={topRef} className="space-y-5 px-4 py-3">
+      <div ref={topRef} className="max-w-6xl space-y-8 px-6 py-6">
         {today.error && <ErrorRow message={today.error} onRetry={today.reload} />}
         {today.loading && !today.data && <LoadingRow />}
 
@@ -87,20 +87,23 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
 
         {today.data && (
           <section>
-            <SectionTitle extra={today.data.pending_review > 0 ? <Badge tone="accent">待批准 {today.data.pending_review}</Badge> : null}>今天只做三件事</SectionTitle>
+            <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <p className="font-human text-2xl font-semibold text-[var(--ink)]">
+                {topThree.length > 0 ? `今天有 ${topThree.length} 件事要做` : '今天没有必须做的事'}
+                <span className="text-[var(--muted)]">{`，${today.data.waiting.count} 家在等回音`}</span>
+              </p>
+              {today.data.pending_review > 0 && <Badge tone="accent">待批准 {today.data.pending_review}</Badge>}
+            </div>
             {topThree.length === 0 && checklistDone && (
-              <Card>
-                <div className="flex flex-col items-center gap-2 py-6 text-center">
-                  <div className="text-sm text-[var(--ink)]">今天没有必须做的事。</div>
-                  <div className="text-xs text-[var(--subtle)]">等待中的投递不需要你盯着；有新动静会自动出现在这里。</div>
-                  <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'today' }} variant="secondary" />
-                </div>
-              </Card>
+              <div className="flex flex-col items-start gap-3">
+                <div className="text-sm text-[var(--muted)]">等待中的投递不需要你盯着；有新动静会自动出现在这里。</div>
+                <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'today' }} />
+              </div>
             )}
             {topThree.length === 0 && !checklistDone && (
-              <div className="text-xs text-[var(--subtle)]">先完成上面的起步步骤，之后每天这里最多只放三件事。</div>
+              <div className="text-sm text-[var(--muted)]">先完成上面的起步步骤，之后每天这里最多只放三件事。</div>
             )}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-3">
               {topThree.map(item => (
                 <TodayItemCard key={`${item.ref.type}:${item.ref.id}:${item.kind}`} item={item} action={actionById.get(item.ref.id)} prominent onChanged={reloadAll} onSnooze={snooze} onOpenChat={onOpenChat} />
               ))}
@@ -121,24 +124,24 @@ function ChecklistCard({ steps }: { steps: ChecklistStep[] }) {
   return (
     <Card
       title={(
-        <button type="button" onClick={() => setOpen(o => !o)} className="inline-flex items-center gap-1 text-sm font-medium text-[var(--ink)]">
-          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        <button type="button" onClick={() => setOpen(o => !o)} className="inline-flex items-center gap-1 font-human text-base font-semibold text-[var(--ink)]">
+          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           起步：五步跑通第一条投递
         </button>
       )}
       extra={<span className="text-xs text-[var(--muted)]">{`已完成 ${doneCount} / ${steps.length}`}</span>}
     >
       {open && (
-        <ol className="space-y-2">
+        <ol className="divide-y divide-[var(--line)]">
           {steps.map((step, idx) => (
-            <li key={step.key} className="flex flex-wrap items-center gap-2 text-sm">
+            <li key={step.key} className="flex min-h-10 flex-wrap items-center gap-2 py-1 text-sm">
               <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs ${step.done ? 'border-[var(--success)]/30 bg-[var(--success-bg)] text-[var(--success)]' : 'border-[var(--line)] text-[var(--muted)]'}`}>
                 {step.done ? '✓' : idx + 1}
               </span>
               <span className={step.done ? 'text-[var(--subtle)] line-through' : 'text-[var(--ink)]'}>{step.label}</span>
-              {!step.done && step.chat && <ChatActionButton text={step.chat} context={{ surface: 'today', note: `起步步骤：${step.label}` }} variant="secondary" />}
+              {!step.done && step.chat && <ChatActionButton text={step.chat} context={{ surface: 'today', note: `起步步骤：${step.label}` }} variant="ghost" size="sm" className="ml-auto" />}
               {!step.done && step.focus && (
-                <Button variant="secondary" onClick={() => emitEvent('career:focus', { surface: step.focus ?? 'inbox' } satisfies CareerFocusEvent)}>去收件箱绑定</Button>
+                <Button variant="ghost" size="sm" className="ml-auto" onClick={() => emitEvent('career:focus', { surface: step.focus ?? 'inbox' } satisfies CareerFocusEvent)}>去收件箱绑定</Button>
               )}
             </li>
           ))}
@@ -153,13 +156,13 @@ function RestList({ items, actionById, onChanged, onSnooze, onOpenChat }: {
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="mt-3">
-      <button type="button" onClick={() => setOpen(o => !o)} className="inline-flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--ink)]">
-        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        其他待办 ({items.length})
+    <div className="mt-4">
+      <button type="button" onClick={() => setOpen(o => !o)} className="inline-flex items-center gap-1 rounded-md text-sm text-[var(--muted)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]">
+        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        还有 {items.length} 件，不急
       </button>
       {open && (
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-2 divide-y divide-[var(--line)]">
           {items.map(item => (
             <li key={`${item.ref.type}:${item.ref.id}:${item.kind}`}>
               <TodayItemCard item={item} action={actionById.get(item.ref.id)} onChanged={onChanged} onSnooze={onSnooze} onOpenChat={onOpenChat} />
@@ -181,59 +184,77 @@ function TodayItemCard({ item, action, prominent = false, onChanged, onSnooze, o
 
   const payload = action ? safeJson<Record<string, unknown>>(action.payload_json, {}) : {};
   const isSendMail = action?.kind === 'send_mail';
+  const isReview = item.kind === 'review';
+  // 每张卡只有一个大按钮（7.4）；其余动作降为 Ghost。
+  const main = prominent ? 'lg' : 'sm';
+  const openDossier = () => emitEvent('career:focus', { surface: 'dossier', application_id: item.ref.id } satisfies CareerFocusEvent);
+  const hasDeadlineDone = (item.kind === 'deadline' || item.kind === 'interview_today') && item.ref.type === 'deadline';
+  const hasDossier = (item.kind === 'deadline' || item.kind === 'interview_today' || item.kind === 'followup') && item.ref.type === 'application';
+  const dossierIsMain = hasDossier && item.kind !== 'interview_today' && !item.suggest;
+
+  const surface = isReview
+    ? 'rounded-xl border-[1.5px] border-[var(--hard)] bg-[var(--paper)] p-4 shadow-hard-lg'
+    : prominent
+      ? 'rounded-xl border border-[var(--line-2)] bg-[var(--paper)] p-4'
+      : 'py-3';
 
   return (
-    <Card variant={item.kind === 'review' ? 'approval' : 'plain'}>
-      <div className="flex flex-wrap items-center gap-1.5">
+    <section className={`flex h-full flex-col ${surface}`}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Badge tone={KIND_TONES[item.kind] ?? 'neutral'}>{KIND_LABELS[item.kind] ?? item.kind}</Badge>
-        {action && <Badge tone="neutral">{ACTION_KIND_LABELS[action.kind] ?? action.kind}</Badge>}
-        {due && <span className={`text-xs ${due === '已过期' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`}>{due}</span>}
+        {action && <span className="text-xs text-[var(--muted)]">{ACTION_KIND_LABELS[action.kind] ?? action.kind}</span>}
+        {due && <span className={`ml-auto text-xs tabular-nums ${due === '已过期' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`}>{due}</span>}
       </div>
-      <div className={`mt-1 break-words font-medium text-[var(--ink)] ${prominent ? 'text-sm' : 'text-xs'}`}>{item.title}</div>
-      {item.detail && <div className="mt-0.5 break-words text-xs text-[var(--muted)]">{item.detail}</div>}
+      <div className={`mt-2 break-words font-semibold text-[var(--ink)] ${prominent ? 'font-human text-base' : 'text-sm'}`}>{item.title}</div>
+      {item.detail && <div className="mt-1 break-words text-sm text-[var(--muted)]">{item.detail}</div>}
       {isSendMail && (typeof payload.subject === 'string' || typeof payload.to === 'string') && (
-        <div className="mt-1 rounded-md bg-[var(--inset)] px-2 py-1 text-xs text-[var(--muted)]">
+        <div className="mt-2 border-l-2 border-[var(--line-2)] pl-3 text-sm text-[var(--ink-2)]">
           {typeof payload.to === 'string' && <div>收件人：{payload.to}</div>}
           {typeof payload.subject === 'string' && <div>主题：{payload.subject}</div>}
         </div>
       )}
       {item.kind === 'stale' && (
-        <div className="mt-0.5 text-xs text-[var(--subtle)]">超过静默阈值仍无回音；关闭这条线不会删除记录，之后对方来信会自动重新打开。</div>
+        <div className="mt-1 text-xs text-[var(--subtle)]">关闭这条线不会删除记录，之后对方来信会自动重新打开。</div>
       )}
-      {act.error && <ErrorRow message={act.error} />}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        {item.kind === 'review' && (
+      {act.error && <div className="mt-2"><ErrorRow message={act.error} /></div>}
+      <div className={`flex flex-wrap items-center gap-2 ${prominent ? 'mt-auto pt-4' : 'mt-2'}`}>
+        {isReview && (
           <>
-            <Button variant="primary" busy={act.busy} onClick={() => void run(() => careerApi.reviewActions([item.ref.id], 'approved'))}>{isSendMail ? '批准并发送' : '批准'}</Button>
-            <Button variant="danger" busy={act.busy} onClick={() => void run(() => careerApi.reviewActions([item.ref.id], 'rejected'))}>拒绝</Button>
+            <Button variant="primary" size={main} busy={act.busy} onClick={() => void run(() => careerApi.reviewActions([item.ref.id], 'approved'))}>{isSendMail ? '批准并发送' : '批准'}</Button>
+            <Button variant="ghost" busy={act.busy} onClick={() => void run(() => careerApi.reviewActions([item.ref.id], 'rejected'))}>不发了</Button>
           </>
         )}
-        {(item.kind === 'deadline' || item.kind === 'interview_today') && item.ref.type === 'deadline' && (
-          <Button variant="primary" busy={act.busy} onClick={() => void run(() => careerApi.setDeadlineStatus(item.ref.id, 'done'))}>完成</Button>
-        )}
-        {(item.kind === 'deadline' || item.kind === 'interview_today' || item.kind === 'followup') && item.ref.type === 'application' && (
-          <Button variant="secondary" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: item.ref.id } satisfies CareerFocusEvent)}>打开卷宗</Button>
+        {hasDeadlineDone && (
+          <Button variant="primary" size={main} busy={act.busy} onClick={() => void run(() => careerApi.setDeadlineStatus(item.ref.id, 'done'))}>完成</Button>
         )}
         {item.kind === 'interview_today' && (
-          <ChatActionButton text="帮我准备这场面试" context={{ surface: 'today', refs: item.ref.type === 'application' ? { application_id: item.ref.id } : refs }} />
+          <ChatActionButton size={hasDeadlineDone ? 'md' : main} variant={hasDeadlineDone ? 'ghost' : 'secondary'} text="帮我准备这场面试" context={{ surface: 'today', refs: item.ref.type === 'application' ? { application_id: item.ref.id } : refs }} />
         )}
         {item.kind === 'stale' && (
           <>
-            <Button variant="danger" busy={act.busy} onClick={() => void run(() => careerApi.closeSilent(item.ref.id))}>关闭这条线</Button>
+            <Button size={main} busy={act.busy} onClick={() => void run(() => careerApi.closeSilent(item.ref.id))}>关闭这条线</Button>
             <Button variant="ghost" onClick={() => onSnooze(item)}>再等等</Button>
           </>
         )}
         {item.kind === 'inbox' && (
-          <Button variant="secondary" onClick={() => emitEvent('career:focus', { surface: 'inbox', id: item.ref.type === 'inbox_item' ? item.ref.id : null } satisfies CareerFocusEvent)}>去收件箱</Button>
+          <Button size={main} onClick={() => emitEvent('career:focus', { surface: 'inbox', id: item.ref.type === 'inbox_item' ? item.ref.id : null } satisfies CareerFocusEvent)}>去收件箱</Button>
         )}
         {item.kind === 'handoff' && (
-          <Button variant="primary" onClick={onOpenChat}>打开对话接手</Button>
+          <Button variant="primary" size={main} onClick={onOpenChat}>打开对话接手</Button>
         )}
         {item.suggest && item.kind !== 'interview_today' && (
-          <ChatActionButton text={item.suggest} context={{ surface: 'today', refs }} variant={item.kind === 'inbox' || item.kind === 'followup' ? 'primary' : 'secondary'} />
+          <ChatActionButton
+            text={item.suggest}
+            context={{ surface: 'today', refs }}
+            size={item.kind === 'deadline' && !hasDeadlineDone ? main : 'md'}
+            variant={item.kind === 'deadline' && !hasDeadlineDone ? 'secondary' : 'ghost'}
+          />
+        )}
+        {hasDossier && (
+          <Button variant={dossierIsMain ? 'secondary' : 'ghost'} size={dossierIsMain ? main : 'md'} onClick={openDossier}>打开卷宗</Button>
         )}
       </div>
-    </Card>
+    </section>
   );
 }
 
@@ -241,7 +262,7 @@ function WaitingRow({ waiting }: { waiting: { count: number; by_stage: Array<{ s
   return (
     <section>
       <SectionTitle>等待中（{waiting.count}）</SectionTitle>
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
         {waiting.by_stage.length === 0 && <span className="text-xs text-[var(--subtle)]">暂时没有在等回音的投递。</span>}
         {waiting.by_stage.map(s => (
           <Badge key={s.stage} tone="neutral">{STAGE_LABELS[s.stage as ApplicationStage] ?? s.stage} {s.n}</Badge>

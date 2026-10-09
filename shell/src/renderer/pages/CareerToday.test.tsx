@@ -50,7 +50,7 @@ describe('CareerToday', () => {
     expect(screen.getByText('丙公司 · 后端工程师 已静默 14 天')).toBeInTheDocument();
     // 第四条折叠在"其他待办"里
     expect(screen.queryByText('收件箱有 2 条没看懂')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '其他待办 (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: '还有 1 件，不急' }));
     expect(screen.getByText('收件箱有 2 条没看懂')).toBeInTheDocument();
     // send_mail 的待批准：显示动作类型、收件人与"批准并发送"
     expect(screen.getByText('发送投递邮件')).toBeInTheDocument();
@@ -108,7 +108,7 @@ describe('CareerToday', () => {
   it('清单完成且无待办 → 平静空态；data-changed 后重新拉取', async () => {
     mockGet({ empty: true, done: true });
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
-    expect(await screen.findByText('今天没有必须做的事。')).toBeInTheDocument();
+    expect(await screen.findByText('今天没有必须做的事')).toBeInTheDocument();
     expect(screen.queryByText(/已完成 \d \/ 5/)).not.toBeInTheDocument();
     const before = vi.mocked(apiGetJson).mock.calls.filter(c => String(c[0]).startsWith('/api/career/today')).length;
     act(() => { emitEvent('career:data-changed', { tables: ['deadline'] }); });

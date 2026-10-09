@@ -32,10 +32,10 @@ export function useSuggestToChat(): (text: string, context?: ChatContext) => voi
 }
 
 /** 面板上的"让助理做"按钮：点一下就把带对象上下文的意图发进对话。 */
-export function ChatActionButton({ text, context, children, variant = 'secondary', className }: { text: string; context?: ChatContext; children?: ReactNode; variant?: 'primary' | 'secondary' | 'ghost'; className?: string }) {
+export function ChatActionButton({ text, context, children, variant = 'secondary', size, className }: { text: string; context?: ChatContext; children?: ReactNode; variant?: 'primary' | 'secondary' | 'ghost'; size?: keyof typeof BUTTON_SIZES; className?: string }) {
   const suggest = useSuggestToChat();
   return (
-    <Button variant={variant} className={className} onClick={() => suggest(text, context)}>
+    <Button variant={variant} size={size} className={className} onClick={() => suggest(text, context)}>
       <MessageSquareText className="h-4 w-4" strokeWidth={1.75} />
       {children ?? text}
     </Button>
@@ -190,6 +190,8 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const BUTTON_SIZES = {
+  /** 工作台卡片的唯一主动作（7.4）。 */
+  lg: 'h-10 px-4',
   md: 'h-8 px-3.5',
   /** 列表行内、工具栏。 */
   sm: 'h-[30px] px-3',
