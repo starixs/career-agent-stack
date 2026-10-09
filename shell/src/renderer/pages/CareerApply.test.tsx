@@ -31,12 +31,20 @@ const applications = [
   { id: 'a2', job_id: 'j2', stage: 'blocked', blocker_reason: '需要验证码', retry_strategy: '明早重试', page_url: null },
 ];
 
+const boardRows = [
+  { job: { ...jobs[0], employment_type: 'campus', cohort: '2027届', job_key: 'boss:1' }, application: { id: 'a1', stage: 'approved', next_action: '填写网申', updated_at: '2026-10-01' },
+    match: { score: 76, hard_ok: true, hard: [{ rule: 'city', label: '城市', ok: true, detail: '上海 在工作地点里' }], covered: 1, total: 2, summary: '2 项要求里有 1 项能用你的经历证明', computed_at: '2026-10-01',
+      requirements: [{ requirement: '熟练使用 SQL', weight: 2, status: 'covered', terms: ['SQL'], evidence: { id: 'clm_1', kind: 'claim', text: '在 Hive 上写 SQL 做留存分析', label: '电商数据实习' } }, { requirement: 'Go', weight: 1, status: 'missing', terms: ['Go'] }] } },
+  { job: { ...jobs[1], employment_type: 'intern', cohort: null }, application: null, match: null },
+];
+
 function mockGet(empty = false) {
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
     if (path.startsWith('/api/career/board')) return empty ? { ok: true, board: { due: [], blocked: [], funnel: [], pendingReview: 0 } } : { ok: true, board };
     if (path.startsWith('/api/career/actions?status=needs_user')) return { ok: true, actions: empty ? [] : [uncertain] };
     if (path.startsWith('/api/career/actions')) return { ok: true, actions: empty ? [] : actions };
     if (path.startsWith('/api/career/apply/settings')) return { ok: true, auto_mode: false, learn_threshold: 3 };
+    if (path.startsWith('/api/career/jobs/board')) return { ok: true, rows: empty ? [] : boardRows, prefs: { cohort: '2027届', cities: ['上海'] }, server: false };
     if (path.startsWith('/api/career/jobs')) return { ok: true, jobs: empty ? [] : jobs };
     if (path.startsWith('/api/career/applications')) return { ok: true, applications: empty ? [] : applications };
     return { ok: true };
@@ -52,7 +60,7 @@ describe('CareerApply', () => {
   it('空状态', async () => {
     mockGet(true);
     render(<CareerApply />);
-    expect(await screen.findByText('岗位池是空的')).toBeInTheDocument();
+    expect(await screen.findByText('没有符合筛选的岗位')).toBeInTheDocument();
     expect(screen.getByText('今天没有到期事项')).toBeInTheDocument();
     expect(screen.getByText('没有进行中的浏览器任务')).toBeInTheDocument();
   });
@@ -71,8 +79,12 @@ describe('CareerApply', () => {
     fireEvent.click(screen.getByText('查看已填好的 1 项'));
     expect(screen.getByText('张三')).toBeInTheDocument();
     expect(screen.getByText('应聘算法工程师 → hr@d.com')).toBeInTheDocument();
-    expect(screen.getByText('4.2')).toBeInTheDocument();
-    expect(screen.getByText('20-30K')).toBeInTheDocument();
+    // 岗位汇总表：匹配分点开看"哪条要求对应哪段经历"
+    expect(await screen.findByText('我的条件：2027届 · 上海')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('匹配详情 后端工程师'));
+    expect(screen.getByText('熟练使用 SQL')).toBeInTheDocument();
+    expect(screen.getByText(/电商数据实习：「在 Hive 上写 SQL 做留存分析」/)).toBeInTheDocument();
+    expect(screen.getByText('暂无证据')).toBeInTheDocument();
   });
 
   it('勾选动作后批准调用 actions/review', async () => {
@@ -110,6 +122,16 @@ describe('CareerApply', () => {
     expect(screen.queryByRole('button', { name: '已评估' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '已投递' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/applications/a1/stage', { to: 'applied', note: undefined }));
+  });
+
+  it('岗位汇总表：全选后加入待投清单', async () => {
+    mockGet();
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, queued: 2, results: [{ job_id: 'j1', ok: true }, { job_id: 'j2', ok: true }] });
+    render(<CareerApply />);
+    fireEvent.click(await screen.findByLabelText('全选岗位'));
+    fireEvent.click(screen.getByRole('button', { name: '加入待投清单（2）' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/jobs/prepare', { job_ids: ['j1', 'j2'] }));
+    expect(await screen.findByText(/已加入待投清单 2 个/)).toBeInTheDocument();
   });
 
   it('导入岗位链接调用 jobs/import', async () => {

@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { jobKey } from '../keys.js'
 import { classifyAnswerSensitivity } from '../answers.js'
+import { inferEmploymentType, normalizeCohort } from '../jobs.js'
 
 /**
  * 增量迁移。schema.sql 是版本 1 的基线（新库整份建出来，老库靠 IF NOT EXISTS 补新表）；
@@ -89,6 +90,27 @@ export const MIGRATIONS: readonly Migration[] = [
         upload_error TEXT
       )`)
       db.exec('CREATE INDEX IF NOT EXISTS idx_answer_event_upload ON answer_event(uploaded_at, created_at)')
+    },
+  },
+  {
+    version: 4,
+    name: 'job-board',
+    up(db) {
+      // 岗位汇总表：校招 / 实习 / 社招、届别、服务端版本与下架状态、可解释匹配结果
+      addColumn(db, 'job', 'employment_type', "TEXT NOT NULL DEFAULT 'unknown'")
+      addColumn(db, 'job', 'cohort', 'TEXT')
+      addColumn(db, 'job', 'source_version', 'INTEGER')
+      addColumn(db, 'job', 'source_status', "TEXT NOT NULL DEFAULT 'open'")
+      addColumn(db, 'job', 'match_json', 'TEXT')
+      addColumn(db, 'job', 'match_score', 'REAL')
+      db.exec('CREATE INDEX IF NOT EXISTS idx_job_board ON job(employment_type, deadline)')
+      const rows = db.prepare('SELECT id, title, jd_raw, prefilter_json FROM job').all() as Array<{ id: string; title: string; jd_raw: string | null; prefilter_json: string | null }>
+      const set = db.prepare('UPDATE job SET employment_type=?, cohort=COALESCE(cohort, ?) WHERE id=?')
+      for (const r of rows) {
+        let batch = ''; let cohort: string | null = null
+        try { const p = JSON.parse(r.prefilter_json ?? '{}') as { campus?: { batch?: string; cohort?: string } }; batch = p.campus?.batch ?? ''; cohort = p.campus?.cohort ?? null } catch { /* ignore */ }
+        set.run(inferEmploymentType(batch, r.title, (r.jd_raw ?? '').slice(0, 400)), normalizeCohort(cohort ?? r.jd_raw), r.id)
+      }
     },
   },
 ]

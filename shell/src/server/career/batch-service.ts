@@ -144,9 +144,31 @@ export async function releaseApplicationPageFor(applicationId: string): Promise<
   try { await runOnProductBrowser({ op: 'release', applicationId }, () => {}); } catch { /* 浏览器不在就无需释放 */ }
 }
 
-/** bootstrap（global）：上次还在跑就续上；同时启动接管守护与提交执行器。 */
+/**
+ * 答案改动回传：配置了服务端才上传（每 10 分钟一批）；没配置就在本地累积，配好后补传。
+ * 上行内容见 server-api.uploadAnswerEvents（不带本地 id，个人信息不带值，excluded 从不入队）。
+ */
+let answerSyncTimer: ReturnType<typeof setInterval> | null = null;
+export function startAnswerSync(intervalMs = 10 * 60_000): void {
+  if (answerSyncTimer) return;
+  const tick = async () => {
+    try {
+      const repos = await getRepos();
+      const { serverConfig, uploadAnswerEvents } = await import('./server-api');
+      const cfg = serverConfig(repos);
+      if (!cfg) return;
+      const res = await uploadAnswerEvents(repos, cfg);
+      if (res.error) console.warn(`[career] 答案改动上传失败：${res.error}`);
+    } catch { /* 下一轮再试 */ }
+  };
+  answerSyncTimer = setInterval(() => { void tick(); }, intervalMs);
+  answerSyncTimer.unref?.();
+}
+
+/** bootstrap（global）：上次还在跑就续上；同时启动接管守护、提交执行器与答案回传。 */
 export async function resumeBatchIfRunning(): Promise<void> {
   startHandoffKeeper();
+  startAnswerSync();
   try { (await getSubmitExecutor()).start(); } catch (error) { console.warn('[career] 提交执行器启动失败：', error instanceof Error ? error.message : error); }
   try { (await getBatchRunner()).resumeIfRunning(); } catch (error) { console.warn('[career] 批量运行器恢复失败：', error instanceof Error ? error.message : error); }
 }

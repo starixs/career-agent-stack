@@ -253,3 +253,16 @@ export interface IntakeResult {
 export interface CareerFocusEvent { sessionId?: string | null; surface: 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string }
 /** 面板 → 对话：把一句带对象上下文的话真的发进对话。 */
 export interface CareerChatSuggestEvent { text: string; context?: { surface?: string; refs?: Record<string, string | null | undefined>; note?: string }; mode?: 'send' | 'prefill' }
+
+// ===== 岗位汇总表 =====
+export type EmploymentType = 'campus' | 'intern' | 'social' | 'unknown';
+export interface JobPrefs { cohort?: string | null; degree?: string | null; cities?: string[]; employment_types?: EmploymentType[]; keywords?: string[] }
+export interface JobHardCheck { rule: string; label: string; ok: boolean | null; detail: string }
+export interface JobRequirementMatch { requirement: string; weight: number; status: 'covered' | 'missing'; terms: string[]; evidence?: { id: string; kind: 'claim' | 'resume'; text: string; label?: string } }
+export interface JobMatchResult { score: number; hard_ok: boolean; hard: JobHardCheck[]; requirements: JobRequirementMatch[]; covered: number; total: number; summary: string; computed_at: string }
+export interface JobBoardRow {
+  job: Job & { job_key?: string | null; employment_type?: EmploymentType; cohort?: string | null; source_status?: string };
+  match: JobMatchResult | null;
+  application: { id: string; stage: ApplicationStage; next_action: string | null; updated_at: string } | null;
+}
+export interface JobBoardFilter { q?: string; employment_type?: string; city?: string; cohort?: string; open_only?: boolean; fits_only?: boolean; progress?: 'none' | 'active' | 'done'; sort?: 'match' | 'deadline' | 'updated' }

@@ -14,7 +14,7 @@ import type {
   InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
-  AnswerBankEntry, AnswerStatus, ApplySettings,
+  AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs,
 } from './types';
 
 type Dict = Record<string, unknown>;
@@ -103,6 +103,18 @@ export const careerApi = {
       pendingReview: typeof b.pendingReview === 'number' ? b.pendingReview : 0,
     } satisfies Board;
   }),
+  /** 岗位汇总表：筛选 + 我的进度 + 可解释匹配。 */
+  jobBoard: (f: JobBoardFilter = {}) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== '' && v !== false) p.set(k, v === true ? '1' : String(v));
+    return apiGetJson<unknown>(careerPath(`/jobs/board?${p}`)).then(r => ({ rows: pickList<JobBoardRow>(r, 'rows'), prefs: (asDict(r).prefs ?? {}) as JobPrefs, server: asDict(r).server === true }));
+  },
+  setJobPrefs: (prefs: JobPrefs) => apiPutJson<unknown>(careerPath('/job-prefs'), prefs).then(r => pickObject<JobPrefs>(r, 'prefs')),
+  matchJobs: (jobIds?: string[]) => apiPostJson<unknown>(careerPath('/jobs/match'), jobIds ? { job_ids: jobIds } : {}).then(r => pickObject<{ n?: number }>(r)),
+  syncJobs: (source: 'campus' | 'server') => apiPostJson<unknown>(careerPath('/jobs/sync'), { source }).then(r => pickObject<{ fetched?: number; stored?: number; matched?: number }>(r)),
+  prepareJobs: (jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/prepare'), { job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
+    .then(r => pickObject<{ queued?: number; results?: Array<{ job_id: string; ok: boolean; reason?: string }> }>(r)),
+  exportWorkbook: () => apiPostJson<unknown>(careerPath('/export/workbook'), {}).then(r => pickObject<{ path?: string; sheets?: Record<string, number> }>(r)),
   setStage: (id: string, to: string, note?: string) =>
     apiPostJson<unknown>(careerPath(`/applications/${encodeURIComponent(id)}/stage`), { to, note }).then(r => pickObject<Application>(r, 'application')),
   pendingActions: () => apiGetJson<unknown>(careerPath('/actions?status=pending_review')).then(r => pickList<ActionQueueItem>(r, 'actions', 'items')),

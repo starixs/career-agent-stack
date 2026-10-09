@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { z } from 'zod'
-import type { Repos, Job } from '@career/core'
+import { inferEmploymentType, normalizeCohort, type EmploymentType, type Repos, type Job } from '@career/core'
 import { moduleDir, envStr } from './common.js'
 
 export const CampusJobSchema = z.object({
@@ -96,6 +96,12 @@ export function campusJobTitle(j: CampusJob): string {
   return j.program || [j.cohort, j.batch].filter(Boolean).join(' ') || `${j.company} 招聘`
 }
 
+/** 校招数据里没写批次的默认按校招算。 */
+export function campusEmploymentType(j: CampusJob): EmploymentType {
+  const t = inferEmploymentType(j.batch, j.program, campusJobTitle(j))
+  return t === 'unknown' ? 'campus' : t
+}
+
 export function mapCampusJob(j: CampusJob): Parameters<Repos['upsertJob']>[0] {
   const lines = [
     `公司：${j.company}`, j.industry ? `行业：${j.industry}` : null, j.cohort ? `届别：${j.cohort}` : null, j.batch ? `批次：${j.batch}` : null,
@@ -107,6 +113,8 @@ export function mapCampusJob(j: CampusJob): Parameters<Repos['upsertJob']>[0] {
   return {
     source_platform: 'campus',
     source_job_id: campusJobId(j),
+    employment_type: campusEmploymentType(j),
+    cohort: normalizeCohort(j.cohort),
     url: j.apply_url ?? null,
     company_name: j.company,
     title: campusJobTitle(j),

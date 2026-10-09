@@ -8,7 +8,7 @@
  */
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import type { Repos, ApplicationStage, LLM, Vault, VaultScope } from '@career/core';
+import type { Repos, ApplicationStage, JobPrefs, LLM, Vault, VaultScope } from '@career/core';
 
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { StudioResumeNotFoundError, loadStudio, previewPlaceholders, saveStudio } from '../career/resume-studio';
@@ -16,7 +16,7 @@ import { careerSetupStatus } from '../career/setup';
 import { confirmTailorProposal } from '../career/tailor';
 import { loadCore, type CoreModule } from '../career/core-module';
 import { getRepos, careerExportsDir } from '../career/db';
-import { DomainUnavailableError } from '../career/domain';
+import { DomainUnavailableError, loadBridges } from '../career/domain';
 import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, type ExportFormat } from '../career/export';
 import { getShellLLM } from '../career/llm';
 import { captureIntake, type IntakeDeps } from '../career/intake';
@@ -30,6 +30,9 @@ import { loadSkillPrompt } from '../career/skills';
 import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
 import { confirmSubmitResult } from '../career/submit-executor';
+import { computeMatches, getJobPrefs, jobBoard, prepareJobs, setJobPrefs } from '../career/job-board';
+import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource } from '../career/server-api';
+import { exportCareerWorkbook } from '../career/xlsx-export';
 import { broadcast as sseBroadcast } from '../sse';
 
 export interface CareerRouteDeps {
@@ -271,6 +274,88 @@ const ROUTES: Route[] = [
     }
     dataChanged(ctx, ['job']);
     return ok({ job: ctx.repos.getJob(job.id), ...(parsed !== undefined ? { jd_parsed: parsed } : {}) });
+  }),
+
+  // ---------- 岗位汇总表（R01 / R02 / R06 / R08） ----------
+  route('GET', '/api/career/jobs/board', ({ repos, url }) => {
+    const p = url.searchParams;
+    const progress = p.get('progress');
+    const sort = p.get('sort');
+    return ok({ rows: jobBoard(repos, {
+      q: p.get('q') ?? undefined, employment_type: p.get('employment_type') ?? undefined, city: p.get('city') ?? undefined, cohort: p.get('cohort') ?? undefined,
+      open_only: p.get('open_only') === '1', fits_only: p.get('fits_only') === '1',
+      progress: progress === 'none' || progress === 'active' || progress === 'done' ? progress : undefined,
+      sort: sort === 'deadline' || sort === 'updated' || sort === 'match' ? sort : undefined,
+      limit: Number(p.get('limit')) || undefined,
+    }), prefs: getJobPrefs(repos), server: !!serverConfig(repos) });
+  }),
+  route('POST', '/api/career/jobs/match', (ctx) => {
+    const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : undefined;
+    const n = computeMatches(ctx.repos, ctx.store, ids);
+    dataChanged(ctx, ['job']);
+    return ok({ n });
+  }),
+  route('GET', '/api/career/job-prefs', ({ repos }) => ok({ prefs: getJobPrefs(repos) })),
+  route('PUT', '/api/career/job-prefs', (ctx) => {
+    const b = ctx.body;
+    const list = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+    const prefs = setJobPrefs(ctx.repos, { cohort: strOrNull(b.cohort), degree: strOrNull(b.degree), cities: list(b.cities), employment_types: list(b.employment_types) as JobPrefs['employment_types'], keywords: list(b.keywords) });
+    const n = computeMatches(ctx.repos, ctx.store);
+    dataChanged(ctx, ['job', 'kv']);
+    return ok({ prefs, rematched: n });
+  }),
+  route('POST', '/api/career/jobs/sync', async (ctx) => {
+    const source = ctx.body.source === 'server' ? 'server' : 'campus';
+    try {
+      let result: { fetched: number; stored: number };
+      if (source === 'server') {
+        const cfg = serverConfig(ctx.repos);
+        if (!cfg) return fail('还没有配置服务端地址（设置 → 求职助理 → 服务端，或环境变量 CAREER_API_BASE_URL）', 409);
+        const since = ctx.repos.kvGet<string>('jobs:server:synced_at') ?? undefined;
+        result = await syncJobSource(ctx.repos, new RemoteJobSource(cfg), { updated_since: since });
+        ctx.repos.kvSet('jobs:server:synced_at', new Date().toISOString());
+      } else {
+        const bridges = await loadBridges();
+        const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), { excludeExpired: false });
+        const stored = bridges.importCampusJobs(ctx.repos, items).length;
+        result = { fetched: items.length, stored };
+      }
+      const matched = computeMatches(ctx.repos, ctx.store);
+      dataChanged(ctx, ['job']);
+      return ok({ source, ...result, matched });
+    } catch (error) {
+      if (error instanceof DomainUnavailableError) return fail(error.message, 501);
+      return fail(error instanceof Error ? error.message : '同步失败', 502);
+    }
+  }),
+  route('POST', '/api/career/jobs/prepare', async (ctx) => {
+    const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : [];
+    if (!ids.length) return fail('job_ids 不能为空');
+    try {
+      const results = await prepareJobs({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir }, ids, str(ctx.body.resume_id) ?? null);
+      dataChanged(ctx, ['application', 'action_queue']);
+      return ok({ results, queued: results.filter(r => r.ok).length });
+    } catch (error) {
+      if (error instanceof DomainUnavailableError) return fail(error.message, 501);
+      throw error;
+    }
+  }),
+  route('POST', '/api/career/export/workbook', async (ctx) => {
+    const res = await exportCareerWorkbook(ctx.repos, ctx.deps.exportsDir);
+    return ok(res);
+  }),
+  route('GET', '/api/career/server-config', ({ repos }) => {
+    const cfg = serverConfig(repos);
+    return ok({ configured: !!cfg, base_url: cfg?.base_url ?? null, has_token: !!cfg?.token, pending_answer_events: repos.pendingAnswerEvents(1000).length });
+  }),
+  route('PUT', '/api/career/server-config', (ctx) => {
+    const base = str(ctx.body.base_url);
+    if (base && !/^https?:\/\//i.test(base)) return fail('base_url 必须是 http(s) 地址');
+    const cur = ctx.repos.kvGet<{ base_url: string; token?: string }>(SERVER_CONFIG_KEY);
+    if (!base) ctx.repos.kvSet(SERVER_CONFIG_KEY, null);
+    else ctx.repos.kvSet(SERVER_CONFIG_KEY, { base_url: base, token: typeof ctx.body.token === 'string' ? ctx.body.token : cur?.token });
+    dataChanged(ctx, ['kv']);
+    return ok({ configured: !!base });
   }),
 
   // ---------- 投递台 ----------

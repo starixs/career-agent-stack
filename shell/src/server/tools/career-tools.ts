@@ -850,6 +850,68 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ application, action, packet: { id: packet.id, resume_id: packet.resume_id, resume_kind: packet.resume_kind, resume_pick_reason: picked?.reason ?? null, has_pdf: !!packet.resume_pdf_path }, ...(warning ? { warning } : {}), note: '动作已进入待审核队列；批准的是这份材料包（之后再改简历不影响这次投递）。用户批准后调用 apply_run(action_id)。' });
       })()),
 
+      tool('jobs_board', '岗位汇总表（校招 / 实习网申汇总 + 我的进度 + 可解释匹配）。按条件筛选、按匹配分排序；每条带"哪条要求对应用户哪段经历"。推荐时只推荐 fits=true 的（不违反用户明确条件）。', {
+        q: z.string().optional(), employment_type: z.enum(['campus', 'intern', 'social']).optional(), city: z.string().optional(), cohort: z.string().optional().describe('如 2027届'),
+        open_only: z.boolean().optional().describe('只看没截止的'), fits_only: z.boolean().optional().describe('只看符合用户条件的'), progress: z.enum(['none', 'active', 'done']).optional(),
+        sort: z.enum(['match', 'deadline', 'updated']).optional(), limit: z.number().int().min(1).max(50).optional(),
+      }, async (args) => wrap(async () => {
+        const { jobBoard, getJobPrefs } = await import('../career/job-board');
+        const rows = jobBoard(repos(), { ...args, limit: args.limit ?? 15 });
+        return text({ prefs: getJobPrefs(repos()), rows: rows.map(({ job, match, application }) => ({
+          job_id: job.id, job_key: job.job_key, company: job.company_name, title: job.title, type: job.employment_type, cohort: job.cohort, location: job.location, deadline: job.deadline,
+          url: job.url, progress: application?.stage ?? null, score: match?.score ?? null, fits: match?.hard_ok ?? null, summary: match?.summary ?? '尚未计算匹配',
+          hard: match?.hard.filter(h => h.ok !== true).map(h => `${h.label}：${h.detail}`), covered: match?.requirements.filter(r => r.status === 'covered').map(r => `${r.requirement} ← ${r.evidence?.label ?? ''}「${r.evidence?.text.slice(0, 40) ?? ''}」`),
+          missing: match?.requirements.filter(r => r.status === 'missing').map(r => r.requirement),
+        })), note: rows.length ? '匹配基于用户已确认的经历与简历文字；missing 里的要求不能替用户编造，只能建议去补证据或在面试准备里说明。' : '没有符合条件的岗位：可先 jobs_sync 同步校招数据，或放宽条件。' });
+      })()),
+
+      tool('jobs_sync', '同步岗位到本地汇总表：campus = 内置校招 / 实习汇总数据；server = 服务端共享岗位库（需已配置服务端地址）。同步后自动重算匹配。', {
+        source: z.enum(['campus', 'server']),
+      }, async (args) => wrap(async () => {
+        const r = repos();
+        const { computeMatches } = await import('../career/job-board');
+        let result: { fetched: number; stored: number };
+        if (args.source === 'server') {
+          const { serverConfig, RemoteJobSource, syncJobSource } = await import('../career/server-api');
+          const cfg = serverConfig(r);
+          if (!cfg) return err('还没有配置服务端地址：让用户在 设置 → 求职助理 填写，或先用 campus 来源。');
+          result = await syncJobSource(r, new RemoteJobSource(cfg), { updated_since: r.kvGet<string>('jobs:server:synced_at') ?? undefined });
+          r.kvSet('jobs:server:synced_at', new Date().toISOString());
+        } else {
+          const bridges = await loadBridges();
+          const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), { excludeExpired: false });
+          result = { fetched: items.length, stored: bridges.importCampusJobs(r, items).length };
+        }
+        const matched = computeMatches(r, store());
+        changed('job');
+        return text({ source: args.source, ...result, matched });
+      })()),
+
+      tool('job_prefs', '查看或设置用户的求职条件（届别 / 最高学历 / 城市 / 校招实习类型 / 方向词）。这些是硬条件：岗位推荐不得违反。设置后自动重算全部岗位匹配。只记录用户明确说过的条件，不要替用户猜。', {
+        cohort: z.string().optional().describe('如 2027届'), degree: z.enum(['大专', '本科', '硕士', '博士']).optional(), cities: z.array(z.string()).optional(),
+        employment_types: z.array(z.enum(['campus', 'intern', 'social'])).optional(), keywords: z.array(z.string()).optional(),
+      }, async (args) => wrap(async () => {
+        const { getJobPrefs, setJobPrefs, computeMatches } = await import('../career/job-board');
+        const r = repos();
+        if (Object.values(args).every(v => v === undefined)) return text({ prefs: getJobPrefs(r) });
+        const prefs = setJobPrefs(r, { ...getJobPrefs(r), ...args });
+        const n = computeMatches(r, store());
+        changed('job', 'kv');
+        return text({ prefs, rematched: n });
+      })()),
+
+      tool('jobs_prepare', '把多个岗位一次加入待投清单（每个都冻结材料包 + fill_form 待审）；已在投的跳过。用户在待投清单勾选 / 全选批准后由后台批量投递执行。', {
+        job_ids: z.array(z.string()).min(1).max(50), resume_id: z.string().optional().describe('统一用这份简历；不传则每个岗位用它的定制版或唯一主简历'),
+      }, async (args) => wrap(async () => {
+        const { prepareJobs } = await import('../career/job-board');
+        progress('jobs_prepare', `正在为 ${args.job_ids.length} 个岗位准备材料包`);
+        const results = await prepareJobs({ ...packetDeps(), store: store() }, args.job_ids, args.resume_id ?? null);
+        changed('application', 'action_queue');
+        const queued = results.filter(x => x.ok).map(x => x.action_id!).filter(Boolean);
+        if (queued.length) review(queued, 'fill_form', `${queued.length} 个岗位已加入待投清单，勾选批准后开始批量填写`);
+        return text({ results, queued: queued.length });
+      })()),
+
       tool('apply_run', '在托管浏览器上执行已批准的填表动作（不提交）；遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
         const action = repos().getAction(args.action_id);
         if (!action) return err(`动作不存在：${args.action_id}`);

@@ -1,6 +1,7 @@
 import { Db, now } from './db/db.js'
 import { newId } from './ids.js'
 import { canonicalJson, jobKey, sha256 } from './keys.js'
+import { inferEmploymentType, normalizeCohort } from './jobs.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage } from './types.js'
@@ -49,7 +50,8 @@ export class Repos {
       ?? this.db.get<Job>('SELECT * FROM job WHERE job_key=? LIMIT 1', [key])
     if (existing) { this.db.update('job', existing.id, { ...stripUndefined(j), job_key: existing.job_key ?? key, updated_at: t }); return this.db.get<Job>('SELECT * FROM job WHERE id=?', [existing.id])! }
     const id = newId('job')
-    this.db.insert('job', { id, source_platform: j.source_platform, source_job_id: j.source_job_id ?? null, url: j.url ?? null, company_id: j.company_id ?? null, company_name: j.company_name ?? null, title: j.title, location: j.location ?? null, salary: j.salary ?? null, jd_raw: j.jd_raw ?? null, jd_parsed_json: j.jd_parsed_json ?? null, prefilter_json: j.prefilter_json ?? null, score_json: j.score_json ?? null, deadline: j.deadline ?? null, deadline_verified_at: j.deadline_verified_at ?? null, job_key: key, remote_id: j.remote_id ?? null, created_at: t, updated_at: t })
+    this.db.insert('job', { id, source_platform: j.source_platform, source_job_id: j.source_job_id ?? null, url: j.url ?? null, company_id: j.company_id ?? null, company_name: j.company_name ?? null, title: j.title, location: j.location ?? null, salary: j.salary ?? null, jd_raw: j.jd_raw ?? null, jd_parsed_json: j.jd_parsed_json ?? null, prefilter_json: j.prefilter_json ?? null, score_json: j.score_json ?? null, deadline: j.deadline ?? null, deadline_verified_at: j.deadline_verified_at ?? null, job_key: key, remote_id: j.remote_id ?? null,
+      employment_type: j.employment_type ?? inferEmploymentType(j.title, (j.jd_raw ?? '').slice(0, 400)), cohort: j.cohort ?? normalizeCohort(j.jd_raw), source_version: j.source_version ?? null, source_status: j.source_status ?? 'open', created_at: t, updated_at: t })
     return this.db.get<Job>('SELECT * FROM job WHERE id=?', [id])!
   }
   getJob(id: string): Job | undefined { return this.db.get<Job>('SELECT * FROM job WHERE id=?', [id]) }

@@ -1,20 +1,17 @@
 /**
- * 岗位与投递：看板三问题（今天必须做 / 哪里卡住 / 漏斗）、待审核动作、岗位池与阶段流转、浏览器状态条。
+ * 岗位与投递：看板三问题（今天必须做 / 哪里卡住 / 漏斗）、待投清单（审阅后批准提交）、岗位汇总表、浏览器状态条。
  */
-import { Link2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-import { ExternalLink } from '@/components/ExternalLink';
 import { BrowserStatusBar } from '@/components/career/BrowserStatusBar';
 import { careerApi, safeJson } from '@/components/career/careerApi';
-import { ACTION_KIND_LABELS, FUNNEL_ORDER, STAGE_LABELS, STAGE_TRANSITIONS } from '@/components/career/careerConstants';
+import { ACTION_KIND_LABELS, FUNNEL_ORDER, STAGE_LABELS } from '@/components/career/careerConstants';
+import { JobBoard } from '@/components/career/JobBoard';
 import {
-  Badge, Button, CareerPage, Card, EmptyState, ErrorRow, LoadingRow, SectionTitle, Select, TextInput,
-  formatDate, textOrUnknown,
+  Badge, Button, CareerPage, Card, ErrorRow, LoadingRow, SectionTitle, formatDate,
 } from '@/components/career/CareerPrimitives';
-import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import { SubmitReviewList, approvalLabel } from '@/components/career/SubmitReviewList';
-import type { ActionQueueItem, Application, ApplicationStage, ApplySettings, Board, Job, SubmitReviewSummary } from '@/components/career/types';
+import type { ActionQueueItem, Application, ApplySettings, Board, Job, SubmitReviewSummary } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 
 interface ApplyData { board: Board; actions: ActionQueueItem[]; confirming: ActionQueueItem[]; jobs: Job[]; applications: Application[]; settings: ApplySettings }
@@ -26,10 +23,6 @@ async function loadAll(): Promise<ApplyData> {
   ]);
   return { board, actions, confirming, jobs, applications, settings };
 }
-
-const STAGE_TONE: Partial<Record<ApplicationStage, BadgeTone>> = {
-  blocked: 'error', needs_user: 'warning', offer: 'success', hired: 'success', interview: 'info', rejected: 'neutral', discarded: 'neutral',
-};
 
 export default function CareerApply({ embedded = false }: { embedded?: boolean } = {}) {
   const query = useCareerQuery(loadAll, ['job', 'application', 'action_queue', 'application_history', 'handoff']);
@@ -45,7 +38,7 @@ export default function CareerApply({ embedded = false }: { embedded?: boolean }
           <>
             <BoardSection board={data.board} />
             <ActionsSection actions={data.actions} confirming={data.confirming} settings={data.settings} applications={data.applications} jobs={data.jobs} onChanged={query.reload} />
-            <JobsSection jobs={data.jobs} applications={data.applications} onChanged={query.reload} />
+            <JobBoard onChanged={query.reload} />
           </>
         )}
       </div>
@@ -214,115 +207,5 @@ function ConfirmSubmits({ actions, labelOf, onChanged }: { actions: ActionQueueI
       })}
       {act.error && <ErrorRow message={act.error} />}
     </div>
-  );
-}
-
-function JobsSection({ jobs, applications, onChanged }: { jobs: Job[]; applications: Application[]; onChanged: () => void }) {
-  const [url, setUrl] = useState('');
-  const importAction = useCareerAction();
-  const appByJob = useMemo(() => {
-    const m = new Map<string, Application>();
-    for (const a of applications) if (!m.has(a.job_id)) m.set(a.job_id, a);
-    return m;
-  }, [applications]);
-
-  const doImport = () => importAction.run(async () => {
-    const trimmed = url.trim();
-    if (!trimmed) throw new Error('请输入岗位链接或 JD 文本');
-    await careerApi.importJob(/^https?:\/\//i.test(trimmed) ? { url: trimmed } : { jd_raw: trimmed, title: trimmed.slice(0, 40), source_platform: 'manual' });
-    setUrl('');
-    onChanged();
-  });
-
-  return (
-    <section>
-      <SectionTitle>岗位池（{jobs.length}）</SectionTitle>
-      <div className="mb-3 flex items-center gap-2">
-        <Link2 className="h-4 w-4 shrink-0 text-[var(--muted)]" />
-        <TextInput
-          aria-label="导入岗位链接"
-          placeholder="粘贴岗位链接（或 JD 文本）后回车导入"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') void doImport(); }}
-        />
-        <Button variant="primary" busy={importAction.busy} onClick={() => void doImport()}>导入岗位链接</Button>
-      </div>
-      {importAction.error && <ErrorRow message={importAction.error} />}
-      {jobs.length === 0 && (
-        <EmptyState title="岗位池是空的" hint="粘贴岗位链接导入，或让助理按方向去采集。" example="帮我找 10 个合适的岗位" />
-      )}
-      {jobs.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
-          <table className="w-full min-w-[900px] border-collapse text-xs">
-            <thead className="bg-[var(--inset)] text-left text-[var(--muted)]">
-              <tr>
-                {['公司', '岗位', '地点', '薪资', '评分', '截止', '阶段', '下一步', '页面'].map(h => (
-                  <th key={h} className="px-2 py-1.5 font-medium">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map(job => <JobRow key={job.id} job={job} application={appByJob.get(job.id)} onChanged={onChanged} />)}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-export function scoreOf(job: Job): string {
-  const score = safeJson<Record<string, unknown>>(job.score_json, {});
-  const total = score.total ?? score.overall ?? score.score;
-  return typeof total === 'number' ? total.toFixed(1) : typeof total === 'string' ? total : '未知';
-}
-
-function JobRow({ job, application, onChanged }: { job: Job; application?: Application; onChanged: () => void }) {
-  const stageAction = useCareerAction();
-  const targets = application ? STAGE_TRANSITIONS[application.stage] ?? [] : [];
-  const changeStage = (to: string) => stageAction.run(async () => {
-    if (!application || !to) return;
-    await careerApi.setStage(application.id, to);
-    onChanged();
-  });
-  const pageUrl = application?.page_url ?? job.url;
-  return (
-    <tr className="border-t border-[var(--line)] align-top">
-      <td className="px-2 py-1.5 text-[var(--ink)]">{textOrUnknown(job.company_name)}</td>
-      <td className="px-2 py-1.5 font-medium text-[var(--ink)]">{job.title}</td>
-      <td className="px-2 py-1.5 text-[var(--muted)]">{textOrUnknown(job.location)}</td>
-      <td className="px-2 py-1.5 text-[var(--muted)]">{textOrUnknown(job.salary)}</td>
-      <td className="px-2 py-1.5 tabular-nums text-[var(--ink)]">{scoreOf(job)}</td>
-      <td className="px-2 py-1.5 text-[var(--muted)]">
-        {formatDate(job.deadline)}
-        {job.deadline && !job.deadline_verified_at && <span className="ml-1 text-[var(--subtle)]">（未核实）</span>}
-      </td>
-      <td className="px-2 py-1.5">
-        {application ? (
-          <div className="flex flex-col gap-1">
-            <Badge tone={STAGE_TONE[application.stage] ?? 'neutral'}>{STAGE_LABELS[application.stage] ?? application.stage}</Badge>
-            {targets.length > 0 && (
-              <Select
-                ariaLabel={`切换阶段 ${job.title}`}
-                value=""
-                placeholder="改为…"
-                disabled={stageAction.busy}
-                onChange={v => void changeStage(v)}
-                options={targets.map(t => ({ value: t, label: STAGE_LABELS[t] ?? t }))}
-              />
-            )}
-            {stageAction.error && <span role="alert" className="text-[var(--danger)]">{stageAction.error}</span>}
-          </div>
-        ) : <span className="text-[var(--subtle)]">未投递</span>}
-      </td>
-      <td className="px-2 py-1.5 text-[var(--muted)]">
-        {application?.next_action ?? '—'}
-        {application?.next_action_due && <div className="text-[var(--subtle)]">到期 {formatDate(application.next_action_due)}</div>}
-      </td>
-      <td className="px-2 py-1.5">
-        {pageUrl ? <ExternalLink href={pageUrl} className="text-[var(--primary)] underline underline-offset-2">打开</ExternalLink> : <span className="text-[var(--subtle)]">—</span>}
-      </td>
-    </tr>
   );
 }
