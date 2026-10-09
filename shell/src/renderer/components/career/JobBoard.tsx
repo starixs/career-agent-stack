@@ -11,8 +11,8 @@ import { ExternalLink } from '@/components/ExternalLink';
 
 import { careerApi } from './careerApi';
 import { STAGE_LABELS, STAGE_TONES, STAGE_TRANSITIONS } from './careerConstants';
-import { Badge, Button, EmptyState, ErrorRow, LoadingRow, SectionTitle, Select, TextInput, formatDate, textOrUnknown, type BadgeTone } from './CareerPrimitives';
-import type { ApplicationStage, EmploymentType, JobBoardFilter, JobBoardRow, JobPrefs } from './types';
+import { Badge, Button, EmptyState, ErrorRow, LoadingRow, SectionTitle, Select, TextInput, formatDate, textOrUnknown } from './CareerPrimitives';
+import type { EmploymentType, JobBoardFilter, JobBoardRow, JobPrefs } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
 const TYPE_LABEL: Record<EmploymentType, string> = { campus: '校招', intern: '实习', social: '社招', unknown: '' };
@@ -43,9 +43,9 @@ export function JobBoard({ onChanged }: { onChanged?: () => void }) {
     <section>
       <SectionTitle extra={(
         <>
-          <Button size="sm" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.syncJobs('campus'); return `已同步校招汇总 ${r.stored ?? 0} 条，匹配已重算`; })}><RefreshCw className="h-3.5 w-3.5" />同步校招汇总</Button>
-          {query.data?.server && <Button size="sm" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.syncJobs('server'); return `已从服务端同步 ${r.stored ?? 0} 条`; })}><RefreshCw className="h-3.5 w-3.5" />同步服务端岗位库</Button>}
-          <Button size="sm" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.exportWorkbook(); return r.path ? `已导出：${r.path}` : '已导出'; })}><Download className="h-3.5 w-3.5" />导出表格</Button>
+          <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.syncJobs('campus'); return `已同步校招汇总 ${r.stored ?? 0} 条，匹配已重算`; })}><RefreshCw className="h-4 w-4" />同步校招汇总</Button>
+          {query.data?.server && <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.syncJobs('server'); return `已从服务端同步 ${r.stored ?? 0} 条`; })}><RefreshCw className="h-4 w-4" />同步服务端岗位库</Button>}
+          <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.exportWorkbook(); return r.path ? `已导出：${r.path}` : '已导出'; })}><Download className="h-4 w-4" />导出表格</Button>
         </>
       )}>
         岗位汇总表（{rows.length}）
@@ -60,17 +60,17 @@ export function JobBoard({ onChanged }: { onChanged?: () => void }) {
       {query.data && rows.length === 0 && <EmptyState title="没有符合筛选的岗位" hint="点「同步校招汇总」拉取校招 / 实习网申信息，或放宽筛选。" example="帮我找符合我条件的实习" />}
       {rows.length > 0 && (
         <>
-          <div className="mb-1.5 flex items-center gap-3 text-xs text-[var(--muted)]">
+          <div className="mb-2 flex items-center gap-3 text-xs text-[var(--muted)]">
             <label className="flex items-center gap-1.5">
               <input type="checkbox" aria-label="全选岗位" checked={allChecked} ref={el => { if (el) el.indeterminate = live.size > 0 && !allChecked; }} onChange={() => setSelected(allChecked ? new Set() : new Set(ids))} />
               全选（{live.size} / {ids.length}）
             </label>
             <Button size="sm" variant="primary" busy={act.busy} disabled={live.size === 0} onClick={() => void prepare()}>加入待投清单（{live.size}）</Button>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
-            <table className="w-full min-w-[960px] border-collapse text-xs">
-              <thead className="bg-[var(--inset)] text-left text-[var(--muted)]">
-                <tr>{['', '公司', '岗位', '类型', '届别', '地点', '截止', '匹配', '我的进度', '页面'].map(h => <th key={h} className="px-2 py-1.5 font-medium">{h}</th>)}</tr>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[960px] border-collapse text-sm">
+              <thead className="border-b border-[var(--line-2)] text-left text-xs text-[var(--muted)]">
+                <tr>{['', '公司', '岗位', '类型', '届别', '地点', '截止', '匹配', '我的进度', '页面'].map(h => <th key={h} className="px-2 py-2 font-medium">{h}</th>)}</tr>
               </thead>
               <tbody>
                 {rows.map(row => (
@@ -96,7 +96,7 @@ function PrefsBar({ prefs, onSaved }: { prefs: JobPrefs; onSaved: () => void }) 
   const summary = [prefs.cohort, prefs.degree, (prefs.cities ?? []).join('/'), (prefs.employment_types ?? []).map(t => TYPE_LABEL[t]).join('/')].filter(Boolean).join(' · ');
   if (!editing) {
     return (
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
         <span>我的条件：{summary || '还没设置（匹配只看经历，不按届别 / 城市过滤）'}</span>
         <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>修改</Button>
       </div>
@@ -104,7 +104,7 @@ function PrefsBar({ prefs, onSaved }: { prefs: JobPrefs; onSaved: () => void }) 
   }
   const toggleType = (t: EmploymentType) => setDraft(d => ({ ...d, types: d.types.includes(t) ? d.types.filter(x => x !== t) : [...d.types, t] }));
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-xs">
+    <div className="mb-3 flex flex-wrap items-center gap-2 border-l-2 border-[var(--primary)] py-1 pl-3 text-sm">
       <TextInput aria-label="届别" placeholder="届别，如 2027届" value={draft.cohort} onChange={e => setDraft(d => ({ ...d, cohort: e.target.value }))} className="w-32" />
       <Select ariaLabel="最高学历" value={draft.degree} placeholder="最高学历" onChange={v => setDraft(d => ({ ...d, degree: v }))} options={['大专', '本科', '硕士', '博士'].map(v => ({ value: v, label: v }))} />
       <TextInput aria-label="意向城市" placeholder="意向城市，用顿号分隔" value={draft.cities} onChange={e => setDraft(d => ({ ...d, cities: e.target.value }))} className="w-48" />
@@ -121,8 +121,8 @@ function PrefsBar({ prefs, onSaved }: { prefs: JobPrefs; onSaved: () => void }) 
 function FilterBar({ filter, onChange }: { filter: JobBoardFilter; onChange: (p: JobBoardFilter) => void }) {
   const [q, setQ] = useState(filter.q ?? '');
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-      <TextInput aria-label="搜索岗位" placeholder="搜公司 / 岗位 / 地点" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') onChange({ q }); }} className="w-48" />
+    <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+      <TextInput aria-label="搜索岗位" placeholder="搜公司 / 岗位 / 地点" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') onChange({ q }); }} className="!w-56" />
       <Select ariaLabel="类型" value={filter.employment_type ?? ''} placeholder="全部类型" onChange={v => onChange({ employment_type: v || undefined })} options={[{ value: '', label: '全部类型' }, { value: 'campus', label: '校招' }, { value: 'intern', label: '实习' }, { value: 'social', label: '社招' }]} />
       <Select ariaLabel="进度" value={filter.progress ?? ''} placeholder="全部进度" onChange={v => onChange({ progress: (v || undefined) as JobBoardFilter['progress'] })} options={[{ value: '', label: '全部进度' }, { value: 'none', label: '未投递' }, { value: 'active', label: '进行中' }, { value: 'done', label: '已投出' }]} />
       <Select ariaLabel="排序" value={filter.sort ?? 'match'} onChange={v => onChange({ sort: v as JobBoardFilter['sort'] })} options={[{ value: 'match', label: '按匹配' }, { value: 'deadline', label: '按截止' }, { value: 'updated', label: '按更新' }]} />
@@ -143,10 +143,10 @@ function ImportRow({ onImported }: { onImported: () => void }) {
     onImported();
   });
   return (
-    <div className="mb-3 flex items-center gap-2">
+    <div className="mb-4 flex max-w-3xl items-center gap-2">
       <Link2 className="h-4 w-4 shrink-0 text-[var(--muted)]" />
       <TextInput aria-label="导入岗位链接" placeholder="粘贴岗位链接（或 JD 文本）后回车导入" value={url} onChange={e => setUrl(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') void doImport(); }} />
-      <Button variant="primary" busy={act.busy} onClick={() => void doImport()}>导入岗位链接</Button>
+      <Button busy={act.busy} onClick={() => void doImport()}>导入岗位链接</Button>
       {act.error && <ErrorRow message={act.error} />}
     </div>
   );
@@ -161,7 +161,7 @@ function BoardRow({ row, checked, onToggle, onChanged }: { row: JobBoardRow; che
   const pageUrl = job.url;
   return (
     <>
-      <tr className="border-t border-[var(--line)] align-top">
+      <tr className="border-b border-[var(--line)] align-top transition-colors hover:bg-[var(--hover)]">
         <td className="px-2 py-1.5"><input type="checkbox" aria-label={`选择岗位 ${job.title}`} checked={checked} onChange={onToggle} /></td>
         <td className="px-2 py-1.5 text-[var(--ink)]">{textOrUnknown(job.company_name)}</td>
         <td className="px-2 py-1.5 font-medium text-[var(--ink)]">{job.title}{job.source_status === 'closed' && <span className="ml-1 text-[var(--subtle)]">（已下架）</span>}</td>
@@ -172,8 +172,8 @@ function BoardRow({ row, checked, onToggle, onChanged }: { row: JobBoardRow; che
         <td className="px-2 py-1.5">
           {match ? (
             <button type="button" className="flex items-center gap-1 text-left" onClick={() => setOpen(v => !v)} aria-expanded={open} aria-label={`匹配详情 ${job.title}`}>
-              <Badge tone={!match.hard_ok ? 'neutral' : match.score >= 70 ? 'success' : match.score >= 50 ? 'info' : 'warning'}>{match.hard_ok ? match.score : '不符合'}</Badge>
-              <span className="text-[var(--muted)]">{match.covered}/{match.total}</span>
+              <span className={`tabular-nums ${!match.hard_ok ? 'text-[var(--muted)]' : match.score >= 70 ? 'font-semibold text-[var(--ink)]' : 'text-[var(--ink-2)]'}`}>{match.hard_ok ? match.score : '不符合'}</span>
+              <span className="text-xs tabular-nums text-[var(--muted)]">{match.covered}/{match.total}</span>
             </button>
           ) : <span className="text-[var(--subtle)]">未计算</span>}
         </td>
@@ -189,7 +189,7 @@ function BoardRow({ row, checked, onToggle, onChanged }: { row: JobBoardRow; che
         <td className="px-2 py-1.5">{pageUrl ? <ExternalLink href={pageUrl} className="text-[var(--primary)] underline underline-offset-2">打开</ExternalLink> : <span className="text-[var(--subtle)]">—</span>}</td>
       </tr>
       {open && match && (
-        <tr className="bg-[var(--inset)]">
+        <tr className="border-b border-[var(--line)] bg-[var(--inset)]">
           <td />
           <td colSpan={9} className="px-2 py-2 text-xs">
             <div className="mb-1 text-[var(--ink)]">{match.summary}</div>
