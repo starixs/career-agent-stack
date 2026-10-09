@@ -100,7 +100,9 @@ export default function CareerLive() {
             <div className="text-xs text-[var(--muted)]">{batchSummaryLine(batch)}</div>
             {batch?.phase && <div className="mt-1 text-xs text-[var(--muted)]">阶段：{PHASE_LABELS[batch.phase] ?? batch.phase}</div>}
             {batch?.message && <div className="mt-1 text-sm text-[var(--ink)]">{batch.message}</div>}
-            {batch?.currentTitle && <div className="mt-1 text-xs text-[var(--subtle)]">当前：{batch.currentTitle}</div>}
+            {batch?.running && batch.running.length > 1
+              ? <div className="mt-1 text-xs text-[var(--subtle)]">同时在填 {batch.running.length} 份：{batch.running.map(r => `${r.title}（${r.host}）`).join('、')}</div>
+              : batch?.currentTitle && <div className="mt-1 text-xs text-[var(--subtle)]">当前：{batch.currentTitle}</div>}
             {batch?.lastError && <div className="mt-1 text-xs text-[var(--danger)]">最近错误：{batch.lastError}</div>}
             <div className="mt-3 flex flex-wrap gap-2">
               {batch?.status !== 'running' && <Button variant="primary" busy={action.busy} onClick={() => void batchCmd('start')}><Play className="h-3.5 w-3.5" />开始 / 继续</Button>}

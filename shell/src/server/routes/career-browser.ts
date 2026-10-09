@@ -99,8 +99,8 @@ export interface CareerBrowserRouteDependencies {
   createPerceiver?: (apply: ApplyEngineModule, page: ApplyPageLike, llm: LlmLike) => Promise<PerceiverLike | undefined>;
   /** 产品会话 id：每份网申一个页面、页面锁都按它分区（借用代理每次都是新对象，不能拿 context 当键）。 */
   productSessionId?: string;
-  /** 让现场画面切到这一页（registry 的选中页）。 */
-  focusPage?: (page: Page) => void;
+  /** 让现场画面切到这一页（registry 的选中页）。force：遇到接管时无论如何切过去，让用户看到要处理的那一页。 */
+  focusPage?: (page: Page, force?: boolean) => void;
   /** submit 的私密库钩子：把 filled 里的占位符解成明文再与页面比对、回传前脱敏。缺省用私密库单例。 */
   resolveSubmitVault?: () => Promise<{ resolve(v: string): string; redact<T>(v: T): T } | null>;
 }
@@ -500,6 +500,7 @@ export async function runOperation(
       onPage: (record: unknown) => out.emit({ type: 'page', record: redact(record) }),
     });
     const { screenshot, ...rest } = result;
+    if (rest.status === 'handoff') deps.focusPage?.(page, true);
     out.emit({
       type: 'result', op,
       result: redact(rest),

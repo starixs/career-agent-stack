@@ -467,7 +467,8 @@ export class BrowserContextRegistry {
    */
   focusPage(productSessionId: string, page: Page): void {
     const entry = this.entries.get(productSessionId);
-    if (!entry) return;
+    // 用户正在接管时不切画面：并行填的其他网申不能把用户正在操作的那一页换走
+    if (!entry || entry.control.control === 'human') return;
     const frame = page.mainFrame();
     const real = entry.context.pages().find(candidate => candidate.mainFrame() === frame);
     if (real) entry.selection.page = real;

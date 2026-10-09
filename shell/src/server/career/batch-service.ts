@@ -46,6 +46,8 @@ export async function getBatchRunner(): Promise<BatchRunner> {
         broadcast: (event, data) => { liveHub.publish(event, data as Record<string, unknown>); },
         sessionId,
         riskLocked,
+        // 同时填几份（不同网站）；同一网站永远串行。CAREER_BATCH_CONCURRENCY=1 退回逐份执行。
+        concurrency: Math.min(4, Math.max(1, Number(process.env.CAREER_BATCH_CONCURRENCY) || 2)),
         control: () => {
           const id = careerProductSessionId();
           if (!id || !hostCache) return 'agent';
@@ -72,7 +74,9 @@ export async function getBatchRunner(): Promise<BatchRunner> {
             ...(req.resumePath ? { resumePath: req.resumePath } : {}),
             ...(req.learnFrom?.length ? { learnFrom: req.learnFrom } : {}),
           };
-          await host.withProductSession(id, context => runOperation('drive', body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost, productSessionId: id, focusPage: page => host.focusPage(id, page) }), { create: { workspacePath: careerWorkspacePath() } });
+          // 并行时：有等用户处理的接管就不把画面切到新开的网申上（接管那一页由 force 切过去）
+          const focusPage = (page: Parameters<typeof host.focusPage>[1], force?: boolean) => { if (force || repos.openHandoffs().length === 0) host.focusPage(id, page); };
+          await host.withProductSession(id, context => runOperation('drive', body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost, productSessionId: id, focusPage }), { create: { workspacePath: careerWorkspacePath() } });
           return events;
         },
         log: msg => console.log(`[career] ${msg}`),

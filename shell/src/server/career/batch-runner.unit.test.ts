@@ -147,5 +147,34 @@ describe('BatchRunner', () => {
     expect(repos.openHandoffs()).toHaveLength(0);
     expect(runner.state()).toMatchObject({ status: 'idle', done: 1 });
   });
-});
 
+  it('并行：不同网站同时填，同一网站严格串行，并发数封顶', async () => {
+    const repos = createMemoryRepos();
+    seed(repos, 2, 'a.com'); seed(repos, 1, 'b.com'); seed(repos, 1, 'c.com');
+    let active = 0; let peak = 0;
+    const activeHosts = new Map<string, number>();
+    let sameHostOverlap = false;
+    const runner = new BatchRunner({
+      repos, control: () => 'agent', broadcast: () => {}, concurrency: 2,
+      sleep: ms => new Promise(r => setTimeout(r, Math.min(ms, 5))), pollMs: 5, pacingMs: [0, 0],
+      drive: async (req, onEvent) => {
+        const host = new URL(String(req.payload.url)).hostname;
+        active++; peak = Math.max(peak, active);
+        activeHosts.set(host, (activeHosts.get(host) ?? 0) + 1);
+        if (activeHosts.get(host)! > 1) sameHostOverlap = true;
+        await new Promise(r => setTimeout(r, 25));
+        activeHosts.set(host, activeHosts.get(host)! - 1);
+        active--;
+        const evs = [result('stopped_before_submit')];
+        evs.forEach(onEvent);
+        return evs;
+      },
+    });
+    runner.start();
+    for (let i = 0; i < 200 && runner.state().status === 'running'; i++) await settle();
+    expect(runner.state().status).toBe('idle');
+    expect(runner.state().done).toBe(4);
+    expect(peak).toBe(2);
+    expect(sameHostOverlap).toBe(false);
+  });
+});

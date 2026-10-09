@@ -5,9 +5,11 @@
  *  - 状态持久化在 kv `apply:batch:state`，侧车重启后若仍是 running 则自动续跑。
  *  - 每个动作：drive → persistDriveOutcome 落库；遇接管（登录 / 验证码 / 测评）就等用户在浏览器里处理并点"交回"
  *    （handoff.resumed_at 被写上）再从当前页继续，不需要模型再调工具。
- *  - 两个动作之间拟人停顿；平台有风险锁就先跳过该平台；用户正在接管浏览器时等待；每日上限。
+ *  - 并行（p-queue）：不同网站同时填（默认 2 份，每份网申在自己的页面上），同一网站严格串行；
+ *    同一网站两份之间拟人停顿；平台有风险锁就先跳过该平台；用户正在接管浏览器时不再开新的；每日上限。
  *  - 每次状态变化 broadcast `career:batch`；接管状态同时广播 `career:takeover`，前端接管条 / 现场窗复用。
  */
+import PQueue from 'p-queue';
 import type { ActionQueueItem, Repos, Task } from '@career/core';
 import { persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
 
@@ -18,6 +20,9 @@ export interface BatchState {
   updatedAt: string;
   currentActionId?: string;
   currentTitle?: string;
+  /** 正在并行填写的网申（每个网站至多一份）。 */
+  running?: Array<{ actionId: string; title: string; host: string }>;
+  concurrency?: number;
   phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked' | 'daily_cap';
   message?: string;
   done: number;
@@ -53,6 +58,8 @@ export interface BatchRunnerDeps {
   resumeFileFor?: (payload: Record<string, unknown>) => Promise<{ path?: string; error?: string }>;
   pacingMs?: [number, number];
   dailyCap?: number;
+  /** 同时填几份（不同网站）；同一网站永远串行。缺省 2。 */
+  concurrency?: number;
   pollMs?: number;
   sleep?: (ms: number) => Promise<void>;
   rng?: () => number;
@@ -138,38 +145,94 @@ export class BatchRunner {
     const poll = this.deps.pollMs ?? 3000;
     const cap = this.deps.dailyCap ?? 30;
     const [pLo, pHi] = this.deps.pacingMs ?? [20_000, 60_000];
+    const concurrency = Math.max(1, this.deps.concurrency ?? 2);
+    const queue = new PQueue({ concurrency });
+    /** 正在填的：actionId → 网站。同一网站同时只允许一份。 */
+    const inFlight = new Map<string, { host: string; title: string; mode: 'start' | 'continue' }>();
+    /** 每个网站下一份最早什么时候开始（同站拟人停顿）。 */
+    const nextAt = new Map<string, number>();
+    const running = () => [...inFlight].map(([actionId, v]) => ({ actionId, title: v.title, host: v.host }));
+    /** 今天已开始但还没计数的（runOne 结束时才计入当天名额）。 */
+    const startedInFlight = () => [...inFlight.values()].filter(v => v.mode === 'start').length;
+    const busyHosts = () => new Set([...inFlight.values()].map(v => v.host));
+    const launch = (action: ActionQueueItem, mode: 'start' | 'continue') => {
+      const host = this.platformOf(action, this.payloadOf(action));
+      const job = this.titleOf(action);
+      inFlight.set(action.id, { host, title: job, mode });
+      void queue.add(async () => {
+        try { await this.runOne(action, mode, () => running()); }
+        catch (e) { this.log(`runOne ${action.id} threw: ${e instanceof Error ? e.message : String(e)}`); }
+        finally {
+          inFlight.delete(action.id);
+          nextAt.set(host, this.now().getTime() + Math.round(pLo + (this.deps.rng?.() ?? Math.random()) * (pHi - pLo)));
+          this.wake?.();
+        }
+      });
+    };
+
     while (!this.stopRequested) {
       this.pollCommand();
-      if (this.pauseRequested) { this.setState({ status: 'paused', phase: undefined, currentActionId: undefined, message: '已暂停' }); return; }
-      if (this.deps.control() === 'human') { this.setState({ phase: 'waiting_control', message: '你正在接管浏览器，等待交回' }); await this.idle(poll); continue; }
-      if (this.todayCount() >= cap) { this.setState({ phase: 'daily_cap', message: `今日已投 ${this.todayCount()} 份，达到上限 ${cap}，明天继续` }); await this.idle(60_000); continue; }
+      if (this.pauseRequested) {
+        if (inFlight.size) { this.setState({ phase: 'driving', running: running(), message: `暂停中：等正在填的 ${inFlight.size} 份填完` }); await this.idle(poll); continue; }
+        this.setState({ status: 'paused', phase: undefined, currentActionId: undefined, running: [], message: '已暂停' }); return;
+      }
+      if (this.deps.control() === 'human') { this.setState({ phase: 'waiting_control', running: running(), message: '你正在接管浏览器，等待交回' }); await this.idle(poll); continue; }
+      const nowMs = this.now().getTime();
+      const blocked = busyHosts();
+      const ready = (a: ActionQueueItem) => { const h = this.platformOf(a, this.payloadOf(a)); return !inFlight.has(a.id) && !blocked.has(h) && (nextAt.get(h) ?? 0) <= nowMs; };
       // 先处理等用户处理完的接管（handoff 已 resumed 但动作还在 needs_user）
       // Repos.closeHandoff 会把动作置回 executing，所以 needs_user / executing 都算"等续跑"；只看该动作最近一次接管
-      const resumable = this.repos.db.get<ActionQueueItem>(`SELECT a.* FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status IN ('needs_user','executing') AND h.resumed_at IS NOT NULL AND h.paused_at=(SELECT MAX(paused_at) FROM handoff WHERE action_id=a.id) ORDER BY h.resumed_at LIMIT 1`);
+      const resumable = this.repos.db.all<ActionQueueItem>(`SELECT a.* FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status IN ('needs_user','executing') AND h.resumed_at IS NOT NULL AND h.paused_at=(SELECT MAX(paused_at) FROM handoff WHERE action_id=a.id) ORDER BY h.resumed_at`)
+        .filter(a => !inFlight.has(a.id));
       const waiting = this.repos.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status='needs_user' AND h.resumed_at IS NULL`)?.n ?? 0;
-      let next: ActionQueueItem | undefined = resumable ?? undefined;
-      const mode: 'start' | 'continue' = resumable ? 'continue' : 'start';
-      if (!next) {
-        const q = this.queue();
-        next = q.find(a => !this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a))));
-        if (!next && q.length) { this.setState({ phase: 'rate_locked', message: `队列里 ${q.length} 份所在平台都在风险锁中，稍后再试` }); await this.idle(60_000); continue; }
+      const q = this.queue();
+      for (const a of resumable) {
+        if (inFlight.size >= concurrency) break;
+        if (!busyHosts().has(this.platformOf(a, this.payloadOf(a)))) launch(a, 'continue');
       }
-      if (!next && waiting > 0 && this.deps.hasBrowser && !this.deps.hasBrowser()) {
+      const capped = this.todayCount() + startedInFlight() >= cap;
+      if (!capped) {
+        for (const a of q) {
+          if (inFlight.size >= concurrency || this.todayCount() + startedInFlight() >= cap) break;
+          if (this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a)))) continue;
+          if (!ready(a) || busyHosts().has(this.platformOf(a, this.payloadOf(a)))) continue;
+          launch(a, 'start');
+        }
+      }
+      if (inFlight.size) {
+        this.setState({ status: 'running', phase: 'driving', running: running(), concurrency, currentActionId: running()[0]?.actionId, currentTitle: running()[0]?.title, message: `正在填写 ${inFlight.size} 份：${running().map(r => r.title).join('、')}` });
+        await this.idle(poll);
+        continue;
+      }
+      // 没有在填的
+      if (this.todayCount() >= cap && q.length) { this.setState({ phase: 'daily_cap', running: [], message: `今日已投 ${this.todayCount()} 份，达到上限 ${cap}，明天继续` }); await this.idle(60_000); continue; }
+      if (q.length) {
+        const lockedAll = q.every(a => this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a))));
+        if (lockedAll) { this.setState({ phase: 'rate_locked', running: [], message: `队列里 ${q.length} 份所在平台都在风险锁中，稍后再试` }); await this.idle(60_000); continue; }
+        // 只是同站停顿还没到
+        const wait = Math.max(0, Math.min(...q.map(a => (nextAt.get(this.platformOf(a, this.payloadOf(a))) ?? 0) - nowMs)));
+        this.setState({ phase: 'pacing', running: [], message: `停 ${Math.max(1, Math.round(wait / 1000))} 秒再投下一份（像真人）` });
+        await this.idle(Math.max(wait, 1));
+        continue;
+      }
+      if (waiting > 0 && this.deps.hasBrowser && !this.deps.hasBrowser()) {
         const n = this.requeueStaleHandoffs();
         if (n > 0) { this.setState({ message: `浏览器已关闭，重新打开 ${n} 份等你处理的网申` }); continue; }
       }
-      if (!next) {
-        if (waiting > 0) { this.setState({ phase: 'waiting_user', currentActionId: undefined, message: `有 ${waiting} 份等你在浏览器里处理后交回` }); await this.idle(poll); continue; }
-        this.setState({ status: 'idle', phase: undefined, currentActionId: undefined, message: '队列已空，全部处理完' });
-        return;
-      }
-      await this.runOne(next, mode);
-      if (this.stopRequested || this.pauseRequested) continue;
-      const ms = Math.round(pLo + (this.deps.rng?.() ?? Math.random()) * (pHi - pLo));
-      this.setState({ phase: 'pacing', message: `停 ${Math.round(ms / 1000)} 秒再投下一份（像真人）` });
-      await this.idle(ms);
+      if (waiting > 0) { this.setState({ phase: 'waiting_user', currentActionId: undefined, running: [], message: `有 ${waiting} 份等你在浏览器里处理后交回` }); await this.idle(poll); continue; }
+      this.setState({ status: 'idle', phase: undefined, currentActionId: undefined, running: [], message: '队列已空，全部处理完' });
+      return;
     }
-    this.setState({ status: 'stopped', phase: undefined, currentActionId: undefined, message: '已停止' });
+    // stop：不再开新的；正在填的那几份让它们填完当前步骤（drive 本身不可中断），状态先置 stopped
+    this.setState({ status: 'stopped', phase: undefined, currentActionId: undefined, running: running(), message: inFlight.size ? `已停止：正在填的 ${inFlight.size} 份填完当前页就结束` : '已停止' });
+    await queue.onIdle();
+    this.setState({ status: 'stopped', running: [] });
+  }
+
+  private titleOf(action: ActionQueueItem): string {
+    const payload = this.payloadOf(action);
+    const job = typeof payload.job_id === 'string' ? this.repos.getJob(payload.job_id) : undefined;
+    return job ? `${job.company_name ?? ''} ${job.title}`.trim() : String(payload.url ?? action.id);
   }
 
   /**
@@ -200,7 +263,7 @@ export class BatchRunner {
     return existing ?? this.repos.createTask({ title: `网申填表 ${String(payload.job_id ?? '')}`, kind: 'apply', sessionId: this.deps.sessionId?.() ?? null, payload: { ...payload, action_id: action.id, batch: true } });
   }
 
-  async runOne(action: ActionQueueItem, mode: 'start' | 'continue'): Promise<DriveOutcome> {
+  async runOne(action: ActionQueueItem, mode: 'start' | 'continue', running?: () => BatchState['running']): Promise<DriveOutcome> {
     const r = this.repos;
     const payload = this.payloadOf(action);
     const job = typeof payload.job_id === 'string' ? r.getJob(payload.job_id) : undefined;
@@ -220,7 +283,7 @@ export class BatchRunner {
     if (action.application_id) { try { r.transition(action.application_id, 'pending', mode === 'start' ? '批量投递开始' : '批量投递续跑'); } catch { /* 已在执行态 */ } }
     const changed = (...tables: string[]) => this.deps.broadcast('career:data-changed', { sessionId: this.deps.sessionId?.() ?? 'global', tables });
     changed('task', 'action_queue', 'application');
-    this.setState({ status: 'running', phase: 'driving', currentActionId: action.id, currentTitle: title, message: `${mode === 'start' ? '正在填写' : '继续填写'}：${title}` });
+    this.setState({ status: this.state().status === 'stopped' ? 'stopped' : 'running', phase: 'driving', currentActionId: action.id, currentTitle: title, ...(running ? { running: running() } : {}), message: `${mode === 'start' ? '正在填写' : '继续填写'}：${title}` });
     const runId = `run_${action.id}`;
     const takeover = (state: string, extra: Record<string, unknown> = {}) => this.deps.broadcast('career:takeover', { sessionId: this.deps.sessionId?.() ?? 'global', runId, state, taskId: task.id, ...extra });
     takeover('running', { url: payload.url });
