@@ -3,9 +3,11 @@
  * （投递 / 面试 / 素材三条回路 + 复盘），每张卡一句"它帮你做什么"、"怎么触发"，
  * 以及一个真的会把话发进对话的按钮。用 onboarding 清单标出已经用过的能力。
  */
+import { ArrowRight } from 'lucide-react';
+
 import { emitEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
-import { Badge, Button, CareerPage, Card, ChatActionButton, SectionTitle } from '@/components/career/CareerPrimitives';
+import { Badge, Button, CareerPage, ChatActionButton, SectionTitle } from '@/components/career/CareerPrimitives';
 import type { CareerFocusEvent, OnboardingChecklist } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
@@ -96,70 +98,75 @@ export default function CareerGuide({ embedded = false }: CareerPageProps) {
 
   return (
     <CareerPage embedded={embedded} title="功能市场" subtitle="想做什么，挑一个交给小芽" examples={['帮我评估这个岗位', '帮我模拟一场一面', '给我做一次本周复盘']}>
-      <div className="space-y-6 px-4 py-3">
+      <div className="max-w-6xl space-y-10 px-6 py-6">
         <section>
           <SectionTitle>工具</SectionTitle>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-x-6 gap-y-2 md:grid-cols-3">
             {TOOLS.map(tool => (
-              <Card key={tool.name} title={tool.name}>
-                <div className="text-xs text-[var(--muted)]">{tool.what}</div>
-                <div className="mt-2">
-                  <Button variant="secondary" onClick={() => requestNavigation(tool.target)}>打开</Button>
-                </div>
-              </Card>
+              <button
+                key={tool.name}
+                type="button"
+                onClick={() => requestNavigation(tool.target)}
+                className="group -mx-3 flex flex-col items-start rounded-lg px-3 py-3 text-left transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              >
+                <span className="font-human text-base font-semibold text-[var(--ink)]">{tool.name}</span>
+                <span className="mt-1 text-sm text-[var(--muted)]">{tool.what}</span>
+                <span className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-[var(--primary)]">打开<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" /></span>
+              </button>
             ))}
           </div>
         </section>
 
         <section>
           <SectionTitle>怎么开始</SectionTitle>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <ol className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-3">
             {START_STEPS.map((step, idx) => (
-              <Card key={step.surface}>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 text-xs text-[var(--primary)]">{idx + 1}</span>
-                  <span className="text-sm font-medium text-[var(--ink)]">{step.title}</span>
+              <li key={step.surface} className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] border-[var(--hard)] font-human text-sm text-[var(--ink)]">{idx + 1}</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-[var(--ink)]">{step.title}</div>
+                  <div className="mt-0.5 text-sm text-[var(--muted)]">{step.detail}</div>
+                  <Button variant="ghost" size="sm" className="-ml-3 mt-1" onClick={() => emitEvent('career:focus', { surface: step.surface } satisfies CareerFocusEvent)}>{step.button}</Button>
                 </div>
-                <div className="mt-1 text-xs text-[var(--muted)]">{step.detail}</div>
-                <div className="mt-2">
-                  <Button variant="secondary" onClick={() => emitEvent('career:focus', { surface: step.surface } satisfies CareerFocusEvent)}>{step.button}</Button>
-                </div>
-              </Card>
+              </li>
             ))}
-          </div>
+          </ol>
         </section>
 
         {LOOPS.map(loop => (
-          <section key={loop.key}>
-            <SectionTitle extra={<span className="text-xs normal-case tracking-normal text-[var(--subtle)]">{loop.summary}</span>}>{loop.title}</SectionTitle>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <section key={loop.key} className="border-t border-[var(--line)] pt-6">
+            <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 className="font-human text-lg font-semibold text-[var(--ink)]">{loop.title}</h2>
+              <span className="text-sm text-[var(--muted)]">{loop.summary}</span>
+            </div>
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2 xl:grid-cols-3">
               {loop.items.map(cap => (
-                <Card key={cap.name} title={cap.name} extra={used(cap.usedKey) ? <Badge tone="success">已用过</Badge> : cap.chat ? null : <Badge tone="neutral">自动</Badge>}>
-                  <div className="text-xs text-[var(--ink)]">{cap.what}</div>
-                  <div className="mt-0.5 text-xs text-[var(--subtle)]">怎么触发：{cap.how}</div>
+                <div key={cap.name} className="flex flex-col">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-[var(--ink)]">{cap.name}</span>
+                    {used(cap.usedKey) ? <Badge tone="success">已用过</Badge> : cap.chat ? null : <Badge tone="neutral">自动</Badge>}
+                  </div>
+                  <div className="mt-1 text-sm text-[var(--ink-2)]">{cap.what}</div>
+                  <div className="mt-0.5 text-xs text-[var(--muted)]">怎么触发：{cap.how}</div>
                   {cap.chat && (
-                    <div className="mt-2">
-                      <ChatActionButton text={cap.chat} context={{ surface: 'guide', note: `指南 · ${loop.title} · ${cap.name}` }} variant="secondary">试试：「{cap.chat}」</ChatActionButton>
-                    </div>
+                    <ChatActionButton text={cap.chat} context={{ surface: 'guide', note: `指南 · ${loop.title} · ${cap.name}` }} variant="ghost" size="sm" className="-ml-3 mt-1 self-start">试试：「{cap.chat}」</ChatActionButton>
                   )}
-                </Card>
+                </div>
               ))}
             </div>
           </section>
         ))}
 
-        <section>
-          <SectionTitle>助理永远不会替你做的事</SectionTitle>
-          <Card>
-            <ul className="grid grid-cols-1 gap-2 md:grid-cols-2">
-              {NEVER_DO.map(n => (
-                <li key={n.label} className="flex items-start gap-2 text-xs">
-                  <Badge tone="warning">{n.label}</Badge>
-                  <span className="text-[var(--muted)]">{n.why}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
+        <section className="border-t border-[var(--line)] pt-6">
+          <h2 className="mb-3 font-human text-lg font-semibold text-[var(--ink)]">助理永远不会替你做的事</h2>
+          <ul className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
+            {NEVER_DO.map(n => (
+              <li key={n.label} className="flex items-start gap-3 text-sm">
+                <span className="w-28 shrink-0 font-medium text-[var(--ink)]">{n.label}</span>
+                <span className="text-[var(--muted)]">{n.why}</span>
+              </li>
+            ))}
+          </ul>
         </section>
       </div>
     </CareerPage>
