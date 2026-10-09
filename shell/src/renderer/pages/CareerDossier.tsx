@@ -19,15 +19,22 @@ import type {
 } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
+import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
+import { useCareerSubView } from '@/features/career-shell/subViewStore';
 
 const CareerApply = lazy(() => import('@/pages/CareerApply'));
 const CareerInterview = lazy(() => import('@/pages/CareerInterview'));
 const CareerOffer = lazy(() => import('@/pages/CareerOffer'));
 
-type View = 'line' | 'apply' | 'interview' | 'offer';
-const VIEWS: Array<{ value: View; label: string }> = [
-  { value: 'line', label: '投递线' }, { value: 'apply', label: '岗位池与投递台' }, { value: 'interview', label: '面试' }, { value: 'offer', label: 'Offer' },
-];
+// 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
+type View = 'line' | 'apply' | 'exam' | 'interview' | 'offer';
+const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
+  apply: { title: '岗位收藏', subtitle: '想投的岗位和准备好的申请' },
+  line: { title: '投递记录', subtitle: '每条投递一个档案' },
+  exam: { title: '笔试记录', subtitle: '笔试、测评的时间与复盘' },
+  interview: { title: '面试记录', subtitle: '每一轮都留着，准备、练习和复盘都从这里进' },
+  offer: { title: 'Offer', subtitle: '把拿到的 Offer 放在一起比' },
+};
 
 const DOSSIER_TABLES = ['application', 'application_history', 'job', 'deadline', 'interview', 'dossier_note', 'mail_message', 'material_use', 'offer', 'action_queue'] as const;
 
@@ -121,24 +128,6 @@ function riskTone(risk: string): BadgeTone {
   return 'neutral';
 }
 
-function Segmented<T extends string>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void }) {
-  return (
-    <div role="tablist" className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5">
-      {options.map(o => (
-        <button
-          key={o.value}
-          type="button"
-          role="tab"
-          aria-selected={o.value === value}
-          onClick={() => onChange(o.value)}
-          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${o.value === value ? 'bg-[var(--bg)] text-[var(--ink)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 function ClampText({ text, big = false }: { text: string; big?: boolean }) {
   const [open, setOpen] = useState(false);
@@ -156,25 +145,32 @@ function ClampText({ text, big = false }: { text: string; big?: boolean }) {
 interface FocusRequest { application_id: string | null; job_id: string | null }
 
 export default function CareerDossier({ embedded = false }: CareerPageProps) {
-  const [view, setView] = useState<View>('line');
+  const [view, setView] = useCareerSubView<View>('career-dossier', DEFAULT_SUB_VIEWS['career-dossier']);
   const [focus, setFocus] = useState<FocusRequest | null>(null);
 
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
     if (payload?.surface !== 'dossier') return;
     setView('line');
     setFocus({ application_id: payload.application_id ?? payload.id ?? null, job_id: payload.job_id ?? null });
-  }), []);
+  }), [setView]);
 
+  const heading = VIEW_HEADINGS[view] ?? VIEW_HEADINGS.line;
   return (
     <CareerPage
       embedded={embedded}
-      title="卷宗"
-      subtitle="每条投递一个档案"
+      title={heading.title}
+      subtitle={heading.subtitle}
       examples={['帮我准备明天的面试', '这家公司我之前说过什么', '把没动静的投递线关掉']}
-      actions={<Segmented value={view} options={VIEWS} onChange={setView} />}
     >
       {view === 'line' && <DossierLine focus={focus} />}
-      {view !== 'line' && (
+      {view === 'exam' && (
+        <EmptyState
+          title="笔试记录还在搭建中"
+          hint="收到笔试或测评通知时，小芽会先把时间记进工作台；这里之后会列出每一场笔试和复盘。"
+          example="帮我看看最近有哪些笔试"
+        />
+      )}
+      {view !== 'line' && view !== 'exam' && (
         <Suspense fallback={<div className="px-4"><LoadingRow /></div>}>
           {view === 'apply' && <CareerApply embedded />}
           {view === 'interview' && <CareerInterview embedded />}

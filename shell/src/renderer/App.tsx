@@ -52,7 +52,9 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import BugReportOverlay from '@/components/BugReportOverlay';
 import { DispatchTaskDialog } from '@/components/task-center/DispatchTaskDialog';
 import CustomTitleBar from '@/components/CustomTitleBar';
-import GlobalSidebar from '@/components/global-sidebar/GlobalSidebar';
+import { CareerNavShell } from '@/features/career-shell/CareerNavShell';
+import type { NavTarget } from '@/features/career-shell/navModel';
+import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import LinkContextMenuProvider from '@/components/LinkContextMenuProvider';
 import { SessionDeletionContext } from '@/context/SessionDeletionContext';
 import type { AdoptMigratedSessionOptions } from '@/context/TabContext';
@@ -226,7 +228,6 @@ import {
   originFromSessionMetadataLike,
 } from '../shared/session-origin';
 import { buildRuntimeBackedInitialSessionBirth } from '@/utils/providerSwitchSessionBirth';
-import { resolveGlobalSidebarWorkspace } from '@/utils/globalSidebarProjection';
 import {
   createInitialMainWindowPresentation,
   reduceMainWindowPresentation,
@@ -518,14 +519,8 @@ export default function App() {
   const [externalNotificationBadges, setExternalNotificationBadges] = useState<
     NotificationBadgeItem[]
   >([]);
-  const historyTagIntentSequenceRef = useRef(0);
-  const [historyTagIntent, setHistoryTagIntent] = useState<{ id: number; tag: string } | null>(null);
-  const handleOpenHistoryTag = useCallback((tag: string) => {
-    setHistoryTagIntent({ id: ++historyTagIntentSequenceRef.current, tag });
-  }, []);
-  const handleHistoryTagIntentConsumed = useCallback((id: number) => {
-    setHistoryTagIntent((current) => current?.id === id ? null : current);
-  }, []);
+  // 历史标签过滤只服务旧的会话树侧栏；单一对话产品没有会话树，标签点击不再跳转。
+  const handleOpenHistoryTag = useCallback((_tag: string) => {}, []);
   const pendingSpaceRouteRef = useRef<PendingAppRoute | null>(null);
   const appRouteGenerationRef = useRef(0);
   const spaceRouteTabIdRef = useRef<string | null>(null);
@@ -3273,7 +3268,6 @@ export default function App() {
     }
   }, [setActiveTabId, tabWorkspaceController]);
   const handleNewTab = handleOpenAssistantChat;
-  const handleSidebarNewChat = handleOpenAssistantChat;
 
   const handleOpenCareerPage = useCallback(
     (kind: CareerPageKind): boolean => {
@@ -3294,45 +3288,6 @@ export default function App() {
     const kind = surfaceToKind(payload?.surface);
     if (kind) handleOpenCareerPage(kind);
   }), [handleOpenCareerPage]);
-
-  const handleOpenWorkspaceFromSidebar = useCallback(
-    async (
-      project: Project,
-      initialMessage?: InitialMessage,
-      entryIntent: 'open_workspace' | 'workspace_init' = 'open_workspace',
-    ): Promise<boolean> => {
-      if (tabWorkspaceController.getSnapshot().tabs.length >= MAX_TABS) {
-        toastRef.current.info(t('appChrome.maxTabsReached'));
-        return false;
-      }
-
-      const launchTab = createNewTab();
-      if (!openLaunchTabNow(launchTab)) return false;
-      try {
-        await handleLaunchProject(project, initialMessage, {
-          surface: 'global_sidebar',
-          entryIntent,
-        });
-        return tabWorkspaceController
-          .getSnapshot()
-          .tabs.some((tab) => tab.id === launchTab.id);
-      } catch (error) {
-        console.error(
-          '[App] Failed to open workspace from global sidebar:',
-          error,
-        );
-        removeUnusedPrecreatedLaunchTab(launchTab.id);
-        return false;
-      }
-    },
-    [
-      handleLaunchProject,
-      openLaunchTabNow,
-      removeUnusedPrecreatedLaunchTab,
-      t,
-      tabWorkspaceController,
-    ],
-  );
 
 
   // Open Settings as a new tab (or switch to existing one)
@@ -3775,16 +3730,6 @@ export default function App() {
       id: `task-create-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     });
   }, []);
-  const handleSidebarCreateTask = useCallback(() => {
-    const taskCenterCurrentSessionId = tabWorkspaceController
-      .getSnapshot()
-      .tabs.find((tab) => tab.view === 'taskcenter')?.currentSessionId;
-    handleOpenTaskCreate({
-      initialMode: 'smart',
-      source: 'sidebar',
-      currentSessionId: taskCenterCurrentSessionId ?? null,
-    });
-  }, [handleOpenTaskCreate, tabWorkspaceController]);
 
   // Listen for OPEN_TASK_CENTER custom event from child components
   useEffect(() => {
@@ -4603,18 +4548,23 @@ export default function App() {
     void handleOpenSettings('general');
   }, [handleOpenSettings]);
 
-  const handleOpenBugReport = useCallback(() => setShowBugReport(true), []);
-
-  const handleOpenSidebarSession = useCallback(
-    (session: SessionMetadata, project: Project) =>
-      handleOpenTargetSession(
-        session.id,
-        project.path,
-        getSessionDisplayText(session),
-        'global_sidebar',
-      ),
-    [handleOpenTargetSession],
-  );
+  // 两级导航的唯一出口：L2 条目先写入目标页的子视图，再打开（或聚焦）对应的单实例 Tab。
+  const handleOpenNavTarget = useCallback((target: NavTarget) => {
+    if (target.kind === 'chat') {
+      handleOpenAssistantChat();
+      return;
+    }
+    if (target.kind === 'settings') {
+      handleOpenGeneralSettings();
+      return;
+    }
+    if (target.kind === 'taskcenter') {
+      handleOpenTaskCenter();
+      return;
+    }
+    if (target.view) setCareerSubView(target.kind, target.view);
+    handleOpenCareerPage(target.kind);
+  }, [handleOpenAssistantChat, handleOpenCareerPage, handleOpenGeneralSettings, handleOpenTaskCenter]);
 
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
@@ -4803,7 +4753,6 @@ export default function App() {
     updateTabUnread,
   ]);
 
-  const activeWorkspacePath = resolveGlobalSidebarWorkspace(activeTab);
   const launcherBinding = useMemo<BuiltinTabBindings['launcher']>(
     () => ({
       isStarting: (tabId) => loadingTabs[tabId] ?? false,
@@ -4973,32 +4922,11 @@ export default function App() {
   return (
     <SessionDeletionContext.Provider value={handleDeleteSession}>
       <LinkContextMenuProvider>
-        <div className="flex h-screen bg-[var(--bg)]">
+        <div className="relative flex h-screen bg-[var(--bg)]">
           <CareerLiveBridge />
           <CareerLiveDrawer />
           <CareerResumeDrawer />
-          <GlobalSidebar
-            tabs={tabs}
-            activeTab={activeTab}
-            activeWorkspacePath={activeWorkspacePath}
-            sessionNotificationBadgeCounts={sessionNotificationBadgeCounts}
-            teamSpaceAvailable={teamSpaceAvailable}
-            onNewTab={handleSidebarNewChat}
-            onOpenChat={handleOpenAssistantChat}
-            onOpenCareerPage={handleOpenCareerPage}
-            onOpenTaskCenter={handleOpenTaskCenter}
-            onCreateTask={handleSidebarCreateTask}
-            onOpenSpace={handleOpenSpace}
-            onOpenAppRoute={handleOpenAppRoute}
-            onOpenCapabilities={handleOpenCapabilities}
-            onOpenSettings={handleOpenGeneralSettings}
-            onOpenBugReport={handleOpenBugReport}
-            onOpenWorkspace={handleOpenWorkspaceFromSidebar}
-            onOpenSession={handleOpenSidebarSession}
-            onRenameSession={renamePersistedSession}
-            historyTagIntent={historyTagIntent}
-            onHistoryTagIntentConsumed={handleHistoryTagIntentConsumed}
-          />
+          <CareerNavShell activeView={activeTab?.view} onOpen={handleOpenNavTarget} />
           <div className="flex min-w-0 flex-1 flex-col" data-tab-workspace>
             {/* 标题栏：求职助理是单一对话，不再展示多 Tab 标签条与"+"；
                 标签页切换全部经由左侧全局导航。 */}

@@ -198,6 +198,9 @@
 :root {
   /* Layout and spacing are product structure, not Theme identity. */
   --breakpoint-mobile: 640px;
+  /* Two-level navigation (specs/CAREER_DESIGN.md §5.1). */
+  --nav-rail-width: 76px;
+  --nav-sub-width: 220px;
   --global-sidebar-expanded-width: 256px;
   --global-sidebar-flyout-width: 320px;
   --global-sidebar-rail-width: 64px;

@@ -13,14 +13,19 @@ import {
 import type { CareerFocusEvent, Material, MaterialKind, MaterialUse } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
+import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
+import { useCareerSubView } from '@/features/career-shell/subViewStore';
 
 const CareerExperience = lazy(() => import('@/pages/CareerExperience'));
 const CareerResume = lazy(() => import('@/pages/CareerResume'));
 
+// 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
 type View = 'library' | 'experience' | 'resume';
-const VIEWS: Array<{ value: View; label: string }> = [
-  { value: 'library', label: '说法库' }, { value: 'experience', label: '经历与主张' }, { value: 'resume', label: '简历' },
-];
+const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
+  experience: { title: '经历', subtitle: '做过的事和能拿出来讲的主张' },
+  resume: { title: '简历', subtitle: '每一份都记得投给了谁' },
+  library: { title: '常用表达', subtitle: '一套说法复用到几十家，前后一致' },
+};
 
 /** 素材类型文案（共享常量里没有，先放在本页）。 */
 const MATERIAL_KIND_LABELS: Record<MaterialKind, string> = {
@@ -36,27 +41,9 @@ async function loadAll(): Promise<MaterialData> {
   return { materials, uses };
 }
 
-function Segmented<T extends string>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void }) {
-  return (
-    <div role="tablist" className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5">
-      {options.map(o => (
-        <button
-          key={o.value}
-          type="button"
-          role="tab"
-          aria-selected={o.value === value}
-          onClick={() => onChange(o.value)}
-          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${o.value === value ? 'bg-[var(--bg)] text-[var(--ink)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export default function CareerMaterial({ embedded = false }: CareerPageProps) {
-  const [view, setView] = useState<View>('library');
+  const [view, setView] = useCareerSubView<View>('career-material', DEFAULT_SUB_VIEWS['career-material']);
   const [focusId, setFocusId] = useState<string | null>(null);
   const query = useCareerQuery(loadAll, ['material', 'material_use']);
   const data = query.data;
@@ -65,21 +52,22 @@ export default function CareerMaterial({ embedded = false }: CareerPageProps) {
     if (payload?.surface !== 'material') return;
     if (payload.id) setFocusId(payload.id);
     else { setFocusId(null); setView('library'); }
-  }), []);
+  }), [setView]);
 
   // 焦点 id 是素材 → 说法库里高亮；不是（比如主简历 id）→ 简历视图。纯派生，用户手动切视图即清除焦点。
   const focusKind = focusId && data ? (data.materials.some(m => m.id === focusId) ? 'material' : 'other') : null;
   const effectiveView: View = focusKind === 'material' ? 'library' : focusKind === 'other' ? 'resume' : view;
   const highlightId = focusKind === 'material' ? focusId : null;
-  const changeView = (v: View) => { setFocusId(null); setView(v); };
+  // 二级导航切走后清掉焦点，避免焦点把视图钉在旧位置。
+  const [focusView, setFocusView] = useState<View>(view);
+  if (focusView !== view) { setFocusView(view); if (focusId) setFocusId(null); }
 
   return (
     <CareerPage
       embedded={embedded}
-      title="素材"
-      subtitle="一套说法复用到几十家，前后一致"
+      title={VIEW_HEADINGS[effectiveView].title}
+      subtitle={VIEW_HEADINGS[effectiveView].subtitle}
       examples={['帮我写一段“为什么选择我们”', '给我一分钟版自我介绍', '把这个项目写成 STAR 故事']}
-      actions={<Segmented value={effectiveView} options={VIEWS} onChange={changeView} />}
     >
       {effectiveView === 'library' && (
         <div className="space-y-4 px-4 py-3">

@@ -8,6 +8,7 @@ vi.mock('@/pages/CareerOffer', () => ({ default: () => <div data-testid="embedde
 
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
+import { resetCareerSubViews, setCareerSubView } from '@/features/career-shell/subViewStore';
 import CareerDossier from './CareerDossier';
 
 const tomorrow = new Date(Date.now() + 36 * 3600 * 1000).toISOString();
@@ -59,6 +60,7 @@ function mockGet() {
 
 describe('CareerDossier', () => {
   beforeEach(() => {
+    resetCareerSubViews();
     vi.mocked(apiGetJson).mockReset();
     vi.mocked(apiPostJson).mockReset();
     mockGet();
@@ -161,14 +163,18 @@ describe('CareerDossier', () => {
     expect(screen.queryByText('丁公司 · 算法工程师')).not.toBeInTheDocument();
   });
 
-  it('切到面试视图渲染嵌入的面试页', async () => {
+  it('二级导航选的子视图决定页标题与嵌入页', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('heading', { name: '后端工程师' });
-    fireEvent.click(screen.getByRole('tab', { name: '面试' }));
+    expect(screen.getByRole('heading', { name: '投递记录' })).toBeInTheDocument();
+    act(() => { setCareerSubView('career-dossier', 'interview'); });
     expect(await screen.findByTestId('embedded-interview')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: 'Offer' }));
-    expect(await screen.findByTestId('embedded-offer')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: '岗位池与投递台' }));
+    expect(screen.getByRole('heading', { name: '面试记录' })).toBeInTheDocument();
+    act(() => { setCareerSubView('career-dossier', 'apply'); });
     expect(await screen.findByTestId('embedded-apply')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '岗位收藏' })).toBeInTheDocument();
+    act(() => { setCareerSubView('career-dossier', 'exam'); });
+    expect(await screen.findByText('笔试记录还在搭建中')).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).toBeNull();
   });
 });

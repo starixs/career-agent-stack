@@ -7,6 +7,7 @@ vi.mock('@/pages/CareerResume', () => ({ default: () => <div data-testid="embedd
 
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
+import { resetCareerSubViews, setCareerSubView } from '@/features/career-shell/subViewStore';
 import CareerMaterial from './CareerMaterial';
 
 const materials = [
@@ -28,6 +29,7 @@ function mockGet(empty = false) {
 
 describe('CareerMaterial', () => {
   beforeEach(() => {
+    resetCareerSubViews();
     vi.mocked(apiGetJson).mockReset();
     vi.mocked(apiPostJson).mockReset();
     vi.mocked(apiPutJson).mockReset();
@@ -130,9 +132,11 @@ describe('CareerMaterial', () => {
     expect(document.getElementById('material-m2')?.querySelector('.ring-2')).not.toBeNull();
     act(() => { emitEvent('career:focus', { surface: 'material', id: 'resume-master-1' }); });
     expect(await screen.findByTestId('embedded-resume')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: '经历与主张' }));
+    act(() => { setCareerSubView('career-material', 'experience'); });
     expect(await screen.findByTestId('embedded-experience')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('tab', { name: '说法库' }));
+    expect(screen.getByRole('heading', { name: '经历' })).toBeInTheDocument();
+    act(() => { setCareerSubView('career-material', 'library'); });
     expect(await screen.findByText('为什么选丙公司')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '常用表达' })).toBeInTheDocument();
   });
 });
