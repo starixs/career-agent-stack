@@ -266,7 +266,7 @@ describe("TaskCommentTimeline", () => {
       historyEntrySource: "task_run_history",
     });
     expect(identity.closest('[tabindex="-1"]')).not.toHaveClass(
-      "hover:bg-[var(--paper-inset)]/70",
+      "hover:bg-[var(--inset)]/70",
     );
     expect(screen.getByPlaceholderText("补充信息或回复 Agent…")).toHaveAttribute(
       "rows",
@@ -384,7 +384,7 @@ describe("TaskCommentTimeline", () => {
       "w-full",
       "truncate",
       "rounded-r-md",
-      "bg-[var(--hover-bg)]",
+      "bg-[var(--hover)]",
     );
     expect(quoteButton).not.toHaveClass("rounded-md");
     expect(quoteButton).toHaveTextContent(longBody);
@@ -393,7 +393,7 @@ describe("TaskCommentTimeline", () => {
     const composerQuote = screen.getAllByText(longBody).at(-1)?.parentElement;
     expect(composerQuote).toHaveClass(
       "rounded-r-lg",
-      "bg-[var(--hover-bg)]",
+      "bg-[var(--hover)]",
     );
     expect(composerQuote).not.toHaveClass("rounded-lg");
   });

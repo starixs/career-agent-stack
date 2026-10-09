@@ -75,19 +75,19 @@ export default function CronTaskStatusBar({
       ].filter(Boolean).join(' · ');
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-t-lg border border-b-0 border-[var(--heartbeat-border)] bg-[var(--heartbeat-bg)] px-3 py-2">
+    <div className="flex items-center justify-between gap-3 rounded-t-lg border border-b-0 border-[var(--success)] bg-[var(--success-bg)] px-3 py-2">
       <div className="flex min-w-0 items-center gap-2">
         <span className="relative shrink-0">
-          <Timer className={`h-4 w-4 text-[var(--heartbeat)] ${mode === 'stopped' ? 'opacity-60' : ''}`} />
+          <Timer className={`h-4 w-4 text-[var(--success)] ${mode === 'stopped' ? 'opacity-60' : ''}`} />
           {mode === 'executing' && (
             <span className="absolute -right-0.5 -top-0.5 h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--heartbeat)] opacity-40" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--heartbeat)]" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--success)] opacity-40" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--success)]" />
             </span>
           )}
         </span>
-        <span className="shrink-0 text-sm font-medium text-[var(--heartbeat)]">{title}</span>
-        <span className="min-w-0 truncate text-sm text-[var(--ink-muted)]">{detail}</span>
+        <span className="shrink-0 text-sm font-medium text-[var(--success)]">{title}</span>
+        <span className="min-w-0 truncate text-sm text-[var(--muted)]">{detail}</span>
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
@@ -95,7 +95,7 @@ export default function CronTaskStatusBar({
           <button
             type="button"
             onClick={onSettings}
-            className="rounded-md p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--heartbeat)]"
+            className="rounded-md p-1.5 text-[var(--muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--success)]"
             title={t('cron.statusBar.settingsTitle')}
           >
             <Settings2 className="h-4 w-4" />
@@ -105,7 +105,7 @@ export default function CronTaskStatusBar({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--heartbeat)]"
+            className="rounded-md p-1.5 text-[var(--muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--success)]"
             title={t('cron.statusBar.cancelTitle')}
           >
             <X className="h-4 w-4" />
@@ -115,7 +115,7 @@ export default function CronTaskStatusBar({
           <button
             type="button"
             onClick={onStop}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--heartbeat)] transition hover:bg-[var(--paper-hover)]"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[var(--success)] transition hover:bg-[var(--paper-hover)]"
             title={t('cron.statusBar.stopTitle')}
           >
             <Square className="h-3.5 w-3.5" />
@@ -126,7 +126,7 @@ export default function CronTaskStatusBar({
           <button
             type="button"
             onClick={onDismissStopped}
-            className="rounded-md p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--heartbeat)]"
+            className="rounded-md p-1.5 text-[var(--muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--success)]"
             title={t('cron.statusBar.dismissStoppedTitle')}
           >
             <X className="h-4 w-4" />

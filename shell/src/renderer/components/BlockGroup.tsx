@@ -44,7 +44,7 @@ const BlockGroup = memo(function BlockGroup({
   // is already stable when folding triggers, enabling smooth CSS Grid transition.
   if (blocks.length > VISIBLE_HEAD + VISIBLE_TAIL) {
     return (
-      <div className="my-3 overflow-hidden rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)]/30 transition-all select-none">
+      <div className="my-3 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--inset)]/30 transition-all select-none">
         <div className="flex flex-col">
           {/* Head: first block — always visible */}
           {blocks.slice(0, VISIBLE_HEAD).map((block, i) => (
@@ -97,17 +97,17 @@ const BlockGroup = memo(function BlockGroup({
                   notifyRowLayoutChanged('block-group-expand');
                   setIsUnfolded(true);
                 }}
-                className="group/fold flex w-full items-center gap-3 border-b border-[var(--line-subtle)] px-4 py-2 text-left transition-colors cursor-pointer hover:bg-[var(--hover-bg)]"
+                className="group/fold flex w-full items-center gap-3 border-b border-[var(--line)] px-4 py-2 text-left transition-colors cursor-pointer hover:bg-[var(--hover)]"
               >
                 <div className="size-1.5 shrink-0" />
-                <div className="flex size-4 shrink-0 items-center justify-center text-[var(--ink-muted)]">
+                <div className="flex size-4 shrink-0 items-center justify-center text-[var(--muted)]">
                   <MoreHorizontal className="size-4" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-[var(--ink-muted)] group-hover/fold:text-[var(--ink-secondary)] transition-colors">
+                  <span className="text-sm text-[var(--muted)] group-hover/fold:text-[var(--ink-2)] transition-colors">
                     {t('blockGroup.expandAll')}
                   </span>
-                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--accent)]/15 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-[var(--accent)]">
+                  <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--primary)]/15 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-[var(--primary)]">
                     +{foldedCount}
                   </span>
                 </div>
@@ -136,7 +136,7 @@ const BlockGroup = memo(function BlockGroup({
 
   // Flat layout for small block groups (≤2 blocks)
   return (
-    <div className="my-3 overflow-hidden rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)]/30 transition-all select-none">
+    <div className="my-3 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--inset)]/30 transition-all select-none">
       <div className="flex flex-col">
         {blocks.map((block, index) => (
           <ProcessRow

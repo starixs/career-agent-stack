@@ -57,11 +57,11 @@ export function ThoughtBulkBar({
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-6 z-40 flex justify-center">
       <div
-        className="pointer-events-auto flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--paper-elevated)] px-2 py-1.5 shadow-lg"
+        className="pointer-events-auto flex items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--paper)] px-2 py-1.5 shadow-lg"
         role="toolbar"
         aria-label={t('thoughts.bulkToolbar')}
       >
-        <span className="px-3 text-xs tabular-nums text-[var(--ink-muted)]">
+        <span className="px-3 text-xs tabular-nums text-[var(--muted)]">
           {t('thoughts.selectedCount', { count })}
         </span>
         <div className="h-5 w-px bg-[var(--line)]" />
@@ -75,7 +75,7 @@ export function ThoughtBulkBar({
               ? t('thoughts.mergeNeedsTwo')
               : t('thoughts.mergeTooltip'))
           }
-          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-[var(--ink-secondary)] transition-colors hover:bg-[var(--accent-warm-subtle)] hover:text-[var(--accent-warm)] disabled:cursor-not-allowed disabled:text-[var(--ink-muted)] disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--ink-muted)]"
+          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-[var(--ink-2)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--primary)] disabled:cursor-not-allowed disabled:text-[var(--muted)] disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--muted)]"
         >
           <Layers className="h-3.5 w-3.5" strokeWidth={1.75} />
           {t('thoughts.merge')}
@@ -89,7 +89,7 @@ export function ThoughtBulkBar({
               ? t('thoughts.unarchiveSelected')
               : t('thoughts.archiveSelected')
           }
-          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--ink-secondary)]"
+          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--ink-2)]"
         >
           <ArchiveIcon className="h-3.5 w-3.5" strokeWidth={1.75} />
           {archiveLabel}
@@ -99,7 +99,7 @@ export function ThoughtBulkBar({
           onClick={onDelete}
           disabled={!canDelete}
           title={t('thoughts.deleteSelected')}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-[var(--ink-secondary)] transition-colors hover:bg-[var(--error-bg)] hover:text-[var(--error)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--ink-secondary)]"
+          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-[var(--ink-2)] transition-colors hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-[var(--ink-2)]"
         >
           <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} />
           {t('common.delete')}
@@ -110,7 +110,7 @@ export function ThoughtBulkBar({
           onClick={onCancel}
           disabled={busy}
           title={t('thoughts.exitSelect')}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-50"
         >
           <X className="h-3.5 w-3.5" strokeWidth={1.75} />
           {t('common.cancel')}

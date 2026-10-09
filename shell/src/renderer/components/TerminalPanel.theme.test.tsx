@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ThemeRegistry, ThemeRuntimeProvider } from '@/theme';
 import { syntheticTheme } from '@/theme/__tests__/syntheticTheme';
-import { keystoneDefaultTheme } from '@/theme/themes/keystone-default';
+import { careerTheme } from '@/theme/themes/career';
 
 const xtermCapture = vi.hoisted(() => ({
   instances: [] as Array<{
@@ -82,7 +82,7 @@ describe('TerminalPanel Theme adapter', () => {
   });
 
   it('updates xterm in place and defers metric fitting until the width transition settles', () => {
-    const registry = new ThemeRegistry([keystoneDefaultTheme, syntheticTheme]);
+    const registry = new ThemeRegistry([careerTheme, syntheticTheme]);
     const view = render(
       <ThemeRuntimeProvider
         registry={registry}
@@ -188,7 +188,7 @@ describe('TerminalPanel Theme adapter', () => {
   });
 
   it('defers first PTY creation until the panel geometry is stable', async () => {
-    const registry = new ThemeRegistry([keystoneDefaultTheme, syntheticTheme]);
+    const registry = new ThemeRegistry([careerTheme, syntheticTheme]);
     render(
       <ThemeRuntimeProvider
         registry={registry}

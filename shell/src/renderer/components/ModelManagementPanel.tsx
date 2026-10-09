@@ -525,19 +525,19 @@ export default function ModelManagementPanel({
           }
           containModelDialogTab(event);
         }}
-        className="relative flex h-[85vh] w-[620px] max-w-[90vw] flex-col overflow-hidden rounded-2xl bg-[var(--paper-elevated)] shadow-2xl"
+        className="relative flex h-[85vh] w-[620px] max-w-[90vw] flex-col overflow-hidden rounded-2xl bg-[var(--paper)] shadow-2xl"
       >
         {/* Header */}
         <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--line)] px-5 py-3.5">
           <h2 id={titleId} className="text-lg font-semibold text-[var(--ink)]">
             {t('providers.models.title')}
-            <span className="ml-2 text-sm font-normal text-[var(--ink-muted)]">{provider.name}</span>
+            <span className="ml-2 text-sm font-normal text-[var(--muted)]">{provider.name}</span>
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label={t('common:actions.close')}
-            className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -546,16 +546,16 @@ export default function ModelManagementPanel({
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
           {/* ===== Upper: Active Models ===== */}
-          <div className="border-b border-[var(--line-subtle)] px-5 py-4">
-            <h3 className="mb-2.5 text-xs font-semibold text-[var(--ink-muted)]">
+          <div className="border-b border-[var(--line)] px-5 py-4">
+            <h3 className="mb-2.5 text-xs font-semibold text-[var(--muted)]">
               {t('providers.models.activeTitle')}
               {provider.models.length > 0 && (
-                <span className="ml-1.5 font-normal text-[var(--ink-subtle)]">{provider.models.length}</span>
+                <span className="ml-1.5 font-normal text-[var(--subtle)]">{provider.models.length}</span>
               )}
             </h3>
 
             {provider.models.length === 0 ? (
-              <p className="py-4 text-center text-sm text-[var(--ink-muted)]">{t('providers.models.emptyActive')}</p>
+              <p className="py-4 text-center text-sm text-[var(--muted)]">{t('providers.models.emptyActive')}</p>
             ) : (
               <div>
                 {provider.models.map(model => (
@@ -596,14 +596,14 @@ export default function ModelManagementPanel({
                   onChange={(e) => setCustomInput(e.target.value)}
                   onKeyDown={(e) => { if (isImeComposingEvent(e)) return; if (e.key === 'Enter') { e.preventDefault(); handleAddCustomModel(); } }}
                   placeholder={t('providers.models.customPlaceholder')}
-                  className="flex-1 rounded-lg border border-[var(--line)] bg-transparent px-3 py-1.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--ink-muted)] focus:outline-none"
+                  className="flex-1 rounded-lg border border-[var(--line)] bg-transparent px-3 py-1.5 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--muted)] focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={handleAddCustomModel}
                   disabled={!hasAddableCustomInput}
                   aria-label={t('providers.models.add')}
-                  className="rounded-lg bg-[var(--paper-inset)] px-2.5 py-1.5 text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)] disabled:opacity-40"
+                  className="rounded-lg bg-[var(--inset)] px-2.5 py-1.5 text-[var(--muted)] transition-colors hover:text-[var(--ink)] disabled:opacity-40"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -624,7 +624,7 @@ export default function ModelManagementPanel({
           {/* ===== Lower: Discover Models ===== */}
           <div className="px-5 py-4">
             <div className="mb-2.5 flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-[var(--ink-muted)]">
+              <h3 className="text-xs font-semibold text-[var(--muted)]">
                 {t('providers.models.discoverTitle')}
               </h3>
               {canDiscover && !discoveryError && (
@@ -632,7 +632,7 @@ export default function ModelManagementPanel({
                   type="button"
                   onClick={doFetch}
                   disabled={discoveryLoading}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-50"
                 >
                   <RefreshCw className={`h-3 w-3 ${discoveryLoading ? 'animate-spin' : ''}`} />
                   {t('providers.models.refresh')}
@@ -643,30 +643,30 @@ export default function ModelManagementPanel({
             {/* Search — always visible once models have been loaded (avoids layout jump on refresh) */}
             {canDiscover && !discoveryError && discoveredModels.length > 0 && (
               <div className="relative mb-3">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--ink-subtle)]" />
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--subtle)]" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t('providers.models.searchPlaceholder')}
-                  className="w-full rounded-lg border border-[var(--line)] bg-transparent py-1.5 pl-8 pr-3 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--ink-muted)] focus:outline-none"
+                  className="w-full rounded-lg border border-[var(--line)] bg-transparent py-1.5 pl-8 pr-3 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--muted)] focus:outline-none"
                 />
               </div>
             )}
 
             {/* States */}
             {!canDiscover && discoveryUnavailableMessage && (
-              <p className="py-6 text-center text-sm text-[var(--ink-muted)]">{discoveryUnavailableMessage}</p>
+              <p className="py-6 text-center text-sm text-[var(--muted)]">{discoveryUnavailableMessage}</p>
             )}
             {!canDiscover && !discoveryUnavailableMessage && !apiKey && !discoveryAction && (
-              <p className="py-6 text-center text-sm text-[var(--ink-muted)]">{t('providers.models.needApiKey')}</p>
+              <p className="py-6 text-center text-sm text-[var(--muted)]">{t('providers.models.needApiKey')}</p>
             )}
             {!canDiscover && !discoveryUnavailableMessage && (apiKey || discoveryAction) && (
-              <p className="py-6 text-center text-sm text-[var(--ink-muted)]">{t('providers.models.notSupported')}</p>
+              <p className="py-6 text-center text-sm text-[var(--muted)]">{t('providers.models.notSupported')}</p>
             )}
 
             {canDiscover && discoveryLoading && discoveredModels.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-8 text-[var(--ink-muted)]">
+              <div className="flex flex-col items-center justify-center py-8 text-[var(--muted)]">
                 <Loader2 className="h-5 w-5 animate-spin" />
                 <p className="mt-2 text-sm">{t('providers.models.loading')}</p>
               </div>
@@ -674,13 +674,13 @@ export default function ModelManagementPanel({
 
             {canDiscover && discoveryError && (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <AlertCircle className="h-5 w-5 text-[var(--error)]" />
+                <AlertCircle className="h-5 w-5 text-[var(--danger)]" />
                 <p className="mt-2 text-sm text-[var(--ink)]">{t('providers.models.loadFailed')}</p>
-                <p className="mt-1 max-w-md text-xs text-[var(--ink-muted)]">{discoveryError}</p>
+                <p className="mt-1 max-w-md text-xs text-[var(--muted)]">{discoveryError}</p>
                 <button
                   type="button"
                   onClick={doFetch}
-                  className="mt-3 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--accent)] transition-colors hover:bg-[var(--accent-warm-subtle)]"
+                  className="mt-3 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--primary)] transition-colors hover:bg-[var(--primary-soft)]"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
                   {t('providers.models.retry')}
@@ -689,15 +689,15 @@ export default function ModelManagementPanel({
             )}
 
             {canDiscover && !discoveryLoading && !discoveryError && allAdded && (
-              <p className="py-6 text-center text-sm text-[var(--ink-muted)]">{t('providers.models.allAdded')}</p>
+              <p className="py-6 text-center text-sm text-[var(--muted)]">{t('providers.models.allAdded')}</p>
             )}
 
             {canDiscover && !discoveryLoading && !discoveryError && !allAdded && filteredDiscovered.length === 0 && search && (
-              <p className="py-6 text-center text-sm text-[var(--ink-muted)]">{t('providers.models.noMatches')}</p>
+              <p className="py-6 text-center text-sm text-[var(--muted)]">{t('providers.models.noMatches')}</p>
             )}
 
             {canDiscover && !discoveryLoading && !discoveryError && discoveredModels.length === 0 && (
-              <p className="py-6 text-center text-sm text-[var(--ink-muted)]">{t('providers.models.noneReturned')}</p>
+              <p className="py-6 text-center text-sm text-[var(--muted)]">{t('providers.models.noneReturned')}</p>
             )}
 
             {/* Model list — no checkboxes, just rows with hover "添加" */}
@@ -725,7 +725,7 @@ export default function ModelManagementPanel({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
           >
             {t('providers.models.done')}
           </button>
@@ -766,12 +766,12 @@ const ActiveModelRow = React.memo(function ActiveModelRow({
   const subtitle = displayName ? model.model : null;
 
   return (
-    <div className={`group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--hover-bg)] ${isPrimary ? 'bg-[var(--accent-warm-subtle)]' : ''}`}>
+    <div className={`group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--hover)] ${isPrimary ? 'bg-[var(--primary-soft)]' : ''}`}>
       {/* Model info — unified: title always same style, subtitle always same style */}
       <div className="min-w-0 flex-1">
         <span className="text-sm font-medium text-[var(--ink)]">{title}</span>
         {subtitle && (
-          <span className="ml-2 font-mono text-xs text-[var(--ink-subtle)]">{subtitle}</span>
+          <span className="ml-2 font-mono text-xs text-[var(--subtle)]">{subtitle}</span>
         )}
       </div>
 
@@ -780,7 +780,7 @@ const ActiveModelRow = React.memo(function ActiveModelRow({
 
       {/* Context length */}
       {model.contextLength ? (
-        <span className="flex-shrink-0 text-xs text-[var(--ink-subtle)]">
+        <span className="flex-shrink-0 text-xs text-[var(--subtle)]">
           {formatTokenCount(model.contextLength)}
         </span>
       ) : null}
@@ -794,10 +794,10 @@ const ActiveModelRow = React.memo(function ActiveModelRow({
           title={t('providers.models.settingsTitle')}
           aria-label={`${t('providers.models.settingsTitle')}: ${model.modelName ?? model.model}`}
           data-model-gear
-          className={`flex-shrink-0 rounded p-1 transition-all hover:text-[var(--accent)] ${
+          className={`flex-shrink-0 rounded p-1 transition-all hover:text-[var(--primary)] ${
             isEditing
-              ? 'text-[var(--accent)] opacity-100'
-              : 'text-[var(--ink-subtle)] opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
+              ? 'text-[var(--primary)] opacity-100'
+              : 'text-[var(--subtle)] opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
           }`}
         >
           <Settings2 className="h-3 w-3" />
@@ -806,14 +806,14 @@ const ActiveModelRow = React.memo(function ActiveModelRow({
 
       {/* Primary badge or hover action */}
       {isPrimary ? (
-        <span className="flex-shrink-0 rounded-full bg-[var(--accent-warm-muted)] px-2 py-0.5 text-xs font-medium text-[var(--accent)]">
+        <span className="flex-shrink-0 rounded-full bg-[var(--primary-muted)] px-2 py-0.5 text-xs font-medium text-[var(--primary)]">
           {t('providers.models.primary')}
         </span>
       ) : (
         <button
           type="button"
           onClick={handleSetPrimary}
-          className="flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium text-[var(--ink-subtle)] opacity-0 transition-all hover:bg-[var(--paper-inset)] hover:text-[var(--accent)] group-hover:opacity-100 group-focus-within:opacity-100"
+          className="flex-shrink-0 rounded-full px-2 py-0.5 text-xs font-medium text-[var(--subtle)] opacity-0 transition-all hover:bg-[var(--inset)] hover:text-[var(--primary)] group-hover:opacity-100 group-focus-within:opacity-100"
         >
           {t('providers.models.setPrimary')}
         </button>
@@ -824,7 +824,7 @@ const ActiveModelRow = React.memo(function ActiveModelRow({
         type="button"
         onClick={handleDelete}
         aria-label={t('providers.models.removeModel', { model: model.modelName ?? model.model })}
-        className="flex-shrink-0 rounded p-1 text-[var(--ink-subtle)] opacity-0 transition-all hover:text-[var(--error)] group-hover:opacity-100 group-focus-within:opacity-100"
+        className="flex-shrink-0 rounded p-1 text-[var(--subtle)] opacity-0 transition-all hover:text-[var(--danger)] group-hover:opacity-100 group-focus-within:opacity-100"
       >
         <Trash2 className="h-3 w-3" />
       </button>
@@ -953,10 +953,10 @@ const ModelSettingsEditor = function ModelSettingsEditor({
           : t('providers.models.contextDefault');
 
   const inputBase =
-    'w-full rounded-lg border bg-[var(--paper)] px-2.5 py-1.5 text-xs text-[var(--ink)] outline-none transition-all placeholder:text-[var(--ink-faint)] focus:bg-[var(--paper-elevated)]';
+    'w-full rounded-lg border bg-[var(--bg)] px-2.5 py-1.5 text-xs text-[var(--ink)] outline-none transition-all placeholder:text-[var(--subtle)] focus:bg-[var(--paper)]';
   const inputOk =
-    'border-[var(--line)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--accent-warm-subtle)]';
-  const inputErr = 'border-[var(--error)] focus:shadow-[0_0_0_3px_var(--error-subtle)]';
+    'border-[var(--line)] focus:border-[var(--primary)] focus:shadow-[0_0_0_3px_var(--primary-soft)]';
+  const inputErr = 'border-[var(--danger)] focus:shadow-[0_0_0_3px_var(--danger-bg)]';
 
   return (
     <Popover
@@ -969,7 +969,7 @@ const ModelSettingsEditor = function ModelSettingsEditor({
       offset={8}
       zIndex={260}
       unstyled
-      className="w-[360px] max-w-[calc(100vw-32px)] origin-top-right animate-[popoverIn_0.22s_cubic-bezier(0.3,1.2,0.4,1)] rounded-[14px] border border-[var(--line-subtle)] bg-[var(--paper-elevated)] p-4 shadow-[var(--shadow-lg)]"
+      className="w-[360px] max-w-[calc(100vw-32px)] origin-top-right animate-[popoverIn_0.22s_cubic-bezier(0.3,1.2,0.4,1)] rounded-[14px] border border-[var(--line)] bg-[var(--paper)] p-4 shadow-[var(--shadow-lg)]"
     >
       <div
         ref={focusEditor}
@@ -988,12 +988,12 @@ const ModelSettingsEditor = function ModelSettingsEditor({
       >
         <div data-testid="model-settings-popover" className="mb-3 flex items-baseline gap-2">
           <span className="flex-shrink-0 text-xs font-semibold text-[var(--ink)]">{t('providers.models.parameterTitle')}</span>
-          <code className="truncate font-mono text-xs text-[var(--ink-subtle)]">{model.model}</code>
+          <code className="truncate font-mono text-xs text-[var(--subtle)]">{model.model}</code>
         </div>
 
         {/* 显示名称 */}
         <div className="mb-2.5">
-          <label className="mb-1 block text-xs font-medium tracking-wide text-[var(--ink-muted)]">{t('providers.models.displayName')}</label>
+          <label className="mb-1 block text-xs font-medium tracking-wide text-[var(--muted)]">{t('providers.models.displayName')}</label>
           <input
             type="text"
             value={nameDraft}
@@ -1006,7 +1006,7 @@ const ModelSettingsEditor = function ModelSettingsEditor({
 
         {/* 上下文窗口 */}
         <div className="mb-2.5">
-          <label className="mb-1 block text-xs font-medium tracking-wide text-[var(--ink-muted)]">{t('providers.models.contextWindow')}</label>
+          <label className="mb-1 block text-xs font-medium tracking-wide text-[var(--muted)]">{t('providers.models.contextWindow')}</label>
           <input
             type="text"
             value={contextDraft}
@@ -1020,7 +1020,7 @@ const ModelSettingsEditor = function ModelSettingsEditor({
         {/* 执行协议 */}
         {showProtocol && (
           <div className="mb-2.5">
-            <label className="mb-1 block text-xs font-medium tracking-wide text-[var(--ink-muted)]">
+            <label className="mb-1 block text-xs font-medium tracking-wide text-[var(--muted)]">
               {t('providers.models.protocol')}
             </label>
             {protocolLocked ? (
@@ -1039,14 +1039,14 @@ const ModelSettingsEditor = function ModelSettingsEditor({
               />
             )}
             {officialProtocol && model.executionProtocol && model.executionProtocol !== officialProtocol && (
-              <p className="mt-1 text-xs text-[var(--error)]">{t('providers.models.protocolConflict')}</p>
+              <p className="mt-1 text-xs text-[var(--danger)]">{t('providers.models.protocolConflict')}</p>
             )}
           </div>
         )}
 
         {/* 输入模态 */}
         <div>
-          <label className="mb-1 block text-xs font-medium tracking-wide text-[var(--ink-muted)]">{t('providers.models.inputModalities')}</label>
+          <label className="mb-1 block text-xs font-medium tracking-wide text-[var(--muted)]">{t('providers.models.inputModalities')}</label>
           <div className="flex gap-1.5 pt-0.5">
             {EDITABLE_MODALITIES.map(kind => {
               const selected = modalities.includes(kind);
@@ -1057,8 +1057,8 @@ const ModelSettingsEditor = function ModelSettingsEditor({
                   onClick={() => toggleModality(kind)}
                   className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
                     selected
-                      ? 'border-transparent bg-[var(--accent-warm-muted)] font-medium text-[var(--accent)]'
-                      : 'border-[var(--line)] text-[var(--ink-muted)] hover:border-[var(--ink-subtle)]'
+                      ? 'border-transparent bg-[var(--primary-muted)] font-medium text-[var(--primary)]'
+                      : 'border-[var(--line)] text-[var(--muted)] hover:border-[var(--subtle)]'
                   }`}
                 >
                   {selected && <span className="mr-1 text-xs">✓</span>}
@@ -1069,7 +1069,7 @@ const ModelSettingsEditor = function ModelSettingsEditor({
           </div>
         </div>
 
-        <p className={`mt-2 text-xs leading-relaxed ${saveError || contextInvalid || modalitiesInvalid ? 'text-[var(--error)]' : 'text-[var(--ink-subtle)]'}`}>
+        <p className={`mt-2 text-xs leading-relaxed ${saveError || contextInvalid || modalitiesInvalid ? 'text-[var(--danger)]' : 'text-[var(--subtle)]'}`}>
           {hint}
         </p>
 
@@ -1078,7 +1078,7 @@ const ModelSettingsEditor = function ModelSettingsEditor({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg px-3 py-1.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+            className="rounded-lg px-3 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
           >
             {t('providers.models.cancel')}
           </button>
@@ -1086,7 +1086,7 @@ const ModelSettingsEditor = function ModelSettingsEditor({
             type="button"
             onClick={handleSave}
             disabled={!canSave}
-            className="rounded-lg bg-[var(--button-primary-bg)] px-4 py-1.5 text-xs font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-40"
+            className="rounded-lg bg-[var(--primary)] px-4 py-1.5 text-xs font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-40"
           >
             {saving ? t('providers.models.saving') : t('providers.models.save')}
           </button>
@@ -1129,12 +1129,12 @@ const DiscoveredModelRow = React.memo(function DiscoveredModelRow({
   const discoveredModalities = synthesizeModalitiesFromDiscovered(model);
 
   return (
-    <div ref={rowRef} className="group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--hover-bg)]">
+    <div ref={rowRef} className="group flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-[var(--hover)]">
       {/* Model info — same style as ActiveModelRow */}
       <div className="min-w-0 flex-1">
         <span className="text-sm font-medium text-[var(--ink)]">{title}</span>
         {subtitle && (
-          <span className="ml-2 font-mono text-xs text-[var(--ink-subtle)]">{subtitle}</span>
+          <span className="ml-2 font-mono text-xs text-[var(--subtle)]">{subtitle}</span>
         )}
       </div>
 
@@ -1143,7 +1143,7 @@ const DiscoveredModelRow = React.memo(function DiscoveredModelRow({
 
       {/* Metadata */}
       {model.contextLength ? (
-        <span className="flex-shrink-0 text-xs text-[var(--ink-subtle)]">
+        <span className="flex-shrink-0 text-xs text-[var(--subtle)]">
           {formatTokenCount(model.contextLength)}
         </span>
       ) : null}
@@ -1152,7 +1152,7 @@ const DiscoveredModelRow = React.memo(function DiscoveredModelRow({
       <button
         type="button"
         onClick={handleAdd}
-        className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium text-[var(--accent)] opacity-0 transition-all hover:bg-[var(--accent-warm-subtle)] group-hover:opacity-100 group-focus-within:opacity-100"
+        className="flex-shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium text-[var(--primary)] opacity-0 transition-all hover:bg-[var(--primary-soft)] group-hover:opacity-100 group-focus-within:opacity-100"
       >
         {t('providers.models.add')}
       </button>

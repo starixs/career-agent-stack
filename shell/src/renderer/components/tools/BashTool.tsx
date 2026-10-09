@@ -75,13 +75,13 @@ function BashTerminal({ model, t }: { model: BashTranscriptModel; t: ChatTransla
   return (
     <section
       data-bash-terminal="true"
-      className="min-w-0 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--code-bg)] text-[var(--code-text)] shadow-[var(--shadow-xs)] select-none"
+      className="min-w-0 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--inset)] text-[var(--ink-2)] shadow-[var(--shadow-xs)] select-none"
       aria-label={t('shell.toolChrome.bash.terminalAria', { status: statusLabel })}
     >
-      <header className="flex min-h-10 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--code-header-bg)] px-3 py-2">
+      <header className="flex min-h-10 min-w-0 items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--selected)] px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Terminal className="size-4 shrink-0 text-[var(--code-line-number)]" aria-hidden="true" />
-          <span className="truncate font-mono text-xs text-[var(--code-text)]">
+          <Terminal className="size-4 shrink-0 text-[var(--subtle)]" aria-hidden="true" />
+          <span className="truncate font-mono text-xs text-[var(--ink-2)]">
             {model.shell ?? t('shell.toolChrome.bash.terminal')}
           </span>
         </div>
@@ -94,7 +94,7 @@ function BashTerminal({ model, t }: { model: BashTranscriptModel; t: ChatTransla
           tabIndex={0}
           aria-label={t('shell.toolChrome.bash.transcriptAria')}
           aria-describedby={shouldOfferShowAll ? expandDescriptionId : isHardTruncated ? truncationId : undefined}
-          className={`${shouldOfferShowAll ? 'max-h-96 overflow-y-hidden' : ''} min-w-0 overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-border)]/30`}
+          className={`${shouldOfferShowAll ? 'max-h-96 overflow-y-hidden' : ''} min-w-0 overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/30`}
         >
           {transcriptWindow.command && <ShellCommandView command={transcriptWindow.command} language={model.commandLanguage ?? 'bash'} t={t} />}
 
@@ -112,8 +112,8 @@ function BashTerminal({ model, t }: { model: BashTranscriptModel; t: ChatTransla
         </div>
 
         {shouldOfferShowAll && (
-          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-end bg-gradient-to-t from-[var(--code-bg)] via-[var(--code-bg)]/95 to-[var(--paper-a0)] pb-3 pt-14">
-            <span id={expandDescriptionId} className="mb-1 text-xs text-[var(--code-line-number)]">
+          <div className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-end bg-gradient-to-t from-[var(--inset)] via-[var(--inset)]/95 to-[var(--bg-a0)] pb-3 pt-14">
+            <span id={expandDescriptionId} className="mb-1 text-xs text-[var(--subtle)]">
               {t('shell.toolChrome.bash.moreOutput')}
             </span>
             <button
@@ -123,7 +123,7 @@ function BashTerminal({ model, t }: { model: BashTranscriptModel; t: ChatTransla
                 setIsExpanded(true);
                 notifyRowLayoutChanged('expandable-container-expand');
               }}
-              className="rounded-full border border-[var(--line)] bg-[var(--code-header-bg)] px-3 py-1 text-xs font-medium text-[var(--code-text)] shadow-[var(--shadow-xs)] transition-colors duration-150 hover:border-[var(--code-line-number)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-border)]/40 motion-reduce:transition-none"
+              className="rounded-full border border-[var(--line)] bg-[var(--selected)] px-3 py-1 text-xs font-medium text-[var(--ink-2)] shadow-[var(--shadow-xs)] transition-colors duration-150 hover:border-[var(--subtle)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 motion-reduce:transition-none"
             >
               {t('shell.toolChrome.bash.showAll')}
             </button>
@@ -145,7 +145,7 @@ function BashTerminal({ model, t }: { model: BashTranscriptModel; t: ChatTransla
       {metaItems.length > 0 && (
         <footer
           data-bash-meta="true"
-          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden border-t border-[var(--line)] bg-[var(--code-header-bg)] px-3 py-2 font-mono text-xs text-[var(--code-line-number)]"
+          className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden border-t border-[var(--line)] bg-[var(--selected)] px-3 py-2 font-mono text-xs text-[var(--subtle)]"
         >
           {metaItems.map((item, index) => (
             <span key={item} className={index === 0 && model.meta.cwd ? 'min-w-0 truncate' : 'shrink-0'}>
@@ -190,7 +190,7 @@ function ShellCommandView({
       className="min-w-0 border-b border-[var(--line)] px-3 py-3"
       aria-label={t('shell.toolChrome.bash.command')}
     >
-      <h3 className="mb-2 text-xs font-medium text-[var(--code-line-number)]">
+      <h3 className="mb-2 text-xs font-medium text-[var(--subtle)]">
         {t('shell.toolChrome.bash.command')}
       </h3>
       <div
@@ -205,7 +205,7 @@ function ShellCommandView({
             {canHighlight ? (
               <TerminalSyntax text={line || ' '} language={language} />
             ) : (
-              <pre className="m-0 min-w-max whitespace-pre font-mono text-sm leading-6 text-[var(--code-text)]">{line}</pre>
+              <pre className="m-0 min-w-max whitespace-pre font-mono text-sm leading-6 text-[var(--ink-2)]">{line}</pre>
             )}
           </div>
         ))}
@@ -220,15 +220,15 @@ function TerminalStreamView({ stream, t }: { stream: BashTranscriptStream; t: Ch
     <section
       data-bash-stream={stream.kind}
       data-bash-format={stream.format}
-      className={`min-w-0 border-b border-[var(--line)] px-3 py-3 last:border-b-0 ${stream.kind === 'stderr' ? 'border-l-2 border-l-[var(--error)]' : ''}`}
+      className={`min-w-0 border-b border-[var(--line)] px-3 py-3 last:border-b-0 ${stream.kind === 'stderr' ? 'border-l-2 border-l-[var(--danger)]' : ''}`}
       aria-label={label}
     >
       <div className="mb-2 flex items-center gap-2">
-        <h3 className={`text-xs font-medium ${stream.kind === 'stderr' ? 'text-[var(--error)]' : 'text-[var(--code-line-number)]'}`}>
+        <h3 className={`text-xs font-medium ${stream.kind === 'stderr' ? 'text-[var(--danger)]' : 'text-[var(--subtle)]'}`}>
           {label}
         </h3>
         {stream.format !== 'plain' && (
-          <span className="rounded border border-[var(--line)] bg-[var(--code-header-bg)] px-1.5 py-0.5 font-mono text-xs text-[var(--code-line-number)]">
+          <span className="rounded border border-[var(--line)] bg-[var(--selected)] px-1.5 py-0.5 font-mono text-xs text-[var(--subtle)]">
             {formatLabel(stream.format, t)}
           </span>
         )}
@@ -245,11 +245,11 @@ function TerminalOutput({ text, format }: { text: string; format: BashStreamForm
     && text.length <= SYNTAX_HIGHLIGHT_CHARACTER_BUDGET;
 
   return (
-    <div data-syntax-highlighted={canHighlight ? 'true' : 'false'} className="min-w-max font-mono text-sm leading-6 text-[var(--code-text)] select-text">
+    <div data-syntax-highlighted={canHighlight ? 'true' : 'false'} className="min-w-max font-mono text-sm leading-6 text-[var(--ink-2)] select-text">
       {canHighlight ? (
         <TerminalSyntax text={text || ' '} language={format} />
       ) : (
-        <pre className="m-0 min-w-max whitespace-pre font-mono text-sm leading-6 text-[var(--code-text)]">{text}</pre>
+        <pre className="m-0 min-w-max whitespace-pre font-mono text-sm leading-6 text-[var(--ink-2)]">{text}</pre>
       )}
     </div>
   );
@@ -267,7 +267,7 @@ function TerminalSyntax({ text, language }: { text: string; language: 'bash' | '
       background: 'transparent',
       textShadow: 'none',
       borderRadius: 0,
-      fontFamily: 'var(--font-code)',
+      fontFamily: 'var(--font-mono)',
       fontSize: 'var(--text-sm)',
       lineHeight: '1.5rem',
       whiteSpace: 'pre',
@@ -278,7 +278,7 @@ function TerminalSyntax({ text, language }: { text: string; language: 'bash' | '
       minWidth: 'max-content',
       background: 'transparent',
       textShadow: 'none',
-      fontFamily: 'var(--font-code)',
+      fontFamily: 'var(--font-mono)',
       fontSize: 'var(--text-sm)',
       lineHeight: '1.5rem',
       whiteSpace: 'pre',
@@ -304,7 +304,7 @@ function TerminalEmptyState({ status, t }: { status: BashTranscriptStatus; t: Ch
   return (
     <div
       data-bash-empty-output="true"
-      className="flex min-h-16 items-center gap-2 px-3 py-4 font-mono text-sm text-[var(--code-line-number)]"
+      className="flex min-h-16 items-center gap-2 px-3 py-4 font-mono text-sm text-[var(--subtle)]"
     >
       {waiting && (
         <Loader2 className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
@@ -329,14 +329,14 @@ function statusIcon(status: BashTranscriptStatus): ReactNode {
 
 function statusTone(status: BashTranscriptStatus): string {
   if (status === 'completed') return 'bg-[var(--success-bg)] text-[var(--success)]';
-  if (status === 'failed') return 'bg-[var(--error-bg)] text-[var(--error)]';
+  if (status === 'failed') return 'bg-[var(--danger-bg)] text-[var(--danger)]';
   if (status === 'timeout' || status === 'stopped' || status === 'interrupted') {
     return 'bg-[var(--warning-bg)] text-[var(--warning)]';
   }
   if (status === 'running' || status === 'initializing') {
-    return 'bg-[var(--accent-warm-subtle)] text-[var(--accent)]';
+    return 'bg-[var(--primary-soft)] text-[var(--primary)]';
   }
-  return 'bg-[var(--paper-inset)] text-[var(--code-line-number)]';
+  return 'bg-[var(--inset)] text-[var(--subtle)]';
 }
 
 function streamLabel(kind: BashStreamKind, t: ChatTranslator): string {

@@ -230,24 +230,24 @@ export default function WorkspaceConfigPanel({ agentDir, onClose, refreshKey: ex
         <OverlayBackdrop onClose={handleClose} className="z-[200]">
             {/* Main Panel */}
             <div
-                className="relative flex h-[90vh] w-[90vw] max-w-5xl flex-col overflow-hidden rounded-2xl bg-[var(--paper-elevated)] shadow-2xl"
+                className="relative flex h-[90vh] w-[90vw] max-w-5xl flex-col overflow-hidden rounded-2xl bg-[var(--paper)] shadow-2xl"
             >
                 {/* Header — three zones: left (icon+title), center (tabs), right (close) */}
-                <div className="flex flex-shrink-0 items-center border-b border-[var(--line)] bg-gradient-to-r from-[var(--paper-inset)] to-[var(--paper)] px-6 py-3">
+                <div className="flex flex-shrink-0 items-center border-b border-[var(--line)] bg-gradient-to-r from-[var(--inset)] to-[var(--bg)] px-6 py-3">
                     {/* Left zone */}
                     <div className="flex min-w-0 items-center gap-2.5">
                         {detailView.type !== 'none' && (
                             <button
                                 type="button"
                                 onClick={handleBackFromDetail}
-                                className="mr-1 rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                className="mr-1 rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                 title={t('agentSettings.panel.backToList')}
                             >
                                 <ChevronLeft className="h-5 w-5" />
                             </button>
                         )}
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--button-dark-bg)] shadow">
-                            <SlidersHorizontal className="h-4 w-4 text-[var(--button-dark-text)]" />
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ink)] shadow">
+                            <SlidersHorizontal className="h-4 w-4 text-[var(--bg)]" />
                         </div>
                         <h2 className="text-lg font-semibold text-[var(--ink)]">{t('agentSettings.panel.title')}</h2>
                     </div>
@@ -262,13 +262,13 @@ export default function WorkspaceConfigPanel({ agentDir, onClose, refreshKey: ex
                                     onClick={() => handleTabSwitch(item.key)}
                                     className={`relative pb-0.5 text-sm font-medium transition-colors ${
                                         activeTab === item.key
-                                            ? 'text-[var(--accent-warm)]'
-                                            : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                                            ? 'text-[var(--primary)]'
+                                            : 'text-[var(--muted)] hover:text-[var(--ink)]'
                                     } ${item.key !== TAB_ITEMS[0].key ? 'ml-4' : ''}`}
                                 >
                                     {t(item.labelKey)}
                                     {activeTab === item.key && (
-                                        <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-[var(--accent-warm)]" />
+                                        <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-[var(--primary)]" />
                                     )}
                                 </button>
                             ))}
@@ -282,7 +282,7 @@ export default function WorkspaceConfigPanel({ agentDir, onClose, refreshKey: ex
                     <button
                         type="button"
                         onClick={handleClose}
-                        className="shrink-0 rounded-lg p-2 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                        className="shrink-0 rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                         title={t('agentSettings.panel.closeEsc')}
                     >
                         <X className="h-5 w-5" />
@@ -290,7 +290,7 @@ export default function WorkspaceConfigPanel({ agentDir, onClose, refreshKey: ex
                 </div>
 
                 {/* Content Area — paper base so elevated cards stand out */}
-                <div className="flex-1 overflow-hidden bg-[var(--paper)]">
+                <div className="flex-1 overflow-hidden bg-[var(--bg)]">
                     {detailView.type === 'none' ? (
                         <>
                             {activeTab === 'general' && (
@@ -361,8 +361,8 @@ export default function WorkspaceConfigPanel({ agentDir, onClose, refreshKey: ex
                 </div>
 
                 {/* Footer hint */}
-                <div className="flex-shrink-0 border-t border-[var(--line)] bg-[var(--paper-inset)] px-6 py-2">
-                    <p className="text-center text-xs text-[var(--ink-muted)]">
+                <div className="flex-shrink-0 border-t border-[var(--line)] bg-[var(--inset)] px-6 py-2">
+                    <p className="text-center text-xs text-[var(--muted)]">
                         {t('agentSettings.panel.footer')}
                     </p>
                 </div>

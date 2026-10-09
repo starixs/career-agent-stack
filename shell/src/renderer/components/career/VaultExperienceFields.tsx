@@ -31,8 +31,8 @@ export function VaultExperienceFields({ experienceId, items, onChanged }: { expe
       {items.map(i => (
         <div key={i.id} className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-[var(--ink)]">{i.label || i.field}</span>
-          <span className="text-[var(--ink-muted)]">{i.preview || '已设置'}</span>
-          <code className="rounded bg-[var(--paper-inset)] px-1 text-[var(--ink-muted)]">{experiencePlaceholder(experienceId, i.field)}</code>
+          <span className="text-[var(--muted)]">{i.preview || '已设置'}</span>
+          <code className="rounded bg-[var(--inset)] px-1 text-[var(--muted)]">{experiencePlaceholder(experienceId, i.field)}</code>
           <Button variant="ghost" busy={action.busy} onClick={() => void remove(i.id)} aria-label={`删除 ${i.label || i.field}`}><Trash2 className="h-3.5 w-3.5" /></Button>
         </div>
       ))}
@@ -42,7 +42,7 @@ export function VaultExperienceFields({ experienceId, items, onChanged }: { expe
         <Field label="内容（真实值）"><TextInput value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} autoComplete="off" /></Field>
         <Button variant="primary" busy={action.busy} onClick={() => void add()}><Plus className="h-3.5 w-3.5" />添加</Button>
       </div>
-      {action.error && <div role="alert" className="text-xs text-[var(--error)]">{action.error}</div>}
+      {action.error && <div role="alert" className="text-xs text-[var(--danger)]">{action.error}</div>}
     </div>
   );
 }

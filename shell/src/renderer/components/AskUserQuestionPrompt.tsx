@@ -252,19 +252,19 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
             {/* 反相版（PRD 0.2.34）：padded 白卡，去 header 分隔线 / footer 内嵌栏，
                 颜色只落在被选中的选项上（accent 赭石）。交互逻辑一行未动。 */}
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 shadow-sm">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
                 {/* Header row */}
                 <div className="flex items-center gap-2.5">
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)]/10">
-                        <MessageCircleQuestion className="size-4 text-[var(--accent)]" />
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]/10">
+                        <MessageCircleQuestion className="size-4 text-[var(--primary)]" />
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-[var(--accent)] px-2 py-0.5 bg-[var(--accent)]/15 rounded-md">
+                            <span className="text-xs font-semibold text-[var(--primary)] px-2 py-0.5 bg-[var(--primary)]/15 rounded-md">
                                 {currentQuestion.header}
                             </span>
                             {totalQuestions > 1 && (
-                                <span className="text-xs text-[var(--ink-muted)]">
+                                <span className="text-xs text-[var(--muted)]">
                                     {currentIndex + 1} / {totalQuestions}
                                 </span>
                             )}
@@ -289,8 +289,8 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                     aria-pressed={isSelected}
                                     className={`w-full text-left px-4 py-3 rounded-lg border transition-all
                                         ${isSelected
-                                            ? 'border-[var(--accent)] bg-[var(--accent)]/8 ring-1 ring-[var(--accent)]/25'
-                                            : 'border-[var(--line-subtle)] bg-[var(--paper)] hover:border-[var(--line)] hover:bg-[var(--paper-inset)]'
+                                            ? 'border-[var(--primary)] bg-[var(--primary)]/8 ring-1 ring-[var(--primary)]/25'
+                                            : 'border-[var(--line)] bg-[var(--bg)] hover:border-[var(--line)] hover:bg-[var(--inset)]'
                                         }
                                         disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
@@ -298,15 +298,15 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                         <div className={`mt-0.5 flex-shrink-0 size-5 border-2 flex items-center justify-center
                                             ${currentQuestion.multiSelect ? 'rounded-md' : 'rounded-full'}
                                             ${isSelected
-                                                ? 'border-[var(--accent)] bg-[var(--accent)]'
+                                                ? 'border-[var(--primary)] bg-[var(--primary)]'
                                                 : 'border-[var(--line)]'
                                             }`}
                                         >
-                                            {isSelected && <Check className="size-3 text-[var(--on-accent)]" />}
+                                            {isSelected && <Check className="size-3 text-[var(--on-primary)]" />}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2">
-                                                <div className={`text-sm font-medium ${isSelected ? 'text-[var(--accent)]' : 'text-[var(--ink)]'}`}>
+                                                <div className={`text-sm font-medium ${isSelected ? 'text-[var(--primary)]' : 'text-[var(--ink)]'}`}>
                                                     {option.label}
                                                 </div>
                                                 {hasPreview && (
@@ -327,8 +327,8 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                                         className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded
                                                             transition-colors cursor-pointer select-none
                                                             ${isPreviewExpanded
-                                                                ? 'text-[var(--accent)] bg-[var(--accent)]/10'
-                                                                : 'text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--paper-inset)]'
+                                                                ? 'text-[var(--primary)] bg-[var(--primary)]/10'
+                                                                : 'text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--inset)]'
                                                             }`}
                                                         title={t('shell.askQuestion.preview')}
                                                     >
@@ -337,7 +337,7 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                                 )}
                                             </div>
                                             {option.description && (
-                                                <div className="text-xs text-[var(--ink-muted)] mt-0.5">
+                                                <div className="text-xs text-[var(--muted)] mt-0.5">
                                                     {option.description}
                                                 </div>
                                             )}
@@ -346,10 +346,10 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                 </button>
                                 {/* Inline preview panel (HTML content from SDK) */}
                                 {isPreviewExpanded && option.preview && (
-                                    <div className="mt-1 ml-8 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] overflow-hidden">
+                                    <div className="mt-1 ml-8 rounded-lg border border-[var(--line)] bg-[var(--inset)] overflow-hidden">
                                         <div
                                             className="p-3 text-xs text-[var(--ink)] overflow-auto max-h-64
-                                                [&_pre]:bg-[var(--paper)] [&_pre]:rounded [&_pre]:p-2 [&_pre]:overflow-x-auto [&_pre]:text-xs
+                                                [&_pre]:bg-[var(--bg)] [&_pre]:rounded [&_pre]:p-2 [&_pre]:overflow-x-auto [&_pre]:text-xs
                                                 [&_code]:font-mono [&_code]:text-xs
                                                 [&_p]:my-1 [&_ul]:ml-4 [&_ol]:ml-4 [&_li]:my-0.5"
                                             dangerouslySetInnerHTML={{
@@ -368,8 +368,8 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                     <div
                         className={`w-full text-left px-4 py-3 rounded-lg border transition-all
                             ${isCustomSelected
-                                ? 'border-[var(--accent)] bg-[var(--accent)]/8 ring-1 ring-[var(--accent)]/25'
-                                : 'border-[var(--line-subtle)] bg-[var(--paper)] hover:border-[var(--line)]'
+                                ? 'border-[var(--primary)] bg-[var(--primary)]/8 ring-1 ring-[var(--primary)]/25'
+                                : 'border-[var(--line)] bg-[var(--bg)] hover:border-[var(--line)]'
                             }`}
                     >
                         <div className="flex items-start gap-3">
@@ -381,11 +381,11 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                 <div className={`size-5 border-2 flex items-center justify-center
                                     ${currentQuestion.multiSelect ? 'rounded-md' : 'rounded-full'}
                                     ${isCustomSelected
-                                        ? 'border-[var(--accent)] bg-[var(--accent)]'
+                                        ? 'border-[var(--primary)] bg-[var(--primary)]'
                                         : 'border-[var(--line)]'
                                     }`}
                                 >
-                                    {isCustomSelected && <Check className="size-3 text-[var(--on-accent)]" />}
+                                    {isCustomSelected && <Check className="size-3 text-[var(--on-primary)]" />}
                                 </div>
                             </button>
                             <input
@@ -398,8 +398,8 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                 autoComplete={currentQuestion.isSecret ? 'off' : undefined}
                                 disabled={isSubmitting}
                                 className={`flex-1 min-w-0 bg-transparent text-sm outline-none
-                                    placeholder:text-[var(--ink-muted)]
-                                    ${isCustomSelected ? 'text-[var(--accent)]' : 'text-[var(--ink)]'}
+                                    placeholder:text-[var(--muted)]
+                                    ${isCustomSelected ? 'text-[var(--primary)]' : 'text-[var(--ink)]'}
                                     disabled:opacity-50`}
                             />
                         </div>
@@ -422,10 +422,10 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                     className={`h-1.5 rounded-full transition-all
                                         ${isCurrent ? 'w-6' : 'w-1.5'}
                                         ${isCurrent
-                                            ? 'bg-[var(--accent)]'
+                                            ? 'bg-[var(--primary)]'
                                             : isAnswered
-                                                ? 'bg-[var(--accent)]/40 hover:bg-[var(--accent)]/60'
-                                                : 'bg-[var(--line)] hover:bg-[var(--line-subtle)]'
+                                                ? 'bg-[var(--primary)]/40 hover:bg-[var(--primary)]/60'
+                                                : 'bg-[var(--line)] hover:bg-[var(--line)]'
                                         }`}
                                     disabled={isSubmitting}
                                 />
@@ -435,7 +435,7 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                 )}
 
                 {submitFailed && (
-                    <p role="alert" className="mt-3 text-xs text-[var(--error)]">
+                    <p role="alert" className="mt-3 text-xs text-[var(--danger)]">
                         {t('shell.toasts.submitFailedRetry')}
                     </p>
                 )}
@@ -446,8 +446,8 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                         onClick={handleCancel}
                         disabled={isSubmitting}
                         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg
-                            text-[var(--ink-muted)] hover:text-[var(--ink)]
-                            border border-[var(--line-subtle)] hover:border-[var(--line)] hover:bg-[var(--paper-inset)]
+                            text-[var(--muted)] hover:text-[var(--ink)]
+                            border border-[var(--line)] hover:border-[var(--line)] hover:bg-[var(--inset)]
                             transition-colors disabled:opacity-50"
                     >
                         <X className="size-3.5" />
@@ -461,8 +461,8 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                 onClick={handlePrevious}
                                 disabled={isSubmitting}
                                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
-                                    text-[var(--ink-muted)] hover:text-[var(--ink)]
-                                    border border-[var(--line-subtle)] hover:border-[var(--line)] hover:bg-[var(--paper-inset)]
+                                    text-[var(--muted)] hover:text-[var(--ink)]
+                                    border border-[var(--line)] hover:border-[var(--line)] hover:bg-[var(--inset)]
                                     transition-colors disabled:opacity-50"
                             >
                                 <ChevronLeft className="size-3.5" />
@@ -476,7 +476,7 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                 onClick={handleSubmit}
                                 disabled={!allAnswered || isSubmitting}
                                 className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-lg
-                                    text-[var(--on-accent)] bg-[var(--accent)] hover:bg-[var(--accent-warm-hover)]
+                                    text-[var(--on-primary)] bg-[var(--primary)] hover:bg-[var(--primary-hover)]
                                     transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <Check className="size-3.5" />
@@ -487,8 +487,8 @@ function AskUserQuestionForm({ request, onSubmit, onCancel }: AskUserQuestionPro
                                 onClick={handleNext}
                                 disabled={!hasCurrentAnswer || isSubmitting}
                                 className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg
-                                    text-[var(--ink)] hover:text-[var(--accent)]
-                                    border border-[var(--line-subtle)] hover:border-[var(--accent)]/30 hover:bg-[var(--accent)]/5
+                                    text-[var(--ink)] hover:text-[var(--primary)]
+                                    border border-[var(--line)] hover:border-[var(--primary)]/30 hover:bg-[var(--primary)]/5
                                     transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <span>{t('shell.askQuestion.next')}</span>

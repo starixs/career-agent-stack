@@ -104,10 +104,10 @@ describe('SkillsCommandsList project capability controls', () => {
     const commandIcon = commandCard?.querySelector('[data-capability-type-icon="command"]');
     const commandAuthor = commandCard?.querySelector('[data-capability-author]');
     expect(requiredCard?.querySelector('[data-capability-type-icon="skill"]')?.nextElementSibling).toContainElement(requiredTitle);
-    expect(systemStatus).toHaveClass('rounded-full', 'bg-[var(--paper-inset)]');
+    expect(systemStatus).toHaveClass('rounded-full', 'bg-[var(--inset)]');
     expect(commandIcon?.nextElementSibling).toContainElement(commandTitle);
     expect(commandTitle.nextElementSibling).toBe(commandAuthor);
-    expect(commandAuthor).not.toHaveClass('rounded-full', 'bg-[var(--paper-inset)]');
+    expect(commandAuthor).not.toHaveClass('rounded-full', 'bg-[var(--inset)]');
 
     fireEvent.click(requiredCard!);
     expect(onSelectSkill).toHaveBeenCalledWith('keystone-cli', 'user');

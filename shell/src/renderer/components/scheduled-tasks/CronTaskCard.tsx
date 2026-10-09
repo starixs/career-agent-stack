@@ -40,18 +40,18 @@ export default function CronTaskCard({ taskId, name, scheduleDesc, nextExecution
   }, [taskId, onOpenDetail, loading]);
 
   return (
-    <div className="my-2 rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--paper-elevated)] p-3.5 shadow-xs">
+    <div className="my-2 rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--paper)] p-3.5 shadow-xs">
       {/* Header */}
       <div className="mb-2 flex items-center gap-2">
-        <div className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-warm-subtle)]">
-          <Clock className="h-3.5 w-3.5 text-[var(--accent)]" />
+        <div className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--primary-soft)]">
+          <Clock className="h-3.5 w-3.5 text-[var(--primary)]" />
         </div>
-        <span className="text-xs font-medium text-[var(--accent)]">{t('cron.created')}</span>
+        <span className="text-xs font-medium text-[var(--primary)]">{t('cron.created')}</span>
       </div>
 
       {/* Body */}
       <p className="text-sm font-medium text-[var(--ink)]">{name || t('cron.untitledTask')}</p>
-      <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+      <p className="mt-0.5 text-xs text-[var(--muted)]">
         {scheduleDesc}
         {nextExecutionAt && (
           <span className="ml-1.5">{t('cron.nextInline', { time: formatCronNextExecution(nextExecutionAt, 'running', t, locale) })}</span>
@@ -63,7 +63,7 @@ export default function CronTaskCard({ taskId, name, scheduleDesc, nextExecution
         <button
           onClick={handleClick}
           disabled={loading}
-          className="mt-2.5 flex items-center gap-1 text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-warm-hover)] transition-colors disabled:opacity-50"
+          className="mt-2.5 flex items-center gap-1 text-xs font-medium text-[var(--primary)] hover:text-[var(--primary-hover)] transition-colors disabled:opacity-50"
         >
           {t('cron.viewDetails')}
           <ArrowRight className="h-3 w-3" />

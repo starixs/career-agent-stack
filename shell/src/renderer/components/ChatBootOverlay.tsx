@@ -31,21 +31,21 @@ export default function ChatBootOverlay({
         <div
             aria-hidden={!show}
             aria-live={show ? 'polite' : undefined}
-            className={`absolute inset-0 z-30 flex items-center justify-center bg-[var(--paper-elevated)]/80 backdrop-blur-sm ${show ? 'opacity-100' : 'pointer-events-none opacity-0 transition-opacity duration-300 ease-out'}`}
+            className={`absolute inset-0 z-30 flex items-center justify-center bg-[var(--paper)]/80 backdrop-blur-sm ${show ? 'opacity-100' : 'pointer-events-none opacity-0 transition-opacity duration-300 ease-out'}`}
         >
             <div className="flex max-w-md flex-col items-center gap-3 px-6 text-center">
                 {hasError
-                    ? <AlertCircle className="h-6 w-6 text-[var(--error)]" />
-                    : <Loader2 className={`h-6 w-6 text-[var(--ink-muted)] ${show ? 'animate-spin' : ''}`} />}
-                <p className="text-sm text-[var(--ink-muted)]">
+                    ? <AlertCircle className="h-6 w-6 text-[var(--danger)]" />
+                    : <Loader2 className={`h-6 w-6 text-[var(--muted)] ${show ? 'animate-spin' : ''}`} />}
+                <p className="text-sm text-[var(--muted)]">
                     {hasError ? t('shell.boot.restoreFailed') : t('shell.boot.loading')}
                 </p>
-                {hasError && <p className="text-xs text-[var(--ink-faint)]">{error}</p>}
+                {hasError && <p className="text-xs text-[var(--subtle)]">{error}</p>}
                 {hasError && onRetry && (
                     <button
                         type="button"
                         onClick={onRetry}
-                        className="rounded-md border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--ink-muted)] hover:bg-[var(--paper-hover)] hover:text-[var(--ink)]"
+                        className="rounded-md border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--muted)] hover:bg-[var(--paper-hover)] hover:text-[var(--ink)]"
                     >
                         {t('shell.boot.retry')}
                     </button>

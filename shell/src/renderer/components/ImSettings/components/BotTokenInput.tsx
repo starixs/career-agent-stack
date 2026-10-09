@@ -42,25 +42,25 @@ export default function BotTokenInput({
                         onBlur={handleBlur}
                         onKeyDown={(e) => !isImeComposingEvent(e) && (e.key === 'Enter' && handleBlur())}
                         placeholder={t('agentSettings.imComponents.tokenPlaceholder')}
-                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 pr-10 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)] focus:border-[var(--focus-border)] focus:outline-none"
+                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 pr-10 text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none"
                     />
                     <button
                         type="button"
                         onClick={() => setVisible(!visible)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--muted)] hover:text-[var(--ink)]"
                     >
                         {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                 </div>
                 {/* Verify status indicator */}
                 {verifyStatus === 'verifying' && (
-                    <Loader2 className="h-4 w-4 animate-spin text-[var(--ink-muted)]" />
+                    <Loader2 className="h-4 w-4 animate-spin text-[var(--muted)]" />
                 )}
                 {verifyStatus === 'valid' && (
                     <Check className="h-4 w-4 text-[var(--success)]" />
                 )}
                 {verifyStatus === 'invalid' && (
-                    <AlertCircle className="h-4 w-4 text-[var(--error)]" />
+                    <AlertCircle className="h-4 w-4 text-[var(--danger)]" />
                 )}
             </div>
             {verifyStatus === 'valid' && botUsername && (
@@ -69,7 +69,7 @@ export default function BotTokenInput({
                 </p>
             )}
             {verifyStatus === 'invalid' && (
-                <p className="text-xs text-[var(--error)]">
+                <p className="text-xs text-[var(--danger)]">
                     {t('agentSettings.imComponents.tokenInvalid')}
                 </p>
             )}

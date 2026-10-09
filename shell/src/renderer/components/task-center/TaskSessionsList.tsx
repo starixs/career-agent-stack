@@ -11,7 +11,7 @@
 // chat they asked for.
 //
 // Visual language follows Task Detail hierarchy (specs/design/task_center.md §6):
-// `rounded-lg hover:bg-[var(--hover-bg)]` row with a timestamp column on
+// `rounded-lg hover:bg-[var(--hover)]` row with a timestamp column on
 // the left and truncated title on the right. Timestamp column is 94px
 // (vs Launcher's 56px w-14) because this list shows `MM-DD HH:mm` whereas
 // Launcher's shows `HH:mm` only.
@@ -123,16 +123,16 @@ export function TaskSessionsList({ task, onBeforeOpen }: Props) {
           reads as a short hierarchy instead of a stack of unrelated cards. */}
       <div className="mb-2 flex items-baseline gap-2">
         <h3 className="text-sm font-semibold text-[var(--ink)]">{t('sessions.title')}</h3>
-        <span className="text-xs tabular-nums text-[var(--ink-muted)]">
+        <span className="text-xs tabular-nums text-[var(--muted)]">
           {task.sessionIds.length}
         </span>
       </div>
       {loading ? (
-        <div className="py-3 text-xs text-[var(--ink-muted)]/60">
+        <div className="py-3 text-xs text-[var(--muted)]/60">
           {t('sessions.loading')}
         </div>
       ) : sessions.length === 0 ? (
-        <div className="py-3 text-xs text-[var(--ink-muted)]/60">
+        <div className="py-3 text-xs text-[var(--muted)]/60">
           {task.sessionIds.length === 0 ? t('sessions.emptyNeverRun') : t('sessions.emptyMissing')}
         </div>
       ) : (
@@ -143,13 +143,13 @@ export function TaskSessionsList({ task, onBeforeOpen }: Props) {
               type="button"
               onClick={() => handleOpen(session.id)}
               title={t('sessions.openTitle', { id: session.id })}
-              className="group flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-[var(--hover-bg)]"
+              className="group flex w-full cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 text-left transition-colors hover:bg-[var(--hover)]"
             >
-              <div className="flex w-[94px] shrink-0 items-center gap-1 text-xs text-[var(--ink-muted)]/60">
+              <div className="flex w-[94px] shrink-0 items-center gap-1 text-xs text-[var(--muted)]/60">
                 <Clock className="h-2.5 w-2.5" />
                 <span className="whitespace-nowrap tabular-nums">{formatTimestamp(session.lastActiveAt)}</span>
               </div>
-              <span className="min-w-0 flex-1 truncate text-xs leading-5 text-[var(--ink-secondary)] transition-colors group-hover:text-[var(--ink)]">
+              <span className="min-w-0 flex-1 truncate text-xs leading-5 text-[var(--ink-2)] transition-colors group-hover:text-[var(--ink)]">
                 {getSessionDisplayText(session)}
               </span>
             </button>
@@ -158,7 +158,7 @@ export function TaskSessionsList({ task, onBeforeOpen }: Props) {
             <button
               type="button"
               onClick={() => setVisibleCount((count) => count + MAX_VISIBLE)}
-              className="mt-1 flex w-full items-center justify-between rounded-md px-1.5 py-1.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+              className="mt-1 flex w-full items-center justify-between rounded-md px-1.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
             >
               <span>{t('sessions.expandMore')}</span>
               <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />

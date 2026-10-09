@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { keystoneDefaultTheme } from './themes/keystone-default';
+import { careerTheme } from './themes/career';
 import { ThemeRegistry, themeRegistry, validateThemeDefinition } from './registry';
 import {
   collectContractBlocks,
@@ -39,36 +39,18 @@ function presetTokens(
 }
 
 describe('ThemeRegistry', () => {
-  const productionThemeIds = [
-    'keystone-light',
-    'keystone-default',
-    'default-black',
-    'sage',
-    'absolutely',
-    'linear',
-    'proof',
-    'codex',
-    'raycast',
-  ];
+  const productionThemeIds = ['keystone-default'];
 
-  it('ships nine complete production Themes in product order', () => {
+  it('ships exactly one production Theme', () => {
     expect(themeRegistry.getProductionIds()).toEqual(productionThemeIds);
     expect(themeRegistry.getAcceptedDefinitions().map(definition => definition.displayName)).toEqual([
-      'keystone Light',
-      'keystone Classic',
-      'keystone Classic2',
-      'Sage',
-      'Claude',
-      'Linear',
-      'Proof',
-      'Codex',
-      'Raycast',
+      '求职助理',
     ]);
     expect(themeRegistry.getProductionIds()).not.toContain(SYNTHETIC_THEME_ID);
   });
 
   it('resolves an omitted preference to the current product default', () => {
-    expect(themeRegistry.resolve(undefined, 'light', false).themeId).toBe('keystone-light');
+    expect(themeRegistry.resolve(undefined, 'light', false).themeId).toBe('keystone-default');
   });
 
   it('registers every production Theme on WebViews without color-mix support', () => {
@@ -94,9 +76,7 @@ describe('ThemeRegistry', () => {
       expect(swatches.light, `${themeId}.light`).toMatch(/^#/);
       expect(swatches.dark, `${themeId}.dark`).toMatch(/^#/);
     }
-    expect(themeRegistry.getPreviewSwatches('keystone-default').light).toBe('#c26d3a');
-    expect(themeRegistry.getPreviewSwatches('default-black').light).toBe('#111111');
-    expect(themeRegistry.getPreviewSwatches('keystone-light').light).toBe('#111111');
+    expect(themeRegistry.getPreviewSwatches('keystone-default').light).toBe('#2f4ba0');
   });
 
   it('keeps Theme and Appearance orthogonal for every production package', () => {
@@ -121,9 +101,9 @@ describe('ThemeRegistry', () => {
     for (const definition of themeRegistry.getAcceptedDefinitions()) {
       for (const scheme of ['light', 'dark'] as const) {
         const resolved = themeRegistry.resolve(definition.id, scheme, false);
-        expect(resolved.hero.productName).toBe('keystone');
-        expect(resolved.hero.slogans['zh-CN']).toBe('每个人都应享受智能的推背感，欢迎来到言出法随的世界');
-        expect(resolved.hero.slogans['en-US']).toBe('Your intent, amplified');
+        expect(resolved.hero.productName).toBe('求职助理');
+        expect(resolved.hero.slogans['zh-CN']).toBe('陪你把每一次投递认真走完');
+        expect(resolved.hero.slogans['en-US']).toBe('Every application, done with care');
         expect(resolved.adapters.xterm.palette.cursor).toBeTruthy();
         expect(resolved.adapters.monaco.data.colors['editorCursor.foreground']).toBeTruthy();
         expect(resolved.adapters.mermaid.themeVariables.primaryColor).toBeTruthy();
@@ -150,7 +130,7 @@ describe('ThemeRegistry', () => {
   });
 
   it('projects every adapter and Hero slot from a complete synthetic Theme', () => {
-    const registry = new ThemeRegistry([keystoneDefaultTheme, syntheticTheme]);
+    const registry = new ThemeRegistry([careerTheme, syntheticTheme]);
     const light = registry.resolve(SYNTHETIC_THEME_ID, 'light', true);
     const dark = registry.resolve(SYNTHETIC_THEME_ID, 'dark', false);
 
@@ -167,7 +147,7 @@ describe('ThemeRegistry', () => {
   });
 
   it('rejects duplicate IDs and incomplete Theme packages', () => {
-    expect(() => new ThemeRegistry([keystoneDefaultTheme, keystoneDefaultTheme])).toThrow('Duplicate Theme ID');
+    expect(() => new ThemeRegistry([careerTheme, careerTheme])).toThrow('Duplicate Theme ID');
 
     const missingToken = {
       ...syntheticTheme,
@@ -237,13 +217,13 @@ describe('ThemeRegistry', () => {
 
     const optionalGlobalFallback = {
       ...syntheticTheme,
-      stylesheetText: `${syntheticTheme.stylesheetText}\n:root { --paper: red !important; }`,
+      stylesheetText: `${syntheticTheme.stylesheetText}\n:root { --bg: red !important; }`,
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(optionalGlobalFallback)).toThrow('reserved for the canonical paired fallback');
 
     const nestedOptionalSchemeFallback = {
       ...syntheticTheme,
-      stylesheetText: `${syntheticTheme.stylesheetText}\n@media (min-width: 1px) { html[data-color-scheme='dark'] { --paper: red; } }`,
+      stylesheetText: `${syntheticTheme.stylesheetText}\n@media (min-width: 1px) { html[data-color-scheme='dark'] { --bg: red; } }`,
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(nestedOptionalSchemeFallback)).toThrow('reserved for the canonical paired fallback');
 
@@ -285,7 +265,7 @@ describe('ThemeRegistry', () => {
 
     const semicolonSelectorBypass = {
       ...syntheticTheme,
-      stylesheetText: `${syntheticTheme.stylesheetText}\n@media screen; :root { --paper: red; }`,
+      stylesheetText: `${syntheticTheme.stylesheetText}\n@media screen; :root { --bg: red; }`,
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(semicolonSelectorBypass)).toThrow('unsupported top-level statement');
 
@@ -344,32 +324,32 @@ describe('ThemeRegistry', () => {
     expect(() => validateThemeDefinition(optionalHeroFallback)).toThrow('reserved for the canonical paired fallback');
 
     const standaloneCanonicalFallback = {
-      ...keystoneDefaultTheme,
-      stylesheetText: `${keystoneDefaultTheme.stylesheetText}\n:root { --paper: red; }`,
+      ...careerTheme,
+      stylesheetText: `${careerTheme.stylesheetText}\n:root { --bg: red; }`,
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(standaloneCanonicalFallback)).toThrow('reserved for the canonical paired fallback');
 
     const lateCanonicalOverride = {
-      ...keystoneDefaultTheme,
-      stylesheetText: `${keystoneDefaultTheme.stylesheetText}\nhtml[data-theme-id='keystone-default'][data-color-scheme='light'] { --ink: initial; }`,
+      ...careerTheme,
+      stylesheetText: `${careerTheme.stylesheetText}\nhtml[data-theme-id='keystone-default'][data-color-scheme='light'] { --ink: initial; }`,
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(lateCanonicalOverride)).toThrow('unsupported or unscoped selector');
 
     const escapedCanonicalOverride = {
-      ...keystoneDefaultTheme,
-      stylesheetText: `${keystoneDefaultTheme.stylesheetText}\nhtml[data-theme-id='keystone-def\\61ult'][data-color-scheme='light'] { --ink: initial; }`,
+      ...careerTheme,
+      stylesheetText: `${careerTheme.stylesheetText}\nhtml[data-theme-id='keystone-def\\61ult'][data-color-scheme='light'] { --ink: initial; }`,
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(escapedCanonicalOverride)).toThrow('unsupported or unscoped selector');
 
     const splitCanonicalGlobalFallback = {
-      ...keystoneDefaultTheme,
-      stylesheetText: `${keystoneDefaultTheme.stylesheetText.replace(/\s*--font-body\s*:[^;]+;/, '')}\nhtml[data-theme-id='keystone-default'] { --font-body: system-ui, sans-serif; }`,
+      ...careerTheme,
+      stylesheetText: `${careerTheme.stylesheetText.replace(/\s*--font-sans\s*:[^;]+;/, '')}\nhtml[data-theme-id='keystone-default'] { --font-sans: system-ui, sans-serif; }`,
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(splitCanonicalGlobalFallback)).toThrow('unsupported or unscoped selector');
 
     const splitCanonicalSchemeFallback = {
-      ...keystoneDefaultTheme,
-      stylesheetText: `${keystoneDefaultTheme.stylesheetText.replace(/\s*--ink\s*:[^;]+;/, '')}\nhtml[data-theme-id='keystone-default'][data-color-scheme='light'] { --ink: #1c1612; }`,
+      ...careerTheme,
+      stylesheetText: `${careerTheme.stylesheetText.replace(/\s*--ink\s*:[^;]+;/, '')}\nhtml[data-theme-id='keystone-default'][data-color-scheme='light'] { --ink: #1c1612; }`,
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(splitCanonicalSchemeFallback)).toThrow('unsupported or unscoped selector');
 
@@ -391,8 +371,8 @@ describe('ThemeRegistry', () => {
     const invalidSchemeOverride = {
       ...syntheticTheme,
       stylesheetText: syntheticTheme.stylesheetText.replace(
-        "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {\n  --theme-body-background:",
-        "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {\n  --ink: initial !important;\n  --theme-body-background:",
+        "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {\n  --selected:",
+        "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {\n  --ink: initial !important;\n  --selected:",
       ),
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(invalidSchemeOverride)).toThrow('must not use !important');
@@ -430,27 +410,27 @@ describe('ThemeRegistry', () => {
 
     const escapedCssWideToken = {
       ...syntheticTheme,
-      stylesheetText: syntheticTheme.stylesheetText.replace('--font-body: system-ui, sans-serif;', '--font-body: \\69nitial;'),
+      stylesheetText: syntheticTheme.stylesheetText.replace('--font-sans: system-ui, sans-serif;', '--font-sans: \\69nitial;'),
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(escapedCssWideToken)).toThrow('missing CSS tokens');
 
     const escapedUnresolvedToken = {
       ...syntheticTheme,
-      stylesheetText: syntheticTheme.stylesheetText.replace('--font-body: system-ui, sans-serif;', '--font-body: v\\61r(--missing-font);'),
+      stylesheetText: syntheticTheme.stylesheetText.replace('--font-sans: system-ui, sans-serif;', '--font-sans: v\\61r(--missing-font);'),
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(escapedUnresolvedToken)).toThrow('missing CSS tokens');
 
     const importantGlobalToken = {
       ...syntheticTheme,
       stylesheetText: syntheticTheme.stylesheetText
-        .replace('--font-body: system-ui, sans-serif;', '--font-body: initial !important;')
+        .replace('--font-sans: system-ui, sans-serif;', '--font-sans: initial !important;')
         .replace(
           "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {",
-          "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {\n  --font-body: system-ui, sans-serif;",
+          "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {\n  --font-sans: system-ui, sans-serif;",
         )
         .replace(
           "html[data-theme-id='synthetic-test-theme'][data-color-scheme='dark'] {",
-          "html[data-theme-id='synthetic-test-theme'][data-color-scheme='dark'] {\n  --font-body: system-ui, sans-serif;",
+          "html[data-theme-id='synthetic-test-theme'][data-color-scheme='dark'] {\n  --font-sans: system-ui, sans-serif;",
         ),
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(importantGlobalToken)).toThrow('must not use !important');
@@ -458,14 +438,14 @@ describe('ThemeRegistry', () => {
     const spacedImportantGlobalToken = {
       ...syntheticTheme,
       stylesheetText: syntheticTheme.stylesheetText
-        .replace('--font-body: system-ui, sans-serif;', '--font-body: initial ! important;')
+        .replace('--font-sans: system-ui, sans-serif;', '--font-sans: initial ! important;')
         .replace(
           "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {",
-          "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {\n  --font-body: system-ui, sans-serif;",
+          "html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {\n  --font-sans: system-ui, sans-serif;",
         )
         .replace(
           "html[data-theme-id='synthetic-test-theme'][data-color-scheme='dark'] {",
-          "html[data-theme-id='synthetic-test-theme'][data-color-scheme='dark'] {\n  --font-body: system-ui, sans-serif;",
+          "html[data-theme-id='synthetic-test-theme'][data-color-scheme='dark'] {\n  --font-sans: system-ui, sans-serif;",
         ),
     } as ThemeDefinition;
     expect(() => validateThemeDefinition(spacedImportantGlobalToken)).toThrow('must not use !important');
@@ -587,16 +567,16 @@ describe('ThemeRegistry', () => {
 
   it('falls back as one complete default Theme and diagnoses an unknown ID once', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const registry = new ThemeRegistry([keystoneDefaultTheme, syntheticTheme]);
+    const registry = new ThemeRegistry([careerTheme, syntheticTheme]);
 
     const first = registry.resolve('missing-theme', 'dark', false);
     const second = registry.resolve('missing-theme', 'light', false);
 
     expect(first.requestedThemeId).toBe('missing-theme');
     expect(first.themeId).toBe('keystone-default');
-    expect(first.definition).toBe(keystoneDefaultTheme);
-    expect(first.adapters).toBe(keystoneDefaultTheme.schemes.dark);
-    expect(second.adapters).toBe(keystoneDefaultTheme.schemes.light);
+    expect(first.definition).toBe(careerTheme);
+    expect(first.adapters).toBe(careerTheme.schemes.dark);
+    expect(second.adapters).toBe(careerTheme.schemes.light);
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
@@ -607,7 +587,7 @@ describe('ThemeRegistry', () => {
       stylesheetText: syntheticTheme.stylesheetText.replace(/\s*--ink\s*:[^;]+;/, ''),
     } as ThemeDefinition;
 
-    const registry = new ThemeRegistry([keystoneDefaultTheme, invalidTheme]);
+    const registry = new ThemeRegistry([careerTheme, invalidTheme]);
 
     expect(registry.getProductionIds()).toEqual(['keystone-default']);
     expect(registry.resolve(invalidTheme.id, 'dark', false).themeId).toBe('keystone-default');
@@ -618,7 +598,7 @@ describe('ThemeRegistry', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const validAfterFailure = renamedSyntheticTheme('synthetic-after-construction-failure');
     const registry = new ThemeRegistry(
-      [keystoneDefaultTheme],
+      [careerTheme],
       [
         {
           id: 'broken-construction',
@@ -668,7 +648,7 @@ describe('ThemeRegistry', () => {
     corrupt(invalid);
 
     const registry = new ThemeRegistry(
-      [keystoneDefaultTheme],
+      [careerTheme],
       [
         { id: invalid.id, create: () => invalid },
         { id: validAfterFailure.id, create: () => validAfterFailure },

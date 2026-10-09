@@ -216,8 +216,8 @@ export default function SettingsHelperInbox({
                     onClick={handleHistoryClick}
                     className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium transition-colors ${
                         showHistory
-                            ? 'bg-[var(--paper-inset)] text-[var(--ink)]'
-                            : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                            ? 'bg-[var(--inset)] text-[var(--ink)]'
+                            : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                     }`}
                 >
                     <History className="h-3.5 w-3.5 flex-shrink-0" />
@@ -239,8 +239,8 @@ export default function SettingsHelperInbox({
                 padding symmetric (py-2) so the buttons sit centered in the
                 toolbar row instead of hugging the divider. */}
             <div
-                className={`relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--paper-elevated)] shadow-xs transition-shadow duration-150 hover:shadow-sm focus-within:shadow-sm ${
-                    isDragging ? 'ring-2 ring-[var(--accent-warm)]/40' : ''
+                className={`relative overflow-hidden rounded-[var(--radius-xl)] bg-[var(--paper)] shadow-xs transition-shadow duration-150 hover:shadow-sm focus-within:shadow-sm ${
+                    isDragging ? 'ring-2 ring-[var(--primary)]/40' : ''
                 } ${isSending ? 'pointer-events-none opacity-70' : ''}`}
                 {...dragHandlers}
             >
@@ -257,7 +257,7 @@ export default function SettingsHelperInbox({
                         onPaste={pasteHandler}
                         placeholder={t('helper.placeholder')}
                         rows={4}
-                        className="w-full resize-none overflow-y-auto border-0 bg-transparent text-base text-[var(--ink)] caret-[var(--accent-warm)] placeholder:text-[var(--ink-muted)] focus:outline-none"
+                        className="w-full resize-none overflow-y-auto border-0 bg-transparent text-base text-[var(--ink)] caret-[var(--primary)] placeholder:text-[var(--muted)] focus:outline-none"
                         style={{ maxHeight: 'calc(8 * var(--text-base--line-height) * var(--text-base))' }}
                     />
 
@@ -274,7 +274,7 @@ export default function SettingsHelperInbox({
                                     <button
                                         type="button"
                                         onClick={() => removeAt(img.id)}
-                                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ink)]/70 text-[var(--paper)] opacity-0 transition-all hover:bg-[var(--ink)] group-hover/thumb:opacity-100"
+                                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--ink)]/70 text-[var(--bg)] opacity-0 transition-all hover:bg-[var(--ink)] group-hover/thumb:opacity-100"
                                     >
                                         <X className="h-3 w-3" />
                                     </button>
@@ -300,13 +300,13 @@ export default function SettingsHelperInbox({
                     secondary tools on the left (attachment), primary
                     actions clustered on the right (model picker + send),
                     so users see the same affordance shape across surfaces. */}
-                <div className="flex items-center justify-between border-t border-[var(--line-subtle)] px-5 py-2">
+                <div className="flex items-center justify-between border-t border-[var(--line)] px-5 py-2">
                     <div className="flex items-center gap-1">
                         <Tip label={t('helper.addImage')} position="top">
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                className="flex items-center rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                             >
                                 <Paperclip className="h-3.5 w-3.5" />
                             </button>
@@ -333,7 +333,7 @@ export default function SettingsHelperInbox({
                                 type="button"
                                 onClick={handleSend}
                                 disabled={!canSend}
-                                className="flex items-center gap-1.5 rounded-full bg-[var(--button-primary-bg)] px-3.5 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                                className="flex items-center gap-1.5 rounded-full bg-[var(--primary)] px-3.5 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {isSending ? (
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

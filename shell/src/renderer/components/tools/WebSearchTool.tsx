@@ -87,7 +87,7 @@ export default function WebSearchTool({ tool }: WebSearchToolProps) {
   const showRawResult = tool.result && results.length === 0;
 
   if (!input && !tool.inputJson) {
-    return <div className="text-sm text-[var(--ink-muted)]">{t('shell.toolChrome.webSearch.initializing')}</div>;
+    return <div className="text-sm text-[var(--muted)]">{t('shell.toolChrome.webSearch.initializing')}</div>;
   }
 
   let query = input?.query || '';
@@ -111,10 +111,10 @@ export default function WebSearchTool({ tool }: WebSearchToolProps) {
             <ExternalLink
               key={item.url}
               href={item.url}
-              className="flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--paper-inset)] [&:hover_.result-title]:text-[var(--accent)] [&:hover_.result-icon]:opacity-100"
+              className="flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-[var(--inset)] [&:hover_.result-title]:text-[var(--primary)] [&:hover_.result-icon]:opacity-100"
             >
               {/* Globe icon */}
-              <Globe className="size-4 shrink-0 text-[var(--ink-muted)]" />
+              <Globe className="size-4 shrink-0 text-[var(--muted)]" />
 
               {/* Title */}
               <span className="result-title flex-1 truncate text-[var(--ink)] transition-colors">
@@ -122,7 +122,7 @@ export default function WebSearchTool({ tool }: WebSearchToolProps) {
               </span>
 
               {/* External link indicator */}
-              <ExternalLinkIcon className="result-icon size-3 shrink-0 text-[var(--ink-muted)] opacity-0 transition-opacity" />
+              <ExternalLinkIcon className="result-icon size-3 shrink-0 text-[var(--muted)] opacity-0 transition-opacity" />
             </ExternalLink>
           ))}
 
@@ -130,7 +130,7 @@ export default function WebSearchTool({ tool }: WebSearchToolProps) {
           {hasMore && !expanded && (
             <button
               onClick={() => setExpanded(true)}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
+              className="flex items-center gap-1 px-2 py-1 text-xs text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
             >
               <ChevronDown className="size-3" />
               <span>{t('shell.toolChrome.webSearch.expandRemaining', { count: hiddenCount })}</span>
@@ -142,17 +142,17 @@ export default function WebSearchTool({ tool }: WebSearchToolProps) {
       {/* Raw Output fallback — height-clamped for consistency with other tools */}
       {showRawResult && tool.result && (
         <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">{t('shell.toolChrome.webSearch.toolOutput')}</div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">{t('shell.toolChrome.webSearch.toolOutput')}</div>
           <ExpandableResult
             content={tool.result}
-            className="rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] p-3 text-xs text-[var(--ink-secondary)]"
+            className="rounded-lg border border-[var(--line)] bg-[var(--inset)] p-3 text-xs text-[var(--ink-2)]"
           />
         </div>
       )}
 
       {/* Loading state if no result yet */}
       {!tool.result && tool.isLoading && (
-        <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)] animate-pulse">
+        <div className="flex items-center gap-2 text-xs text-[var(--muted)] animate-pulse">
           <Globe className="size-3" />
           <span>{t('shell.toolChrome.webSearch.searchingFor', { query })}</span>
         </div>

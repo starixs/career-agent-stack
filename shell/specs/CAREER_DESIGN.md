@@ -497,8 +497,17 @@ keystone 的界面类 Token 和主题体系**全部删除**，只保留本文定
 | `--error`、`--error-bg` | `--danger`（不铺浅底） |
 | `--accent-warm*`、`--global-sidebar-bg` 等主题专属名 | 按用途映射到 `--side`、`--rail`、`--note` 等，逐个确认 |
 
-4. **删除**：`theme/themes/` 下 9 套主题、`registry.ts` / `registry-contract.ts` / `ThemeRuntime` 等主题切换代码及其测试；设置里的主题选择改成三种外观模式。`specs/DESIGN.md` 与 `tech_docs/theme_system.md` 标注为不适用于本产品。
-5. **范围注意**：这一步会动到 keystone 的非求职页面（Task Center、Records、设置等）。它们的颜色会跟着变成新配色，布局不变。
+4. **删除**：`theme/themes/` 下 8 套可选主题、`preset-theme` 生成器和设置里的主题选择器；设置只保留三种外观模式。`specs/DESIGN.md` 与 `tech_docs/theme_system.md` 不适用于本产品。
+5. **范围注意**：这一步动到了 keystone 的非求职页面（Task Center、Records、设置等），它们的颜色跟着变成新配色，布局不变。
+
+**落地情况（2026-10-09，分支 `feat/career-design-tokens`）**：
+
+- 唯一的主题包是 `src/renderer/theme/themes/career.css` + `career.ts`，前者是第 2–4 节数值的运行时来源；`registry-contract.ts` 只要求本文的 Token。
+- 主题 ID 仍是 `keystone-default`，这样用户已存的配置不需要迁移；默认主题和兜底主题都是它。
+- 主题运行时（`ThemeRuntime`、`registry`）保留，因为代码编辑器、终端、Mermaid 图、代码高亮和 Widget iframe 都通过它拿配色；它现在只注册这一个主题。
+- 旧名到新名用 `scripts/design/rename-tokens.py` 一次性改写；`themeArchitecture.test.ts` 里有一条守卫，渲染端源码再出现旧名就会失败。
+- 字体打包在 `src/renderer/assets/fonts/`，由 `theme/fonts.css` 声明：Source Sans 3 拉丁子集（28KB）和按字符区段切成 97 份的霞鹜文楷（共 5MB，只加载屏幕上用到的分片）。
+- 深色配色是暂定值，等深色专项再校准。
 
 外观只有三种模式：**浅色 / 深色 / 跟随系统**，只有这一套配色，不提供主题目录（**已确认**，2026-10-08）。设置里的外观选项是三选一，默认「跟随系统」；keystone 原有的 9 套主题不随求职产品发布。
 

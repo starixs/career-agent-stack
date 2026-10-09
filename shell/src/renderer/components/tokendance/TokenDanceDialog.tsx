@@ -6,11 +6,11 @@ import OverlayBackdrop from '../OverlayBackdrop';
 import { useCloseLayer } from '../../hooks/useCloseLayer';
 
 export const primaryButton =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-40';
+  'inline-flex items-center justify-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-40';
 export const secondaryButton =
-  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--paper-inset)] disabled:opacity-40';
+  'inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--inset)] disabled:opacity-40';
 export const iconButton =
-  'rounded-lg p-1.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-40';
+  'rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-40';
 
 export function TokenDanceDialog({
   title,
@@ -55,7 +55,7 @@ export function TokenDanceDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex max-h-[calc(100dvh-64px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xl"
+        className="flex max-h-[calc(100dvh-64px)] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-[var(--paper)] text-[var(--ink)] shadow-xl"
         onKeyDown={(event) => {
           if (isImeComposingEvent(event)) return;
           if (event.key === 'Escape') {
@@ -79,7 +79,7 @@ export function TokenDanceDialog({
           }
         }}
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--line-subtle)] px-6 py-5">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--line)] px-6 py-5">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h3 id={titleId} className="text-lg font-semibold">
@@ -88,7 +88,7 @@ export function TokenDanceDialog({
               {badge}
             </div>
             {subtitle && (
-              <p className="mt-1 text-sm text-[var(--ink-muted)]">{subtitle}</p>
+              <p className="mt-1 text-sm text-[var(--muted)]">{subtitle}</p>
             )}
           </div>
           <button
@@ -102,7 +102,7 @@ export function TokenDanceDialog({
         </header>
         <div className="space-y-5 overflow-y-auto px-6 py-5">{children}</div>
         {footer && (
-          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--line-subtle)] px-6 py-4">
+          <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-[var(--line)] px-6 py-4">
             {footer}
           </footer>
         )}
@@ -120,11 +120,11 @@ export function TokenDanceBadge({
 }) {
   const color =
     tone === 'muted'
-      ? 'bg-[var(--paper-inset)] text-[var(--ink-muted)]'
+      ? 'bg-[var(--inset)] text-[var(--muted)]'
       : tone === 'success'
         ? 'bg-[var(--success-bg)] text-[var(--success)]'
         : tone === 'error'
-          ? 'bg-[var(--error-bg)] text-[var(--error)]'
+          ? 'bg-[var(--danger-bg)] text-[var(--danger)]'
           : 'bg-[var(--info-bg)] text-[var(--info)]';
   return (
     <span

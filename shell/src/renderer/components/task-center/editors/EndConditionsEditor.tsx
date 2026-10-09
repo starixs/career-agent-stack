@@ -36,15 +36,15 @@ export function EndConditionsEditor({
   const { t } = useTranslation('task');
   return (
     <div className="space-y-3.5">
-      <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--paper-inset)] p-1">
+      <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--inset)] p-1">
         <button
           type="button"
           disabled={disabled}
           onClick={() => setMode('forever')}
           className={`flex flex-1 items-center justify-center rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
             mode === 'forever'
-              ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs'
-              : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+              ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs'
+              : 'text-[var(--muted)] hover:text-[var(--ink)]'
           }`}
         >
           {t('endConditions.forever')}
@@ -55,8 +55,8 @@ export function EndConditionsEditor({
           onClick={() => setMode('conditional')}
           className={`flex flex-1 items-center justify-center rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
             mode === 'conditional'
-              ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs'
-              : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+              ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs'
+              : 'text-[var(--muted)] hover:text-[var(--ink)]'
           }`}
         >
           {t('endConditions.conditional')}
@@ -65,7 +65,7 @@ export function EndConditionsEditor({
 
       {mode === 'conditional' && (
         <>
-          <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)]">
+          <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)]">
             <div
               className="flex cursor-pointer items-center justify-between border-b border-[var(--line)] px-3 py-2.5"
               onClick={() => {
@@ -91,7 +91,7 @@ export function EndConditionsEditor({
                 disabled={disabled}
                 onChange={(e) => setDeadline(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                className={`w-44 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none disabled:cursor-not-allowed ${
+                className={`w-44 rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none disabled:cursor-not-allowed ${
                   !deadline ? 'opacity-50' : ''
                 }`}
               />
@@ -120,12 +120,12 @@ export function EndConditionsEditor({
                   value={maxExecutions || 10}
                   disabled={disabled}
                   onChange={(e) => setMaxExecutions(e.target.value)}
-                  className={`w-16 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-center text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none disabled:cursor-not-allowed ${
+                  className={`w-16 rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-center text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none disabled:cursor-not-allowed ${
                     !maxExecutions ? 'opacity-50' : ''
                   }`}
                 />
                 <span
-                  className={`text-sm text-[var(--ink-secondary)] ${
+                  className={`text-sm text-[var(--ink-2)] ${
                     !maxExecutions ? 'opacity-50' : ''
                   }`}
                 >
@@ -134,14 +134,14 @@ export function EndConditionsEditor({
               </div>
             </div>
           </div>
-          <p className="text-sm text-[var(--ink-muted)]">
+          <p className="text-sm text-[var(--muted)]">
             {t('endConditions.conditionalHint')}
           </p>
         </>
       )}
 
       <div
-        className="flex cursor-pointer items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5"
+        className="flex cursor-pointer items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5"
         onClick={() => {
           if (disabled) return;
           setAiCanExit(!aiCanExit);

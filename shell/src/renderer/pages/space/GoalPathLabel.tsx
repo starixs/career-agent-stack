@@ -46,10 +46,10 @@ export function GoalPathLabel({ label, leafLabel }: GoalPathLabelProps) {
       className="flex w-full min-w-0 items-baseline justify-start text-left"
       title={label}
     >
-      <span className="min-w-0 truncate text-[var(--ink-muted)]/75">
+      <span className="min-w-0 truncate text-[var(--muted)]/75">
         {path.ancestor}
       </span>
-      <span className="shrink-0 whitespace-pre text-[var(--ink-muted)]/75">
+      <span className="shrink-0 whitespace-pre text-[var(--muted)]/75">
         {path.separator}
       </span>
       <span className="min-w-0 max-w-full shrink-0 truncate font-normal text-[var(--ink)]">

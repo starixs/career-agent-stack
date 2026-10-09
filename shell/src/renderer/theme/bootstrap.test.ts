@@ -45,7 +45,7 @@ describe('Theme bootstrap snapshot', () => {
       themeSelectionExplicit: false,
     }))).toEqual({
       version: 2,
-      themeId: 'keystone-light',
+      themeId: 'keystone-default',
       appearanceMode: 'light',
       themeSelectionExplicit: false,
     });
@@ -54,7 +54,7 @@ describe('Theme bootstrap snapshot', () => {
   it('uses the one-release legacy appearance key only when no current snapshot exists', () => {
     const legacy = memoryStorage({ [LEGACY_THEME_BOOTSTRAP_KEY]: 'dark' });
     expect(readThemeBootstrapSelection(legacy)).toEqual({
-      themeId: 'keystone-light',
+      themeId: 'keystone-default',
       appearanceMode: 'dark',
       themeSelectionExplicit: false,
     });

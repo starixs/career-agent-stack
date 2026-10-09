@@ -84,11 +84,11 @@ export default function Tip({
         >
           <span
             role="tooltip"
-            className={`block ${wrap ? "max-w-[min(32rem,calc(100vw-2rem))] whitespace-normal break-all" : "whitespace-nowrap"} rounded-md bg-[var(--button-dark-bg)]/90 px-2.5 py-1.5 text-xs leading-tight text-[var(--button-dark-text)]`}
+            className={`block ${wrap ? "max-w-[min(32rem,calc(100vw-2rem))] whitespace-normal break-all" : "whitespace-nowrap"} rounded-md bg-[var(--ink)]/90 px-2.5 py-1.5 text-xs leading-tight text-[var(--bg)]`}
           >
             {label}
             {shortcut && (
-              <span className="mt-0.5 block text-xs text-[var(--button-dark-text)]/70">
+              <span className="mt-0.5 block text-xs text-[var(--bg)]/70">
                 {shortcut}
               </span>
             )}

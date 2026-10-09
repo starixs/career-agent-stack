@@ -65,11 +65,11 @@ export function ToolHeader({ icon, label, toolName, tool }: ToolHeaderProps) {
 
   return (
     <div
-      className={`flex items-center gap-1.5 text-sm font-medium ${config?.colors.text || 'text-[var(--ink-muted)]'}`}
+      className={`flex items-center gap-1.5 text-sm font-medium ${config?.colors.text || 'text-[var(--muted)]'}`}
     >
       {displayIcon && (
         <span
-          className={`flex h-4 w-4 items-center justify-center ${config?.colors.iconColor || 'text-[var(--ink-muted)]'}`}
+          className={`flex h-4 w-4 items-center justify-center ${config?.colors.iconColor || 'text-[var(--muted)]'}`}
         >
           {displayIcon}
         </span>
@@ -95,7 +95,7 @@ export function MonoText({
   );
 }
 
-const FILE_PATH_BOX_CLASS = 'rounded border border-[var(--line-subtle)] bg-[var(--paper-inset)]/50 px-1.5 py-0.5';
+const FILE_PATH_BOX_CLASS = 'rounded border border-[var(--line)] bg-[var(--inset)]/50 px-1.5 py-0.5';
 
 function useResolvedFileAction(path?: string | null) {
   const fileAction = useFileAction();
@@ -147,7 +147,7 @@ export function FilePath({ path }: { path?: string | null }) {
 
   return (
     <code
-      className={`${MONO_BASE_CLASS} ${FILE_PATH_BOX_CLASS} cursor-pointer underline decoration-dashed decoration-[var(--ink-muted)] underline-offset-2 transition-colors hover:border-[var(--ink-muted)] hover:bg-[var(--accent-warm-subtle)]`}
+      className={`${MONO_BASE_CLASS} ${FILE_PATH_BOX_CLASS} cursor-pointer underline decoration-dashed decoration-[var(--muted)] underline-offset-2 transition-colors hover:border-[var(--muted)] hover:bg-[var(--primary-soft)]`}
       role="link"
       tabIndex={0}
       onClick={(e) => {
@@ -200,7 +200,7 @@ export function FileActionMenuButton({ path, className = '' }: { path?: string |
         const rect = event.currentTarget.getBoundingClientRect();
         resolvedAction.openMenu(rect.right, rect.bottom + 4);
       }}
-      className={`flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--ink-muted)] transition-[background-color,color,transform] duration-150 hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-border)]/30 ${className}`}
+      className={`flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] transition-[background-color,color,transform] duration-150 hover:bg-[var(--inset)] hover:text-[var(--ink)] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 ${className}`}
     >
       <Ellipsis className="size-4" aria-hidden="true" />
     </button>
@@ -209,7 +209,7 @@ export function FileActionMenuButton({ path, className = '' }: { path?: string |
 
 export function InlineCode({ children }: { children: ReactNode }) {
   return (
-    <MonoText className="rounded border border-[var(--line-subtle)] bg-[var(--paper-inset)]/50 px-1.5 py-0.5">
+    <MonoText className="rounded border border-[var(--line)] bg-[var(--inset)]/50 px-1.5 py-0.5">
       {children}
     </MonoText>
   );
@@ -276,9 +276,9 @@ export function unwrapSdkResult(result: string): string {
  *  and the class strings stay literal for Tailwind JIT extraction. */
 export type ExpandFade = 'paper-inset' | 'paper-elevated' | 'code-bg';
 const EXPAND_FADE_CLASSES: Record<ExpandFade, string> = {
-  'paper-inset': 'from-[var(--paper-inset)] to-[var(--paper-inset-a0)]',
-  'paper-elevated': 'from-[var(--paper-elevated)] to-[var(--paper-elevated-a0)]',
-  'code-bg': 'from-[var(--code-bg)] to-[var(--code-bg-a0)]',
+  'paper-inset': 'from-[var(--inset)] to-[var(--inset-a0)]',
+  'paper-elevated': 'from-[var(--paper)] to-[var(--paper-a0)]',
+  'code-bg': 'from-[var(--inset)] to-[var(--inset-a0)]',
 };
 
 interface ExpandableContainerProps {
@@ -333,7 +333,7 @@ export function ExpandableContainer({
               notifyRowLayoutChanged('expandable-container-expand');
               setIsExpanded(true);
             }}
-            className="rounded-full border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-1 text-xs text-[var(--ink-muted)] shadow-sm hover:text-[var(--ink-secondary)] transition-colors"
+            className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-3 py-1 text-xs text-[var(--muted)] shadow-sm hover:text-[var(--ink-2)] transition-colors"
           >
             {t('shell.toolChrome.common.expandAll')}
           </button>

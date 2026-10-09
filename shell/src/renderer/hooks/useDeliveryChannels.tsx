@@ -123,7 +123,7 @@ export function useDeliveryChannels(currentWorkspacePath?: string) {
         const statusText = t(`notifications.channelStatus.${ch.status}`, {
           defaultValue: t('notifications.channelStatus.offline'),
         });
-        const statusColor = ch.status === 'online' ? 'text-[var(--success)]' : 'text-[var(--ink-muted)]';
+        const statusColor = ch.status === 'online' ? 'text-[var(--success)]' : 'text-[var(--muted)]';
 
         map.set(ch.channelId, {
           botId: ch.channelId,

@@ -56,7 +56,7 @@ interface RichDocViewerProps {
 }
 
 const Spinner = (
-  <div className="flex h-full items-center justify-center bg-[var(--paper-elevated)] text-[var(--ink-muted)]">
+  <div className="flex h-full items-center justify-center bg-[var(--paper)] text-[var(--muted)]">
     <Loader2 className="h-5 w-5 animate-spin" />
   </div>
 );
@@ -124,9 +124,9 @@ export default function RichDocViewer({ kind, path, workspacePath, localPath = n
   if (state.phase === 'error' || renderError) {
     const tooLarge = state.phase === 'error' && state.tooLarge;
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--paper-elevated)] px-6 text-center">
-        <FileWarning className="h-9 w-9 text-[var(--ink-subtle)]" />
-        <p className="max-w-md text-sm text-[var(--ink-muted)]">
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--paper)] px-6 text-center">
+        <FileWarning className="h-9 w-9 text-[var(--subtle)]" />
+        <p className="max-w-md text-sm text-[var(--muted)]">
           {tooLarge
             ? t('richDoc.tooLarge')
             : renderError
@@ -136,7 +136,7 @@ export default function RichDocViewer({ kind, path, workspacePath, localPath = n
         <button
           type="button"
           onClick={openExternal}
-          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line-strong)] bg-[var(--button-secondary-bg)] px-3 py-1.5 text-sm font-semibold text-[var(--ink)] shadow-sm transition-all duration-150 hover:bg-[var(--button-secondary-bg-hover)] hover:shadow-md active:scale-[0.98]"
+          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--line-2)] bg-[var(--paper)] px-3 py-1.5 text-sm font-semibold text-[var(--ink)] shadow-sm transition-all duration-150 hover:bg-[var(--hover)] hover:shadow-md active:scale-[0.98]"
         >
           <ExternalLink className="h-3.5 w-3.5" />
           {t('richDoc.openDefault')}
@@ -147,9 +147,9 @@ export default function RichDocViewer({ kind, path, workspacePath, localPath = n
 
   if (isEmpty) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--paper-elevated)] px-6 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--paper)] px-6 text-center">
         <FileIcon name={path} size="display" />
-        <p className="text-sm text-[var(--ink-muted)]">{t('richDoc.empty')}</p>
+        <p className="text-sm text-[var(--muted)]">{t('richDoc.empty')}</p>
       </div>
     );
   }

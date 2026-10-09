@@ -268,7 +268,7 @@ const ProcessRow = memo(function ProcessRow({
             mainLabel = durationSec > 0 ?
                 t('shell.toolChrome.thinking.failedWithSeconds', { seconds: durationSec })
                 : t('shell.toolChrome.thinking.failed');
-            icon = <XCircle className="size-4 text-[var(--error)]" />;
+            icon = <XCircle className="size-4 text-[var(--danger)]" />;
         } else if (block.isStopped) {
             mainLabel = durationSec > 0 ?
                 t('shell.toolChrome.thinking.stoppedWithSeconds', { seconds: durationSec })
@@ -292,11 +292,11 @@ const ProcessRow = memo(function ProcessRow({
             // the dot and the detail panel's "Agent is running" badge.
             icon = <Loader2 className="size-4 animate-spin" />;
         } else if (subagentLifecycleStatus === 'failed' || block.tool.isFailed) {
-            icon = <XCircle className="size-4 text-[var(--error)]" />;
+            icon = <XCircle className="size-4 text-[var(--danger)]" />;
         } else if (subagentLifecycleStatus === 'interrupted' || block.tool.isStopped) {
             icon = <StopCircle className="size-4 text-[var(--warning)]" />;
         } else if (block.tool.isError) {
-            icon = <AlertCircle className="size-4 text-[var(--error)]" />;
+            icon = <AlertCircle className="size-4 text-[var(--danger)]" />;
         } else {
             icon = config.icon;
         }
@@ -308,7 +308,7 @@ const ProcessRow = memo(function ProcessRow({
     const toolAnchorId = isTaskTool ? block.tool?.id : undefined;
     return (
         <div
-            className={`group select-none ${index < totalBlocks - 1 ? 'border-b border-[var(--line-subtle)]' : ''}`}
+            className={`group select-none ${index < totalBlocks - 1 ? 'border-b border-[var(--line)]' : ''}`}
             data-tool-id={toolAnchorId}
         >
             <button
@@ -316,7 +316,7 @@ const ProcessRow = memo(function ProcessRow({
                 onClick={handleToggle}
                 disabled={!hasContent}
                 aria-expanded={hasContent ? isExpanded : undefined}
-                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${hasContent ? 'cursor-pointer hover:bg-[var(--hover-bg)]' : 'cursor-default'
+                className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${hasContent ? 'cursor-pointer hover:bg-[var(--hover)]' : 'cursor-default'
                     }`}
             >
                 {/* Left indicator dot - smaller.
@@ -332,46 +332,46 @@ const ProcessRow = memo(function ProcessRow({
                 <div className={`flex size-1.5 shrink-0 rounded-full ${isBlockActive
                     ? 'bg-[var(--success)] animate-pulse'
                     : block.isFailed || block.tool?.isFailed || subagentLifecycleStatus === 'failed'
-                        ? 'bg-[var(--error)]'
+                        ? 'bg-[var(--danger)]'
                         : block.isStopped || block.tool?.isStopped || subagentLifecycleStatus === 'interrupted'
                             ? 'bg-[var(--warning)]'
-                            : 'bg-[var(--ink-muted)]/40'
+                            : 'bg-[var(--muted)]/40'
                     }`} />
 
                 {/* Icon - fixed size container */}
-                <div className={`flex size-4 shrink-0 items-center justify-center text-[var(--ink-muted)] [&>svg]:size-4`}>
+                <div className={`flex size-4 shrink-0 items-center justify-center text-[var(--muted)] [&>svg]:size-4`}>
                     {icon}
                 </div>
 
                 {/* Main Label */}
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                     <span className={`text-sm leading-snug ${isThinking
-                        ? 'text-[var(--ink-secondary)]'
+                        ? 'text-[var(--ink-2)]'
                         : 'text-[var(--ink)] font-medium'
                         }`}>
                         {mainLabel}
                     </span>
                     {/* Background task badge */}
                     {isTaskTool && isBackgroundSubagentTool(block.tool) && (
-                        <span className="rounded-full bg-[var(--accent)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--accent)]">
+                        <span className="rounded-full bg-[var(--primary)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--primary)]">
                             {t('shell.toolChrome.common.background')}
                         </span>
                     )}
                     {/* Task duration - similar to thinking duration */}
                     {taskDuration && (
-                        <span className="text-xs text-[var(--ink-muted)]">
+                        <span className="text-xs text-[var(--muted)]">
                             {taskDuration}
                         </span>
                     )}
                     {subLabel && subLabel !== mainLabel && (
-                        <span className="max-w-[60%] text-xs text-[var(--ink-muted)] font-mono truncate">
+                        <span className="max-w-[60%] text-xs text-[var(--muted)] font-mono truncate">
                             {subLabel}
                         </span>
                     )}
                     {/* — process-media badge: screenshots live inside this fold;
                         the badge is the collapsed-state affordance that they exist. */}
                     {processAttachments.length > 0 && (
-                        <span className="flex shrink-0 items-center gap-0.5 text-xs text-[var(--ink-muted)]">
+                        <span className="flex shrink-0 items-center gap-0.5 text-xs text-[var(--muted)]">
                             <ImageIcon className="size-3" />
                             {processAttachments.length > 1 ? `×${processAttachments.length}` : ''}
                         </span>
@@ -381,7 +381,7 @@ const ProcessRow = memo(function ProcessRow({
 
                 {/* Chevron */}
                 {hasContent && (
-                    <ChevronDown className={`size-4 text-[var(--ink-muted)] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
+                    <ChevronDown className={`size-4 text-[var(--muted)] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''
                         }`} />
                 )}
             </button>
@@ -398,13 +398,13 @@ const ProcessRow = memo(function ProcessRow({
             {hasContent && isExpanded && (
                 <div className="grid grid-rows-[1fr] transition-[grid-template-rows] duration-200 ease-out">
                     <div className="overflow-hidden">
-                        <div className="border-t border-[var(--line)] bg-[var(--paper-elevated)]/50 px-4 pb-4 pt-3">
+                        <div className="border-t border-[var(--line)] bg-[var(--paper)]/50 px-4 pb-4 pt-3">
                             <div
                                 data-process-body-layout={isFilePatchTool ? 'full' : 'indented'}
                                 className={isFilePatchTool ? '' : 'ml-7'}
                             >
                                 {isThinking && block.thinking && (
-                                    <div className="group/think text-[var(--ink-secondary)] select-text">
+                                    <div className="group/think text-[var(--ink-2)] select-text">
                                         <Markdown compact>{block.thinking}</Markdown>
                                         {!isThinkingActive && (
                                             <div className="-ml-2 mt-2 flex select-none items-center gap-1 opacity-0 transition-opacity duration-150 group-hover/think:opacity-100 focus-within:opacity-100">
@@ -412,7 +412,7 @@ const ProcessRow = memo(function ProcessRow({
                                                     <button type="button"
                                                         aria-label={t('shell.toolChrome.thinking.copyAria')}
                                                         onClick={handleCopyThinking}
-                                                        className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+                                                        className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
                                                         {thinkingCopied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                                                     </button>
                                                 </Tip>
@@ -420,7 +420,7 @@ const ProcessRow = memo(function ProcessRow({
                                                     <button type="button"
                                                         aria-label={t('shell.toolChrome.thinking.exportAria')}
                                                         onClick={handleExportThinking}
-                                                        className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+                                                        className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
                                                         <Download className="size-3.5" />
                                                     </button>
                                                 </Tip>

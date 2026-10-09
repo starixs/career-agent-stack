@@ -697,7 +697,7 @@ export function ThoughtPanel({
                     the em box center, making items-center alone read as
                     icon-too-high. Same tweak on TaskListPanel's CheckSquare. */}
                 <NotebookPen
-                  className="relative top-[1px] h-4 w-4 shrink-0 text-[var(--ink-muted)]"
+                  className="relative top-[1px] h-4 w-4 shrink-0 text-[var(--muted)]"
                   strokeWidth={1.5}
                 />
                 <span className="whitespace-nowrap text-base font-semibold text-[var(--ink)]">
@@ -732,7 +732,7 @@ export function ThoughtPanel({
             header) by absolutely positioning with both edges instead
             of a fixed pixel width. */}
         <div
-          className="absolute left-4 right-4 top-full z-30 mt-1 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--paper-elevated)] shadow-md"
+          className="absolute left-4 right-4 top-full z-30 mt-1 overflow-hidden rounded-md border border-[var(--line)] bg-[var(--paper)] shadow-md"
           style={{
             maxHeight: showTagCloud ? '220px' : '0px',
             opacity: showTagCloud ? 1 : 0,
@@ -741,7 +741,7 @@ export function ThoughtPanel({
               'max-height 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease-out',
           }}
         >
-          <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">
+          <div className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">
             {t('thoughts.tagFilter')}
           </div>
           <div className="flex max-h-[190px] flex-wrap gap-1.5 overflow-y-auto px-2 pb-2">
@@ -756,10 +756,10 @@ export function ThoughtPanel({
                   setActiveTag(tag);
                   searchInputRef.current?.blur();
                 }}
-                className="rounded-[var(--radius-md)] bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--accent-warm-subtle)] hover:text-[var(--accent-warm)]"
+                className="rounded-[var(--radius-md)] bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
               >
                 #{tag}
-                <span className="ml-1 text-[var(--ink-muted)]/60">{n}</span>
+                <span className="ml-1 text-[var(--muted)]/60">{n}</span>
               </button>
             ))}
           </div>
@@ -818,13 +818,13 @@ export function ThoughtPanel({
       <div className="flex min-h-[34px] items-center justify-between px-4 py-1.5">
         {activeTag ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold tracking-[0.04em] text-[var(--ink-muted)]">
+            <span className="text-sm font-semibold tracking-[0.04em] text-[var(--muted)]">
               {t('thoughts.filter')}
             </span>
             <button
               type="button"
               onClick={() => setActiveTag(null)}
-              className="flex items-center gap-1 rounded-[var(--radius-md)] bg-[var(--accent-warm-muted)] px-2 py-0.5 text-xs text-[var(--accent-warm)]"
+              className="flex items-center gap-1 rounded-[var(--radius-md)] bg-[var(--primary-muted)] px-2 py-0.5 text-xs text-[var(--primary)]"
               title={t('thoughts.clearFilter')}
             >
               #{activeTag}
@@ -832,20 +832,20 @@ export function ThoughtPanel({
             </button>
           </div>
         ) : (
-          <span className="text-sm font-semibold tracking-[0.04em] text-[var(--ink-muted)]">
+          <span className="text-sm font-semibold tracking-[0.04em] text-[var(--muted)]">
             {t('thoughts.centerTitle')}{' '}
-            <span className="text-[var(--ink-muted)]/60">
+            <span className="text-[var(--muted)]/60">
               ({thoughts.length + audioRecords.length})
             </span>
           </span>
         )}
-        <div className="ml-auto mr-2 flex items-center gap-0.5 rounded-full bg-[var(--paper-inset)] p-0.5">
+        <div className="ml-auto mr-2 flex items-center gap-0.5 rounded-full bg-[var(--inset)] p-0.5">
           {(['all', 'text', 'audio'] as const).map((kind) => (
             <button
               key={kind}
               type="button"
               onClick={() => setKindFilter(kind)}
-              className={`rounded-full px-2 py-0.5 text-xs transition-colors ${kindFilter === kind ? 'bg-[var(--paper-elevated)] font-medium text-[var(--ink)] shadow-sm' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}
+              className={`rounded-full px-2 py-0.5 text-xs transition-colors ${kindFilter === kind ? 'bg-[var(--paper)] font-medium text-[var(--ink)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
             >
               {t(`records.kind.${kind}`)}
             </button>
@@ -855,7 +855,7 @@ export function ThoughtPanel({
             with two pills (活跃 / 已归档) sharing one pill background.
             Selecting a segment changes the panel's data source via
             `viewMode`. No per-segment count by user request (PRD §2.1). */}
-        <div className="flex items-center gap-0.5 rounded-full bg-[var(--paper-inset)] p-0.5">
+        <div className="flex items-center gap-0.5 rounded-full bg-[var(--inset)] p-0.5">
           {(
             [
               ['active', t('thoughts.viewActive')],
@@ -881,8 +881,8 @@ export function ThoughtPanel({
                 }}
                 className={`rounded-full px-2.5 py-0.5 text-xs transition-colors ${
                   isActive
-                    ? 'bg-[var(--paper-elevated)] font-medium text-[var(--ink)] shadow-sm'
-                    : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                    ? 'bg-[var(--paper)] font-medium text-[var(--ink)] shadow-sm'
+                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
                 }`}
                 aria-pressed={isActive}
               >
@@ -898,24 +898,24 @@ export function ThoughtPanel({
         {loadError && (
           <div
             role="alert"
-            className="mx-4 mt-3 flex shrink-0 items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--ink-secondary)]"
+            className="mx-4 mt-3 flex shrink-0 items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--ink-2)]"
           >
             <span>{t('records.listLoadFailed')}</span>
             <button
               type="button"
               onClick={() => void reload()}
-              className="shrink-0 font-semibold text-[var(--accent-warm)] hover:underline"
+              className="shrink-0 font-semibold text-[var(--primary)] hover:underline"
             >
               {t('records.retryLoad')}
             </button>
           </div>
         )}
         {loading ? (
-          <div className="py-8 text-center text-sm text-[var(--ink-muted)]">
+          <div className="py-8 text-center text-sm text-[var(--muted)]">
             {t('common.loading')}
           </div>
         ) : visibleItems.length === 0 ? (
-          <div className="py-12 text-center text-sm text-[var(--ink-muted)]">
+          <div className="py-12 text-center text-sm text-[var(--muted)]">
             {thoughts.length + audioRecords.length === 0
               ? viewMode === 'archived'
                 ? t('records.emptyArchived')

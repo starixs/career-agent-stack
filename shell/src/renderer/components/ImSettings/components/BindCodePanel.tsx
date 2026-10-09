@@ -33,9 +33,9 @@ export default function BindCodePanel({
     }, [bindCode]);
 
     return (
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
             <div className="flex items-center gap-2 mb-3">
-                <MessageSquare className="h-4 w-4 text-[var(--ink-muted)]" />
+                <MessageSquare className="h-4 w-4 text-[var(--muted)]" />
                 <h3 className="text-sm font-semibold text-[var(--ink)]">
                     {t('agentSettings.imComponents.bindCodeTitle')}
                 </h3>
@@ -46,18 +46,18 @@ export default function BindCodePanel({
                 )}
             </div>
 
-            <p className="mb-4 text-xs text-[var(--ink-muted)]">
+            <p className="mb-4 text-xs text-[var(--muted)]">
                 {t('agentSettings.imComponents.bindCodeDescription', { platform: platformDisplayName })}
             </p>
 
             {/* Bind code display */}
             <div className="flex items-center gap-3">
-                <code className="flex-1 rounded-lg bg-[var(--paper-inset)] px-4 py-3 text-center text-lg font-mono font-bold text-[var(--ink)] tracking-wider">
+                <code className="flex-1 rounded-lg bg-[var(--inset)] px-4 py-3 text-center text-lg font-mono font-bold text-[var(--ink)] tracking-wider">
                     {bindCode}
                 </code>
                 <button
                     onClick={handleCopy}
-                    className="flex-shrink-0 rounded-lg border border-[var(--line)] p-2.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                    className="flex-shrink-0 rounded-lg border border-[var(--line)] p-2.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                     title={t('agentSettings.imComponents.copyCode')}
                 >
                     {copied ? <Check className="h-4 w-4 text-[var(--success)]" /> : <Copy className="h-4 w-4" />}
@@ -65,17 +65,17 @@ export default function BindCodePanel({
             </div>
 
             {/* Instructions */}
-            <div className="mt-4 space-y-2 text-xs text-[var(--ink-muted)]">
+            <div className="mt-4 space-y-2 text-xs text-[var(--muted)]">
                 <div className="flex items-start gap-2">
-                    <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--button-primary-bg)] text-xs font-bold text-[var(--button-primary-text)]">1</span>
+                    <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-[var(--on-primary)]">1</span>
                     <span>{t('agentSettings.imComponents.bindCodeStepOpen', { platform: platformDisplayName })}</span>
                 </div>
                 <div className="flex items-start gap-2">
-                    <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--button-primary-bg)] text-xs font-bold text-[var(--button-primary-text)]">2</span>
+                    <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-[var(--on-primary)]">2</span>
                     <span>{t('agentSettings.imComponents.bindCodeStepSend')}</span>
                 </div>
                 <div className="flex items-start gap-2">
-                    <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--button-primary-bg)] text-xs font-bold text-[var(--button-primary-text)]">3</span>
+                    <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-[var(--on-primary)]">3</span>
                     <span>{t('agentSettings.imComponents.bindingStepDone')}</span>
                 </div>
             </div>

@@ -181,14 +181,14 @@ export default function RecordingSourceDialog({
                     [option.key]: !current[option.key],
                   }))
                 }
-                className={`flex w-full items-start gap-3 rounded-[var(--radius-lg)] border px-3 py-3 text-left transition-[background-color,border-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60 ${
+                className={`flex w-full items-start gap-3 rounded-[var(--radius-lg)] border px-3 py-3 text-left transition-[background-color,border-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 active:scale-[0.99] disabled:cursor-wait disabled:opacity-60 ${
                   selected
-                    ? 'border-[var(--accent)] bg-[var(--accent-warm-subtle)]'
-                    : 'border-[var(--line)] bg-[var(--paper-inset)] hover:border-[var(--line-strong)]'
+                    ? 'border-[var(--primary)] bg-[var(--primary-soft)]'
+                    : 'border-[var(--line)] bg-[var(--inset)] hover:border-[var(--line-2)]'
                 }`}
               >
                 <span
-                  className={`mt-0.5 shrink-0 ${selected ? 'text-[var(--accent-warm)]' : 'text-[var(--ink-muted)]'}`}
+                  className={`mt-0.5 shrink-0 ${selected ? 'text-[var(--primary)]' : 'text-[var(--muted)]'}`}
                 >
                   {option.icon}
                 </span>
@@ -196,7 +196,7 @@ export default function RecordingSourceDialog({
                   <span className="block text-sm font-semibold text-[var(--ink)]">
                     {option.title}
                   </span>
-                  <span className="mt-1 block text-xs leading-relaxed text-[var(--ink-muted)]">
+                  <span className="mt-1 block text-xs leading-relaxed text-[var(--muted)]">
                     {option.description}
                   </span>
                 </span>
@@ -205,18 +205,18 @@ export default function RecordingSourceDialog({
           })}
 
           {!hasSource && (
-            <p className="text-xs text-[var(--error)]" role="alert">
+            <p className="text-xs text-[var(--danger)]" role="alert">
               {t('records.recordingSourceRequired')}
             </p>
           )}
 
           {modelPackUsable === false && (
-            <div className="rounded-[var(--radius-md)] bg-[var(--warning-bg)] px-3 py-2.5 text-xs leading-relaxed text-[var(--ink-secondary)]">
+            <div className="rounded-[var(--radius-md)] bg-[var(--warning-bg)] px-3 py-2.5 text-xs leading-relaxed text-[var(--ink-2)]">
               {t('records.recordingWithoutTranscript')}{' '}
               <button
                 type="button"
                 onClick={onOpenSpeechSettings}
-                className="font-semibold text-[var(--accent-warm)] hover:underline"
+                className="font-semibold text-[var(--primary)] hover:underline"
               >
                 {t('records.openSpeechTool')}
               </button>
@@ -225,7 +225,7 @@ export default function RecordingSourceDialog({
 
           {error && (
             <div
-              className="rounded-[var(--radius-md)] bg-[var(--error-bg)] px-3 py-2.5 text-xs leading-relaxed text-[var(--error)]"
+              className="rounded-[var(--radius-md)] bg-[var(--danger-bg)] px-3 py-2.5 text-xs leading-relaxed text-[var(--danger)]"
               role="alert"
             >
               {sourceErrorMessage(error, t)}
@@ -278,7 +278,7 @@ export default function RecordingSourceDialog({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="rounded-[var(--radius-md)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] disabled:opacity-50"
+            className="rounded-[var(--radius-md)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:bg-[var(--inset)] disabled:opacity-50"
           >
             {t('records.cancel')}
           </button>
@@ -286,7 +286,7 @@ export default function RecordingSourceDialog({
             type="button"
             onClick={() => void onConfirm(selection)}
             disabled={busy || !hasSource}
-            className="rounded-[var(--radius-md)] bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-semibold text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+            className="rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50"
           >
             {busy
               ? t('records.startingRecording')

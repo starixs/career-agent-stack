@@ -35,7 +35,7 @@ export function CreateDialog({
 
     return (
         <OverlayBackdrop className="z-[300]">
-            <div className="w-full max-w-md rounded-2xl bg-[var(--paper-elevated)] p-6 shadow-2xl">
+            <div className="w-full max-w-md rounded-2xl bg-[var(--paper)] p-6 shadow-2xl">
                 <h3 className="text-lg font-semibold text-[var(--ink)]">{title}</h3>
                 <div className="mt-4 space-y-4">
                     <div>
@@ -45,7 +45,7 @@ export function CreateDialog({
                             value={name}
                             onChange={(e) => onNameChange(e.target.value)}
                             placeholder={t('agentSettings.skillDialogs.namePlaceholder')}
-                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                             autoFocus
                         />
                     </div>
@@ -56,7 +56,7 @@ export function CreateDialog({
                             value={description}
                             onChange={(e) => onDescriptionChange(e.target.value)}
                             placeholder={t('agentSettings.skillDialogs.descriptionPlaceholder')}
-                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                         />
                     </div>
                 </div>
@@ -64,7 +64,7 @@ export function CreateDialog({
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)]"
+                        className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)]"
                     >
                         {t('agentSettings.common.cancel')}
                     </button>
@@ -72,7 +72,7 @@ export function CreateDialog({
                         type="button"
                         onClick={onConfirm}
                         disabled={!name.trim() || loading}
-                        className="flex items-center gap-2 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                        className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                     >
                         {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                         {t('agentSettings.common.create')}
@@ -161,13 +161,13 @@ export function NewSkillChooser({
 
     return (
         <OverlayBackdrop className="z-[300]">
-            <div className="w-full max-w-md rounded-2xl bg-[var(--paper-elevated)] p-6 shadow-2xl">
+            <div className="w-full max-w-md rounded-2xl bg-[var(--paper)] p-6 shadow-2xl">
                 <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-[var(--ink)]">{t('agentSettings.skillDialogs.newSkillTitle')}</h3>
                     <button
                         type="button"
                         onClick={onCancel}
-                        className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)]"
+                        className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)]"
                     >
                         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M18 6L6 18M6 6l12 12" />
@@ -179,17 +179,17 @@ export function NewSkillChooser({
                     <button
                         type="button"
                         onClick={onWriteSkill}
-                        className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 text-left transition-all hover:border-[var(--line-strong)] hover:shadow-sm"
+                        className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 text-left transition-all hover:border-[var(--line-2)] hover:shadow-sm"
                     >
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--paper-inset)] transition-colors group-hover:bg-[var(--accent-warm-subtle)]">
-                            <svg className="h-6 w-6 text-[var(--ink-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--inset)] transition-colors group-hover:bg-[var(--primary-soft)]">
+                            <svg className="h-6 w-6 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
                         </div>
                         <div>
                             <div className="font-medium text-[var(--ink)]">{t('agentSettings.skillDialogs.writeSkillTitle')}</div>
-                            <p className="mt-0.5 text-sm text-[var(--ink-muted)]">{t('agentSettings.skillDialogs.writeSkillDescription')}</p>
+                            <p className="mt-0.5 text-sm text-[var(--muted)]">{t('agentSettings.skillDialogs.writeSkillDescription')}</p>
                         </div>
                     </button>
 
@@ -197,10 +197,10 @@ export function NewSkillChooser({
                     <button
                         type="button"
                         onClick={handleUploadClick}
-                        className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 text-left transition-all hover:border-[var(--line-strong)] hover:shadow-sm"
+                        className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 text-left transition-all hover:border-[var(--line-2)] hover:shadow-sm"
                     >
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--paper-inset)] transition-colors group-hover:bg-[var(--accent-warm-subtle)]">
-                            <svg className="h-6 w-6 text-[var(--ink-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--inset)] transition-colors group-hover:bg-[var(--primary-soft)]">
+                            <svg className="h-6 w-6 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                                 <polyline points="17 8 12 3 7 8" />
                                 <line x1="12" y1="3" x2="12" y2="15" />
@@ -208,7 +208,7 @@ export function NewSkillChooser({
                         </div>
                         <div>
                             <div className="font-medium text-[var(--ink)]">{t('agentSettings.skillDialogs.uploadSkillTitle')}</div>
-                            <p className="mt-0.5 text-sm text-[var(--ink-muted)]">{t('agentSettings.skillDialogs.uploadSkillDescription')}</p>
+                            <p className="mt-0.5 text-sm text-[var(--muted)]">{t('agentSettings.skillDialogs.uploadSkillDescription')}</p>
                         </div>
                     </button>
 
@@ -217,14 +217,14 @@ export function NewSkillChooser({
                         <button
                             type="button"
                             onClick={onInstallFromUrl}
-                            className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 text-left transition-all hover:border-[var(--line-strong)] hover:shadow-sm"
+                            className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 text-left transition-all hover:border-[var(--line-2)] hover:shadow-sm"
                         >
-                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--paper-inset)] transition-colors group-hover:bg-[var(--accent-warm-subtle)]">
-                                <Link2 className="h-6 w-6 text-[var(--ink-muted)]" />
+                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--inset)] transition-colors group-hover:bg-[var(--primary-soft)]">
+                                <Link2 className="h-6 w-6 text-[var(--muted)]" />
                             </div>
                             <div>
                                 <div className="font-medium text-[var(--ink)]">{t('agentSettings.skillDialogs.importFromUrlTitle')}</div>
-                                <p className="mt-0.5 text-sm text-[var(--ink-muted)]">{t('agentSettings.skillDialogs.importFromUrlDescription')}</p>
+                                <p className="mt-0.5 text-sm text-[var(--muted)]">{t('agentSettings.skillDialogs.importFromUrlDescription')}</p>
                             </div>
                         </button>
                     )}
@@ -234,14 +234,14 @@ export function NewSkillChooser({
                         <button
                             type="button"
                             onClick={handleFolderClick}
-                            className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 text-left transition-all hover:border-[var(--line-strong)] hover:shadow-sm"
+                            className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 text-left transition-all hover:border-[var(--line-2)] hover:shadow-sm"
                         >
-                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--paper-inset)] transition-colors group-hover:bg-[var(--accent-warm-subtle)]">
-                                <FolderOpen className="h-6 w-6 text-[var(--ink-muted)]" />
+                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--inset)] transition-colors group-hover:bg-[var(--primary-soft)]">
+                                <FolderOpen className="h-6 w-6 text-[var(--muted)]" />
                             </div>
                             <div>
                                 <div className="font-medium text-[var(--ink)]">{t('agentSettings.skillDialogs.importFolderTitle')}</div>
-                                <p className="mt-0.5 text-sm text-[var(--ink-muted)]">{t('agentSettings.skillDialogs.importFolderDescription')}</p>
+                                <p className="mt-0.5 text-sm text-[var(--muted)]">{t('agentSettings.skillDialogs.importFolderDescription')}</p>
                             </div>
                         </button>
                     )}
@@ -252,13 +252,13 @@ export function NewSkillChooser({
                             type="button"
                             onClick={handleSyncClick}
                             disabled={syncing}
-                            className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 text-left transition-all hover:border-[var(--line-strong)] hover:shadow-sm disabled:opacity-50"
+                            className="group flex w-full items-center gap-4 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 text-left transition-all hover:border-[var(--line-2)] hover:shadow-sm disabled:opacity-50"
                         >
-                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--paper-inset)] transition-colors group-hover:bg-[var(--accent-warm-subtle)]">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--inset)] transition-colors group-hover:bg-[var(--primary-soft)]">
                                 {syncing ? (
-                                    <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+                                    <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
                                 ) : (
-                                    <svg className="h-6 w-6 text-[var(--ink-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <svg className="h-6 w-6 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                         <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                     </svg>
                                 )}
@@ -266,11 +266,11 @@ export function NewSkillChooser({
                             <div>
                                 <div className="font-medium text-[var(--ink)]">
                                     {t('agentSettings.skillDialogs.syncFromClaudeTitle')}
-                                    <span className="ml-2 text-xs text-[var(--ink-muted)]">
+                                    <span className="ml-2 text-xs text-[var(--muted)]">
                                         ({t('agentSettings.skillDialogs.syncableCount', { count: syncConfig.syncableCount })})
                                     </span>
                                 </div>
-                                <p className="mt-0.5 text-sm text-[var(--ink-muted)]">{t('agentSettings.skillDialogs.syncFromClaudeDescription')}</p>
+                                <p className="mt-0.5 text-sm text-[var(--muted)]">{t('agentSettings.skillDialogs.syncFromClaudeDescription')}</p>
                             </div>
                         </button>
                     )}
@@ -527,7 +527,7 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
 
     return (
         <OverlayBackdrop className="z-[300]">
-            <div className="w-full max-w-2xl rounded-2xl bg-[var(--paper-elevated)] p-6 shadow-2xl">
+            <div className="w-full max-w-2xl rounded-2xl bg-[var(--paper)] p-6 shadow-2xl">
                 <h3 className="text-lg font-semibold text-[var(--ink)]">{t('agentSettings.skillDialogs.installFromUrlTitle')}</h3>
 
                 {!preview && (
@@ -538,32 +538,32 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
                             onChange={e => setUrl(e.target.value)}
                             rows={5}
                             placeholder={t('agentSettings.skillDialogs.urlPlaceholder')}
-                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-mono text-sm text-[var(--ink)] placeholder-[var(--ink-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 font-mono text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                             disabled={loading}
                             autoFocus
                         />
-                        <p className="mt-2 text-xs text-[var(--ink-muted)]">
+                        <p className="mt-2 text-xs text-[var(--muted)]">
                             {t('agentSettings.skillDialogs.urlHint')}
                         </p>
                     </div>
                 )}
 
                 {loading && (
-                    <div className="mt-4 flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-sm text-[var(--ink-muted)]">
+                    <div className="mt-4 flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-3 text-sm text-[var(--muted)]">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         {phase || t('agentSettings.skillDialogs.processing')}
                     </div>
                 )}
 
                 {error && (
-                    <div className="mt-4 rounded-lg border border-[var(--error)]/30 bg-[var(--error-bg)] px-4 py-3 text-sm text-[var(--error)]">
+                    <div className="mt-4 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-bg)] px-4 py-3 text-sm text-[var(--danger)]">
                         {error}
                     </div>
                 )}
 
                 {preview && preview.mode === 'marketplace' && (
                     <div className="mt-4 max-h-[50vh] space-y-3 overflow-y-auto">
-                        <p className="text-sm text-[var(--ink-muted)]">
+                        <p className="text-sm text-[var(--muted)]">
                             {t('agentSettings.skillDialogs.marketplaceFoundPrefix')}
                             <span className="font-medium text-[var(--ink)]">{preview.marketplaceName}</span>
                             {preview.marketplaceDescription && ` ${t('agentSettings.skillDialogs.marketplaceDescriptionSeparator')} ${preview.marketplaceDescription}`}
@@ -574,8 +574,8 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
                                 key={plugin.name}
                                 className={`block cursor-pointer rounded-xl border p-3 transition-all ${
                                     selectedPlugin === plugin.name
-                                        ? 'border-[var(--accent)] bg-[var(--accent-warm-subtle)]'
-                                        : 'border-[var(--line)] bg-[var(--paper-elevated)] hover:border-[var(--line-strong)]'
+                                        ? 'border-[var(--primary)] bg-[var(--primary-soft)]'
+                                        : 'border-[var(--line)] bg-[var(--paper)] hover:border-[var(--line-2)]'
                                 }`}
                             >
                                 <div className="flex items-start gap-3">
@@ -593,10 +593,10 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
                                     <div className="flex-1">
                                         <div className="font-medium text-[var(--ink)]">
                                             {plugin.name}
-                                            <span className="ml-2 text-xs text-[var(--ink-muted)]">({t('agentSettings.skillDialogs.skillCount', { count: plugin.skills.length })})</span>
+                                            <span className="ml-2 text-xs text-[var(--muted)]">({t('agentSettings.skillDialogs.skillCount', { count: plugin.skills.length })})</span>
                                         </div>
                                         {plugin.description && (
-                                            <p className="mt-1 text-xs text-[var(--ink-muted)]">{plugin.description}</p>
+                                            <p className="mt-1 text-xs text-[var(--muted)]">{plugin.description}</p>
                                         )}
                                         {selectedPlugin === plugin.name && (
                                             <div className="mt-2 space-y-1.5 border-t border-[var(--line)] pt-2">
@@ -613,10 +613,10 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
                                                             <span className="rounded bg-[var(--warning-bg)] px-1.5 py-0.5 text-[var(--warning)]">{t('agentSettings.skillDialogs.existsBadge')}</span>
                                                         )}
                                                         {skill.hasDangerousTools && (
-                                                            <span className="rounded bg-[var(--error-bg)] px-1.5 py-0.5 text-[var(--error)]">{t('agentSettings.skillDialogs.bashPermissionBadge')}</span>
+                                                            <span className="rounded bg-[var(--danger-bg)] px-1.5 py-0.5 text-[var(--danger)]">{t('agentSettings.skillDialogs.bashPermissionBadge')}</span>
                                                         )}
                                                         {skill.conflict && (
-                                                            <label className="ml-auto flex items-center gap-1 text-[var(--ink-muted)]">
+                                                            <label className="ml-auto flex items-center gap-1 text-[var(--muted)]">
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={overwriteFolders.has(skill.suggestedFolderName)}
@@ -639,11 +639,11 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
 
                 {preview && preview.mode === 'multi' && (
                     <div className="mt-4 max-h-[50vh] space-y-2 overflow-y-auto">
-                        <p className="text-sm text-[var(--ink-muted)]">{t('agentSettings.skillDialogs.multiSkillPrompt')}</p>
+                        <p className="text-sm text-[var(--muted)]">{t('agentSettings.skillDialogs.multiSkillPrompt')}</p>
                         {preview.candidates.map(c => (
                             <div
                                 key={c.suggestedFolderName}
-                                className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-3"
+                                className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-3"
                             >
                                 <input
                                     type="checkbox"
@@ -658,13 +658,13 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
                                             <span className="rounded bg-[var(--warning-bg)] px-1.5 py-0.5 text-xs text-[var(--warning)]">{t('agentSettings.skillDialogs.existsBadge')}</span>
                                         )}
                                         {c.hasDangerousTools && (
-                                            <span className="rounded bg-[var(--error-bg)] px-1.5 py-0.5 text-xs text-[var(--error)]">{t('agentSettings.skillDialogs.bashPermissionBadge')}</span>
+                                            <span className="rounded bg-[var(--danger-bg)] px-1.5 py-0.5 text-xs text-[var(--danger)]">{t('agentSettings.skillDialogs.bashPermissionBadge')}</span>
                                         )}
                                     </div>
-                                    {c.description && <p className="mt-0.5 text-xs text-[var(--ink-muted)]">{c.description}</p>}
-                                    <p className="mt-0.5 font-mono text-xs text-[var(--ink-muted)]/70">{c.rootPath}</p>
+                                    {c.description && <p className="mt-0.5 text-xs text-[var(--muted)]">{c.description}</p>}
+                                    <p className="mt-0.5 font-mono text-xs text-[var(--muted)]/70">{c.rootPath}</p>
                                     {c.conflict && (
-                                        <label className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--ink-muted)]">
+                                        <label className="mt-1 inline-flex items-center gap-1 text-xs text-[var(--muted)]">
                                             <input
                                                 type="checkbox"
                                                 checked={overwriteFolders.has(c.suggestedFolderName)}
@@ -687,7 +687,7 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
                             {t('agentSettings.skillDialogs.skillExistsSuffix')}
                         </p>
                         {preview.skill.description && (
-                            <p className="mt-1 text-xs text-[var(--ink-muted)]">{preview.skill.description}</p>
+                            <p className="mt-1 text-xs text-[var(--muted)]">{preview.skill.description}</p>
                         )}
                         <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-[var(--ink)]">
                             <input
@@ -705,7 +705,7 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
                         type="button"
                         onClick={onCancel}
                         disabled={loading}
-                        className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] disabled:opacity-50"
+                        className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] disabled:opacity-50"
                     >
                         {t('agentSettings.common.cancel')}
                     </button>
@@ -714,7 +714,7 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
                             type="button"
                             onClick={handleProbe}
                             disabled={!url.trim() || loading}
-                            className="flex items-center gap-2 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                            className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                         >
                             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                             {t('agentSettings.skillDialogs.probe')}
@@ -724,7 +724,7 @@ export function InstallFromUrlDialog({ onInstall, onCancel, onInstalled }: Insta
                             type="button"
                             onClick={handleConfirm}
                             disabled={loading}
-                            className="flex items-center gap-2 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                            className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                         >
                             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                             {t('agentSettings.skillDialogs.install')}

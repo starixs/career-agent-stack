@@ -57,7 +57,7 @@ const noop = () => {};
 
 // Static loading spinner (module-level to avoid allocation per render)
 const monacoLoading = (
-    <div className="flex h-full items-center justify-center bg-[var(--paper-elevated)] text-[var(--ink-muted)]">
+    <div className="flex h-full items-center justify-center bg-[var(--paper)] text-[var(--muted)]">
         <Loader2 className="h-5 w-5 animate-spin" />
     </div>
 );
@@ -153,7 +153,7 @@ function AutoSaveIndicator({ status }: { status: 'idle' | 'saving' | 'saved' | '
     }
     if (status === 'saving') {
         return (
-            <span className="flex items-center gap-1 text-xs text-[var(--ink-muted)]">
+            <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 {t('workspaceFiles.filePreview.saving')}
             </span>
@@ -168,7 +168,7 @@ function AutoSaveIndicator({ status }: { status: 'idle' | 'saving' | 'saved' | '
         );
     }
     return (
-        <span className="flex items-center gap-1 text-xs text-[var(--error)]">
+        <span className="flex items-center gap-1 text-xs text-[var(--danger)]">
             <X className="h-3 w-3" />
             {t('workspaceFiles.filePreview.saveFailed')}
         </span>
@@ -219,7 +219,7 @@ function LiveUpdateIndicator({
     const label = pending ? t('workspaceFiles.filePreview.externalUpdate') : t('workspaceFiles.filePreview.updated');
     return (
         <span
-            className="flex-shrink-0 whitespace-nowrap text-xs font-normal text-[var(--ink-subtle)]/80"
+            className="flex-shrink-0 whitespace-nowrap text-xs font-normal text-[var(--subtle)]/80"
             title={pending ? t('workspaceFiles.filePreview.externalUpdateTitle') : t('workspaceFiles.filePreview.updatedTitle')}
         >
             {label} {formatFilePreviewUpdateTime(updatedAt)}
@@ -312,7 +312,7 @@ function FilenameSlot({
             // Stop propagation so the editor input doesn't trigger overlay
             // close-on-click-outside or grid-layout focus shifts.
             onClick={(e) => e.stopPropagation()}
-            className={`min-w-0 flex-1 rounded-sm border border-[var(--accent)] bg-[var(--paper)] px-1 py-0 outline-none ${className}`}
+            className={`min-w-0 flex-1 rounded-sm border border-[var(--primary)] bg-[var(--bg)] px-1 py-0 outline-none ${className}`}
             style={{ width: `${Math.max(draft.length + 1, 6)}ch` }}
         />
     );
@@ -333,11 +333,11 @@ function MdViewSegment({
     const baseBtn = compact
         ? 'compact-action gap-1 px-2 text-sm font-medium transition-colors'
         : 'compact-action gap-1.5 px-3 text-sm font-medium transition-colors';
-    const activeBtn = 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs';
-    const inactiveBtn = 'text-[var(--ink-muted)] hover:text-[var(--ink-secondary)]';
+    const activeBtn = 'bg-[var(--paper)] text-[var(--ink)] shadow-xs';
+    const inactiveBtn = 'text-[var(--muted)] hover:text-[var(--ink-2)]';
     const iconCls = 'h-3.5 w-3.5';
     return (
-        <div className="inline-flex gap-0.5 rounded-[var(--radius-md)] bg-[var(--paper-inset)] p-0.5">
+        <div className="inline-flex gap-0.5 rounded-[var(--radius-md)] bg-[var(--inset)] p-0.5">
             <button
                 type="button"
                 onClick={() => onChange('preview')}
@@ -1219,7 +1219,7 @@ export default function FilePreviewModal({
 
     const renderMoreMenu = (compact: boolean) => {
         const iconClass = compact ? 'h-3.5 w-3.5' : 'h-4 w-4';
-        const buttonClass = 'compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]';
+        const buttonClass = 'compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]';
         const runMenuAction = (action: () => void | Promise<void>) => {
             setMoreMenuOpen(false);
             void action();
@@ -1307,7 +1307,7 @@ export default function FilePreviewModal({
 
         if (error) {
             return (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--error)]">
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--danger)]">
                     <X className="h-8 w-8" />
                     <span className="text-sm">{error}</span>
                 </div>
@@ -1331,7 +1331,7 @@ export default function FilePreviewModal({
         if (isMdEditView) {
             return (
                 <Suspense fallback={monacoLoading}>
-                    <div className="h-full bg-[var(--paper-elevated)]">
+                    <div className="h-full bg-[var(--paper)]">
                         <MarkdownEditor
                             ref={markdownEditorRef}
                             initialSource={readEditContent()}
@@ -1363,12 +1363,12 @@ export default function FilePreviewModal({
             const previewSource = editContent;
             if (!previewSource.trim()) {
                 return (
-                    <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--paper-elevated)] text-[var(--ink-muted)]">
+                    <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--paper)] text-[var(--muted)]">
                         <FileIcon name={name} size="display" />
                         <p className="text-sm">{t('workspaceFiles.filePreview.emptyDocument')}</p>
                         {canEdit && (
                             <button type="button" onClick={() => setMdViewMode('edit')}
-                                className="text-sm text-[var(--accent)] hover:underline">
+                                className="text-sm text-[var(--primary)] hover:underline">
                                 {t('workspaceFiles.filePreview.switchToEdit')}
                             </button>
                         )}
@@ -1376,7 +1376,7 @@ export default function FilePreviewModal({
                 );
             }
             return (
-                <div ref={markdownScrollRef} className="h-full overflow-auto overscroll-contain p-6 bg-[var(--paper-elevated)]">
+                <div ref={markdownScrollRef} className="h-full overflow-auto overscroll-contain p-6 bg-[var(--paper)]">
                     <div className="ai-message-content mx-auto max-w-3xl">
                         <Markdown raw preserveNewlines basePath={filePathDirname(localPath ?? path ?? '')} workspacePath={workspacePath}>{previewSource}</Markdown>
                     </div>
@@ -1387,7 +1387,7 @@ export default function FilePreviewModal({
         // Code files: direct writable Monaco with auto-save (or read-only if no edit capability)
         return (
             <Suspense fallback={monacoLoading}>
-                <div className="h-full bg-[var(--paper-elevated)]">
+                <div className="h-full bg-[var(--paper)]">
                     <MonacoEditor
                         value={isDirectEdit ? editContent : savedContent}
                         onChange={isDirectEdit ? handleDirectEditChange : noop}
@@ -1492,9 +1492,9 @@ export default function FilePreviewModal({
         return accepted;
     };
     const conflictControls = isWorkspaceMarkdown && <>
-        {markdownOversized && <div role="alert" className="px-4 py-1 text-xs text-[var(--error)]">{t('app:markdownEditor.oversized')}</div>}
+        {markdownOversized && <div role="alert" className="px-4 py-1 text-xs text-[var(--danger)]">{t('app:markdownEditor.oversized')}</div>}
         {(fileUnavailable || autoSaveStatus === 'error') && <div className="px-4 py-1 text-xs"><button disabled={copyBusy} onClick={() => { void copyMarkdownDraft().catch(() => toast.error(t('app:markdownEditor.conflict.failed'))); }}>{t('app:markdownEditor.conflict.copy')}</button></div>}
-        {externalUpdatePending && <div className="flex items-center justify-between gap-2 px-4 py-1 text-xs text-[var(--ink-muted)]"><span>{t('app:markdownEditor.conflict.paused')}</span><button onClick={() => {
+        {externalUpdatePending && <div className="flex items-center justify-between gap-2 px-4 py-1 text-xs text-[var(--muted)]"><span>{t('app:markdownEditor.conflict.paused')}</span><button onClick={() => {
             if (conflictSnapshot) { void (async () => {
                 const editor = markdownEditorRef.current; if (!editor || !await editor.settleComposition()) return;
                 editor.setImportsEnabled(false);
@@ -1516,8 +1516,8 @@ export default function FilePreviewModal({
         // takes no space. This keeps the filename readable at the same target size.
         return <div ref={embeddedPlaceholderRef} className="h-full min-h-0">{createPortal(
             <div role={markdownFullscreen ? 'dialog' : 'region'} aria-modal={markdownFullscreen || undefined}
-                className={`@container relative flex h-full w-full flex-col overflow-hidden bg-[var(--paper-elevated)] text-[var(--ink)] ${markdownFullscreen ? 'max-w-7xl rounded-xl border border-[var(--line)] shadow-2xl' : ''}`}>
-                <div className="relative z-10 grid flex-shrink-0 grid-cols-[minmax(0,1fr)_auto] @[480px]:grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] min-h-12 items-center gap-2 px-4 py-1.5 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-gradient-to-b after:from-[var(--paper-elevated)] after:to-[var(--paper-elevated-a0)]">
+                className={`@container relative flex h-full w-full flex-col overflow-hidden bg-[var(--paper)] text-[var(--ink)] ${markdownFullscreen ? 'max-w-7xl rounded-xl border border-[var(--line)] shadow-2xl' : ''}`}>
+                <div className="relative z-10 grid flex-shrink-0 grid-cols-[minmax(0,1fr)_auto] @[480px]:grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] min-h-12 items-center gap-2 px-4 py-1.5 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-gradient-to-b after:from-[var(--paper)] after:to-[var(--paper-a0)]">
                     {/* Left: file info */}
                     <div className="flex min-w-0 items-center gap-2">
                         <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center">
@@ -1536,7 +1536,7 @@ export default function FilePreviewModal({
                             className="text-sm font-medium text-[var(--ink)]"
                         />
                         {isDirectEdit && <AutoSaveIndicator status={autoSaveStatus} />}
-                        {fileUnavailable && <span role="status" className="text-xs text-[var(--error)]">{t('workspaceFiles.filePreview.fileUnavailable')}</span>}
+                        {fileUnavailable && <span role="status" className="text-xs text-[var(--danger)]">{t('workspaceFiles.filePreview.fileUnavailable')}</span>}
                         <LiveUpdateIndicator updatedAt={lastExternalUpdateAt} pending={externalUpdatePending} />
                     </div>
 
@@ -1556,7 +1556,7 @@ export default function FilePreviewModal({
                             <Tip label={t('workspaceFiles.filePreview.browserPreview')} position="bottom">
                                 <button type="button" onClick={handleSwitchToBrowserClick}
                                     aria-label={t('workspaceFiles.filePreview.browserPreview')}
-                                    className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+                                    className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
                                     <Eye className="h-3.5 w-3.5" />
                                 </button>
                             </Tip>
@@ -1566,7 +1566,7 @@ export default function FilePreviewModal({
                             <Tip label={t('workspaceFiles.filePreview.fullscreenPreview')} position="bottom">
                                 <button type="button" onClick={handleFullscreenClick}
                                     aria-label={t('workspaceFiles.filePreview.fullscreenPreview')}
-                                    className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+                                    className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
                                     <Expand className="h-3.5 w-3.5" />
                                 </button>
                             </Tip>
@@ -1575,7 +1575,7 @@ export default function FilePreviewModal({
                         <Tip label={t('workspaceFiles.common.close')} position="bottom">
                             <button type="button" onClick={handleClose}
                                 aria-label={t('workspaceFiles.common.close')}
-                                className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+                                className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
                                 <X className="h-3.5 w-3.5" />
                             </button>
                         </Tip>
@@ -1599,7 +1599,7 @@ export default function FilePreviewModal({
                 onWheel={(e) => e.stopPropagation()}
             >
                 {/* Header — 3-col grid keeps the markdown view-mode toggle visually centered */}
-                <div className="grid flex-shrink-0 grid-cols-[minmax(0,1fr)_auto] @[480px]:grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center gap-4 border-b border-[var(--line)] px-5 py-2 bg-[var(--paper-elevated)]">
+                <div className="grid flex-shrink-0 grid-cols-[minmax(0,1fr)_auto] @[480px]:grid-cols-[minmax(0,1fr)_auto_minmax(max-content,1fr)] items-center gap-4 border-b border-[var(--line)] px-5 py-2 bg-[var(--paper)]">
                     {/* Left: file info */}
                     <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center">
@@ -1620,7 +1620,7 @@ export default function FilePreviewModal({
                                     className="text-sm font-semibold text-[var(--ink)]"
                                 />
                                 {isDirectEdit && <AutoSaveIndicator status={autoSaveStatus} />}
-                                {fileUnavailable && <span role="status" className="text-xs text-[var(--error)]">{t('workspaceFiles.filePreview.fileUnavailable')}</span>}
+                                {fileUnavailable && <span role="status" className="text-xs text-[var(--danger)]">{t('workspaceFiles.filePreview.fileUnavailable')}</span>}
                                 <LiveUpdateIndicator updatedAt={lastExternalUpdateAt} pending={externalUpdatePending} />
                             </div>
                             <div className="flex items-center gap-1.5">
@@ -1631,7 +1631,7 @@ export default function FilePreviewModal({
                                     const sep = workspacePath?.includes('\\') ? '\\' : '/';
                                     const absolute = localPath ?? (workspacePath ? `${workspacePath}${sep}${path}` : path);
                                     return (
-                                        <span className="max-w-[400px] truncate text-xs text-[var(--ink-muted)]" title={absolute}>
+                                        <span className="max-w-[400px] truncate text-xs text-[var(--muted)]" title={absolute}>
                                             {shortenPathForDisplay(absolute)}
                                         </span>
                                     );
@@ -1640,7 +1640,7 @@ export default function FilePreviewModal({
                                     <button
                                         type="button"
                                         onClick={handleOpenInFinder}
-                                        className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                        className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                         title={t('workspaceFiles.common.openContainingFolder')}
                                     >
                                         <FolderOpen className="h-3.5 w-3.5" />
@@ -1663,7 +1663,7 @@ export default function FilePreviewModal({
                         <button
                             type="button"
                             onClick={handleClose}
-                            className="compact-action px-3 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                            className="compact-action px-3 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                         >
                             {t('workspaceFiles.common.close')}
                         </button>

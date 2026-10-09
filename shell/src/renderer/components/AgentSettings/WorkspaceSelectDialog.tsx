@@ -26,22 +26,22 @@ export default function WorkspaceSelectDialog({ projects, onSelect, onClose }: W
 
   return createPortal(
     <OverlayBackdrop onClose={onClose} className="z-50">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--paper-elevated)] p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-[var(--ink)]">
             {t('agentSettings.workspaceSelect.title')}
           </h2>
-          <button onClick={onClose} className="rounded p-1 text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition-colors">
+          <button onClick={onClose} className="rounded p-1 text-[var(--subtle)] hover:text-[var(--muted)] transition-colors">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <p className="mb-4 text-xs text-[var(--ink-muted)]">
+        <p className="mb-4 text-xs text-[var(--muted)]">
           {t('agentSettings.workspaceSelect.description')}
         </p>
 
         {eligibleProjects.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[var(--ink-subtle)]">
+          <p className="py-8 text-center text-sm text-[var(--subtle)]">
             {t('agentSettings.workspaceSelect.empty')}
           </p>
         ) : (
@@ -49,14 +49,14 @@ export default function WorkspaceSelectDialog({ projects, onSelect, onClose }: W
             {eligibleProjects.map(project => (
               <button
                 key={project.id}
-                className="flex w-full items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-left transition-all hover:border-[var(--line-strong)] hover:bg-[var(--paper-elevated)]"
+                className="flex w-full items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-3 text-left transition-all hover:border-[var(--line-2)] hover:bg-[var(--paper)]"
                 onClick={() => onSelect(project)}
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-[var(--ink)]">
                     {project.displayName || getFolderName(project.path)}
                   </div>
-                  <div className="text-xs text-[var(--ink-subtle)]">
+                  <div className="text-xs text-[var(--subtle)]">
                     {shortenPathForDisplay(project.path)}
                   </div>
                 </div>

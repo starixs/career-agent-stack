@@ -668,7 +668,7 @@ export function TaskEditPanel({
         >
           <DocPathRow path={`~/.keystone/tasks/${task.id}/task.md`} />
           {taskMdReadState === 'failed' ? (
-            <div className="rounded-[var(--radius-md)] border border-[var(--error)]/30 bg-[var(--error-bg)] px-3 py-2.5 text-xs text-[var(--error)]">
+            <div className="rounded-[var(--radius-md)] border border-[var(--danger)]/30 bg-[var(--danger-bg)] px-3 py-2.5 text-xs text-[var(--danger)]">
               {t('edit.taskReadFailed')}
             </div>
           ) : (
@@ -686,7 +686,7 @@ export function TaskEditPanel({
                 }
                 className={`${INPUT_CLS} resize-y font-mono text-sm`}
               />
-              <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+              <p className="mt-1.5 text-xs text-[var(--muted)]">
                 {t('edit.taskDescription')}
               </p>
             </>
@@ -714,7 +714,7 @@ export function TaskEditPanel({
             placeholder={t('dispatch.workspacePlaceholder')}
             size="md"
           />
-          <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+          <p className="mt-1.5 text-xs text-[var(--muted)]">
             {t('dispatch.workspaceHint')}
           </p>
         </FormSection>
@@ -763,7 +763,7 @@ export function TaskEditPanel({
           />
           {isRecurring && draft.runMode === 'single-session' && !isLoop && (
             <div className="mt-5">
-              <label className="mb-2 block text-sm font-medium text-[var(--ink-secondary)]">
+              <label className="mb-2 block text-sm font-medium text-[var(--ink-2)]">
                 {t('trigger.targetSession')}
               </label>
               <CustomSelect
@@ -776,7 +776,7 @@ export function TaskEditPanel({
                 placeholder={t('trigger.targetSessionPlaceholder')}
                 size="md"
               />
-              <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+              <p className="mt-1.5 text-xs text-[var(--muted)]">
                 {t('trigger.targetSessionHint')}
               </p>
             </div>
@@ -796,7 +796,7 @@ export function TaskEditPanel({
                 onValidityChange={setTriggerValid}
               />
               {task.trigger?.detector.type === 'command' && draft.trigger.detector.type === 'always' && (
-                <p className="mt-3 text-xs leading-relaxed text-[var(--ink-muted)]">
+                <p className="mt-3 text-xs leading-relaxed text-[var(--muted)]">
                   {t('trigger.switchAlwaysWarning')}
                 </p>
               )}
@@ -862,10 +862,10 @@ function Field({
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-[var(--ink-secondary)]">
+      <label className="mb-1.5 block text-sm font-medium text-[var(--ink-2)]">
         {label}
-        {hint && <span className="ml-2 text-xs text-[var(--ink-muted)]/70">{hint}</span>}
-        {required && <span className="ml-1 text-[var(--accent-warm)]">*</span>}
+        {hint && <span className="ml-2 text-xs text-[var(--muted)]/70">{hint}</span>}
+        {required && <span className="ml-1 text-[var(--primary)]">*</span>}
       </label>
       {children}
     </div>
@@ -878,7 +878,7 @@ function DocPathRow({ path }: { path: string }) {
   return (
     <div className="mb-2 flex items-center gap-2">
       <span
-        className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--ink-muted)]/70"
+        className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--muted)]/70"
         title={path}
       >
         {path}
@@ -894,7 +894,7 @@ function OpenFolderButton({ onClick }: { onClick: () => void }) {
       type="button"
       onClick={onClick}
       title={t('edit.openDocsDirTitle')}
-      className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+      className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
     >
       <FolderOpen className="h-3 w-3" />
       {t('edit.openDocsDir')}

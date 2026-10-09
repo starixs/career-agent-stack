@@ -170,15 +170,15 @@ const ShortcutRecorder = memo(function ShortcutRecorder({
         disabled={disabled}
         className={`min-w-[140px] rounded-lg border px-3 py-1.5 text-sm font-mono transition-colors ${
           recording
-            ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] animate-pulse'
-            : 'border-[var(--line)] bg-[var(--paper)] text-[var(--ink)] hover:border-[var(--line-strong)]'
+            ? 'border-[var(--primary)] bg-[var(--accent-soft)] text-[var(--primary)] animate-pulse'
+            : 'border-[var(--line)] bg-[var(--bg)] text-[var(--ink)] hover:border-[var(--line-2)]'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
         title={recording ? t('shortcuts.recorder.recordingTitle') : t('shortcuts.recorder.idleTitle')}
       >
         {display}
       </button>
       {hint && (
-        <p className="text-xs text-[var(--ink-muted)]">{hint}</p>
+        <p className="text-xs text-[var(--muted)]">{hint}</p>
       )}
     </div>
   );

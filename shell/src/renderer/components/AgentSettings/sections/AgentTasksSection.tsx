@@ -41,7 +41,7 @@ function cronStatusText(status: string, tTask: TaskT): string {
 
 function cronStatusDotColor(status: string): string {
   if (status === 'running') return 'var(--success)';
-  return 'var(--ink-subtle)';
+  return 'var(--subtle)';
 }
 
 interface AgentTasksSectionProps {
@@ -155,7 +155,7 @@ export default function AgentTasksSection({ workspacePath }: AgentTasksSectionPr
       </h3>
 
       {activeTasks.length === 0 ? (
-        <p className="text-xs text-[var(--ink-subtle)]">
+        <p className="text-xs text-[var(--subtle)]">
           {t('agentSettings.tasks.empty')}
         </p>
       ) : (
@@ -165,7 +165,7 @@ export default function AgentTasksSection({ workspacePath }: AgentTasksSectionPr
               key={task.id}
               type="button"
               onClick={() => setSelectedTask(task)}
-              className="flex w-full items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-left transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--hover-bg)]"
+              className="flex w-full items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-left transition-colors hover:border-[var(--line-2)] hover:bg-[var(--hover)]"
             >
               <div
                 className="h-2 w-2 shrink-0 rounded-full"
@@ -175,12 +175,12 @@ export default function AgentTasksSection({ workspacePath }: AgentTasksSectionPr
                 <span className="text-sm font-medium truncate text-[var(--ink)]">
                   {task.name || t('agentSettings.tasks.unnamed')}
                 </span>
-                <div className="text-xs text-[var(--ink-subtle)]">
+                <div className="text-xs text-[var(--subtle)]">
                   {formatTaskSchedule(task, tTask, locale)} · {cronStatusText(task.status, tTask)}
                 </div>
               </div>
               {task.lastExecutedAt && (
-                <span className="shrink-0 text-xs text-[var(--ink-subtle)]">
+                <span className="shrink-0 text-xs text-[var(--subtle)]">
                   {formatRelativeTime(task.lastExecutedAt)}
                 </span>
               )}

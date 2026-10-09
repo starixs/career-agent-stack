@@ -38,7 +38,7 @@ async function loadAll(): Promise<MaterialData> {
 
 function Segmented<T extends string>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void }) {
   return (
-    <div role="tablist" className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--paper-inset)] p-0.5">
+    <div role="tablist" className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5">
       {options.map(o => (
         <button
           key={o.value}
@@ -46,7 +46,7 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
           role="tab"
           aria-selected={o.value === value}
           onClick={() => onChange(o.value)}
-          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${o.value === value ? 'bg-[var(--paper)] text-[var(--ink)] shadow-sm' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}
+          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${o.value === value ? 'bg-[var(--bg)] text-[var(--ink)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
         >
           {o.label}
         </button>
@@ -143,7 +143,7 @@ function Library({ data, highlightId, onChanged }: { data: MaterialData; highlig
       {data.materials.length === 0 && (
         <EmptyState title="说法库还是空的" hint="助理起草并经你确认的说法会存在这里；网申、邮件、面试里用过的地方都会记录" example="帮我写一段“为什么选择我们”" />
       )}
-      {data.materials.length > 0 && visible.length === 0 && <div className="py-6 text-center text-xs text-[var(--ink-subtle)]">这个类型下还没有素材。</div>}
+      {data.materials.length > 0 && visible.length === 0 && <div className="py-6 text-center text-xs text-[var(--subtle)]">这个类型下还没有素材。</div>}
       {visible.length > 0 && (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {visible.map(m => (
@@ -161,7 +161,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${active ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-[var(--line)] text-[var(--ink-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'}`}
+      className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${active ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]' : 'border-[var(--line)] text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--primary)]'}`}
     >
       {children}
     </button>
@@ -234,7 +234,7 @@ function MaterialCard({ material: m, uses, highlighted, onChanged }: { material:
   return (
     <div id={`material-${m.id}`}>
       <Card
-        className={highlighted ? 'ring-2 ring-[var(--accent)]' : ''}
+        className={highlighted ? 'ring-2 ring-[var(--primary)]' : ''}
         title={editing ? <TextInput aria-label="编辑标题" value={title} onChange={e => setTitle(e.target.value)} /> : m.title}
         extra={(
           <>
@@ -252,15 +252,15 @@ function MaterialCard({ material: m, uses, highlighted, onChanged }: { material:
           <div>
             <div className={`whitespace-pre-wrap break-words text-sm text-[var(--ink)] ${expanded ? '' : 'line-clamp-4'}`}>{m.content}</div>
             {m.content.length > 100 && (
-              <button type="button" onClick={() => setExpanded(v => !v)} className="mt-0.5 text-xs text-[var(--accent)] underline-offset-2 hover:underline">{expanded ? '收起' : '展开'}</button>
+              <button type="button" onClick={() => setExpanded(v => !v)} className="mt-0.5 text-xs text-[var(--primary)] underline-offset-2 hover:underline">{expanded ? '收起' : '展开'}</button>
             )}
           </div>
         )}
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[var(--ink-muted)]">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
           <button type="button" onClick={() => setShowUses(v => !v)} disabled={uses.length === 0} className="underline-offset-2 hover:underline disabled:no-underline disabled:opacity-70">
             对谁说过（{uses.length}）
           </button>
-          <span className="text-[var(--ink-subtle)]">· 更新于 {formatDate(m.updated_at)}</span>
+          <span className="text-[var(--subtle)]">· 更新于 {formatDate(m.updated_at)}</span>
         </div>
         {showUses && uses.length > 0 && (
           <ul className="mt-1 space-y-0.5 text-xs">
@@ -268,7 +268,7 @@ function MaterialCard({ material: m, uses, highlighted, onChanged }: { material:
               <li key={u.id} className="flex flex-wrap items-center gap-1.5 text-[var(--ink)]">
                 <span className="font-medium">{u.company_name ?? '未知公司'}</span>
                 <Badge>{u.context}</Badge>
-                <span className="text-[var(--ink-subtle)]">{formatDate(u.used_at)}</span>
+                <span className="text-[var(--subtle)]">{formatDate(u.used_at)}</span>
               </li>
             ))}
           </ul>

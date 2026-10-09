@@ -11,7 +11,7 @@ import { isAudioPath } from '@/utils/audioPlayer';
 import { useAudioPlayer } from '@/hooks/useAudioPlayer';
 import { MarkdownDocumentDirectoryContext, MarkdownLinkLabelContext } from './linkContext';
 
-export const INLINE_CODE_CLASS = 'markdown-inline-code markdown-inline-code-chip rounded bg-[var(--paper-inset)]/40 px-1.5 py-0.5 font-mono text-[var(--ink)]';
+export const INLINE_CODE_CLASS = 'markdown-inline-code markdown-inline-code-chip rounded bg-[var(--inset)]/40 px-1.5 py-0.5 font-mono text-[var(--ink)]';
 
 /** One target powers the affordance, tooltip, preview and context menu. */
 export default function ContentLink({ reference, displayReference = reference, native = false, basePath, children, ...props }: {
@@ -53,7 +53,7 @@ export default function ContentLink({ reference, displayReference = reference, n
         href={native && !web ? undefined : reference}
         role="link"
         tabIndex={0}
-        className="markdown-content-link text-[var(--accent-warm)] no-underline hover:text-[var(--accent-warm-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+        className="markdown-content-link text-[var(--primary)] no-underline hover:text-[var(--primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]"
         onClick={(event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -82,7 +82,7 @@ function AudioPlayButton({ filePath }: { filePath: string }) {
   const { t } = useTranslation('app');
   const { isPlaying, toggle } = useAudioPlayer(filePath);
   return <button type="button" onClick={event => { event.preventDefault(); event.stopPropagation(); toggle(); }}
-    className="ml-1 inline-flex size-[18px] items-center justify-center rounded-full bg-[var(--accent)] text-[var(--on-accent)] align-middle"
+    className="ml-1 inline-flex size-[18px] items-center justify-center rounded-full bg-[var(--primary)] text-[var(--on-primary)] align-middle"
     aria-label={isPlaying ? t('inlineCode.pause') : t('inlineCode.playAudio')}>
     {isPlaying ? <Pause className="size-2.5 fill-current" /> : <Play className="size-2.5 fill-current" />}
   </button>;

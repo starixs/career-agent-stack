@@ -138,7 +138,7 @@ function primaryActionFor(
       icon: <Square className="h-3.5 w-3.5" />,
       title: t('tasks.actions.retryStop'),
       menuClassName:
-        'text-[var(--error)] hover:bg-[var(--error-bg)]',
+        'text-[var(--danger)] hover:bg-[var(--danger-bg)]',
       handler: handlers.onStop,
     };
   }
@@ -147,7 +147,7 @@ function primaryActionFor(
       icon: <Square className="h-3.5 w-3.5" />,
       title: t('tasks.actions.stop'),
       menuClassName:
-        'text-[var(--ink-secondary)] hover:bg-[var(--error-bg)] hover:text-[var(--error)]',
+        'text-[var(--ink-2)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]',
       handler: handlers.onStop,
     };
   }
@@ -157,7 +157,7 @@ function primaryActionFor(
         icon: <Play className="h-3.5 w-3.5" />,
         title: t('tasks.actions.runNow'),
         menuClassName:
-          'text-[var(--accent-warm)] hover:bg-[var(--accent-warm-subtle)]',
+          'text-[var(--primary)] hover:bg-[var(--primary-soft)]',
         handler: handlers.onRun,
       };
     case 'running':
@@ -166,7 +166,7 @@ function primaryActionFor(
         icon: <Square className="h-3.5 w-3.5" />,
         title: t('tasks.actions.stop'),
         menuClassName:
-          'text-[var(--ink-secondary)] hover:bg-[var(--error-bg)] hover:text-[var(--error)]',
+          'text-[var(--ink-2)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]',
         handler: handlers.onStop,
       };
     case 'blocked':
@@ -177,7 +177,7 @@ function primaryActionFor(
         icon: <RotateCcw className="h-3.5 w-3.5" />,
         title: t('tasks.actions.rerun'),
         menuClassName:
-          'text-[var(--ink-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]',
+          'text-[var(--ink-2)] hover:bg-[var(--hover)] hover:text-[var(--ink)]',
         handler: handlers.onRerun,
       };
     default:

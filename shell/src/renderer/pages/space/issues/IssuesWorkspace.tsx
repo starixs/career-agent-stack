@@ -189,7 +189,7 @@ export function IssuesWorkspace({
     <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)]">
       <section
         ref={toolbarRef}
-        className="flex min-h-12 min-w-0 flex-nowrap items-center gap-2 border-b border-[var(--line)] bg-[var(--paper-elevated)]/60 px-5 py-2 backdrop-blur-md"
+        className="flex min-h-12 min-w-0 flex-nowrap items-center gap-2 border-b border-[var(--line)] bg-[var(--paper)]/60 px-5 py-2 backdrop-blur-md"
       >
         <div
           className={
@@ -200,7 +200,7 @@ export function IssuesWorkspace({
         >
           {searchActive ? (
             <label className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-muted)]" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
               <input
                 ref={searchInputRef}
                 value={issueQ}
@@ -214,7 +214,7 @@ export function IssuesWorkspace({
                     setSearchOpen(false);
                   }
                 }}
-                className="h-9 w-full rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/85 pl-9 pr-10 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-muted)] focus:border-[var(--accent-warm)]"
+                className="h-9 w-full rounded-xl border border-[var(--line)] bg-[var(--paper)]/85 pl-9 pr-10 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
                 placeholder={t("space.issues.searchPlaceholder")}
               />
               <button
@@ -223,7 +223,7 @@ export function IssuesWorkspace({
                   onQueryChange("");
                   setSearchOpen(false);
                 }}
-                className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                 aria-label={t("space.issues.closeSearch")}
               >
                 <X className="h-3.5 w-3.5" />
@@ -233,7 +233,7 @@ export function IssuesWorkspace({
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/70 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-[var(--line)] bg-[var(--paper)]/70 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
               aria-label={t("space.issues.searchIssue")}
               title={t("space.issues.searchIssue")}
             >
@@ -245,7 +245,7 @@ export function IssuesWorkspace({
           <div
             role="group"
             aria-label={t("space.filters.issueStatus")}
-            className="flex h-9 w-52 shrink-0 rounded-xl border border-[var(--line)] bg-[var(--paper-inset)]/80 p-0.5"
+            className="flex h-9 w-52 shrink-0 rounded-xl border border-[var(--line)] bg-[var(--inset)]/80 p-0.5"
           >
             <button
               type="button"
@@ -253,8 +253,8 @@ export function IssuesWorkspace({
               onClick={() => onStatusChange(ALL_ISSUE_STATE_FILTER)}
               className={`w-20 shrink-0 rounded-lg px-2 text-sm font-medium transition-colors active:scale-[0.98] ${
                 selectedStatus === ALL_ISSUE_STATE_FILTER
-                  ? "bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm"
-                  : "text-[var(--ink-muted)] hover:bg-[var(--paper-elevated)]/55 hover:text-[var(--ink)]"
+                  ? "bg-[var(--paper)] text-[var(--ink)] shadow-sm"
+                  : "text-[var(--muted)] hover:bg-[var(--paper)]/55 hover:text-[var(--ink)]"
               }`}
             >
               {t("space.filters.allIssues")}
@@ -262,8 +262,8 @@ export function IssuesWorkspace({
             <div
               className={`flex min-w-0 flex-1 overflow-hidden rounded-lg transition-colors ${
                 statusModeActive
-                  ? "bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm"
-                  : "text-[var(--ink-muted)]"
+                  ? "bg-[var(--paper)] text-[var(--ink)] shadow-sm"
+                  : "text-[var(--muted)]"
               }`}
             >
               <button
@@ -273,7 +273,7 @@ export function IssuesWorkspace({
                 className={`min-w-0 flex-1 truncate px-2 text-sm font-medium transition-colors active:scale-[0.98] ${
                   statusModeActive
                     ? "text-[var(--ink)]"
-                    : "hover:bg-[var(--paper-elevated)]/55 hover:text-[var(--ink)]"
+                    : "hover:bg-[var(--paper)]/55 hover:text-[var(--ink)]"
                 }`}
               >
                 {selectedStatusOption.label}
@@ -292,10 +292,10 @@ export function IssuesWorkspace({
                   event.preventDefault();
                   setStatusMenuOpen(true);
                 }}
-                className={`grid w-8 shrink-0 place-items-center border-l border-[var(--line-subtle)] transition-colors active:scale-[0.96] ${
+                className={`grid w-8 shrink-0 place-items-center border-l border-[var(--line)] transition-colors active:scale-[0.96] ${
                   statusModeActive
-                    ? "text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
-                    : "hover:bg-[var(--paper-elevated)]/55 hover:text-[var(--ink)]"
+                    ? "text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
+                    : "hover:bg-[var(--paper)]/55 hover:text-[var(--ink)]"
                 }`}
               >
                 <ChevronDown
@@ -353,7 +353,7 @@ export function IssuesWorkspace({
               {statusMenuOptions.map((option, index) => (
                 <div key={option.value}>
                   {index === 1 ? (
-                    <div className="my-1 border-t border-[var(--line-subtle)]" />
+                    <div className="my-1 border-t border-[var(--line)]" />
                   ) : null}
                   <button
                     ref={(node) => {
@@ -371,8 +371,8 @@ export function IssuesWorkspace({
                     }}
                     className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors ${
                       option.value === selectedStatusPreset
-                        ? "text-[var(--accent-warm)]"
-                        : "text-[var(--ink-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                        ? "text-[var(--primary)]"
+                        : "text-[var(--ink-2)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                     }`}
                   >
                     <span className="min-w-0 flex-1 truncate">
@@ -399,8 +399,8 @@ export function IssuesWorkspace({
             aria-pressed={relatedToMe}
             className={`inline-flex h-9 min-w-fit shrink-0 items-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition-colors max-xl:px-2 ${
               relatedToMe
-                ? "border-[var(--accent-warm)]/35 bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]"
-                : "border-[var(--line)] bg-[var(--paper-elevated)]/70 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                ? "border-[var(--primary)]/35 bg-[var(--primary-soft)] text-[var(--primary)]"
+                : "border-[var(--line)] bg-[var(--paper)]/70 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             }`}
           >
             <UserRoundCheck className="h-4 w-4" />
@@ -459,22 +459,22 @@ export function IssuesWorkspace({
                     () => undefined,
                   )
                 }
-                className="shrink-0 rounded-lg px-2 py-1 text-sm font-semibold transition-colors hover:bg-[var(--paper-elevated)]/60"
+                className="shrink-0 rounded-lg px-2 py-1 text-sm font-semibold transition-colors hover:bg-[var(--paper)]/60"
               >
                 {t("space.common.retry")}
               </button>
             </div>
           ) : showingPreviousIssues && issuesLoading ? (
-            <div className="mb-2 flex min-h-9 items-center justify-center gap-2 rounded-xl bg-[var(--paper-elevated)]/55 px-3 text-xs font-semibold text-[var(--ink-muted)]">
+            <div className="mb-2 flex min-h-9 items-center justify-center gap-2 rounded-xl bg-[var(--paper)]/55 px-3 text-xs font-semibold text-[var(--muted)]">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               {t("space.common.updatingResults")}
             </div>
           ) : null}
-          <div className="border-y border-[var(--line-subtle)]">
+          <div className="border-y border-[var(--line)]">
             {issues.length === 0 && issueError ? (
               <div
                 role="alert"
-                className="grid min-h-44 place-items-center border-x border-dashed border-[var(--line-subtle)] text-sm text-[var(--ink-muted)]"
+                className="grid min-h-44 place-items-center border-x border-dashed border-[var(--line)] text-sm text-[var(--muted)]"
               >
                 <div className="text-center">
                   <CircleAlert className="mx-auto mb-2 h-6 w-6 text-[var(--warning)]" />
@@ -482,7 +482,7 @@ export function IssuesWorkspace({
                   <button
                     type="button"
                     onClick={() => void onRefresh().catch(() => undefined)}
-                    className="mt-3 inline-flex h-9 items-center rounded-xl bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+                    className="mt-3 inline-flex h-9 items-center rounded-xl bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                   >
                     {t("space.common.retry")}
                   </button>
@@ -493,15 +493,15 @@ export function IssuesWorkspace({
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div
                     key={index}
-                    className="min-h-[68px] border-b border-[var(--line-subtle)] py-3 last:border-b-0"
+                    className="min-h-[68px] border-b border-[var(--line)] py-3 last:border-b-0"
                   >
-                    <div className="h-3.5 w-44 rounded-md bg-[var(--paper-inset)]" />
-                    <div className="mt-2 h-3 w-72 rounded-md bg-[var(--paper-inset)]" />
+                    <div className="h-3.5 w-44 rounded-md bg-[var(--inset)]" />
+                    <div className="mt-2 h-3 w-72 rounded-md bg-[var(--inset)]" />
                   </div>
                 ))}
               </div>
             ) : issues.length === 0 ? (
-              <div className="grid min-h-44 place-items-center border-x border-dashed border-[var(--line-subtle)] text-sm text-[var(--ink-muted)]">
+              <div className="grid min-h-44 place-items-center border-x border-dashed border-[var(--line)] text-sm text-[var(--muted)]">
                 <div className="text-center">
                   <p>
                     {relatedToMe
@@ -512,7 +512,7 @@ export function IssuesWorkspace({
                     <button
                       type="button"
                       onClick={onCreate}
-                      className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+                      className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                     >
                       <Plus className="h-4 w-4" />
                       {t("space.issues.createIssue")}
@@ -538,7 +538,7 @@ export function IssuesWorkspace({
                 type="button"
                 disabled={loadingMore}
                 onClick={() => void loadMore()}
-                className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/70 px-4 text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper)]/70 px-4 text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
               >
                 {loadingMore ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -575,10 +575,10 @@ function IssueStreamRow({
       type="button"
       onClick={onOpen}
       style={{ animationDelay: `${index * 42}ms` }}
-      className={`grid min-h-[68px] w-full border-b border-[var(--line-subtle)] px-1 py-3 text-left transition-colors last:border-b-0 sm:px-3 ${
+      className={`grid min-h-[68px] w-full border-b border-[var(--line)] px-1 py-3 text-left transition-colors last:border-b-0 sm:px-3 ${
         active
-          ? "bg-[var(--paper-elevated)]/70 shadow-[inset_3px_0_0_var(--accent-warm)]"
-          : "hover:bg-[var(--hover-bg)]"
+          ? "bg-[var(--paper)]/70 shadow-[inset_3px_0_0_var(--primary)]"
+          : "hover:bg-[var(--hover)]"
       }`}
     >
       <span className="min-w-0">
@@ -592,30 +592,30 @@ function IssueStreamRow({
             {displayTitle}
           </span>
         </span>
-        <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-normal leading-5 text-[var(--ink-subtle)]">
+        <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-normal leading-5 text-[var(--subtle)]">
           {displayNumber && (
             <>
-              <span className="text-[var(--ink-muted)]">{displayNumber}</span>
-              <span className="text-[var(--line-strong)]">·</span>
+              <span className="text-[var(--muted)]">{displayNumber}</span>
+              <span className="text-[var(--line-2)]">·</span>
             </>
           )}
           <SpaceIdentityLine
             name={author?.name ?? author?.id ?? "owner"}
             avatarUrl={author?.avatarUrl}
             avatarSize={20}
-            nameClassName="font-medium text-[var(--ink-subtle)]"
+            nameClassName="font-medium text-[var(--subtle)]"
           />
-          <span className="text-[var(--line-strong)]">·</span>
+          <span className="text-[var(--line-2)]">·</span>
           <span title={formatFullTime(issue.updatedAt)}>
             {formatTime(issue.updatedAt)}
           </span>
-          <span className="text-[var(--line-strong)]">·</span>
+          <span className="text-[var(--line-2)]">·</span>
           <span>
             {t("space.issues.comments", { count: issue.commentCount ?? 0 })}
           </span>
           {handlerName && (
             <>
-              <span className="text-[var(--line-strong)]">·</span>
+              <span className="text-[var(--line-2)]">·</span>
               <span className="rounded-md bg-[var(--warning-bg)]/70 px-2 py-0.5 text-xs font-semibold text-[var(--warning)]">
                 {t("space.issues.claimHandler", { name: handlerName })}
               </span>
@@ -623,14 +623,14 @@ function IssueStreamRow({
           )}
           {goalLabel && (
             <>
-              <span className="text-[var(--line-strong)]">·</span>
-              <span className="inline-flex max-w-[46ch] truncate rounded-md border border-[var(--line-subtle)] bg-[var(--paper-inset)]/45 px-2 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+              <span className="text-[var(--line-2)]">·</span>
+              <span className="inline-flex max-w-[46ch] truncate rounded-md border border-[var(--line)] bg-[var(--inset)]/45 px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
                 {goalLabel}
               </span>
             </>
           )}
           {issue.humanOnly && (
-            <span className="rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+            <span className="rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
               {t("space.issues.humanOnly")}
             </span>
           )}

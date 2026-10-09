@@ -212,21 +212,21 @@ export function SpaceQuickActionDialog({
       onClose={busy ? undefined : onClose}
       className="z-[220] items-center justify-center px-4 py-8"
     >
-      <section className="w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl">
-        <header className="flex min-h-12 items-center justify-between border-b border-[var(--line-subtle)] px-4">
+      <section className="w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl">
+        <header className="flex min-h-12 items-center justify-between border-b border-[var(--line)] px-4">
           <h2 className="text-lg font-semibold text-[var(--ink)]">{title}</h2>
           <button
             type="button"
             disabled={busy}
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] disabled:opacity-50"
+            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)] disabled:opacity-50"
           >
             <X className="h-4 w-4" />
           </button>
         </header>
         {busy ? (
           <div
-            className="flex min-h-32 flex-col items-center justify-center gap-3 p-4 text-sm font-medium text-[var(--ink-muted)]"
+            className="flex min-h-32 flex-col items-center justify-center gap-3 p-4 text-sm font-medium text-[var(--muted)]"
             role="status"
             aria-live="polite"
           >
@@ -236,7 +236,7 @@ export function SpaceQuickActionDialog({
         ) : (
           <div className="space-y-3 p-4">
             {mode === "join" ? (
-              <label className="block text-xs font-semibold text-[var(--ink-muted)]">
+              <label className="block text-xs font-semibold text-[var(--muted)]">
                 {t("space.spaceActions.slug")}
                 <input
                   value={joinSlug}
@@ -249,7 +249,7 @@ export function SpaceQuickActionDialog({
                     if (isImeComposingEvent(event)) return;
                     if (event.key === "Enter") submit();
                   }}
-                  className="mt-1 h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent-warm)]"
+                  className="mt-1 h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)]"
                 />
               </label>
             ) : (
@@ -260,12 +260,12 @@ export function SpaceQuickActionDialog({
                     type="button"
                     onClick={pickAvatar}
                     disabled={busy}
-                    className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-semibold text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] disabled:opacity-60"
+                    className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)] disabled:opacity-60"
                   >
                     {t("space.spaceActions.chooseAvatar")}
                   </button>
                 </div>
-                <label className="block text-xs font-semibold text-[var(--ink-muted)]">
+                <label className="block text-xs font-semibold text-[var(--muted)]">
                   {t("space.spaceActions.name")}
                   <input
                     value={name}
@@ -278,10 +278,10 @@ export function SpaceQuickActionDialog({
                         setCreateSlug(spaceSlugCandidate(nextName));
                     }}
                     onKeyDown={preventCreateOnEnter}
-                    className="mt-1 h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent-warm)]"
+                    className="mt-1 h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)]"
                   />
                 </label>
-                <label className="block text-xs font-semibold text-[var(--ink-muted)]">
+                <label className="block text-xs font-semibold text-[var(--muted)]">
                   {t("space.spaceActions.slug")}
                   <input
                     value={createSlug}
@@ -292,11 +292,11 @@ export function SpaceQuickActionDialog({
                     }}
                     onKeyDown={preventCreateOnEnter}
                     aria-invalid={slugError ? true : undefined}
-                    className={`mt-1 h-10 w-full rounded-lg border bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent-warm)] ${slugError ? "border-[var(--error)]" : "border-[var(--line)]"}`}
+                    className={`mt-1 h-10 w-full rounded-lg border bg-[var(--bg)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)] ${slugError ? "border-[var(--danger)]" : "border-[var(--line)]"}`}
                   />
                   {slugError ? (
                     <span
-                      className="mt-1 block text-xs font-medium text-[var(--error)]"
+                      className="mt-1 block text-xs font-medium text-[var(--danger)]"
                       role="alert"
                     >
                       {slugError}
@@ -309,7 +309,7 @@ export function SpaceQuickActionDialog({
               type="button"
               disabled={!canSubmit}
               onClick={submit}
-              className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[var(--button-primary-bg)] px-3 text-sm font-semibold text-[var(--button-primary-text)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-3 text-sm font-semibold text-[var(--on-primary)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {title}
             </button>
@@ -1383,7 +1383,7 @@ export default function Space({
 
   if (spaceData.boot === "idle" || spaceData.boot === "loading") {
     return (
-      <div className="flex h-full items-center justify-center bg-[var(--paper)] text-sm text-[var(--ink-muted)]">
+      <div className="flex h-full items-center justify-center bg-[var(--bg)] text-sm text-[var(--muted)]">
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
         {t("space.common.loadingTeam")}
       </div>
@@ -1408,7 +1408,7 @@ export default function Space({
 
   if (spaceData.boot === "error") {
     return (
-      <div className="flex h-full items-center justify-center bg-[var(--paper)] text-sm text-[var(--ink-muted)]">
+      <div className="flex h-full items-center justify-center bg-[var(--bg)] text-sm text-[var(--muted)]">
         <div className="text-center">
           <p>{spaceData.bootError ?? t("space.common.teamLoadFailed")}</p>
           <button
@@ -1418,7 +1418,7 @@ export default function Space({
                 .ensureBootstrapped({ force: true })
                 .catch((error) => toast.error(spaceErrorMessage(error)))
             }
-            className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] hover:bg-[var(--button-secondary-bg-hover)]"
+            className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--hover)]"
           >
             <RefreshCw className="h-4 w-4" />
             {t("space.common.retry")}
@@ -1442,7 +1442,7 @@ export default function Space({
     const canRetry = routeFailure.retryable
       && pendingRoute?.generation === routeFailure.generation;
     return (
-      <div className="flex h-full items-center justify-center bg-[var(--paper)] px-6 text-sm text-[var(--ink-muted)]">
+      <div className="flex h-full items-center justify-center bg-[var(--bg)] px-6 text-sm text-[var(--muted)]">
         <div className="max-w-sm text-center">
           <p>{routeFailure.message}</p>
           <button
@@ -1451,7 +1451,7 @@ export default function Space({
               setRouteFailure(null);
               if (canRetry) setRouteAttempt((value) => value + 1);
             }}
-            className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] hover:bg-[var(--button-secondary-bg-hover)]"
+            className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--hover)]"
           >
             {canRetry && <RefreshCw className="h-4 w-4" />}
             {t(canRetry ? "space.common.retry" : "space.route.back")}
@@ -1463,7 +1463,7 @@ export default function Space({
 
   return (
     <div
-      className="relative h-full overflow-hidden bg-[var(--paper)]"
+      className="relative h-full overflow-hidden bg-[var(--bg)]"
       style={SPACE_BACKGROUND_STYLE}
     >
       <div

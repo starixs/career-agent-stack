@@ -107,8 +107,8 @@ export default function SpaceProfileSettingsDialog({
       onClose={saving ? undefined : onClose}
       className="z-[220] items-center justify-center px-4 py-8"
     >
-      <section className="w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl">
-        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-[var(--line-subtle)] px-5">
+      <section className="w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl">
+        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-[var(--line)] px-5">
           <h2 className="text-lg font-semibold text-[var(--ink)]">
             {t("space.profile.title")}
           </h2>
@@ -116,7 +116,7 @@ export default function SpaceProfileSettingsDialog({
             type="button"
             disabled={saving}
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
+            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
             aria-label={t("space.detail.close")}
           >
             <X className="h-4 w-4" />
@@ -129,7 +129,7 @@ export default function SpaceProfileSettingsDialog({
               type="button"
               disabled={saving}
               onClick={openAvatarPicker}
-              className="group relative grid h-16 w-16 shrink-0 place-items-center rounded-full text-[var(--ink-muted)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] disabled:cursor-wait disabled:opacity-70"
+              className="group relative grid h-16 w-16 shrink-0 place-items-center rounded-full text-[var(--muted)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:cursor-wait disabled:opacity-70"
               aria-label={t("space.profile.changeAvatar")}
               title={t("space.profile.changeAvatar")}
             >
@@ -139,7 +139,7 @@ export default function SpaceProfileSettingsDialog({
                 avatarUrl={previewUrl}
                 size={64}
               />
-              <span className="absolute inset-0 grid place-items-center rounded-full bg-[var(--ink)]/45 text-[var(--paper)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+              <span className="absolute inset-0 grid place-items-center rounded-full bg-[var(--ink)]/45 text-[var(--bg)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                 <Camera className="h-4 w-4" />
               </span>
             </button>
@@ -148,12 +148,12 @@ export default function SpaceProfileSettingsDialog({
                 type="button"
                 disabled={saving}
                 onClick={openAvatarPicker}
-                className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-3 text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-wait disabled:opacity-70"
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)] disabled:cursor-wait disabled:opacity-70"
               >
                 <Camera className="h-4 w-4" />
                 {t("space.profile.changeAvatar")}
               </button>
-              <p className="mt-2 truncate text-xs text-[var(--ink-muted)]">
+              <p className="mt-2 truncate text-xs text-[var(--muted)]">
                 {avatarFilePath
                   ? basename(avatarFilePath)
                   : avatarPresetId
@@ -172,7 +172,7 @@ export default function SpaceProfileSettingsDialog({
               disabled={saving}
               onChange={(event) => setName(event.target.value)}
               maxLength={40}
-              className="h-10 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-muted)] focus:border-[var(--accent-warm)] disabled:cursor-wait disabled:opacity-70"
+              className="h-10 rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--primary)] disabled:cursor-wait disabled:opacity-70"
             />
           </label>
 
@@ -184,26 +184,26 @@ export default function SpaceProfileSettingsDialog({
               value={session.user.email}
               readOnly
               disabled
-              className="h-10 rounded-xl border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-3 text-sm text-[var(--ink-muted)]"
+              className="h-10 rounded-xl border border-[var(--line)] bg-[var(--inset)] px-3 text-sm text-[var(--muted)]"
             />
           </label>
 
           {trimmedName.length === 0 && (
-            <p className="text-xs font-medium text-[var(--error)]">
+            <p className="text-xs font-medium text-[var(--danger)]">
               {t("space.profile.nicknameRequired")}
             </p>
           )}
           {error && (
-            <p className="text-xs font-medium text-[var(--error)]">{error}</p>
+            <p className="text-xs font-medium text-[var(--danger)]">{error}</p>
           )}
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-[var(--line-subtle)] px-5 py-3">
+        <footer className="flex justify-end gap-2 border-t border-[var(--line)] px-5 py-3">
           <button
             type="button"
             disabled={saving}
             onClick={onClose}
-            className="inline-flex h-9 items-center rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-3 text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-wait disabled:opacity-70"
+            className="inline-flex h-9 items-center rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)] disabled:cursor-wait disabled:opacity-70"
           >
             {t("space.common.cancel")}
           </button>
@@ -211,7 +211,7 @@ export default function SpaceProfileSettingsDialog({
             type="button"
             disabled={!canSave}
             onClick={() => void save()}
-            className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--button-primary-bg)] px-3 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--primary)] px-3 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin" />

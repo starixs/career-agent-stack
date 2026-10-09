@@ -107,10 +107,10 @@ const HistorySessionRow = memo(function HistorySessionRow({
                     if (event.button === 2) event.preventDefault();
                 }}
                 onContextMenu={onContextMenu}
-                className="group relative flex w-full cursor-pointer select-none items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-[var(--hover-bg)]"
+                className="group relative flex w-full cursor-pointer select-none items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-[var(--hover)]"
                 data-history-session-row
             >
-                <div className="flex w-16 shrink-0 items-center gap-1 text-xs text-[var(--ink-muted)]/50">
+                <div className="flex w-16 shrink-0 items-center gap-1 text-xs text-[var(--muted)]/50">
                     <Clock className="h-2.5 w-2.5" />
                     <span>{formatTime(session.lastActiveAt)}</span>
                 </div>
@@ -118,15 +118,15 @@ const HistorySessionRow = memo(function HistorySessionRow({
                     <SessionTagBadge key={`${tag.type}-${index}`} tag={tag} />
                 ))}
                 <UserTagPills tags={session.userTags} onTagClick={onTagClick} />
-                <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink-secondary)] transition-colors group-hover:text-[var(--ink)]">
+                <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink-2)] transition-colors group-hover:text-[var(--ink)]">
                     {displayText}
                     {turnCount && (
-                        <span className="ml-1.5 text-xs text-[var(--ink-muted)]/40">
+                        <span className="ml-1.5 text-xs text-[var(--muted)]/40">
                             {turnCount}
                         </span>
                     )}
                 </span>
-                <div className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--ink-muted)]/45">
+                <div className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--muted)]/45">
                     <WorkspaceIcon icon={project.icon} size={14} />
                     <span className="max-w-[80px] truncate">
                         {getFolderName(project.path)}
@@ -134,16 +134,16 @@ const HistorySessionRow = memo(function HistorySessionRow({
                 </div>
 
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
-                    <div className="h-full w-10 bg-gradient-to-r from-[var(--paper-inset-a0)] to-[var(--paper-inset)]" />
-                    <div className="flex h-full items-center gap-1 bg-[var(--paper-inset)] pr-3">
+                    <div className="h-full w-10 bg-gradient-to-r from-[var(--inset-a0)] to-[var(--inset)]" />
+                    <div className="flex h-full items-center gap-1 bg-[var(--inset)] pr-3">
                         <Tip label={session.favorite ? t('historyOverlay.unfavorite') : t('historyOverlay.favorite')} position="bottom">
                             <button
                                 onClick={onToggleFavorite}
                                 aria-label={session.favorite ? t('historyOverlay.unfavorite') : t('historyOverlay.favorite')}
-                                className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--paper)] ${
+                                className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg)] ${
                                     session.favorite
-                                        ? 'text-[var(--accent)]'
-                                        : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                                        ? 'text-[var(--primary)]'
+                                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
                                 }`}
                             >
                                 <Star className="h-3.5 w-3.5" fill={session.favorite ? 'currentColor' : 'none'} />
@@ -153,7 +153,7 @@ const HistorySessionRow = memo(function HistorySessionRow({
                             <button
                                 onClick={onShowStats}
                                 aria-label={t('historyOverlay.viewStats')}
-                                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+                                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--ink)]"
                             >
                                 <BarChart2 className="h-3.5 w-3.5" />
                             </button>
@@ -165,7 +165,7 @@ const HistorySessionRow = memo(function HistorySessionRow({
                             <button
                                 onClick={onDelete}
                                 aria-label={deleteProtected ? t('historyOverlay.deleteBlockedAria') : t('historyOverlay.delete')}
-                                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--error-bg)] hover:text-[var(--error)]"
+                                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
                             >
                                 <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -506,7 +506,7 @@ export default memo(function HistorySearchOverlayContent({
                     <button
                         onClick={onClose}
                         aria-label={t('common.close')}
-                        className="rounded-md p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                        className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                     >
                         <X className="h-4 w-4" />
                     </button>
@@ -549,8 +549,8 @@ export default memo(function HistorySearchOverlayContent({
                                             onClick={() => setBrowseFilter(opt.key)}
                                             className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                                                 browseFilter === opt.key
-                                                    ? 'bg-[var(--button-primary-bg)] text-[var(--button-primary-text)]'
-                                                    : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]'
+                                                    ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                                                    : 'text-[var(--muted)] hover:bg-[var(--hover)]'
                                             }`}
                                         >
                                             {t(opt.labelKey)}
@@ -576,14 +576,14 @@ export default memo(function HistorySearchOverlayContent({
                                 aria-label={t('historyOverlay.searchPlaceholder')}
                                 aria-hidden={isSearchMode}
                                 tabIndex={isSearchMode ? -1 : 0}
-                                className={`absolute inset-y-0 right-0 flex w-[30%] min-w-72 items-center justify-between gap-3 rounded-md border border-[var(--line)] bg-[var(--paper-elevated)] px-2.5 text-sm text-[var(--ink-muted)] transition-[opacity,transform] duration-150 ease-out hover:border-[var(--line-strong)] hover:bg-[var(--paper-inset)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20 motion-reduce:transition-none ${
+                                className={`absolute inset-y-0 right-0 flex w-[30%] min-w-72 items-center justify-between gap-3 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2.5 text-sm text-[var(--muted)] transition-[opacity,transform] duration-150 ease-out hover:border-[var(--line-2)] hover:bg-[var(--inset)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/20 motion-reduce:transition-none ${
                                     isSearchMode
                                         ? 'pointer-events-none translate-x-2 opacity-0'
                                         : 'pointer-events-auto translate-x-0 opacity-100'
                                 }`}
                                 data-history-search-compact-trigger
                             >
-                                <span className="truncate text-[var(--ink-muted)]/60">
+                                <span className="truncate text-[var(--muted)]/60">
                                     {t('historyOverlay.searchPlaceholder')}
                                 </span>
                                 <Search className="h-3.5 w-3.5 shrink-0" />
@@ -591,9 +591,9 @@ export default memo(function HistorySearchOverlayContent({
 
                             <div
                                 aria-hidden="true"
-                                className={`pointer-events-none absolute inset-0 origin-right rounded-md border bg-[var(--paper-elevated)] transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
+                                className={`pointer-events-none absolute inset-0 origin-right rounded-md border bg-[var(--paper)] transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none ${
                                     isSearchMode
-                                        ? 'scale-x-100 border-[var(--accent)] opacity-100'
+                                        ? 'scale-x-100 border-[var(--primary)] opacity-100'
                                         : 'scale-x-[0.3] border-[var(--line)] opacity-0'
                                 }`}
                                 data-history-search-expanding-surface
@@ -608,7 +608,7 @@ export default memo(function HistorySearchOverlayContent({
                                 aria-hidden={!isSearchMode}
                                 data-history-search-expanded-content
                             >
-                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--ink-muted)]/50">
+                                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-[var(--muted)]/50">
                                     <Search className="h-3.5 w-3.5" />
                                 </div>
                                 <input
@@ -621,7 +621,7 @@ export default memo(function HistorySearchOverlayContent({
                                     onCompositionEnd={(e) => { setComposing(false); setSearchQuery(e.currentTarget.value); }}
                                     aria-label={t('historyOverlay.searchPlaceholder')}
                                     placeholder={t('historyOverlay.searchPlaceholder')}
-                                    className="h-full w-full bg-transparent py-1 pl-8 pr-10 text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]/60 disabled:cursor-default"
+                                    className="h-full w-full bg-transparent py-1 pl-8 pr-10 text-sm text-[var(--ink)] outline-none placeholder:text-[var(--muted)]/60 disabled:cursor-default"
                                     onKeyDown={(e) => {
                                         if (isImeComposingEvent(e) || composing) return;
                                         if (e.key === 'Escape') {
@@ -639,14 +639,14 @@ export default memo(function HistorySearchOverlayContent({
                                 />
                                 <div className="absolute inset-y-0 right-0 flex items-center gap-1 pr-2">
                                     {isSearching && (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--ink-muted)]/50" />
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--muted)]/50" />
                                     )}
                                     <button
                                         type="button"
                                         onClick={exitSearchMode}
                                         aria-label={t('historyOverlay.exitSearch')}
                                         tabIndex={isSearchMode ? 0 : -1}
-                                        className="flex items-center rounded-sm text-[var(--ink-muted)]/50 transition-colors hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20"
+                                        className="flex items-center rounded-sm text-[var(--muted)]/50 transition-colors hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/20"
                                     >
                                         <X className="h-3.5 w-3.5" />
                                     </button>
@@ -656,12 +656,12 @@ export default memo(function HistorySearchOverlayContent({
                         </div>
 
                         {sessionsError && (
-                            <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-md border border-[var(--error)]/20 bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error)]">
+                            <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-md border border-[var(--danger)]/20 bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger)]">
                                 <span>{t('historyOverlay.metadataFailed')}</span>
                                 <button
                                     type="button"
                                     onClick={actions.refreshSessions}
-                                    className="shrink-0 rounded px-2 py-1 font-medium hover:bg-[var(--paper-elevated)]"
+                                    className="shrink-0 rounded px-2 py-1 font-medium hover:bg-[var(--paper)]"
                                 >
                                     {t('historyOverlay.retry')}
                                 </button>
@@ -674,7 +674,7 @@ export default memo(function HistorySearchOverlayContent({
                             <div className="flex-1 overflow-y-auto overscroll-contain" style={{ scrollbarGutter: 'stable' }}>
                                 {directSessionMatch.kind === 'found' ? (
                                     <div className="space-y-2">
-                                        <div className="px-1 text-xs text-[var(--ink-muted)]/60">
+                                        <div className="px-1 text-xs text-[var(--muted)]/60">
                                             {t('historyOverlay.directMatch')}
                                         </div>
                                         <div
@@ -684,18 +684,18 @@ export default memo(function HistorySearchOverlayContent({
                                                 if (event.button === 2) event.preventDefault();
                                             }}
                                             onContextMenu={(event) => openContextMenu(event, directSessionMatch.session)}
-                                            className="group flex w-full cursor-pointer select-none items-center gap-2.5 rounded-lg border border-[var(--accent)]/30 px-3 py-2.5 text-left transition-colors hover:bg-[var(--hover-bg)]"
+                                            className="group flex w-full cursor-pointer select-none items-center gap-2.5 rounded-lg border border-[var(--primary)]/30 px-3 py-2.5 text-left transition-colors hover:bg-[var(--hover)]"
                                             data-history-direct-session-row
                                         >
-                                            <div className="flex w-16 shrink-0 items-center gap-1 text-xs text-[var(--ink-muted)]/50">
+                                            <div className="flex w-16 shrink-0 items-center gap-1 text-xs text-[var(--muted)]/50">
                                                 <Clock className="h-2.5 w-2.5" />
                                                 <span>{formatTime(directSessionMatch.session.lastActiveAt)}</span>
                                             </div>
                                             <UserTagPills tags={directSessionMatch.session.userTags} onTagClick={openTagAggregation} />
-                                            <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink-secondary)] transition-colors group-hover:text-[var(--ink)]">
+                                            <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink-2)] transition-colors group-hover:text-[var(--ink)]">
                                                 {getSessionDisplayText(directSessionMatch.session)}
                                             </span>
-                                            <div className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--ink-muted)]/45">
+                                            <div className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--muted)]/45">
                                                 <WorkspaceIcon icon={directSessionMatch.project.icon} size={14} />
                                                 <span className="max-w-[80px] truncate">
                                                     {getFolderName(directSessionMatch.project.path)}
@@ -704,26 +704,26 @@ export default memo(function HistorySearchOverlayContent({
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="py-8 text-center text-sm text-[var(--ink-muted)]/60">
+                                    <div className="py-8 text-center text-sm text-[var(--muted)]/60">
                                         {t('historyOverlay.sessionNotFound')}
                                     </div>
                                 )}
                             </div>
                         ) : isSearchMode && searchQuery.trim() !== '' ? (
                             <div className="flex min-h-0 flex-1 flex-col" aria-busy={isSearching}>
-                                <div className="mb-2 flex items-center justify-between px-1 text-xs text-[var(--ink-muted)]/70">
+                                <div className="mb-2 flex items-center justify-between px-1 text-xs text-[var(--muted)]/70">
                                     <span>{t('historyOverlay.recentActivityOrder')}</span>
                                     <span role="status">{isSearching
                                         ? t(search.status === 'indexing' ? 'historyOverlay.preparingIndex' : 'historyOverlay.searching')
                                         : search.status === 'ready' ? t('historyOverlay.resultsLoaded', { loaded: searchRows.length, total: search.total }) : ''}</span>
                                 </div>
                                 {searchError && !isSearching ? (
-                                    <div role="alert" className="py-8 text-center text-sm text-[var(--error)]">
+                                    <div role="alert" className="py-8 text-center text-sm text-[var(--danger)]">
                                         {t('historyOverlay.searchFailed')}
                                         <button type="button" onClick={search.refresh} className="ml-2 underline">{t('historyOverlay.retry')}</button>
                                     </div>
                                 ) : searchRows.length === 0 && !isSearching ? (
-                                    <div className="py-8 text-center text-sm text-[var(--ink-muted)]/60">
+                                    <div className="py-8 text-center text-sm text-[var(--muted)]/60">
                                         {t('historyOverlay.noResults')}
                                     </div>
                                 ) : (
@@ -752,18 +752,18 @@ export default memo(function HistorySearchOverlayContent({
                                         )}
                                     />
                                 )}
-                                {search.loadingMore && <div role="status" className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-[var(--ink-muted)]" aria-label={t('historyOverlay.loadingMore')} /></div>}
-                                {search.pageError && <div role="alert" className="py-2 text-center text-xs text-[var(--error)]">
+                                {search.loadingMore && <div role="status" className="flex justify-center py-2"><Loader2 className="h-4 w-4 animate-spin text-[var(--muted)]" aria-label={t('historyOverlay.loadingMore')} /></div>}
+                                {search.pageError && <div role="alert" className="py-2 text-center text-xs text-[var(--danger)]">
                                     {t(search.pageError === 'expired' ? 'historyOverlay.searchExpired' : 'historyOverlay.pageFailed')}
                                     <button type="button" className="ml-2 underline" onClick={search.pageError === 'expired' ? search.refresh : () => { void search.loadMore(); }}>{t('historyOverlay.retry')}</button>
                                 </div>}
                             </div>
                         ) : isSessionsLoading && browseRows.length === 0 ? (
                             <div className="flex flex-1 items-center justify-center" aria-busy="true">
-                                <Loader2 className="h-4 w-4 animate-spin text-[var(--ink-muted)]/50" />
+                                <Loader2 className="h-4 w-4 animate-spin text-[var(--muted)]/50" />
                             </div>
                         ) : browseRows.length === 0 ? (
-                            <div className="flex-1 py-8 text-center text-sm text-[var(--ink-muted)]/60">
+                            <div className="flex-1 py-8 text-center text-sm text-[var(--muted)]/60">
                                 {t('historyOverlay.empty')}
                             </div>
                         ) : (

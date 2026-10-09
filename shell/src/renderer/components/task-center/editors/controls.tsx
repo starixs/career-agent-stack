@@ -6,7 +6,7 @@ import { Check } from 'lucide-react';
 
 /** Shared input class for every text/number/datetime field in the task dialogs. */
 export const INPUT_CLS =
-  'w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:border-[var(--accent)] focus:outline-none transition-colors';
+  'w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:outline-none transition-colors';
 
 export function ToggleSwitch({
   enabled,
@@ -25,7 +25,7 @@ export function ToggleSwitch({
       disabled={disabled}
       onClick={() => onChange(!enabled)}
       className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-        enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+        enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
       } ${disabled ? '' : 'cursor-pointer'}`}
     >
       <span
@@ -58,8 +58,8 @@ export function Checkbox({
       <span
         className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
           checked
-            ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--on-accent)]'
-            : 'border-[var(--line-strong)] bg-transparent'
+            ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--on-primary)]'
+            : 'border-[var(--line-2)] bg-transparent'
         }`}
       >
         {checked && <Check className="h-2.5 w-2.5" />}
@@ -87,8 +87,8 @@ export function PillButton({
       disabled={disabled}
       className={`rounded-lg px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
         selected
-          ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-          : 'bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--paper-inset)]'
+          ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+          : 'bg-[var(--bg)] text-[var(--ink)] hover:bg-[var(--inset)]'
       }`}
     >
       {children}

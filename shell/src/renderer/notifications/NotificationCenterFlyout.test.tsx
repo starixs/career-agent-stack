@@ -176,18 +176,18 @@ describe('NotificationCenterFlyout', () => {
     );
     expect(readItem.querySelector('[data-notification-headline]')).toHaveClass(
       'font-normal',
-      'text-[var(--ink-muted)]',
+      'text-[var(--muted)]',
     );
     const unreadDetail = unreadItem.querySelector('[data-notification-detail]');
     const readDetail = readItem.querySelector('[data-notification-detail]');
     expect(unreadDetail).toHaveClass(
       'line-clamp-3',
-      'text-[var(--ink-secondary)]',
+      'text-[var(--ink-2)]',
     );
     expect(unreadDetail).not.toHaveClass('block');
     expect(readDetail).toHaveClass(
       'line-clamp-3',
-      'text-[var(--ink-muted)]/75',
+      'text-[var(--muted)]/75',
     );
     expect(readDetail).not.toHaveClass('block');
     expect(unreadItem.querySelector('[aria-hidden="true"]')).not.toBeInTheDocument();

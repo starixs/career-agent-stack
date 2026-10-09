@@ -42,8 +42,8 @@ interface LauncherInputContextRowProps {
 }
 
 // Resting → hover → focus contract: the resting surface matches
-// `SimpleChatInput` (`--paper-elevated` + `--line`), hover uses the semantic
-// hover tint, and focus/open deepens to `--paper-inset`. The inner buttons
+// `SimpleChatInput` (`--paper` + `--line`), hover uses the semantic
+// hover tint, and focus/open deepens to `--inset`. The inner buttons
 // already paint their own hover background, so force those backgrounds
 // transparent and let the wrapper own one continuous material transition.
 // `shadow-xs` is deliberate: the large composer keeps `shadow-md`; a small
@@ -52,7 +52,7 @@ interface LauncherInputContextRowProps {
 // icon-height-driven (16px). Fix the bordered outer chips at the workspace
 // chip's existing 34px height and fill each chip with its trigger button.
 const CHIP_WRAPPER_CLASS =
-  'inline-flex h-[34px] items-center rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xs transition-[background-color,border-color,box-shadow] duration-150 hover:border-[var(--line-strong)] hover:bg-[var(--hover-bg)] hover:shadow-sm focus-within:border-[var(--line-strong)] focus-within:bg-[var(--paper-inset)] focus-within:shadow-sm [&>button]:h-full [&_button:hover]:!bg-transparent';
+  'inline-flex h-[34px] items-center rounded-lg border border-[var(--line)] bg-[var(--paper)] shadow-xs transition-[background-color,border-color,box-shadow] duration-150 hover:border-[var(--line-2)] hover:bg-[var(--hover)] hover:shadow-sm focus-within:border-[var(--line-2)] focus-within:bg-[var(--inset)] focus-within:shadow-sm [&>button]:h-full [&_button:hover]:!bg-transparent';
 
 export default memo(function LauncherInputContextRow({
   projects,
@@ -67,7 +67,7 @@ export default memo(function LauncherInputContextRow({
   onRuntimeChange,
 }: LauncherInputContextRowProps) {
   return (
-    <div className="flex items-center gap-2 pl-3 text-sm text-[var(--ink-muted)]">
+    <div className="flex items-center gap-2 pl-3 text-sm text-[var(--muted)]">
       <div className={CHIP_WRAPPER_CLASS}>
         <WorkspaceSelector
           projects={projects}

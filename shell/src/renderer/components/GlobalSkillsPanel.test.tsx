@@ -102,8 +102,8 @@ describe('GlobalSkillsPanel required skill controls', () => {
     const systemStatus = screen.getByText('系统');
     expect(typeIcon?.nextElementSibling).toContainElement(requiredTitle);
     expect(requiredTitle.nextElementSibling).toBe(author);
-    expect(author).not.toHaveClass('rounded-full', 'bg-[var(--paper-inset)]');
-    expect(systemStatus).toHaveClass('rounded-full', 'bg-[var(--paper-inset)]');
+    expect(author).not.toHaveClass('rounded-full', 'bg-[var(--inset)]');
+    expect(systemStatus).toHaveClass('rounded-full', 'bg-[var(--inset)]');
 
     fireEvent.click(requiredCard!);
     await waitFor(() => expect(onDetailChange).toHaveBeenLastCalledWith(true));

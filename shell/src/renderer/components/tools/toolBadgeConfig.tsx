@@ -958,7 +958,7 @@ function renderFilePatchSummary(display: FilePatchRenderModel, t?: ToolChromeTra
   const written = display.changes.reduce((total, change) => total + (change.written ?? 0), 0);
   if (written > 0 && added === 0 && removed === 0) {
     return (
-      <span className="text-xs font-mono whitespace-nowrap text-[var(--ink-muted)]">
+      <span className="text-xs font-mono whitespace-nowrap text-[var(--muted)]">
         {tc(t, 'labels.writeLines', { count: written })}
       </span>
     );
@@ -980,7 +980,7 @@ function renderFilePatchSummary(display: FilePatchRenderModel, t?: ToolChromeTra
     <span className="text-xs font-mono whitespace-nowrap">
       <span className="text-[var(--success)]">+{added}</span>
       {' '}
-      <span className="text-[var(--error)]">-{removed}</span>
+      <span className="text-[var(--danger)]">-{removed}</span>
     </span>
   );
 }
@@ -1009,7 +1009,7 @@ export function getToolSummaryNode(tool: ToolUseSimple, t?: ToolChromeTranslator
         ` ${tc(t, 'labels.filesPart', { count: stats.files })}`
         : '';
       return (
-        <span className="text-xs font-mono text-[var(--ink-muted)]">
+        <span className="text-xs font-mono text-[var(--muted)]">
           {tc(t, 'labels.matches', { count: stats.matches })}{filesPart}
         </span>
       );
@@ -1018,7 +1018,7 @@ export function getToolSummaryNode(tool: ToolUseSimple, t?: ToolChromeTranslator
       const stats = parseGlobStats(tool.result);
       if (!stats) return null;
       return (
-        <span className="text-xs font-mono text-[var(--ink-muted)]">
+        <span className="text-xs font-mono text-[var(--muted)]">
           {tc(t, 'labels.files', { count: stats.files })}
         </span>
       );

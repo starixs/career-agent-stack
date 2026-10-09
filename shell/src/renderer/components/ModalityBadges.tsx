@@ -67,7 +67,7 @@ export function ModalityBadges({
   if (RENDER_AUDIO_BADGES && modalities.includes('audio')) items.push({ key: 'audio', label: t('modalities.audio'), Icon: AudioLines });
   if (items.length === 0) return null;
   return (
-    <span className={`inline-flex items-center gap-1 text-[var(--ink-muted)]/70 ${className}`}>
+    <span className={`inline-flex items-center gap-1 text-[var(--muted)]/70 ${className}`}>
       {items.map(({ key, label, Icon }) => (
         <Tip key={key} label={t('modalityBadges.supportsInput', { modality: label })} position="top">
           <Icon className={iconSize} aria-label={t('modalityBadges.supportsInput', { modality: label })} />

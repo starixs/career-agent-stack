@@ -35,10 +35,10 @@ const typeConfig = {
     },
     error: {
         icon: AlertCircle,
-        bg: 'bg-[var(--error-bg)]',
-        border: 'border-[var(--error)]/20',
-        text: 'text-[var(--error)]',
-        iconColor: 'text-[var(--error)]',
+        bg: 'bg-[var(--danger-bg)]',
+        border: 'border-[var(--danger)]/20',
+        text: 'text-[var(--danger)]',
+        iconColor: 'text-[var(--danger)]',
     },
     warning: {
         icon: AlertTriangle,

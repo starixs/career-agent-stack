@@ -46,7 +46,7 @@ export function SpaceAvatar({
   const fallbackTextClass = size >= 48 ? 'text-base' : size >= 32 ? 'text-sm' : 'text-xs';
   if (avatarUrl && failedUrl !== avatarUrl) {
     return (
-      <span className={`inline-grid shrink-0 place-items-center overflow-hidden ${radiusClass} bg-[var(--paper-inset)] ${className}`} style={style}>
+      <span className={`inline-grid shrink-0 place-items-center overflow-hidden ${radiusClass} bg-[var(--inset)] ${className}`} style={style}>
         <img
           src={avatarUrl}
           alt=""
@@ -59,7 +59,7 @@ export function SpaceAvatar({
   }
 
   return (
-    <span className={`inline-grid shrink-0 place-items-center ${radiusClass} border border-[var(--line-subtle)] bg-[var(--paper-inset)] ${fallbackTextClass} font-semibold leading-none text-[var(--ink-muted)] ${className}`} style={style}>
+    <span className={`inline-grid shrink-0 place-items-center ${radiusClass} border border-[var(--line)] bg-[var(--inset)] ${fallbackTextClass} font-semibold leading-none text-[var(--muted)] ${className}`} style={style}>
       {type === 'registered_agent' ? (
         <Bot className="h-3.5 w-3.5" />
       ) : type === 'system' ? (
@@ -131,7 +131,7 @@ export function SpaceIdentityLine({
               event.stopPropagation();
               setOwnerTipOpen((value) => !value);
             }}
-            className="rounded-md bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium leading-none text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+            className="rounded-md bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium leading-none text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
           >
             Agent
           </button>
@@ -141,7 +141,7 @@ export function SpaceIdentityLine({
             anchorRef={ownerTagRef}
             placement="bottom"
             offset={8}
-            className="max-w-64 px-2.5 py-2 text-xs font-normal leading-5 text-[var(--ink-secondary)]"
+            className="max-w-64 px-2.5 py-2 text-xs font-normal leading-5 text-[var(--ink-2)]"
           >
             {t('space.detail.agentOwner', { name: agentOwnerName || '—' })}
           </Popover>

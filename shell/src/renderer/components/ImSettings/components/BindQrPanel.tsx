@@ -46,9 +46,9 @@ export default function BindQrPanel({
     }, [bindUrl]);
 
     return (
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
             <div className="flex items-center gap-2 mb-3">
-                <QrCode className="h-4 w-4 text-[var(--ink-muted)]" />
+                <QrCode className="h-4 w-4 text-[var(--muted)]" />
                 <h3 className="text-sm font-semibold text-[var(--ink)]">
                     {t('agentSettings.imComponents.quickBindTitle')}
                 </h3>
@@ -59,7 +59,7 @@ export default function BindQrPanel({
                 )}
             </div>
 
-            <p className="mb-4 text-xs text-[var(--ink-muted)]">
+            <p className="mb-4 text-xs text-[var(--muted)]">
                 {t('agentSettings.imComponents.qrBindDescription')}
             </p>
 
@@ -70,40 +70,40 @@ export default function BindQrPanel({
                         <img src={qrDataUrl} alt="Telegram bind QR" className="h-[160px] w-[160px]" />
                     ) : (
                         <div className="flex h-[160px] w-[160px] items-center justify-center">
-                            <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+                            <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
                         </div>
                     )}
                 </div>
 
                 {/* Instructions */}
                 <div className="flex-1 space-y-3">
-                    <div className="space-y-2 text-xs text-[var(--ink-muted)]">
+                    <div className="space-y-2 text-xs text-[var(--muted)]">
                         <div className="flex items-start gap-2">
-                            <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--button-primary-bg)] text-xs font-bold text-[var(--button-primary-text)]">1</span>
+                            <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-[var(--on-primary)]">1</span>
                             <span>{t('agentSettings.imComponents.qrBindStepScan')}</span>
                         </div>
                         <div className="flex items-start gap-2">
-                            <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--button-primary-bg)] text-xs font-bold text-[var(--button-primary-text)]">2</span>
+                            <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-[var(--on-primary)]">2</span>
                             <span>{t('agentSettings.imComponents.qrBindStepStart')}</span>
                         </div>
                         <div className="flex items-start gap-2">
-                            <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--button-primary-bg)] text-xs font-bold text-[var(--button-primary-text)]">3</span>
+                            <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-xs font-bold text-[var(--on-primary)]">3</span>
                             <span>{t('agentSettings.imComponents.bindingStepDone')}</span>
                         </div>
                     </div>
 
                     {/* Deep link for desktop Telegram users */}
                     <div className="pt-1">
-                        <p className="mb-1 text-xs text-[var(--ink-muted)]">
+                        <p className="mb-1 text-xs text-[var(--muted)]">
                             {t('agentSettings.imComponents.telegramDesktopOpen')}
                         </p>
                         <div className="flex items-center gap-1.5 overflow-hidden">
-                            <code className="min-w-0 flex-1 truncate rounded bg-[var(--paper-inset)] px-2 py-1 text-xs text-[var(--ink)]">
+                            <code className="min-w-0 flex-1 truncate rounded bg-[var(--inset)] px-2 py-1 text-xs text-[var(--ink)]">
                                 {bindUrl}
                             </code>
                             <button
                                 onClick={handleCopy}
-                                className="flex-shrink-0 rounded p-1 text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+                                className="flex-shrink-0 rounded p-1 text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
                                 title={t('agentSettings.imComponents.copyLink')}
                             >
                                 {copied ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}

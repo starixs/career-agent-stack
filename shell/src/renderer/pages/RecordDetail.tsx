@@ -1419,12 +1419,12 @@ export default function RecordDetail({
             if (element) transcriptItemRefs.current.set(itemKey, element);
             else transcriptItemRefs.current.delete(itemKey);
           }}
-          className={`group relative mb-1.5 grid grid-cols-[52px_minmax(0,1fr)] items-start gap-2 rounded-[var(--radius-md)] px-2 py-2 transition-colors hover:bg-[var(--hover-bg)] ${highlightedItem === itemKey ? 'bg-[var(--accent-warm-subtle)]' : ''}`}
+          className={`group relative mb-1.5 grid grid-cols-[52px_minmax(0,1fr)] items-start gap-2 rounded-[var(--radius-md)] px-2 py-2 transition-colors hover:bg-[var(--hover)] ${highlightedItem === itemKey ? 'bg-[var(--primary-soft)]' : ''}`}
         >
           <button
             type="button"
             onClick={() => void handleCopyTranscriptSegment(segment)}
-            className="isolate absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-[var(--paper-elevated)] px-2 py-1 text-xs font-medium text-[var(--ink-secondary)] opacity-0 shadow-xs transition-[opacity,color,background-color] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-warm)]"
+            className="isolate absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-[var(--paper)] px-2 py-1 text-xs font-medium text-[var(--ink-2)] opacity-0 shadow-xs transition-[opacity,color,background-color] hover:bg-[var(--inset)] hover:text-[var(--ink)] group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--primary)]"
             aria-label={
               copiedSegmentId === segment.segmentId
                 ? t('records.copied')
@@ -1434,7 +1434,7 @@ export default function RecordDetail({
             <span
               aria-hidden="true"
               data-testid="transcript-copy-mask"
-              className="pointer-events-none absolute -bottom-2 -left-12 -right-2 -top-2 -z-10 bg-gradient-to-r from-[var(--paper-elevated-a0)] to-[var(--paper-elevated)]"
+              className="pointer-events-none absolute -bottom-2 -left-12 -right-2 -top-2 -z-10 bg-gradient-to-r from-[var(--paper-a0)] to-[var(--paper)]"
             />
             {copiedSegmentId === segment.segmentId ? (
               <Check className="h-3 w-3" />
@@ -1448,7 +1448,7 @@ export default function RecordDetail({
           <button
             type="button"
             onClick={() => highlightAndFocus(itemKey, mediaMs)}
-            className="self-start pt-1 text-left text-xs tabular-nums text-[var(--ink-muted)] hover:text-[var(--accent-warm)]"
+            className="self-start pt-1 text-left text-xs tabular-nums text-[var(--muted)] hover:text-[var(--primary)]"
           >
             {formatDuration(mediaMs)}
           </button>
@@ -1466,11 +1466,11 @@ export default function RecordDetail({
                 }
                 disabled={busyAction !== null}
                 compact
-                className="w-fit min-w-24 shrink-0 self-start [&>button]:border-0 [&>button]:bg-[var(--paper-inset)] [&>button]:py-0.5"
+                className="w-fit min-w-24 shrink-0 self-start [&>button]:border-0 [&>button]:bg-[var(--inset)] [&>button]:py-0.5"
                 ariaLabel={t('records.reassignSegmentSpeaker')}
               />
             ) : (
-              <span className="inline-flex shrink-0 rounded-[var(--radius-sm)] bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-secondary)]">
+              <span className="inline-flex shrink-0 rounded-[var(--radius-sm)] bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-2)]">
                 {speakerText}
               </span>
             )}
@@ -1516,12 +1516,12 @@ export default function RecordDetail({
             }}
             tabIndex={-1}
             data-testid={`recording-timeline-${itemKey}`}
-            className={`group relative grid w-full grid-cols-[48px_minmax(0,1fr)] items-start gap-2 rounded-[var(--radius-sm)] px-1 py-1 text-left text-sm leading-relaxed transition-colors ${item.type === 'mark' ? 'text-[var(--accent-warm)]' : 'text-[var(--ink)]'} ${highlightedItem === itemKey ? 'bg-[var(--accent-warm-subtle)]' : ''}`}
+            className={`group relative grid w-full grid-cols-[48px_minmax(0,1fr)] items-start gap-2 rounded-[var(--radius-sm)] px-1 py-1 text-left text-sm leading-relaxed transition-colors ${item.type === 'mark' ? 'text-[var(--primary)]' : 'text-[var(--ink)]'} ${highlightedItem === itemKey ? 'bg-[var(--primary-soft)]' : ''}`}
           >
             <button
               type="button"
               onClick={() => highlightAndFocus(itemKey, mediaMs)}
-              className="text-left text-xs tabular-nums text-[var(--ink-muted)] hover:text-[var(--accent-warm)]"
+              className="text-left text-xs tabular-nums text-[var(--muted)] hover:text-[var(--primary)]"
               aria-label={t('records.seekTimeline', {
                 time: formatDuration(mediaMs),
               })}
@@ -1529,7 +1529,7 @@ export default function RecordDetail({
               {formatDuration(mediaMs)}
             </button>
             {isEditing ? (
-              <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-2 pb-1.5 pt-2 focus-within:border-[var(--accent-warm)]">
+              <div className="rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-2 pb-1.5 pt-2 focus-within:border-[var(--primary)]">
                 <textarea
                   autoFocus
                   value={editingNoteDraft}
@@ -1542,7 +1542,7 @@ export default function RecordDetail({
                     type="button"
                     onClick={() => void handleUpdateNote()}
                     disabled={busyAction !== null || !editingNoteDraft.trim()}
-                    className="rounded p-1 text-[var(--success)] hover:bg-[var(--paper-inset)] disabled:opacity-40"
+                    className="rounded p-1 text-[var(--success)] hover:bg-[var(--inset)] disabled:opacity-40"
                     aria-label={t('records.saveNoteEdit')}
                   >
                     <Check className="h-3.5 w-3.5" />
@@ -1554,7 +1554,7 @@ export default function RecordDetail({
                       setEditingNoteDraft('');
                     }}
                     disabled={busyAction !== null}
-                    className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                    className="rounded p-1 text-[var(--muted)] hover:bg-[var(--inset)]"
                     aria-label={t('records.cancelNoteEdit')}
                   >
                     <X className="h-3.5 w-3.5" />
@@ -1571,7 +1571,7 @@ export default function RecordDetail({
               </button>
             )}
             {!isEditing && (
-              <div className="pointer-events-none absolute right-0 top-0 flex items-center bg-gradient-to-r from-[var(--paper-elevated-a0)] via-[var(--paper-elevated)] to-[var(--paper-elevated)] pb-1 pl-7 opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+              <div className="pointer-events-none absolute right-0 top-0 flex items-center bg-gradient-to-r from-[var(--paper-a0)] via-[var(--paper)] to-[var(--paper)] pb-1 pl-7 opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
                 <DropdownMenu
                   size="sm"
                   disabled={busyAction !== null}
@@ -1670,13 +1670,13 @@ export default function RecordDetail({
                 : t('records.complete');
   const statusDotClass =
     !captureStatus && !transcriptionStatus && recordLoading
-      ? 'bg-[var(--ink-muted)]'
+      ? 'bg-[var(--muted)]'
       : captureStatus === 'recording'
-        ? 'bg-[var(--error)]'
+        ? 'bg-[var(--danger)]'
         : captureStatus === 'interrupted' ||
             captureStatus === 'failed' ||
             transcriptionStatus === 'failed' || completedTranscriptionFailed
-          ? 'bg-[var(--error)]'
+          ? 'bg-[var(--danger)]'
           : ownsCaptureSlot || processingSavedAudio
             ? 'bg-[var(--warning)]'
             : 'bg-[var(--success)]';
@@ -1789,12 +1789,12 @@ export default function RecordDetail({
 
   if (loadError && !record && !snapshot) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--paper)] p-8 text-sm text-[var(--error)]">
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-[var(--bg)] p-8 text-sm text-[var(--danger)]">
         <span>{t('records.loadFailed', { message: loadError })}</span>
         <button
           type="button"
           onClick={() => void refresh()}
-          className="font-semibold text-[var(--accent-warm)] hover:underline"
+          className="font-semibold text-[var(--primary)] hover:underline"
         >
           {t('records.retryLoad')}
         </button>
@@ -1803,7 +1803,7 @@ export default function RecordDetail({
   }
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-[var(--paper)] text-[var(--ink)]">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,3fr)_minmax(320px,2fr)] grid-rows-[52px_84px_minmax(0,1fr)] gap-x-5 px-5 pb-5 max-lg:grid-cols-1 max-lg:grid-rows-[52px_auto_minmax(300px,55vh)_minmax(320px,65vh)] max-lg:gap-y-4 max-lg:overflow-y-auto">
         <header className="col-start-1 row-start-1 flex min-w-0 items-center gap-3">
           <div
@@ -1825,13 +1825,13 @@ export default function RecordDetail({
                 if (event.key === 'Enter') event.currentTarget.blur();
               }}
               aria-label={t('records.titleLabel')}
-              className="min-w-20 max-w-[calc(100%_-_88px)] truncate rounded-[var(--radius-sm)] bg-transparent px-1.5 py-1 text-base font-semibold text-[var(--ink)] outline-none transition-colors hover:bg-[var(--paper-inset)] focus:bg-[var(--paper-inset)]"
+              className="min-w-20 max-w-[calc(100%_-_88px)] truncate rounded-[var(--radius-sm)] bg-transparent px-1.5 py-1 text-base font-semibold text-[var(--ink)] outline-none transition-colors hover:bg-[var(--inset)] focus:bg-[var(--inset)]"
               style={{
                 width: `${Math.min(48, Math.max(8, Array.from(titleDraft).length + 1))}ch`,
               }}
             />
             <span
-              className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-[var(--ink-muted)]"
+              className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-[var(--muted)]"
               role="status"
               aria-live="polite"
               data-status={captureStatus ?? transcriptionStatus}
@@ -1842,7 +1842,7 @@ export default function RecordDetail({
           </div>
         </header>
 
-        <section data-testid="record-media-controls" className="[&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-2 [&_button]:focus-visible:outline-[var(--media-control-text)] col-start-1 row-start-2 flex h-[84px] items-center gap-5 overflow-hidden rounded-[var(--radius-lg)] bg-[var(--media-control-bg)] px-5 text-[var(--media-control-text)] shadow-sm max-lg:grid max-lg:h-auto max-lg:min-h-[132px] max-lg:grid-cols-[92px_minmax(0,1fr)] max-lg:grid-rows-[auto_auto] max-lg:gap-x-4 max-lg:gap-y-2 max-lg:overflow-visible max-lg:py-3">
+        <section data-testid="record-media-controls" className="[&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-2 [&_button]:focus-visible:outline-[var(--bg)] col-start-1 row-start-2 flex h-[84px] items-center gap-5 overflow-hidden rounded-[var(--radius-lg)] bg-[var(--ink)] px-5 text-[var(--bg)] shadow-sm max-lg:grid max-lg:h-auto max-lg:min-h-[132px] max-lg:grid-cols-[92px_minmax(0,1fr)] max-lg:grid-rows-[auto_auto] max-lg:gap-x-4 max-lg:gap-y-2 max-lg:overflow-visible max-lg:py-3">
           {ownsCaptureSlot ? (
             <>
               <div className="min-w-[92px] max-lg:col-start-1 max-lg:row-start-1">
@@ -1900,16 +1900,16 @@ export default function RecordDetail({
                           void runSourceControl(source.track, !enabled);
                         }
                       }}
-                      className={`grid min-w-0 grid-cols-[72px_minmax(48px,1fr)_16px] items-center gap-2 rounded-[var(--radius-sm)] px-1 py-0.5 text-left text-xs transition-colors hover:bg-[var(--media-control-text)]/10 disabled:cursor-default ${enabled ? '' : 'opacity-45'}`}
+                      className={`grid min-w-0 grid-cols-[72px_minmax(48px,1fr)_16px] items-center gap-2 rounded-[var(--radius-sm)] px-1 py-0.5 text-left text-xs transition-colors hover:bg-[var(--bg)]/10 disabled:cursor-default ${enabled ? '' : 'opacity-45'}`}
                     >
                       <span
                         className={`truncate ${enabled ? 'opacity-80' : 'line-through'}`}
                       >
                         {sourceLabel}
                       </span>
-                      <span className="h-1.5 min-w-0 overflow-hidden rounded-full bg-[var(--media-control-text)]/20">
+                      <span className="h-1.5 min-w-0 overflow-hidden rounded-full bg-[var(--bg)]/20">
                         <span
-                          className="block h-full origin-left rounded-full bg-[var(--media-control-accent)] transition-transform duration-300 ease-out"
+                          className="block h-full origin-left rounded-full bg-[var(--primary)] transition-transform duration-300 ease-out"
                           style={{ transform: `scaleX(${level / 100})` }}
                         />
                       </span>
@@ -1923,14 +1923,14 @@ export default function RecordDetail({
                   );
                 })}
                 {systemAudioDowngraded && (
-                  <span className="truncate rounded-[var(--radius-sm)] bg-[var(--warning)] px-1.5 py-0.5 text-xs text-[var(--on-warning)]">
+                  <span className="truncate rounded-[var(--radius-sm)] bg-[var(--warning)] px-1.5 py-0.5 text-xs text-[var(--on-primary)]">
                     {t('records.systemAudioDowngraded')}
                   </span>
                 )}
                 {wakeLockUnavailable && (
                   <span
                     role="status"
-                    className="truncate rounded-[var(--radius-sm)] bg-[var(--warning)] px-1.5 py-0.5 text-xs text-[var(--on-warning)]"
+                    className="truncate rounded-[var(--radius-sm)] bg-[var(--warning)] px-1.5 py-0.5 text-xs text-[var(--on-primary)]"
                     title={t('records.wakeLockUnavailable')}
                   >
                     {t('records.wakeLockUnavailable')}
@@ -1947,7 +1947,7 @@ export default function RecordDetail({
                       snapshot?.captureStatus ?? '',
                     )
                   }
-                  className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--media-control-text)]/12 px-3 text-sm font-medium transition-colors hover:bg-[var(--media-control-text)]/20 disabled:opacity-40"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--bg)]/12 px-3 text-sm font-medium transition-colors hover:bg-[var(--bg)]/20 disabled:opacity-40"
                 >
                   {isPaused ? (
                     <Play className="h-4 w-4" />
@@ -1960,7 +1960,7 @@ export default function RecordDetail({
                   type="button"
                   onClick={() => void handleStop()}
                   disabled={busyAction !== null || !snapshot}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--media-stop-bg)] px-3 text-sm font-semibold text-[var(--media-stop-text)] transition-opacity hover:opacity-90 disabled:opacity-40"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--danger)] px-3 text-sm font-semibold text-[var(--on-primary)] transition-opacity hover:opacity-90 disabled:opacity-40"
                 >
                   <Square className="h-3.5 w-3.5 fill-current" />
                   {t('records.stop')}
@@ -1976,7 +1976,7 @@ export default function RecordDetail({
                 onClick={() => {
                   togglePlayback();
                 }}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--media-control-text)] text-[var(--media-control-bg)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--media-control-text)] disabled:opacity-40"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--bg)] text-[var(--ink)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--bg)] disabled:opacity-40"
                 aria-label={
                   playing ? t('records.pausePlayback') : t('records.play')
                 }
@@ -1992,18 +1992,18 @@ export default function RecordDetail({
                 data-testid="recording-playback-timeline"
               >
                 <div
-                  className="relative h-5 min-w-[120px] rounded focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--media-control-text)]"
+                  className="relative h-5 min-w-[120px] rounded focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--bg)]"
                   data-testid="recording-playback-progress"
                 >
-                  <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-[var(--media-control-text)]/20">
+                  <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-[var(--bg)]/20">
                     <span
-                      className="block h-full rounded-full bg-[var(--media-control-accent)]"
+                      className="block h-full rounded-full bg-[var(--primary)]"
                       style={{ width: `${playbackPercent}%` }}
                     />
                   </div>
                   <span
                     aria-hidden="true"
-                    className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--media-control-text)] shadow-sm"
+                    className="pointer-events-none absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--bg)] shadow-sm"
                     style={{ left: `${playbackPercent}%` }}
                   />
                   <input
@@ -2022,7 +2022,7 @@ export default function RecordDetail({
                     aria-label={t('records.duration')}
                   />
                 </div>
-                <span className="text-center font-mono text-xs tabular-nums text-[var(--media-control-text)]/75">
+                <span className="text-center font-mono text-xs tabular-nums text-[var(--bg)]/75">
                   {formatDuration(playbackMs)} /{' '}
                   {formatDuration(playbackDurationMs)}
                 </span>
@@ -2039,7 +2039,7 @@ export default function RecordDetail({
                       switchPlaybackTrack(value as typeof playbackTrack)
                     }
                     compact
-                    className="w-full [&>button]:border-[var(--media-control-text)]/20 [&>button]:bg-[var(--media-control-text)] [&>button]:text-[var(--media-control-bg)] [&>button>span]:text-[var(--media-control-bg)] [&>button>svg]:text-[var(--media-control-bg)]/75"
+                    className="w-full [&>button]:border-[var(--bg)]/20 [&>button]:bg-[var(--bg)] [&>button]:text-[var(--ink)] [&>button>span]:text-[var(--ink)] [&>button>svg]:text-[var(--ink)]/75"
                     popoverMinWidth={120}
                     ariaLabel={t('records.tracks')}
                   />
@@ -2050,7 +2050,7 @@ export default function RecordDetail({
                     onClick={() =>
                       setPlaybackVolume((current) => (current > 0 ? 0 : 1))
                     }
-                    className="shrink-0 text-[var(--media-control-text)]/75 transition-colors hover:text-[var(--media-control-text)]"
+                    className="shrink-0 text-[var(--bg)]/75 transition-colors hover:text-[var(--bg)]"
                     aria-label={
                       playbackVolume > 0
                         ? t('records.mutePlayback')
@@ -2063,16 +2063,16 @@ export default function RecordDetail({
                       <VolumeX className="h-4 w-4" />
                     )}
                   </button>
-                  <div className="relative h-5 min-w-0 flex-1 rounded focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--media-control-text)]">
-                    <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-[var(--media-control-text)]/20">
+                  <div className="relative h-5 min-w-0 flex-1 rounded focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--bg)]">
+                    <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 overflow-hidden rounded-full bg-[var(--bg)]/20">
                       <span
-                        className="block h-full rounded-full bg-[var(--media-control-text)]/75"
+                        className="block h-full rounded-full bg-[var(--bg)]/75"
                         style={{ width: `${playbackVolume * 100}%` }}
                       />
                     </div>
                     <span
                       aria-hidden="true"
-                      className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--media-control-text)]"
+                      className="pointer-events-none absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--bg)]"
                       style={{ left: `${playbackVolume * 100}%` }}
                     />
                     <input
@@ -2129,7 +2129,7 @@ export default function RecordDetail({
             </h2>
             <div className="flex min-w-0 items-center gap-2">
               <span
-                className="truncate text-xs text-[var(--ink-muted)]"
+                className="truncate text-xs text-[var(--muted)]"
                 role="status"
                 aria-live="polite"
               >
@@ -2173,14 +2173,14 @@ export default function RecordDetail({
             </div>
           </div>
           {processingSavedAudio && (
-            <p className="mb-3 text-xs text-[var(--ink-muted)]">
+            <p className="mb-3 text-xs text-[var(--muted)]">
               {t('records.transcriptSavedHint')}
             </p>
           )}
           {(loadError || projectionError) && (
             <div
               role="alert"
-              className="mb-3 flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--ink-secondary)]"
+              className="mb-3 flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--ink-2)]"
             >
               <span>
                 {t('records.loadFailed', {
@@ -2190,7 +2190,7 @@ export default function RecordDetail({
               <button
                 type="button"
                 onClick={() => void refresh()}
-                className="shrink-0 font-semibold text-[var(--accent-warm)] hover:underline"
+                className="shrink-0 font-semibold text-[var(--primary)] hover:underline"
               >
                 {t('records.retryLoad')}
               </button>
@@ -2199,7 +2199,7 @@ export default function RecordDetail({
           {liveTranscriptionFailed && (
             <div
               role="status"
-              className="mb-3 rounded-[var(--radius-md)] bg-[var(--warning)]/10 px-3 py-2 text-sm text-[var(--ink-secondary)]"
+              className="mb-3 rounded-[var(--radius-md)] bg-[var(--warning)]/10 px-3 py-2 text-sm text-[var(--ink-2)]"
             >
               {t('records.transcriptLiveFailedHint')}
             </div>
@@ -2207,7 +2207,7 @@ export default function RecordDetail({
           {completedTranscriptionFailed && (
             <div
               role="status"
-              className="mb-3 flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--warning)]/10 px-3 py-2 text-sm text-[var(--ink-secondary)]"
+              className="mb-3 flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--warning)]/10 px-3 py-2 text-sm text-[var(--ink-2)]"
             >
               <div className="min-w-0">
                 <span>
@@ -2243,7 +2243,7 @@ export default function RecordDetail({
                   );
                 }}
                 disabled={busyAction !== null}
-                className="shrink-0 font-semibold text-[var(--accent-warm)] hover:underline disabled:opacity-50"
+                className="shrink-0 font-semibold text-[var(--primary)] hover:underline disabled:opacity-50"
               >
                 {modelPack?.usable
                   ? t('records.retryTranscription')
@@ -2278,15 +2278,15 @@ export default function RecordDetail({
               )}
             </div>
           ) : liveTranscriptionFailed ? null : showManualTranscription ? (
-            <div className="flex min-h-48 flex-col items-center justify-center rounded-[var(--radius-lg)] bg-[var(--paper-inset)] p-6 text-center">
-              <p className="text-sm text-[var(--ink-secondary)]">
+            <div className="flex min-h-48 flex-col items-center justify-center rounded-[var(--radius-lg)] bg-[var(--inset)] p-6 text-center">
+              <p className="text-sm text-[var(--ink-2)]">
                 {t('records.transcriptEmpty')}
               </p>
               <button
                 type="button"
                 onClick={() => void handleStartTranscription()}
                 disabled={busyAction !== null}
-                className="mt-3 rounded-[var(--radius-md)] bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-semibold text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                className="mt-3 rounded-[var(--radius-md)] bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50"
               >
                 {busyAction === 'transcribe'
                   ? t('records.startingTranscription')
@@ -2294,8 +2294,8 @@ export default function RecordDetail({
               </button>
             </div>
           ) : transcriptionStatus === 'unavailable' ? (
-            <div className="flex min-h-48 flex-col items-center justify-center rounded-[var(--radius-lg)] bg-[var(--paper-inset)] p-6 text-center">
-              <p className="max-w-sm text-sm text-[var(--ink-secondary)]">
+            <div className="flex min-h-48 flex-col items-center justify-center rounded-[var(--radius-lg)] bg-[var(--inset)] p-6 text-center">
+              <p className="max-w-sm text-sm text-[var(--ink-2)]">
                 {t('records.resourceRequired')}
               </p>
               <button
@@ -2310,13 +2310,13 @@ export default function RecordDetail({
                     }),
                   )
                 }
-                className="mt-3 text-sm font-medium text-[var(--accent-warm)] hover:underline"
+                className="mt-3 text-sm font-medium text-[var(--primary)] hover:underline"
               >
                 {t('records.openSpeechTool')}
               </button>
             </div>
           ) : (
-            <div className="flex min-h-48 items-center justify-center text-sm text-[var(--ink-muted)]">
+            <div className="flex min-h-48 items-center justify-center text-sm text-[var(--muted)]">
               {t('records.transcriptEmpty')}
             </div>
           )}
@@ -2324,7 +2324,7 @@ export default function RecordDetail({
 
         <aside
           data-testid="record-notes-panel"
-          className="col-start-2 row-span-3 row-start-1 flex min-h-0 flex-col rounded-[var(--radius-lg)] bg-[var(--paper-elevated)] shadow-xs max-lg:col-start-1 max-lg:row-span-1 max-lg:row-start-4"
+          className="col-start-2 row-span-3 row-start-1 flex min-h-0 flex-col rounded-[var(--radius-lg)] bg-[var(--paper)] shadow-xs max-lg:col-start-1 max-lg:row-span-1 max-lg:row-start-4"
         >
           <div className="flex min-h-0 flex-1 flex-col pt-4">
             <h2 className="mb-3 px-4 text-sm font-semibold">
@@ -2354,7 +2354,7 @@ export default function RecordDetail({
                 />
               )
             ) : (
-              <p className="min-h-0 flex-1 px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
+              <p className="min-h-0 flex-1 px-4 py-8 text-center text-sm text-[var(--muted)]">
                 {t('records.noNotes')}
               </p>
             )}
@@ -2363,18 +2363,18 @@ export default function RecordDetail({
               ((diarization && activeSpeakers.length > 0) || record?.audio) && (
                 <div className="max-h-[45%] shrink-0 overflow-y-auto px-4">
                   {diarization && activeSpeakers.length > 0 && (
-                    <div className="border-t border-[var(--line-subtle)] py-4">
+                    <div className="border-t border-[var(--line)] py-4">
                       <h2 className="mb-1 text-sm font-semibold">
                         {t('records.speakerCorrection')}
                       </h2>
-                      <p className="mb-3 text-xs text-[var(--ink-muted)]">
+                      <p className="mb-3 text-xs text-[var(--muted)]">
                         {t('records.speakerCorrectionHint')}
                       </p>
                       <div className="space-y-3">
                         {activeSpeakers.map((speaker) => (
                           <div key={speaker.speakerId} className="space-y-1.5">
                             <div className="flex items-center gap-2">
-                              <span className="w-20 shrink-0 truncate text-xs font-medium text-[var(--ink-secondary)]">
+                              <span className="w-20 shrink-0 truncate text-xs font-medium text-[var(--ink-2)]">
                                 {t('records.speakerUnknown', {
                                   name: speakerLetter(speaker.displayIndex),
                                 })}
@@ -2402,7 +2402,7 @@ export default function RecordDetail({
                                   'records.speakerNamePlaceholder',
                                 )}
                                 disabled={busyAction !== null}
-                                className="min-w-0 flex-1 rounded-[var(--radius-sm)] bg-[var(--paper-inset)] px-2 py-1.5 text-xs text-[var(--ink)] outline-none focus:ring-1 focus:ring-[var(--accent-warm)] disabled:opacity-50"
+                                className="min-w-0 flex-1 rounded-[var(--radius-sm)] bg-[var(--inset)] px-2 py-1.5 text-xs text-[var(--ink)] outline-none focus:ring-1 focus:ring-[var(--primary)] disabled:opacity-50"
                                 aria-label={t('records.renameSpeaker', {
                                   speaker: speakerLabel(speaker.speakerId),
                                 })}
@@ -2427,7 +2427,7 @@ export default function RecordDetail({
                                   }
                                   disabled={busyAction !== null}
                                   compact
-                                  className="min-w-0 flex-1 [&>button]:bg-[var(--paper-inset)]"
+                                  className="min-w-0 flex-1 [&>button]:bg-[var(--inset)]"
                                   placeholder={t('records.mergeInto')}
                                   ariaLabel={t('records.mergeSpeakerTarget', {
                                     speaker: speakerLabel(speaker.speakerId),
@@ -2442,7 +2442,7 @@ export default function RecordDetail({
                                     busyAction !== null ||
                                     !speakerMergeTargets[speaker.speakerId]
                                   }
-                                  className="rounded-[var(--radius-sm)] px-2 py-1 text-xs font-medium text-[var(--accent-warm)] hover:bg-[var(--accent-warm-subtle)] disabled:opacity-40"
+                                  className="rounded-[var(--radius-sm)] px-2 py-1 text-xs font-medium text-[var(--primary)] hover:bg-[var(--primary-soft)] disabled:opacity-40"
                                 >
                                   {t('records.merge')}
                                 </button>
@@ -2465,13 +2465,13 @@ export default function RecordDetail({
                   )}
 
                   {record?.audio && (
-                    <div className="border-t border-[var(--line-subtle)] py-4">
+                    <div className="border-t border-[var(--line)] py-4">
                       <h2 className="mb-3 text-sm font-semibold">
                         {t('records.recordInfo')}
                       </h2>
                       <dl className="space-y-2 text-xs">
                         <div className="flex items-start justify-between gap-4">
-                          <dt className="pt-1.5 text-[var(--ink-muted)]">
+                          <dt className="pt-1.5 text-[var(--muted)]">
                             {t('records.tags')}
                           </dt>
                           <dd className="min-w-0 flex-1">
@@ -2496,12 +2496,12 @@ export default function RecordDetail({
                               }}
                               placeholder={t('records.tagsPlaceholder')}
                               aria-label={t('records.tags')}
-                              className="w-full rounded-[var(--radius-sm)] bg-[var(--paper-inset)] px-2 py-1.5 text-xs text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)] focus:ring-1 focus:ring-[var(--accent-warm)]"
+                              className="w-full rounded-[var(--radius-sm)] bg-[var(--inset)] px-2 py-1.5 text-xs text-[var(--ink)] outline-none placeholder:text-[var(--muted)] focus:ring-1 focus:ring-[var(--primary)]"
                             />
                           </dd>
                         </div>
                         <div className="flex justify-between gap-4">
-                          <dt className="text-[var(--ink-muted)]">
+                          <dt className="text-[var(--muted)]">
                             {t('records.duration')}
                           </dt>
                           <dd>
@@ -2509,7 +2509,7 @@ export default function RecordDetail({
                           </dd>
                         </div>
                         <div className="flex justify-between gap-4">
-                          <dt className="text-[var(--ink-muted)]">
+                          <dt className="text-[var(--muted)]">
                             {t('records.tracks')}
                           </dt>
                           <dd>
@@ -2519,14 +2519,14 @@ export default function RecordDetail({
                           </dd>
                         </div>
                         <div className="flex justify-between gap-4">
-                          <dt className="text-[var(--ink-muted)]">
+                          <dt className="text-[var(--muted)]">
                             {t('records.size')}
                           </dt>
                           <dd>{formatBytes(record.audio.sizeBytes)}</dd>
                         </div>
                         {transcript?.provenance.modelPackRevision && (
                           <div className="flex justify-between gap-4">
-                            <dt className="text-[var(--ink-muted)]">
+                            <dt className="text-[var(--muted)]">
                               {t('records.model')}
                             </dt>
                             <dd className="truncate">
@@ -2545,7 +2545,7 @@ export default function RecordDetail({
             <div className="shrink-0 p-3 pt-2">
               <div
                 data-testid="recording-note-composer"
-                className="rounded-[var(--radius-lg)] border border-[var(--line)] bg-transparent px-3 pb-2 pt-3 focus-within:border-[var(--accent-warm)]"
+                className="rounded-[var(--radius-lg)] border border-[var(--line)] bg-transparent px-3 pb-2 pt-3 focus-within:border-[var(--primary)]"
               >
                 <textarea
                   value={noteDraft}
@@ -2582,14 +2582,14 @@ export default function RecordDetail({
                     }
                   }}
                   placeholder={t('records.notePlaceholder')}
-                  className="min-h-20 w-full resize-none bg-transparent text-sm leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]"
+                  className="min-h-20 w-full resize-none bg-transparent text-sm leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--muted)]"
                 />
                 <div className="mt-2 flex items-center justify-end gap-1">
                   <button
                     type="button"
                     onClick={() => void handleMark()}
                     disabled={busyAction !== null}
-                    className="rounded-[var(--radius-md)] px-3 py-1.5 text-sm font-medium text-[var(--accent-warm)] hover:bg-[var(--accent-warm-subtle)] disabled:opacity-50"
+                    className="rounded-[var(--radius-md)] px-3 py-1.5 text-sm font-medium text-[var(--primary)] hover:bg-[var(--primary-soft)] disabled:opacity-50"
                   >
                     {t('records.mark')}
                   </button>
@@ -2597,7 +2597,7 @@ export default function RecordDetail({
                     type="button"
                     onClick={() => void submitNote()}
                     disabled={!noteDraft.trim() || busyAction !== null}
-                    className="rounded-[var(--radius-md)] bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-semibold text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-40"
+                    className="rounded-[var(--radius-md)] bg-[var(--primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:opacity-40"
                   >
                     {t('records.addNote')}
                   </button>

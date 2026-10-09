@@ -127,11 +127,11 @@ export function OpenClawConfigEditor({
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+            <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
                 <span>{t('agentSettings.channelDetail.pluginLabel', { name: npmSpec || pluginId })}</span>
             </div>
             {fieldNames.length === 0 ? (
-                <p className="text-sm text-[var(--ink-muted)]">{t('agentSettings.channelDetail.noExtraConfig')}</p>
+                <p className="text-sm text-[var(--muted)]">{t('agentSettings.channelDetail.noExtraConfig')}</p>
             ) : (
                 <div className="space-y-3">
                     {fieldNames.map((key) => {
@@ -167,8 +167,8 @@ export function OpenClawConfigEditor({
                     })}
                 </div>
             )}
-            {saveError && <p role="alert" className="text-xs text-[var(--error)]">{saveError}</p>}
-            <p className="text-xs text-[var(--ink-muted)]">
+            {saveError && <p role="alert" className="text-xs text-[var(--danger)]">{saveError}</p>}
+            <p className="text-xs text-[var(--muted)]">
                 {t('agentSettings.channelDetail.restartRequired')}
             </p>
         </div>
@@ -185,13 +185,13 @@ function FeishuPermissionsButton() {
             <button
                 type="button"
                 onClick={() => setExpanded(!expanded)}
-                className="flex items-center gap-1.5 self-start rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                className="flex items-center gap-1.5 self-start rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
                 <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? '' : '-rotate-90'}`} />
                 {t('agentSettings.channelDetail.feishuPermissionsJson')}
             </button>
             {expanded && (
-                <div className="relative rounded-lg border border-[var(--line)] bg-[var(--paper-inset)] p-3">
+                <div className="relative rounded-lg border border-[var(--line)] bg-[var(--inset)] p-3">
                     <button
                         type="button"
                         onClick={async () => {
@@ -203,11 +203,11 @@ function FeishuPermissionsButton() {
                                 console.warn('[ChannelDetail] Failed to copy permissions:', error);
                             }
                         }}
-                        className="absolute right-2 top-2 rounded-md px-2 py-1 text-xs font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-elevated)] hover:text-[var(--ink)]"
+                        className="absolute right-2 top-2 rounded-md px-2 py-1 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
                     >
                         {copied ? t('agentSettings.channelDetail.copied') : t('agentSettings.channelDetail.copy')}
                     </button>
-                    <pre className="max-h-[240px] overflow-auto text-xs leading-relaxed text-[var(--ink-muted)]">
+                    <pre className="max-h-[240px] overflow-auto text-xs leading-relaxed text-[var(--muted)]">
                         {FEISHU_PERMISSIONS_JSON}
                     </pre>
                 </div>
@@ -733,8 +733,8 @@ export default function ChannelDetailView({
     if (!channel) {
         return (
             <div className="text-center py-12">
-                <p className="text-sm text-[var(--ink-muted)]">{t('agentSettings.channelDetail.channelNotFound')}</p>
-                <button onClick={onBack} className="mt-4 text-sm text-[var(--button-primary-bg)] hover:underline">
+                <p className="text-sm text-[var(--muted)]">{t('agentSettings.channelDetail.channelNotFound')}</p>
+                <button onClick={onBack} className="mt-4 text-sm text-[var(--primary)] hover:underline">
                     {t('agentSettings.channelDetail.backToList')}
                 </button>
             </div>
@@ -763,8 +763,8 @@ export default function ChannelDetailView({
         : t('agentSettings.channelDetail.statusStopped');
     const statusColor = botStatus?.status === 'online' ? 'var(--success)'
         : botStatus?.status === 'connecting' ? 'var(--warning)'
-        : botStatus?.status === 'error' ? 'var(--error)'
-        : 'var(--ink-subtle)';
+        : botStatus?.status === 'error' ? 'var(--danger)'
+        : 'var(--subtle)';
     const uptimeText = botStatus && botStatus.uptimeSeconds > 0
         ? (botStatus.uptimeSeconds >= 3600
             ? `${Math.floor(botStatus.uptimeSeconds / 3600)}h`
@@ -792,15 +792,15 @@ export default function ChannelDetailView({
                                 <span className="text-xs" style={{ color: statusColor }}>{statusText}</span>
                             </div>
                             {uptimeText && (
-                                <span className="text-xs text-[var(--ink-subtle)]">{uptimeText}</span>
+                                <span className="text-xs text-[var(--subtle)]">{uptimeText}</span>
                             )}
                             {sessionCount > 0 && (
-                                <span className="text-xs text-[var(--ink-subtle)]">
+                                <span className="text-xs text-[var(--subtle)]">
                                     {t('agentSettings.channelDetail.sessionCount', { count: sessionCount })}
                                 </span>
                             )}
                         </div>
-                        <p className="text-xs text-[var(--ink-muted)]">{platformLabel} Channel</p>
+                        <p className="text-xs text-[var(--muted)]">{platformLabel} Channel</p>
                     </div>
                 </div>
                 <button
@@ -808,8 +808,8 @@ export default function ChannelDetailView({
                     disabled={toggling || (!shouldStop && (pluginMissing || !hasCredentials))}
                     className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                         shouldStop
-                            ? 'bg-[var(--error-bg)] text-[var(--error)] hover:brightness-95'
-                            : 'bg-[var(--button-primary-bg)] text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]'
+                            ? 'bg-[var(--danger-bg)] text-[var(--danger)] hover:brightness-95'
+                            : 'bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]'
                     } disabled:opacity-50`}
                 >
                     {toggling ? (
@@ -829,7 +829,7 @@ export default function ChannelDetailView({
                     <span className="text-base">⚠️</span>
                     <div>
                         <p className="text-sm font-medium text-[var(--warning)]">{t('agentSettings.channelDetail.pluginUninstalledTitle')}</p>
-                        <p className="text-xs text-[var(--ink-muted)]">
+                        <p className="text-xs text-[var(--muted)]">
                             {t('agentSettings.channelDetail.pluginUninstalledDescription')}
                         </p>
                     </div>
@@ -837,7 +837,7 @@ export default function ChannelDetailView({
             )}
 
             {/* Platform credentials / Plugin config */}
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)]">
                 <button
                     type="button"
                     onClick={() => setCredentialsExpanded(!isCredentialsExpanded)}
@@ -855,7 +855,7 @@ export default function ChannelDetailView({
                             </span>
                         )}
                     </div>
-                    <ChevronDown className={`h-4 w-4 text-[var(--ink-muted)] transition-transform ${isCredentialsExpanded ? '' : '-rotate-90'}`} />
+                    <ChevronDown className={`h-4 w-4 text-[var(--muted)] transition-transform ${isCredentialsExpanded ? '' : '-rotate-90'}`} />
                 </button>
                 {isCredentialsExpanded && (
                     <div className="px-5 pb-5">
@@ -873,8 +873,8 @@ export default function ChannelDetailView({
                                                     : (displayValue || t('agentSettings.channelDetail.notConfigured'));
                                                 return (
                                                     <div key={key} className="flex items-center justify-between">
-                                                        <span className="text-sm text-[var(--ink-muted)]">{key}</span>
-                                                        <span className={`text-sm font-mono ${val ? 'text-[var(--ink)]' : 'text-[var(--ink-subtle)]'}`}>{masked}</span>
+                                                        <span className="text-sm text-[var(--muted)]">{key}</span>
+                                                        <span className={`text-sm font-mono ${val ? 'text-[var(--ink)]' : 'text-[var(--subtle)]'}`}>{masked}</span>
                                                     </div>
                                                 );
                                             })}
@@ -883,13 +883,13 @@ export default function ChannelDetailView({
                                             <button
                                                 onClick={startCredentialQrRescan}
                                                 disabled={!credentialQrProvider}
-                                                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                             >
                                                 {t('agentSettings.channelDetail.rescan')}
                                             </button>
                                             <button
                                                 onClick={() => setDualDetailMode('edit')}
-                                                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                             >
                                                 {t('agentSettings.channelDetail.editCredentials')}
                                             </button>
@@ -897,18 +897,18 @@ export default function ChannelDetailView({
                                     </>
                                 )}
                                 {dualDetailMode === 'qr' && (
-                                    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper-inset)] p-4">
-                                        {credentialQrStatus === 'loading' && <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />}
+                                    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-[var(--line)] bg-[var(--inset)] p-4">
+                                        {credentialQrStatus === 'loading' && <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />}
                                         {credentialQrStatus === 'waiting' && credentialQrImageUrl && (
                                             <div className="rounded-xl border border-[var(--line)] bg-white p-1">
                                                 <img src={credentialQrImageUrl} alt={t('agentSettings.channelDetail.qrAlt')} className="h-[180px] w-[180px] rounded-lg" />
                                             </div>
                                         )}
-                                        {credentialQrStatus === 'error' && <p className="text-sm text-[var(--error)]">{t('agentSettings.channelDetail.qrFailed')}</p>}
+                                        {credentialQrStatus === 'error' && <p className="text-sm text-[var(--danger)]">{t('agentSettings.channelDetail.qrFailed')}</p>}
                                         {credentialQrStatus === 'restart-error' && (
                                             <p className="text-sm text-[var(--warning)]">{t('agentSettings.channelDetail.credentialsUpdatedRestartFailedInline')}</p>
                                         )}
-                                        <p className="text-xs text-[var(--ink-muted)]">
+                                        <p className="text-xs text-[var(--muted)]">
                                             {credentialQrStatus === 'loading'
                                                 ? t('agentSettings.channelDetail.loadingQr')
                                                 : credentialQrStatus === 'waiting'
@@ -917,7 +917,7 @@ export default function ChannelDetailView({
                                         </p>
                                         <button
                                             onClick={() => { credentialQrRunIdRef.current++; setDualDetailMode('view'); }}
-                                            className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] hover:underline"
+                                            className="text-xs text-[var(--muted)] hover:text-[var(--ink)] hover:underline"
                                         >
                                             {credentialQrStatus === 'restart-error'
                                                 ? t('agentSettings.channelDetail.back')
@@ -937,7 +937,7 @@ export default function ChannelDetailView({
                                         />
                                         <button
                                             onClick={() => setDualDetailMode('view')}
-                                            className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] hover:underline"
+                                            className="text-xs text-[var(--muted)] hover:text-[var(--ink)] hover:underline"
                                         >
                                             {t('agentSettings.channelDetail.back')}
                                         </button>
@@ -1029,7 +1029,7 @@ export default function ChannelDetailView({
 
             {/* User binding — all platforms including OpenClaw (Rust handles BIND codes) */}
             {(
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)]">
                 <button
                     type="button"
                     onClick={() => setBindingExpanded(!isBindingExpanded)}
@@ -1038,18 +1038,18 @@ export default function ChannelDetailView({
                     <div className="flex items-center gap-2">
                         <h3 className="text-sm font-semibold text-[var(--ink)]">{t('agentSettings.channelDetail.userBinding')}</h3>
                         {!isBindingExpanded && hasUsers && (
-                            <span className="text-xs text-[var(--ink-muted)]">
+                            <span className="text-xs text-[var(--muted)]">
                                 {t('agentSettings.channelDetail.usersCount', { count: channel.allowedUsers!.length })}
                             </span>
                         )}
                     </div>
-                    <ChevronDown className={`h-4 w-4 text-[var(--ink-muted)] transition-transform ${isBindingExpanded ? '' : '-rotate-90'}`} />
+                    <ChevronDown className={`h-4 w-4 text-[var(--muted)] transition-transform ${isBindingExpanded ? '' : '-rotate-90'}`} />
                 </button>
                 {isBindingExpanded && (
                     <div className="space-y-5 px-5 pb-5">
                         {/* QR Login section for plugins that use QR authentication (e.g. WeChat) */}
                         {isRunning && isQrLoginPlugin && (
-                            <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper-inset)] p-4">
+                            <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--inset)] p-4">
                                 <div className="flex flex-col items-center gap-3">
                                     {qrStatus === 'idle' && (() => {
                                         const savedAccountId = (channel.openclawPluginConfig as Record<string, unknown> | undefined)?.accountId as string | undefined;
@@ -1060,10 +1060,10 @@ export default function ChannelDetailView({
                                                         <span className="h-2 w-2 rounded-full bg-[var(--accent-success)]" />
                                                         <span className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.channelDetail.loggedIn')}</span>
                                                     </div>
-                                                    <p className="text-xs text-[var(--ink-muted)] font-mono">{savedAccountId}</p>
+                                                    <p className="text-xs text-[var(--muted)] font-mono">{savedAccountId}</p>
                                                     <button
                                                         onClick={startDetailQrLogin}
-                                                        className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] hover:bg-[var(--paper-elevated)] hover:text-[var(--ink)]"
+                                                        className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
                                                     >
                                                         {t('agentSettings.channelDetail.rescan')}
                                                     </button>
@@ -1073,14 +1073,14 @@ export default function ChannelDetailView({
                                         return (
                                             <button
                                                 onClick={startDetailQrLogin}
-                                                className="rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+                                                className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                                             >
                                                 {t('agentSettings.channelDetail.scanLogin')}
                                             </button>
                                         );
                                     })()}
                                     {qrStatus === 'loading' && (
-                                        <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+                                        <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
                                     )}
                                     {(qrStatus === 'waiting') && qrImageUrl && (
                                         <div className="rounded-lg border border-[var(--line)] bg-white p-1">
@@ -1093,12 +1093,12 @@ export default function ChannelDetailView({
                                     {qrStatus === 'error' && (
                                         <button
                                             onClick={() => { setQrStatus('idle'); }}
-                                            className="rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-xs font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+                                            className="rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                                         >
                                             {t('agentSettings.channelDetail.retry')}
                                         </button>
                                     )}
-                                    {qrMessage && <p className="text-xs text-[var(--ink-muted)]">{qrMessage}</p>}
+                                    {qrMessage && <p className="text-xs text-[var(--muted)]">{qrMessage}</p>}
                                 </div>
                             </div>
                         )}
@@ -1118,7 +1118,7 @@ export default function ChannelDetailView({
                         {isQrLoginPlugin ? (
                             <div className="space-y-3">
                                 <label className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.channelDetail.userBinding')}</label>
-                                <p className="text-xs text-[var(--ink-muted)]">
+                                <p className="text-xs text-[var(--muted)]">
                                     {t('agentSettings.channelDetail.qrBindingOnly')}
                                 </p>
                             </div>
@@ -1144,7 +1144,7 @@ export default function ChannelDetailView({
                 const approvedCount = groupPerms.filter(g => g.status === 'approved').length;
                 const isGroupsExpanded_ = groupsExpanded ?? (pendingCount > 0 || hasGroups);
                 return (
-                    <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]">
+                    <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)]">
                         <button
                             type="button"
                             onClick={() => setGroupsExpanded(!isGroupsExpanded_)}
@@ -1153,19 +1153,19 @@ export default function ChannelDetailView({
                             <div className="flex items-center gap-2">
                                 <h3 className="text-sm font-semibold text-[var(--ink)]">{t('agentSettings.channelDetail.groupManagement')}</h3>
                                 {!isGroupsExpanded_ && hasGroups && (
-                                    <span className="text-xs text-[var(--ink-muted)]">
+                                    <span className="text-xs text-[var(--muted)]">
                                         {approvedCount > 0 && t('agentSettings.channelDetail.groupsCount', { count: approvedCount })}
                                         {pendingCount > 0 && approvedCount > 0 && ' · '}
                                         {pendingCount > 0 && t('agentSettings.channelDetail.pendingCount', { count: pendingCount })}
                                     </span>
                                 )}
                                 {pendingCount > 0 && (
-                                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--warning)] px-1.5 text-xs font-bold text-[var(--on-warning)]">
+                                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--warning)] px-1.5 text-xs font-bold text-[var(--on-primary)]">
                                         {pendingCount}
                                     </span>
                                 )}
                             </div>
-                            <ChevronDown className={`h-4 w-4 text-[var(--ink-muted)] transition-transform ${isGroupsExpanded_ ? '' : '-rotate-90'}`} />
+                            <ChevronDown className={`h-4 w-4 text-[var(--muted)] transition-transform ${isGroupsExpanded_ ? '' : '-rotate-90'}`} />
                         </button>
                         {isGroupsExpanded_ && (
                             <div className="space-y-4 px-5 pb-5">
@@ -1177,7 +1177,7 @@ export default function ChannelDetailView({
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <p className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.channelDetail.groupActivation')}</p>
-                                                <p className="text-xs text-[var(--ink-muted)]">
+                                                <p className="text-xs text-[var(--muted)]">
                                                     {isWecom
                                                         ? t('agentSettings.channelDetail.wecomMentionOnlyDescription')
                                                         : effectiveMode === 'mention'
@@ -1185,7 +1185,7 @@ export default function ChannelDetailView({
                                                             : t('agentSettings.channelDetail.alwaysDescription')}
                                                 </p>
                                             </div>
-                                            <div className="flex rounded-lg bg-[var(--paper-inset)] p-0.5">
+                                            <div className="flex rounded-lg bg-[var(--inset)] p-0.5">
                                                 {(['mention', 'always'] as GroupActivation[]).map(mode => {
                                                     const disabled = isWecom && mode === 'always';
                                                     const selected = effectiveMode === mode;
@@ -1200,10 +1200,10 @@ export default function ChannelDetailView({
                                                             }}
                                                             className={`rounded-md px-3 py-1 text-xs font-medium transition-all ${
                                                                 disabled
-                                                                    ? 'cursor-not-allowed text-[var(--ink-muted)] opacity-40'
+                                                                    ? 'cursor-not-allowed text-[var(--muted)] opacity-40'
                                                                     : selected
-                                                                        ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                                                                        : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                                                                        ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                                                                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
                                                             }`}
                                                         >
                                                             {mode === 'mention' ? t('agentSettings.channelDetail.mentionMode') : t('agentSettings.channelDetail.alwaysMode')}
@@ -1241,7 +1241,7 @@ export default function ChannelDetailView({
 
             {/* DingTalk AI Card Config */}
             {channel.type === 'dingtalk' && (
-                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                     <DingtalkCardConfig
                         useAiCard={channel.dingtalkUseAiCard ?? false}
                         cardTemplateId={channel.dingtalkCardTemplateId ?? ''}
@@ -1257,11 +1257,11 @@ export default function ChannelDetailView({
 
             {/* Telegram Draft Streaming */}
             {channel.type === 'telegram' && (
-                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.channelDetail.draftStreamingTitle')}</p>
-                            <p className="text-xs text-[var(--ink-muted)] mt-0.5">
+                            <p className="text-xs text-[var(--muted)] mt-0.5">
                                 {t('agentSettings.channelDetail.draftStreamingDescription')}
                             </p>
                         </div>
@@ -1273,7 +1273,7 @@ export default function ChannelDetailView({
                                 await patchChannel({ telegramUseDraft: !(channel.telegramUseDraft ?? true) });
                             }}
                             className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                (channel.telegramUseDraft ?? true) ? 'bg-[var(--accent)]' : 'bg-[var(--ink-muted)]/30'
+                                (channel.telegramUseDraft ?? true) ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]/30'
                             }`}
                         >
                             <span
@@ -1287,7 +1287,7 @@ export default function ChannelDetailView({
             )}
 
             {/* Channel Overrides (optional: provider/model/permission) */}
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)]">
                 <button
                     type="button"
                     onClick={() => setOverridesExpanded(!overridesExpanded)}
@@ -1296,16 +1296,16 @@ export default function ChannelDetailView({
                     <div className="flex items-center gap-2">
                         <h3 className="text-sm font-semibold text-[var(--ink)]">{t('agentSettings.channelDetail.overridesTitle')}</h3>
                         {!overridesExpanded && hasAnyOverride && (
-                            <span className="text-xs text-[var(--ink-muted)]">
+                            <span className="text-xs text-[var(--muted)]">
                                 {t('agentSettings.channelDetail.customized')}
                             </span>
                         )}
                     </div>
-                    <ChevronDown className={`h-4 w-4 text-[var(--ink-muted)] transition-transform ${overridesExpanded ? '' : '-rotate-90'}`} />
+                    <ChevronDown className={`h-4 w-4 text-[var(--muted)] transition-transform ${overridesExpanded ? '' : '-rotate-90'}`} />
                 </button>
                 {overridesExpanded && (
                     <div className="space-y-5 px-5 pb-5">
-                        <p className="text-xs text-[var(--ink-muted)]">
+                        <p className="text-xs text-[var(--muted)]">
                             {t('agentSettings.channelDetail.overridesDescription')}
                         </p>
 
@@ -1395,12 +1395,12 @@ export default function ChannelDetailView({
                         />
 
                         {/* Permission mode override */}
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4">
                             <div className="flex items-center justify-between mb-3">
                                 <h4 className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.channelDetail.permissionMode')}</h4>
                                 {channel?.overrides?.permissionMode && (
                                     <button
-                                        className="text-xs text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition-colors"
+                                        className="text-xs text-[var(--subtle)] hover:text-[var(--muted)] transition-colors"
                                         onClick={() => patchOverrides({ permissionMode: undefined })}
                                     >
                                         {t('agentSettings.channelDetail.restoreDefault')}
@@ -1425,11 +1425,11 @@ export default function ChannelDetailView({
             </div>
 
             {/* Danger zone */}
-            <div className="rounded-xl border border-[var(--error)]/20 bg-[var(--error-bg)]/50 p-5">
-                <h3 className="mb-3 text-sm font-semibold text-[var(--error)]">{t('agentSettings.channelDetail.dangerZone')}</h3>
+            <div className="rounded-xl border border-[var(--danger)]/20 bg-[var(--danger-bg)]/50 p-5">
+                <h3 className="mb-3 text-sm font-semibold text-[var(--danger)]">{t('agentSettings.channelDetail.dangerZone')}</h3>
                 <button
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="flex items-center gap-2 rounded-lg bg-[var(--error-bg)] px-4 py-2 text-sm font-medium text-[var(--error)] transition-colors hover:brightness-95"
+                    className="flex items-center gap-2 rounded-lg bg-[var(--danger-bg)] px-4 py-2 text-sm font-medium text-[var(--danger)] transition-colors hover:brightness-95"
                 >
                     <Trash2 className="h-4 w-4" />
                     {t('agentSettings.channelDetail.deleteChannel')}

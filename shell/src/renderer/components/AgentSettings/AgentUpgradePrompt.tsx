@@ -39,21 +39,21 @@ export default function AgentUpgradePrompt({ projectId, onUpgraded }: AgentUpgra
 
   return (
     <div className="flex flex-col items-center justify-center gap-6 py-12">
-      <HeartPulse className="h-10 w-10 text-[var(--heartbeat)]" />
+      <HeartPulse className="h-10 w-10 text-[var(--success)]" />
       <h2 className="text-lg font-semibold text-[var(--ink)]">
         {t('agentSettings.upgrade.title')}
       </h2>
-      <p className="max-w-md text-center text-sm text-[var(--ink-muted)]">
+      <p className="max-w-md text-center text-sm text-[var(--muted)]">
         {t('agentSettings.upgrade.description')}
       </p>
-      <ul className="max-w-md text-sm text-[var(--ink-muted)]">
+      <ul className="max-w-md text-sm text-[var(--muted)]">
         <li className="mb-1">• {t('agentSettings.upgrade.benefitShared')}</li>
         <li className="mb-1">• {t('agentSettings.upgrade.benefitOverrides')}</li>
         <li className="mb-1">• {t('agentSettings.upgrade.benefitUnified')}</li>
         <li>• {t('agentSettings.upgrade.benefitRouting')}</li>
       </ul>
       <button
-        className="rounded-lg bg-[var(--button-primary-bg)] px-6 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+        className="rounded-lg bg-[var(--primary)] px-6 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
         onClick={handleUpgrade}
       >
         {t('agentSettings.upgrade.action')}

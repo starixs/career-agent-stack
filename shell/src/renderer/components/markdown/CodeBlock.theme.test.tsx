@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ThemeRegistry, ThemeRuntimeProvider } from '@/theme';
 import { syntheticTheme } from '@/theme/__tests__/syntheticTheme';
-import { keystoneDefaultTheme } from '@/theme/themes/keystone-default';
+import { careerTheme } from '@/theme/themes/career';
 
 const syntaxCapture = vi.hoisted(() => ({
   styles: [] as Array<Record<string, CSSProperties>>,
@@ -31,7 +31,7 @@ import CodeBlock from './CodeBlock';
 
 describe('CodeBlock Theme adapter', () => {
   it('switches Prism styles with the resolved Theme without retaining synthetic values', () => {
-    const registry = new ThemeRegistry([keystoneDefaultTheme, syntheticTheme]);
+    const registry = new ThemeRegistry([careerTheme, syntheticTheme]);
     const view = render(
       <ThemeRuntimeProvider
         registry={registry}
@@ -48,17 +48,17 @@ describe('CodeBlock Theme adapter', () => {
       'rounded-md',
       'border',
       'border-[var(--line)]',
-      'bg-[var(--paper-inset)]/30',
+      'bg-[var(--inset)]/30',
     );
     expect(codeBlock?.firstElementChild).toHaveClass(
       'border-b',
       'border-[var(--line)]',
-      'bg-[var(--code-bg)]',
+      'bg-[var(--inset)]',
     );
     expect(syntaxCapture.customStyles.at(-1)?.background).toBe('transparent');
     expect(view.getByRole('button')).toHaveClass(
-      'hover:bg-[var(--line-subtle)]',
-      'hover:text-[var(--code-text)]',
+      'hover:bg-[var(--line)]',
+      'hover:text-[var(--ink-2)]',
     );
 
     view.rerender(

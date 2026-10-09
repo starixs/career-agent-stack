@@ -84,14 +84,14 @@ export default function ConfirmDialog({
                     {/* `whitespace-pre-line` lets callers pass multi-line messages via `\n`
                         (e.g. Runtime-switch dialog's three-line explanation). Single-line
                         callers render identically. */}
-                    <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--ink-muted)]">{message}</p>
+                    <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--muted)]">{message}</p>
                 </div>
                 <div className="flex justify-end gap-2 border-t border-[var(--line)] px-5 py-3">
                     <button
                         type="button"
                         onClick={onCancel}
                         disabled={loading}
-                        className="rounded-full bg-[var(--button-secondary-bg)] px-4 py-1.5 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)] disabled:opacity-50"
+                        className="rounded-full bg-[var(--paper)] px-4 py-1.5 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)] disabled:opacity-50"
                     >
                         {finalCancelText}
                     </button>
@@ -100,8 +100,8 @@ export default function ConfirmDialog({
                         onClick={onConfirm}
                         disabled={loading}
                         className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold transition-colors disabled:opacity-50 ${isDanger
-                            ? 'bg-[var(--error)] text-[var(--on-error)] hover:brightness-110'
-                            : 'bg-[var(--button-primary-bg)] text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]'
+                            ? 'bg-[var(--danger)] text-[var(--on-primary)] hover:brightness-110'
+                            : 'bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]'
                             }`}
                     >
                         {loading && <Loader2 className="h-3 w-3 animate-spin" />}

@@ -29,13 +29,13 @@ export default function BotWorkspacePickerDialog({
 
   return (
     <OverlayBackdrop onClose={onClose} className="z-[210]">
-      <div className="w-[min(92vw,26rem)] overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--paper)] shadow-2xl">
+      <div className="w-[min(92vw,26rem)] overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg)] shadow-2xl">
         <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
           <div>
             <h3 className="text-sm font-semibold text-[var(--ink)]">
               {t('agentSettings.botRegistry.selectWorkspaceTitle')}
             </h3>
-            <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+            <p className="mt-0.5 text-xs text-[var(--muted)]">
               {t('agentSettings.botRegistry.selectWorkspaceDescription')}
             </p>
           </div>
@@ -43,7 +43,7 @@ export default function BotWorkspacePickerDialog({
             type="button"
             onClick={onClose}
             aria-label={t('agentSettings.botRegistry.cancel')}
-            className="rounded-lg p-1.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -60,7 +60,7 @@ export default function BotWorkspacePickerDialog({
             />
           ))}
           {candidates.length === 0 && (
-            <p className="px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
+            <p className="px-4 py-8 text-center text-sm text-[var(--muted)]">
               {t('agentSettings.botRegistry.noWorkspaceAvailable')}
             </p>
           )}

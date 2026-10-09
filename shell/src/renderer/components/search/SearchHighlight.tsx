@@ -24,7 +24,7 @@ export default memo(function SearchHighlight({
     text,
     highlights,
     className = '',
-    highlightClassName = 'bg-[var(--accent)]/30 text-[var(--ink)] font-medium rounded-sm px-0.5',
+    highlightClassName = 'bg-[var(--primary)]/30 text-[var(--ink)] font-medium rounded-sm px-0.5',
 }: SearchHighlightProps) {
     if (!text || highlights.length === 0) {
         return <span className={className}>{text}</span>;

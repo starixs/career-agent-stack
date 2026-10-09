@@ -187,7 +187,7 @@ function AssistantActions({ message, onRetry, onFork, className = '' }: {
               toast?.error(t('fileActions.copyFailed'));
             }
           }}
-          className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+          className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
           {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
         </button>
       </Tip>
@@ -195,7 +195,7 @@ function AssistantActions({ message, onRetry, onFork, className = '' }: {
         <button type="button"
           aria-label={t('message.actions.exportMarkdown')}
           onClick={handleExport}
-          className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+          className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
           <Download className="size-3.5" />
         </button>
       </Tip>
@@ -204,7 +204,7 @@ function AssistantActions({ message, onRetry, onFork, className = '' }: {
           <button type="button"
             aria-label={t('message.actions.retry')}
             onClick={() => onRetry(message.id)}
-            className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+            className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
             <RotateCcw className="size-3.5" />
           </button>
         </Tip>
@@ -214,7 +214,7 @@ function AssistantActions({ message, onRetry, onFork, className = '' }: {
           <button type="button"
             aria-label={t('message.actions.fork')}
             onClick={() => onFork(message.id)}
-            className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+            className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
             <GitBranch className="size-3.5" />
           </button>
         </Tip>
@@ -222,7 +222,7 @@ function AssistantActions({ message, onRetry, onFork, className = '' }: {
       <TurnFileEditSummary content={message.content} />
       {turnMetaLabel && (
         <span
-          className="ml-2 min-w-0 flex-1 truncate text-xs text-[var(--ink-muted)]/60 opacity-0 transition-opacity duration-150 group-hover/actions:opacity-100 group-focus-within/actions:opacity-100"
+          className="ml-2 min-w-0 flex-1 truncate text-xs text-[var(--muted)]/60 opacity-0 transition-opacity duration-150 group-hover/actions:opacity-100 group-focus-within/actions:opacity-100"
           title={turnMetaLabel}
         >
           {turnMetaLabel}
@@ -258,7 +258,7 @@ function renderWidgetSegments(text: string, isLoading: boolean, unclosedNotice: 
     if (!seg.isComplete && !isLoading) {
       return (
         <div key={`w-${si}`} className="w-full px-1" data-testid="unclosed-widget-source">
-          <p className="text-sm text-[var(--ink-muted)]">{unclosedNotice}</p>
+          <p className="text-sm text-[var(--muted)]">{unclosedNotice}</p>
           <pre className="whitespace-pre-wrap break-words select-text"><code>{seg.raw}</code></pre>
         </div>
       );
@@ -382,8 +382,8 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
       const formattedContent = formatLocalCommandOutput(parsed.content);
       return (
         <div className="flex justify-start w-full px-4 py-2 select-none">
-          <div className="w-full max-w-none rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)]/50 p-4">
-            <div className="text-xs font-medium text-[var(--ink-muted)] mb-2">{t('message.systemInfo')}</div>
+          <div className="w-full max-w-none rounded-lg border border-[var(--line)] bg-[var(--paper)]/50 p-4">
+            <div className="text-xs font-medium text-[var(--muted)] mb-2">{t('message.systemInfo')}</div>
             <div className="text-sm text-[var(--ink)] select-text">
               <Markdown>{formattedContent}</Markdown>
             </div>
@@ -402,7 +402,7 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
         <div className="flex w-full flex-col items-end">
           {/* IM source indicator */}
           {isImMessage && (
-            <div className="mr-2 mb-1 flex items-center gap-1 text-xs text-[var(--ink-muted)]">
+            <div className="mr-2 mb-1 flex items-center gap-1 text-xs text-[var(--muted)]">
               {imSource?.includes('group') && <span>👥</span>}
               <span>via {SOURCE_LABELS[imSource as MessageSource] ?? imSource}</span>
             </div>
@@ -410,11 +410,11 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
           {/* 用户与 AI 正文都由 Markdown 默认变体承载 16px/1.7；article 的
               text-base 只负责气泡内非 Markdown prose fallback。 */}
           <div className="group/user-actions flex w-fit max-w-[85%] flex-col items-end">
-            <article className="relative w-fit max-w-full rounded-2xl bg-[var(--message-user-bg)] p-4 text-base text-[var(--ink)] select-text">
+            <article className="relative w-fit max-w-full rounded-2xl bg-[var(--note)] p-4 text-base text-[var(--ink)] select-text">
               {/* System injection tag badge */}
               {systemTag && (
                 <div className="mb-2 -mt-0.5">
-                  <span className="inline-block rounded-md bg-[var(--accent-warm-subtle)] px-1.5 py-0.5 text-xs font-medium text-[var(--accent-warm)]">
+                  <span className="inline-block rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-xs font-medium text-[var(--primary)]">
                     {systemTag}
                   </span>
                 </div>
@@ -443,14 +443,14 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
               {/* Expand button with gradient fade — gradient overlaps bottom of content */}
               {!userExpanded && userOverflows && (
                 <div className="relative z-10 -mx-4 -mb-4 -mt-14">
-                  <div className="pointer-events-none h-14 bg-gradient-to-t from-[var(--message-user-bg)] to-[var(--message-user-bg-a0)]" />
+                  <div className="pointer-events-none h-14 bg-gradient-to-t from-[var(--note)] to-[var(--note-a0)]" />
                   <button
                     type="button"
                     onClick={() => {
                       notifyRowLayoutChanged('user-message-expand');
                       setUserExpanded(true);
                     }}
-                    className="flex w-full items-center justify-center gap-1 rounded-b-2xl bg-[var(--message-user-bg)] py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+                    className="flex w-full items-center justify-center gap-1 rounded-b-2xl bg-[var(--note)] py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
                   >
                     <ChevronDown className="size-3.5" />
                     {t('message.expand')}
@@ -460,14 +460,14 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
             </article>
             {/* 操作栏：时间 + 图标按钮，随气泡/操作栏局部 hover 或键盘 focus 淡入 */}
             <div className="mr-2 mt-1 flex items-center gap-2 opacity-0 transition-opacity duration-150 group-hover/user-actions:opacity-100 group-focus-within/user-actions:opacity-100">
-              <span className="mr-1 text-xs text-[var(--ink-muted)]">{formatTimestamp(message.timestamp)}</span>
+              <span className="mr-1 text-xs text-[var(--muted)]">{formatTimestamp(message.timestamp)}</span>
               {onRewind && (
                 <span data-rewind-btn>
                   <Tip label={t('message.actions.rewind')}>
                     <button type="button"
                       aria-label={t('message.actions.rewind')}
                       onClick={() => onRewind(message.id)}
-                      className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+                      className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
                       <Undo2 className="size-3.5" />
                     </button>
                   </Tip>
@@ -487,7 +487,7 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
                       toast?.error(t('fileActions.copyFailed'));
                     }
                   }}
-                  className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+                  className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
                   {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                 </button>
               </Tip>

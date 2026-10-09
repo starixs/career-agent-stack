@@ -23,10 +23,10 @@ export default function TaskTodoTool({ tool }: TaskTodoToolProps) {
   if (tool.name === 'TaskList') {
     const snapshot = getTaskListSnapshot(tool);
     if (!snapshot) {
-      return <div className="text-sm text-[var(--ink-muted)]">{t('shell.toolChrome.taskOp.loadingList')}</div>;
+      return <div className="text-sm text-[var(--muted)]">{t('shell.toolChrome.taskOp.loadingList')}</div>;
     }
     if (snapshot.length === 0) {
-      return <div className="text-sm text-[var(--ink-muted)]">{t('shell.toolChrome.taskOp.emptyList')}</div>;
+      return <div className="text-sm text-[var(--muted)]">{t('shell.toolChrome.taskOp.emptyList')}</div>;
     }
     return <TodoChecklist items={snapshot.map(task => ({ content: task.content, status: task.status, key: task.id }))} />;
   }
@@ -39,8 +39,8 @@ function TaskOpRow({ tool }: { tool: ToolUseSimple }) {
   const { icon, text, accent } = describeTaskOp(tool, t);
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className={accent ? 'text-[var(--accent)]' : 'text-[var(--ink-muted)]'}>{icon}</span>
-      <span className="select-text text-[var(--ink-secondary)]">{text}</span>
+      <span className={accent ? 'text-[var(--primary)]' : 'text-[var(--muted)]'}>{icon}</span>
+      <span className="select-text text-[var(--ink-2)]">{text}</span>
     </div>
   );
 }

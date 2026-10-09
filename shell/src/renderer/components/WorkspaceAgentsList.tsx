@@ -208,7 +208,7 @@ export default function WorkspaceAgentsList({
     if (loading) {
         return (
             <div className="flex h-48 items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+                <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
             </div>
         );
     }
@@ -220,12 +220,12 @@ export default function WorkspaceAgentsList({
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Bot className="h-5 w-5 text-[var(--ink-muted)]" />
+                    <Bot className="h-5 w-5 text-[var(--muted)]" />
                     <h3 className="text-base font-semibold text-[var(--ink)]">{t('agentSettings.workspaceAgents.title')}</h3>
                 </div>
                 <button
                     onClick={handleCreateAgent}
-                    className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+                    className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                 >
                     <Plus className="h-4 w-4" />
                     {t('agentSettings.common.new')}
@@ -233,10 +233,10 @@ export default function WorkspaceAgentsList({
             </div>
 
             {!hasAny && availableForImport.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper-inset)]/30 py-8 text-center">
-                    <Bot className="mx-auto h-10 w-10 text-[var(--ink-muted)]/30" />
-                    <p className="mt-2 text-sm text-[var(--ink-muted)]">{t('agentSettings.workspaceAgents.emptyTitle')}</p>
-                    <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--inset)]/30 py-8 text-center">
+                    <Bot className="mx-auto h-10 w-10 text-[var(--muted)]/30" />
+                    <p className="mt-2 text-sm text-[var(--muted)]">{t('agentSettings.workspaceAgents.emptyTitle')}</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
                         {t('agentSettings.workspaceAgents.emptyDescription')}
                     </p>
                 </div>
@@ -245,7 +245,7 @@ export default function WorkspaceAgentsList({
                     {/* Local Agents */}
                     {localAgents.length > 0 && (
                         <div>
-                            <h4 className="mb-2 text-sm font-medium text-[var(--ink-muted)]">
+                            <h4 className="mb-2 text-sm font-medium text-[var(--muted)]">
                                 {t('agentSettings.workspaceAgents.localAgents', { count: localAgents.length })}
                             </h4>
                             <div className="grid grid-cols-2 gap-3">
@@ -266,7 +266,7 @@ export default function WorkspaceAgentsList({
                     {/* Global Reference Agents */}
                     {globalRefAgents.length > 0 && (
                         <div>
-                            <h4 className="mb-2 text-sm font-medium text-[var(--ink-muted)]">
+                            <h4 className="mb-2 text-sm font-medium text-[var(--muted)]">
                                 {t('agentSettings.workspaceAgents.globalRefAgents', { count: globalRefAgents.length })}
                             </h4>
                             <div className="grid grid-cols-2 gap-3">
@@ -289,28 +289,28 @@ export default function WorkspaceAgentsList({
                     {availableForImport.length > 0 && (
                         <div>
                             <div className="flex items-center justify-between mb-2">
-                                <h4 className="text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.workspaceAgents.importGlobalTitle')}</h4>
+                                <h4 className="text-sm font-medium text-[var(--muted)]">{t('agentSettings.workspaceAgents.importGlobalTitle')}</h4>
                                 <button
                                     onClick={() => setShowImportPicker(!showImportPicker)}
-                                    className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-2.5 py-1 text-xs text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                    className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-2.5 py-1 text-xs text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                 >
                                     <Link2 className="h-3 w-3" />
                                     {showImportPicker ? t('agentSettings.workspaceAgents.collapse') : t('agentSettings.workspaceAgents.import')}
                                 </button>
                             </div>
                             {showImportPicker && (
-                                <div className="space-y-1.5 rounded-lg border border-dashed border-[var(--line)] bg-[var(--paper-inset)]/30 p-3">
+                                <div className="space-y-1.5 rounded-lg border border-dashed border-[var(--line)] bg-[var(--inset)]/30 p-3">
                                     {availableForImport.map(agent => (
-                                        <div key={agent.folderName} className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-[var(--paper-elevated)]">
+                                        <div key={agent.folderName} className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-[var(--paper)]">
                                             <div className="min-w-0 flex-1">
                                                 <span className="text-sm text-[var(--ink)]">{agent.name}</span>
                                                 {agent.description && (
-                                                    <p className="truncate text-xs text-[var(--ink-muted)]">{agent.description}</p>
+                                                    <p className="truncate text-xs text-[var(--muted)]">{agent.description}</p>
                                                 )}
                                             </div>
                                             <button
                                                 onClick={() => handleImportGlobal(agent)}
-                                                className="ml-2 shrink-0 rounded-md bg-[var(--button-primary-bg)] px-2 py-1 text-xs font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+                                                className="ml-2 shrink-0 rounded-md bg-[var(--primary)] px-2 py-1 text-xs font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                                             >
                                                 {t('agentSettings.workspaceAgents.importAction')}
                                             </button>
@@ -379,7 +379,7 @@ function AgentRow({
     const { t } = useTranslation('settings');
     return (
         <div
-            className={`group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper-elevated)] px-3.5 py-3 transition-shadow hover:shadow-sm ${enabled ? '' : 'opacity-55'}`}
+            className={`group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper)] px-3.5 py-3 transition-shadow hover:shadow-sm ${enabled ? '' : 'opacity-55'}`}
             onClick={onClick}
         >
             <div className="flex items-center gap-2">
@@ -388,7 +388,7 @@ function AgentRow({
                     {agent.name}
                 </h4>
                 {isGlobalRef && (
-                    <span className="shrink-0 rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-medium tracking-[0.04em] text-[var(--ink-muted)]">
+                    <span className="shrink-0 rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs font-medium tracking-[0.04em] text-[var(--muted)]">
                         {t('agentSettings.capabilities.scopeUser')}
                     </span>
                 )}
@@ -397,7 +397,7 @@ function AgentRow({
                 {isGlobalRef && onRemoveRef && (
                     <button
                         onClick={e => { e.stopPropagation(); onRemoveRef(); }}
-                        className="shrink-0 rounded-md p-1 text-[var(--ink-muted)] opacity-0 transition-opacity hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] group-hover:opacity-100"
+                        className="shrink-0 rounded-md p-1 text-[var(--muted)] opacity-0 transition-opacity hover:bg-[var(--inset)] hover:text-[var(--ink)] group-hover:opacity-100"
                         title={t('agentSettings.workspaceAgents.removeRef')}
                     >
                         <XIcon className="h-3.5 w-3.5" />
@@ -406,7 +406,7 @@ function AgentRow({
                 {!isGlobalRef && onDelete && (
                     <button
                         onClick={e => { e.stopPropagation(); onDelete(); }}
-                        className="shrink-0 rounded-md p-1 text-[var(--ink-muted)] opacity-0 transition-opacity hover:bg-[var(--error-bg)] hover:text-[var(--error)] group-hover:opacity-100"
+                        className="shrink-0 rounded-md p-1 text-[var(--muted)] opacity-0 transition-opacity hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] group-hover:opacity-100"
                         title={t('agentSettings.common.delete')}
                     >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -415,7 +415,7 @@ function AgentRow({
                 <button
                     onClick={e => { e.stopPropagation(); onToggle(); }}
                     className={`relative h-5 w-9 flex-shrink-0 rounded-full transition-colors ${
-                        enabled ? 'bg-[var(--accent-warm)]' : 'bg-[var(--ink-muted)]/20'
+                        enabled ? 'bg-[var(--primary)]' : 'bg-[var(--muted)]/20'
                     }`}
                 >
                     <span
@@ -425,7 +425,7 @@ function AgentRow({
                     />
                 </button>
             </div>
-            <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--ink-muted)]">
+            <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--muted)]">
                 {agent.description || t('agentSettings.common.noDescription')}
             </p>
         </div>

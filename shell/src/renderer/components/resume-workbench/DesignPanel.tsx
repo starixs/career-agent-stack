@@ -40,8 +40,8 @@ const SECTION_LABEL: Record<string, string> = { summary: '个人总结', ...Obje
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-2.5 border-b border-[var(--line-subtle)] px-4 py-4 last:border-b-0">
-      <h3 className="text-xs font-medium uppercase tracking-wide text-[var(--ink-muted)]">{title}</h3>
+    <section className="space-y-2.5 border-b border-[var(--line)] px-4 py-4 last:border-b-0">
+      <h3 className="text-xs font-medium uppercase tracking-wide text-[var(--muted)]">{title}</h3>
       {children}
     </section>
   );
@@ -49,9 +49,9 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 
 function Range({ label, value, min, max, step = 1, unit = '', onChange }: { label: string; value: number; min: number; max: number; step?: number; unit?: string; onChange: (v: number) => void }) {
   return (
-    <label className="block text-xs text-[var(--ink-muted)]">
+    <label className="block text-xs text-[var(--muted)]">
       <div className="mb-1 flex justify-between"><span>{label}</span><span className="tabular-nums text-[var(--ink)]">{value}{unit}</span></div>
-      <input type="range" aria-label={label} min={min} max={max} step={step} value={value} onChange={e => onChange(Number(e.target.value))} className="w-full accent-[var(--accent)]" />
+      <input type="range" aria-label={label} min={min} max={max} step={step} value={value} onChange={e => onChange(Number(e.target.value))} className="w-full accent-[var(--primary)]" />
     </label>
   );
 }
@@ -60,7 +60,7 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   return (
     <label className="flex cursor-pointer items-center justify-between gap-2 text-sm text-[var(--ink)]">
       <span>{label}</span>
-      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="size-4 accent-[var(--accent)]" />
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="size-4 accent-[var(--primary)]" />
     </label>
   );
 }
@@ -96,10 +96,10 @@ export function DesignPanel({ data, update }: { data: ResumeData; update: Update
             const active = m.template === t.id;
             return (
               <button key={t.id} type="button" title={t.label} aria-label={t.label} aria-pressed={active} onClick={() => update(doc => edit(doc, draft => { draft.metadata.template = t.id; }))}
-                className={`group relative overflow-hidden rounded-md border text-left transition-colors ${active ? 'border-[var(--accent)] ring-2 ring-[var(--accent)]/40' : 'border-[var(--line-subtle)] hover:border-[var(--line-strong)]'}`}>
-                {thumbOf(t.id) ? <img src={thumbOf(t.id)} alt="" className="aspect-[1/1.414] w-full bg-white object-cover object-top" draggable={false} /> : <div className="aspect-[1/1.414] w-full bg-[var(--paper-inset)]" />}
-                <div className="truncate px-1 py-0.5 text-xs text-[var(--ink-muted)]">{t.label.split(' · ')[0]}</div>
-                {active && <Check className="absolute right-1 top-1 size-4 rounded-full bg-[var(--accent)] p-0.5 text-white" />}
+                className={`group relative overflow-hidden rounded-md border text-left transition-colors ${active ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/40' : 'border-[var(--line)] hover:border-[var(--line-2)]'}`}>
+                {thumbOf(t.id) ? <img src={thumbOf(t.id)} alt="" className="aspect-[1/1.414] w-full bg-white object-cover object-top" draggable={false} /> : <div className="aspect-[1/1.414] w-full bg-[var(--inset)]" />}
+                <div className="truncate px-1 py-0.5 text-xs text-[var(--muted)]">{t.label.split(' · ')[0]}</div>
+                {active && <Check className="absolute right-1 top-1 size-4 rounded-full bg-[var(--primary)] p-0.5 text-[var(--on-primary)]" />}
               </button>
             );
           })}
@@ -116,15 +116,15 @@ export function DesignPanel({ data, update }: { data: ResumeData; update: Update
           {!page0.fullWidth && <Range label="侧栏宽度" unit="%" min={20} max={45} value={m.layout.sidebarWidth} onChange={v => update(doc => edit(doc, draft => { draft.metadata.layout.sidebarWidth = v; }), { merge: 'sidebarWidth' })} />}
           {(['main', 'sidebar'] as const).filter(c => c === 'main' || !page0.fullWidth).map(column => (
             <div key={column}>
-              <div className="mb-1 flex items-center gap-1 text-xs text-[var(--ink-muted)]">{column === 'main' ? <PanelLeft className="size-3.5" /> : <PanelRight className="size-3.5" />}{column === 'main' ? '主栏' : '侧栏'}</div>
+              <div className="mb-1 flex items-center gap-1 text-xs text-[var(--muted)]">{column === 'main' ? <PanelLeft className="size-3.5" /> : <PanelRight className="size-3.5" />}{column === 'main' ? '主栏' : '侧栏'}</div>
               <ul className="space-y-1">
                 {page0[column].map((key, i) => (
-                  <li key={key} className="flex items-center gap-1 rounded-md border border-[var(--line-subtle)] bg-[var(--paper)] px-2 py-1">
+                  <li key={key} className="flex items-center gap-1 rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-1">
                     <span className="min-w-0 flex-1 truncate">{labelOf(key)}</span>
-                    <button type="button" aria-label={`${labelOf(key)} 上移`} className="rounded p-0.5 text-[var(--ink-subtle)] hover:text-[var(--ink)]" onClick={() => moveIn(column, i, -1)}><ArrowUp className="size-3.5" /></button>
-                    <button type="button" aria-label={`${labelOf(key)} 下移`} className="rounded p-0.5 text-[var(--ink-subtle)] hover:text-[var(--ink)]" onClick={() => moveIn(column, i, 1)}><ArrowDown className="size-3.5" /></button>
+                    <button type="button" aria-label={`${labelOf(key)} 上移`} className="rounded p-0.5 text-[var(--subtle)] hover:text-[var(--ink)]" onClick={() => moveIn(column, i, -1)}><ArrowUp className="size-3.5" /></button>
+                    <button type="button" aria-label={`${labelOf(key)} 下移`} className="rounded p-0.5 text-[var(--subtle)] hover:text-[var(--ink)]" onClick={() => moveIn(column, i, 1)}><ArrowDown className="size-3.5" /></button>
                     {!page0.fullWidth && (
-                      <button type="button" aria-label={`${labelOf(key)} 移到${column === 'main' ? '侧栏' : '主栏'}`} title={`移到${column === 'main' ? '侧栏' : '主栏'}`} className="rounded p-0.5 text-[var(--ink-subtle)] hover:text-[var(--ink)]" onClick={() => switchColumn(column, i)}>
+                      <button type="button" aria-label={`${labelOf(key)} 移到${column === 'main' ? '侧栏' : '主栏'}`} title={`移到${column === 'main' ? '侧栏' : '主栏'}`} className="rounded p-0.5 text-[var(--subtle)] hover:text-[var(--ink)]" onClick={() => switchColumn(column, i)}>
                         {column === 'main' ? <PanelRight className="size-3.5" /> : <PanelLeft className="size-3.5" />}
                       </button>
                     )}
@@ -139,7 +139,7 @@ export function DesignPanel({ data, update }: { data: ResumeData; update: Update
       <Group title="字体">
         {(['body', 'heading'] as const).map(kind => (
           <div key={kind} className="space-y-2">
-            <div className="text-xs text-[var(--ink-muted)]">{kind === 'body' ? '正文' : '标题'}</div>
+            <div className="text-xs text-[var(--muted)]">{kind === 'body' ? '正文' : '标题'}</div>
             <CustomSelect
               ariaLabel={kind === 'body' ? '正文字体' : '标题字体'}
               value={m.typography[kind].fontFamily}
@@ -165,7 +165,7 @@ export function DesignPanel({ data, update }: { data: ResumeData; update: Update
                 className={`size-7 rounded-full border-2 ${active ? 'border-[var(--ink)]' : 'border-transparent'}`} style={{ backgroundColor: c }} />
             );
           })}
-          <label className="flex items-center gap-1 text-xs text-[var(--ink-muted)]">
+          <label className="flex items-center gap-1 text-xs text-[var(--muted)]">
             自定义
             <input type="color" aria-label="自定义主色" value={customColor} onChange={e => { const v = e.target.value; setCustomColor(v); update(doc => edit(doc, draft => { draft.metadata.design.colors.primary = hexToRgba(v); }), { merge: 'primary' }); }} className="size-7 cursor-pointer rounded border border-[var(--line)] bg-transparent" />
           </label>
@@ -176,7 +176,7 @@ export function DesignPanel({ data, update }: { data: ResumeData; update: Update
         <div className="flex gap-2">
           {(['a4', 'letter'] as const).map(f => (
             <button key={f} type="button" aria-pressed={m.page.format === f} onClick={() => update(doc => edit(doc, draft => { draft.metadata.page.format = f; }))}
-              className={`flex-1 rounded-md border px-2 py-1 text-xs ${m.page.format === f ? 'border-[var(--accent)] text-[var(--ink)]' : 'border-[var(--line-subtle)] text-[var(--ink-muted)]'}`}>{f === 'a4' ? 'A4' : 'Letter'}</button>
+              className={`flex-1 rounded-md border px-2 py-1 text-xs ${m.page.format === f ? 'border-[var(--primary)] text-[var(--ink)]' : 'border-[var(--line)] text-[var(--muted)]'}`}>{f === 'a4' ? 'A4' : 'Letter'}</button>
           ))}
         </div>
         <Range label="左右页边距" unit="pt" min={6} max={40} value={m.page.marginX} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.marginX = v; }), { merge: 'marginX' })} />

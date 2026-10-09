@@ -58,9 +58,9 @@ fn normalize_theme_fields(config: &mut serde_json::Value) {
             .unwrap_or(theme_id != "keystone-default")
     });
     let theme_id = if theme_selection_explicit {
-        stored_theme_id.unwrap_or_else(|| "keystone-light".to_owned())
+        stored_theme_id.unwrap_or_else(|| "keystone-default".to_owned())
     } else {
-        "keystone-light".to_owned()
+        "keystone-default".to_owned()
     };
 
     object.insert(
@@ -332,7 +332,7 @@ mod theme_tests {
         assert_eq!(
             config,
             json!({
-                "themeId": "keystone-light",
+                "themeId": "keystone-default",
                 "themeSelectionExplicit": false,
                 "appearanceMode": "dark",
                 "other": 42
@@ -356,7 +356,7 @@ mod theme_tests {
         let mut invalid = json!({ "theme": "sepia", "themeId": "" });
         normalize_theme_fields(&mut invalid);
         assert_eq!(invalid["appearanceMode"], "system");
-        assert_eq!(invalid["themeId"], "keystone-light");
+        assert_eq!(invalid["themeId"], "keystone-default");
         assert_eq!(invalid["themeSelectionExplicit"], false);
 
         let mut explicit_canonical = json!({

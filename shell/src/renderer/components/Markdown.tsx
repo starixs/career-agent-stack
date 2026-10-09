@@ -129,7 +129,7 @@ const CodeComponent: Components['code'] = ({ className, children, node: _node, .
   if (isBlock) {
     // Special handling for Mermaid diagrams
     if (language === 'mermaid') {
-      return <Suspense fallback={<pre className="overflow-auto rounded-lg bg-[var(--paper-inset)] p-4">{codeString}</pre>}><MermaidDiagram>{codeString}</MermaidDiagram></Suspense>;
+      return <Suspense fallback={<pre className="overflow-auto rounded-lg bg-[var(--inset)] p-4">{codeString}</pre>}><MermaidDiagram>{codeString}</MermaidDiagram></Suspense>;
     }
 
     return (
@@ -151,11 +151,11 @@ const PreComponent: Components['pre'] = ({ children }) => {
 
 // Shared table surface and per-table actions.
 const TableHeadComponent: Components['thead'] = ({ children }) => (
-  <thead className="bg-[var(--paper-inset)]/40">{children}</thead>
+  <thead className="bg-[var(--inset)]/40">{children}</thead>
 );
 
 const TableRowComponent: Components['tr'] = ({ children }) => (
-  <tr className="border-b border-[var(--line-subtle)] last:border-0">
+  <tr className="border-b border-[var(--line)] last:border-0">
     {children}
   </tr>
 );
@@ -391,7 +391,7 @@ function MarkdownImageInner({ src, alt, basePath, workspacePath }: {
 
   // Empty src: static error (no state needed)
   if (srcType === 'empty') {
-    return <span className="md-image-error text-xs text-[var(--ink-muted)] italic">[{t('markdown.emptyImagePath')}]</span>;
+    return <span className="md-image-error text-xs text-[var(--muted)] italic">[{t('markdown.emptyImagePath')}]</span>;
   }
 
   // Browser URL: render directly, after the existing Markdown sanitizer.
@@ -407,11 +407,11 @@ function MarkdownImageInner({ src, alt, basePath, workspacePath }: {
 
   // Local file: loading / error / loaded.
   if (error || unavailable) {
-    return <span className="md-image-error text-xs text-[var(--ink-muted)] italic">[{error ?? t('markdown.imageLoadFailed', { src })}]</span>;
+    return <span className="md-image-error text-xs text-[var(--muted)] italic">[{error ?? t('markdown.imageLoadFailed', { src })}]</span>;
   }
 
   if (!blobUrl) {
-    return <span className="inline-block h-4 w-16 animate-pulse rounded bg-[var(--paper-inset)]" />;
+    return <span className="inline-block h-4 w-16 animate-pulse rounded bg-[var(--inset)]" />;
   }
 
   return <img src={blobUrl} alt={alt ?? ''} className="max-w-full" onError={() => setError(t('markdown.imageLoadFailed', { src }))} />;

@@ -158,7 +158,7 @@ function renderToolBody(tool: ToolUseSimple): React.JSX.Element {
 
       // Fallback for unknown tools - show raw JSON
       const collapsedContent = (
-        <div className="text-sm text-[var(--ink-muted)]">
+        <div className="text-sm text-[var(--muted)]">
           <span className="font-medium">{tool.name}</span>
         </div>
       );
@@ -166,7 +166,7 @@ function renderToolBody(tool: ToolUseSimple): React.JSX.Element {
       const expandedContent =
         tool.inputJson ?
           <div className="ml-5">
-            <pre className="overflow-x-auto rounded bg-[var(--paper-inset)]/50 px-2 py-1.5 font-mono text-sm wrap-break-word whitespace-pre-wrap text-[var(--ink-secondary)]">
+            <pre className="overflow-x-auto rounded bg-[var(--inset)]/50 px-2 py-1.5 font-mono text-sm wrap-break-word whitespace-pre-wrap text-[var(--ink-2)]">
               {tool.inputJson}
             </pre>
           </div>

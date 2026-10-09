@@ -16,7 +16,7 @@ export default function UnreadNotificationIndicator({
         aria-label={label}
         title={label}
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-[var(--accent-warm)]" aria-hidden="true" />
+        <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" aria-hidden="true" />
       </span>
     );
   }
@@ -24,7 +24,7 @@ export default function UnreadNotificationIndicator({
   const displayCount = count > 99 ? '99+' : String(count);
   return (
     <span
-      className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-[var(--accent-warm-subtle)] px-1 text-xs font-semibold leading-none text-[var(--accent-warm)]"
+      className="inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] px-1 text-xs font-semibold leading-none text-[var(--primary)]"
       aria-label={label}
       title={label}
     >

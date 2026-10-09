@@ -45,13 +45,13 @@ export default function ToolAttachmentGallery({ attachments }: Props) {
             return (
               <div
                 key={key}
-                className="flex min-w-56 items-start gap-2.5 rounded border border-[var(--line)] bg-[var(--paper-inset)]/30 px-3 py-2 text-xs text-[var(--ink-secondary)]"
+                className="flex min-w-56 items-start gap-2.5 rounded border border-[var(--line)] bg-[var(--inset)]/30 px-3 py-2 text-xs text-[var(--ink-2)]"
               >
                 <FileIcon name={fileName} size="regular" />
                 <div className="min-w-0">
                   <div className="truncate font-medium" title={fileName}>{fileName}</div>
-                  <div className="truncate text-[var(--ink-muted)]">{a.mimeType}</div>
-                  {a.caption ? <div className="mt-1 line-clamp-2 text-[var(--ink-muted)]">{a.caption}</div> : null}
+                  <div className="truncate text-[var(--muted)]">{a.mimeType}</div>
+                  {a.caption ? <div className="mt-1 line-clamp-2 text-[var(--muted)]">{a.caption}</div> : null}
                 </div>
               </div>
             );

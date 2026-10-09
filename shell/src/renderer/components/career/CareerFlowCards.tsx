@@ -48,9 +48,9 @@ export function humanizePath(path: string): string {
 
 function CardShell({ testId, icon, title, badge, children, onDismiss }: { testId: string; icon: ReactNode; title: string; badge?: ReactNode; children: ReactNode; onDismiss?: () => void }) {
   return (
-    <div data-testid={testId} className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 shadow-sm">
+    <div data-testid={testId} className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
       <div className="flex items-center gap-2.5">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)]/10 text-[var(--accent)]">{icon}</div>
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]/10 text-[var(--primary)]">{icon}</div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-[var(--ink)]">{title}</span>
@@ -74,8 +74,8 @@ function useSubmit() {
   return { busy, error, run };
 }
 
-const ErrorLine = ({ error }: { error: string | null }) => (error ? <div role="alert" className="mt-2 text-xs text-[var(--error)]">{error}</div> : null);
-const PrivacyNote = () => <p className="mt-2 text-xs text-[var(--ink-subtle)]">只存进本机私密库，填表时在本地替换，助理看不到原文。</p>;
+const ErrorLine = ({ error }: { error: string | null }) => (error ? <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div> : null);
+const PrivacyNote = () => <p className="mt-2 text-xs text-[var(--subtle)]">只存进本机私密库，填表时在本地替换，助理看不到原文。</p>;
 
 /** onDone：用户在卡片里做完了（completed）；onDismiss：稍后再说（dismissed，可重新打开）。 */
 interface CardProps { card: CareerCard; onDone: () => void; onDismiss: () => void }
@@ -97,7 +97,7 @@ export function VaultMissingCard({ card, onDone, onDismiss }: CardProps) {
     <CardShell testId="career-card-vault_missing" icon={<KeyRound className="size-4" />} title={card.title} badge={<Badge tone="warning">缺 {fields.length} 项</Badge>} onDismiss={onDismiss}>
       <div className="grid gap-2 sm:grid-cols-2">
         {fields.map(f => (
-          <label key={f.field} className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
+          <label key={f.field} className="flex flex-col gap-1 text-xs text-[var(--muted)]">
             <span>{f.label}{f.sensitive ? ' · 私密' : ''}</span>
             <TextInput aria-label={f.label} autoComplete="off" placeholder={f.hint ?? ''} value={values[f.field] ?? ''} onChange={e => setValues(v => ({ ...v, [f.field]: e.target.value }))} />
           </label>
@@ -134,7 +134,7 @@ export function NeedsUserCard({ card, onDone, onDismiss }: CardProps) {
     <CardShell testId="career-card-needs_user" icon={<ListTodo className="size-4" />} title={card.title} badge={<Badge tone="warning">等你填</Badge>} onDismiss={onDismiss}>
       <div className="space-y-2">
         {items.map(i => (
-          <label key={i.label} className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
+          <label key={i.label} className="flex flex-col gap-1 text-xs text-[var(--muted)]">
             <span>{i.label}{i.vaultField ? ' · 存私密库' : ''}{i.note ? ` · ${i.note}` : ''}</span>
             <TextInput aria-label={i.label} autoComplete="off" value={values[i.label] ?? ''} onChange={e => setValues(v => ({ ...v, [i.label]: e.target.value }))} />
           </label>
@@ -174,7 +174,7 @@ export function DraftsCard({ card, onDone, onDismiss }: CardProps) {
               <input type="checkbox" checked={!!picked[i.label]} onChange={e => setPicked(p => ({ ...p, [i.label]: e.target.checked }))} aria-label={`采用：${i.label}`} />
               {i.label}
             </label>
-            {i.note && <div className="mt-0.5 text-xs text-[var(--ink-subtle)]">{i.note}</div>}
+            {i.note && <div className="mt-0.5 text-xs text-[var(--subtle)]">{i.note}</div>}
             <TextArea aria-label={`回答：${i.label}`} className="mt-1" value={texts[i.label] ?? ''} onChange={e => setTexts(t => ({ ...t, [i.label]: e.target.value }))} />
           </div>
         ))}
@@ -211,14 +211,14 @@ export function ClaimsConfirmCard({ card, onDone, onDismiss }: CardProps) {
               <input type="checkbox" className="mt-1" checked={!!picked[c.id]} onChange={e => setPicked(p => ({ ...p, [c.id]: e.target.checked }))} aria-label={c.text} />
               <span>
                 {c.text}
-                {c.metric && <span className="ml-1 text-xs text-[var(--ink-muted)]">（{c.metric}）</span>}
+                {c.metric && <span className="ml-1 text-xs text-[var(--muted)]">（{c.metric}）</span>}
                 {c.attribution === 'team' && <Badge tone="neutral">团队成果</Badge>}
               </span>
             </label>
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-[var(--ink-subtle)]">只有确认过的说法才会写进简历和网申回答。</p>
+      <p className="mt-2 text-xs text-[var(--subtle)]">只有确认过的说法才会写进简历和网申回答。</p>
       <ErrorLine error={error} />
       <div className="mt-3 flex items-center gap-2">
         <Button variant="primary" busy={busy} disabled={!chosen.length} onClick={() => void save()}>确认所选 {chosen.length} 条</Button>
@@ -249,8 +249,8 @@ export function ResumeDiffCard({ card, onDone, onDismiss }: CardProps) {
     <CardShell testId="career-card-resume_diff" icon={<FileDiff className="size-4" />} title={card.title} badge={<Badge tone="accent">待应用</Badge>} onDismiss={onDismiss}>
       <ul className="space-y-2">
         {ops.map(o => (
-          <li key={o.path} className="rounded-md border border-[var(--line-subtle)] px-2.5 py-2">
-            <label className="flex items-start gap-2 text-xs text-[var(--ink-muted)]">
+          <li key={o.path} className="rounded-md border border-[var(--line)] px-2.5 py-2">
+            <label className="flex items-start gap-2 text-xs text-[var(--muted)]">
               <input type="checkbox" className="mt-0.5" checked={!!picked[o.path]} onChange={e => setPicked(p => ({ ...p, [o.path]: e.target.checked }))} aria-label={`应用：${humanizePath(o.path)}`} />
               <span className="min-w-0 flex-1">
                 <span className="font-medium text-[var(--ink)]">{OP_LABELS[o.op] ?? o.op} · {humanizePath(o.path)}</span>
@@ -292,16 +292,16 @@ export function SiteLoginCard({ card, onDone, onDismiss }: CardProps) {
   return (
     <CardShell testId="career-card-site_login" icon={<UserRound className="size-4" />} title={card.title} badge={<Badge tone="warning">需要登录</Badge>} onDismiss={onDismiss}>
       <div className="grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
+        <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
           <span>账号（手机号 / 邮箱 / 用户名）</span>
           <TextInput aria-label="账号" autoComplete="off" value={username} onChange={e => setUsername(e.target.value)} />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
+        <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
           <span>密码</span>
           <TextInput aria-label="密码" type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} />
         </label>
       </div>
-      <label className="mt-2 flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+      <label className="mt-2 flex items-center gap-2 text-xs text-[var(--muted)]">
         <input type="checkbox" checked={autofill} onChange={e => setAutofill(e.target.checked)} />
         以后在 {host} 的登录页自动代填（点登录、验证码仍由你来）
       </label>
@@ -336,17 +336,17 @@ export function MailBindCard({ card, onDone, onDismiss }: CardProps) {
   return (
     <CardShell testId="career-card-mail_bind" icon={<Mail className="size-4" />} title={card.title} onDismiss={onDismiss}>
       <div className="grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
+        <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
           <span>邮箱地址</span>
           <TextInput aria-label="邮箱地址" autoComplete="off" placeholder="name@qq.com" value={address} onChange={e => setAddress(e.target.value)} />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-[var(--ink-muted)]">
+        <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
           <span>授权码 / 应用密码</span>
           <TextInput aria-label="授权码" type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} />
         </label>
       </div>
-      {hint?.help && <p className="mt-2 text-xs text-[var(--ink-muted)]">{hint.label}：{hint.help}</p>}
-      <p className="mt-2 text-xs text-[var(--ink-subtle)]">授权码只存在本机（仅你的账户可读），助理看不到。</p>
+      {hint?.help && <p className="mt-2 text-xs text-[var(--muted)]">{hint.label}：{hint.help}</p>}
+      <p className="mt-2 text-xs text-[var(--subtle)]">授权码只存在本机（仅你的账户可读），助理看不到。</p>
       <ErrorLine error={error} />
       {result && <div role="status" className="mt-2 text-xs text-[var(--success)]">{result}</div>}
       <div className="mt-3 flex items-center gap-2">
@@ -381,7 +381,7 @@ export function BatchProgressCard({ batch }: { batch: BatchState }) {
   return (
     <CardShell testId="career-card-batch" icon={<Play className="size-4" />} title="批量投递" badge={<Badge tone={running ? 'success' : 'neutral'}>{running ? '进行中' : local.status === 'paused' ? '已暂停' : local.status}</Badge>}>
       <div className="text-sm text-[var(--ink)]">{local.message ?? local.currentTitle ?? ''}</div>
-      <div className="mt-1 text-xs text-[var(--ink-muted)]">已填好 {local.done} · 等你处理 {local.handoffs} · 队列 {local.queued} · 今日 {local.todayCount}</div>
+      <div className="mt-1 text-xs text-[var(--muted)]">已填好 {local.done} · 等你处理 {local.handoffs} · 队列 {local.queued} · 今日 {local.todayCount}</div>
       <ErrorLine error={error} />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {running
@@ -412,7 +412,7 @@ export const isRenderableCard = (c: CareerCard): boolean => !!RENDERERS[c.kind];
 function CollapsedCardRow({ card, onReopen }: { card: CareerCard; onReopen: () => void }) {
   const done = card.state === 'completed';
   return (
-    <div data-testid={`career-card-collapsed-${card.kind}`} className="flex items-center gap-2 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-3 py-1.5 text-xs text-[var(--ink-muted)]">
+    <div data-testid={`career-card-collapsed-${card.kind}`} className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-3 py-1.5 text-xs text-[var(--muted)]">
       {done ? <CheckCircle2 className="size-3.5 text-[var(--success)]" /> : <ListTodo className="size-3.5" />}
       <span className="min-w-0 flex-1 truncate">{done ? '已完成' : '已跳过'}：{card.title}</span>
       {!done && <Button variant="ghost" onClick={onReopen}>重新打开</Button>}

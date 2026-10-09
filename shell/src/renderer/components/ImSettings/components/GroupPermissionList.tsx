@@ -41,7 +41,7 @@ export default function GroupPermissionList({
         <div className="space-y-3">
             {/* Error display */}
             {error && (
-                <p className="text-xs text-[var(--error)]">{error}</p>
+                <p className="text-xs text-[var(--danger)]">{error}</p>
             )}
 
             {/* Pending groups */}
@@ -57,7 +57,7 @@ export default function GroupPermissionList({
                         >
                             <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-medium text-[var(--ink)]">{g.groupName}</p>
-                                <p className="text-xs text-[var(--ink-muted)]">
+                                <p className="text-xs text-[var(--muted)]">
 	                                    {g.platform === 'telegram' ? 'Telegram' : g.platform === 'dingtalk' ? '钉钉' : '飞书'}
                                     {g.addedBy && ` · ${t('agentSettings.imComponents.addedBy', { name: g.addedBy })}`}
                                 </p>
@@ -66,7 +66,7 @@ export default function GroupPermissionList({
                                 <button
                                     onClick={() => handleAction(() => onApprove(g.groupId), g.groupId)}
                                     disabled={loading === g.groupId}
-                                    className="rounded-md bg-[var(--accent)] p-1.5 text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-warm-hover)] disabled:opacity-50"
+                                    className="rounded-md bg-[var(--primary)] p-1.5 text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                                     title={t('agentSettings.imComponents.allow')}
                                 >
                                     <Check className="h-3.5 w-3.5" />
@@ -74,7 +74,7 @@ export default function GroupPermissionList({
                                 <button
                                     onClick={() => handleAction(() => onReject(g.groupId), g.groupId)}
                                     disabled={loading === g.groupId}
-                                    className="rounded-md bg-[var(--paper-inset)] p-1.5 text-[var(--ink-muted)] transition-colors hover:text-[var(--error)] disabled:opacity-50"
+                                    className="rounded-md bg-[var(--inset)] p-1.5 text-[var(--muted)] transition-colors hover:text-[var(--danger)] disabled:opacity-50"
                                     title={t('agentSettings.imComponents.reject')}
                                 >
                                     <X className="h-3.5 w-3.5" />
@@ -88,23 +88,23 @@ export default function GroupPermissionList({
             {/* Approved groups */}
             {approved.length > 0 && (
                 <div className="space-y-2">
-                    <label className="text-xs font-medium text-[var(--ink-muted)]">
+                    <label className="text-xs font-medium text-[var(--muted)]">
                         {t('agentSettings.imComponents.approvedGroups')}
                     </label>
                     {approved.map(g => (
                         <div
                             key={g.groupId}
-                            className="group flex items-center justify-between rounded-lg bg-[var(--paper-inset)] px-3 py-2"
+                            className="group flex items-center justify-between rounded-lg bg-[var(--inset)] px-3 py-2"
                         >
                             <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm text-[var(--ink)]">{g.groupName}</p>
-                                <p className="text-xs text-[var(--ink-muted)]">
+                                <p className="text-xs text-[var(--muted)]">
                                     {g.platform === 'telegram' ? 'Telegram' : g.platform === 'dingtalk' ? '钉钉' : '飞书'}
                                 </p>
                             </div>
                             <button
                                 onClick={() => setConfirmRemove(g.groupId)}
-                                className="ml-3 rounded-md p-1.5 text-[var(--ink-muted)] opacity-0 transition-all hover:text-[var(--error)] group-hover:opacity-100"
+                                className="ml-3 rounded-md p-1.5 text-[var(--muted)] opacity-0 transition-all hover:text-[var(--danger)] group-hover:opacity-100"
                                 title={t('agentSettings.imComponents.remove')}
                             >
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -116,7 +116,7 @@ export default function GroupPermissionList({
 
             {/* Empty state */}
             {permissions.length === 0 && (
-                <p className="text-xs text-[var(--ink-muted)]">
+                <p className="text-xs text-[var(--muted)]">
                     {t('agentSettings.imComponents.groupsEmpty')}
                 </p>
             )}

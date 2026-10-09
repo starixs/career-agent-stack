@@ -228,7 +228,7 @@ export default memo(function TabBar({
             <div
               className="absolute left-0 top-0 bottom-0 w-6 z-10 pointer-events-none"
               style={{
-                background: 'var(--global-sidebar-bg)',
+                background: 'var(--rail)',
                 WebkitMaskImage:
                   'linear-gradient(to right, #000 0%, rgba(0, 0, 0, 0) 100%)',
                 maskImage:
@@ -242,7 +242,7 @@ export default memo(function TabBar({
             <div
               className="absolute right-0 top-0 bottom-0 w-6 z-10 pointer-events-none"
               style={{
-                background: 'var(--global-sidebar-bg)',
+                background: 'var(--rail)',
                 WebkitMaskImage:
                   'linear-gradient(to left, #000 0%, rgba(0, 0, 0, 0) 100%)',
                 maskImage:
@@ -292,8 +292,8 @@ export default memo(function TabBar({
             <button
               ref={overflowButtonRef}
               type="button"
-              className={`flex flex-shrink-0 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] ${
-                menuOpen ? 'bg-[var(--hover-bg)] text-[var(--ink)]' : ''
+              className={`flex flex-shrink-0 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)] ${
+                menuOpen ? 'bg-[var(--hover)] text-[var(--ink)]' : ''
               }`}
               style={{
                 width: TAB_BAR_BUTTON_WIDTH_PX,
@@ -312,7 +312,7 @@ export default memo(function TabBar({
               placement="bottom-end"
               className="max-h-96 w-72 overflow-y-auto py-1"
             >
-              <div className="px-3 py-2 text-xs font-semibold tracking-[0.04em] text-[var(--ink-muted)]/60">
+              <div className="px-3 py-2 text-xs font-semibold tracking-[0.04em] text-[var(--muted)]/60">
                 {t('tabs.genericTab')}
               </div>
               {tabs.map((tab) => {
@@ -326,8 +326,8 @@ export default memo(function TabBar({
                     aria-current={isActive ? 'page' : undefined}
                     className={`flex w-full items-center gap-2 px-3 py-2 text-left transition-colors ${
                       isActive
-                        ? 'bg-[var(--accent-warm-subtle)] text-[var(--ink)]'
-                        : 'text-[var(--ink-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                        ? 'bg-[var(--primary-soft)] text-[var(--ink)]'
+                        : 'text-[var(--ink-2)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                     }`}
                     onClick={() => handleSelectFromMenu(tab.id)}
                   >
@@ -336,17 +336,17 @@ export default memo(function TabBar({
                         chrome.isGenerating
                           ? 'bg-[var(--success)]'
                           : chrome.hasUnread
-                            ? 'bg-[var(--accent-warm)]'
+                            ? 'bg-[var(--primary)]'
                             : isActive
-                              ? 'bg-[var(--accent-warm)]'
-                              : 'bg-[var(--line-strong)]'
+                              ? 'bg-[var(--primary)]'
+                              : 'bg-[var(--line-2)]'
                       }`}
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">
                         {chrome.title}
                       </span>
-                      <span className="block truncate text-xs text-[var(--ink-muted)]/70">
+                      <span className="block truncate text-xs text-[var(--muted)]/70">
                         {chrome.subtitle}
                       </span>
                     </span>
@@ -361,7 +361,7 @@ export default memo(function TabBar({
                     list so extreme widths keep the recovery affordance visible first. */}
         {canAddTab && (
           <button
-            className="flex flex-shrink-0 items-center justify-center rounded-md text-[var(--ink-muted)] transition-all duration-150 hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+            className="flex flex-shrink-0 items-center justify-center rounded-md text-[var(--muted)] transition-all duration-150 hover:bg-[var(--hover)] hover:text-[var(--ink)]"
             style={{
               width: TAB_BAR_BUTTON_WIDTH_PX,
               height: TAB_BAR_BUTTON_WIDTH_PX,

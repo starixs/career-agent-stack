@@ -78,7 +78,7 @@ export default function AttachmentPreviewList({
         return (
           <div
             key={attachment.id}
-            className={`relative ${compact ? 'w-fit shrink-0' : ''} ${cardRadiusClass} border border-[var(--line)] bg-[var(--paper-elevated)] shadow-lg ${cardClassName}`}
+            className={`relative ${compact ? 'w-fit shrink-0' : ''} ${cardRadiusClass} border border-[var(--line)] bg-[var(--paper)] shadow-lg ${cardClassName}`}
           >
             {showImagePreview ? (
               <div
@@ -93,7 +93,7 @@ export default function AttachmentPreviewList({
                   loading="lazy"
                 />
                 {!compact && (
-                  <div className="absolute inset-x-1 bottom-1 rounded-md bg-[var(--ink)]/70 px-1 py-0.5 text-xs font-medium text-[var(--paper-elevated)]">
+                  <div className="absolute inset-x-1 bottom-1 rounded-md bg-[var(--ink)]/70 px-1 py-0.5 text-xs font-medium text-[var(--paper)]">
                     <span className="block truncate">{attachment.name}</span>
                   </div>
                 )}
@@ -107,13 +107,13 @@ export default function AttachmentPreviewList({
                   <p className="truncate text-xs font-medium text-[var(--ink)]">
                     {attachment.name}
                   </p>
-                  <p className="text-xs text-[var(--ink-muted)]">
+                  <p className="text-xs text-[var(--muted)]">
                     {formatFileSize(attachment.size)}
                   </p>
                   {attachment.footnoteLines?.map((line, index) => (
                     <p
                       key={`${attachment.id}-footnote-${index}`}
-                      className="text-xs text-[var(--ink-muted)]"
+                      className="text-xs text-[var(--muted)]"
                     >
                       {line}
                     </p>
@@ -126,7 +126,7 @@ export default function AttachmentPreviewList({
                 type="button"
                 aria-label={`Remove ${attachment.name}`}
                 onClick={() => handleRemove(attachment.id)}
-                className="absolute top-1.5 right-1.5 rounded-full bg-[var(--paper-elevated)]/95 p-1 text-[var(--ink)] shadow-sm transition hover:bg-[var(--paper-elevated)]"
+                className="absolute top-1.5 right-1.5 rounded-full bg-[var(--paper)]/95 p-1 text-[var(--ink)] shadow-sm transition hover:bg-[var(--paper)]"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

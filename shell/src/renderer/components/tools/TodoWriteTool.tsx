@@ -16,7 +16,7 @@ export default function TodoWriteTool({ tool }: TodoWriteToolProps) {
   const todos = getEffectiveTodoWriteTodos(tool);
 
   if (!todos) {
-    return <div className="text-sm text-[var(--ink-muted)]">{t('shell.toolChrome.taskOp.loadingTodos')}</div>;
+    return <div className="text-sm text-[var(--muted)]">{t('shell.toolChrome.taskOp.loadingTodos')}</div>;
   }
 
   return <TodoChecklist items={todos} />;

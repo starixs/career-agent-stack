@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ThemeRegistry, themeRegistry } from './registry';
-import { keystoneDefaultTheme } from './themes/keystone-default';
+import { careerTheme } from './themes/career';
 import {
   primeThemeRuntimeFromBootstrap,
   THEME_SELECTION_CHANGED_EVENT,
@@ -64,7 +64,7 @@ function Probe({ onTheme }: { onTheme?: (key: string) => void }) {
 }
 
 describe('ThemeRuntimeProvider', () => {
-  const registry = new ThemeRegistry([keystoneDefaultTheme, syntheticTheme]);
+  const registry = new ThemeRegistry([careerTheme, syntheticTheme]);
 
   beforeEach(() => {
     localStorage.clear();

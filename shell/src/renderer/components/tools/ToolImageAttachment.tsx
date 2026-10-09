@@ -191,14 +191,14 @@ export default function ToolImageAttachment({ attachment }: Props) {
 
   if (urlState.state === 'pending') {
     return (
-      <div className="flex h-32 w-full items-center justify-center rounded border border-dashed border-[var(--line)] bg-[var(--paper-inset)]/40 text-sm text-[var(--ink-muted)]">
+      <div className="flex h-32 w-full items-center justify-center rounded border border-dashed border-[var(--line)] bg-[var(--inset)]/40 text-sm text-[var(--muted)]">
         <span className="animate-pulse">{t('shell.toolChrome.image.generating')}</span>
       </div>
     );
   }
   if (urlState.state === 'loading') {
     return (
-      <div className="flex h-32 w-full items-center justify-center rounded border border-dashed border-[var(--line)] bg-[var(--paper-inset)]/40 text-sm text-[var(--ink-muted)]">
+      <div className="flex h-32 w-full items-center justify-center rounded border border-dashed border-[var(--line)] bg-[var(--inset)]/40 text-sm text-[var(--muted)]">
         <span className="animate-pulse">{t('shell.toolChrome.image.loading')}</span>
       </div>
     );
@@ -220,7 +220,7 @@ export default function ToolImageAttachment({ attachment }: Props) {
           type="button"
           onClick={() => setZoomed(true)}
           onContextMenu={handleContextMenu}
-          className="group inline-flex max-w-full overflow-hidden rounded-md border border-[var(--line)] bg-[var(--paper-inset)]/30 transition-transform hover:scale-[1.01]"
+          className="group inline-flex max-w-full overflow-hidden rounded-md border border-[var(--line)] bg-[var(--inset)]/30 transition-transform hover:scale-[1.01]"
         >
           <img
             src={urlState.url}
@@ -232,7 +232,7 @@ export default function ToolImageAttachment({ attachment }: Props) {
         </button>
         {attachment.caption ? (
           <div
-            className="line-clamp-2 max-w-full text-xs text-[var(--ink-muted)]"
+            className="line-clamp-2 max-w-full text-xs text-[var(--muted)]"
             style={captionWidth ? { width: captionWidth } : undefined}
           >
             {attachment.caption}

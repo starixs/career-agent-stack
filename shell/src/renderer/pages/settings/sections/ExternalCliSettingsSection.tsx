@@ -167,23 +167,23 @@ export function ExternalCliSettingsSection() {
     <div className="mx-auto max-w-3xl space-y-6 px-8 py-8">
       <div>
         <div className="flex items-center gap-2">
-          <Terminal className="h-5 w-5 text-[var(--ink-secondary)]" />
+          <Terminal className="h-5 w-5 text-[var(--ink-2)]" />
           <h2 className="text-lg font-semibold text-[var(--ink)]">
             {t('externalCli.title')}
           </h2>
         </div>
-        <p className="mt-1 text-sm text-[var(--ink-muted)]">
+        <p className="mt-1 text-sm text-[var(--muted)]">
           {t('externalCli.description')}
         </p>
       </div>
 
-      <section className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+      <section className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
         <div className="flex items-center justify-between gap-4">
           <div>
             <h3 className="text-sm font-semibold text-[var(--ink)]">
               {t('externalCli.enableTitle')}
             </h3>
-            <p className="mt-1 text-xs text-[var(--ink-muted)]">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               {t('externalCli.enableDescription')}
             </p>
           </div>
@@ -193,7 +193,7 @@ export function ExternalCliSettingsSection() {
             aria-checked={state?.enabled === true}
             disabled={!state || busy}
             onClick={() => void updateEnabled(!(state?.enabled === true))}
-            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${state?.enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'} disabled:opacity-50`}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${state?.enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'} disabled:opacity-50`}
           >
             <span
               className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-[var(--toggle-thumb)] shadow transition-transform ${state?.enabled ? 'translate-x-5' : 'translate-x-0'}`}
@@ -204,17 +204,17 @@ export function ExternalCliSettingsSection() {
         {state?.enabled && (
           <div className="mt-5 space-y-4 border-t border-[var(--line)] pt-5">
             <div>
-              <label className="text-xs font-medium text-[var(--ink-muted)]">
+              <label className="text-xs font-medium text-[var(--muted)]">
                 {t('externalCli.tokenLabel')}
               </label>
               <div className="mt-1 flex gap-2">
-                <code className="min-w-0 flex-1 overflow-hidden text-ellipsis rounded-lg bg-[var(--paper-inset)] px-3 py-2 text-xs text-[var(--ink)]">
+                <code className="min-w-0 flex-1 overflow-hidden text-ellipsis rounded-lg bg-[var(--inset)] px-3 py-2 text-xs text-[var(--ink)]">
                   {revealed ? state.token : '••••••••••••••••••••••••'}
                 </code>
                 <button
                   type="button"
                   onClick={() => setRevealed((value) => !value)}
-                  className="rounded-lg border border-[var(--line)] p-2 text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                  className="rounded-lg border border-[var(--line)] p-2 text-[var(--muted)] hover:text-[var(--ink)]"
                   aria-label={t(
                     revealed
                       ? 'externalCli.hideToken'
@@ -233,13 +233,13 @@ export function ExternalCliSettingsSection() {
                   onClick={() =>
                     void copy(state.token ?? '', 'externalCli.tokenCopied')
                   }
-                  className="rounded-lg border border-[var(--line)] p-2 text-[var(--ink-muted)] hover:text-[var(--ink)] disabled:opacity-50"
+                  className="rounded-lg border border-[var(--line)] p-2 text-[var(--muted)] hover:text-[var(--ink)] disabled:opacity-50"
                   aria-label={t('externalCli.copyToken')}
                 >
                   <Copy className="h-4 w-4" />
                 </button>
               </div>
-              <p className="mt-1 text-xs text-[var(--ink-muted)]">
+              <p className="mt-1 text-xs text-[var(--muted)]">
                 {t('externalCli.createdAt', { value: createdAt })}
               </p>
             </div>
@@ -247,7 +247,7 @@ export function ExternalCliSettingsSection() {
               type="button"
               disabled={busy}
               onClick={() => void resetToken()}
-              className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] px-3 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--paper-inset)] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] px-3 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--inset)] disabled:opacity-50"
             >
               {busy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -264,19 +264,19 @@ export function ExternalCliSettingsSection() {
         )}
       </section>
 
-      <section className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+      <section className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
         <div>
           <h3 className="text-sm font-semibold text-[var(--ink)]">
             {t('externalCli.usageTitle')}
           </h3>
-          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+          <p className="mt-1 text-xs text-[var(--muted)]">
             {t('externalCli.usageDescription')}
           </p>
         </div>
         {promptReady ? (
           <div>
             <div className="flex items-center justify-between">
-              <p className="text-xs font-medium text-[var(--ink-muted)]">
+              <p className="text-xs font-medium text-[var(--muted)]">
                 {t('externalCli.promptLabel')}
               </p>
               <button
@@ -285,17 +285,17 @@ export function ExternalCliSettingsSection() {
                 onClick={() =>
                   void copy(copiedHandoffPrompt, 'externalCli.promptCopied')
                 }
-                className="text-xs text-[var(--accent)] hover:underline disabled:cursor-not-allowed disabled:text-[var(--ink-faint)] disabled:no-underline"
+                className="text-xs text-[var(--primary)] hover:underline disabled:cursor-not-allowed disabled:text-[var(--subtle)] disabled:no-underline"
               >
                 {t('externalCli.copyPrompt')}
               </button>
             </div>
-            <pre className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-[var(--paper-inset)] p-3 text-xs leading-5 text-[var(--ink)]">
+            <pre className="mt-1 whitespace-pre-wrap break-words rounded-lg bg-[var(--inset)] p-3 text-xs leading-5 text-[var(--ink)]">
               {visibleHandoffPrompt}
             </pre>
           </div>
         ) : (
-          <p role="status" className="text-xs text-[var(--ink-muted)]">
+          <p role="status" className="text-xs text-[var(--muted)]">
             {t(
               refreshing
                 ? 'externalCli.promptLoading'

@@ -174,7 +174,7 @@ export default function ScheduleTypeTabs({ value, intervalMinutes, onChange, err
   return (
     <div>
       {/* Tab buttons */}
-      <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--paper-inset)] p-1">
+      <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--inset)] p-1">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const isActive = activeKind === tab.kind;
@@ -185,8 +185,8 @@ export default function ScheduleTypeTabs({ value, intervalMinutes, onChange, err
               onClick={() => handleTabChange(tab.kind)}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs'
-                  : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                  ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs'
+                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -214,9 +214,9 @@ export default function ScheduleTypeTabs({ value, intervalMinutes, onChange, err
         )}
 
         {activeKind === 'loop' && (
-          <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
+          <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-3">
             <p className="text-sm font-medium text-[var(--ink)]">{t('cron.scheduleTabs.loopTitle')}</p>
-            <div className="mt-1.5 space-y-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
+            <div className="mt-1.5 space-y-1.5 text-sm leading-relaxed text-[var(--muted)]">
               {t('cron.scheduleTabs.loopDescription')
                 .split('\n\n')
                 .map(paragraph => (
@@ -233,10 +233,10 @@ export default function ScheduleTypeTabs({ value, intervalMinutes, onChange, err
               value={atDateTime}
               min={minDateTime}
               onChange={e => handleAtChange(e.target.value)}
-              className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+              className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none"
             />
             {atDateTime && (
-              <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+              <p className="mt-1.5 text-xs text-[var(--muted)]">
                 {t('cron.scheduleTabs.approxPrefix', { distance: formatApproxFutureDistance(atDateTime, t) })}
               </p>
             )}
@@ -245,7 +245,7 @@ export default function ScheduleTypeTabs({ value, intervalMinutes, onChange, err
       </div>
 
       {error && (
-        <p className="mt-2 text-xs text-[var(--error)]">{error}</p>
+        <p className="mt-2 text-xs text-[var(--danger)]">{error}</p>
       )}
     </div>
   );

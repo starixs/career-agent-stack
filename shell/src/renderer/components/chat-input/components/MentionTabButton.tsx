@@ -15,8 +15,8 @@ export function MentionTabButton({
       onClick={onClick}
       className={`rounded-full px-3 py-1 text-xs transition-colors ${
         active
-          ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm'
-          : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]'
+          ? 'bg-[var(--paper)] text-[var(--ink)] shadow-sm'
+          : 'text-[var(--muted)] hover:bg-[var(--hover)]'
       }`}
     >
       {label}

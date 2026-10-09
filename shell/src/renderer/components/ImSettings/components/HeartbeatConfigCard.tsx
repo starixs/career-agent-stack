@@ -190,35 +190,35 @@ export default function HeartbeatConfigCard({
 
     return (
         <>
-        <div className={flat ? '' : 'rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5'}>
+        <div className={flat ? '' : 'rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5'}>
             {/* Header with toggle */}
             <div className={`flex items-center justify-between${config.enabled ? ' mb-4' : ''}`}>
                 <div>
                     <h3 className="text-base font-medium text-[var(--ink)]">{t('agentSettings.heartbeat.title')}</h3>
-                    <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                    <p className="mt-0.5 text-xs text-[var(--muted)]">
                         {t('agentSettings.heartbeat.descriptionPrefix')}{' '}
                         {workspacePath ? (
                             <button
                                 type="button"
                                 onClick={handleOpenHeartbeatFile}
-                                className="rounded bg-[var(--paper-inset)] px-1 py-0.5 text-[var(--accent)] hover:underline cursor-pointer"
+                                className="rounded bg-[var(--inset)] px-1 py-0.5 text-[var(--primary)] hover:underline cursor-pointer"
                             >
                                 HEARTBEAT.md
                             </button>
                         ) : (
-                            <code className="rounded bg-[var(--paper-inset)] px-1 py-0.5 text-[var(--accent)]">HEARTBEAT.md</code>
+                            <code className="rounded bg-[var(--inset)] px-1 py-0.5 text-[var(--primary)]">HEARTBEAT.md</code>
                         )}
                         {' '}{t('agentSettings.heartbeat.descriptionMiddle')}{' '}
                         {workspacePath ? (
                             <button
                                 type="button"
                                 onClick={handleOpenHeartbeatFile}
-                                className="rounded bg-[var(--paper-inset)] px-1 py-0.5 text-[var(--accent)] hover:underline cursor-pointer"
+                                className="rounded bg-[var(--inset)] px-1 py-0.5 text-[var(--primary)] hover:underline cursor-pointer"
                             >
                                 HEARTBEAT.md
                             </button>
                         ) : (
-                            <code className="rounded bg-[var(--paper-inset)] px-1 py-0.5 text-[var(--accent)]">HEARTBEAT.md</code>
+                            <code className="rounded bg-[var(--inset)] px-1 py-0.5 text-[var(--primary)]">HEARTBEAT.md</code>
                         )}
                         {' '}{t('agentSettings.heartbeat.descriptionSuffix')}
                     </p>
@@ -227,7 +227,7 @@ export default function HeartbeatConfigCard({
                     type="button"
                     onClick={toggleEnabled}
                     className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-                        config.enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                        config.enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                     }`}
                 >
                     <span
@@ -244,7 +244,7 @@ export default function HeartbeatConfigCard({
                         type="button"
                         aria-expanded={moreSettingsOpen}
                         onClick={() => setMoreSettingsOpen(open => !open)}
-                        className="flex items-center gap-2 text-sm font-medium text-[var(--ink)] transition-colors hover:text-[var(--accent)]"
+                        className="flex items-center gap-2 text-sm font-medium text-[var(--ink)] transition-colors hover:text-[var(--primary)]"
                     >
                         <ChevronDown className={`h-4 w-4 transition-transform ${moreSettingsOpen ? '' : '-rotate-90'}`} />
                         {t('agentSettings.common.moreSettings')}
@@ -278,8 +278,8 @@ export default function HeartbeatConfigCard({
                                             onClick={() => selectPreset(preset.value)}
                                             className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                                                 config.intervalMinutes === preset.value
-                                                    ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                                                    : 'bg-[var(--paper-inset)] text-[var(--ink-secondary)] hover:bg-[var(--ink-faint)]'
+                                                    ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                                                    : 'bg-[var(--inset)] text-[var(--ink-2)] hover:bg-[var(--subtle)]'
                                             }`}
                                         >
                                             {formatPreset(preset.value)}
@@ -299,11 +299,11 @@ export default function HeartbeatConfigCard({
                                             onKeyDown={handleCustomKeyDown}
                                             className={`w-20 rounded-lg border px-2 py-1.5 text-xs ${
                                                 isCustomInterval
-                                                    ? 'border-[var(--accent)] bg-[var(--accent)]/10'
-                                                    : 'border-[var(--line)] bg-[var(--paper)]'
-                                            } text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]`}
+                                                    ? 'border-[var(--primary)] bg-[var(--primary)]/10'
+                                                    : 'border-[var(--line)] bg-[var(--bg)]'
+                                            } text-[var(--ink)] placeholder:text-[var(--subtle)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]`}
                                         />
-                                        <span className="text-xs text-[var(--ink-muted)]">{t('agentSettings.heartbeat.minutes')}</span>
+                                        <span className="text-xs text-[var(--muted)]">{t('agentSettings.heartbeat.minutes')}</span>
                                     </div>
                                 </div>
                             </div>
@@ -313,7 +313,7 @@ export default function HeartbeatConfigCard({
                                 <div className="mb-2 flex items-center justify-between">
                                     <div>
                                         <p className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.heartbeat.activeHours')}</p>
-                                        <p className="text-xs text-[var(--ink-muted)]">
+                                        <p className="text-xs text-[var(--muted)]">
                                             {t('agentSettings.heartbeat.activeHoursDescription')}
                                         </p>
                                     </div>
@@ -321,7 +321,7 @@ export default function HeartbeatConfigCard({
                                         type="button"
                                         onClick={toggleActiveHours}
                                         className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-                                            config.activeHours ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                                            config.activeHours ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                                         }`}
                                     >
                                         <span
@@ -338,29 +338,29 @@ export default function HeartbeatConfigCard({
                                             type="time"
                                             value={config.activeHours.start}
                                             onChange={e => updateActiveHours({ start: e.target.value })}
-                                            className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                            className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                                         />
-                                        <span className="text-xs text-[var(--ink-muted)]">{t('agentSettings.heartbeat.to')}</span>
+                                        <span className="text-xs text-[var(--muted)]">{t('agentSettings.heartbeat.to')}</span>
                                         <input
                                             type="time"
                                             value={config.activeHours.end}
                                             onChange={e => updateActiveHours({ end: e.target.value })}
-                                            className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                            className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                                         />
                                         {/* Custom timezone dropdown */}
                                         <div className="relative">
                                             <button
                                                 type="button"
                                                 onClick={() => setTzOpen(!tzOpen)}
-                                                className="flex items-center gap-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] hover:border-[var(--line-strong)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                                className="flex items-center gap-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--ink)] hover:border-[var(--line-2)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                                             >
                                                 <span>{selectedTz?.label || config.activeHours.timezone}</span>
-                                                <ChevronDown className="h-3 w-3 text-[var(--ink-subtle)]" />
+                                                <ChevronDown className="h-3 w-3 text-[var(--subtle)]" />
                                             </button>
                                             {tzOpen && (
                                                 <>
                                                     <div className="fixed inset-0 z-40" onMouseDown={(e) => { if (e.target === e.currentTarget) setTzOpen(false); }} />
-                                                    <div className="absolute left-0 top-8 z-50 w-56 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-1 shadow-lg">
+                                                    <div className="absolute left-0 top-8 z-50 w-56 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-1 shadow-lg">
                                                         {COMMON_TIMEZONES.map(tz => (
                                                             <button
                                                                 key={tz.value}
@@ -371,8 +371,8 @@ export default function HeartbeatConfigCard({
                                                                 }}
                                                                 className={`flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs transition-colors ${
                                                                     config.activeHours?.timezone === tz.value
-                                                                        ? 'bg-[var(--accent-warm-muted)] text-[var(--accent)]'
-                                                                        : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                                                                        ? 'bg-[var(--primary-muted)] text-[var(--primary)]'
+                                                                        : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                                                                 }`}
                                                             >
                                                                 {tz.label}

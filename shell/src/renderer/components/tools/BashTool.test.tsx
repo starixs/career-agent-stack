@@ -84,7 +84,7 @@ describe('BashTool terminal transcript', () => {
     expect(stderr).toHaveAttribute('aria-label', '错误输出');
     expect(stdout).toHaveTextContent('normal output');
     expect(stderr).toHaveTextContent('warning output');
-    expect(stderr).toHaveClass('border-l-2', 'border-l-[var(--error)]');
+    expect(stderr).toHaveClass('border-l-2', 'border-l-[var(--danger)]');
     expect(stderr).toHaveTextContent('错误输出');
     expect(container.textContent).not.toContain('[stderr]');
   });

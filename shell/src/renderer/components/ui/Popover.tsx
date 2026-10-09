@@ -77,7 +77,7 @@ export interface PopoverProps {
 }
 
 const DEFAULT_CHROME =
-  'overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl';
+  'overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--paper)] shadow-xl';
 
 export function Popover({
   open,

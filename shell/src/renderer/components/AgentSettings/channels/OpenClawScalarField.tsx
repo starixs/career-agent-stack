@@ -33,7 +33,7 @@ export default function OpenClawScalarField({
     const label = (
         <label htmlFor={field.enum?.length ? undefined : inputId} className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
             {displayName}
-            {required && <span className="ml-1 text-[var(--error)]">*</span>}
+            {required && <span className="ml-1 text-[var(--danger)]">*</span>}
         </label>
     );
 
@@ -43,7 +43,7 @@ export default function OpenClawScalarField({
             <div>
                 {label}
                 {field.description && (
-                    <p className="mb-2 text-xs text-[var(--ink-muted)]">{field.description}</p>
+                    <p className="mb-2 text-xs text-[var(--muted)]">{field.description}</p>
                 )}
                 <button
                     type="button"
@@ -53,7 +53,7 @@ export default function OpenClawScalarField({
                     aria-checked={checked}
                     onClick={() => onChange(!checked)}
                     className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors focus:outline-none ${
-                        checked ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                        checked ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                     }`}
                 >
                     <span
@@ -71,7 +71,7 @@ export default function OpenClawScalarField({
             <div>
                 {label}
                 {field.description && (
-                    <p className="mb-1 text-xs text-[var(--ink-muted)]">{field.description}</p>
+                    <p className="mb-1 text-xs text-[var(--muted)]">{field.description}</p>
                 )}
                 <CustomSelect
                     value={String(value ?? '')}
@@ -91,7 +91,7 @@ export default function OpenClawScalarField({
         <div>
             {label}
             {field.description && (
-                <p className="mb-1 text-xs text-[var(--ink-muted)]">{field.description}</p>
+                <p className="mb-1 text-xs text-[var(--muted)]">{field.description}</p>
             )}
             <input
                 id={inputId}
@@ -102,10 +102,10 @@ export default function OpenClawScalarField({
                 aria-invalid={invalid || undefined}
                 aria-describedby={invalid ? errorId : undefined}
                 placeholder={placeholder}
-                className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] transition-colors focus:border-[var(--button-primary-bg)] focus:outline-none"
+                className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--muted)] transition-colors focus:border-[var(--primary)] focus:outline-none"
             />
             {invalid && (
-                <p id={errorId} role="alert" className="mt-1 text-xs text-[var(--error)]">
+                <p id={errorId} role="alert" className="mt-1 text-xs text-[var(--danger)]">
                     {t(field.type === 'integer'
                         ? 'agentSettings.channelDetail.integerRequired'
                         : 'agentSettings.channelDetail.numberRequired')}

@@ -96,17 +96,17 @@ function ensureHighlightStyles(): void {
   const hl = '::' + 'highlight';
   style.textContent = `
     ${hl}(chat-search) {
-      background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+      background-color: color-mix(in srgb, var(--primary) 30%, transparent);
       color: var(--ink);
     }
     ${hl}(chat-search-current) {
-      background-color: var(--accent);
-      color: var(--on-accent);
+      background-color: var(--primary);
+      color: var(--on-primary);
     }
     @keyframes chat-search-msg-pulse {
       0%   {
-        box-shadow: 0 0 0 2px var(--accent), 0 0 16px 4px color-mix(in srgb, var(--accent) 30%, transparent);
-        background-color: color-mix(in srgb, var(--accent) 8%, transparent);
+        box-shadow: 0 0 0 2px var(--primary), 0 0 16px 4px color-mix(in srgb, var(--primary) 30%, transparent);
+        background-color: color-mix(in srgb, var(--primary) 8%, transparent);
       }
       100% {
         box-shadow: 0 0 0 0 transparent;

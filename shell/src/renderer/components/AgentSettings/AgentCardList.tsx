@@ -17,10 +17,10 @@ interface AgentCardListProps {
 }
 
 function getStatusColor(onlineCount: number, totalCount: number): string {
-  if (totalCount === 0) return 'var(--ink-subtle)';
+  if (totalCount === 0) return 'var(--subtle)';
   if (onlineCount === totalCount) return 'var(--success)';
   if (onlineCount > 0) return 'var(--warning)';
-  return 'var(--ink-subtle)';
+  return 'var(--subtle)';
 }
 
 export default function AgentCardList({ onSelectAgent }: AgentCardListProps) {
@@ -46,8 +46,8 @@ export default function AgentCardList({ onSelectAgent }: AgentCardListProps) {
   if (agents.length === 0) {
     return (
       <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--line)] px-8 py-16">
-        <HeartPulse className="h-8 w-8 text-[var(--heartbeat)]" />
-        <p className="mt-3 text-sm text-[var(--ink-muted)]">
+        <HeartPulse className="h-8 w-8 text-[var(--success)]" />
+        <p className="mt-3 text-sm text-[var(--muted)]">
           {t('agentSettings.agentList.empty')}
         </p>
       </div>
@@ -72,14 +72,14 @@ export default function AgentCardList({ onSelectAgent }: AgentCardListProps) {
         return (
           <button
             key={agent.id}
-            className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 text-left transition-all hover:border-[var(--line-strong)] hover:shadow-sm hover:translate-y-[-1px]"
+            className="flex items-start gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 text-left transition-all hover:border-[var(--line-2)] hover:shadow-sm hover:translate-y-[-1px]"
             onClick={() => onSelectAgent(agent.id, workspacePath)}
           >
             {/* Icon + status dot */}
             <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
               <WorkspaceIcon icon={iconId} size={24} />
               <div
-                className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--paper-elevated)]"
+                className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--paper)]"
                 style={{ background: statusColor }}
               />
             </div>
@@ -91,28 +91,28 @@ export default function AgentCardList({ onSelectAgent }: AgentCardListProps) {
                   {displayName}
                 </span>
                 {!agent.enabled && (
-                  <span className="shrink-0 rounded px-1.5 py-0.5 text-xs bg-[var(--paper-inset)] text-[var(--ink-subtle)]">
+                  <span className="shrink-0 rounded px-1.5 py-0.5 text-xs bg-[var(--inset)] text-[var(--subtle)]">
                     {t('agentSettings.agentList.disabled')}
                   </span>
                 )}
               </div>
 
               {/* Workspace path */}
-              <div className="mt-0.5 truncate text-xs text-[var(--ink-subtle)]">
+              <div className="mt-0.5 truncate text-xs text-[var(--subtle)]">
                 {shortenPathForDisplay(workspacePath)}
               </div>
 
               {/* Channel badges */}
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {(agent.channels ?? []).map(ch => (
-                  <span key={ch.id} className="rounded px-1.5 py-0.5 text-xs bg-[var(--paper-inset)] text-[var(--ink-muted)]">
+                  <span key={ch.id} className="rounded px-1.5 py-0.5 text-xs bg-[var(--inset)] text-[var(--muted)]">
                     {getPlatformLabel(ch.type)}
                   </span>
                 ))}
               </div>
 
               {/* Status + model */}
-              <div className="mt-1.5 flex items-center gap-2 text-xs text-[var(--ink-subtle)]">
+              <div className="mt-1.5 flex items-center gap-2 text-xs text-[var(--subtle)]">
                 <span style={{ color: statusColor }}>
                   {onlineChannels > 0
                     ? t('agentSettings.agentList.online', { online: onlineChannels, total: totalChannels })

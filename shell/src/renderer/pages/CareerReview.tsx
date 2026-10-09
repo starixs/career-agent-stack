@@ -29,7 +29,7 @@ function rate(num: number, den: number): string {
 
 function Segmented<T extends string>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void }) {
   return (
-    <div role="tablist" className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--paper-inset)] p-0.5">
+    <div role="tablist" className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5">
       {options.map(o => (
         <button
           key={o.value}
@@ -37,7 +37,7 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
           role="tab"
           aria-selected={o.value === value}
           onClick={() => onChange(o.value)}
-          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${o.value === value ? 'bg-[var(--paper)] text-[var(--ink)] shadow-sm' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}
+          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${o.value === value ? 'bg-[var(--bg)] text-[var(--ink)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
         >
           {o.label}
         </button>
@@ -124,18 +124,18 @@ function FunnelSection({ funnel }: { funnel: Funnel }) {
         <SectionTitle>总体</SectionTitle>
         <div className="grid grid-cols-4 gap-2 md:grid-cols-7" aria-label="总体数字">
           {tiles.map(t => (
-            <div key={t.label} className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2">
-              <div className="text-xs text-[var(--ink-muted)]">{t.label}</div>
+            <div key={t.label} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+              <div className="text-xs text-[var(--muted)]">{t.label}</div>
               <div className="text-xl font-semibold tabular-nums text-[var(--ink)]" aria-label={`${t.label} ${t.value}`}>{t.value}</div>
             </div>
           ))}
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" aria-label="转化率">
           {rates.map(r => (
-            <span key={r.label} className="text-[var(--ink-muted)]">{r.label} <span className="font-semibold tabular-nums text-[var(--ink)]">{r.value}</span></span>
+            <span key={r.label} className="text-[var(--muted)]">{r.label} <span className="font-semibold tabular-nums text-[var(--ink)]">{r.value}</span></span>
           ))}
         </div>
-        <p className="mt-2 text-xs text-[var(--ink-subtle)]">经验上网申过简历率通常只有一到两成，沉默比被拒常见；这不是能力结论。</p>
+        <p className="mt-2 text-xs text-[var(--subtle)]">经验上网申过简历率通常只有一到两成，沉默比被拒常见；这不是能力结论。</p>
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <FunnelTable title="按岗位类别" rows={funnel.by_category ?? []} />
@@ -170,10 +170,10 @@ function FunnelTable({ title, rows }: { title: string; rows: FunnelRow[] }) {
   if (best === worst) worst = null;
   return (
     <Card title={title}>
-      {rows.length === 0 && <div className="text-xs text-[var(--ink-subtle)]">还没有可以分组的数据。</div>}
+      {rows.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有可以分组的数据。</div>}
       {rows.length > 0 && (
         <div className="grid grid-cols-[minmax(96px,1.4fr)_repeat(6,minmax(40px,1fr))_minmax(60px,2fr)] gap-x-2 gap-y-1 text-xs" role="table" aria-label={title}>
-          <div className="contents text-[var(--ink-muted)]" role="row">
+          <div className="contents text-[var(--muted)]" role="row">
             <div role="columnheader">分组</div>
             {COLS.map(c => <div key={c.key} role="columnheader" className="text-right">{c.label}</div>)}
             <div role="columnheader" />
@@ -187,8 +187,8 @@ function FunnelTable({ title, rows }: { title: string; rows: FunnelRow[] }) {
               </div>
               {COLS.map(c => <div key={c.key} role="cell" className="text-right tabular-nums text-[var(--ink)]">{r[c.key]}</div>)}
               <div role="cell" className="flex items-center">
-                <span className="h-2 w-full overflow-hidden rounded-full bg-[var(--paper-inset)]">
-                  <span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.round((r.total / maxTotal) * 100)}%` }} />
+                <span className="h-2 w-full overflow-hidden rounded-full bg-[var(--inset)]">
+                  <span className="block h-full rounded-full bg-[var(--primary)]" style={{ width: `${Math.round((r.total / maxTotal) * 100)}%` }} />
                 </span>
               </div>
             </div>
@@ -255,7 +255,7 @@ function WeeklySection({ reviews, highlightId, onChanged }: { reviews: WeeklyRev
       <Field label="想补充的情况或情绪（可选）" hint="比如这周为什么没投、哪场面试感觉不对；复盘会把它一起考虑进去">
         <TextArea aria-label="补充说明" placeholder="随便写，不用整理" value={note} onChange={e => setNote(e.target.value)} />
       </Field>
-      {sorted.length === 0 && <div className="text-xs text-[var(--ink-subtle)]">还没有周复盘。点「生成本周复盘」，助理会按漏斗给出一件今天就能做的小事。</div>}
+      {sorted.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有周复盘。点「生成本周复盘」，助理会按漏斗给出一件今天就能做的小事。</div>}
       <div className="space-y-3">
         {sorted.map(r => <ReviewCard key={r.id} review={r} highlighted={r.id === highlightId} />)}
       </div>
@@ -268,10 +268,10 @@ function ReviewCard({ review: r, highlighted }: { review: WeeklyReview; highligh
   const suggestions = parseSuggestions(r.suggestions_json);
   return (
     <div id={`weekly-review-${r.id}`}>
-      <Card className={highlighted ? 'ring-2 ring-[var(--accent)]' : ''} title={`${formatDate(r.week_start)} 这周`} extra={<span className="text-xs text-[var(--ink-subtle)]">生成于 {formatDate(r.created_at)}</span>}>
+      <Card className={highlighted ? 'ring-2 ring-[var(--primary)]' : ''} title={`${formatDate(r.week_start)} 这周`} extra={<span className="text-xs text-[var(--subtle)]">生成于 {formatDate(r.created_at)}</span>}>
         {r.small_action && (
-          <div className="mb-3 rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-3 py-2">
-            <div className="text-xs font-medium text-[var(--accent)]">今天就能做的一件小事</div>
+          <div className="mb-3 rounded-lg border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-2">
+            <div className="text-xs font-medium text-[var(--primary)]">今天就能做的一件小事</div>
             <div className="mt-0.5 text-base font-semibold text-[var(--ink)]">{r.small_action}</div>
             <div className="mt-2">
               <ChatActionButton text={`帮我做这件事：${r.small_action}`} context={{ surface: 'review', refs: { review_id: r.id } }} />
@@ -295,10 +295,10 @@ function ReviewCard({ review: r, highlighted }: { review: WeeklyReview; highligh
             <ol className="space-y-1">
               {suggestions.map((s, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
-                  <span className="w-4 shrink-0 tabular-nums text-[var(--ink-subtle)]">{i + 1}.</span>
+                  <span className="w-4 shrink-0 tabular-nums text-[var(--subtle)]">{i + 1}.</span>
                   <div className="min-w-0">
                     <div className="text-[var(--ink)]">{s.action}</div>
-                    {s.why && <div className="text-xs text-[var(--ink-muted)]">{s.why}</div>}
+                    {s.why && <div className="text-xs text-[var(--muted)]">{s.why}</div>}
                   </div>
                 </li>
               ))}
@@ -313,12 +313,12 @@ function ReviewCard({ review: r, highlighted }: { review: WeeklyReview; highligh
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <div className="mb-1 text-xs font-medium text-[var(--ink-muted)]">{title}</div>
+      <div className="mb-1 text-xs font-medium text-[var(--muted)]">{title}</div>
       {children}
     </div>
   );
 }
 
 function Muted({ children }: { children: ReactNode }) {
-  return <div className="text-xs text-[var(--ink-subtle)]">{children}</div>;
+  return <div className="text-xs text-[var(--subtle)]">{children}</div>;
 }

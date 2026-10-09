@@ -32,11 +32,11 @@ export default function AudioPlayerBar({ filePath }: { filePath: string }) {
   const ratio = seekable ? progress / duration : 0;
 
   return (
-    <div className="flex items-center gap-2.5 rounded-lg bg-[var(--paper-inset)] px-3 py-2 max-w-[400px]">
+    <div className="flex items-center gap-2.5 rounded-lg bg-[var(--inset)] px-3 py-2 max-w-[400px]">
       <button
         type="button"
         onClick={handleToggle}
-        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-warm-hover)]"
+        className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
       >
         {isPlaying
           ? <Pause className="size-3 fill-current" />
@@ -46,7 +46,7 @@ export default function AudioPlayerBar({ filePath }: { filePath: string }) {
 
       <div className="flex flex-1 items-center gap-2">
         <SeekBar ratio={ratio} seekable={seekable} onSeek={(r) => seek(r * duration)} className="flex-1" />
-        <span className="text-xs tabular-nums text-[var(--ink-muted)] shrink-0">
+        <span className="text-xs tabular-nums text-[var(--muted)] shrink-0">
           {isCurrent ? formatTime(progress) : '0:00'} / {seekable ? formatTime(duration) : '--:--'}
         </span>
       </div>

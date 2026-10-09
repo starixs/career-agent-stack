@@ -129,7 +129,7 @@ export default function AgentMemoryEvolutionSection({
           <h3 className="text-base font-medium text-[var(--ink)]">
             {t('agentSettings.memoryEvolution.title')}
           </h3>
-          <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+          <p className="mt-0.5 text-xs text-[var(--muted)]">
             {t('agentSettings.memoryEvolution.description')}
           </p>
         </div>
@@ -139,7 +139,7 @@ export default function AgentMemoryEvolutionSection({
           aria-checked={enabled}
           onClick={handleToggle}
           className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-            enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+            enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
           }`}
         >
           <span
@@ -152,7 +152,7 @@ export default function AgentMemoryEvolutionSection({
       {lastRun && lastRunTime && (
         <div className="border-t border-dashed border-[var(--line)] pt-3" aria-live="polite">
           <span
-            className={`text-xs ${lastRun.success ? 'text-[var(--ink-muted)]' : 'text-[var(--danger)]'}`}
+            className={`text-xs ${lastRun.success ? 'text-[var(--muted)]' : 'text-[var(--danger)]'}`}
           >
             {t(
               lastRun.success

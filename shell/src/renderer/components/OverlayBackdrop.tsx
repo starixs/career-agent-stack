@@ -15,7 +15,7 @@ import { createPortal } from 'react-dom';
  *
  * Usage:
  *   <OverlayBackdrop onClose={handleClose} className="z-[200]">
- *     <div className="rounded-2xl bg-[var(--paper-elevated)] ...">
+ *     <div className="rounded-2xl bg-[var(--paper)] ...">
  *       panel content
  *     </div>
  *   </OverlayBackdrop>

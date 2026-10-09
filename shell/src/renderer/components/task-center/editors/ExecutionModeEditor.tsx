@@ -132,7 +132,7 @@ export function ExecutionModeEditor({
 
   return (
     <div>
-      <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--paper-inset)] p-1">
+      <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--inset)] p-1">
         {EXECUTION_TABS.map((tab) => {
           const Icon = tab.icon;
           const active = executionMode === tab.value;
@@ -144,8 +144,8 @@ export function ExecutionModeEditor({
               onClick={() => setExecutionMode(tab.value)}
               className={`flex flex-1 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 active
-                  ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs'
-                  : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                  ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs'
+                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -154,11 +154,11 @@ export function ExecutionModeEditor({
           );
         })}
       </div>
-      <p className="mt-2.5 text-sm text-[var(--ink-muted)]">{currentDescription}</p>
+      <p className="mt-2.5 text-sm text-[var(--muted)]">{currentDescription}</p>
 
       {isScheduled && (
         <div className="mt-5">
-          <label className="mb-2 block text-sm font-medium text-[var(--ink-secondary)]">
+          <label className="mb-2 block text-sm font-medium text-[var(--ink-2)]">
             {t('execution.scheduledTime')}
           </label>
           <input
@@ -194,11 +194,11 @@ export function ExecutionModeEditor({
 
       {showSessionStrategy && (
         <div className="mt-5">
-          <label className="mb-2 block text-sm font-medium text-[var(--ink-secondary)]">
+          <label className="mb-2 block text-sm font-medium text-[var(--ink-2)]">
             {t('execution.sessionStrategy')}
           </label>
           {isLoop ? (
-            <p className="text-sm text-[var(--ink-muted)]">
+            <p className="text-sm text-[var(--muted)]">
               {t('execution.loopSessionStrategy')}
             </p>
           ) : (
@@ -219,7 +219,7 @@ export function ExecutionModeEditor({
                   {t('execution.singleSession')}
                 </PillButton>
               </div>
-              <p className="mt-2 text-sm text-[var(--ink-muted)]">
+              <p className="mt-2 text-sm text-[var(--muted)]">
                 {runMode === 'new-session'
                   ? t('execution.newSessionDescription')
                   : t('execution.singleSessionDescription')}

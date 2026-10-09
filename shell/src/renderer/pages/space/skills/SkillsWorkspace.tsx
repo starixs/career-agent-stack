@@ -154,11 +154,11 @@ export function SkillsWorkspace({
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)]">
-      <section className="flex min-h-12 items-center gap-2.5 border-b border-[var(--line)] bg-[var(--paper-elevated)]/60 px-5 py-1.5 backdrop-blur-md">
-        <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold text-[var(--ink-secondary)]">
+      <section className="flex min-h-12 items-center gap-2.5 border-b border-[var(--line)] bg-[var(--paper)]/60 px-5 py-1.5 backdrop-blur-md">
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold text-[var(--ink-2)]">
           <Package className="h-4 w-4 shrink-0" />
           <span>Skills</span>
-          <span className="rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+          <span className="rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
             {skills.length}
           </span>
         </div>
@@ -198,7 +198,7 @@ export function SkillsWorkspace({
             <button
               type="button"
               onClick={() => void onApplyRemoteUpdate().catch(() => undefined)}
-              className="mb-3 flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-[var(--accent-warm)]/20 bg-[var(--accent-warm-subtle)]/70 px-3 text-sm font-semibold text-[var(--accent-warm)] transition-colors hover:bg-[var(--accent-warm-subtle)]"
+              className="mb-3 flex min-h-9 w-full items-center justify-center gap-2 rounded-xl border border-[var(--primary)]/20 bg-[var(--primary-soft)]/70 px-3 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--primary-soft)]"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               {t("space.common.remoteUpdatesAvailable")}
@@ -216,7 +216,7 @@ export function SkillsWorkspace({
               <button
                 type="button"
                 onClick={() => void onRefresh().catch(() => undefined)}
-                className="shrink-0 rounded-lg px-2 py-1 text-sm font-semibold transition-colors hover:bg-[var(--paper-elevated)]/60"
+                className="shrink-0 rounded-lg px-2 py-1 text-sm font-semibold transition-colors hover:bg-[var(--paper)]/60"
               >
                 {t("space.common.retry")}
               </button>
@@ -225,7 +225,7 @@ export function SkillsWorkspace({
           {skills.length === 0 && error ? (
             <div
               role="alert"
-              className="grid min-h-52 place-items-center rounded-xl border border-dashed border-[var(--line-subtle)] bg-[var(--paper-elevated)]/55 text-sm text-[var(--ink-muted)]"
+              className="grid min-h-52 place-items-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)]/55 text-sm text-[var(--muted)]"
             >
               <div className="text-center">
                 <CircleAlert className="mx-auto mb-2 h-7 w-7 text-[var(--warning)]" />
@@ -233,7 +233,7 @@ export function SkillsWorkspace({
                 <button
                   type="button"
                   onClick={() => void onRefresh().catch(() => undefined)}
-                  className="mt-3 inline-flex h-9 items-center rounded-lg bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+                  className="mt-3 inline-flex h-9 items-center rounded-lg bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                 >
                   {t("space.common.retry")}
                 </button>
@@ -244,28 +244,28 @@ export function SkillsWorkspace({
               {Array.from({ length: 6 }).map((_, index) => (
                 <div
                   key={index}
-                  className="rounded-xl bg-[var(--paper-elevated)] px-3.5 py-3"
+                  className="rounded-xl bg-[var(--paper)] px-3.5 py-3"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="h-4 w-32 rounded-md bg-[var(--paper-inset)]" />
-                    <div className="h-5 w-12 rounded-md bg-[var(--paper-inset)]" />
+                    <div className="h-4 w-32 rounded-md bg-[var(--inset)]" />
+                    <div className="h-5 w-12 rounded-md bg-[var(--inset)]" />
                   </div>
-                  <div className="mt-3 h-3 w-full rounded-md bg-[var(--paper-inset)]" />
-                  <div className="mt-2 h-3 w-2/3 rounded-md bg-[var(--paper-inset)]" />
-                  <div className="mt-3 h-3 w-56 rounded-md bg-[var(--paper-inset)]/70" />
+                  <div className="mt-3 h-3 w-full rounded-md bg-[var(--inset)]" />
+                  <div className="mt-2 h-3 w-2/3 rounded-md bg-[var(--inset)]" />
+                  <div className="mt-3 h-3 w-56 rounded-md bg-[var(--inset)]/70" />
                 </div>
               ))}
             </div>
           ) : skills.length === 0 ? (
-            <div className="grid min-h-52 place-items-center rounded-xl border border-dashed border-[var(--line-subtle)] bg-[var(--paper-elevated)]/55 text-sm text-[var(--ink-muted)]">
+            <div className="grid min-h-52 place-items-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)]/55 text-sm text-[var(--muted)]">
               <div className="text-center">
-                <Package className="mx-auto mb-3 h-9 w-9 text-[var(--ink-subtle)]" />
+                <Package className="mx-auto mb-3 h-9 w-9 text-[var(--subtle)]" />
                 <p>{t("space.skills.empty")}</p>
                 {admin && (
                   <button
                     type="button"
                     onClick={() => setPublishOpen(true)}
-                    className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+                    className="mt-3 inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                   >
                     <UploadCloud className="h-4 w-4" />
                     {t("space.skills.publishSkill")}
@@ -338,30 +338,30 @@ function SpaceSkillCard({
     <button
       type="button"
       onClick={onOpen}
-      className="group flex w-full flex-col gap-1.5 rounded-xl bg-[var(--paper-elevated)] px-3.5 py-3 text-left transition-shadow hover:shadow-sm"
+      className="group flex w-full flex-col gap-1.5 rounded-xl bg-[var(--paper)] px-3.5 py-3 text-left transition-shadow hover:shadow-sm"
     >
       <span className="flex min-w-0 items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]">
           {skill.name}
         </span>
       </span>
-      <span className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--ink-muted)]">
+      <span className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--muted)]">
         {skill.description || t("space.common.noDescription")}
       </span>
-      <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-[var(--ink-subtle)]">
+      <span className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-[var(--subtle)]">
         <SpaceIdentityLine
           name={
             uploader?.name ?? uploader?.id ?? t("space.skills.unknownUploader")
           }
           avatarUrl={uploader?.avatarUrl}
           avatarSize={18}
-          nameClassName="font-semibold text-[var(--ink-muted)]"
+          nameClassName="font-semibold text-[var(--muted)]"
         />
-        <span className="text-[var(--line-strong)]">·</span>
+        <span className="text-[var(--line-2)]">·</span>
         <span>
           <span
             title={formatFullTime(skill.updatedAt)}
-            className="font-semibold text-[var(--ink-muted)]"
+            className="font-semibold text-[var(--muted)]"
           >
             {formatTime(skill.updatedAt)}
           </span>
@@ -733,7 +733,7 @@ function PublishSkillDialog({
       onClose={closeAndCleanup}
       className="z-[240] items-center justify-center bg-black/25 backdrop-blur-sm"
     >
-      <section className="relative flex h-[min(88vh,780px)] max-h-[calc(100vh-40px)] w-[min(92vw,960px)] flex-col overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl">
+      <section className="relative flex h-[min(88vh,780px)] max-h-[calc(100vh-40px)] w-[min(92vw,960px)] flex-col overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--paper)] shadow-xl">
         <header className="flex min-h-14 items-center gap-3 border-b border-[var(--line)] px-5">
           <h2 className="min-w-0 flex-1 truncate text-lg font-semibold text-[var(--ink)]">
             {t("space.skills.publishTitle")}
@@ -741,7 +741,7 @@ function PublishSkillDialog({
           <button
             type="button"
             onClick={closeAndCleanup}
-            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             aria-label={t("space.detail.close")}
           >
             <X className="h-4 w-4" />
@@ -749,7 +749,7 @@ function PublishSkillDialog({
         </header>
 
         <div className="grid min-h-0 flex-1 grid-cols-[240px_minmax(0,1fr)] max-md:grid-cols-1">
-          <aside className="border-r border-[var(--line)] bg-[var(--paper)]/55 p-3 max-md:border-b max-md:border-r-0">
+          <aside className="border-r border-[var(--line)] bg-[var(--bg)]/55 p-3 max-md:border-b max-md:border-r-0">
             <div className="grid gap-1">
               {(
                 [
@@ -762,7 +762,7 @@ function PublishSkillDialog({
                   key={value}
                   type="button"
                   onClick={() => changePublishMode(value)}
-                  className={`flex h-10 items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold transition-colors ${mode === value ? "bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm" : "text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"}`}
+                  className={`flex h-10 items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold transition-colors ${mode === value ? "bg-[var(--paper)] text-[var(--ink)] shadow-sm" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"}`}
                 >
                   <Icon className="h-4 w-4" />
                   {label}
@@ -781,16 +781,16 @@ function PublishSkillDialog({
                     <h3 className="text-base font-semibold text-[var(--ink)]">
                       {t("space.skills.localSkills")}
                     </h3>
-                    <div className="flex min-w-56 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-2.5">
-                      <Search className="h-4 w-4 shrink-0 text-[var(--ink-subtle)]" />
+                    <div className="flex min-w-56 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2.5">
+                      <Search className="h-4 w-4 shrink-0 text-[var(--subtle)]" />
                       <input
                         value={localQuery}
                         onChange={(event) => setLocalQuery(event.target.value)}
                         placeholder={t("space.skills.localSearchPlaceholder")}
-                        className="h-9 min-w-0 flex-1 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-subtle)]"
+                        className="h-9 min-w-0 flex-1 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--subtle)]"
                       />
                       {loadingLocal && (
-                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--ink-muted)]" />
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[var(--muted)]" />
                       )}
                     </div>
                   </div>
@@ -809,33 +809,33 @@ function PublishSkillDialog({
                               : t("space.skills.sourceGlobal"),
                           )
                         }
-                        className={`rounded-lg border px-3 py-2 text-left transition-colors ${sourcePath === skill.path ? "border-[var(--ink)] bg-[var(--paper)]" : "border-[var(--line-subtle)] bg-[var(--paper-elevated)] hover:border-[var(--line)]"}`}
+                        className={`rounded-lg border px-3 py-2 text-left transition-colors ${sourcePath === skill.path ? "border-[var(--ink)] bg-[var(--bg)]" : "border-[var(--line)] bg-[var(--paper)] hover:border-[var(--line)]"}`}
                       >
                         <div className="flex min-w-0 items-center gap-2">
                           <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]">
                             {skill.name}
                           </span>
-                          <span className="shrink-0 rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+                          <span className="shrink-0 rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
                             {skill.scope === "project"
                               ? skill.workspaceLabel ||
                                 t("space.skills.sourceProject")
                               : t("space.skills.sourceGlobal")}
                           </span>
                         </div>
-                        <p className="mt-1 truncate text-xs font-medium text-[var(--ink-subtle)]">
+                        <p className="mt-1 truncate text-xs font-medium text-[var(--subtle)]">
                           {skill.path}
                         </p>
                       </button>
                     ))}
                     {!loadingLocal && localSkills.length === 0 && (
-                      <div className="rounded-lg border border-dashed border-[var(--line-subtle)] px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
+                      <div className="rounded-lg border border-dashed border-[var(--line)] px-4 py-8 text-center text-sm text-[var(--muted)]">
                         {t("space.skills.noLocalSkills")}
                       </div>
                     )}
                     {!loadingLocal &&
                       localSkills.length > 0 &&
                       filteredLocalSkills.length === 0 && (
-                        <div className="rounded-lg border border-dashed border-[var(--line-subtle)] px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
+                        <div className="rounded-lg border border-dashed border-[var(--line)] px-4 py-8 text-center text-sm text-[var(--muted)]">
                           {t("space.skills.noMatchingLocalSkills")}
                         </div>
                       )}
@@ -848,21 +848,21 @@ function PublishSkillDialog({
                   ref={fileDropRef}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => event.preventDefault()}
-                  className={`grid min-h-64 place-items-center rounded-lg border border-dashed px-4 py-10 text-center transition-colors ${fileDropActive ? "border-[var(--accent-warm)] bg-[var(--accent-warm-subtle)]" : "border-[var(--line-subtle)] bg-[var(--paper)]/45"}`}
+                  className={`grid min-h-64 place-items-center rounded-lg border border-dashed px-4 py-10 text-center transition-colors ${fileDropActive ? "border-[var(--primary)] bg-[var(--primary-soft)]" : "border-[var(--line)] bg-[var(--bg)]/45"}`}
                 >
                   <div className="max-w-md">
-                    <UploadCloud className="mx-auto mb-3 h-8 w-8 text-[var(--ink-subtle)]" />
+                    <UploadCloud className="mx-auto mb-3 h-8 w-8 text-[var(--subtle)]" />
                     <h3 className="text-base font-semibold text-[var(--ink)]">
                       {t("space.skills.dropSkillSource")}
                     </h3>
-                    <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                    <p className="mt-1 text-sm text-[var(--muted)]">
                       {t("space.skills.dropSkillSourceHint")}
                     </p>
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
                       <button
                         type="button"
                         onClick={() => void chooseFile()}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                       >
                         <UploadCloud className="h-4 w-4" />
                         {t("space.skills.chooseSkillFile")}
@@ -870,13 +870,13 @@ function PublishSkillDialog({
                       <button
                         type="button"
                         onClick={() => void chooseFolder()}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                       >
                         <Folder className="h-4 w-4" />
                         {t("space.skills.chooseSkillFolder")}
                       </button>
                     </div>
-                    <p className="mt-3 text-xs font-medium text-[var(--ink-subtle)]">
+                    <p className="mt-3 text-xs font-medium text-[var(--subtle)]">
                       {t("space.skills.supportedSourceFormats")}
                     </p>
                   </div>
@@ -885,20 +885,20 @@ function PublishSkillDialog({
 
               {mode === "url" && (
                 <section className="grid gap-3">
-                  <div className="rounded-lg border border-[var(--line-subtle)] bg-[var(--paper)]/45 p-3">
+                  <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)]/45 p-3">
                     <textarea
                       value={urlValue}
                       onChange={(event) => setUrlValue(event.target.value)}
                       rows={4}
                       placeholder={t("space.skills.urlInputPlaceholder")}
-                      className="w-full resize-none rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 font-mono text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-subtle)] focus:border-[var(--ink)]"
+                      className="w-full resize-none rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-mono text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--subtle)] focus:border-[var(--ink)]"
                     />
                     <div className="mt-2 flex justify-end">
                       <button
                         type="button"
                         disabled={!urlValue.trim() || urlLoading}
                         onClick={() => void probeUrl()}
-                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)] disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {urlLoading && (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -908,13 +908,13 @@ function PublishSkillDialog({
                     </div>
                   </div>
                   {urlError && (
-                    <div className="rounded-lg border border-[var(--error)]/30 bg-[var(--error-bg)] px-3 py-2 text-sm text-[var(--error)]">
+                    <div className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]">
                       {urlError}
                     </div>
                   )}
                   {urlPreview?.mode === "multi" && (
                     <div className="grid max-h-64 gap-2 overflow-y-auto pr-1">
-                      <p className="text-sm font-semibold text-[var(--ink-secondary)]">
+                      <p className="text-sm font-semibold text-[var(--ink-2)]">
                         {t("space.skills.urlCandidates")}
                       </p>
                       {urlPreview.candidates.map((candidate) => (
@@ -935,11 +935,11 @@ function PublishSkillDialog({
                   {urlPreview?.mode === "marketplace" && (
                     <div className="grid max-h-72 gap-3 overflow-y-auto pr-1">
                       <div>
-                        <p className="text-sm font-semibold text-[var(--ink-secondary)]">
+                        <p className="text-sm font-semibold text-[var(--ink-2)]">
                           {urlPreview.marketplaceName}
                         </p>
                         {urlPreview.marketplaceDescription && (
-                          <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-0.5 text-xs text-[var(--muted)]">
                             {urlPreview.marketplaceDescription}
                           </p>
                         )}
@@ -947,14 +947,14 @@ function PublishSkillDialog({
                       {urlPreview.plugins.map((plugin) => (
                         <div
                           key={plugin.name}
-                          className="rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-elevated)] p-3"
+                          className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3"
                         >
                           <div className="mb-2">
                             <p className="text-sm font-semibold text-[var(--ink)]">
                               {plugin.name}
                             </p>
                             {plugin.description && (
-                              <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                              <p className="mt-0.5 text-xs text-[var(--muted)]">
                                 {plugin.description}
                               </p>
                             )}
@@ -983,7 +983,7 @@ function PublishSkillDialog({
                   )}
                   {urlPackages.length > 1 && (
                     <div className="grid gap-2">
-                      <p className="text-sm font-semibold text-[var(--ink-secondary)]">
+                      <p className="text-sm font-semibold text-[var(--ink-2)]">
                         {t("space.skills.preparedUrlPackages")}
                       </p>
                       {urlPackages.map((item) => (
@@ -991,12 +991,12 @@ function PublishSkillDialog({
                           key={item.tempId}
                           type="button"
                           onClick={() => void inspectUrlPackage(item)}
-                          className={`rounded-lg border px-3 py-2 text-left transition-colors ${sourcePath === item.filePath ? "border-[var(--ink)] bg-[var(--paper)]" : "border-[var(--line-subtle)] bg-[var(--paper-elevated)] hover:border-[var(--line)]"}`}
+                          className={`rounded-lg border px-3 py-2 text-left transition-colors ${sourcePath === item.filePath ? "border-[var(--ink)] bg-[var(--bg)]" : "border-[var(--line)] bg-[var(--paper)] hover:border-[var(--line)]"}`}
                         >
                           <span className="block truncate text-sm font-semibold text-[var(--ink)]">
                             {item.name}
                           </span>
-                          <span className="mt-1 block truncate text-xs font-medium text-[var(--ink-subtle)]">
+                          <span className="mt-1 block truncate text-xs font-medium text-[var(--subtle)]">
                             {item.rootPath || item.suggestedFolderName}
                           </span>
                         </button>
@@ -1029,7 +1029,7 @@ function PublishSkillDialog({
           <button
             type="button"
             onClick={closeAndCleanup}
-            className="h-9 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)]"
+            className="h-9 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)]"
           >
             {t("space.common.cancel")}
           </button>
@@ -1041,7 +1041,7 @@ function PublishSkillDialog({
               (publishAction === "create" && Boolean(conflict))
             }
             onClick={() => void publish()}
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--button-primary-bg)] px-3 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-[var(--primary)] px-3 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {publishing && <Loader2 className="h-4 w-4 animate-spin" />}
             {t("space.skills.publish")}
@@ -1078,14 +1078,14 @@ function PublishInspectionDock({
   t: ReturnType<typeof useTranslation>["t"];
 }) {
   return (
-    <section className="absolute inset-x-5 bottom-4 z-10 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/95 p-3.5 shadow-xl backdrop-blur-md">
+    <section className="absolute inset-x-5 bottom-4 z-10 rounded-xl border border-[var(--line)] bg-[var(--paper)]/95 p-3.5 shadow-xl backdrop-blur-md">
       <header className="flex min-w-0 items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h3 className="min-w-0 truncate text-base font-semibold text-[var(--ink)]">
               {inspection.name}
             </h3>
-            <span className="shrink-0 rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+            <span className="shrink-0 rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
               {sourceScopeLabel}
             </span>
             {sourceHasDangerousTools && (
@@ -1094,19 +1094,19 @@ function PublishInspectionDock({
               </span>
             )}
           </div>
-          <p className="mt-1 truncate text-sm text-[var(--ink-muted)]">
+          <p className="mt-1 truncate text-sm text-[var(--muted)]">
             {inspection.description || t("space.common.noDescription")}
           </p>
         </div>
         <div className="flex shrink-0 items-start gap-2">
-          <div className="pt-0.5 text-right text-xs font-semibold text-[var(--ink-subtle)]">
+          <div className="pt-0.5 text-right text-xs font-semibold text-[var(--subtle)]">
             <div>{formatBytes(inspection.packageSizeBytes)}</div>
             <div>{shortHash(inspection.packageHash)}</div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="grid h-7 w-7 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="grid h-7 w-7 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             aria-label={t("space.detail.close")}
           >
             <X className="h-4 w-4" />
@@ -1114,11 +1114,11 @@ function PublishInspectionDock({
         </div>
       </header>
 
-      <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-[var(--ink-muted)]">
+      <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-[var(--muted)]">
         <span className="shrink-0">
           {t("space.skills.filesCount", { count: inspection.fileCount })}
         </span>
-        <span className="h-1 w-1 shrink-0 rounded-full bg-[var(--line-strong)]" />
+        <span className="h-1 w-1 shrink-0 rounded-full bg-[var(--line-2)]" />
         <span className="min-w-0 flex-1 truncate">{sourceLabel}</span>
       </div>
       {conflict && (
@@ -1129,7 +1129,7 @@ function PublishInspectionDock({
 
       <div className="mt-3 grid gap-2">
         <label
-          className={`grid min-h-10 cursor-pointer grid-cols-[minmax(0,1fr)_minmax(10rem,14rem)] items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors max-md:grid-cols-1 ${publishAction === "create" ? "border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]" : "border-[var(--line-subtle)] text-[var(--ink-secondary)] hover:border-[var(--line)] hover:bg-[var(--paper)]/65"}`}
+          className={`grid min-h-10 cursor-pointer grid-cols-[minmax(0,1fr)_minmax(10rem,14rem)] items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors max-md:grid-cols-1 ${publishAction === "create" ? "border-[var(--ink)] bg-[var(--bg)] text-[var(--ink)]" : "border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--line)] hover:bg-[var(--bg)]/65"}`}
         >
           <span className="flex min-w-0 items-center gap-2 font-semibold">
             <input
@@ -1144,13 +1144,13 @@ function PublishInspectionDock({
             value={newName}
             onFocus={() => onPublishActionChange("create")}
             onChange={(event) => onNewNameChange(event.target.value)}
-            className="h-8 min-w-0 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-2.5 text-sm font-medium text-[var(--ink)] outline-none transition-colors focus:border-[var(--ink)]"
+            className="h-8 min-w-0 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2.5 text-sm font-medium text-[var(--ink)] outline-none transition-colors focus:border-[var(--ink)]"
           />
         </label>
 
         {conflict && (
           <label
-            className={`grid min-h-10 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors max-md:grid-cols-1 ${publishAction === "update" ? "border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)]" : "border-[var(--line-subtle)] text-[var(--ink-secondary)] hover:border-[var(--line)] hover:bg-[var(--paper)]/65"}`}
+            className={`grid min-h-10 cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors max-md:grid-cols-1 ${publishAction === "update" ? "border-[var(--ink)] bg-[var(--bg)] text-[var(--ink)]" : "border-[var(--line)] text-[var(--ink-2)] hover:border-[var(--line)] hover:bg-[var(--bg)]/65"}`}
           >
             <span className="flex min-w-0 items-center gap-2 font-semibold">
               <input
@@ -1165,7 +1165,7 @@ function PublishInspectionDock({
                 })}
               </span>
             </span>
-            <span className="min-w-0 truncate text-xs font-semibold text-[var(--ink-muted)]">
+            <span className="min-w-0 truncate text-xs font-semibold text-[var(--muted)]">
               {conflict.name}
             </span>
           </label>
@@ -1191,7 +1191,7 @@ function UrlCandidateButton({
       type="button"
       disabled={disabled}
       onClick={onSelect}
-      className="rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-elevated)] px-3 py-2 text-left transition-colors hover:border-[var(--line)] disabled:cursor-not-allowed disabled:opacity-60"
+      className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-left transition-colors hover:border-[var(--line)] disabled:cursor-not-allowed disabled:opacity-60"
     >
       <div className="flex min-w-0 items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]">
@@ -1204,11 +1204,11 @@ function UrlCandidateButton({
         )}
       </div>
       {candidate.description && (
-        <p className="mt-1 line-clamp-2 text-xs text-[var(--ink-muted)]">
+        <p className="mt-1 line-clamp-2 text-xs text-[var(--muted)]">
           {candidate.description}
         </p>
       )}
-      <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-xs font-medium text-[var(--ink-subtle)]">
+      <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-xs font-medium text-[var(--subtle)]">
         <span className="truncate">
           {candidate.rootPath || candidate.suggestedFolderName}
         </span>
@@ -1242,7 +1242,7 @@ function stripFrontmatter(markdown: string): string {
 
 function SkillMarkdownDocument({ text }: { text: string }) {
   return (
-    <div className="ai-message-content text-[var(--ink-secondary)]">
+    <div className="ai-message-content text-[var(--ink-2)]">
       <Markdown raw>{stripFrontmatter(text)}</Markdown>
     </div>
   );
@@ -1511,12 +1511,12 @@ function SkillDetailWorkspace({
   const renderFilePreview = () => {
     if (!previewFile) return null;
     return (
-      <section className="overflow-hidden rounded-xl border border-[var(--line-subtle)] bg-[var(--paper-elevated)]">
-        <header className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--line-subtle)] px-3.5">
+      <section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)]">
+        <header className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-[var(--line)] px-3.5">
           <button
             type="button"
             onClick={() => setPreviewPath("")}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-2.5 text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2.5 text-sm font-semibold text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)]"
           >
             <ArrowLeft className="h-4 w-4" />
             {t("space.skills.backToFiles")}
@@ -1525,24 +1525,24 @@ function SkillDetailWorkspace({
             <div className="truncate text-sm font-semibold text-[var(--ink)]">
               {previewFile.path}
             </div>
-            <div className="text-xs font-medium text-[var(--ink-subtle)]">
+            <div className="text-xs font-medium text-[var(--subtle)]">
               {formatBytes(previewFile.sizeBytes)}
             </div>
           </div>
           <FileIcon name={previewFile.name} size="regular" />
         </header>
-        <div className="min-h-[460px] bg-[var(--paper-elevated)]">
+        <div className="min-h-[460px] bg-[var(--paper)]">
           {fileLoading ? (
-            <div className="flex min-h-[360px] items-center justify-center text-sm text-[var(--ink-muted)]">
+            <div className="flex min-h-[360px] items-center justify-center text-sm text-[var(--muted)]">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               {t("space.skills.loadingFile")}
             </div>
           ) : fileState?.error ? (
-            <div className="flex min-h-[360px] items-center justify-center px-8 text-sm text-[var(--ink-muted)]">
+            <div className="flex min-h-[360px] items-center justify-center px-8 text-sm text-[var(--muted)]">
               {fileState.error}
             </div>
           ) : (
-            <pre className="max-h-[64vh] min-h-[460px] overflow-auto whitespace-pre p-5 font-mono text-sm leading-6 text-[var(--ink-secondary)]">
+            <pre className="max-h-[64vh] min-h-[460px] overflow-auto whitespace-pre p-5 font-mono text-sm leading-6 text-[var(--ink-2)]">
               {fileText}
             </pre>
           )}
@@ -1557,11 +1557,11 @@ function SkillDetailWorkspace({
         <h3 className="text-base font-semibold text-[var(--ink)]">
           {t("space.skills.packageContents")}
         </h3>
-        <span className="text-sm font-medium text-[var(--ink-muted)]">
+        <span className="text-sm font-medium text-[var(--muted)]">
           {t("space.skills.totalFiles", { count: files.length })}
         </span>
       </header>
-      <div className="mt-3 overflow-hidden rounded-xl border border-[var(--line-subtle)] bg-[var(--paper)]/45 p-1.5">
+      <div className="mt-3 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--bg)]/45 p-1.5">
         {fileTreeRows.map(({ file, depth, hasChildren, isExpanded }) => {
           const isEntry = entryFile?.path === file.path;
           const isSelected = previewPath === file.path;
@@ -1576,7 +1576,7 @@ function SkillDetailWorkspace({
                 aria-expanded={hasChildren ? isExpanded : undefined}
                 className={`flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm transition-colors ${
                   hasChildren
-                    ? "hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                    ? "hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                     : "cursor-default opacity-80"
                 }`}
               >
@@ -1586,9 +1586,9 @@ function SkillDetailWorkspace({
                 >
                   {hasChildren ? (
                     isExpanded ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 text-[var(--ink-subtle)]" />
+                      <ChevronDown className="h-4 w-4 shrink-0 text-[var(--subtle)]" />
                     ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--ink-subtle)]" />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-[var(--subtle)]" />
                     )
                   ) : (
                     <span className="h-4 w-4 shrink-0" />
@@ -1598,11 +1598,11 @@ function SkillDetailWorkspace({
                     nodeKind="directory"
                     expanded={isExpanded}
                   />
-                  <span className="min-w-0 truncate font-semibold text-[var(--ink-secondary)]">
+                  <span className="min-w-0 truncate font-semibold text-[var(--ink-2)]">
                     {file.name}
                   </span>
                 </span>
-                <span className="shrink-0 text-sm font-medium text-[var(--ink-muted)]" />
+                <span className="shrink-0 text-sm font-medium text-[var(--muted)]" />
               </button>
             );
           }
@@ -1613,8 +1613,8 @@ function SkillDetailWorkspace({
               onClick={() => setPreviewPath(file.path)}
               className={`flex min-h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-sm transition-colors ${
                 isSelected
-                  ? "bg-[var(--paper-inset)] text-[var(--ink)]"
-                  : "hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                  ? "bg-[var(--inset)] text-[var(--ink)]"
+                  : "hover:bg-[var(--hover)] hover:text-[var(--ink)]"
               }`}
             >
               <span
@@ -1623,17 +1623,17 @@ function SkillDetailWorkspace({
               >
                 <FileIcon name={file.name} />
                 <span
-                  className={`min-w-0 truncate font-medium ${isSelected ? "text-[var(--ink)]" : "text-[var(--ink-muted)]"}`}
+                  className={`min-w-0 truncate font-medium ${isSelected ? "text-[var(--ink)]" : "text-[var(--muted)]"}`}
                 >
                   {file.name}
                 </span>
                 {isEntry && (
-                  <span className="shrink-0 rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+                  <span className="shrink-0 rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
                     {t("space.skills.mainFile")}
                   </span>
                 )}
               </span>
-              <span className="shrink-0 text-sm font-medium text-[var(--ink-muted)]">
+              <span className="shrink-0 text-sm font-medium text-[var(--muted)]">
                 {formatBytes(file.sizeBytes)}
               </span>
             </button>
@@ -1646,14 +1646,14 @@ function SkillDetailWorkspace({
   const renderEntryDocument = () => {
     if (!entryFile) return null;
     return (
-      <article className="rounded-xl border border-[var(--line-subtle)] bg-[var(--paper-elevated)] px-6 py-5 max-sm:px-5">
+      <article className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-6 py-5 max-sm:px-5">
         {fileLoading ? (
-          <div className="flex min-h-56 items-center justify-center text-sm text-[var(--ink-muted)]">
+          <div className="flex min-h-56 items-center justify-center text-sm text-[var(--muted)]">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             {t("space.skills.loadingFile")}
           </div>
         ) : fileState?.error ? (
-          <div className="flex min-h-56 items-center justify-center text-sm text-[var(--ink-muted)]">
+          <div className="flex min-h-56 items-center justify-center text-sm text-[var(--muted)]">
             {fileState.error}
           </div>
         ) : (
@@ -1666,12 +1666,12 @@ function SkillDetailWorkspace({
   const renderHistory = () => (
     <section>
       {revisionState?.isLoading && !history ? (
-        <div className="flex min-h-40 items-center justify-center text-sm text-[var(--ink-muted)]">
+        <div className="flex min-h-40 items-center justify-center text-sm text-[var(--muted)]">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           {t("space.skills.loadingHistory")}
         </div>
       ) : revisionState?.error ? (
-        <div className="flex min-h-40 items-center justify-center text-sm text-[var(--ink-muted)]">
+        <div className="flex min-h-40 items-center justify-center text-sm text-[var(--muted)]">
           {revisionState.error}
         </div>
       ) : (
@@ -1679,13 +1679,13 @@ function SkillDetailWorkspace({
           {(history?.items ?? []).map((revision) => (
             <div
               key={revision.id}
-              className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper)]/45 px-3 py-2"
+              className="grid min-h-14 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--bg)]/45 px-3 py-2"
             >
-              <span className="rounded-md bg-[var(--paper-inset)] px-2 py-1 text-sm font-semibold text-[var(--ink)]">
+              <span className="rounded-md bg-[var(--inset)] px-2 py-1 text-sm font-semibold text-[var(--ink)]">
                 v{revision.revision}
               </span>
               <div className="min-w-0">
-                <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-[var(--ink-subtle)]">
+                <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-semibold text-[var(--subtle)]">
                   <SpaceIdentityLine
                     name={
                       revision.uploader?.name ??
@@ -1694,13 +1694,13 @@ function SkillDetailWorkspace({
                     }
                     avatarUrl={revision.uploader?.avatarUrl}
                     avatarSize={18}
-                    nameClassName="font-semibold text-[var(--ink-muted)]"
+                    nameClassName="font-semibold text-[var(--muted)]"
                   />
-                  <span className="text-[var(--line-strong)]">·</span>
+                  <span className="text-[var(--line-2)]">·</span>
                   <span>{formatDate(revision.createdAt)}</span>
                   {revision.packageHash && (
                     <>
-                      <span className="text-[var(--line-strong)]">·</span>
+                      <span className="text-[var(--line-2)]">·</span>
                       <span>{shortHash(revision.packageHash)}</span>
                     </>
                   )}
@@ -1714,7 +1714,7 @@ function SkillDetailWorkspace({
                 <button
                   type="button"
                   onClick={() => setRollbackTarget(revision.revision)}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-2.5 text-xs font-semibold text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)]"
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2.5 text-xs font-semibold text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)]"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   {t("space.skills.rollback")}
@@ -1723,7 +1723,7 @@ function SkillDetailWorkspace({
             </div>
           ))}
           {history && history.items.length === 0 && (
-            <div className="py-10 text-center text-sm text-[var(--ink-muted)]">
+            <div className="py-10 text-center text-sm text-[var(--muted)]">
               {t("space.skills.noHistory")}
             </div>
           )}
@@ -1739,12 +1739,12 @@ function SkillDetailWorkspace({
         onClose={onBack}
         className="z-[230] items-stretch justify-end bg-black/20 backdrop-blur-sm"
       >
-        <aside className="relative h-full w-[min(78vw,1180px)] border-l border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl">
+        <aside className="relative h-full w-[min(78vw,1180px)] border-l border-[var(--line)] bg-[var(--paper)] shadow-xl">
           <header className="absolute right-4 top-4 z-10 flex justify-end">
             <button
               type="button"
               onClick={onBack}
-              className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
               aria-label={t("space.detail.close")}
             >
               <X className="h-4 w-4" />
@@ -1753,8 +1753,8 @@ function SkillDetailWorkspace({
 
           <section className="h-full min-h-0 overflow-y-auto px-12 py-11 max-lg:px-8 max-sm:px-5">
             <div className="mx-auto max-w-[900px] pb-8">
-              <section className="border-b border-[var(--line-subtle)] pb-5">
-                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--ink-subtle)]">
+              <section className="border-b border-[var(--line)] pb-5">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--subtle)]">
                   <SpaceIdentityLine
                     name={
                       skill.uploader?.name ??
@@ -1763,9 +1763,9 @@ function SkillDetailWorkspace({
                     }
                     avatarUrl={skill.uploader?.avatarUrl}
                     avatarSize={20}
-                    nameClassName="font-semibold text-[var(--ink-subtle)]"
+                    nameClassName="font-semibold text-[var(--subtle)]"
                   />
-                  <span className="text-[var(--line-strong)]">·</span>
+                  <span className="text-[var(--line-2)]">·</span>
                   <span>{formatDate(skill.createdAt)}</span>
                   <span className="min-w-0 flex-1" />
                   {admin && (
@@ -1774,19 +1774,19 @@ function SkillDetailWorkspace({
                         type="button"
                         disabled={revisionUploading || deleting}
                         onClick={() => setAdminMenuOpen((open) => !open)}
-                        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
+                        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
                         aria-label={t("space.skills.moreActions")}
                         title={t("space.skills.moreActions")}
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
                       {adminMenuOpen && (
-                        <span className="absolute right-0 top-9 z-20 w-44 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-1 shadow-lg">
+                        <span className="absolute right-0 top-9 z-20 w-44 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)] p-1 shadow-lg">
                           <button
                             type="button"
                             disabled={revisionUploading || deleting}
                             onClick={() => void uploadRevision()}
-                            className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:bg-[var(--hover-bg)] disabled:cursor-wait disabled:opacity-60"
+                            className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--ink-2)] transition-colors hover:bg-[var(--hover)] disabled:cursor-wait disabled:opacity-60"
                           >
                             {revisionUploading ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1802,7 +1802,7 @@ function SkillDetailWorkspace({
                               setAdminMenuOpen(false);
                               setDeleteConfirmOpen(true);
                             }}
-                            className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--error)] transition-colors hover:bg-[var(--error-bg)] disabled:cursor-wait disabled:opacity-60"
+                            className="flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)] disabled:cursor-wait disabled:opacity-60"
                           >
                             {deleting ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -1821,16 +1821,16 @@ function SkillDetailWorkspace({
                     {skill.name}
                   </h2>
                   <p
-                    className={`mt-2 max-w-[72ch] whitespace-pre-wrap text-sm leading-6 text-[var(--ink-secondary)] ${SPACE_NARRATIVE_INSET_CLASS}`}
+                    className={`mt-2 max-w-[72ch] whitespace-pre-wrap text-sm leading-6 text-[var(--ink-2)] ${SPACE_NARRATIVE_INSET_CLASS}`}
                   >
                     {skill.description || t("space.common.noDescription")}
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--ink-muted)]">
-                    <span className="rounded-md bg-[var(--paper-inset)] px-2 py-1">
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-[var(--muted)]">
+                    <span className="rounded-md bg-[var(--inset)] px-2 py-1">
                       v{skill.currentRevision}
                     </span>
                     {skill.currentRevision !== skill.latestRevision && (
-                      <span className="rounded-md bg-[var(--accent-warm-subtle)] px-2 py-1 text-[var(--accent-warm)]">
+                      <span className="rounded-md bg-[var(--primary-soft)] px-2 py-1 text-[var(--primary)]">
                         {t("space.skills.latestVersion", {
                           revision: skill.latestRevision,
                         })}
@@ -1838,14 +1838,14 @@ function SkillDetailWorkspace({
                     )}
                   </div>
                   {skill.source && (
-                    <div className="mt-3 flex max-w-[72ch] items-center gap-2.5 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper)]/50 px-3 py-2 text-sm">
-                      <Link className="h-4 w-4 shrink-0 text-[var(--ink-muted)]" />
+                    <div className="mt-3 flex max-w-[72ch] items-center gap-2.5 rounded-lg border border-[var(--line)] bg-[var(--bg)]/50 px-3 py-2 text-sm">
+                      <Link className="h-4 w-4 shrink-0 text-[var(--muted)]" />
                       <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
-                          <span className="shrink-0 text-xs font-semibold text-[var(--ink-subtle)]">
+                          <span className="shrink-0 text-xs font-semibold text-[var(--subtle)]">
                             {t("space.skills.source")}
                           </span>
-                          <span className="shrink-0 rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+                          <span className="shrink-0 rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
                             {skillSourceKindLabel(skill.source, t)}
                           </span>
                           <button
@@ -1859,7 +1859,7 @@ function SkillDetailWorkspace({
                           </button>
                         </div>
                         {skillSourceSecondary(skill.source) && (
-                          <p className="mt-0.5 truncate text-xs font-medium text-[var(--ink-muted)]">
+                          <p className="mt-0.5 truncate text-xs font-medium text-[var(--muted)]">
                             {skillSourceSecondary(skill.source)}
                           </p>
                         )}
@@ -1869,7 +1869,7 @@ function SkillDetailWorkspace({
                 </div>
               </section>
 
-              <section className="mt-5 border-b border-[var(--line-subtle)] pb-5">
+              <section className="mt-5 border-b border-[var(--line)] pb-5">
                 <div className="mb-3 flex items-center justify-between gap-4">
                   <h3 className="text-base font-semibold text-[var(--ink)]">
                     {t("space.skills.install")}
@@ -1880,7 +1880,7 @@ function SkillDetailWorkspace({
                     type="button"
                     disabled={installingTarget !== null}
                     onClick={() => void install("global")}
-                    className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--button-secondary-bg)] px-3.5 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)] disabled:cursor-wait disabled:opacity-70"
+                    className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--paper)] px-3.5 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)] disabled:cursor-wait disabled:opacity-70"
                   >
                     {installingTarget === "global" ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1899,7 +1899,7 @@ function SkillDetailWorkspace({
                           : t("space.skills.noInstallProjectsTitle")
                       }
                       onClick={() => setWorkspaceMenuOpen((open) => !open)}
-                      className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--button-primary-bg)] px-3.5 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-70"
+                      className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--primary)] px-3.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-70"
                     >
                       {installingTarget === "project" ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1910,7 +1910,7 @@ function SkillDetailWorkspace({
                       <ChevronDown className="h-4 w-4" />
                     </button>
                     {workspaceMenuOpen && (
-                      <span className="absolute right-0 top-12 z-20 max-h-72 w-64 overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-1 shadow-lg">
+                      <span className="absolute right-0 top-12 z-20 max-h-72 w-64 overflow-y-auto rounded-xl border border-[var(--line)] bg-[var(--paper)] p-1 shadow-lg">
                         {projectOptions.map((project) => (
                           <button
                             key={project.value}
@@ -1919,12 +1919,12 @@ function SkillDetailWorkspace({
                               setWorkspaceMenuOpen(false);
                               void install("project", project.value);
                             }}
-                            className="flex min-h-10 w-full flex-col rounded-lg px-3 py-2 text-left transition-colors hover:bg-[var(--hover-bg)]"
+                            className="flex min-h-10 w-full flex-col rounded-lg px-3 py-2 text-left transition-colors hover:bg-[var(--hover)]"
                           >
                             <span className="max-w-full truncate text-sm font-semibold text-[var(--ink)]">
                               {project.label}
                             </span>
-                            <span className="max-w-full truncate text-xs font-medium text-[var(--ink-subtle)]">
+                            <span className="max-w-full truncate text-xs font-medium text-[var(--subtle)]">
                               {project.value}
                             </span>
                           </button>
@@ -1933,7 +1933,7 @@ function SkillDetailWorkspace({
                     )}
                   </span>
                   {!hasProjects && (
-                    <span className="text-sm font-medium text-[var(--ink-muted)]">
+                    <span className="text-sm font-medium text-[var(--muted)]">
                       {t("space.skills.noProjects")}
                     </span>
                   )}
@@ -1941,12 +1941,12 @@ function SkillDetailWorkspace({
               </section>
 
               {!detail && detailLoading ? (
-                <div className="flex min-h-80 items-center justify-center text-sm text-[var(--ink-muted)]">
+                <div className="flex min-h-80 items-center justify-center text-sm text-[var(--muted)]">
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   {t("space.skills.loadingSkill")}
                 </div>
               ) : !detail ? (
-                <div className="flex min-h-80 items-center justify-center text-sm text-[var(--ink-muted)]">
+                <div className="flex min-h-80 items-center justify-center text-sm text-[var(--muted)]">
                   {detailState?.error ?? t("space.skills.notFound")}
                 </div>
               ) : (
@@ -1959,7 +1959,7 @@ function SkillDetailWorkspace({
                       <button
                         type="button"
                         onClick={() => changeMode("entry")}
-                        className={`border-b-2 px-0 pb-2.5 text-sm font-semibold transition-colors ${activeMode === "entry" ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}
+                        className={`border-b-2 px-0 pb-2.5 text-sm font-semibold transition-colors ${activeMode === "entry" ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"}`}
                       >
                         {entryFile.name}
                       </button>
@@ -1967,14 +1967,14 @@ function SkillDetailWorkspace({
                     <button
                       type="button"
                       onClick={() => changeMode("files")}
-                      className={`border-b-2 px-0 pb-2.5 text-sm font-semibold transition-colors ${activeMode === "files" ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}
+                      className={`border-b-2 px-0 pb-2.5 text-sm font-semibold transition-colors ${activeMode === "files" ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"}`}
                     >
                       {t("space.skills.files")}
                     </button>
                     <button
                       type="button"
                       onClick={() => changeMode("history")}
-                      className={`border-b-2 px-0 pb-2.5 text-sm font-semibold transition-colors ${activeMode === "history" ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}
+                      className={`border-b-2 px-0 pb-2.5 text-sm font-semibold transition-colors ${activeMode === "history" ? "border-[var(--ink)] text-[var(--ink)]" : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"}`}
                     >
                       {t("space.skills.history")}
                     </button>

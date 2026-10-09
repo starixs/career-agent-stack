@@ -16,7 +16,7 @@ interface Props {
 export function ViewToggle({ value, onChange }: Props) {
   const { t } = useTranslation('task');
   return (
-    <div className="flex items-center rounded-md bg-[var(--paper-inset)] p-0.5">
+    <div className="flex items-center rounded-md bg-[var(--inset)] p-0.5">
       <ToggleButton
         active={value === 'card'}
         onClick={() => onChange('card')}
@@ -54,8 +54,8 @@ function ToggleButton({
       aria-pressed={active}
       className={`flex h-5 w-6 items-center justify-center rounded transition-colors ${
         active
-          ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm'
-          : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+          ? 'bg-[var(--paper)] text-[var(--ink)] shadow-sm'
+          : 'text-[var(--muted)] hover:text-[var(--ink)]'
       }`}
     >
       {children}

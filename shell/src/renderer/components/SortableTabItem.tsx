@@ -62,11 +62,11 @@ export default memo(function SortableTabItem({ tab, chrome, isActive, onSelectTa
       className={`
                 group/tab relative flex h-8 cursor-default items-center
                 rounded-md px-2.5 transition-colors duration-150
-                ${isDragging ? 'shadow-lg ring-2 ring-[var(--accent)]/30' : ''}
+                ${isDragging ? 'shadow-lg ring-2 ring-[var(--primary)]/30' : ''}
                 ${
                   isActive
-                    ? 'bg-[var(--hover-bg)] text-[var(--ink)]'
-                    : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                    ? 'bg-[var(--hover)] text-[var(--ink)]'
+                    : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                 }
             `}
       onMouseDown={(e) => {
@@ -84,7 +84,7 @@ export default memo(function SortableTabItem({ tab, chrome, isActive, onSelectTa
         aria-label={accessibleTitle}
         {...listeners}
       >
-        {(isRecording || isPaused) && <span className="mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--error)]" />}
+        {(isRecording || isPaused) && <span className="mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--danger)]" />}
         <span className="min-w-0 truncate">{chrome.title}</span>
       </span>
 
@@ -117,7 +117,7 @@ export default memo(function SortableTabItem({ tab, chrome, isActive, onSelectTa
       {/* Active indicator */}
       {isActive && (
         <div
-          className="absolute bottom-0.5 left-4 right-4 h-0.5 rounded-full bg-[var(--accent)]/70"
+          className="absolute bottom-0.5 left-4 right-4 h-0.5 rounded-full bg-[var(--primary)]/70"
           data-tab-active-indicator
         />
       )}

@@ -248,7 +248,7 @@ export default function TokenDanceProvider({
         className="flex min-h-7 flex-wrap items-baseline gap-x-2 gap-y-1"
         aria-live="polite"
       >
-        <span className="text-sm text-[var(--ink-muted)]">
+        <span className="text-sm text-[var(--muted)]">
           {t(balance.error && hasValue ? 'balance.previous' : 'balance.label')}
         </span>
         <span
@@ -260,7 +260,7 @@ export default function TokenDanceProvider({
         </span>
         {note && (
           <span
-            className={`text-xs ${balance.error ? 'text-[var(--error)]' : balance.data?.balance === 0 && !balance.loading ? 'text-[var(--warning)]' : 'text-[var(--ink-muted)]'}`}
+            className={`text-xs ${balance.error ? 'text-[var(--danger)]' : balance.data?.balance === 0 && !balance.loading ? 'text-[var(--warning)]' : 'text-[var(--muted)]'}`}
             title={
               balance.updatedAt
                 ? t('balance.updatedAt', {
@@ -298,9 +298,9 @@ export default function TokenDanceProvider({
       <div
         className="min-w-0 rounded-xl border p-5"
         style={{
-          background: 'var(--featured-card-background)',
-          borderColor: 'var(--featured-card-border)',
-          boxShadow: 'var(--featured-card-shadow)',
+          background: 'var(--paper)',
+          borderColor: 'var(--line-2)',
+          boxShadow: 'var(--shadow-xs)',
         }}
         data-tokendance-card
       >
@@ -312,7 +312,7 @@ export default function TokenDanceProvider({
               </h3>
               <TokenDanceBadge>{t('partner')}</TokenDanceBadge>
             </div>
-            <p className="mt-1 truncate text-xs text-[var(--ink-muted)]">
+            <p className="mt-1 truncate text-xs text-[var(--muted)]">
               {provider.models.map((m) => m.modelName).join(', ') ||
                 t('models.empty')}
             </p>
@@ -320,7 +320,7 @@ export default function TokenDanceProvider({
           <div className="flex shrink-0 items-center gap-1">
             <WebsiteLink
               href="https://tokendance.space/models"
-              className="whitespace-nowrap rounded-lg px-1.5 py-1.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="whitespace-nowrap rounded-lg px-1.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
               {i18n.t('providers.website', { ns: 'settings' })}
             </WebsiteLink>
@@ -337,12 +337,12 @@ export default function TokenDanceProvider({
         {balance.configured ? (
           balanceView()
         ) : (
-          <p className="min-h-7 text-sm text-[var(--ink-muted)]">
+          <p className="min-h-7 text-sm text-[var(--muted)]">
             {t('intro')}
           </p>
         )}
         <div className="mt-3 flex items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-[var(--ink-muted)]">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
             <span>{t('account')}</span>
             {statusBadge}
             {loggedIn &&
@@ -430,11 +430,11 @@ export default function TokenDanceProvider({
             <p className="text-sm font-medium">
               {t(preparing ? 'auth.result.preparing' : 'auth.guide')}
             </p>
-            <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            <p className="mt-2 text-sm text-[var(--muted)]">
               {t('auth.fallback')}
             </p>
-            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
-              <span className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--ink-muted)]">
+            <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2">
+              <span className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--muted)]">
                 {preparing
                   ? t('auth.preparingLink')
                   : (authView?.authUrl ?? t('auth.preparingLink'))}
@@ -476,22 +476,22 @@ export default function TokenDanceProvider({
               </button>
             </div>
             {linkFailure && (
-              <p role="alert" className="mt-2 text-xs text-[var(--error)]">
+              <p role="alert" className="mt-2 text-xs text-[var(--danger)]">
                 {t(linkFailure)}
               </p>
             )}
           </section>
           <section
             role="status"
-            className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4"
+            className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-4"
           >
             <p className="flex items-center gap-2 text-sm font-medium">
               {activeAuth && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--accent-warm)] motion-reduce:animate-none" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--primary)] motion-reduce:animate-none" />
               )}
               {t(`auth.result.${phase}`)}
             </p>
-            <p className="mt-1 text-xs text-[var(--ink-muted)]">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               {t(failure ? `error.${failure}` : `auth.hint.${phase}`, {
                 defaultValue: t('error.request_failed'),
               })}
@@ -522,7 +522,7 @@ export default function TokenDanceProvider({
             {['open', 'authorize', 'complete'].map((step, index) => (
               <li
                 key={step}
-                className={`flex items-center gap-1.5 ${index === 2 && !['exchanging', 'saving'].includes(phase) ? 'text-[var(--ink-subtle)]' : 'text-[var(--ink)]'}`}
+                className={`flex items-center gap-1.5 ${index === 2 && !['exchanging', 'saving'].includes(phase) ? 'text-[var(--subtle)]' : 'text-[var(--ink)]'}`}
               >
                 <span className="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--line)]">
                   {index + 1}
@@ -588,7 +588,7 @@ export default function TokenDanceProvider({
             )}
           </section>
           {balance.configured ? (
-            <section className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4">
+            <section className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-4">
               {balanceView()}
               <div className="mt-3 flex gap-2">
                 <button
@@ -613,20 +613,20 @@ export default function TokenDanceProvider({
               </div>
             </section>
           ) : (
-            <section className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4">
-              <p className="text-sm text-[var(--ink-muted)]">
+            <section className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-4">
+              <p className="text-sm text-[var(--muted)]">
                 {t('balance.label')} —
               </p>
-              <p className="mt-2 text-xs text-[var(--ink-muted)]">
+              <p className="mt-2 text-xs text-[var(--muted)]">
                 {t('balance.loginRequired')}
               </p>
             </section>
           )}
-          <section className="border-t border-[var(--line-subtle)] pt-4">
+          <section className="border-t border-[var(--line)] pt-4">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h4 className="text-sm font-medium">{t('models.title')}</h4>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {t('models.summary', {
                     count: provider.models.length,
                     model:
@@ -648,7 +648,7 @@ export default function TokenDanceProvider({
               {listed.map((model) => (
                 <div
                   key={model.id}
-                  className="flex min-w-0 items-center gap-1.5 rounded-md bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink-muted)]"
+                  className="flex min-w-0 items-center gap-1.5 rounded-md bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--muted)]"
                   title={model.id}
                 >
                   {enabledIds.has(model.id) && (
@@ -661,22 +661,22 @@ export default function TokenDanceProvider({
               ))}
             </div>
             {catalogFailed && (
-              <p className="mt-2 text-xs text-[var(--ink-muted)]">
+              <p className="mt-2 text-xs text-[var(--muted)]">
                 {t('models.catalogFailed')}
               </p>
             )}
           </section>
-          <div className="border-t border-[var(--line-subtle)] pt-4">
+          <div className="border-t border-[var(--line)] pt-4">
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)] hover:text-[var(--ink)]"
               onClick={() => void showWebsite('https://tokendance.space')}
             >
               {t('website')}
               <ExternalLink className="h-3.5 w-3.5" />
             </button>
             {linkFailure && (
-              <p role="alert" className="mt-2 text-xs text-[var(--error)]">
+              <p role="alert" className="mt-2 text-xs text-[var(--danger)]">
                 {t(linkFailure)}
               </p>
             )}

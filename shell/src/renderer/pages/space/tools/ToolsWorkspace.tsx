@@ -83,7 +83,7 @@ function ToolIcon({
     <span
       aria-hidden
       style={{ width: size, height: size }}
-      className="grid shrink-0 place-items-center rounded-lg bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)] shadow-sm"
+      className="grid shrink-0 place-items-center rounded-lg bg-[var(--primary-soft)] text-[var(--primary)] shadow-sm"
     >
       <Wrench className="h-4 w-4" />
       <span className="sr-only">{name}</span>
@@ -94,7 +94,7 @@ function ToolIcon({
 function ToolTag({ kind }: { kind: SpaceTool["kind"] }) {
   const { t } = useTranslation("app");
   return (
-    <span className="rounded-md border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+    <span className="rounded-md border border-[var(--line)] bg-[var(--inset)] px-1.5 py-0.5 text-xs font-semibold text-[var(--muted)]">
       {kind === "mcp" ? t("space.tools.kindMcp") : t("space.tools.kindCustom")}
     </span>
   );
@@ -120,7 +120,7 @@ function ToolOverlay({
       className="z-[220] items-center justify-center px-3 py-6 sm:px-6"
     >
       <section
-        className={`flex max-h-[calc(100dvh-24px)] w-full flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--paper-elevated)] shadow-lg ${size === "detail" ? "h-[min(680px,calc(100dvh-48px))] max-w-[720px]" : "max-w-[800px] sm:max-h-[min(80vh,820px)]"}`}
+        className={`flex max-h-[calc(100dvh-24px)] w-full flex-col overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--paper)] shadow-lg ${size === "detail" ? "h-[min(680px,calc(100dvh-48px))] max-w-[720px]" : "max-w-[800px] sm:max-h-[min(80vh,820px)]"}`}
       >
         {children}
       </section>
@@ -141,7 +141,7 @@ function OverlayHeader({
 }) {
   const { t } = useTranslation("app");
   return (
-    <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-[var(--line-subtle)] px-4">
+    <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-[var(--line)] px-4">
       <h2 className="min-w-0 flex-1 truncate text-base font-semibold text-[var(--ink)]">
         {title}
       </h2>
@@ -151,7 +151,7 @@ function OverlayHeader({
         onClick={onClose}
         disabled={closeDisabled}
         aria-label={t("space.tools.close")}
-        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <X className="h-4 w-4" />
       </button>
@@ -210,16 +210,16 @@ function McpPublishOverlay({
                   type="button"
                   disabled={blocked}
                   onClick={() => setSelectedId(server.id)}
-                  className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border p-3 text-left transition-colors ${selectedId === server.id ? "border-[var(--accent-warm)] bg-[var(--accent-warm-subtle)]/50" : "border-[var(--line)] hover:bg-[var(--hover-bg)]"} disabled:cursor-not-allowed disabled:opacity-60`}
+                  className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border p-3 text-left transition-colors ${selectedId === server.id ? "border-[var(--primary)] bg-[var(--primary-soft)]/50" : "border-[var(--line)] hover:bg-[var(--hover)]"} disabled:cursor-not-allowed disabled:opacity-60`}
                 >
                   <span
-                    className={`h-4 w-4 rounded-full border-2 ${selectedId === server.id ? "border-[var(--accent-warm)] bg-[var(--accent-warm)] shadow-[inset_0_0_0_3px_var(--paper-elevated)]" : "border-[var(--line-strong)]"}`}
+                    className={`h-4 w-4 rounded-full border-2 ${selectedId === server.id ? "border-[var(--primary)] bg-[var(--primary)] shadow-[inset_0_0_0_3px_var(--paper)]" : "border-[var(--line-2)]"}`}
                   />
                   <span className="min-w-0">
                     <strong className="block truncate text-sm font-semibold text-[var(--ink)]">
                       {server.name}
                     </strong>
-                    <span className="mt-0.5 block truncate text-xs text-[var(--ink-muted)]">
+                    <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">
                       {server.description || server.id} · {server.type} ·{" "}
                       {config.mcpEnabledServers?.includes(server.id)
                         ? t("space.tools.localEnabled")
@@ -249,17 +249,17 @@ function McpPublishOverlay({
             })}
           </div>
         ) : (
-          <div className="grid min-h-40 place-items-center text-center text-sm text-[var(--ink-muted)]">
+          <div className="grid min-h-40 place-items-center text-center text-sm text-[var(--muted)]">
             {t("space.tools.noLocalMcp")}
           </div>
         )}
       </div>
-      <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--line-subtle)] px-4 py-3">
+      <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--line)] px-4 py-3">
         <button
           type="button"
           onClick={onClose}
           disabled={busy}
-          className="h-9 rounded-lg px-3 text-sm font-semibold text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]"
+          className="h-9 rounded-lg px-3 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--hover)]"
         >
           {t("space.common.cancel")}
         </button>
@@ -339,7 +339,7 @@ function ToolIdentityFields({
         <button
           type="button"
           onClick={() => void pickIcon()}
-          className="rounded-xl outline-none ring-[var(--accent-warm)] focus-visible:ring-2"
+          className="rounded-xl outline-none ring-[var(--primary)] focus-visible:ring-2"
           aria-label={t("space.tools.chooseIcon")}
         >
           <ToolIcon
@@ -348,11 +348,11 @@ function ToolIdentityFields({
             size={48}
           />
         </button>
-        <div className="min-w-0 text-xs text-[var(--ink-muted)]">
+        <div className="min-w-0 text-xs text-[var(--muted)]">
           <button
             type="button"
             onClick={() => void pickIcon()}
-            className="font-semibold text-[var(--accent-warm)] hover:underline"
+            className="font-semibold text-[var(--primary)] hover:underline"
           >
             {t("space.tools.chooseIcon")}
           </button>
@@ -370,7 +370,7 @@ function ToolIdentityFields({
           ) : null}
         </div>
       </div>
-      <label className="block text-xs font-semibold text-[var(--ink-muted)]">
+      <label className="block text-xs font-semibold text-[var(--muted)]">
         {t("space.tools.name")}
         <input
           value={name}
@@ -378,7 +378,7 @@ function ToolIdentityFields({
           onChange={(event) => onNameChange(event.target.value)}
           onBlur={() => setTouched((value) => ({ ...value, name: true }))}
           aria-invalid={touched.name && !name.trim()}
-          className="mt-1 h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent-warm)]"
+          className="mt-1 h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)]"
         />
         {touched.name && !name.trim() ? (
           <span className="mt-1 block text-xs font-normal text-[var(--danger)]">
@@ -386,7 +386,7 @@ function ToolIdentityFields({
           </span>
         ) : null}
       </label>
-      <label className="block text-xs font-semibold text-[var(--ink-muted)]">
+      <label className="block text-xs font-semibold text-[var(--muted)]">
         {t("space.tools.description")}
         <input
           value={description}
@@ -398,7 +398,7 @@ function ToolIdentityFields({
           aria-invalid={
             descriptionRequired && touched.description && !description.trim()
           }
-          className="mt-1 h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent-warm)]"
+          className="mt-1 h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)]"
         />
         {descriptionRequired && touched.description && !description.trim() ? (
           <span className="mt-1 block text-xs font-normal text-[var(--danger)]">
@@ -477,7 +477,7 @@ function CustomToolFormOverlay({
             setResetIcon(true);
           }}
         />
-        <label className="block text-xs font-semibold text-[var(--ink-muted)]">
+        <label className="block text-xs font-semibold text-[var(--muted)]">
           {t("space.tools.installInstruction")}
           <textarea
             value={instruction}
@@ -487,7 +487,7 @@ function CustomToolFormOverlay({
             onChange={(event) => setInstruction(event.target.value)}
             onBlur={() => setInstructionTouched(true)}
             aria-invalid={instructionTouched && !instruction.trim()}
-            className="mt-1 min-h-56 w-full resize-y rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3 font-mono text-sm leading-6 text-[var(--ink)] outline-none placeholder:font-sans placeholder:text-[var(--ink-faint)] focus:border-[var(--accent-warm)]"
+            className="mt-1 min-h-56 w-full resize-y rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3 font-mono text-sm leading-6 text-[var(--ink)] outline-none placeholder:font-sans placeholder:text-[var(--subtle)] focus:border-[var(--primary)]"
           />
           {instructionTouched && !instruction.trim() ? (
             <span className="mt-1 block text-xs font-normal text-[var(--danger)]">
@@ -496,12 +496,12 @@ function CustomToolFormOverlay({
           ) : null}
         </label>
       </div>
-      <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--line-subtle)] px-4 py-3">
+      <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--line)] px-4 py-3">
         <button
           type="button"
           onClick={onClose}
           disabled={busy}
-          className="h-9 rounded-lg px-3 text-sm font-semibold text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]"
+          className="h-9 rounded-lg px-3 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--hover)]"
         >
           {t("space.common.cancel")}
         </button>
@@ -627,7 +627,7 @@ function McpToolFormOverlay({
             setResetIcon(true);
           }}
         />
-        <label className="block text-xs font-semibold text-[var(--ink-muted)]">
+        <label className="block text-xs font-semibold text-[var(--muted)]">
           {t("space.tools.mcpConfiguration")}
           <textarea
             value={manifestJson}
@@ -640,9 +640,9 @@ function McpToolFormOverlay({
             }}
             onBlur={() => setManifestTouched(true)}
             aria-invalid={manifestTouched && Boolean(parsed.error)}
-            className="mt-1 min-h-72 w-full resize-y rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3 font-mono text-sm leading-6 text-[var(--ink)] outline-none focus:border-[var(--accent-warm)]"
+            className="mt-1 min-h-72 w-full resize-y rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3 font-mono text-sm leading-6 text-[var(--ink)] outline-none focus:border-[var(--primary)]"
           />
-          <span className="mt-1 block text-xs font-normal leading-5 text-[var(--ink-faint)]">
+          <span className="mt-1 block text-xs font-normal leading-5 text-[var(--subtle)]">
             {existing
               ? t("space.tools.mcpConfigurationEditHelp")
               : t("space.tools.mcpConfigurationHelp")}
@@ -654,12 +654,12 @@ function McpToolFormOverlay({
           ) : null}
         </label>
       </div>
-      <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--line-subtle)] px-4 py-3">
+      <footer className="flex shrink-0 justify-end gap-2 border-t border-[var(--line)] px-4 py-3">
         <button
           type="button"
           onClick={onClose}
           disabled={busy}
-          className="h-9 rounded-lg px-3 text-sm font-semibold text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]"
+          className="h-9 rounded-lg px-3 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--hover)]"
         >
           {t("space.common.cancel")}
         </button>
@@ -971,11 +971,11 @@ export function ToolsWorkspace({
 
   return (
     <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)]">
-      <section className="flex min-h-12 items-center gap-2.5 border-b border-[var(--line)] bg-[var(--paper-elevated)]/60 px-5 py-1.5 backdrop-blur-md">
-        <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold text-[var(--ink-secondary)]">
+      <section className="flex min-h-12 items-center gap-2.5 border-b border-[var(--line)] bg-[var(--paper)]/60 px-5 py-1.5 backdrop-blur-md">
+        <div className="flex min-w-0 flex-1 items-center gap-2 text-sm font-semibold text-[var(--ink-2)]">
           <Wrench className="h-4 w-4 shrink-0" />
           <span>{t("space.tools.title")}</span>
-          <span className="rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+          <span className="rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
             {toolsState.items.length}
           </span>
         </div>
@@ -992,14 +992,14 @@ export function ToolsWorkspace({
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
               {publishMenuOpen ? (
-                <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-1.5 shadow-lg">
+                <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-1.5 shadow-lg">
                   <button
                     type="button"
                     onClick={() => {
                       setPublishMenuOpen(false);
                       setPublishMode("mcp");
                     }}
-                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-[var(--ink)] hover:bg-[var(--hover-bg)]"
+                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-[var(--ink)] hover:bg-[var(--hover)]"
                   >
                     <PackagePlus className="h-4 w-4" />
                     {t("space.tools.publishInstalledMcp")}
@@ -1010,7 +1010,7 @@ export function ToolsWorkspace({
                       setPublishMenuOpen(false);
                       setPublishMode("custom");
                     }}
-                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-[var(--ink)] hover:bg-[var(--hover-bg)]"
+                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-semibold text-[var(--ink)] hover:bg-[var(--hover)]"
                   >
                     <Pencil className="h-4 w-4" />
                     {t("space.tools.publishCustomPrompt")}
@@ -1047,7 +1047,7 @@ export function ToolsWorkspace({
           ) : null}
           {toolsState.isLoading && !toolsState.items.length ? (
             <div className="grid min-h-48 place-items-center">
-              <Loader2 className="h-5 w-5 animate-spin text-[var(--ink-muted)]" />
+              <Loader2 className="h-5 w-5 animate-spin text-[var(--muted)]" />
             </div>
           ) : toolsState.items.length ? (
             <div className={SPACE_TWO_COLUMN_GRID_CLASS}>
@@ -1056,14 +1056,14 @@ export function ToolsWorkspace({
                   key={tool.id}
                   type="button"
                   onClick={() => onSelectTool(tool.id)}
-                  className="grid min-h-20 grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-3 text-left transition-shadow hover:shadow-sm"
+                  className="grid min-h-20 grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-3 text-left transition-shadow hover:shadow-sm"
                 >
                   <ToolIcon name={tool.name} iconUrl={tool.iconUrl} />
                   <span className="min-w-0">
                     <strong className="block truncate text-sm font-semibold text-[var(--ink)]">
                       {tool.name}
                     </strong>
-                    <span className="mt-1 block truncate text-xs text-[var(--ink-muted)]">
+                    <span className="mt-1 block truncate text-xs text-[var(--muted)]">
                       {tool.description || t("space.tools.noDescription")}
                     </span>
                   </span>
@@ -1072,7 +1072,7 @@ export function ToolsWorkspace({
               ))}
             </div>
           ) : (
-            <div className="grid min-h-48 place-items-center text-center text-sm text-[var(--ink-muted)]">
+            <div className="grid min-h-48 place-items-center text-center text-sm text-[var(--muted)]">
               {toolsState.error
                 ? spaceErrorMessage(toolsState.error)
                 : t("space.tools.empty")}
@@ -1084,7 +1084,7 @@ export function ToolsWorkspace({
                 type="button"
                 disabled={toolsState.isLoadingMore}
                 onClick={() => void actions.loadMoreTools()}
-                className="flex h-9 items-center gap-2 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]"
+                className="flex h-9 items-center gap-2 rounded-lg border border-[var(--line)] px-4 text-sm font-semibold text-[var(--muted)] hover:bg-[var(--hover)]"
               >
                 {toolsState.isLoadingMore ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1130,7 +1130,7 @@ export function ToolsWorkspace({
           busy={busy}
           size="detail"
         >
-          <header className="flex min-h-20 shrink-0 items-center gap-3 border-b border-[var(--line-subtle)] px-5">
+          <header className="flex min-h-20 shrink-0 items-center gap-3 border-b border-[var(--line)] px-5">
             <ToolIcon
               name={detail?.revision.name ?? selectedSummary?.name ?? "Tool"}
               iconUrl={detail?.revision.iconUrl ?? selectedSummary?.iconUrl}
@@ -1146,7 +1146,7 @@ export function ToolsWorkspace({
                 ) : null}
               </div>
               {detail ? (
-                <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                <p className="mt-0.5 text-xs text-[var(--muted)]">
                   {t("space.tools.revision", {
                     revision: detail.tool.currentRevision,
                   })}
@@ -1174,12 +1174,12 @@ export function ToolsWorkspace({
                   type="button"
                   onClick={() => setAdminMenuOpen((open) => !open)}
                   aria-label={t("space.tools.moreActions")}
-                  className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]"
+                  className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--hover)]"
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </button>
                 {adminMenuOpen ? (
-                  <div className="absolute right-0 top-full z-20 mt-1 w-40 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-1.5 shadow-lg">
+                  <div className="absolute right-0 top-full z-20 mt-1 w-40 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-1.5 shadow-lg">
                     <button
                       type="button"
                       onClick={() => {
@@ -1187,7 +1187,7 @@ export function ToolsWorkspace({
                         setEditBaseLatestRevision(detail.tool.latestRevision);
                         setEditing(true);
                       }}
-                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-sm font-semibold hover:bg-[var(--hover-bg)]"
+                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-sm font-semibold hover:bg-[var(--hover)]"
                     >
                       <Pencil className="h-4 w-4" />
                       {t("space.common.edit")}
@@ -1201,7 +1201,7 @@ export function ToolsWorkspace({
                           force: true,
                         });
                       }}
-                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-sm font-semibold hover:bg-[var(--hover-bg)]"
+                      className="flex h-9 w-full items-center gap-2 rounded-lg px-2 text-sm font-semibold hover:bg-[var(--hover)]"
                     >
                       <History className="h-4 w-4" />
                       {t("space.tools.history")}
@@ -1226,7 +1226,7 @@ export function ToolsWorkspace({
               onClick={() => onSelectTool(null)}
               disabled={busy}
               aria-label={t("space.tools.close")}
-              className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] hover:bg-[var(--hover)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <X className="h-4 w-4" />
             </button>
@@ -1247,7 +1247,7 @@ export function ToolsWorkspace({
                         .refreshToolDetail(selectedToolId, { force: true })
                         .catch(() => undefined)
                     }
-                    className="mt-3 h-8 rounded-lg px-3 text-xs font-semibold text-[var(--accent-warm)] hover:bg-[var(--hover-bg)]"
+                    className="mt-3 h-8 rounded-lg px-3 text-xs font-semibold text-[var(--primary)] hover:bg-[var(--hover)]"
                   >
                     {t("space.common.retry")}
                   </button>
@@ -1258,7 +1258,7 @@ export function ToolsWorkspace({
                 <button
                   type="button"
                   onClick={() => setDetailMode("entry")}
-                  className="mb-4 text-sm font-semibold text-[var(--accent-warm)] hover:underline"
+                  className="mb-4 text-sm font-semibold text-[var(--primary)] hover:underline"
                 >
                   {t("space.tools.backToDetail")}
                 </button>
@@ -1293,7 +1293,7 @@ export function ToolsWorkspace({
                               revision: revision.revision,
                             })}
                           </strong>
-                          <span className="text-xs text-[var(--ink-muted)]">
+                          <span className="text-xs text-[var(--muted)]">
                             {revision.name} ·{" "}
                             {revision.uploader?.name ??
                               revision.uploader?.id ??
@@ -1302,7 +1302,7 @@ export function ToolsWorkspace({
                           </span>
                         </span>
                         {revision.revision === detail.tool.currentRevision ? (
-                          <span className="rounded-md bg-[var(--paper-inset)] px-2 py-1 text-xs font-semibold text-[var(--ink-muted)]">
+                          <span className="rounded-md bg-[var(--inset)] px-2 py-1 text-xs font-semibold text-[var(--muted)]">
                             {t("space.tools.currentRevision")}
                           </span>
                         ) : (
@@ -1310,7 +1310,7 @@ export function ToolsWorkspace({
                             type="button"
                             disabled={busy}
                             onClick={() => void rollback(revision.revision)}
-                            className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--accent-warm)] hover:bg-[var(--accent-warm-subtle)]"
+                            className="flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--primary)] hover:bg-[var(--primary-soft)]"
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
                             {t("space.tools.rollback")}
@@ -1327,7 +1327,7 @@ export function ToolsWorkspace({
                             .loadMoreToolRevisions(detail.tool.id)
                             .catch(() => undefined)
                         }
-                        className="mt-1 flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-semibold text-[var(--accent-warm)] hover:bg-[var(--hover-bg)] disabled:opacity-60"
+                        className="mt-1 flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-semibold text-[var(--primary)] hover:bg-[var(--hover)] disabled:opacity-60"
                       >
                         {revisionState.isLoadingMore ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -1344,7 +1344,7 @@ export function ToolsWorkspace({
                 <h3 className="mt-4 text-base font-semibold text-[var(--ink)]">
                   {t("space.tools.deleteConfirmTitle")}
                 </h3>
-                <p className="mt-2 text-sm text-[var(--ink-muted)]">
+                <p className="mt-2 text-sm text-[var(--muted)]">
                   {t("space.tools.deleteConfirmDescription", {
                     name: detail.revision.name,
                   })}
@@ -1353,7 +1353,7 @@ export function ToolsWorkspace({
                   <button
                     type="button"
                     onClick={() => setDetailMode("entry")}
-                    className="h-9 rounded-lg px-3 text-sm font-semibold hover:bg-[var(--hover-bg)]"
+                    className="h-9 rounded-lg px-3 text-sm font-semibold hover:bg-[var(--hover)]"
                   >
                     {t("space.common.cancel")}
                   </button>
@@ -1387,10 +1387,10 @@ export function ToolsWorkspace({
                   </div>
                 ) : null}
                 <section>
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
                     {t("space.tools.introduction")}
                   </h3>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--ink-secondary)]">
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--ink-2)]">
                     {detail.revision.description ||
                       t("space.tools.noDescription")}
                   </p>
@@ -1400,7 +1400,7 @@ export function ToolsWorkspace({
                     <h3 className="text-sm font-semibold text-[var(--warning)]">
                       {t("space.tools.replaceConflictTitle")}
                     </h3>
-                    <p className="mt-1 text-sm text-[var(--ink-secondary)]">
+                    <p className="mt-1 text-sm text-[var(--ink-2)]">
                       {t("space.tools.replaceConflictDescription")}
                     </p>
                     <div className="mt-3 flex gap-2">
@@ -1415,7 +1415,7 @@ export function ToolsWorkspace({
                             ok: true,
                           });
                         }}
-                        className="h-8 rounded-lg px-2 text-xs font-semibold hover:bg-[var(--paper-elevated)]"
+                        className="h-8 rounded-lg px-2 text-xs font-semibold hover:bg-[var(--paper)]"
                       >
                         {t("space.common.cancel")}
                       </button>
@@ -1423,7 +1423,7 @@ export function ToolsWorkspace({
                         type="button"
                         disabled={busy}
                         onClick={() => void installMcp(true)}
-                        className="h-8 rounded-lg bg-[var(--warning)] px-3 text-xs font-semibold text-[var(--on-warning)]"
+                        className="h-8 rounded-lg bg-[var(--warning)] px-3 text-xs font-semibold text-[var(--on-primary)]"
                       >
                         {t("space.tools.replace")}
                       </button>
@@ -1431,20 +1431,20 @@ export function ToolsWorkspace({
                   </section>
                 ) : null}
                 {detail.tool.kind === "custom_install_prompt" ? (
-                  <section className="border-t border-[var(--line-subtle)] pt-5">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
+                  <section className="border-t border-[var(--line)] pt-5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
                       {t("space.tools.customInstruction")}
                     </h3>
-                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl border border-[var(--line)] bg-[var(--paper-inset)] p-4 text-sm leading-6 text-[var(--ink-secondary)]">
+                    <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl border border-[var(--line)] bg-[var(--inset)] p-4 text-sm leading-6 text-[var(--ink-2)]">
                       <code>{detail.revision.customInstallInstruction}</code>
                     </pre>
                   </section>
                 ) : detail.revision.portableMcpManifest ? (
-                  <section className="border-t border-[var(--line-subtle)] pt-5">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-muted)]">
+                  <section className="border-t border-[var(--line)] pt-5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
                       {t("space.tools.mcpConfiguration")}
                     </h3>
-                    <pre className="mt-2 max-h-80 overflow-auto whitespace-pre rounded-xl border border-[var(--line)] bg-[var(--paper-inset)] p-4 font-mono text-xs leading-5 text-[var(--ink-secondary)]">
+                    <pre className="mt-2 max-h-80 overflow-auto whitespace-pre rounded-xl border border-[var(--line)] bg-[var(--inset)] p-4 font-mono text-xs leading-5 text-[var(--ink-2)]">
                       <code>
                         {JSON.stringify(
                           detail.revision.portableMcpManifest,

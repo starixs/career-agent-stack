@@ -59,12 +59,12 @@ function BoardSection({ board }: { board: Board }) {
       <SectionTitle>看板三问题</SectionTitle>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <Card title={`今天必须做（${board.due.length}）`}>
-          {board.due.length === 0 && <div className="text-xs text-[var(--ink-subtle)]">今天没有到期事项</div>}
+          {board.due.length === 0 && <div className="text-xs text-[var(--subtle)]">今天没有到期事项</div>}
           <ul className="space-y-1.5">
             {board.due.map(a => (
               <li key={a.id} className="text-xs">
                 <div className="font-medium text-[var(--ink)]">{a.company_name ?? '未知公司'} · {a.title}</div>
-                <div className="text-[var(--ink-muted)]">
+                <div className="text-[var(--muted)]">
                   {a.next_action ?? '下一步未知'}
                   {a.next_action_due ? ` · 到期 ${formatDate(a.next_action_due)}` : a.deadline ? ` · 截止 ${formatDate(a.deadline)}` : ''}
                   {a.stage === 'needs_user' ? ' · 需要你' : ''}
@@ -74,13 +74,13 @@ function BoardSection({ board }: { board: Board }) {
           </ul>
         </Card>
         <Card title={`哪里卡住（${board.blocked.length}）`}>
-          {board.blocked.length === 0 && <div className="text-xs text-[var(--ink-subtle)]">没有卡住的投递</div>}
+          {board.blocked.length === 0 && <div className="text-xs text-[var(--subtle)]">没有卡住的投递</div>}
           <ul className="space-y-1.5">
             {board.blocked.map(a => (
               <li key={a.id} className="text-xs">
                 <div className="font-medium text-[var(--ink)]">{a.company_name ?? '未知公司'} · {a.title}</div>
-                <div className="text-[var(--error)]">原因：{a.blocker_reason ?? '未知'}</div>
-                <div className="text-[var(--ink-muted)]">重试策略：{a.retry_strategy ?? '未知'}</div>
+                <div className="text-[var(--danger)]">原因：{a.blocker_reason ?? '未知'}</div>
+                <div className="text-[var(--muted)]">重试策略：{a.retry_strategy ?? '未知'}</div>
               </li>
             ))}
           </ul>
@@ -91,9 +91,9 @@ function BoardSection({ board }: { board: Board }) {
               const n = funnelMap.get(stage) ?? 0;
               return (
                 <li key={stage} className="flex items-center gap-2 text-xs">
-                  <span className="w-12 shrink-0 text-[var(--ink-muted)]">{STAGE_LABELS[stage]}</span>
-                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--paper-inset)]">
-                    <span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.round((n / max) * 100)}%` }} />
+                  <span className="w-12 shrink-0 text-[var(--muted)]">{STAGE_LABELS[stage]}</span>
+                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--inset)]">
+                    <span className="block h-full rounded-full bg-[var(--primary)]" style={{ width: `${Math.round((n / max) * 100)}%` }} />
                   </span>
                   <span className="w-6 text-right tabular-nums text-[var(--ink)]">{n}</span>
                 </li>
@@ -136,7 +136,7 @@ function ActionsSection({ actions, applications, jobs, onChanged }: { actions: A
         待审核动作（{actions.length}）
       </SectionTitle>
       {review.error && <ErrorRow message={review.error} />}
-      {actions.length === 0 && <div className="text-xs text-[var(--ink-subtle)]">没有待审核的动作。提交 / 发招呼 / 回答开放题永远会先到这里。</div>}
+      {actions.length === 0 && <div className="text-xs text-[var(--subtle)]">没有待审核的动作。提交 / 发招呼 / 回答开放题永远会先到这里。</div>}
       <ul className="space-y-1.5">
         {actions.map(action => {
           const app = action.application_id ? appById.get(action.application_id) : undefined;
@@ -147,15 +147,15 @@ function ActionsSection({ actions, applications, jobs, onChanged }: { actions: A
               : typeof payload.message === 'string' ? payload.message
                 : Object.keys(payload).length ? JSON.stringify(payload).slice(0, 160) : '（无摘要）';
           return (
-            <li key={action.id} className="flex items-start gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2">
+            <li key={action.id} className="flex items-start gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
               <input type="checkbox" aria-label={`选择动作 ${action.id}`} checked={selected.has(action.id)} onChange={() => toggle(action.id)} className="mt-1" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge tone="accent">{ACTION_KIND_LABELS[action.kind] ?? action.kind}</Badge>
-                  <span className="text-xs text-[var(--ink-muted)]">
+                  <span className="text-xs text-[var(--muted)]">
                     {job ? `${job.company_name ?? '未知公司'} · ${job.title}` : app?.title ? `${app.company_name ?? '未知公司'} · ${app.title}` : '未关联岗位'}
                   </span>
-                  <span className="text-xs text-[var(--ink-subtle)]">{formatDate(action.created_at)}</span>
+                  <span className="text-xs text-[var(--subtle)]">{formatDate(action.created_at)}</span>
                 </div>
                 <div className="mt-0.5 break-words text-sm text-[var(--ink)]">{summary}</div>
               </div>
@@ -188,7 +188,7 @@ function JobsSection({ jobs, applications, onChanged }: { jobs: Job[]; applicati
     <section>
       <SectionTitle>岗位池（{jobs.length}）</SectionTitle>
       <div className="mb-3 flex items-center gap-2">
-        <Link2 className="h-4 w-4 shrink-0 text-[var(--ink-muted)]" />
+        <Link2 className="h-4 w-4 shrink-0 text-[var(--muted)]" />
         <TextInput
           aria-label="导入岗位链接"
           placeholder="粘贴岗位链接（或 JD 文本）后回车导入"
@@ -205,7 +205,7 @@ function JobsSection({ jobs, applications, onChanged }: { jobs: Job[]; applicati
       {jobs.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
           <table className="w-full min-w-[900px] border-collapse text-xs">
-            <thead className="bg-[var(--paper-inset)] text-left text-[var(--ink-muted)]">
+            <thead className="bg-[var(--inset)] text-left text-[var(--muted)]">
               <tr>
                 {['公司', '岗位', '地点', '薪资', '评分', '截止', '阶段', '下一步', '页面'].map(h => (
                   <th key={h} className="px-2 py-1.5 font-medium">{h}</th>
@@ -238,15 +238,15 @@ function JobRow({ job, application, onChanged }: { job: Job; application?: Appli
   });
   const pageUrl = application?.page_url ?? job.url;
   return (
-    <tr className="border-t border-[var(--line-subtle)] align-top">
+    <tr className="border-t border-[var(--line)] align-top">
       <td className="px-2 py-1.5 text-[var(--ink)]">{textOrUnknown(job.company_name)}</td>
       <td className="px-2 py-1.5 font-medium text-[var(--ink)]">{job.title}</td>
-      <td className="px-2 py-1.5 text-[var(--ink-muted)]">{textOrUnknown(job.location)}</td>
-      <td className="px-2 py-1.5 text-[var(--ink-muted)]">{textOrUnknown(job.salary)}</td>
+      <td className="px-2 py-1.5 text-[var(--muted)]">{textOrUnknown(job.location)}</td>
+      <td className="px-2 py-1.5 text-[var(--muted)]">{textOrUnknown(job.salary)}</td>
       <td className="px-2 py-1.5 tabular-nums text-[var(--ink)]">{scoreOf(job)}</td>
-      <td className="px-2 py-1.5 text-[var(--ink-muted)]">
+      <td className="px-2 py-1.5 text-[var(--muted)]">
         {formatDate(job.deadline)}
-        {job.deadline && !job.deadline_verified_at && <span className="ml-1 text-[var(--ink-subtle)]">（未核实）</span>}
+        {job.deadline && !job.deadline_verified_at && <span className="ml-1 text-[var(--subtle)]">（未核实）</span>}
       </td>
       <td className="px-2 py-1.5">
         {application ? (
@@ -262,16 +262,16 @@ function JobRow({ job, application, onChanged }: { job: Job; application?: Appli
                 options={targets.map(t => ({ value: t, label: STAGE_LABELS[t] ?? t }))}
               />
             )}
-            {stageAction.error && <span role="alert" className="text-[var(--error)]">{stageAction.error}</span>}
+            {stageAction.error && <span role="alert" className="text-[var(--danger)]">{stageAction.error}</span>}
           </div>
-        ) : <span className="text-[var(--ink-subtle)]">未投递</span>}
+        ) : <span className="text-[var(--subtle)]">未投递</span>}
       </td>
-      <td className="px-2 py-1.5 text-[var(--ink-muted)]">
+      <td className="px-2 py-1.5 text-[var(--muted)]">
         {application?.next_action ?? '—'}
-        {application?.next_action_due && <div className="text-[var(--ink-subtle)]">到期 {formatDate(application.next_action_due)}</div>}
+        {application?.next_action_due && <div className="text-[var(--subtle)]">到期 {formatDate(application.next_action_due)}</div>}
       </td>
       <td className="px-2 py-1.5">
-        {pageUrl ? <ExternalLink href={pageUrl} className="text-[var(--accent)] underline underline-offset-2">打开</ExternalLink> : <span className="text-[var(--ink-subtle)]">—</span>}
+        {pageUrl ? <ExternalLink href={pageUrl} className="text-[var(--primary)] underline underline-offset-2">打开</ExternalLink> : <span className="text-[var(--subtle)]">—</span>}
       </td>
     </tr>
   );

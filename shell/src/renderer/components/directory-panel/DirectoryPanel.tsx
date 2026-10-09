@@ -3016,14 +3016,14 @@ const DirectoryPanel = memo(
       <div
         ref={panelRef}
         tabIndex={0}
-        className={`flex flex-col bg-[var(--paper-elevated)] outline-none overscroll-none ${
+        className={`flex flex-col bg-[var(--paper)] outline-none overscroll-none ${
           isNarrowMode && isCollapsed ? "h-12" : "h-full"
         }`}
       >
         {/* Title bar - aligned with left panel header */}
         <div
           className={`flex h-12 flex-shrink-0 items-center justify-between px-4 select-none ${
-            isNarrowMode ? "cursor-pointer hover:bg-[var(--hover-bg)]" : ""
+            isNarrowMode ? "cursor-pointer hover:bg-[var(--hover)]" : ""
           }`}
           onClick={
             isNarrowMode ? () => setIsCollapsed(!isCollapsed) : undefined
@@ -3053,8 +3053,8 @@ const DirectoryPanel = memo(
                   aria-label={isSearchMode ? t("workspaceFiles.directory.closeSearch") : t("workspaceFiles.directory.fileSearch")}
                   className={`compact-action transition-colors ${
                       isSearchMode
-                          ? "bg-[var(--accent)] text-[var(--on-accent)] hover:bg-[var(--accent-warm-hover)]"
-                          : "text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                          ? "bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
+                          : "text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                   }`}
               >
                   <Search className="h-4 w-4" />
@@ -3079,8 +3079,8 @@ const DirectoryPanel = memo(
                   aria-label={terminalAlive ? t("workspaceFiles.directory.showTerminal") : t("workspaceFiles.directory.openTerminal")}
                   className={`relative compact-action transition-colors ${
                     terminalAlive
-                      ? "text-[var(--accent-warm)] hover:bg-[var(--accent-warm-subtle)]"
-                      : "text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                      ? "text-[var(--primary)] hover:bg-[var(--primary-soft)]"
+                      : "text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                   }`}
                 >
                   <TerminalSquare className="h-4 w-4" />
@@ -3101,7 +3101,7 @@ const DirectoryPanel = memo(
                     onOpenBrowser();
                   }}
                   aria-label={t("workspaceFiles.directory.browser")}
-                  className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                  className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                 >
                   <Globe className="h-4 w-4" />
                 </button>
@@ -3122,7 +3122,7 @@ const DirectoryPanel = memo(
                     e.stopPropagation();
                     onOpenConfig();
                   }}
-                  className="compact-action gap-1 px-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                  className="compact-action gap-1 px-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                 >
                   <SlidersHorizontal className="h-4 w-4" />
                   {t("workspaceFiles.directory.agentSettings")}
@@ -3142,7 +3142,7 @@ const DirectoryPanel = memo(
                     onCollapse();
                   }}
                   aria-label={t("workspaceFiles.directory.collapseWorkspace")}
-                  className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                  className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                 >
                   <PanelRight className="h-4 w-4" />
                 </button>
@@ -3166,7 +3166,7 @@ const DirectoryPanel = memo(
                   aria-label={isCollapsed
                     ? t("workspaceFiles.directory.expandWorkspace")
                     : t("workspaceFiles.directory.foldWorkspace")}
-                  className="compact-action text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                  className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                 >
                   <ChevronUp
                     className={`h-4 w-4 transition-transform ${isCollapsed ? "rotate-180" : ""}`}
@@ -3181,20 +3181,20 @@ const DirectoryPanel = memo(
         {!(isNarrowMode && isCollapsed) && (
           <>
             {/* Inset divider: header → folder info */}
-            <div className="mx-4 border-b border-[var(--line-subtle)]" />
+            <div className="mx-4 border-b border-[var(--line)]" />
 
             {/* Folder header OR Search Input */}
             {isSearchMode ? (
-              <div className="flex h-[52px] items-center gap-2 px-4 py-2 border-b border-[var(--line-subtle)] flex-shrink-0">
+              <div className="flex h-[52px] items-center gap-2 px-4 py-2 border-b border-[var(--line)] flex-shrink-0">
                   <div className="relative flex-1 flex items-center">
-                      <Search className="absolute left-2.5 h-3.5 w-3.5 text-[var(--ink-muted)]" />
+                      <Search className="absolute left-2.5 h-3.5 w-3.5 text-[var(--muted)]" />
                       <input
                           ref={searchInputRef}
                           type="text"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
                           placeholder={t("workspaceFiles.directory.searchPlaceholder")}
-                          className="h-7 w-full rounded-md border border-[var(--line)] bg-transparent pl-8 pr-8 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none transition-colors focus:border-[var(--accent)]"
+                          className="h-7 w-full rounded-md border border-[var(--line)] bg-transparent pl-8 pr-8 text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none transition-colors focus:border-[var(--primary)]"
                           onKeyDown={(e) => {
                               if (isImeComposingEvent(e)) return;
                               if (e.key === 'Escape') {
@@ -3209,7 +3209,7 @@ const DirectoryPanel = memo(
                               setSearchQuery('');
                           }}
                           title={t("workspaceFiles.directory.exitSearch")}
-                          className="absolute right-2 flex items-center text-[var(--ink-muted)]/50 transition-colors hover:text-[var(--ink)]"
+                          className="absolute right-2 flex items-center text-[var(--muted)]/50 transition-colors hover:text-[var(--ink)]"
                       >
                           <X className="h-3.5 w-3.5" />
                       </button>
@@ -3227,14 +3227,14 @@ const DirectoryPanel = memo(
                       {projectDisplayName || folderName}
                     </span>
                     {gitBranch && (
-                      <span className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-hidden whitespace-nowrap rounded-md bg-[var(--accent-warm-subtle)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+                      <span className="flex max-w-[45%] shrink-0 items-center gap-0.5 overflow-hidden whitespace-nowrap rounded-md bg-[var(--primary-soft)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">
                         <GitBranch className="h-3 w-3 shrink-0" />
                         <span className="min-w-0 truncate">{gitBranch}</span>
                       </span>
                     )}
                   </div>
                   {/* Second row: path */}
-                  <div className="mt-0.5 truncate text-xs text-[var(--ink-muted)]">
+                  <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
                     {shortenPathForDisplay(agentDir)}
                   </div>
                 </div>
@@ -3261,7 +3261,7 @@ const DirectoryPanel = memo(
                   isExternalDrop ||
                   isTauriDragActive ||
                   (activeDragItem !== null && internalDropTarget === "")
-                    ? "ring-2 ring-inset ring-[var(--accent)]/30"
+                    ? "ring-2 ring-inset ring-[var(--primary)]/30"
                     : ""
                 }`}
                 onKeyDown={handleTreeKeyDown}
@@ -3345,12 +3345,12 @@ const DirectoryPanel = memo(
                 ) : (
                   <>
                     {error && (
-                      <div className="px-4 py-3 text-xs text-[var(--error)]">
+                      <div className="px-4 py-3 text-xs text-[var(--danger)]">
                         {error}
                       </div>
                     )}
                     {!error && !directoryInfo && (
-                      <div className="px-4 py-3 text-xs text-[var(--ink-muted)]">
+                      <div className="px-4 py-3 text-xs text-[var(--muted)]">
                         {t("workspaceFiles.directory.loading")}
                       </div>
                     )}
@@ -3391,7 +3391,7 @@ const DirectoryPanel = memo(
                     {/* Drag overlay — floating preview that follows cursor */}
                     <DragOverlay dropAnimation={null}>
                       {activeDragItem && (
-                        <div className="flex items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-1 text-sm shadow-lg">
+                        <div className="flex items-center gap-2 rounded-md border border-[var(--line)] bg-[var(--paper)] px-3 py-1 text-sm shadow-lg">
                           <FileIcon
                             name={activeDragItem.name}
                             nodeKind={activeDragItem.isDir ? "directory" : "file"}
@@ -3400,7 +3400,7 @@ const DirectoryPanel = memo(
                             {activeDragItem.name}
                           </span>
                           {activeDragItem.paths.length > 1 && (
-                            <span className="text-xs text-[var(--ink-muted)]">
+                            <span className="text-xs text-[var(--muted)]">
                               +{activeDragItem.paths.length - 1}
                             </span>
                           )}
@@ -3420,7 +3420,7 @@ const DirectoryPanel = memo(
                 className="group/cap-divider mx-4 cursor-row-resize py-1.5"
                 onMouseDown={handleCapDividerMouseDown}
               >
-                <div className="border-b border-[var(--line-subtle)] transition-colors group-hover/cap-divider:border-[var(--accent)]/40" />
+                <div className="border-b border-[var(--line)] transition-colors group-hover/cap-divider:border-[var(--primary)]/40" />
               </div>
 
               {/* Agent Capabilities Panel */}

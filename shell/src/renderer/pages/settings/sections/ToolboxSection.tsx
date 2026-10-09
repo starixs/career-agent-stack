@@ -88,24 +88,24 @@ export function ToolboxSection({
     <div className="mx-auto max-w-4xl px-8 py-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Wrench className="h-5 w-5 text-[var(--ink-muted)]" />
+          <Wrench className="h-5 w-5 text-[var(--muted)]" />
           <h3 className="text-base font-semibold text-[var(--ink)]">
             {t('toolbox.tools.title')}
           </h3>
-          <span className="text-xs text-[var(--ink-muted)]">
+          <span className="text-xs text-[var(--muted)]">
             ({totalTools})
           </span>
         </div>
         <button
           onClick={onAddMcp}
-          className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+          className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
         >
           <Plus className="h-4 w-4" />
           {t('toolbox.tools.add')}
         </button>
       </div>
 
-      <p className="mb-4 mt-1 text-sm text-[var(--ink-muted)]">
+      <p className="mb-4 mt-1 text-sm text-[var(--muted)]">
         {t('toolbox.tools.description')}
       </p>
 
@@ -119,14 +119,14 @@ export function ToolboxSection({
             <div
               key={tool.id}
               id={`official-tool-${tool.id}`}
-              className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5"
+              className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   {isSpeechRecognition ? (
-                    <AudioLines className="h-4 w-4 shrink-0 text-[var(--accent-warm)]/70" />
+                    <AudioLines className="h-4 w-4 shrink-0 text-[var(--primary)]/70" />
                   ) : (
-                    <ImageIcon className="h-4 w-4 shrink-0 text-[var(--accent-warm)]/70" />
+                    <ImageIcon className="h-4 w-4 shrink-0 text-[var(--primary)]/70" />
                   )}
                   <h3
                     className="min-w-0 truncate font-semibold text-[var(--ink)]"
@@ -142,7 +142,7 @@ export function ToolboxSection({
                   {tool.requiresConfig && (
                     <button
                       onClick={() => onEditOfficialTool?.(tool)}
-                      className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                      className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                       title={t('toolbox.tools.settings')}
                     >
                       <Settings2 className="h-4 w-4" />
@@ -155,12 +155,12 @@ export function ToolboxSection({
                     aria-busy={isEnabling}
                     onClick={() => onToggleOfficialTool?.(tool, !isEnabled)}
                     disabled={isEnabling}
-                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 ${
+                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 ${
                       isEnabling
                         ? 'cursor-wait bg-[var(--info)]/60'
                         : isEnabled
-                          ? 'cursor-pointer bg-[var(--accent)]'
-                          : 'cursor-pointer bg-[var(--line-strong)]'
+                          ? 'cursor-pointer bg-[var(--primary)]'
+                          : 'cursor-pointer bg-[var(--line-2)]'
                     }`}
                     title={toggleTitle(isEnabling, isEnabled)}
                   >
@@ -171,7 +171,7 @@ export function ToolboxSection({
                 </div>
               </div>
               <p
-                className="mt-1 truncate text-xs text-[var(--ink-muted)]"
+                className="mt-1 truncate text-xs text-[var(--muted)]"
                 title={tool.description}
               >
                 {tool.description}
@@ -182,7 +182,7 @@ export function ToolboxSection({
                 </p>
               )}
               <p
-                className="mt-2 truncate font-mono text-xs text-[var(--ink-muted)]"
+                className="mt-2 truncate font-mono text-xs text-[var(--muted)]"
                 title={
                   isSpeechRecognition
                     ? 'keystone speech transcribe --file <path>'
@@ -237,11 +237,11 @@ export function ToolboxSection({
           return (
             <div
               key={server.id}
-              className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5"
+              className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <Globe className="h-4 w-4 shrink-0 text-[var(--accent-warm)]/70" />
+                  <Globe className="h-4 w-4 shrink-0 text-[var(--primary)]/70" />
                   <h3
                     className="min-w-0 truncate font-semibold text-[var(--ink)]"
                     title={server.name}
@@ -265,7 +265,7 @@ export function ToolboxSection({
                           ? onEditBuiltinMcp(server)
                           : onEditMcp(server)
                       }
-                      className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                      className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                       title={t('toolbox.tools.settings')}
                     >
                       <Settings2 className="h-4 w-4" />
@@ -278,12 +278,12 @@ export function ToolboxSection({
                     aria-busy={isEnabling}
                     onClick={() => onToggleMcp(server, !isEnabled)}
                     disabled={disableToggle}
-                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 ${
+                    className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 ${
                       isEnabling
                         ? 'cursor-wait bg-[var(--info)]/60'
                         : isEnabled
-                          ? 'cursor-pointer bg-[var(--accent)]'
-                          : 'cursor-pointer bg-[var(--line-strong)]'
+                          ? 'cursor-pointer bg-[var(--primary)]'
+                          : 'cursor-pointer bg-[var(--line-2)]'
                     }`}
                     title={toggleTitle(isEnabling, isEnabled)}
                   >
@@ -295,7 +295,7 @@ export function ToolboxSection({
               </div>
               {server.description && (
                 <p
-                  className="mt-1 truncate text-xs text-[var(--ink-muted)]"
+                  className="mt-1 truncate text-xs text-[var(--muted)]"
                   title={server.description}
                 >
                   {server.description}
@@ -317,7 +317,7 @@ export function ToolboxSection({
                         role="status"
                         aria-live="polite"
                       >
-                        <span className="text-[var(--ink-muted)]">
+                        <span className="text-[var(--muted)]">
                           {t(
                             `toolbox.browserResource.states.${browserResourceStatus?.state ?? 'checking'}`,
                           )}
@@ -327,7 +327,7 @@ export function ToolboxSection({
                         </span>
                         {typeof browserResourceStatus?.progressPercent ===
                           'number' && (
-                          <span className="font-mono text-[var(--ink-muted)]">
+                          <span className="font-mono text-[var(--muted)]">
                             {Math.max(
                               0,
                               Math.min(
@@ -344,7 +344,7 @@ export function ToolboxSection({
                     )}
                     {browserResourceBusy && (
                       <div
-                        className="h-1.5 overflow-hidden rounded-full bg-[var(--paper-inset)]"
+                        className="h-1.5 overflow-hidden rounded-full bg-[var(--inset)]"
                         role="progressbar"
                         aria-label={t(
                           `toolbox.browserResource.states.${browserResourceStatus?.state ?? 'checking'}`,
@@ -354,7 +354,7 @@ export function ToolboxSection({
                         aria-valuenow={browserResourceStatus?.progressPercent}
                       >
                         <div
-                          className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
+                          className="h-full rounded-full bg-[var(--primary)] transition-[width] duration-300"
                           style={{
                             width: `${Math.max(2, Math.min(100, browserResourceStatus?.progressPercent ?? 2))}%`,
                           }}
@@ -370,7 +370,7 @@ export function ToolboxSection({
                       <button
                         type="button"
                         onClick={onInstallBrowserResource}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-2.5 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
                       >
                         {browserResourceStatus?.installAuthorized ? (
                           <RefreshCw className="h-3.5 w-3.5" />
@@ -389,7 +389,7 @@ export function ToolboxSection({
               {!isManagedBrowser &&
                 server.command !== '__builtin__' && (
                   <p
-                    className="mt-2 truncate font-mono text-xs text-[var(--ink-muted)]"
+                    className="mt-2 truncate font-mono text-xs text-[var(--muted)]"
                     title={`${server.command} ${server.args?.join(' ') ?? ''}`}
                   >
                     {server.command} {server.args?.join(' ')}

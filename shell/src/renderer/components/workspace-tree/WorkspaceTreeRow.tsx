@@ -74,19 +74,19 @@ export const WorkspaceTreeRow = memo(function WorkspaceTreeRow({
   const highlight = isDropTarget || isInternalDropTarget;
 
   const stateClasses = highlight
-    ? "ring-1 ring-inset ring-[var(--accent)]/40 bg-[var(--accent)]/8"
+    ? "ring-1 ring-inset ring-[var(--primary)]/40 bg-[var(--primary)]/8"
     : isDragging
       ? "opacity-40"
       : `${
           isInDropSubtree
-            ? "bg-[var(--accent)]/4 "
+            ? "bg-[var(--primary)]/4 "
             : ""
         }${
           row.isSelected
             ? treeActive
-              ? "bg-[var(--accent-warm-muted)] text-[var(--ink)]"
-              : "bg-[var(--paper-inset)] text-[var(--ink)]"
-            : "text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+              ? "bg-[var(--primary-muted)] text-[var(--ink)]"
+              : "bg-[var(--inset)] text-[var(--ink)]"
+            : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
         }${isCut ? " opacity-50" : ""}`;
 
   return (
@@ -98,7 +98,7 @@ export const WorkspaceTreeRow = memo(function WorkspaceTreeRow({
       {...listeners}
       className={`flex cursor-pointer items-center gap-2 px-3 text-sm transition-colors select-none ${stateClasses}${
         isFocused && treeActive
-          ? " outline outline-1 -outline-offset-1 outline-[var(--accent)]/45"
+          ? " outline outline-1 -outline-offset-1 outline-[var(--primary)]/45"
           : ""
       }`}
       style={{
@@ -108,7 +108,7 @@ export const WorkspaceTreeRow = memo(function WorkspaceTreeRow({
       onClick={onClick}
       onContextMenu={onContextMenu}
     >
-      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-[var(--ink-muted)]">
+      <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-[var(--muted)]">
         {row.isLoading ? (
           <Loader2 className="h-3 w-3 animate-spin" />
         ) : row.isDir ? (

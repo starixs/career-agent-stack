@@ -232,13 +232,14 @@ describe('RecordDetail note input', () => {
       const content = await screen.findByTestId(captureStatus === 'ready'
         ? 'recording-playback-timeline' : 'recording-media-duration');
       const controls = content.closest('section')!;
-      expect(controls).toHaveClass('bg-[var(--media-control-bg)]', 'text-[var(--media-control-text)]');
+      expect(controls).toHaveClass('bg-[var(--ink)]', 'text-[var(--bg)]');
       const classes = Array.from(controls.querySelectorAll('[class]'))
         .map(element => element.getAttribute('class')).join(' ');
-      expect(classes).not.toMatch(/var\(--(?:paper|ink)(?:\)|-)/);
+      // The panel is inverted (ink surface, bg text); page surfaces would vanish on it.
+      expect(classes).not.toMatch(/var\(--(?:paper|inset|side|rail)\)/);
       if (captureStatus !== 'ready') {
         const stop = screen.getByRole('button', { name: /停止并保存|Stop and save/i });
-        expect(stop).toHaveClass('bg-[var(--media-stop-bg)]', 'text-[var(--media-stop-text)]');
+        expect(stop).toHaveClass('bg-[var(--danger)]', 'text-[var(--on-primary)]');
         expect(stop.querySelector('svg')).toHaveClass('fill-current');
       }
     },
@@ -1320,7 +1321,7 @@ describe('RecordDetail note input', () => {
       screen.getByRole('button', { name: /添加笔记|Add note/i }),
     );
     expect(composer).toHaveClass('border', 'bg-transparent');
-    expect(composer).not.toHaveClass('bg-[var(--paper-inset)]');
+    expect(composer).not.toHaveClass('bg-[var(--inset)]');
   });
 
   it('keeps the title in the left column and starts the notes panel at the top', async () => {
@@ -1343,8 +1344,8 @@ describe('RecordDetail note input', () => {
       'row-span-3',
     );
     expect(screen.getByLabelText(/记录标题|Record title/)).toHaveClass(
-      'hover:bg-[var(--paper-inset)]',
-      'focus:bg-[var(--paper-inset)]',
+      'hover:bg-[var(--inset)]',
+      'focus:bg-[var(--inset)]',
     );
   });
 
@@ -1483,8 +1484,8 @@ describe('RecordDetail note input', () => {
     );
     expect(screen.getByTestId('transcript-copy-mask')).toHaveClass(
       'bg-gradient-to-r',
-      'from-[var(--paper-elevated-a0)]',
-      'to-[var(--paper-elevated)]',
+      'from-[var(--paper-a0)]',
+      'to-[var(--paper)]',
     );
     vi.useFakeTimers();
     try {

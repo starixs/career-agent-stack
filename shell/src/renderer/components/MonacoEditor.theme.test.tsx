@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ThemeRegistry, ThemeRuntimeProvider } from '@/theme';
 import { syntheticTheme } from '@/theme/__tests__/syntheticTheme';
-import { keystoneDefaultTheme } from '@/theme/themes/keystone-default';
+import { careerTheme } from '@/theme/themes/career';
 
 const monacoCapture = vi.hoisted(() => ({
   defineTheme: vi.fn(),
@@ -33,7 +33,7 @@ import MonacoEditor from './MonacoEditor';
 
 describe('MonacoEditor Theme adapter', () => {
   it('redefines and selects the new Theme without replacing the editor surface', () => {
-    const registry = new ThemeRegistry([keystoneDefaultTheme, syntheticTheme]);
+    const registry = new ThemeRegistry([careerTheme, syntheticTheme]);
     const view = render(
       <ThemeRuntimeProvider
         registry={registry}
@@ -80,6 +80,6 @@ describe('MonacoEditor Theme adapter', () => {
     );
 
     expect(view.getByTestId('monaco-editor')).toBe(editorSurface);
-    expect(monacoCapture.setTheme).toHaveBeenLastCalledWith('keystone-keystone-default-warm-light');
+    expect(monacoCapture.setTheme).toHaveBeenLastCalledWith('keystone-keystone-default-career-light');
   });
 });

@@ -88,7 +88,7 @@ export default function ContextMenu({ x, y, items, onClose, zIndex = 320 }: Cont
     return createPortal(
         <div
             ref={menuRef}
-            className="fixed min-w-[160px] rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] py-1.5 shadow-lg backdrop-blur"
+            className="fixed min-w-[160px] rounded-xl border border-[var(--line)] bg-[var(--paper)] py-1.5 shadow-lg backdrop-blur"
             style={{ left: x, top: y, zIndex }}
             // A right-click on the menu itself must not bubble (incl. through a
             // React portal) to a parent's onContextMenu and re-open another menu.
@@ -114,10 +114,10 @@ export default function ContextMenu({ x, y, items, onClose, zIndex = 320 }: Cont
                             }
                         }}
                         className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition-colors ${item.disabled
-                                ? 'cursor-not-allowed text-[var(--ink-muted)]/50'
+                                ? 'cursor-not-allowed text-[var(--muted)]/50'
                                 : item.danger
-                                    ? 'text-[var(--error)] hover:bg-[var(--error-bg)]'
-                                    : 'text-[var(--ink)] hover:bg-[var(--paper-inset)]'
+                                    ? 'text-[var(--danger)] hover:bg-[var(--danger-bg)]'
+                                    : 'text-[var(--ink)] hover:bg-[var(--inset)]'
                             }`}
                     >
                         {item.icon && <span className="h-4 w-4">{item.icon}</span>}

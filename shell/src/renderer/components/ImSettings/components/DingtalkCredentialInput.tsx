@@ -52,7 +52,7 @@ export default function DingtalkCredentialInput({
         <div className="space-y-4">
             {/* Client ID */}
             <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--ink-muted)]">
+                <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">
                     Client ID (AppKey)
                 </label>
                 <input
@@ -60,13 +60,13 @@ export default function DingtalkCredentialInput({
                     value={localClientId}
                     onChange={(e) => handleClientIdChange(e.target.value)}
                     placeholder="dingxxxxxxxxxx"
-                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-subtle)] outline-none transition-colors focus:border-[var(--button-primary-bg)]"
+                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--subtle)] outline-none transition-colors focus:border-[var(--primary)]"
                 />
             </div>
 
             {/* Client Secret */}
             <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--ink-muted)]">
+                <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">
                     Client Secret (AppSecret)
                 </label>
                 <div className="relative">
@@ -75,11 +75,11 @@ export default function DingtalkCredentialInput({
                         value={localClientSecret}
                         onChange={(e) => handleClientSecretChange(e.target.value)}
                         placeholder="xxxxxxxxxxxxxxxxxxxxxxxx"
-                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 pr-9 text-sm text-[var(--ink)] placeholder-[var(--ink-subtle)] outline-none transition-colors focus:border-[var(--button-primary-bg)]"
+                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 pr-9 text-sm text-[var(--ink)] placeholder-[var(--subtle)] outline-none transition-colors focus:border-[var(--primary)]"
                     />
                     <button
                         onClick={() => setShowSecret(!showSecret)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--muted)] hover:text-[var(--ink)]"
                     >
                         {showSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
@@ -94,23 +94,23 @@ export default function DingtalkCredentialInput({
                 </div>
             )}
             {verifyStatus === 'invalid' && (
-                <div className="text-xs text-[var(--error)]">
+                <div className="text-xs text-[var(--danger)]">
                     {t('agentSettings.imComponents.credentialsInvalid', { fields: 'Client ID / Client Secret' })}
                 </div>
             )}
 
             {/* Tutorial */}
             {showGuide && (
-                <div className="rounded-lg bg-[var(--paper-inset)] p-3">
+                <div className="rounded-lg bg-[var(--inset)] p-3">
                     <p className="text-xs font-medium text-[var(--ink)]">
                         {t('agentSettings.imComponents.dingtalkGuideTitle')}
                     </p>
-                    <ol className="mt-2 space-y-1.5 text-xs text-[var(--ink-muted)]">
+                    <ol className="mt-2 space-y-1.5 text-xs text-[var(--muted)]">
                         <li>1. {t('agentSettings.imComponents.dingtalkGuideStep1Prefix')}<a
                             href="https://open-dev.dingtalk.com"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mx-0.5 inline-flex items-center gap-0.5 text-[var(--button-primary-bg)] hover:underline"
+                            className="mx-0.5 inline-flex items-center gap-0.5 text-[var(--primary)] hover:underline"
                         >
                             {t('agentSettings.imComponents.dingtalkOpenPlatform')}<ExternalLink className="inline h-2.5 w-2.5" />
                         </a>{t('agentSettings.imComponents.dingtalkGuideStep1Suffix')}</li>

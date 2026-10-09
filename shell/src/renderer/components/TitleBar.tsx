@@ -12,7 +12,7 @@ export default function TitleBar({ onOpenHistory, onNewChat }: TitleBarProps) {
   const hasActions = onOpenHistory || onNewChat;
 
   return (
-    <div className="pointer-events-none fixed top-0 right-0 left-0 z-40 h-12 border-b border-[var(--line)] bg-[var(--paper)]/80 backdrop-blur-md [-webkit-app-region:drag]">
+    <div className="pointer-events-none fixed top-0 right-0 left-0 z-40 h-12 border-b border-[var(--line)] bg-[var(--bg)]/80 backdrop-blur-md [-webkit-app-region:drag]">
       <div
         className={`pointer-events-auto flex h-full items-center pr-3 sm:pr-4 ${
           isWindows ? 'pl-3 sm:pl-4' : 'pl-16 sm:pl-20'
@@ -23,7 +23,7 @@ export default function TitleBar({ onOpenHistory, onNewChat }: TitleBarProps) {
             {onOpenHistory && (
               <button
                 onClick={onOpenHistory}
-                className="flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] shadow-sm transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--paper-inset)]"
+                className="flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] shadow-sm transition-colors hover:border-[var(--line-2)] hover:bg-[var(--inset)]"
                 title="Open chat history"
                 aria-label="Open chat history"
               >
@@ -35,7 +35,7 @@ export default function TitleBar({ onOpenHistory, onNewChat }: TitleBarProps) {
             {onNewChat && (
               <button
                 onClick={onNewChat}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--paper-inset)]"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--paper)] text-[var(--ink)] shadow-sm transition-colors hover:border-[var(--line-2)] hover:bg-[var(--inset)]"
                 title="Start new chat"
                 aria-label="Start new chat"
               >

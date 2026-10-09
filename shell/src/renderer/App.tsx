@@ -4973,7 +4973,7 @@ export default function App() {
   return (
     <SessionDeletionContext.Provider value={handleDeleteSession}>
       <LinkContextMenuProvider>
-        <div className="flex h-screen bg-[var(--paper)]">
+        <div className="flex h-screen bg-[var(--bg)]">
           <CareerLiveBridge />
           <CareerLiveDrawer />
           <CareerResumeDrawer />

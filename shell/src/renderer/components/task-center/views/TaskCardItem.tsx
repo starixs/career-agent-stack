@@ -87,8 +87,8 @@ export function TaskCardItem(props: TaskCardItemProps) {
           onOpen();
         }
       }}
-      className={`group relative flex w-full cursor-pointer flex-col gap-2.5 rounded-[var(--radius-lg)] bg-[var(--paper-elevated)] p-4 text-left transition-shadow hover:shadow-sm ${
-        highlighted ? 'ring-1 ring-[var(--accent-warm)] shadow-xs' : ''
+      className={`group relative flex w-full cursor-pointer flex-col gap-2.5 rounded-[var(--radius-lg)] bg-[var(--paper)] p-4 text-left transition-shadow hover:shadow-sm ${
+        highlighted ? 'ring-1 ring-[var(--primary)] shadow-xs' : ''
       }`}
     >
       {/* Row 1 — chips on the left, "…" pinned to the far right via
@@ -206,7 +206,7 @@ function MetaRow({
   }
 
   return (
-    <div className="flex items-center gap-1.5 text-xs text-[var(--ink-muted)]">
+    <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
       <Folder className="h-3 w-3 shrink-0" strokeWidth={1.5} />
       <span className="truncate">{workspace}</span>
       {parts.map((p, i) => (
@@ -221,7 +221,7 @@ function MetaRow({
 
 function MetaSep() {
   return (
-    <span className="text-[var(--ink-muted)]/50" aria-hidden>
+    <span className="text-[var(--muted)]/50" aria-hidden>
       ·
     </span>
   );
@@ -311,12 +311,12 @@ export function ViewSessionButton({ task }: { task?: Task }) {
         type="button"
         onClick={handleClick}
         aria-label={t('tasks.viewSessionTooltip')}
-        className="flex items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--accent-cool)]"
+        className="flex items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--info)]"
       >
         <MessageCircle className="h-3.5 w-3.5" strokeWidth={1.5} />
         {t('tasks.viewSession')}
       </button>
-      <span className="pointer-events-none absolute -bottom-7 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-[var(--button-dark-bg)] px-2 py-0.5 text-xs text-[var(--button-dark-text)] opacity-0 shadow-lg transition-opacity group-hover/view-session:opacity-100">
+      <span className="pointer-events-none absolute -bottom-7 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-[var(--ink)] px-2 py-0.5 text-xs text-[var(--bg)] opacity-0 shadow-lg transition-opacity group-hover/view-session:opacity-100">
         {t('tasks.viewSessionTooltip')}
       </span>
     </div>

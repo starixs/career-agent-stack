@@ -35,7 +35,7 @@ function buildAttachmentDownloadCommand(attachmentId: string, spaceSlug: string)
 
 function IssueMarkdown({ children }: { children: string }) {
   return (
-    <div className="ai-message-content text-[var(--ink-secondary)]">
+    <div className="ai-message-content text-[var(--ink-2)]">
       <Markdown raw preserveNewlines>{children}</Markdown>
     </div>
   );
@@ -447,12 +447,12 @@ export function IssueDetailDrawer({
   const renderAttachmentRow = (attachment: SpaceAttachment) => (
     <div
       key={attachment.id}
-      className="group grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5 text-sm text-[var(--ink-secondary)]"
+      className="group grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-1.5 text-sm text-[var(--ink-2)]"
     >
       <span className="flex min-w-0 items-center gap-2">
         <FileIcon name={attachment.name} />
-        <span className="truncate font-medium text-[var(--ink-secondary)]">{attachment.name}</span>
-        <small className="shrink-0 text-xs text-[var(--ink-subtle)]">{formatBytes(attachment.sizeBytes)}</small>
+        <span className="truncate font-medium text-[var(--ink-2)]">{attachment.name}</span>
+        <small className="shrink-0 text-xs text-[var(--subtle)]">{formatBytes(attachment.sizeBytes)}</small>
       </span>
       <span
         ref={downloadTargetAttachmentId === attachment.id ? downloadMenuRef : undefined}
@@ -462,7 +462,7 @@ export function IssueDetailDrawer({
           type="button"
           disabled={downloadingAttachmentId !== null}
           onClick={(event) => requestAttachmentDownload(attachment, event.currentTarget)}
-          className="grid h-7 w-7 place-items-center rounded-lg text-[var(--ink-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] disabled:cursor-not-allowed disabled:opacity-55"
+          className="grid h-7 w-7 place-items-center rounded-lg text-[var(--muted)] outline-none transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-55"
           aria-label={t('space.detail.downloadAttachment', { name: attachment.name })}
           aria-haspopup={projects.length > 1 ? 'menu' : undefined}
           aria-expanded={projects.length > 1 ? downloadTargetAttachmentId === attachment.id : undefined}
@@ -484,9 +484,9 @@ export function IssueDetailDrawer({
               setDownloadTargetAttachmentId(null);
               window.setTimeout(() => downloadMenuTriggerRef.current?.focus(), 0);
             }}
-            className="absolute right-0 top-full z-30 mt-2 w-56 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-1.5 shadow-lg"
+            className="absolute right-0 top-full z-30 mt-2 w-56 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-1.5 shadow-lg"
           >
-            <div className="px-2 pb-1 text-xs font-semibold text-[var(--ink-muted)]">{t('space.detail.downloadToAgentWorkspace')}</div>
+            <div className="px-2 pb-1 text-xs font-semibold text-[var(--muted)]">{t('space.detail.downloadToAgentWorkspace')}</div>
             {projects.map((project, index) => (
               <button
                 key={project.path}
@@ -495,7 +495,7 @@ export function IssueDetailDrawer({
                 role="menuitem"
                 disabled={downloadingAttachmentId !== null}
                 onClick={() => void downloadAttachment(attachment, project.path)}
-                className="block h-9 w-full truncate rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--ink-secondary)] outline-none transition-colors hover:bg-[var(--hover-bg)] focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] disabled:cursor-wait disabled:opacity-60"
+                className="block h-9 w-full truncate rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--ink-2)] outline-none transition-colors hover:bg-[var(--hover)] focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:cursor-wait disabled:opacity-60"
               >
                 {project.displayName || project.name || basename(project.path)}
               </button>
@@ -505,7 +505,7 @@ export function IssueDetailDrawer({
         <button
           type="button"
           onClick={() => void copyAttachmentCommand(attachment)}
-          className="grid h-7 w-7 place-items-center rounded-lg text-[var(--ink-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)]"
+          className="grid h-7 w-7 place-items-center rounded-lg text-[var(--muted)] outline-none transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
           aria-label={t('space.detail.copyAttachmentCommand', { name: attachment.name })}
           title={t('space.detail.copyCliDownloadCommand')}
         >
@@ -515,7 +515,7 @@ export function IssueDetailDrawer({
           <button
             type="button"
             onClick={() => void copyDownloadedAttachmentPath(attachment)}
-            className="grid h-7 w-7 place-items-center rounded-lg text-[var(--ink-muted)] outline-none transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)]"
+            className="grid h-7 w-7 place-items-center rounded-lg text-[var(--muted)] outline-none transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)] focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
             aria-label={t('space.detail.copyAttachmentPath', { name: attachment.name })}
             title={t('space.detail.copyLocalPath')}
           >
@@ -528,20 +528,20 @@ export function IssueDetailDrawer({
 
   return (
     <OverlayBackdrop onClose={onClose} className="z-[230] items-stretch justify-end bg-black/20 backdrop-blur-sm">
-      <aside className="relative h-full w-[82vw] max-w-7xl border-l border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl max-lg:w-[92vw] max-sm:w-full">
+      <aside className="relative h-full w-[82vw] max-w-7xl border-l border-[var(--line)] bg-[var(--paper)] shadow-xl max-lg:w-[92vw] max-sm:w-full">
         <header className="absolute right-4 top-4 z-10 flex justify-end">
-          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]" aria-label={t('space.detail.close')}>
+          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]" aria-label={t('space.detail.close')}>
             <X className="h-4 w-4" />
           </button>
         </header>
 
         {!detail && loading ? (
-          <div className="flex h-full items-center justify-center text-sm text-[var(--ink-muted)]">
+          <div className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             {t('space.detail.loadingIssue')}
           </div>
         ) : !detail ? (
-          <div className="flex h-full items-center justify-center text-sm text-[var(--ink-muted)]">
+          <div className="flex h-full items-center justify-center text-sm text-[var(--muted)]">
             {detailState?.error ?? t('space.detail.notFound')}
           </div>
         ) : (
@@ -549,11 +549,11 @@ export function IssueDetailDrawer({
             <div className="mx-auto max-w-[840px] pb-10">
               <article className="pb-7">
                 <div className="mb-4 flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-normal text-[var(--ink-subtle)]">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs font-normal text-[var(--subtle)]">
                     {displayNumber && (
                       <>
-                        <span className="text-[var(--ink-muted)]">{displayNumber}</span>
-                        <span className="text-[var(--line-strong)]">·</span>
+                        <span className="text-[var(--muted)]">{displayNumber}</span>
+                        <span className="text-[var(--line-2)]">·</span>
                       </>
                     )}
                     <SpaceIdentityLine
@@ -565,7 +565,7 @@ export function IssueDetailDrawer({
                       showAgentTag
                       agentOwnerName={issueAuthor?.owner?.name}
                     />
-                    <span className="text-[var(--line-strong)]">·</span>
+                    <span className="text-[var(--line-2)]">·</span>
                     <span>{formatTime(detail.issue.createdAt)}</span>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
@@ -573,7 +573,7 @@ export function IssueDetailDrawer({
                       type="button"
                       disabled={!previousIssueId || !onNavigateIssue}
                       onClick={() => previousIssueId && onNavigateIssue?.(previousIssueId)}
-                      className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label={t('space.detail.previousIssue')}
                       title={t('space.detail.previousIssue')}
                     >
@@ -583,7 +583,7 @@ export function IssueDetailDrawer({
                       type="button"
                       disabled={!nextIssueId || !onNavigateIssue}
                       onClick={() => nextIssueId && onNavigateIssue?.(nextIssueId)}
-                      className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40"
                       aria-label={t('space.detail.nextIssue')}
                       title={t('space.detail.nextIssue')}
                     >
@@ -598,12 +598,12 @@ export function IssueDetailDrawer({
                   </div>
                 </div>
                 {editingIssue ? (
-                  <div className="mt-4 rounded-2xl border border-[var(--line)] bg-[var(--paper)]/70 p-4 shadow-sm">
+                  <div className="mt-4 rounded-2xl border border-[var(--line)] bg-[var(--bg)]/70 p-4 shadow-sm">
                     <input
                       ref={editTitleRef}
                       value={draftTitle}
                       onChange={(event) => setDraftTitle(event.target.value)}
-                      className="w-full border-0 bg-transparent text-2xl font-semibold leading-snug text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]"
+                      className="w-full border-0 bg-transparent text-2xl font-semibold leading-snug text-[var(--ink)] outline-none placeholder:text-[var(--muted)]"
                       placeholder={t('space.detail.titlePlaceholder')}
                       aria-label={t('space.detail.titleLabel')}
                     />
@@ -617,7 +617,7 @@ export function IssueDetailDrawer({
                           void saveIssueEdit();
                         }
                       }}
-                      className="mt-4 min-h-[220px] w-full resize-y border-0 bg-transparent p-0 text-base leading-7 text-[var(--ink-secondary)] outline-none placeholder:text-[var(--ink-muted)]"
+                      className="mt-4 min-h-[220px] w-full resize-y border-0 bg-transparent p-0 text-base leading-7 text-[var(--ink-2)] outline-none placeholder:text-[var(--muted)]"
                       placeholder={t('space.detail.bodyPlaceholder')}
                       aria-label={t('space.detail.bodyLabel')}
                     />
@@ -626,7 +626,7 @@ export function IssueDetailDrawer({
                         type="button"
                         disabled={savingIssue}
                         onClick={cancelIssueEdit}
-                        className="inline-flex h-9 items-center rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
+                        className="inline-flex h-9 items-center rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
                       >
                         {t('space.common.cancel')}
                       </button>
@@ -634,7 +634,7 @@ export function IssueDetailDrawer({
                         type="button"
                         disabled={!canSaveIssueEdit}
                         onClick={() => void saveIssueEdit()}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-70"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-70"
                       >
                         {savingIssue ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                         {t('space.common.save')}
@@ -654,15 +654,15 @@ export function IssueDetailDrawer({
 
                 <section className="mt-7">
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-secondary)]">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--ink-2)]">
                       <span>{t('space.detail.attachments')}</span>
-                      <span className="text-xs font-semibold text-[var(--ink-subtle)]">{detail.attachments.length}</span>
+                      <span className="text-xs font-semibold text-[var(--subtle)]">{detail.attachments.length}</span>
                     </h3>
                     <button
                       type="button"
                       disabled={attachmentUploading}
                       onClick={() => void uploadAttachments()}
-                      className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
+                      className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
                       title={t('space.detail.uploadAttachment')}
                     >
                       {attachmentUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
@@ -670,9 +670,9 @@ export function IssueDetailDrawer({
                     </button>
                   </div>
                   {detail.attachments.length === 0 ? (
-                    <div className="py-2 text-sm text-[var(--ink-muted)]">{t('space.detail.emptyAttachments')}</div>
+                    <div className="py-2 text-sm text-[var(--muted)]">{t('space.detail.emptyAttachments')}</div>
                   ) : (
-                    <div className="divide-y divide-dashed divide-[var(--line-subtle)]">
+                    <div className="divide-y divide-dashed divide-[var(--line)]">
                       {detail.attachments.map(renderAttachmentRow)}
                     </div>
                   )}
@@ -697,16 +697,16 @@ export function IssueDetailDrawer({
               <section>
                 <h3 className="mb-5 flex items-center gap-2 text-lg font-semibold text-[var(--ink)]">
                   <span>{t('space.detail.comments')}</span>
-                  <small className="text-xs font-semibold text-[var(--ink-subtle)]">{t('space.detail.commentCount', { count: commentCount })}</small>
+                  <small className="text-xs font-semibold text-[var(--subtle)]">{t('space.detail.commentCount', { count: commentCount })}</small>
                 </h3>
-                <div className="divide-y divide-[var(--line-subtle)]">
+                <div className="divide-y divide-[var(--line)]">
                   {detail.comments.hasMore && detail.comments.nextCursor && (
                     <div className="pb-4">
                       <button
                         type="button"
                         disabled={commentsLoading}
                         onClick={() => void loadOlderComments()}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-60"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-60"
                       >
                         {commentsLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                         {t('space.detail.loadOlderComments')}
@@ -714,13 +714,13 @@ export function IssueDetailDrawer({
                     </div>
                   )}
                   {detail.comments.items.length === 0 ? (
-                    <div className="py-3 text-sm text-[var(--ink-muted)]">
+                    <div className="py-3 text-sm text-[var(--muted)]">
                       {t('space.detail.emptyComments')}
                     </div>
                   ) : (
                     detail.comments.items.map((item) => (
                       <article key={item.id} className="py-5 first:pt-0">
-                        <div className="mb-2 flex items-center gap-2 text-sm font-normal text-[var(--ink-subtle)]">
+                        <div className="mb-2 flex items-center gap-2 text-sm font-normal text-[var(--subtle)]">
                           <SpaceIdentityLine
                             name={item.author.name ?? item.author.id ?? item.author.type}
                             avatarUrl={item.author.avatarUrl}
@@ -735,7 +735,7 @@ export function IssueDetailDrawer({
                         <div className={SPACE_NARRATIVE_INSET_CLASS}>
                           {item.body.trim() && <IssueMarkdown>{item.body}</IssueMarkdown>}
                           {(item.attachments?.length ?? 0) > 0 && (
-                            <div className={`${item.body.trim() ? 'mt-3' : ''} divide-y divide-[var(--line-subtle)] border-b border-[var(--line-subtle)]`}>
+                            <div className={`${item.body.trim() ? 'mt-3' : ''} divide-y divide-[var(--line)] border-b border-[var(--line)]`}>
                               {(item.attachments ?? []).map(renderAttachmentRow)}
                             </div>
                           )}
@@ -745,18 +745,18 @@ export function IssueDetailDrawer({
                   )}
                 </div>
 
-                <div className="mt-6 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/70 shadow-sm">
+                <div className="mt-6 overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)]/70 shadow-sm">
                   <IssueAttachmentDraftList
                     drafts={commentAttachments.drafts}
                     onRemove={commentAttachments.remove}
                     removeLabel={(name) => t('space.detail.removeCommentAttachment', { name })}
-                    className="border-b border-[var(--line-subtle)] bg-[var(--paper-inset)]/45 px-4 py-1"
+                    className="border-b border-[var(--line)] bg-[var(--inset)]/45 px-4 py-1"
                   />
                   <textarea
                     value={comment}
                     onChange={(event) => setComment(event.target.value)}
                     onKeyDown={handleCommentKeyDown}
-                    className="min-h-[104px] w-full resize-none border-0 bg-transparent p-4 text-base leading-7 text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]"
+                    className="min-h-[104px] w-full resize-none border-0 bg-transparent p-4 text-base leading-7 text-[var(--ink)] outline-none placeholder:text-[var(--muted)]"
                     placeholder={t('space.detail.commentPlaceholder')}
                   />
                   <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 px-2.5 pb-2.5">
@@ -768,7 +768,7 @@ export function IssueDetailDrawer({
                         type="button"
                         disabled={commentAttachmentPickerDisabled}
                         onClick={() => void pickCommentFiles()}
-                        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
+                        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
                         aria-label={t('space.detail.uploadAttachmentAria')}
                       >
                         {commentFilesPicking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
@@ -785,7 +785,7 @@ export function IssueDetailDrawer({
                         type="button"
                         disabled={!canSendComment}
                         onClick={() => void sendComment()}
-                        className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--button-primary-bg)] text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-70"
+                        className="grid h-9 w-9 place-items-center rounded-xl bg-[var(--primary)] text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-70"
                         aria-label={t('space.detail.sendComment')}
                       >
                         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

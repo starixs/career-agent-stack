@@ -1396,7 +1396,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
           className="pointer-events-none absolute inset-x-0 bottom-0 h-32"
           style={{
             //: same-color 0-alpha endpoint, never the `transparent` keyword (see index.css --*-a0)
-            background: 'linear-gradient(to bottom, var(--paper-elevated-a0), var(--paper-elevated) 60%)'
+            background: 'linear-gradient(to bottom, var(--paper-a0), var(--paper) 60%)'
           }}
         />
       )}
@@ -1492,7 +1492,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
           />
         )}
 
-        <div className={`relative border border-[var(--line)] bg-[var(--paper-elevated)] shadow-md ${
+        <div className={`relative border border-[var(--line)] bg-[var(--paper)] shadow-md ${
           hasStatusBar
             ? 'rounded-b-2xl rounded-t-none border-t-0'  // StatusBar visible: no top rounded, no top border
             : 'rounded-2xl'  // Normal: fully rounded
@@ -1518,7 +1518,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     aria-label={imageAttachmentName(img)}
                     title={imageAttachmentName(img)}
                     onClick={() => openPreview(img.preview, imageAttachmentName(img))}
-                    className="block h-16 w-16 cursor-pointer overflow-hidden rounded-lg border border-[var(--line)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
+                    className="block h-16 w-16 cursor-pointer overflow-hidden rounded-lg border border-[var(--line)] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2"
                   >
                     <img
                       src={img.preview}
@@ -1529,7 +1529,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   <button
                     type="button"
                     onClick={() => removeImage(img.id)}
-                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-[var(--error)] text-[var(--on-error)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-[var(--danger)] text-[var(--on-primary)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                     title={t('input.deleteImage')}
                   >
                     <X className="h-3 w-3" />
@@ -1561,7 +1561,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   : t('input.placeholder')
               }
               rows={effectiveMinLines}
-              className="block w-full resize-none bg-transparent text-base leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]"
+              className="block w-full resize-none bg-transparent text-base leading-relaxed text-[var(--ink)] outline-none placeholder:text-[var(--muted)]"
               style={{
                 minHeight: `${LINE_HEIGHT * effectiveMinLines}px`,
                 maxHeight: `${LINE_HEIGHT * MAX_LINES}px`,
@@ -1595,7 +1595,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
               className="w-[34rem] max-w-[calc(100vw-2rem)] max-h-80 flex flex-col"
             >
               {/* Tabs header */}
-              <div className="flex shrink-0 items-center gap-1 border-b border-[var(--line-subtle)] bg-[var(--paper)] p-1">
+              <div className="flex shrink-0 items-center gap-1 border-b border-[var(--line)] bg-[var(--bg)] p-1">
                 <MentionTabButton
                   label={t('input.mention.workspaceFiles')}
                   active={mentionTab === 'file'}
@@ -1612,7 +1612,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     setSelectedFileIndex(0);
                   }}
                 />
-                <span className="ml-auto pr-2 text-xs text-[var(--ink-muted)]/60">
+                <span className="ml-auto pr-2 text-xs text-[var(--muted)]/60">
                   {t('input.mention.switchHint')}
                 </span>
               </div>
@@ -1620,15 +1620,15 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
               <div className="flex-1 overflow-auto">
                 {mentionTab === 'file' ? (
                   fileSearchQuery.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-[var(--ink-muted)]">
+                    <div className="px-3 py-2 text-sm text-[var(--muted)]">
                       {t('input.mention.filePlaceholder')}
                     </div>
                   ) : isFileSearching ? (
-                    <div className="px-3 py-2 text-sm text-[var(--ink-muted)]">
+                    <div className="px-3 py-2 text-sm text-[var(--muted)]">
                       {t('input.mention.searching')}
                     </div>
                   ) : fileSearchResults.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-[var(--ink-muted)]">
+                    <div className="px-3 py-2 text-sm text-[var(--muted)]">
                       {t('input.mention.noFiles')}
                     </div>
                   ) : (
@@ -1640,8 +1640,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                           key={file.path}
                           className={`grid cursor-pointer grid-cols-[auto_minmax(8rem,1fr)_minmax(10rem,1.35fr)] items-center gap-2 px-3 py-2 text-sm ${
                             isSelected
-                              ? 'bg-[var(--accent)]/10'
-                              : 'hover:bg-[var(--hover-bg)]'
+                              ? 'bg-[var(--primary)]/10'
+                              : 'hover:bg-[var(--hover)]'
                           }`}
                           onClick={() => {
                             if (atPosition !== null) {
@@ -1660,11 +1660,11 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                           }}
                         >
                           <FileIcon name={file.name} />
-                          <span className={`min-w-0 truncate font-medium ${isSelected ? 'text-[var(--ink)]' : 'text-[var(--ink-secondary)]'}`}>
+                          <span className={`min-w-0 truncate font-medium ${isSelected ? 'text-[var(--ink)]' : 'text-[var(--ink-2)]'}`}>
                             {file.name}
                           </span>
                           <span
-                            className="min-w-0 truncate text-right text-xs text-[var(--ink-muted)]/70"
+                            className="min-w-0 truncate text-right text-xs text-[var(--muted)]/70"
                             title={file.path}
                           >
                             {parentPath}
@@ -1676,11 +1676,11 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 ) : (
                   // Thought tab
                   isThoughtSearching ? (
-                    <div className="px-3 py-2 text-sm text-[var(--ink-muted)]">
+                    <div className="px-3 py-2 text-sm text-[var(--muted)]">
                       {t('input.mention.searching')}
                     </div>
                   ) : thoughtResults.length === 0 ? (
-                    <div className="px-3 py-3 text-sm text-[var(--ink-muted)]">
+                    <div className="px-3 py-3 text-sm text-[var(--muted)]">
                       {fileSearchQuery.length === 0
                         ? t('input.mention.emptyThoughts')
                         : (
@@ -1693,7 +1693,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     </div>
                   ) : (
                     <>
-                      <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">
+                      <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">
                         {fileSearchQuery.length === 0
                           ? t('input.mention.recentThoughts', { count: Math.min(thoughtResults.length, THOUGHT_RECENT_LIMIT) })
                           : t('input.mention.matchedThoughts', { query: fileSearchQuery, count: thoughtResults.length })}
@@ -1719,7 +1719,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                       ))}
                       {fileSearchQuery.length > 0
                         && thoughtResults.length >= THOUGHT_SOFT_CAP && (
-                          <div className="border-t border-[var(--line-subtle)] px-3 py-2 text-xs text-[var(--ink-muted)]/70">
+                          <div className="border-t border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)]/70">
                             {t('input.mention.thoughtSoftCap', { count: THOUGHT_SOFT_CAP })}
                           </div>
                         )}
@@ -1781,7 +1781,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   setShowToolMenu(false);
                   setShowPlusMenu(!showPlusMenu);
                 }}
-                className="rounded-lg p-2 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                className="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                 title={t('input.addContext')}
               >
                 <Plus className="h-4 w-4" />
@@ -1820,7 +1820,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     }
                     setShowPlusMenu(false);
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                 >
                   <AtSign className="h-4 w-4" />
                   {t('input.referenceFile')}
@@ -1846,9 +1846,9 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     }
                     setShowPlusMenu(false);
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                 >
-                  <span className="inline-flex h-4 w-4 items-center justify-center font-medium text-[var(--ink-muted)]">/</span>
+                  <span className="inline-flex h-4 w-4 items-center justify-center font-medium text-[var(--muted)]">/</span>
                   {t('input.useSkill')}
                 </button>
                 <button
@@ -1857,7 +1857,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     e.stopPropagation();
                     void handleUploadButtonClick();
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                 >
                   <Paperclip className="h-4 w-4" />
                   {t('input.uploadFile')}
@@ -1874,10 +1874,10 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     }}
                     className={`flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors ${
                       cronModeEnabled && !configControlsLocked
-                        ? 'bg-[var(--heartbeat-bg)] text-[var(--heartbeat)] hover:bg-[var(--heartbeat)]/20'
+                        ? 'bg-[var(--success-bg)] text-[var(--success)] hover:bg-[var(--success)]/20'
                         : configControlsLocked
-                          ? 'cursor-not-allowed text-[var(--ink-muted)] opacity-50 hover:bg-transparent'
-                          : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                          ? 'cursor-not-allowed text-[var(--muted)] opacity-50 hover:bg-transparent'
+                          : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                     }`}
                     title={configControlLockTitle ?? (cronModeEnabled ? t('input.cronEnabled') : t('input.cron'))}
                   >
@@ -1923,8 +1923,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   setShowPlusMenu(false);
                   setShowToolMenu(false);
                 }}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] ${
-                  configControlsLocked ? 'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-[var(--ink-muted)]' : ''
+                className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)] ${
+                  configControlsLocked ? 'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-[var(--muted)]' : ''
                 }`}
                 title={configControlLockTitle ?? t('input.permissionModeTitle')}
               >
@@ -1978,15 +1978,15 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   setShowModelMenu(false);
                   setShowPlusMenu(false);
                 }}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] ${
-                  configControlsLocked ? 'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-[var(--ink-muted)]' : ''
+                className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)] ${
+                  configControlsLocked ? 'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-[var(--muted)]' : ''
                 }`}
                 title={configControlLockTitle ?? t('input.toolsTitle')}
               >
                 <Wrench className="h-3.5 w-3.5" />
                 <span className="toolbar-label">{t('input.toolsLabel')}</span>
                 {enabledToolEntryCount > 0 && (
-                  <span className="text-xs text-[var(--ink-muted)]">
+                  <span className="text-xs text-[var(--muted)]">
                     {enabledToolEntryCount}
                   </span>
                 )}
@@ -2003,7 +2003,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 // affordance that tells the user "scroll for more".
                 className="composer-toolbar-menu-enter w-64 max-h-[50vh] overflow-y-auto py-1"
               >
-                    <div className="px-3 py-2 text-xs font-medium text-[var(--ink-muted)] border-b border-[var(--line)]">
+                    <div className="px-3 py-2 text-xs font-medium text-[var(--muted)] border-b border-[var(--line)]">
                       {t('input.toolsHeader')}
                     </div>
                     {visibleOfficialTools.length > 0 || externalMcpServers.length > 0 || (!isExternalRuntime && mcpServers.some(s => globalMcpEnabled.includes(s.id))) ? (
@@ -2020,7 +2020,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                 {tool.name}
                               </div>
                               {tool.description && (
-                                <div className="text-xs text-[var(--ink-muted)] truncate">
+                                <div className="text-xs text-[var(--muted)] truncate">
                                   {tool.description}
                                 </div>
                               )}
@@ -2035,7 +2035,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                   detail: { section: 'mcp', officialToolId: tool.id },
                                 }));
                               }}
-                              className="ml-2 shrink-0 rounded p-0.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                              className="ml-2 shrink-0 rounded p-0.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                             >
                               <Settings2 className="h-3.5 w-3.5" />
                             </button>
@@ -2045,7 +2045,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                 e.stopPropagation();
                                 onWorkspaceOfficialToolToggle?.(tool.id, !isEnabled);
                               }}
-                              className={`relative ml-2 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors hover:opacity-80 focus:outline-none ${isEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                              className={`relative ml-2 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors hover:opacity-80 focus:outline-none ${isEnabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                                 }`}
                             >
                               <span
@@ -2065,7 +2065,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                             {server.name}
                           </div>
                           {server.description && (
-                            <div className="text-xs text-[var(--ink-muted)] truncate">
+                            <div className="text-xs text-[var(--muted)] truncate">
                               {server.description}
                             </div>
                           )}
@@ -2093,7 +2093,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                   {server.name}
                                 </div>
                                 {server.description && (
-                                  <div className="text-xs text-[var(--ink-muted)] truncate">
+                                  <div className="text-xs text-[var(--muted)] truncate">
                                     {server.description}
                                   </div>
                                 )}
@@ -2110,7 +2110,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                     setShowToolMenu(false);
                                     window.dispatchEvent(new CustomEvent(CUSTOM_EVENTS.OPEN_SETTINGS, { detail: { section: 'mcp', mcpServerId: server.id } }));
                                   }}
-                                  className="ml-2 shrink-0 rounded p-0.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                  className="ml-2 shrink-0 rounded p-0.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                 >
                                   <Settings2 className="h-3.5 w-3.5" />
                                 </button>
@@ -2121,7 +2121,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                   e.stopPropagation();
                                   onWorkspaceMcpToggle?.(server.id, !isEnabled);
                                 }}
-                                className={`relative ml-2 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors hover:opacity-80 focus:outline-none ${isEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                                className={`relative ml-2 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors hover:opacity-80 focus:outline-none ${isEnabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                                   }`}
                               >
                                 <span
@@ -2134,7 +2134,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                         })}
                       </>
                     ) : (
-                      <div className="px-3 py-3 text-sm text-[var(--ink-muted)]">
+                      <div className="px-3 py-3 text-sm text-[var(--muted)]">
                         {t('input.toolsEmptyPrefix')}
                         <button
                           type="button"
@@ -2144,7 +2144,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                             // Dispatch custom event to open Settings with MCP section
                             window.dispatchEvent(new CustomEvent(CUSTOM_EVENTS.OPEN_SETTINGS, { detail: { section: 'mcp' } }));
                           }}
-                          className="mx-1 text-[var(--accent)] hover:underline"
+                          className="mx-1 text-[var(--primary)] hover:underline"
                         >
                           {t('input.settingsPage')}
                         </button>
@@ -2168,7 +2168,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                      *  the empty-state hint doubles as onboarding pointing
                      *  to Settings → Plugins. Matches the MCP empty-state
                      *  pattern above for visual symmetry. */}
-                    <div className="px-3 py-2 mt-1 text-xs font-medium text-[var(--ink-muted)] border-t border-[var(--line)] border-b border-[var(--line)] bg-[var(--paper-inset)]/40">
+                    <div className="px-3 py-2 mt-1 text-xs font-medium text-[var(--muted)] border-t border-[var(--line)] border-b border-[var(--line)] bg-[var(--inset)]/40">
                       {t('input.pluginsHeader')}
                     </div>
                     {globallyVisiblePlugins.length > 0 ? (
@@ -2184,13 +2184,13 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                 {plugin.name}
                               </div>
                               {plugin.description && (
-                                <div className="text-xs text-[var(--ink-muted)] truncate">
+                                <div className="text-xs text-[var(--muted)] truncate">
                                   {plugin.description}
                                 </div>
                               )}
                               {plugin.mcpServerNames && plugin.mcpServerNames.length > 0 && (
                                 <div
-                                  className="mt-0.5 text-xs text-[var(--ink-muted)] truncate"
+                                  className="mt-0.5 text-xs text-[var(--muted)] truncate"
                                   title={t('input.pluginLoadsMcpTitle', { names: plugin.mcpServerNames.join(', ') })}
                                 >
                                   🔌 {t('input.pluginLoadsMcp', { count: plugin.mcpServerNames.length, names: plugin.mcpServerNames.join(', ') })}
@@ -2205,7 +2205,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                 setShowToolMenu(false);
                                 window.dispatchEvent(new CustomEvent(CUSTOM_EVENTS.OPEN_SETTINGS, { detail: { section: 'plugins' } }));
                               }}
-                              className="ml-2 shrink-0 rounded p-0.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                              className="ml-2 shrink-0 rounded p-0.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                             >
                               <Settings2 className="h-3.5 w-3.5" />
                             </button>
@@ -2215,7 +2215,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                 e.stopPropagation();
                                 onWorkspacePluginToggle?.(plugin.id, !isEnabled);
                               }}
-                              className={`relative ml-2 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors hover:opacity-80 focus:outline-none ${isEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                              className={`relative ml-2 inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors hover:opacity-80 focus:outline-none ${isEnabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                                 }`}
                             >
                               <span
@@ -2227,7 +2227,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                         );
                       })
                     ) : (
-                      <div className="px-3 py-3 text-sm text-[var(--ink-muted)]">
+                      <div className="px-3 py-3 text-sm text-[var(--muted)]">
                         {t('input.noPluginsPrefix')}
                         <button
                           type="button"
@@ -2236,7 +2236,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                             setShowToolMenu(false);
                             window.dispatchEvent(new CustomEvent(CUSTOM_EVENTS.OPEN_SETTINGS, { detail: { section: 'plugins' } }));
                           }}
-                          className="mx-1 text-[var(--accent)] hover:underline"
+                          className="mx-1 text-[var(--primary)] hover:underline"
                         >
                           {t('input.pluginsSettings')}
                         </button>
@@ -2274,8 +2274,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     onRefreshProviders();
                   }
                 }}
-                className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] ${
-                  configControlsLocked ? 'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-[var(--ink-muted)]' : ''
+                className={`flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)] ${
+                  configControlsLocked ? 'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-[var(--muted)]' : ''
                 }`}
                 title={configControlLockTitle ?? t('input.switchModel')}
               >
@@ -2293,7 +2293,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 anchorRef={modelBtnRef}
                 placement="top-end"
                 unstyled
-                className="w-64 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl"
+                className="w-64 rounded-lg border border-[var(--line)] bg-[var(--paper)] shadow-xl"
               >
                 <div
                   ref={modelListRef}
@@ -2302,7 +2302,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 >
                 {isExternalRuntime && runtimeModels ? (
                   <>
-                    <div className="px-3 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">
+                    <div className="px-3 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">
                       {t('input.runtimeModelHeader', {
                         runtime: runtime === 'claude-code' ? 'CLAUDE CODE' : runtime === 'gemini' ? 'GEMINI CLI' : runtime?.toUpperCase(),
                       })}
@@ -2322,8 +2322,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                           }}
                           className={`w-full rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
                             isSelected
-                              ? 'bg-[var(--accent)]/10 font-medium text-[var(--accent)]'
-                              : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                              ? 'bg-[var(--primary)]/10 font-medium text-[var(--primary)]'
+                              : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                           }`}
                         >
                           {model.displayName}
@@ -2346,7 +2346,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                             detail: { section: 'providers' }
                           }));
                         }}
-                        className="w-full px-3 py-2.5 text-left text-sm text-[var(--accent)] transition-colors hover:bg-[var(--hover-bg)]"
+                        className="w-full px-3 py-2.5 text-left text-sm text-[var(--primary)] transition-colors hover:bg-[var(--hover)]"
                       >
                         {t('input.setupModelProvider')}
                       </button>
@@ -2355,7 +2355,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   return availableProviders.map((p, idx) => (
                     <div key={p.id}>
                       {idx > 0 && <div className="mx-2 my-1 border-t border-[var(--line)]" />}
-                      <div className="group/provider relative flex items-center gap-1 px-3 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">
+                      <div className="group/provider relative flex items-center gap-1 px-3 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">
                         {p.name}
                         {isProviderWarning(p, apiKeys, providerVerifyStatus) && (
                           <Tip label={t('input.providerWarning')} position="bottom">
@@ -2384,8 +2384,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                             }}
                             className={`flex w-full items-center rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
                               isSelected
-                                ? 'bg-[var(--accent)]/10 font-medium text-[var(--accent)]'
-                                : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                                ? 'bg-[var(--primary)]/10 font-medium text-[var(--primary)]'
+                                : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                             }`}
                           >
                             <span className="truncate">{model.modelName}</span>
@@ -2427,19 +2427,19 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                         }
                       }}
                       className={`flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors ${
-                        showEffortSubmenu ? 'bg-[var(--hover-bg)]' : 'hover:bg-[var(--hover-bg)]'
+                        showEffortSubmenu ? 'bg-[var(--hover)]' : 'hover:bg-[var(--hover)]'
                       }`}
                     >
-                      <Gauge className="h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)]" />
+                      <Gauge className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
                       <span className="flex-1">{t('input.reasoningEffort')}</span>
                       <span className={`text-xs ${
                         reasoningEffort !== REASONING_EFFORT_DEFAULT
-                          ? 'font-medium text-[var(--accent)]'
-                          : 'text-[var(--ink-muted)]'
+                          ? 'font-medium text-[var(--primary)]'
+                          : 'text-[var(--muted)]'
                       }`}>
                         {reasoningEffort === REASONING_EFFORT_DEFAULT ? defaultEffortLabel : reasoningEffort}
                       </span>
-                      <ChevronRight className="h-3 w-3 shrink-0 text-[var(--ink-muted)]" />
+                      <ChevronRight className="h-3 w-3 shrink-0 text-[var(--muted)]" />
                     </button>
 
                     {showEffortSubmenu && (
@@ -2447,7 +2447,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                         {/* invisible hover bridge across the 6px gap */}
                         <div className={`absolute top-0 h-full w-2 ${effortFlipLeft ? 'right-full' : 'left-full'}`} />
                         <div
-                          className={`absolute bottom-0 z-10 w-56 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-1 shadow-xl ${
+                          className={`absolute bottom-0 z-10 w-56 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-1 shadow-xl ${
                             effortFlipLeft ? 'right-[calc(100%+6px)]' : 'left-[calc(100%+6px)]'
                           }`}
                         >
@@ -2468,18 +2468,18 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                                 }}
                                 className={`flex w-full items-center justify-between rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
                                   isSelected
-                                    ? 'bg-[var(--accent)]/10 font-medium text-[var(--accent)]'
-                                    : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                                    ? 'bg-[var(--primary)]/10 font-medium text-[var(--primary)]'
+                                    : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                                 }`}
                               >
                                 <span className="shrink-0">{level === REASONING_EFFORT_DEFAULT ? defaultEffortLabel : level}</span>
-                                <span title={description} className={`ml-3 min-w-0 truncate text-xs font-normal ${isSelected ? 'text-[var(--accent)]/70' : 'text-[var(--ink-muted)]'}`}>
+                                <span title={description} className={`ml-3 min-w-0 truncate text-xs font-normal ${isSelected ? 'text-[var(--primary)]/70' : 'text-[var(--muted)]'}`}>
                                   {description}
                                 </span>
                               </button>
                             );
                           })}
-                          <div hidden={managedEffort} className="mt-1 whitespace-nowrap border-t border-[var(--line)] px-3 pb-1 pt-1.5 text-xs text-[var(--ink-muted)]/60">
+                          <div hidden={managedEffort} className="mt-1 whitespace-nowrap border-t border-[var(--line)] px-3 pb-1 pt-1.5 text-xs text-[var(--muted)]/60">
                             {t('input.reasoningRequirement')}
                           </div>
                         </div>
@@ -2499,11 +2499,11 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                           detail: { section: 'providers' },
                         }));
                       }}
-                      className="flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover-bg)]"
+                      className="flex w-full items-center gap-1.5 rounded-md px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                     >
-                      <Settings2 className="h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)]" />
+                      <Settings2 className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
                       <span className="flex-1">{t('input.customModelService')}</span>
-                      <ChevronRight className="h-3 w-3 shrink-0 text-[var(--ink-muted)]" />
+                      <ChevronRight className="h-3 w-3 shrink-0 text-[var(--muted)]" />
                     </button>
                   </div>
                 )}
@@ -2527,7 +2527,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 <button
                   type="button"
                   disabled
-                  className="rounded-lg bg-[var(--ink-muted)]/15 p-2 text-[var(--ink-muted)]/60"
+                  className="rounded-lg bg-[var(--muted)]/15 p-2 text-[var(--muted)]/60"
                   title={t('input.systemBusy')}
                 >
                   <Send className="h-4 w-4" />
@@ -2537,7 +2537,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 <button
                   type="button"
                   disabled
-                  className="rounded-lg bg-[var(--ink-muted)]/15 p-2 text-[var(--ink-muted)]"
+                  className="rounded-lg bg-[var(--muted)]/15 p-2 text-[var(--muted)]"
                   title={t('input.stopping')}
                 >
                   <Loader className="h-4 w-4 animate-spin" />
@@ -2552,7 +2552,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 <button
                   type="button"
                   onClick={onStop}
-                  className="rounded-lg bg-[var(--error)] p-2 text-[var(--on-error)] transition-colors hover:brightness-110"
+                  className="rounded-lg bg-[var(--danger)] p-2 text-[var(--on-primary)] transition-colors hover:brightness-110"
                   title={systemStatus?.startsWith('api_retry:') ? t('input.stopRetry') : t('input.stop')}
                 >
                   <Square className="h-4 w-4" />
@@ -2562,7 +2562,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   type="button"
                   onClick={handleSend}
                   disabled={!canSendMessage || (!inputValue.trim() && images.length === 0)}
-                  className="rounded-lg bg-[var(--button-primary-bg)] p-2 text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:bg-[var(--ink-muted)]/15 disabled:text-[var(--ink-muted)]/60"
+                  className="rounded-lg bg-[var(--primary)] p-2 text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:bg-[var(--muted)]/15 disabled:text-[var(--muted)]/60"
                   title={!canSendMessage
                     ? (providerUnavailableMessage ?? t('input.providerUnavailableDefault'))
                     : `${t('input.send')} (${sendKeyHint(sendShortcut, isMac).shortcut})`}

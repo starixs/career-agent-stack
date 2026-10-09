@@ -41,7 +41,7 @@ export function findHighlightRanges(text: string, query: string): HighlightRange
 export function renderTextWithHighlights(
   text: string,
   ranges: HighlightRange[],
-  markClassName = 'rounded-[2px] bg-[var(--accent-warm-subtle)] px-[1px] text-[var(--accent-warm)]',
+  markClassName = 'rounded-[2px] bg-[var(--primary-soft)] px-[1px] text-[var(--primary)]',
 ): ReactNode {
   if (ranges.length === 0) return text;
   const out: ReactNode[] = [];

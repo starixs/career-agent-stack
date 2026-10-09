@@ -22,7 +22,7 @@
     --markdown-heading-content-gap: var(--space-2);
     --markdown-after-list-gap: var(--space-5);
     --markdown-rule-gap: var(--space-6);
-    --markdown-highlight-bg: var(--accent-warm-subtle);
+    --markdown-highlight-bg: var(--primary-soft);
     --markdown-highlight-ink: var(--ink);
 
     font-size: var(--markdown-font-size);
@@ -219,7 +219,7 @@
   }
 
   .markdown-list-item::marker {
-    color: var(--ink-muted);
+    color: var(--muted);
   }
 
   .markdown-list-item {
@@ -295,15 +295,15 @@
     inline-size: 1em;
     block-size: 1em;
     margin: 0 var(--space-2) 0 0;
-    accent-color: var(--accent-warm);
+    accent-color: var(--primary);
     vertical-align: -0.12em;
   }
 
   .markdown-blockquote {
     margin: var(--markdown-flow-gap) 0 0;
-    border-inline-start: 2px solid var(--line-strong);
+    border-inline-start: 2px solid var(--line-2);
     padding: var(--space-1) var(--space-3) var(--space-1) var(--space-4);
-    color: var(--ink-secondary);
+    color: var(--ink-2);
   }
 
   .markdown-blockquote > .markdown-paragraph {
@@ -386,12 +386,12 @@
   }
 
   .markdown-content kbd {
-    font-family: var(--font-code);
+    font-family: var(--font-mono);
     font-size: 0.9em;
     font-weight: var(--font-weight-normal);
     color: var(--ink);
-    background: var(--paper-inset);
-    border: 1px solid var(--line-strong);
+    background: var(--inset);
+    border: 1px solid var(--line-2);
     border-block-end-width: 2px;
     border-radius: var(--radius-sm);
     padding: var(--space-0-5) var(--space-1-5);
@@ -403,7 +403,7 @@
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
-    background: var(--paper-inset);
+    background: var(--inset);
   }
 
   .markdown-content summary {
@@ -414,15 +414,15 @@
   }
 
   .markdown-content summary::marker {
-    color: var(--ink-secondary);
+    color: var(--ink-2);
   }
 
   .markdown-content summary:hover {
-    color: var(--accent-warm);
+    color: var(--primary);
   }
 
   .markdown-content :is(summary, a):focus-visible {
-    outline: 2px solid var(--focus-border);
+    outline: 2px solid var(--primary);
     outline-offset: var(--space-0-5);
   }
 
@@ -438,7 +438,7 @@
     margin-block-start: var(--markdown-rule-gap);
     border-block-start: 1px solid var(--line);
     padding-block-start: var(--space-3);
-    color: var(--ink-secondary);
+    color: var(--ink-2);
     font-size: var(--text-sm);
   }
 
@@ -503,7 +503,7 @@
   position:absolute; top:4px; right:0; z-index:2;
   display:flex; flex-direction:column; gap:2px;
   padding:2px; border:1px solid var(--line); border-radius:var(--radius-md);
-  background:var(--paper-elevated); box-shadow:var(--shadow-xs);
+  background:var(--paper); box-shadow:var(--shadow-xs);
   opacity:0; pointer-events:none; transition:opacity .12s;
 }
 /* Keep the visual gap inside the toolbar's hit area when it sits outside the
@@ -519,12 +519,12 @@
 .md-editor-shell .markdown-table-actions button {
   display:flex; align-items:center; justify-content:center;
   width:28px; height:28px; min-height:28px; padding:0;
-  color:var(--ink-secondary); border-radius:var(--radius);
+  color:var(--ink-2); border-radius:var(--radius);
 }
-.markdown-table-actions button:hover { color:var(--ink); background:var(--hover-bg); }
-.markdown-table-actions button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.markdown-table-actions button:hover { color:var(--ink); background:var(--hover); }
+.markdown-table-actions button:focus-visible { outline:2px solid var(--primary); outline-offset:1px; }
 .markdown-table-actions button[aria-disabled="true"] { opacity:.5; cursor:wait; }
-.markdown-table-error { position:absolute; right:0; top:100%; width:180px; padding:8px; background:var(--paper-elevated); color:var(--error); font-size:var(--text-xs); }
+.markdown-table-error { position:absolute; right:0; top:100%; width:180px; padding:8px; background:var(--paper); color:var(--danger); font-size:var(--text-xs); }
 @container markdown-surface (min-width:860px) {
   .markdown-wide-surface .ai-message-content > .markdown-content:not(.markdown-content--compact) > .markdown-table,
   .md-editor-host .md-projection-Table:not(.md-projection-nested) > .md-table-shell { padding-right:0; }
@@ -553,7 +553,7 @@
 .md-table-shell .markdown-content { overflow-wrap:anywhere; }
 .markdown-table-scroll, .md-table-scroll {
   scrollbar-width:thin;
-  scrollbar-color:var(--line-strong) transparent;
+  scrollbar-color:var(--line-2) transparent;
 }
 
 /* File/web links share typography across prose, headings and tables. A code

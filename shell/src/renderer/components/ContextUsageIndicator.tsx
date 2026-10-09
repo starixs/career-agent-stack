@@ -40,13 +40,13 @@ function Ring({ percent, size, stroke }: { percent: number; size: number; stroke
   const half = size / 2;
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)', display: 'block' }}>
-      <circle cx={half} cy={half} r={r} fill="none" stroke="var(--line-strong)" strokeWidth={stroke} />
+      <circle cx={half} cy={half} r={r} fill="none" stroke="var(--line-2)" strokeWidth={stroke} />
       <circle
         cx={half}
         cy={half}
         r={r}
         fill="none"
-        stroke="var(--accent)"
+        stroke="var(--primary)"
         strokeWidth={stroke}
         strokeLinecap="round"
         strokeDasharray={c}
@@ -117,7 +117,7 @@ export default function ContextUsageIndicator({ onCompact }: ContextUsageIndicat
       ref={anchorRef}
       onMouseEnter={openNow}
       onMouseLeave={scheduleClose}
-      className="flex h-[30px] cursor-default items-center justify-center rounded-lg px-1 transition-colors hover:bg-[var(--hover-bg)]"
+      className="flex h-[30px] cursor-default items-center justify-center rounded-lg px-1 transition-colors hover:bg-[var(--hover)]"
       aria-label={t('contextUsage.aria', { percent: usedPercent.toFixed(0) })}
     >
       <Ring percent={usedPercent} size={18} stroke={2} />
@@ -135,11 +135,11 @@ export default function ContextUsageIndicator({ onCompact }: ContextUsageIndicat
         <div
           onMouseEnter={cancelClose}
           onMouseLeave={scheduleClose}
-          className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-4 pb-3 pt-3.5 shadow-xl"
+          className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 pb-3 pt-3.5 shadow-xl"
         >
           {/* 头部：标题 + runtime capability 驱动的智能压缩入口 */}
           <div className="mb-3 flex min-h-[24px] items-center justify-between">
-            <span className="text-xs font-semibold text-[var(--ink-muted)]">{t('contextUsage.title')}</span>
+            <span className="text-xs font-semibold text-[var(--muted)]">{t('contextUsage.title')}</span>
             {showCompact && (
               <Tip label={t('contextUsage.compactTip')} position="top" align="end">
                 <button
@@ -149,7 +149,7 @@ export default function ContextUsageIndicator({ onCompact }: ContextUsageIndicat
                     onCompact?.();
                     setOpen(false);
                   }}
-                  className="flex items-center gap-1 rounded-lg border border-[var(--accent-warm-muted)] bg-[var(--accent-warm-subtle)] px-2 py-1 text-xs font-semibold leading-none text-[var(--accent)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-warm-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-lg border border-[var(--primary-muted)] bg-[var(--primary-soft)] px-2 py-1 text-xs font-semibold leading-none text-[var(--primary)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--primary-muted)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Minimize2 className="h-3 w-3" />
                   {t('contextUsage.compact')}
@@ -164,20 +164,20 @@ export default function ContextUsageIndicator({ onCompact }: ContextUsageIndicat
               <div className="text-3xl font-bold leading-none tracking-tight tabular-nums text-[var(--ink)]">
                 {usedPercent.toFixed(1)}%
               </div>
-              <div className="mt-1.5 text-xs text-[var(--ink-muted)]">{t('contextUsage.usedLabel')}</div>
+              <div className="mt-1.5 text-xs text-[var(--muted)]">{t('contextUsage.usedLabel')}</div>
             </div>
             <Ring percent={usedPercent} size={44} stroke={3.5} />
           </div>
 
           {/* tokens 行 */}
-          <div className="mb-1 text-xs tabular-nums text-[var(--ink-muted)]">
-            <span className="font-semibold text-[var(--ink-secondary)]">{formatTokens(contextTokens)}</span>
+          <div className="mb-1 text-xs tabular-nums text-[var(--muted)]">
+            <span className="font-semibold text-[var(--ink-2)]">{formatTokens(contextTokens)}</span>
             {' / '}
             {formatTokens(contextWindow)} tokens
           </div>
 
           {/* 底部弱灰说明（窗口来源 + 压缩点） */}
-          <div className="mt-2 border-t border-[var(--line)] pt-2 text-xs leading-relaxed text-[var(--ink-faint)]">
+          <div className="mt-2 border-t border-[var(--line)] pt-2 text-xs leading-relaxed text-[var(--subtle)]">
             {footnote}
           </div>
         </div>

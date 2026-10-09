@@ -54,7 +54,7 @@ export default function FeishuCredentialInput({
         <div className="space-y-4">
             {/* App ID */}
             <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--ink-muted)]">
+                <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">
                     App ID
                 </label>
                 <input
@@ -62,13 +62,13 @@ export default function FeishuCredentialInput({
                     value={localAppId}
                     onChange={(e) => handleAppIdChange(e.target.value)}
                     placeholder="cli_xxxxxxxxxx"
-                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-subtle)] outline-none transition-colors focus:border-[var(--button-primary-bg)]"
+                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--subtle)] outline-none transition-colors focus:border-[var(--primary)]"
                 />
             </div>
 
             {/* App Secret */}
             <div>
-                <label className="mb-1.5 block text-xs font-medium text-[var(--ink-muted)]">
+                <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">
                     App Secret
                 </label>
                 <div className="relative">
@@ -77,11 +77,11 @@ export default function FeishuCredentialInput({
                         value={localAppSecret}
                         onChange={(e) => handleAppSecretChange(e.target.value)}
                         placeholder="xxxxxxxxxxxxxxxxxxxxxxxx"
-                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 pr-9 text-sm text-[var(--ink)] placeholder-[var(--ink-subtle)] outline-none transition-colors focus:border-[var(--button-primary-bg)]"
+                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 pr-9 text-sm text-[var(--ink)] placeholder-[var(--subtle)] outline-none transition-colors focus:border-[var(--primary)]"
                     />
                     <button
                         onClick={() => setShowSecret(!showSecret)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-[var(--muted)] hover:text-[var(--ink)]"
                     >
                         {showSecret ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     </button>
@@ -96,23 +96,23 @@ export default function FeishuCredentialInput({
                 </div>
             )}
             {verifyStatus === 'invalid' && (
-                <div className="text-xs text-[var(--error)]">
+                <div className="text-xs text-[var(--danger)]">
                     {t('agentSettings.imComponents.credentialsInvalid', { fields: 'App ID / App Secret' })}
                 </div>
             )}
 
             {/* Tutorial */}
             {showGuide && (
-                <div className="rounded-lg bg-[var(--paper-inset)] p-3">
+                <div className="rounded-lg bg-[var(--inset)] p-3">
                     <p className="text-xs font-medium text-[var(--ink)]">
                         {t('agentSettings.imComponents.feishuGuideTitle')}
                     </p>
-                    <ol className="mt-2 space-y-1.5 text-xs text-[var(--ink-muted)]">
+                    <ol className="mt-2 space-y-1.5 text-xs text-[var(--muted)]">
                         <li>1. {t('agentSettings.imComponents.feishuGuideStep1Prefix')}<a
                             href="https://open.feishu.cn/app"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="mx-0.5 inline-flex items-center gap-0.5 text-[var(--button-primary-bg)] hover:underline"
+                            className="mx-0.5 inline-flex items-center gap-0.5 text-[var(--primary)] hover:underline"
                         >
                             {t('agentSettings.imComponents.feishuOpenPlatform')}<ExternalLink className="inline h-2.5 w-2.5" />
                         </a>{t('agentSettings.imComponents.feishuGuideStep1Suffix')}</li>

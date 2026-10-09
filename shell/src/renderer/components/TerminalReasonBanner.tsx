@@ -35,9 +35,9 @@ const SEVERITY_STYLES: Record<TerminalReasonSeverity, {
   iconColor: string;
 }> = {
   error: {
-    bg: 'bg-[var(--error-bg)]',
+    bg: 'bg-[var(--danger-bg)]',
     icon: AlertCircle,
-    iconColor: 'text-[var(--error)]',
+    iconColor: 'text-[var(--danger)]',
   },
   notice: {
     bg: 'bg-[var(--warning-bg)]',
@@ -45,9 +45,9 @@ const SEVERITY_STYLES: Record<TerminalReasonSeverity, {
     iconColor: 'text-[var(--warning)]',
   },
   info: {
-    bg: 'bg-[var(--paper-inset)]',
+    bg: 'bg-[var(--inset)]',
     icon: Info,
-    iconColor: 'text-[var(--ink-muted)]',
+    iconColor: 'text-[var(--muted)]',
   },
 };
 
@@ -96,14 +96,14 @@ export default function TerminalReasonBanner({
         <Icon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${style.iconColor}`} />
         <div className="flex-1">
           <span className="font-semibold text-[var(--ink)]">{label}</span>
-          <span className="ml-2 text-[var(--ink-muted)]">{detail}</span>
+          <span className="ml-2 text-[var(--muted)]">{detail}</span>
         </div>
         <div className="flex flex-shrink-0 items-center gap-1.5">
           {diagnoseReason && onDiagnose && (
             <button
               type="button"
               onClick={() => onDiagnose(diagnoseReason)}
-              className="rounded p-0.5 text-[var(--ink-subtle)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--accent)]"
+              className="rounded p-0.5 text-[var(--subtle)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--primary)]"
               title={t('shell.diagnostics.askHelper')}
               aria-label={t('shell.diagnostics.askHelper')}
             >
@@ -123,7 +123,7 @@ export default function TerminalReasonBanner({
                 onNewSession!();
                 onDismiss();
               }}
-              className="rounded-md px-2 py-0.5 text-xs font-medium text-[var(--accent-warm)] transition-colors hover:bg-[var(--accent-warm-subtle)] disabled:cursor-wait disabled:opacity-60"
+              className="rounded-md px-2 py-0.5 text-xs font-medium text-[var(--primary)] transition-colors hover:bg-[var(--primary-soft)] disabled:cursor-wait disabled:opacity-60"
             >
               {t('shell.terminalReason.newSession')}
             </button>
@@ -131,7 +131,7 @@ export default function TerminalReasonBanner({
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded p-0.5 text-[var(--ink-subtle)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink-muted)]"
+            className="rounded p-0.5 text-[var(--subtle)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--muted)]"
             title={t('shell.common.close')}
           >
             <X className="h-3.5 w-3.5" />

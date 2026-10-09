@@ -50,10 +50,10 @@ export function NotificationConfigEditor({ value, onChange, workspacePath }: Pro
     <div className="space-y-3">
       {/* Desktop toggle row — bordered card, mirrors the dispatch-flow
           "settings switch" aesthetic. */}
-      <div className="flex items-center justify-between rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
+      <div className="flex items-center justify-between rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--bg)] px-4 py-3">
         <div className="min-w-0 pr-3">
           <div className="text-sm text-[var(--ink)]">{t('notifications.desktopTitle')}</div>
-          <div className="mt-0.5 text-xs text-[var(--ink-muted)]">
+          <div className="mt-0.5 text-xs text-[var(--muted)]">
             {t('notifications.desktopDescription')}
           </div>
         </div>
@@ -67,9 +67,9 @@ export function NotificationConfigEditor({ value, onChange, workspacePath }: Pro
       {/* IM channel — only render the picker when channels exist; otherwise
           a quiet hint so the user knows where to wire one up. */}
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-[var(--ink-secondary)]">
+        <label className="mb-1.5 block text-sm font-medium text-[var(--ink-2)]">
           {t('notifications.imBot')}
-          <span className="ml-1 text-xs font-normal text-[var(--ink-muted)]/80">
+          <span className="ml-1 text-xs font-normal text-[var(--muted)]/80">
             {t('notifications.optional')}
           </span>
         </label>
@@ -82,7 +82,7 @@ export function NotificationConfigEditor({ value, onChange, workspacePath }: Pro
             size="md"
           />
         ) : (
-          <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-xs text-[var(--ink-muted)]">
+          <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--muted)]">
             {t('notifications.noChannels')}
           </div>
         )}

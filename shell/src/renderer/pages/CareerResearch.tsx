@@ -78,7 +78,7 @@ function CompanyCard({ company }: { company: Company }) {
       title={name}
       extra={light ? <Badge tone={LIGHT_TONE[light] ?? 'neutral'}>{TRAFFIC_LIGHT_LABELS[light] ?? light}</Badge> : <Badge>未评级</Badge>}
     >
-      <div className="text-xs text-[var(--ink-muted)]">
+      <div className="text-xs text-[var(--muted)]">
         法定名：{company.legal_name ?? '未知'}{brands.length > 0 ? ` · 品牌：${brands.join(' / ')}` : ''} · 更新 {formatDate(company.updated_at)}
       </div>
       <button type="button" onClick={() => setOpen(v => !v)} className="mt-2 flex items-center gap-1 text-xs font-medium text-[var(--ink)]">
@@ -86,11 +86,11 @@ function CompanyCard({ company }: { company: Company }) {
         九段报告{reportEntries ? `（${reportEntries.length} 段）` : ''}
       </button>
       {open && (
-        <div className="mt-2 space-y-2 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] p-2 text-sm">
-          {!report && <div className="text-xs text-[var(--ink-subtle)]">暂无报告</div>}
+        <div className="mt-2 space-y-2 rounded-lg border border-[var(--line)] bg-[var(--inset)] p-2 text-sm">
+          {!report && <div className="text-xs text-[var(--subtle)]">暂无报告</div>}
           {reportEntries && reportEntries.map(([k, v]) => (
             <div key={k}>
-              <div className="text-xs font-semibold text-[var(--ink-muted)]">{REPORT_SECTION_LABELS[k] ?? k}</div>
+              <div className="text-xs font-semibold text-[var(--muted)]">{REPORT_SECTION_LABELS[k] ?? k}</div>
               <div className="mt-0.5"><StructuredJson value={v} /></div>
             </div>
           ))}
@@ -99,7 +99,7 @@ function CompanyCard({ company }: { company: Company }) {
       )}
       {checks.length > 0 && (
         <div className="mt-2">
-          <div className="text-xs font-medium text-[var(--ink-muted)]">人工核实清单</div>
+          <div className="text-xs font-medium text-[var(--muted)]">人工核实清单</div>
           <ul className="mt-1 space-y-1">
             {checks.map((item, i) => {
               const text = typeof item === 'string' ? item : item.item ?? item.text ?? JSON.stringify(item);
@@ -113,12 +113,12 @@ function CompanyCard({ company }: { company: Company }) {
                     onChange={() => setChecked(prev => { const n = new Set(prev); if (n.has(i)) n.delete(i); else n.add(i); return n; })}
                     className="mt-0.5"
                   />
-                  <span className={done ? 'text-[var(--ink-subtle)] line-through' : 'text-[var(--ink)]'}>{text}</span>
+                  <span className={done ? 'text-[var(--subtle)] line-through' : 'text-[var(--ink)]'}>{text}</span>
                 </li>
               );
             })}
           </ul>
-          <div className="mt-1 text-xs text-[var(--ink-subtle)]">勾选只记在本页，核实结果请在对话里告诉助理。</div>
+          <div className="mt-1 text-xs text-[var(--subtle)]">勾选只记在本页，核实结果请在对话里告诉助理。</div>
         </div>
       )}
     </Card>
@@ -152,11 +152,11 @@ function DirectionCard({ direction, onChanged }: { direction: Direction; onChang
   return (
     <Card title={direction.name} extra={<Badge tone={DIRECTION_TONE[direction.status] ?? 'neutral'}>{DIRECTION_STATUS_LABELS[direction.status] ?? direction.status}</Badge>}>
       <div className="space-y-1 text-sm">
-        <div><span className="text-xs text-[var(--ink-muted)]">理由：</span><StructuredJson value={reason ?? '未知'} /></div>
-        <div><span className="text-xs text-[var(--ink-muted)]">不确定性：</span><StructuredJson value={uncertainty ?? '未知'} /></div>
+        <div><span className="text-xs text-[var(--muted)]">理由：</span><StructuredJson value={reason ?? '未知'} /></div>
+        <div><span className="text-xs text-[var(--muted)]">不确定性：</span><StructuredJson value={uncertainty ?? '未知'} /></div>
         {rest && Object.keys(rest).length > 0 && <StructuredJson value={rest} />}
       </div>
-      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{action.error}</div>}
+      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
       <div className="mt-2 flex flex-wrap gap-1.5">
         {DIRECTION_STATUSES.filter(s => s !== direction.status).map(s => (
           <Button key={s} busy={action.busy} onClick={() => void setStatus(s)} variant={s === 'chosen' ? 'primary' : 'secondary'}>
@@ -183,17 +183,17 @@ function GapPlansSection({ plans, jobs, directions }: { plans: GapPlan[]; jobs: 
           const direction = plan.direction_id ? directions.find(d => d.id === plan.direction_id) : undefined;
           const target = job ? `${job.company_name ?? '未知公司'} · ${job.title}` : direction ? `方向：${direction.name}` : '未关联目标';
           return (
-            <Card key={plan.id} title={target} extra={<span className="text-xs text-[var(--ink-subtle)]">{formatDate(plan.created_at)}</span>}>
+            <Card key={plan.id} title={target} extra={<span className="text-xs text-[var(--subtle)]">{formatDate(plan.created_at)}</span>}>
               <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                 {(['have', 'need_evidence', 'missing'] as const).map(cat => {
                   const items = Array.isArray(gaps[cat]) ? gaps[cat] : [];
                   const tone: BadgeTone = cat === 'have' ? 'success' : cat === 'need_evidence' ? 'warning' : 'error';
                   return (
-                    <div key={cat} className="rounded-lg border border-[var(--line-subtle)] p-2">
+                    <div key={cat} className="rounded-lg border border-[var(--line)] p-2">
                       <Badge tone={tone}>{GAP_CATEGORY_LABELS[cat]}（{items.length}）</Badge>
                       <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-xs text-[var(--ink)]">
                         {items.map((it, i) => <li key={i}>{typeof it === 'string' ? it : JSON.stringify(it)}</li>)}
-                        {items.length === 0 && <li className="list-none text-[var(--ink-subtle)]">无</li>}
+                        {items.length === 0 && <li className="list-none text-[var(--subtle)]">无</li>}
                       </ul>
                     </div>
                   );
@@ -201,15 +201,15 @@ function GapPlansSection({ plans, jobs, directions }: { plans: GapPlan[]; jobs: 
               </div>
               {Array.isArray(tasks) && tasks.length > 0 && (
                 <table className="mt-3 w-full border-collapse text-xs">
-                  <thead className="text-left text-[var(--ink-muted)]">
+                  <thead className="text-left text-[var(--muted)]">
                     <tr><th className="py-1 pr-2 font-medium">任务</th><th className="py-1 pr-2 font-medium">验收标准</th><th className="py-1 pr-2 font-medium">期限</th><th className="py-1 font-medium">状态</th></tr>
                   </thead>
                   <tbody>
                     {tasks.map((t, i) => (
-                      <tr key={i} className="border-t border-[var(--line-subtle)] align-top">
+                      <tr key={i} className="border-t border-[var(--line)] align-top">
                         <td className="py-1 pr-2 text-[var(--ink)]">{typeof t === 'string' ? t : t.title ?? t.task ?? t.name ?? '—'}</td>
-                        <td className="py-1 pr-2 text-[var(--ink-muted)]">{typeof t === 'string' ? '—' : t.acceptance ?? t.criteria ?? '—'}</td>
-                        <td className="py-1 pr-2 text-[var(--ink-muted)]">{typeof t === 'string' ? '—' : formatDate(t.due ?? t.deadline, '—')}</td>
+                        <td className="py-1 pr-2 text-[var(--muted)]">{typeof t === 'string' ? '—' : t.acceptance ?? t.criteria ?? '—'}</td>
+                        <td className="py-1 pr-2 text-[var(--muted)]">{typeof t === 'string' ? '—' : formatDate(t.due ?? t.deadline, '—')}</td>
                         <td className="py-1">{typeof t !== 'string' && (t.done || t.status === 'done') ? <Badge tone="success">完成</Badge> : <Badge>待办</Badge>}</td>
                       </tr>
                     ))}

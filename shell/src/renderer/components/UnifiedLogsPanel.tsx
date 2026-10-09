@@ -25,8 +25,8 @@ interface UnifiedLogsPanelProps {
 const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
     info: 'text-[var(--ink)]',
     warn: 'text-[var(--warning)]',
-    error: 'text-[var(--error)]',
-    debug: 'text-[var(--ink-muted)]',
+    error: 'text-[var(--danger)]',
+    debug: 'text-[var(--muted)]',
 };
 
 const SOURCE_COLORS: Record<LogSource, string> = {
@@ -276,21 +276,21 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
     return createPortal(
         <OverlayBackdrop onClose={onClose} className="z-50">
             <div
-                className="flex h-[90vh] w-[95vw] max-w-6xl flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] shadow-2xl"
+                className="flex h-[90vh] w-[95vw] max-w-6xl flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-2xl"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-[var(--line)] px-6 py-3">
                     <div className="flex items-center gap-4">
                         <h2 className="text-lg font-semibold text-[var(--ink)]">Logs</h2>
-                        <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                        <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                             {filteredLogs.length} / {allLogs.length}
                         </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                         {/* Search bar */}
-                        <div className="flex items-center gap-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-[var(--ink-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <div className="flex items-center gap-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-[var(--muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                             </svg>
                             <input
@@ -306,20 +306,20 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                                     }
                                 }}
                                 placeholder={t('logsPanel.searchPlaceholder')}
-                                className="w-40 bg-transparent text-xs text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
+                                className="w-40 bg-transparent text-xs text-[var(--ink)] placeholder:text-[var(--subtle)] focus:outline-none"
                             />
                             {searchQuery && (
                                 <>
-                                    <span className="text-xs text-[var(--ink-muted)] tabular-nums">
+                                    <span className="text-xs text-[var(--muted)] tabular-nums">
                                         {matchIndices.length > 0 ? `${activeMatchIndex + 1}/${matchIndices.length}` : '0/0'}
                                     </span>
-                                    <button onClick={() => navigateMatch('prev')} className="rounded p-0.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]" title={t('logsPanel.previous')}>
+                                    <button onClick={() => navigateMatch('prev')} className="rounded p-0.5 text-[var(--muted)] hover:bg-[var(--inset)]" title={t('logsPanel.previous')}>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="18 15 12 9 6 15" /></svg>
                                     </button>
-                                    <button onClick={() => navigateMatch('next')} className="rounded p-0.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]" title={t('logsPanel.next')}>
+                                    <button onClick={() => navigateMatch('next')} className="rounded p-0.5 text-[var(--muted)] hover:bg-[var(--inset)]" title={t('logsPanel.next')}>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
                                     </button>
-                                    <button onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }} className="rounded p-0.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]" title={t('logsPanel.clearSearch')}>
+                                    <button onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }} className="rounded p-0.5 text-[var(--muted)] hover:bg-[var(--inset)]" title={t('logsPanel.clearSearch')}>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                                     </button>
                                 </>
@@ -331,7 +331,7 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                         {/* Download button */}
                         <button
                             onClick={handleDownload}
-                            className="rounded p-1.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                            className="rounded p-1.5 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                             title={t('logsPanel.export')}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -341,7 +341,7 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                         {/* Clear button */}
                         <button
                             onClick={handleClearAll}
-                            className="rounded p-1.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                            className="rounded p-1.5 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                             title={t('logsPanel.clear')}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -351,7 +351,7 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                         {/* Close button */}
                         <button
                             onClick={onClose}
-                            className="rounded-lg p-1.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                            className="rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                             aria-label={t('logsPanel.close')}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -365,15 +365,15 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                 <div className="flex flex-wrap items-center gap-4 border-b border-[var(--line)] px-6 py-2">
                     {/* 范围 (单选) */}
                     <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">{t('logsPanel.scope')}</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">{t('logsPanel.scope')}</span>
                         <div className="flex gap-0.5">
                             {SOURCE_FILTERS.map(({ value, label }) => (
                                 <button
                                     key={value}
                                     onClick={() => setFilter(value)}
                                     className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${filter === value
-                                        ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                                        : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:bg-[var(--line)]'
+                                        ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                                        : 'bg-[var(--inset)] text-[var(--muted)] hover:bg-[var(--line)]'
                                         }`}
                                 >
                                     {label}
@@ -386,15 +386,15 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
 
                     {/* 类型 (单选) */}
                     <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">{t('logsPanel.type')}</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">{t('logsPanel.type')}</span>
                         <div className="flex gap-0.5">
                             {LEVEL_FILTERS.map(({ value, label }) => (
                                 <button
                                     key={value}
                                     onClick={() => setLevelFilter(value)}
                                     className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${levelFilter === value
-                                        ? 'bg-[var(--button-dark-bg)] text-[var(--button-dark-text)]'
-                                        : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:bg-[var(--line)]'
+                                        ? 'bg-[var(--ink)] text-[var(--bg)]'
+                                        : 'bg-[var(--inset)] text-[var(--muted)] hover:bg-[var(--line)]'
                                         }`}
                                 >
                                     {label}
@@ -407,7 +407,7 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
 
                     {/* 隐藏 (多选) */}
                     <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">{t('logsPanel.hide')}</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">{t('logsPanel.hide')}</span>
                         <div className="flex gap-1">
                             {HIDE_FILTERS.map(({ value, label, labelKey }) => (
                                 <button
@@ -415,7 +415,7 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                                     onClick={() => toggleHideFilter(value)}
                                     className={`rounded px-2 py-0.5 text-xs font-medium transition-colors ${hideFilters.has(value)
                                         ? 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                                        : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:bg-[var(--line)]'
+                                        : 'bg-[var(--inset)] text-[var(--muted)] hover:bg-[var(--line)]'
                                         }`}
                                 >
                                     {labelKey ? t(labelKey) : label}
@@ -429,10 +429,10 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                 <div
                     ref={scrollRef}
                     onScroll={handleScroll}
-                    className="flex-1 overflow-y-auto bg-[var(--paper-elevated)] p-4 font-mono text-xs leading-relaxed"
+                    className="flex-1 overflow-y-auto bg-[var(--paper)] p-4 font-mono text-xs leading-relaxed"
                 >
                     {filteredLogs.length === 0 ? (
-                        <div className="flex h-full items-center justify-center text-[var(--ink-muted)]">
+                        <div className="flex h-full items-center justify-center text-[var(--muted)]">
                             {t('logsPanel.empty')}
                         </div>
                     ) : (
@@ -444,7 +444,7 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                                     <div
                                         key={`${log.timestamp}-${index}`}
                                         ref={el => { if (el && isMatch) matchRowRefs.current.set(index, el); }}
-                                        className={`flex gap-3 rounded px-2 py-1 hover:bg-[var(--paper-inset)] ${LOG_LEVEL_COLORS[log.level]} ${isActive ? 'ring-2 ring-[var(--accent)] bg-[var(--accent-warm-subtle)]' : isMatch ? 'bg-[var(--accent-warm-subtle)]/50' : ''}`}
+                                        className={`flex gap-3 rounded px-2 py-1 hover:bg-[var(--inset)] ${LOG_LEVEL_COLORS[log.level]} ${isActive ? 'ring-2 ring-[var(--primary)] bg-[var(--primary-soft)]' : isMatch ? 'bg-[var(--primary-soft)]/50' : ''}`}
                                     >
                                         {/* Source badge */}
                                         <span
@@ -453,7 +453,7 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                                             {SOURCE_LABELS[log.source]}
                                         </span>
                                         {/* Timestamp */}
-                                        <span className="flex-shrink-0 text-[var(--ink-muted)]">
+                                        <span className="flex-shrink-0 text-[var(--muted)]">
                                             {new Date(log.timestamp).toLocaleTimeString('en-US', {
                                                 hour12: false,
                                                 hour: '2-digit',
@@ -480,18 +480,18 @@ export function UnifiedLogsPanel({ sseLogs, isVisible, onClose, onClearAll }: Un
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between border-t border-[var(--line)] bg-[var(--paper-inset)] px-6 py-2 text-xs text-[var(--ink-muted)]">
+                <div className="flex items-center justify-between border-t border-[var(--line)] bg-[var(--inset)] px-6 py-2 text-xs text-[var(--muted)]">
                     <div className="flex gap-3">
                         <span className="text-blue-600 dark:text-blue-400">REACT: {logCounts.react}</span>
                         <span className="text-green-600 dark:text-green-400">NODE: {logCounts.bun}</span>
                         <span className="text-orange-600 dark:text-orange-400">RUST: {logCounts.rust}</span>
-                        <span className="text-[var(--ink-muted)]">{t('logsPanel.total', { count: allLogs.length })}</span>
+                        <span className="text-[var(--muted)]">{t('logsPanel.total', { count: allLogs.length })}</span>
                     </div>
                     <div>
                         <Trans
                             i18nKey="logsPanel.escToClose"
                             ns="app"
-                            components={{ key: <kbd className="rounded bg-[var(--paper-elevated)] px-1.5 py-0.5 font-mono text-xs" /> }}
+                            components={{ key: <kbd className="rounded bg-[var(--paper)] px-1.5 py-0.5 font-mono text-xs" /> }}
                         />
                     </div>
                 </div>

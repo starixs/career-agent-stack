@@ -39,8 +39,8 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
     ref,
 ) {
     const toneClass = tone === 'danger'
-        ? 'text-[var(--error)] hover:bg-[var(--error-bg)]'
-        : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]';
+        ? 'text-[var(--danger)] hover:bg-[var(--danger-bg)]'
+        : 'text-[var(--ink)] hover:bg-[var(--hover)]';
     return (
         <button
             ref={ref}
@@ -60,10 +60,10 @@ export const MenuItem = forwardRef<HTMLButtonElement, MenuItemProps>(function Me
             }}
             title={title}
             className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${toneClass} ${
-                active ? 'bg-[var(--paper-inset)]' : ''
+                active ? 'bg-[var(--inset)]' : ''
             }`}
         >
-            <span className={tone === 'danger' ? 'text-[var(--error)]' : 'text-[var(--ink-muted)]'}>{icon}</span>
+            <span className={tone === 'danger' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}>{icon}</span>
             <span className="min-w-0 flex-1 truncate">{label}</span>
             {trailing}
         </button>

@@ -87,8 +87,8 @@ function RawFilePatchResult({
 }) {
   const hasHiddenContent = hasSpilledContent || result.length > FILE_PATCH_MAX_CHARACTER_BUDGET;
   return (
-    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--paper-elevated)] shadow-[var(--shadow-xs)]">
-      <div className="flex items-center gap-2 border-b border-[var(--line-subtle)] px-3 py-2 text-xs font-medium text-[var(--ink-muted)]">
+    <section className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--paper)] shadow-[var(--shadow-xs)]">
+      <div className="flex items-center gap-2 border-b border-[var(--line)] px-3 py-2 text-xs font-medium text-[var(--muted)]">
         <Info className="size-3.5" aria-hidden="true" />
         {t('shell.toolChrome.filePatch.rawResult')}
         {hasHiddenContent && (
@@ -100,7 +100,7 @@ function RawFilePatchResult({
       <ExpandableResult
         content={hasHiddenContent ? result.slice(0, FILE_PATCH_MAX_CHARACTER_BUDGET) : result}
         fade="paper-elevated"
-        className="px-3 py-2.5 text-[var(--ink-secondary)]"
+        className="px-3 py-2.5 text-[var(--ink-2)]"
       />
     </section>
   );
@@ -152,7 +152,7 @@ function statusLabel(status: string, t: ChatTranslator): string {
 }
 
 function noticeToneClass(tone: 'error' | 'warning' | 'info'): string {
-  if (tone === 'error') return 'border-[var(--error)]/25 bg-[var(--error-bg)] text-[var(--error)]';
+  if (tone === 'error') return 'border-[var(--danger)]/25 bg-[var(--danger-bg)] text-[var(--danger)]';
   if (tone === 'warning') return 'border-[var(--warning)]/25 bg-[var(--warning-bg)] text-[var(--warning)]';
   return 'border-[var(--info)]/25 bg-[var(--info-bg)] text-[var(--info)]';
 }
@@ -184,9 +184,9 @@ function FilePatchSection({
     <section
       aria-labelledby={headingId}
       data-file-patch-path={change.path ?? ''}
-      className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--paper-elevated)] shadow-[var(--shadow-xs)]"
+      className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--paper)] shadow-[var(--shadow-xs)]"
     >
-      <header className="flex min-h-12 flex-wrap items-center gap-2.5 border-b border-[var(--line-subtle)] px-3 py-2 sm:flex-nowrap">
+      <header className="flex min-h-12 flex-wrap items-center gap-2.5 border-b border-[var(--line)] px-3 py-2 sm:flex-nowrap">
         <span className="flex size-7 shrink-0 items-center justify-center">
           <FileIcon name={path.fileName} size="regular" />
         </span>
@@ -203,7 +203,7 @@ function FilePatchSection({
             {movePath && (
               <>
                 <span className="sr-only">{t('shell.toolChrome.filePatch.moveTo', { path: movePath.fileName })}</span>
-                <ArrowRight className="size-3.5 shrink-0 text-[var(--ink-muted)]" aria-hidden="true" />
+                <ArrowRight className="size-3.5 shrink-0 text-[var(--muted)]" aria-hidden="true" />
                 <span className="truncate font-mono text-sm font-semibold text-[var(--ink)]" title={change.movePath}>
                   {movePath.fileName}
                 </span>
@@ -211,7 +211,7 @@ function FilePatchSection({
             )}
           </div>
           {(path.parent || movePath?.parent) && (
-            <p className="truncate font-mono text-xs text-[var(--ink-muted)]">
+            <p className="truncate font-mono text-xs text-[var(--muted)]">
               {path.parent}
               {movePath?.parent && movePath.parent !== path.parent ? ` → ${movePath.parent}` : ''}
             </p>
@@ -219,7 +219,7 @@ function FilePatchSection({
         </div>
 
         <div data-file-patch-actions="true" className="ml-9 flex w-[calc(100%-2.25rem)] min-w-0 items-center justify-end gap-2 sm:ml-0 sm:w-auto sm:shrink-0">
-          <span className="inline-flex shrink-0 rounded-full border border-[var(--line)] bg-[var(--paper)] px-2 py-0.5 text-xs font-medium text-[var(--ink-secondary)]">
+          <span className="inline-flex shrink-0 rounded-full border border-[var(--line)] bg-[var(--bg)] px-2 py-0.5 text-xs font-medium text-[var(--ink-2)]">
             {operationLabel(change.kind, t)}
           </span>
           <FileChangeStats change={change} t={t} />
@@ -228,7 +228,7 @@ function FilePatchSection({
       </header>
 
       {showsPreviousVersionNotice && (
-        <div className="flex items-center gap-1.5 border-b border-[var(--line-subtle)] bg-[var(--info-bg)] px-3 py-1.5 text-xs text-[var(--info)]">
+        <div className="flex items-center gap-1.5 border-b border-[var(--line)] bg-[var(--info-bg)] px-3 py-1.5 text-xs text-[var(--info)]">
           <Info className="size-3.5 shrink-0" aria-hidden="true" />
           {t('shell.toolChrome.filePatch.previousVersionUnavailable')}
         </div>
@@ -247,7 +247,7 @@ function FilePatchSection({
 function FileChangeStats({ change, t }: { change: FilePatchRenderChange; t: ChatTranslator }) {
   if (change.written !== undefined && change.added === 0 && change.removed === 0) {
     return (
-      <span className="shrink-0 font-mono text-xs text-[var(--ink-muted)]">
+      <span className="shrink-0 font-mono text-xs text-[var(--muted)]">
         {t('shell.toolChrome.labels.writeLines', { count: change.written })}
       </span>
     );
@@ -258,7 +258,7 @@ function FileChangeStats({ change, t }: { change: FilePatchRenderChange; t: Chat
   return (
     <span className="flex shrink-0 items-center gap-1.5 font-mono text-xs">
       <span className="text-[var(--success)]">+{change.added}</span>
-      <span className="text-[var(--error)]">−{change.removed}</span>
+      <span className="text-[var(--danger)]">−{change.removed}</span>
     </span>
   );
 }
@@ -285,7 +285,7 @@ function FilePatchViewport({
       background: 'transparent',
       textShadow: 'none',
       borderRadius: 0,
-      fontFamily: 'var(--font-code)',
+      fontFamily: 'var(--font-mono)',
       fontSize: 'var(--text-sm)',
       lineHeight: '1.5rem',
     },
@@ -295,7 +295,7 @@ function FilePatchViewport({
       minWidth: 'max-content',
       background: 'transparent',
       textShadow: 'none',
-      fontFamily: 'var(--font-code)',
+      fontFamily: 'var(--font-mono)',
       fontSize: 'var(--text-sm)',
       lineHeight: '1.5rem',
     },
@@ -307,7 +307,7 @@ function FilePatchViewport({
 
   if (change.rows.length === 0) {
     return (
-      <div className="flex min-h-16 items-center justify-center px-4 py-5 text-center text-sm text-[var(--ink-muted)]">
+      <div className="flex min-h-16 items-center justify-center px-4 py-5 text-center text-sm text-[var(--muted)]">
         {change.detailUnavailable
           ? t('shell.toolChrome.filePatch.detailUnavailable')
           : change.kind === 'write' && change.written === 0
@@ -356,10 +356,10 @@ function FilePatchViewport({
   );
 
   return (
-    <div className={`relative min-w-0 bg-[var(--paper)] ${shouldOfferShowAll ? 'min-h-24' : ''}`}>
+    <div className={`relative min-w-0 bg-[var(--bg)] ${shouldOfferShowAll ? 'min-h-24' : ''}`}>
       <div
         data-syntax-highlighted={shouldSyntaxHighlight ? 'true' : 'false'}
-        className={`${shouldOfferShowAll ? 'max-h-96 overflow-y-hidden' : ''} overflow-x-auto bg-[var(--paper)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus-border)]/25`}
+        className={`${shouldOfferShowAll ? 'max-h-96 overflow-y-hidden' : ''} overflow-x-auto bg-[var(--bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/25`}
         tabIndex={0}
         aria-label={t('shell.toolChrome.filePatch.diffAria', { file: fileName })}
         aria-describedby={shouldOfferShowAll ? expandId : isHardTruncated ? truncationId : undefined}
@@ -383,8 +383,8 @@ function FilePatchViewport({
       </div>
 
       {shouldOfferShowAll && (
-        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-end bg-gradient-to-t from-[var(--paper)] via-[var(--paper)]/90 to-[var(--paper-a0)] pb-2 pt-12">
-          <span id={expandId} className="mb-1 text-xs text-[var(--ink-muted)]">
+        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center justify-end bg-gradient-to-t from-[var(--bg)] via-[var(--bg)]/90 to-[var(--bg-a0)] pb-2 pt-12">
+          <span id={expandId} className="mb-1 text-xs text-[var(--muted)]">
             {t('shell.toolChrome.filePatch.remainingLines', { count: hiddenRowCount })}
           </span>
           <button
@@ -398,7 +398,7 @@ function FilePatchViewport({
               setIsExpanded(true);
               notifyRowLayoutChanged('expandable-container-expand');
             }}
-            className="rounded-full border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-1 text-xs font-medium text-[var(--ink-secondary)] shadow-[var(--shadow-xs)] transition-colors duration-150 hover:border-[var(--ink-subtle)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-border)]/30 motion-reduce:transition-none"
+            className="rounded-full border border-[var(--line)] bg-[var(--paper)] px-3 py-1 text-xs font-medium text-[var(--ink-2)] shadow-[var(--shadow-xs)] transition-colors duration-150 hover:border-[var(--subtle)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 motion-reduce:transition-none"
           >
             {t('shell.toolChrome.filePatch.showAll')}
           </button>
@@ -410,7 +410,7 @@ function FilePatchViewport({
           id={truncationId}
           role="status"
           data-file-patch-truncated="true"
-          className="border-t border-[var(--line-subtle)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]"
+          className="border-t border-[var(--line)] bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]"
         >
           {t('shell.toolChrome.filePatch.onlyFirstLines', { count: MAX_RENDER_ROWS_PER_FILE })}
         </div>
@@ -440,7 +440,7 @@ function DiffRowView({ row, code, t }: { row: DiffRow; code: ReactNode; t: ChatT
       <div
         data-diff-row="true"
         data-diff-kind="hunk"
-        className="min-w-full select-none border-y border-[var(--line-subtle)] bg-[var(--paper-elevated)] px-3 py-1 font-sans text-xs text-[var(--ink-muted)] first:border-t-0"
+        className="min-w-full select-none border-y border-[var(--line)] bg-[var(--paper)] px-3 py-1 font-sans text-xs text-[var(--muted)] first:border-t-0"
       >
         {label}
       </div>
@@ -451,7 +451,7 @@ function DiffRowView({ row, code, t }: { row: DiffRow; code: ReactNode; t: ChatT
       <div
         data-diff-row="true"
         data-diff-kind="omission"
-        className="min-w-full select-none border-y border-[var(--line-subtle)] bg-[var(--paper-elevated)] px-3 py-1 font-mono text-xs italic text-[var(--ink-muted)]"
+        className="min-w-full select-none border-y border-[var(--line)] bg-[var(--paper)] px-3 py-1 font-mono text-xs italic text-[var(--muted)]"
       >
         {row.text}
       </div>
@@ -471,13 +471,13 @@ function DiffRowView({ row, code, t }: { row: DiffRow; code: ReactNode; t: ChatT
       className={`grid min-w-full grid-cols-[3.25rem_3.25rem_1.75rem_minmax(12rem,1fr)] border-l-2 font-mono text-sm leading-6 ${diffRowTone(row.kind)}`}
     >
       {ariaLabel && <span className="sr-only select-none">{ariaLabel}</span>}
-      <span data-diff-column="old-line" className="select-none border-r border-[var(--line-subtle)] px-2 text-right text-xs leading-6 text-[var(--ink-muted)]" aria-hidden="true">
+      <span data-diff-column="old-line" className="select-none border-r border-[var(--line)] px-2 text-right text-xs leading-6 text-[var(--muted)]" aria-hidden="true">
         {row.oldLine ?? ''}
       </span>
-      <span data-diff-column="new-line" className="select-none border-r border-[var(--line-subtle)] px-2 text-right text-xs leading-6 text-[var(--ink-muted)]" aria-hidden="true">
+      <span data-diff-column="new-line" className="select-none border-r border-[var(--line)] px-2 text-right text-xs leading-6 text-[var(--muted)]" aria-hidden="true">
         {row.newLine ?? ''}
       </span>
-      <span data-diff-column="marker" className="select-none border-r border-[var(--line-subtle)] text-center font-semibold text-[var(--ink-secondary)]" aria-hidden="true">
+      <span data-diff-column="marker" className="select-none border-r border-[var(--line)] text-center font-semibold text-[var(--ink-2)]" aria-hidden="true">
         {row.marker}
       </span>
       <span data-diff-column="code" className="block min-w-max whitespace-pre px-3 text-[var(--ink)] select-text">
@@ -489,8 +489,8 @@ function DiffRowView({ row, code, t }: { row: DiffRow; code: ReactNode; t: ChatT
 
 function diffRowTone(kind: DiffRow['kind']): string {
   if (kind === 'add') return 'border-l-[var(--success)] bg-[var(--success-bg)]';
-  if (kind === 'remove') return 'border-l-[var(--error)] bg-[var(--error-bg)]';
-  return 'border-l-transparent bg-[var(--paper)]';
+  if (kind === 'remove') return 'border-l-[var(--danger)] bg-[var(--danger-bg)]';
+  return 'border-l-transparent bg-[var(--bg)]';
 }
 
 function operationLabel(kind: string, t: ChatTranslator): string {

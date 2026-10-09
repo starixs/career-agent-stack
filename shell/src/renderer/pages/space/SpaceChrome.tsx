@@ -71,13 +71,13 @@ export function SpaceLogin({
 }) {
   const { t } = useTranslation("app");
   return (
-    <div className="relative flex h-full items-center justify-center overflow-hidden bg-[var(--paper)] px-6">
+    <div className="relative flex h-full items-center justify-center overflow-hidden bg-[var(--bg)] px-6">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-40"
         style={PAPER_GRID_STYLE}
       />
-      <div className="relative z-10 w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-6 shadow-md">
+      <div className="relative z-10 w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--paper)] p-6 shadow-md">
         <div className="mb-6 flex items-center gap-3">
           <img
             src={keystoneWebLogo}
@@ -85,13 +85,13 @@ export function SpaceLogin({
             className="h-11 w-11 rounded-xl shadow-sm"
           />
           <div className="min-w-0">
-            <p className="text-xs font-medium text-[var(--accent-warm)]">
+            <p className="text-xs font-medium text-[var(--primary)]">
               {t("space.login.eyebrow")}
             </p>
             <h1 className="truncate text-xl font-semibold text-[var(--ink)]">
               {t("space.login.title")}
             </h1>
-            <p className="text-sm text-[var(--ink-muted)]">
+            <p className="text-sm text-[var(--muted)]">
               {reauthRequired
                 ? t("space.login.reauthDescription", { name: accountName })
                 : t("space.login.description")}
@@ -102,7 +102,7 @@ export function SpaceLogin({
           type="button"
           disabled={authBusy}
           onClick={onLogin}
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--button-primary-bg)] px-4 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-70"
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-70"
         >
           {authBusy ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -113,7 +113,7 @@ export function SpaceLogin({
             ? t("space.login.waiting")
             : t("space.login.continueWithGoogle")}
         </button>
-        <p className="mt-3 text-center text-xs text-[var(--ink-muted)]">
+        <p className="mt-3 text-center text-xs text-[var(--muted)]">
           {t("space.login.returnHint")}
         </p>
         {reauthRequired && onForgetAccount ? (
@@ -121,7 +121,7 @@ export function SpaceLogin({
             type="button"
             disabled={authBusy}
             onClick={onForgetAccount}
-            className="mt-3 flex h-9 w-full items-center justify-center rounded-lg text-sm text-[var(--ink-muted)] hover:bg-[var(--button-secondary-bg-hover)] hover:text-[var(--ink)] disabled:opacity-60"
+            className="mt-3 flex h-9 w-full items-center justify-center rounded-lg text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)] disabled:opacity-60"
           >
             {t("space.login.forgetAccount")}
           </button>
@@ -304,13 +304,13 @@ export function SpaceSidebar({
   };
 
   return (
-    <aside className="grid w-64 shrink-0 grid-rows-[minmax(0,1fr)_auto] gap-3.5 border-r border-[var(--line)] bg-[var(--paper)]/70 p-3.5">
+    <aside className="grid w-64 shrink-0 grid-rows-[minmax(0,1fr)_auto] gap-3.5 border-r border-[var(--line)] bg-[var(--bg)]/70 p-3.5">
       <div className="min-h-0 overflow-y-auto">
         <div className="mb-2 grid gap-1.5">
           <button
             type="button"
             onClick={onJoinSpace}
-            className="grid min-h-8 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+            className="grid min-h-8 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
           >
             <UserPlus className="h-3.5 w-3.5" />
             <span className="truncate">
@@ -320,7 +320,7 @@ export function SpaceSidebar({
           <button
             type="button"
             onClick={onCreateSpace}
-            className="grid min-h-8 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+            className="grid min-h-8 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
           >
             <Plus className="h-3.5 w-3.5" />
             <span className="truncate">
@@ -328,7 +328,7 @@ export function SpaceSidebar({
             </span>
           </button>
         </div>
-        <ul className="mb-2.5 grid gap-1 border-b border-[var(--line-subtle)] pb-2.5">
+        <ul className="mb-2.5 grid gap-1 border-b border-[var(--line)] pb-2.5">
           {spaces.map((space) => {
             const spaceId = space.id || space.slug;
             const selected =
@@ -348,7 +348,7 @@ export function SpaceSidebar({
                   <strong className="block truncate text-sm font-semibold text-[var(--ink)]">
                     {displaySpace.name}
                   </strong>
-                  <span className="mt-0.5 block truncate text-xs font-medium text-[var(--ink-muted)]">
+                  <span className="mt-0.5 block truncate text-xs font-medium text-[var(--muted)]">
                     {joinPolicyLabel(displaySpace.joinPolicy, t)}
                   </span>
                 </span>
@@ -366,16 +366,16 @@ export function SpaceSidebar({
                       current === spaceId ? null : spaceId,
                     )
                   }
-                  className={`grid min-h-10 w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors ${selected ? "hover:bg-[var(--paper-elevated)]/70" : "hover:bg-[var(--hover-bg)]"}`}
+                  className={`grid min-h-10 w-full grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors ${selected ? "hover:bg-[var(--paper)]/70" : "hover:bg-[var(--hover)]"}`}
                 >
                   {identity}
                   <ChevronDown
-                    className={`h-4 w-4 text-[var(--ink-muted)] transition-transform ${expanded ? "rotate-0" : "-rotate-90"}`}
+                    className={`h-4 w-4 text-[var(--muted)] transition-transform ${expanded ? "rotate-0" : "-rotate-90"}`}
                   />
                 </button>
                 {expanded ? (
                   <nav
-                    className="mt-1 grid gap-1 border-t border-[var(--line-subtle)] pt-2 pl-5"
+                    className="mt-1 grid gap-1 border-t border-[var(--line)] pt-2 pl-5"
                     aria-label={displaySpace.name}
                   >
                     {communityItems.map((item) => {
@@ -393,14 +393,14 @@ export function SpaceSidebar({
                             }
                             onSpaceSwitch(spaceId, item.mode);
                           }}
-                          className={`flex min-h-8 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold transition-colors ${itemSelected ? "bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]" : "text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"}`}
+                          className={`flex min-h-8 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-semibold transition-colors ${itemSelected ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"}`}
                         >
                           <Icon className="h-3.5 w-3.5 shrink-0" />
                           <span className="min-w-0 flex-1 truncate">
                             {item.label}
                           </span>
                           {"badge" in item && item.badge ? (
-                            <span className="rounded-full bg-[var(--accent-warm-subtle)] px-1.5 text-xs text-[var(--accent-warm)]">
+                            <span className="rounded-full bg-[var(--primary-soft)] px-1.5 text-xs text-[var(--primary)]">
                               {item.badge}
                             </span>
                           ) : null}
@@ -417,13 +417,13 @@ export function SpaceSidebar({
 
       <div
         ref={accountMenuRef}
-        className="relative border-t border-[var(--line-subtle)] pt-3"
+        className="relative border-t border-[var(--line)] pt-3"
       >
         <button
           type="button"
           onClick={toggleAccountMenu}
           aria-expanded={accountMenuOpen}
-          className="flex h-9 w-full items-center gap-2 rounded-xl border border-[var(--line-subtle)] bg-[var(--paper-elevated)]/60 px-2.5 text-left text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-elevated)] hover:text-[var(--ink)]"
+          className="flex h-9 w-full items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper)]/60 px-2.5 text-left text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
         >
           <SpaceAvatar
             name={displayName}
@@ -436,10 +436,10 @@ export function SpaceSidebar({
         </button>
         {accountMenuOpen ? (
           <div
-            className="absolute bottom-full left-0 z-20 mb-2 w-[280px] max-w-[calc(100vw-28px)] rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/95 p-2 shadow-md backdrop-blur-md"
+            className="absolute bottom-full left-0 z-20 mb-2 w-[280px] max-w-[calc(100vw-28px)] rounded-xl border border-[var(--line)] bg-[var(--paper)]/95 p-2 shadow-md backdrop-blur-md"
             style={{ animation: "overlayPanelIn 160ms ease-out" }}
           >
-            <div className="mb-1 border-b border-dashed border-[var(--line-subtle)] px-2 py-2.5">
+            <div className="mb-1 border-b border-dashed border-[var(--line)] px-2 py-2.5">
               <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2.5">
                 <SpaceAvatar
                   name={displayName}
@@ -451,18 +451,18 @@ export function SpaceSidebar({
                   <strong className="block truncate text-sm font-semibold leading-tight text-[var(--ink)]">
                     {displayName}
                   </strong>
-                  <span className="mt-0.5 block truncate text-xs font-medium leading-tight text-[var(--ink-muted)]">
+                  <span className="mt-0.5 block truncate text-xs font-medium leading-tight text-[var(--muted)]">
                     {session.user.email}
                   </span>
                 </span>
                 <span
-                  className={`rounded-md px-2 py-1 text-xs font-semibold tracking-wide ${activePro ? "bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]" : "bg-[var(--paper-inset)] text-[var(--ink-muted)]"}`}
+                  className={`rounded-md px-2 py-1 text-xs font-semibold tracking-wide ${activePro ? "bg-[var(--primary-soft)] text-[var(--primary)]" : "bg-[var(--inset)] text-[var(--muted)]"}`}
                 >
                   {activePro ? "PRO" : "FREE"}
                 </span>
               </div>
               <div
-                className={`mt-2.5 flex items-center gap-1.5 text-xs font-semibold ${activePro && daysRemaining !== null && daysRemaining <= 7 ? "text-[var(--warning)]" : "text-[var(--ink-muted)]"}`}
+                className={`mt-2.5 flex items-center gap-1.5 text-xs font-semibold ${activePro && daysRemaining !== null && daysRemaining <= 7 ? "text-[var(--warning)]" : "text-[var(--muted)]"}`}
               >
                 <span className="min-w-0 flex-1">{planDescription}</span>
                 {accountRefreshing ? (
@@ -476,7 +476,7 @@ export function SpaceSidebar({
                 setAccountMenuOpen(false);
                 onOpenProfileSettings();
               }}
-              className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
               <Settings className="h-3.5 w-3.5" />
               {t("space.sidebar.settings")}
@@ -487,7 +487,7 @@ export function SpaceSidebar({
                 setAccountMenuOpen(false);
                 onLogout();
               }}
-              className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
               <LogOut className="h-3.5 w-3.5" />
               {t("space.sidebar.logout")}

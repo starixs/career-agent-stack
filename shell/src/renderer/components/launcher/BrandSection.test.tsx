@@ -8,7 +8,7 @@ import { MANAGED_CODEX_PROVIDER, type Project } from '@/config/types';
 import { i18n } from '@/i18n';
 import { ThemeRegistry, ThemeRuntimeProvider } from '@/theme';
 import { syntheticTheme } from '@/theme/__tests__/syntheticTheme';
-import { keystoneDefaultTheme } from '@/theme/themes/keystone-default';
+import { careerTheme } from '@/theme/themes/career';
 
 import BrandSection from './BrandSection';
 
@@ -187,7 +187,7 @@ function renderBrandSection(
   );
   const view = render(
     <ThemeRuntimeProvider
-      registry={new ThemeRegistry([keystoneDefaultTheme, syntheticTheme])}
+      registry={new ThemeRegistry([careerTheme, syntheticTheme])}
       selection={{
         themeId: themeId ?? 'keystone-default',
         appearanceMode: 'light',

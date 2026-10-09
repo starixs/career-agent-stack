@@ -25,10 +25,10 @@ export default function QueuedMessagesPanel({ messages, onCancel, onForceExecute
   return (
     <div
       className="pointer-events-auto min-w-[120px] max-w-[33%] rounded-xl border border-[var(--line)] px-3 py-2 shadow-sm backdrop-blur-sm"
-      style={{ backgroundColor: 'color-mix(in srgb, var(--paper) 88%, transparent)' }}
+      style={{ backgroundColor: 'color-mix(in srgb, var(--bg) 88%, transparent)' }}
     >
       {/* Header */}
-      <div className="mb-1.5 flex items-center gap-1 text-xs text-[var(--ink-muted)]">
+      <div className="mb-1.5 flex items-center gap-1 text-xs text-[var(--muted)]">
         <Clock size={11} />
         <span>{t('shell.queue.title', { count: messages.length })}</span>
       </div>
@@ -50,7 +50,7 @@ export default function QueuedMessagesPanel({ messages, onCancel, onForceExecute
               {qm.images && qm.images.length > 0 && (
                 <div className="flex shrink-0 gap-0.5">
                   {qm.images.slice(0, 2).map((img) => (
-                    <div key={img.id} className="h-5 w-5 overflow-hidden rounded border border-[var(--ink-muted)]/20">
+                    <div key={img.id} className="h-5 w-5 overflow-hidden rounded border border-[var(--muted)]/20">
                       <img src={img.preview} alt={img.name} className="h-full w-full object-cover" />
                     </div>
                   ))}
@@ -66,7 +66,7 @@ export default function QueuedMessagesPanel({ messages, onCancel, onForceExecute
                     <button
                       onClick={() => onForceExecute(qm.queueId)}
                       title={t('shell.queue.sendNow')}
-                      className="rounded p-0.5 text-[var(--ink-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--ink)]"
+                      className="rounded p-0.5 text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--ink)]"
                     >
                       <Play size={12} />
                     </button>
@@ -75,7 +75,7 @@ export default function QueuedMessagesPanel({ messages, onCancel, onForceExecute
                     <button
                       onClick={() => onCancel(qm.queueId)}
                       title={qm.isInFlight ? t('shell.queue.recallSend') : t('shell.queue.cancelQueued')}
-                      className="rounded p-0.5 text-[var(--ink-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--ink)]"
+                      className="rounded p-0.5 text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--ink)]"
                     >
                       <X size={12} />
                     </button>

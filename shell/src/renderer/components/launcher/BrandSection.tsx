@@ -608,12 +608,12 @@ export default memo(function BrandSection({
   }, [providers, apiKeys, providerVerifyStatus]);
 
   const providerSettingsPrompt = !hasAnyProvider ? (
-    <p className="text-center text-sm text-[var(--ink-muted)]">
+    <p className="text-center text-sm text-[var(--muted)]">
       {t('brand.providerPrompt.prefix')}
       <button
         type="button"
         onClick={() => onGoToSettings?.()}
-        className="ml-1 rounded-md px-1 py-0.5 text-[var(--accent-warm)] transition-colors hover:bg-[var(--accent-warm-subtle)] hover:text-[var(--accent-warm-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-warm-muted)]"
+        className="ml-1 rounded-md px-1 py-0.5 text-[var(--primary)] transition-colors hover:bg-[var(--primary-soft)] hover:text-[var(--primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-muted)]"
       >
         {t('brand.providerPrompt.configure')}
       </button>

@@ -19,7 +19,7 @@ export default function AiConfigCard({
 }) {
     const { t } = useTranslation('settings');
     return (
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
             <h3 className="mb-4 text-sm font-semibold text-[var(--ink)]">
                 {t('agentSettings.imComponents.aiConfigTitle')}
             </h3>
@@ -29,7 +29,7 @@ export default function AiConfigCard({
                         <p className="text-sm font-medium text-[var(--ink)]">
                             {t('agentSettings.imComponents.provider')}
                         </p>
-                        <p className="text-xs text-[var(--ink-muted)]">
+                        <p className="text-xs text-[var(--muted)]">
                             {t('agentSettings.imComponents.providerDescription')}
                         </p>
                     </div>
@@ -46,7 +46,7 @@ export default function AiConfigCard({
                         <p className="text-sm font-medium text-[var(--ink)]">
                             {t('agentSettings.imComponents.model')}
                         </p>
-                        <p className="text-xs text-[var(--ink-muted)]">
+                        <p className="text-xs text-[var(--muted)]">
                             {t('agentSettings.imComponents.modelDescription')}
                         </p>
                     </div>

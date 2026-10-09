@@ -290,12 +290,12 @@ function SidebarNavButton({
       disabled={disabled}
       aria-current={active ? 'page' : undefined}
       aria-label={label}
-      className={`global-sidebar-row relative flex h-8 items-center text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+      className={`global-sidebar-row relative flex h-8 items-center text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
         expanded ? 'w-full' : 'w-10'
       } ${
         active
-          ? 'bg-[var(--paper-inset)] text-[var(--ink)]'
-          : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+          ? 'bg-[var(--inset)] text-[var(--ink)]'
+          : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
       } ${disabled ? 'cursor-not-allowed opacity-45' : ''}`}
       data-global-sidebar-nav-button
     >
@@ -369,7 +369,7 @@ function HistorySearchOverlayFallback({ onClose }: { onClose: () => void }) {
           type="button"
           onClick={onClose}
           aria-label={t('historyOverlay.exitSearch')}
-          className="rounded-md p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+          className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
         >
           <X className="h-4 w-4" />
         </button>
@@ -380,15 +380,15 @@ function HistorySearchOverlayFallback({ onClose }: { onClose: () => void }) {
           className="flex items-center gap-1"
           data-history-search-fallback-filters
         >
-          <span className="rounded-full bg-[var(--button-primary-bg)] px-2.5 py-1 text-xs font-medium text-[var(--button-primary-text)]">
+          <span className="rounded-full bg-[var(--primary)] px-2.5 py-1 text-xs font-medium text-[var(--on-primary)]">
             {t('historyOverlay.filters.all')}
           </span>
-          <span className="rounded-full px-2.5 py-1 text-xs font-medium text-[var(--ink-muted)]">
+          <span className="rounded-full px-2.5 py-1 text-xs font-medium text-[var(--muted)]">
             {t('historyOverlay.filters.favorite')}
           </span>
         </div>
         <div
-          className="flex h-full w-[30%] min-w-72 shrink-0 items-center justify-between gap-3 rounded-md border border-[var(--line)] bg-[var(--paper-elevated)] px-2.5 text-[var(--ink-muted)]/50"
+          className="flex h-full w-[30%] min-w-72 shrink-0 items-center justify-between gap-3 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2.5 text-[var(--muted)]/50"
           data-history-search-fallback-compact
         >
           <span className="truncate text-sm">{t('historyOverlay.searchPlaceholder')}</span>
@@ -396,7 +396,7 @@ function HistorySearchOverlayFallback({ onClose }: { onClose: () => void }) {
         </div>
       </div>
       <div aria-busy="true" className="flex min-h-0 flex-1 items-center justify-center">
-        <Loader2 className="h-4 w-4 animate-spin text-[var(--ink-muted)]/50" />
+        <Loader2 className="h-4 w-4 animate-spin text-[var(--muted)]/50" />
       </div>
     </>
   );
@@ -1087,7 +1087,7 @@ export default memo(function GlobalSidebar({
         data-global-sidebar-titlebar-follow={isWindows ? 'full' : 'toggle-slot'}
         data-global-sidebar-toggle-visible={forceRail ? 'false' : 'true'}
         data-global-sidebar-tabbar-toggle={!isWindows && !forceRail && !expanded ? 'true' : 'false'}
-        className={`global-sidebar relative z-40 flex h-screen shrink-0 flex-col [--global-sidebar-surface:var(--global-sidebar-bg)] text-[var(--ink)] ${
+        className={`global-sidebar relative z-40 flex h-screen shrink-0 flex-col [--global-sidebar-surface:var(--rail)] text-[var(--ink)] ${
           expanded ? 'w-[var(--global-sidebar-expanded-width)]' : 'w-[var(--global-sidebar-rail-width)]'
         }`}
       >
@@ -1102,7 +1102,7 @@ export default memo(function GlobalSidebar({
                 <button
                   type="button"
                   onClick={handleToggleMode}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                   aria-label={expanded ? t('globalSidebar.collapse') : t('globalSidebar.expand')}
                   data-global-sidebar-toggle
                   data-no-drag
@@ -1122,7 +1122,7 @@ export default memo(function GlobalSidebar({
             type="button"
             onClick={() => { void openExternal(KEYSTONE_WEBSITE_URL); }}
             aria-label={t('globalSidebar.openWebsite')}
-            className={`global-sidebar-brand-link flex h-8 items-center pr-1 text-left cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+            className={`global-sidebar-brand-link flex h-8 items-center pr-1 text-left cursor-pointer rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
               expanded ? 'min-w-0 max-w-[calc(var(--global-sidebar-expanded-width)-var(--global-sidebar-rail-button-left)-var(--space-2))]' : 'w-10 overflow-hidden'
             }`}
             data-global-sidebar-brand-link
@@ -1186,7 +1186,7 @@ export default memo(function GlobalSidebar({
                       onCreateTask();
                     }}
                     aria-label={t('globalSidebar.createTask')}
-                    className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--ink-muted)] opacity-0 transition-[opacity,color,background-color] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] group-hover/task-create:opacity-100 group-focus-within/task-create:opacity-100"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted)] opacity-0 transition-[opacity,color,background-color] hover:bg-[var(--inset)] hover:text-[var(--ink)] focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] group-hover/task-create:opacity-100 group-focus-within/task-create:opacity-100"
                   >
                     <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
                   </button>
@@ -1246,10 +1246,10 @@ export default memo(function GlobalSidebar({
                   onClick={openFlyoutNow}
                   aria-label={t('globalSidebar.workspaces')}
                   aria-expanded={flyoutOpen}
-                  className={`global-sidebar-row flex h-9 w-10 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                  className={`global-sidebar-row flex h-9 w-10 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
                     activeWorkspacePath
-                      ? 'bg-[var(--paper-inset)] text-[var(--ink)]'
-                      : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                      ? 'bg-[var(--inset)] text-[var(--ink)]'
+                      : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                   }`}
                 >
                   <FolderTree className="h-4 w-4" />
@@ -1262,7 +1262,7 @@ export default memo(function GlobalSidebar({
               aria-hidden="true"
               className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6"
               style={{
-                background: 'linear-gradient(to bottom, var(--global-sidebar-bg-a0), var(--global-sidebar-bg))',
+                background: 'linear-gradient(to bottom, var(--rail-a0), var(--rail))',
               }}
               data-global-sidebar-workspace-fade
             />
@@ -1283,12 +1283,12 @@ export default memo(function GlobalSidebar({
             aria-haspopup="dialog"
             aria-expanded={notificationOpen}
             aria-controls="global-notification-center"
-            className={`global-sidebar-row relative flex h-8 items-center text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+            className={`global-sidebar-row relative flex h-8 items-center text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
               expanded ? 'w-full' : 'w-10'
             } ${
               notificationOpen
-                ? 'bg-[var(--paper-inset)] text-[var(--ink)]'
-                : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                ? 'bg-[var(--inset)] text-[var(--ink)]'
+                : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
             }`}
             data-notification-center-trigger
           >
@@ -1296,7 +1296,7 @@ export default memo(function GlobalSidebar({
               <Bell className="h-4 w-4" />
               {notificationCenter.snapshot.hasUnread && (
                 <span
-                  className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-[var(--accent-warm)] ring-2 ring-[var(--global-sidebar-bg)]"
+                  className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-[var(--primary)] ring-2 ring-[var(--rail)]"
                   aria-hidden="true"
                 />
               )}
@@ -1340,7 +1340,7 @@ export default memo(function GlobalSidebar({
       {showWorkspaceTree && !expanded && flyoutOpen && (
         <div
           ref={flyoutRef}
-          className={`fixed bottom-28 left-[calc(var(--global-sidebar-rail-width)+var(--space-2))] top-32 z-[240] w-[var(--global-sidebar-flyout-width)] [--global-sidebar-surface:var(--paper-elevated)] ${APP_SHELL_POPOVER_CHROME}`}
+          className={`fixed bottom-28 left-[calc(var(--global-sidebar-rail-width)+var(--space-2))] top-32 z-[240] w-[var(--global-sidebar-flyout-width)] [--global-sidebar-surface:var(--paper)] ${APP_SHELL_POPOVER_CHROME}`}
           data-global-sidebar-flyout
           onPointerEnter={handleFlyoutPointerEnter}
           onPointerLeave={handleFlyoutPointerLeave}
@@ -1597,7 +1597,7 @@ function WorkspaceSessionBranch({
         }`}
       >
         {rendered && (
-          <div className="ml-2.5 border-l border-[var(--line-subtle)] pl-1">
+          <div className="ml-2.5 border-l border-[var(--line)] pl-1">
             {children}
           </div>
         )}
@@ -1704,7 +1704,7 @@ function WorkspaceTree({
   return (
     <section className="relative flex h-full min-h-0 flex-col" aria-label={t('globalSidebar.workspaces')}>
       <div className="flex h-8 shrink-0 items-center gap-1 px-3">
-        <h2 className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
+        <h2 className="min-w-0 flex-1 truncate text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
           {t('globalSidebar.workspaceSection')}
         </h2>
         <Tip label={tLauncher('workspaceCard.more')} position="bottom" align="end" disabled={viewMenuOpen}>
@@ -1712,7 +1712,7 @@ function WorkspaceTree({
             ref={viewMenuRef}
             type="button"
             onClick={() => setViewMenu(!viewMenuOpen)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             aria-label={t('globalSidebar.workspaceViewOptions')}
           >
             <MoreHorizontal className="h-4 w-4" />
@@ -1757,7 +1757,7 @@ function WorkspaceTree({
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-8 z-10 h-2"
         style={{
-          background: 'linear-gradient(to bottom, var(--global-sidebar-bg), var(--global-sidebar-bg-a0))',
+          background: 'linear-gradient(to bottom, var(--rail), var(--rail-a0))',
         }}
         data-global-sidebar-workspace-fade-top
       />
@@ -1770,7 +1770,7 @@ function WorkspaceTree({
         {projectsLoading ? (
           <div className="space-y-2 px-1 py-2" aria-label={t('common.loading')}>
             {[0, 1, 2].map((item) => (
-              <div key={item} className="h-9 animate-pulse rounded-lg bg-[var(--paper-inset)]/70 motion-reduce:animate-none" />
+              <div key={item} className="h-9 animate-pulse rounded-lg bg-[var(--inset)]/70 motion-reduce:animate-none" />
             ))}
           </div>
         ) : projectsError ? (
@@ -1781,7 +1781,7 @@ function WorkspaceTree({
               <button
                 type="button"
                 onClick={onRetryProjects}
-                className="rounded-md p-1 hover:bg-[var(--paper-inset)]"
+                className="rounded-md p-1 hover:bg-[var(--inset)]"
                 aria-label={tLauncher('rightRail.retry')}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
@@ -1791,11 +1791,11 @@ function WorkspaceTree({
         ) : projects.length === 0 && archivedProjects.length === 0 ? (
           <div className="px-3 py-8 text-center">
             <p className="text-sm font-medium text-[var(--ink)]">{tLauncher('rightRail.emptyWorkspaceTitle')}</p>
-            <p className="mt-1 text-xs text-[var(--ink-muted)]">{tLauncher('rightRail.emptyWorkspaceDescription')}</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">{tLauncher('rightRail.emptyWorkspaceDescription')}</p>
             <button
               type="button"
               onClick={onAddFolder}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 py-2 text-sm font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
             >
               <Plus className="h-3.5 w-3.5" />
               {tLauncher('rightRail.addFolder')}
@@ -1848,7 +1848,7 @@ function WorkspaceTree({
                                 <button
                                   type="button"
                                   onClick={() => ensureWorkspaceSessions([project.path], true)}
-                                  className="rounded-md p-1 hover:bg-[var(--paper-inset)]"
+                                  className="rounded-md p-1 hover:bg-[var(--inset)]"
                                   aria-label={tLauncher('rightRail.retry')}
                                 >
                                   <RefreshCw className="h-3.5 w-3.5" />
@@ -1857,7 +1857,7 @@ function WorkspaceTree({
                             </div>
                           )}
                           {sessions.length === 0 && !workspaceSessionState?.error ? (
-                            <p className="px-3 py-2 text-xs text-[var(--ink-muted)]/70">
+                            <p className="px-3 py-2 text-xs text-[var(--muted)]/70">
                               {sessionView === 'favorites'
                                 ? tLauncher('rightRail.emptyFavorites')
                                 : t('globalSidebar.emptyWorkspaceSessions')}
@@ -1889,7 +1889,7 @@ function WorkspaceTree({
                             <button
                               type="button"
                               onClick={() => onLoadMore(project, sessions.length)}
-                              className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-xs font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                              className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                             >
                               <ChevronDown className="h-3.5 w-3.5" />
                               {t('globalSidebar.loadMore')}
@@ -1908,15 +1908,15 @@ function WorkspaceTree({
                   type="button"
                   onClick={onToggleArchived}
                   aria-expanded={archivedExpanded}
-                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                  className="flex h-9 w-full items-center gap-2 rounded-lg px-3 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                 >
                   <ChevronRight className={`h-4 w-4 transition-transform ${archivedExpanded ? 'rotate-90' : ''}`} />
                   <Archive className="h-4 w-4" />
                   <span className="min-w-0 flex-1 truncate text-left">{t('globalSidebar.archived')}</span>
-                  <span className="text-xs tabular-nums text-[var(--ink-subtle)]">{archivedProjects.length}</span>
+                  <span className="text-xs tabular-nums text-[var(--subtle)]">{archivedProjects.length}</span>
                 </button>
                 {archivedExpanded && (
-                  <div className="ml-5 border-l border-[var(--line-subtle)] pl-2">
+                  <div className="ml-5 border-l border-[var(--line)] pl-2">
                     {archivedProjects.map((project) => (
                       <ArchivedWorkspaceRow
                         key={project.id}
@@ -2002,9 +2002,9 @@ function WorkspaceRow({
       <button
         type="button"
         onClick={onToggle}
-        className="flex h-full min-w-0 flex-1 items-center gap-1 pl-1 pr-2 text-left text-sm text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
+        className="flex h-full min-w-0 flex-1 items-center gap-1 pl-1 pr-2 text-left text-sm text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]"
       >
-        <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)] transition-transform duration-200 ease-out motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`} />
+        <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-[var(--muted)] transition-transform duration-200 ease-out motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`} />
         <WorkspaceIcon icon={project.icon} size={16} />
         <span
           className="ml-1 min-w-0 flex-1 truncate font-medium"
@@ -2027,7 +2027,7 @@ function WorkspaceRow({
             ref={menuRef}
             type="button"
             onClick={() => setMenu(!menuOpen)}
-            className={`flex h-8 w-8 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] ${menuOpen ? 'pointer-events-auto' : 'pointer-events-none group-hover/workspace:pointer-events-auto group-focus-within/workspace:pointer-events-auto'}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] ${menuOpen ? 'pointer-events-auto' : 'pointer-events-none group-hover/workspace:pointer-events-auto group-focus-within/workspace:pointer-events-auto'}`}
             aria-label={tLauncher('workspaceCard.more')}
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
@@ -2037,7 +2037,7 @@ function WorkspaceRow({
           <button
             type="button"
             onClick={onOpenWorkspace}
-            className={`flex h-8 w-8 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] ${menuOpen ? 'pointer-events-auto' : 'pointer-events-none group-hover/workspace:pointer-events-auto group-focus-within/workspace:pointer-events-auto'}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] ${menuOpen ? 'pointer-events-auto' : 'pointer-events-none group-hover/workspace:pointer-events-auto group-focus-within/workspace:pointer-events-auto'}`}
             aria-label={t('globalSidebar.newChatHere')}
           >
             <MessageSquarePlus className="h-3.5 w-3.5" />
@@ -2125,7 +2125,7 @@ function SessionRow({
       role="treeitem"
       aria-current={active ? 'page' : undefined}
       className={`global-sidebar-row global-sidebar-resource-row group/session relative flex h-9 select-none items-center pl-2 pr-1 transition-colors ${
-        active ? 'text-[var(--ink)]' : 'text-[var(--ink-secondary)]'
+        active ? 'text-[var(--ink)]' : 'text-[var(--ink-2)]'
       }`}
       data-menu-open={menuOpen || undefined}
       data-global-sidebar-session-row
@@ -2143,7 +2143,7 @@ function SessionRow({
       <button
         type="button"
         onClick={onOpen}
-        className="flex h-full w-full min-w-0 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent)]"
+        className="flex h-full w-full min-w-0 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]"
       >
         <TabActivityIndicator
           isGenerating={tab?.view === 'chat' ? tab.isGenerating : undefined}
@@ -2157,12 +2157,12 @@ function SessionRow({
           className="min-w-0 flex-1 truncate text-sm"
           data-global-sidebar-session-title
         />
-        {session.favorite && <Star className="h-3 w-3 shrink-0 text-[var(--accent)]" fill="currentColor" />}
+        {session.favorite && <Star className="h-3 w-3 shrink-0 text-[var(--primary)]" fill="currentColor" />}
         {session.pinnedAt && (
           <Pin
             role="img"
             aria-label={tLauncher('rightRail.pinned')}
-            className="h-3 w-3 shrink-0 text-[var(--ink-muted)]"
+            className="h-3 w-3 shrink-0 text-[var(--muted)]"
             data-global-sidebar-session-pinned
           />
         )}
@@ -2172,7 +2172,7 @@ function SessionRow({
           label={tLauncher('rightRail.unreadNotifications', { count: unreadNotificationCount })}
         />
         <span
-          className={`ml-auto shrink-0 text-xs tabular-nums text-[var(--ink-muted)] transition-opacity ${
+          className={`ml-auto shrink-0 text-xs tabular-nums text-[var(--muted)] transition-opacity ${
             menuOpen ? 'opacity-0' : 'group-hover/session:opacity-0 group-focus-within/session:opacity-0'
           }`}
           data-global-sidebar-session-date
@@ -2193,7 +2193,7 @@ function SessionRow({
             ref={menuRef}
             type="button"
             onClick={() => setMenu(!menuOpen)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             aria-label={tLauncher('rightRail.more')}
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
@@ -2242,7 +2242,7 @@ function ArchivedWorkspaceRow({ project, onUnarchive, onAgentSettings, onOpenFol
   }, [onMenuOpenChange]);
   useNestedInteractionCleanup(onMenuOpenChange);
   return (
-    <div className="group/archive flex h-9 items-center gap-2 rounded-lg px-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]">
+    <div className="group/archive flex h-9 items-center gap-2 rounded-lg px-2 text-sm text-[var(--muted)] hover:bg-[var(--hover)]">
       <WorkspaceIcon icon={project.icon} size={16} />
       <span className="min-w-0 flex-1 truncate">{project.displayName || project.name}</span>
       <Tip label={tLauncher('workspaceCard.more')} align="end" disabled={menuOpen}>
@@ -2250,7 +2250,7 @@ function ArchivedWorkspaceRow({ project, onUnarchive, onAgentSettings, onOpenFol
           ref={menuRef}
           type="button"
           onClick={() => setMenu(!menuOpen)}
-          className={`flex h-7 w-7 items-center justify-center rounded-md hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] ${menuOpen ? '' : 'opacity-0 group-hover/archive:opacity-100 group-focus-within/archive:opacity-100'}`}
+          className={`flex h-7 w-7 items-center justify-center rounded-md hover:bg-[var(--inset)] hover:text-[var(--ink)] ${menuOpen ? '' : 'opacity-0 group-hover/archive:opacity-100 group-focus-within/archive:opacity-100'}`}
           aria-label={tLauncher('workspaceCard.more')}
         >
           <MoreHorizontal className="h-3.5 w-3.5" />

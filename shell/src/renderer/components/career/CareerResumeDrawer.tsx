@@ -54,9 +54,9 @@ export function CareerResumeDrawer() {
       data-testid="career-resume-drawer"
       data-fullscreen={fullscreen ? 'true' : 'false'}
       aria-label="简历在线编辑"
-      className={`fixed z-40 flex flex-col bg-[var(--paper)] shadow-2xl ${fullscreen ? 'inset-0' : 'inset-y-0 right-0 w-[min(640px,94vw)] border-l border-[var(--line)]'}`}
+      className={`fixed z-40 flex flex-col bg-[var(--bg)] shadow-2xl ${fullscreen ? 'inset-0' : 'inset-y-0 right-0 w-[min(640px,94vw)] border-l border-[var(--line)]'}`}
     >
-      <div className="flex items-center gap-2 border-b border-[var(--line-subtle)] px-3 py-2 text-xs text-[var(--ink-muted)]">
+      <div className="flex items-center gap-2 border-b border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)]">
         <FileText className="h-3.5 w-3.5" />
         <span className="text-sm font-medium text-[var(--ink)]">简历在线编辑</span>
         <span className="ml-auto">自动保存，助理会读到最新内容</span>

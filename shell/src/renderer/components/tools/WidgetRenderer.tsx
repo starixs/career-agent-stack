@@ -300,8 +300,8 @@ export default function WidgetRenderer({ widgetCode, isStreaming, title }: Widge
       {/* Skeleton: shown until iframe renders visible content */}
       {showSkeleton && (
         <div className="space-y-2.5 py-1">
-          <div className="h-3 w-3/4 animate-[shimmer-slide_2s_ease-in-out_infinite] rounded bg-gradient-to-r from-[var(--paper-inset)] via-[var(--paper)] to-[var(--paper-inset)] bg-[length:200%_100%]" />
-          <div className="h-3 w-1/2 animate-[shimmer-slide_2s_ease-in-out_infinite_0.2s] rounded bg-gradient-to-r from-[var(--paper-inset)] via-[var(--paper)] to-[var(--paper-inset)] bg-[length:200%_100%]" />
+          <div className="h-3 w-3/4 animate-[shimmer-slide_2s_ease-in-out_infinite] rounded bg-gradient-to-r from-[var(--inset)] via-[var(--bg)] to-[var(--inset)] bg-[length:200%_100%]" />
+          <div className="h-3 w-1/2 animate-[shimmer-slide_2s_ease-in-out_infinite_0.2s] rounded bg-gradient-to-r from-[var(--inset)] via-[var(--bg)] to-[var(--inset)] bg-[length:200%_100%]" />
         </div>
       )}
     </div>

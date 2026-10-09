@@ -16,15 +16,15 @@ const TAG_STYLES = {
     },
     /** Cron/scheduled tasks — warm brown */
     cron: {
-        dot: 'bg-[var(--accent-warm)]',
-        text: 'text-[var(--accent-warm)]',
-        bg: 'bg-[var(--accent-warm-subtle)]',
+        dot: 'bg-[var(--primary)]',
+        text: 'text-[var(--primary)]',
+        bg: 'bg-[var(--primary-soft)]',
     },
     /** Background completions — muted blue */
     background: {
-        dot: 'bg-[var(--accent)]',
-        text: 'text-[var(--accent)]',
-        bg: 'bg-[color-mix(in_srgb,var(--accent)_8%,transparent)]',
+        dot: 'bg-[var(--primary)]',
+        text: 'text-[var(--primary)]',
+        bg: 'bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]',
     },
     /** Floating ball desktop channel — info blue（区别于 IM 绿 / 定时棕） */
     floatingBall: {

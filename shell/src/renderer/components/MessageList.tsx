@@ -165,7 +165,7 @@ const StatusTimer = memo(function StatusTimer({ message, getElapsedSeconds }: { 
   return (
     <div
       data-chat-status-row=""
-      className="flex items-center gap-2 overflow-hidden px-3 py-1.5 text-xs text-[var(--ink-muted)]"
+      className="flex items-center gap-2 overflow-hidden px-3 py-1.5 text-xs text-[var(--muted)]"
       style={{ height: STATUS_ROW_HEIGHT_PX }}
       title={displayText}
     >
@@ -191,14 +191,14 @@ const SystemNoticeRow = memo(function SystemNoticeRow({
   const isError = notice.level === 'error';
   const Icon = isError ? AlertCircle : CheckCircle;
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--ink-muted)]">
-      <Icon className={`h-3 w-3 flex-shrink-0 ${isError ? 'text-[var(--error)]' : 'text-[var(--success)]'}`} />
+    <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--muted)]">
+      <Icon className={`h-3 w-3 flex-shrink-0 ${isError ? 'text-[var(--danger)]' : 'text-[var(--success)]'}`} />
       <span className="flex-1">{notice.message}</span>
       {onDismiss && (
         <button
           type="button"
           onClick={onDismiss}
-          className="rounded p-0.5 text-[var(--ink-subtle)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink-muted)]"
+          className="rounded p-0.5 text-[var(--subtle)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--muted)]"
           title={t('shell.common.close')}
         >
           <X className="h-3 w-3" />

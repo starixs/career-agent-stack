@@ -92,13 +92,13 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
               <Card>
                 <div className="flex flex-col items-center gap-2 py-6 text-center">
                   <div className="text-sm text-[var(--ink)]">今天没有必须做的事。</div>
-                  <div className="text-xs text-[var(--ink-subtle)]">等待中的投递不需要你盯着；有新动静会自动出现在这里。</div>
+                  <div className="text-xs text-[var(--subtle)]">等待中的投递不需要你盯着；有新动静会自动出现在这里。</div>
                   <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'today' }} variant="secondary" />
                 </div>
               </Card>
             )}
             {topThree.length === 0 && !checklistDone && (
-              <div className="text-xs text-[var(--ink-subtle)]">先完成上面的起步步骤，之后每天这里最多只放三件事。</div>
+              <div className="text-xs text-[var(--subtle)]">先完成上面的起步步骤，之后每天这里最多只放三件事。</div>
             )}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               {topThree.map(item => (
@@ -126,16 +126,16 @@ function ChecklistCard({ steps }: { steps: ChecklistStep[] }) {
           起步：五步跑通第一条投递
         </button>
       )}
-      extra={<span className="text-xs text-[var(--ink-muted)]">{`已完成 ${doneCount} / ${steps.length}`}</span>}
+      extra={<span className="text-xs text-[var(--muted)]">{`已完成 ${doneCount} / ${steps.length}`}</span>}
     >
       {open && (
         <ol className="space-y-2">
           {steps.map((step, idx) => (
             <li key={step.key} className="flex flex-wrap items-center gap-2 text-sm">
-              <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs ${step.done ? 'border-[var(--success)]/30 bg-[var(--success-bg)] text-[var(--success)]' : 'border-[var(--line)] text-[var(--ink-muted)]'}`}>
+              <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs ${step.done ? 'border-[var(--success)]/30 bg-[var(--success-bg)] text-[var(--success)]' : 'border-[var(--line)] text-[var(--muted)]'}`}>
                 {step.done ? '✓' : idx + 1}
               </span>
-              <span className={step.done ? 'text-[var(--ink-subtle)] line-through' : 'text-[var(--ink)]'}>{step.label}</span>
+              <span className={step.done ? 'text-[var(--subtle)] line-through' : 'text-[var(--ink)]'}>{step.label}</span>
               {!step.done && step.chat && <ChatActionButton text={step.chat} context={{ surface: 'today', note: `起步步骤：${step.label}` }} variant="secondary" />}
               {!step.done && step.focus && (
                 <Button variant="secondary" onClick={() => emitEvent('career:focus', { surface: step.focus ?? 'inbox' } satisfies CareerFocusEvent)}>去收件箱绑定</Button>
@@ -154,7 +154,7 @@ function RestList({ items, actionById, onChanged, onSnooze, onOpenChat }: {
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-3">
-      <button type="button" onClick={() => setOpen(o => !o)} className="inline-flex items-center gap-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]">
+      <button type="button" onClick={() => setOpen(o => !o)} className="inline-flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--ink)]">
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         其他待办 ({items.length})
       </button>
@@ -183,22 +183,22 @@ function TodayItemCard({ item, action, prominent = false, onChanged, onSnooze, o
   const isSendMail = action?.kind === 'send_mail';
 
   return (
-    <Card className={prominent ? 'border-[var(--accent)]/40' : ''}>
+    <Card className={prominent ? 'border-[var(--primary)]/40' : ''}>
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge tone={KIND_TONES[item.kind] ?? 'neutral'}>{KIND_LABELS[item.kind] ?? item.kind}</Badge>
         {action && <Badge tone="neutral">{ACTION_KIND_LABELS[action.kind] ?? action.kind}</Badge>}
-        {due && <span className={`text-xs ${due === '已过期' ? 'text-[var(--error)]' : 'text-[var(--ink-muted)]'}`}>{due}</span>}
+        {due && <span className={`text-xs ${due === '已过期' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`}>{due}</span>}
       </div>
       <div className={`mt-1 break-words font-medium text-[var(--ink)] ${prominent ? 'text-sm' : 'text-xs'}`}>{item.title}</div>
-      {item.detail && <div className="mt-0.5 break-words text-xs text-[var(--ink-muted)]">{item.detail}</div>}
+      {item.detail && <div className="mt-0.5 break-words text-xs text-[var(--muted)]">{item.detail}</div>}
       {isSendMail && (typeof payload.subject === 'string' || typeof payload.to === 'string') && (
-        <div className="mt-1 rounded-md bg-[var(--paper-inset)] px-2 py-1 text-xs text-[var(--ink-muted)]">
+        <div className="mt-1 rounded-md bg-[var(--inset)] px-2 py-1 text-xs text-[var(--muted)]">
           {typeof payload.to === 'string' && <div>收件人：{payload.to}</div>}
           {typeof payload.subject === 'string' && <div>主题：{payload.subject}</div>}
         </div>
       )}
       {item.kind === 'stale' && (
-        <div className="mt-0.5 text-xs text-[var(--ink-subtle)]">超过静默阈值仍无回音；关闭这条线不会删除记录，之后对方来信会自动重新打开。</div>
+        <div className="mt-0.5 text-xs text-[var(--subtle)]">超过静默阈值仍无回音；关闭这条线不会删除记录，之后对方来信会自动重新打开。</div>
       )}
       {act.error && <ErrorRow message={act.error} />}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -242,12 +242,12 @@ function WaitingRow({ waiting }: { waiting: { count: number; by_stage: Array<{ s
     <section>
       <SectionTitle>等待中（{waiting.count}）</SectionTitle>
       <div className="flex flex-wrap items-center gap-1.5">
-        {waiting.by_stage.length === 0 && <span className="text-xs text-[var(--ink-subtle)]">暂时没有在等回音的投递。</span>}
+        {waiting.by_stage.length === 0 && <span className="text-xs text-[var(--subtle)]">暂时没有在等回音的投递。</span>}
         {waiting.by_stage.map(s => (
           <Badge key={s.stage} tone="neutral">{STAGE_LABELS[s.stage as ApplicationStage] ?? s.stage} {s.n}</Badge>
         ))}
       </div>
-      <div className="mt-1.5 text-xs text-[var(--ink-subtle)]">等待不需要你做任何事；超过阈值会自动出现在上面，你不用天天刷邮箱。</div>
+      <div className="mt-1.5 text-xs text-[var(--subtle)]">等待不需要你做任何事；超过阈值会自动出现在上面，你不用天天刷邮箱。</div>
     </section>
   );
 }

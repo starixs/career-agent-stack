@@ -47,7 +47,7 @@ html.fb-transparent #root {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  --core-c: var(--ink-subtle);
+  --core-c: var(--subtle);
   --glow: transparent;
   background:
     radial-gradient(circle at 32% 26%, var(--fb-highlight), var(--fb-highlight-mid) 44%, var(--fb-highlight-faint) 62%),
@@ -106,7 +106,7 @@ html.fb-transparent #root {
   50% { transform: scale(1.28); }
 }
 
-.fbw-ball.state-running { --core-c: var(--accent); --glow: color-mix(in srgb, var(--accent) 50%, transparent); }
+.fbw-ball.state-running { --core-c: var(--primary); --glow: color-mix(in srgb, var(--primary) 50%, transparent); }
 .fbw-ball.motion-loop.state-running .core { animation: fb-breathe 1.5s ease-in-out infinite; }
 .fbw-ball .ring {
   position: absolute;
@@ -114,7 +114,7 @@ html.fb-transparent #root {
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
-  background: conic-gradient(from 0deg, transparent 0 64%, var(--accent) 86%, transparent 100%);
+  background: conic-gradient(from 0deg, transparent 0 64%, var(--primary) 86%, transparent 100%);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), var(--fb-mask-opaque) calc(100% - 3px));
           mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), var(--fb-mask-opaque) calc(100% - 3px));
   transition: opacity 300ms ease;
@@ -158,7 +158,7 @@ html.fb-transparent #root {
   padding: 0 4px;
   border-radius: 9999px;
   background: var(--success);
-  color: var(--on-success);
+  color: var(--on-primary);
   border: 1.5px solid var(--fb-highlight-line);
   font-size: var(--text-xs, 12px);
   font-weight: 600;
@@ -182,8 +182,8 @@ html.fb-transparent #root {
   border: none;
   box-shadow: none;
   overflow: visible;
-  --pet-status: color-mix(in srgb, var(--ink-subtle) 42%, transparent);
-  --glow: color-mix(in srgb, var(--ink-secondary) 10%, transparent);
+  --pet-status: color-mix(in srgb, var(--subtle) 42%, transparent);
+  --glow: color-mix(in srgb, var(--ink-2) 10%, transparent);
 }
 .fbw-ball.pet-mode:hover { transform: translateY(-2px) scale(1.04); }
 .fbw-ball.pet-mode.dragging { cursor: grabbing; transform: scale(1.05) rotate(-2deg); }
@@ -219,7 +219,7 @@ html.fb-transparent #root {
 .fbw-ball.pet-mode .ring {
   inset: 4px 1px 0;
   border-radius: 24px;
-  background: conic-gradient(from 0deg, transparent 0 64%, var(--accent) 86%, transparent 100%);
+  background: conic-gradient(from 0deg, transparent 0 64%, var(--primary) 86%, transparent 100%);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), var(--fb-mask-opaque) calc(100% - 2.5px));
           mask: radial-gradient(farthest-side, transparent calc(100% - 3px), var(--fb-mask-opaque) calc(100% - 2.5px));
 }
@@ -228,8 +228,8 @@ html.fb-transparent #root {
   border-radius: 24px;
 }
 .fbw-ball.pet-mode.state-running {
-  --pet-status: color-mix(in srgb, var(--accent) 34%, transparent);
-  --glow: color-mix(in srgb, var(--accent) 32%, transparent);
+  --pet-status: color-mix(in srgb, var(--primary) 34%, transparent);
+  --glow: color-mix(in srgb, var(--primary) 32%, transparent);
 }
 .fbw-ball.pet-mode.state-blocked {
   --pet-status: color-mix(in srgb, var(--warning) 42%, transparent);
@@ -284,8 +284,8 @@ html.fb-transparent #root {
   /* 单一视觉 owner：macOS / Windows 都只显示这块 DOM 暖纸。
      peek = 同一张纸半透明；pin = 同一张纸凝实。不要在 Rust 侧再垫
      native material，否则 hover 会被系统材质染成另一种冷色表面。 */
-  background: color-mix(in srgb, var(--paper-elevated) 92%, transparent);
-  border: 1px solid color-mix(in srgb, var(--line-strong) 78%, transparent);
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line-2) 78%, transparent);
   box-shadow: var(--fb-window-shadow);
   -webkit-backdrop-filter: blur(18px) saturate(1.08);
   backdrop-filter: blur(18px) saturate(1.08);
@@ -301,10 +301,10 @@ html.fb-transparent #root {
 }
 .fbw-win.peek {
   cursor: pointer;
-  background: color-mix(in srgb, var(--paper-elevated) 85%, transparent);
+  background: color-mix(in srgb, var(--paper) 85%, transparent);
 }
 .fbw-win.pin {
-  background: color-mix(in srgb, var(--paper-elevated) 99%, transparent);
+  background: color-mix(in srgb, var(--paper) 99%, transparent);
 }
 /* 出入场二段式、严格成对：『显形/散去』主层是 NSWindow.alphaValue（Rust
    侧步进，整窗 alpha 把 DOM 纸片、内容、窗口阴影一起淡）；DOM 这层是
@@ -357,7 +357,7 @@ html.fb-transparent #root {
   flex: 1;
   min-width: 0;
   font-size: var(--text-xs, 12px);
-  color: var(--ink-subtle);
+  color: var(--subtle);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -369,7 +369,7 @@ html.fb-transparent #root {
   width: 26px;
   height: 26px;
   border-radius: 8px;
-  color: var(--ink-subtle);
+  color: var(--subtle);
   background: none;
   border: none;
   cursor: pointer;
@@ -418,18 +418,18 @@ html.fb-transparent #root {
   word-break: break-word;
 }
 .fbw-win.pin .fbw-msg.user .pill {
-  background: var(--paper-elevated);
+  background: var(--paper);
   border: 1px solid var(--line);
 }
 .fbw-win.peek .fbw-msg.user .pill {
-  background: color-mix(in srgb, var(--paper) 22%, transparent);
+  background: color-mix(in srgb, var(--bg) 22%, transparent);
   border: 1px solid color-mix(in srgb, var(--line) 38%, transparent);
   color: color-mix(in srgb, var(--ink) 82%, transparent);
 }
 .fbw-msg.user .pill .q {
   font-size: var(--text-xs, 12px);
-  color: var(--ink-muted);
-  border-left: 2px solid var(--accent);
+  color: var(--muted);
+  border-left: 2px solid var(--primary);
   padding-left: 8px;
   margin-bottom: 5px;
   display: -webkit-box;
@@ -441,7 +441,7 @@ html.fb-transparent #root {
   text-align: center;
   font-size: var(--text-xs, 12px);
   letter-spacing: 0.1em;
-  color: var(--ink-subtle);
+  color: var(--subtle);
   margin: 4px 0 14px;
 }
 .fbw-caret {
@@ -449,7 +449,7 @@ html.fb-transparent #root {
   width: 8px;
   height: 16px;
   vertical-align: -2.5px;
-  background: var(--accent);
+  background: var(--primary);
   border-radius: 1px;
   animation: fb-blink 0.9s step-end infinite;
 }
@@ -462,11 +462,11 @@ html.fb-transparent #root {
   max-width: calc(100% - 44px);
   padding: 8px 10px;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--error-bg) 82%, var(--paper-elevated));
-  border: 1px solid color-mix(in srgb, var(--error) 26%, transparent);
+  background: color-mix(in srgb, var(--danger-bg) 82%, var(--paper));
+  border: 1px solid color-mix(in srgb, var(--danger) 26%, transparent);
   font-size: var(--text-xs, 12px);
   line-height: 1.5;
-  color: var(--error);
+  color: var(--danger);
 }
 
 /* 交互表单容器（权限 / 提问 / 方案审核，D13：复用主 Chat 组件
@@ -488,7 +488,7 @@ html.fb-transparent #root {
   gap: 14px;
   padding: 20px;
   border-radius: 16px;
-  background: var(--paper-elevated);
+  background: var(--paper);
   border: 1px solid var(--line);
   box-shadow: 0 12px 40px var(--fb-shadow-panel);
 }
@@ -498,23 +498,23 @@ html.fb-transparent #root {
   color: var(--ink);
 }
 .fbw-settings-row { display: flex; flex-direction: column; gap: 6px; }
-.fbw-settings-label { font-size: var(--text-sm, 14px); color: var(--ink-muted); }
+.fbw-settings-label { font-size: var(--text-sm, 14px); color: var(--muted); }
 .fbw-settings-action {
   font-size: var(--text-sm, 14px);
   font-weight: 500;
   padding: 9px 0;
   border-radius: 10px;
-  background: var(--paper-inset);
-  border: 1px solid var(--line-subtle);
+  background: var(--inset);
+  border: 1px solid var(--line);
   color: var(--ink);
   cursor: pointer;
   transition: background 150ms;
 }
-.fbw-settings-action:hover { background: var(--hover-bg); }
+.fbw-settings-action:hover { background: var(--hover); }
 .fbw-settings-hint {
   font-size: var(--text-xs, 12px);
   line-height: 1.55;
-  color: var(--ink-subtle);
+  color: var(--subtle);
 }
 
 /* 状态行 */
@@ -524,7 +524,7 @@ html.fb-transparent #root {
   gap: 8px;
   padding: 6px 22px 12px;
   font-size: var(--text-xs, 12px);
-  color: var(--ink-muted);
+  color: var(--muted);
   flex: none;
 }
 .fbw-spinner {
@@ -532,8 +532,8 @@ html.fb-transparent #root {
   height: 12px;
   border-radius: 50%;
   flex: none;
-  border: 1.5px solid var(--accent-warm-muted);
-  border-top-color: var(--accent);
+  border: 1.5px solid var(--primary-muted);
+  border-top-color: var(--primary);
   animation: fb-spin 0.9s linear infinite;
 }
 
@@ -544,13 +544,13 @@ html.fb-transparent #root {
   flex: none;
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--paper-elevated) 58%, transparent),
-    color-mix(in srgb, var(--paper-elevated) 94%, transparent)
+    color-mix(in srgb, var(--paper) 58%, transparent),
+    color-mix(in srgb, var(--paper) 94%, transparent)
   );
   transition: opacity 280ms ease;
 }
 .fbw-win.dragging-files .fbw-inputarea {
-  background: var(--paper-elevated);
+  background: var(--paper);
 }
 .fbw-input-attachments {
   margin-bottom: 10px;
@@ -563,18 +563,18 @@ html.fb-transparent #root {
   padding: 3px 0 10px;
   font-size: var(--text-xs, 12px);
   line-height: 1.5;
-  color: var(--ink-muted);
+  color: var(--muted);
 }
 .fbw-quote .rule {
   width: 2px;
   align-self: stretch;
   border-radius: 1px;
-  background: var(--accent);
+  background: var(--primary);
   opacity: 0.85;
   flex: none;
 }
 .fbw-quote.shot { align-items: center; }
-.fbw-quote.shot .rule { background: var(--ink-subtle); }
+.fbw-quote.shot .rule { background: var(--subtle); }
 /* 截图缩略图（点开大图） */
 .fbw-quote .q-thumb {
   flex: none;
@@ -617,14 +617,14 @@ html.fb-transparent #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--ink-subtle);
+  color: var(--subtle);
   opacity: 0.7;
   background: none;
   border: none;
   cursor: pointer;
 }
 .fbw-quote .q-x:hover { opacity: 1; background: var(--fb-control-hover); color: var(--ink); }
-.fbw-quote .q-link { color: var(--accent); cursor: pointer; font-weight: 500; }
+.fbw-quote .q-link { color: var(--primary); cursor: pointer; font-weight: 500; }
 
 .fbw-inputrow { display: flex; align-items: flex-end; gap: 4px; }
 .fbw-inputrow textarea {
@@ -640,8 +640,8 @@ html.fb-transparent #root {
   color: var(--ink);
   max-height: 110px;
 }
-.fbw-inputrow textarea::placeholder { color: var(--ink-subtle); }
-.fbw-inputrow textarea { caret-color: var(--accent); }
+.fbw-inputrow textarea::placeholder { color: var(--subtle); }
+.fbw-inputrow textarea { caret-color: var(--primary); }
 .fbw-inputrow .cam,
 .fbw-inputrow .send {
   flex: none;
@@ -656,7 +656,7 @@ html.fb-transparent #root {
 }
 .fbw-inputrow .cam {
   border-radius: 9px;
-  color: var(--ink-subtle);
+  color: var(--subtle);
   opacity: 0.65;
   transition: opacity 150ms, background 150ms, color 150ms;
 }
@@ -664,23 +664,23 @@ html.fb-transparent #root {
 .fbw-inputrow .cam svg { width: 16px; height: 16px; }
 .fbw-inputrow .send {
   border-radius: 50%;
-  color: var(--ink-subtle);
+  color: var(--subtle);
   transition: background 150ms, color 150ms;
 }
 .fbw-inputrow .send svg { width: 16px; height: 16px; }
-.fbw-inputrow .send.ready { background: var(--accent); color: var(--on-accent); }
-.fbw-inputrow .send.ready:hover { background: var(--button-primary-bg-hover); }
+.fbw-inputrow .send.ready { background: var(--primary); color: var(--on-primary); }
+.fbw-inputrow .send.ready:hover { background: var(--primary-hover); }
 /* 运行中：发送钮变停止钮（与主对话框同语义） */
-.fbw-inputrow .send.stop { background: var(--button-dark-bg); color: var(--button-dark-text); }
-.fbw-inputrow .send.stop:hover { background: var(--button-dark-bg-hover); }
+.fbw-inputrow .send.stop { background: var(--ink); color: var(--bg); }
+.fbw-inputrow .send.stop:hover { background: var(--ink-2); }
 
 /* ════════ 过程组（思考/工具，主端 BlockGroup 的单行降级态） ════════ */
 .fbw-process-group {
   margin: 6px 0 14px;
   overflow: hidden;
-  border: 1px solid var(--line-subtle);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--paper-inset) 45%, transparent);
+  background: color-mix(in srgb, var(--inset) 45%, transparent);
 }
 .fbw-act {
   display: flex;
@@ -689,19 +689,19 @@ html.fb-transparent #root {
   min-height: 34px;
   padding: 8px 10px;
   font-size: var(--text-sm, 14px);
-  color: var(--ink-muted);
+  color: var(--muted);
   line-height: 1.4;
 }
-.fbw-act + .fbw-act { border-top: 1px solid var(--line-subtle); }
+.fbw-act + .fbw-act { border-top: 1px solid var(--line); }
 .fbw-act .dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   flex: none;
-  background: var(--ink-subtle);
+  background: var(--subtle);
 }
 .fbw-act.running .dot {
-  background: var(--accent);
+  background: var(--primary);
   animation: fb-breathe 1.2s ease-in-out infinite;
 }
 .fbw-act .icon {
@@ -711,7 +711,7 @@ html.fb-transparent #root {
   flex: none;
   align-items: center;
   justify-content: center;
-  color: var(--ink-muted);
+  color: var(--muted);
 }
 .fbw-act .icon svg { width: 16px; height: 16px; }
 .fbw-act .label {
@@ -731,17 +731,17 @@ html.fb-transparent #root {
   white-space: nowrap;
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace);
   font-size: var(--text-xs, 12px);
-  color: var(--ink-subtle);
+  color: var(--subtle);
 }
-.fbw-act .detail { font-size: var(--text-xs, 12px); color: var(--ink-subtle); }
+.fbw-act .detail { font-size: var(--text-xs, 12px); color: var(--subtle); }
 .fbw-act .badge {
   flex: none;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
   padding: 1px 6px;
   font-size: var(--text-xs, 12px);
   font-weight: 500;
-  color: var(--accent);
+  color: var(--primary);
 }
 .fbw-act .media {
   display: inline-flex;
@@ -749,7 +749,7 @@ html.fb-transparent #root {
   align-items: center;
   gap: 2px;
   font-size: var(--text-xs, 12px);
-  color: var(--ink-subtle);
+  color: var(--subtle);
 }
 .fbw-act .media svg { width: 12px; height: 12px; }
 .fbw-act .summary {
@@ -795,17 +795,17 @@ html.fb-transparent #root {
   margin: 0 22px 10px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: var(--accent-warm-subtle);
+  background: var(--primary-soft);
   font-size: var(--text-xs, 12px);
   line-height: 1.6;
-  color: var(--ink-muted);
+  color: var(--muted);
 }
 .fbw-ax button {
   margin-top: 6px;
   font-size: var(--text-sm, 14px);
   font-weight: 600;
-  color: var(--on-accent);
-  background: var(--accent);
+  color: var(--on-primary);
+  background: var(--primary);
   border: none;
   border-radius: 8px;
   padding: 5px 12px;

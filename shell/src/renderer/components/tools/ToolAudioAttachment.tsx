@@ -34,7 +34,7 @@ interface Props {
 const SKIP_SECONDS = 5;
 
 const CARD_SHELL =
-  'flex w-full max-w-[440px] items-center gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--paper-elevated)] px-3.5 py-3 shadow-[var(--shadow-xs)]';
+  'flex w-full max-w-[440px] items-center gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--paper)] px-3.5 py-3 shadow-[var(--shadow-xs)]';
 
 export default function ToolAudioAttachment({ attachment }: Props) {
   const { t } = useTranslation('chat');
@@ -95,7 +95,7 @@ export default function ToolAudioAttachment({ attachment }: Props) {
   // Placeholder (async save in flight — e.g. Codex audio).
   if (attachment.pendingId && !attachment.refPath) {
     return (
-      <div className={`${CARD_SHELL} text-sm text-[var(--ink-muted)]`}>
+      <div className={`${CARD_SHELL} text-sm text-[var(--muted)]`}>
         <span className="animate-pulse">{t('shell.toolChrome.audio.generating')}</span>
       </div>
     );
@@ -116,18 +116,18 @@ export default function ToolAudioAttachment({ attachment }: Props) {
         type="button"
         aria-label={t('shell.toolChrome.audio.more')}
         onClick={() => setMenuOpen(o => !o)}
-        className="flex size-7 items-center justify-center rounded-full text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink-secondary)]"
+        className="flex size-7 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink-2)]"
       >
         <MoreHorizontal className="size-4" />
       </button>
       {menuOpen && (
-        <div className="absolute right-0 top-9 z-50 min-w-[168px] overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] py-1 shadow-[var(--shadow-md)]">
+        <div className="absolute right-0 top-9 z-50 min-w-[168px] overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--paper)] py-1 shadow-[var(--shadow-md)]">
           {/* Skip ±5s — stay open so the user can tap repeatedly; disabled until loaded. */}
           <button
             type="button"
             onClick={() => skip(-SKIP_SECONDS)}
             disabled={!seekable}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
           >
             <RotateCcw className="size-3.5" /> {t('shell.toolChrome.audio.rewindSeconds', { seconds: SKIP_SECONDS })}
           </button>
@@ -135,22 +135,22 @@ export default function ToolAudioAttachment({ attachment }: Props) {
             type="button"
             onClick={() => skip(SKIP_SECONDS)}
             disabled={!seekable}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)] disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent"
           >
             <RotateCw className="size-3.5" /> {t('shell.toolChrome.audio.forwardSeconds', { seconds: SKIP_SECONDS })}
           </button>
-          <div className="my-1 h-px bg-[var(--line-subtle)]" />
+          <div className="my-1 h-px bg-[var(--line)]" />
           <button
             type="button"
             onClick={reveal}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)]"
           >
             <FolderOpen className="size-3.5" /> {t('shell.toolChrome.audio.reveal')}
           </button>
           <button
             type="button"
             onClick={openDefault}
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)]"
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)]"
           >
             <ExternalLink className="size-3.5" /> {t('shell.toolChrome.audio.openDefault')}
           </button>
@@ -162,7 +162,7 @@ export default function ToolAudioAttachment({ attachment }: Props) {
   // No local path on this sidecar — degrade to a compact meta + menu row.
   if (!savedPath) {
     return (
-      <div className={`${CARD_SHELL} justify-between text-xs text-[var(--ink-muted)]`}>
+      <div className={`${CARD_SHELL} justify-between text-xs text-[var(--muted)]`}>
         <span>{t('shell.toolChrome.audio.audio')}</span>
         {moreMenu}
       </div>
@@ -176,7 +176,7 @@ export default function ToolAudioAttachment({ attachment }: Props) {
         type="button"
         aria-label={isPlaying ? t('shell.toolChrome.audio.pause') : t('shell.toolChrome.audio.play')}
         onClick={toggle}
-        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-warm-hover)] active:scale-95"
+        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--primary)] text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] active:scale-95"
       >
         {isPlaying
           ? <Pause className="size-4 fill-current" />
@@ -189,12 +189,12 @@ export default function ToolAudioAttachment({ attachment }: Props) {
         ratio={seekable ? progress / duration : 0}
         seekable={seekable}
         onSeek={(r) => seek(r * duration)}
-        trackClass="bg-[var(--paper-inset)]"
+        trackClass="bg-[var(--inset)]"
         className="flex-1"
       />
 
       {/* time */}
-      <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--ink-muted)]">
+      <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--muted)]">
         {isCurrent ? formatPlaybackTime(progress) : '0:00'} / {seekable ? formatPlaybackTime(duration) : '--:--'}
       </span>
 

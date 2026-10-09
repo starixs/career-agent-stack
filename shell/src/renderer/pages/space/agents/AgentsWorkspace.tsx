@@ -100,14 +100,14 @@ function AgentInstructionField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={t("space.agents.instructionPlaceholder")}
         aria-invalid={Boolean(error)}
-        className={`min-h-28 w-full resize-y rounded-lg border bg-[var(--paper)] px-3 py-2.5 text-sm leading-6 text-[var(--ink)] outline-none transition-colors disabled:opacity-60 ${
+        className={`min-h-28 w-full resize-y rounded-lg border bg-[var(--bg)] px-3 py-2.5 text-sm leading-6 text-[var(--ink)] outline-none transition-colors disabled:opacity-60 ${
           error
-            ? "border-[var(--error)] focus:border-[var(--error)]"
-            : "border-[var(--line)] focus:border-[var(--accent-warm)]"
+            ? "border-[var(--danger)] focus:border-[var(--danger)]"
+            : "border-[var(--line)] focus:border-[var(--primary)]"
         }`}
       />
       {error ? (
-        <p className="mt-1 text-xs font-medium text-[var(--error)]">{error}</p>
+        <p className="mt-1 text-xs font-medium text-[var(--danger)]">{error}</p>
       ) : legacy ? (
         <p className="mt-1 text-xs text-[var(--warning)]">
           {t("space.agents.instructionLegacyWarning")}
@@ -160,8 +160,8 @@ function agentStatusClass(availability: AgentAvailability): string {
   if (availability === "online")
     return "border border-[var(--success)]/20 bg-[var(--success-bg)] text-[var(--success)]";
   if (availability === "connecting")
-    return "border border-[var(--accent-warm)]/20 bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]";
-  return "border border-[var(--line-subtle)] bg-[var(--paper-inset)] text-[var(--ink-muted)]";
+    return "border border-[var(--primary)]/20 bg-[var(--primary-soft)] text-[var(--primary)]";
+  return "border border-[var(--line)] bg-[var(--inset)] text-[var(--muted)]";
 }
 
 function agentStatusLabel(
@@ -381,10 +381,10 @@ export function AgentsWorkspace({
     <>
       <div className={`${SPACE_COLLECTION_FRAME_CLASS} space-y-3`}>
         <section className="flex min-h-10 items-center gap-3">
-          <div className="flex min-w-0 flex-1 items-center gap-2 text-base font-semibold text-[var(--ink-secondary)]">
+          <div className="flex min-w-0 flex-1 items-center gap-2 text-base font-semibold text-[var(--ink-2)]">
             <Bot className="h-4 w-4 shrink-0" />
             <h2 className="truncate">Agents</h2>
-            <span className="rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+            <span className="rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs font-semibold text-[var(--muted)]">
               {agents.length}
             </span>
           </div>
@@ -407,9 +407,9 @@ export function AgentsWorkspace({
           </div>
         ) : null}
         {agents.length === 0 ? (
-          <div className="grid h-40 place-items-center rounded-[20px] border border-dashed border-[var(--line)] bg-[var(--paper-elevated)]/40 text-sm text-[var(--ink-muted)]">
+          <div className="grid h-40 place-items-center rounded-[20px] border border-dashed border-[var(--line)] bg-[var(--paper)]/40 text-sm text-[var(--muted)]">
             <div className="text-center">
-              <Bot className="mx-auto mb-3 h-8 w-8 text-[var(--ink-muted)]" />
+              <Bot className="mx-auto mb-3 h-8 w-8 text-[var(--muted)]" />
               <p>{t("space.agents.empty")}</p>
               {admin && (
                 <button
@@ -417,7 +417,7 @@ export function AgentsWorkspace({
                   onClick={onRegister}
                   disabled={registerDisabled}
                   title={registerDisabledHint}
-                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--button-secondary-bg)] px-3 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Plus className="h-4 w-4" />
                   {t("space.agents.registerAgent")}
@@ -671,19 +671,19 @@ function EditAgentDialog({
         role="dialog"
         aria-modal="true"
         aria-label={t("space.agents.editTitle")}
-        className="grid max-h-[calc(100dvh-48px)] w-full max-w-[720px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl max-sm:max-h-[calc(100dvh-24px)]"
+        className="grid max-h-[calc(100dvh-48px)] w-full max-w-[720px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl max-sm:max-h-[calc(100dvh-24px)]"
       >
         <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold text-[var(--ink)]">
               {t("space.agents.editTitle")}
             </h2>
-            <p className="text-sm text-[var(--ink-muted)]">{agent.id}</p>
+            <p className="text-sm text-[var(--muted)]">{agent.id}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -697,7 +697,7 @@ function EditAgentDialog({
               value={displayName}
               disabled={busy}
               onChange={(event) => setDisplayName(event.target.value)}
-              className="h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent-warm)]"
+              className="h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--primary)]"
             />
           </label>
           <AgentInstructionField
@@ -724,18 +724,18 @@ function EditAgentDialog({
               />
             ) : (
               <>
-                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-inset)]/55 px-3 py-2.5">
-                  <p className="truncate text-sm font-semibold text-[var(--ink-secondary)]">
+                <div className="rounded-lg border border-[var(--line)] bg-[var(--inset)]/55 px-3 py-2.5">
+                  <p className="truncate text-sm font-semibold text-[var(--ink-2)]">
                     {agent.workspaceLabel?.trim() ||
                       agentWorkspacePathLabel(agent, t)}
                   </p>
                   {agent.workspacePath ? (
-                    <p className="mt-1 truncate font-mono text-xs text-[var(--ink-muted)]">
+                    <p className="mt-1 truncate font-mono text-xs text-[var(--muted)]">
                       {agentWorkspacePathLabel(agent, t)}
                     </p>
                   ) : null}
                 </div>
-                <p className="mt-2 text-xs text-[var(--ink-muted)]">
+                <p className="mt-2 text-xs text-[var(--muted)]">
                   {t("space.agents.remoteWorkspaceLocked", {
                     device: localComputerLabel(agent, t),
                   })}
@@ -755,7 +755,7 @@ function EditAgentDialog({
                 size="md"
               />
             ) : (
-              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-inset)] px-3 py-2.5 text-sm font-semibold text-[var(--ink-subtle)]">
+              <div className="rounded-lg border border-[var(--line)] bg-[var(--inset)] px-3 py-2.5 text-sm font-semibold text-[var(--subtle)]">
                 {t("space.agents.targetNotSet")}
               </div>
             )}
@@ -776,7 +776,7 @@ function EditAgentDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="h-10 rounded-xl bg-[var(--button-secondary-bg)] px-4 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)] disabled:opacity-60"
+            className="h-10 rounded-xl bg-[var(--paper)] px-4 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)] disabled:opacity-60"
           >
             {t("space.common.cancel")}
           </button>
@@ -793,7 +793,7 @@ function EditAgentDialog({
               (canEditWorkspace && !workspaceId)
             }
             onClick={() => void submit()}
-            className="flex h-10 items-center gap-2 rounded-xl bg-[var(--button-primary-bg)] px-4 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-70"
+            className="flex h-10 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {t("space.common.save")}
@@ -829,13 +829,13 @@ function AgentCard({
 
   return (
     <article
-      className={`group relative rounded-xl bg-[var(--paper-elevated)] px-3.5 py-3 text-left transition-[box-shadow,opacity,filter] hover:shadow-sm ${managementDisabled ? "opacity-60 saturate-50" : ""}`}
+      className={`group relative rounded-xl bg-[var(--paper)] px-3.5 py-3 text-left transition-[box-shadow,opacity,filter] hover:shadow-sm ${managementDisabled ? "opacity-60 saturate-50" : ""}`}
     >
       <button
         type="button"
         onClick={onOpen}
         aria-label={`${t("space.agents.viewSettings")} · ${agent.displayName}`}
-        className="absolute inset-0 z-0 cursor-pointer rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)]/30"
+        className="absolute inset-0 z-0 cursor-pointer rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30"
       />
       <div className="pointer-events-none relative z-10 grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2.5">
         <SpaceAvatar
@@ -855,11 +855,11 @@ function AgentCard({
               {agentStatusLabel(agent, t)}
             </span>
           </div>
-          <p className="mt-1 truncate text-xs font-medium text-[var(--ink-muted)]">
+          <p className="mt-1 truncate text-xs font-medium text-[var(--muted)]">
             {agentCardTimeLabel(agent, t)}
           </p>
           {availability === "offline" && !agent.lastOnlineAt ? (
-            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--ink-subtle)]">
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-[var(--subtle)]">
               {t("space.agents.offlineTroubleshooting")}
             </p>
           ) : null}
@@ -1016,7 +1016,7 @@ function AgentActionButtons({
         type="button"
         disabled={busy || disabled}
         onClick={(event) => stopAndRun(event, onEdit)}
-        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-45"
+        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-45"
         aria-label={t("space.agents.editAgent", { name: agent.displayName })}
         title={t("space.agents.edit")}
       >
@@ -1026,7 +1026,7 @@ function AgentActionButtons({
         type="button"
         disabled={busy || disabled}
         onClick={(event) => stopAndRun(event, onToggle)}
-        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-45"
+        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-45"
         aria-label={
           agent.status === "disabled"
             ? t("space.agents.enableAgent", { name: agent.displayName })
@@ -1050,7 +1050,7 @@ function AgentActionButtons({
         type="button"
         disabled={busy || disabled}
         onClick={(event) => stopAndRun(event, onRevoke)}
-        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--error)] transition-colors hover:bg-[var(--error-bg)] disabled:cursor-not-allowed disabled:opacity-45"
+        className="grid h-8 w-8 place-items-center rounded-lg text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)] disabled:cursor-not-allowed disabled:opacity-45"
         aria-label={t("space.agents.revokeAgent", { name: agent.displayName })}
         title={t("space.agents.revoke")}
       >
@@ -1076,14 +1076,14 @@ function AgentCardField({
   muted?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-[14px_92px_minmax(0,1fr)] items-center gap-2 rounded-md bg-[var(--paper)]/35 px-2 py-1 text-xs leading-5">
-      <Icon className="h-3.5 w-3.5 text-[var(--ink-subtle)]" />
-      <span className="truncate font-normal text-[var(--ink-subtle)]">
+    <div className="grid grid-cols-[14px_92px_minmax(0,1fr)] items-center gap-2 rounded-md bg-[var(--bg)]/35 px-2 py-1 text-xs leading-5">
+      <Icon className="h-3.5 w-3.5 text-[var(--subtle)]" />
+      <span className="truncate font-normal text-[var(--subtle)]">
         {label}
       </span>
       <span
         title={title ?? value}
-        className={`truncate font-normal ${mono ? "font-mono" : ""} ${muted ? "text-[var(--ink-subtle)]" : "text-[var(--ink-muted)]"}`}
+        className={`truncate font-normal ${mono ? "font-mono" : ""} ${muted ? "text-[var(--subtle)]" : "text-[var(--muted)]"}`}
       >
         {value}
       </span>
@@ -1147,8 +1147,8 @@ function AgentDetailOverlay({
       onClose={avatarBusy || avatarPickerOpen ? undefined : onClose}
       className="z-[230] items-stretch justify-end bg-black/20 backdrop-blur-sm"
     >
-      <aside className="h-full w-[min(72vw,900px)] overflow-y-auto border-l border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl max-lg:w-[min(92vw,820px)]">
-        <header className="sticky top-0 z-10 border-b border-[var(--line-subtle)] bg-[var(--paper-elevated)]/95 px-7 py-5 backdrop-blur-md">
+      <aside className="h-full w-[min(72vw,900px)] overflow-y-auto border-l border-[var(--line)] bg-[var(--paper)] shadow-xl max-lg:w-[min(92vw,820px)]">
+        <header className="sticky top-0 z-10 border-b border-[var(--line)] bg-[var(--paper)]/95 px-7 py-5 backdrop-blur-md">
           <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3">
             <button
               type="button"
@@ -1156,7 +1156,7 @@ function AgentDetailOverlay({
                 !admin || busy || avatarBusy || agent.status === "revoked"
               }
               onClick={() => setAvatarPickerOpen(true)}
-              className="group relative grid h-14 w-14 place-items-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] disabled:cursor-not-allowed disabled:opacity-70"
+              className="group relative grid h-14 w-14 place-items-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-70"
               aria-label={t("space.agents.changeAvatar")}
               title={t("space.agents.changeAvatar")}
             >
@@ -1167,7 +1167,7 @@ function AgentDetailOverlay({
                 size={56}
               />
               {admin && agent.status !== "revoked" && (
-                <span className="absolute inset-0 grid place-items-center rounded-full bg-[var(--ink)]/45 text-[var(--paper)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                <span className="absolute inset-0 grid place-items-center rounded-full bg-[var(--ink)]/45 text-[var(--bg)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                   {avatarBusy ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
@@ -1187,7 +1187,7 @@ function AgentDetailOverlay({
                   {agentStatusLabel(agent, t)}
                 </span>
               </div>
-              <p className="mt-1 truncate text-sm font-medium text-[var(--ink-muted)]">
+              <p className="mt-1 truncate text-sm font-medium text-[var(--muted)]">
                 {localComputerLabel(agent, t)}
               </p>
             </div>
@@ -1206,7 +1206,7 @@ function AgentDetailOverlay({
               <button
                 type="button"
                 onClick={onClose}
-                className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                 aria-label={t("space.detail.close")}
               >
                 <X className="h-4 w-4" />
@@ -1243,24 +1243,24 @@ function AgentDetailOverlay({
             />
           </section>
 
-          <section className="mt-4 rounded-xl border border-[var(--line-subtle)] bg-[var(--paper)]/45 px-4 py-4">
+          <section className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--bg)]/45 px-4 py-4">
             <h3 className="flex items-center gap-2 text-base font-semibold text-[var(--ink)]">
-              <Target className="h-4 w-4 text-[var(--ink-muted)]" />
+              <Target className="h-4 w-4 text-[var(--muted)]" />
               {t("space.agents.instructionLabel")}
             </h3>
             <p
-              className={`mt-3 whitespace-pre-wrap text-sm leading-6 ${agent.instruction ? "text-[var(--ink-secondary)]" : "text-[var(--warning)]"}`}
+              className={`mt-3 whitespace-pre-wrap text-sm leading-6 ${agent.instruction ? "text-[var(--ink-2)]" : "text-[var(--warning)]"}`}
             >
               {agentInstructionSummary(agent, t)}
             </p>
           </section>
 
-          <section className="mt-6 rounded-xl border border-[var(--line-subtle)] bg-[var(--paper)]/45 px-4 py-4">
+          <section className="mt-6 rounded-xl border border-[var(--line)] bg-[var(--bg)]/45 px-4 py-4">
             <h3 className="flex items-center gap-2 text-base font-semibold text-[var(--ink)]">
-              <Computer className="h-4 w-4 text-[var(--ink-muted)]" />
+              <Computer className="h-4 w-4 text-[var(--muted)]" />
               {t("space.agents.deviceInfo")}
             </h3>
-            <div className="mt-3 divide-y divide-[var(--line-subtle)]">
+            <div className="mt-3 divide-y divide-[var(--line)]">
               <AgentDetailRow
                 label={t("space.agents.deviceScope")}
                 value={localityLabel(agent, t)}
@@ -1308,12 +1308,12 @@ function AgentDetailOverlay({
             </div>
           </section>
 
-          <section className="mt-4 rounded-xl border border-[var(--line-subtle)] bg-[var(--paper)]/45 px-4 py-4">
+          <section className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--bg)]/45 px-4 py-4">
             <h3 className="flex items-center gap-2 text-base font-semibold text-[var(--ink)]">
-              <FolderOpen className="h-4 w-4 text-[var(--ink-muted)]" />
+              <FolderOpen className="h-4 w-4 text-[var(--muted)]" />
               {t("space.agents.workspaceInfo")}
             </h3>
-            <div className="mt-3 divide-y divide-[var(--line-subtle)]">
+            <div className="mt-3 divide-y divide-[var(--line)]">
               <AgentDetailRow
                 label={t("space.agents.localAgentWorkspace")}
                 value={
@@ -1340,12 +1340,12 @@ function AgentDetailOverlay({
             </div>
           </section>
 
-          <section className="mt-4 rounded-xl border border-[var(--line-subtle)] bg-[var(--paper)]/45 px-4 py-4">
+          <section className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--bg)]/45 px-4 py-4">
             <h3 className="flex items-center gap-2 text-base font-semibold text-[var(--ink)]">
-              <Activity className="h-4 w-4 text-[var(--ink-muted)]" />
+              <Activity className="h-4 w-4 text-[var(--muted)]" />
               {t("space.agents.dispatchSettings")}
             </h3>
-            <div className="mt-3 divide-y divide-[var(--line-subtle)]">
+            <div className="mt-3 divide-y divide-[var(--line)]">
               {agent.subscriptions.length === 0 ? (
                 <AgentDetailRow
                   label={t("space.agents.subscriptions")}
@@ -1370,11 +1370,11 @@ function AgentDetailOverlay({
             </div>
           </section>
 
-          <section className="mt-4 rounded-xl border border-[var(--line-subtle)] bg-[var(--paper)]/45 px-4 py-4">
+          <section className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--bg)]/45 px-4 py-4">
             <h3 className="text-base font-semibold text-[var(--ink)]">
               {t("space.agents.registrationInfo")}
             </h3>
-            <div className="mt-3 divide-y divide-[var(--line-subtle)]">
+            <div className="mt-3 divide-y divide-[var(--line)]">
               <AgentDetailRow
                 label={t("space.agents.agentId")}
                 value={agent.id}
@@ -1431,15 +1431,15 @@ function AgentSummaryBlock({
 }) {
   return (
     <div
-      className={`rounded-xl bg-[var(--paper)]/55 px-4 py-3 ${wide ? "col-span-2 max-md:col-span-1" : ""}`}
+      className={`rounded-xl bg-[var(--bg)]/55 px-4 py-3 ${wide ? "col-span-2 max-md:col-span-1" : ""}`}
     >
-      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--ink-subtle)]">
+      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--subtle)]">
         <Icon className="h-4 w-4" />
         {label}
       </div>
       <p
         title={title ?? value}
-        className={`mt-2 break-words text-sm font-semibold leading-6 ${mono ? "font-mono" : ""} ${muted ? "text-[var(--ink-subtle)]" : "text-[var(--ink-secondary)]"}`}
+        className={`mt-2 break-words text-sm font-semibold leading-6 ${mono ? "font-mono" : ""} ${muted ? "text-[var(--subtle)]" : "text-[var(--ink-2)]"}`}
       >
         {value}
       </p>
@@ -1458,11 +1458,11 @@ function AgentDetailRow({
 }) {
   return (
     <div className="grid min-h-11 grid-cols-[140px_minmax(0,1fr)] items-center gap-3 py-2.5 max-sm:grid-cols-1 max-sm:gap-1">
-      <span className="text-xs font-semibold text-[var(--ink-subtle)]">
+      <span className="text-xs font-semibold text-[var(--subtle)]">
         {label}
       </span>
       <span
-        className={`min-w-0 break-words text-sm font-semibold text-[var(--ink-secondary)] ${mono ? "font-mono" : ""}`}
+        className={`min-w-0 break-words text-sm font-semibold text-[var(--ink-2)] ${mono ? "font-mono" : ""}`}
       >
         {value}
       </span>
@@ -1505,7 +1505,7 @@ function IssueSubscriptionRunModeControl({
       <span className="mb-2 block text-sm font-medium text-[var(--ink)]">
         {t("space.agents.issueSubscriptionStrategy")}
       </span>
-      <div className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--paper-inset)] p-1">
+      <div className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-1">
         {options.map((option) => {
           const selected = option.value === normalized;
           return (
@@ -1514,7 +1514,7 @@ function IssueSubscriptionRunModeControl({
               type="button"
               disabled={disabled}
               onClick={() => onChange(option.value)}
-              className={`h-8 rounded-md px-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${selected ? "bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm" : "text-[var(--ink-muted)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"}`}
+              className={`h-8 rounded-md px-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${selected ? "bg-[var(--paper)] text-[var(--ink)] shadow-sm" : "text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--ink)]"}`}
               aria-pressed={selected}
             >
               {option.label}
@@ -1522,7 +1522,7 @@ function IssueSubscriptionRunModeControl({
           );
         })}
       </div>
-      <p className="mt-2 text-sm text-[var(--ink-muted)]">
+      <p className="mt-2 text-sm text-[var(--muted)]">
         {active.description}
       </p>
     </div>
@@ -1565,8 +1565,8 @@ function IssueSubscriptionScopeControl({
               onClick={() => toggleState(state)}
               className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                 selected
-                  ? "border-[var(--accent-warm)]/35 bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]"
-                  : "border-[var(--line)] bg-[var(--paper)] text-[var(--ink-muted)] hover:border-[var(--line-strong)] hover:text-[var(--ink)]"
+                  ? "border-[var(--primary)]/35 bg-[var(--primary-soft)] text-[var(--primary)]"
+                  : "border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] hover:border-[var(--line-2)] hover:text-[var(--ink)]"
               }`}
               aria-pressed={selected}
             >
@@ -1576,7 +1576,7 @@ function IssueSubscriptionScopeControl({
           );
         })}
       </div>
-      <p className="mt-2 text-sm text-[var(--ink-muted)]">
+      <p className="mt-2 text-sm text-[var(--muted)]">
         {t("space.agents.subscriptionScopeDescription")}
       </p>
     </div>
@@ -1686,21 +1686,21 @@ export function RegisterAgentDialog({
         role="dialog"
         aria-modal="true"
         aria-label={t("space.agents.registerTitle")}
-        className="grid max-h-[calc(100dvh-48px)] w-full max-w-[720px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl max-sm:max-h-[calc(100dvh-24px)]"
+        className="grid max-h-[calc(100dvh-48px)] w-full max-w-[720px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl max-sm:max-h-[calc(100dvh-24px)]"
       >
         <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold text-[var(--ink)]">
               {t("space.agents.registerTitle")}
             </h2>
-            <p className="text-sm text-[var(--ink-muted)]">
+            <p className="text-sm text-[var(--muted)]">
               {t("space.agents.officialSpace")}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1713,7 +1713,7 @@ export function RegisterAgentDialog({
             <input
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
-              className="h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent-warm)]"
+              className="h-10 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--primary)]"
               placeholder={t("space.agents.displayNamePlaceholder")}
               disabled={busy}
             />
@@ -1767,7 +1767,7 @@ export function RegisterAgentDialog({
           <button
             type="button"
             onClick={onClose}
-            className="h-10 rounded-lg px-4 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="h-10 rounded-lg px-4 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
           >
             {t("space.common.cancel")}
           </button>
@@ -1781,7 +1781,7 @@ export function RegisterAgentDialog({
               stateFilter.length === 0
             }
             onClick={() => void submit()}
-            className="flex h-10 items-center gap-2 rounded-lg bg-[var(--button-primary-bg)] px-4 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-70"
+            className="flex h-10 items-center gap-2 rounded-lg bg-[var(--primary)] px-4 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-70"
           >
             {busy ? (
               <Loader2 className="h-4 w-4 animate-spin" />

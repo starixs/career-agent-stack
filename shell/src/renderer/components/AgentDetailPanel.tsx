@@ -119,12 +119,12 @@ function TagInput({
                     {tags.map(tag => (
                         <span
                             key={tag}
-                            className="inline-flex items-center gap-1 rounded-md bg-[var(--paper-inset)] px-2 py-1 text-xs text-[var(--ink)]"
+                            className="inline-flex items-center gap-1 rounded-md bg-[var(--inset)] px-2 py-1 text-xs text-[var(--ink)]"
                         >
                             {tag}
                             <button
                                 onClick={() => removeTag(tag)}
-                                className="ml-0.5 rounded p-0.5 text-[var(--ink-muted)] hover:bg-[var(--line)] hover:text-[var(--ink)]"
+                                className="ml-0.5 rounded p-0.5 text-[var(--muted)] hover:bg-[var(--line)] hover:text-[var(--ink)]"
                             >
                                 <X className="h-3 w-3" />
                             </button>
@@ -132,7 +132,7 @@ function TagInput({
                     ))}
                 </div>
             ) : (
-                <p className="text-xs text-[var(--ink-muted)]">{emptyHint}</p>
+                <p className="text-xs text-[var(--muted)]">{emptyHint}</p>
             )}
 
             {/* Input row */}
@@ -149,7 +149,7 @@ function TagInput({
                     onFocus={() => setShowSuggestions(true)}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                     onKeyDown={handleKeyDown}
-                    className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent-warm)] focus:outline-none"
+                    className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none"
                     placeholder={placeholder}
                     role="combobox"
                     aria-expanded={showSuggestions && filteredSuggestions.length > 0}
@@ -158,7 +158,7 @@ function TagInput({
                 <button
                     onClick={() => { if (inputValue.trim()) addTag(inputValue); }}
                     disabled={!inputValue.trim()}
-                    className="shrink-0 rounded-lg border border-[var(--line)] p-1.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-30"
+                    className="shrink-0 rounded-lg border border-[var(--line)] p-1.5 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-30"
                 >
                     <Plus className="h-3.5 w-3.5" />
                 </button>
@@ -173,7 +173,7 @@ function TagInput({
                     placement="bottom-start"
                     matchAnchorWidth
                     closeOnEscape={false}
-                    className="max-h-40 overflow-y-auto bg-[var(--paper)] shadow-lg"
+                    className="max-h-40 overflow-y-auto bg-[var(--bg)] shadow-lg"
                 >
                     <div ref={listRef} role="listbox">
                         {filteredSuggestions.map((s, i) => (
@@ -186,8 +186,8 @@ function TagInput({
                                 onMouseEnter={() => setHighlightIndex(i)}
                                 className={`block w-full px-3 py-1.5 text-left text-xs text-[var(--ink)] ${
                                     i === highlightIndex
-                                        ? 'bg-[var(--paper-inset)]'
-                                        : 'hover:bg-[var(--paper-inset)]'
+                                        ? 'bg-[var(--inset)]'
+                                        : 'hover:bg-[var(--inset)]'
                                 }`}
                             >
                                 {s}
@@ -524,14 +524,14 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
         if (loading) {
             return (
                 <div className="flex h-64 items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-[var(--ink-muted)]" />
+                    <Loader2 className="h-8 w-8 animate-spin text-[var(--muted)]" />
                 </div>
             );
         }
 
         if (!agent) {
             return (
-                <div className="flex h-64 items-center justify-center text-[var(--ink-muted)]">
+                <div className="flex h-64 items-center justify-center text-[var(--muted)]">
                     {t('agentSettings.agentDetail.notFound')}
                 </div>
             );
@@ -547,20 +547,20 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
                             <div className="min-w-0 flex-1">
                                 <h2 className="truncate text-lg font-semibold text-[var(--ink)]">{agentName}</h2>
                                 {description && (
-                                    <p className="mt-1 text-sm text-[var(--ink-muted)]">{description}</p>
+                                    <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
                                 )}
                             </div>
                             <div className="ml-4 flex items-center gap-2">
                                 <button
                                     onClick={() => handleEdit()}
-                                    className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                    className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                 >
                                     <Edit2 className="h-3.5 w-3.5" />
                                     {t('agentSettings.common.edit')}
                                 </button>
                                 <button
                                     onClick={() => setShowDeleteConfirm(true)}
-                                    className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--error)] hover:bg-[var(--error-bg)] hover:text-[var(--error)]"
+                                    className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
                                 >
                                     <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -569,22 +569,22 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
                         {/* Badges */}
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                             {model && isAnthropicProvider && (
-                                <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                                <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                                     {t('agentSettings.agentDetail.modelBadge', { model })}
                                 </span>
                             )}
                             {permissionMode && (
-                                <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                                <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                                     {t('agentSettings.agentDetail.permissionBadge', { permission: permissionLabel(permissionMode) })}
                                 </span>
                             )}
                             {toolsTags.length > 0 && (
-                                <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                                <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                                     {t('agentSettings.agentDetail.toolsBadge', { count: toolsTags.length })}
                                 </span>
                             )}
                             {skillsTags.length > 0 && (
-                                <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                                <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                                     Skills: {skillsTags.length}
                                 </span>
                             )}
@@ -597,7 +597,7 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
                                 <Markdown>{body}</Markdown>
                             </div>
                         ) : (
-                            <p className="text-sm italic text-[var(--ink-muted)]">{t('agentSettings.agentDetail.noSystemPrompt')}</p>
+                            <p className="text-sm italic text-[var(--muted)]">{t('agentSettings.agentDetail.noSystemPrompt')}</p>
                         )}
                     </div>
 
@@ -625,11 +625,11 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
                 {/* Edit Header */}
                 <div className="border-b border-[var(--line)] px-6 py-3">
                     <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.agentDetail.editSubAgent')}</span>
+                        <span className="text-sm font-medium text-[var(--muted)]">{t('agentSettings.agentDetail.editSubAgent')}</span>
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={handleCancel}
-                                className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                                className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--inset)]"
                             >
                                 <X className="h-3.5 w-3.5" />
                                 {t('agentSettings.common.cancel')}
@@ -637,7 +637,7 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                                className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50"
                             >
                                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                                 {t('agentSettings.common.save')}
@@ -650,26 +650,26 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
                 <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-4 space-y-4">
                     {/* Name */}
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.common.name')}</label>
+                        <label className="mb-1 block text-sm font-medium text-[var(--muted)]">{t('agentSettings.common.name')}</label>
                         <input
                             ref={nameInputRef}
                             type="text"
                             value={agentName}
                             onChange={e => setAgentName(e.target.value)}
-                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--accent-warm)] focus:outline-none"
+                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none"
                             placeholder={t('agentSettings.agentDetail.namePlaceholder')}
                         />
                         {/* Folder name hint — only for the canonical 'folder' layout.
                             flat/nested agents keep their path; name edits only touch frontmatter. */}
                         {!canRename && agent && agentName.trim() !== originalAgentName && (
-                            <p className="mt-1 text-xs text-[var(--ink-muted)]">
-                                {t('agentSettings.agentDetail.layoutHintPrefix')} <code className="rounded bg-[var(--paper-inset)] px-1">{agent.layout}</code>
-                                {t('agentSettings.agentDetail.layoutHintSuffix')} <code className="rounded bg-[var(--paper-inset)] px-1">{agent.folderName}</code>
+                            <p className="mt-1 text-xs text-[var(--muted)]">
+                                {t('agentSettings.agentDetail.layoutHintPrefix')} <code className="rounded bg-[var(--inset)] px-1">{agent.layout}</code>
+                                {t('agentSettings.agentDetail.layoutHintSuffix')} <code className="rounded bg-[var(--inset)] px-1">{agent.folderName}</code>
                                 {t('agentSettings.agentDetail.layoutHintClosing')}
                             </p>
                         )}
                         {canRename && agentName.trim() && expectedFolderName !== name && (
-                            <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                            <p className="mt-1 text-xs text-[var(--muted)]">
                                 {t('agentSettings.agentDetail.renameHint', { name: expectedFolderName })}
                             </p>
                         )}
@@ -677,12 +677,12 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
 
                     {/* Description */}
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.agentDetail.description')}</label>
+                        <label className="mb-1 block text-sm font-medium text-[var(--muted)]">{t('agentSettings.agentDetail.description')}</label>
                         <textarea
                             value={description}
                             onChange={e => setDescription(e.target.value)}
                             rows={2}
-                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--accent-warm)] focus:outline-none resize-none"
+                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none resize-none"
                             placeholder={t('agentSettings.agentDetail.descriptionPlaceholder')}
                         />
                     </div>
@@ -690,7 +690,7 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
                     {/* Model - only show for Anthropic providers */}
                     {isAnthropicProvider && (
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.basics.model')}</label>
+                            <label className="mb-1 block text-sm font-medium text-[var(--muted)]">{t('agentSettings.basics.model')}</label>
                             <CustomSelect
                                 value={model}
                                 options={modelOptions}
@@ -702,7 +702,7 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
 
                     {/* System Prompt */}
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.agentDetail.systemPrompt')}</label>
+                        <label className="mb-1 block text-sm font-medium text-[var(--muted)]">{t('agentSettings.agentDetail.systemPrompt')}</label>
                         <div className="overflow-hidden rounded-lg border border-[var(--line)]" style={{ height: '300px' }}>
                             <MonacoEditor
                                 value={body}
@@ -717,7 +717,7 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
                     <div className="border-t border-[var(--line)] pt-4">
                         <button
                             onClick={() => setShowAdvanced(!showAdvanced)}
-                            className="flex w-full items-center justify-between text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                            className="flex w-full items-center justify-between text-sm font-medium text-[var(--muted)] hover:text-[var(--ink)]"
                         >
                             <span>{t('agentSettings.agentDetail.advancedSettings')}</span>
                             {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -727,7 +727,7 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
                             <div className="mt-4 space-y-4">
                                 {/* Allowed Tools - Tag input */}
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.agentDetail.allowedTools')}</label>
+                                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">{t('agentSettings.agentDetail.allowedTools')}</label>
                                     <TagInput
                                         tags={toolsTags}
                                         onChange={setToolsTags}
@@ -739,7 +739,7 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
 
                                 {/* Disallowed Tools - Tag input */}
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.agentDetail.disallowedTools')}</label>
+                                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">{t('agentSettings.agentDetail.disallowedTools')}</label>
                                     <TagInput
                                         tags={disallowedToolsTags}
                                         onChange={setDisallowedToolsTags}
@@ -751,7 +751,7 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
 
                                 {/* Skills - Tag input with available skills suggestions */}
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.agentDetail.preloadSkills')}</label>
+                                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">{t('agentSettings.agentDetail.preloadSkills')}</label>
                                     <TagInput
                                         tags={skillsTags}
                                         onChange={setSkillsTags}
@@ -763,7 +763,7 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
 
                                 {/* Permission Mode */}
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.agentDetail.permissionMode')}</label>
+                                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">{t('agentSettings.agentDetail.permissionMode')}</label>
                                     <CustomSelect
                                         value={permissionMode}
                                         options={permissionModeOptions}
@@ -774,12 +774,12 @@ const AgentDetailPanel = forwardRef<AgentDetailPanelRef, AgentDetailPanelProps>(
 
                                 {/* Max Turns */}
                                 <div>
-                                    <label className="mb-1 block text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.agentDetail.maxTurns')}</label>
+                                    <label className="mb-1 block text-sm font-medium text-[var(--muted)]">{t('agentSettings.agentDetail.maxTurns')}</label>
                                     <input
                                         type="number"
                                         value={maxTurns}
                                         onChange={e => setMaxTurns(e.target.value)}
-                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--accent-warm)] focus:outline-none"
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none"
                                         placeholder={t('agentSettings.agentDetail.maxTurnsPlaceholder')}
                                         min={1}
                                     />

@@ -55,9 +55,9 @@ describe('CustomTitleBar — 恢复标签页 pill (Issue #309)', () => {
         const { container } = renderBar();
         const titlebar = container.querySelector('.custom-titlebar');
 
-        expect(titlebar).toHaveClass('bg-[var(--global-sidebar-bg)]', 'pl-2');
-        expect(titlebar).not.toHaveClass('bg-[var(--paper)]', 'border-b', 'border-[var(--line)]');
-        expect(titlebar).not.toHaveClass('bg-gradient-to-b', 'from-[var(--paper)]', 'to-[var(--paper-inset)]/30');
+        expect(titlebar).toHaveClass('bg-[var(--rail)]', 'pl-2');
+        expect(titlebar).not.toHaveClass('bg-[var(--bg)]', 'border-b', 'border-[var(--line)]');
+        expect(titlebar).not.toHaveClass('bg-gradient-to-b', 'from-[var(--bg)]', 'to-[var(--inset)]/30');
     });
 
     it('shows the pill and the count badge when there are restorable tabs', () => {

@@ -83,9 +83,6 @@
     "defaultWorkspaceSaved": "Default workspace saved",
     "appearanceModeTitle": "Appearance mode",
     "appearanceModeDescription": "Set the app light and dark appearance mode",
-    "themeTitle": "Theme",
-    "themeDescription": "Switch the app-wide visual theme",
-    "themeSaveFailed": "Failed to switch Theme: {{message}}",
     "markdownReadingSizeTitle": "Markdown reading size",
     "markdownReadingSizeDescription": "Adjust body text, headings and spacing in AI replies and Markdown previews",
     "markdownReadingSize": {

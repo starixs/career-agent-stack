@@ -104,7 +104,7 @@ describe('TurnFileEditSummary', () => {
     expect(within(dialog).queryByText('M')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('A')).not.toBeInTheDocument();
     expect(within(dialog).getByText('+2')).toHaveClass('text-[var(--success)]');
-    expect(within(dialog).getByText('−1')).toHaveClass('text-[var(--error)]');
+    expect(within(dialog).getByText('−1')).toHaveClass('text-[var(--danger)]');
     expect(within(dialog).getByText('+8')).toHaveClass('text-[var(--success)]');
   });
 

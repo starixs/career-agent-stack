@@ -337,7 +337,7 @@ export default function SkillsCommandsList({
     if (loading) {
         return (
             <div className="flex h-full items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-[var(--ink-muted)]" />
+                <Loader2 className="h-8 w-8 animate-spin text-[var(--muted)]" />
             </div>
         );
     }
@@ -348,11 +348,11 @@ export default function SkillsCommandsList({
             <div className="mb-8">
                 <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-[var(--ink-muted)]" />
+                        <Sparkles className="h-5 w-5 text-[var(--muted)]" />
                         <h3 className="text-base font-semibold text-[var(--ink)]">
                             {scope === 'project' ? t('agentSettings.skillCommandList.projectSkillsTitle') : t('agentSettings.skillCommandList.skillsTitle')}
                         </h3>
-                        <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                        <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                             {scope === 'project'
                                 ? t('agentSettings.skillCommandList.enabledCount', { enabled: skills.filter(item => item.enabled).length, total: skills.length })
                                 : skills.length}
@@ -361,7 +361,7 @@ export default function SkillsCommandsList({
                     <button
                         type="button"
                         onClick={() => setShowNewSkillDialog(true)}
-                        className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+                        className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
                     >
                         <Plus className="h-4 w-4" />
                         {t('agentSettings.common.new')}
@@ -399,11 +399,11 @@ export default function SkillsCommandsList({
             <div>
                 <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Terminal className="h-5 w-5 text-[var(--ink-muted)]" />
+                        <Terminal className="h-5 w-5 text-[var(--muted)]" />
                         <h3 className="text-base font-semibold text-[var(--ink)]">
                             {scope === 'project' ? t('agentSettings.skillCommandList.projectCommandsTitle') : t('agentSettings.skillCommandList.commandsTitle')}
                         </h3>
-                        <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                        <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                             {scope === 'project'
                                 ? t('agentSettings.skillCommandList.enabledCount', { enabled: commands.filter(item => item.enabled !== false).length, total: commands.length })
                                 : commands.length}
@@ -412,7 +412,7 @@ export default function SkillsCommandsList({
                     <button
                         type="button"
                         onClick={() => setShowNewCommandDialog(true)}
-                        className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+                        className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
                     >
                         <Plus className="h-4 w-4" />
                         {t('agentSettings.common.new')}
@@ -553,14 +553,14 @@ export function SkillIntegrityIssuesPanel({ issues }: { issues: readonly SkillIn
                                     {t(`agentSettings.skillCommandList.integrity${blocked ? 'Blocked' : 'Warning'}`)}
                                 </span>
                             </div>
-                            <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">
+                            <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
                                 {t(`agentSettings.skillCommandList.integrityReasons.${issue.reason}`)}
                             </p>
                         </div>
                         <button
                             type="button"
                             onClick={() => void reveal(issue.revealPath)}
-                            className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                            className="inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                         >
                             <FolderOpen className="h-3.5 w-3.5" />
                             {t('agentSettings.skillCommandList.integrityReveal')}
@@ -590,7 +590,7 @@ export function SkillCard({ skill, onClick, onToggleEnabled, saving = false }: {
     const isDisabled = skill.enabled === false;
     return (
         <div
-            className={`group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper-elevated)] px-3.5 py-3 transition-shadow hover:shadow-sm ${isDisabled ? 'opacity-55' : ''}`}
+            className={`group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper)] px-3.5 py-3 transition-shadow hover:shadow-sm ${isDisabled ? 'opacity-55' : ''}`}
             onClick={onClick}
         >
             {/* Top row — type identity on the left, state and controls on the right. */}
@@ -601,21 +601,21 @@ export function SkillCard({ skill, onClick, onToggleEnabled, saving = false }: {
                         {skill.name}
                     </h4>
                     {skill.author && (
-                        <span data-capability-author className="shrink-0 text-xs text-[var(--ink-muted)]">
+                        <span data-capability-author className="shrink-0 text-xs text-[var(--muted)]">
                             {skill.author}
                         </span>
                     )}
                 </div>
                 <div className="ml-auto flex shrink-0 items-center gap-2">
                     {skill.origin && (
-                        <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                        <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                             {skill.origin === 'global'
                                 ? t('agentSettings.capabilities.scopeUser')
                                 : t('agentSettings.capabilities.scopeProject')}
                         </span>
                     )}
                     {skill.required && (
-                        <span data-capability-system-status className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-medium tracking-[0.04em] text-[var(--ink-muted)]">
+                        <span data-capability-system-status className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs font-medium tracking-[0.04em] text-[var(--muted)]">
                             {t('agentSettings.skillCommandList.systemRequired')}
                         </span>
                     )}
@@ -631,8 +631,8 @@ export function SkillCard({ skill, onClick, onToggleEnabled, saving = false }: {
                                 e.stopPropagation();
                                 onToggleEnabled(skill.capabilityId ?? skill.folderName, isDisabled);
                             }}
-                            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 disabled:cursor-wait ${
-                                !isDisabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 disabled:cursor-wait ${
+                                !isDisabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                             }`}
                         >
                             <span
@@ -646,7 +646,7 @@ export function SkillCard({ skill, onClick, onToggleEnabled, saving = false }: {
             </div>
             {/* Description — `min-h-[2.6em]` reserves the 2-line height even
                 for short descriptions so cards in the same grid row align. */}
-            <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--ink-muted)]">
+            <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--muted)]">
                 {skill.description || t('agentSettings.common.noDescription')}
             </p>
         </div>
@@ -665,7 +665,7 @@ export function CommandCard({ command, onClick, onToggleEnabled, saving = false 
     const isDisabled = command.enabled === false;
     return (
         <div
-            className={`group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper-elevated)] px-3.5 py-3 transition-shadow hover:shadow-sm ${isDisabled ? 'opacity-55' : ''}`}
+            className={`group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper)] px-3.5 py-3 transition-shadow hover:shadow-sm ${isDisabled ? 'opacity-55' : ''}`}
             onClick={onClick}
         >
             <div className="flex items-center gap-2">
@@ -675,14 +675,14 @@ export function CommandCard({ command, onClick, onToggleEnabled, saving = false 
                         {command.name}
                     </h4>
                     {command.author && (
-                        <span data-capability-author className="shrink-0 text-xs text-[var(--ink-muted)]">
+                        <span data-capability-author className="shrink-0 text-xs text-[var(--muted)]">
                             {command.author}
                         </span>
                     )}
                 </div>
                 <div className="ml-auto flex shrink-0 items-center gap-2">
                     {command.origin && (
-                        <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                        <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                             {command.origin === 'global'
                                 ? t('agentSettings.capabilities.scopeUser')
                                 : t('agentSettings.capabilities.scopeProject')}
@@ -700,8 +700,8 @@ export function CommandCard({ command, onClick, onToggleEnabled, saving = false 
                                 event.stopPropagation();
                                 onToggleEnabled(command.capabilityId ?? command.fileName, isDisabled);
                             }}
-                            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 disabled:cursor-wait ${
-                                !isDisabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border-2 border-transparent transition-colors focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 disabled:cursor-wait ${
+                                !isDisabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                             }`}
                         >
                             <span
@@ -713,7 +713,7 @@ export function CommandCard({ command, onClick, onToggleEnabled, saving = false 
                     )}
                 </div>
             </div>
-            <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--ink-muted)]">
+            <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--muted)]">
                 {command.description || t('agentSettings.common.noDescription')}
             </p>
         </div>
@@ -723,10 +723,10 @@ export function CommandCard({ command, onClick, onToggleEnabled, saving = false 
 // Empty State Component
 function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper-inset)]/30 py-8">
-            <div className="text-[var(--ink-muted)]/30">{icon}</div>
-            <p className="mt-3 text-sm font-medium text-[var(--ink-muted)]">{title}</p>
-            <p className="mt-1 text-xs text-[var(--ink-muted)]">{description}</p>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--inset)]/30 py-8">
+            <div className="text-[var(--muted)]/30">{icon}</div>
+            <p className="mt-3 text-sm font-medium text-[var(--muted)]">{title}</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">{description}</p>
         </div>
     );
 }

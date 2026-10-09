@@ -95,16 +95,16 @@ function ItemTooltip({ scope, description, children }: {
             {children}
             {show && (scope || description) && (
                 <div
-                    className="fixed z-50 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 shadow-lg"
+                    className="fixed z-50 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 shadow-lg"
                     style={{ left: pos.x, top: pos.y, width: pos.width, transform: 'translateY(-100%)' }}
                 >
                     {scope && (
-                        <span className="mb-1 inline-block rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs text-[var(--ink-muted)]">
+                        <span className="mb-1 inline-block rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs text-[var(--muted)]">
                             {scope === 'user' ? t('agentSettings.capabilities.scopeUser') : scope === 'project' ? t('agentSettings.capabilities.scopeProject') : scope}
                         </span>
                     )}
                     {description && (
-                        <p className="text-xs leading-relaxed text-[var(--ink-muted)]">{description}</p>
+                        <p className="text-xs leading-relaxed text-[var(--muted)]">{description}</p>
                     )}
                 </div>
             )}
@@ -272,7 +272,7 @@ export default memo(function AgentCapabilitiesPanel({
                         type="button"
                         onClick={toggleExpand}
                         aria-expanded={isExpanded}
-                        className="flex min-w-0 flex-1 items-center gap-2 text-sm text-[var(--ink)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                        className="flex min-w-0 flex-1 items-center gap-2 text-sm text-[var(--ink)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                     >
                         {isExpanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
                         <Bot className="h-3.5 w-3.5 shrink-0 text-violet-500" />
@@ -281,14 +281,14 @@ export default memo(function AgentCapabilitiesPanel({
                     <button
                         type="button"
                         onClick={() => onOpenSettings?.()}
-                        className="ml-2 shrink-0 rounded-md px-1.5 py-0.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                        className="ml-2 shrink-0 rounded-md px-1.5 py-0.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                     >
                         {t('agentSettings.capabilities.settings')}
                     </button>
                 </div>
                 {isExpanded && (
                     <div className="px-4 pb-3 text-center">
-                        <p className="text-sm text-[var(--ink-muted)]">
+                        <p className="text-sm text-[var(--muted)]">
                             {t('agentSettings.capabilities.emptyDescription')}
                         </p>
                     </div>
@@ -309,7 +309,7 @@ export default memo(function AgentCapabilitiesPanel({
                     type="button"
                     onClick={toggleExpand}
                     aria-expanded={isExpanded}
-                    className="flex min-w-0 flex-1 items-center gap-2 text-sm text-[var(--ink)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    className="flex min-w-0 flex-1 items-center gap-2 text-sm text-[var(--ink)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 >
                     {isExpanded ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
                     <Bot className="h-3.5 w-3.5 shrink-0 text-violet-500" />
@@ -318,7 +318,7 @@ export default memo(function AgentCapabilitiesPanel({
                 <button
                     type="button"
                     onClick={() => onOpenSettings?.()}
-                    className="ml-2 shrink-0 rounded-md px-1.5 py-0.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                    className="ml-2 shrink-0 rounded-md px-1.5 py-0.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
                 >
                     {t('agentSettings.capabilities.settings')}
                 </button>
@@ -333,7 +333,7 @@ export default memo(function AgentCapabilitiesPanel({
                     {/* Commands Group */}
                     {commandsCount > 0 && (
                         <div>
-                            <p className="px-1 text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]/60">
+                            <p className="px-1 text-xs font-medium uppercase tracking-wider text-[var(--muted)]/60">
                                 Commands ({commandsCount})
                             </p>
                             <div className="mt-0.5 space-y-0.5">
@@ -346,7 +346,7 @@ export default memo(function AgentCapabilitiesPanel({
                                             // without this the click is dropped on a macOS WebKit trackpad tap
                                             // (focus-steal). preventDefault on mousedown keeps the textarea focused.
                                             onMouseDown={retainFocusOnMouseDown}
-                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-[var(--hover-bg)] transition-colors"
+                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-[var(--hover)] transition-colors"
                                         >
                                             <Terminal className="h-3 w-3 shrink-0 text-[var(--success)]" />
                                             <p className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]">{item.name}</p>
@@ -360,7 +360,7 @@ export default memo(function AgentCapabilitiesPanel({
                     {/* Skills Group */}
                     {skillsCount > 0 && (
                         <div>
-                            <p className="px-1 text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]/60">
+                            <p className="px-1 text-xs font-medium uppercase tracking-wider text-[var(--muted)]/60">
                                 Skills ({skillsCount})
                             </p>
                             <div className="mt-0.5 space-y-0.5">
@@ -371,7 +371,7 @@ export default memo(function AgentCapabilitiesPanel({
                                             onContextMenu={e => handleSkillContextMenu(e, item.scope, item.folderName)}
                                             // Same focus-steal guard as the command rows above.
                                             onMouseDown={retainFocusOnMouseDown}
-                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-[var(--hover-bg)] transition-colors"
+                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-[var(--hover)] transition-colors"
                                         >
                                             <Sparkles className="h-3 w-3 shrink-0 text-amber-500" />
                                             <p className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]">{item.name}</p>
@@ -385,7 +385,7 @@ export default memo(function AgentCapabilitiesPanel({
                     {/* Sub-Agents Group */}
                     {agentCount > 0 && (
                         <div>
-                            <p className="px-1 text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]/60">
+                            <p className="px-1 text-xs font-medium uppercase tracking-wider text-[var(--muted)]/60">
                                 Sub-Agents ({agentCount})
                             </p>
                             <div className="mt-0.5 space-y-0.5">
@@ -394,12 +394,12 @@ export default memo(function AgentCapabilitiesPanel({
                                         <button
                                             onClick={handleAgentClick}
                                             onContextMenu={e => handleAgentContextMenu(e, item.scope, item.folderName)}
-                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-[var(--hover-bg)] transition-colors"
+                                            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-[var(--hover)] transition-colors"
                                         >
                                             <Bot className="h-3 w-3 shrink-0 text-violet-500" />
                                             <p className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]">{item.name}</p>
                                             {item.model && (
-                                                <span className="shrink-0 rounded bg-[var(--paper-inset)] px-1 py-0.5 text-xs text-[var(--ink-muted)]">
+                                                <span className="shrink-0 rounded bg-[var(--inset)] px-1 py-0.5 text-xs text-[var(--muted)]">
                                                     {item.model}
                                                 </span>
                                             )}

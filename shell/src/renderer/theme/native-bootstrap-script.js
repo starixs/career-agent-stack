@@ -48,7 +48,7 @@
       return;
     }
 
-    let themeId = 'keystone-light';
+    let themeId = 'keystone-default';
     let themeSelectionExplicit = false;
     const raw = localStorage.getItem(key);
 

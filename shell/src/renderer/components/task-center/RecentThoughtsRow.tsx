@@ -82,7 +82,7 @@ export function RecentThoughtsRow({
       <button
         type="button"
         onClick={onOpenTaskCenter}
-        className="flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] px-2.5 py-1.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--accent-warm)]"
+        className="flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] px-2.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--primary)]"
         title={t('recentThoughts.openTaskCenterTitle')}
       >
         <span>{t('recentThoughts.more')}</span>
@@ -105,16 +105,16 @@ function RecordChip({ record, onClick }: ChipProps) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--paper-elevated)] px-2.5 py-1.5 text-left transition-all hover:border-[var(--line-strong)] hover:shadow-sm"
+      className="group flex min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--paper)] px-2.5 py-1.5 text-left transition-all hover:border-[var(--line-2)] hover:shadow-sm"
       title={record.title}
     >
-      <span className="min-w-0 flex-1 truncate text-xs text-[var(--ink-secondary)] group-hover:text-[var(--ink)]">
+      <span className="min-w-0 flex-1 truncate text-xs text-[var(--ink-2)] group-hover:text-[var(--ink)]">
         {record.kind === 'audio' && (
-          <Mic className="mr-1 inline h-3 w-3 text-[var(--accent-warm)]" />
+          <Mic className="mr-1 inline h-3 w-3 text-[var(--primary)]" />
         )}
         {record.title || t('recentThoughts.emptyThought')}
       </span>
-      <span className="shrink-0 text-xs text-[var(--ink-muted)]/70">
+      <span className="shrink-0 text-xs text-[var(--muted)]/70">
         {relativeTime(record.createdAt)}
       </span>
     </button>

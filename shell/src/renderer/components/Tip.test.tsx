@@ -82,8 +82,8 @@ describe("Tip", () => {
 
     const tooltip = screen.getByRole("tooltip", { name: "任务" });
     expect(tooltip).toHaveClass(
-      "bg-[var(--button-dark-bg)]/90",
-      "text-[var(--button-dark-text)]",
+      "bg-[var(--ink)]/90",
+      "text-[var(--bg)]",
     );
     expect(tooltip).not.toHaveClass("delay-500", "transition-opacity");
     expect(trigger.parentElement).not.toContainElement(tooltip);

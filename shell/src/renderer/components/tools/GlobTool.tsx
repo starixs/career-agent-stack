@@ -26,7 +26,7 @@ export default function GlobTool({ tool }: GlobToolProps) {
       <div className="flex flex-wrap items-center gap-1.5 text-sm">
         <InlineCode>{input.pattern}</InlineCode>
         {input.path && (
-          <span className="text-xs text-[var(--ink-muted)]">in {input.path}</span>
+          <span className="text-xs text-[var(--muted)]">in {input.path}</span>
         )}
         {summary}
       </div>
@@ -34,7 +34,7 @@ export default function GlobTool({ tool }: GlobToolProps) {
       {tool.result && (
         <ExpandableResult
           content={tool.result}
-          className="rounded bg-[var(--paper-inset)]/50 px-2 py-1 break-words text-[var(--ink-secondary)]"
+          className="rounded bg-[var(--inset)]/50 px-2 py-1 break-words text-[var(--ink-2)]"
         />
       )}
     </div>

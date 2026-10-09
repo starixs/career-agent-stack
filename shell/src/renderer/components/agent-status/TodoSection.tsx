@@ -30,10 +30,10 @@ function TodoRow({ todo }: { todo: TodoItem }) {
       <span
         className={
           isCompleted
-            ? 'flex-1 text-sm text-[var(--ink-muted)] line-through select-text'
+            ? 'flex-1 text-sm text-[var(--muted)] line-through select-text'
             : isInProgress
               ? 'flex-1 text-sm font-medium text-[var(--ink)] select-text'
-              : 'flex-1 text-sm text-[var(--ink-secondary)] select-text'
+              : 'flex-1 text-sm text-[var(--ink-2)] select-text'
         }
       >
         {todo.content}
@@ -49,12 +49,12 @@ const TodoSection = memo(function TodoSection({ todos }: TodoSectionProps) {
   const completed = todos.filter(t => t.status === 'completed').length;
 
   return (
-    <div className="border-b border-[var(--line-subtle)] py-1.5 last:border-b-0">
+    <div className="border-b border-[var(--line)] py-1.5 last:border-b-0">
       <div className="flex items-center justify-between px-3 pb-1 pt-0.5">
-        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
           Todo
         </span>
-        <span className="text-xs tabular-nums text-[var(--ink-muted)]">
+        <span className="text-xs tabular-nums text-[var(--muted)]">
           {completed}/{todos.length}
         </span>
       </div>

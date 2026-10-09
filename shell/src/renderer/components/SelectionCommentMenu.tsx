@@ -188,7 +188,7 @@ const SelectionCommentMenu = memo(function SelectionCommentMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed z-[300] flex items-center gap-0.5 rounded-lg border border-[var(--line-strong)] bg-[var(--paper-elevated)] px-1 py-0.5 shadow-md"
+      className="fixed z-[300] flex items-center gap-0.5 rounded-lg border border-[var(--line-2)] bg-[var(--paper)] px-1 py-0.5 shadow-md"
       style={{
         left: pos.x,
         top: pos.y,
@@ -202,7 +202,7 @@ const SelectionCommentMenu = memo(function SelectionCommentMenu({
       {showQuote && (
         <button
           type="button"
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
           onClick={handleQuote}
         >
           <Quote className="h-3 w-3" />
@@ -213,7 +213,7 @@ const SelectionCommentMenu = memo(function SelectionCommentMenu({
       {showElaborate && (
         <button
           type="button"
-          className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+          className="flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
           onClick={handleElaborate}
         >
           <Sparkles className="h-3 w-3" />

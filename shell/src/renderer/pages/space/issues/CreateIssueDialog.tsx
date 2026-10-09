@@ -138,11 +138,11 @@ export function CreateIssueDialog({
           event.preventDefault();
           void submit();
         }}
-        className="grid h-[min(660px,calc(100vh-112px))] min-h-[500px] w-[min(980px,calc(100vw-160px))] max-w-full grid-rows-[auto_minmax(0,1fr)_auto] rounded-[var(--radius-2xl)] border border-[var(--line)] bg-[var(--paper-elevated)]/95 px-5 py-4 shadow-xl"
+        className="grid h-[min(660px,calc(100vh-112px))] min-h-[500px] w-[min(980px,calc(100vw-160px))] max-w-full grid-rows-[auto_minmax(0,1fr)_auto] rounded-[var(--radius-2xl)] border border-[var(--line)] bg-[var(--paper)]/95 px-5 py-4 shadow-xl"
       >
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-          <div className="flex min-h-[34px] items-center gap-2.5 text-base font-medium text-[var(--ink-muted)]">
-            <span className="grid h-6 w-6 place-items-center rounded-lg border border-[var(--accent-warm-muted)] bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]">
+          <div className="flex min-h-[34px] items-center gap-2.5 text-base font-medium text-[var(--muted)]">
+            <span className="grid h-6 w-6 place-items-center rounded-lg border border-[var(--primary-muted)] bg-[var(--primary-soft)] text-[var(--primary)]">
               <Cloud className="h-3.5 w-3.5" />
             </span>
             <span>{t('space.createIssue.community')}</span>
@@ -152,7 +152,7 @@ export function CreateIssueDialog({
           <button
             type="button"
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             aria-label={t('space.createIssue.close')}
           >
             <X className="h-4 w-4" />
@@ -164,20 +164,20 @@ export function CreateIssueDialog({
             ref={titleInputRef}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            className="w-full border-0 bg-transparent text-2xl font-semibold leading-snug text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]/60"
+            className="w-full border-0 bg-transparent text-2xl font-semibold leading-snug text-[var(--ink)] outline-none placeholder:text-[var(--muted)]/60"
             placeholder={t('space.createIssue.titlePlaceholder')}
           />
           <textarea
             value={body}
             onChange={(event) => setBody(event.target.value)}
-            className="h-full min-h-0 w-full resize-none border-0 bg-transparent p-0 text-base leading-7 text-[var(--ink-secondary)] outline-none placeholder:text-[var(--ink-muted)]/60"
+            className="h-full min-h-0 w-full resize-none border-0 bg-transparent p-0 text-base leading-7 text-[var(--ink-2)] outline-none placeholder:text-[var(--muted)]/60"
             placeholder={t('space.createIssue.bodyPlaceholder')}
           />
           <IssueAttachmentDraftList
             drafts={attachmentDrafts.drafts}
             onRemove={attachmentDrafts.remove}
             removeLabel={(name) => t('space.createIssue.removeFile', { name })}
-            className="border-y border-[var(--line-subtle)] bg-[var(--paper-inset)]/35 px-2 py-1"
+            className="border-y border-[var(--line)] bg-[var(--inset)]/35 px-2 py-1"
           />
         </div>
 
@@ -187,21 +187,21 @@ export function CreateIssueDialog({
               type="button"
               disabled={submitting || attachmentDrafts.pending}
               onClick={() => void pickFiles()}
-              className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--paper-elevated)]/80 px-3 text-sm font-semibold text-[var(--ink-muted)] shadow-sm transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
+              className="inline-flex h-10 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--paper)]/80 px-3 text-sm font-semibold text-[var(--muted)] shadow-sm transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70"
               aria-label={t('space.createIssue.addAttachment')}
             >
               <Paperclip className="h-4 w-4" />
               {t('space.createIssue.attachment')}
             </button>
-            <span className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--paper-elevated)]/70 px-3 text-sm font-medium text-[var(--ink-muted)] shadow-sm">
+            <span className="inline-flex min-h-10 items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--paper)]/70 px-3 text-sm font-medium text-[var(--muted)] shadow-sm">
               <Target className="h-4 w-4" />
-              <span className="shrink-0 text-xs font-semibold uppercase text-[var(--ink-muted)]/70">
+              <span className="shrink-0 text-xs font-semibold uppercase text-[var(--muted)]/70">
                 {t('space.createIssue.targetGoal')}
               </span>
               <CustomSelect value={goalId} options={goalOptions} onChange={setGoalId} compact className="w-56 [&>button]:border-0 [&>button]:bg-transparent [&>button]:p-0 [&>button]:shadow-none" />
             </span>
-            <span className="inline-flex min-h-10 items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--paper-elevated)]/70 px-2.5 text-sm shadow-sm">
-              <span className="pl-1 text-xs font-semibold uppercase text-[var(--ink-muted)]/70">{t('space.detail.assignee')}</span>
+            <span className="inline-flex min-h-10 items-center gap-1 rounded-full border border-[var(--line)] bg-[var(--paper)]/70 px-2.5 text-sm shadow-sm">
+              <span className="pl-1 text-xs font-semibold uppercase text-[var(--muted)]/70">{t('space.detail.assignee')}</span>
               <IssueAssigneePicker
                 session={session}
                 assignee={assignee}
@@ -224,17 +224,17 @@ export function CreateIssueDialog({
               type="button"
               aria-pressed={continuous}
               onClick={() => setContinuous((value) => !value)}
-              className="inline-flex items-center gap-2 rounded-full px-1 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+              className="inline-flex items-center gap-2 rounded-full px-1 text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
             >
-              <span className={`h-6 w-11 rounded-full p-0.5 transition-colors ${continuous ? 'bg-[var(--accent-warm)]' : 'bg-[var(--line-strong)]'}`}>
-                <span className={`block h-5 w-5 rounded-full bg-[var(--paper-elevated)] shadow-sm transition-transform ${continuous ? 'translate-x-5' : ''}`} />
+              <span className={`h-6 w-11 rounded-full p-0.5 transition-colors ${continuous ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'}`}>
+                <span className={`block h-5 w-5 rounded-full bg-[var(--paper)] shadow-sm transition-transform ${continuous ? 'translate-x-5' : ''}`} />
               </span>
               {t('space.createIssue.continuous')}
             </button>
             <button
               type="submit"
               disabled={submitting || attachmentDrafts.pending || !title.trim() || !body.trim()}
-              className="flex h-11 items-center gap-2 rounded-full bg-[var(--button-primary-bg)] px-6 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-70"
+              className="flex h-11 items-center gap-2 rounded-full bg-[var(--primary)] px-6 text-sm font-semibold text-[var(--on-primary)] shadow-sm transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-70"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t('space.common.create')}

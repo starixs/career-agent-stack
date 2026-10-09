@@ -20,24 +20,24 @@ export default function AgentIdentityConflicts({ agentId }: { agentId?: string }
   if (!visible.length && !error) return null;
 
   return <section className="mb-6 space-y-3" aria-label={t('agentSettings.identity.title')}>
-    {error && <p role="alert" className="break-words text-sm text-[var(--error)]">{error}</p>}
+    {error && <p role="alert" className="break-words text-sm text-[var(--danger)]">{error}</p>}
     {visible.map((diagnostic, index) => {
       const claims = projects.filter(project => diagnostic.projectIds.includes(project.id));
       const target = diagnostic.agentIds[0];
       const canChoose = diagnostic.code === 'AGENT_ASSIGNED_TO_MULTIPLE_PROJECTS' && target
         && !diagnostics.some(other => other !== diagnostic && (other.agentIds.includes(target)
           || other.projectIds.some(id => diagnostic.projectIds.includes(id))));
-      return <div key={`${diagnostic.code}-${index}`} className="rounded-xl border border-[var(--warning)] bg-[var(--paper-elevated)] p-4">
+      return <div key={`${diagnostic.code}-${index}`} className="rounded-xl border border-[var(--warning)] bg-[var(--paper)] p-4">
         <h3 className="text-sm font-semibold text-[var(--ink)]">{t('agentSettings.identity.title')}</h3>
-        <p className="mt-2 text-sm text-[var(--ink-muted)]">{canChoose ? t('agentSettings.identity.description') : diagnostic.message}</p>
-        <p className="mt-2 break-all text-xs text-[var(--ink-subtle)]">{target}</p>
+        <p className="mt-2 text-sm text-[var(--muted)]">{canChoose ? t('agentSettings.identity.description') : diagnostic.message}</p>
+        <p className="mt-2 break-all text-xs text-[var(--subtle)]">{target}</p>
         <ul className="mt-3 space-y-2 text-sm text-[var(--ink)]">
           {claims.map((project, row) => <li key={`${project.id}-${row}`}>
             <span>{project.displayName || project.name}</span>
-            <span className="block break-all text-xs text-[var(--ink-muted)]">{project.path}</span>
+            <span className="block break-all text-xs text-[var(--muted)]">{project.path}</span>
           </li>)}
         </ul>
-        {canChoose && <button type="button" className="mt-4 rounded-full bg-[var(--button-primary-bg)] px-4 py-2 text-sm text-[var(--button-primary-text)]"
+        {canChoose && <button type="button" className="mt-4 rounded-full bg-[var(--primary)] px-4 py-2 text-sm text-[var(--on-primary)]"
           onClick={() => { setError(''); setChoice({ agentId: target, claims }); }}>
           {t('agentSettings.identity.choose')}
         </button>}
@@ -88,7 +88,7 @@ function ConflictChoiceDialog({ claims, onConfirm, onCancel }: {
         }
       }}>
       <h2 id={titleId} className="text-lg font-semibold text-[var(--ink)]">{t('agentSettings.identity.choose')}</h2>
-      <p className="mt-3 text-sm text-[var(--ink-muted)]">{t('agentSettings.identity.consequences')}</p>
+      <p className="mt-3 text-sm text-[var(--muted)]">{t('agentSettings.identity.consequences')}</p>
       <fieldset disabled={busy} className="mt-4 space-y-2">
         <legend className="sr-only">{t('agentSettings.identity.choose')}</legend>
         {claims.map(project => <label key={project.id} className="flex cursor-pointer gap-3 rounded-lg border border-[var(--line)] p-3">
@@ -98,15 +98,15 @@ function ConflictChoiceDialog({ claims, onConfirm, onCancel }: {
             {project.displayName || project.name}
             {project.hidden && <span className="ml-2 text-xs">{t('agentSettings.identity.hidden')}</span>}
             {project.archivedAt && <span className="ml-2 text-xs">{t('agentSettings.identity.archived')}</span>}
-            <span className="block break-all text-xs text-[var(--ink-muted)]">{project.path}</span>
+            <span className="block break-all text-xs text-[var(--muted)]">{project.path}</span>
           </span>
         </label>)}
       </fieldset>
-      <p className="mt-4 text-xs leading-relaxed text-[var(--ink-muted)]">{t('agentSettings.identity.defaults')}</p>
+      <p className="mt-4 text-xs leading-relaxed text-[var(--muted)]">{t('agentSettings.identity.defaults')}</p>
       <div className="mt-5 flex justify-end gap-3">
-        <button type="button" disabled={busy} onClick={onCancel} className="rounded-full bg-[var(--button-secondary-bg)] px-4 py-2 text-sm text-[var(--ink)]">{t('agentSettings.identity.cancel')}</button>
+        <button type="button" disabled={busy} onClick={onCancel} className="rounded-full bg-[var(--paper)] px-4 py-2 text-sm text-[var(--ink)]">{t('agentSettings.identity.cancel')}</button>
         <button type="button" disabled={!selected || busy} onClick={async () => { setBusy(true); try { await onConfirm(selected); } finally { setBusy(false); } }}
-          className="rounded-full bg-[var(--button-primary-bg)] px-4 py-2 text-sm text-[var(--button-primary-text)] disabled:opacity-50">
+          className="rounded-full bg-[var(--primary)] px-4 py-2 text-sm text-[var(--on-primary)] disabled:opacity-50">
           {t(busy ? 'agentSettings.identity.repairing' : 'agentSettings.identity.confirm')}
         </button>
       </div>

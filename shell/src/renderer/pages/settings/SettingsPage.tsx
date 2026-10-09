@@ -186,8 +186,6 @@ import {
 } from './managedCodexRuntimePresentation';
 import { AppearanceModeControl } from './components/AppearanceModeControl';
 import { MarkdownReadingSizeControl } from './components/MarkdownReadingSizeControl';
-import { ThemePresetSelect } from './components/ThemePresetSelect';
-import { useResolvedTheme } from '@/theme';
 import {
   MANAGED_BROWSER_MCP_ID,
   hasUserEditableMcpSettings,
@@ -376,7 +374,6 @@ export default function Settings({
   } = useConfig();
   const spaceBuildCapability = useSpaceBuildCapability(config.spaceEnvironment);
   const toast = useToast();
-  const resolvedTheme = useResolvedTheme();
   const { t: tSettings } = useTranslation('settings');
   const { t: tCommon } = useTranslation('common');
   // Stabilize toast reference to avoid unnecessary effect re-runs
@@ -1376,7 +1373,7 @@ export default function Settings({
 
   // Edge TTS slider styling (custom range input with accent-colored thumb)
   const ttsSliderClass =
-    'w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--line)] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--accent)] [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110';
+    'w-full h-1.5 rounded-full appearance-none cursor-pointer bg-[var(--line)] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--primary)] [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110';
 
   // Edge TTS MCP custom settings dialog
   const [edgeTtsSettings, setEdgeTtsSettings] = useState<TtsPreviewSettings | null>(null);
@@ -4012,7 +4009,7 @@ export default function Settings({
           <>
             {isLoggedIn ? (
               <>
-                <span className="truncate font-mono text-xs text-[var(--ink-muted)]">
+                <span className="truncate font-mono text-xs text-[var(--muted)]">
                   {accountLabel}
                 </span>
                 <span className="shrink-0 rounded bg-[var(--success-bg)] px-1.5 py-0.5 text-xs font-medium text-[var(--success)]">
@@ -4021,7 +4018,7 @@ export default function Settings({
               </>
             ) : (
               <>
-                <span className="truncate text-xs text-[var(--ink-muted)]">
+                <span className="truncate text-xs text-[var(--muted)]">
                   {statusText}
                 </span>
                 {isLoginActive && (
@@ -4037,7 +4034,7 @@ export default function Settings({
                     </span>
                   )}
                 {isVerifyInvalid && (
-                  <span className="shrink-0 rounded bg-[var(--error-bg)] px-1.5 py-0.5 text-xs font-medium text-[var(--error)]">
+                  <span className="shrink-0 rounded bg-[var(--danger-bg)] px-1.5 py-0.5 text-xs font-medium text-[var(--danger)]">
                     {tSettings('providers.verifyFailed')}
                   </span>
                 )}
@@ -4052,7 +4049,7 @@ export default function Settings({
                 type="button"
                 onClick={handleReVerifySubscription}
                 disabled={subscriptionVerifying || isLoginActive}
-                className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-50"
+                className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-50"
                 title={tSettings('providers.reverify')}
               >
                 <RefreshCw
@@ -4065,7 +4062,7 @@ export default function Settings({
                 type="button"
                 disabled={isLoginActive || subscriptionVerifying}
                 onClick={() => void startSubscriptionLogin()}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-60"
               >
                 {isLoginActive ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4080,13 +4077,13 @@ export default function Settings({
         error={
           <>
             {isVerifyInvalid && subscriptionStatus?.verifyError && (
-              <p className="break-words text-xs text-[var(--error)]">
+              <p className="break-words text-xs text-[var(--danger)]">
                 {subscriptionStatus.verifyError}
               </p>
             )}
             {subscriptionLoginState.status === 'error' &&
               subscriptionLoginState.error && (
-                <p className="break-words text-xs text-[var(--error)]">
+                <p className="break-words text-xs text-[var(--danger)]">
                   {subscriptionLoginState.error}
                 </p>
               )}
@@ -4165,7 +4162,7 @@ export default function Settings({
     return (
       <div
         key={provider.id}
-        className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5"
+        className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
       >
         <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
@@ -4173,7 +4170,7 @@ export default function Settings({
               <h3 className="truncate text-lg font-semibold text-[var(--ink)]">
                 {tSettings('providers.cardTitles.chatgptSubscription')}
               </h3>
-              <span className="shrink-0 rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+              <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">
                 {tSettings('providers.official')}
               </span>
               {isUpdatingRuntime && (
@@ -4182,7 +4179,7 @@ export default function Settings({
                 </span>
               )}
             </div>
-            <p className="mt-1 truncate text-xs text-[var(--ink-muted)]">
+            <p className="mt-1 truncate text-xs text-[var(--muted)]">
               {modelLine}
             </p>
           </div>
@@ -4190,7 +4187,7 @@ export default function Settings({
             <button
               type="button"
               onClick={() => setManagedCodexDetailsOpen(true)}
-              className="shrink-0 rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="shrink-0 rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
               title={tSettings('providers.managedCodex.settingsTitle')}
             >
               <Settings2 className="h-4 w-4" />
@@ -4200,9 +4197,9 @@ export default function Settings({
 
         {showDownloadRow && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5">
               <div className="flex min-w-0 items-center gap-2">
-                <Download className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+                <Download className="h-4 w-4 shrink-0 text-[var(--primary)]" />
                 <span className="truncate text-sm font-semibold text-[var(--ink)]">
                   {runtimeRowLabel}
                 </span>
@@ -4211,7 +4208,7 @@ export default function Settings({
                 type="button"
                 disabled={busy}
                 onClick={() => void runManagedCodexDownload()}
-                className="flex min-w-16 items-center justify-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-70"
+                className="flex min-w-16 items-center justify-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-70"
               >
                 {isDownloadingRuntime && progressPercent == null && (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4220,20 +4217,20 @@ export default function Settings({
               </button>
             </div>
             {runtimeError && (
-              <p className="text-xs text-[var(--error)]">{runtimeError}</p>
+              <p className="text-xs text-[var(--danger)]">{runtimeError}</p>
             )}
           </div>
         )}
         {runtimeUsable && (
           <div className="space-y-3">
-            <p className="text-sm text-[var(--ink-muted)]">
+            <p className="text-sm text-[var(--muted)]">
               {tSettings('providers.managedCodex.description')}
             </p>
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs">
                 {isLoggedIn ? (
                   <>
-                    <span className="truncate font-mono text-xs text-[var(--ink-muted)]">
+                    <span className="truncate font-mono text-xs text-[var(--muted)]">
                       {accountLabel}
                     </span>
                     <span className="shrink-0 rounded bg-[var(--success-bg)] px-1.5 py-0.5 text-xs font-medium text-[var(--success)]">
@@ -4242,7 +4239,7 @@ export default function Settings({
                   </>
                 ) : (
                   <>
-                    <span className="truncate text-xs text-[var(--ink-muted)]">
+                    <span className="truncate text-xs text-[var(--muted)]">
                       {statusText}
                     </span>
                     {loginInProgress && (
@@ -4251,7 +4248,7 @@ export default function Settings({
                       </span>
                     )}
                     {(authStatus === 'error' || authStatus === 'invalid') && (
-                      <span className="shrink-0 rounded bg-[var(--error-bg)] px-1.5 py-0.5 text-xs font-medium text-[var(--error)]">
+                      <span className="shrink-0 rounded bg-[var(--danger-bg)] px-1.5 py-0.5 text-xs font-medium text-[var(--danger)]">
                         {tSettings('providers.verifyFailed')}
                       </span>
                     )}
@@ -4263,7 +4260,7 @@ export default function Settings({
                   type="button"
                   disabled={busy}
                   onClick={() => void startManagedCodexLogin()}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-60"
                 >
                   {loginInProgress ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4276,13 +4273,13 @@ export default function Settings({
             </div>
             {installStatus === 'error' && install?.installedVersion && (
               <div className="space-y-1">
-                <p className="text-xs font-medium text-[var(--error)]">
+                <p className="text-xs font-medium text-[var(--danger)]">
                   {tSettings('providers.managedCodex.updateFailedWithCurrent', {
                     current: install.installedVersion,
                   })}
                 </p>
                 {runtimeError && (
-                  <p className="break-words text-xs text-[var(--error)]">
+                  <p className="break-words text-xs text-[var(--danger)]">
                     {runtimeError}
                   </p>
                 )}
@@ -4315,10 +4312,10 @@ export default function Settings({
     const authBadgeClass = isLoggedIn
       ? 'bg-[var(--success-bg)] text-[var(--success)]'
       : authStatus === 'error' || authStatus === 'invalid'
-        ? 'bg-[var(--error-bg)] text-[var(--error)]'
+        ? 'bg-[var(--danger-bg)] text-[var(--danger)]'
         : loginInProgress
           ? 'bg-[var(--info-bg)] text-[var(--info)]'
-          : 'bg-[var(--paper-inset)] text-[var(--ink-muted)]';
+          : 'bg-[var(--inset)] text-[var(--muted)]';
     const authBadgeLabel = isLoggedIn
       ? tSettings('providers.managedCodex.loggedIn')
       : loginInProgress
@@ -4338,20 +4335,20 @@ export default function Settings({
         onClose={() => setManagedCodexDetailsOpen(false)}
         className="z-50 overflow-y-auto py-8"
       >
-        <div className="mx-4 flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-[var(--paper-elevated)] shadow-xl">
-          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--line-subtle)] px-6 py-5">
+        <div className="mx-4 flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-[var(--paper)] shadow-xl">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--line)] px-6 py-5">
             <div className="min-w-0">
               <h3 className="text-lg font-semibold text-[var(--ink)]">
                 {tSettings('providers.managedCodex.settingsTitle')}
               </h3>
-              <p className="mt-1 text-sm text-[var(--ink-muted)]">
+              <p className="mt-1 text-sm text-[var(--muted)]">
                 {tSettings('providers.managedCodex.settingsDescription')}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setManagedCodexDetailsOpen(false)}
-              className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
               <X className="h-4 w-4" />
             </button>
@@ -4374,14 +4371,14 @@ export default function Settings({
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 truncate text-xs text-[var(--ink-muted)]">
+                  <p className="mt-1 truncate text-xs text-[var(--muted)]">
                     {install?.platform ??
                       tSettings('providers.managedCodex.currentPlatform')}
                   </p>
                   {runtimeUsable &&
                     install?.status === 'error' &&
                     install.installedVersion && (
-                      <p className="mt-2 text-xs font-medium text-[var(--error)]">
+                      <p className="mt-2 text-xs font-medium text-[var(--danger)]">
                         {tSettings(
                           'providers.managedCodex.updateFailedWithCurrent',
                           {
@@ -4395,7 +4392,7 @@ export default function Settings({
                   type="button"
                   disabled={managedCodexBusy !== null}
                   onClick={() => void checkManagedCodexUpdate()}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-wait disabled:opacity-60"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:cursor-wait disabled:opacity-60"
                 >
                   <RefreshCw
                     className={`h-3.5 w-3.5 ${managedCodexBusy === 'status' ? 'animate-spin' : ''}`}
@@ -4405,7 +4402,7 @@ export default function Settings({
               </div>
             </section>
 
-            <section className="border-t border-[var(--line-subtle)] pt-5">
+            <section className="border-t border-[var(--line)] pt-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -4418,7 +4415,7 @@ export default function Settings({
                       {authBadgeLabel}
                     </span>
                   </div>
-                  <p className="mt-1 truncate text-sm text-[var(--ink-muted)]">
+                  <p className="mt-1 truncate text-sm text-[var(--muted)]">
                     {isLoggedIn
                       ? accountLabel
                       : tSettings('providers.managedCodex.account')}
@@ -4432,7 +4429,7 @@ export default function Settings({
                       managedCodexBusy !== null
                     }
                     onClick={() => void logoutManagedCodex()}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-wait disabled:opacity-60"
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:cursor-wait disabled:opacity-60"
                   >
                     {managedCodexBusy === 'logout' ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4449,7 +4446,7 @@ export default function Settings({
                       managedCodexBusy !== null
                     }
                     onClick={() => void startManagedCodexLogin()}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-60"
                   >
                     {managedCodexBusy === 'login' ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4461,7 +4458,7 @@ export default function Settings({
                 )}
               </div>
               {authError && (
-                <p className="mt-3 break-words text-xs text-[var(--error)]">
+                <p className="mt-3 break-words text-xs text-[var(--danger)]">
                   {authError}
                 </p>
               )}
@@ -4490,7 +4487,7 @@ export default function Settings({
       state.status === 'succeeded'
         ? 'bg-[var(--success-bg)] text-[var(--success)]'
         : state.status === 'cancelled' || state.status === 'error'
-          ? 'bg-[var(--error-bg)] text-[var(--error)]'
+          ? 'bg-[var(--danger-bg)] text-[var(--danger)]'
           : 'bg-[var(--info-bg)] text-[var(--info)]';
 
     return (
@@ -4498,8 +4495,8 @@ export default function Settings({
         onClose={() => setManagedCodexLoginDialogOpen(false)}
         className="z-50 overflow-y-auto px-4 py-8"
       >
-        <div className="w-full max-w-xl rounded-2xl bg-[var(--paper-elevated)] shadow-xl">
-          <div className="flex items-start justify-between gap-4 border-b border-[var(--line-subtle)] px-6 py-5">
+        <div className="w-full max-w-xl rounded-2xl bg-[var(--paper)] shadow-xl">
+          <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] px-6 py-5">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-semibold text-[var(--ink)]">
@@ -4511,14 +4508,14 @@ export default function Settings({
                   {statusLabel}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-[var(--ink-muted)]">
+              <p className="mt-1 text-sm text-[var(--muted)]">
                 {tSettings('providers.loginDialog.codexDescription')}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setManagedCodexLoginDialogOpen(false)}
-              className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
               <X className="h-4 w-4" />
             </button>
@@ -4532,17 +4529,17 @@ export default function Settings({
                 ) : state.status === 'succeeded' ? (
                   <Check className="h-4 w-4 text-[var(--success)]" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 text-[var(--error)]" />
+                  <AlertCircle className="h-4 w-4 text-[var(--danger)]" />
                 )}
                 <p className="text-sm font-medium text-[var(--ink)]">
                   {tSettings('providers.loginDialog.autoOpenBrowser')}
                 </p>
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--ink-muted)]">
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
                 {tSettings('providers.loginDialog.codexAutoOpenDescription')}
               </p>
-              <div className="mt-3 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
-                <p className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--ink-muted)]">
+              <div className="mt-3 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2">
+                <p className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--muted)]">
                   {state.loginUrl ??
                     tSettings('providers.loginDialog.waitingCodexUrl')}
                 </p>
@@ -4550,7 +4547,7 @@ export default function Settings({
                   type="button"
                   disabled={!state.loginUrl}
                   onClick={() => void copyManagedCodexLoginUrl()}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   {tSettings('providers.loginDialog.copy')}
@@ -4560,14 +4557,14 @@ export default function Settings({
 
             <section
               hidden={isLoginSucceeded}
-              className="border-t border-[var(--line-subtle)] pt-5"
+              className="border-t border-[var(--line)] pt-5"
             >
               <p className="text-sm font-medium text-[var(--ink)]">
                 {tSettings('providers.loginDialog.remoteTitle')}
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--ink-muted)]">
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
                 {tSettings('providers.loginDialog.codexRemoteDescription')}
-                <code className="mx-1 rounded bg-[var(--paper-inset)] px-1.5 py-0.5 font-mono text-xs text-[var(--ink)]">
+                <code className="mx-1 rounded bg-[var(--inset)] px-1.5 py-0.5 font-mono text-xs text-[var(--ink)]">
                   codex login --device-auth
                 </code>
               </p>
@@ -4583,7 +4580,7 @@ export default function Settings({
                     <p className="text-sm font-semibold text-[var(--ink)]">
                       {tSettings('providers.loginDialog.codexReadyTitle')}
                     </p>
-                    <p className="mt-1 text-sm leading-relaxed text-[var(--ink-muted)]">
+                    <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
                       {tSettings('providers.loginDialog.codexReadyDescription')}
                     </p>
                   </div>
@@ -4591,25 +4588,25 @@ export default function Settings({
                 <img
                   src={codexModelSelectorOnboarding}
                   alt={tSettings('providers.loginDialog.codexModelSelectorAlt')}
-                  className="mx-auto mt-5 block h-auto w-full max-w-xs rounded-xl border border-[var(--line-subtle)]"
+                  className="mx-auto mt-5 block h-auto w-full max-w-xs rounded-xl border border-[var(--line)]"
                 />
               </section>
             )}
             {(state.status === 'cancelled' || state.status === 'error') && (
-              <p className="break-words rounded-lg bg-[var(--error-bg)] px-3 py-2 text-sm text-[var(--error)]">
+              <p className="break-words rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]">
                 {state.error ?? tSettings('providers.loginDialog.notCompleted')}
               </p>
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-[var(--line-subtle)] px-6 py-4">
+          <div className="flex items-center justify-end gap-3 border-t border-[var(--line)] px-6 py-4">
             <button
               type="button"
               onClick={() => setManagedCodexLoginDialogOpen(false)}
               className={
                 isLoginSucceeded
-                  ? 'rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]'
-                  : 'rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]'
+                  ? 'rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]'
+                  : 'rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]'
               }
             >
               {isLoginSucceeded
@@ -4621,7 +4618,7 @@ export default function Settings({
                 type="button"
                 disabled={managedCodexBusy === 'login'}
                 onClick={() => void startManagedCodexLogin()}
-                className="flex items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-60"
               >
                 {managedCodexBusy === 'login' && (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4653,7 +4650,7 @@ export default function Settings({
       state.status === 'succeeded'
         ? 'bg-[var(--success-bg)] text-[var(--success)]'
         : state.status === 'cancelled' || state.status === 'error'
-          ? 'bg-[var(--error-bg)] text-[var(--error)]'
+          ? 'bg-[var(--danger-bg)] text-[var(--danger)]'
           : 'bg-[var(--info-bg)] text-[var(--info)]';
 
     return (
@@ -4661,8 +4658,8 @@ export default function Settings({
         onClose={closeSubscriptionLoginDialog}
         className="z-50 overflow-y-auto px-4 py-8"
       >
-        <div className="w-full max-w-xl rounded-2xl bg-[var(--paper-elevated)] shadow-xl">
-          <div className="flex items-start justify-between gap-4 border-b border-[var(--line-subtle)] px-6 py-5">
+        <div className="w-full max-w-xl rounded-2xl bg-[var(--paper)] shadow-xl">
+          <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] px-6 py-5">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-semibold text-[var(--ink)]">
@@ -4674,14 +4671,14 @@ export default function Settings({
                   {statusLabel}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-[var(--ink-muted)]">
+              <p className="mt-1 text-sm text-[var(--muted)]">
                 {tSettings('providers.loginDialog.claudeDescription')}
               </p>
             </div>
             <button
               type="button"
               onClick={closeSubscriptionLoginDialog}
-              className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
               <X className="h-4 w-4" />
             </button>
@@ -4695,17 +4692,17 @@ export default function Settings({
                 ) : state.status === 'succeeded' ? (
                   <Check className="h-4 w-4 text-[var(--success)]" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 text-[var(--error)]" />
+                  <AlertCircle className="h-4 w-4 text-[var(--danger)]" />
                 )}
                 <p className="text-sm font-medium text-[var(--ink)]">
                   {tSettings('providers.loginDialog.autoOpenBrowser')}
                 </p>
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--ink-muted)]">
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
                 {tSettings('providers.loginDialog.claudeAutoOpenDescription')}
               </p>
-              <div className="mt-3 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
-                <p className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--ink-muted)]">
+              <div className="mt-3 flex min-w-0 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2">
+                <p className="min-w-0 flex-1 truncate font-mono text-xs text-[var(--muted)]">
                   {displayUrl ??
                     tSettings('providers.loginDialog.waitingClaudeUrl')}
                 </p>
@@ -4713,7 +4710,7 @@ export default function Settings({
                   type="button"
                   disabled={!displayUrl}
                   onClick={() => void copySubscriptionLoginUrl()}
-                  className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   {tSettings('providers.loginDialog.copy')}
@@ -4722,14 +4719,14 @@ export default function Settings({
             </section>
 
             {isActiveLogin && (
-              <section className="border-t border-[var(--line-subtle)] pt-5">
+              <section className="border-t border-[var(--line)] pt-5">
                 <div className="flex items-center gap-2">
-                  <KeyRound className="h-4 w-4 text-[var(--ink-muted)]" />
+                  <KeyRound className="h-4 w-4 text-[var(--muted)]" />
                   <p className="text-sm font-medium text-[var(--ink)]">
                     {tSettings('providers.loginDialog.manualCodeTitle')}
                   </p>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--ink-muted)]">
+                <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
                   {tSettings('providers.loginDialog.manualCodeDescription')}
                 </p>
                 <form
@@ -4747,7 +4744,7 @@ export default function Settings({
                     placeholder={tSettings(
                       'providers.loginDialog.manualCodePlaceholder',
                     )}
-                    className="min-w-0 flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-mono text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
+                    className="min-w-0 flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 font-mono text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--subtle)] focus:border-[var(--primary)]"
                   />
                   <button
                     type="submit"
@@ -4755,7 +4752,7 @@ export default function Settings({
                       !subscriptionLoginCode.trim() ||
                       subscriptionLoginSubmitting
                     }
-                    className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {subscriptionLoginSubmitting ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4768,20 +4765,20 @@ export default function Settings({
                   </button>
                 </form>
                 {state.error && (
-                  <p className="mt-2 break-words rounded-lg bg-[var(--error-bg)] px-3 py-2 text-sm text-[var(--error)]">
+                  <p className="mt-2 break-words rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]">
                     {state.error}
                   </p>
                 )}
               </section>
             )}
 
-            <section className="border-t border-[var(--line-subtle)] pt-5">
+            <section className="border-t border-[var(--line)] pt-5">
               <p className="text-sm font-medium text-[var(--ink)]">
                 {tSettings('providers.loginDialog.remoteTitle')}
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--ink-muted)]">
+              <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
                 {tSettings('providers.loginDialog.claudeRemoteDescription')}
-                <code className="mx-1 rounded bg-[var(--paper-inset)] px-1.5 py-0.5 font-mono text-xs text-[var(--ink)]">
+                <code className="mx-1 rounded bg-[var(--inset)] px-1.5 py-0.5 font-mono text-xs text-[var(--ink)]">
                   claude auth login
                 </code>
               </p>
@@ -4793,17 +4790,17 @@ export default function Settings({
               </p>
             )}
             {(state.status === 'cancelled' || state.status === 'error') && (
-              <p className="break-words rounded-lg bg-[var(--error-bg)] px-3 py-2 text-sm text-[var(--error)]">
+              <p className="break-words rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]">
                 {state.error ?? tSettings('providers.loginDialog.notCompleted')}
               </p>
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-[var(--line-subtle)] px-6 py-4">
+          <div className="flex items-center justify-end gap-3 border-t border-[var(--line)] px-6 py-4">
             <button
               type="button"
               onClick={closeSubscriptionLoginDialog}
-              className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+              className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
             >
               {tSettings('providers.loginDialog.close')}
             </button>
@@ -4812,7 +4809,7 @@ export default function Settings({
                 type="button"
                 disabled={subscriptionLoginBusy}
                 onClick={() => void startSubscriptionLogin()}
-                className="flex items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-60"
               >
                 {subscriptionLoginBusy && (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -4850,8 +4847,8 @@ export default function Settings({
           </div>
         )}
         {!isLoading && verifyStatus === 'invalid' && (
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--error-bg)]">
-            <AlertCircle className="h-4 w-4 text-[var(--error)]" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--danger-bg)]">
+            <AlertCircle className="h-4 w-4 text-[var(--danger)]" />
           </div>
         )}
         {!isLoading && !verifyStatus && (
@@ -4868,7 +4865,7 @@ export default function Settings({
             type="button"
             onClick={() => verifyProvider(provider, apiKeys[provider.id])}
             disabled={isLoading}
-            className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-50"
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-50"
             title={tSettings('providers.reverify')}
           >
             <RefreshCw
@@ -4886,7 +4883,7 @@ export default function Settings({
     if (!errObj) return null;
 
     return (
-      <div className="flex items-start gap-1.5 pt-1.5 text-xs text-[var(--error)]">
+      <div className="flex items-start gap-1.5 pt-1.5 text-xs text-[var(--danger)]">
         <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
         <span className="min-w-0 break-words">
           {errObj.error}
@@ -4895,7 +4892,7 @@ export default function Settings({
               <button
                 type="button"
                 onClick={navigateToProxySettings}
-                className="mx-1 font-medium text-[var(--accent)] underline decoration-dotted underline-offset-2 transition-colors hover:text-[var(--accent-warm-hover)]"
+                className="mx-1 font-medium text-[var(--primary)] underline decoration-dotted underline-offset-2 transition-colors hover:text-[var(--primary-hover)]"
               >
                 {tSettings('providers.verify.configureProxy')}
               </button>
@@ -4912,19 +4909,19 @@ export default function Settings({
                   errorDetailOpenId === provider.id ? null : provider.id,
                 )
               }
-              className="whitespace-nowrap text-[var(--ink-muted)] underline decoration-dotted transition-colors hover:text-[var(--ink)]"
+              className="whitespace-nowrap text-[var(--muted)] underline decoration-dotted transition-colors hover:text-[var(--ink)]"
             >
               {tSettings('providers.verify.details')}
             </button>
             {errorDetailOpenId === provider.id && (
               <div
                 ref={errorDetailPopoverRef}
-                className="absolute right-0 top-6 z-50 w-80 max-w-[90vw] rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-3 shadow-lg"
+                className="absolute right-0 top-6 z-50 w-80 max-w-[90vw] rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3 shadow-lg"
               >
-                <p className="mb-1 text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
                   {tSettings('providers.verify.errorDetails')}
                 </p>
-                <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-[var(--ink-secondary)]">
+                <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-[var(--ink-2)]">
                   {errObj.detail}
                 </pre>
               </div>
@@ -4936,7 +4933,7 @@ export default function Settings({
   };
 
   return (
-    <div className="settings-root flex h-full bg-[var(--paper)]">
+    <div className="settings-root flex h-full bg-[var(--bg)]">
       {/* Logs Panel */}
       {mode === 'settings' && (
         <UnifiedLogsPanel
@@ -4968,12 +4965,12 @@ export default function Settings({
               <h1 className="text-xl font-semibold text-[var(--ink)]">
                 {tSettings('capabilities.title')}
               </h1>
-              <p className="mt-1 text-sm text-[var(--ink-muted)]">
+              <p className="mt-1 text-sm text-[var(--muted)]">
                 {tSettings('capabilities.description')}
               </p>
             </header>
             <div
-              className="sticky top-0 z-20 mt-5 border-b border-[var(--line)] bg-[var(--paper)]/95 px-8 backdrop-blur-sm"
+              className="sticky top-0 z-20 mt-5 border-b border-[var(--line)] bg-[var(--bg)]/95 px-8 backdrop-blur-sm"
               data-capabilities-sticky-tabs
             >
               <nav
@@ -5002,8 +4999,8 @@ export default function Settings({
                       onClick={() => setActiveSection(section)}
                       className={`relative px-4 pb-3 pt-2 text-sm font-medium transition-colors ${
                         selected
-                          ? 'text-[var(--ink)] after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[var(--accent)]'
-                          : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                          ? 'text-[var(--ink)] after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[var(--primary)]'
+                          : 'text-[var(--muted)] hover:text-[var(--ink)]'
                       }`}
                     >
                       {tSettings(labelKey)}
@@ -5076,14 +5073,14 @@ export default function Settings({
               <div className="flex items-center gap-2">
                 <button
                   onClick={openProviderOrderDialog}
-                  className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+                  className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
                 >
                   <SlidersHorizontal className="h-3.5 w-3.5" />
                   {tSettings('providers.enableAndSort')}
                 </button>
                 <button
                   onClick={() => setShowCustomForm(true)}
-                  className="flex items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+                  className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   {tSettings('providers.addProvider')}
@@ -5091,7 +5088,7 @@ export default function Settings({
               </div>
             </div>
 
-            <p className="mb-6 text-sm text-[var(--ink-muted)]">
+            <p className="mb-6 text-sm text-[var(--muted)]">
               {tSettings('providers.description')}
             </p>
 
@@ -5105,7 +5102,7 @@ export default function Settings({
                 ) : (
                   <div
                     key={provider.id}
-                    className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5"
+                    className="min-w-0 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
                   >
                     {/* Provider header */}
                     <div className="mb-4 flex items-start justify-between gap-2">
@@ -5118,16 +5115,16 @@ export default function Settings({
                                 ? tSettings('providers.cardTitles.claudeApi')
                                 : provider.name}
                           </h3>
-                          <span className="shrink-0 rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+                          <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">
                             {provider.cloudProvider}
                           </span>
                           {provider.apiProtocol === 'openai' && (
-                            <span className="shrink-0 rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+                            <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">
                               {tSettings('providers.openaiProtocol')}
                             </span>
                           )}
                         </div>
-                        {(provider.id !== ANTIGRAVITY_SUBSCRIPTION_PROVIDER_ID || provider.models.length > 0) && <p className="mt-1 truncate text-xs text-[var(--ink-muted)]">
+                        {(provider.id !== ANTIGRAVITY_SUBSCRIPTION_PROVIDER_ID || provider.models.length > 0) && <p className="mt-1 truncate text-xs text-[var(--muted)]">
                           {provider.models.length > 0
                             ? provider.models
                                 .map((m) => m.modelName || m.model)
@@ -5139,14 +5136,14 @@ export default function Settings({
                         {provider.websiteUrl && (
                           <ExternalLink
                             href={provider.websiteUrl}
-                            className="rounded-lg px-1.5 py-1.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                            className="rounded-lg px-1.5 py-1.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                           >
                             {tSettings('providers.website')}
                           </ExternalLink>
                         )}
                         <button
                           onClick={() => openProviderManage(provider)}
-                          className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                          className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                           title={tSettings('providers.manage')}
                         >
                           <Settings2 className="h-4 w-4" />
@@ -5159,7 +5156,7 @@ export default function Settings({
                       <div>
                         <div className="flex items-center gap-2">
                           <div className="relative flex-1">
-                            <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--ink-muted)]" />
+                            <KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" />
                             <input
                               type="password"
                               placeholder={tSettings(
@@ -5169,7 +5166,7 @@ export default function Settings({
                               onChange={(e) =>
                                 handleSaveApiKey(provider, e.target.value)
                               }
-                              className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] py-2.5 pl-10 pr-4 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)] transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                              className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] py-2.5 pl-10 pr-4 text-sm text-[var(--ink)] placeholder-[var(--muted)] transition-colors focus:border-[var(--primary)] focus:outline-none"
                             />
                           </div>
                           {renderVerifyStatus(provider)}
@@ -5196,11 +5193,11 @@ export default function Settings({
                 ),
               )}
               {visibleProviders.length === 0 && (
-                <div className="col-span-2 rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper-elevated)] p-8 text-center">
+                <div className="col-span-2 rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper)] p-8 text-center">
                   <p className="text-sm font-medium text-[var(--ink)]">
                     {tSettings('providers.noEnabledTitle')}
                   </p>
-                  <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                  <p className="mt-1 text-xs text-[var(--muted)]">
                     {tSettings('providers.noEnabledDescription')}
                   </p>
                 </div>
@@ -5258,18 +5255,18 @@ export default function Settings({
                 <h2 className="text-lg font-semibold text-[var(--ink)]">
                   {tSettings('shortcuts.title')}
                 </h2>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('shortcuts.description')}
                 </p>
               </div>
 
               {/* 消息发送 — applies to every "AI conversation" composer:
                                 主对话框 / AI 小助理 / 问题反馈 (shared via utils/chatSendKey). */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('shortcuts.messageSend.title')}
                 </h3>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('shortcuts.messageSend.description')}
                 </p>
                 <div className="mt-4 flex items-center justify-between">
@@ -5277,7 +5274,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('shortcuts.messageSend.shortcutTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {(config.chatSendShortcut ?? 'enter') === 'modEnter'
                         ? tSettings('shortcuts.messageSend.modEnterSummary', {
                             mod: isMac ? '⌘' : 'Ctrl',
@@ -5285,7 +5282,7 @@ export default function Settings({
                         : tSettings('shortcuts.messageSend.enterSummary')}
                     </p>
                   </div>
-                  <div className="flex gap-0.5 rounded-full bg-[var(--paper-inset)] p-0.5">
+                  <div className="flex gap-0.5 rounded-full bg-[var(--inset)] p-0.5">
                     {(
                       [
                         { value: 'enter', label: 'Enter' },
@@ -5302,8 +5299,8 @@ export default function Settings({
                         }
                         className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
                           (config.chatSendShortcut ?? 'enter') === opt.value
-                            ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm'
-                            : 'text-[var(--ink-muted)] hover:text-[var(--ink-secondary)]'
+                            ? 'bg-[var(--paper)] text-[var(--ink)] shadow-sm'
+                            : 'text-[var(--muted)] hover:text-[var(--ink-2)]'
                         }`}
                       >
                         {opt.label}
@@ -5315,11 +5312,11 @@ export default function Settings({
 
               {/* Global Summon Shortcut (PRD 0.2.16) — relocated here from
                                 通用设置 in 0.2.29 so all keyboard shortcuts live together. */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('shortcuts.summon.title')}
                 </h3>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('shortcuts.summon.description')}
                 </p>
 
@@ -5329,7 +5326,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('shortcuts.summon.enableTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {isTauriEnvironment()
                         ? tSettings('shortcuts.summon.enableDescription')
                         : tSettings('shortcuts.desktopOnly')}
@@ -5349,8 +5346,8 @@ export default function Settings({
                         : 'cursor-pointer'
                     } ${
                       summonEnabled
-                        ? 'bg-[var(--accent)]'
-                        : 'bg-[var(--line-strong)]'
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
                     }`}
                   >
                     <span
@@ -5367,7 +5364,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('shortcuts.summon.currentTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('shortcuts.summon.currentDescription')}
                     </p>
                   </div>
@@ -5395,7 +5392,7 @@ export default function Settings({
                         !summonEnabled ||
                         summonAccelerator === DEFAULT_SUMMON_ACCELERATOR
                       }
-                      className={`text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors ${
+                      className={`text-xs text-[var(--muted)] hover:text-[var(--ink)] transition-colors ${
                         !isTauriEnvironment() ||
                         !summonEnabled ||
                         summonAccelerator === DEFAULT_SUMMON_ACCELERATOR
@@ -5412,11 +5409,11 @@ export default function Settings({
 
               {/* 应用快捷键 reference — read-only, sourced from the same
                                 APP_SHORTCUTS table App.tsx dispatches from (no drift). */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('shortcuts.app.title')}
                 </h3>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('shortcuts.app.description')}
                 </p>
                 <div className="mt-4 space-y-2.5">
@@ -5425,10 +5422,10 @@ export default function Settings({
                       key={s.id}
                       className="flex items-center justify-between gap-4"
                     >
-                      <p className="text-sm text-[var(--ink-secondary)]">
+                      <p className="text-sm text-[var(--ink-2)]">
                         {tSettings(`shortcuts.app.items.${s.id}`)}
                       </p>
-                      <kbd className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--paper-inset)] px-2 py-0.5 font-mono text-xs text-[var(--ink-muted)]">
+                      <kbd className="shrink-0 rounded-md border border-[var(--line)] bg-[var(--inset)] px-2 py-0.5 font-mono text-xs text-[var(--muted)]">
                         {s.keys?.(isMac)}
                       </kbd>
                     </div>
@@ -5444,19 +5441,19 @@ export default function Settings({
                 <h2 className="text-lg font-semibold text-[var(--ink)]">
                   {tSettings('general.title')}
                 </h2>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('general.description')}
                 </p>
               </div>
 
               {/* 求职助理：模型 Key（必需）与搜索 Key（建议）。放在通用页最上面，不用去命令行注入 */}
-              <div data-testid="settings-career-keys" className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div data-testid="settings-career-keys" className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">求职助理：模型与搜索</h3>
-                <p className="mt-1 mb-4 text-xs text-[var(--ink-muted)]">模型 Key 必需，搜索 Key 建议配置。保存在本机，助理看不到。</p>
+                <p className="mt-1 mb-4 text-xs text-[var(--muted)]">模型 Key 必需，搜索 Key 建议配置。保存在本机，助理看不到。</p>
                 <CareerKeysPanel />
               </div>
 
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.appearanceTitle')}
                 </h3>
@@ -5466,7 +5463,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.languageTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.languageDescription')}
                     </p>
                   </div>
@@ -5489,33 +5486,6 @@ export default function Settings({
                   }}
                 />
 
-                <div className="mt-4 flex items-center justify-between gap-4 border-t border-[var(--line)] pt-4">
-                  <div className="min-w-0 flex-1 pr-4">
-                    <p className="text-sm font-medium text-[var(--ink)]">
-                      {tSettings('general.themeTitle')}
-                    </p>
-                    <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
-                      {tSettings('general.themeDescription')}
-                    </p>
-                  </div>
-                  <ThemePresetSelect
-                    value={resolvedTheme.themeId}
-                    onPersistTheme={(themeId) =>
-                      updateConfig({
-                        themeId,
-                        themeSelectionExplicit: true,
-                      })
-                    }
-                    onPersistError={(error) => {
-                      const message =
-                        error instanceof Error ? error.message : String(error);
-                      toast.error(
-                        tSettings('general.themeSaveFailed', { message }),
-                      );
-                    }}
-                  />
-                </div>
-
                 <MarkdownReadingSizeControl
                   value={config.markdownReadingSize ?? 'large'}
                   onChange={(size) => {
@@ -5532,7 +5502,7 @@ export default function Settings({
               </div>
 
               {/* Startup Settings */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.startupTitle')}
                 </h3>
@@ -5543,7 +5513,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.autostartTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.autostartDescription')}
                     </p>
                   </div>
@@ -5567,8 +5537,8 @@ export default function Settings({
                         : 'cursor-pointer'
                     } ${
                       autostartEnabled
-                        ? 'bg-[var(--accent)]'
-                        : 'bg-[var(--line-strong)]'
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
                     }`}
                   >
                     <span
@@ -5585,7 +5555,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.minimizeToTrayTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.minimizeToTrayDescription')}
                     </p>
                   </div>
@@ -5600,8 +5570,8 @@ export default function Settings({
                     }}
                     className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                       config.minimizeToTray
-                        ? 'bg-[var(--accent)]'
-                        : 'bg-[var(--line-strong)]'
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
                     }`}
                   >
                     <span
@@ -5625,7 +5595,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.forceWakeTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.forceWakeDescription')}
                     </p>
                   </div>
@@ -5641,8 +5611,8 @@ export default function Settings({
                     }}
                     className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                       config.forceWakeLock
-                        ? 'bg-[var(--accent)]'
-                        : 'bg-[var(--line-strong)]'
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
                     }`}
                   >
                     <span
@@ -5659,7 +5629,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.defaultWorkspaceTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.defaultWorkspaceDescription')}
                     </p>
                   </div>
@@ -5732,7 +5702,7 @@ export default function Settings({
               </div>
 
               {/* Chat Queue Response Mode */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.queueTitle')}
                 </h3>
@@ -5741,7 +5711,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.queueModeTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {normalizeChatQueueResponseMode(
                         config.chatQueueResponseMode,
                       ) === 'turn'
@@ -5749,7 +5719,7 @@ export default function Settings({
                         : tSettings('general.queueRealtimeDescription')}
                     </p>
                   </div>
-                  <div className="flex shrink-0 gap-0.5 rounded-full bg-[var(--paper-inset)] p-0.5">
+                  <div className="flex shrink-0 gap-0.5 rounded-full bg-[var(--inset)] p-0.5">
                     {(
                       [
                         {
@@ -5779,8 +5749,8 @@ export default function Settings({
                           }
                           className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
                             active
-                              ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm'
-                              : 'text-[var(--ink-muted)] hover:text-[var(--ink-secondary)]'
+                              ? 'bg-[var(--paper)] text-[var(--ink)] shadow-sm'
+                              : 'text-[var(--muted)] hover:text-[var(--ink-2)]'
                           }`}
                         >
                           {opt.label}
@@ -5792,7 +5762,7 @@ export default function Settings({
               </div>
 
               {/* Notification Settings */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.notificationTitle')}
                 </h3>
@@ -5803,7 +5773,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.notificationEnableTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.notificationEnableDescription')}
                     </p>
                   </div>
@@ -5829,8 +5799,8 @@ export default function Settings({
                     }}
                     className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                       config.osNotifications
-                        ? 'bg-[var(--accent)]'
-                        : 'bg-[var(--line-strong)]'
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
                     }`}
                   >
                     <span
@@ -5853,7 +5823,7 @@ export default function Settings({
                         <p className="text-sm font-medium text-[var(--ink)]">
                           {tSettings('general.notificationSoundTitle')}
                         </p>
-                        <p className="text-xs text-[var(--ink-muted)]">
+                        <p className="text-xs text-[var(--muted)]">
                           {tSettings('general.notificationSoundDescription')}
                         </p>
                       </div>
@@ -5870,8 +5840,8 @@ export default function Settings({
                         }}
                         className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                           config.notificationSound
-                            ? 'bg-[var(--accent)]'
-                            : 'bg-[var(--line-strong)]'
+                            ? 'bg-[var(--primary)]'
+                            : 'bg-[var(--line-2)]'
                         }`}
                       >
                         <span
@@ -5889,7 +5859,7 @@ export default function Settings({
                         <p className="text-sm font-medium text-[var(--ink)]">
                           {tSettings('general.notificationBadgeTitle')}
                         </p>
-                        <p className="text-xs text-[var(--ink-muted)]">
+                        <p className="text-xs text-[var(--muted)]">
                           {tSettings('general.notificationBadgeDescription')}
                         </p>
                       </div>
@@ -5905,8 +5875,8 @@ export default function Settings({
                         }}
                         className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                           (config.notificationBadge ?? false)
-                            ? 'bg-[var(--accent)]'
-                            : 'bg-[var(--line-strong)]'
+                            ? 'bg-[var(--primary)]'
+                            : 'bg-[var(--line-2)]'
                         }`}
                       >
                         <span
@@ -5930,20 +5900,20 @@ export default function Settings({
                 <h2 className="text-lg font-semibold text-[var(--ink)]">
                   {tSettings('proxy.title')}
                 </h2>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('proxy.description')}
                 </p>
               </div>
 
               {/* Network Proxy Settings */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 {/* Enable toggle */}
                 <div className="flex items-center justify-between">
                   <div className="flex-1 pr-4">
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('proxy.enableTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('proxy.enableDescription')}
                     </p>
                   </div>
@@ -5958,8 +5928,8 @@ export default function Settings({
                     }}
                     className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                       config.proxySettings?.enabled
-                        ? 'bg-[var(--accent)]'
-                        : 'bg-[var(--line-strong)]'
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
                     }`}
                   >
                     <span
@@ -5979,7 +5949,7 @@ export default function Settings({
                         {tSettings('proxy.scopeTitle')}
                       </p>
                       <p
-                        className="mt-1 truncate text-xs text-[var(--ink-muted)]"
+                        className="mt-1 truncate text-xs text-[var(--muted)]"
                         title={proxyScopeSummary}
                       >
                         {proxyScopeSummary}
@@ -5995,8 +5965,8 @@ export default function Settings({
                           }
                           className={`px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                             proxyScope.mode === 'all'
-                              ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                              : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                              ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                              : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                           }`}
                         >
                           {tSettings('proxy.scopeAll')}
@@ -6007,8 +5977,8 @@ export default function Settings({
                           onClick={() => setShowProxyScopeDialog(true)}
                           className={`border-l border-[var(--line)] px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                             proxyScope.mode === 'custom'
-                              ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                              : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                              ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                              : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                           }`}
                         >
                           {tSettings('proxy.scopeCustom')}
@@ -6018,7 +5988,7 @@ export default function Settings({
                         type="button"
                         disabled={!config.proxySettings?.enabled}
                         onClick={() => setShowProxyScopeDialog(true)}
-                        className="rounded-lg border border-[var(--line)] p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-[var(--line)] p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
                         aria-label={tSettings('proxy.scopeDialogTitle')}
                       >
                         <SlidersHorizontal size={16} />
@@ -6032,7 +6002,7 @@ export default function Settings({
                   <div className="mt-4 space-y-3 border-t border-[var(--line)] pt-4">
                     {/* Protocol */}
                     <div className="flex items-center gap-3">
-                      <label className="w-16 text-xs text-[var(--ink-muted)]">
+                      <label className="w-16 text-xs text-[var(--muted)]">
                         {tSettings('proxy.protocol')}
                       </label>
                       <CustomSelect
@@ -6056,7 +6026,7 @@ export default function Settings({
 
                     {/* Host */}
                     <div className="flex items-center gap-3">
-                      <label className="w-16 text-xs text-[var(--ink-muted)]">
+                      <label className="w-16 text-xs text-[var(--muted)]">
                         {tSettings('proxy.server')}
                       </label>
                       <input
@@ -6069,13 +6039,13 @@ export default function Settings({
                           if (e.key === 'Enter') e.currentTarget.blur();
                         }}
                         placeholder={PROXY_DEFAULTS.host}
-                        className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-xs text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:border-[var(--focus-border)] focus:outline-none"
+                        className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-xs text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none"
                       />
                     </div>
 
                     {/* Port */}
                     <div className="flex items-center gap-3">
-                      <label className="w-16 text-xs text-[var(--ink-muted)]">
+                      <label className="w-16 text-xs text-[var(--muted)]">
                         {tSettings('proxy.port')}
                       </label>
                       <input
@@ -6095,13 +6065,13 @@ export default function Settings({
                           if (e.key === 'Enter') e.currentTarget.blur();
                         }}
                         placeholder={String(PROXY_DEFAULTS.port)}
-                        className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-xs text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:border-[var(--focus-border)] focus:outline-none"
+                        className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-xs text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none"
                       />
                     </div>
 
                     {/* Preview */}
-                    <div className="mt-2 rounded-lg bg-[var(--paper-inset)] px-3 py-2">
-                      <span className="text-xs text-[var(--ink-muted)]">
+                    <div className="mt-2 rounded-lg bg-[var(--inset)] px-3 py-2">
+                      <span className="text-xs text-[var(--muted)]">
                         {tSettings('proxy.address')}
                       </span>
                       <code className="text-xs font-mono text-[var(--ink)]">
@@ -6116,7 +6086,7 @@ export default function Settings({
                       <div
                         className={`flex items-start gap-1.5 rounded-lg px-3 py-2 text-xs ${
                           proxyProbeState.status === 'error'
-                            ? 'bg-[var(--error-bg)] text-[var(--error)]'
+                            ? 'bg-[var(--danger-bg)] text-[var(--danger)]'
                             : proxyProbeState.status === 'ok'
                               ? 'bg-[var(--success-bg)] text-[var(--success)]'
                               : 'bg-[var(--info-bg)] text-[var(--info)]'
@@ -6142,7 +6112,7 @@ export default function Settings({
                       </div>
                     )}
 
-                    <p className="text-xs text-[var(--ink-faint)]">
+                    <p className="text-xs text-[var(--subtle)]">
                       {tSettings('proxy.appliedHint')}
                     </p>
                   </div>
@@ -6154,13 +6124,13 @@ export default function Settings({
           {activeSection === 'general' && (
             <div className="mt-6 space-y-6">
               {/* Log Export */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-medium text-[var(--ink)]">
                       {tSettings('general.logsTitle')}
                     </h3>
-                    <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                    <p className="mt-1 text-xs text-[var(--muted)]">
                       {tSettings('general.logsDescription')}
                     </p>
                   </div>
@@ -6193,7 +6163,7 @@ export default function Settings({
                       }
                     }}
                     disabled={logExporting}
-                    className="flex items-center gap-1.5 rounded-lg bg-[var(--paper-inset)] px-3 py-1.5 text-xs text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-elevated)] disabled:opacity-50"
+                    className="flex items-center gap-1.5 rounded-lg bg-[var(--inset)] px-3 py-1.5 text-xs text-[var(--ink-2)] transition-colors hover:bg-[var(--paper)] disabled:opacity-50"
                   >
                     {logExporting ? (
                       <>
@@ -6215,7 +6185,7 @@ export default function Settings({
           {activeSection === 'about' && (
             <div className="space-y-6">
               {/* Brand Header */}
-              <div className="rounded-2xl border border-[var(--line)] bg-gradient-to-br from-[var(--paper-inset)] to-[var(--paper)] p-8">
+              <div className="rounded-2xl border border-[var(--line)] bg-gradient-to-br from-[var(--inset)] to-[var(--bg)] p-8">
                 <div className="flex flex-col items-center text-center">
                   <h1
                     className="theme-product-wordmark theme-launcher-hero-title cursor-default select-none"
@@ -6224,7 +6194,7 @@ export default function Settings({
                     keystone
                   </h1>
                   <div className="mt-1 flex items-center gap-2">
-                    <p className="text-sm font-medium text-[var(--ink-muted)]">
+                    <p className="text-sm font-medium text-[var(--muted)]">
                       Version {appVersion || '...'}
                     </p>
                     {!linuxDesktop && !propUpdateReady && !updateDownloading && (
@@ -6245,7 +6215,7 @@ export default function Settings({
                           }
                         }}
                         disabled={updateChecking}
-                        className="rounded-lg bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-elevated)] disabled:opacity-50"
+                        className="rounded-lg bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--ink-2)] transition-colors hover:bg-[var(--paper)] disabled:opacity-50"
                       >
                         {updateChecking ? (
                           <span className="flex items-center gap-1">
@@ -6259,23 +6229,23 @@ export default function Settings({
                     )}
                     <ExternalLink
                       href={KEYSTONE_RELEASES_URL}
-                      className="rounded-lg bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-elevated)]"
+                      className="rounded-lg bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--ink-2)] transition-colors hover:bg-[var(--paper)]"
                     >
                       {tSettings('about.releaseNotes')}
                     </ExternalLink>
                   </div>
-                  <p className="mt-3 text-base text-[var(--ink-secondary)]">
+                  <p className="mt-3 text-base text-[var(--ink-2)]">
                     {tSettings('about.slogan')}
                   </p>
                   {linuxDesktop && (
-                    <p className="mt-3 text-sm text-[var(--ink-muted)]">
+                    <p className="mt-3 text-sm text-[var(--muted)]">
                       {tSettings('about.manualLinuxUpdate')}
                     </p>
                   )}
                   {!linuxDesktop && updateDownloading && propUpdateVersion && (
                     <div className="mt-3 space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-[var(--ink-secondary)]">
-                        <Loader2 className="h-4 w-4 animate-spin text-[var(--accent)]" />
+                      <div className="flex items-center gap-2 text-sm text-[var(--ink-2)]">
+                        <Loader2 className="h-4 w-4 animate-spin text-[var(--primary)]" />
                         <span>
                           {tSettings('about.downloadingVersion', {
                             version: propUpdateVersion,
@@ -6287,9 +6257,9 @@ export default function Settings({
                         </span>
                       </div>
                       {downloadProgress != null && (
-                        <div className="h-1.5 w-48 overflow-hidden rounded-full bg-[var(--paper-inset)]">
+                        <div className="h-1.5 w-48 overflow-hidden rounded-full bg-[var(--inset)]">
                           <div
-                            className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
+                            className="h-full rounded-full bg-[var(--primary)] transition-all duration-300"
                             style={{ width: `${downloadProgress}%` }}
                           />
                         </div>
@@ -6312,7 +6282,7 @@ export default function Settings({
                           updateInstalling ? undefined : onRestartAndUpdate
                         }
                         disabled={updateInstalling}
-                        className="rounded-lg bg-[var(--success)] px-3 py-1.5 text-xs font-medium text-[var(--on-success)] transition-colors hover:opacity-90 disabled:opacity-80 disabled:cursor-wait"
+                        className="rounded-lg bg-[var(--success)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] transition-colors hover:opacity-90 disabled:opacity-80 disabled:cursor-wait"
                       >
                         {updateInstalling
                           ? tSettings('about.installing')
@@ -6324,11 +6294,11 @@ export default function Settings({
               </div>
 
               {/* Product Description — Developer Letter */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-7 py-6">
-                <p className="text-xs font-medium uppercase tracking-widest text-[var(--ink-muted)]/50">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-7 py-6">
+                <p className="text-xs font-medium uppercase tracking-widest text-[var(--muted)]/50">
                   {tSettings('about.developerLabel')}
                 </p>
-                <div className="mt-4 space-y-5 text-sm leading-[1.9] text-[var(--ink-secondary)]">
+                <div className="mt-4 space-y-5 text-sm leading-[1.9] text-[var(--ink-2)]">
                   <p>{tSettings('about.developerParagraph1')}</p>
                   <p>{tSettings('about.developerParagraph2')}</p>
                   <p>{tSettings('about.developerParagraph3')}</p>
@@ -6339,7 +6309,7 @@ export default function Settings({
               </div>
 
               {/* 实验室 */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('about.labTitle')}
                 </h3>
@@ -6349,12 +6319,12 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('about.teamSpaceTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('about.teamSpaceDescription')}
                     </p>
                     {(spaceBuildCapability.isLoading ||
                       !spaceBuildCapability.available) && (
-                      <p className="mt-1 text-xs text-[var(--ink-subtle)]">
+                      <p className="mt-1 text-xs text-[var(--subtle)]">
                         {spaceBuildCapability.isLoading
                           ? tSettings('about.teamSpaceLoading')
                           : tSettings(
@@ -6389,8 +6359,8 @@ export default function Settings({
                     className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                       config.teamSpaceEnabled === true &&
                       spaceBuildCapability.available
-                        ? 'bg-[var(--accent)]'
-                        : 'bg-[var(--line-strong)]'
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
                     }`}
                   >
                     <span
@@ -6409,7 +6379,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('about.runtimeTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('about.runtimeDescription')}
                     </p>
                   </div>
@@ -6421,8 +6391,8 @@ export default function Settings({
                     }
                     className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                       config.multiAgentRuntime
-                        ? 'bg-[var(--accent)]'
-                        : 'bg-[var(--line-strong)]'
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
                     }`}
                   >
                     <span
@@ -6440,7 +6410,7 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('about.cliRegistryTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                       {tSettings('about.cliRegistryDescription')}
                     </p>
                   </div>
@@ -6453,8 +6423,8 @@ export default function Settings({
                     }
                     className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                       config.cliToolRegistryEnabled === true
-                        ? 'bg-[var(--accent)]'
-                        : 'bg-[var(--line-strong)]'
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
                     }`}
                   >
                     <span
@@ -6469,19 +6439,19 @@ export default function Settings({
               </div>
 
               {/* AI Feedback */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-medium text-[var(--ink)]">
                       {tSettings('about.helperTitle')}
                     </h3>
-                    <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                    <p className="mt-1 text-xs text-[var(--muted)]">
                       {tSettings('about.helperDescription')}
                     </p>
                   </div>
                   <button
                     onClick={() => setShowBugReport(true)}
-                    className="rounded-lg bg-[var(--paper-inset)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-elevated)]"
+                    className="rounded-lg bg-[var(--inset)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper)]"
                   >
                     {tSettings('about.feedback')}
                   </button>
@@ -6490,17 +6460,17 @@ export default function Settings({
 
               {/* User Community QR Code - Show loading state, then image when ready */}
               {(qrCodeLoading || qrCodeDataUrl) && (
-                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                   <div className="flex flex-col items-center text-center">
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('about.communityTitle')}
                     </p>
-                    <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                    <p className="mt-1 text-xs text-[var(--muted)]">
                       {tSettings('about.communityDescription')}
                     </p>
                     {qrCodeLoading ? (
                       <div className="mt-4 h-36 w-36 flex items-center justify-center">
-                        <Loader2 className="h-8 w-8 animate-spin text-[var(--ink-muted)]" />
+                        <Loader2 className="h-8 w-8 animate-spin text-[var(--muted)]" />
                       </div>
                     ) : (
                       <img
@@ -6514,43 +6484,43 @@ export default function Settings({
               )}
 
               {/* Contact & Links */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]">
+                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
                       Developer
                     </p>
                     <p className="mt-1 text-[var(--ink)]">内部研发</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]">
+                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
                       Website
                     </p>
                     <ExternalLink
                       href="https://keystone.io"
-                      className="mt-1 block text-[var(--accent)] hover:underline"
+                      className="mt-1 block text-[var(--primary)] hover:underline"
                     >
                       keystone.io
                     </ExternalLink>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]">
+                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
                       Contact
                     </p>
                     <ExternalLink
                       href="mailto:dev@internal.local"
-                      className="mt-1 block text-[var(--accent)] hover:underline"
+                      className="mt-1 block text-[var(--primary)] hover:underline"
                     >
                       dev@internal.local
                     </ExternalLink>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--ink-muted)]">
+                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
                       GitHub
                     </p>
                     <ExternalLink
                       href={KEYSTONE_GITHUB_URL}
-                      className="mt-1 block text-[var(--accent)] hover:underline"
+                      className="mt-1 block text-[var(--primary)] hover:underline"
                     >
                       github.com/internal/keystone
                     </ExternalLink>
@@ -6559,35 +6529,35 @@ export default function Settings({
               </div>
 
               {/* Open-source and commercial licensing */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+              <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('about.licensingTitle')}
                 </h3>
-                <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
                   {tSettings('about.licensingDescription')}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2 text-sm">
                   <ExternalLink
                     href={sourceLicenseUrl}
-                    className="rounded-lg bg-[var(--paper-inset)] px-3 py-1.5 text-[var(--ink)] transition-colors hover:bg-[var(--hover-bg)]"
+                    className="rounded-lg bg-[var(--inset)] px-3 py-1.5 text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                   >
                     {tSettings('about.communityLicense')}
                   </ExternalLink>
                   <ExternalLink
                     href={KEYSTONE_SOURCE_CODE_URL}
-                    className="rounded-lg bg-[var(--paper-inset)] px-3 py-1.5 text-[var(--ink)] transition-colors hover:bg-[var(--hover-bg)]"
+                    className="rounded-lg bg-[var(--inset)] px-3 py-1.5 text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                   >
                     {tSettings('about.sourceCode')}
                   </ExternalLink>
                   <ExternalLink
                     href={sourceNoticesUrl}
-                    className="rounded-lg bg-[var(--paper-inset)] px-3 py-1.5 text-[var(--ink)] transition-colors hover:bg-[var(--hover-bg)]"
+                    className="rounded-lg bg-[var(--inset)] px-3 py-1.5 text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                   >
                     {tSettings('about.thirdPartyNotices')}
                   </ExternalLink>
                   <ExternalLink
                     href="mailto:dev@internal.local"
-                    className="rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+                    className="rounded-lg bg-[var(--primary)] px-3 py-1.5 font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
                   >
                     {tSettings('about.commercialLicensing')}
                   </ExternalLink>
@@ -6595,25 +6565,25 @@ export default function Settings({
               </div>
 
               {/* Copyright */}
-              <p className="text-center text-xs text-[var(--ink-muted)]">
+              <p className="text-center text-xs text-[var(--muted)]">
                 {tSettings('about.licensingCopyright')}
               </p>
 
               {/* Developer Section - Hidden by default, unlocked by tapping logo 5 times */}
               {devSectionVisible && (
                 <div>
-                  <h2 className="mb-4 text-base font-medium text-[var(--ink-muted)]">
+                  <h2 className="mb-4 text-base font-medium text-[var(--muted)]">
                     {tSettings('about.developerSection')}
                   </h2>
                   <div className="space-y-4">
                     {/* Developer Mode Toggle */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-sm font-medium text-[var(--ink)]">
                             {tSettings('about.developer.devModeTitle')}
                           </h3>
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings('about.developer.devModeDescription')}
                           </p>
                         </div>
@@ -6623,8 +6593,8 @@ export default function Settings({
                           }
                           className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                             config.showDevTools
-                              ? 'bg-[var(--accent)]'
-                              : 'bg-[var(--line-strong)]'
+                              ? 'bg-[var(--primary)]'
+                              : 'bg-[var(--line-2)]'
                           }`}
                         >
                           <span
@@ -6639,13 +6609,13 @@ export default function Settings({
                     </div>
 
                     {/* Legacy Chat History Entry */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
                             {tSettings('about.developer.chatHistoryEntryTitle')}
                           </h3>
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings(
                               'about.developer.chatHistoryEntryDescription',
                             )}
@@ -6665,8 +6635,8 @@ export default function Settings({
                           aria-pressed={config.showChatHistoryEntry === true}
                           className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                             config.showChatHistoryEntry === true
-                              ? 'bg-[var(--accent)]'
-                              : 'bg-[var(--line-strong)]'
+                              ? 'bg-[var(--primary)]'
+                              : 'bg-[var(--line-2)]'
                           }`}
                         >
                           <span
@@ -6681,13 +6651,13 @@ export default function Settings({
                     </div>
 
                     {/* Desktop Pet Gate */}
-                    {!linuxDesktop && (<div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    {!linuxDesktop && (<div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
                             {tSettings('about.desktopPetTitle')}
                           </h3>
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings('about.desktopPetDescription')}
                           </p>
                         </div>
@@ -6697,8 +6667,8 @@ export default function Settings({
                           aria-pressed={config.floatingBallDevGate !== false}
                           className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors disabled:cursor-wait disabled:opacity-70 ${
                             config.floatingBallDevGate !== false
-                              ? 'bg-[var(--accent)]'
-                              : 'bg-[var(--line-strong)]'
+                              ? 'bg-[var(--primary)]'
+                              : 'bg-[var(--line-2)]'
                           }`}
                         >
                           <span
@@ -6713,13 +6683,13 @@ export default function Settings({
                     </div>)}
 
                     {/* Managed Codex Provider Gate */}
-                    {!linuxDesktop && (<div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    {!linuxDesktop && (<div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
                             {tSettings('about.developer.codexProviderTitle')}
                           </h3>
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings(
                               'about.developer.codexProviderDescription',
                             )}
@@ -6739,8 +6709,8 @@ export default function Settings({
                           aria-pressed={managedCodexProviderGateEnabled}
                           className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                             managedCodexProviderGateEnabled
-                              ? 'bg-[var(--accent)]'
-                              : 'bg-[var(--line-strong)]'
+                              ? 'bg-[var(--primary)]'
+                              : 'bg-[var(--line-2)]'
                           }`}
                         >
                           <span
@@ -6764,13 +6734,13 @@ export default function Settings({
                       )}
 
                     {/* Split View Toggle */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-sm font-medium text-[var(--ink)]">
                             {tSettings('about.developer.splitViewTitle')}
                           </h3>
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings('about.developer.splitViewDescription')}
                           </p>
                         </div>
@@ -6784,8 +6754,8 @@ export default function Settings({
                           }
                           className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                             (config.experimentalSplitView ?? true)
-                              ? 'bg-[var(--accent)]'
-                              : 'bg-[var(--line-strong)]'
+                              ? 'bg-[var(--primary)]'
+                              : 'bg-[var(--line-2)]'
                           }`}
                         >
                           <span
@@ -6800,7 +6770,7 @@ export default function Settings({
                     </div>
 
                     {/* — Background-agent permission policy */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 pr-4">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6808,7 +6778,7 @@ export default function Settings({
                               'about.developer.backgroundAgentPermissionTitle',
                             )}
                           </h3>
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings(
                               'about.developer.backgroundAgentPermissionPrefix',
                             )}{' '}
@@ -6849,13 +6819,13 @@ export default function Settings({
                     </div>
 
                     {/* LiteLLM Model Data Refresh Toggle */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-sm font-medium text-[var(--ink)]">
                             {tSettings('about.developer.liteLlmRefreshTitle')}
                           </h3>
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings(
                               'about.developer.liteLlmRefreshDescription',
                             )}
@@ -6871,8 +6841,8 @@ export default function Settings({
                           }
                           className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                             (config.liteLLMModelDataRefresh ?? true)
-                              ? 'bg-[var(--accent)]'
-                              : 'bg-[var(--line-strong)]'
+                              ? 'bg-[var(--primary)]'
+                              : 'bg-[var(--line-2)]'
                           }`}
                         >
                           <span
@@ -6887,7 +6857,7 @@ export default function Settings({
                     </div>
 
                     {/* Claude transcript retention */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
                           <h3 className="text-sm font-medium text-[var(--ink)]">
@@ -6895,7 +6865,7 @@ export default function Settings({
                               'about.developer.claudeTranscriptRetentionTitle',
                             )}
                           </h3>
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings(
                               'about.developer.claudeTranscriptRetentionDescription',
                             )}
@@ -6919,12 +6889,12 @@ export default function Settings({
                             aria-label={tSettings(
                               'about.developer.claudeTranscriptRetentionTitle',
                             )}
-                            className="w-24 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-right text-xs text-[var(--ink)] placeholder:text-[var(--ink-faint)] focus:border-[var(--focus-border)] focus:outline-none"
+                            className="w-24 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-right text-xs text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none"
                             placeholder={String(
                               DEFAULT_CLAUDE_TRANSCRIPT_CLEANUP_PERIOD_DAYS,
                             )}
                           />
-                          <span className="text-xs text-[var(--ink-muted)]">
+                          <span className="text-xs text-[var(--muted)]">
                             {tSettings('about.developer.daysUnit')}
                           </span>
                         </div>
@@ -6932,7 +6902,7 @@ export default function Settings({
                     </div>
 
                     {/* Build Versions */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <h3 className="mb-3 text-sm font-medium text-[var(--ink)]">
                         {tSettings('about.developer.buildInfoTitle')}
                       </h3>
@@ -6942,7 +6912,7 @@ export default function Settings({
                           return (
                             <>
                               <div className="flex justify-between">
-                                <span className="text-[var(--ink-muted)]">
+                                <span className="text-[var(--muted)]">
                                   Claude Agent SDK
                                 </span>
                                 <span className="font-mono text-[var(--ink)]">
@@ -6950,7 +6920,7 @@ export default function Settings({
                                 </span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-[var(--ink-muted)]">
+                                <span className="text-[var(--muted)]">
                                   Node.js Runtime
                                 </span>
                                 <span className="font-mono text-[var(--ink)]">
@@ -6958,7 +6928,7 @@ export default function Settings({
                                 </span>
                               </div>
                               <div className="flex justify-between">
-                                <span className="text-[var(--ink-muted)]">
+                                <span className="text-[var(--muted)]">
                                   Tauri
                                 </span>
                                 <span className="font-mono text-[var(--ink)]">
@@ -6972,19 +6942,19 @@ export default function Settings({
                     </div>
 
                     {/* Cron Task Debug Panel */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                       <div className="flex items-center justify-between">
                         <div>
                           <h3 className="text-sm font-medium text-[var(--ink)]">
                             {tSettings('about.developer.cronTaskTitle')}
                           </h3>
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings('about.developer.cronTaskDescription')}
                           </p>
                         </div>
                         <button
                           onClick={() => setShowCronDebugPanel(true)}
-                          className="rounded-lg bg-[var(--paper-inset)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-elevated)]"
+                          className="rounded-lg bg-[var(--inset)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper)]"
                         >
                           {tSettings('about.developer.openPanel')}
                         </button>
@@ -7010,21 +6980,21 @@ export default function Settings({
           onClose={closeVisionToolSettings}
           className="z-50"
         >
-          <div className="mx-4 flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-[var(--paper-elevated)] shadow-xl">
+          <div className="mx-4 flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-[var(--paper)] shadow-xl">
             <div className="flex items-center justify-between border-b border-[var(--line)] px-6 py-4">
               <div className="min-w-0 flex-1">
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-[var(--ink)]">
-                  <ImageIcon className="h-4 w-4 text-[var(--accent-warm)]" />
+                  <ImageIcon className="h-4 w-4 text-[var(--primary)]" />
                   {tSettings('toolbox.dialogs.vision.title')}
                 </h2>
-                <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                <p className="mt-0.5 text-xs text-[var(--muted)]">
                   {tSettings('toolbox.dialogs.vision.description')}
                 </p>
               </div>
               <button
                 onClick={closeVisionToolSettings}
                 disabled={visionToolSaving}
-                className="shrink-0 rounded-lg p-1 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="shrink-0 rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--inset)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -7047,7 +7017,7 @@ export default function Settings({
                   size="md"
                 />
                 {visionModelsLoading && (
-                  <p className="mt-2 text-xs text-[var(--ink-muted)]">
+                  <p className="mt-2 text-xs text-[var(--muted)]">
                     {tSettings('toolbox.dialogs.vision.loadingModels')}
                   </p>
                 )}
@@ -7071,7 +7041,7 @@ export default function Settings({
                 )}
                 {selectedVisionModelCandidate?.capabilityConfidence ===
                   'inferred' && (
-                  <p className="mt-2 text-xs text-[var(--ink-muted)]">
+                  <p className="mt-2 text-xs text-[var(--muted)]">
                     {tSettings('toolbox.dialogs.vision.inferredHint')}
                   </p>
                 )}
@@ -7082,7 +7052,7 @@ export default function Settings({
               <button
                 onClick={closeVisionToolSettings}
                 disabled={visionToolSaving}
-                className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm text-[var(--muted)] hover:bg-[var(--inset)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {tSettings('toolbox.common.cancel')}
               </button>
@@ -7092,7 +7062,7 @@ export default function Settings({
                   visionToolSaving ||
                   !parseVisionModelOptionValue(visionToolDraftValue)
                 }
-                className="rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {tSettings('toolbox.common.save')}
               </button>
@@ -7104,7 +7074,7 @@ export default function Settings({
       {/* Builtin MCP Settings Modal */}
       {builtinMcpSettings && (
         <OverlayBackdrop className="z-50">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper-elevated)] shadow-xl max-h-[85vh] flex flex-col">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper)] shadow-xl max-h-[85vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
               <div className="min-w-0 flex-1">
@@ -7114,14 +7084,14 @@ export default function Settings({
                   })}
                 </h2>
                 {builtinMcpSettings.server.description && (
-                  <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">
                     {builtinMcpSettings.server.description}
                   </p>
                 )}
               </div>
               <button
                 onClick={() => setBuiltinMcpSettings(null)}
-                className="shrink-0 rounded-lg p-1 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                className="shrink-0 rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--inset)]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -7136,7 +7106,7 @@ export default function Settings({
                     ? tSettings('toolbox.dialogs.builtinMcp.presetCommand')
                     : tSettings('toolbox.dialogs.builtinMcp.serviceUrl')}
                 </label>
-                <div className="rounded-lg bg-[var(--paper-inset)] px-3 py-2 font-mono text-xs text-[var(--ink-muted)]">
+                <div className="rounded-lg bg-[var(--inset)] px-3 py-2 font-mono text-xs text-[var(--muted)]">
                   {builtinMcpSettings.server.type === 'stdio'
                     ? `${builtinMcpSettings.server.command} ${(getPresetMcpServer(builtinMcpSettings.server.id)?.args ?? []).join(' ')}`
                     : (builtinMcpSettings.server.url?.replace(
@@ -7152,13 +7122,13 @@ export default function Settings({
                   <label className="block text-sm font-medium text-[var(--ink)] mb-1">
                     {tSettings('toolbox.dialogs.builtinMcp.extraArgs')}
                   </label>
-                  <p className="text-xs text-[var(--ink-muted)] mb-2">
+                  <p className="text-xs text-[var(--muted)] mb-2">
                     {tSettings('toolbox.dialogs.builtinMcp.extraArgsHint')}
                   </p>
                   <div className="space-y-2">
                     {builtinMcpSettings.extraArgs.map((arg, idx) => (
                       <div key={idx} className="flex items-center gap-2">
-                        <span className="flex-1 rounded-lg bg-[var(--paper-inset)] px-3 py-1.5 font-mono text-xs text-[var(--ink)] break-all">
+                        <span className="flex-1 rounded-lg bg-[var(--inset)] px-3 py-1.5 font-mono text-xs text-[var(--ink)] break-all">
                           {arg}
                         </span>
                         <button
@@ -7174,7 +7144,7 @@ export default function Settings({
                                 : null,
                             )
                           }
-                          className="shrink-0 rounded p-1 text-[var(--error)] hover:bg-[var(--error-bg)]"
+                          className="shrink-0 rounded p-1 text-[var(--danger)] hover:bg-[var(--danger-bg)]"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -7212,7 +7182,7 @@ export default function Settings({
                         placeholder={tSettings(
                           'toolbox.dialogs.builtinMcp.argPlaceholder',
                         )}
-                        className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)]"
+                        className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)]"
                       />
                       <button
                         onClick={() => {
@@ -7232,7 +7202,7 @@ export default function Settings({
                           }
                         }}
                         disabled={!builtinMcpSettings.newArg.trim()}
-                        className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--on-accent)] disabled:opacity-40"
+                        className="shrink-0 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] disabled:opacity-40"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>
@@ -7244,13 +7214,13 @@ export default function Settings({
               {/* Config hint + website link */}
               {(builtinMcpSettings.server.configHint ||
                 builtinMcpSettings.server.websiteUrl) && (
-                <div className="flex items-center gap-2 rounded-lg bg-[var(--accent-bg)] px-3 py-2 text-xs text-[var(--ink-secondary)]">
-                  <Globe className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+                <div className="flex items-center gap-2 rounded-lg bg-[var(--accent-bg)] px-3 py-2 text-xs text-[var(--ink-2)]">
+                  <Globe className="h-3.5 w-3.5 shrink-0 text-[var(--primary)]" />
                   <span>{builtinMcpSettings.server.configHint}</span>
                   {builtinMcpSettings.server.websiteUrl && (
                     <ExternalLink
                       href={builtinMcpSettings.server.websiteUrl}
-                      className="ml-auto shrink-0 font-medium text-[var(--accent)] hover:underline"
+                      className="ml-auto shrink-0 font-medium text-[var(--primary)] hover:underline"
                     >
                       {tSettings('toolbox.dialogs.builtinMcp.register')}
                     </ExternalLink>
@@ -7267,7 +7237,7 @@ export default function Settings({
                   {Object.entries(builtinMcpSettings.env).map(
                     ([key, value]) => (
                       <div key={key} className="flex items-center gap-2">
-                        <span className="shrink-0 rounded bg-[var(--paper-inset)] px-2 py-1 font-mono text-xs text-[var(--ink)]">
+                        <span className="shrink-0 rounded bg-[var(--inset)] px-2 py-1 font-mono text-xs text-[var(--ink)]">
                           {key}
                         </span>
                         <input
@@ -7283,7 +7253,7 @@ export default function Settings({
                                 : null,
                             )
                           }
-                          className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1 font-mono text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+                          className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1 font-mono text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)]"
                         />
                         <button
                           onClick={() =>
@@ -7294,7 +7264,7 @@ export default function Settings({
                               return { ...prev, env: newEnv };
                             })
                           }
-                          className="shrink-0 rounded p-1 text-[var(--error)] hover:bg-[var(--error-bg)]"
+                          className="shrink-0 rounded p-1 text-[var(--danger)] hover:bg-[var(--danger-bg)]"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -7313,7 +7283,7 @@ export default function Settings({
                       placeholder={tSettings(
                         'toolbox.common.envKeyPlaceholder',
                       )}
-                      className="w-1/3 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1.5 font-mono text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)]"
+                      className="w-1/3 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1.5 font-mono text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)]"
                     />
                     <input
                       type="text"
@@ -7326,7 +7296,7 @@ export default function Settings({
                         )
                       }
                       placeholder={tSettings('toolbox.common.valuePlaceholder')}
-                      className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1.5 font-mono text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)]"
+                      className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1.5 font-mono text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)]"
                       onKeyDown={(e) => {
                         if (isImeComposingEvent(e)) return;
                         if (e.key === 'Enter') {
@@ -7371,7 +7341,7 @@ export default function Settings({
                         builtinMcpSettings.newEnvKey.trim() in
                           builtinMcpSettings.env
                       }
-                      className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--on-accent)] disabled:opacity-40"
+                      className="shrink-0 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] disabled:opacity-40"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -7384,13 +7354,13 @@ export default function Settings({
             <div className="flex justify-end gap-3 border-t border-[var(--line)] px-6 py-4">
               <button
                 onClick={() => setBuiltinMcpSettings(null)}
-                className="rounded-lg px-4 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                className="rounded-lg px-4 py-2 text-sm text-[var(--muted)] hover:bg-[var(--inset)]"
               >
                 {tSettings('toolbox.common.cancel')}
               </button>
               <button
                 onClick={handleSaveBuiltinMcp}
-                className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent)]/90"
+                className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary)]/90"
               >
                 {tSettings('toolbox.common.save')}
               </button>
@@ -7402,7 +7372,7 @@ export default function Settings({
       {/* Gemini Image Settings Modal */}
       {geminiImageSettings && (
         <OverlayBackdrop className="z-50">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper-elevated)] shadow-xl max-h-[85vh] flex flex-col">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper)] shadow-xl max-h-[85vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
               <div className="min-w-0 flex-1">
@@ -7410,14 +7380,14 @@ export default function Settings({
                   {tSettings('toolbox.dialogs.geminiImage.title')}
                 </h2>
                 {getPresetMcpServer('gemini-image')?.description && (
-                  <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">
                     {getPresetMcpServer('gemini-image')?.description}
                   </p>
                 )}
               </div>
               <button
                 onClick={() => setGeminiImageSettings(null)}
-                className="shrink-0 rounded-lg p-1 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                className="shrink-0 rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--inset)]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -7439,15 +7409,15 @@ export default function Settings({
                     )
                   }
                   placeholder="AIzaSy..."
-                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)] font-mono"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)] font-mono"
                 />
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('toolbox.dialogs.geminiImage.apiKeyHintPrefix')}
                   <a
                     href="https://aistudio.google.com/apikey"
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[var(--accent)] hover:underline"
+                    className="text-[var(--primary)] hover:underline"
                   >
                     aistudio.google.com
                   </a>
@@ -7471,9 +7441,9 @@ export default function Settings({
                   placeholder={tSettings(
                     'toolbox.dialogs.geminiImage.baseUrlPlaceholder',
                   )}
-                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)] font-mono"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)] font-mono"
                 />
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('toolbox.dialogs.geminiImage.baseUrlHint')}
                 </p>
               </div>
@@ -7516,8 +7486,8 @@ export default function Settings({
                       }
                       className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
                         geminiImageSettings.model === m.id
-                          ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                          : 'border-[var(--line)] text-[var(--ink-muted)] hover:border-[var(--ink-muted)]'
+                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                          : 'border-[var(--line)] text-[var(--muted)] hover:border-[var(--muted)]'
                       }`}
                     >
                       <div className="font-medium">{m.label}</div>
@@ -7555,15 +7525,15 @@ export default function Settings({
                       }
                       className={`rounded-md px-2.5 py-1 text-xs transition-colors ${r !== 'auto' ? 'font-mono' : ''} ${
                         geminiImageSettings.aspectRatio === r
-                          ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                          : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                          ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                          : 'bg-[var(--inset)] text-[var(--muted)] hover:text-[var(--ink)]'
                       }`}
                     >
                       {r === 'auto' ? tSettings('toolbox.common.auto') : r}
                     </button>
                   ))}
                 </div>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('toolbox.dialogs.geminiImage.autoAspectHint')}
                 </p>
               </div>
@@ -7584,22 +7554,22 @@ export default function Settings({
                       }
                       className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
                         geminiImageSettings.imageSize === s
-                          ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                          : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                          ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                          : 'bg-[var(--inset)] text-[var(--muted)] hover:text-[var(--ink)]'
                       }`}
                     >
                       {s === 'auto' ? tSettings('toolbox.common.auto') : s}
                     </button>
                   ))}
                 </div>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('toolbox.dialogs.geminiImage.autoResolutionHint')}
                 </p>
               </div>
 
               {/* Advanced Section Divider */}
               <div className="border-t border-[var(--line)] pt-4">
-                <span className="text-sm font-medium text-[var(--ink-muted)]">
+                <span className="text-sm font-medium text-[var(--muted)]">
                   {tSettings('toolbox.common.advancedSettings')}
                 </span>
               </div>
@@ -7648,8 +7618,8 @@ export default function Settings({
                       }
                       className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${
                         geminiImageSettings.thinkingLevel === t.id
-                          ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                          : 'border-[var(--line)] text-[var(--ink-muted)] hover:border-[var(--ink-muted)]'
+                          ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                          : 'border-[var(--line)] text-[var(--muted)] hover:border-[var(--muted)]'
                       }`}
                     >
                       {t.label}
@@ -7664,7 +7634,7 @@ export default function Settings({
                   <div className="text-sm font-medium text-[var(--ink)]">
                     {tSettings('toolbox.dialogs.geminiImage.searchGrounding')}
                   </div>
-                  <div className="text-xs text-[var(--ink-muted)]">
+                  <div className="text-xs text-[var(--muted)]">
                     {tSettings(
                       'toolbox.dialogs.geminiImage.searchGroundingDescription',
                     )}
@@ -7680,8 +7650,8 @@ export default function Settings({
                   }
                   className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                     geminiImageSettings.searchGrounding
-                      ? 'bg-[var(--accent)]'
-                      : 'bg-[var(--line-strong)]'
+                      ? 'bg-[var(--primary)]'
+                      : 'bg-[var(--line-2)]'
                   }`}
                 >
                   <span
@@ -7714,9 +7684,9 @@ export default function Settings({
                         : null,
                     )
                   }
-                  className="w-20 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+                  className="w-20 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)]"
                 />
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('toolbox.dialogs.geminiImage.maxContextTurnsHint')}
                 </p>
               </div>
@@ -7726,14 +7696,14 @@ export default function Settings({
             <div className="flex justify-end gap-3 border-t border-[var(--line)] px-6 py-4">
               <button
                 onClick={() => setGeminiImageSettings(null)}
-                className="rounded-lg px-4 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                className="rounded-lg px-4 py-2 text-sm text-[var(--muted)] hover:bg-[var(--inset)]"
               >
                 {tSettings('toolbox.common.cancel')}
               </button>
               <button
                 onClick={handleSaveGeminiImage}
                 disabled={!geminiImageSettings.apiKey.trim()}
-                className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent)]/90 disabled:opacity-40"
+                className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary)]/90 disabled:opacity-40"
               >
                 {tSettings('toolbox.common.save')}
               </button>
@@ -7745,7 +7715,7 @@ export default function Settings({
       {/* Playwright Settings Modal */}
       {playwrightSettings && (
         <OverlayBackdrop className="z-50">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper-elevated)] shadow-xl max-h-[85vh] flex flex-col">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper)] shadow-xl max-h-[85vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
               <div className="min-w-0 flex-1">
@@ -7753,14 +7723,14 @@ export default function Settings({
                   {tSettings('toolbox.dialogs.playwright.title')}
                 </h2>
                 {getPresetMcpServer('playwright')?.description && (
-                  <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">
                     {getPresetMcpServer('playwright')?.description}
                   </p>
                 )}
               </div>
               <button
                 onClick={() => setPlaywrightSettings(null)}
-                className="shrink-0 rounded-lg p-1 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                className="shrink-0 rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--inset)]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -7774,7 +7744,7 @@ export default function Settings({
                   <div className="text-sm font-medium text-[var(--ink)]">
                     {tSettings('toolbox.dialogs.playwright.headless')}
                   </div>
-                  <div className="text-xs text-[var(--ink-muted)]">
+                  <div className="text-xs text-[var(--muted)]">
                     {tSettings(
                       'toolbox.dialogs.playwright.headlessDescription',
                     )}
@@ -7788,8 +7758,8 @@ export default function Settings({
                   }
                   className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
                     playwrightSettings.headless
-                      ? 'bg-[var(--accent)]'
-                      : 'bg-[var(--line-strong)]'
+                      ? 'bg-[var(--primary)]'
+                      : 'bg-[var(--line-2)]'
                   }`}
                 >
                   <span
@@ -7843,8 +7813,8 @@ export default function Settings({
                         }
                         className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
                           playwrightSettings.browser === b.id
-                            ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                            : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                            ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                            : 'bg-[var(--inset)] text-[var(--muted)] hover:text-[var(--ink)]'
                         }`}
                       >
                         {b.label}
@@ -7885,8 +7855,8 @@ export default function Settings({
                       }
                       className={`rounded-md px-2.5 py-1 text-xs transition-colors ${
                         playwrightSettings.device === d.id
-                          ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                          : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                          ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                          : 'bg-[var(--inset)] text-[var(--muted)] hover:text-[var(--ink)]'
                       }`}
                     >
                       {d.label}
@@ -7905,7 +7875,7 @@ export default function Settings({
                     placeholder={tSettings(
                       'toolbox.dialogs.playwright.customDevicePlaceholder',
                     )}
-                    className="mt-2 w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)]"
+                    className="mt-2 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)]"
                   />
                 )}
               </div>
@@ -7926,16 +7896,16 @@ export default function Settings({
                     }
                     className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
                       playwrightSettings.mode === 'isolated'
-                        ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                        : 'border-[var(--line)] hover:border-[var(--line-strong)]'
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                        : 'border-[var(--line)] hover:border-[var(--line-2)]'
                     }`}
                   >
                     <div
-                      className={`text-xs font-medium ${playwrightSettings.mode === 'isolated' ? 'text-[var(--accent)]' : 'text-[var(--ink)]'}`}
+                      className={`text-xs font-medium ${playwrightSettings.mode === 'isolated' ? 'text-[var(--primary)]' : 'text-[var(--ink)]'}`}
                     >
                       {tSettings('toolbox.dialogs.playwright.isolatedMode')}
                     </div>
-                    <div className="text-xs text-[var(--ink-muted)] mt-0.5 leading-tight">
+                    <div className="text-xs text-[var(--muted)] mt-0.5 leading-tight">
                       {tSettings(
                         'toolbox.dialogs.playwright.isolatedModeDescription',
                       )}
@@ -7951,16 +7921,16 @@ export default function Settings({
                     }
                     className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
                       playwrightSettings.mode === 'persistent'
-                        ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                        : 'border-[var(--line)] hover:border-[var(--line-strong)]'
+                        ? 'border-[var(--primary)] bg-[var(--primary)]/5'
+                        : 'border-[var(--line)] hover:border-[var(--line-2)]'
                     }`}
                   >
                     <div
-                      className={`text-xs font-medium ${playwrightSettings.mode === 'persistent' ? 'text-[var(--accent)]' : 'text-[var(--ink)]'}`}
+                      className={`text-xs font-medium ${playwrightSettings.mode === 'persistent' ? 'text-[var(--primary)]' : 'text-[var(--ink)]'}`}
                     >
                       {tSettings('toolbox.dialogs.playwright.persistentMode')}
                     </div>
-                    <div className="text-xs text-[var(--ink-muted)] mt-0.5 leading-tight">
+                    <div className="text-xs text-[var(--muted)] mt-0.5 leading-tight">
                       {tSettings(
                         'toolbox.dialogs.playwright.persistentModeDescription',
                       )}
@@ -7984,9 +7954,9 @@ export default function Settings({
                       )
                     }
                     placeholder="~/.playwright-mcp-profile"
-                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)] font-mono"
+                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)] font-mono"
                   />
-                  <p className="mt-1.5 text-xs leading-relaxed text-[var(--ink-muted)]">
+                  <p className="mt-1.5 text-xs leading-relaxed text-[var(--muted)]">
                     {tSettings('toolbox.dialogs.playwright.userDataDirHint')}
                   </p>
                   <div className="mt-2 rounded-lg bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]">
@@ -7997,7 +7967,7 @@ export default function Settings({
 
               {/* Advanced Section Divider */}
               <div className="border-t border-[var(--line)] pt-4">
-                <span className="text-sm font-medium text-[var(--ink-muted)]">
+                <span className="text-sm font-medium text-[var(--muted)]">
                   {tSettings('toolbox.common.advancedSettings')}
                 </span>
               </div>
@@ -8007,13 +7977,13 @@ export default function Settings({
                 <label className="block text-sm font-medium text-[var(--ink)] mb-1">
                   {tSettings('toolbox.dialogs.playwright.extraArgs')}
                 </label>
-                <p className="text-xs text-[var(--ink-muted)] mb-2">
+                <p className="text-xs text-[var(--muted)] mb-2">
                   {tSettings('toolbox.dialogs.playwright.extraArgsHint')}
                 </p>
                 <div className="space-y-2">
                   {playwrightSettings.extraArgs.map((arg, idx) => (
                     <div key={idx} className="flex items-center gap-2">
-                      <span className="flex-1 rounded-lg bg-[var(--paper-inset)] px-3 py-1.5 font-mono text-xs text-[var(--ink)] break-all">
+                      <span className="flex-1 rounded-lg bg-[var(--inset)] px-3 py-1.5 font-mono text-xs text-[var(--ink)] break-all">
                         {arg}
                       </span>
                       <button
@@ -8029,7 +7999,7 @@ export default function Settings({
                               : null,
                           )
                         }
-                        className="shrink-0 rounded p-1 text-[var(--error)] hover:bg-[var(--error-bg)]"
+                        className="shrink-0 rounded p-1 text-[var(--danger)] hover:bg-[var(--danger-bg)]"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
@@ -8056,12 +8026,12 @@ export default function Settings({
                       placeholder={tSettings(
                         'toolbox.dialogs.playwright.argPlaceholder',
                       )}
-                      className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)]"
+                      className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)]"
                     />
                     <button
                       onClick={appendPlaywrightAdvancedInput}
                       disabled={!playwrightSettings.newArg.trim()}
-                      className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-medium text-[var(--on-accent)] disabled:opacity-40"
+                      className="shrink-0 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] disabled:opacity-40"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
@@ -8074,13 +8044,13 @@ export default function Settings({
             <div className="flex justify-end gap-3 border-t border-[var(--line)] px-6 py-4">
               <button
                 onClick={() => setPlaywrightSettings(null)}
-                className="rounded-lg px-4 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                className="rounded-lg px-4 py-2 text-sm text-[var(--muted)] hover:bg-[var(--inset)]"
               >
                 {tSettings('toolbox.common.cancel')}
               </button>
               <button
                 onClick={handleSavePlaywright}
-                className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent)]/90"
+                className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary)]/90"
               >
                 {tSettings('toolbox.common.save')}
               </button>
@@ -8092,7 +8062,7 @@ export default function Settings({
       {/* Edge TTS Settings Modal */}
       {edgeTtsSettings && (
         <OverlayBackdrop className="z-50">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper-elevated)] shadow-xl max-h-[85vh] flex flex-col">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper)] shadow-xl max-h-[85vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
               <div className="min-w-0 flex-1">
@@ -8100,14 +8070,14 @@ export default function Settings({
                   {tSettings('toolbox.dialogs.edgeTts.title')}
                 </h2>
                 {getPresetMcpServer('edge-tts')?.description && (
-                  <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                  <p className="mt-0.5 text-xs text-[var(--muted)]">
                     {getPresetMcpServer('edge-tts')?.description}
                   </p>
                 )}
               </div>
               <button
                 onClick={() => setEdgeTtsSettings(null)}
-                className="shrink-0 rounded-lg p-1 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                className="shrink-0 rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--inset)]"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -8137,7 +8107,7 @@ export default function Settings({
                     )
                   }
                   placeholder="zh-CN-XiaoxiaoNeural"
-                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)] font-mono"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)] font-mono"
                 />
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {[
@@ -8169,8 +8139,8 @@ export default function Settings({
                       }
                       className={`rounded-md px-2 py-1 text-xs transition-colors ${
                         edgeTtsSettings.defaultVoice === v.id
-                          ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                          : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                          ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                          : 'bg-[var(--inset)] text-[var(--muted)] hover:text-[var(--ink)]'
                       }`}
                     >
                       {v.label}
@@ -8204,8 +8174,8 @@ export default function Settings({
                       }
                       className={`rounded-md px-3 py-1.5 text-xs transition-colors ${
                         edgeTtsSettings.defaultOutputFormat === f.id
-                          ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                          : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                          ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                          : 'bg-[var(--inset)] text-[var(--muted)] hover:text-[var(--ink)]'
                       }`}
                     >
                       {f.label}
@@ -8216,7 +8186,7 @@ export default function Settings({
 
               {/* Voice Parameters Divider */}
               <div className="border-t border-[var(--line)] pt-4">
-                <span className="text-sm font-medium text-[var(--ink-muted)]">
+                <span className="text-sm font-medium text-[var(--muted)]">
                   {tSettings('toolbox.dialogs.edgeTts.voiceParameters')}
                 </span>
               </div>
@@ -8224,7 +8194,7 @@ export default function Settings({
               {/* Rate Slider */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-[var(--ink-muted)]">
+                  <label className="text-sm font-medium text-[var(--muted)]">
                     {tSettings('toolbox.dialogs.edgeTts.rate')}
                   </label>
                   <div className="flex items-center gap-2">
@@ -8239,7 +8209,7 @@ export default function Settings({
                             prev ? { ...prev, defaultRate: 0 } : null,
                           )
                         }
-                        className="text-xs text-[var(--ink-muted)] hover:text-[var(--accent)]"
+                        className="text-xs text-[var(--muted)] hover:text-[var(--primary)]"
                       >
                         {tSettings('toolbox.common.reset')}
                       </button>
@@ -8261,7 +8231,7 @@ export default function Settings({
                   }
                   className={ttsSliderClass}
                 />
-                <div className="flex justify-between text-xs text-[var(--ink-muted)] opacity-50">
+                <div className="flex justify-between text-xs text-[var(--muted)] opacity-50">
                   <span>-100%</span>
                   <span>+200%</span>
                 </div>
@@ -8270,7 +8240,7 @@ export default function Settings({
               {/* Volume Slider */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-[var(--ink-muted)]">
+                  <label className="text-sm font-medium text-[var(--muted)]">
                     {tSettings('toolbox.dialogs.edgeTts.volume')}
                   </label>
                   <div className="flex items-center gap-2">
@@ -8285,7 +8255,7 @@ export default function Settings({
                             prev ? { ...prev, defaultVolume: 0 } : null,
                           )
                         }
-                        className="text-xs text-[var(--ink-muted)] hover:text-[var(--accent)]"
+                        className="text-xs text-[var(--muted)] hover:text-[var(--primary)]"
                       >
                         {tSettings('toolbox.common.reset')}
                       </button>
@@ -8310,7 +8280,7 @@ export default function Settings({
                   }
                   className={ttsSliderClass}
                 />
-                <div className="flex justify-between text-xs text-[var(--ink-muted)] opacity-50">
+                <div className="flex justify-between text-xs text-[var(--muted)] opacity-50">
                   <span>-100%</span>
                   <span>+100%</span>
                 </div>
@@ -8319,7 +8289,7 @@ export default function Settings({
               {/* Pitch Slider */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-[var(--ink-muted)]">
+                  <label className="text-sm font-medium text-[var(--muted)]">
                     {tSettings('toolbox.dialogs.edgeTts.pitch')}
                   </label>
                   <div className="flex items-center gap-2">
@@ -8334,7 +8304,7 @@ export default function Settings({
                             prev ? { ...prev, defaultPitch: 0 } : null,
                           )
                         }
-                        className="text-xs text-[var(--ink-muted)] hover:text-[var(--accent)]"
+                        className="text-xs text-[var(--muted)] hover:text-[var(--primary)]"
                       >
                         {tSettings('toolbox.common.reset')}
                       </button>
@@ -8359,7 +8329,7 @@ export default function Settings({
                   }
                   className={ttsSliderClass}
                 />
-                <div className="flex justify-between text-xs text-[var(--ink-muted)] opacity-50">
+                <div className="flex justify-between text-xs text-[var(--muted)] opacity-50">
                   <span>-100Hz</span>
                   <span>+100Hz</span>
                 </div>
@@ -8367,7 +8337,7 @@ export default function Settings({
 
               {/* Preview Section Divider */}
               <div className="border-t border-[var(--line)] pt-4">
-                <span className="text-sm font-medium text-[var(--ink-muted)]">
+                <span className="text-sm font-medium text-[var(--muted)]">
                   {tSettings('toolbox.dialogs.edgeTts.preview')}
                 </span>
               </div>
@@ -8382,12 +8352,12 @@ export default function Settings({
                     placeholder={tSettings(
                       'toolbox.dialogs.edgeTts.previewPlaceholder',
                     )}
-                    className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)]/50 outline-none focus:border-[var(--accent)] resize-none"
+                    className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--primary)] resize-none"
                   />
                   <button
                     onClick={handlePreviewTts}
                     disabled={ttsPreviewLoading || !ttsPreviewText.trim()}
-                    className="shrink-0 h-10 w-10 rounded-full bg-[var(--accent)] text-[var(--on-accent)] flex items-center justify-center hover:bg-[var(--accent)]/90 disabled:opacity-40 transition-colors self-center"
+                    className="shrink-0 h-10 w-10 rounded-full bg-[var(--primary)] text-[var(--on-primary)] flex items-center justify-center hover:bg-[var(--primary)]/90 disabled:opacity-40 transition-colors self-center"
                     title={
                       ttsPreviewPlaying
                         ? tSettings('toolbox.dialogs.edgeTts.stop')
@@ -8417,13 +8387,13 @@ export default function Settings({
             <div className="flex justify-end gap-3 border-t border-[var(--line)] px-6 py-4">
               <button
                 onClick={() => setEdgeTtsSettings(null)}
-                className="rounded-lg px-4 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                className="rounded-lg px-4 py-2 text-sm text-[var(--muted)] hover:bg-[var(--inset)]"
               >
                 {tSettings('toolbox.common.cancel')}
               </button>
               <button
                 onClick={handleSaveEdgeTts}
-                className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent)]/90"
+                className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary)]/90"
               >
                 {tSettings('toolbox.common.save')}
               </button>
@@ -8435,7 +8405,7 @@ export default function Settings({
       {/* Add MCP Modal */}
       {showMcpForm && (
         <OverlayBackdrop className="z-50">
-          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper-elevated)] shadow-xl max-h-[85vh] flex flex-col">
+          <div className="mx-4 w-full max-w-lg rounded-2xl bg-[var(--paper)] shadow-xl max-h-[85vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
               <h3 className="text-lg font-semibold text-[var(--ink)]">
@@ -8450,7 +8420,7 @@ export default function Settings({
                       setMcpFormMode((m) => (m === 'form' ? 'json' : 'form'));
                       setMcpJsonError(null);
                     }}
-                    className="text-sm text-[var(--accent)] hover:underline"
+                    className="text-sm text-[var(--primary)] hover:underline"
                   >
                     {mcpFormMode === 'form'
                       ? tSettings('toolbox.dialogs.customMcp.switchToJson')
@@ -8462,7 +8432,7 @@ export default function Settings({
                     setShowMcpForm(false);
                     resetMcpForm();
                   }}
-                  className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)]"
+                  className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)]"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -8482,11 +8452,11 @@ export default function Settings({
                     placeholder={tSettings(
                       'toolbox.dialogs.customMcp.jsonPlaceholder',
                     )}
-                    className="w-full h-64 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 font-mono text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)]/50 focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] resize-none"
+                    className="w-full h-64 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 font-mono text-sm text-[var(--ink)] placeholder:text-[var(--muted)]/50 focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] resize-none"
                     spellCheck={false}
                   />
                   {mcpJsonError && (
-                    <p className="text-sm text-[var(--error)]">
+                    <p className="text-sm text-[var(--danger)]">
                       {tSettings(mcpJsonError.key, mcpJsonError.params)}
                     </p>
                   )}
@@ -8495,7 +8465,7 @@ export default function Settings({
                 <>
                   {/* Transport Type Selector */}
                   <div className="mb-5">
-                    <label className="mb-2 block text-sm font-medium text-[var(--ink-muted)]">
+                    <label className="mb-2 block text-sm font-medium text-[var(--muted)]">
                       {tSettings('toolbox.dialogs.customMcp.transport')}
                     </label>
                     <div className="grid grid-cols-3 gap-2">
@@ -8530,17 +8500,17 @@ export default function Settings({
                           }
                           className={`flex flex-col items-center rounded-xl border p-3 transition-all ${
                             mcpForm.type === t.type
-                              ? 'border-[var(--ink)] bg-[var(--paper-inset)]'
-                              : 'border-[var(--line)] hover:border-[var(--ink-muted)]'
+                              ? 'border-[var(--ink)] bg-[var(--inset)]'
+                              : 'border-[var(--line)] hover:border-[var(--muted)]'
                           }`}
                         >
                           <span className="text-xl mb-1">{t.icon}</span>
                           <span
-                            className={`text-sm font-medium ${mcpForm.type === t.type ? 'text-[var(--ink)]' : 'text-[var(--ink-muted)]'}`}
+                            className={`text-sm font-medium ${mcpForm.type === t.type ? 'text-[var(--ink)]' : 'text-[var(--muted)]'}`}
                           >
                             {t.name}
                           </span>
-                          <span className="text-xs text-[var(--ink-muted)]">
+                          <span className="text-xs text-[var(--muted)]">
                             {t.desc}
                           </span>
                         </button>
@@ -8553,7 +8523,7 @@ export default function Settings({
                     <div>
                       <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
                         <span className="font-mono">ID</span>{' '}
-                        <span className="text-[var(--error)]">*</span>
+                        <span className="text-[var(--danger)]">*</span>
                       </label>
                       <input
                         type="text"
@@ -8570,9 +8540,9 @@ export default function Settings({
                           'toolbox.dialogs.customMcp.idPlaceholder',
                         )}
                         disabled={!!editingMcpId}
-                        className={`w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none ${editingMcpId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none ${editingMcpId ? 'opacity-50 cursor-not-allowed' : ''}`}
                       />
-                      <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                      <p className="mt-1 text-xs text-[var(--muted)]">
                         {tSettings('toolbox.dialogs.customMcp.idHint')}
                       </p>
                     </div>
@@ -8581,10 +8551,10 @@ export default function Settings({
                     <div>
                       <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
                         {tSettings('toolbox.dialogs.customMcp.name')}{' '}
-                        <span className="font-mono text-[var(--ink-muted)]">
+                        <span className="font-mono text-[var(--muted)]">
                           name
                         </span>{' '}
-                        <span className="text-[var(--error)]">*</span>
+                        <span className="text-[var(--danger)]">*</span>
                       </label>
                       <input
                         type="text"
@@ -8595,7 +8565,7 @@ export default function Settings({
                         placeholder={tSettings(
                           'toolbox.dialogs.customMcp.namePlaceholder',
                         )}
-                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--primary)] focus:outline-none"
                       />
                     </div>
 
@@ -8605,10 +8575,10 @@ export default function Settings({
                         <div>
                           <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
                             {tSettings('toolbox.dialogs.customMcp.command')}{' '}
-                            <span className="font-mono text-[var(--ink-muted)]">
+                            <span className="font-mono text-[var(--muted)]">
                               command
                             </span>{' '}
-                            <span className="text-[var(--error)]">*</span>
+                            <span className="text-[var(--danger)]">*</span>
                           </label>
                           <input
                             type="text"
@@ -8622,18 +8592,18 @@ export default function Settings({
                             placeholder={tSettings(
                               'toolbox.dialogs.customMcp.commandPlaceholder',
                             )}
-                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                           />
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {tSettings('toolbox.dialogs.customMcp.commandHint')}
                           </p>
                         </div>
 
                         {/* Args - array input */}
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-inset)] p-4">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)] p-4">
                           <label className="mb-3 block text-sm font-medium text-[var(--ink)]">
                             {tSettings('toolbox.dialogs.customMcp.args')}{' '}
-                            <span className="font-mono text-[var(--ink-muted)]">
+                            <span className="font-mono text-[var(--muted)]">
                               args
                             </span>
                           </label>
@@ -8644,7 +8614,7 @@ export default function Settings({
                               {mcpForm.args.map((arg, index) => (
                                 <div
                                   key={index}
-                                  className="flex items-center gap-1 rounded-lg bg-[var(--paper-elevated)] px-2.5 py-1.5 text-xs font-mono text-[var(--ink)]"
+                                  className="flex items-center gap-1 rounded-lg bg-[var(--paper)] px-2.5 py-1.5 text-xs font-mono text-[var(--ink)]"
                                 >
                                   <span>{arg}</span>
                                   <button
@@ -8656,7 +8626,7 @@ export default function Settings({
                                         ),
                                       }));
                                     }}
-                                    className="ml-1 text-[var(--ink-muted)] hover:text-[var(--error)]"
+                                    className="ml-1 text-[var(--muted)] hover:text-[var(--danger)]"
                                   >
                                     <X className="h-3 w-3" />
                                   </button>
@@ -8679,7 +8649,7 @@ export default function Settings({
                               placeholder={tSettings(
                                 'toolbox.dialogs.customMcp.argPlaceholder',
                               )}
-                              className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                              className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                               onKeyDown={(e) => {
                                 if (isImeComposingEvent(e)) return;
                                 if (e.key === 'Enter') {
@@ -8705,23 +8675,23 @@ export default function Settings({
                                 }
                               }}
                               disabled={!mcpForm.newArg.trim()}
-                              className="flex items-center gap-1.5 rounded-lg border border-[var(--ink)] px-3 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:opacity-50"
+                              className="flex items-center gap-1.5 rounded-lg border border-[var(--ink)] px-3 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:opacity-50"
                             >
                               <Plus className="h-4 w-4" />
                               {tSettings('toolbox.common.add')}
                             </button>
                           </div>
-                          <p className="mt-2 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-2 text-xs text-[var(--muted)]">
                             {tSettings('toolbox.dialogs.customMcp.argHint')}
                           </p>
                         </div>
 
                         {/* Environment Variables */}
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-inset)] p-4">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)] p-4">
                           <label className="mb-3 flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
                             <span>🔐</span>{' '}
                             {tSettings('toolbox.dialogs.customMcp.envVars')}{' '}
-                            <span className="font-mono text-[var(--ink-muted)]">
+                            <span className="font-mono text-[var(--muted)]">
                               env
                             </span>
                             {tSettings(
@@ -8750,7 +8720,7 @@ export default function Settings({
                                 placeholder={tSettings(
                                   'toolbox.common.valuePlaceholder',
                                 )}
-                                className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm transition-colors focus:border-[var(--primary)] focus:outline-none"
                               />
                               <button
                                 onClick={() => {
@@ -8758,7 +8728,7 @@ export default function Settings({
                                   delete newEnv[key];
                                   setMcpForm((p) => ({ ...p, env: newEnv }));
                                 }}
-                                className="rounded-lg p-2 text-[var(--error)] transition-colors hover:bg-[var(--error-bg)]"
+                                className="rounded-lg p-2 text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)]"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
@@ -8781,7 +8751,7 @@ export default function Settings({
                               placeholder={tSettings(
                                 'toolbox.common.envKeyPlaceholder',
                               )}
-                              className="w-[140px] shrink-0 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                              className="w-[140px] shrink-0 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                             />
                             <input
                               type="text"
@@ -8795,7 +8765,7 @@ export default function Settings({
                               placeholder={tSettings(
                                 'toolbox.common.valuePlaceholder',
                               )}
-                              className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                              className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                               onKeyDown={(e) => {
                                 if (isImeComposingEvent(e)) return;
                                 if (e.key === 'Enter') {
@@ -8828,7 +8798,7 @@ export default function Settings({
                                 !mcpForm.newEnvKey.trim() ||
                                 mcpForm.newEnvKey.trim() in mcpForm.env
                               }
-                              className="flex items-center gap-1.5 rounded-lg border border-[var(--ink)] px-3 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:opacity-50"
+                              className="flex items-center gap-1.5 rounded-lg border border-[var(--ink)] px-3 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:opacity-50"
                             >
                               <Plus className="h-4 w-4" />
                               {tSettings('toolbox.common.add')}
@@ -8844,10 +8814,10 @@ export default function Settings({
                         <div>
                           <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
                             {tSettings('toolbox.dialogs.customMcp.serverUrl')}{' '}
-                            <span className="font-mono text-[var(--ink-muted)]">
+                            <span className="font-mono text-[var(--muted)]">
                               url
                             </span>{' '}
-                            <span className="text-[var(--error)]">*</span>
+                            <span className="text-[var(--danger)]">*</span>
                           </label>
                           <input
                             type="url"
@@ -8864,9 +8834,9 @@ export default function Settings({
                                     'toolbox.dialogs.customMcp.urlPlaceholderHttp',
                                   )
                             }
-                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                           />
-                          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                          <p className="mt-1 text-xs text-[var(--muted)]">
                             {mcpForm.type === 'sse'
                               ? tSettings(
                                   'toolbox.dialogs.customMcp.urlHintSse',
@@ -8878,7 +8848,7 @@ export default function Settings({
                         </div>
 
                         {/* HTTP Headers — collapsible */}
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-inset)]">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)]">
                           <button
                             type="button"
                             onClick={() => setMcpHeadersExpanded((v) => !v)}
@@ -8887,17 +8857,17 @@ export default function Settings({
                             <span className="flex items-center gap-2">
                               <KeyRound className="h-4 w-4" />{' '}
                               {tSettings('toolbox.dialogs.customMcp.headers')}{' '}
-                              <span className="font-mono text-[var(--ink-muted)]">
+                              <span className="font-mono text-[var(--muted)]">
                                 headers
                               </span>
                               {Object.keys(mcpForm.headers).length > 0 && (
-                                <span className="rounded-full bg-[var(--accent)]/10 px-1.5 py-0.5 text-xs text-[var(--accent)]">
+                                <span className="rounded-full bg-[var(--primary)]/10 px-1.5 py-0.5 text-xs text-[var(--primary)]">
                                   {Object.keys(mcpForm.headers).length}
                                 </span>
                               )}
                             </span>
                             <ChevronDown
-                              className={`h-4 w-4 text-[var(--ink-muted)] transition-transform ${mcpHeadersExpanded ? '' : '-rotate-90'}`}
+                              className={`h-4 w-4 text-[var(--muted)] transition-transform ${mcpHeadersExpanded ? '' : '-rotate-90'}`}
                             />
                           </button>
                           {mcpHeadersExpanded && (
@@ -8913,7 +8883,7 @@ export default function Settings({
                                       type="text"
                                       value={key}
                                       readOnly
-                                      className="w-[140px] shrink-0 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono text-[var(--success)] focus:outline-none"
+                                      className="w-[140px] shrink-0 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm font-mono text-[var(--success)] focus:outline-none"
                                     />
                                     <input
                                       type="text"
@@ -8930,7 +8900,7 @@ export default function Settings({
                                       placeholder={tSettings(
                                         'toolbox.common.valuePlaceholder',
                                       )}
-                                      className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                      className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                                     />
                                     <button
                                       onClick={() => {
@@ -8943,7 +8913,7 @@ export default function Settings({
                                           headers: newHeaders,
                                         }));
                                       }}
-                                      className="rounded-lg p-2 text-[var(--error)] transition-colors hover:bg-[var(--error-bg)]"
+                                      className="rounded-lg p-2 text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)]"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </button>
@@ -8965,7 +8935,7 @@ export default function Settings({
                                   placeholder={tSettings(
                                     'toolbox.dialogs.customMcp.headerNamePlaceholder',
                                   )}
-                                  className="w-[140px] shrink-0 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                  className="w-[140px] shrink-0 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                                 />
                                 <input
                                   type="text"
@@ -8979,7 +8949,7 @@ export default function Settings({
                                   placeholder={tSettings(
                                     'toolbox.common.valuePlaceholder',
                                   )}
-                                  className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                  className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                                   onKeyDown={(e) => {
                                     if (isImeComposingEvent(e)) return;
                                     if (e.key === 'Enter') {
@@ -9013,12 +8983,12 @@ export default function Settings({
                                     }
                                   }}
                                   disabled={!mcpForm.newHeaderKey}
-                                  className="flex items-center gap-1.5 rounded-lg border border-[var(--ink)] px-3 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:opacity-50"
+                                  className="flex items-center gap-1.5 rounded-lg border border-[var(--ink)] px-3 py-2 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:opacity-50"
                                 >
                                   <Plus className="h-4 w-4" />
                                 </button>
                               </div>
-                              <p className="mt-2 text-xs text-[var(--ink-muted)]">
+                              <p className="mt-2 text-xs text-[var(--muted)]">
                                 {tSettings(
                                   'toolbox.dialogs.customMcp.authHeaderHint',
                                 )}
@@ -9028,7 +8998,7 @@ export default function Settings({
                         </div>
 
                         {/* OAuth 2.0 Section — auto-discover + one-click authorize */}
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-inset)]">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)]">
                           <div className="p-4">
                             <div className="flex items-center justify-between">
                               <span className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
@@ -9064,7 +9034,7 @@ export default function Settings({
                                   onClick={() =>
                                     handleMcpOAuthDisconnect(mcpForm.id)
                                   }
-                                  className="flex items-center gap-1.5 rounded-lg border border-[var(--error)] px-3 py-2 text-sm font-medium text-[var(--error)] transition-colors hover:bg-[var(--error-bg)]"
+                                  className="flex items-center gap-1.5 rounded-lg border border-[var(--danger)] px-3 py-2 text-sm font-medium text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)]"
                                 >
                                   <Unlink className="h-4 w-4" />{' '}
                                   {tSettings(
@@ -9142,7 +9112,7 @@ export default function Settings({
                                           mcpOAuthConnecting === mcpForm.id ||
                                           !mcpForm.url
                                         }
-                                        className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] transition-colors hover:opacity-90 disabled:opacity-50"
+                                        className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:opacity-90 disabled:opacity-50"
                                       >
                                         {mcpOAuthConnecting === mcpForm.id ? (
                                           <>
@@ -9165,7 +9135,7 @@ export default function Settings({
                                         onClick={() =>
                                           setMcpOAuthExpanded((v) => !v)
                                         }
-                                        className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
+                                        className="text-xs text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
                                       >
                                         {mcpOAuthExpanded
                                           ? tSettings(
@@ -9183,7 +9153,7 @@ export default function Settings({
                                     ?.supportsDynamicRegistration === false &&
                                     !mcpOAuthExpanded && (
                                       <div>
-                                        <p className="mb-2 text-xs text-[var(--ink-muted)]">
+                                        <p className="mb-2 text-xs text-[var(--muted)]">
                                           {tSettings(
                                             'toolbox.dialogs.customMcp.manualFallbackNote',
                                           )}
@@ -9193,7 +9163,7 @@ export default function Settings({
                                           onClick={() =>
                                             setMcpOAuthExpanded(true)
                                           }
-                                          className="text-xs text-[var(--accent)] hover:underline"
+                                          className="text-xs text-[var(--primary)] hover:underline"
                                         >
                                           {tSettings(
                                             'toolbox.dialogs.customMcp.expandManualConfig',
@@ -9217,7 +9187,7 @@ export default function Settings({
                                         placeholder={tSettings(
                                           'toolbox.dialogs.customMcp.clientIdPlaceholder',
                                         )}
-                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                                       />
                                       <input
                                         type="password"
@@ -9231,7 +9201,7 @@ export default function Settings({
                                         placeholder={tSettings(
                                           'toolbox.dialogs.customMcp.clientSecretPlaceholder',
                                         )}
-                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                                       />
                                       <div className="grid grid-cols-2 gap-2">
                                         <input
@@ -9246,7 +9216,7 @@ export default function Settings({
                                           placeholder={tSettings(
                                             'toolbox.dialogs.customMcp.scopesPlaceholder',
                                           )}
-                                          className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                          className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                                         />
                                         <input
                                           type="text"
@@ -9264,7 +9234,7 @@ export default function Settings({
                                           placeholder={tSettings(
                                             'toolbox.dialogs.customMcp.callbackPortPlaceholder',
                                           )}
-                                          className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                          className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                                         />
                                       </div>
                                       <div className="grid grid-cols-2 gap-2">
@@ -9280,7 +9250,7 @@ export default function Settings({
                                           placeholder={tSettings(
                                             'toolbox.dialogs.customMcp.authUrlPlaceholder',
                                           )}
-                                          className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                          className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                                         />
                                         <input
                                           type="url"
@@ -9294,7 +9264,7 @@ export default function Settings({
                                           placeholder={tSettings(
                                             'toolbox.dialogs.customMcp.tokenUrlPlaceholder',
                                           )}
-                                          className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                                          className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                                         />
                                       </div>
                                       <button
@@ -9309,7 +9279,7 @@ export default function Settings({
                                           !mcpForm.oauthClientId ||
                                           mcpOAuthConnecting === mcpForm.id
                                         }
-                                        className="flex items-center gap-1.5 rounded-lg border border-[var(--accent)] px-3 py-2 text-sm font-medium text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/10 disabled:opacity-50"
+                                        className="flex items-center gap-1.5 rounded-lg border border-[var(--primary)] px-3 py-2 text-sm font-medium text-[var(--primary)] transition-colors hover:bg-[var(--primary)]/10 disabled:opacity-50"
                                       >
                                         {mcpOAuthConnecting === mcpForm.id ? (
                                           <>
@@ -9348,14 +9318,14 @@ export default function Settings({
                     setShowMcpForm(false);
                     resetMcpForm();
                   }}
-                  className="flex-1 rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+                  className="flex-1 rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
                 >
                   {tSettings('toolbox.common.cancel')}
                 </button>
                 <button
                   onClick={handleAddMcpFromJson}
                   disabled={!mcpJsonInput.trim()}
-                  className="flex-1 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                 >
                   {tSettings('toolbox.dialogs.customMcp.import')}
                 </button>
@@ -9371,7 +9341,7 @@ export default function Settings({
                       resetMcpForm();
                       handleDeleteMcp(editingMcpId);
                     }}
-                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--error)] transition-colors hover:bg-[var(--error-bg)]"
+                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)]"
                   >
                     <Trash2 className="h-4 w-4" />
                     {tSettings('toolbox.dialogs.customMcp.delete')}
@@ -9385,7 +9355,7 @@ export default function Settings({
                       setShowMcpForm(false);
                       resetMcpForm();
                     }}
-                    className={`rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] ${editingMcpId ? '' : 'flex-1'}`}
+                    className={`rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] ${editingMcpId ? '' : 'flex-1'}`}
                   >
                     {tSettings('toolbox.common.cancel')}
                   </button>
@@ -9398,7 +9368,7 @@ export default function Settings({
                       ((mcpForm.type === 'http' || mcpForm.type === 'sse') &&
                         !mcpForm.url)
                     }
-                    className={`rounded-lg bg-[var(--button-primary-bg)] px-4 py-2.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50 ${editingMcpId ? '' : 'flex-1'}`}
+                    className={`rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50 ${editingMcpId ? '' : 'flex-1'}`}
                   >
                     {editingMcpId
                       ? tSettings('toolbox.dialogs.customMcp.saveChanges')
@@ -9441,7 +9411,7 @@ export default function Settings({
       {/* Custom Provider Modal */}
       {showCustomForm && (
         <OverlayBackdrop className="z-50 overflow-y-auto py-8">
-          <div className="mx-4 w-full max-w-md flex max-h-[90vh] flex-col rounded-2xl bg-[var(--paper-elevated)] shadow-xl">
+          <div className="mx-4 w-full max-w-md flex max-h-[90vh] flex-col rounded-2xl bg-[var(--paper)] shadow-xl">
             <div className="flex-shrink-0 px-6 pt-6 pb-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-[var(--ink)]">
@@ -9452,7 +9422,7 @@ export default function Settings({
                     setShowCustomForm(false);
                     setCustomForm(EMPTY_CUSTOM_FORM);
                   }}
-                  className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)]"
+                  className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)]"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -9463,7 +9433,7 @@ export default function Settings({
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
                   {tSettings('providers.custom.providerName')}{' '}
-                  <span className="text-[var(--error)]">*</span>
+                  <span className="text-[var(--danger)]">*</span>
                 </label>
                 <input
                   type="text"
@@ -9474,7 +9444,7 @@ export default function Settings({
                   placeholder={tSettings(
                     'providers.custom.providerNamePlaceholder',
                   )}
-                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--primary)] focus:outline-none"
                 />
               </div>
 
@@ -9494,7 +9464,7 @@ export default function Settings({
                   placeholder={tSettings(
                     'providers.custom.cloudProviderPlaceholder',
                   )}
-                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--primary)] focus:outline-none"
                 />
               </div>
 
@@ -9503,7 +9473,7 @@ export default function Settings({
                   {tSettings('providers.custom.apiProtocol')}
                 </label>
                 {customForm.apiProtocol === 'openai' && (
-                  <p className="mb-1.5 text-xs text-[var(--ink-muted)]">
+                  <p className="mb-1.5 text-xs text-[var(--muted)]">
                     {tSettings('providers.custom.bridgeWarning')}
                   </p>
                 )}
@@ -9554,7 +9524,7 @@ export default function Settings({
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
                   {tSettings('providers.custom.baseUrl')}{' '}
-                  <span className="text-[var(--error)]">*</span>
+                  <span className="text-[var(--danger)]">*</span>
                 </label>
                 <input
                   type="url"
@@ -9567,7 +9537,7 @@ export default function Settings({
                       ? 'https://api.openai.com/v1'
                       : 'https://api.example.com/anthropic'
                   }
-                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--primary)] focus:outline-none"
                 />
               </div>
 
@@ -9671,7 +9641,7 @@ export default function Settings({
                         placeholder={tSettings(
                           'providers.custom.unlimitedPlaceholder',
                         )}
-                        className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                        className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--primary)] focus:outline-none"
                       />
                     </div>
                   </div>
@@ -9684,7 +9654,7 @@ export default function Settings({
                   <label className="mb-0.5 block text-sm font-medium text-[var(--ink)]">
                     {tSettings('providers.custom.authType')}
                   </label>
-                  <p className="mb-1.5 text-xs text-[var(--ink-muted)]">
+                  <p className="mb-1.5 text-xs text-[var(--muted)]">
                     {tSettings('providers.custom.authTypeDescription')}
                   </p>
                   <div className="flex gap-4">
@@ -9727,14 +9697,14 @@ export default function Settings({
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">
                   {tSettings('providers.custom.models')}{' '}
-                  <span className="text-[var(--error)]">*</span>
+                  <span className="text-[var(--danger)]">*</span>
                 </label>
                 {customForm.models.length > 0 && (
                   <div className="mb-2 flex flex-wrap gap-1.5">
                     {customForm.models.map((m) => (
                       <span
                         key={m}
-                        className="inline-flex items-center gap-1 rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]"
+                        className="inline-flex items-center gap-1 rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]"
                       >
                         {m}
                         <button
@@ -9745,7 +9715,7 @@ export default function Settings({
                               models: p.models.filter((id) => id !== m),
                             }))
                           }
-                          className="rounded-sm p-0.5 text-[var(--ink-subtle)] transition-colors hover:text-[var(--ink)]"
+                          className="rounded-sm p-0.5 text-[var(--subtle)] transition-colors hover:text-[var(--ink)]"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -9760,7 +9730,7 @@ export default function Settings({
                     placeholder={tSettings(
                       'providers.custom.modelInputPlaceholder',
                     )}
-                    className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm transition-colors placeholder:text-[var(--ink-muted)] focus:border-[var(--focus-border)] focus:outline-none"
+                    className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm transition-colors placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:outline-none"
                     onKeyDown={(e) => {
                       if (isImeComposingEvent(e)) return;
                       if (e.key === 'Enter') {
@@ -9772,7 +9742,7 @@ export default function Settings({
                   <button
                     type="button"
                     onClick={addCustomModelFromInput}
-                    className="rounded-lg bg-[var(--paper-inset)] px-2.5 py-1.5 text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+                    className="rounded-lg bg-[var(--inset)] px-2.5 py-1.5 text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -9789,7 +9759,7 @@ export default function Settings({
                     setShowCustomForm(false);
                     setCustomForm(EMPTY_CUSTOM_FORM);
                   }}
-                  className="flex-1 rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+                  className="flex-1 rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
                 >
                   {tSettings('providers.custom.cancel')}
                 </button>
@@ -9800,7 +9770,7 @@ export default function Settings({
                     !customForm.baseUrl ||
                     customForm.models.length === 0
                   }
-                  className="flex-1 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                  className="flex-1 rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                 >
                   {tSettings('providers.custom.add')}
                 </button>
@@ -9813,7 +9783,7 @@ export default function Settings({
       {/* Provider Management Modal */}
       {editingProvider && (
         <OverlayBackdrop className="z-50 overflow-y-auto py-8">
-          <div className="mx-4 w-full max-w-md flex max-h-[90vh] flex-col rounded-2xl bg-[var(--paper-elevated)] shadow-xl">
+          <div className="mx-4 w-full max-w-md flex max-h-[90vh] flex-col rounded-2xl bg-[var(--paper)] shadow-xl">
             <div className="flex-shrink-0 px-6 pt-6 pb-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-[var(--ink)]">
@@ -9823,7 +9793,7 @@ export default function Settings({
                 </h3>
                 <button
                   onClick={() => setEditingProvider(null)}
-                  className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)]"
+                  className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)]"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -9837,7 +9807,7 @@ export default function Settings({
                   {tSettings('providers.custom.providerName')}
                 </label>
                 {editingProvider.provider.isBuiltin ? (
-                  <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm text-[var(--ink-muted)]">
+                  <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm text-[var(--muted)]">
                     {editingProvider.provider.name}
                   </div>
                 ) : (
@@ -9852,7 +9822,7 @@ export default function Settings({
                     placeholder={tSettings(
                       'providers.custom.providerNameEditPlaceholder',
                     )}
-                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--primary)] focus:outline-none"
                   />
                 )}
               </div>
@@ -9874,7 +9844,7 @@ export default function Settings({
                     placeholder={tSettings(
                       'providers.custom.cloudProviderEditPlaceholder',
                     )}
-                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--primary)] focus:outline-none"
                   />
                 </div>
               )}
@@ -9886,7 +9856,7 @@ export default function Settings({
                     {tSettings('providers.custom.apiProtocol')}
                   </label>
                   {editingProvider.editApiProtocol === 'openai' && (
-                    <p className="mb-1.5 text-xs text-[var(--ink-muted)]">
+                    <p className="mb-1.5 text-xs text-[var(--muted)]">
                       {tSettings('providers.custom.bridgeWarning')}
                     </p>
                   )}
@@ -9950,7 +9920,7 @@ export default function Settings({
                 </label>
                 {editingProvider.provider.isBuiltin ? (
                   editingProvider.provider.config.baseUrl && (
-                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm text-[var(--ink-muted)] font-mono text-xs break-all">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm text-[var(--muted)] font-mono text-xs break-all">
                       {editingProvider.provider.config.baseUrl}
                     </div>
                   )
@@ -9968,7 +9938,7 @@ export default function Settings({
                         ? 'https://api.openai.com/v1'
                         : 'https://api.example.com'
                     }
-                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm font-mono transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm font-mono transition-colors focus:border-[var(--primary)] focus:outline-none"
                   />
                 )}
               </div>
@@ -10096,7 +10066,7 @@ export default function Settings({
                           placeholder={tSettings(
                             'providers.custom.unlimitedPlaceholder',
                           )}
-                          className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--focus-border)] focus:outline-none"
+                          className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm transition-colors focus:border-[var(--primary)] focus:outline-none"
                         />
                       </div>
                     </div>
@@ -10110,7 +10080,7 @@ export default function Settings({
                     <label className="mb-0.5 block text-sm font-medium text-[var(--ink)]">
                       {tSettings('providers.custom.authType')}
                     </label>
-                    <p className="mb-1.5 text-xs text-[var(--ink-muted)]">
+                    <p className="mb-1.5 text-xs text-[var(--muted)]">
                       {tSettings('providers.custom.authTypeDescription')}
                     </p>
                     <div className="flex gap-4">
@@ -10165,13 +10135,13 @@ export default function Settings({
                     onClick={() =>
                       setManagingProviderId(editingProvider.provider.id)
                     }
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-[var(--accent)] transition-colors hover:bg-[var(--accent-warm-subtle)]"
+                    className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-[var(--primary)] transition-colors hover:bg-[var(--primary-soft)]"
                   >
                     <Settings2 className="h-3.5 w-3.5" />
                     {tSettings('providers.custom.manageModels')}
                   </button>
                 </div>
-                <p className="truncate text-sm text-[var(--ink-muted)]">
+                <p className="truncate text-sm text-[var(--muted)]">
                   {editingProvider.provider.models.length > 0
                     ? editingProvider.provider.models
                         .map((m) => m.modelName || m.model)
@@ -10191,7 +10161,7 @@ export default function Settings({
                           p ? { ...p, showAdvanced: !p.showAdvanced } : null,
                         )
                       }
-                      className="flex w-full items-center gap-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+                      className="flex w-full items-center gap-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
                     >
                       <ChevronDown
                         className={`h-4 w-4 transition-transform ${editingProvider.showAdvanced ? '' : '-rotate-90'}`}
@@ -10232,7 +10202,7 @@ export default function Settings({
                             <label className="mb-1 block text-sm font-medium text-[var(--ink)]">
                               {tSettings('providers.custom.aliasMapping')}
                             </label>
-                            <p className="mb-3 text-xs leading-relaxed text-[var(--ink-muted)]">
+                            <p className="mb-3 text-xs leading-relaxed text-[var(--muted)]">
                               {tSettings('providers.custom.aliasDescription')}
                             </p>
                             <div className="space-y-2.5">
@@ -10243,7 +10213,7 @@ export default function Settings({
                                   key={alias}
                                   className="flex items-center gap-2.5"
                                 >
-                                  <span className="w-[90px] shrink-0 text-xs text-[var(--ink-muted)]">
+                                  <span className="w-[90px] shrink-0 text-xs text-[var(--muted)]">
                                     {ALIAS_LABELS[alias]}
                                   </span>
                                   <CustomSelect
@@ -10289,7 +10259,7 @@ export default function Settings({
                     onClick={() =>
                       setDeleteConfirmProvider(editingProvider.provider)
                     }
-                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--error)] transition-colors hover:bg-[var(--error-bg)]"
+                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--danger)] transition-colors hover:bg-[var(--danger-bg)]"
                   >
                     <Trash2 className="h-4 w-4" />
                     {tSettings('providers.custom.delete')}
@@ -10301,13 +10271,13 @@ export default function Settings({
                 <div className="flex gap-3">
                   <button
                     onClick={() => setEditingProvider(null)}
-                    className="rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+                    className="rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
                   >
                     {tSettings('providers.custom.cancel')}
                   </button>
                   <button
                     onClick={saveProviderEdits}
-                    className="rounded-lg bg-[var(--button-primary-bg)] px-4 py-2.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+                    className="rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
                   >
                     {tSettings('providers.custom.save')}
                   </button>
@@ -10369,16 +10339,16 @@ export default function Settings({
       {/* Delete Confirmation Modal */}
       {deleteConfirmProvider && (
         <OverlayBackdrop className="z-[60]">
-          <div className="mx-4 w-full max-w-sm rounded-2xl bg-[var(--paper-elevated)] p-6 shadow-xl">
+          <div className="mx-4 w-full max-w-sm rounded-2xl bg-[var(--paper)] p-6 shadow-xl">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--error-bg)]">
-                <Trash2 className="h-5 w-5 text-[var(--error)]" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--danger-bg)]">
+                <Trash2 className="h-5 w-5 text-[var(--danger)]" />
               </div>
               <h3 className="text-lg font-semibold text-[var(--ink)]">
                 {tSettings('providers.custom.deleteTitle')}
               </h3>
             </div>
-            <p className="mb-6 text-sm text-[var(--ink-muted)]">
+            <p className="mb-6 text-sm text-[var(--muted)]">
               {tSettings('providers.custom.deleteMessage', {
                 name: deleteConfirmProvider.name,
               })}
@@ -10386,13 +10356,13 @@ export default function Settings({
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirmProvider(null)}
-                className="flex-1 rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+                className="flex-1 rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
               >
                 {tSettings('providers.custom.cancel')}
               </button>
               <button
                 onClick={confirmDeleteCustomProvider}
-                className="flex-1 rounded-lg bg-[var(--error)] px-4 py-2.5 text-sm font-medium text-[var(--on-error)] transition-colors hover:bg-[var(--error-hover)]"
+                className="flex-1 rounded-lg bg-[var(--danger)] px-4 py-2.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--danger)]"
               >
                 {tSettings('providers.custom.delete')}
               </button>
@@ -10407,7 +10377,7 @@ export default function Settings({
           onClose={() => setRuntimeDialog({ show: false })}
           className="z-50"
         >
-          <div className="mx-4 w-full max-w-sm rounded-2xl bg-[var(--paper-elevated)] p-6 shadow-xl">
+          <div className="mx-4 w-full max-w-sm rounded-2xl bg-[var(--paper)] p-6 shadow-xl">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--warning-bg)]">
                 <AlertCircle className="h-5 w-5 text-[var(--warning)]" />
@@ -10418,12 +10388,12 @@ export default function Settings({
               <button
                 onClick={() => setRuntimeDialog({ show: false })}
                 aria-label={tSettings('toolbox.dialogs.runtimeMissing.close')}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="mt-4 text-sm text-[var(--ink-muted)]">
+            <p className="mt-4 text-sm text-[var(--muted)]">
               {tSettings('toolbox.dialogs.runtimeMissing.descriptionPrefix')}{' '}
               <span className="font-medium text-[var(--ink)]">
                 {runtimeDialog.runtimeName}
@@ -10437,7 +10407,7 @@ export default function Settings({
               >
                 <ExternalLink
                   href={runtimeDialog.downloadUrl || '#'}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
                 >
                   {tSettings('toolbox.dialogs.runtimeMissing.downloadOfficial')}
                   <ExternalLinkIcon className="h-3.5 w-3.5" />
@@ -10446,7 +10416,7 @@ export default function Settings({
               {showAiInstallButton && (
                 <button
                   onClick={handleAiInstallRuntime}
-                  className="flex-1 rounded-lg bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--on-accent)] transition-colors hover:bg-[var(--accent-warm-hover)]"
+                  className="flex-1 rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
                 >
                   {tSettings('toolbox.dialogs.runtimeMissing.askHelperInstall')}
                 </button>

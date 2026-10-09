@@ -27,13 +27,13 @@ function GoalDraftStatusBar({ onSettings, onCancel }: GoalDraftStatusBarProps) {
   const { t } = useTranslation('task');
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-t-lg border border-b-0 border-[var(--heartbeat-border)] bg-[var(--heartbeat-bg)] px-3 py-2">
+    <div className="flex items-center justify-between gap-3 rounded-t-lg border border-b-0 border-[var(--success)] bg-[var(--success-bg)] px-3 py-2">
       <div className="flex min-w-0 items-center gap-2">
-        <Flag className="h-4 w-4 shrink-0 text-[var(--heartbeat)]" />
-        <span className="shrink-0 text-sm font-medium text-[var(--heartbeat)]">
+        <Flag className="h-4 w-4 shrink-0 text-[var(--success)]" />
+        <span className="shrink-0 text-sm font-medium text-[var(--success)]">
           {t('cron.statusBar.goalDraftTitle')}
         </span>
-        <span className="min-w-0 truncate text-sm text-[var(--ink-muted)]">
+        <span className="min-w-0 truncate text-sm text-[var(--muted)]">
           {t('cron.statusBar.goalObjectiveFallback')}
         </span>
       </div>
@@ -43,7 +43,7 @@ function GoalDraftStatusBar({ onSettings, onCancel }: GoalDraftStatusBarProps) {
           <button
             type="button"
             onClick={onSettings}
-            className="rounded-md p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--heartbeat)]"
+            className="rounded-md p-1.5 text-[var(--muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--success)]"
             title={t('cron.statusBar.settingsTitle')}
           >
             <Settings2 className="h-4 w-4" />
@@ -53,7 +53,7 @@ function GoalDraftStatusBar({ onSettings, onCancel }: GoalDraftStatusBarProps) {
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--heartbeat)]"
+            className="rounded-md p-1.5 text-[var(--muted)] transition hover:bg-[var(--paper-hover)] hover:text-[var(--success)]"
             title={t('cron.statusBar.cancelGoalDraftTitle')}
           >
             <X className="h-4 w-4" />
@@ -82,8 +82,8 @@ function GoalRuntimeStatusBar({
     : goal.status === 'blocked'
       ? 'var(--warning)'
       : goal.status === 'paused' || goal.status === 'canceled'
-        ? 'var(--ink-muted)'
-        : 'var(--heartbeat)';
+        ? 'var(--muted)'
+        : 'var(--success)';
   const title = goal.status === 'complete'
     ? t('cron.statusBar.goalCompleteTitle')
     : goal.status === 'blocked'
@@ -119,7 +119,7 @@ function GoalRuntimeStatusBar({
       className="flex items-center justify-between gap-3 border border-b-0 px-3 py-2 first:rounded-t-lg"
       style={{
         borderColor: `color-mix(in srgb, ${color} 24%, transparent)`,
-        backgroundColor: `color-mix(in srgb, var(--paper) 92%, ${color})`,
+        backgroundColor: `color-mix(in srgb, var(--bg) 92%, ${color})`,
       }}
     >
       <div className="flex min-w-0 items-center gap-2">
@@ -137,13 +137,13 @@ function GoalRuntimeStatusBar({
           <button
             type="button"
             onClick={onEdit}
-            className="min-w-0 truncate text-left text-sm text-[var(--ink-muted)] transition hover:text-[var(--ink)]"
+            className="min-w-0 truncate text-left text-sm text-[var(--muted)] transition hover:text-[var(--ink)]"
             title={t('cron.statusBar.goalEditTitle')}
           >
             {`${detail} · ${goal.objective}`}
           </button>
         ) : (
-          <span className="min-w-0 truncate text-sm text-[var(--ink-muted)]">{detail}</span>
+          <span className="min-w-0 truncate text-sm text-[var(--muted)]">{detail}</span>
         )}
       </div>
 
@@ -152,7 +152,7 @@ function GoalRuntimeStatusBar({
           <button
             type="button"
             onClick={onResume}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-[var(--heartbeat-bg)]"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-[var(--success-bg)]"
             style={{ color }}
             title={t('cron.statusBar.resumeGoalTitle')}
           >
@@ -164,7 +164,7 @@ function GoalRuntimeStatusBar({
           <button
             type="button"
             onClick={onCancel}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-[var(--heartbeat-bg)]"
+            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition hover:bg-[var(--success-bg)]"
             style={{ color }}
             title={t('cron.statusBar.cancelGoalTitle')}
           >
@@ -176,7 +176,7 @@ function GoalRuntimeStatusBar({
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded-md p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--heartbeat-bg)] hover:text-[var(--heartbeat)]"
+            className="rounded-md p-1.5 text-[var(--muted)] transition hover:bg-[var(--success-bg)] hover:text-[var(--success)]"
             title={t('cron.statusBar.dismissGoalTitle')}
           >
             <X className="h-4 w-4" />

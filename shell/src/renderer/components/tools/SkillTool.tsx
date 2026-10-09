@@ -13,7 +13,7 @@ export default function SkillTool({ tool }: SkillToolProps) {
   return (
     <ExpandableResult
       content={tool.result}
-      className="rounded bg-[var(--paper-inset)]/50 px-2 py-1 wrap-break-word text-[var(--ink-secondary)]"
+      className="rounded bg-[var(--inset)]/50 px-2 py-1 wrap-break-word text-[var(--ink-2)]"
     />
   );
 }

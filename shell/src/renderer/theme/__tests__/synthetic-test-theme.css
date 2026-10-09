@@ -1,64 +1,30 @@
 /* A complete, visibly distinct Theme package used only by architecture tests. */
 html[data-theme-id='synthetic-test-theme'] {
-  --font-body: system-ui, sans-serif;
-  --font-display: Georgia, serif;
-  --font-code: monospace;
-  --ink: #21002f;
-  --ink-secondary: #3b1648;
-  --ink-muted: #724b7c;
-  --ink-subtle: #96759f;
-  --ink-faint: #baa5c0;
-  --paper: #fff0ff;
-  --global-sidebar-bg: #f8dff9;
-  --global-sidebar-bg-a0: rgb(248 223 249 / 0);
-  --paper-elevated: #fff8ff;
-  --message-user-bg: #f8ddff;
-  --paper-inset: #efd0f5;
-  --paper-a0: rgb(255 240 255 / 0);
-  --paper-elevated-a0: rgb(255 248 255 / 0);
-  --message-user-bg-a0: rgb(248 221 255 / 0);
-  --paper-inset-a0: rgb(239 208 245 / 0);
-  --hover-bg: rgb(170 0 170 / 0.08);
-  --accent: #aa00aa;
-  --accent-warm: #aa00aa;
-  --accent-warm-hover: #cc22cc;
-  --accent-warm-subtle: rgb(170 0 170 / 0.08);
-  --accent-warm-muted: rgb(170 0 170 / 0.16);
-  --accent-warm-subtle-a0: rgb(170 0 170 / 0);
-  --accent-cool: #006f8f;
-  --accent-cool-hover: #008fb5;
-  --on-accent: #00ffcc;
-  --heartbeat: #d02070;
-  --heartbeat-bg: rgb(208 32 112 / 0.1);
-  --heartbeat-border: rgb(208 32 112 / 0.2);
+  --font-sans: system-ui, sans-serif;
+  --font-human: Georgia, serif;
+  --font-mono: monospace;
+  --muted: #724b7c;
+  --rail: #f8dff9;
+  --rail-a0: rgb(248 223 249 / 0);
+  --note: #f8ddff;
+  --bg-a0: rgb(255 240 255 / 0);
+  --paper-a0: rgb(255 248 255 / 0);
+  --note-a0: rgb(248 221 255 / 0);
+  --primary-soft: rgb(170 0 170 / 0.08);
+  --primary-muted: rgb(170 0 170 / 0.16);
+  --primary-soft-a0: rgb(170 0 170 / 0);
   --success: #087f5b;
   --success-bg: #d8f3e8;
-  --on-success: #ffffff;
-  --error: #c92a2a;
-  --error-bg: #ffe3e3;
-  --error-hover: #a51111;
-  --error-subtle: rgb(201 42 42 / 0.08);
-  --on-error: #ffffff;
-  --warning: #b26a00;
+  --danger-bg: rgb(201 42 42 / 0.08);
   --warning-bg: #fff0c2;
-  --on-warning: #000000;
   --info: #1864ab;
   --info-bg: #dbeeff;
-  --on-info: #ffffff;
-  --button-primary-bg: #aa00aa;
-  --button-primary-bg-hover: #880088;
-  --button-primary-text: var(--on-accent);
-  --media-control-bg: #21002f;
-  --media-control-text: #fff0ff;
-  --media-control-accent: #dd00dd;
-  --media-stop-bg: #c53030;
-  --media-stop-text: #ffffff;
-  --button-dark-bg: #21002f;
-  --button-dark-bg-hover: #3b1648;
-  --button-dark-text: #fff0ff;
-  --button-secondary-bg: #efd0f5;
-  --button-secondary-bg-hover: #e4b7ec;
-  --button-secondary-text: #21002f;
+  --primary-hover: #880088;
+  --danger: #c53030;
+  --on-primary: #ffffff;
+  --bg: #fff0ff;
+  --hover: #e4b7ec;
+  --ink: #21002f;
   --fb-surface-peek: rgb(255 240 255 / 0.2);
   --fb-surface-glass: rgb(255 240 255 / 0.6);
   --fb-surface-pin: rgb(255 240 255 / 0.96);
@@ -85,15 +51,10 @@ html[data-theme-id='synthetic-test-theme'] {
   --fb-line-input: rgb(33 0 47 / 0.08);
   --fb-line-thumb: rgb(33 0 47 / 0.14);
   --fb-drag-handle: rgb(33 0 47 / 0.2);
-  --line: rgb(33 0 47 / 0.1);
-  --line-strong: rgb(33 0 47 / 0.2);
-  --line-subtle: rgb(33 0 47 / 0.06);
+  --line: rgb(33 0 47 / 0.06);
   /* Accent-derived sRGB literals keep required material valid on macOS 13.0 WebKit. */
-  --featured-card-background:
     radial-gradient(ellipse at 100% 0%, rgb(170 0 170 / 0.14), transparent 66%),
-    linear-gradient(126deg, transparent 45%, rgb(170 0 170 / 0.0588)), var(--paper-elevated);
-  --featured-card-border: rgb(127.122 0.000 131.504 / 0.262);
-  --featured-card-shadow: inset 0 1px 0 rgb(255 255 255 / 0.32);
+    linear-gradient(126deg, transparent 45%, rgb(170 0 170 / 0.0588)), var(--paper);
   --theme-radius-base: 2px;
   --theme-radius-sm: 3px;
   --theme-radius-md: 7px;
@@ -108,58 +69,56 @@ html[data-theme-id='synthetic-test-theme'] {
   --theme-shadow-lg: 0 16px 40px rgb(33 0 47 / 0.16);
   --theme-shadow-xl: 0 24px 48px rgb(33 0 47 / 0.2);
   --theme-shadow-2xl: 0 32px 64px rgb(33 0 47 / 0.25);
-  --action-shadow: 0 6px 16px rgb(33 0 47 / 0.14);
-  --action-shadow-active: inset 0 2px 6px rgb(33 0 47 / 0.18);
-  --tool-shadow: 0 8px 24px rgb(33 0 47 / 0.12);
-  --tool-shadow-hover: 0 14px 30px rgb(33 0 47 / 0.18);
-  --expanded-block-line: rgb(170 0 170 / 0.25);
-  --warning-border: rgb(178 106 0 / 0.3);
-  --focus-border: #aa00aa;
+  --shadow-xs: inset 0 2px 6px rgb(33 0 47 / 0.18);
+  --shadow-sm: 0 8px 24px rgb(33 0 47 / 0.12);
+  --shadow-md: 0 14px 30px rgb(33 0 47 / 0.18);
+  --warning: rgb(178 106 0 / 0.3);
+  --primary: #aa00aa;
   --toggle-thumb: #ffffff;
-  --toggle-off-bg: rgb(33 0 47 / 0.18);
-  --code-bg: #21002f;
-  --code-bg-a0: rgb(33 0 47 / 0);
-  --code-header-bg: #3b1648;
-  --code-text: #f8ddff;
-  --code-line-number: #96759f;
-  --duration-fast: 80ms;
-  --duration-normal: 160ms;
-  --duration-slow: 240ms;
-  --theme-body-background: linear-gradient(135deg, #fff0ff, #e1f8ff);
-  --theme-body-texture: none;
-  --theme-body-texture-opacity: 0;
-  --theme-body-texture-blend: normal;
+  --line-2: rgb(33 0 47 / 0.18);
+  --inset: #21002f;
+  --inset-a0: rgb(33 0 47 / 0);
+  --selected: #3b1648;
+  --ink-2: #f8ddff;
+  --subtle: #96759f;
+  --motion-fast: 80ms;
+  --motion-base: 160ms;
+  --motion-slow: 240ms;
+  --side: #fbe6fc;
+  --paper: #fff7ff;
+  --hard: #21002f;
+  --seal: #b0006d;
+  --mark: #ffd6f6;
+  --mint: #def6ea;
+  --theme-shadow-hard: 2px 2px 0 #21002f;
 }
 
 html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {
-  --theme-body-background: linear-gradient(135deg, #fff0ff, #e1f8ff);
+  --selected: #f1d3f3;
 }
 
 html[data-theme-id='synthetic-test-theme'][data-color-scheme='dark'] {
+  --side: #1a001a;
+  --hard: #ffe8ff;
+  --theme-shadow-hard: 2px 2px 0 #000000;
   --ink: #ffe8ff;
-  --ink-secondary: #f2c8f4;
-  --ink-muted: #c89dcc;
-  --ink-subtle: #916d96;
-  --paper: #120012;
-  --global-sidebar-bg: #0f000f;
-  --global-sidebar-bg-a0: rgb(15 0 15 / 0);
-  --paper-elevated: #240024;
-  --paper-inset: #090009;
-  --accent: #dd00dd;
-  --accent-warm: #dd00dd;
-  --on-accent: #120012;
-  --button-primary-bg: #ffe8ff;
-  --button-primary-bg-hover: #ffffff;
-  --button-primary-text: var(--on-accent);
-  --button-dark-text: #ffe8ff;
+  --ink-2: #f2c8f4;
+  --muted: #c89dcc;
+  --subtle: #916d96;
+  --rail: #0f000f;
+  --rail-a0: rgb(15 0 15 / 0);
+  --paper: #240024;
+  --inset: #090009;
+  --on-primary: #120012;
+  --primary-hover: #ffffff;
+  --bg: #ffe8ff;
   --toggle-thumb: #120012;
-  --focus-border: #dd00dd;
-  --theme-body-background: linear-gradient(135deg, #120012, #001820);
+  --primary: #dd00dd;
 }
 
 html[data-theme-id='synthetic-test-theme'] .theme-product-wordmark {
-  color: var(--accent);
-  font-family: var(--font-display);
+  color: var(--primary);
+  font-family: var(--font-human);
   letter-spacing: 0.12em;
 }
 
@@ -169,6 +128,6 @@ html[data-theme-id='synthetic-test-theme'] .theme-launcher-hero-title {
 }
 
 html[data-theme-id='synthetic-test-theme'] .theme-launcher-hero-slogan {
-  color: var(--ink-muted);
-  font-family: var(--font-body);
+  color: var(--muted);
+  font-family: var(--font-sans);
 }

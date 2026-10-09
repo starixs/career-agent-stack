@@ -19,15 +19,15 @@ export function TriggerErrorDetails({
     <div className={className}>
       <p className="font-medium">{error.message}</p>
       <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 font-mono text-xs">
-        <dt className="text-[var(--ink-muted)]">{t('trigger.errorCode')}</dt>
+        <dt className="text-[var(--muted)]">{t('trigger.errorCode')}</dt>
         <dd className="break-all">{error.code}</dd>
-        <dt className="text-[var(--ink-muted)]">{t('trigger.errorExitCode')}</dt>
+        <dt className="text-[var(--muted)]">{t('trigger.errorExitCode')}</dt>
         <dd>{error.exitCode ?? t('trigger.notAvailable')}</dd>
-        <dt className="text-[var(--ink-muted)]">{t('trigger.errorSignal')}</dt>
+        <dt className="text-[var(--muted)]">{t('trigger.errorSignal')}</dt>
         <dd>{error.signal ?? t('trigger.notAvailable')}</dd>
-        <dt className="text-[var(--ink-muted)]">{t('trigger.errorTimedOut')}</dt>
+        <dt className="text-[var(--muted)]">{t('trigger.errorTimedOut')}</dt>
         <dd>{error.timedOut ? t('trigger.yes') : t('trigger.no')}</dd>
-        <dt className="text-[var(--ink-muted)]">{t('trigger.errorOccurredAt')}</dt>
+        <dt className="text-[var(--muted)]">{t('trigger.errorOccurredAt')}</dt>
         <dd>{occurredAt}</dd>
       </dl>
       {error.stderrTail && (

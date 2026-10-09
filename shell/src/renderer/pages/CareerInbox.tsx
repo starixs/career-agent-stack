@@ -97,7 +97,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
                   type="button"
                   aria-pressed={filter === f.value}
                   onClick={() => setFilter(f.value)}
-                  className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${filter === f.value ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]' : 'border-[var(--line)] text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}
+                  className={`rounded-md border px-2 py-0.5 text-xs transition-colors ${filter === f.value ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]' : 'border-[var(--line)] text-[var(--muted)] hover:text-[var(--ink)]'}`}
                 >
                   {f.label} {counts[f.value]}
                 </button>
@@ -109,7 +109,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
           {inbox.error && <ErrorRow message={inbox.error} onRetry={inbox.reload} />}
           {inbox.loading && !inbox.data && <LoadingRow />}
           {inbox.data && items.length === 0 && (
-            <div className="py-6 text-center text-xs text-[var(--ink-subtle)]">
+            <div className="py-6 text-center text-xs text-[var(--subtle)]">
               {filter === 'new' ? '没有待处理的条目。邮箱里的面试邀请和拒信会自动到这里。' : '这里还没有东西。'}
             </div>
           )}
@@ -150,13 +150,13 @@ function CaptureBox({ onCaptured }: { onCaptured: () => void }) {
         {text.trim() && (
           <ChatActionButton text={`帮我处理这个，我刚收到的：\n${text.trim()}`} context={{ surface: 'inbox', note: '用户从收件箱手动交给助理的原文' }} variant="secondary">交给助理处理</ChatActionButton>
         )}
-        <span className="text-xs text-[var(--ink-subtle)]">助理识别后会自动建岗位 / 面试 / 截止，并归到对应卷宗。</span>
+        <span className="text-xs text-[var(--subtle)]">助理识别后会自动建岗位 / 面试 / 截止，并归到对应卷宗。</span>
       </div>
       {capture.error && <ErrorRow message={capture.error} />}
       {result && (
-        <div role="status" className="mt-2 rounded-md border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-3 py-2 text-xs">
+        <div role="status" className="mt-2 rounded-md border border-[var(--line)] bg-[var(--inset)] px-3 py-2 text-xs">
           <div className="text-[var(--ink)]">{result.summary}</div>
-          {result.item?.status === 'new' && <div className="mt-0.5 text-[var(--ink-muted)]">助理没完全看懂，可以在下面指定归属或交给对话。</div>}
+          {result.item?.status === 'new' && <div className="mt-0.5 text-[var(--muted)]">助理没完全看懂，可以在下面指定归属或交给对话。</div>}
         </div>
       )}
     </Card>
@@ -174,7 +174,7 @@ function MailSection({ accounts, presets, loading, error, onChanged }: {
       {bindResult && <div role="status" className="mb-2 text-xs text-[var(--success)]">{bindResult}</div>}
       {loading && <LoadingRow />}
       {!loading && accounts.length === 0 && !showBind && (
-        <div className="text-xs text-[var(--ink-subtle)]">还没有绑定邮箱。绑定后面试邀请、笔试测评、拒信会自动进收件箱，你不用天天刷。</div>
+        <div className="text-xs text-[var(--subtle)]">还没有绑定邮箱。绑定后面试邀请、笔试测评、拒信会自动进收件箱，你不用天天刷。</div>
       )}
       <ul className="space-y-2">
         {accounts.map(acc => <MailAccountRow key={acc.id} account={acc} preset={presets[acc.provider]} onChanged={onChanged} />)}
@@ -200,19 +200,19 @@ function MailAccountRow({ account, preset, onChanged }: { account: MailAccount; 
     onChanged();
   });
   return (
-    <li className="rounded-lg border border-[var(--line-subtle)] bg-[var(--paper)] px-3 py-2">
+    <li className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2">
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <span className="font-medium text-[var(--ink)]">{account.address}</span>
         <Badge tone="neutral">{preset?.label ?? account.provider}</Badge>
         <Badge tone={status.tone}>{status.label}</Badge>
-        <span className="text-[var(--ink-subtle)]">上次同步：{relativeTime(account.last_sync_at)}</span>
+        <span className="text-[var(--subtle)]">上次同步：{relativeTime(account.last_sync_at)}</span>
         <div className="ml-auto flex items-center gap-1.5">
           <Button variant="secondary" busy={act.busy} onClick={() => void sync()}>立即同步</Button>
           <Button variant="ghost" busy={act.busy} onClick={() => void unbind()}>解绑</Button>
         </div>
       </div>
-      {account.last_error && <div className="mt-1 text-xs text-[var(--error)]">{account.last_error}</div>}
-      {syncSummary && <div role="status" className="mt-1 text-xs text-[var(--ink-muted)]">{syncSummary}</div>}
+      {account.last_error && <div className="mt-1 text-xs text-[var(--danger)]">{account.last_error}</div>}
+      {syncSummary && <div role="status" className="mt-1 text-xs text-[var(--muted)]">{syncSummary}</div>}
       {act.error && <ErrorRow message={act.error} />}
     </li>
   );
@@ -248,7 +248,7 @@ function BindMailForm({ presets, onBound }: { presets: Record<string, MailPreset
   });
 
   return (
-    <div className="mt-3 space-y-2 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper)] p-3">
+    <div className="mt-3 space-y-2 rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3">
       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
         <Field label="邮箱地址">
           <TextInput aria-label="邮箱地址" placeholder="you@qq.com" value={address} onChange={e => setAddress(e.target.value)} autoComplete="off" />
@@ -261,7 +261,7 @@ function BindMailForm({ presets, onBound }: { presets: Record<string, MailPreset
         </Field>
       </div>
       {address.includes('@') && (
-        <div className="text-xs text-[var(--ink-muted)]">
+        <div className="text-xs text-[var(--muted)]">
           识别为 <Badge tone="info">{preset?.label ?? (provider === 'imap' ? '通用 IMAP' : provider)}</Badge>
           {preset?.help && <span className="ml-1">{preset.help}</span>}
         </div>
@@ -274,7 +274,7 @@ function BindMailForm({ presets, onBound }: { presets: Record<string, MailPreset
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" busy={act.busy} onClick={() => void submit()}>绑定并验证</Button>
-        {verifyError && <span role="status" className="text-xs text-[var(--error)]">{verifyError}</span>}
+        {verifyError && <span role="status" className="text-xs text-[var(--danger)]">{verifyError}</span>}
       </div>
       {act.error && <ErrorRow message={act.error} />}
     </div>
@@ -296,18 +296,18 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
   const dossierOptions = dossiers.map(d => ({ value: d.application_id, label: `${d.company_name ?? '未知公司'} · ${d.title}` }));
 
   return (
-    <li ref={ref} className={`rounded-lg border bg-[var(--paper-elevated)] px-3 py-2 ${highlighted ? 'border-[var(--accent)] ring-2 ring-[var(--accent)]/30' : 'border-[var(--line)]'}`}>
+    <li ref={ref} className={`rounded-lg border bg-[var(--paper)] px-3 py-2 ${highlighted ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/30' : 'border-[var(--line)]'}`}>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <Badge tone="neutral">{SOURCE_LABELS[item.source] ?? item.source}</Badge>
         <Badge tone={item.kind && item.kind !== 'other' ? 'accent' : 'warning'}>{item.kind ? KIND_LABELS[item.kind] ?? item.kind : '未识别'}</Badge>
-        <span className="text-[var(--ink-subtle)]">{formatDate(item.created_at)}</span>
-        {item.note && <span className="text-[var(--ink-muted)]">{item.note}</span>}
+        <span className="text-[var(--subtle)]">{formatDate(item.created_at)}</span>
+        {item.note && <span className="text-[var(--muted)]">{item.note}</span>}
       </div>
       {raw && (
         <div className="mt-1 whitespace-pre-wrap break-words text-xs text-[var(--ink)]">
           {preview}
           {raw.length > PREVIEW_LIMIT && (
-            <button type="button" onClick={() => setExpanded(e => !e)} className="ml-1 text-[var(--accent)] underline underline-offset-2">{expanded ? '收起' : '展开'}</button>
+            <button type="button" onClick={() => setExpanded(e => !e)} className="ml-1 text-[var(--primary)] underline underline-offset-2">{expanded ? '收起' : '展开'}</button>
           )}
         </div>
       )}
@@ -325,7 +325,7 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
         </div>
       )}
       {item.status === 'processed' && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[var(--ink-muted)]">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
           <span>已归入{item.linked_type ? `：${LINKED_TYPE_LABELS[item.linked_type] ?? item.linked_type}` : ''}</span>
           {item.linked_type === 'application' && item.linked_id && (
             <Button variant="secondary" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: item.linked_id } satisfies CareerFocusEvent)}>打开卷宗</Button>

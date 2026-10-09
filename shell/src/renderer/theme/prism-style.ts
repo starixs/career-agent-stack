@@ -70,20 +70,20 @@ export function createPrismStyle(colors: PrismPalette): SyntaxStyle {
   return {
     'pre[class*="language-"]': {
       color: colors.text,
-      background: "var(--code-bg)",
+      background: "var(--inset)",
       borderRadius: "0.5rem",
       padding: "1rem",
       margin: "0",
       fontSize: "var(--text-sm)",
       lineHeight: "1.6",
-      fontFamily: "var(--font-code)",
+      fontFamily: "var(--font-mono)",
     },
     'code[class*="language-"]': {
       color: colors.text,
       background: "transparent",
       fontSize: "var(--text-sm)",
       lineHeight: "1.6",
-      fontFamily: "var(--font-code)",
+      fontFamily: "var(--font-mono)",
     },
     comment: { color: readable(colors.muted), fontStyle: "italic" },
     punctuation: { color: readable(colors.textSecondary) },

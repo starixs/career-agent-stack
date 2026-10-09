@@ -101,10 +101,10 @@ export function SummaryCard({ task, stats }: Props) {
           <span className="text-[var(--success)]">{t('summary.succeeded')}</span>
         )}
         {stats?.lastSuccess === false && (
-          <span className="text-[var(--error)]">{t('summary.failed')}</span>
+          <span className="text-[var(--danger)]">{t('summary.failed')}</span>
         )}
         {stats?.lastDurationMs != null && (
-          <span className="text-[var(--ink-muted)]">
+          <span className="text-[var(--muted)]">
             {t('summary.duration')}
             {(stats.lastDurationMs / 1000).toFixed(1)}s
           </span>
@@ -148,16 +148,16 @@ export function SummaryCard({ task, stats }: Props) {
           from the key/value table below so the user scans schedule
           first, details second. */}
       <div className="flex items-start gap-2.5">
-        <ScheduleIcon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--accent-warm)]" />
+        <ScheduleIcon className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]" />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium leading-snug text-[var(--ink)]">
             {schedule?.title ?? `${t(modeMeta.labelKey)} · ${t('summary.computing')}`}
           </div>
           {schedule?.next && (
-            <div className="mt-0.5 text-xs text-[var(--ink-muted)]">
+            <div className="mt-0.5 text-xs text-[var(--muted)]">
               {schedule.next}
               {schedule.timezone && (
-                <span className="ml-1 text-[var(--ink-muted)]/70">
+                <span className="ml-1 text-[var(--muted)]/70">
                   · {schedule.timezone}
                 </span>
               )}
@@ -174,7 +174,7 @@ export function SummaryCard({ task, stats }: Props) {
           show empty 「最近执行 —」 stubs.
           Removed rows (v0.1.69 polish): 「工作区」(redundant with
           Agent), 「调度器」(internal CronTask state, not a user fact). */}
-      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 border-t border-[var(--line-subtle)] pt-3 text-xs">
+      <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 border-t border-[var(--line)] pt-3 text-xs">
         {agentLabel && <MetaRow k="Agent" v={agentLabel} />}
         {(stats?.executionCount ?? 0) > 0 && (
           <MetaRow
@@ -192,7 +192,7 @@ export function SummaryCard({ task, stats }: Props) {
                 {task.tags.map((t) => (
                   <span
                     key={t}
-                    className="rounded-[var(--radius-sm)] bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs text-[var(--ink-muted)]"
+                    className="rounded-[var(--radius-sm)] bg-[var(--inset)] px-1.5 py-0.5 text-xs text-[var(--muted)]"
                   >
                     #{t}
                   </span>
@@ -210,7 +210,7 @@ export function SummaryCard({ task, stats }: Props) {
       <button
         type="button"
         onClick={toggleDetails}
-        className="mt-2.5 flex items-center gap-1 text-xs text-[var(--ink-muted)]/70 transition-colors hover:text-[var(--ink-muted)]"
+        className="mt-2.5 flex items-center gap-1 text-xs text-[var(--muted)]/70 transition-colors hover:text-[var(--muted)]"
       >
         {detailsOpen ? (
           <ChevronDown className="h-3 w-3" />
@@ -221,7 +221,7 @@ export function SummaryCard({ task, stats }: Props) {
       </button>
 
       {detailsOpen && (
-        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 border-t border-[var(--line-subtle)] pt-2 text-xs">
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-5 gap-y-1.5 border-t border-[var(--line)] pt-2 text-xs">
           <MetaRow k={t('summary.createdAt')} v={new Date(task.createdAt).toLocaleString(locale)} />
           <MetaRow k={t('summary.updatedAt')} v={new Date(task.updatedAt).toLocaleString(locale)} />
           <MetaRow
@@ -303,7 +303,7 @@ function MetaRow({
 }) {
   return (
     <>
-      <dt className="whitespace-nowrap text-[var(--ink-muted)]/70">{k}</dt>
+      <dt className="whitespace-nowrap text-[var(--muted)]/70">{k}</dt>
       <dd
         className={`min-w-0 text-[var(--ink)] ${
           mono ? 'font-mono' : ''

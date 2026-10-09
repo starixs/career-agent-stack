@@ -67,7 +67,7 @@ export default memo(function FileSearchResults({
         return (
             <div className="flex h-full flex-col overflow-y-auto overscroll-contain px-4 py-3 pb-8">
                 <div className="mb-4 flex items-center gap-2">
-                    <div className="text-xs font-medium text-[var(--ink-muted)]">
+                    <div className="text-xs font-medium text-[var(--muted)]">
                         {t('workspaceFiles.search.searching')}
                     </div>
                 </div>
@@ -77,7 +77,7 @@ export default memo(function FileSearchResults({
 
     if (!query) {
         return (
-            <div className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-[var(--ink-muted)]/60">
+            <div className="flex h-full flex-col items-center justify-center p-6 text-center text-sm text-[var(--muted)]/60">
                 <p>{t('workspaceFiles.search.searchInWorkspace')}</p>
                 <p className="mt-1 text-xs">{t('workspaceFiles.search.fileNameAndContent')}</p>
             </div>
@@ -88,7 +88,7 @@ export default memo(function FileSearchResults({
         return (
             <div className="flex h-full flex-col overflow-y-auto overscroll-contain px-4 py-3 pb-8">
                 <div className="mb-4 flex items-center gap-2">
-                    <div className="text-xs font-medium text-[var(--ink-muted)]">
+                    <div className="text-xs font-medium text-[var(--muted)]">
                         {t('workspaceFiles.search.zeroResults')}{refreshingSuffix}
                     </div>
                 </div>
@@ -101,8 +101,8 @@ export default memo(function FileSearchResults({
             className="flex h-full flex-col overflow-y-auto overscroll-contain pb-8"
             style={{ scrollbarGutter: 'stable' }}
         >
-            <div className="sticky top-0 z-10 border-b border-[var(--line-subtle)] bg-[var(--paper)]/90 px-4 py-2 backdrop-blur-sm">
-                <div className="text-xs font-medium text-[var(--ink-muted)]">
+            <div className="sticky top-0 z-10 border-b border-[var(--line)] bg-[var(--bg)]/90 px-4 py-2 backdrop-blur-sm">
+                <div className="text-xs font-medium text-[var(--muted)]">
                     {t('workspaceFiles.search.summary', {
                         folders: folders.length,
                         files: results.length,
@@ -115,7 +115,7 @@ export default memo(function FileSearchResults({
                     <section aria-labelledby={folderHeadingId}>
                         <div
                             id={folderHeadingId}
-                            className="px-4 pb-1 pt-1 text-xs font-medium text-[var(--ink-muted)]"
+                            className="px-4 pb-1 pt-1 text-xs font-medium text-[var(--muted)]"
                         >
                             {t('workspaceFiles.search.folderSection', { count: folders.length })}
                         </div>
@@ -126,7 +126,7 @@ export default memo(function FileSearchResults({
                                     key={hit.path}
                                     type="button"
                                     title={hit.path}
-                                    className="flex h-7 w-full items-center gap-1.5 px-4 text-left text-sm hover:bg-[var(--hover-bg)] focus-visible:bg-[var(--hover-bg)]"
+                                    className="flex h-7 w-full items-center gap-1.5 px-4 text-left text-sm hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)]"
                                     onClick={() => onFolderClick(hit)}
                                 >
                                     <FileIcon name={basename} nodeKind="directory" />
@@ -137,7 +137,7 @@ export default memo(function FileSearchResults({
                                         />
                                     </span>
                                     {dirname && (
-                                        <span className="ml-1 min-w-0 truncate text-xs text-[var(--ink-muted)]/70">
+                                        <span className="ml-1 min-w-0 truncate text-xs text-[var(--muted)]/70">
                                             {dirname}
                                         </span>
                                     )}
@@ -154,7 +154,7 @@ export default memo(function FileSearchResults({
                     >
                         <div
                             id={fileHeadingId}
-                            className="px-4 pb-1 pt-1 text-xs font-medium text-[var(--ink-muted)]"
+                            className="px-4 pb-1 pt-1 text-xs font-medium text-[var(--muted)]"
                         >
                             {t('workspaceFiles.search.fileSection', { count: results.length })}
                         </div>
@@ -174,8 +174,8 @@ export default memo(function FileSearchResults({
                                         title={hit.path}
                                         className={`group relative flex h-7 items-center px-4 text-sm select-none ${
                                             isActiveFile
-                                                ? 'bg-[var(--accent-warm-subtle)]'
-                                                : 'hover:bg-[var(--hover-bg)]'
+                                                ? 'bg-[var(--primary-soft)]'
+                                                : 'hover:bg-[var(--hover)]'
                                         }`}
                                         onContextMenu={(event) => {
                                             event.preventDefault();
@@ -196,17 +196,17 @@ export default memo(function FileSearchResults({
                                                 />
                                             </span>
                                             {dirname && (
-                                                <span className="ml-1 min-w-0 truncate text-xs text-[var(--ink-muted)]/70">
+                                                <span className="ml-1 min-w-0 truncate text-xs text-[var(--muted)]/70">
                                                     {dirname}
                                                 </span>
                                             )}
                                         </button>
-                                        <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center bg-gradient-to-l from-[var(--paper-elevated)] from-70% pl-4 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
+                                        <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center bg-gradient-to-l from-[var(--paper)] from-70% pl-4 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100">
                                             <button
                                                 type="button"
                                                 title={t('workspaceFiles.common.revealInTree')}
                                                 aria-label={t('workspaceFiles.common.revealInTree')}
-                                                className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--ink-muted)]/60 transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--accent-warm)] group-hover:pointer-events-auto group-focus-within:pointer-events-auto"
+                                                className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted)]/60 transition-colors hover:bg-[var(--inset)] hover:text-[var(--primary)] group-hover:pointer-events-auto group-focus-within:pointer-events-auto"
                                                 onClick={(event) => {
                                                     event.stopPropagation();
                                                     onRevealInTree(hit);
@@ -229,10 +229,10 @@ export default memo(function FileSearchResults({
                                                     <button
                                                         key={`${hit.path}-${match.lineNumber}-${index}`}
                                                         type="button"
-                                                        className={`group flex min-h-6 items-start py-0.5 pr-3 pl-[30px] text-left text-xs text-[var(--ink-secondary)] transition-colors hover:text-[var(--ink)] ${
+                                                        className={`group flex min-h-6 items-start py-0.5 pr-3 pl-[30px] text-left text-xs text-[var(--ink-2)] transition-colors hover:text-[var(--ink)] ${
                                                             isActiveMatch
-                                                                ? 'bg-[var(--accent-warm-subtle)]'
-                                                                : 'hover:bg-[var(--hover-bg)]'
+                                                                ? 'bg-[var(--primary-soft)]'
+                                                                : 'hover:bg-[var(--hover)]'
                                                         }`}
                                                         onClick={() => onMatchClick(hit, match)}
                                                         onContextMenu={(event) => {
@@ -241,7 +241,7 @@ export default memo(function FileSearchResults({
                                                             onContextMenu(event, hit);
                                                         }}
                                                     >
-                                                        <span className="w-8 shrink-0 select-none pr-3 pt-[1px] text-right font-mono text-xs text-[var(--ink-muted)]/60">
+                                                        <span className="w-8 shrink-0 select-none pr-3 pt-[1px] text-right font-mono text-xs text-[var(--muted)]/60">
                                                             {match.lineNumber}
                                                         </span>
                                                         <span className="line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap break-words font-mono leading-relaxed group-hover:text-[var(--ink)]">
@@ -259,7 +259,7 @@ export default memo(function FileSearchResults({
                                             {hasMore && (
                                                 <button
                                                     type="button"
-                                                    className="self-center rounded-md px-2 py-1 text-xs text-[var(--accent-warm)] hover:bg-[var(--paper-inset)]"
+                                                    className="self-center rounded-md px-2 py-1 text-xs text-[var(--primary)] hover:bg-[var(--inset)]"
                                                     onClick={() => onToggleFile(hit.path)}
                                                 >
                                                     {isExpanded

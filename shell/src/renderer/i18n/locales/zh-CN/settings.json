@@ -83,9 +83,6 @@
     "defaultWorkspaceSaved": "已设置默认工作区",
     "appearanceModeTitle": "外观模式",
     "appearanceModeDescription": "设置应用的明暗外观模式",
-    "themeTitle": "主题",
-    "themeDescription": "切换应用的全局界面视觉风格",
-    "themeSaveFailed": "切换主题失败：{{message}}",
     "markdownReadingSizeTitle": "Markdown 阅读字号",
     "markdownReadingSizeDescription": "调整 AI 回复和 Markdown 预览的正文、标题与间距",
     "markdownReadingSize": {

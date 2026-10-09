@@ -4,7 +4,7 @@ import { isClosedIssue } from "./spaceHelpers";
 
 export const PAPER_GRID_STYLE: CSSProperties = {
   backgroundImage:
-    "linear-gradient(var(--line-subtle) 1px, var(--paper-a0) 1px), linear-gradient(90deg, var(--line-subtle) 1px, var(--paper-a0) 1px)",
+    "linear-gradient(var(--line) 1px, var(--bg-a0) 1px), linear-gradient(90deg, var(--line) 1px, var(--bg-a0) 1px)",
   backgroundSize: "24px 24px, 24px 24px",
   maskImage:
     "linear-gradient(to bottom, rgb(0 0 0 / 0) 0, 120px, calc(100% - 120px), rgb(0 0 0 / 0) 100%)",
@@ -12,7 +12,7 @@ export const PAPER_GRID_STYLE: CSSProperties = {
 
 export const SPACE_BACKGROUND_STYLE: CSSProperties = {
   background:
-    "linear-gradient(180deg, var(--paper-elevated), var(--paper) 48%, color-mix(in srgb, var(--paper) 86%, var(--paper-inset)) 100%), var(--paper)",
+    "linear-gradient(180deg, var(--paper), var(--bg) 48%, color-mix(in srgb, var(--bg) 86%, var(--inset)) 100%), var(--bg)",
 };
 
 export const SPACE_LIST_FRAME_CLASS = "mx-auto max-w-4xl";
@@ -21,9 +21,9 @@ export const SPACE_NARRATIVE_INSET_CLASS = "px-3 max-sm:px-2";
 export const SPACE_TWO_COLUMN_GRID_CLASS =
   "grid grid-cols-2 gap-3 max-lg:grid-cols-1";
 export const SPACE_PRIMARY_TOOL_BUTTON_CLASS =
-  "flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[var(--button-primary-bg)] px-4 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-70";
+  "flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-[var(--primary)] px-4 text-sm font-semibold text-[var(--on-primary)] shadow-sm transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-70";
 export const SPACE_REFRESH_TOOL_BUTTON_CLASS =
-  "grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-transparent text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70";
+  "grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-transparent text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-70";
 
 export function formatTime(value?: string | null): string {
   if (!value) return "";
@@ -70,17 +70,17 @@ export function formatBytes(value?: number | null): string {
 
 export function statusPillClass(status: string): string {
   if (status === "todo") return "bg-[var(--warning-bg)] text-[var(--warning)]";
-  if (status === "doing") return "bg-[var(--error-bg)] text-[var(--error)]";
+  if (status === "doing") return "bg-[var(--danger-bg)] text-[var(--danger)]";
   if (status === "done") return "bg-[var(--success-bg)] text-[var(--success)]";
   if (isClosedIssue(status))
-    return "bg-[var(--paper-inset)] text-[var(--ink-muted)]";
-  return "bg-[var(--paper-inset)] text-[var(--ink)]";
+    return "bg-[var(--inset)] text-[var(--muted)]";
+  return "bg-[var(--inset)] text-[var(--ink)]";
 }
 
 export function statusTextClass(status: string): string {
   if (status === "todo") return "text-[var(--warning)]";
-  if (status === "doing") return "text-[var(--error)]";
+  if (status === "doing") return "text-[var(--danger)]";
   if (status === "done") return "text-[var(--success)]";
-  if (isClosedIssue(status)) return "text-[var(--ink-muted)]";
+  if (isClosedIssue(status)) return "text-[var(--muted)]";
   return "text-[var(--ink)]";
 }

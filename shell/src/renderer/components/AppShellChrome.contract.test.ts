@@ -214,17 +214,17 @@ describe('App Shell chrome contract', () => {
     const styles = source('src/renderer/index.css');
 
     expect(sidebar).toContain(
-      '[--global-sidebar-surface:var(--global-sidebar-bg)]',
+      '[--global-sidebar-surface:var(--rail)]',
     );
-    expect(titlebar).toContain('bg-[var(--global-sidebar-bg)]');
+    expect(titlebar).toContain('bg-[var(--rail)]');
     expect(titlebar).not.toContain('border-b border-[var(--line)]');
     expect(tabbar).toMatch(
-      /background:\s*["']var\(--global-sidebar-bg\)["']/,
+      /background:\s*["']var\(--rail\)["']/,
     );
     expect(tabbar).toMatch(
       /maskImage:\s*["']linear-gradient\(to right, #000 0%, rgba\(0, 0, 0, 0\) 100%\)["']/,
     );
-    expect(tabbar).not.toContain('var(--paper-a0)');
+    expect(tabbar).not.toContain('var(--bg-a0)');
     expect(sidebar).toContain(
       'data-global-sidebar-motion={sidebarMotion ?? undefined}',
     );
@@ -235,7 +235,7 @@ describe('App Shell chrome contract', () => {
     expect(app).toContain('data-tab-content-workspace');
     expect(styles).toContain('.global-sidebar::before');
     expect(styles).toContain(
-      'transition: clip-path var(--duration-normal) var(--ease-in-out)',
+      'transition: clip-path var(--motion-base) var(--ease-in-out)',
     );
     expect(styles).toContain(
       ".global-sidebar[data-global-sidebar-mode='rail']::before",
@@ -293,7 +293,7 @@ describe('App Shell chrome contract', () => {
     );
     expect(chat).toContain('data-chat-workspace-divider');
     expect(chat).toContain('absolute bottom-4 left-0 top-4 z-20 w-px');
-    expect(chat).not.toContain('flex-col border-l border-[var(--line-subtle)]');
+    expect(chat).not.toContain('flex-col border-l border-[var(--line)]');
     expect(chat).toContain('<OverlayBackdrop');
     expect(styles).toContain('@keyframes chat-workspace-panel-expand');
     expect(styles).toContain('@keyframes chat-workspace-panel-collapse');

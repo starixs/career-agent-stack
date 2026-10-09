@@ -432,8 +432,8 @@ describe('Task Center UX refinements', () => {
     render(<TaskStatusBadge status="stopped" />);
 
     expect(screen.getByText('已暂停')).toHaveClass(
-      'bg-[var(--line-strong)]',
-      'text-[var(--ink-secondary)]',
+      'bg-[var(--line-2)]',
+      'text-[var(--ink-2)]',
     );
   });
 

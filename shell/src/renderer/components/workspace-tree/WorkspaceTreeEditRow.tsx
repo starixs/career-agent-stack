@@ -90,14 +90,14 @@ export const WorkspaceTreeEditRow = memo(function WorkspaceTreeEditRow({
 
   const icon = isDir ? (
     editing.mode === "create-folder" ? (
-      <FolderPlus className="h-3.5 w-3.5 flex-shrink-0 text-[var(--accent-warm)]/70" />
+      <FolderPlus className="h-3.5 w-3.5 flex-shrink-0 text-[var(--primary)]/70" />
     ) : (
       <FileIcon name={name || initialName} nodeKind="directory" />
     )
   ) : name ? (
     <FileIcon name={name} />
   ) : (
-    <FilePlus className="h-3.5 w-3.5 flex-shrink-0 text-[var(--accent-warm)]" />
+    <FilePlus className="h-3.5 w-3.5 flex-shrink-0 text-[var(--primary)]" />
   );
 
   return (
@@ -132,10 +132,10 @@ export const WorkspaceTreeEditRow = memo(function WorkspaceTreeEditRow({
           }
         }}
         onBlur={() => settle("commit")}
-        className={`h-5 min-w-0 flex-1 rounded-sm border bg-[var(--paper-elevated)] px-1 text-sm text-[var(--ink)] outline-none ${
+        className={`h-5 min-w-0 flex-1 rounded-sm border bg-[var(--paper)] px-1 text-sm text-[var(--ink)] outline-none ${
           error
-            ? "border-[var(--error)]"
-            : "border-[var(--accent)]/60 focus:border-[var(--accent)]"
+            ? "border-[var(--danger)]"
+            : "border-[var(--primary)]/60 focus:border-[var(--primary)]"
         }`}
       />
     </div>

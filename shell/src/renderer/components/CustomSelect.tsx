@@ -104,7 +104,7 @@ export default function CustomSelect({
         aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex w-full items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] text-left transition-colors hover:border-[var(--ink-subtle)] disabled:cursor-not-allowed disabled:opacity-60 ${
+        className={`flex w-full items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--bg)] text-left transition-colors hover:border-[var(--subtle)] disabled:cursor-not-allowed disabled:opacity-60 ${
           compact
             ? 'px-2 py-1 text-xs'
             : size === 'md'
@@ -115,7 +115,7 @@ export default function CustomSelect({
         }`}
       >
         {triggerIcon && (
-          <span className="shrink-0 text-[var(--ink-muted)]">
+          <span className="shrink-0 text-[var(--muted)]">
             {triggerIcon}
           </span>
         )}
@@ -127,7 +127,7 @@ export default function CustomSelect({
           <span className="shrink-0">{selectedOption.icon}</span>
         )}
         <span
-          className={`min-w-0 flex-1 ${selectedOption ? 'text-[var(--ink)]' : 'text-[var(--ink-muted)]'}`}
+          className={`min-w-0 flex-1 ${selectedOption ? 'text-[var(--ink)]' : 'text-[var(--muted)]'}`}
         >
           {selectedOption?.content ?? (
             <span className="block truncate">
@@ -139,7 +139,7 @@ export default function CustomSelect({
           <span className="shrink-0">{selectedOption.suffix}</span>
         )}
         <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)] transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`h-3.5 w-3.5 shrink-0 text-[var(--muted)] transition-transform ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
       <Popover
@@ -169,7 +169,7 @@ export default function CustomSelect({
             option.isSeparator ? (
               <div
                 key={option.value}
-                className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60"
+                className="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60"
               >
                 {option.label}
               </div>
@@ -186,8 +186,8 @@ export default function CustomSelect({
                   size === 'md' || size === 'toolbar' ? 'text-sm' : 'text-xs'
                 } ${
                   option.value === value
-                    ? 'text-[var(--accent-warm)]'
-                    : 'text-[var(--ink)] hover:bg-[var(--paper-inset)]'
+                    ? 'text-[var(--primary)]'
+                    : 'text-[var(--ink)] hover:bg-[var(--inset)]'
                 }`}
               >
                 {option.icon && <span className="shrink-0">{option.icon}</span>}
@@ -216,7 +216,7 @@ export default function CustomSelect({
                   setIsOpen(false);
                   footerAction.onClick();
                 }}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] ${
+                className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] ${
                   size === 'md' || size === 'toolbar' ? 'text-sm' : 'text-xs'
                 }`}
               >

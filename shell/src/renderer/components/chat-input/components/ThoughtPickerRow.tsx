@@ -30,20 +30,20 @@ export function ThoughtPickerRow({
   return (
     <div
       onClick={onClick}
-      className={`cursor-pointer border-b border-[var(--line-subtle)] px-3 py-2 transition-colors ${
+      className={`cursor-pointer border-b border-[var(--line)] px-3 py-2 transition-colors ${
         active
-          ? 'bg-[var(--accent)]/10'
-          : 'hover:bg-[var(--hover-bg)]'
+          ? 'bg-[var(--primary)]/10'
+          : 'hover:bg-[var(--hover)]'
       }`}
     >
-      <div className="mb-1 flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+      <div className="mb-1 flex items-center gap-2 text-xs text-[var(--muted)]">
         <span>{formatPastRelativeTime(thought.updatedAt, locale)}</span>
         {tags.length > 0 && (
           <div className="flex items-center gap-1">
             {tags.map((t) => (
               <span
                 key={t}
-                className="rounded-[var(--radius-sm)] bg-[var(--accent-warm-subtle)] px-1.5 py-px text-xs text-[var(--accent-warm)]"
+                className="rounded-[var(--radius-sm)] bg-[var(--primary-soft)] px-1.5 py-px text-xs text-[var(--primary)]"
               >
                 #{t}
               </span>
@@ -52,7 +52,7 @@ export function ThoughtPickerRow({
         )}
       </div>
       <div
-        className="text-sm leading-snug text-[var(--ink-secondary)]"
+        className="text-sm leading-snug text-[var(--ink-2)]"
         style={{
           display: '-webkit-box',
           WebkitLineClamp: 2,

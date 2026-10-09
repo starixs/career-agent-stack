@@ -84,14 +84,14 @@ export function BrowserStatusBar() {
   const reason = takeover?.reason ? (HANDOFF_REASON_LABELS[takeover.reason] ?? takeover.reason) : null;
 
   return (
-    <div data-testid="browser-status-bar" className="flex flex-wrap items-center gap-2 border-b border-[var(--line-subtle)] bg-[var(--paper-inset)] px-4 py-2 text-xs text-[var(--ink-muted)]">
+    <div data-testid="browser-status-bar" className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--inset)] px-4 py-2 text-xs text-[var(--muted)]">
       <Globe className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
       <span>浏览器</span>
       <Badge tone={STATE_TONES[state] ?? 'neutral'}>{TAKEOVER_STATE_LABELS[state] ?? state}</Badge>
       {state === 'paused' && <span>原因：{reason ?? '未知'}</span>}
       {takeover?.message && <span className="truncate">{takeover.message}</span>}
-      {state === 'idle' && <span className="text-[var(--ink-subtle)]">没有进行中的浏览器任务</span>}
-      {notice && <span role="alert" className="text-[var(--error)]">{notice}</span>}
+      {state === 'idle' && <span className="text-[var(--subtle)]">没有进行中的浏览器任务</span>}
+      {notice && <span role="alert" className="text-[var(--danger)]">{notice}</span>}
       <div className="ml-auto flex items-center gap-1.5">
         <Button variant="ghost" onClick={() => emitEvent('career:live-drawer', { open: true })}>浏览器现场</Button>
         {state === 'paused' && (

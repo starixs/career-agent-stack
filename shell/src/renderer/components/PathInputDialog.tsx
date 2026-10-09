@@ -57,7 +57,7 @@ export default function PathInputDialog({
 
     return (
         <OverlayBackdrop className="z-50">
-            <div className="w-[480px] rounded-xl bg-[var(--paper-elevated)] p-6 shadow-2xl">
+            <div className="w-[480px] rounded-xl bg-[var(--paper)] p-6 shadow-2xl">
                 {/* Header */}
                 <div className="mb-4 flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-[var(--ink)]">
@@ -65,7 +65,7 @@ export default function PathInputDialog({
                     </h2>
                     <button
                         onClick={onCancel}
-                        className="rounded-lg p-1 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                        className="rounded-lg p-1 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                     >
                         <X className="h-5 w-5" />
                     </button>
@@ -73,7 +73,7 @@ export default function PathInputDialog({
 
                 {/* Content */}
                 <div className="mb-6">
-                    <p className="mb-3 text-sm text-[var(--ink-muted)]">
+                    <p className="mb-3 text-sm text-[var(--muted)]">
                         {t('pathInput.selectedFolder')} <span className="font-medium text-[var(--ink)]">{folderName}</span>
                     </p>
                     <label className="mb-2 block text-sm font-medium text-[var(--ink)]">
@@ -85,10 +85,10 @@ export default function PathInputDialog({
                         value={path}
                         onChange={(e) => setPath(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
+                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
                         placeholder="/Users/yourname/project/folder"
                     />
-                    <p className="mt-2 text-xs text-[var(--ink-muted)]">
+                    <p className="mt-2 text-xs text-[var(--muted)]">
                         {t('pathInput.browserPathHint')}
                     </p>
                 </div>
@@ -97,7 +97,7 @@ export default function PathInputDialog({
                 <div className="flex justify-end gap-3">
                     <button
                         onClick={onCancel}
-                        className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                        className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                     >
                         {t('common.cancel')}
                     </button>

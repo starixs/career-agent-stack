@@ -73,16 +73,16 @@ export function ZoomControls({
 }) {
   const { t } = useTranslation('app');
   const btn =
-    'flex h-6 w-6 items-center justify-center rounded-full text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-40 disabled:hover:bg-transparent';
+    'flex h-6 w-6 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-40 disabled:hover:bg-transparent';
   return (
-    <div className="absolute bottom-4 right-4 z-10 flex items-center gap-0.5 rounded-full border border-[var(--line)] bg-[var(--paper-elevated)] px-1 py-1 shadow-md">
+    <div className="absolute bottom-4 right-4 z-10 flex items-center gap-0.5 rounded-full border border-[var(--line)] bg-[var(--paper)] px-1 py-1 shadow-md">
       <button type="button" onClick={onZoomOut} disabled={zoom <= MIN_ZOOM} className={btn} title={t('imagePreview.zoomOut')}>
         <Minus className="h-3.5 w-3.5" />
       </button>
       <button
         type="button"
         onClick={onReset}
-        className="min-w-[44px] rounded-full px-1 text-center text-xs font-medium tabular-nums text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+        className="min-w-[44px] rounded-full px-1 text-center text-xs font-medium tabular-nums text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
         title={t('richDoc.resetZoom')}
       >
         {Math.round(zoom * 100)}%

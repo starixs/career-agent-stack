@@ -249,7 +249,7 @@ describe('GlobalSidebar rail flyout', () => {
     const bell = screen.getByRole('button', {
       name: String(i18n.t('app:notificationCenter.bellUnread')),
     });
-    expect(bell.querySelector('.bg-\\[var\\(--accent-warm\\)\\]')).toBeInTheDocument();
+    expect(bell.querySelector('.bg-\\[var\\(--primary\\)\\]')).toBeInTheDocument();
     fireEvent.click(bell);
 
     expect(mocks.notificationRefresh).toHaveBeenCalledOnce();
@@ -259,12 +259,12 @@ describe('GlobalSidebar rail flyout', () => {
     const shell = document.querySelector<HTMLElement>('[data-notification-center-shell]');
     expect(shell).not.toBeNull();
     expect(shell).toHaveClass(
-      'bg-[var(--paper-elevated)]',
+      'bg-[var(--paper)]',
       'shadow-xl',
       'rounded-xl',
       'border-[var(--line)]',
     );
-    expect(shell).not.toHaveClass('bg-[var(--global-sidebar-bg)]', 'shadow-md');
+    expect(shell).not.toHaveClass('bg-[var(--rail)]', 'shadow-md');
     expect(document.querySelectorAll('[data-notification-center-shell]')).toHaveLength(1);
   });
 
@@ -312,12 +312,12 @@ describe('GlobalSidebar rail flyout', () => {
     expect(region).toBeInTheDocument();
     const shell = region.closest('[data-global-sidebar-flyout]');
     expect(shell).toHaveClass(
-      'bg-[var(--paper-elevated)]',
+      'bg-[var(--paper)]',
       'shadow-xl',
       'rounded-xl',
       'border-[var(--line)]',
     );
-    expect(shell).not.toHaveClass('bg-[var(--global-sidebar-bg)]', 'shadow-md');
+    expect(shell).not.toHaveClass('bg-[var(--rail)]', 'shadow-md');
 
     fireEvent.click(trigger);
     expect(screen.getByRole('region', { name: 'Agent 工作区' })).toBeInTheDocument();
@@ -333,8 +333,8 @@ describe('GlobalSidebar rail flyout', () => {
     const brandRow = brandLink.closest('[data-global-sidebar-brand-row]');
 
     expect(brandLink).toHaveClass('cursor-pointer');
-    expect(brandLink).not.toHaveClass('w-full', 'hover:bg-[var(--hover-bg)]', 'hover:bg-[var(--paper-inset)]');
-    expect(brandRow).not.toHaveClass('cursor-pointer', 'hover:bg-[var(--hover-bg)]');
+    expect(brandLink).not.toHaveClass('w-full', 'hover:bg-[var(--hover)]', 'hover:bg-[var(--inset)]');
+    expect(brandRow).not.toHaveClass('cursor-pointer', 'hover:bg-[var(--hover)]');
 
     fireEvent.click(brandLink);
 
@@ -510,15 +510,15 @@ describe('GlobalSidebar rail flyout', () => {
 
     const region = screen.getByRole('region', { name: 'Agent 工作区' });
     const flyout = region.closest('[data-global-sidebar-flyout]');
-    expect(flyout).toHaveClass('bg-[var(--paper-elevated)]', 'shadow-xl');
+    expect(flyout).toHaveClass('bg-[var(--paper)]', 'shadow-xl');
     expect(flyout).toHaveClass('fixed', 'top-32', 'bottom-28');
     expect(flyout).not.toHaveClass('absolute', 'top-12', 'bottom-3');
-    expect(flyout).not.toHaveClass('bg-[var(--global-sidebar-bg)]', 'shadow-md');
+    expect(flyout).not.toHaveClass('bg-[var(--rail)]', 'shadow-md');
     const placeholder = region.querySelector('[data-global-sidebar-session-placeholder]')!;
     expect(placeholder.children).toHaveLength(3);
     for (const row of Array.from(placeholder.children)) {
       expect(row).toHaveClass('h-9');
-      expect(row).not.toHaveClass('animate-pulse', 'bg-[var(--paper-inset)]/60');
+      expect(row).not.toHaveClass('animate-pulse', 'bg-[var(--inset)]/60');
       expect(row).toHaveAttribute('aria-hidden', 'true');
     }
   });
@@ -546,7 +546,7 @@ describe('GlobalSidebar rail flyout', () => {
       expect(button).not.toHaveAttribute('title');
       fireEvent.mouseEnter(button.parentElement!);
       const tip = screen.getByRole('tooltip', { name: label });
-      expect(tip).toHaveClass('bg-[var(--button-dark-bg)]/90');
+      expect(tip).toHaveClass('bg-[var(--ink)]/90');
       expect(tip).not.toHaveClass('delay-500', 'transition-opacity');
       expect(button.parentElement).not.toContainElement(tip);
       fireEvent.mouseLeave(button.parentElement!);
@@ -876,7 +876,7 @@ describe('GlobalSidebar rail flyout', () => {
     const taskButton = screen.getByRole('button', { name: '任务' });
     fireEvent.mouseEnter(taskButton.parentElement!);
     const taskTip = screen.getByRole('tooltip', { name: '任务' });
-    expect(taskTip).toHaveClass('bg-[var(--button-dark-bg)]/90');
+    expect(taskTip).toHaveClass('bg-[var(--ink)]/90');
     expect(taskTip).not.toHaveClass('delay-500', 'transition-opacity');
 
     fireEvent.mouseLeave(taskButton.parentElement!);
@@ -1101,9 +1101,9 @@ describe('GlobalSidebar rail flyout', () => {
     expect(navigation).toHaveAttribute('data-global-sidebar-mode', 'rail');
     expect(navigation).not.toHaveAttribute('data-global-sidebar-motion');
     expect(navigation).toHaveAttribute('data-global-sidebar-tabbar-toggle', 'true');
-    expect(navigation).toHaveClass('[--global-sidebar-surface:var(--global-sidebar-bg)]');
-    expect(navigation).not.toHaveClass('bg-[var(--global-sidebar-bg)]');
-    expect(navigation).not.toHaveClass('bg-[var(--paper)]', 'bg-[var(--paper-elevated)]', 'border-r');
+    expect(navigation).toHaveClass('[--global-sidebar-surface:var(--rail)]');
+    expect(navigation).not.toHaveClass('bg-[var(--rail)]');
+    expect(navigation).not.toHaveClass('bg-[var(--bg)]', 'bg-[var(--paper)]', 'border-r');
     expect(navigation).not.toHaveClass('border-[var(--line)]');
     const brandIcon = navigation.querySelector('[data-global-sidebar-brand-icon]');
     const brandLink = navigation.querySelector('[data-global-sidebar-brand-link]');
@@ -1119,9 +1119,9 @@ describe('GlobalSidebar rail flyout', () => {
     expect(primaryNav).toHaveClass('global-sidebar-rail-stack');
     expect(primaryNav).not.toHaveClass('items-center', 'px-2', 'border-t', 'space-y-1');
     expect(workspaceRail).toHaveClass('global-sidebar-rail-stack');
-    expect(workspaceRail).not.toHaveClass('items-center', 'px-2', 'border-t', 'border-[var(--line-subtle)]');
+    expect(workspaceRail).not.toHaveClass('items-center', 'px-2', 'border-t', 'border-[var(--line)]');
     expect(footerActions).toHaveClass('global-sidebar-rail-stack');
-    expect(footerActions).not.toHaveClass('items-center', 'px-2', 'space-y-1', 'border-t', 'border-[var(--line-subtle)]');
+    expect(footerActions).not.toHaveClass('items-center', 'px-2', 'space-y-1', 'border-t', 'border-[var(--line)]');
     const expand = screen.getByRole('button', { name: String(i18n.t('app:globalSidebar.expand')) });
     expect(expand).toHaveAttribute('data-global-sidebar-toggle');
     expect(expand).not.toHaveAttribute('title');
@@ -1130,7 +1130,7 @@ describe('GlobalSidebar rail flyout', () => {
     expect(expand.querySelector('[data-global-sidebar-toggle-icon]')).toHaveClass('lucide-panel-left');
     fireEvent.mouseEnter(expand.parentElement!);
     expect(screen.getByRole('tooltip', { name: String(i18n.t('app:globalSidebar.expand')) }))
-      .toHaveClass('bg-[var(--button-dark-bg)]/90');
+      .toHaveClass('bg-[var(--ink)]/90');
     fireEvent.click(expand);
     const collapse = screen.getByRole('button', { name: String(i18n.t('app:globalSidebar.collapse')) });
     expect(collapse).toBe(expand);
@@ -1150,7 +1150,7 @@ describe('GlobalSidebar rail flyout', () => {
     expect(navigation.querySelector('[data-global-sidebar-brand-row]')).toBe(brandRow);
     expect(navigation.querySelector('[data-global-sidebar-primary-nav]')).not.toHaveClass('global-sidebar-rail-stack');
     expect(navigation.querySelector('[data-global-sidebar-workspace-rail]')).not.toBeInTheDocument();
-    expect(navigation.querySelector('[data-global-sidebar-workspace-region]')).not.toHaveClass('border-t', 'border-[var(--line-subtle)]');
+    expect(navigation.querySelector('[data-global-sidebar-workspace-region]')).not.toHaveClass('border-t', 'border-[var(--line)]');
     expect(navigation.querySelector('[data-global-sidebar-footer-actions]')).not.toHaveClass('global-sidebar-rail-stack');
     expect(brandName).toBe(screen.getByText(String(i18n.t('app:globalSidebar.brandName'))));
     expect(brandName).toHaveClass('theme-product-wordmark', 'text-sm', 'font-medium');
@@ -1239,14 +1239,14 @@ describe('GlobalSidebar rail flyout', () => {
     const workspaceFade = document.querySelector<HTMLElement>('[data-global-sidebar-workspace-fade]');
     expect(workspaceFade).toHaveClass('pointer-events-none', 'absolute', 'inset-x-0', 'bottom-0', 'h-6');
     expect(workspaceFade?.style.background).toContain('linear-gradient(to bottom');
-    expect(workspaceFade?.style.background).toContain('var(--global-sidebar-bg-a0)');
-    expect(workspaceFade?.style.background).toContain('var(--global-sidebar-bg)');
+    expect(workspaceFade?.style.background).toContain('var(--rail-a0)');
+    expect(workspaceFade?.style.background).toContain('var(--rail)');
     expect(document.querySelector('[role="tree"]')).toHaveClass('pt-2', 'pb-6');
     const workspaceFadeTop = document.querySelector<HTMLElement>('[data-global-sidebar-workspace-fade-top]');
     expect(workspaceFadeTop).toHaveClass('pointer-events-none', 'absolute', 'inset-x-0', 'top-8', 'h-2');
     expect(workspaceFadeTop?.style.background).toContain('linear-gradient(to bottom');
-    expect(workspaceFadeTop?.style.background).toContain('var(--global-sidebar-bg)');
-    expect(workspaceFadeTop?.style.background).toContain('var(--global-sidebar-bg-a0)');
+    expect(workspaceFadeTop?.style.background).toContain('var(--rail)');
+    expect(workspaceFadeTop?.style.background).toContain('var(--rail-a0)');
     // The top fade must consume the header row's former bottom slack: the
     // header shrinks from h-12 to h-8 so the scroller edge (and the fade)
     // occupy the exact pixels that used to be solid spacing below the
@@ -1508,7 +1508,7 @@ describe('GlobalSidebar rail flyout', () => {
     expect(document.querySelector('[data-global-sidebar-workspace-list]')).not.toHaveClass('space-y-1');
     const workspaceRow = screen.getByText('Project one').closest('[data-global-sidebar-workspace-row]');
     expect(workspaceRow).toHaveAttribute('aria-current', 'page');
-    expect(workspaceRow).not.toHaveClass('bg-[var(--paper-elevated)]', 'shadow-sm');
+    expect(workspaceRow).not.toHaveClass('bg-[var(--paper)]', 'shadow-sm');
     expect(workspaceRow?.querySelector('[data-global-sidebar-workspace-actions]')).toHaveClass('pr-2');
     const firstSession = screen.getByRole('button', { name: /Session 1/ });
     expect(firstSession.className).toContain('focus-visible:ring-2');
@@ -1611,7 +1611,7 @@ describe('GlobalSidebar rail flyout', () => {
     const activeRow = rowFor('Active session');
     const workspaceRow = screen.getByText('Project one').closest<HTMLElement>('[data-global-sidebar-workspace-row]')!;
     expect(workspaceRow).not.toHaveAttribute('aria-current');
-    expect(workspaceRow).not.toHaveClass('bg-[var(--hover-bg)]');
+    expect(workspaceRow).not.toHaveClass('bg-[var(--hover)]');
     expect(workspaceRow.querySelector('[data-global-sidebar-workspace-title]')).toHaveClass('font-medium');
     expect(activeRow).toHaveClass('global-sidebar-resource-row');
     expect(activeRow).toHaveAttribute('aria-current', 'page');
@@ -1620,7 +1620,7 @@ describe('GlobalSidebar rail flyout', () => {
 
     const unreadIndicator = rowFor('Unread session').querySelector('[data-tab-activity-indicator]');
     expect(unreadIndicator).toHaveAttribute('data-tab-activity-indicator', 'unread');
-    expect(unreadIndicator).toHaveClass('bg-[var(--accent-warm)]');
+    expect(unreadIndicator).toHaveClass('bg-[var(--primary)]');
 
     const generatingIndicator = rowFor('Generating session').querySelector('[data-tab-activity-indicator]');
     expect(generatingIndicator).toHaveAttribute('data-tab-activity-indicator', 'generating');

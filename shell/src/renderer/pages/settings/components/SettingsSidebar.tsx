@@ -39,7 +39,7 @@ export function SettingsSidebar({
         {showDevTools && (
           <button
             onClick={onShowLogs}
-            className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             title={t('sidebar.logsTitle')}
           >
             Logs
@@ -57,8 +57,8 @@ export function SettingsSidebar({
               onClick={() => setActiveSection(item.section)}
               className={`w-full rounded-lg px-3 py-2.5 text-left text-base font-medium transition-colors ${
                 isActive
-                  ? 'settings-nav-active bg-[var(--hover-bg)] text-[var(--ink)]'
-                  : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                  ? 'settings-nav-active bg-[var(--hover)] text-[var(--ink)]'
+                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               {t(item.labelKey)}

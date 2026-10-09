@@ -42,7 +42,7 @@ describe('FeedbackPopover', () => {
       offset: 8,
       unstyled: true,
     });
-    expect(mocks.popoverProps?.className).toContain('bg-[var(--paper-elevated)]');
+    expect(mocks.popoverProps?.className).toContain('bg-[var(--paper)]');
     expect(mocks.popoverProps?.className).toContain('shadow-xl');
     expect(mocks.popoverProps?.className).toContain('rounded-xl');
   });

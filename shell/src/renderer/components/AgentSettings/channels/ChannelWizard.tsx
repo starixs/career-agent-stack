@@ -928,7 +928,7 @@ export default function ChannelWizard({
             {props.onBack ? (
                 <button
                     onClick={props.onBack}
-                    className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)]"
+                    className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)]"
                 >
                     <ArrowLeft className="h-4 w-4" />
                     {props.backLabel || t('agentSettings.channelWizard.nav.back')}
@@ -936,7 +936,7 @@ export default function ChannelWizard({
             ) : (
                 <button
                     onClick={handleCancel}
-                    className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)]"
+                    className="rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)]"
                 >
                     {t('agentSettings.channelWizard.nav.cancel')}
                 </button>
@@ -944,7 +944,7 @@ export default function ChannelWizard({
             <button
                 onClick={props.onNext}
                 disabled={props.nextDisabled}
-                className="flex items-center gap-2 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                className="flex items-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
             >
                 {props.nextLabel}
                 {props.nextLoading ? (
@@ -960,7 +960,7 @@ export default function ChannelWizard({
         const steps = promoted?.setupGuide?.steps;
         if (!steps?.length) return null;
         return (
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                 <p className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.config.setupGuide')}</p>
                 {steps.map((guideStep, i) => {
                     const linkText = guideStep.captionLinkText;
@@ -968,7 +968,7 @@ export default function ChannelWizard({
                     const splitIdx = linkText ? guideStep.caption.indexOf(linkText) : -1;
                     return (
                         <div key={i} className={i > 0 ? 'mt-5' : 'mt-3'}>
-                            <p className="text-xs text-[var(--ink-muted)]">
+                            <p className="text-xs text-[var(--muted)]">
                                 {splitIdx >= 0 && linkText && linkUrl ? (
                                     <>
                                         {guideStep.caption.slice(0, splitIdx)}
@@ -976,7 +976,7 @@ export default function ChannelWizard({
                                             href={linkUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-0.5 text-[var(--button-primary-bg)] hover:underline"
+                                            className="inline-flex items-center gap-0.5 text-[var(--primary)] hover:underline"
                                             onClick={(e) => {
                                                 if (isTauriEnvironment()) {
                                                     e.preventDefault();
@@ -1015,7 +1015,7 @@ export default function ChannelWizard({
                         <h2 className="text-lg font-semibold text-[var(--ink)]">
                             {t('agentSettings.channelWizard.header.title', { platform: platformLabel })}
                         </h2>
-                        <p className="text-xs text-[var(--ink-muted)]">
+                        <p className="text-xs text-[var(--muted)]">
                             {t('agentSettings.channelWizard.header.stepIndicator', { step, total: totalSteps, label: stepLabel })}
                         </p>
                     </div>
@@ -1024,7 +1024,7 @@ export default function ChannelWizard({
                     {Array.from({ length: totalSteps }, (_, i) => (
                         <div
                             key={i}
-                            className={`h-1 flex-1 rounded-full ${step >= i + 1 ? 'bg-[var(--button-primary-bg)]' : 'bg-[var(--line)]'}`}
+                            className={`h-1 flex-1 rounded-full ${step >= i + 1 ? 'bg-[var(--primary)]' : 'bg-[var(--line)]'}`}
                         />
                     ))}
                 </div>
@@ -1041,7 +1041,7 @@ export default function ChannelWizard({
                     })}
 
                     {/* Plugin info card */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <div className="flex items-start gap-4">
                             {promoted && (
                                 <img src={promoted.icon} alt={openclawPluginName} className="h-10 w-10 shrink-0 rounded-xl" />
@@ -1050,7 +1050,7 @@ export default function ChannelWizard({
                                 <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold text-[var(--ink)]">{openclawPluginName}</p>
                                     {installedPlugin?.packageVersion && (
-                                        <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+                                        <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
                                             v{installedPlugin.packageVersion}
                                         </span>
                                     )}
@@ -1060,11 +1060,11 @@ export default function ChannelWizard({
                     </div>
 
                     {/* QR Code display */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-6">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-6">
                         <div className="flex flex-col items-center gap-4">
                             {qrStatus === 'loading' && (
-                                <div className="flex h-48 w-48 items-center justify-center rounded-xl bg-[var(--paper-inset)]">
-                                    <Loader2 className="h-8 w-8 animate-spin text-[var(--ink-muted)]" />
+                                <div className="flex h-48 w-48 items-center justify-center rounded-xl bg-[var(--inset)]">
+                                    <Loader2 className="h-8 w-8 animate-spin text-[var(--muted)]" />
                                 </div>
                             )}
                             {(qrStatus === 'waiting' || qrStatus === 'scanned') && qrImageUrl && (
@@ -1076,17 +1076,17 @@ export default function ChannelWizard({
                                 </div>
                             )}
                             {qrStatus === 'error' && (
-                                <div className="flex h-48 w-48 flex-col items-center justify-center gap-2 rounded-xl bg-[var(--paper-inset)]">
+                                <div className="flex h-48 w-48 flex-col items-center justify-center gap-2 rounded-xl bg-[var(--inset)]">
                                     <p className="text-sm text-[var(--accent-danger)]">{t('agentSettings.channelWizard.qr.failed')}</p>
                                     <button
                                         onClick={() => { setQrStatus('idle'); }}
-                                        className="rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-xs font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+                                        className="rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                                     >
                                         {t('agentSettings.channelWizard.qr.retry')}
                                     </button>
                                 </div>
                             )}
-                            <p className="text-sm text-[var(--ink-muted)]">{qrMessage}</p>
+                            <p className="text-sm text-[var(--muted)]">{qrMessage}</p>
                         </div>
                     </div>
                 </div>
@@ -1104,7 +1104,7 @@ export default function ChannelWizard({
                     })}
 
                     {/* Plugin info card */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <div className="flex items-start gap-4">
                             {promoted && (
                                 <img src={promoted.icon} alt={promoted.name} className="h-10 w-10 shrink-0 rounded-xl" />
@@ -1113,13 +1113,13 @@ export default function ChannelWizard({
                                 <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold text-[var(--ink)]">{promoted?.name || openclawPluginName}</p>
                                     {installedPlugin?.packageVersion && (
-                                        <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+                                        <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
                                             v{installedPlugin.packageVersion}
                                         </span>
                                     )}
                                 </div>
                                 {promoted?.description && (
-                                    <p className="mt-1 text-xs text-[var(--ink-muted)]">{promoted.description}</p>
+                                    <p className="mt-1 text-xs text-[var(--muted)]">{promoted.description}</p>
                                 )}
                             </div>
                         </div>
@@ -1127,7 +1127,7 @@ export default function ChannelWizard({
 
                     {/* Mode switcher: pill tab */}
                     <div
-                        className="flex gap-1 rounded-lg bg-[var(--paper-inset)] p-1"
+                        className="flex gap-1 rounded-lg bg-[var(--inset)] p-1"
                         role="tablist"
                         aria-label={t('agentSettings.channelWizard.dual.modeLabel')}
                     >
@@ -1137,8 +1137,8 @@ export default function ChannelWizard({
                             aria-selected={dualConfigMode === 'qr'}
                             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                                 dualConfigMode === 'qr'
-                                    ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs'
-                                    : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                                    ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs'
+                                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
                             }`}
                             onClick={() => handleDualModeSwitch('qr')}
                         >
@@ -1150,8 +1150,8 @@ export default function ChannelWizard({
                             aria-selected={dualConfigMode === 'config'}
                             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                                 dualConfigMode === 'config'
-                                    ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs'
-                                    : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                                    ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs'
+                                    : 'text-[var(--muted)] hover:text-[var(--ink)]'
                             }`}
                             onClick={() => handleDualModeSwitch('config')}
                         >
@@ -1161,9 +1161,9 @@ export default function ChannelWizard({
 
                     {/* QR mode */}
                     {dualConfigMode === 'qr' && (
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                             <p className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.dual.scanCreateBot')}</p>
-                            <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                            <p className="mt-1.5 text-xs text-[var(--muted)]">
                                 {t('agentSettings.channelWizard.dual.scanDescription', {
                                     app: promoted?.name?.replace(/（.*）/, '') || t('agentSettings.channelWizard.platform.wecom'),
                                 })}
@@ -1172,7 +1172,7 @@ export default function ChannelWizard({
                             <div className="mt-5 flex flex-col items-center py-4">
                                 {credentialQrStatus === 'loading' && (
                                     <div className="flex h-[200px] w-[200px] items-center justify-center rounded-xl border border-[var(--line)] bg-white">
-                                        <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+                                        <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
                                     </div>
                                 )}
                                 {credentialQrStatus === 'waiting' && credentialQrImageUrl && (
@@ -1192,8 +1192,8 @@ export default function ChannelWizard({
                                     </div>
                                 )}
                                 {credentialQrStatus === 'error' && (
-                                    <div className="flex h-[200px] w-[200px] flex-col items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper-inset)]">
-                                        <p className="text-sm text-[var(--ink-muted)]">
+                                    <div className="flex h-[200px] w-[200px] flex-col items-center justify-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--inset)]">
+                                        <p className="text-sm text-[var(--muted)]">
                                             {credentialQrErrorReason === 'denied' || credentialQrErrorReason === 'cancelled'
                                                 ? t('agentSettings.channelWizard.dual.scanDenied')
                                                 : credentialQrRefreshCount > 0
@@ -1209,19 +1209,19 @@ export default function ChannelWizard({
                                                 setCredentialQrRefreshCount(0);
                                                 setCredentialQrRetryTrigger(n => n + 1);
                                             }}
-                                            className="text-xs text-[var(--accent-warm)] hover:underline"
+                                            className="text-xs text-[var(--primary)] hover:underline"
                                         >
                                             {t('agentSettings.channelWizard.qr.retry')}
                                         </button>
                                     </div>
                                 )}
                                 {credentialQrStatus === 'idle' && (
-                                    <div className="flex h-[200px] w-[200px] items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--paper-inset)]">
-                                        <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+                                    <div className="flex h-[200px] w-[200px] items-center justify-center rounded-xl border border-[var(--line)] bg-[var(--inset)]">
+                                        <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
                                     </div>
                                 )}
 
-                                <p className="mt-3 text-xs text-[var(--ink-muted)]">
+                                <p className="mt-3 text-xs text-[var(--muted)]">
                                     {credentialQrStatus === 'loading' && (credentialQrRefreshCount > 0
                                         ? t('agentSettings.channelWizard.dual.qrExpiredRefreshing', { current: credentialQrRefreshCount, max: MAX_CREDENTIAL_QR_REFRESHES })
                                         : t('agentSettings.channelWizard.qr.loading'))}
@@ -1233,7 +1233,7 @@ export default function ChannelWizard({
                                 </p>
                             </div>
 
-                            <p className="mt-2 text-xs text-[var(--ink-subtle)]">
+                            <p className="mt-2 text-xs text-[var(--subtle)]">
                                 {t('agentSettings.channelWizard.dual.scanNote', { app: promoted?.name ?? openclawPluginName })}
                             </p>
                         </div>
@@ -1242,18 +1242,18 @@ export default function ChannelWizard({
                     {/* Manual config mode */}
                     {dualConfigMode === 'config' && (
                         <div className="space-y-6">
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <h3 className="text-sm font-medium text-[var(--ink)]">
                                     {promoted?.setupGuide?.credentialTitle || t('agentSettings.channelWizard.config.pluginConfig')}
                                 </h3>
-                                <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                                <p className="mt-1.5 text-xs text-[var(--muted)]">
                                     {promoted?.setupGuide?.credentialHintLink ? (
                                         <>
                                             <a
                                                 href={promoted.setupGuide.credentialHintLink}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="inline-flex items-center gap-0.5 text-[var(--button-primary-bg)] hover:underline"
+                                                className="inline-flex items-center gap-0.5 text-[var(--primary)] hover:underline"
                                                 onClick={(e) => {
                                                     if (isTauriEnvironment()) {
                                                         e.preventDefault();
@@ -1278,7 +1278,7 @@ export default function ChannelWizard({
                                                 className="mb-1.5 block text-sm font-medium text-[var(--ink)]"
                                             >
                                                 {key}
-                                                <span className="ml-1 text-[var(--error)]">*</span>
+                                                <span className="ml-1 text-[var(--danger)]">*</span>
                                             </label>
                                             <input
                                                 id={`channel-config-${channelId}-${key}`}
@@ -1286,13 +1286,13 @@ export default function ChannelWizard({
                                                 value={String(openclawSchemaValues[key] ?? '')}
                                                 onChange={(e) => setOpenclawSchemaValues(prev => ({ ...prev, [key]: e.target.value }))}
                                                 placeholder={t('agentSettings.channelWizard.config.fieldPlaceholder', { field: key })}
-                                                className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:border-[var(--button-primary-bg)] focus:outline-none transition-colors"
+                                                className="w-full rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:outline-none transition-colors"
                                             />
                                         </div>
                                     ))}
                                 </div>
 
-                                <p className="mt-4 text-xs text-[var(--ink-subtle)]">
+                                <p className="mt-4 text-xs text-[var(--subtle)]">
                                     {t(`agentSettings.channelWizard.dual.manualMethod.${credentialQrProvider ?? 'wecom'}`)}
                                 </p>
                             </div>
@@ -1314,32 +1314,32 @@ export default function ChannelWizard({
                     })}
 
                     {/* Plugin info card */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <div className="flex items-start gap-4">
                             {promoted ? (
                                 <img src={promoted.icon} alt={openclawPluginName} className="h-10 w-10 shrink-0 rounded-xl" />
                             ) : (
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--accent-warm-subtle)]">
-                                    <Puzzle className="h-5 w-5 text-[var(--accent-warm)]" />
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary-soft)]">
+                                    <Puzzle className="h-5 w-5 text-[var(--primary)]" />
                                 </div>
                             )}
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold text-[var(--ink)]">{openclawPluginName}</p>
                                     {installedPlugin?.packageVersion && (
-                                        <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+                                        <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
                                             v{installedPlugin.packageVersion}
                                         </span>
                                     )}
                                 </div>
                                 {(promoted?.description || installedPlugin?.manifest?.description) && (
-                                    <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                                    <p className="mt-1 text-xs text-[var(--muted)]">
                                         {promoted?.description || installedPlugin?.manifest?.description}
                                     </p>
                                 )}
                                 {installedPlugin?.homepage && (
                                     <button
-                                        className="mt-1.5 inline-flex items-center gap-1 text-xs text-[var(--accent-warm)] hover:underline"
+                                        className="mt-1.5 inline-flex items-center gap-1 text-xs text-[var(--primary)] hover:underline"
                                         onClick={() => {
                                             if (isTauriEnvironment()) {
                                                 import('@tauri-apps/plugin-shell').then(({ open }) => open(installedPlugin!.homepage!));
@@ -1355,11 +1355,11 @@ export default function ChannelWizard({
                     </div>
 
                     {/* Config section */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <h3 className="text-sm font-medium text-[var(--ink)]">
                             {promoted?.setupGuide?.credentialTitle || t('agentSettings.channelWizard.config.pluginConfig')}
                         </h3>
-                        <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                        <p className="mt-1.5 text-xs text-[var(--muted)]">
                             {promoted?.setupGuide?.credentialHintLink ? (
                                 <>
                                     {promoted.setupGuide.credentialHint.split(promoted.setupGuide.credentialHintLink)[0] || t('agentSettings.channelWizard.config.goToPrefix')}
@@ -1367,7 +1367,7 @@ export default function ChannelWizard({
                                         href={promoted.setupGuide.credentialHintLink}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-0.5 text-[var(--button-primary-bg)] hover:underline"
+                                        className="inline-flex items-center gap-0.5 text-[var(--primary)] hover:underline"
                                         onClick={(e) => {
                                             if (isTauriEnvironment()) {
                                                 e.preventDefault();
@@ -1405,17 +1405,17 @@ export default function ChannelWizard({
                                         })}
                                     </div>
                                     {/* Extra custom fields */}
-                                    <div className="border-t border-[var(--line-subtle)] pt-3">
-                                        <p className="mb-2 text-xs text-[var(--ink-muted)]">{t('agentSettings.channelWizard.config.customConfig')}</p>
+                                    <div className="border-t border-[var(--line)] pt-3">
+                                        <p className="mb-2 text-xs text-[var(--muted)]">{t('agentSettings.channelWizard.config.customConfig')}</p>
                                         <div className="space-y-2">
                                             {openclawCustomFields.map((field, i) => (
                                                 <div key={i} className="flex items-center gap-2">
-                                                    <input type="text" value={field.key} onChange={(e) => { const next = [...openclawCustomFields]; next[i] = { ...next[i], key: e.target.value }; setOpenclawCustomFields(next); }} placeholder={t('agentSettings.channelWizard.config.keyPlaceholder')} className="w-[140px] shrink-0 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:border-[var(--button-primary-bg)] focus:outline-none transition-colors" />
-                                                    <input type="text" value={field.value} onChange={(e) => { const next = [...openclawCustomFields]; next[i] = { ...next[i], value: e.target.value }; setOpenclawCustomFields(next); }} placeholder={t('agentSettings.channelWizard.config.valuePlaceholder')} className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:border-[var(--button-primary-bg)] focus:outline-none transition-colors" />
-                                                    <button onClick={() => setOpenclawCustomFields(openclawCustomFields.filter((_, idx) => idx !== i))} className="shrink-0 rounded-lg p-1.5 text-[var(--ink-subtle)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--error)]"><Trash2 className="h-3.5 w-3.5" /></button>
+                                                    <input type="text" value={field.key} onChange={(e) => { const next = [...openclawCustomFields]; next[i] = { ...next[i], key: e.target.value }; setOpenclawCustomFields(next); }} placeholder={t('agentSettings.channelWizard.config.keyPlaceholder')} className="w-[140px] shrink-0 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:outline-none transition-colors" />
+                                                    <input type="text" value={field.value} onChange={(e) => { const next = [...openclawCustomFields]; next[i] = { ...next[i], value: e.target.value }; setOpenclawCustomFields(next); }} placeholder={t('agentSettings.channelWizard.config.valuePlaceholder')} className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:outline-none transition-colors" />
+                                                    <button onClick={() => setOpenclawCustomFields(openclawCustomFields.filter((_, idx) => idx !== i))} className="shrink-0 rounded-lg p-1.5 text-[var(--subtle)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--danger)]"><Trash2 className="h-3.5 w-3.5" /></button>
                                                 </div>
                                             ))}
-                                            <button onClick={() => setOpenclawCustomFields([...openclawCustomFields, { key: '', value: '' }])} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+                                            <button onClick={() => setOpenclawCustomFields([...openclawCustomFields, { key: '', value: '' }])} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
                                                 <Plus className="h-3.5 w-3.5" />
                                                 {t('agentSettings.channelWizard.config.addConfigItem')}
                                             </button>
@@ -1426,12 +1426,12 @@ export default function ChannelWizard({
                                 <div className="space-y-2">
                                     {openclawCustomFields.map((field, i) => (
                                         <div key={i} className="flex items-center gap-2">
-                                            <input type="text" value={field.key} onChange={(e) => { const next = [...openclawCustomFields]; next[i] = { ...next[i], key: e.target.value }; setOpenclawCustomFields(next); }} placeholder={t('agentSettings.channelWizard.config.keyPlaceholder')} className="w-[140px] shrink-0 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:border-[var(--button-primary-bg)] focus:outline-none transition-colors" />
-                                            <input type="text" value={field.value} onChange={(e) => { const next = [...openclawCustomFields]; next[i] = { ...next[i], value: e.target.value }; setOpenclawCustomFields(next); }} placeholder={t('agentSettings.channelWizard.config.valuePlaceholder')} className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:border-[var(--button-primary-bg)] focus:outline-none transition-colors" />
-                                            <button onClick={() => setOpenclawCustomFields(openclawCustomFields.filter((_, idx) => idx !== i))} className="shrink-0 rounded-lg p-1.5 text-[var(--ink-subtle)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--error)]"><Trash2 className="h-3.5 w-3.5" /></button>
+                                            <input type="text" value={field.key} onChange={(e) => { const next = [...openclawCustomFields]; next[i] = { ...next[i], key: e.target.value }; setOpenclawCustomFields(next); }} placeholder={t('agentSettings.channelWizard.config.keyPlaceholder')} className="w-[140px] shrink-0 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:outline-none transition-colors" />
+                                            <input type="text" value={field.value} onChange={(e) => { const next = [...openclawCustomFields]; next[i] = { ...next[i], value: e.target.value }; setOpenclawCustomFields(next); }} placeholder={t('agentSettings.channelWizard.config.valuePlaceholder')} className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:outline-none transition-colors" />
+                                            <button onClick={() => setOpenclawCustomFields(openclawCustomFields.filter((_, idx) => idx !== i))} className="shrink-0 rounded-lg p-1.5 text-[var(--subtle)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--danger)]"><Trash2 className="h-3.5 w-3.5" /></button>
                                         </div>
                                     ))}
-                                    <button onClick={() => setOpenclawCustomFields([...openclawCustomFields, { key: '', value: '' }])} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+                                    <button onClick={() => setOpenclawCustomFields([...openclawCustomFields, { key: '', value: '' }])} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
                                         <Plus className="h-3.5 w-3.5" />
                                         {t('agentSettings.channelWizard.config.addConfigItem')}
                                     </button>
@@ -1459,7 +1459,7 @@ export default function ChannelWizard({
 
                     {isDingtalk ? (
                         <div className="space-y-6">
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <DingtalkCredentialInput
                                     clientId={dingtalkClientId}
                                     clientSecret={dingtalkClientSecret}
@@ -1470,16 +1470,16 @@ export default function ChannelWizard({
                                     showGuide={false}
                                 />
                             </div>
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <p className="text-sm font-medium text-[var(--ink)]">
                                     {t('agentSettings.channelWizard.guides.dingtalk.credentialsTitle')}
                                 </p>
-                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                                     <li>{t('agentSettings.channelWizard.guides.dingtalk.credentialsStep1Prefix')}<a
                                         href="https://open-dev.dingtalk.com"
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="mx-0.5 inline-flex items-center gap-0.5 text-[var(--button-primary-bg)] hover:underline"
+                                        className="mx-0.5 inline-flex items-center gap-0.5 text-[var(--primary)] hover:underline"
                                     >
                                         {t('agentSettings.channelWizard.guides.dingtalk.openPlatform')}
                                     </a>{t('agentSettings.channelWizard.guides.dingtalk.credentialsStep1Middle')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.appDevelopment')}</span> &gt; <span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.dingtalkApps')}</span></li>
@@ -1492,7 +1492,7 @@ export default function ChannelWizard({
                         </div>
                     ) : isFeishu ? (
                         <div className="space-y-6">
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <FeishuCredentialInput
                                     appId={feishuAppId}
                                     appSecret={feishuAppSecret}
@@ -1503,16 +1503,16 @@ export default function ChannelWizard({
                                     showGuide={false}
                                 />
                             </div>
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <p className="text-sm font-medium text-[var(--ink)]">
                                     {t('agentSettings.channelWizard.guides.feishu.credentialsTitle')}
                                 </p>
-                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                                     <li>{t('agentSettings.channelWizard.guides.feishu.credentialsStep1Prefix')}<a
                                         href="https://open.feishu.cn/app"
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="mx-0.5 inline-flex items-center gap-0.5 text-[var(--button-primary-bg)] hover:underline"
+                                        className="mx-0.5 inline-flex items-center gap-0.5 text-[var(--primary)] hover:underline"
                                     >
                                         {t('agentSettings.channelWizard.guides.feishu.openPlatform')}
                                     </a>{t('agentSettings.channelWizard.guides.feishu.credentialsStep1Suffix')}</li>
@@ -1524,7 +1524,7 @@ export default function ChannelWizard({
                         </div>
                     ) : (
                         <>
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <BotTokenInput
                                     value={botToken}
                                     onChange={setBotToken}
@@ -1532,7 +1532,7 @@ export default function ChannelWizard({
                                     botUsername={botUsername}
                                 />
                             </div>
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <h3 className="text-sm font-medium text-[var(--ink)]">
                                     {t('agentSettings.channelWizard.guides.telegram.tokenTitle')}
                                 </h3>
@@ -1542,9 +1542,9 @@ export default function ChannelWizard({
                                         alt={t('agentSettings.channelWizard.guides.telegram.altBotFather')}
                                         className="h-[270px] flex-shrink-0 rounded-lg border border-[var(--line)] object-cover"
                                     />
-                                    <ol className="flex-1 space-y-2 text-sm text-[var(--ink-muted)]">
+                                    <ol className="flex-1 space-y-2 text-sm text-[var(--muted)]">
                                         <li>{t('agentSettings.channelWizard.guides.telegram.step1Prefix')}<span className="font-medium text-[var(--ink)]">@BotFather</span>{t('agentSettings.channelWizard.guides.telegram.step1Suffix')}</li>
-                                        <li>{t('agentSettings.channelWizard.guides.telegram.step2Prefix')}<code className="rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs">/newbot</code>{t('agentSettings.channelWizard.guides.telegram.step2Suffix')}</li>
+                                        <li>{t('agentSettings.channelWizard.guides.telegram.step2Prefix')}<code className="rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs">/newbot</code>{t('agentSettings.channelWizard.guides.telegram.step2Suffix')}</li>
                                         <li>{t('agentSettings.channelWizard.guides.telegram.step3')}</li>
                                         <li>{t('agentSettings.channelWizard.guides.telegram.step4Prefix')}<span className="font-medium text-[var(--ink)]">HTTP API Token</span></li>
                                         <li>{t('agentSettings.channelWizard.guides.telegram.step5')}</li>
@@ -1567,22 +1567,22 @@ export default function ChannelWizard({
                         nextIcon: <ArrowRight className="h-4 w-4" />,
                     })}
 
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <h3 className="text-sm font-medium text-[var(--ink)]">
                             {t('agentSettings.channelWizard.guides.dingtalk.addBotTitle')}
                         </h3>
-                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                             <li>{t('agentSettings.channelWizard.guides.dingtalk.addBotStep1Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.addCapability')}</span></li>
                             <li>{t('agentSettings.channelWizard.guides.dingtalk.addBotStep2Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.bot')}</span>{t('agentSettings.channelWizard.guides.dingtalk.addBotStep2Middle')}<span className="font-medium text-[var(--ink)]">+ {t('agentSettings.channelWizard.guides.dingtalk.add')}</span></li>
                         </ol>
                         <img src={dingtalkStep2AddRobotImg} alt={t('agentSettings.channelWizard.guides.dingtalk.altAddBot')} className="mt-4 w-full rounded-lg border border-[var(--line)]" />
                     </div>
 
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <h3 className="text-sm font-medium text-[var(--ink)]">
                             {t('agentSettings.channelWizard.guides.dingtalk.configureBotTitle')}
                         </h3>
-                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                             <li>{t('agentSettings.channelWizard.guides.dingtalk.configureBotStep1Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.bot')}</span>{t('agentSettings.channelWizard.guides.dingtalk.configureBotStep1Middle')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.botConfig')}</span>{t('agentSettings.channelWizard.guides.dingtalk.configureBotStep1Suffix')}</li>
                             <li>{t('agentSettings.channelWizard.guides.dingtalk.configureBotStep2')}</li>
                             <li>{t('agentSettings.channelWizard.guides.dingtalk.configureBotStep3Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.streamMode')}</span>{t('agentSettings.channelWizard.guides.dingtalk.configureBotStep3Suffix')}</li>
@@ -1591,11 +1591,11 @@ export default function ChannelWizard({
                         <img src={dingtalkStep2StreamModeImg} alt={t('agentSettings.channelWizard.guides.dingtalk.altStreamMode')} className="mt-4 w-full rounded-lg border border-[var(--line)]" />
                     </div>
 
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <h3 className="text-sm font-medium text-[var(--ink)]">
                             {t('agentSettings.channelWizard.guides.dingtalk.publishTitle')}
                         </h3>
-                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                             <li>{t('agentSettings.channelWizard.guides.dingtalk.publishStep1Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.versionRelease')}</span></li>
                             <li>{t('agentSettings.channelWizard.guides.dingtalk.publishStep2Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.createVersion')}</span>{t('agentSettings.channelWizard.guides.dingtalk.publishStep2Suffix')}</li>
                             <li>{t('agentSettings.channelWizard.guides.dingtalk.publishStep3Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.appAvailableScope')}</span>{t('agentSettings.channelWizard.guides.dingtalk.publishStep3Middle')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.dingtalk.allEmployees')}</span>{t('agentSettings.channelWizard.guides.dingtalk.publishStep3Suffix')}</li>
@@ -1618,7 +1618,7 @@ export default function ChannelWizard({
                     })}
 
                     {/* Status strip: credential verified, what's next */}
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-inset)] px-4 py-3">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)] px-4 py-3">
                         <div className="flex items-center gap-2 text-sm text-[var(--ink)]">
                             <Check className="h-4 w-4 text-[var(--success)]" />
                             <span>
@@ -1627,16 +1627,16 @@ export default function ChannelWizard({
                                     : t('agentSettings.channelWizard.guides.feishu.credentialVerified')}
                             </span>
                         </div>
-                        <p className="mt-1.5 pl-6 text-xs text-[var(--ink-muted)]">
+                        <p className="mt-1.5 pl-6 text-xs text-[var(--muted)]">
                             {t('agentSettings.channelWizard.guides.feishu.nextHint')}
                         </p>
                     </div>
 
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <h3 className="text-sm font-medium text-[var(--ink)]">
                             {t('agentSettings.channelWizard.guides.feishu.permissionsTitle', { step: 4 })}
                         </h3>
-                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                             <li>{t('agentSettings.channelWizard.guides.feishu.permissionsStep1Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.permissionManagement')}</span></li>
                             <li>{t('agentSettings.channelWizard.guides.feishu.permissionsStep2Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.batchImport')}</span></li>
                             <li>{t('agentSettings.channelWizard.guides.feishu.permissionsStep3')}</li>
@@ -1644,35 +1644,35 @@ export default function ChannelWizard({
                         <div className="mt-3 relative">
                             <button
                                 onClick={handleCopyPermJson}
-                                className="absolute right-2 top-2 rounded-md border border-[var(--line)] bg-[var(--paper-elevated)] p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                className="absolute right-2 top-2 rounded-md border border-[var(--line)] bg-[var(--paper)] p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                 title={t('agentSettings.channelWizard.guides.feishu.copyJson')}
                             >
                                 {permJsonCopied ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}
                             </button>
-                            <pre className="overflow-x-auto rounded-lg bg-[var(--paper-inset)] p-3 text-xs leading-relaxed text-[var(--ink-muted)]">
+                            <pre className="overflow-x-auto rounded-lg bg-[var(--inset)] p-3 text-xs leading-relaxed text-[var(--muted)]">
                                 {FEISHU_PERMISSIONS_JSON}
                             </pre>
                         </div>
                         <img src={feishuStep2PermImg} alt={t('agentSettings.channelWizard.guides.feishu.altPermissions')} className="mt-4 w-full rounded-lg border border-[var(--line)]" />
                     </div>
 
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <h3 className="text-sm font-medium text-[var(--ink)]">
                             {t('agentSettings.channelWizard.guides.feishu.eventsTitle', { step: 5 })}
                         </h3>
-                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                             <li>{t('agentSettings.channelWizard.guides.feishu.eventsStep1Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.eventsCallbacks')}</span> &gt; <span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.eventConfig')}</span></li>
                             <li>{t('agentSettings.channelWizard.guides.feishu.eventsStep2Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.longConnection')}</span>{t('agentSettings.channelWizard.guides.feishu.eventsStep2Suffix')}</li>
-                            <li>{t('agentSettings.channelWizard.guides.feishu.eventsStep3Prefix')}<code className="rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs">im.message.receive_v1</code>{t('agentSettings.channelWizard.guides.feishu.eventsStep3Suffix')}</li>
+                            <li>{t('agentSettings.channelWizard.guides.feishu.eventsStep3Prefix')}<code className="rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs">im.message.receive_v1</code>{t('agentSettings.channelWizard.guides.feishu.eventsStep3Suffix')}</li>
                         </ol>
                         <img src={feishuStep2EventImg} alt={t('agentSettings.channelWizard.guides.feishu.altEvents')} className="mt-4 w-full rounded-lg border border-[var(--line)]" />
                     </div>
 
-                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                         <h3 className="text-sm font-medium text-[var(--ink)]">
                             {t('agentSettings.channelWizard.guides.feishu.publishTitle', { step: 6 })}
                         </h3>
-                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                        <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                             <li>{t('agentSettings.channelWizard.guides.feishu.publishStep1Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.versionRelease')}</span></li>
                             <li>{t('agentSettings.channelWizard.guides.feishu.publishStep2Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.createVersion')}</span>{t('agentSettings.channelWizard.guides.feishu.publishStep2Suffix')}</li>
                         </ol>
@@ -1699,7 +1699,7 @@ export default function ChannelWizard({
 
                     {/* Status strip (lark): show credentials + what's next */}
                     {promoted?.pluginId === 'openclaw-lark' && (
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-inset)] px-4 py-3">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--inset)] px-4 py-3">
                             <div className="flex items-center gap-2 text-sm text-[var(--ink)]">
                                 <Check className="h-4 w-4 text-[var(--success)]" />
                                 <span>
@@ -1708,7 +1708,7 @@ export default function ChannelWizard({
                                         : t('agentSettings.channelWizard.openclaw.credentialsEntered', { name: openclawPluginName })}
                                 </span>
                             </div>
-                            <p className="mt-1.5 pl-6 text-xs text-[var(--ink-muted)]">
+                            <p className="mt-1.5 pl-6 text-xs text-[var(--muted)]">
                                 {isDualConfig && dualConfigMode === 'qr'
                                     ? t('agentSettings.channelWizard.openclaw.larkProvisionedNextHint')
                                     : t('agentSettings.channelWizard.openclaw.larkNextHint')}
@@ -1719,11 +1719,11 @@ export default function ChannelWizard({
                     {/* Manual Feishu setup still needs permissions/events/publish; QR provisioning creates the configured PersonalAgent. */}
                     {promoted?.pluginId === 'openclaw-lark' && (!isDualConfig || dualConfigMode === 'config') && (
                         <>
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <h3 className="text-sm font-medium text-[var(--ink)]">
                                     {t('agentSettings.channelWizard.guides.feishu.permissionsTitle', { step: 2 })}
                                 </h3>
-                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                                     <li>{t('agentSettings.channelWizard.guides.feishu.permissionsStep1Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.permissionManagement')}</span></li>
                                     <li>{t('agentSettings.channelWizard.guides.feishu.permissionsStep2Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.batchImport')}</span></li>
                                     <li>{t('agentSettings.channelWizard.guides.feishu.permissionsStep3')}</li>
@@ -1731,35 +1731,35 @@ export default function ChannelWizard({
                                 <div className="mt-3 relative">
                                     <button
                                         onClick={handleCopyPermJson}
-                                        className="absolute right-2 top-2 rounded-md border border-[var(--line)] bg-[var(--paper-elevated)] p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                        className="absolute right-2 top-2 rounded-md border border-[var(--line)] bg-[var(--paper)] p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                         title={t('agentSettings.channelWizard.guides.feishu.copyJson')}
                                     >
                                         {permJsonCopied ? <Check className="h-3.5 w-3.5 text-[var(--success)]" /> : <Copy className="h-3.5 w-3.5" />}
                                     </button>
-                                    <pre className="overflow-x-auto rounded-lg bg-[var(--paper-inset)] p-3 text-xs leading-relaxed text-[var(--ink-muted)]">
+                                    <pre className="overflow-x-auto rounded-lg bg-[var(--inset)] p-3 text-xs leading-relaxed text-[var(--muted)]">
                                         {FEISHU_PERMISSIONS_JSON}
                                     </pre>
                                 </div>
                                 <img src={feishuStep2PermImg} alt={t('agentSettings.channelWizard.guides.feishu.altPermissions')} className="mt-4 w-full rounded-lg border border-[var(--line)]" />
                             </div>
 
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <h3 className="text-sm font-medium text-[var(--ink)]">
                                     {t('agentSettings.channelWizard.guides.feishu.eventsTitle', { step: 3 })}
                                 </h3>
-                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                                     <li>{t('agentSettings.channelWizard.guides.feishu.eventsStep1Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.eventsCallbacks')}</span> &gt; <span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.eventConfig')}</span></li>
                                     <li>{t('agentSettings.channelWizard.guides.feishu.eventsStep2Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.longConnection')}</span>{t('agentSettings.channelWizard.guides.feishu.eventsStep2Suffix')}</li>
-                                    <li>{t('agentSettings.channelWizard.guides.feishu.eventsStep3Prefix')}<code className="rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs">im.message.receive_v1</code>{t('agentSettings.channelWizard.guides.feishu.eventsStep3Suffix')}</li>
+                                    <li>{t('agentSettings.channelWizard.guides.feishu.eventsStep3Prefix')}<code className="rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs">im.message.receive_v1</code>{t('agentSettings.channelWizard.guides.feishu.eventsStep3Suffix')}</li>
                                 </ol>
                                 <img src={feishuStep2EventImg} alt={t('agentSettings.channelWizard.guides.feishu.altEvents')} className="mt-4 w-full rounded-lg border border-[var(--line)]" />
                             </div>
 
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <h3 className="text-sm font-medium text-[var(--ink)]">
                                     {t('agentSettings.channelWizard.guides.feishu.botPublishTitle', { step: 4 })}
                                 </h3>
-                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--ink-muted)]">
+                                <ol className="mt-3 space-y-1.5 text-sm text-[var(--muted)]">
                                     <li>{t('agentSettings.channelWizard.guides.feishu.botPublishStep1Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.addCapability')}</span>{t('agentSettings.channelWizard.guides.feishu.botPublishStep1Middle')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.bot')}</span>{t('agentSettings.channelWizard.guides.feishu.botPublishStep1Suffix')}</li>
                                     <li>{t('agentSettings.channelWizard.guides.feishu.botPublishStep2Prefix')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.versionRelease')}</span>{t('agentSettings.channelWizard.guides.feishu.botPublishStep2Middle')}<span className="font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.guides.feishu.createVersion')}</span>{t('agentSettings.channelWizard.guides.feishu.botPublishStep2Suffix')}</li>
                                 </ol>
@@ -1772,8 +1772,8 @@ export default function ChannelWizard({
                     {promoted && promoted.pluginId !== 'openclaw-lark' && promoted.setupGuide?.steps && (
                         <>
                             {promoted.setupGuide.steps.map((s, i) => (
-                                <div key={i} className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
-                                    <p className="text-sm text-[var(--ink-muted)]">{s.caption}</p>
+                                <div key={i} className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
+                                    <p className="text-sm text-[var(--muted)]">{s.caption}</p>
                                     <img src={s.image} alt={s.alt} className="mt-4 w-full rounded-lg border border-[var(--line)]" />
                                 </div>
                             ))}
@@ -1782,9 +1782,9 @@ export default function ChannelWizard({
 
                     {/* Confirm panel (non-lark): lark uses the top status strip instead */}
                     {promoted?.pluginId !== 'openclaw-lark' && (
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                             <h3 className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.openclaw.confirmTitle')}</h3>
-                            <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                            <p className="mt-1.5 text-xs text-[var(--muted)]">
                                 {t('agentSettings.channelWizard.openclaw.confirmDescription')}
                             </p>
 
@@ -1793,14 +1793,14 @@ export default function ChannelWizard({
                                     {promoted ? (
                                         <img src={promoted.icon} alt={openclawPluginName} className="h-8 w-8 shrink-0 rounded-lg" />
                                     ) : (
-                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-warm-subtle)]">
-                                            <Puzzle className="h-4 w-4 text-[var(--accent-warm)]" />
+                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary-soft)]">
+                                            <Puzzle className="h-4 w-4 text-[var(--primary)]" />
                                         </div>
                                     )}
                                     <div>
                                         <p className="text-sm font-medium text-[var(--ink)]">{openclawPluginName}</p>
                                         {installedPlugin?.packageVersion && (
-                                            <p className="text-xs text-[var(--ink-muted)]">v{installedPlugin.packageVersion}</p>
+                                            <p className="text-xs text-[var(--muted)]">v{installedPlugin.packageVersion}</p>
                                         )}
                                     </div>
                                 </div>
@@ -1810,7 +1810,7 @@ export default function ChannelWizard({
                                     const count = Object.keys(cfg).length;
                                     return count > 0 ? (
                                         <div className="flex items-center justify-between rounded-lg border border-[var(--line)] p-3">
-                                            <span className="text-xs text-[var(--ink-muted)]">{t('agentSettings.channelWizard.openclaw.configItems')}</span>
+                                            <span className="text-xs text-[var(--muted)]">{t('agentSettings.channelWizard.openclaw.configItems')}</span>
                                             <span className="text-sm text-[var(--ink)]">
                                                 {t('agentSettings.channelWizard.openclaw.configItemsCount', { count })}
                                             </span>
@@ -1845,10 +1845,10 @@ export default function ChannelWizard({
                             />
                         )
                     ) : isQrLogin ? (
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                             <div className="space-y-3">
                                 <label className="text-sm font-medium text-[var(--ink)]">{t('agentSettings.channelWizard.binding.title')}</label>
-                                <p className="text-xs text-[var(--ink-muted)]">
+                                <p className="text-xs text-[var(--muted)]">
                                     {t('agentSettings.channelWizard.binding.qrOnly')}
                                 </p>
                             </div>
@@ -1861,7 +1861,7 @@ export default function ChannelWizard({
                                     hasWhitelistUsers={allowedUsers.length > 0}
                                 />
                             )}
-                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                                 <WhitelistManager
                                     users={allowedUsers}
                                     onChange={setAllowedUsers}
@@ -1872,7 +1872,7 @@ export default function ChannelWizard({
                     )}
 
                     {(isFeishu || isDingtalk || (isOpenClaw && !isQrLogin)) && allowedUsers.length > 0 && (
-                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+                        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
                             <WhitelistManager
                                 users={allowedUsers}
                                 onChange={setAllowedUsers}

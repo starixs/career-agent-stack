@@ -135,11 +135,11 @@ enum NavDecision {
 }
 
 // Native startup surface only. The canonical values remain the Theme's
-// `--paper` tokens in keystone-default.css; the unit guard below fails if this
+// `--bg` tokens in career.css; the unit guard below fails if this
 // platform projection drifts. Keeping the surface to one flat token avoids
 // duplicating the actual Theme palette or material system in Rust.
-const THEME_BOOTSTRAP_LIGHT_PAPER: Color = Color(250, 246, 238, 255);
-const THEME_BOOTSTRAP_DARK_PAPER: Color = Color(26, 22, 20, 255);
+const THEME_BOOTSTRAP_LIGHT_PAPER: Color = Color(253, 251, 247, 255);
+const THEME_BOOTSTRAP_DARK_PAPER: Color = Color(27, 25, 22, 255);
 const THEME_BOOTSTRAP_APPEARANCE_MARKER: &str = "__KEYSTONE_APPEARANCE_MODE__";
 const THEME_BOOTSTRAP_RUN_ID_MARKER: &str = "__KEYSTONE_BOOTSTRAP_RUN_ID__";
 const THEME_BOOTSTRAP_WINDOW_LABEL_MARKER: &str = "__KEYSTONE_WINDOW_LABEL__";
@@ -2036,7 +2036,7 @@ mod nav_guard_tests {
 
     #[test]
     fn native_bootstrap_surface_tracks_canonical_theme_paper_tokens() {
-        let css = include_str!("../../src/renderer/theme/themes/keystone-default.css");
+        let css = include_str!("../../src/renderer/theme/themes/career.css");
 
         fn paper_color(css: &str, scheme: &str) -> Color {
             let selector = format!("html[data-color-scheme='{scheme}'],");
@@ -2046,12 +2046,12 @@ mod nav_guard_tests {
                 .map(|(block, _)| block)
                 .expect("canonical scheme block");
             let value = block
-                .split_once("--paper:")
+                .split_once("--bg:")
                 .and_then(|(_, tail)| tail.split_once(';'))
                 .map(|(value, _)| value.trim())
-                .expect("canonical --paper value");
-            let hex = value.strip_prefix('#').expect("hex --paper value");
-            assert_eq!(hex.len(), 6, "canonical --paper must be #rrggbb");
+                .expect("canonical --bg value");
+            let hex = value.strip_prefix('#').expect("hex --bg value");
+            assert_eq!(hex.len(), 6, "canonical --bg must be #rrggbb");
             Color(
                 u8::from_str_radix(&hex[0..2], 16).expect("red channel"),
                 u8::from_str_radix(&hex[2..4], 16).expect("green channel"),
@@ -2077,7 +2077,7 @@ mod nav_guard_tests {
             "main",
         );
         assert!(script.contains("if (themeSelectionExplicit) themeId = storedThemeId"));
-        assert!(script.contains("let themeId = 'keystone-light'"));
+        assert!(script.contains("let themeId = 'keystone-default'"));
         assert!(script.contains("appearanceMode: \"dark\""));
         assert!(!script.contains(THEME_BOOTSTRAP_APPEARANCE_MARKER));
         assert!(!script.contains(THEME_BOOTSTRAP_RUN_ID_MARKER));

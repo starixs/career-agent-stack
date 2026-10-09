@@ -90,7 +90,7 @@ export default function WorkspaceSelector({
         return (
             <button
                 onClick={onAddFolder}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--accent)]"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--primary)]"
             >
                 <Plus className="h-3.5 w-3.5" />
                 <span>{t('workspaceSelector.selectWorkspace')}</span>
@@ -103,7 +103,7 @@ export default function WorkspaceSelector({
             <button
                 ref={triggerRef}
                 onClick={() => setIsOpen(!isOpen)}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
             >
                 <WorkspaceIcon icon={selectedProject?.icon} size={16} />
                 <span className="max-w-[120px] truncate">
@@ -117,10 +117,10 @@ export default function WorkspaceSelector({
                 anchorRef={triggerRef}
                 placement="top-start"
                 offset={6}
-                className="w-72 rounded-xl bg-[var(--paper)]"
+                className="w-72 rounded-xl bg-[var(--bg)]"
             >
                 {/* Header — fixed at the top above the scroll region. */}
-                <div className="border-b border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--ink-muted)]">
+                <div className="border-b border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--muted)]">
                     {t('workspaceSelector.title')}
                 </div>
                 {/* Scroll region — see CustomSelect.tsx pit-of-failure note:
@@ -202,8 +202,8 @@ export function WorkspaceRow({
             }}
             className={`group flex cursor-pointer items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${
                 isSelected
-                    ? 'bg-[var(--accent)]/10 text-[var(--accent)]'
-                    : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                    ? 'bg-[var(--primary)]/10 text-[var(--primary)]'
+                    : 'text-[var(--ink)] hover:bg-[var(--hover)]'
             }`}
         >
             <WorkspaceIcon icon={project.icon} size={28} />
@@ -213,7 +213,7 @@ export function WorkspaceRow({
                 <div className="flex min-w-0 items-center gap-1.5">
                     <span className="min-w-0 truncate font-medium">{displayName}</span>
                     {showDefaultBadge && isDefault && (
-                        <span className="shrink-0 rounded-full bg-[var(--accent)]/12 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-[var(--accent)]">
+                        <span className="shrink-0 rounded-full bg-[var(--primary)]/12 px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wider text-[var(--primary)]">
                             {t('workspaceSelector.defaultBadge')}
                         </span>
                     )}
@@ -233,7 +233,7 @@ export function WorkspaceRow({
                             // `pointer-events-none` so the bare row area
                             // doesn't silently trigger this when the button
                             // is hidden (Codex review).
-                            className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium text-[var(--ink-muted)] opacity-0 pointer-events-none transition-opacity hover:bg-[var(--paper-inset)] hover:text-[var(--accent)] focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+                            className="shrink-0 rounded-md px-2 py-0.5 text-xs font-medium text-[var(--muted)] opacity-0 pointer-events-none transition-opacity hover:bg-[var(--inset)] hover:text-[var(--primary)] focus-visible:opacity-100 focus-visible:pointer-events-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)] group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
                             aria-label={t('workspaceSelector.setDefaultAria', { name: displayName })}
                             title={t('workspaceSelector.setDefaultTitle')}
                         >
@@ -243,7 +243,7 @@ export function WorkspaceRow({
                 </div>
                 {/* Line 2: path. No right-side spacer — the path is allowed
                  *  to truncate at the panel's right edge. */}
-                <div className="truncate text-xs text-[var(--ink-muted)]">
+                <div className="truncate text-xs text-[var(--muted)]">
                     {shortenPathForDisplay(project.path)}
                 </div>
             </div>

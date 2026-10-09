@@ -12,18 +12,17 @@ function source(relativePath: string): string {
 }
 
 const representativeVisualTokens = [
-  '--font-body',
+  '--font-sans',
+  '--bg',
   '--paper',
-  '--paper-elevated',
-  '--paper-inset',
+  '--inset',
   '--ink',
-  '--ink-muted',
+  '--muted',
   '--line',
-  '--accent',
-  '--button-primary-bg',
-  '--button-primary-text',
+  '--primary',
+  '--on-primary',
   '--success',
-  '--error',
+  '--danger',
   '--warning',
   '--theme-radius-xl',
   '--theme-shadow-sm',
@@ -52,13 +51,11 @@ describe('Space Theme integration', () => {
   });
 
   it.each(['light', 'dark'] as const)(
-    'exposes every representative %s visual token to Space from each production Theme',
+    'exposes every representative %s visual token to Space from the production Theme',
     (scheme) => {
       const style = document.createElement('style');
       style.id = STYLE_ID;
       document.head.appendChild(style);
-      const themeSignatures = new Set<string>();
-
       for (const definition of themeRegistry.getAcceptedDefinitions()) {
         style.textContent = definition.stylesheetText;
         document.documentElement.dataset.themeId = definition.id;
@@ -66,15 +63,10 @@ describe('Space Theme integration', () => {
         document.documentElement.classList.toggle('dark', scheme === 'dark');
 
         const rootStyles = getComputedStyle(document.documentElement);
-        const values = representativeVisualTokens.map(token => {
-          const rootValue = rootStyles.getPropertyValue(token).trim();
-          expect(rootValue, `${definition.id}.${scheme}.${token}`).not.toBe('');
-          return rootValue;
-        });
-        themeSignatures.add(values.join('|'));
+        for (const token of representativeVisualTokens) {
+          expect(rootStyles.getPropertyValue(token).trim(), `${definition.id}.${scheme}.${token}`).not.toBe('');
+        }
       }
-
-      expect(themeSignatures.size).toBeGreaterThan(2);
     },
   );
 });

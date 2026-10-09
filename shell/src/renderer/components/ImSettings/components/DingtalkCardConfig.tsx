@@ -36,7 +36,7 @@ export default function DingtalkCardConfig({
                     <p className="text-sm font-medium text-[var(--ink)]">
                         {t('agentSettings.imComponents.dingtalkCardTitle')}
                     </p>
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                         {t('agentSettings.imComponents.dingtalkCardDescription')}
                     </p>
                 </div>
@@ -44,7 +44,7 @@ export default function DingtalkCardConfig({
                     type="button"
                     onClick={() => onUseAiCardChange(!useAiCard)}
                     className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        useAiCard ? 'bg-[var(--accent)]' : 'bg-[var(--ink-faint)]'
+                        useAiCard ? 'bg-[var(--primary)]' : 'bg-[var(--subtle)]'
                     }`}
                 >
                     <span
@@ -58,7 +58,7 @@ export default function DingtalkCardConfig({
             {/* Card Template ID (only when AI Card enabled) */}
             {useAiCard && (
                 <div>
-                    <label className="mb-1.5 block text-xs font-medium text-[var(--ink-muted)]">
+                    <label className="mb-1.5 block text-xs font-medium text-[var(--muted)]">
                         {t('agentSettings.imComponents.cardTemplateId')}
                     </label>
                     <input
@@ -66,9 +66,9 @@ export default function DingtalkCardConfig({
                         value={localTemplateId}
                         onChange={(e) => handleTemplateIdChange(e.target.value)}
                         placeholder={t('agentSettings.imComponents.cardTemplatePlaceholder')}
-                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-subtle)] outline-none transition-colors focus:border-[var(--button-primary-bg)]"
+                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--subtle)] outline-none transition-colors focus:border-[var(--primary)]"
                     />
-                    <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                    <p className="mt-1.5 text-xs text-[var(--muted)]">
                         {t('agentSettings.imComponents.cardTemplateHint')}
                     </p>
                 </div>

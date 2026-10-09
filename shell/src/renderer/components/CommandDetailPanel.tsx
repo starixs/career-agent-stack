@@ -243,7 +243,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
         if (loading) {
             return (
                 <div className="flex h-full items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-[var(--ink-muted)]" />
+                    <Loader2 className="h-8 w-8 animate-spin text-[var(--muted)]" />
                 </div>
             );
         }
@@ -251,7 +251,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
         if (!command) {
             return (
                 <div className="flex h-full items-center justify-center">
-                    <p className="text-sm text-[var(--ink-muted)]">{t('resourceDetail.command.notFound')}</p>
+                    <p className="text-sm text-[var(--muted)]">{t('resourceDetail.command.notFound')}</p>
                 </div>
             );
         }
@@ -259,12 +259,12 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
         return (
             <div className="flex h-full flex-col">
                 {/* Header */}
-                <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--line)] bg-[var(--paper-inset)]/50 px-6 py-2">
+                <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--line)] bg-[var(--inset)]/50 px-6 py-2">
                     <div className="min-w-0 flex-1">
                         <h3 className="truncate text-lg font-semibold text-[var(--ink)]">{commandName || name}</h3>
                         <div className="mt-0.5 flex items-center gap-2">
                             <span
-                                className="max-w-[300px] truncate font-mono text-xs text-[var(--ink-muted)]"
+                                className="max-w-[300px] truncate font-mono text-xs text-[var(--muted)]"
                                 title={command.path}
                             >
                                 {shortenPathForDisplay(command.path)}
@@ -272,7 +272,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                             <button
                                 type="button"
                                 onClick={handleOpenInFinder}
-                                className="flex-shrink-0 rounded p-0.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                className="flex-shrink-0 rounded p-0.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                 title={t('resourceDetail.common.openLocation')}
                             >
                                 <FolderOpen className="h-3.5 w-3.5" />
@@ -285,7 +285,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                                 <button
                                     type="button"
                                     onClick={() => setShowDeleteConfirm(true)}
-                                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--error)] hover:bg-[var(--error-bg)]"
+                                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-bg)]"
                                 >
                                     <Trash2 className="h-4 w-4" />
                                     {t('resourceDetail.common.delete')}
@@ -293,7 +293,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                                 <button
                                     type="button"
                                     onClick={handleCancel}
-                                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--muted)] hover:bg-[var(--inset)]"
                                 >
                                     <X className="h-4 w-4" />
                                     {t('resourceDetail.common.cancel')}
@@ -302,7 +302,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                                     type="button"
                                     onClick={handleSave}
                                     disabled={saving}
-                                    className="flex items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-4 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                                    className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                                 >
                                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                                     {t('resourceDetail.common.save')}
@@ -313,7 +313,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                                 key="view"
                                 type="button"
                                 onClick={() => handleEdit('name')}
-                                className="flex items-center gap-1.5 rounded-lg bg-[var(--button-dark-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-dark-text)] transition-colors hover:bg-[var(--button-dark-bg-hover)]"
+                                className="flex items-center gap-1.5 rounded-lg bg-[var(--ink)] px-3 py-1.5 text-sm font-medium text-[var(--bg)] transition-colors hover:bg-[var(--ink-2)]"
                             >
                                 <Edit2 className="h-4 w-4" />
                                 {t('resourceDetail.common.edit')}
@@ -330,8 +330,8 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                             <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">{t('resourceDetail.common.name')}</label>
                             <div className={`w-full rounded-lg border px-4 py-2.5 ${
                                 isEditing
-                                    ? 'border-[var(--line)] bg-[var(--paper)] focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20'
-                                    : 'border-[var(--line)] bg-[var(--paper-elevated)]'
+                                    ? 'border-[var(--line)] bg-[var(--bg)] focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20'
+                                    : 'border-[var(--line)] bg-[var(--paper)]'
                             }`}>
                                 {isEditing ? (
                                     <input
@@ -340,10 +340,10 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                                         value={commandName}
                                         onChange={(e) => setCommandName(e.target.value)}
                                         placeholder={t('resourceDetail.command.namePlaceholder')}
-                                        className="w-full border-none bg-transparent p-0 text-sm leading-relaxed text-[var(--ink)] placeholder-[var(--ink-muted)] outline-none"
+                                        className="w-full border-none bg-transparent p-0 text-sm leading-relaxed text-[var(--ink)] placeholder-[var(--muted)] outline-none"
                                     />
                                 ) : (
-                                    <span className={`block select-text text-sm leading-relaxed ${commandName ? 'text-[var(--ink)]' : 'text-[var(--ink-muted)]/60'}`}>
+                                    <span className={`block select-text text-sm leading-relaxed ${commandName ? 'text-[var(--ink)]' : 'text-[var(--muted)]/60'}`}>
                                         {commandName || t('resourceDetail.common.notSet')}
                                     </span>
                                 )}
@@ -356,8 +356,8 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                             <div
                                 className={`w-full rounded-lg border px-4 py-2.5 ${
                                     isEditing
-                                        ? 'border-[var(--line)] bg-[var(--paper)] focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20'
-                                        : 'border-[var(--line)] bg-[var(--paper-elevated)]'
+                                        ? 'border-[var(--line)] bg-[var(--bg)] focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20'
+                                        : 'border-[var(--line)] bg-[var(--paper)]'
                                 }`}
                             >
                                 {/* Fixed height container: min 1 line, max 4 lines (22px line-height * 4 = 88px) */}
@@ -374,7 +374,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                                             value={description}
                                             onChange={(e) => setDescription(e.target.value)}
                                             placeholder={t('resourceDetail.command.descriptionPlaceholder')}
-                                            className="block min-h-[22px] w-full resize-none border-none bg-transparent p-0 text-sm leading-[22px] text-[var(--ink)] placeholder-[var(--ink-muted)] outline-none"
+                                            className="block min-h-[22px] w-full resize-none border-none bg-transparent p-0 text-sm leading-[22px] text-[var(--ink)] placeholder-[var(--muted)] outline-none"
                                             style={{ height: 'auto' }}
                                             onInput={(e) => {
                                                 const target = e.target as HTMLTextAreaElement;
@@ -384,7 +384,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                                         />
                                     ) : (
                                         <div className="select-text whitespace-pre-wrap text-sm leading-[22px]">
-                                            <span className={description ? 'text-[var(--ink)]' : 'text-[var(--ink-muted)]/60'}>
+                                            <span className={description ? 'text-[var(--ink)]' : 'text-[var(--muted)]/60'}>
                                                 {description || t('resourceDetail.common.notSet')}
                                             </span>
                                         </div>
@@ -399,8 +399,8 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                             <div
                                 className={`overflow-hidden rounded-lg border ${
                                     isEditing
-                                        ? 'border-[var(--line)] bg-[var(--paper)]'
-                                        : 'border-[var(--line)] bg-[var(--paper-elevated)]'
+                                        ? 'border-[var(--line)] bg-[var(--bg)]'
+                                        : 'border-[var(--line)] bg-[var(--paper)]'
                                 }`}
                                 style={{ height: 'max(300px, calc(100vh - 420px))' }}
                             >
@@ -418,7 +418,7 @@ const CommandDetailPanel = forwardRef<CommandDetailPanelRef, CommandDetailPanelP
                                                 <Markdown raw>{body}</Markdown>
                                             </div>
                                         ) : (
-                                            <span className="text-sm text-[var(--ink-muted)]/60">{t('resourceDetail.command.emptyContent')}</span>
+                                            <span className="text-sm text-[var(--muted)]/60">{t('resourceDetail.command.emptyContent')}</span>
                                         )}
                                     </div>
                                 )}

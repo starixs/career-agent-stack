@@ -18,8 +18,8 @@ export default function CronTaskButton({ onClick, isActive = false, disabled = f
       disabled={disabled}
       className={`flex h-10 w-10 items-center justify-center rounded-full border transition focus:ring-2 focus:outline-none ${
         isActive
-          ? 'border-[var(--heartbeat-border)] bg-[var(--heartbeat-bg)] text-[var(--heartbeat)] hover:bg-[var(--heartbeat-bg)] focus:ring-[var(--heartbeat)]'
-          : 'border-[var(--line)] bg-[var(--paper-elevated)] text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] focus:ring-[var(--line-strong)]'
+          ? 'border-[var(--success)] bg-[var(--success-bg)] text-[var(--success)] hover:bg-[var(--success-bg)] focus:ring-[var(--success)]'
+          : 'border-[var(--line)] bg-[var(--paper)] text-[var(--muted)] hover:bg-[var(--hover)] focus:ring-[var(--line-2)]'
       } disabled:cursor-not-allowed disabled:opacity-50`}
       title={isActive ? t('composer.cronEnabled') : t('composer.cron')}
     >

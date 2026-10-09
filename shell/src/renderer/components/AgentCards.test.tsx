@@ -25,7 +25,7 @@ describe('AgentCard capability identity', () => {
     const synced = screen.getByText('Claude Code');
 
     expect(icon?.nextElementSibling).toBe(title);
-    expect(scope).toHaveClass('rounded-full', 'bg-[var(--paper-inset)]');
+    expect(scope).toHaveClass('rounded-full', 'bg-[var(--inset)]');
     expect(synced).toHaveClass('rounded-full', 'bg-[var(--info-bg)]');
   });
 });

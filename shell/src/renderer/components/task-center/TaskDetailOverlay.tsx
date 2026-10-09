@@ -542,7 +542,7 @@ export function TaskDetailOverlay({
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.stopPropagation()}
-          className="relative flex h-full w-[82vw] max-w-[1440px] flex-col overflow-hidden border-l border-[var(--line)] bg-[var(--paper-elevated)] shadow-2xl max-lg:w-[92vw] max-sm:w-full"
+          className="relative flex h-full w-[82vw] max-w-[1440px] flex-col overflow-hidden border-l border-[var(--line)] bg-[var(--paper)] shadow-2xl max-lg:w-[92vw] max-sm:w-full"
           aria-label={t("detail.drawerLabel")}
         >
           <header className="flex shrink-0 items-center gap-2 border-b border-[var(--line)] px-6 py-3">
@@ -561,7 +561,7 @@ export function TaskDetailOverlay({
             <button
               type="button"
               onClick={() => setShowMobileProperties((value) => !value)}
-              className="shrink-0 rounded-[var(--radius-md)] p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] xl:hidden"
+              className="shrink-0 rounded-[var(--radius-md)] p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] xl:hidden"
               title={t("detail.properties")}
               aria-label={t("detail.properties")}
             >
@@ -626,7 +626,7 @@ export function TaskDetailOverlay({
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 rounded-[var(--radius-md)] p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="shrink-0 rounded-[var(--radius-md)] p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
               title={t("detail.closeTitle")}
               aria-label={t("detail.closeTitle")}
             >
@@ -635,7 +635,7 @@ export function TaskDetailOverlay({
           </header>
 
           {err && (
-            <div className="shrink-0 border-b border-[var(--error)]/30 bg-[var(--error-bg)] px-7 py-2 text-xs text-[var(--error)]">
+            <div className="shrink-0 border-b border-[var(--danger)]/30 bg-[var(--danger-bg)] px-7 py-2 text-xs text-[var(--danger)]">
               {err}
             </div>
           )}
@@ -651,13 +651,13 @@ export function TaskDetailOverlay({
               >
                 {task.externalSource?.type === "space-issue" && (
                   <div className="mb-2">
-                    <span className="inline-flex rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+                    <span className="inline-flex rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
                       Space Issue · {task.externalSource.issueId}
                     </span>
                   </div>
                 )}
                 {task.description && (
-                  <p className="mb-4 max-w-[80ch] text-sm leading-6 text-[var(--ink-muted)]">
+                  <p className="mb-4 max-w-[80ch] text-sm leading-6 text-[var(--muted)]">
                     {task.description}
                   </p>
                 )}
@@ -672,7 +672,7 @@ export function TaskDetailOverlay({
               </TaskCommentTimeline>
             </main>
 
-            <aside className="hidden w-[380px] shrink-0 overflow-y-auto border-l border-[var(--line-subtle)] bg-[var(--paper)]/60 px-5 py-5 xl:block">
+            <aside className="hidden w-[380px] shrink-0 overflow-y-auto border-l border-[var(--line)] bg-[var(--bg)]/60 px-5 py-5 xl:block">
               <SummaryCard task={task} stats={runStats} />
               <div className="mt-5">
                 <TaskSessionsList task={task} onBeforeOpen={onClose} />
@@ -688,12 +688,12 @@ export function TaskDetailOverlay({
                   onReset={() => setShowResetCheckpointConfirm(true)}
                 />
               )}
-              <hr className="my-5 border-[var(--line-subtle)]" />
+              <hr className="my-5 border-[var(--line)]" />
               <NotificationSummary task={task} />
             </aside>
 
             {showMobileProperties && (
-              <aside className="absolute inset-y-0 right-0 z-20 w-[min(380px,88vw)] overflow-y-auto border-l border-[var(--line)] bg-[var(--paper-elevated)] px-5 py-5 shadow-xl xl:hidden">
+              <aside className="absolute inset-y-0 right-0 z-20 w-[min(380px,88vw)] overflow-y-auto border-l border-[var(--line)] bg-[var(--paper)] px-5 py-5 shadow-xl xl:hidden">
                 <div className="mb-5 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-[var(--ink)]">
                     {t("detail.properties")}
@@ -721,7 +721,7 @@ export function TaskDetailOverlay({
                     onReset={() => setShowResetCheckpointConfirm(true)}
                   />
                 )}
-                <hr className="my-5 border-[var(--line-subtle)]" />
+                <hr className="my-5 border-[var(--line)]" />
                 <NotificationSummary task={task} />
               </aside>
             )}
@@ -733,7 +733,7 @@ export function TaskDetailOverlay({
                 role="dialog"
                 aria-modal="true"
                 aria-label={t("detail.edit")}
-                className="flex h-full w-[min(780px,92vw)] flex-col overflow-hidden border-l border-[var(--line)] bg-[var(--paper-elevated)] shadow-2xl"
+                className="flex h-full w-[min(780px,92vw)] flex-col overflow-hidden border-l border-[var(--line)] bg-[var(--paper)] shadow-2xl"
               >
                 <TaskEditPanel
                   task={task}
@@ -896,7 +896,7 @@ export function TriggerRuntimeSection({
 
   return (
     <section
-      className="mt-5 border-t border-[var(--line-subtle)] pt-5"
+      className="mt-5 border-t border-[var(--line)] pt-5"
       data-testid="trigger-runtime-section"
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -904,11 +904,11 @@ export function TriggerRuntimeSection({
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
             <RadioTower className="h-4 w-4" />
             {t("trigger.runtimeTitle")}
-            <span className="rounded-md bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+            <span className="rounded-md bg-[var(--inset)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
               {t(`trigger.health.${health}`)}
             </span>
           </div>
-          <p className="mt-1.5 max-w-[65ch] text-xs leading-relaxed text-[var(--ink-muted)]">
+          <p className="mt-1.5 max-w-[65ch] text-xs leading-relaxed text-[var(--muted)]">
             {t("trigger.runtimeDescription")}
           </p>
         </div>
@@ -964,7 +964,7 @@ export function TriggerRuntimeSection({
         </div>
       </div>
 
-      <p className="mt-3 rounded-md bg-[var(--paper-inset)] px-3 py-2 text-xs leading-relaxed text-[var(--ink-muted)]">
+      <p className="mt-3 rounded-md bg-[var(--inset)] px-3 py-2 text-xs leading-relaxed text-[var(--muted)]">
         {t("trigger.testWarning")}
       </p>
 
@@ -972,8 +972,8 @@ export function TriggerRuntimeSection({
         <div
           className={`mt-3 rounded-md border px-3 py-2 text-xs ${
             testResult.ok
-              ? "border-[var(--line-subtle)] text-[var(--ink-secondary)]"
-              : "border-[var(--error)]/30 bg-[var(--error-bg)] text-[var(--error)]"
+              ? "border-[var(--line)] text-[var(--ink-2)]"
+              : "border-[var(--danger)]/30 bg-[var(--danger-bg)] text-[var(--danger)]"
           }`}
         >
           {testResult.ok ? (
@@ -1036,8 +1036,8 @@ export function TriggerRuntimeSection({
       </dl>
 
       {state?.lastReason && (
-        <p className="mt-4 text-xs text-[var(--ink-secondary)]">
-          <span className="font-mono text-[var(--ink-muted)]">
+        <p className="mt-4 text-xs text-[var(--ink-2)]">
+          <span className="font-mono text-[var(--muted)]">
             {state.lastReason.code}
           </span>
           {" · "}
@@ -1045,18 +1045,18 @@ export function TriggerRuntimeSection({
         </p>
       )}
       {state?.lastError && (
-        <div className="mt-3 rounded-md border border-[var(--error)]/30 bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error)]">
+        <div className="mt-3 rounded-md border border-[var(--danger)]/30 bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger)]">
           <TriggerErrorDetails error={state.lastError} />
         </div>
       )}
       {state?.pendingActivation && (
-        <div className="mt-3 border-l-2 border-[var(--accent)] pl-3 text-xs text-[var(--ink-secondary)]">
+        <div className="mt-3 border-l-2 border-[var(--primary)] pl-3 text-xs text-[var(--ink-2)]">
           <p className="font-medium">{t("trigger.pendingTitle")}</p>
           <p className="mt-1 font-mono break-all">
             {state.pendingActivation.event.id} ·{" "}
             {state.pendingActivation.event.kind}
           </p>
-          <p className="mt-1 text-[var(--ink-muted)]">
+          <p className="mt-1 text-[var(--muted)]">
             {formatTime(state.pendingActivation.detectedAt)} ·{" "}
             {state.pendingActivation.deliveryState}
             {state.pendingActivation.queueId
@@ -1067,10 +1067,10 @@ export function TriggerRuntimeSection({
       )}
 
       <details className="mt-4 text-xs">
-        <summary className="cursor-pointer font-medium text-[var(--ink-muted)]">
+        <summary className="cursor-pointer font-medium text-[var(--muted)]">
           {t("trigger.configuration")}
         </summary>
-        <dl className="mt-3 grid gap-2 text-[var(--ink-secondary)]">
+        <dl className="mt-3 grid gap-2 text-[var(--ink-2)]">
           <TriggerMetric
             label={t("trigger.executable")}
             value={detector.command.executable}
@@ -1092,10 +1092,10 @@ export function TriggerRuntimeSection({
             mono
           />
         </dl>
-        <p className="mt-3 font-medium text-[var(--ink-muted)]">
+        <p className="mt-3 font-medium text-[var(--muted)]">
           {t("trigger.checkpointPreview")}
         </p>
-        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-[var(--paper-inset)] p-3 font-mono text-[var(--ink-secondary)]">
+        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-[var(--inset)] p-3 font-mono text-[var(--ink-2)]">
           {checkpoint}
         </pre>
       </details>
@@ -1114,9 +1114,9 @@ function TriggerMetric({
 }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[var(--ink-muted)]">{label}</dt>
+      <dt className="text-[var(--muted)]">{label}</dt>
       <dd
-        className={`mt-0.5 break-words text-[var(--ink-secondary)] ${mono ? "font-mono" : ""}`}
+        className={`mt-0.5 break-words text-[var(--ink-2)] ${mono ? "font-mono" : ""}`}
       >
         {value}
       </dd>
@@ -1153,7 +1153,7 @@ function NotificationSummary({ task }: { task: Task }) {
       </div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
         <span
-          className={desktop ? "text-[var(--ink)]" : "text-[var(--ink-muted)]"}
+          className={desktop ? "text-[var(--ink)]" : "text-[var(--muted)]"}
         >
           {t("detail.desktopNotification")}{" "}
           {desktop
@@ -1163,7 +1163,7 @@ function NotificationSummary({ task }: { task: Task }) {
         {channelLabel ? (
           <span className="text-[var(--ink)]">IM Bot: {channelLabel}</span>
         ) : (
-          <span className="text-[var(--ink-muted)]/70">
+          <span className="text-[var(--muted)]/70">
             {t("detail.noBot")}
           </span>
         )}
@@ -1196,11 +1196,11 @@ function ActionBtn({
   // 态视觉" feedback; without the override the hover background still
   // flashed on mouse-over).
   const base =
-    "flex items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:text-[var(--ink-subtle)] disabled:hover:bg-transparent";
+    "flex items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:text-[var(--subtle)] disabled:hover:bg-transparent";
   const variantCls =
     variant === "danger"
-      ? "text-[var(--ink-muted)] hover:bg-[var(--error-bg)] hover:text-[var(--error)] disabled:hover:text-[var(--ink-subtle)]"
-      : "text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:hover:text-[var(--ink-subtle)]";
+      ? "text-[var(--muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] disabled:hover:text-[var(--subtle)]"
+      : "text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:hover:text-[var(--subtle)]";
   return (
     <button
       type="button"

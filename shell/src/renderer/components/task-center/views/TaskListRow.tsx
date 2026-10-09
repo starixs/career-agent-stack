@@ -59,8 +59,8 @@ export function TaskListRow(props: TaskListRowProps) {
           onOpen();
         }
       }}
-      className={`group flex w-full cursor-pointer items-center gap-2 border-b border-[var(--line-subtle)] px-3 py-2 text-left transition-colors hover:bg-[var(--hover-bg)] ${
-        highlighted ? 'bg-[var(--accent-warm-subtle)]' : ''
+      className={`group flex w-full cursor-pointer items-center gap-2 border-b border-[var(--line)] px-3 py-2 text-left transition-colors hover:bg-[var(--hover)] ${
+        highlighted ? 'bg-[var(--primary-soft)]' : ''
       }`}
     >
       {/* Category remains the only row-level tag. Exact lifecycle status is
@@ -85,13 +85,13 @@ export function TaskListRow(props: TaskListRowProps) {
         )}
       </div>
       {workspace && (
-        <span className="hidden max-w-[110px] shrink-0 truncate text-xs text-[var(--ink-muted)] sm:block">
+        <span className="hidden max-w-[110px] shrink-0 truncate text-xs text-[var(--muted)] sm:block">
           {workspace}
         </span>
       )}
       <div className="group/session-slot relative h-6 w-[88px] shrink-0">
         <span
-          className={`absolute inset-0 flex items-center justify-end whitespace-nowrap text-xs text-[var(--ink-muted)]/80 transition-opacity ${
+          className={`absolute inset-0 flex items-center justify-end whitespace-nowrap text-xs text-[var(--muted)]/80 transition-opacity ${
             hasSession ? 'group-hover:opacity-0 group-focus:opacity-0 group-focus-within/session-slot:opacity-0' : ''
           }`}
         >

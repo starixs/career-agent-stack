@@ -238,40 +238,40 @@ export default function GlobalPluginsPanel({
        *  into a single info row so the page weight matches SkillsCommandsList §300-313. */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Puzzle className="h-5 w-5 text-[var(--accent-warm)]" />
+          <Puzzle className="h-5 w-5 text-[var(--primary)]" />
           <h3 className="text-base font-semibold text-[var(--ink)]">{t('plugins.title')}</h3>
-          <span className="rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs text-[var(--ink-muted)]">
+          <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--muted)]">
             {plugins.length}
           </span>
         </div>
         <button
           type="button"
           onClick={() => setShowInstall(true)}
-          className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+          className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
         >
           <Plus className="h-4 w-4" />
           {t('plugins.installButton')}
         </button>
       </div>
 
-      <p className="text-sm leading-relaxed text-[var(--ink-muted)]">
+      <p className="text-sm leading-relaxed text-[var(--muted)]">
         {t('plugins.descriptionIntro')}{' '}
         {t('plugins.descriptionInstall')}{' '}
         {t('plugins.descriptionVisibilityPrefix')}
-        <b className="text-[var(--ink-secondary)]">{t('plugins.descriptionVisibilityEmphasis')}</b>
+        <b className="text-[var(--ink-2)]">{t('plugins.descriptionVisibilityEmphasis')}</b>
         {t('plugins.descriptionVisibilitySuffix')}
       </p>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12 text-[var(--ink-muted)]">
+        <div className="flex items-center justify-center py-12 text-[var(--muted)]">
           <Loader2 className="h-5 w-5 animate-spin" />
           <span className="ml-2 text-sm">{t('plugins.loading')}</span>
         </div>
       ) : plugins.length === 0 ? (
-        <div className="rounded-xl bg-[var(--paper-elevated)] py-16 text-center">
-          <Puzzle className="mx-auto h-10 w-10 text-[var(--ink-subtle)]" />
+        <div className="rounded-xl bg-[var(--paper)] py-16 text-center">
+          <Puzzle className="mx-auto h-10 w-10 text-[var(--subtle)]" />
           <p className="mt-3 text-base font-medium text-[var(--ink)]">{t('plugins.emptyTitle')}</p>
-          <p className="mt-1 text-sm text-[var(--ink-muted)]">
+          <p className="mt-1 text-sm text-[var(--muted)]">
             {t('plugins.emptyDescription')}
           </p>
         </div>
@@ -341,7 +341,7 @@ function PluginCard({
   const isHidden = !item.enabled && !isBad;
   return (
     <div
-      className={`group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper-elevated)] px-3.5 py-3 transition-shadow hover:shadow-sm ${
+      className={`group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper)] px-3.5 py-3 transition-shadow hover:shadow-sm ${
         isHidden ? 'opacity-55' : ''
       } ${isBad ? 'ring-1 ring-amber-400/40' : ''}`}
       onClick={onOpen}
@@ -351,9 +351,9 @@ function PluginCard({
         <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]">
           {item.name}
         </h4>
-        <Puzzle className="h-3.5 w-3.5 shrink-0 text-[var(--accent-warm)]" />
+        <Puzzle className="h-3.5 w-3.5 shrink-0 text-[var(--primary)]" />
         {item.version && (
-          <span className="shrink-0 rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-medium tracking-[0.04em] text-[var(--ink-muted)]">
+          <span className="shrink-0 rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs font-medium tracking-[0.04em] text-[var(--muted)]">
             v{item.version}
           </span>
         )}
@@ -367,7 +367,7 @@ function PluginCard({
           }}
           disabled={isBad}
           className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-            item.enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+            item.enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
           } ${isBad ? 'cursor-not-allowed opacity-50' : ''}`}
           title={item.enabled ? t('plugins.card.hideTitle') : t('plugins.card.showTitle')}
         >
@@ -379,7 +379,7 @@ function PluginCard({
         </button>
       </div>
       {/* Description — min-h reserves 2-line height like SkillCard so grid rows align. */}
-      <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--ink-muted)]">
+      <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--muted)]">
         {item.description || t('plugins.card.noDescription')}
       </p>
       {item.warning && (
@@ -430,7 +430,7 @@ function PluginDetailView({
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
       >
         <ChevronLeft className="h-4 w-4" />
         {t('plugins.detail.back')}
@@ -441,11 +441,11 @@ function PluginDetailView({
         <div className="flex items-baseline gap-3">
           <h2 className="text-2xl font-semibold text-[var(--ink)]">{plugin.name}</h2>
           {plugin.version && (
-            <span className="text-sm text-[var(--ink-muted)]">v{plugin.version}</span>
+            <span className="text-sm text-[var(--muted)]">v{plugin.version}</span>
           )}
         </div>
         {plugin.description && (
-          <p className="mt-2 text-sm leading-relaxed text-[var(--ink-secondary)]">
+          <p className="mt-2 text-sm leading-relaxed text-[var(--ink-2)]">
             {plugin.description}
           </p>
         )}
@@ -458,14 +458,14 @@ function PluginDetailView({
           type="button"
           onClick={onToggle}
           disabled={plugin.status !== 'ok'}
-          className="rounded-full bg-[var(--button-secondary-bg)] px-4 py-1.5 text-sm font-medium text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)] disabled:opacity-50"
+          className="rounded-full bg-[var(--paper)] px-4 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--hover)] disabled:opacity-50"
         >
           {plugin.enabled ? t('plugins.detail.hide') : t('plugins.detail.show')}
         </button>
         <button
           type="button"
           onClick={openInFinder}
-          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--button-secondary-bg)] px-4 py-1.5 text-sm font-medium text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--paper)] px-4 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
         >
           <FolderOpen className="h-3.5 w-3.5" />
           {t('plugins.detail.openDirectory')}
@@ -473,7 +473,7 @@ function PluginDetailView({
         <button
           type="button"
           onClick={onUninstall}
-          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--error-bg)] px-4 py-1.5 text-sm font-medium text-[var(--error)] transition-colors hover:brightness-95"
+          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--danger-bg)] px-4 py-1.5 text-sm font-medium text-[var(--danger)] transition-colors hover:brightness-95"
         >
           <Trash2 className="h-3.5 w-3.5" />
           {t('plugins.detail.uninstall')}
@@ -483,10 +483,10 @@ function PluginDetailView({
       {/* Static metadata uses the DESIGN.md §5.3 main-card surface. The
        * component-specific padding keeps its definition list readable. */}
       <section>
-        <h3 className="mb-3 text-sm font-semibold tracking-[0.04em] text-[var(--ink-muted)]">
+        <h3 className="mb-3 text-sm font-semibold tracking-[0.04em] text-[var(--muted)]">
           {t('plugins.detail.metadata')}
         </h3>
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-5 py-4">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-5 py-4">
           <dl className="grid grid-cols-[max-content_1fr] gap-x-5 gap-y-2 text-sm">
             <MetaRow label={t('plugins.detail.author')} value={plugin.author} />
             <MetaRow label="License" value={plugin.license} />
@@ -501,7 +501,7 @@ function PluginDetailView({
 
       {components && (
         <section>
-          <h3 className="mb-3 text-sm font-semibold tracking-[0.04em] text-[var(--ink-muted)]">
+          <h3 className="mb-3 text-sm font-semibold tracking-[0.04em] text-[var(--muted)]">
             {t('plugins.detail.components')}
           </h3>
           <ComponentInventoryGrid inv={components} />
@@ -539,14 +539,14 @@ function MetaRow({
   const renderAsLink = link && isSafeWebUrl(value);
   return (
     <>
-      <dt className="text-[var(--ink-muted)]">{label}</dt>
+      <dt className="text-[var(--muted)]">{label}</dt>
       <dd className={`break-all text-[var(--ink)] ${mono ? 'font-mono text-xs' : ''}`}>
         {renderAsLink ? (
           <a
             href={value}
             target="_blank"
             rel="noreferrer"
-            className="text-[var(--accent-warm)] hover:underline"
+            className="text-[var(--primary)] hover:underline"
           >
             {value}
           </a>
@@ -573,16 +573,16 @@ function ComponentInventoryGrid({ inv }: { inv: PluginComponentInventory }) {
       {blocks.map(([label, value]) => (
         <ComponentBlock key={label} label={label} value={value} />
       ))}
-      <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-4 py-3">
-        <div className="text-xs font-medium uppercase tracking-[0.04em] text-[var(--ink-muted)]">Hooks</div>
+      <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
+        <div className="text-xs font-medium uppercase tracking-[0.04em] text-[var(--muted)]">Hooks</div>
         <div className="mt-1.5 text-sm text-[var(--ink)]">
-          {inv.hooks > 0 ? t('plugins.detail.hookCount', { count: inv.hooks }) : <span className="text-[var(--ink-muted)]">{t('plugins.detail.none')}</span>}
+          {inv.hooks > 0 ? t('plugins.detail.hookCount', { count: inv.hooks }) : <span className="text-[var(--muted)]">{t('plugins.detail.none')}</span>}
         </div>
       </div>
-      <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-4 py-3">
-        <div className="text-xs font-medium uppercase tracking-[0.04em] text-[var(--ink-muted)]">Bin</div>
+      <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
+        <div className="text-xs font-medium uppercase tracking-[0.04em] text-[var(--muted)]">Bin</div>
         <div className="mt-1.5 text-sm text-[var(--ink)]">
-          {inv.hasBin ? t('plugins.detail.hasExecutable') : <span className="text-[var(--ink-muted)]">{t('plugins.detail.none')}</span>}
+          {inv.hasBin ? t('plugins.detail.hasExecutable') : <span className="text-[var(--muted)]">{t('plugins.detail.none')}</span>}
         </div>
       </div>
     </div>
@@ -600,13 +600,13 @@ function ComponentBlock({
   const items = Array.isArray(value) ? value : [];
   const count = items.length;
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-4 py-3">
-      <div className="text-xs font-medium uppercase tracking-[0.04em] text-[var(--ink-muted)]">{label}</div>
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
+      <div className="text-xs font-medium uppercase tracking-[0.04em] text-[var(--muted)]">{label}</div>
       <div className="mt-1.5 text-sm text-[var(--ink)]">
-        {count === 0 ? <span className="text-[var(--ink-muted)]">{t('plugins.detail.none')}</span> : t('plugins.detail.componentCount', { count })}
+        {count === 0 ? <span className="text-[var(--muted)]">{t('plugins.detail.none')}</span> : t('plugins.detail.componentCount', { count })}
       </div>
       {count > 0 && (
-        <div className="mt-1 line-clamp-2 text-xs text-[var(--ink-muted)]">
+        <div className="mt-1 line-clamp-2 text-xs text-[var(--muted)]">
           {items.join(', ')}
         </div>
       )}
@@ -944,7 +944,7 @@ function InputView({
     <>
       <div className="border-b border-[var(--line)] px-5 py-4">
         <h2 className="text-lg font-semibold text-[var(--ink)]">{t('plugins.install.input.title')}</h2>
-        <p className="mt-1 text-xs text-[var(--ink-muted)]">
+        <p className="mt-1 text-xs text-[var(--muted)]">
           {t('plugins.install.input.supportsGithub')}
           <code className="text-xs">owner/repo</code>
           {t('plugins.install.input.githubSeparator')}
@@ -961,14 +961,14 @@ function InputView({
 
       <div className="space-y-3 px-5 py-4">
         <label className="block">
-          <span className="text-xs text-[var(--ink-muted)]">{t('plugins.install.input.sourceLabel')}</span>
+          <span className="text-xs text-[var(--muted)]">{t('plugins.install.input.sourceLabel')}</span>
           <input
             type="text"
             value={sourceUrl}
             onChange={(e) => setSourceUrl(e.target.value)}
             disabled={submitting}
             placeholder={t('plugins.install.input.sourcePlaceholder')}
-            className="mt-1 w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 disabled:opacity-60"
+            className="mt-1 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/40 disabled:opacity-60"
             autoFocus
             onKeyDown={(e) => {
               if (isImeComposingEvent(e)) return;
@@ -991,7 +991,7 @@ function InputView({
               {phase !== 'done' && phase !== 'failed' && <Loader2 className="h-3 w-3 animate-spin" />}
               <span className="font-medium text-[var(--ink)]">{t(phaseLabelKey(phase))}</span>
             </div>
-            {phaseMsg && <div className="mt-1 break-all text-[var(--ink-muted)]">{phaseMsg}</div>}
+            {phaseMsg && <div className="mt-1 break-all text-[var(--muted)]">{phaseMsg}</div>}
           </div>
         )}
       </div>
@@ -1001,7 +1001,7 @@ function InputView({
           type="button"
           onClick={onClose}
           disabled={submitting}
-          className="rounded-full bg-[var(--button-secondary-bg)] px-4 py-1.5 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)] disabled:opacity-50"
+          className="rounded-full bg-[var(--paper)] px-4 py-1.5 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)] disabled:opacity-50"
         >
           {t('plugins.install.input.cancel')}
         </button>
@@ -1009,7 +1009,7 @@ function InputView({
           type="button"
           onClick={onSubmit}
           disabled={submitting || !sourceUrl.trim()}
-          className="flex items-center gap-1.5 rounded-full bg-[var(--button-primary-bg)] px-4 py-1.5 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-full bg-[var(--primary)] px-4 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
         >
           {submitting && <Loader2 className="h-3 w-3 animate-spin" />}
           {t('plugins.install.input.start')}
@@ -1046,10 +1046,10 @@ function SelectingView({
     <>
       <div className="border-b border-[var(--line)] px-5 py-4">
         <h2 className="text-lg font-semibold text-[var(--ink)]">{t('plugins.install.select.title')}</h2>
-        <p className="mt-1 text-xs text-[var(--ink-muted)]">
+        <p className="mt-1 text-xs text-[var(--muted)]">
           {t('plugins.install.select.source')}: <span className="break-all">{sourceUrl}</span>
         </p>
-        <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+        <p className="mt-0.5 text-xs text-[var(--muted)]">
           {t('plugins.install.select.detectedPrefix')}{' '}
           <b className="text-[var(--ink)]">{candidates.length}</b>{' '}
           {t('plugins.install.select.detectedSuffix')}
@@ -1071,7 +1071,7 @@ function SelectingView({
                   isBad
                     ? 'border-amber-400/40 bg-amber-500/5'
                     : isSelected
-                      ? 'border-[var(--accent)]/60 bg-[var(--accent)]/5'
+                      ? 'border-[var(--primary)]/60 bg-[var(--primary)]/5'
                       : 'border-[var(--line)]'
                 }`}
               >
@@ -1089,13 +1089,13 @@ function SelectingView({
                         {name}
                       </span>
                       {cand.manifest?.version && (
-                        <span className="shrink-0 text-xs text-[var(--ink-muted)]">
+                        <span className="shrink-0 text-xs text-[var(--muted)]">
                           v{cand.manifest.version}
                         </span>
                       )}
                     </div>
                     {cand.manifest?.description && (
-                      <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                      <p className="mt-0.5 text-xs text-[var(--muted)]">
                         {cand.manifest.description}
                       </p>
                     )}
@@ -1105,7 +1105,7 @@ function SelectingView({
                       </p>
                     )}
                     {cand.rootPath && (
-                      <p className="mt-0.5 truncate font-mono text-xs text-[var(--ink-muted)]">
+                      <p className="mt-0.5 truncate font-mono text-xs text-[var(--muted)]">
                         {cand.rootPath}
                       </p>
                     )}
@@ -1123,14 +1123,14 @@ function SelectingView({
             type="button"
             onClick={onSelectAll}
             disabled={installable.length === 0}
-            className="rounded-full px-3 py-1 text-sm text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] disabled:opacity-40"
+            className="rounded-full px-3 py-1 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)] disabled:opacity-40"
           >
             {t('plugins.install.select.selectAll')}
           </button>
           <button
             type="button"
             onClick={onSelectNone}
-            className="rounded-full px-3 py-1 text-sm text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+            className="rounded-full px-3 py-1 text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
           >
             {t('plugins.install.select.selectNone')}
           </button>
@@ -1139,7 +1139,7 @@ function SelectingView({
           <button
             type="button"
             onClick={onBack}
-            className="rounded-full bg-[var(--button-secondary-bg)] px-4 py-1.5 text-sm font-semibold text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+            className="rounded-full bg-[var(--paper)] px-4 py-1.5 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
           >
             {t('plugins.install.select.back')}
           </button>
@@ -1147,7 +1147,7 @@ function SelectingView({
             type="button"
             onClick={onConfirm}
             disabled={selected.size === 0}
-            className="flex items-center gap-1.5 rounded-full bg-[var(--button-primary-bg)] px-4 py-1.5 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-full bg-[var(--primary)] px-4 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
           >
             {t('plugins.install.select.installSelected', { count: selected.size })}
           </button>
@@ -1185,7 +1185,7 @@ function InstallingView({
         <h2 className="text-lg font-semibold text-[var(--ink)]">
           {done ? t('plugins.install.progress.doneTitle') : t('plugins.install.progress.runningTitle')}
         </h2>
-        <p className="mt-1 text-xs text-[var(--ink-muted)]">
+        <p className="mt-1 text-xs text-[var(--muted)]">
           {done
             ? t('plugins.install.progress.summary', { total, ok: okCount, failed: failedCount })
             : t('plugins.install.progress.current', { current: Math.min(completed + 1, total), total, name: currentName })}
@@ -1196,7 +1196,7 @@ function InstallingView({
         {/* Progress bar — Tailwind-only, no third-party dep */}
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--line)]">
           <div
-            className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
+            className="h-full rounded-full bg-[var(--primary)] transition-all duration-300"
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -1207,20 +1207,20 @@ function InstallingView({
             const name = cand.manifest?.name ?? cand.rootPath;
             // States: pending (no result, not current) / in-flight (current) / ok / failed
             let icon: React.ReactNode;
-            let textColor = 'text-[var(--ink-muted)]';
+            let textColor = 'text-[var(--muted)]';
             if (result) {
               if (result.ok) {
                 icon = <span className="text-[var(--success,#16a34a)]">✓</span>;
                 textColor = 'text-[var(--ink)]';
               } else {
-                icon = <span className="text-[var(--error)]">✗</span>;
-                textColor = 'text-[var(--error)]';
+                icon = <span className="text-[var(--danger)]">✗</span>;
+                textColor = 'text-[var(--danger)]';
               }
             } else if (!done && i === cursor) {
-              icon = <Loader2 className="h-3 w-3 animate-spin text-[var(--accent)]" />;
+              icon = <Loader2 className="h-3 w-3 animate-spin text-[var(--primary)]" />;
               textColor = 'text-[var(--ink)]';
             } else {
-              icon = <span className="text-[var(--ink-muted)]">·</span>;
+              icon = <span className="text-[var(--muted)]">·</span>;
             }
             return (
               <li key={cand.rootPath} className={`flex items-start gap-2 ${textColor}`}>
@@ -1230,7 +1230,7 @@ function InstallingView({
                 <div className="min-w-0 flex-1">
                   <div className="truncate">{name}</div>
                   {result?.error && (
-                    <div className="truncate text-xs text-[var(--error)] opacity-80">
+                    <div className="truncate text-xs text-[var(--danger)] opacity-80">
                       {result.error}
                     </div>
                   )}
@@ -1246,7 +1246,7 @@ function InstallingView({
           type="button"
           onClick={onClose}
           disabled={!done}
-          className="flex items-center gap-1.5 rounded-full bg-[var(--button-primary-bg)] px-4 py-1.5 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-full bg-[var(--primary)] px-4 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
         >
           {!done && <Loader2 className="h-3 w-3 animate-spin" />}
           {done ? t('plugins.install.progress.close') : t('plugins.install.progress.installing')}

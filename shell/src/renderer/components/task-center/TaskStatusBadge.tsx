@@ -41,16 +41,16 @@ interface StatusStyle {
 }
 
 const STATUS_STYLE: Record<TaskStatus, StatusStyle> = {
-  todo: { bg: 'bg-[var(--line-strong)]', fg: 'text-[var(--ink-secondary)]' },
+  todo: { bg: 'bg-[var(--line-2)]', fg: 'text-[var(--ink-2)]' },
   running: {
     bg: 'bg-[var(--success-bg)]',
     fg: 'text-[var(--success)]',
     dot: 'bg-[var(--success)]',
   },
   verifying: {
-    bg: 'bg-[var(--accent-warm-subtle)]',
-    fg: 'text-[var(--accent-warm)]',
-    dot: 'bg-[var(--accent-warm)]',
+    bg: 'bg-[var(--primary-soft)]',
+    fg: 'text-[var(--primary)]',
+    dot: 'bg-[var(--primary)]',
   },
   done: {
     bg: 'bg-[var(--success-bg)]',
@@ -60,10 +60,10 @@ const STATUS_STYLE: Record<TaskStatus, StatusStyle> = {
     bg: 'bg-[var(--warning-bg)]',
     fg: 'text-[var(--warning)]',
   },
-  stopped: { bg: 'bg-[var(--line-strong)]', fg: 'text-[var(--ink-secondary)]' },
-  archived: { bg: 'bg-[var(--line-strong)]', fg: 'text-[var(--ink-muted)]' },
+  stopped: { bg: 'bg-[var(--line-2)]', fg: 'text-[var(--ink-2)]' },
+  archived: { bg: 'bg-[var(--line-2)]', fg: 'text-[var(--muted)]' },
   // Pseudo-state (soft-deleted) — only surfaces in audit views.
-  deleted: { bg: 'bg-[var(--error-bg)]', fg: 'text-[var(--error)]' },
+  deleted: { bg: 'bg-[var(--danger-bg)]', fg: 'text-[var(--danger)]' },
 };
 
 interface Props {
@@ -75,8 +75,8 @@ interface Props {
 const EXECUTION_STYLE: Record<TaskExecutionState, StatusStyle> = {
   checking: {
     bg: 'bg-[var(--accent-soft)]',
-    fg: 'text-[var(--accent)]',
-    dot: 'bg-[var(--accent)]',
+    fg: 'text-[var(--primary)]',
+    dot: 'bg-[var(--primary)]',
   },
   running: {
     bg: 'bg-[var(--success-bg)]',
@@ -89,8 +89,8 @@ const EXECUTION_STYLE: Record<TaskExecutionState, StatusStyle> = {
     dot: 'bg-[var(--warning)]',
   },
   stop_failed: {
-    bg: 'bg-[var(--error-bg)]',
-    fg: 'text-[var(--error)]',
+    bg: 'bg-[var(--danger-bg)]',
+    fg: 'text-[var(--danger)]',
   },
 };
 

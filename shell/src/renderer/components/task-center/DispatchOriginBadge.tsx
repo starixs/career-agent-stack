@@ -30,7 +30,7 @@ export function DispatchOriginBadge({ origin, compact }: Props) {
     // Plain meta text — no bg, no pill, no accent. Inherits color from
     // the surrounding meta row so it reads as one continuous line.
     return (
-      <span className="text-xs text-[var(--ink-muted)]" title={title}>
+      <span className="text-xs text-[var(--muted)]" title={title}>
         {label}
       </span>
     );
@@ -38,8 +38,8 @@ export function DispatchOriginBadge({ origin, compact }: Props) {
 
   const bgCls =
     origin === 'direct'
-      ? 'bg-[var(--paper-inset)] text-[var(--ink-muted)]'
-      : 'bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]';
+      ? 'bg-[var(--inset)] text-[var(--muted)]'
+      : 'bg-[var(--primary-soft)] text-[var(--primary)]';
   return (
     <span
       className={`inline-flex items-center rounded-[var(--radius-sm)] px-2 py-0.5 text-xs font-medium ${bgCls}`}

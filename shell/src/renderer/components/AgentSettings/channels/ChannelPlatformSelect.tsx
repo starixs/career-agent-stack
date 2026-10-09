@@ -134,8 +134,8 @@ export default function ChannelPlatformSelect({ onSelect }: ChannelPlatformSelec
       name: p.manifest?.name || p.pluginId,
       description: p.manifest?.description || t('agentSettings.channels.communityPluginDescription', { npmSpec: p.npmSpec }),
       iconElement: (
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-warm-subtle)]">
-          <Puzzle className="h-6 w-6 text-[var(--accent-warm)]" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--primary-soft)]">
+          <Puzzle className="h-6 w-6 text-[var(--primary)]" />
         </div>
       ),
       plugin: p,
@@ -148,7 +148,7 @@ export default function ChannelPlatformSelect({ onSelect }: ChannelPlatformSelec
       {/* Header */}
       <div>
         <h2 className="text-lg font-semibold text-[var(--ink)]">{t('agentSettings.channels.platformSelectTitle')}</h2>
-        <p className="mt-0.5 text-xs text-[var(--ink-muted)]">{t('agentSettings.channels.platformSelectDescription')}</p>
+        <p className="mt-0.5 text-xs text-[var(--muted)]">{t('agentSettings.channels.platformSelectDescription')}</p>
       </div>
 
       {/* Platform cards — 2-column grid matching original PlatformSelect */}
@@ -157,7 +157,7 @@ export default function ChannelPlatformSelect({ onSelect }: ChannelPlatformSelec
           <div key={p.id} className="group relative">
             <button
               onClick={() => onSelect(p.id)}
-              className="flex w-full flex-col items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-6 transition-all hover:border-[var(--line-strong)] hover:shadow-sm hover:translate-y-[-1px]"
+              className="flex w-full flex-col items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-6 transition-all hover:border-[var(--line-2)] hover:shadow-sm hover:translate-y-[-1px]"
             >
               {p.icon ? (
                 <img src={p.icon} alt={p.name} className="h-12 w-12 rounded-xl" />
@@ -166,14 +166,14 @@ export default function ChannelPlatformSelect({ onSelect }: ChannelPlatformSelec
               ) : null}
               <div className="text-center">
                 <p className="text-sm font-medium text-[var(--ink)]">{p.name}</p>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">{p.description}</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">{p.description}</p>
               </div>
             </button>
             {p.plugin && (
               <button
                 onClick={e => { e.stopPropagation(); setPendingUninstall(p.plugin!); }}
                 title={t('agentSettings.channels.uninstallPlugin')}
-                className="absolute right-2 top-2 rounded-md p-1.5 text-[var(--ink-muted)] opacity-0 transition-all hover:bg-[var(--error-bg)] hover:text-[var(--error)] group-hover:opacity-100"
+                className="absolute right-2 top-2 rounded-md p-1.5 text-[var(--muted)] opacity-0 transition-all hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] group-hover:opacity-100"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -189,17 +189,17 @@ export default function ChannelPlatformSelect({ onSelect }: ChannelPlatformSelec
               key={`promoted-${pp.pluginId}`}
               onClick={() => handlePromotedClick(pp)}
               disabled={isInstalling || loading}
-              className="flex w-full flex-col items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-6 transition-all hover:border-[var(--line-strong)] hover:shadow-sm hover:translate-y-[-1px] disabled:opacity-70"
+              className="flex w-full flex-col items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-6 transition-all hover:border-[var(--line-2)] hover:shadow-sm hover:translate-y-[-1px] disabled:opacity-70"
             >
               <div className="relative">
                 <img src={pp.icon} alt={pp.name} className={`h-12 w-12 rounded-xl${isInstalling ? ' opacity-40' : ''}`} />
                 {isInstalling && (
-                  <Loader2 className="absolute inset-0 m-auto h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+                  <Loader2 className="absolute inset-0 m-auto h-6 w-6 animate-spin text-[var(--muted)]" />
                 )}
               </div>
               <div className="text-center">
                 <p className="text-sm font-medium text-[var(--ink)]">{pp.name}</p>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">{pp.description}</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">{pp.description}</p>
               </div>
             </button>
           );
@@ -209,18 +209,18 @@ export default function ChannelPlatformSelect({ onSelect }: ChannelPlatformSelec
         <button
           onClick={() => setShowInstallInput(true)}
           disabled={loading}
-          className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--line-strong)] bg-transparent p-6 transition-all hover:border-[var(--accent-warm)] hover:bg-[var(--accent-warm-subtle)]"
+          className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--line-2)] bg-transparent p-6 transition-all hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
         >
           {loading ? (
-            <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+            <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
           ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-[var(--ink-subtle)]">
-              <Download className="h-6 w-6 text-[var(--ink-muted)]" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-[var(--subtle)]">
+              <Download className="h-6 w-6 text-[var(--muted)]" />
             </div>
           )}
           <div className="text-center">
-            <p className="text-sm font-medium text-[var(--ink-muted)]">{t('agentSettings.channels.installNewPlugin')}</p>
-            <p className="mt-1 text-xs text-[var(--ink-subtle)]">{t('agentSettings.channels.installFromNpm')}</p>
+            <p className="text-sm font-medium text-[var(--muted)]">{t('agentSettings.channels.installNewPlugin')}</p>
+            <p className="mt-1 text-xs text-[var(--subtle)]">{t('agentSettings.channels.installFromNpm')}</p>
           </div>
         </button>
       </div>
@@ -234,19 +234,19 @@ export default function ChannelPlatformSelect({ onSelect }: ChannelPlatformSelec
             onChange={e => setInstallNpmSpec(e.target.value)}
             onKeyDown={e => { if (isImeComposingEvent(e)) return; if (e.key === 'Enter') handleInstallPlugin(); }}
             placeholder={t('agentSettings.channels.installPlaceholder')}
-            className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none"
+            className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none"
             autoFocus
           />
           <button
             onClick={handleInstallPlugin}
             disabled={!installNpmSpec.trim() || installing}
-            className="rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+            className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
           >
             {installing ? <Loader2 className="h-4 w-4 animate-spin" /> : t('agentSettings.channels.install')}
           </button>
           <button
             onClick={() => { setShowInstallInput(false); setInstallNpmSpec(''); }}
-            className="rounded-lg border border-[var(--line)] px-3 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+            className="rounded-lg border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--inset)]"
           >
             {t('agentSettings.channels.cancel')}
           </button>

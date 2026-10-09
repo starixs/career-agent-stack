@@ -107,8 +107,8 @@ export default function AvatarPicker({
       onClose={disabled || pickingUpload ? undefined : onClose}
       className="z-[240] items-center justify-center px-4 py-8"
     >
-      <section className="w-full max-w-lg rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl">
-        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-[var(--line-subtle)] px-5">
+      <section className="w-full max-w-lg rounded-lg border border-[var(--line)] bg-[var(--paper)] shadow-xl">
+        <header className="flex min-h-14 items-center justify-between gap-3 border-b border-[var(--line)] px-5">
           <h2 className="text-lg font-semibold text-[var(--ink)]">
             {kind === "people"
               ? t("space.avatarPicker.peopleTitle")
@@ -118,7 +118,7 @@ export default function AvatarPicker({
             type="button"
             disabled={disabled || pickingUpload}
             onClick={onClose}
-            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
+            className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
             aria-label={t("space.detail.close")}
           >
             <X className="h-4 w-4" />
@@ -131,7 +131,7 @@ export default function AvatarPicker({
               type="button"
               disabled={disabled || pickingUpload}
               onClick={() => void pickUpload()}
-              className="grid aspect-square place-items-center rounded-lg border border-dashed border-[var(--line)] bg-[var(--paper)] text-[var(--ink-muted)] transition-colors hover:border-[var(--accent-warm)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] disabled:cursor-wait disabled:opacity-60"
+              className="grid aspect-square place-items-center rounded-lg border border-dashed border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--inset)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:cursor-wait disabled:opacity-60"
               aria-label={t("space.avatarPicker.upload")}
               title={t("space.avatarPicker.upload")}
             >
@@ -157,7 +157,7 @@ export default function AvatarPicker({
                       avatarUrl: preset.url,
                     })
                   }
-                  className="relative grid aspect-square place-items-center rounded-lg border border-[var(--line-subtle)] bg-[var(--paper)] transition-colors hover:border-[var(--accent-warm)] hover:bg-[var(--paper-inset)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] disabled:cursor-wait disabled:opacity-60"
+                  className="relative grid aspect-square place-items-center rounded-lg border border-[var(--line)] bg-[var(--bg)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--inset)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:cursor-wait disabled:opacity-60"
                   aria-label={t("space.avatarPicker.preset")}
                   title={preset.id}
                 >
@@ -166,7 +166,7 @@ export default function AvatarPicker({
                     size={44}
                   />
                   {selected && (
-                    <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-[var(--button-primary-bg)] text-[var(--button-primary-text)]">
+                    <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-[var(--primary)] text-[var(--on-primary)]">
                       <Check className="h-3 w-3" />
                     </span>
                   )}
@@ -175,12 +175,12 @@ export default function AvatarPicker({
             })}
           </div>
           {loading && (
-            <p className="text-sm text-[var(--ink-muted)]">
+            <p className="text-sm text-[var(--muted)]">
               {t("space.avatarPicker.loading")}
             </p>
           )}
           {(localError || error) && (
-            <p className="text-sm font-medium text-[var(--error)]">
+            <p className="text-sm font-medium text-[var(--danger)]">
               {localError || error}
             </p>
           )}

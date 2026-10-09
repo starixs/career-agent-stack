@@ -101,24 +101,24 @@ export default function UsageStatsPanel() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-lg font-semibold text-[var(--ink)]">{t('usageStats.title')}</h2>
-                    <p className="mt-1 text-sm text-[var(--ink-muted)]">{t('usageStats.description')}</p>
+                    <p className="mt-1 text-sm text-[var(--muted)]">{t('usageStats.description')}</p>
                 </div>
                 <div className="flex items-center gap-2">
                     {isLoading && stats && (
-                        <span className="flex items-center gap-1.5 text-xs text-[var(--ink-muted)]" role="status">
+                        <span className="flex items-center gap-1.5 text-xs text-[var(--muted)]" role="status">
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             {t('usageStats.loading')}
                         </span>
                     )}
-                    <div className="flex gap-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-1">
+                    <div className="flex gap-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-1">
                         {TIME_RANGES.map((r) => (
                             <button
                                 key={r}
                                 onClick={() => setRange(r)}
                                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                                     range === r
-                                        ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                                        : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                                        ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
                                 }`}
                             >
                                 {t(`usageStats.ranges.${r}`)}
@@ -129,12 +129,12 @@ export default function UsageStatsPanel() {
             </div>
 
             {isLoading && !stats ? (
-                <div className="flex h-48 items-center justify-center gap-2 text-[var(--ink-muted)]" role="status">
+                <div className="flex h-48 items-center justify-center gap-2 text-[var(--muted)]" role="status">
                     <Loader2 className="h-5 w-5 animate-spin" />
                     <span className="text-sm">{t('usageStats.loading')}</span>
                 </div>
             ) : errorMessage ? (
-                <div className="flex h-48 items-center justify-center text-[var(--error)]">
+                <div className="flex h-48 items-center justify-center text-[var(--danger)]">
                     {errorMessage}
                 </div>
             ) : stats ? (
@@ -200,9 +200,9 @@ function SummaryCards({ stats, totalTokens }: { stats: GlobalStats; totalTokens:
             {cards.map((card) => (
                 <div
                     key={card.label}
-                    className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-4"
+                    className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4"
                 >
-                    <div className="flex items-center gap-2 text-[var(--ink-muted)]">
+                    <div className="flex items-center gap-2 text-[var(--muted)]">
                         <card.icon className="h-4 w-4" />
                         <span className="text-xs">{card.label}</span>
                     </div>
@@ -262,7 +262,7 @@ function DailyTrendChart({ daily, totalTokens }: { daily: GlobalStats['daily']; 
                 <div className="mb-3 flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-[var(--ink)]">{t('usageStats.dailyTrend')}</h3>
                 </div>
-                <div className="flex h-48 items-center justify-center rounded-lg border border-[var(--line)] text-sm text-[var(--ink-muted)]">
+                <div className="flex h-48 items-center justify-center rounded-lg border border-[var(--line)] text-sm text-[var(--muted)]">
                     {t('usageStats.empty')}
                 </div>
             </div>
@@ -295,13 +295,13 @@ function DailyTrendChart({ daily, totalTokens }: { daily: GlobalStats['daily']; 
         <div>
             <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-[var(--ink)]">{t('usageStats.dailyTrend')}</h3>
-                <span className="text-xs text-[var(--ink-muted)]">
+                <span className="text-xs text-[var(--muted)]">
                     {t('usageStats.totalConsumption', { tokens: formatTokens(totalTokens) })}
                 </span>
             </div>
             <div
                 ref={containerRef}
-                className="relative rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-4"
+                className="relative rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4"
                 onMouseLeave={handleMouseLeave}
             >
                 <svg
@@ -340,7 +340,7 @@ function DailyTrendChart({ daily, totalTokens }: { daily: GlobalStats['daily']; 
                                     width={barWidth}
                                     height={inputH}
                                     rx={0}
-                                    fill={isHovered ? 'var(--accent)' : 'var(--accent-warm-muted)'}
+                                    fill={isHovered ? 'var(--primary)' : 'var(--primary-muted)'}
                                     pointerEvents="none"
                                     style={{ transition: 'fill 0.15s' }}
                                 />
@@ -351,7 +351,7 @@ function DailyTrendChart({ daily, totalTokens }: { daily: GlobalStats['daily']; 
                                     width={barWidth}
                                     height={outputH}
                                     rx={barWidth > 4 ? 3 : 1}
-                                    fill={isHovered ? 'var(--accent)' : 'var(--accent)'}
+                                    fill={isHovered ? 'var(--primary)' : 'var(--primary)'}
                                     opacity={isHovered ? 0.7 : 0.4}
                                     pointerEvents="none"
                                     style={{ transition: 'opacity 0.15s' }}
@@ -365,7 +365,7 @@ function DailyTrendChart({ daily, totalTokens }: { daily: GlobalStats['daily']; 
                                     y={chartHeight - 6}
                                     textAnchor={labelAngle === 0 ? 'middle' : 'end'}
                                     transform={labelAngle ? `rotate(${labelAngle} ${x + barWidth / 2} ${chartHeight - 6})` : undefined}
-                                    fill="var(--ink-muted)"
+                                    fill="var(--muted)"
                                     fontSize="9"
                                     fontFamily="inherit"
                                     pointerEvents="none"
@@ -380,14 +380,14 @@ function DailyTrendChart({ daily, totalTokens }: { daily: GlobalStats['daily']; 
                 {/* Tooltip */}
                 {tooltip && (
                     <div
-                        className="pointer-events-none absolute z-10 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 shadow-lg"
+                        className="pointer-events-none absolute z-10 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 shadow-lg"
                         style={{
                             left: Math.min(tooltip.x, (tooltip.containerWidth || 300) - 180),
                             top: Math.max(tooltip.y - 70, 4),
                         }}
                     >
                         <div className="text-xs font-medium text-[var(--ink)]">{tooltip.date}</div>
-                        <div className="mt-1 space-y-0.5 text-xs text-[var(--ink-muted)]">
+                        <div className="mt-1 space-y-0.5 text-xs text-[var(--muted)]">
                             <div>{t('usageStats.tooltip.input', { tokens: formatTokens(tooltip.inputTokens) })}</div>
                             <div>{t('usageStats.tooltip.output', { tokens: formatTokens(tooltip.outputTokens) })}</div>
                             <div>{t('usageStats.tooltip.turns', { count: tooltip.turnCount })}</div>
@@ -397,13 +397,13 @@ function DailyTrendChart({ daily, totalTokens }: { daily: GlobalStats['daily']; 
                 )}
 
                 {/* Legend */}
-                <div className="mt-2 flex items-center justify-center gap-4 text-xs text-[var(--ink-muted)]">
+                <div className="mt-2 flex items-center justify-center gap-4 text-xs text-[var(--muted)]">
                     <div className="flex items-center gap-1.5">
-                        <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: 'var(--accent-warm-muted)' }} />
+                        <div className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: 'var(--primary-muted)' }} />
                         <span>{t('usageStats.legend.input')}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                        <div className="h-2.5 w-2.5 rounded-sm opacity-40" style={{ backgroundColor: 'var(--accent)' }} />
+                        <div className="h-2.5 w-2.5 rounded-sm opacity-40" style={{ backgroundColor: 'var(--primary)' }} />
                         <span>{t('usageStats.legend.output')}</span>
                     </div>
                 </div>
@@ -471,15 +471,15 @@ function ModelTable({ byModel, totalTokens, providerInfoMap }: {
             <div className="mb-3 flex flex-wrap items-center gap-2">
                 <h3 className="mr-1 text-sm font-semibold text-[var(--ink)]">{t('usageStats.modelDistribution')}</h3>
                 {vendors.length > 2 && (
-                    <div className="flex gap-1 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-1">
+                    <div className="flex gap-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-1">
                         {vendors.map((v) => (
                             <button
                                 key={v}
                                 onClick={() => setSelectedVendor(v)}
                                 className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                                     selectedVendor === v
-                                        ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                                        : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                                        ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
                                 }`}
                             >
                                 {v === ALL_VENDOR ? t('usageStats.vendors.all') : v === OTHER_VENDOR ? t('usageStats.vendors.other') : v}
@@ -487,30 +487,30 @@ function ModelTable({ byModel, totalTokens, providerInfoMap }: {
                         ))}
                     </div>
                 )}
-                <span className="ml-auto text-xs text-[var(--ink-muted)]">
+                <span className="ml-auto text-xs text-[var(--muted)]">
                     {t('usageStats.totalConsumption', { tokens: formatTokens(selectedVendor === ALL_VENDOR ? totalTokens : filteredTotal) })}
                 </span>
             </div>
             <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
                 <table className="w-full text-sm">
-                    <thead className="bg-[var(--paper-elevated)]">
+                    <thead className="bg-[var(--paper)]">
                         <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-[var(--ink-muted)]">
+                            <th className="px-4 py-2 text-left text-xs font-medium text-[var(--muted)]">
                                 {t('usageStats.table.model')}
                             </th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                 {t('usageStats.table.totalTokens')}
                             </th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                 {t('usageStats.table.input')}
                             </th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                 {t('usageStats.table.output')}
                             </th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                 {t('usageStats.table.cacheInput')}
                             </th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                            <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                 {t('usageStats.table.count')}
                             </th>
                         </tr>
@@ -524,7 +524,7 @@ function ModelTable({ byModel, totalTokens, providerInfoMap }: {
                                 <td className="px-4 py-2 text-[var(--ink)]">
                                     <div>{data.model ?? key}</div>
                                     {providerLabel && (
-                                        <div className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                                        <div className="mt-0.5 text-xs text-[var(--muted)]">
                                             {providerLabel}
                                         </div>
                                     )}
@@ -532,16 +532,16 @@ function ModelTable({ byModel, totalTokens, providerInfoMap }: {
                                 <td className="px-4 py-2 text-right font-medium text-[var(--ink)]">
                                     {formatTokens(data.inputTokens + data.outputTokens)}
                                 </td>
-                                <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                <td className="px-4 py-2 text-right text-[var(--muted)]">
                                     {formatTokens(data.inputTokens)}
                                 </td>
-                                <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                <td className="px-4 py-2 text-right text-[var(--muted)]">
                                     {formatTokens(data.outputTokens)}
                                 </td>
-                                <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                <td className="px-4 py-2 text-right text-[var(--muted)]">
                                     {formatTokens(data.cacheReadTokens + data.cacheCreationTokens)}
                                 </td>
-                                <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                <td className="px-4 py-2 text-right text-[var(--muted)]">
                                     {data.count}
                                 </td>
                             </tr>

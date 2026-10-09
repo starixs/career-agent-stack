@@ -80,15 +80,15 @@ export default function GeminiImageTool({ tool }: GeminiImageToolProps) {
     <div className="flex items-center gap-1.5">
       <ToolHeader tool={tool} toolName={tool.name} label={toolLabel} />
       {isGenerating && (
-        <span className="text-xs text-[var(--ink-muted)] animate-pulse">{t('shell.toolChrome.geminiImage.generating')}</span>
+        <span className="text-xs text-[var(--muted)] animate-pulse">{t('shell.toolChrome.geminiImage.generating')}</span>
       )}
       {parsed.isEdit && parsed.editCount && (
-        <span className="rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs text-[var(--ink-muted)]">
+        <span className="rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs text-[var(--muted)]">
           #{parsed.editCount}
         </span>
       )}
       {parsed.description && (
-        <span className="truncate text-xs text-[var(--ink-muted)] max-w-[300px]">
+        <span className="truncate text-xs text-[var(--muted)] max-w-[300px]">
           {parsed.description}
         </span>
       )}
@@ -99,7 +99,7 @@ export default function GeminiImageTool({ tool }: GeminiImageToolProps) {
     <div className="space-y-2 mt-1">
       {/* Parameters */}
       {tool.inputJson && (
-        <div className="text-xs text-[var(--ink-muted)] font-mono">
+        <div className="text-xs text-[var(--muted)] font-mono">
           {(() => {
             try {
               const input = JSON.parse(tool.inputJson);
@@ -124,17 +124,17 @@ export default function GeminiImageTool({ tool }: GeminiImageToolProps) {
       {parsed.filePath && !parsed.error && !hasAttachments && (
         <div className="mt-2">
           <div
-            className="relative cursor-pointer group rounded-lg overflow-hidden inline-block border border-[var(--line-subtle)]"
+            className="relative cursor-pointer group rounded-lg overflow-hidden inline-block border border-[var(--line)]"
             onClick={handleImageClick}
           >
             {!imageLoaded && !imageError && (
-              <div className="w-[300px] h-[200px] bg-[var(--paper-inset)] animate-pulse rounded-lg flex items-center justify-center">
-                <span className="text-xs text-[var(--ink-muted)]">{t('shell.toolChrome.geminiImage.loading')}</span>
+              <div className="w-[300px] h-[200px] bg-[var(--inset)] animate-pulse rounded-lg flex items-center justify-center">
+                <span className="text-xs text-[var(--muted)]">{t('shell.toolChrome.geminiImage.loading')}</span>
               </div>
             )}
             {imageError && (
-              <div className="w-[300px] h-[200px] bg-[var(--paper-inset)] rounded-lg flex items-center justify-center">
-                <span className="text-xs text-[var(--error)]">{t('shell.toolChrome.geminiImage.loadFailed')}</span>
+              <div className="w-[300px] h-[200px] bg-[var(--inset)] rounded-lg flex items-center justify-center">
+                <span className="text-xs text-[var(--danger)]">{t('shell.toolChrome.geminiImage.loadFailed')}</span>
               </div>
             )}
             {imageUrl && (
@@ -159,7 +159,7 @@ export default function GeminiImageTool({ tool }: GeminiImageToolProps) {
 
       {/* Metadata */}
       {parsed.contextId && (
-        <div className="text-xs text-[var(--ink-muted)] space-y-0.5 mt-1">
+        <div className="text-xs text-[var(--muted)] space-y-0.5 mt-1">
           {parsed.resolution && <div>{t('shell.toolChrome.geminiImage.resolution')}: {parsed.resolution} {parsed.aspectRatio && `| ${t('shell.toolChrome.geminiImage.aspectRatio')}: ${parsed.aspectRatio}`}</div>}
           {parsed.model && <div>{t('shell.toolChrome.geminiImage.model')}: {parsed.model}</div>}
           {parsed.filePath && <div className="font-mono opacity-60 break-all">{t('shell.toolChrome.geminiImage.file')}: {parsed.filePath}</div>}
@@ -169,14 +169,14 @@ export default function GeminiImageTool({ tool }: GeminiImageToolProps) {
 
       {/* Error display */}
       {parsed.error && (
-        <pre className="overflow-x-auto rounded bg-[var(--error-bg)] px-2 py-1 font-mono text-xs break-words whitespace-pre-wrap text-[var(--error)]">
+        <pre className="overflow-x-auto rounded bg-[var(--danger-bg)] px-2 py-1 font-mono text-xs break-words whitespace-pre-wrap text-[var(--danger)]">
           {parsed.error}
         </pre>
       )}
 
       {/* Description from Gemini */}
       {parsed.description && !parsed.error && (
-        <div className="text-xs text-[var(--ink-secondary)] mt-1">
+        <div className="text-xs text-[var(--ink-2)] mt-1">
           {parsed.description}
         </div>
       )}

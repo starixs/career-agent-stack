@@ -148,7 +148,7 @@ function CollapsibleContent({ children, maxLines = DEFAULT_MAX_LINES }: { childr
         <button
           type="button"
           onClick={handleToggle}
-          className="mt-2 flex items-center gap-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
+          className="mt-2 flex items-center gap-1 text-xs text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
         >
           <ChevronDown className={`size-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
           <span>{isExpanded ? t('shell.toolChrome.task.collapse') : t('shell.toolChrome.task.expandMore')}</span>
@@ -202,13 +202,13 @@ function TaskRunningStats({
       disabled={!hasTrace}
       aria-expanded={hasTrace ? traceExpanded : undefined}
       aria-controls={hasTrace ? 'task-trace-content' : undefined}
-      className={`flex w-full items-center justify-between text-xs rounded-lg bg-[var(--accent)]/5 px-3 py-2 ${
-        hasTrace ? 'cursor-pointer hover:bg-[var(--accent)]/10' : 'cursor-default'
+      className={`flex w-full items-center justify-between text-xs rounded-lg bg-[var(--primary)]/5 px-3 py-2 ${
+        hasTrace ? 'cursor-pointer hover:bg-[var(--primary)]/10' : 'cursor-default'
       } transition-colors`}
     >
-      <div className="flex flex-wrap items-center gap-3 text-[var(--ink-muted)]">
+      <div className="flex flex-wrap items-center gap-3 text-[var(--muted)]">
         {/* 运行中状态 */}
-        <div className="flex items-center gap-1.5 text-[var(--accent)]">
+        <div className="flex items-center gap-1.5 text-[var(--primary)]">
           <Loader2 className="size-3.5 animate-spin" />
           <span className="font-medium">{t('shell.toolChrome.task.statusRunning')}</span>
         </div>
@@ -239,7 +239,7 @@ function TaskRunningStats({
       {/* 展开/收起箭头 */}
       {hasTrace && (
         <ChevronRight
-          className={`size-4 text-[var(--ink-muted)] transition-transform ${traceExpanded ? 'rotate-90' : ''}`}
+          className={`size-4 text-[var(--muted)] transition-transform ${traceExpanded ? 'rotate-90' : ''}`}
           aria-hidden="true"
         />
       )}
@@ -292,18 +292,18 @@ function TaskCompletedStats({
   const bgColor = isSuccess
     ? 'bg-[var(--success)]/10 hover:bg-[var(--success)]/15'
     : isError
-      ? 'bg-[var(--error)]/10 hover:bg-[var(--error)]/15'
+      ? 'bg-[var(--danger)]/10 hover:bg-[var(--danger)]/15'
       : isStopped
         ? 'bg-[var(--warning)]/10 hover:bg-[var(--warning)]/15'
-      : 'bg-[var(--accent)]/5 hover:bg-[var(--accent)]/10';
+      : 'bg-[var(--primary)]/5 hover:bg-[var(--primary)]/10';
 
   const textColor = isSuccess
     ? 'text-[var(--success)]'
     : isError
-      ? 'text-[var(--error)]'
+      ? 'text-[var(--danger)]'
       : isStopped
         ? 'text-[var(--warning)]'
-      : 'text-[var(--ink-muted)]';
+      : 'text-[var(--muted)]';
 
   return (
     <button
@@ -411,10 +411,10 @@ function TaskBackgroundStats({
   const models = resolveTaskModels(result);
 
   return (
-    <div className="flex w-full items-center justify-between text-xs rounded-lg bg-[var(--accent)]/5 px-3 py-2 cursor-default transition-colors">
-      <div className="flex flex-wrap items-center gap-3 text-[var(--ink-muted)]">
+    <div className="flex w-full items-center justify-between text-xs rounded-lg bg-[var(--primary)]/5 px-3 py-2 cursor-default transition-colors">
+      <div className="flex flex-wrap items-center gap-3 text-[var(--muted)]">
         {/* "后台" 标签 */}
-        <span className="rounded-full bg-[var(--ink-muted)]/10 px-1.5 py-0.5 text-xs font-medium">
+        <span className="rounded-full bg-[var(--muted)]/10 px-1.5 py-0.5 text-xs font-medium">
           {t('shell.toolChrome.common.background')}
         </span>
 
@@ -426,13 +426,13 @@ function TaskBackgroundStats({
               <span className="font-medium">{t('shell.toolChrome.task.backgroundCompleted')}</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 text-[var(--error)]">
+            <div className="flex items-center gap-1.5 text-[var(--danger)]">
               <XCircle className="size-3.5" />
               <span className="font-medium">{t('shell.toolChrome.task.backgroundFailed')}</span>
             </div>
           )
         ) : (
-          <div className="flex items-center gap-1.5 text-[var(--accent)]">
+          <div className="flex items-center gap-1.5 text-[var(--primary)]">
             <Loader2 className="size-3.5 animate-spin" />
             <span className="font-medium">{t('shell.toolChrome.task.backgroundRunning')}</span>
           </div>
@@ -487,23 +487,23 @@ const SubagentCallItem = memo(function SubagentCallItem({ call }: { call: Subage
   const isFilePatchCall = call.name === 'Edit' || call.name === 'Write';
 
   return (
-    <div className="group flex flex-col gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3">
+    <div className="group flex flex-col gap-2 rounded-lg border border-[var(--line)] bg-[var(--bg)] p-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="flex size-6 items-center justify-center rounded bg-[var(--accent-cool)]/10 text-[var(--accent-cool)]">
+          <div className="flex size-6 items-center justify-center rounded bg-[var(--info)]/10 text-[var(--info)]">
             <Terminal className="size-3.5" />
           </div>
           <span className="text-sm font-medium text-[var(--ink)]">{call.name}</span>
         </div>
         {isCallRunning && (
-          <div className="flex items-center gap-1.5 rounded-full bg-[var(--accent)]/10 px-2 py-0.5 text-xs font-medium text-[var(--accent)]">
+          <div className="flex items-center gap-1.5 rounded-full bg-[var(--primary)]/10 px-2 py-0.5 text-xs font-medium text-[var(--primary)]">
             <Loader2 className="size-3 animate-spin" />
             <span>{t('shell.toolChrome.common.executing')}</span>
           </div>
         )}
       </div>
 
-      {description && <div className="text-xs text-[var(--ink-muted)]">{description}</div>}
+      {description && <div className="text-xs text-[var(--muted)]">{description}</div>}
 
       {isFilePatchCall ? (
         <FilePatchTool
@@ -522,8 +522,8 @@ const SubagentCallItem = memo(function SubagentCallItem({ call }: { call: Subage
           }}
         />
       ) : inputText && (
-        <div className="relative overflow-hidden rounded-md bg-[var(--paper-inset)] border border-[var(--line-subtle)]">
-          <pre className="max-h-32 overflow-y-auto p-2 font-mono text-xs text-[var(--ink-secondary)] whitespace-pre-wrap break-words">
+        <div className="relative overflow-hidden rounded-md bg-[var(--inset)] border border-[var(--line)]">
+          <pre className="max-h-32 overflow-y-auto p-2 font-mono text-xs text-[var(--ink-2)] whitespace-pre-wrap break-words">
             {inputText}
           </pre>
         </div>
@@ -531,10 +531,10 @@ const SubagentCallItem = memo(function SubagentCallItem({ call }: { call: Subage
 
       {call.result && !isFilePatchCall && (
         <div className="mt-1">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">{t('shell.toolChrome.common.result')}</div>
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">{t('shell.toolChrome.common.result')}</div>
           <ExpandableResult
             content={call.result}
-            className="rounded-md bg-[var(--paper-inset)]/50 p-2 text-xs text-[var(--ink-secondary)]"
+            className="rounded-md bg-[var(--inset)]/50 p-2 text-xs text-[var(--ink-2)]"
           />
         </div>
       )}
@@ -563,7 +563,7 @@ const TaskTraceList = memo(function TaskTraceList({ calls }: { calls: SubagentTo
 
   return (
     <div id="task-trace-content" className="pl-2 border-l-2 border-[var(--line)]">
-      <div className="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
+      <div className="px-1 pb-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
         {t('shell.toolChrome.task.traceTitle', { count: calls.length })}
       </div>
       {calls.length < TRACE_VIRTUALIZE_THRESHOLD ? (
@@ -696,7 +696,7 @@ export default function TaskTool({ tool }: TaskToolProps) {
   }, [parsedResult]);
 
   if (!input) {
-    return <div className="text-sm text-[var(--ink-muted)]">{t('shell.toolChrome.task.initializing')}</div>;
+    return <div className="text-sm text-[var(--muted)]">{t('shell.toolChrome.task.initializing')}</div>;
   }
 
   const hasTrace = (tool.subagentCalls?.length ?? 0) > 0;
@@ -763,9 +763,9 @@ export default function TaskTool({ tool }: TaskToolProps) {
 
       {/* 2. 探索 Query / Prompt (第二块) */}
       {input.prompt && (
-        <div className="rounded-lg bg-[var(--accent-cool)]/10 p-3">
+        <div className="rounded-lg bg-[var(--info)]/10 p-3">
           <CollapsibleContent maxLines={DEFAULT_MAX_LINES}>
-            <div className="italic text-[var(--ink-secondary)] select-text">
+            <div className="italic text-[var(--ink-2)] select-text">
               &ldquo;{input.prompt}&rdquo;
             </div>
           </CollapsibleContent>
@@ -774,7 +774,7 @@ export default function TaskTool({ tool }: TaskToolProps) {
 
       {/* 3. 生成的结果 (第三块) */}
       {textContent && (
-        <div className="rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)]/50 p-3">
+        <div className="rounded-lg border border-[var(--line)] bg-[var(--inset)]/50 p-3">
           <CollapsibleContent maxLines={DEFAULT_MAX_LINES}>
             <div className="text-sm text-[var(--ink)] select-text">
               <Markdown>{textContent}</Markdown>
@@ -786,8 +786,8 @@ export default function TaskTool({ tool }: TaskToolProps) {
       {/* 非标准结果 (无法解析时显示原始内容) */}
       {tool.result && !parsedResult && (
         <div className="space-y-1.5">
-          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">{t('shell.toolChrome.task.output')}</div>
-          <div className="rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] p-3">
+          <div className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">{t('shell.toolChrome.task.output')}</div>
+          <div className="rounded-lg border border-[var(--line)] bg-[var(--inset)] p-3">
             <CollapsibleContent maxLines={DEFAULT_MAX_LINES}>
               <pre className="font-mono text-sm text-[var(--ink)] whitespace-pre-wrap">
                 {tool.result}

@@ -81,9 +81,9 @@ export default function AgentBasicsSection({ agent, onAgentChanged }: AgentBasic
 
       {/* Name */}
       <div className="flex items-center gap-3">
-        <label className="w-20 shrink-0 text-xs text-[var(--ink-muted)]">{t('agentSettings.basics.name')}</label>
+        <label className="w-20 shrink-0 text-xs text-[var(--muted)]">{t('agentSettings.basics.name')}</label>
         <input
-          className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none"
+          className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none"
           value={name}
           onChange={e => setName(e.target.value)}
           onBlur={handleNameBlur}
@@ -93,7 +93,7 @@ export default function AgentBasicsSection({ agent, onAgentChanged }: AgentBasic
 
       {/* Provider + Model (read-only summary) */}
       <div className="flex items-center gap-3">
-        <label className="w-20 shrink-0 text-xs text-[var(--ink-muted)]">{t('agentSettings.basics.model')}</label>
+        <label className="w-20 shrink-0 text-xs text-[var(--muted)]">{t('agentSettings.basics.model')}</label>
         <span className="flex items-center gap-2 text-sm text-[var(--ink)]">
           <span>{selectedProvider?.name ?? t('agentSettings.basics.defaultProvider')} / {modelDisplay}</span>
           {!isSelectedProviderAvailable && selectedProvider && (
@@ -109,7 +109,7 @@ export default function AgentBasicsSection({ agent, onAgentChanged }: AgentBasic
 
       {/* Permission Mode */}
       <div className="flex items-center gap-3">
-        <label className="w-20 shrink-0 text-xs text-[var(--ink-muted)]">{t('agentSettings.basics.permission')}</label>
+        <label className="w-20 shrink-0 text-xs text-[var(--muted)]">{t('agentSettings.basics.permission')}</label>
         <span className="text-sm text-[var(--ink)]">
           {permissionLabel(agent.permissionMode, t)}
         </span>
@@ -117,10 +117,10 @@ export default function AgentBasicsSection({ agent, onAgentChanged }: AgentBasic
 
       {/* Enable/Disable */}
       <div className="flex items-center gap-3">
-        <label className="w-20 shrink-0 text-xs text-[var(--ink-muted)]">{t('agentSettings.basics.status')}</label>
+        <label className="w-20 shrink-0 text-xs text-[var(--muted)]">{t('agentSettings.basics.status')}</label>
         <button
           className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-            agent.enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+            agent.enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
           }`}
           onClick={handleToggleEnabled}
           disabled={saving}
@@ -131,7 +131,7 @@ export default function AgentBasicsSection({ agent, onAgentChanged }: AgentBasic
             }`}
           />
         </button>
-        <span className="text-xs text-[var(--ink-muted)]">
+        <span className="text-xs text-[var(--muted)]">
           {agent.enabled ? t('agentSettings.basics.enabled') : t('agentSettings.basics.disabled')}
         </span>
       </div>

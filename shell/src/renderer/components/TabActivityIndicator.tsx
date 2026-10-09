@@ -38,7 +38,7 @@ export default function TabActivityIndicator({
         return (
             <>
                 <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent-warm)] ${className}`}
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--primary)] ${className}`}
                     data-tab-activity-indicator="unread"
                     aria-hidden="true"
                 />

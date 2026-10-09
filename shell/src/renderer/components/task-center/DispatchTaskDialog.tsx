@@ -447,13 +447,13 @@ export function DispatchTaskDialog({
         role="dialog"
         aria-modal="true"
         aria-label={t('dispatch.titleNew')}
-        className="flex max-h-[85vh] w-[min(780px,92vw)] flex-col rounded-[var(--radius-2xl)] bg-[var(--paper-elevated)] shadow-2xl"
+        className="flex max-h-[85vh] w-[min(780px,92vw)] flex-col rounded-[var(--radius-2xl)] bg-[var(--paper)] shadow-2xl"
       >
         <PanelHeader
           icon={Zap}
           title={t('dispatch.titleNew')}
           trailing={(
-            <div className="flex rounded-lg bg-[var(--paper-inset)] p-0.5" role="tablist" aria-label={t('dispatch.createMode')}>
+            <div className="flex rounded-lg bg-[var(--inset)] p-0.5" role="tablist" aria-label={t('dispatch.createMode')}>
               {CREATE_MODES.map((value) => (
                 <button
                   key={value}
@@ -467,8 +467,8 @@ export function DispatchTaskDialog({
                   onKeyDown={handleModeKeyDown}
                   className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                     mode === value
-                      ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm'
-                      : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                      ? 'bg-[var(--paper)] text-[var(--ink)] shadow-sm'
+                      : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
                   {t(`dispatch.mode.${value}`)}
@@ -490,7 +490,7 @@ export function DispatchTaskDialog({
           {mode === 'smart' ? (
             <div className="space-y-5">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-[var(--ink-secondary)]">
+                <label className="mb-1.5 block text-sm font-medium text-[var(--ink-2)]">
                   {t('dispatch.agentWorkspace')}
                 </label>
                 <CustomSelect
@@ -514,7 +514,7 @@ export function DispatchTaskDialog({
           <>
           <div className="space-y-5">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-[var(--ink-secondary)]">
+              <label className="mb-1.5 block text-sm font-medium text-[var(--ink-2)]">
                 {t('dispatch.name')}
               </label>
               <input
@@ -528,7 +528,7 @@ export function DispatchTaskDialog({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-[var(--ink-secondary)]">
+              <label className="mb-1.5 block text-sm font-medium text-[var(--ink-2)]">
                 {t('dispatch.taskMd')}
               </label>
               <textarea
@@ -541,7 +541,7 @@ export function DispatchTaskDialog({
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-[var(--ink-secondary)]">
+              <label className="mb-1.5 block text-sm font-medium text-[var(--ink-2)]">
                 {t('dispatch.workspace')}
               </label>
               <CustomSelect
@@ -551,7 +551,7 @@ export function DispatchTaskDialog({
                 placeholder={t('dispatch.workspacePlaceholder')}
                 size="md"
               />
-              <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+              <p className="mt-1.5 text-xs text-[var(--muted)]">
                 {t('dispatch.workspaceHint')}
               </p>
             </div>
@@ -602,7 +602,7 @@ export function DispatchTaskDialog({
             />
             {isRecurring && runMode === 'single-session' && !isLoop && (
               <div className="mt-5">
-                <label className="mb-2 block text-sm font-medium text-[var(--ink-secondary)]">
+                <label className="mb-2 block text-sm font-medium text-[var(--ink-2)]">
                   {t('trigger.targetSession')}
                 </label>
                 <CustomSelect
@@ -612,7 +612,7 @@ export function DispatchTaskDialog({
                   placeholder={t('trigger.targetSessionPlaceholder')}
                   size="md"
                 />
-                <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1.5 text-xs text-[var(--muted)]">
                   {t('trigger.targetSessionHint')}
                 </p>
               </div>

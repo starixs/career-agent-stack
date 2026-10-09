@@ -58,7 +58,7 @@ export function TurnFileEditSummary({ content }: { content: Message['content'] }
         <button
           ref={anchorRef}
           type="button"
-          className="flex h-7 max-w-full items-center gap-1.5 rounded-full px-2 text-sm text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+          className="flex h-7 max-w-full items-center gap-1.5 rounded-full px-2 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
           aria-expanded={open}
           aria-controls={popoverId}
           onClick={() => {
@@ -69,10 +69,10 @@ export function TurnFileEditSummary({ content }: { content: Message['content'] }
           <FilePenLine className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{capsuleLabel}</span>
           {showTotals && (
-            <span className="shrink-0 font-mono text-xs text-[var(--ink-muted)]/80">
+            <span className="shrink-0 font-mono text-xs text-[var(--muted)]/80">
               <span className="text-[var(--success)]">+{summary.totalAdded}</span>
               {' '}
-              <span className="text-[var(--error)]">−{summary.totalRemoved}</span>
+              <span className="text-[var(--danger)]">−{summary.totalRemoved}</span>
             </span>
           )}
         </button>
@@ -87,7 +87,7 @@ export function TurnFileEditSummary({ content }: { content: Message['content'] }
         className="w-[min(380px,calc(100vw-24px))]"
       >
         <div id={popoverId} role="dialog" aria-label={t('message.turnFileEdits.title')}>
-          <div className="border-b border-[var(--line-subtle)] px-3 py-2 text-sm font-medium text-[var(--ink)]">
+          <div className="border-b border-[var(--line)] px-3 py-2 text-sm font-medium text-[var(--ink)]">
             {t('message.turnFileEdits.title')}
           </div>
           <div className="max-h-80 overflow-y-auto overscroll-contain py-1">
@@ -152,7 +152,7 @@ function TurnFileEditRow({
 
   return (
     <div
-      className="flex min-h-9 w-full items-center px-1 hover:bg-[var(--hover-bg)] focus-within:bg-[var(--hover-bg)]"
+      className="flex min-h-9 w-full items-center px-1 hover:bg-[var(--hover)] focus-within:bg-[var(--hover)]"
       onContextMenu={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -172,7 +172,7 @@ function TurnFileEditRow({
           {showOriginalName && (
             <>
               <span className="truncate">{originalName}</span>
-              <span className="shrink-0 text-[var(--ink-muted)]">→</span>
+              <span className="shrink-0 text-[var(--muted)]">→</span>
             </>
           )}
           <span className="truncate">{basename}</span>
@@ -184,7 +184,7 @@ function TurnFileEditRow({
       <button
         type="button"
         disabled={!canOpenMenu}
-        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--ink-muted)] transition-[background-color,color,transform] duration-150 hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-border)]/30 disabled:cursor-default disabled:opacity-40"
+        className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] transition-[background-color,color,transform] duration-150 hover:bg-[var(--inset)] hover:text-[var(--ink)] active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30 disabled:cursor-default disabled:opacity-40"
         aria-label={moreActionsLabel}
         title={moreActionsLabel}
         aria-haspopup="menu"
@@ -212,7 +212,7 @@ function renderStats(
 ): React.ReactNode {
   if (!file.statsReliable || (file.added === 0 && file.removed === 0)) {
     return (
-      <span className="text-[var(--ink-muted)]">
+      <span className="text-[var(--muted)]">
         {file.status === 'deleted'
           ? t('message.turnFileEdits.deleted')
           : t('message.turnFileEdits.edited')}
@@ -226,7 +226,7 @@ function renderStats(
       )}
       {file.added > 0 && file.removed > 0 && ' '}
       {file.removed > 0 && (
-        <span className="text-[var(--error)]">−{file.removed}</span>
+        <span className="text-[var(--danger)]">−{file.removed}</span>
       )}
     </>
   );

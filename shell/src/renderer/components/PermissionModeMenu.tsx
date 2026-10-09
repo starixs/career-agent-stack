@@ -65,7 +65,7 @@ export function PermissionModeMenuContent({
   return (
     <>
       <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-2">
-        <span className="text-xs font-medium text-[var(--ink-muted)]">{header}</span>
+        <span className="text-xs font-medium text-[var(--muted)]">{header}</span>
         {headerAction && (
           <button
             type="button"
@@ -73,7 +73,7 @@ export function PermissionModeMenuContent({
               event.stopPropagation();
               headerAction.onClick();
             }}
-            className="text-xs font-medium text-[var(--accent)] transition-colors hover:text-[var(--accent-warm-hover)]"
+            className="text-xs font-medium text-[var(--primary)] transition-colors hover:text-[var(--primary-hover)]"
           >
             {headerAction.label}
           </button>
@@ -91,11 +91,11 @@ export function PermissionModeMenuContent({
               onSelect(item.value);
             }}
             className={`flex w-full flex-col items-start px-3 py-2 text-left transition-colors ${
-              selected ? 'bg-[var(--accent)]/10' : 'hover:bg-[var(--hover-bg)]'
+              selected ? 'bg-[var(--primary)]/10' : 'hover:bg-[var(--hover)]'
             }`}
           >
             <span className={`flex items-center gap-1.5 text-sm font-medium ${
-              selected ? 'text-[var(--accent)]' : 'text-[var(--ink)]'
+              selected ? 'text-[var(--primary)]' : 'text-[var(--ink)]'
             }`}>
               <PermissionModeIcon
                 value={item.value}
@@ -104,7 +104,7 @@ export function PermissionModeMenuContent({
               />
               {item.label}
             </span>
-            <span className="mt-0.5 text-xs text-[var(--ink-muted)]">{item.description}</span>
+            <span className="mt-0.5 text-xs text-[var(--muted)]">{item.description}</span>
           </button>
         );
       })}

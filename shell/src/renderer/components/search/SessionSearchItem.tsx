@@ -64,11 +64,11 @@ export default memo(function SessionSearchItem({
                 if (event.button === 2) event.preventDefault();
             }}
             onContextMenu={onContextMenu}
-            className="group relative flex w-full cursor-pointer select-none items-start gap-2.5 rounded-lg px-3 py-2 text-left transition-all hover:bg-[var(--hover-bg)]"
+            className="group relative flex w-full cursor-pointer select-none items-start gap-2.5 rounded-lg px-3 py-2 text-left transition-all hover:bg-[var(--hover)]"
             data-history-search-session-row
         >
             {/* Left column: Time — fixed width so content column is consistently left-aligned */}
-            <div className="mt-1 flex w-20 shrink-0 items-center gap-1 whitespace-nowrap text-xs text-[var(--ink-muted)]/50">
+            <div className="mt-1 flex w-20 shrink-0 items-center gap-1 whitespace-nowrap text-xs text-[var(--muted)]/50">
                 <Clock className="h-2.5 w-2.5" />
                 <Tip label={exactTime}><time dateTime={validDate ? date.toISOString() : undefined} aria-label={exactTime}>{displayTime}</time></Tip>
             </div>
@@ -76,14 +76,14 @@ export default memo(function SessionSearchItem({
             {/* Middle column: Title + Snippet */}
             <div className="flex-1 min-w-0">
                 {/* First row: Title */}
-                <div className="flex items-center text-sm text-[var(--ink-secondary)] transition-colors group-hover:text-[var(--ink)]">
+                <div className="flex items-center text-sm text-[var(--ink-2)] transition-colors group-hover:text-[var(--ink)]">
                     <SearchHighlight
                         text={displayTitle}
                         highlights={titleHighlights}
                         className="truncate flex-1 min-w-0"
                     />
                     {turnCountStr && (
-                        <span className="ml-1.5 shrink-0 text-xs text-[var(--ink-muted)]/40">
+                        <span className="ml-1.5 shrink-0 text-xs text-[var(--muted)]/40">
                             {turnCountStr}
                         </span>
                     )}
@@ -92,7 +92,7 @@ export default memo(function SessionSearchItem({
 
                 {/* Second row: Content Snippet (Only show if there's a snippet and it's a content match) */}
                 {hit.snippet && hit.matchType === 'content' && (
-                    <div className="mt-0.5 text-xs text-[var(--ink-muted)] leading-relaxed">
+                    <div className="mt-0.5 text-xs text-[var(--muted)] leading-relaxed">
                         <SearchHighlight
                             text={hit.snippet}
                             highlights={hit.snippetHighlights}
@@ -105,7 +105,7 @@ export default memo(function SessionSearchItem({
             {/* Right column: Workspace Icon + Hover Actions */}
             <div className="relative flex shrink-0 items-start justify-end w-[100px] h-full mt-0.5">
                 {/* Default state: Workspace Info */}
-                <div className="flex items-center gap-1.5 text-xs text-[var(--ink-muted)]/45 transition-opacity group-hover:opacity-0">
+                <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]/45 transition-opacity group-hover:opacity-0">
                     {project && <WorkspaceIcon icon={project.icon} size={14} />}
                     <span className="truncate max-w-[80px]">
                         {projectName}
@@ -114,19 +114,19 @@ export default memo(function SessionSearchItem({
 
                 {/* Hover state: Actions (Absolute positioned over the workspace info) */}
                 <div className="pointer-events-none absolute right-0 top-[-2px] flex items-center opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
-                    <div className="h-full w-10 bg-gradient-to-r from-[var(--paper-inset-a0)] to-[var(--paper-inset)]" />
-                    <div className="flex items-center gap-1 bg-[var(--paper-inset)] pl-1">
+                    <div className="h-full w-10 bg-gradient-to-r from-[var(--inset-a0)] to-[var(--inset)]" />
+                    <div className="flex items-center gap-1 bg-[var(--inset)] pl-1">
                         <button
                             onClick={onShowStats}
                             title={t('historyOverlay.viewStats')}
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--ink)]"
                         >
                             <BarChart2 className="h-3.5 w-3.5" />
                         </button>
                         <button
                             onClick={onDelete}
                             title={deleteProtected ? t('historyOverlay.deleteBlocked') : t('historyOverlay.delete')}
-                            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--error-bg)] hover:text-[var(--error)]"
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
                         >
                             <Trash2 className="h-3.5 w-3.5" />
                         </button>

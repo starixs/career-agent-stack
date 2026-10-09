@@ -93,9 +93,9 @@ export function StudioPreview({ data, preview, zoom, onPages }: {
 
   return (
     <div data-testid="studio-preview" className="relative flex flex-col items-center gap-4 py-6">
-      {busy && <div className="absolute right-3 top-2 rounded bg-[var(--paper-elevated)] px-2 py-0.5 text-xs text-[var(--ink-muted)] shadow-sm">更新预览…</div>}
-      {error && <div role="alert" className="mx-4 rounded-md border border-[var(--error)]/40 bg-[var(--paper-elevated)] px-3 py-2 text-xs text-[var(--error)]">预览生成失败：{error}</div>}
-      {!pages.length && !error && <div className="mt-24 text-sm text-[var(--ink-muted)]">正在排版…（首次加载中文字体需要几秒）</div>}
+      {busy && <div className="absolute right-3 top-2 rounded bg-[var(--paper)] px-2 py-0.5 text-xs text-[var(--muted)] shadow-sm">更新预览…</div>}
+      {error && <div role="alert" className="mx-4 rounded-md border border-[var(--danger)]/40 bg-[var(--paper)] px-3 py-2 text-xs text-[var(--danger)]">预览生成失败：{error}</div>}
+      {!pages.length && !error && <div className="mt-24 text-sm text-[var(--muted)]">正在排版…（首次加载中文字体需要几秒）</div>}
       {pages.map((p, i) => (
         <img
           key={p.url}

@@ -248,20 +248,20 @@ export function GoalsWorkspace({
   return (
     <>
       <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)]">
-        <section className="flex min-h-12 items-center gap-2.5 border-b border-[var(--line)] bg-[var(--paper-elevated)]/60 px-5 py-1.5 backdrop-blur-md">
+        <section className="flex min-h-12 items-center gap-2.5 border-b border-[var(--line)] bg-[var(--paper)]/60 px-5 py-1.5 backdrop-blur-md">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-xl border border-[var(--accent-warm-muted)] bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]">
+            <span className="grid h-8 w-8 place-items-center rounded-xl border border-[var(--primary-muted)] bg-[var(--primary-soft)] text-[var(--primary)]">
               <GitBranch className="h-4 w-4" />
             </span>
             <div className="min-w-0">
               <h2 className="truncate text-sm font-semibold text-[var(--ink)]">{t('space.goals.title')}</h2>
-              <p className="truncate text-xs text-[var(--ink-muted)]">{t('space.goals.subtitle')}</p>
+              <p className="truncate text-xs text-[var(--muted)]">{t('space.goals.subtitle')}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => void refresh()}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-transparent text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-transparent text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             aria-label={t('space.common.refresh')}
             title={t('space.common.refresh')}
           >
@@ -270,17 +270,17 @@ export function GoalsWorkspace({
         </section>
 
         <main className="grid min-h-0 grid-cols-[360px_minmax(0,1fr)] max-lg:grid-cols-1">
-          <section className="min-h-0 overflow-y-auto border-r border-[var(--line)] bg-[var(--paper)]/45 px-4 py-4 max-lg:border-b max-lg:border-r-0">
+          <section className="min-h-0 overflow-y-auto border-r border-[var(--line)] bg-[var(--bg)]/45 px-4 py-4 max-lg:border-b max-lg:border-r-0">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <span className="text-xs font-semibold uppercase text-[var(--ink-muted)]/60">
+              <span className="text-xs font-semibold uppercase text-[var(--muted)]/60">
                 {t('space.goals.tree')}
               </span>
-              <span className="rounded-md bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+              <span className="rounded-md bg-[var(--inset)] px-1.5 py-0.5 text-xs font-semibold text-[var(--muted)]">
                 {t('space.goals.goalCount', { count: goals.length })}
               </span>
             </div>
             {tree.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-[var(--line)] px-3 py-4 text-sm text-[var(--ink-muted)]">
+              <div className="rounded-lg border border-dashed border-[var(--line)] px-3 py-4 text-sm text-[var(--muted)]">
                 {t('space.goals.empty')}
               </div>
             ) : (
@@ -362,12 +362,12 @@ function GoalEmptyState({ title, hint }: { title: string; hint: string }) {
   return (
     <div className="grid min-h-[420px] place-items-center">
       <div className="grid max-w-sm justify-items-center gap-3 text-center">
-        <span className="grid h-14 w-14 place-items-center rounded-2xl border border-[var(--line)] bg-[var(--paper-elevated)]/70 text-[var(--ink-subtle)]">
+        <span className="grid h-14 w-14 place-items-center rounded-2xl border border-[var(--line)] bg-[var(--paper)]/70 text-[var(--subtle)]">
           <Target className="h-6 w-6" />
         </span>
         <div className="grid gap-1">
           <h3 className="text-lg font-semibold text-[var(--ink)]">{title}</h3>
-          <p className="text-sm leading-6 text-[var(--ink-muted)]">{hint}</p>
+          <p className="text-sm leading-6 text-[var(--muted)]">{hint}</p>
         </div>
       </div>
     </div>
@@ -398,13 +398,13 @@ function GoalView({
   const { t } = useTranslation('app');
   return (
     <article className="grid gap-7 pb-10">
-      <header className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-[var(--line-subtle)] pb-4">
+      <header className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] pb-4">
         <GoalBreadcrumb goals={goals} goal={goal} onSelectGoal={onSelectGoal} />
         <div className="flex shrink-0 items-center gap-1.5">
             <button
               type="button"
               onClick={() => onOpenIssuesForGoal(goal.id)}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)]/70 px-2.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--paper)]/70 px-2.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
               {t('space.goals.viewIssues')}
               <ChevronRight className="h-3.5 w-3.5" />
@@ -413,7 +413,7 @@ function GoalView({
               <button
                 type="button"
                 onClick={onEdit}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--button-secondary-bg)] px-2.5 text-sm font-medium text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[var(--paper)] px-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
               >
                 <Edit3 className="h-3.5 w-3.5" />
                 {t('space.goals.edit')}
@@ -424,11 +424,11 @@ function GoalView({
 
       <section className="grid gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold uppercase text-[var(--ink-muted)]/60">
+          <span className="text-xs font-semibold uppercase text-[var(--muted)]/60">
             {t('space.goals.goalLabel')}
           </span>
           {isRootGoal(goal, session) && (
-            <span className="rounded-md bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+            <span className="rounded-md bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">
               {t('space.goals.root')}
             </span>
           )}
@@ -437,34 +437,34 @@ function GoalView({
       </section>
 
       <section className={SPACE_NARRATIVE_INSET_CLASS}>
-        <p className="whitespace-pre-wrap text-base leading-7 text-[var(--ink-secondary)]">{goal.context}</p>
+        <p className="whitespace-pre-wrap text-base leading-7 text-[var(--ink-2)]">{goal.context}</p>
       </section>
 
-      <section className="grid gap-3 border-t border-[var(--line-subtle)] pt-5">
+      <section className="grid gap-3 border-t border-[var(--line)] pt-5">
         <div className="flex items-center justify-between gap-3">
           <h4 className="text-base font-semibold text-[var(--ink)]">{t('space.goals.children')}</h4>
-          <span className="rounded-md bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-semibold text-[var(--ink-muted)]">
+          <span className="rounded-md bg-[var(--inset)] px-1.5 py-0.5 text-xs font-semibold text-[var(--muted)]">
             {t('space.goals.childCount', { count: childGoals.length })}
           </span>
         </div>
 
-        <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/45">
+        <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)]/45">
           {childGoals.length === 0 ? (
-            <div className="px-4 py-5 text-sm text-[var(--ink-muted)]">{t('space.goals.noChildren')}</div>
+            <div className="px-4 py-5 text-sm text-[var(--muted)]">{t('space.goals.noChildren')}</div>
           ) : (
-            <div className="divide-y divide-[var(--line-subtle)]">
+            <div className="divide-y divide-[var(--line)]">
               {childGoals.map((child) => (
                 <button
                   key={child.id}
                   type="button"
                   onClick={() => onSelectGoal(child.id)}
-                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--hover-bg)]"
+                  className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--hover)]"
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-semibold text-[var(--ink)]">{child.title}</span>
-                    <span className="mt-1 block truncate text-xs text-[var(--ink-muted)]">{child.context}</span>
+                    <span className="mt-1 block truncate text-xs text-[var(--muted)]">{child.context}</span>
                   </span>
-                  <ChevronRight className="h-4 w-4 text-[var(--ink-subtle)]" />
+                  <ChevronRight className="h-4 w-4 text-[var(--subtle)]" />
                 </button>
               ))}
             </div>
@@ -473,7 +473,7 @@ function GoalView({
             <button
               type="button"
               onClick={() => onCreateChild(goal)}
-              className="flex min-h-11 w-full items-center justify-center gap-2 border-t border-[var(--line-subtle)] bg-[var(--paper-elevated)]/70 px-4 text-sm font-semibold text-[var(--accent-warm)] transition-colors hover:bg-[var(--accent-warm-subtle)]"
+              className="flex min-h-11 w-full items-center justify-center gap-2 border-t border-[var(--line)] bg-[var(--paper)]/70 px-4 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--primary-soft)]"
             >
               <Plus className="h-4 w-4" />
               {t('space.goals.newChild')}
@@ -524,16 +524,16 @@ function GoalEdit({
   const currentGoal = mode === 'edit' ? goal : parentGoal;
   return (
     <article className="grid gap-6 pb-10">
-      <header className="grid gap-3 border-b border-[var(--line-subtle)] pb-5">
+      <header className="grid gap-3 border-b border-[var(--line)] pb-5">
         {mode === 'edit' && goal && <GoalBreadcrumb goals={goals} goal={goal} onSelectGoal={onSelectGoal} />}
         {mode === 'create' && parentGoal && (
-          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--ink-muted)]">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[var(--muted)]">
             <span>{t('space.goals.parentGoal')}</span>
             <GoalBreadcrumb goals={goals} goal={parentGoal} onSelectGoal={onSelectGoal} currentClickable />
           </div>
         )}
         <div className="flex items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-xl border border-[var(--accent-warm-muted)] bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]">
+          <span className="grid h-8 w-8 place-items-center rounded-xl border border-[var(--primary-muted)] bg-[var(--primary-soft)] text-[var(--primary)]">
             {mode === 'create' ? <Plus className="h-4 w-4" /> : <Edit3 className="h-4 w-4" />}
           </span>
           <div className="min-w-0">
@@ -541,7 +541,7 @@ function GoalEdit({
               {mode === 'create' ? t('space.goals.createTitle') : t('space.goals.editTitle')}
             </h3>
             {currentGoal && isRootGoal(currentGoal, session) && mode === 'edit' && (
-              <p className="mt-0.5 text-xs text-[var(--ink-muted)]">{t('space.goals.rootEditHint')}</p>
+              <p className="mt-0.5 text-xs text-[var(--muted)]">{t('space.goals.rootEditHint')}</p>
             )}
           </div>
         </div>
@@ -549,39 +549,39 @@ function GoalEdit({
 
       <section className="grid gap-4">
         <div className="grid gap-1.5">
-          <label className="text-xs font-semibold uppercase text-[var(--ink-muted)]/60" htmlFor="space-goal-title">
+          <label className="text-xs font-semibold uppercase text-[var(--muted)]/60" htmlFor="space-goal-title">
             {t('space.goals.titleLabel')}
           </label>
           <input
             id="space-goal-title"
             value={draftTitle}
             onChange={(event) => onTitleChange(event.target.value)}
-            className="h-10 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/80 px-3 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-muted)] focus:border-[var(--accent-warm)]"
+            className="h-10 rounded-xl border border-[var(--line)] bg-[var(--paper)]/80 px-3 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
             placeholder={t('space.goals.titlePlaceholder')}
           />
         </div>
         <div className="grid gap-1.5">
-          <label className="text-xs font-semibold uppercase text-[var(--ink-muted)]/60" htmlFor="space-goal-context">
+          <label className="text-xs font-semibold uppercase text-[var(--muted)]/60" htmlFor="space-goal-context">
             {t('space.goals.contextLabel')}
           </label>
           <textarea
             id="space-goal-context"
             value={draftContext}
             onChange={(event) => onContextChange(event.target.value)}
-            className="min-h-52 resize-y rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/80 px-3 py-2 text-sm leading-6 text-[var(--ink-secondary)] outline-none transition-colors placeholder:text-[var(--ink-muted)] focus:border-[var(--accent-warm)]"
+            className="min-h-52 resize-y rounded-xl border border-[var(--line)] bg-[var(--paper)]/80 px-3 py-2 text-sm leading-6 text-[var(--ink-2)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--primary)]"
             placeholder={t('space.goals.contextPlaceholder')}
           />
         </div>
       </section>
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line-subtle)] pt-4">
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-4">
         <div>
           {canDelete && (
             <button
               type="button"
               disabled={busy !== null}
               onClick={onDelete}
-              className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--error)]/25 bg-[var(--error)]/10 px-3 text-sm font-semibold text-[var(--error)] transition-colors hover:bg-[var(--error)]/15 disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--danger)]/25 bg-[var(--danger)]/10 px-3 text-sm font-semibold text-[var(--danger)] transition-colors hover:bg-[var(--danger)]/15 disabled:cursor-wait disabled:opacity-60"
             >
               <Trash2 className="h-4 w-4" />
               {t('space.goals.delete')}
@@ -593,7 +593,7 @@ function GoalEdit({
             type="button"
             disabled={busy !== null}
             onClick={onCancel}
-            className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/70 px-3 text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper)]/70 px-3 text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
           >
             <X className="h-4 w-4" />
             {t('space.common.cancel')}
@@ -602,7 +602,7 @@ function GoalEdit({
             type="button"
             disabled={!canSave}
             onClick={onSave}
-            className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--button-primary-bg)] px-3 text-sm font-semibold text-[var(--button-primary-text)] shadow-sm transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--primary)] px-3 text-sm font-semibold text-[var(--on-primary)] shadow-sm transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {busy === 'save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {mode === 'create' ? t('space.goals.createChild') : t('space.common.save')}
@@ -626,21 +626,21 @@ function GoalBreadcrumb({
 }) {
   const path = compactPath(goalPath(goals, goal));
   return (
-    <nav className="flex min-w-0 flex-wrap items-center gap-1 text-xs font-semibold text-[var(--ink-muted)]">
-      {path.hidden && <span className="text-[var(--ink-subtle)]">..</span>}
-      {path.hidden && <span className="text-[var(--ink-subtle)]">/</span>}
+    <nav className="flex min-w-0 flex-wrap items-center gap-1 text-xs font-semibold text-[var(--muted)]">
+      {path.hidden && <span className="text-[var(--subtle)]">..</span>}
+      {path.hidden && <span className="text-[var(--subtle)]">/</span>}
       {path.goals.map((item, index) => {
         const isCurrent = item.id === goal.id;
         return (
           <span key={item.id} className="inline-flex min-w-0 items-center gap-1">
-            {index > 0 && <span className="text-[var(--ink-subtle)]">/</span>}
+            {index > 0 && <span className="text-[var(--subtle)]">/</span>}
             {isCurrent && !currentClickable ? (
               <span className="max-w-48 truncate text-[var(--ink)]">{item.title}</span>
             ) : (
               <button
                 type="button"
                 onClick={() => onSelectGoal(item.id)}
-                className="max-w-48 truncate rounded-md px-1 py-0.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                className="max-w-48 truncate rounded-md px-1 py-0.5 text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
               >
                 {item.title}
               </button>
@@ -669,8 +669,8 @@ function GoalTreeRow({
         onClick={() => onSelect(node.id)}
         className={`grid min-h-9 w-full grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-lg px-2 text-left text-sm transition-colors ${
           selected
-            ? 'bg-[var(--accent-warm-subtle)] font-semibold text-[var(--accent-warm)]'
-            : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+            ? 'bg-[var(--primary-soft)] font-semibold text-[var(--primary)]'
+            : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
         }`}
         style={{ paddingLeft: `${8 + Math.min(node.depth, 6) * 18}px` }}
       >

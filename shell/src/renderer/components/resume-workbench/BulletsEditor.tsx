@@ -49,7 +49,7 @@ function AutoTextarea({ value, onChange, onKeyDown, placeholder, ariaLabel, inpu
       placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
       onKeyDown={onKeyDown}
-      className="block w-full resize-none overflow-hidden rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm leading-relaxed text-[var(--ink)] placeholder:text-[var(--ink-subtle)] hover:border-[var(--line-subtle)] focus:border-[var(--focus-border)] focus:bg-[var(--paper)] focus:outline-none"
+      className="block w-full resize-none overflow-hidden rounded-md border border-transparent bg-transparent px-1.5 py-1 text-sm leading-relaxed text-[var(--ink)] placeholder:text-[var(--subtle)] hover:border-[var(--line)] focus:border-[var(--primary)] focus:bg-[var(--bg)] focus:outline-none"
     />
   );
 }
@@ -82,7 +82,7 @@ export function BulletsEditor({ value, onChange, label = '描述', allowParagrap
 
   return (
     <div className="space-y-1">
-      <div className="text-xs text-[var(--ink-muted)]">{label}</div>
+      <div className="text-xs text-[var(--muted)]">{label}</div>
       {allowParagraph && (
         <AutoTextarea
           ariaLabel={`${label}：说明`}
@@ -98,7 +98,7 @@ export function BulletsEditor({ value, onChange, label = '描述', allowParagrap
       <ul className="space-y-0.5">
         {bullets.map((b, i) => (
           <li key={i} className="group flex items-start gap-1">
-            <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-[var(--ink-muted)]" aria-hidden />
+            <span className="mt-2.5 size-1.5 shrink-0 rounded-full bg-[var(--muted)]" aria-hidden />
             <div className="min-w-0 flex-1">
               <AutoTextarea
                 ariaLabel={`${label}：第 ${i + 1} 条`}
@@ -114,9 +114,9 @@ export function BulletsEditor({ value, onChange, label = '描述', allowParagrap
               />
             </div>
             <div className="flex shrink-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
-              <button type="button" aria-label="上移" className="rounded p-1 text-[var(--ink-subtle)] hover:text-[var(--ink)]" onClick={() => move(i, -1)}><ArrowUp className="size-3.5" /></button>
-              <button type="button" aria-label="下移" className="rounded p-1 text-[var(--ink-subtle)] hover:text-[var(--ink)]" onClick={() => move(i, 1)}><ArrowDown className="size-3.5" /></button>
-              <button type="button" aria-label="删除这条" className="rounded p-1 text-[var(--ink-subtle)] hover:text-[var(--error)]" onClick={() => remove(i)}><X className="size-3.5" /></button>
+              <button type="button" aria-label="上移" className="rounded p-1 text-[var(--subtle)] hover:text-[var(--ink)]" onClick={() => move(i, -1)}><ArrowUp className="size-3.5" /></button>
+              <button type="button" aria-label="下移" className="rounded p-1 text-[var(--subtle)] hover:text-[var(--ink)]" onClick={() => move(i, 1)}><ArrowDown className="size-3.5" /></button>
+              <button type="button" aria-label="删除这条" className="rounded p-1 text-[var(--subtle)] hover:text-[var(--danger)]" onClick={() => remove(i)}><X className="size-3.5" /></button>
             </div>
           </li>
         ))}
@@ -124,7 +124,7 @@ export function BulletsEditor({ value, onChange, label = '描述', allowParagrap
       <button
         type="button"
         onClick={() => insertAfter(bullets.length - 1)}
-        className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+        className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
       >
         <Plus className="size-3.5" />添加要点
       </button>

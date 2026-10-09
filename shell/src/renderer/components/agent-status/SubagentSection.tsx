@@ -50,12 +50,12 @@ function SubagentRow({ subagent, onJumpToTool }: SubagentRowProps) {
       type="button"
       onClick={onClick}
       title={tooltip}
-      className="group flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-[var(--paper-inset)]/60"
+      className="group flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-[var(--inset)]/60"
     >
       {subagent.status === 'running' ? (
         <SubagentRunningIcon />
       ) : subagent.status === 'failed' ? (
-        <OctagonX aria-label={t('agentStatus.failed')} className="size-3.5 shrink-0 text-[var(--error)]" />
+        <OctagonX aria-label={t('agentStatus.failed')} className="size-3.5 shrink-0 text-[var(--danger)]" />
       ) : subagent.status === 'interrupted' ? (
         <StopCircle aria-label={t('agentStatus.interrupted')} className="size-3.5 shrink-0 text-[var(--warning)]" />
       ) : (
@@ -66,18 +66,18 @@ function SubagentRow({ subagent, onJumpToTool }: SubagentRowProps) {
           {subagent.agentType}
         </span>
         {subagent.mode === 'background' && (
-          <span className="shrink-0 rounded-full bg-[var(--accent)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--accent)]">
+          <span className="shrink-0 rounded-full bg-[var(--primary)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--primary)]">
             {t('agentStatus.background')}
           </span>
         )}
         {subagent.description && (
-          <span className="min-w-0 flex-1 truncate text-[var(--ink-muted)]">
+          <span className="min-w-0 flex-1 truncate text-[var(--muted)]">
             {subagent.description}
           </span>
         )}
       </div>
       {elapsed && (
-        <span className="shrink-0 tabular-nums text-xs text-[var(--ink-muted)]">
+        <span className="shrink-0 tabular-nums text-xs text-[var(--muted)]">
           {elapsed}
         </span>
       )}
@@ -96,15 +96,15 @@ const SubagentSection = memo(function SubagentSection({ subagents, containerRef:
   return (
     <div className="py-1.5">
       <div className="flex items-center justify-between px-3 pb-1 pt-0.5">
-        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
           SubAgents
         </span>
-        <span className="text-xs tabular-nums text-[var(--ink-muted)]">
+        <span className="text-xs tabular-nums text-[var(--muted)]">
           {subagents.length}
         </span>
       </div>
       {/* V6: 行间分隔线（subtle，不抢视觉） */}
-      <div className="max-h-[160px] divide-y divide-[var(--line-subtle)]/60 overflow-y-auto">
+      <div className="max-h-[160px] divide-y divide-[var(--line)]/60 overflow-y-auto">
         {subagents.map(s => (
           <MemoSubagentRow key={s.id} subagent={s} onJumpToTool={onJumpToTool} />
         ))}

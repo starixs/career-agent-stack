@@ -260,9 +260,9 @@ export function getCronStatusColor(status: CronTaskStatus): string {
     case 'running':
       return 'text-[var(--success)]';
     case 'stopped':
-      return 'text-[var(--ink-muted)]';
+      return 'text-[var(--muted)]';
     default:
-      return 'text-[var(--ink-muted)]';
+      return 'text-[var(--muted)]';
   }
 }
 

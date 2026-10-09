@@ -9,8 +9,8 @@ describe('ChatBootOverlay', () => {
 
     const overlay = screen.getByText('AI 启动中').closest('div')?.parentElement;
 
-    expect(overlay).toHaveClass('bg-[var(--paper-elevated)]/80');
-    expect(overlay).not.toHaveClass('bg-[var(--paper)]/80');
+    expect(overlay).toHaveClass('bg-[var(--paper)]/80');
+    expect(overlay).not.toHaveClass('bg-[var(--bg)]/80');
   });
 
   it('stays mounted and can show immediately again after being dismissed', () => {

@@ -177,20 +177,20 @@ export default function MermaidDiagram({ children }: MermaidDiagramProps) {
 
     // Header bar with toggle and copy button (shared across all states)
     const headerBar = (
-        <div className="flex items-center justify-between border-b border-[var(--line)] bg-[var(--code-bg)] px-4 py-2 text-xs">
-            <span className="font-mono uppercase tracking-wide text-[var(--code-line-number)]">
+        <div className="flex items-center justify-between border-b border-[var(--line)] bg-[var(--inset)] px-4 py-2 text-xs">
+            <span className="font-mono uppercase tracking-wide text-[var(--subtle)]">
                 mermaid
             </span>
             <div className="flex items-center gap-2">
                 {/* Preview / Code toggle */}
-                <div className="flex items-center rounded-md bg-[var(--code-bg)] p-0.5">
+                <div className="flex items-center rounded-md bg-[var(--inset)] p-0.5">
                     <button
                         type="button"
                         onClick={() => setViewMode('preview')}
                         className={`flex items-center gap-1 rounded px-2 py-0.5 transition-colors ${
                             viewMode === 'preview'
-                                ? 'bg-[var(--code-header-bg)] text-[var(--code-text)]'
-                                : 'text-[var(--code-line-number)] hover:text-[var(--code-text)]'
+                                ? 'bg-[var(--selected)] text-[var(--ink-2)]'
+                                : 'text-[var(--subtle)] hover:text-[var(--ink-2)]'
                         }`}
                     >
                         <Eye className="size-3" />
@@ -201,8 +201,8 @@ export default function MermaidDiagram({ children }: MermaidDiagramProps) {
                         onClick={() => setViewMode('code')}
                         className={`flex items-center gap-1 rounded px-2 py-0.5 transition-colors ${
                             viewMode === 'code'
-                                ? 'bg-[var(--code-header-bg)] text-[var(--code-text)]'
-                                : 'text-[var(--code-line-number)] hover:text-[var(--code-text)]'
+                                ? 'bg-[var(--selected)] text-[var(--ink-2)]'
+                                : 'text-[var(--subtle)] hover:text-[var(--ink-2)]'
                         }`}
                     >
                         <Code className="size-3" />
@@ -213,7 +213,7 @@ export default function MermaidDiagram({ children }: MermaidDiagramProps) {
                 <button
                     type="button"
                     onClick={handleCopy}
-                    className="flex items-center gap-1.5 rounded px-2 py-1 text-[var(--code-line-number)] transition-colors hover:bg-[var(--line-subtle)] hover:text-[var(--code-text)]"
+                    className="flex items-center gap-1.5 rounded px-2 py-1 text-[var(--subtle)] transition-colors hover:bg-[var(--line)] hover:text-[var(--ink-2)]"
                     title={copied ? t('markdown.copied') : t('markdown.copyCode')}
                 >
                     {copied ? (
@@ -243,7 +243,7 @@ export default function MermaidDiagram({ children }: MermaidDiagramProps) {
             lineNumberStyle={{
                 minWidth: '2.5em',
                 paddingRight: '1em',
-                color: 'var(--code-line-number)',
+                color: 'var(--subtle)',
                 userSelect: 'none',
             }}
             wrapLongLines={false}
@@ -259,7 +259,7 @@ export default function MermaidDiagram({ children }: MermaidDiagramProps) {
             return (
                 <>
                     {isRendering && (
-                        <div className="flex items-center gap-1.5 border-b border-[var(--line)] px-3 py-1.5 text-xs text-[var(--code-line-number)]">
+                        <div className="flex items-center gap-1.5 border-b border-[var(--line)] px-3 py-1.5 text-xs text-[var(--subtle)]">
                             <RefreshCw className="size-3 animate-spin" />
                             <span>{t('markdown.updating')}</span>
                         </div>
@@ -270,7 +270,7 @@ export default function MermaidDiagram({ children }: MermaidDiagramProps) {
                      * 2. User input is parsed as Mermaid DSL, not directly injected as HTML
                      */}
                     <div
-                        className="flex justify-center bg-[var(--paper-elevated)] p-4 [&>svg]:max-w-full"
+                        className="flex justify-center bg-[var(--paper)] p-4 [&>svg]:max-w-full"
                         dangerouslySetInnerHTML={{ __html: lastValidSvg }}
                     />
                 </>
@@ -302,8 +302,8 @@ export default function MermaidDiagram({ children }: MermaidDiagramProps) {
 
         // Initial loading state
         return (
-            <div className="flex h-20 items-center justify-center bg-[var(--paper-inset)]/50">
-                <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
+            <div className="flex h-20 items-center justify-center bg-[var(--inset)]/50">
+                <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
                     <RefreshCw className="size-4 animate-spin" />
                     <span>{t('markdown.renderDiagram')}</span>
                 </div>
@@ -312,7 +312,7 @@ export default function MermaidDiagram({ children }: MermaidDiagramProps) {
     })();
 
     return (
-        <div className="markdown-code-block w-full overflow-hidden rounded-md border border-[var(--line)] bg-[var(--paper-inset)]/30">
+        <div className="markdown-code-block w-full overflow-hidden rounded-md border border-[var(--line)] bg-[var(--inset)]/30">
             {headerBar}
             {viewMode === 'code' ? codeView : previewContent}
         </div>

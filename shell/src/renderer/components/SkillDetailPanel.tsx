@@ -381,7 +381,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
         if (loading) {
             return (
                 <div className="flex h-full items-center justify-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-[var(--ink-muted)]" />
+                    <Loader2 className="h-8 w-8 animate-spin text-[var(--muted)]" />
                 </div>
             );
         }
@@ -389,7 +389,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
         if (!skill) {
             return (
                 <div className="flex h-full items-center justify-center">
-                    <p className="text-sm text-[var(--ink-muted)]">{t('resourceDetail.skill.notFound')}</p>
+                    <p className="text-sm text-[var(--muted)]">{t('resourceDetail.skill.notFound')}</p>
                 </div>
             );
         }
@@ -405,31 +405,31 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
         return (
             <div className="flex h-full flex-col">
                 {/* Header */}
-                <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--line)] bg-[var(--paper-inset)]/50 px-6 py-2">
+                <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--line)] bg-[var(--inset)]/50 px-6 py-2">
                     <div className="min-w-0 flex-1">
                         <div className="flex min-w-0 items-center gap-2">
                             <h3 className="truncate text-lg font-semibold text-[var(--ink)]">{skillName || name}</h3>
                             {scope === 'user' && (
-                                <span className="shrink-0 rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+                                <span className="shrink-0 rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs font-medium text-[var(--muted)]">
                                     {t('agentSettings.capabilities.scopeUser')}
                                 </span>
                             )}
                         </div>
                         <div className="mt-0.5 flex items-center gap-2">
                             <span
-                                className={`max-w-[300px] truncate font-mono text-xs ${pathChanged ? 'text-[var(--accent)]' : 'text-[var(--ink-muted)]'}`}
+                                className={`max-w-[300px] truncate font-mono text-xs ${pathChanged ? 'text-[var(--primary)]' : 'text-[var(--muted)]'}`}
                                 title={previewPath}
                             >
                                 {shortenPathForDisplay(previewPath)}
                             </span>
                             {pathChanged && (
-                                <span className="text-xs text-[var(--accent)]">{t('resourceDetail.common.willRename')}</span>
+                                <span className="text-xs text-[var(--primary)]">{t('resourceDetail.common.willRename')}</span>
                             )}
                             <button
                                 type="button"
                                 onClick={handleOpenInFinder}
                                 disabled={pathChanged}
-                                className="flex-shrink-0 rounded p-0.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex-shrink-0 rounded p-0.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-50 disabled:cursor-not-allowed"
                                 title={pathChanged ? t('resourceDetail.common.openAfterSave') : t('resourceDetail.common.openLocation')}
                             >
                                 <FolderOpen className="h-3.5 w-3.5" />
@@ -442,7 +442,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                 <button
                                     type="button"
                                     onClick={() => setShowDeleteConfirm(true)}
-                                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--error)] hover:bg-[var(--error-bg)]"
+                                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-bg)]"
                                 >
                                     <Trash2 className="h-4 w-4" />
                                     {t('resourceDetail.common.delete')}
@@ -450,7 +450,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                 <button
                                     type="button"
                                     onClick={handleCancel}
-                                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-[var(--muted)] hover:bg-[var(--inset)]"
                                 >
                                     <X className="h-4 w-4" />
                                     {t('resourceDetail.common.cancel')}
@@ -459,7 +459,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                     type="button"
                                     onClick={handleSave}
                                     disabled={saving}
-                                    className="flex items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-4 py-1.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                                    className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-4 py-1.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                                 >
                                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                                     {t('resourceDetail.common.save')}
@@ -470,7 +470,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                 key="view"
                                 type="button"
                                 onClick={() => handleEdit('name')}
-                                className="flex items-center gap-1.5 rounded-lg bg-[var(--button-dark-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-dark-text)] transition-colors hover:bg-[var(--button-dark-bg-hover)]"
+                                className="flex items-center gap-1.5 rounded-lg bg-[var(--ink)] px-3 py-1.5 text-sm font-medium text-[var(--bg)] transition-colors hover:bg-[var(--ink-2)]"
                             >
                                 <Edit2 className="h-4 w-4" />
                                 {t('resourceDetail.common.edit')}
@@ -487,8 +487,8 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                             <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">{t('resourceDetail.common.name')}</label>
                             <div className={`w-full rounded-lg border px-4 py-2.5 ${
                                 isEditing
-                                    ? 'border-[var(--line)] bg-[var(--paper)] focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20'
-                                    : 'border-[var(--line)] bg-[var(--paper-elevated)]'
+                                    ? 'border-[var(--line)] bg-[var(--bg)] focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20'
+                                    : 'border-[var(--line)] bg-[var(--paper)]'
                             }`}>
                                 {isEditing ? (
                                     <input
@@ -497,10 +497,10 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                         value={skillName}
                                         onChange={(e) => setSkillName(e.target.value)}
                                         placeholder={t('resourceDetail.skill.namePlaceholder')}
-                                        className="w-full border-none bg-transparent p-0 text-sm leading-relaxed text-[var(--ink)] placeholder-[var(--ink-muted)] outline-none"
+                                        className="w-full border-none bg-transparent p-0 text-sm leading-relaxed text-[var(--ink)] placeholder-[var(--muted)] outline-none"
                                     />
                                 ) : (
-                                    <span className={`block select-text text-sm leading-relaxed ${skillName ? 'text-[var(--ink)]' : 'text-[var(--ink-muted)]/60'}`}>
+                                    <span className={`block select-text text-sm leading-relaxed ${skillName ? 'text-[var(--ink)]' : 'text-[var(--muted)]/60'}`}>
                                         {skillName || t('resourceDetail.common.notSet')}
                                     </span>
                                 )}
@@ -513,8 +513,8 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                             <div
                                 className={`w-full rounded-lg border px-4 py-2.5 ${
                                     isEditing
-                                        ? 'border-[var(--line)] bg-[var(--paper)] focus-within:border-[var(--accent)] focus-within:ring-2 focus-within:ring-[var(--accent)]/20'
-                                        : 'border-[var(--line)] bg-[var(--paper-elevated)]'
+                                        ? 'border-[var(--line)] bg-[var(--bg)] focus-within:border-[var(--primary)] focus-within:ring-2 focus-within:ring-[var(--primary)]/20'
+                                        : 'border-[var(--line)] bg-[var(--paper)]'
                                 }`}
                             >
                                 {/* Fixed height container: min 1 line, max 4 lines (22px line-height * 4 = 88px) */}
@@ -532,7 +532,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                             value={description}
                                             onChange={(e) => setDescription(e.target.value)}
                                             placeholder={t('resourceDetail.skill.descriptionPlaceholder')}
-                                            className="block min-h-[22px] w-full resize-none border-none bg-transparent p-0 text-sm leading-[22px] text-[var(--ink)] placeholder-[var(--ink-muted)] outline-none"
+                                            className="block min-h-[22px] w-full resize-none border-none bg-transparent p-0 text-sm leading-[22px] text-[var(--ink)] placeholder-[var(--muted)] outline-none"
                                             style={{ height: 'auto' }}
                                             onInput={(e) => {
                                                 const target = e.target as HTMLTextAreaElement;
@@ -542,7 +542,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                         />
                                     ) : (
                                         <div className="select-text whitespace-pre-wrap text-sm leading-[22px]">
-                                            <span className={description ? 'text-[var(--ink)]' : 'text-[var(--ink-muted)]/60'}>
+                                            <span className={description ? 'text-[var(--ink)]' : 'text-[var(--muted)]/60'}>
                                                 {description || t('resourceDetail.common.notSet')}
                                             </span>
                                         </div>
@@ -557,8 +557,8 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                             <div
                                 className={`overflow-hidden rounded-lg border ${
                                     isEditing
-                                        ? 'border-[var(--line)] bg-[var(--paper)]'
-                                        : 'border-[var(--line)] bg-[var(--paper-elevated)]'
+                                        ? 'border-[var(--line)] bg-[var(--bg)]'
+                                        : 'border-[var(--line)] bg-[var(--paper)]'
                                 }`}
                                 style={{ height: 'max(300px, calc(100vh - 420px))' }}
                             >
@@ -576,7 +576,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                                 <Markdown raw>{body}</Markdown>
                                             </div>
                                         ) : (
-                                            <span className="text-sm text-[var(--ink-muted)]/60">{t('resourceDetail.skill.emptyContent')}</span>
+                                            <span className="text-sm text-[var(--muted)]/60">{t('resourceDetail.skill.emptyContent')}</span>
                                         )}
                                     </div>
                                 )}
@@ -587,7 +587,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                         <button
                             type="button"
                             onClick={() => setShowAdvanced(!showAdvanced)}
-                            className="flex items-center gap-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+                            className="flex items-center gap-2 text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
                         >
                             {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                             {t('resourceDetail.skill.advancedSettings')}
@@ -595,7 +595,7 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
 
                         {/* Advanced Settings */}
                         {showAdvanced && (
-                            <div className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--paper-inset)]/30 p-4">
+                            <div className="space-y-4 rounded-xl border border-[var(--line)] bg-[var(--inset)]/30 p-4">
                                 {/* Invocation Mode - 调用模式单选 */}
                                 <div>
                                     <label className="mb-2 block text-sm font-medium text-[var(--ink)]">{t('resourceDetail.skill.invocationMode')}</label>
@@ -611,22 +611,22 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                                 onClick={() => { if (isEditing) setInvocationMode(option.value as 'both' | 'userOnly' | 'modelOnly'); else handleEdit(); }}
                                                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
                                                     invocationMode === option.value
-                                                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                                                        : 'border-[var(--line)] bg-[var(--paper)] text-[var(--ink-muted)] hover:border-[var(--ink-muted)]/50'
+                                                        ? 'border-[var(--primary)] bg-[var(--primary)]/10 text-[var(--primary)]'
+                                                        : 'border-[var(--line)] bg-[var(--bg)] text-[var(--muted)] hover:border-[var(--muted)]/50'
                                                 } ${!isEditing ? 'opacity-70' : ''}`}
                                             >
                                                 <span className={`flex h-4 w-4 items-center justify-center rounded-full border ${
                                                     invocationMode === option.value
-                                                        ? 'border-[var(--accent)] bg-[var(--accent)]'
-                                                        : 'border-[var(--ink-muted)]/50'
+                                                        ? 'border-[var(--primary)] bg-[var(--primary)]'
+                                                        : 'border-[var(--muted)]/50'
                                                 }`}>
-                                                    {invocationMode === option.value && <Check className="h-2.5 w-2.5 text-[var(--on-accent)]" />}
+                                                    {invocationMode === option.value && <Check className="h-2.5 w-2.5 text-[var(--on-primary)]" />}
                                                 </span>
                                                 <span>{option.label}</span>
                                             </button>
                                         ))}
                                     </div>
-                                    <p className="mt-1.5 text-xs text-[var(--ink-muted)]">
+                                    <p className="mt-1.5 text-xs text-[var(--muted)]">
                                         {invocationMode === 'both' && t('resourceDetail.skill.invocationBothHelp')}
                                         {invocationMode === 'userOnly' && t('resourceDetail.skill.invocationUserOnlyHelp')}
                                         {invocationMode === 'modelOnly' && t('resourceDetail.skill.invocationModelOnlyHelp')}
@@ -636,18 +636,18 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                 {/* Allowed Tools - 白名单 */}
                                 <div>
                                     <label className="mb-1.5 block text-sm font-medium text-[var(--ink)]">{t('resourceDetail.skill.allowedTools')}</label>
-                                    <p className="mb-2 text-xs text-[var(--ink-muted)]">{t('resourceDetail.skill.allowedToolsHelp')}</p>
+                                    <p className="mb-2 text-xs text-[var(--muted)]">{t('resourceDetail.skill.allowedToolsHelp')}</p>
                                     {isEditing ? (
                                         <input
                                             type="text"
                                             value={allowedTools}
                                             onChange={(e) => setAllowedTools(e.target.value)}
                                             placeholder={t('resourceDetail.skill.allowedToolsPlaceholder')}
-                                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)] focus:border-[var(--accent)] focus:outline-none"
+                                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none"
                                         />
                                     ) : (
-                                        <div onClick={() => handleEdit()} className="w-full cursor-pointer rounded-lg border border-[var(--line)] bg-[var(--paper-inset)]/30 px-3 py-2 text-sm transition-colors hover:border-[var(--ink-muted)]/50">
-                                            {allowedTools || <span className="text-[var(--ink-muted)]/60">{t('resourceDetail.skill.unrestricted')}</span>}
+                                        <div onClick={() => handleEdit()} className="w-full cursor-pointer rounded-lg border border-[var(--line)] bg-[var(--inset)]/30 px-3 py-2 text-sm transition-colors hover:border-[var(--muted)]/50">
+                                            {allowedTools || <span className="text-[var(--muted)]/60">{t('resourceDetail.skill.unrestricted')}</span>}
                                         </div>
                                     )}
                                 </div>
@@ -668,13 +668,13 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                             }
                                         }}
                                         className={`flex w-full items-center justify-between rounded-lg border border-[var(--line)] px-3 py-2 text-left text-sm transition-colors ${
-                                            isEditing ? 'bg-[var(--paper)] hover:border-[var(--ink-muted)]/50' : 'bg-[var(--paper-inset)]/30 opacity-70'
+                                            isEditing ? 'bg-[var(--bg)] hover:border-[var(--muted)]/50' : 'bg-[var(--inset)]/30 opacity-70'
                                         }`}
                                     >
-                                        <span className={context ? 'text-[var(--ink)]' : 'text-[var(--ink-muted)]'}>
+                                        <span className={context ? 'text-[var(--ink)]' : 'text-[var(--muted)]'}>
                                             {context === 'fork' ? t('resourceDetail.skill.contextFork') : t('resourceDetail.skill.contextDefault')}
                                         </span>
-                                        <ChevronDown className="h-4 w-4 text-[var(--ink-muted)]" />
+                                        <ChevronDown className="h-4 w-4 text-[var(--muted)]" />
                                     </button>
                                     <Popover
                                         open={showContextMenu && isEditing}
@@ -695,13 +695,13 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                                     setContext(option.value);
                                                     setShowContextMenu(false);
                                                 }}
-                                                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--paper-inset)] ${
-                                                    context === option.value ? 'text-[var(--accent)]' : 'text-[var(--ink)]'
+                                                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--inset)] ${
+                                                    context === option.value ? 'text-[var(--primary)]' : 'text-[var(--ink)]'
                                                 }`}
                                             >
                                                 <div>
                                                     <div className="font-medium">{option.label}</div>
-                                                    <div className="text-xs text-[var(--ink-muted)]">{option.desc}</div>
+                                                    <div className="text-xs text-[var(--muted)]">{option.desc}</div>
                                                 </div>
                                                 {context === option.value && <Check className="h-4 w-4" />}
                                             </button>
@@ -725,16 +725,16 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                             }
                                         }}
                                         className={`flex w-full items-center justify-between rounded-lg border border-[var(--line)] px-3 py-2 text-left text-sm transition-colors ${
-                                            isEditing ? 'bg-[var(--paper)] hover:border-[var(--ink-muted)]/50' : 'bg-[var(--paper-inset)]/30 opacity-70'
+                                            isEditing ? 'bg-[var(--bg)] hover:border-[var(--muted)]/50' : 'bg-[var(--inset)]/30 opacity-70'
                                         }`}
                                     >
-                                        <span className={agent ? 'text-[var(--ink)]' : 'text-[var(--ink-muted)]'}>
+                                        <span className={agent ? 'text-[var(--ink)]' : 'text-[var(--muted)]'}>
                                             {agent === 'Explore' && t('resourceDetail.skill.agentExplore')}
                                             {agent === 'Plan' && t('resourceDetail.skill.agentPlan')}
                                             {agent === 'general-purpose' && t('resourceDetail.skill.agentGeneral')}
                                             {!agent && t('resourceDetail.skill.agentDefault')}
                                         </span>
-                                        <ChevronDown className="h-4 w-4 text-[var(--ink-muted)]" />
+                                        <ChevronDown className="h-4 w-4 text-[var(--muted)]" />
                                     </button>
                                     <Popover
                                         open={showAgentMenu && isEditing}
@@ -757,13 +757,13 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                                     setAgent(option.value);
                                                     setShowAgentMenu(false);
                                                 }}
-                                                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--paper-inset)] ${
-                                                    agent === option.value ? 'text-[var(--accent)]' : 'text-[var(--ink)]'
+                                                className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--inset)] ${
+                                                    agent === option.value ? 'text-[var(--primary)]' : 'text-[var(--ink)]'
                                                 }`}
                                             >
                                                 <div>
                                                     <div className="font-medium">{option.label}</div>
-                                                    <div className="text-xs text-[var(--ink-muted)]">{option.desc}</div>
+                                                    <div className="text-xs text-[var(--muted)]">{option.desc}</div>
                                                 </div>
                                                 {agent === option.value && <Check className="h-4 w-4" />}
                                             </button>
@@ -780,11 +780,11 @@ const SkillDetailPanel = forwardRef<SkillDetailPanelRef, SkillDetailPanelProps>(
                                             value={argumentHint}
                                             onChange={(e) => setArgumentHint(e.target.value)}
                                             placeholder={t('resourceDetail.skill.argumentHintPlaceholder')}
-                                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)] focus:border-[var(--accent)] focus:outline-none"
+                                            className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none"
                                         />
                                     ) : (
-                                        <div onClick={() => handleEdit()} className="w-full cursor-pointer rounded-lg border border-[var(--line)] bg-[var(--paper-inset)]/30 px-3 py-2 text-sm transition-colors hover:border-[var(--ink-muted)]/50">
-                                            {argumentHint || <span className="text-[var(--ink-muted)]/60">{t('resourceDetail.common.notSet')}</span>}
+                                        <div onClick={() => handleEdit()} className="w-full cursor-pointer rounded-lg border border-[var(--line)] bg-[var(--inset)]/30 px-3 py-2 text-sm transition-colors hover:border-[var(--muted)]/50">
+                                            {argumentHint || <span className="text-[var(--muted)]/60">{t('resourceDetail.common.notSet')}</span>}
                                         </div>
                                     )}
                                 </div>

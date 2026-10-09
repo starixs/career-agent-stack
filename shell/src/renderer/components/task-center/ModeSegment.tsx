@@ -65,9 +65,9 @@ export function ModeSegment({
   // group above it.
   const baseBtn =
     'inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-3 py-1 text-sm font-medium transition-all duration-150';
-  const activeBtn = 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs';
+  const activeBtn = 'bg-[var(--paper)] text-[var(--ink)] shadow-xs';
   const inactiveBtn =
-    'text-[var(--ink-muted)] hover:text-[var(--ink-secondary)]';
+    'text-[var(--muted)] hover:text-[var(--ink-2)]';
 
   return (
     // `retainFocusOnMouseDown` on each segment button prevents the click
@@ -80,7 +80,7 @@ export function ModeSegment({
     // `onMouseDown={retainFocusOnMouseDown}` so the reader immediately
     // recognises the intent and we can grep all call sites.
     <div className="inline-flex items-center">
-      <div className="inline-flex gap-0.5 rounded-[var(--radius-md)] bg-[var(--paper-inset)] p-[3px]">
+      <div className="inline-flex gap-0.5 rounded-[var(--radius-md)] bg-[var(--inset)] p-[3px]">
         <button
           type="button"
           disabled={disabled}

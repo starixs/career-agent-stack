@@ -118,7 +118,7 @@ export default memo(function RuntimeSelector({
             }
             setOpen(!menuOpen);
           }}
-          className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover-bg)] ${
+          className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover)] ${
             disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent' : ''
           }`}
           title={disabled ? disabledReason : undefined}
@@ -127,7 +127,7 @@ export default memo(function RuntimeSelector({
             <RuntimeIcon type={value} size={16} />
             {currentOption.name}
           </span>
-          <ChevronUp className={`h-3.5 w-3.5 text-[var(--ink-muted)] transition-transform ${menuOpen ? '' : 'rotate-180'}`} />
+          <ChevronUp className={`h-3.5 w-3.5 text-[var(--muted)] transition-transform ${menuOpen ? '' : 'rotate-180'}`} />
         </button>
         <Popover
           open={menuOpen}
@@ -147,17 +147,17 @@ export default memo(function RuntimeSelector({
                 disabled={!installed}
                 className={`flex w-full items-center gap-3 px-3 py-2.5 text-left whitespace-nowrap transition-colors ${installed
                   ? opt.type === value
-                    ? 'bg-[var(--accent-warm-subtle)]'
-                    : 'hover:bg-[var(--hover-bg)]'
+                    ? 'bg-[var(--primary-soft)]'
+                    : 'hover:bg-[var(--hover)]'
                   : 'opacity-40 cursor-not-allowed'
                   }`}
               >
                 <RuntimeIcon type={opt.type} size={20} />
-                <span className={`text-sm font-medium ${opt.type === value ? 'text-[var(--accent)]' : 'text-[var(--ink)]'}`}>
+                <span className={`text-sm font-medium ${opt.type === value ? 'text-[var(--primary)]' : 'text-[var(--ink)]'}`}>
                   {opt.name}
                 </span>
                 {!installed && (
-                  <span className="ml-auto text-[var(--ink-subtle)] text-xs">
+                  <span className="ml-auto text-[var(--subtle)] text-xs">
                     {detection?.installed && !IMPLEMENTED_RUNTIMES.has(opt.type)
                       ? t('runtime.comingSoon')
                       : t('runtime.notInstalled')}
@@ -186,8 +186,8 @@ export default memo(function RuntimeSelector({
           }
           setOpen(!menuOpen);
         }}
-        className={`flex items-center gap-1 rounded-lg px-1.5 py-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] ${
-          disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-[var(--ink-muted)]' : ''
+        className={`flex items-center gap-1 rounded-lg px-1.5 py-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)] ${
+          disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent hover:text-[var(--muted)]' : ''
         }`}
         title={disabled ? disabledReason : `Runtime: ${currentOption.name}`}
       >
@@ -202,12 +202,12 @@ export default memo(function RuntimeSelector({
         className="w-72 py-1"
       >
         <div className="flex items-center justify-between px-3 pb-0.5 pt-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">{t('runtime.header')}</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">{t('runtime.header')}</span>
           {onOpenSettings && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setOpen(false); onOpenSettings(); }}
-              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
               <Settings className="h-2.5 w-2.5" />
               {t('runtime.settings')}
@@ -228,17 +228,17 @@ export default memo(function RuntimeSelector({
               disabled={!installed}
               className={`flex w-full items-center gap-3 px-3 py-2.5 text-left whitespace-nowrap transition-colors ${installed
                 ? opt.type === value
-                  ? 'bg-[var(--accent-warm-subtle)]'
-                  : 'hover:bg-[var(--hover-bg)]'
+                  ? 'bg-[var(--primary-soft)]'
+                  : 'hover:bg-[var(--hover)]'
                 : 'opacity-40 cursor-not-allowed'
                 }`}
             >
               <RuntimeIcon type={opt.type} size={20} />
-              <span className={`text-sm font-medium ${opt.type === value ? 'text-[var(--accent)]' : 'text-[var(--ink)]'}`}>
+              <span className={`text-sm font-medium ${opt.type === value ? 'text-[var(--primary)]' : 'text-[var(--ink)]'}`}>
                 {opt.name}
               </span>
               {!installed && (
-                <span className="ml-auto text-[var(--ink-subtle)] text-xs">{t('runtime.notInstalled')}</span>
+                <span className="ml-auto text-[var(--subtle)] text-xs">{t('runtime.notInstalled')}</span>
               )}
             </button>
           );

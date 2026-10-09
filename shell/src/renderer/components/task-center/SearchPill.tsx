@@ -89,7 +89,7 @@ export function SearchPill({
   const compactResting = collapseWhenNarrow && !expanded;
   return (
     <div
-      className={`relative inline-flex h-7 items-center gap-1.5 overflow-hidden rounded-full bg-[var(--paper-inset)] text-[var(--ink-muted)] ${responsiveWidthClass} ${
+      className={`relative inline-flex h-7 items-center gap-1.5 overflow-hidden rounded-full bg-[var(--inset)] text-[var(--muted)] ${responsiveWidthClass} ${
         compactResting
           ? 'cursor-text justify-center px-0 @[720px]:justify-start @[720px]:px-3'
           : 'px-3'
@@ -104,7 +104,7 @@ export function SearchPill({
           type="button"
           aria-label={placeholder ?? t('search.placeholder')}
           onClick={() => localInputRef.current?.focus()}
-          className="absolute inset-0 flex items-center justify-center rounded-full transition-colors hover:bg-[var(--hover-bg)] active:scale-[0.97] @[720px]:hidden"
+          className="absolute inset-0 flex items-center justify-center rounded-full transition-colors hover:bg-[var(--hover)] active:scale-[0.97] @[720px]:hidden"
         >
           <Search className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
         </button>
@@ -138,7 +138,7 @@ export function SearchPill({
           }
         }}
         placeholder={placeholder ?? t('search.placeholder')}
-        className={`bg-transparent text-xs text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none ${
+        className={`bg-transparent text-xs text-[var(--ink)] placeholder:text-[var(--muted)] focus:outline-none ${
           compactResting
             ? 'w-0 flex-none opacity-0 @[720px]:min-w-0 @[720px]:flex-1 @[720px]:opacity-100'
             : 'min-w-0 flex-1'
@@ -156,7 +156,7 @@ export function SearchPill({
             onClear();
           }}
           aria-label={t('search.clear')}
-          className="shrink-0 rounded-full p-0.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-elevated)] hover:text-[var(--ink)]"
+          className="shrink-0 rounded-full p-0.5 text-[var(--muted)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
         >
           <X className="h-3 w-3" strokeWidth={1.75} />
         </button>

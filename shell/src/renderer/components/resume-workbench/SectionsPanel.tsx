@@ -16,15 +16,15 @@ type Update = (recipe: (d: ResumeData) => ResumeData, opts?: { merge?: string })
 type Item = Record<string, unknown> & { id: string; hidden: boolean };
 
 // ---------- 小部件 ----------
-const INPUT = 'w-full rounded-md border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--focus-border)] focus:outline-none';
+const INPUT = 'w-full rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none';
 
 function TextField({ label, value, onChange, placeholder, wide }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; wide?: boolean }) {
   const vault = placeholderLabel(value);
   return (
-    <label className={`flex flex-col gap-1 text-xs text-[var(--ink-muted)] ${wide ? 'col-span-2' : ''}`}>
+    <label className={`flex flex-col gap-1 text-xs text-[var(--muted)] ${wide ? 'col-span-2' : ''}`}>
       <span>{label}</span>
       {vault
-        ? <span className="flex items-center gap-1 rounded-md border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-2 py-1 text-sm text-[var(--ink-muted)]" title="这一项来自私密信息库：预览和导出时自动替换成真实值，助理看不到"><Lock className="size-3.5" />来自私密信息：{vault}</span>
+        ? <span className="flex items-center gap-1 rounded-md border border-[var(--line)] bg-[var(--inset)] px-2 py-1 text-sm text-[var(--muted)]" title="这一项来自私密信息库：预览和导出时自动替换成真实值，助理看不到"><Lock className="size-3.5" />来自私密信息：{vault}</span>
         : <input aria-label={label} className={INPUT} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} />}
     </label>
   );
@@ -33,7 +33,7 @@ function TextField({ label, value, onChange, placeholder, wide }: { label: strin
 function IconButton({ label, onClick, children, danger }: { label: string; onClick: () => void; children: ReactNode; danger?: boolean }) {
   return (
     <button type="button" aria-label={label} title={label} onClick={e => { e.stopPropagation(); onClick(); }}
-      className={`rounded p-1 text-[var(--ink-subtle)] transition-colors hover:bg-[var(--paper-inset)] ${danger ? 'hover:text-[var(--error)]' : 'hover:text-[var(--ink)]'}`}>
+      className={`rounded p-1 text-[var(--subtle)] transition-colors hover:bg-[var(--inset)] ${danger ? 'hover:text-[var(--danger)]' : 'hover:text-[var(--ink)]'}`}>
       {children}
     </button>
   );
@@ -42,15 +42,15 @@ function IconButton({ label, onClick, children, danger }: { label: string; onCli
 function Panel({ title, extra, children, defaultOpen = true, muted }: { title: ReactNode; extra?: ReactNode; children: ReactNode; defaultOpen?: boolean; muted?: boolean }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="rounded-xl border border-[var(--line-subtle)] bg-[var(--paper-elevated)]">
+    <section className="rounded-xl border border-[var(--line)] bg-[var(--paper)]">
       <div className="flex items-center gap-1 px-3 py-2">
         <button type="button" onClick={() => setOpen(o => !o)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-          {open ? <ChevronDown className="size-4 text-[var(--ink-muted)]" /> : <ChevronRight className="size-4 text-[var(--ink-muted)]" />}
-          <span className={`truncate text-sm font-medium ${muted ? 'text-[var(--ink-subtle)] line-through' : 'text-[var(--ink)]'}`}>{title}</span>
+          {open ? <ChevronDown className="size-4 text-[var(--muted)]" /> : <ChevronRight className="size-4 text-[var(--muted)]" />}
+          <span className={`truncate text-sm font-medium ${muted ? 'text-[var(--subtle)] line-through' : 'text-[var(--ink)]'}`}>{title}</span>
         </button>
         {extra}
       </div>
-      {open && <div className="border-t border-[var(--line-subtle)] px-3 py-3">{children}</div>}
+      {open && <div className="border-t border-[var(--line)] px-3 py-3">{children}</div>}
     </section>
   );
 }
@@ -99,19 +99,19 @@ function SortableItem({ section, item, index, update, open, onToggle }: {
   const label = itemLabel(section, item);
   const patch = (mutate: (it: Item) => void, merge?: string) => update(d => edit(d, draft => { mutate(draft.sections[section].items[index] as Item); }), merge ? { merge } : undefined);
   return (
-    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={`rounded-lg border bg-[var(--paper)] ${isDragging ? 'z-10 border-[var(--accent)] shadow-lg' : 'border-[var(--line-subtle)]'}`}>
+    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={`rounded-lg border bg-[var(--bg)] ${isDragging ? 'z-10 border-[var(--primary)] shadow-lg' : 'border-[var(--line)]'}`}>
       <div className="flex items-center gap-1 px-1.5 py-1.5">
-        <button type="button" aria-label="拖动排序" className="cursor-grab rounded p-1 text-[var(--ink-subtle)] hover:text-[var(--ink)] active:cursor-grabbing" {...attributes} {...listeners}><GripVertical className="size-4" /></button>
+        <button type="button" aria-label="拖动排序" className="cursor-grab rounded p-1 text-[var(--subtle)] hover:text-[var(--ink)] active:cursor-grabbing" {...attributes} {...listeners}><GripVertical className="size-4" /></button>
         <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
-          <div className={`truncate text-sm ${item.hidden ? 'text-[var(--ink-subtle)] line-through' : 'text-[var(--ink)]'}`}>{label.title || '（未命名）'}</div>
-          {label.subtitle && <div className="truncate text-xs text-[var(--ink-muted)]">{label.subtitle}</div>}
+          <div className={`truncate text-sm ${item.hidden ? 'text-[var(--subtle)] line-through' : 'text-[var(--ink)]'}`}>{label.title || '（未命名）'}</div>
+          {label.subtitle && <div className="truncate text-xs text-[var(--muted)]">{label.subtitle}</div>}
         </button>
         <IconButton label={item.hidden ? '在简历里显示' : '在简历里隐藏'} onClick={() => patch(it => { it.hidden = !it.hidden; })}>{item.hidden ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</IconButton>
         <IconButton label="复制一份" onClick={() => update(d => edit(d, draft => { const list = draft.sections[section].items as Item[]; list.splice(index + 1, 0, { ...structuredClone(item), id: (newItem(section) as Item).id }); }))}><Copy className="size-4" /></IconButton>
         <IconButton label="删除" danger onClick={() => update(d => edit(d, draft => { (draft.sections[section].items as Item[]).splice(index, 1); }))}><Trash2 className="size-4" /></IconButton>
       </div>
       {open && (
-        <div className="space-y-3 border-t border-[var(--line-subtle)] px-3 py-3">
+        <div className="space-y-3 border-t border-[var(--line)] px-3 py-3">
           <div className="grid grid-cols-2 gap-2">
             {FIELDS[section].map(f => (
               <TextField key={f.key} label={f.label} wide={f.wide} value={getField(item, f)} onChange={v => patch(it => setField(it, f, v), `${item.id}.${f.key}`)} />
@@ -146,10 +146,10 @@ function ItemSection({ section, label, addLabel, data, update }: { section: Item
     <Panel
       defaultOpen={items.length > 0}
       muted={s.hidden}
-      title={<>{s.title || label}<span className="ml-1.5 text-xs font-normal text-[var(--ink-muted)]">{items.length || ''}</span></>}
+      title={<>{s.title || label}<span className="ml-1.5 text-xs font-normal text-[var(--muted)]">{items.length || ''}</span></>}
       extra={<IconButton label={s.hidden ? '显示这个分区' : '隐藏这个分区'} onClick={() => update(d => edit(d, draft => { draft.sections[section].hidden = !draft.sections[section].hidden; }))}>{s.hidden ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</IconButton>}
     >
-      <label className="mb-2 flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+      <label className="mb-2 flex items-center gap-2 text-xs text-[var(--muted)]">
         <span className="shrink-0">分区标题</span>
         <input aria-label={`${label}标题`} className={INPUT} placeholder={label} value={s.title} onChange={e => { const v = e.target.value; update(d => edit(d, draft => { draft.sections[section].title = v; }), { merge: `${section}.title` }); }} />
       </label>
@@ -162,7 +162,7 @@ function ItemSection({ section, label, addLabel, data, update }: { section: Item
           </ul>
         </SortableContext>
       </DndContext>
-      <button type="button" onClick={add} className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--line)] px-2 py-1.5 text-xs text-[var(--ink-muted)] hover:border-[var(--accent)] hover:text-[var(--ink)]">
+      <button type="button" onClick={add} className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--line)] px-2 py-1.5 text-xs text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--ink)]">
         <Plus className="size-3.5" />{addLabel}
       </button>
     </Panel>
@@ -191,7 +191,7 @@ function BasicsPanel({ data, update }: { data: ResumeData; update: Update }) {
   return (
     <Panel title="基本信息">
       <div className="flex gap-3">
-        <label className="group relative flex size-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[var(--line)] bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:border-[var(--accent)]" title="上传证件照（可选）">
+        <label className="group relative flex size-20 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[var(--line)] bg-[var(--inset)] text-[var(--muted)] hover:border-[var(--primary)]" title="上传证件照（可选）">
           {data.picture.url && !data.picture.hidden
             ? <img src={data.picture.url} alt="证件照" className="size-full object-cover" />
             : <ImagePlus className="size-5" />}
@@ -207,12 +207,12 @@ function BasicsPanel({ data, update }: { data: ResumeData; update: Update }) {
         </div>
       </div>
       {data.picture.url && (
-        <div className="mt-1 flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+        <div className="mt-1 flex items-center gap-2 text-xs text-[var(--muted)]">
           <button type="button" className="hover:text-[var(--ink)]" onClick={() => update(d => edit(d, draft => { draft.picture.hidden = !draft.picture.hidden; }))}>{data.picture.hidden ? '显示照片' : '隐藏照片'}</button>
-          <button type="button" className="hover:text-[var(--error)]" onClick={() => update(d => edit(d, draft => { draft.picture.url = ''; draft.picture.hidden = true; }))}>删除照片</button>
+          <button type="button" className="hover:text-[var(--danger)]" onClick={() => update(d => edit(d, draft => { draft.picture.url = ''; draft.picture.hidden = true; }))}>删除照片</button>
         </div>
       )}
-      {photoError && <div role="alert" className="mt-1 text-xs text-[var(--error)]">{photoError}</div>}
+      {photoError && <div role="alert" className="mt-1 text-xs text-[var(--danger)]">{photoError}</div>}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <TextField label="手机" value={b.phone} onChange={v => set('phone', v)} />
         <TextField label="邮箱" value={b.email} onChange={v => set('email', v)} />
@@ -220,14 +220,14 @@ function BasicsPanel({ data, update }: { data: ResumeData; update: Update }) {
         <TextField label="个人主页 / 作品集" value={b.website.url} onChange={v => update(d => edit(d, draft => { draft.basics.website = { ...draft.basics.website, url: v }; }), { merge: 'basics.website' })} />
       </div>
       <div className="mt-3 space-y-1.5">
-        <div className="text-xs text-[var(--ink-muted)]">其他信息（期望薪资、政治面貌、到岗时间…）</div>
+        <div className="text-xs text-[var(--muted)]">其他信息（期望薪资、政治面貌、到岗时间…）</div>
         {b.customFields.map((f, i) => (
           <div key={f.id} className="flex items-center gap-1">
             <input aria-label={`其他信息 ${i + 1}`} className={INPUT} value={f.text} onChange={e => { const v = e.target.value; update(d => edit(d, draft => { draft.basics.customFields[i].text = v; }), { merge: `cf.${f.id}` }); }} />
             <IconButton label="删除" danger onClick={() => update(d => edit(d, draft => { draft.basics.customFields.splice(i, 1); }))}><Trash2 className="size-4" /></IconButton>
           </div>
         ))}
-        <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+        <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-xs text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
           onClick={() => update(d => edit(d, draft => { draft.basics.customFields.push({ id: `user-${Date.now()}`, icon: 'info', text: '', link: '' }); }))}>
           <Plus className="size-3.5" />添加一项
         </button>
@@ -257,7 +257,7 @@ export function SectionsPanel({ data, update }: { data: ResumeData; update: Upda
       {primary.map(s => <ItemSection key={s.key} section={s.key} label={s.label} addLabel={s.addLabel} data={data} update={update} />)}
       {visibleMore.map(s => <ItemSection key={s.key} section={s.key} label={s.label} addLabel={s.addLabel} data={data} update={update} />)}
       {!showMore && visibleMore.length < more.length && (
-        <button type="button" onClick={() => setShowMore(true)} className="w-full rounded-lg px-2 py-2 text-xs text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+        <button type="button" onClick={() => setShowMore(true)} className="w-full rounded-lg px-2 py-2 text-xs text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]">
           更多分区（语言、论文、社团志愿、兴趣…）
         </button>
       )}

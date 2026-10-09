@@ -18,7 +18,7 @@ export function AgentCard({ agent, onClick }: { agent: AgentItem; onClick: () =>
     const { t } = useTranslation('settings');
     return (
         <div
-            className="group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper-elevated)] px-3.5 py-3 transition-shadow hover:shadow-sm"
+            className="group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper)] px-3.5 py-3 transition-shadow hover:shadow-sm"
             onClick={onClick}
         >
             <div className="flex items-center gap-2">
@@ -26,7 +26,7 @@ export function AgentCard({ agent, onClick }: { agent: AgentItem; onClick: () =>
                 <h4 className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]">
                     {agent.name}
                 </h4>
-                <span className="shrink-0 rounded-full bg-[var(--paper-inset)] px-2 py-0.5 text-xs font-medium tracking-[0.04em] text-[var(--ink-muted)]">
+                <span className="shrink-0 rounded-full bg-[var(--inset)] px-2 py-0.5 text-xs font-medium tracking-[0.04em] text-[var(--muted)]">
                     {agent.scope === 'user' ? t('agentSettings.capabilities.scopeUser') : t('agentSettings.capabilities.scopeProject')}
                 </span>
                 {agent.synced && (
@@ -35,7 +35,7 @@ export function AgentCard({ agent, onClick }: { agent: AgentItem; onClick: () =>
                     </span>
                 )}
             </div>
-            <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--ink-muted)]">
+            <p className="line-clamp-2 min-h-[2.6em] text-sm leading-relaxed text-[var(--muted)]">
                 {agent.description || t('agentSettings.common.noDescription')}
             </p>
         </div>

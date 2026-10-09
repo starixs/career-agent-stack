@@ -20,9 +20,9 @@ export default function McpToolsCard({
 }) {
     const { t } = useTranslation('settings');
     return (
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
             <h3 className="mb-4 text-sm font-semibold text-[var(--ink)]">{title ?? t('agentSettings.toolsCard.mcpTitle')}</h3>
-            <p className="mb-3 text-xs text-[var(--ink-muted)]">
+            <p className="mb-3 text-xs text-[var(--muted)]">
                 {subtitle ?? t('agentSettings.toolsCard.mcpSubtitle')}
             </p>
             {availableMcpServers.length > 0 ? (
@@ -32,7 +32,7 @@ export default function McpToolsCard({
                         return (
                             <label
                                 key={server.id}
-                                className="flex cursor-pointer items-center gap-3 rounded-lg border border-[var(--line)] p-3 transition-colors hover:border-[var(--line-strong)]"
+                                className="flex cursor-pointer items-center gap-3 rounded-lg border border-[var(--line)] p-3 transition-colors hover:border-[var(--line-2)]"
                             >
                                 <input
                                     type="checkbox"
@@ -43,7 +43,7 @@ export default function McpToolsCard({
                                 <div>
                                     <p className="text-sm font-medium text-[var(--ink)]">{server.name}</p>
                                     {server.description && (
-                                        <p className="text-xs text-[var(--ink-muted)]">{server.description}</p>
+                                        <p className="text-xs text-[var(--muted)]">{server.description}</p>
                                     )}
                                 </div>
                             </label>
@@ -51,7 +51,7 @@ export default function McpToolsCard({
                     })}
                 </div>
             ) : (
-                <p className="text-xs text-[var(--ink-muted)]">
+                <p className="text-xs text-[var(--muted)]">
                     {emptyHint ?? t('agentSettings.toolsCard.mcpEmpty')}
                 </p>
             )}

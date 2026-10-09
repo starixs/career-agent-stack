@@ -17,7 +17,7 @@ interface SeekBarProps {
   className?: string;
   /**
    * Track (unfilled) background class. Defaults to the faint `--line`; pass a
-   * more visible token (e.g. `bg-[var(--paper-inset)]`) when the bar sits on an
+   * more visible token (e.g. `bg-[var(--inset)]`) when the bar sits on an
    * elevated card so the groove reads as a real progress track, not empty space.
    */
   trackClass?: string;
@@ -69,13 +69,13 @@ export default function SeekBar({ ratio, seekable, onSeek, className, trackClass
       onPointerCancel={handlePointerUp}
     >
       <div
-        className="absolute inset-y-0 left-0 rounded-full bg-[var(--accent)]"
+        className="absolute inset-y-0 left-0 rounded-full bg-[var(--primary)]"
         // eslint-disable-next-line react-hooks/refs -- draggingRef read during render is intentional: transition must be instant while dragging to avoid lag
         style={{ width: pct, transition: draggingRef.current ? 'none' : 'width 200ms' }}
       />
       {seekable && (
         <div
-          className="absolute top-1/2 size-3 -translate-y-1/2 rounded-full bg-[var(--accent)] shadow-sm ring-2 ring-[var(--paper-elevated)]"
+          className="absolute top-1/2 size-3 -translate-y-1/2 rounded-full bg-[var(--primary)] shadow-sm ring-2 ring-[var(--paper)]"
           style={{ left: `calc(${pct} - 6px)` }}
         />
       )}

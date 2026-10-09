@@ -23,12 +23,12 @@ export default function ReadTool({ tool }: ReadToolProps) {
       <div className="flex flex-wrap items-center gap-1.5 text-sm">
         <FilePath path={input.file_path} />
         {input.offset !== undefined && (
-          <span className="rounded border border-[var(--line-subtle)] bg-[var(--paper-inset)]/50 px-1.5 py-0.5 text-xs font-medium tracking-wide text-[var(--ink-muted)] uppercase">
+          <span className="rounded border border-[var(--line)] bg-[var(--inset)]/50 px-1.5 py-0.5 text-xs font-medium tracking-wide text-[var(--muted)] uppercase">
             offset {input.offset}
           </span>
         )}
         {input.limit !== undefined && (
-          <span className="rounded border border-[var(--line-subtle)] bg-[var(--paper-inset)]/50 px-1.5 py-0.5 text-xs font-medium tracking-wide text-[var(--ink-muted)] uppercase">
+          <span className="rounded border border-[var(--line)] bg-[var(--inset)]/50 px-1.5 py-0.5 text-xs font-medium tracking-wide text-[var(--muted)] uppercase">
             limit {input.limit}
           </span>
         )}
@@ -38,7 +38,7 @@ export default function ReadTool({ tool }: ReadToolProps) {
       {tool.result && (
         <ExpandableResult
           content={tool.result}
-          className="rounded bg-[var(--paper-inset)]/50 px-2 py-1 wrap-break-word text-[var(--ink-secondary)]"
+          className="rounded bg-[var(--inset)]/50 px-2 py-1 wrap-break-word text-[var(--ink-2)]"
         />
       )}
     </div>

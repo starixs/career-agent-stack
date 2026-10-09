@@ -48,12 +48,12 @@ export default function WhitelistManager({
                         {users.map((user) => (
                             <span
                                 key={user}
-                                className="inline-flex items-center gap-1 rounded-full bg-[var(--paper-inset)] px-2.5 py-1 text-xs text-[var(--ink)]"
+                                className="inline-flex items-center gap-1 rounded-full bg-[var(--inset)] px-2.5 py-1 text-xs text-[var(--ink)]"
                             >
                                 {user}
                                 <button
                                     onClick={() => handleRemove(user)}
-                                    className="rounded-full p-0.5 text-[var(--ink-muted)] hover:text-[var(--error)]"
+                                    className="rounded-full p-0.5 text-[var(--muted)] hover:text-[var(--danger)]"
                                 >
                                     <X className="h-3 w-3" />
                                 </button>
@@ -61,7 +61,7 @@ export default function WhitelistManager({
                         ))}
                     </div>
                 ) : (
-                    <p className="text-xs text-[var(--ink-muted)]">
+                    <p className="text-xs text-[var(--muted)]">
                         {t('agentSettings.imComponents.noBoundUsers')}
                     </p>
                 )}
@@ -82,12 +82,12 @@ export default function WhitelistManager({
                     onChange={(e) => setNewUser(e.target.value)}
                     onKeyDown={(e) => !isImeComposingEvent(e) && (e.key === 'Enter' && handleAdd())}
                     placeholder={placeholderText}
-                    className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--ink-muted)] focus:border-[var(--focus-border)] focus:outline-none"
+                    className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder-[var(--muted)] focus:border-[var(--primary)] focus:outline-none"
                 />
                 <button
                     onClick={handleAdd}
                     disabled={!newUser.trim()}
-                    className="rounded-lg bg-[var(--button-primary-bg)] p-2 text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                    className="rounded-lg bg-[var(--primary)] p-2 text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                 >
                     <Plus className="h-4 w-4" />
                 </button>
@@ -98,12 +98,12 @@ export default function WhitelistManager({
                     {users.map((user) => (
                         <span
                             key={user}
-                            className="inline-flex items-center gap-1 rounded-full bg-[var(--paper-inset)] px-2.5 py-1 text-xs text-[var(--ink)]"
+                            className="inline-flex items-center gap-1 rounded-full bg-[var(--inset)] px-2.5 py-1 text-xs text-[var(--ink)]"
                         >
                             {user}
                             <button
                                 onClick={() => handleRemove(user)}
-                                className="rounded-full p-0.5 text-[var(--ink-muted)] hover:text-[var(--error)]"
+                                className="rounded-full p-0.5 text-[var(--muted)] hover:text-[var(--danger)]"
                             >
                                 <X className="h-3 w-3" />
                             </button>
@@ -111,7 +111,7 @@ export default function WhitelistManager({
                     ))}
                 </div>
             ) : (
-                <p className="text-xs text-[var(--ink-muted)]">
+                <p className="text-xs text-[var(--muted)]">
                     {t('agentSettings.imComponents.noWhitelistUsers')}
                 </p>
             )}

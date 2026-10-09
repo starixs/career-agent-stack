@@ -13,9 +13,9 @@ export function AppearanceModeControl({ value, onChange }: AppearanceModeControl
     <div className="mt-4 flex items-center justify-between gap-4">
       <div className="flex-1 pr-4">
         <p className="text-sm font-medium text-[var(--ink)]">{t('general.appearanceModeTitle')}</p>
-        <p className="mt-0.5 text-xs text-[var(--ink-muted)]">{t('general.appearanceModeDescription')}</p>
+        <p className="mt-0.5 text-xs text-[var(--muted)]">{t('general.appearanceModeDescription')}</p>
       </div>
-      <div className="flex shrink-0 gap-0.5 rounded-full bg-[var(--paper-inset)] p-0.5">
+      <div className="flex shrink-0 gap-0.5 rounded-full bg-[var(--inset)] p-0.5">
         {(['system', 'light', 'dark'] as const).map((mode) => (
           <button
             key={mode}
@@ -24,8 +24,8 @@ export function AppearanceModeControl({ value, onChange }: AppearanceModeControl
             onClick={() => onChange(mode)}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-all ${
               value === mode
-                ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm'
-                : 'text-[var(--ink-muted)] hover:text-[var(--ink-secondary)]'
+                ? 'bg-[var(--paper)] text-[var(--ink)] shadow-sm'
+                : 'text-[var(--muted)] hover:text-[var(--ink-2)]'
             }`}
           >
             {t(`general.appearanceMode.${mode}`)}

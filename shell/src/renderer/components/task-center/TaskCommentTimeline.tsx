@@ -338,7 +338,7 @@ export function TaskCommentTimeline({
         <div className="mx-auto w-full min-w-0 max-w-[860px]">
           {children}
           <section
-            className="mt-10 border-t border-[var(--line-subtle)] pt-7"
+            className="mt-10 border-t border-[var(--line)] pt-7"
             aria-labelledby="task-comments-heading"
           >
             <div className="mb-4 flex items-baseline gap-2">
@@ -348,13 +348,13 @@ export function TaskCommentTimeline({
               >
                 {t("comments.title")}
               </h3>
-              <span className="text-xs tabular-nums text-[var(--ink-muted)]">
+              <span className="text-xs tabular-nums text-[var(--muted)]">
                 {comments.length}
               </span>
             </div>
 
             {loading ? (
-              <div className="flex items-center gap-2 py-8 text-sm text-[var(--ink-muted)]">
+              <div className="flex items-center gap-2 py-8 text-sm text-[var(--muted)]">
                 <Loader2 className="h-4 w-4 animate-spin" />{" "}
                 {t("comments.loading")}
               </div>
@@ -364,7 +364,7 @@ export function TaskCommentTimeline({
                   <button
                     type="button"
                     onClick={() => void loadEarlier()}
-                    className="mb-3 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                    className="mb-3 text-xs text-[var(--muted)] hover:text-[var(--ink)]"
                   >
                     {loadingEarlier
                       ? t("comments.loading")
@@ -372,7 +372,7 @@ export function TaskCommentTimeline({
                   </button>
                 )}
                 {comments.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-sm text-[var(--ink-muted)]">
+                  <div className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-sm text-[var(--muted)]">
                     {t("comments.empty")}
                   </div>
                 )}
@@ -410,7 +410,7 @@ export function TaskCommentTimeline({
                     !!comment.conversationSessionId;
                   const commentIdentity = (
                     <>
-                      <span className="text-sm font-medium text-[var(--ink-secondary)]">
+                      <span className="text-sm font-medium text-[var(--ink-2)]">
                         {authorLabel}
                       </span>
                       <span>·</span>
@@ -434,11 +434,11 @@ export function TaskCommentTimeline({
                         else itemRefs.current.delete(comment.id);
                       }}
                       tabIndex={-1}
-                      className={`rounded-xl px-3 py-3 ${highlighted ? "bg-[var(--accent-warm)]/10 ring-1 ring-[var(--accent-warm)]/35" : ""}`}
+                      className={`rounded-xl px-3 py-3 ${highlighted ? "bg-[var(--primary)]/10 ring-1 ring-[var(--primary)]/35" : ""}`}
                     >
                       {highlighted && (
                         <div
-                          className="mb-2 text-xs font-medium text-[var(--accent-warm)]"
+                          className="mb-2 text-xs font-medium text-[var(--primary)]"
                           role="status"
                           aria-live="polite"
                         >
@@ -451,12 +451,12 @@ export function TaskCommentTimeline({
                           onClick={() =>
                             openCommentSession(comment.conversationSessionId!)
                           }
-                          className="flex max-w-full min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap text-left text-xs text-[var(--ink-muted)] transition-colors hover:text-[var(--accent-warm)]"
+                          className="flex max-w-full min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap text-left text-xs text-[var(--muted)] transition-colors hover:text-[var(--primary)]"
                         >
                           {commentIdentity}
                         </button>
                       ) : (
-                        <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+                        <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
                           {commentIdentity}
                         </div>
                       )}
@@ -472,12 +472,12 @@ export function TaskCommentTimeline({
                             author: parentAuthor,
                             quote: parentQuote,
                           })}
-                          className="mt-2 block w-full min-w-0 truncate rounded-r-md border-l-2 border-[var(--line)] bg-[var(--hover-bg)] px-2 py-1 text-left text-xs text-[var(--ink-muted)] disabled:cursor-default"
+                          className="mt-2 block w-full min-w-0 truncate rounded-r-md border-l-2 border-[var(--line)] bg-[var(--hover)] px-2 py-1 text-left text-xs text-[var(--muted)] disabled:cursor-default"
                         >
                           {parentQuote}
                         </button>
                       )}
-                      <div className="mt-2 text-sm leading-6 text-[var(--ink-secondary)] [&_.markdown-content]:text-sm">
+                      <div className="mt-2 text-sm leading-6 text-[var(--ink-2)] [&_.markdown-content]:text-sm">
                         <Markdown compact raw preserveNewlines>
                           {comment.body}
                         </Markdown>
@@ -486,7 +486,7 @@ export function TaskCommentTimeline({
                         <button
                           type="button"
                           onClick={() => setReplyTo(comment)}
-                          className="inline-flex items-center gap-1 text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                          className="inline-flex items-center gap-1 text-[var(--muted)] hover:text-[var(--ink)]"
                         >
                           <CornerUpLeft className="h-3 w-3" />{" "}
                           {t("comments.reply")}
@@ -497,8 +497,8 @@ export function TaskCommentTimeline({
                             aria-live="polite"
                             className={
                               comment.admission.state === "failed"
-                                ? "text-[var(--error)]"
-                                : "text-[var(--ink-muted)]"
+                                ? "text-[var(--danger)]"
+                                : "text-[var(--muted)]"
                             }
                           >
                             {t(`comments.admission.${comment.admission.state}`)}
@@ -508,7 +508,7 @@ export function TaskCommentTimeline({
                           <button
                             type="button"
                             onClick={() => void retry(comment)}
-                            className="inline-flex items-center gap-1 text-[var(--accent-warm)] hover:underline"
+                            className="inline-flex items-center gap-1 text-[var(--primary)] hover:underline"
                           >
                             <RotateCcw className="h-3 w-3" />{" "}
                             {t("comments.retry")}
@@ -522,7 +522,7 @@ export function TaskCommentTimeline({
                   <button
                     type="button"
                     onClick={() => void loadNewer()}
-                    className="mt-3 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                    className="mt-3 text-xs text-[var(--muted)] hover:text-[var(--ink)]"
                   >
                     {loadingNewer
                       ? t("comments.loading")
@@ -535,10 +535,10 @@ export function TaskCommentTimeline({
         </div>
       </div>
 
-      <div className="z-10 shrink-0 border-t border-[var(--line-subtle)] bg-[var(--paper-elevated)] px-8 py-2.5 max-sm:px-5">
+      <div className="z-10 shrink-0 border-t border-[var(--line)] bg-[var(--paper)] px-8 py-2.5 max-sm:px-5">
         <div className="mx-auto max-w-[860px]">
           {replyTo && (
-            <div className="mb-1.5 flex items-center gap-2 rounded-r-lg border-l-2 border-[var(--line)] bg-[var(--hover-bg)] px-2.5 py-1.5 text-xs text-[var(--ink-muted)]">
+            <div className="mb-1.5 flex items-center gap-2 rounded-r-lg border-l-2 border-[var(--line)] bg-[var(--hover)] px-2.5 py-1.5 text-xs text-[var(--muted)]">
               <CornerUpLeft className="h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0 flex-1 truncate">
                 {replyTo.body.trim()}
@@ -552,7 +552,7 @@ export function TaskCommentTimeline({
               </button>
             </div>
           )}
-          <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 shadow-sm focus-within:border-[var(--line-strong)]">
+          <div className="rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 shadow-sm focus-within:border-[var(--line-2)]">
             <textarea
               ref={textareaRef}
               value={body}
@@ -575,14 +575,14 @@ export function TaskCommentTimeline({
               }}
               rows={2}
               placeholder={t("comments.placeholder")}
-              className="min-h-10 max-h-36 w-full resize-none overflow-y-hidden bg-transparent text-sm leading-5 text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]/70"
+              className="min-h-10 max-h-36 w-full resize-none overflow-y-hidden bg-transparent text-sm leading-5 text-[var(--ink)] outline-none placeholder:text-[var(--muted)]/70"
             />
             <div className="mt-0.5 flex justify-end">
               <button
                 type="button"
                 onClick={() => void submit()}
                 disabled={!body.trim() || sending}
-                className="grid h-8 w-8 place-items-center rounded-full bg-[var(--button-primary-bg)] text-[var(--button-primary-text)] disabled:opacity-40"
+                className="grid h-8 w-8 place-items-center rounded-full bg-[var(--primary)] text-[var(--on-primary)] disabled:opacity-40"
                 aria-label={t("comments.send")}
               >
                 {sending ? (
@@ -595,7 +595,7 @@ export function TaskCommentTimeline({
           </div>
           {error && (
             <div
-              className="mt-2 flex items-center gap-3 text-xs text-[var(--error)]"
+              className="mt-2 flex items-center gap-3 text-xs text-[var(--danger)]"
               role="alert"
             >
               <span className="min-w-0 flex-1">{error}</span>

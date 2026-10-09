@@ -64,10 +64,10 @@ function ProviderOrderRow({ provider, index, isLast, enabled, fixed = false, onM
             data-provider-order-row={provider.id}
             ref={setNodeRef}
             style={style}
-            className={`flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-3 transition-shadow ${isDragging ? 'relative z-10 shadow-lg ring-1 ring-[var(--focus-border)]' : ''} ${enabled ? '' : 'opacity-60'}`}
+            className={`flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-3 transition-shadow ${isDragging ? 'relative z-10 shadow-lg ring-1 ring-[var(--primary)]' : ''} ${enabled ? '' : 'opacity-60'}`}
         >
             {fixed ? (
-                <div className="flex w-[106px] shrink-0 items-center gap-2 px-1.5 text-xs text-[var(--ink-muted)]">
+                <div className="flex w-[106px] shrink-0 items-center gap-2 px-1.5 text-xs text-[var(--muted)]">
                     <Pin className="h-4 w-4" />
                     <span>{t('providers.order.fixedFirst')}</span>
                 </div>
@@ -77,7 +77,7 @@ function ProviderOrderRow({ provider, index, isLast, enabled, fixed = false, onM
                         type="button"
                         {...attributes}
                         {...listeners}
-                        className="rounded-md p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] active:cursor-grabbing"
+                        className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] active:cursor-grabbing"
                         title={t('providers.order.drag')}
                         aria-label={t('providers.order.dragProvider', { name: provider.name })}
                     >
@@ -88,7 +88,7 @@ function ProviderOrderRow({ provider, index, isLast, enabled, fixed = false, onM
                             type="button"
                             onClick={() => onMove(provider.id, -1)}
                             disabled={index === 0}
-                            className="rounded-md p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-35"
+                            className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-35"
                             title={t('providers.order.moveUp')}
                         >
                             <ArrowUp className="h-3.5 w-3.5" />
@@ -97,7 +97,7 @@ function ProviderOrderRow({ provider, index, isLast, enabled, fixed = false, onM
                             type="button"
                             onClick={() => onMove(provider.id, 1)}
                             disabled={isLast}
-                            className="rounded-md p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-35"
+                            className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-35"
                             title={t('providers.order.moveDown')}
                         >
                             <ArrowDown className="h-3.5 w-3.5" />
@@ -108,14 +108,14 @@ function ProviderOrderRow({ provider, index, isLast, enabled, fixed = false, onM
             <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                     <p className="truncate text-sm font-medium text-[var(--ink)]">{provider.name}</p>
-                    <span className="shrink-0 rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+                    <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">
                         {provider.cloudProvider}
                     </span>
-                    <span className="shrink-0 rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+                    <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">
                         {provider.type === 'subscription' ? t('providers.order.subscription') : t('providers.order.api')}
                     </span>
                 </div>
-                <p className="mt-0.5 truncate text-xs text-[var(--ink-muted)]">
+                <p className="mt-0.5 truncate text-xs text-[var(--muted)]">
                     {provider.models.length > 0
                         ? provider.models.map(model => model.modelName || model.model).join(', ')
                         : t('providers.noModels')}
@@ -127,7 +127,7 @@ function ProviderOrderRow({ provider, index, isLast, enabled, fixed = false, onM
                 aria-label={provider.name}
                 aria-checked={enabled}
                 onClick={() => onToggle(provider.id, !enabled)}
-                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors ${enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'}`}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors ${enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'}`}
                 title={enabled ? t('providers.order.enabled') : t('providers.order.disabled')}
             >
                 <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-[var(--toggle-thumb)] shadow-sm transition-transform ${enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
@@ -214,18 +214,18 @@ export default function ProviderEnableOrderDialog({
 
     return (
         <OverlayBackdrop className="z-50 overflow-y-auto py-8">
-            <div className="mx-4 flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-[var(--paper-elevated)] shadow-xl">
+            <div className="mx-4 flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-[var(--paper)] shadow-xl">
                 <div className="flex-shrink-0 px-6 pb-4 pt-6">
                     <div className="flex items-center justify-between">
                         <div>
                             <h3 className="text-lg font-semibold text-[var(--ink)]">{t('providers.order.title')}</h3>
-                            <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                            <p className="mt-1 text-xs text-[var(--muted)]">
                                 {t('providers.order.description')}
                             </p>
                         </div>
                         <button
                             onClick={onClose}
-                            className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)]"
+                            className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)]"
                             aria-label={t('providers.order.close')}
                         >
                             <X className="h-5 w-5" />
@@ -234,19 +234,19 @@ export default function ProviderEnableOrderDialog({
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
-                    <div className="mb-3 flex items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+                    <div className="mb-3 flex items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-2">
                         <div>
                             <p className="text-sm font-medium text-[var(--ink)]">
                                 {t('providers.order.enabledCount', { enabled: Math.max(0, enabledCount), total: providerRows.length })}
                             </p>
-                            <p className="text-xs text-[var(--ink-muted)]">
+                            <p className="text-xs text-[var(--muted)]">
                                 {t('providers.order.description2')}
                             </p>
                         </div>
                         <button
                             type="button"
                             onClick={toggleAllProvidersEnabled}
-                            className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+                            className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
                         >
                             {allEnabled ? t('providers.order.clearAll') : t('providers.order.selectAll')}
                         </button>
@@ -293,13 +293,13 @@ export default function ProviderEnableOrderDialog({
                 <div className="flex flex-shrink-0 justify-end gap-3 border-t border-[var(--line)] px-6 py-4">
                     <button
                         onClick={onClose}
-                        className="rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+                        className="rounded-lg border border-[var(--line)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
                     >
                         {t('providers.order.cancel')}
                     </button>
                     <button
                         onClick={onSave}
-                        className="rounded-lg bg-[var(--button-primary-bg)] px-4 py-2.5 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+                        className="rounded-lg bg-[var(--primary)] px-4 py-2.5 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
                     >
                         {t('providers.order.save')}
                     </button>

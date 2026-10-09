@@ -22,8 +22,8 @@ export default function PermissionModeSelect({
                         key={mode.value}
                         className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${
                             value === mode.value
-                                ? 'border-[var(--button-primary-bg)] bg-[var(--paper-inset)]'
-                                : 'border-[var(--line)] hover:border-[var(--line-strong)]'
+                                ? 'border-[var(--primary)] bg-[var(--inset)]'
+                                : 'border-[var(--line)] hover:border-[var(--line-2)]'
                         }`}
                     >
                         <input
@@ -36,8 +36,8 @@ export default function PermissionModeSelect({
                         />
                         <div className={`h-4 w-4 flex-shrink-0 rounded-full border-2 transition-colors ${
                             value === mode.value
-                                ? 'border-[var(--button-primary-bg)] bg-[var(--button-primary-bg)]'
-                                : 'border-[var(--ink-subtle)]'
+                                ? 'border-[var(--primary)] bg-[var(--primary)]'
+                                : 'border-[var(--subtle)]'
                         }`}>
                             {value === mode.value && (
                                 <div className="flex h-full w-full items-center justify-center">
@@ -51,7 +51,7 @@ export default function PermissionModeSelect({
                                     ? t(`agentSettings.permission.${mode.value}`, { defaultValue: mode.label })
                                     : mode.label}
                             </div>
-                            <p className="text-xs text-[var(--ink-muted)]">
+                            <p className="text-xs text-[var(--muted)]">
                                 {usesProductVocabulary
                                     ? t(`agentSettings.permission.${mode.value}Description`, { defaultValue: mode.description })
                                     : mode.description}

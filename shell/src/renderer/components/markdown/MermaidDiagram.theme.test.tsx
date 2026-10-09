@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ThemeRegistry, ThemeRuntimeProvider } from '@/theme';
 import { syntheticTheme } from '@/theme/__tests__/syntheticTheme';
-import { keystoneDefaultTheme } from '@/theme/themes/keystone-default';
+import { careerTheme } from '@/theme/themes/career';
 
 const mermaidCapture = vi.hoisted(() => ({
   initialize: vi.fn(),
@@ -29,7 +29,7 @@ describe('MermaidDiagram Theme adapter', () => {
   afterEach(() => vi.useRealTimers());
 
   it('re-renders unchanged source when the Theme key changes and keeps strict security', async () => {
-    const registry = new ThemeRegistry([keystoneDefaultTheme, syntheticTheme]);
+    const registry = new ThemeRegistry([careerTheme, syntheticTheme]);
     const source = 'flowchart TD\n  A --> B';
     const view = render(
       <ThemeRuntimeProvider
@@ -45,10 +45,10 @@ describe('MermaidDiagram Theme adapter', () => {
       'rounded-md',
       'border',
       'border-[var(--line)]',
-      'bg-[var(--paper-inset)]/30',
+      'bg-[var(--inset)]/30',
     );
     expect(view.container.querySelector('.markdown-code-block')?.firstElementChild).toHaveClass(
-      'bg-[var(--code-bg)]',
+      'bg-[var(--inset)]',
     );
     fireEvent.click(view.getByRole('button', { name: /code|代码/i }));
     expect(view.container.querySelector('.markdown-code-block pre')).toHaveClass('overflow-x-auto');

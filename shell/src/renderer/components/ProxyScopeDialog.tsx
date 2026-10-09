@@ -54,26 +54,26 @@ export default function ProxyScopeDialog({
   return (
     <OverlayBackdrop onClose={onClose} className="z-50 overflow-y-auto px-4 py-8">
       <div
-        className="mx-auto flex w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--paper)] shadow-xl"
+        className="mx-auto flex w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--bg)] shadow-xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--line-subtle)] px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
           <div>
             <h3 className="text-lg font-semibold text-[var(--ink)]">{t('proxy.scopeDialogTitle')}</h3>
-            <p className="mt-1 text-sm text-[var(--ink-muted)]">{t('proxy.scopeDialogDescription')}</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">{t('proxy.scopeDialogDescription')}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+            className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
             aria-label={t('proxy.scopeDialogCancel')}
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--line-subtle)] px-5 py-3">
-          <span className="text-sm text-[var(--ink-muted)]">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-3">
+          <span className="text-sm text-[var(--muted)]">
             {t('proxy.scopeDialogSelected', { count: selectedCount })}
           </span>
           <div className="flex items-center gap-2">
@@ -83,7 +83,7 @@ export default function ProxyScopeDialog({
                 setGeneralRequests(!allSelected);
                 setSelectedIds(allSelected ? [] : providerIds);
               }}
-              className="rounded-md border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover-bg)] active:scale-[0.98]"
+              className="rounded-md border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover)] active:scale-[0.98]"
             >
               {t(allSelected ? 'proxy.scopeDialogDeselectAll' : 'proxy.scopeDialogSelectAll')}
             </button>
@@ -96,10 +96,10 @@ export default function ProxyScopeDialog({
             role="checkbox"
             aria-checked={generalRequests}
             onClick={() => setGeneralRequests(selected => !selected)}
-            className="flex w-full items-center gap-3 border-b border-[var(--line-subtle)] px-5 py-3 text-left transition-colors hover:bg-[var(--hover-bg)]"
+            className="flex w-full items-center gap-3 border-b border-[var(--line)] px-5 py-3 text-left transition-colors hover:bg-[var(--hover)]"
           >
             <span
-              className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--accent)]"
+              className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--primary)]"
               aria-hidden="true"
             >
               {generalRequests ? <Check size={18} /> : <Square size={18} />}
@@ -108,20 +108,20 @@ export default function ProxyScopeDialog({
               <span className="block truncate text-sm font-medium text-[var(--ink)]">
                 {t('proxy.scopeDialogGeneralRequests')}
               </span>
-              <span className="block text-xs text-[var(--ink-muted)]">
+              <span className="block text-xs text-[var(--muted)]">
                 {t('proxy.scopeDialogGeneralRequestsDescription')}
               </span>
             </span>
-            <span className="shrink-0 rounded-md bg-[var(--paper-elevated)] px-2 py-1 text-xs text-[var(--ink-muted)]">
+            <span className="shrink-0 rounded-md bg-[var(--paper)] px-2 py-1 text-xs text-[var(--muted)]">
               {t('proxy.scopeDialogGeneral')}
             </span>
           </button>
 
-          <div className="border-b border-[var(--line-subtle)] px-5 py-2 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">
+          <div className="border-b border-[var(--line)] px-5 py-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">
             {t('proxy.scopeDialogProviders')}
           </div>
           {providers.length === 0 && (
-            <p className="border-b border-[var(--line-subtle)] px-5 py-4 text-sm text-[var(--ink-muted)]">
+            <p className="border-b border-[var(--line)] px-5 py-4 text-sm text-[var(--muted)]">
               {t('proxy.scopeDialogNoProviders')}
             </p>
           )}
@@ -134,19 +134,19 @@ export default function ProxyScopeDialog({
                 role="checkbox"
                 aria-checked={selected}
                 onClick={() => toggle(provider.id)}
-                className="flex w-full items-center gap-3 border-b border-[var(--line-subtle)] px-5 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--hover-bg)]"
+                className="flex w-full items-center gap-3 border-b border-[var(--line)] px-5 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--hover)]"
               >
                 <span
-                  className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--accent)]"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center text-[var(--primary)]"
                   aria-hidden="true"
                 >
                   {selected ? <Check size={18} /> : <Square size={18} />}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-[var(--ink)]">{provider.name}</span>
-                  <span className="block truncate text-xs text-[var(--ink-muted)]">{provider.id}</span>
+                  <span className="block truncate text-xs text-[var(--muted)]">{provider.id}</span>
                 </span>
-                <span className="shrink-0 rounded-md bg-[var(--paper-elevated)] px-2 py-1 text-xs text-[var(--ink-muted)]">
+                <span className="shrink-0 rounded-md bg-[var(--paper)] px-2 py-1 text-xs text-[var(--muted)]">
                   {t(providerKindKey(provider))}
                 </span>
               </button>
@@ -154,18 +154,18 @@ export default function ProxyScopeDialog({
           })}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-[var(--line-subtle)] px-5 py-4">
+        <div className="flex justify-end gap-2 border-t border-[var(--line)] px-5 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-[var(--line)] px-4 py-2 text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover-bg)] active:scale-[0.98]"
+            className="rounded-md border border-[var(--line)] px-4 py-2 text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover)] active:scale-[0.98]"
           >
             {t('proxy.scopeDialogCancel')}
           </button>
           <button
             type="button"
             onClick={() => onSave({ generalRequests, providerIds: selectedIds })}
-            className="inline-flex items-center gap-2 rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-medium text-[var(--on-accent)] transition-transform active:scale-[0.98]"
+            className="inline-flex items-center gap-2 rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] transition-transform active:scale-[0.98]"
           >
             <Check size={16} />
             {t('proxy.scopeDialogSave')}

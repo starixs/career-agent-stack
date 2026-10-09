@@ -153,7 +153,7 @@ export default function CustomTitleBar({
 
     return (
         <div
-            className="custom-titlebar flex h-11 flex-shrink-0 items-center bg-[var(--global-sidebar-bg)] pl-2"
+            className="custom-titlebar flex h-11 flex-shrink-0 items-center bg-[var(--rail)] pl-2"
         >
             {/* Windows: keep a reliable left-edge drag target even when tabs fill the bar. */}
             {isWindows && (
@@ -184,27 +184,27 @@ export default function CustomTitleBar({
                 {restoreCount > 0 && (
                     <>
                         <div
-                            className="flex h-7 items-center rounded-full border border-[var(--accent-warm-muted)] bg-[var(--accent-warm-subtle)] shadow-sm"
+                            className="flex h-7 items-center rounded-full border border-[var(--primary-muted)] bg-[var(--primary-soft)] shadow-sm"
                             data-no-drag
                         >
                             <button
                                 onClick={onRestoreSession}
-                                className="flex h-full items-center gap-1.5 rounded-l-full pl-3 pr-2 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--accent-warm-muted)] active:scale-95"
+                                className="flex h-full items-center gap-1.5 rounded-l-full pl-3 pr-2 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--primary-muted)] active:scale-95"
                                 title={t('titlebar.restoreTitle', { count: restoreCount })}
                                 data-no-drag
                             >
-                                <RotateCcw className="h-3.5 w-3.5 text-[var(--accent-warm)]" />
+                                <RotateCcw className="h-3.5 w-3.5 text-[var(--primary)]" />
                                 <span>{t('titlebar.restorePrevious')}</span>
                                 {restoreCount > 1 && (
-                                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent-warm-muted)] px-1 text-xs font-semibold text-[var(--accent-warm)]">
+                                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--primary-muted)] px-1 text-xs font-semibold text-[var(--primary)]">
                                         {restoreCount}
                                     </span>
                                 )}
                             </button>
-                            <span className="h-3.5 w-px bg-[var(--accent-warm-muted)]" />
+                            <span className="h-3.5 w-px bg-[var(--primary-muted)]" />
                             <button
                                 onClick={onDismissRestore}
-                                className="flex h-full items-center rounded-r-full px-2 text-[var(--ink-muted)] transition-colors hover:bg-[var(--accent-warm-muted)] hover:text-[var(--ink)] active:scale-95"
+                                className="flex h-full items-center rounded-r-full px-2 text-[var(--muted)] transition-colors hover:bg-[var(--primary-muted)] hover:text-[var(--ink)] active:scale-95"
                                 title={t('titlebar.dismiss')}
                                 data-no-drag
                             >
@@ -227,7 +227,7 @@ export default function CustomTitleBar({
                         <button
                             onClick={updateInstalling ? undefined : onRestartAndUpdate}
                             disabled={updateInstalling}
-                            className="flex h-7 items-center gap-1.5 px-3 rounded-full text-xs font-medium text-[var(--on-success)] bg-[var(--success)] shadow-sm transition-all hover:bg-[var(--success)] active:scale-95 disabled:opacity-80 disabled:cursor-wait"
+                            className="flex h-7 items-center gap-1.5 px-3 rounded-full text-xs font-medium text-[var(--on-primary)] bg-[var(--success)] shadow-sm transition-all hover:bg-[var(--success)] active:scale-95 disabled:opacity-80 disabled:cursor-wait"
                             title={updateInstalling
                                 ? t('titlebar.installingUpdate')
                                 : (updateVersion ? t('titlebar.updateToVersion', { version: updateVersion }) : t('titlebar.restartAndUpdate'))}
@@ -246,7 +246,7 @@ export default function CustomTitleBar({
                 <div className="flex h-full items-stretch" data-no-drag>
                     <button
                         onClick={handleMinimize}
-                        className="flex w-11 items-center justify-center text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] transition-colors"
+                        className="flex w-11 items-center justify-center text-[var(--muted)] hover:bg-[var(--inset)] transition-colors"
                         title={t('titlebar.minimize')}
                         data-no-drag
                     >
@@ -254,7 +254,7 @@ export default function CustomTitleBar({
                     </button>
                     <button
                         onClick={handleMaximize}
-                        className="flex w-11 items-center justify-center text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] transition-colors"
+                        className="flex w-11 items-center justify-center text-[var(--muted)] hover:bg-[var(--inset)] transition-colors"
                         title={isMaximized ? t('titlebar.restoreWindow') : t('titlebar.maximize')}
                         data-no-drag
                     >
@@ -266,7 +266,7 @@ export default function CustomTitleBar({
                     </button>
                     <button
                         onClick={handleClose}
-                        className="flex w-11 items-center justify-center text-[var(--ink-muted)] hover:bg-[var(--error)] hover:text-[var(--on-error)] transition-colors"
+                        className="flex w-11 items-center justify-center text-[var(--muted)] hover:bg-[var(--danger)] hover:text-[var(--on-primary)] transition-colors"
                         title={t('titlebar.close')}
                         data-no-drag
                     >

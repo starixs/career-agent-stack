@@ -12,7 +12,7 @@ import { cleanup, fireEvent, render } from '@testing-library/react';
 
 import { ThemeRegistry, ThemeRuntimeProvider } from '@/theme';
 import { syntheticTheme } from '@/theme/__tests__/syntheticTheme';
-import { keystoneDefaultTheme } from '@/theme/themes/keystone-default';
+import { careerTheme } from '@/theme/themes/career';
 
 import WidgetRenderer from './WidgetRenderer';
 
@@ -40,7 +40,7 @@ describe('WidgetRenderer iframe transport', () => {
   });
 
   it('pushes Theme CSS to the loaded iframe without replacing its document or content', () => {
-    const registry = new ThemeRegistry([keystoneDefaultTheme, syntheticTheme]);
+    const registry = new ThemeRegistry([careerTheme, syntheticTheme]);
     const view = render(
       <ThemeRuntimeProvider
         registry={registry}
@@ -85,7 +85,7 @@ describe('WidgetRenderer iframe transport', () => {
     expect(view.container.querySelector('iframe')).toBe(iframe);
     expect(postMessage).toHaveBeenCalledWith(expect.objectContaining({
       type: 'widget:theme',
-      css: expect.stringContaining('--widget-text: #1c1612;'),
+      css: expect.stringContaining('--widget-text: #2a241c;'),
     }), '*');
     expect(postMessage).not.toHaveBeenLastCalledWith(expect.objectContaining({
       css: expect.stringContaining('synthetic-'),

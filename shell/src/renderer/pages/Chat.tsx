@@ -269,7 +269,7 @@ const LazyBrowserPanel = lazy(() => import('@/components/BrowserPanel'));
 // Lazy load IntroductionOverlay for empty session welcome content
 const LazyIntroductionOverlay = lazy(() => import('@/components/IntroductionOverlay'));
 // Terminal chrome now uses CSS tokens that auto-switch with light/dark theme.
-// No need for cached theme constants — the header uses var(--paper), var(--ink), etc.
+// No need for cached theme constants — the header uses var(--bg), var(--ink), etc.
 
 /** Human-readable label for a runtime type (used in confirm dialogs, toasts, etc.) */
 function getRuntimeDisplayLabel(runtime: RuntimeType | undefined): string {
@@ -451,7 +451,7 @@ const SessionTitleEditor = forwardRef<
       {editing ? (
         <input
           ref={inputRef}
-          className="w-full rounded border border-[var(--line)] bg-[var(--paper-inset)] px-1.5 py-0.5 text-sm font-medium text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+          className="w-full rounded border border-[var(--line)] bg-[var(--inset)] px-1.5 py-0.5 text-sm font-medium text-[var(--ink)] outline-none focus:border-[var(--primary)]"
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onBlur={commit}
@@ -463,7 +463,7 @@ const SessionTitleEditor = forwardRef<
         />
       ) : (
         <span
-          className="block truncate cursor-pointer px-1.5 py-0.5 text-sm font-medium text-[var(--ink-subtle)] hover:text-[var(--ink)] transition-colors"
+          className="block truncate cursor-pointer px-1.5 py-0.5 text-sm font-medium text-[var(--subtle)] hover:text-[var(--ink)] transition-colors"
           onClick={() => setEditing(true)}
           title={t('shell.sessionTitle.renameTitle')}
         >
@@ -5106,7 +5106,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
             onQuoteSelection={handleQuoteFileSelection}
             onRevealInTree={handleRevealInTree}
           >
-    <div className="relative flex h-full flex-row overflow-hidden overscroll-none bg-[var(--paper-elevated)] text-[var(--ink)]">
+    <div className="relative flex h-full flex-row overflow-hidden overscroll-none bg-[var(--paper)] text-[var(--ink)]">
       {/* Left side: chat area (+ side workspace when wide) */}
       <div
         className={`relative flex min-w-0 flex-row overflow-hidden ${!isDraggingSplit ? 'transition-[width] duration-300 ease-in-out' : ''}`}
@@ -5115,7 +5115,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
       >
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden" data-chat-conversation>
         {/* Compact header - single row */}
-        <div className="relative z-10 flex h-12 flex-shrink-0 items-center justify-between bg-[var(--paper-elevated)] px-4 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-gradient-to-b after:from-[var(--paper-elevated)] after:to-[var(--paper-elevated-a0)]">
+        <div className="relative z-10 flex h-12 flex-shrink-0 items-center justify-between bg-[var(--paper)] px-4 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-gradient-to-b after:from-[var(--paper)] after:to-[var(--paper-a0)]">
           <div className="flex min-w-0 items-center gap-2">
             {/* Project name */}
             {agentDir && (
@@ -5127,7 +5127,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
             {/* Session title — click to rename */}
             {sessionTitle && sessionTitle !== 'New Tab' && sessionTitle !== 'New Chat' && (
               <>
-                <span className="flex-shrink-0 text-[var(--ink-subtle)]">/</span>
+                <span className="flex-shrink-0 text-[var(--subtle)]">/</span>
                 <SessionTitleEditor
                   ref={titleEditorRef}
                   title={sessionTitle}
@@ -5185,7 +5185,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
             <button
               type="button"
               onClick={handleNewSession}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
               title={t('shell.header.newChat')}
             >
               <MessageSquarePlus className="h-3.5 w-3.5 flex-shrink-0" />
@@ -5202,8 +5202,8 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => setShowHistory((prev) => !prev)}
                   className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-sm font-medium transition-colors ${showHistory
-                    ? 'bg-[var(--paper-inset)] text-[var(--ink)]'
-                    : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                    ? 'bg-[var(--inset)] text-[var(--ink)]'
+                    : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                     }`}
                 >
                   <History className="h-3.5 w-3.5 flex-shrink-0" />
@@ -5228,8 +5228,8 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                   type="button"
                   onClick={() => setShowLogs((prev) => !prev)}
                   className={`rounded-lg px-2.5 py-1 text-sm font-medium transition-colors ${showLogs
-                    ? 'bg-[var(--paper-inset)] text-[var(--ink)]'
-                    : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                    ? 'bg-[var(--inset)] text-[var(--ink)]'
+                    : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                     }`}
                 >
                   Logs
@@ -5243,7 +5243,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                   type="button"
                   onClick={handleExpandWorkspace}
                   aria-label={t('shell.header.expandWorkspace')}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                 >
                   <PanelRight className="h-4 w-4" />
                 </button>
@@ -5314,22 +5314,22 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
             }
             const canRetry = !!lastUserMsg && !isLoading;
             return (
-            <div className="relative z-10 flex-shrink-0 border-b border-[var(--line)] bg-[var(--paper-inset)] px-4 py-2 text-xs text-[var(--ink)]">
+            <div className="relative z-10 flex-shrink-0 border-b border-[var(--line)] bg-[var(--inset)] px-4 py-2 text-xs text-[var(--ink)]">
               <div className="mx-auto flex max-w-3xl items-start gap-2">
-                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--accent)]" />
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--primary)]" />
                 <div className="flex-1">
                   <span className="font-semibold text-[var(--ink)]">{t('shell.agentError.title')}</span>
-                  <span className="text-[var(--ink-muted)]">{agentError}</span>
+                  <span className="text-[var(--muted)]">{agentError}</span>
                   {/* Oversized image hint: detect API 400 about image dimensions and offer rewind.
                       Pattern synced with backend (agent-session.ts shouldResetSessionAfterError).
                       Known API error: "...image dimensions exceed max allowed size: 8000 pixels" */}
                   {lastUserMsg && /image.*exceed.*max allowed size/i.test(agentError) && (
                     <div className="mt-1">
-                      <span className="text-[var(--ink-muted)]">{t('shell.agentError.imageTooLargePrefix')}</span>
+                      <span className="text-[var(--muted)]">{t('shell.agentError.imageTooLargePrefix')}</span>
                       <button
                         type="button"
                         onClick={() => { setAgentError(null); handleRewind(lastUserMsg!.id); }}
-                        className="text-[var(--accent)] underline underline-offset-2 hover:text-[var(--accent-hover)]"
+                        className="text-[var(--primary)] underline underline-offset-2 hover:text-[var(--accent-hover)]"
                       >
                         {t('shell.agentError.rewindAction')}
                       </button>
@@ -5340,7 +5340,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                   <button
                     type="button"
                     onClick={() => handleDiagnoseAgentError(agentError)}
-                    className="rounded p-0.5 text-[var(--ink-subtle)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--accent)]"
+                    className="rounded p-0.5 text-[var(--subtle)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--primary)]"
                     title={t('shell.diagnostics.askHelper')}
                     aria-label={t('shell.diagnostics.askHelper')}
                   >
@@ -5350,7 +5350,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                     <button
                       type="button"
                       onClick={handleRetryLastUserMessage}
-                      className="flex items-center gap-1 rounded-md px-2 py-0.5 text-sm font-medium text-[var(--accent)] transition-colors hover:bg-[var(--accent-warm-subtle)]"
+                      className="flex items-center gap-1 rounded-md px-2 py-0.5 text-sm font-medium text-[var(--primary)] transition-colors hover:bg-[var(--primary-soft)]"
                     >
                       <RotateCcw className="h-3 w-3" />
                       {t('shell.agentError.resend')}
@@ -5359,7 +5359,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                   <button
                     type="button"
                     onClick={() => setAgentError(null)}
-                    className="flex-shrink-0 rounded p-0.5 text-[var(--ink-subtle)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink-muted)]"
+                    className="flex-shrink-0 rounded p-0.5 text-[var(--subtle)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--muted)]"
                     title={t('shell.common.close')}
                   >
                     <X className="h-3.5 w-3.5" />
@@ -5593,7 +5593,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
           <div
             ref={directoryPanelContainerRef}
             className={shouldUseWorkspaceOverlay
-              ? 'absolute bottom-0 right-0 top-0 z-50 flex w-[340px] max-w-[85%] flex-col bg-[var(--paper-elevated)] shadow-lg'
+              ? 'absolute bottom-0 right-0 top-0 z-50 flex w-[340px] max-w-[85%] flex-col bg-[var(--paper)] shadow-lg'
               : showWorkspace
                 ? 'relative z-10 flex w-[var(--chat-workspace-panel-width)] shrink-0 flex-col'
                 : 'pointer-events-none absolute bottom-0 right-0 top-0 z-20 flex w-[var(--chat-workspace-panel-width)] flex-col'
@@ -5606,7 +5606,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
             <span
               aria-hidden="true"
               className={`pointer-events-none absolute bottom-4 left-0 top-4 z-20 w-px ${
-                shouldUseWorkspaceOverlay ? 'bg-[var(--line)]' : 'bg-[var(--line-subtle)]'
+                shouldUseWorkspaceOverlay ? 'bg-[var(--line)]' : 'bg-[var(--line)]'
               }`}
               data-chat-workspace-divider
             />
@@ -5653,15 +5653,15 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
         <>
           {/* Draggable divider — hidden when panel is not visible */}
           <div
-            className={`z-10 flex w-1 cursor-col-resize items-center justify-center bg-[var(--line)] transition-colors hover:bg-[var(--accent)] ${!splitPanelVisible || browserUsesFullscreen ? 'hidden' : ''}`}
+            className={`z-10 flex w-1 cursor-col-resize items-center justify-center bg-[var(--line)] transition-colors hover:bg-[var(--primary)] ${!splitPanelVisible || browserUsesFullscreen ? 'hidden' : ''}`}
             onMouseDown={handleSplitDividerMouseDown}
           >
-            <div className="h-8 w-0.5 rounded-full bg-[var(--ink-subtle)]" />
+            <div className="h-8 w-0.5 rounded-full bg-[var(--subtle)]" />
           </div>
           {/* Right panel — single flex-1 container for tab bar + file + terminal.
               Uses `hidden` when panel is not visible but terminal is alive in background. */}
           <div className={browserUsesFullscreen
-            ? 'absolute inset-0 z-30 flex min-w-0 flex-col overflow-hidden bg-[var(--paper)]'
+            ? 'absolute inset-0 z-30 flex min-w-0 flex-col overflow-hidden bg-[var(--bg)]'
             : `flex min-w-0 flex-1 flex-col overflow-hidden ${!splitPanelVisible ? 'hidden' : ''}`}
           >
             {/* Tab switcher — only when 2+ views are active */}
@@ -5669,7 +5669,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
               const activeViews = [splitFile, terminalPinned && terminalAlive, browserUrl].filter(Boolean).length;
               return activeViews >= 2;
             })() && (
-              <div className="flex h-9 flex-shrink-0 items-center gap-0.5 border-b border-[var(--line)] bg-[var(--paper-elevated)] px-2">
+              <div className="flex h-9 flex-shrink-0 items-center gap-0.5 border-b border-[var(--line)] bg-[var(--paper)] px-2">
                 {/* File tab + its own × */}
                 {splitFile && (
                   <button
@@ -5678,7 +5678,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                     className={`group relative flex items-center gap-1 rounded-md px-2.5 py-1 text-sm font-medium transition-colors ${
                       splitActiveView === 'file'
                         ? 'text-[var(--ink)]'
-                        : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
                     }`}
                   >
                     <span className="max-w-[120px] truncate">{splitFile.name}</span>
@@ -5688,13 +5688,13 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                         e.stopPropagation();
                         splitFilePreviewRef.current?.close();
                       }}
-                      className="ml-0.5 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-[var(--paper-inset)] group-hover:opacity-100"
+                      className="ml-0.5 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-[var(--inset)] group-hover:opacity-100"
                       title={t('shell.split.closeFile')}
                     >
-                      <span className="text-sm leading-none text-[var(--ink-muted)]">×</span>
+                      <span className="text-sm leading-none text-[var(--muted)]">×</span>
                     </span>
                     {splitActiveView === 'file' && (
-                      <div className="absolute inset-x-1 -bottom-[5px] h-[2px] rounded-full bg-[var(--accent-warm)]" />
+                      <div className="absolute inset-x-1 -bottom-[5px] h-[2px] rounded-full bg-[var(--primary)]" />
                     )}
                   </button>
                 )}
@@ -5706,7 +5706,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                     className={`group relative flex items-center gap-1 rounded-md px-2.5 py-1 text-sm font-medium transition-colors ${
                       splitActiveView === 'terminal'
                         ? 'text-[var(--ink)]'
-                        : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
                     }`}
                   >
                     <TerminalSquare className="h-3 w-3" />
@@ -5719,13 +5719,13 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                         if (browserUrl) setSplitActiveView('browser');
                         else if (splitFile) setSplitActiveView('file');
                       }}
-                      className="ml-0.5 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-[var(--paper-inset)] group-hover:opacity-100"
+                      className="ml-0.5 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-[var(--inset)] group-hover:opacity-100"
                       title={t('shell.split.hideTerminal')}
                     >
-                      <span className="text-sm leading-none text-[var(--ink-muted)]">×</span>
+                      <span className="text-sm leading-none text-[var(--muted)]">×</span>
                     </span>
                     {splitActiveView === 'terminal' && (
-                      <div className="absolute inset-x-1 -bottom-[5px] h-[2px] rounded-full bg-[var(--accent-warm)]" />
+                      <div className="absolute inset-x-1 -bottom-[5px] h-[2px] rounded-full bg-[var(--primary)]" />
                     )}
                   </button>
                 )}
@@ -5737,7 +5737,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                     className={`group relative flex items-center gap-1 rounded-md px-2.5 py-1 text-sm font-medium transition-colors ${
                       splitActiveView === 'browser'
                         ? 'text-[var(--ink)]'
-                        : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
                     }`}
                   >
                     <Globe className="h-3 w-3" />
@@ -5762,13 +5762,13 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                         e.stopPropagation();
                         handleBrowserClose();
                       }}
-                      className="ml-0.5 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-[var(--paper-inset)] group-hover:opacity-100"
+                      className="ml-0.5 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-[var(--inset)] group-hover:opacity-100"
                       title={t('shell.split.closeBrowser')}
                     >
-                      <span className="text-sm leading-none text-[var(--ink-muted)]">×</span>
+                      <span className="text-sm leading-none text-[var(--muted)]">×</span>
                     </span>
                     {splitActiveView === 'browser' && (
-                      <div className="absolute inset-x-1 -bottom-[5px] h-[2px] rounded-full bg-[var(--accent-warm)]" />
+                      <div className="absolute inset-x-1 -bottom-[5px] h-[2px] rounded-full bg-[var(--primary)]" />
                     )}
                   </button>
                 )}
@@ -5777,8 +5777,8 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
 
             {/* File preview view */}
             {splitFile && (
-              <div className={`flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--paper-elevated)] ${splitActiveView !== 'file' ? 'hidden' : ''}`}>
-                <Suspense fallback={<div className="flex h-full items-center justify-center text-[var(--ink-muted)]"><Loader2 className="h-5 w-5 animate-spin" /></div>}>
+              <div className={`flex min-w-0 flex-1 flex-col overflow-hidden bg-[var(--paper)] ${splitActiveView !== 'file' ? 'hidden' : ''}`}>
+                <Suspense fallback={<div className="flex h-full items-center justify-center text-[var(--muted)]"><Loader2 className="h-5 w-5 animate-spin" /></div>}>
                   <FilePreviewModal
                     ref={splitFilePreviewRef}
                     name={splitFile.name}
@@ -5828,11 +5828,11 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
               <div className={`flex min-w-0 flex-1 flex-col overflow-hidden ${splitActiveView !== 'terminal' ? 'hidden' : ''}`}>
                 {/* Terminal header — only when tab switcher is NOT showing (single view) */}
                 {[splitFile, terminalPinned && terminalAlive, browserUrl].filter(Boolean).length < 2 && (
-                  <div className="flex h-9 flex-shrink-0 items-center justify-between bg-[var(--paper)] px-3">
+                  <div className="flex h-9 flex-shrink-0 items-center justify-between bg-[var(--bg)] px-3">
                     <div className="flex items-center gap-1.5">
                       <TerminalSquare className="h-3.5 w-3.5 text-[var(--ink)]" />
                       <span className="text-sm font-medium text-[var(--ink)]">{t('shell.split.terminal')}</span>
-                      <span className="text-xs text-[var(--ink-muted)]">
+                      <span className="text-xs text-[var(--muted)]">
                         {agentDir ? `~/${agentDir.split(/[/\\]/).pop()}` : ''}
                       </span>
                     </div>
@@ -5844,14 +5844,14 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                           if (browserUrl) setSplitActiveView('browser');
                           else if (splitFile) setSplitActiveView('file');
                         }}
-                        className="flex h-5 w-5 items-center justify-center rounded text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                        className="flex h-5 w-5 items-center justify-center rounded text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                       >
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </Tip>
                   </div>
                 )}
-                <Suspense fallback={<div className="flex h-full items-center justify-center bg-[var(--paper)]"><Loader2 className="h-5 w-5 animate-spin text-[var(--ink-muted)]" /></div>}>
+                <Suspense fallback={<div className="flex h-full items-center justify-center bg-[var(--bg)]"><Loader2 className="h-5 w-5 animate-spin text-[var(--muted)]" /></div>}>
                   <LazyTerminalPanel
                     workspacePath={agentDir}
                     terminalId={terminalId}
@@ -5880,7 +5880,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
             {/* Browser — embedded Tauri child Webview */}
             {browserUrl && (
               <div className={`flex min-w-0 flex-1 flex-col overflow-hidden ${splitActiveView !== 'browser' ? 'hidden' : ''}`}>
-                <Suspense fallback={<div className="flex h-full items-center justify-center bg-[var(--paper)]"><Loader2 className="h-5 w-5 animate-spin text-[var(--ink-muted)]" /></div>}>
+                <Suspense fallback={<div className="flex h-full items-center justify-center bg-[var(--bg)]"><Loader2 className="h-5 w-5 animate-spin text-[var(--muted)]" /></div>}>
                   <LazyBrowserPanel
                     tabId={tabId}
                     url={browserUrl}
@@ -6049,17 +6049,17 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
           onClose={goalEditSubmitting ? undefined : () => setGoalEditOpen(false)}
           className="z-[200] px-4"
         >
-          <div className="flex w-full max-w-lg flex-col rounded-2xl bg-[var(--paper-elevated)] shadow-xl">
+          <div className="flex w-full max-w-lg flex-col rounded-2xl bg-[var(--paper)] shadow-xl">
             <div className="flex items-center justify-between border-b border-[var(--line)] px-6 py-4">
               <div className="min-w-0">
                 <h2 className="text-base font-semibold text-[var(--ink)]">{t('goalEdit.title')}</h2>
-                <p className="mt-0.5 truncate text-xs text-[var(--ink-muted)]">{t('goalEdit.subtitle')}</p>
+                <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{t('goalEdit.subtitle')}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setGoalEditOpen(false)}
                 disabled={goalEditSubmitting}
-                className="shrink-0 rounded-lg p-1 text-[var(--ink-muted)] transition hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="shrink-0 rounded-lg p-1 text-[var(--muted)] transition hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -6068,7 +6068,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
               <textarea
                 value={goalEditDraft}
                 onChange={(event) => setGoalEditDraft(event.target.value)}
-                className="min-h-32 w-full resize-y rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-sm leading-relaxed text-[var(--ink)] outline-none transition focus:border-[var(--accent)]"
+                className="min-h-32 w-full resize-y rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-sm leading-relaxed text-[var(--ink)] outline-none transition focus:border-[var(--primary)]"
                 placeholder={t('goalEdit.placeholder')}
                 autoFocus
               />
@@ -6078,7 +6078,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                 type="button"
                 onClick={() => setGoalEditOpen(false)}
                 disabled={goalEditSubmitting}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-[var(--paper-inset)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--inset)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {t('shell.common.cancel')}
               </button>
@@ -6086,7 +6086,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                 type="button"
                 onClick={() => void handleGoalEditSubmit()}
                 disabled={goalEditSubmitting || !goalEditDraft.trim()}
-                className="rounded-lg bg-[var(--accent)] px-5 py-2 text-sm font-medium text-[var(--on-accent)] transition hover:bg-[var(--accent-warm-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-[var(--primary)] px-5 py-2 text-sm font-medium text-[var(--on-primary)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {goalEditSubmitting ? t('goalEdit.updating') : t('goalEdit.update')}
               </button>

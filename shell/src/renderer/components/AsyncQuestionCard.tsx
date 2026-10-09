@@ -35,16 +35,16 @@ function Question({ reply, question }: { reply: AsyncQuestionReply; question: As
       <div className="flex flex-wrap gap-2">
         {question.options?.map((option, index) => (
           <button key={index} type="button" onClick={() => void send(option)}
-            className="rounded-lg border border-[var(--line)] px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--hover-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)] disabled:cursor-default disabled:opacity-50">
+            className="rounded-lg border border-[var(--line)] px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)] disabled:cursor-default disabled:opacity-50">
             {option}
           </button>
         ))}
         <button type="button" onClick={() => actions?.onCompose(reply, question.title)}
-          className="rounded-lg px-3 py-2 text-sm text-[var(--accent)] hover:bg-[var(--hover-bg)] disabled:cursor-default disabled:opacity-50">
+          className="rounded-lg px-3 py-2 text-sm text-[var(--primary)] hover:bg-[var(--hover)] disabled:cursor-default disabled:opacity-50">
           {t('asyncQuestion.compose')}
         </button>
       </div>
-      <div role="status" className="text-xs text-[var(--ink-muted)]">
+      <div role="status" className="text-xs text-[var(--muted)]">
         {answered ? t('asyncQuestion.answered') : queued ? t('asyncQuestion.queued') : submitting ? t('asyncQuestion.sending') : failed ? t('asyncQuestion.failed') : null}
       </div>
     </fieldset>
@@ -59,8 +59,8 @@ export default function AsyncQuestionCard({ questions }: { questions: AsyncQuest
 
 export function AsyncQuestionComposerTarget({ title, onCancel }: { title: string; onCancel: () => void }) {
   const { t } = useTranslation('chat');
-  return <div className="flex min-w-0 items-center gap-2 px-3 py-2 text-xs text-[var(--ink-muted)]">
+  return <div className="flex min-w-0 items-center gap-2 px-3 py-2 text-xs text-[var(--muted)]">
     <span className="min-w-0 flex-1 truncate" title={title}>{t('asyncQuestion.replyingTo', { title })}</span>
-    <button type="button" className="shrink-0 text-[var(--accent)]" onClick={onCancel}>{t('asyncQuestion.cancel')}</button>
+    <button type="button" className="shrink-0 text-[var(--primary)]" onClick={onCancel}>{t('asyncQuestion.cancel')}</button>
   </div>;
 }

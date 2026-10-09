@@ -42,12 +42,12 @@ export function RecordWorkspacePicker({ open, onClose, anchorRef, tags = [], onS
       placement="bottom-end"
       className="min-w-[240px] max-w-[320px] py-1"
     >
-      <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ink-muted)]/70">
+      <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]/70">
         {t('thoughts.workspacePicker')}
       </div>
       <div className="max-h-[280px] overflow-y-auto py-1">
         {pickableWorkspaces.length === 0 ? (
-          <div className="px-3 py-4 text-xs text-[var(--ink-muted)]">{t('thoughts.noWorkspace')}</div>
+          <div className="px-3 py-4 text-xs text-[var(--muted)]">{t('thoughts.noWorkspace')}</div>
         ) : (
           pickableWorkspaces.map((project) => (
             <button
@@ -57,8 +57,8 @@ export function RecordWorkspacePicker({ open, onClose, anchorRef, tags = [], onS
                 onClose();
                 onSelect(project.id);
               }}
-              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--hover-bg)] ${
-                project.id === suggestedWorkspaceId ? 'bg-[var(--accent-warm-subtle)]' : ''
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-[var(--hover)] ${
+                project.id === suggestedWorkspaceId ? 'bg-[var(--primary-soft)]' : ''
               }`}
             >
               <WorkspaceIcon icon={project.icon} size={20} />
@@ -66,7 +66,7 @@ export function RecordWorkspacePicker({ open, onClose, anchorRef, tags = [], onS
                 <div className="truncate text-sm font-medium text-[var(--ink)]">
                   {project.displayName || getFolderName(project.path)}
                 </div>
-                <div className="truncate text-xs text-[var(--ink-muted)]/70">{project.path}</div>
+                <div className="truncate text-xs text-[var(--muted)]/70">{project.path}</div>
               </div>
             </button>
           ))

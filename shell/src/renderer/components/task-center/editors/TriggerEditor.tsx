@@ -178,15 +178,15 @@ export function TriggerEditor({
           {t('trigger.command')}
         </PillButton>
       </div>
-      <p className="text-sm leading-relaxed text-[var(--ink-muted)]">
+      <p className="text-sm leading-relaxed text-[var(--muted)]">
         {command ? t('trigger.commandDescription') : t('trigger.alwaysDescription')}
       </p>
 
       {command && (
-        <div className="space-y-4 border-t border-[var(--line-subtle)] pt-4">
+        <div className="space-y-4 border-t border-[var(--line)] pt-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_160px]">
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-[var(--ink-secondary)]">
+              <span className="mb-2 block text-sm font-medium text-[var(--ink-2)]">
                 {t('trigger.executable')}
               </span>
               <input
@@ -198,7 +198,7 @@ export function TriggerEditor({
               />
             </label>
             <label className="block">
-              <span className="mb-2 block text-sm font-medium text-[var(--ink-secondary)]">
+              <span className="mb-2 block text-sm font-medium text-[var(--ink-2)]">
                 {t('trigger.timeout')}
               </span>
               <input
@@ -218,7 +218,7 @@ export function TriggerEditor({
           </div>
 
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-[var(--ink-secondary)]">
+            <span className="mb-2 block text-sm font-medium text-[var(--ink-2)]">
               {t('trigger.args')}
             </span>
             <textarea
@@ -229,13 +229,13 @@ export function TriggerEditor({
               spellCheck={false}
               className={`${INPUT_CLS} resize-y font-mono`}
             />
-            <span className="mt-1.5 block text-xs text-[var(--ink-muted)]">
+            <span className="mt-1.5 block text-xs text-[var(--muted)]">
               {t('trigger.argsHint')}
             </span>
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-sm font-medium text-[var(--ink-secondary)]">
+            <span className="mb-2 block text-sm font-medium text-[var(--ink-2)]">
               {t('trigger.cwd')}
             </span>
             <input
@@ -251,15 +251,15 @@ export function TriggerEditor({
             <p className="text-sm text-[var(--danger)]" role="alert">{validationError}</p>
           )}
 
-          <div className="rounded-[var(--radius-lg)] border border-[var(--line-subtle)] bg-[var(--paper-inset)] p-3">
+          <div className="rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--inset)] p-3">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="flex min-w-0 gap-2.5">
-                <Activity className="mt-0.5 h-4 w-4 shrink-0 text-[var(--ink-muted)]" />
+                <Activity className="mt-0.5 h-4 w-4 shrink-0 text-[var(--muted)]" />
                 <div>
-                  <p className="text-sm font-medium text-[var(--ink-secondary)]">
+                  <p className="text-sm font-medium text-[var(--ink-2)]">
                     {t('trigger.testTitle')}
                   </p>
-                  <p className="mt-1 text-xs leading-relaxed text-[var(--ink-muted)]">
+                  <p className="mt-1 text-xs leading-relaxed text-[var(--muted)]">
                     {t('trigger.testWarning')}
                   </p>
                 </div>
@@ -268,7 +268,7 @@ export function TriggerEditor({
                 type="button"
                 onClick={() => void handleTest()}
                 disabled={disabled || testing || !!validationError || !workspacePath}
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-2 text-sm font-medium text-[var(--ink-secondary)] transition hover:bg-[var(--paper-elevated)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-2 text-sm font-medium text-[var(--ink-2)] transition hover:bg-[var(--paper)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {testing ? <Activity className="h-3.5 w-3.5 animate-pulse" /> : <Play className="h-3.5 w-3.5" />}
                 {testing ? t('trigger.testing') : t('trigger.test')}
@@ -276,8 +276,8 @@ export function TriggerEditor({
             </div>
             {testResult && (
               <div
-                className={`mt-3 border-t border-[var(--line-subtle)] pt-3 text-sm ${
-                  testResult.ok ? 'text-[var(--ink-secondary)]' : 'text-[var(--danger)]'
+                className={`mt-3 border-t border-[var(--line)] pt-3 text-sm ${
+                  testResult.ok ? 'text-[var(--ink-2)]' : 'text-[var(--danger)]'
                 }`}
                 data-testid="trigger-test-result"
               >
@@ -289,14 +289,14 @@ export function TriggerEditor({
                         {t(`trigger.decision.${testResult.result.decision}`)} · {testResult.result.reason.message}
                       </p>
                       {testResult.result.handoff?.summary && <p>{testResult.result.handoff.summary}</p>}
-                      <p className="font-mono text-xs text-[var(--ink-muted)]">
+                      <p className="font-mono text-xs text-[var(--muted)]">
                         {t('trigger.testMeta', {
                           duration: testResult.result.durationMs,
                           exitCode: testResult.result.exitCode,
                         })}
                       </p>
                       {testResult.result.stderrTail && (
-                        <pre className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-[var(--ink-muted)]">
+                        <pre className="max-h-24 overflow-auto whitespace-pre-wrap text-xs text-[var(--muted)]">
                           {testResult.result.stderrTail}
                         </pre>
                       )}

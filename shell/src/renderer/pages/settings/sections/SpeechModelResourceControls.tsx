@@ -67,7 +67,7 @@ export function SpeechModelResourceControls({
       <div className="mt-3 border-t border-[var(--line)] pt-3">
         <div className="flex items-center gap-3">
           <div
-            className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--paper-inset)]"
+            className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[var(--inset)]"
             role="progressbar"
             aria-label={progressLabel}
             aria-valuemin={downloading ? 0 : undefined}
@@ -76,17 +76,17 @@ export function SpeechModelResourceControls({
           >
             {downloading ? (
               <div
-                className="h-full w-full origin-left rounded-full bg-[var(--accent)] transition-transform duration-300"
+                className="h-full w-full origin-left rounded-full bg-[var(--primary)] transition-transform duration-300"
                 style={{ transform: `scaleX(${downloadPercent / 100})` }}
               />
             ) : (
-              <div className="animate-indeterminate h-full w-1/3 rounded-full bg-[var(--accent)]" />
+              <div className="animate-indeterminate h-full w-1/3 rounded-full bg-[var(--primary)]" />
             )}
           </div>
           <button
             type="button"
             disabled
-            className="inline-flex shrink-0 cursor-wait items-center rounded-lg border border-[var(--line)] px-2 py-1 text-xs font-medium text-[var(--ink-muted)] opacity-70"
+            className="inline-flex shrink-0 cursor-wait items-center rounded-lg border border-[var(--line)] px-2 py-1 text-xs font-medium text-[var(--muted)] opacity-70"
           >
             {status.status === 'removing'
               ? t('toolbox.speechResource.removingAction')
@@ -116,7 +116,7 @@ export function SpeechModelResourceControls({
           <button
             type="button"
             onClick={onRemove}
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--line)] px-2 py-1 text-xs font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--danger)] disabled:cursor-wait disabled:opacity-60"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--line)] px-2 py-1 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--danger)] disabled:cursor-wait disabled:opacity-60"
           >
             <RefreshCw className="h-3.5 w-3.5" />
             {t('toolbox.speechResource.retryRemove')}
@@ -125,7 +125,7 @@ export function SpeechModelResourceControls({
           <button
             type="button"
             onClick={onInstall}
-            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--line)] px-2 py-1 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+            className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-[var(--line)] px-2 py-1 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
           >
             {error || hasActivationWarning ? (
               <RefreshCw className="h-3.5 w-3.5" />

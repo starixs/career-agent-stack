@@ -62,8 +62,8 @@ export default function ChatInput({
   const modelPillClass = (isActive: boolean, size: 'default' | 'compact' = 'default') =>
     `rounded-full ${size === 'compact' ? 'px-2.5 py-1' : 'px-3 py-1'} text-xs font-semibold transition ${
       isActive ?
-        'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-sm'
-      : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+        'bg-[var(--paper)] text-[var(--ink)] shadow-sm'
+      : 'text-[var(--muted)] hover:text-[var(--ink)]'
     } ${isModelPreferenceUpdating ? 'opacity-70' : ''}`;
 
   const handleModelPreferenceSelect = (preference: ChatModelPreference) => {
@@ -248,9 +248,9 @@ export default function ChatInput({
     >
       <div className="mx-auto max-w-3xl">
         <div
-          className={`rounded-2xl bg-[var(--paper)]/95 p-2 shadow-sm backdrop-blur-xl ${
+          className={`rounded-2xl bg-[var(--bg)]/95 p-2 shadow-sm backdrop-blur-xl ${
             isDragActive ?
-              'ring-2 ring-[var(--line-strong)]/80'
+              'ring-2 ring-[var(--line-2)]/80'
             : 'ring-1 ring-[var(--line)]/80'
           }`}
           onClick={handleInputContainerClick}
@@ -282,7 +282,7 @@ export default function ChatInput({
           )}
 
           {attachmentError && (
-            <p className="px-3 pb-2 text-xs text-[var(--error)]">{attachmentError}</p>
+            <p className="px-3 pb-2 text-xs text-[var(--danger)]">{attachmentError}</p>
           )}
 
           <textarea
@@ -293,7 +293,7 @@ export default function ChatInput({
             onPaste={handlePaste}
             placeholder="How can I help you today?"
             rows={1}
-            className="w-full resize-none border-0 bg-transparent px-3 py-2 text-[var(--ink)] placeholder-[var(--ink-muted)] focus:outline-none"
+            className="w-full resize-none border-0 bg-transparent px-3 py-2 text-[var(--ink)] placeholder-[var(--muted)] focus:outline-none"
             style={{
               minHeight: `${MIN_TEXTAREA_HEIGHT}px`,
               maxHeight: `${MAX_TEXTAREA_HEIGHT}px`
@@ -305,12 +305,12 @@ export default function ChatInput({
               <button
                 type="button"
                 onClick={handleAttachmentButtonClick}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--line)]/80 bg-[var(--paper-inset)] text-[var(--ink-muted)] transition hover:bg-[var(--hover-bg)] focus:ring-2 focus:ring-[var(--line-strong)] focus:outline-none"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--line)]/80 bg-[var(--inset)] text-[var(--muted)] transition hover:bg-[var(--hover)] focus:ring-2 focus:ring-[var(--line-2)] focus:outline-none"
                 title="Attach files"
               >
                 <Paperclip className="h-4 w-4" />
               </button>
-              <div className="flex h-10 items-center gap-2 rounded-full border border-[var(--line)]/80 bg-[var(--paper-inset)] px-2 py-1 transition">
+              <div className="flex h-10 items-center gap-2 rounded-full border border-[var(--line)]/80 bg-[var(--inset)] px-2 py-1 transition">
                 <button
                   type="button"
                   aria-pressed={!isSmartMode}
@@ -371,7 +371,7 @@ export default function ChatInput({
                 </div>
               </div>
               {isModelPreferenceUpdating && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--ink-muted)]" />
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--muted)]" />
               )}
             </div>
             <button
@@ -379,8 +379,8 @@ export default function ChatInput({
               disabled={isLoading && onStopStreaming ? false : !computedCanSend || isLoading}
               className={`flex h-9 w-9 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 isLoading && onStopStreaming ?
-                  'bg-[var(--paper-inset)] text-[var(--ink)] hover:bg-[var(--hover-bg)]'
-                : 'bg-[var(--button-dark-bg)] text-[var(--button-dark-text)] hover:opacity-80'
+                  'bg-[var(--inset)] text-[var(--ink)] hover:bg-[var(--hover)]'
+                : 'bg-[var(--ink)] text-[var(--bg)] hover:opacity-80'
               }`}
             >
               {isLoading ?

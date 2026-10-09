@@ -364,7 +364,7 @@ export default function GlobalSkillsPanel({
     if (loading && viewState.type === 'list') {
         return (
             <div className="flex h-64 items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-[var(--ink-muted)]" />
+                <Loader2 className="h-8 w-8 animate-spin text-[var(--muted)]" />
             </div>
         );
     }
@@ -375,12 +375,12 @@ export default function GlobalSkillsPanel({
             <div className="space-y-4">
                 <button
                     onClick={handleBackToList}
-                    className="flex items-center gap-1 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                    className="flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--ink)]"
                 >
                     <ChevronLeft className="h-4 w-4" />
                     {t('agentSettings.panel.backToList')}
                 </button>
-                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] overflow-hidden" style={{ minHeight: '500px' }}>
+                <div className="rounded-xl border border-[var(--line)] bg-[var(--bg)] overflow-hidden" style={{ minHeight: '500px' }}>
                     <SkillDetailPanel
                         ref={skillDetailRef}
                         name={viewState.name}
@@ -401,12 +401,12 @@ export default function GlobalSkillsPanel({
             <div className="space-y-4">
                 <button
                     onClick={handleBackToList}
-                    className="flex items-center gap-1 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                    className="flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--ink)]"
                 >
                     <ChevronLeft className="h-4 w-4" />
                     {t('agentSettings.panel.backToList')}
                 </button>
-                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] overflow-hidden" style={{ minHeight: '400px' }}>
+                <div className="rounded-xl border border-[var(--line)] bg-[var(--bg)] overflow-hidden" style={{ minHeight: '400px' }}>
                     <CommandDetailPanel
                         ref={commandDetailRef}
                         name={viewState.name}
@@ -427,13 +427,13 @@ export default function GlobalSkillsPanel({
             <div>
                 <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-[var(--ink-muted)]" />
+                        <Sparkles className="h-5 w-5 text-[var(--muted)]" />
                         <h3 className="text-base font-semibold text-[var(--ink)]">{t('agentSettings.skillCommandList.userSkillsTitle')}</h3>
-                        <span className="text-xs text-[var(--ink-muted)]">({skills.length})</span>
+                        <span className="text-xs text-[var(--muted)]">({skills.length})</span>
                     </div>
                     <button
                         onClick={() => setShowNewSkillDialog(true)}
-                        className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+                        className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                     >
                         <Plus className="h-4 w-4" />
                         {t('agentSettings.common.new')}
@@ -452,9 +452,9 @@ export default function GlobalSkillsPanel({
                         ))}
                     </div>
                 ) : (
-                    <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper-inset)]/30 py-8 text-center">
-                        <Sparkles className="mx-auto h-10 w-10 text-[var(--ink-muted)]/30" />
-                        <p className="mt-2 text-sm text-[var(--ink-muted)]">{t('agentSettings.skillCommandList.emptyUserSkills')}</p>
+                    <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--inset)]/30 py-8 text-center">
+                        <Sparkles className="mx-auto h-10 w-10 text-[var(--muted)]/30" />
+                        <p className="mt-2 text-sm text-[var(--muted)]">{t('agentSettings.skillCommandList.emptyUserSkills')}</p>
                     </div>
                 )}
             </div>
@@ -463,13 +463,13 @@ export default function GlobalSkillsPanel({
             <div>
                 <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Terminal className="h-5 w-5 text-[var(--ink-muted)]" />
+                        <Terminal className="h-5 w-5 text-[var(--muted)]" />
                         <h3 className="text-base font-semibold text-[var(--ink)]">{t('agentSettings.skillCommandList.userCommandsTitle')}</h3>
-                        <span className="text-xs text-[var(--ink-muted)]">({commands.length})</span>
+                        <span className="text-xs text-[var(--muted)]">({commands.length})</span>
                     </div>
                     <button
                         onClick={() => setShowNewCommandDialog(true)}
-                        className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+                        className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                     >
                         <Plus className="h-4 w-4" />
                         {t('agentSettings.common.new')}
@@ -486,9 +486,9 @@ export default function GlobalSkillsPanel({
                         ))}
                     </div>
                 ) : (
-                    <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper-inset)]/30 py-8 text-center">
-                        <Terminal className="mx-auto h-10 w-10 text-[var(--ink-muted)]/30" />
-                        <p className="mt-2 text-sm text-[var(--ink-muted)]">{t('agentSettings.skillCommandList.emptyUserCommands')}</p>
+                    <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--inset)]/30 py-8 text-center">
+                        <Terminal className="mx-auto h-10 w-10 text-[var(--muted)]/30" />
+                        <p className="mt-2 text-sm text-[var(--muted)]">{t('agentSettings.skillCommandList.emptyUserCommands')}</p>
                     </div>
                 )}
             </div>
@@ -545,7 +545,7 @@ export default function GlobalSkillsPanel({
                 />
             )}
 
-            <p className="text-center text-xs text-[var(--ink-muted)]">
+            <p className="text-center text-xs text-[var(--muted)]">
                 {t('agentSettings.skillCommandList.userStorageHint')}
             </p>
         </div>

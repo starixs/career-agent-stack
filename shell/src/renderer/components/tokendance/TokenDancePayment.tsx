@@ -239,7 +239,7 @@ export function TokenDancePayment({
       footer={
         !session ? (
           <>
-            <span className="text-xs text-[var(--ink-muted)]">
+            <span className="text-xs text-[var(--muted)]">
               {t('payment.scan')}
             </span>
             <button
@@ -287,7 +287,7 @@ export function TokenDancePayment({
         <>
           {balance}
           <div>
-            <p className="mb-3 text-xs text-[var(--ink-muted)]">
+            <p className="mb-3 text-xs text-[var(--muted)]">
               {t('payment.choose')}
             </p>
             <div className="grid grid-cols-3 gap-2.5">
@@ -298,14 +298,14 @@ export function TokenDancePayment({
                   disabled={creating}
                   aria-pressed={Number(amount) === value}
                   onClick={() => setAmount(String(value))}
-                  className={`rounded-lg border py-3 text-lg ${Number(amount) === value ? 'border-[var(--accent-warm)] bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]' : 'border-[var(--line)] bg-[var(--paper)]'}`}
+                  className={`rounded-lg border py-3 text-lg ${Number(amount) === value ? 'border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]' : 'border-[var(--line)] bg-[var(--bg)]'}`}
                 >
                   ¥{value}
                 </button>
               ))}
             </div>
           </div>
-          <label className="block text-xs text-[var(--ink-muted)]">
+          <label className="block text-xs text-[var(--muted)]">
             {t('payment.custom')}
             <input
               aria-label={t('payment.custom')}
@@ -314,12 +314,12 @@ export function TokenDancePayment({
               value={amount}
               disabled={creating}
               onChange={(event) => setAmount(event.target.value)}
-              className="mt-2 block w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-2.5 text-sm text-[var(--ink)] focus:border-[var(--focus-border)] focus:outline-none"
+              className="mt-2 block w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-2.5 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none"
             />
             <span className="mt-2 block">{t('payment.range')}</span>
           </label>
           {failure && (
-            <p role="alert" className="text-xs text-[var(--error)]">
+            <p role="alert" className="text-xs text-[var(--danger)]">
               {t(
                 failure.recoveryAction
                   ? `payment.recovery.${failure.recoveryAction}`
@@ -331,7 +331,7 @@ export function TokenDancePayment({
       ) : (
         <>
           <div className="text-center">
-            <p className="text-xs text-[var(--ink-muted)]">
+            <p className="text-xs text-[var(--muted)]">
               {t('payment.recipient')}
             </p>
             <p className="mt-1 text-3xl font-semibold tabular-nums">
@@ -347,17 +347,17 @@ export function TokenDancePayment({
                       className="h-[170px] w-[170px]"
                     />
                   ) : qrFailed ? (
-                    <span className="p-4 text-xs text-[var(--error)]">
+                    <span className="p-4 text-xs text-[var(--danger)]">
                       {t('payment.qrFailed')}
                     </span>
                   ) : (
                     <Loader2 className="h-5 w-5 animate-spin text-gray-500 motion-reduce:animate-none" />
                   )}
                 </div>
-                <p className="text-xs text-[var(--ink-muted)]">
+                <p className="text-xs text-[var(--muted)]">
                   {t('payment.scan')}
                 </p>
-                <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                <p className="mt-1 text-xs text-[var(--muted)]">
                   {t('payment.countdown', { time: countdown })}
                 </p>
               </>
@@ -365,7 +365,7 @@ export function TokenDancePayment({
           </div>
           <div
             role="status"
-            className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4"
+            className="rounded-lg border border-[var(--line)] bg-[var(--bg)] p-4"
           >
             <p className="flex items-center gap-2 text-sm font-medium">
               {session.status === 'paid' ? (
@@ -375,11 +375,11 @@ export function TokenDancePayment({
               ) : null}
               {t(`payment.result.${status ?? 'pending'}`)}
             </p>
-            <p className="mt-1 text-xs text-[var(--ink-muted)]">
+            <p className="mt-1 text-xs text-[var(--muted)]">
               {t(`payment.hint.${status ?? 'pending'}`)}
             </p>
             {failure && !terminal && (
-              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-[var(--error)]">
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-[var(--danger)]">
                 <span>
                   {t(
                     failure.recoveryAction

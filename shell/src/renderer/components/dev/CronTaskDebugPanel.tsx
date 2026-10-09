@@ -107,13 +107,13 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} />
 
       {/* Panel */}
-      <div className="relative z-10 w-full max-w-2xl rounded-xl bg-[var(--paper-elevated)] shadow-xl">
+      <div className="relative z-10 w-full max-w-2xl rounded-xl bg-[var(--paper)] shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
           <div className="flex items-center gap-2">
-            <Timer className="h-5 w-5 text-[var(--accent)]" />
+            <Timer className="h-5 w-5 text-[var(--primary)]" />
             <h2 className="text-base font-semibold text-[var(--ink)]">循环任务调试面板</h2>
-            <span className="rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">
+            <span className="rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">
               DEV
             </span>
           </div>
@@ -121,14 +121,14 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
             <button
               onClick={loadTasks}
               disabled={isLoading}
-              className="rounded-lg p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-50"
+              className="rounded-lg p-1.5 text-[var(--muted)] transition hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-50"
               title="刷新"
             >
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
             <button
               onClick={onClose}
-              className="rounded-lg p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+              className="rounded-lg p-1.5 text-[var(--muted)] transition hover:bg-[var(--inset)] hover:text-[var(--ink)]"
             >
               ✕
             </button>
@@ -138,18 +138,18 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
         {/* Content */}
         <div className="max-h-96 overflow-y-auto p-5">
           {error && (
-            <div className="mb-4 flex items-center gap-2 rounded-lg bg-[var(--error-bg)] px-3 py-2 text-sm text-[var(--error)]">
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-[var(--danger-bg)] px-3 py-2 text-sm text-[var(--danger)]">
               <AlertCircle className="h-4 w-4" />
               {error}
             </div>
           )}
 
           {isLoading && tasks.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[var(--ink-muted)]">
+            <div className="py-8 text-center text-sm text-[var(--muted)]">
               加载中...
             </div>
           ) : tasks.length === 0 ? (
-            <div className="py-8 text-center text-sm text-[var(--ink-muted)]">
+            <div className="py-8 text-center text-sm text-[var(--muted)]">
               没有活跃的循环任务
             </div>
           ) : (
@@ -157,7 +157,7 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
               {tasks.map((task) => (
                 <div
                   key={task.id}
-                  className="rounded-lg border border-[var(--line)] bg-[var(--paper-inset)] p-4"
+                  className="rounded-lg border border-[var(--line)] bg-[var(--inset)] p-4"
                 >
                   {/* Task header */}
                   <div className="mb-2 flex items-start justify-between">
@@ -172,7 +172,7 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
                           {getCronStatusText(task.status)}
                         </span>
                       </div>
-                      <p className="mt-1 truncate text-xs text-[var(--ink-muted)]" title={task.prompt}>
+                      <p className="mt-1 truncate text-xs text-[var(--muted)]" title={task.prompt}>
                         {task.prompt}
                       </p>
                     </div>
@@ -184,13 +184,13 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
                           <button
                             onClick={handleConfirmStop}
                             disabled={stoppingTaskId === task.id}
-                            className="rounded-lg bg-[var(--error)] px-2 py-1 text-xs font-medium text-[var(--on-error)] transition hover:bg-[var(--error)]/80 disabled:opacity-50"
+                            className="rounded-lg bg-[var(--danger)] px-2 py-1 text-xs font-medium text-[var(--on-primary)] transition hover:bg-[var(--danger)]/80 disabled:opacity-50"
                           >
                             确认停止
                           </button>
                           <button
                             onClick={handleCancelStop}
-                            className="rounded-lg bg-[var(--paper-inset)] px-2 py-1 text-xs font-medium text-[var(--ink-muted)] transition hover:bg-[var(--line)]"
+                            className="rounded-lg bg-[var(--inset)] px-2 py-1 text-xs font-medium text-[var(--muted)] transition hover:bg-[var(--line)]"
                           >
                             取消
                           </button>
@@ -199,7 +199,7 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
                         <>
                           <button
                             onClick={() => handleOpenTask(task)}
-                            className="rounded-lg p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--accent)]/10 hover:text-[var(--accent)]"
+                            className="rounded-lg p-1.5 text-[var(--muted)] transition hover:bg-[var(--primary)]/10 hover:text-[var(--primary)]"
                             title="打开"
                           >
                             <ExternalLink className="h-4 w-4" />
@@ -207,7 +207,7 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
                           <button
                             onClick={() => handleStopClick(task.id)}
                             disabled={stoppingTaskId === task.id}
-                            className="rounded-lg p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--error)]/10 hover:text-[var(--error)] disabled:opacity-50"
+                            className="rounded-lg p-1.5 text-[var(--muted)] transition hover:bg-[var(--danger)]/10 hover:text-[var(--danger)] disabled:opacity-50"
                             title="停止"
                           >
                             <StopCircle className="h-4 w-4" />
@@ -220,37 +220,37 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
                   {/* Task details */}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     <div className="flex justify-between">
-                      <span className="text-[var(--ink-muted)]">间隔</span>
+                      <span className="text-[var(--muted)]">间隔</span>
                       <span className="text-[var(--ink)]">{formatCronInterval(task.intervalMinutes)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[var(--ink-muted)]">已执行</span>
+                      <span className="text-[var(--muted)]">已执行</span>
                       <span className="text-[var(--ink)]">{task.executionCount} 次</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[var(--ink-muted)]">运行模式</span>
+                      <span className="text-[var(--muted)]">运行模式</span>
                       <span className="text-[var(--ink)]">{task.runMode === 'new_session' ? '无记忆' : '保持上下文'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[var(--ink-muted)]">Tab</span>
+                      <span className="text-[var(--muted)]">Tab</span>
                       <span className="font-mono text-[var(--ink)]">{task.tabId || '-'}</span>
                     </div>
                     <div className="col-span-2 flex justify-between">
-                      <span className="text-[var(--ink-muted)]">工作区</span>
+                      <span className="text-[var(--muted)]">工作区</span>
                       <span className="truncate text-[var(--ink)]" title={task.workspacePath}>
                         {task.workspacePath.split('/').pop() || task.workspacePath}
                       </span>
                     </div>
                     {task.lastExecutedAt && (
                       <div className="col-span-2 flex justify-between">
-                        <span className="text-[var(--ink-muted)]">上次执行</span>
+                        <span className="text-[var(--muted)]">上次执行</span>
                         <span className="text-[var(--ink)]">
                           {new Date(task.lastExecutedAt).toLocaleString('zh-CN')}
                         </span>
                       </div>
                     )}
                     {task.lastError && (
-                      <div className="col-span-2 mt-1 rounded bg-[var(--error-bg)] px-2 py-1 text-[var(--error)]">
+                      <div className="col-span-2 mt-1 rounded bg-[var(--danger-bg)] px-2 py-1 text-[var(--danger)]">
                         错误: {task.lastError}
                       </div>
                     )}
@@ -263,7 +263,7 @@ export default function CronTaskDebugPanel({ isOpen, onClose }: CronTaskDebugPan
 
         {/* Footer */}
         <div className="border-t border-[var(--line)] px-5 py-3">
-          <p className="text-xs text-[var(--ink-faint)]">
+          <p className="text-xs text-[var(--subtle)]">
             此面板仅供开发调试使用，显示所有运行中或暂停的循环任务
           </p>
         </div>

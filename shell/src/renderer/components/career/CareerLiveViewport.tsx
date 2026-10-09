@@ -107,7 +107,7 @@ export function CareerLiveViewport({ frame, interactive, placeholder, onInputErr
       onPaste={onPaste}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      className={`relative overflow-hidden rounded-lg border bg-black/90 outline-none ${interactive ? 'cursor-crosshair' : onRequestControl && frame ? 'cursor-pointer' : 'cursor-default'} ${focused && interactive ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]' : 'border-[var(--line)]'} ${className}`}
+      className={`relative overflow-hidden rounded-lg border bg-black/90 outline-none ${interactive ? 'cursor-crosshair' : onRequestControl && frame ? 'cursor-pointer' : 'cursor-default'} ${focused && interactive ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]' : 'border-[var(--line)]'} ${className}`}
       style={{ aspectRatio: frame && frame.width && frame.height ? `${frame.width} / ${frame.height}` : '16 / 10', ...style }}
     >
       {frame

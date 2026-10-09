@@ -129,16 +129,16 @@ export default function BugReportOverlay({
                     <h2 className="text-lg font-semibold text-[var(--ink)]">{t('helper.title')}</h2>
                     <button
                         onClick={onClose}
-                        className="rounded-lg p-1 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                        className="rounded-lg p-1 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                     >
                         <X className="h-4 w-4" />
                     </button>
                 </div>
 
                 {/* Input area — matches Chat input style */}
-                <div className="rounded-b-[24px] bg-[var(--paper)] px-5 py-4">
+                <div className="rounded-b-[24px] bg-[var(--bg)] px-5 py-4">
                     <div
-                        className={`rounded-2xl border bg-[var(--paper-elevated)] transition-colors ${isDragging ? 'border-[var(--accent)]' : 'border-[var(--line)]'}`}
+                        className={`rounded-2xl border bg-[var(--paper)] transition-colors ${isDragging ? 'border-[var(--primary)]' : 'border-[var(--line)]'}`}
                         {...dragHandlers}
                     >
                         {/* Image thumbnails */}
@@ -155,7 +155,7 @@ export default function BugReportOverlay({
                                         <button
                                             type="button"
                                             onClick={() => removeAt(img.id)}
-                                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--error)] text-[var(--on-error)] opacity-0 transition-opacity group-hover:opacity-100"
+                                            className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[var(--danger)] text-[var(--on-primary)] opacity-0 transition-opacity group-hover:opacity-100"
                                         >
                                             <X className="h-3 w-3" />
                                         </button>
@@ -174,7 +174,7 @@ export default function BugReportOverlay({
                             onCompositionEnd={onCompositionEnd}
                             onPaste={pasteHandler}
                             placeholder={t('helper.feedbackPlaceholder')}
-                            className="w-full resize-none border-0 bg-transparent px-4 py-3 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)]/50 focus:outline-none"
+                            className="w-full resize-none border-0 bg-transparent px-4 py-3 text-sm text-[var(--ink)] placeholder:text-[var(--muted)]/50 focus:outline-none"
                             rows={5}
                         />
 
@@ -198,7 +198,7 @@ export default function BugReportOverlay({
                                 <button
                                     type="button"
                                     onClick={() => fileInputRef.current?.click()}
-                                    className="rounded-lg p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                    className="rounded-lg p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                     title={t('helper.uploadImage')}
                                 >
                                     <ImagePlus className="h-4 w-4" />
@@ -216,7 +216,7 @@ export default function BugReportOverlay({
                                     }}
                                     onNavigateToProviders={onNavigateToProviders}
                                     onOpenChange={(open) => { menuOpenRef.current = open; }}
-                                    triggerClassName="flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                    triggerClassName="flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                                 />
                             </div>
 
@@ -228,8 +228,8 @@ export default function BugReportOverlay({
                                 title={getSubmitTitle()}
                                 className={`rounded-lg p-2 transition-colors ${
                                     canSubmit
-                                        ? 'bg-[var(--accent)] text-[var(--on-accent)] hover:bg-[var(--accent-warm-hover)]'
-                                        : 'bg-[var(--ink-muted)]/15 text-[var(--ink-muted)]/40'
+                                        ? 'bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]'
+                                        : 'bg-[var(--muted)]/15 text-[var(--muted)]/40'
                                 }`}
                             >
                                 <Send className="h-4 w-4" />

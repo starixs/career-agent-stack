@@ -86,10 +86,10 @@ export function PetStyleCard({
 
     return (
         <div
-            className={`group relative rounded-xl border bg-[var(--paper)] transition-all ${
+            className={`group relative rounded-xl border bg-[var(--bg)] transition-all ${
                 active
-                    ? 'border-[var(--accent)] shadow-[0_0_0_3px_var(--accent-warm-subtle)]'
-                    : 'border-[var(--line)] hover:border-[var(--ink-subtle)] hover:bg-[var(--paper-elevated)]'
+                    ? 'border-[var(--primary)] shadow-[0_0_0_3px_var(--primary-soft)]'
+                    : 'border-[var(--line)] hover:border-[var(--subtle)] hover:bg-[var(--paper)]'
             }`}
         >
             <button
@@ -117,10 +117,10 @@ export function PetStyleCard({
                         <span className="line-clamp-1 min-w-0 text-base font-semibold text-[var(--ink)]">
                             {pack.displayName}
                         </span>
-                        {active && <Check className="h-4 w-4 shrink-0 text-[var(--accent)]" />}
+                        {active && <Check className="h-4 w-4 shrink-0 text-[var(--primary)]" />}
                     </div>
                     {description && (
-                        <p className="mt-1 line-clamp-2 text-sm leading-6 text-[var(--ink-muted)]">
+                        <p className="mt-1 line-clamp-2 text-sm leading-6 text-[var(--muted)]">
                             {description}
                         </p>
                     )}
@@ -134,7 +134,7 @@ export function PetStyleCard({
                         onDelete();
                     }}
                     disabled={deleting}
-                    className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--paper-elevated)] text-[var(--ink-muted)] shadow-sm transition-all hover:border-[var(--error)] hover:bg-[var(--error-bg)] hover:text-[var(--error)] focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--error-subtle)] disabled:cursor-wait ${
+                    className={`absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--paper)] text-[var(--muted)] shadow-sm transition-all hover:border-[var(--danger)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--danger-bg)] disabled:cursor-wait ${
                         deleting ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}
                     aria-label={t('floatingBallPet.deletePackAria', { name: pack.displayName })}
@@ -217,7 +217,7 @@ function PetdexImportDialog({
     return (
         <OverlayBackdrop onClose={importing ? undefined : onClose} className="z-50 px-4">
             <form
-                className="w-full max-w-lg rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5 shadow-2xl"
+                className="w-full max-w-lg rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5 shadow-2xl"
                 onSubmit={(event) => {
                     event.preventDefault();
                     onSubmit();
@@ -226,7 +226,7 @@ function PetdexImportDialog({
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <h3 className="text-lg font-semibold text-[var(--ink)]">{t('floatingBallPet.petdexDialog.title')}</h3>
-                        <p className="mt-1 text-sm leading-6 text-[var(--ink-muted)]">
+                        <p className="mt-1 text-sm leading-6 text-[var(--muted)]">
                             {t('floatingBallPet.petdexDialog.description')}
                         </p>
                     </div>
@@ -234,7 +234,7 @@ function PetdexImportDialog({
                         type="button"
                         onClick={onClose}
                         disabled={importing}
-                        className="rounded-lg p-1 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
+                        className="rounded-lg p-1 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
                         aria-label={t('floatingBallPet.close')}
                     >
                         <X className="h-5 w-5" />
@@ -252,7 +252,7 @@ function PetdexImportDialog({
                     onChange={(event) => onValueChange(event.target.value)}
                     disabled={importing}
                     placeholder={t('floatingBallPet.petdexDialog.placeholder')}
-                    className="mt-2 w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-base text-[var(--ink)] placeholder-[var(--ink-muted)] outline-none transition-colors focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 disabled:cursor-wait disabled:opacity-70"
+                    className="mt-2 w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-base text-[var(--ink)] placeholder-[var(--muted)] outline-none transition-colors focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 disabled:cursor-wait disabled:opacity-70"
                 />
 
                 <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -260,14 +260,14 @@ function PetdexImportDialog({
                         type="button"
                         onClick={onClose}
                         disabled={importing}
-                        className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-wait disabled:opacity-70"
+                        className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-2 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:cursor-wait disabled:opacity-70"
                     >
                         {t('floatingBallPet.cancel')}
                     </button>
                     <button
                         type="submit"
                         disabled={importing || !value.trim()}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-70"
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-70"
                     >
                         {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
                         {t('floatingBallPet.import')}
@@ -542,17 +542,17 @@ export default function FloatingBallPetSettings() {
             />
             <div className="mb-8">
                 <h2 className="text-xl font-semibold text-[var(--ink)]">{t('floatingBallPet.title')}</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--ink-muted)]">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
                     {t('floatingBallPet.description')}
                 </p>
             </div>
 
             <div className="space-y-6">
-                <section className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 sm:p-5">
+                <section className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 sm:p-5">
                     <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
                         <div>
                             <h3 className="text-base font-medium text-[var(--ink)]">{t('floatingBallPet.enableTitle')}</h3>
-                            <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                            <p className="mt-1 text-sm text-[var(--muted)]">
                                 {t('floatingBallPet.enableDescription')}
                             </p>
                         </div>
@@ -560,7 +560,7 @@ export default function FloatingBallPetSettings() {
                             type="button"
                             onClick={() => void setEnabled(!config.floatingBallEnabled)}
                             className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-                                config.floatingBallEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                                config.floatingBallEnabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                             }`}
                             aria-pressed={!!config.floatingBallEnabled}
                         >
@@ -573,12 +573,12 @@ export default function FloatingBallPetSettings() {
                     </div>
                 </section>
 
-                <section className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 sm:p-5">
+                <section className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 sm:p-5">
                     <h3 className="text-base font-medium text-[var(--ink)]">{t('floatingBallPet.generalTitle')}</h3>
                     <div className="mt-4 flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-[var(--ink)]">{t('floatingBallPet.workspaceBindingTitle')}</p>
-                            <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                            <p className="mt-1 text-sm text-[var(--muted)]">
                                 {t('floatingBallPet.workspaceBindingDescription')}
                             </p>
                         </div>
@@ -600,7 +600,7 @@ export default function FloatingBallPetSettings() {
                     <div className="mt-4 flex flex-col items-start gap-4 border-t border-[var(--line)] pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-[var(--ink)]">{t('floatingBallPet.hoverPeekTitle')}</p>
-                            <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                            <p className="mt-1 text-sm text-[var(--muted)]">
                                 {t('floatingBallPet.hoverPeekDescription')}
                             </p>
                         </div>
@@ -615,7 +615,7 @@ export default function FloatingBallPetSettings() {
                                     : t('floatingBallPet.toasts.hoverPeekDisabled'));
                             }}
                             className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-                                hoverPeekEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                                hoverPeekEnabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
                             }`}
                             aria-pressed={hoverPeekEnabled}
                         >
@@ -628,18 +628,18 @@ export default function FloatingBallPetSettings() {
                     </div>
                 </section>
 
-                <section className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 sm:p-5">
+                <section className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 sm:p-5">
                     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                         <div>
                             <h3 className="text-base font-medium text-[var(--ink)]">{t('floatingBallPet.petStyleTitle')}</h3>
-                            <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--ink-muted)]">
+                            <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--muted)]">
                                 {t('floatingBallPet.petStyleDescription')}
                             </p>
                         </div>
                         <button
                             type="button"
                             onClick={() => void refreshInstalled()}
-                            className="self-end rounded-lg p-2 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] sm:self-auto"
+                            className="self-end rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] sm:self-auto"
                             title={t('floatingBallPet.refreshImported')}
                         >
                             {loadingInstalled ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -664,22 +664,22 @@ export default function FloatingBallPetSettings() {
                         ref={dropZoneRef}
                         className={`mt-5 rounded-xl border border-dashed p-8 transition-colors ${
                             isDragging && activeZoneId === 'floating-pet-import'
-                                ? 'border-[var(--accent)] bg-[var(--accent-warm-subtle)]'
-                                : 'border-[var(--line-strong)] bg-[var(--paper)]'
+                                ? 'border-[var(--primary)] bg-[var(--primary-soft)]'
+                                : 'border-[var(--line-2)] bg-[var(--bg)]'
                         }`}
                     >
                         <div className="flex min-h-44 w-full flex-col items-center justify-center text-center">
-                            <UploadCloud className="h-8 w-8 text-[var(--ink-muted)]" />
+                            <UploadCloud className="h-8 w-8 text-[var(--muted)]" />
                             <h4 className="mt-4 text-base font-semibold text-[var(--ink)]">{t('floatingBallPet.dropImportTitle')}</h4>
-                            <p className="mt-2 max-w-xl whitespace-normal break-words text-sm leading-6 text-[var(--ink-muted)]">
+                            <p className="mt-2 max-w-xl whitespace-normal break-words text-sm leading-6 text-[var(--muted)]">
                                 {t('floatingBallPet.dropImportDescription')}
                             </p>
-                            <div className="mt-5 flex w-full flex-col items-stretch gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-2 shadow-sm lg:w-auto lg:flex-row lg:items-center lg:gap-3">
+                            <div className="mt-5 flex w-full flex-col items-stretch gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-2 shadow-sm lg:w-auto lg:flex-row lg:items-center lg:gap-3">
                                 <button
                                     type="button"
                                     onClick={() => void importFromCodex()}
                                     disabled={importing}
-                                    className="inline-flex w-full min-w-0 flex-wrap items-center justify-center gap-2 whitespace-normal rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-wait disabled:opacity-70 lg:w-auto"
+                                    className="inline-flex w-full min-w-0 flex-wrap items-center justify-center gap-2 whitespace-normal rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-wait disabled:opacity-70 lg:w-auto"
                                 >
                                     {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                                     {t('floatingBallPet.importFromCodex')}
@@ -688,7 +688,7 @@ export default function FloatingBallPetSettings() {
                                     type="button"
                                     onClick={() => void chooseFile()}
                                     disabled={importing}
-                                    className="inline-flex w-full min-w-0 flex-wrap items-center justify-center gap-2 whitespace-normal rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-wait disabled:opacity-70 lg:w-auto"
+                                    className="inline-flex w-full min-w-0 flex-wrap items-center justify-center gap-2 whitespace-normal rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-2 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:cursor-wait disabled:opacity-70 lg:w-auto"
                                 >
                                     <FolderOpen className="h-4 w-4" />
                                     {t('floatingBallPet.chooseZip')}
@@ -697,7 +697,7 @@ export default function FloatingBallPetSettings() {
                                     type="button"
                                     onClick={() => setPetdexDialogOpen(true)}
                                     disabled={importing}
-                                    className="inline-flex w-full min-w-0 flex-wrap items-center justify-center gap-2 whitespace-normal rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-2 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-wait disabled:opacity-70 lg:w-auto"
+                                    className="inline-flex w-full min-w-0 flex-wrap items-center justify-center gap-2 whitespace-normal rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-2 text-sm font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--inset)] disabled:cursor-wait disabled:opacity-70 lg:w-auto"
                                 >
                                     <Link2 className="h-4 w-4" />
                                     {t('floatingBallPet.importFromPetdex')}
@@ -707,28 +707,28 @@ export default function FloatingBallPetSettings() {
                     </div>
                 </section>
 
-                <section className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 sm:p-5">
+                <section className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 sm:p-5">
                     <h3 className="text-base font-medium text-[var(--ink)]">{t('floatingBallPet.downloadSitesTitle')}</h3>
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                         <ExternalLink
                             href="https://petdex.dev"
-                            className="flex items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 text-sm text-[var(--ink)] transition-colors hover:border-[var(--ink-subtle)] hover:bg-[var(--paper-inset)]"
+                            className="flex items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4 text-sm text-[var(--ink)] transition-colors hover:border-[var(--subtle)] hover:bg-[var(--inset)]"
                         >
                             <span>
                                 <span className="block font-semibold">Petdex</span>
-                                <span className="mt-1 block text-[var(--ink-muted)]">{t('floatingBallPet.petdexSiteDescription')}</span>
+                                <span className="mt-1 block text-[var(--muted)]">{t('floatingBallPet.petdexSiteDescription')}</span>
                             </span>
-                            <ExternalLinkIcon className="h-4 w-4 text-[var(--ink-muted)]" />
+                            <ExternalLinkIcon className="h-4 w-4 text-[var(--muted)]" />
                         </ExternalLink>
                         <ExternalLink
                             href="https://github.com/topics/codex-pet"
-                            className="flex items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 text-sm text-[var(--ink)] transition-colors hover:border-[var(--ink-subtle)] hover:bg-[var(--paper-inset)]"
+                            className="flex items-center justify-between rounded-xl border border-[var(--line)] bg-[var(--bg)] p-4 text-sm text-[var(--ink)] transition-colors hover:border-[var(--subtle)] hover:bg-[var(--inset)]"
                         >
                             <span>
                                 <span className="block font-semibold">GitHub Topic</span>
-                                <span className="mt-1 block text-[var(--ink-muted)]">{t('floatingBallPet.githubSiteDescription')}</span>
+                                <span className="mt-1 block text-[var(--muted)]">{t('floatingBallPet.githubSiteDescription')}</span>
                             </span>
-                            <ExternalLinkIcon className="h-4 w-4 text-[var(--ink-muted)]" />
+                            <ExternalLinkIcon className="h-4 w-4 text-[var(--muted)]" />
                         </ExternalLink>
                     </div>
                 </section>

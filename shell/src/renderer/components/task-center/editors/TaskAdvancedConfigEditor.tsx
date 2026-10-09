@@ -491,23 +491,23 @@ export function TaskAdvancedConfigEditor(props: Props) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-4 py-2.5 text-left transition-colors hover:bg-[var(--hover-bg)]"
+        className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-4 py-2.5 text-left transition-colors hover:bg-[var(--hover)]"
         aria-expanded={open}
       >
-        <Settings2 className="h-4 w-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
+        <Settings2 className="h-4 w-4 text-[var(--muted)]" strokeWidth={1.5} />
         <span className="flex-1 text-sm font-medium text-[var(--ink)]">
           {t('advanced.title')}
-          <span className="ml-1.5 text-xs font-normal text-[var(--ink-muted)]">
+          <span className="ml-1.5 text-xs font-normal text-[var(--muted)]">
             {t('advanced.subtitle')}
           </span>
         </span>
         <ChevronDown
-          className={`h-4 w-4 text-[var(--ink-muted)] transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 text-[var(--muted)] transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </button>
 
       {open && (
-        <div className="space-y-5 border-t border-[var(--line-subtle)] px-4 py-4">
+        <div className="space-y-5 border-t border-[var(--line)] px-4 py-4">
           {/* Runtime — visible only when the multi-agent-runtime gate is on.
               When off, the rest of the editor still renders normally; effective
               runtime is forced to 'builtin' upstream so model/permission/MCP
@@ -537,7 +537,7 @@ export function TaskAdvancedConfigEditor(props: Props) {
               permission can be overridden per-task. Mirrors
               WorkspaceBasicsSection's treatment of the same situation. */}
           {!isBuiltin && (
-            <p className="rounded-[var(--radius-md)] bg-[var(--accent-warm-subtle)] px-3.5 py-2.5 text-xs leading-relaxed text-[var(--ink-muted)]">
+            <p className="rounded-[var(--radius-md)] bg-[var(--primary-soft)] px-3.5 py-2.5 text-xs leading-relaxed text-[var(--muted)]">
               {t('advanced.externalNotice', { runtime: effectiveRuntimeLabel })}
             </p>
           )}
@@ -614,7 +614,7 @@ export function TaskAdvancedConfigEditor(props: Props) {
           {isBuiltin && (
             <FieldRow label={t('advanced.mcpTools')}>
               {mcpCatalogue.length === 0 ? (
-                <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line)] px-3 py-3 text-xs text-[var(--ink-muted)]">
+                <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--line)] px-3 py-3 text-xs text-[var(--muted)]">
                   {t('advanced.noMcp')}
                 </div>
               ) : (
@@ -627,9 +627,9 @@ export function TaskAdvancedConfigEditor(props: Props) {
                       return (
                         <label
                           key={s.id}
-                          className={`flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] border border-transparent px-2 py-1 text-xs text-[var(--ink-secondary)] hover:bg-[var(--hover-bg)] ${
+                          className={`flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] border border-transparent px-2 py-1 text-xs text-[var(--ink-2)] hover:bg-[var(--hover)] ${
                             checked
-                              ? 'border-[var(--accent-warm)]/30 bg-[var(--accent-warm-subtle)] text-[var(--ink)]'
+                              ? 'border-[var(--primary)]/30 bg-[var(--primary-soft)] text-[var(--ink)]'
                               : ''
                           }`}
                         >
@@ -637,14 +637,14 @@ export function TaskAdvancedConfigEditor(props: Props) {
                             type="checkbox"
                             checked={checked}
                             onChange={() => toggleMcp(s.id)}
-                            className="h-3.5 w-3.5 accent-[var(--accent-warm)]"
+                            className="h-3.5 w-3.5 accent-[var(--primary)]"
                           />
                           <span className="truncate">{s.name}</span>
                         </label>
                       );
                     })}
                   </div>
-                  <div className="mt-2 flex items-center justify-between gap-3 text-xs leading-snug text-[var(--ink-muted)]">
+                  <div className="mt-2 flex items-center justify-between gap-3 text-xs leading-snug text-[var(--muted)]">
                     <span>
                       {mcpEnabledServers === undefined
                         ? t('advanced.mcpFollowing')
@@ -654,7 +654,7 @@ export function TaskAdvancedConfigEditor(props: Props) {
                       <button
                         type="button"
                         onClick={resetMcpToFollow}
-                        className="shrink-0 text-[var(--ink-muted)] transition-colors hover:text-[var(--accent-warm)]"
+                        className="shrink-0 text-[var(--muted)] transition-colors hover:text-[var(--primary)]"
                       >
                         {t('advanced.restoreFollowAgent')}
                       </button>
@@ -682,13 +682,13 @@ function FieldRow({
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-sm font-medium text-[var(--ink-secondary)]">
+        <span className="text-sm font-medium text-[var(--ink-2)]">
           {label}
         </span>
       </div>
       {children}
       {hint && (
-        <p className="mt-1.5 text-xs leading-snug text-[var(--ink-muted)]">
+        <p className="mt-1.5 text-xs leading-snug text-[var(--muted)]">
           {hint}
         </p>
       )}
@@ -761,7 +761,7 @@ function ModelPicker(props: {
   // (not a placeholder), so render it in `text-[var(--ink)]` to match the
   // Runtime / 权限模式 selects above. CustomSelect treats the empty-string
   // value as a selected option (FOLLOW_VALUE) and gets ink color via its
-  // `selectedOption ? text-[var(--ink)] : text-[var(--ink-muted)]` branch
+  // `selectedOption ? text-[var(--ink)] : text-[var(--muted)]` branch
   // (CustomSelect.tsx:94); we mirror that here so the three 高级配置
   // fields read as a uniform group.
   let closedLabel: React.ReactNode;
@@ -815,15 +815,15 @@ function ModelPicker(props: {
         // Match the CustomSelect `size="md"` shape used by the IM Bot
         // delivery picker below (NotificationConfigEditor.tsx) so the three
         // 高级配置 fields (Runtime / 权限模式 / 模型) read as one visual
-        // group: `rounded-lg`, `bg-[var(--paper)]`, `px-3 py-2.5 text-sm`,
+        // group: `rounded-lg`, `bg-[var(--bg)]`, `px-3 py-2.5 text-sm`,
         // `border-[var(--line)]`, hover deepens the border. Down-arrow chevron
         // (mirroring CustomSelect's affordance) is animated on open.
-        className="flex w-full items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--ink-subtle)]"
+        className="flex w-full items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--subtle)]"
         onClick={() => setOpen(isOpen ? null : variant)}
       >
         <span className="min-w-0 flex-1 truncate">{closedLabel}</span>
         <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)] transition-transform ${
+          className={`h-3.5 w-3.5 shrink-0 text-[var(--muted)] transition-transform ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
@@ -837,15 +837,15 @@ function ModelPicker(props: {
               if (e.target === e.currentTarget) setOpen(null);
             }}
           />
-          <div className="absolute left-0 top-full z-50 mt-1 max-h-[320px] w-full overflow-y-auto overscroll-contain rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--paper-elevated)] p-2 shadow-lg">
+          <div className="absolute left-0 top-full z-50 mt-1 max-h-[320px] w-full overflow-y-auto overscroll-contain rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--paper)] p-2 shadow-lg">
             {variant === 'builtin' ? (
               <>
                 <button
                   type="button"
                   className={`flex w-full items-center rounded-[var(--radius-sm)] px-3 py-1.5 text-left text-sm transition-colors ${
                     !providerId
-                      ? 'bg-[var(--accent-warm-muted)] text-[var(--accent-warm)]'
-                      : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                      ? 'bg-[var(--primary-muted)] text-[var(--primary)]'
+                      : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                   }`}
                   onClick={onSelectBuiltinFollow}
                 >
@@ -854,13 +854,13 @@ function ModelPicker(props: {
                     : t('advanced.followAgentWorkspace')}
                 </button>
                 {availableProviders.length === 0 ? (
-                  <div className="px-3 py-3 text-xs leading-relaxed text-[var(--ink-muted)]">
+                  <div className="px-3 py-3 text-xs leading-relaxed text-[var(--muted)]">
                     {t('advanced.noProviders')}
                   </div>
                 ) : (
                   availableProviders.map((p) => (
                     <div key={p.id} className="mt-1">
-                      <div className="px-2 py-1 text-xs font-medium text-[var(--ink-muted)]">
+                      <div className="px-2 py-1 text-xs font-medium text-[var(--muted)]">
                         {p.name}
                       </div>
                       {p.models?.map((m) => (
@@ -869,8 +869,8 @@ function ModelPicker(props: {
                           key={`${p.id}:${m.model}`}
                           className={`flex w-full items-center rounded-[var(--radius-sm)] px-3 py-1.5 text-left text-sm transition-colors ${
                             providerId === p.id && model === m.model
-                              ? 'bg-[var(--accent-warm-muted)] text-[var(--accent-warm)]'
-                              : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                              ? 'bg-[var(--primary-muted)] text-[var(--primary)]'
+                              : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                           }`}
                           onClick={() => onSelectBuiltinModel(p.id, m.model)}
                         >
@@ -894,7 +894,7 @@ function ModelPicker(props: {
                       || model
                       || '';
                     return (
-                      <div className="mt-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--warning)]/50 bg-[var(--warning-subtle)]/40 px-3 py-2 text-xs leading-relaxed text-[var(--ink-muted)]">
+                      <div className="mt-2 rounded-[var(--radius-sm)] border border-dashed border-[var(--warning)]/50 bg-[var(--warning-subtle)]/40 px-3 py-2 text-xs leading-relaxed text-[var(--muted)]">
                         <div className="font-medium text-[var(--ink)]">
                           {t('advanced.selectedProvider', {
                             provider: providerLabel,
@@ -918,15 +918,15 @@ function ModelPicker(props: {
                   type="button"
                   className={`flex w-full items-center rounded-[var(--radius-sm)] px-3 py-1.5 text-left text-sm transition-colors ${
                     !externalSelectedModel
-                      ? 'bg-[var(--accent-warm-muted)] text-[var(--accent-warm)]'
-                      : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                      ? 'bg-[var(--primary-muted)] text-[var(--primary)]'
+                      : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                   }`}
                   onClick={onSelectExternalFollow}
                 >
                   {t('advanced.followAgentCurrentModel')}
                 </button>
                 {externalRuntimeModels.length === 0 ? (
-                  <div className="px-3 py-3 text-xs leading-relaxed text-[var(--ink-muted)]">
+                  <div className="px-3 py-3 text-xs leading-relaxed text-[var(--muted)]">
                     {effectiveRuntime === 'codex' || effectiveRuntime === 'gemini'
                       ? t('advanced.queryingModels')
                       : t('advanced.noRuntimeModels')}
@@ -938,8 +938,8 @@ function ModelPicker(props: {
                       key={m.value}
                       className={`flex w-full items-center rounded-[var(--radius-sm)] px-3 py-1.5 text-left text-sm transition-colors ${
                         externalSelectedModel === m.value
-                          ? 'bg-[var(--accent-warm-muted)] text-[var(--accent-warm)]'
-                          : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                          ? 'bg-[var(--primary-muted)] text-[var(--primary)]'
+                          : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                       }`}
                       onClick={() => onSelectExternalModel(m.value)}
                     >

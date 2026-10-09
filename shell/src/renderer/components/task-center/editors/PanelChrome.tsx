@@ -26,7 +26,7 @@ export const SECTION_GAP = 'space-y-7';
 
 /** Subtle line — preferred for in-body dividers. The heavier `--line` is
  *  reserved for body↔footer / header↔body boundaries. */
-export const SECTION_DIVIDER = 'border-t border-[var(--line-subtle)]';
+export const SECTION_DIVIDER = 'border-t border-[var(--line)]';
 
 // ─────────────────────────────────────────────────────────────────────────
 // PanelHeader
@@ -64,14 +64,14 @@ export function PanelHeader({
     <div className="flex shrink-0 items-start gap-3 border-b border-[var(--line)] px-6 py-4">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          {Icon && <Icon className="h-[18px] w-[18px] shrink-0 text-[var(--accent)]" />}
+          {Icon && <Icon className="h-[18px] w-[18px] shrink-0 text-[var(--primary)]" />}
           {leading}
           <h2 className="min-w-0 truncate text-lg font-semibold leading-snug text-[var(--ink)]">
             {title}
           </h2>
         </div>
         {subtitle && (
-          <div className="mt-1 text-xs text-[var(--ink-muted)]">{subtitle}</div>
+          <div className="mt-1 text-xs text-[var(--muted)]">{subtitle}</div>
         )}
       </div>
       {trailing}
@@ -79,7 +79,7 @@ export function PanelHeader({
         type="button"
         onClick={onClose}
         title={closeTitle ?? t('common.close')}
-        className="shrink-0 rounded-[var(--radius-md)] p-1.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+        className="shrink-0 rounded-[var(--radius-md)] p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
       >
         <X className="h-4 w-4" />
       </button>
@@ -116,10 +116,10 @@ export function FormSection({
   return (
     <section className={className}>
       <div className="mb-3 flex items-center gap-2">
-        {Icon && <Icon className="h-4 w-4 shrink-0 text-[var(--ink-muted)]" />}
+        {Icon && <Icon className="h-4 w-4 shrink-0 text-[var(--muted)]" />}
         <h3 className="text-sm font-semibold text-[var(--ink)]">{title}</h3>
         {hint && (
-          <span className="text-xs font-normal text-[var(--ink-muted)]/80">
+          <span className="text-xs font-normal text-[var(--muted)]/80">
             {hint}
           </span>
         )}
@@ -165,7 +165,7 @@ export function PanelFooter({
   return (
     <div className="flex shrink-0 items-center justify-between border-t border-[var(--line)] px-6 py-4">
       {error ? (
-        <p className="min-w-0 truncate pr-3 text-xs text-[var(--error)]" title={error}>
+        <p className="min-w-0 truncate pr-3 text-xs text-[var(--danger)]" title={error}>
           {error}
         </p>
       ) : (
@@ -177,7 +177,7 @@ export function PanelFooter({
           type="button"
           onClick={onCancel}
           disabled={busy}
-          className="rounded-[var(--radius-md)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-[var(--radius-md)] px-4 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {cancelLabel ?? t('common.cancel')}
         </button>
@@ -185,7 +185,7 @@ export function PanelFooter({
           type="button"
           onClick={onSubmit}
           disabled={blocked}
-          className="rounded-[var(--radius-md)] bg-[var(--button-primary-bg)] px-5 py-2 text-sm font-medium text-[var(--button-primary-text)] transition hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-[var(--radius-md)] bg-[var(--primary)] px-5 py-2 text-sm font-medium text-[var(--on-primary)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {submitLabel}
         </button>
@@ -254,7 +254,7 @@ export function Toggle({ checked, onChange, ariaLabel, disabled }: ToggleProps) 
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${
-        checked ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+        checked ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
       } ${disabled ? '' : 'cursor-pointer'}`}
     >
       <span

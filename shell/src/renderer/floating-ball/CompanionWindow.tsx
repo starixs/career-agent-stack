@@ -133,7 +133,7 @@ function ActivityRow({ block, isStreaming, tick }: { block: ContentBlock; isStre
             mainLabel = durationSec > 0
                 ? t('floatingBall.activity.thinkingFailedWithSeconds', { seconds: durationSec })
                 : t('floatingBall.activity.thinkingFailed');
-            icon = <XCircle className="size-4 text-[var(--error)]" />;
+            icon = <XCircle className="size-4 text-[var(--danger)]" />;
         } else if (block.isStopped) {
             mainLabel = durationSec > 0
                 ? t('floatingBall.activity.thinkingStoppedWithSeconds', { seconds: durationSec })
@@ -166,11 +166,11 @@ function ActivityRow({ block, isStreaming, tick }: { block: ContentBlock; isStre
         if (isToolActive || isTaskRunning) {
             icon = <Loader2 className="size-4 animate-spin" />;
         } else if (lifecycleStatus === 'failed' || tool.isFailed) {
-            icon = <XCircle className="size-4 text-[var(--error)]" />;
+            icon = <XCircle className="size-4 text-[var(--danger)]" />;
         } else if (lifecycleStatus === 'interrupted' || tool.isStopped) {
             icon = <StopCircle className="size-4 text-[var(--warning)]" />;
         } else if (tool.isError) {
-            icon = <AlertCircle className="size-4 text-[var(--error)]" />;
+            icon = <AlertCircle className="size-4 text-[var(--danger)]" />;
         } else {
             icon = config.icon;
         }

@@ -47,14 +47,14 @@ export default function TaskRunHistory({ taskId, onOpenSession, sessionId }: Tas
   if (loading && runs.length === 0) {
     return (
       <div className="flex items-center justify-center py-4">
-        <Loader2 className="h-4 w-4 animate-spin text-[var(--ink-muted)]" />
+        <Loader2 className="h-4 w-4 animate-spin text-[var(--muted)]" />
       </div>
     );
   }
 
   if (runs.length === 0) {
     return (
-      <p className="py-3 text-center text-xs text-[var(--ink-muted)]">{t('cron.runHistory.empty')}</p>
+      <p className="py-3 text-center text-xs text-[var(--muted)]">{t('cron.runHistory.empty')}</p>
     );
   }
 
@@ -76,34 +76,34 @@ export default function TaskRunHistory({ taskId, onOpenSession, sessionId }: Tas
                 setExpandedIndex(isExpanded ? null : i);
               }
             }}
-            className="flex w-full flex-col rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left hover:bg-[var(--hover-bg)] transition-colors"
+            className="flex w-full flex-col rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left hover:bg-[var(--hover)] transition-colors"
           >
             <div className="flex w-full items-center gap-2">
               {/* Time */}
-              <span className="w-24 flex-shrink-0 text-xs text-[var(--ink-muted)]/50">
+              <span className="w-24 flex-shrink-0 text-xs text-[var(--muted)]/50">
                 {date.toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
               </span>
               {/* Status icon */}
               {run.ok ? (
                 <CheckCircle className="h-3 w-3 flex-shrink-0 text-[var(--success)]" />
               ) : (
-                <XCircle className="h-3 w-3 flex-shrink-0 text-[var(--error)]" />
+                <XCircle className="h-3 w-3 flex-shrink-0 text-[var(--danger)]" />
               )}
               {/* Duration */}
-              <span className="w-12 flex-shrink-0 text-xs text-[var(--ink-muted)]">
+              <span className="w-12 flex-shrink-0 text-xs text-[var(--muted)]">
                 {run.durationMs < 1000 ? `${run.durationMs}ms` : `${(run.durationMs / 1000).toFixed(1)}s`}
               </span>
               {/* Content preview */}
-              <span className="min-w-0 flex-1 truncate text-xs text-[var(--ink-muted)]">
+              <span className="min-w-0 flex-1 truncate text-xs text-[var(--muted)]">
                 {content ? content.slice(0, 50) : '—'}
               </span>
               {content && (
-                <ChevronDown className={`h-3 w-3 flex-shrink-0 text-[var(--ink-subtle)] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-3 w-3 flex-shrink-0 text-[var(--subtle)] transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
               )}
             </div>
             {/* Expanded content */}
             {isExpanded && content && (
-              <div className="mt-1.5 w-full rounded-[var(--radius-sm)] bg-[var(--paper-inset)] px-2.5 py-2 text-xs leading-relaxed text-[var(--ink-muted)] whitespace-pre-wrap break-words">
+              <div className="mt-1.5 w-full rounded-[var(--radius-sm)] bg-[var(--inset)] px-2.5 py-2 text-xs leading-relaxed text-[var(--muted)] whitespace-pre-wrap break-words">
                 {content}
               </div>
             )}
@@ -116,7 +116,7 @@ export default function TaskRunHistory({ taskId, onOpenSession, sessionId }: Tas
         <button
           type="button"
           onClick={handleLoadMore}
-          className="mt-1 w-full py-1.5 text-center text-xs text-[var(--ink-muted)] hover:text-[var(--accent)] transition-colors"
+          className="mt-1 w-full py-1.5 text-center text-xs text-[var(--muted)] hover:text-[var(--primary)] transition-colors"
         >
           {t('cron.runHistory.loadMore')}
         </button>

@@ -177,7 +177,7 @@ export const OverflowNameTooltip = memo(function OverflowNameTooltip({
           <div
             ref={setFloating}
             role="tooltip"
-            className="pointer-events-none z-[280] overflow-auto rounded-md bg-[var(--button-dark-bg)]/95 px-2.5 py-1.5 text-xs leading-snug text-[var(--button-dark-text)] shadow-lg"
+            className="pointer-events-none z-[280] overflow-auto rounded-md bg-[var(--ink)]/95 px-2.5 py-1.5 text-xs leading-snug text-[var(--bg)] shadow-lg"
             style={{
               ...floatingStyles,
               maxWidth: `min(${MAX_TOOLTIP_WIDTH}px, calc(100vw - ${

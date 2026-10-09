@@ -94,31 +94,31 @@ export function ExitPlanModePrompt({ request, onApprove, onReject }: ExitPlanMod
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className={`rounded-xl border p-4 shadow-sm ${
                 isResolved && !isApproved
-                    ? 'border-[var(--line)] bg-[var(--paper-elevated)]'
+                    ? 'border-[var(--line)] bg-[var(--paper)]'
                     : 'border-[var(--success)]/30 bg-[var(--success-bg)]/80'
             }`}>
                 {/* Header */}
                 <div className={`${isResolved ? '' : 'mb-3'} flex items-center gap-2`}>
                     <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${
                         isResolved && !isApproved
-                            ? 'bg-[var(--paper-inset)]'
+                            ? 'bg-[var(--inset)]'
                             : 'bg-[var(--success-bg)]'
                     }`}>
                         <FileCheck className={`h-4.5 w-4.5 ${
                             isResolved && !isApproved
-                                ? 'text-[var(--ink-subtle)]'
+                                ? 'text-[var(--subtle)]'
                                 : 'text-[var(--success)]'
                         }`} />
                     </div>
                     <div className="flex-1">
                         <h3 className={`text-sm font-semibold ${
                             isResolved && !isApproved
-                                ? 'text-[var(--ink-secondary)]'
+                                ? 'text-[var(--ink-2)]'
                                 : 'text-[var(--success)]'
                         }`}>{t('shell.planPrompt.title')}</h3>
                         <p className={`text-xs ${
                             isResolved && !isApproved
-                                ? 'text-[var(--ink-muted)]'
+                                ? 'text-[var(--muted)]'
                                 : 'text-[var(--success)]'
                         }`}>{t('shell.planPrompt.subtitle')}</p>
                     </div>
@@ -127,7 +127,7 @@ export function ExitPlanModePrompt({ request, onApprove, onReject }: ExitPlanMod
                         <div className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
                             isApproved
                                 ? 'bg-[var(--success-bg)] text-[var(--success)]'
-                                : 'bg-[var(--paper-inset)] text-[var(--ink-muted)]'
+                                : 'bg-[var(--inset)] text-[var(--muted)]'
                         }`}>
                             {isApproved
                                 ? <><CheckCircle className="h-3.5 w-3.5" />{t('shell.planPrompt.approved')}</>
@@ -141,8 +141,8 @@ export function ExitPlanModePrompt({ request, onApprove, onReject }: ExitPlanMod
                 {request.plan && (
                     <div className={`mt-3 max-h-[26rem] overflow-y-auto rounded-lg border p-3 text-sm ${
                         isResolved && !isApproved
-                            ? 'border-[var(--line)] bg-[var(--paper)]'
-                            : 'border-[var(--success)]/30 bg-[var(--paper-elevated)]/80'
+                            ? 'border-[var(--line)] bg-[var(--bg)]'
+                            : 'border-[var(--success)]/30 bg-[var(--paper)]/80'
                     }`}>
                         <Markdown>{request.plan}</Markdown>
                     </div>
@@ -153,13 +153,13 @@ export function ExitPlanModePrompt({ request, onApprove, onReject }: ExitPlanMod
                     <div className="mt-2 space-y-1.5">
                         <p className={`text-xs font-medium ${
                             isResolved && !isApproved
-                                ? 'text-[var(--ink-muted)]'
+                                ? 'text-[var(--muted)]'
                                 : 'text-[var(--success)]'
                         }`}>{t('shell.planPrompt.permissions')}</p>
                         {request.allowedPrompts.map((ap, i) => (
                             <div key={i} className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs ${
                                 isResolved && !isApproved
-                                    ? 'bg-[var(--paper-inset)]/60 text-[var(--ink-muted)]'
+                                    ? 'bg-[var(--inset)]/60 text-[var(--muted)]'
                                     : 'bg-[var(--success-bg)]/60 text-[var(--success)]'
                             }`}>
                                 <Terminal className="h-3.5 w-3.5 shrink-0" />
@@ -179,12 +179,12 @@ export function ExitPlanModePrompt({ request, onApprove, onReject }: ExitPlanMod
                     <div className="mt-3 space-y-2">
                         <button
                             onClick={onApprove}
-                            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--success)] px-3 py-2 text-sm font-medium text-[var(--on-success)] transition-colors hover:brightness-110"
+                            className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--success)] px-3 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:brightness-110"
                         >
                             <Check className="h-4 w-4" />
                             {t('shell.planPrompt.approve')}
                         </button>
-                        <div className="flex items-end gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-2.5 py-1.5 transition-colors focus-within:border-[var(--success)]/50">
+                        <div className="flex items-end gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2.5 py-1.5 transition-colors focus-within:border-[var(--success)]/50">
                             <textarea
                                 ref={textareaRef}
                                 value={feedback}
@@ -194,7 +194,7 @@ export function ExitPlanModePrompt({ request, onApprove, onReject }: ExitPlanMod
                                 onCompositionEnd={handleCompositionEnd}
                                 placeholder={t('shell.planPrompt.feedbackPlaceholder')}
                                 rows={1}
-                                className="max-h-32 min-h-[24px] flex-1 resize-none border-0 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-subtle)]"
+                                className="max-h-32 min-h-[24px] flex-1 resize-none border-0 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--subtle)]"
                             />
                             <button
                                 type="button"
@@ -203,8 +203,8 @@ export function ExitPlanModePrompt({ request, onApprove, onReject }: ExitPlanMod
                                 aria-label={submitTitle}
                                 className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors ${
                                     trimmed
-                                        ? 'bg-[var(--success)] text-[var(--on-success)] hover:brightness-110'
-                                        : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]'
+                                        ? 'bg-[var(--success)] text-[var(--on-primary)] hover:brightness-110'
+                                        : 'bg-[var(--inset)] text-[var(--muted)] hover:bg-[var(--hover)]'
                                 }`}
                             >
                                 <ArrowUp className="h-3.5 w-3.5" />

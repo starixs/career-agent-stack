@@ -245,7 +245,7 @@ export default function GlobalAgentsPanel({
     if (loading && viewState.type === 'list') {
         return (
             <div className="flex h-64 items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-[var(--ink-muted)]" />
+                <Loader2 className="h-8 w-8 animate-spin text-[var(--muted)]" />
             </div>
         );
     }
@@ -256,12 +256,12 @@ export default function GlobalAgentsPanel({
             <div className="space-y-4">
                 <button
                     onClick={handleBackToList}
-                    className="flex items-center gap-1 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                    className="flex items-center gap-1 text-sm text-[var(--muted)] hover:text-[var(--ink)]"
                 >
                     <ChevronLeft className="h-4 w-4" />
                     {t('agentSettings.globalAgents.backToList')}
                 </button>
-                <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] overflow-hidden" style={{ minHeight: '500px' }}>
+                <div className="rounded-xl border border-[var(--line)] bg-[var(--bg)] overflow-hidden" style={{ minHeight: '500px' }}>
                     <AgentDetailPanel
                         ref={agentDetailRef}
                         name={viewState.name}
@@ -283,15 +283,15 @@ export default function GlobalAgentsPanel({
             <div>
                 <div className="mb-4 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Bot className="h-5 w-5 text-[var(--ink-muted)]" />
+                        <Bot className="h-5 w-5 text-[var(--muted)]" />
                         <h3 className="text-base font-semibold text-[var(--ink)]">{t('agentSettings.globalAgents.title')}</h3>
-                        <span className="text-xs text-[var(--ink-muted)]">({agents.length})</span>
+                        <span className="text-xs text-[var(--muted)]">({agents.length})</span>
                     </div>
                     <div className="flex items-center gap-2">
                         {canSyncFromClaude && (
                             <button
                                 onClick={handleSyncFromClaude}
-                                className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                                className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                             >
                                 {t('agentSettings.globalAgents.syncFromClaude', { count: syncableCount })}
                             </button>
@@ -301,7 +301,7 @@ export default function GlobalAgentsPanel({
                                 const tempName = `new-agent-${Date.now()}`;
                                 handleQuickCreateAgent(tempName);
                             }}
-                            className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+                            className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                         >
                             <Plus className="h-4 w-4" />
                             {t('agentSettings.common.new')}
@@ -319,10 +319,10 @@ export default function GlobalAgentsPanel({
                         ))}
                     </div>
                 ) : (
-                    <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper-inset)]/30 py-8 text-center">
-                        <Bot className="mx-auto h-10 w-10 text-[var(--ink-muted)]/30" />
-                        <p className="mt-2 text-sm text-[var(--ink-muted)]">{t('agentSettings.globalAgents.emptyTitle')}</p>
-                        <p className="mt-1 text-xs text-[var(--ink-muted)]">
+                    <div className="rounded-xl border border-dashed border-[var(--line)] bg-[var(--inset)]/30 py-8 text-center">
+                        <Bot className="mx-auto h-10 w-10 text-[var(--muted)]/30" />
+                        <p className="mt-2 text-sm text-[var(--muted)]">{t('agentSettings.globalAgents.emptyTitle')}</p>
+                        <p className="mt-1 text-xs text-[var(--muted)]">
                             {t('agentSettings.globalAgents.emptyDescription')}
                         </p>
                     </div>
@@ -346,32 +346,32 @@ export default function GlobalAgentsPanel({
             {/* Sync conflict dialog */}
             {showSyncConflictDialog && (
                 <OverlayBackdrop className="z-50">
-                    <div className="w-[420px] rounded-xl border border-[var(--line)] bg-[var(--paper)] p-6 shadow-xl">
+                    <div className="w-[420px] rounded-xl border border-[var(--line)] bg-[var(--bg)] p-6 shadow-xl">
                         <h3 className="text-base font-semibold text-[var(--ink)]">{t('agentSettings.globalAgents.conflictTitle')}</h3>
-                        <p className="mt-2 text-sm text-[var(--ink-muted)]">
+                        <p className="mt-2 text-sm text-[var(--muted)]">
                             {t('agentSettings.globalAgents.conflictMessage', { count: syncConflicts.length })}
                         </p>
-                        <div className="mt-3 max-h-32 overflow-y-auto rounded-lg bg-[var(--paper-inset)] p-2">
+                        <div className="mt-3 max-h-32 overflow-y-auto rounded-lg bg-[var(--inset)] p-2">
                             {syncConflicts.map(name => (
-                                <div key={name} className="px-2 py-1 text-xs text-[var(--ink-muted)]">{name}</div>
+                                <div key={name} className="px-2 py-1 text-xs text-[var(--muted)]">{name}</div>
                             ))}
                         </div>
                         <div className="mt-4 flex justify-end gap-2">
                             <button
                                 onClick={() => setShowSyncConflictDialog(false)}
-                                className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                                className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--inset)]"
                             >
                                 {t('agentSettings.common.cancel')}
                             </button>
                             <button
                                 onClick={() => doSync('skip')}
-                                className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--ink)] hover:bg-[var(--paper-inset)]"
+                                className="rounded-lg border border-[var(--line)] px-3 py-1.5 text-sm text-[var(--ink)] hover:bg-[var(--inset)]"
                             >
                                 {t('agentSettings.globalAgents.skipExisting')}
                             </button>
                             <button
                                 onClick={() => doSync('overwrite')}
-                                className="rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-sm font-medium text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]"
+                                className="rounded-lg bg-[var(--primary)] px-3 py-1.5 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)]"
                             >
                                 {t('agentSettings.globalAgents.overwriteAll')}
                             </button>
@@ -380,7 +380,7 @@ export default function GlobalAgentsPanel({
                 </OverlayBackdrop>
             )}
 
-            <p className="text-center text-xs text-[var(--ink-muted)]">
+            <p className="text-center text-xs text-[var(--muted)]">
                 {t('agentSettings.globalAgents.storageHint')}
             </p>
         </div>

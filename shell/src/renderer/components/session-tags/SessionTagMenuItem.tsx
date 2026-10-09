@@ -222,14 +222,14 @@ function SessionTagManager({ open, tags, focusSessionId, onMutationStart, onClos
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="session-tag-manager-title"
-                className="flex max-h-[70vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] shadow-2xl"
+                className="flex max-h-[70vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-2xl"
             >
-                <header className="flex items-center justify-between border-b border-[var(--line-subtle)] px-5 py-4">
+                <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
                     <div>
                         <h2 id="session-tag-manager-title" className="font-semibold text-[var(--ink)]">
                             {t('sessionTags.manager.title')}
                         </h2>
-                        <p className="mt-0.5 text-xs text-[var(--ink-muted)]">{t('sessionTags.manager.description')}</p>
+                        <p className="mt-0.5 text-xs text-[var(--muted)]">{t('sessionTags.manager.description')}</p>
                     </div>
                     <button
                         type="button"
@@ -237,16 +237,16 @@ function SessionTagManager({ open, tags, focusSessionId, onMutationStart, onClos
                         disabled={busy || !!pendingDelete || !!pendingMerge}
                         onClick={onClose}
                         aria-label={t('sessionTags.close')}
-                        className="rounded-md p-1.5 text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] disabled:opacity-50"
+                        className="rounded-md p-1.5 text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)] disabled:opacity-50"
                     >
                         <X className="h-4 w-4" />
                     </button>
                 </header>
                 <div className="min-h-0 flex-1 overflow-y-auto p-3">
                     {tags.length === 0 ? (
-                        <p className="py-8 text-center text-sm text-[var(--ink-muted)]">{t('sessionTags.manager.empty')}</p>
+                        <p className="py-8 text-center text-sm text-[var(--muted)]">{t('sessionTags.manager.empty')}</p>
                     ) : tags.map((tag) => (
-                        <div key={tag.name.toLowerCase()} className="flex min-h-11 items-center gap-2 rounded-lg px-2 hover:bg-[var(--hover-bg)]">
+                        <div key={tag.name.toLowerCase()} className="flex min-h-11 items-center gap-2 rounded-lg px-2 hover:bg-[var(--hover)]">
                             {editing === tag.name ? (
                                 <form
                                     className="flex min-w-0 flex-1 items-center gap-2"
@@ -261,24 +261,24 @@ function SessionTagManager({ open, tags, focusSessionId, onMutationStart, onClos
                                         onChange={(event) => setNextName(event.target.value)}
                                         maxLength={64}
                                         aria-label={t('sessionTags.manager.renameInput', { name: tag.name })}
-                                        className="h-8 min-w-0 flex-1 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+                                        className="h-8 min-w-0 flex-1 rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)]"
                                     />
-                                    <button type="submit" disabled={busy} className="rounded-md px-2 py-1 text-sm text-[var(--accent)] hover:bg-[var(--hover-bg)] disabled:opacity-50">
+                                    <button type="submit" disabled={busy} className="rounded-md px-2 py-1 text-sm text-[var(--primary)] hover:bg-[var(--hover)] disabled:opacity-50">
                                         {t('sessionTags.manager.save')}
                                     </button>
-                                    <button type="button" onClick={() => setEditing(null)} className="rounded-md px-2 py-1 text-sm text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]">
+                                    <button type="button" onClick={() => setEditing(null)} className="rounded-md px-2 py-1 text-sm text-[var(--muted)] hover:bg-[var(--hover)]">
                                         {t('sessionTags.manager.cancel')}
                                     </button>
                                 </form>
                             ) : (
                                 <>
                                     <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]" title={tag.name}>{tag.name}</span>
-                                    <span className="shrink-0 text-xs text-[var(--ink-muted)]">{t('sessionTags.sessionCount', { count: tag.count })}</span>
+                                    <span className="shrink-0 text-xs text-[var(--muted)]">{t('sessionTags.sessionCount', { count: tag.count })}</span>
                                     <button
                                         type="button"
                                         aria-label={t('sessionTags.manager.rename', { name: tag.name })}
                                         onClick={() => { setEditing(tag.name); setNextName(tag.name); setError(null); }}
-                                        className="rounded-md p-1.5 text-[var(--ink-muted)] hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+                                        className="rounded-md p-1.5 text-[var(--muted)] hover:bg-[var(--bg)] hover:text-[var(--ink)]"
                                     >
                                         <Pencil className="h-3.5 w-3.5" />
                                     </button>
@@ -286,7 +286,7 @@ function SessionTagManager({ open, tags, focusSessionId, onMutationStart, onClos
                                         type="button"
                                         aria-label={t('sessionTags.manager.delete', { name: tag.name })}
                                         onClick={() => setPendingDelete(tag)}
-                                        className="rounded-md p-1.5 text-[var(--ink-muted)] hover:bg-[var(--error-bg)] hover:text-[var(--error)]"
+                                        className="rounded-md p-1.5 text-[var(--muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
                                     >
                                         <Trash2 className="h-3.5 w-3.5" />
                                     </button>
@@ -294,7 +294,7 @@ function SessionTagManager({ open, tags, focusSessionId, onMutationStart, onClos
                             )}
                         </div>
                     ))}
-                    {error && <p role="alert" className="px-2 pt-2 text-xs text-[var(--error)]">{error}</p>}
+                    {error && <p role="alert" className="px-2 pt-2 text-xs text-[var(--danger)]">{error}</p>}
                 </div>
             </section>
             {pendingDelete && (
@@ -479,7 +479,7 @@ function SessionTagMenuContent({
                 ref={anchorRef}
                 icon={<Tags className="h-3.5 w-3.5" />}
                 label={t('sessionTags.addTag')}
-                trailing={<ChevronRight className="h-4 w-4 shrink-0 text-[var(--ink-muted)]" />}
+                trailing={<ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" />}
                 active={open}
                 onClick={() => setOpen((current) => !current)}
             />
@@ -492,9 +492,9 @@ function SessionTagMenuContent({
                 zIndex={262}
                 className="w-72"
             >
-                <div className="border-b border-[var(--line-subtle)] p-2">
+                <div className="border-b border-[var(--line)] p-2">
                     <div className="relative">
-                        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[var(--ink-muted)]" />
+                        <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[var(--muted)]" />
                         <input
                             ref={inputRef}
                             value={query}
@@ -517,13 +517,13 @@ function SessionTagMenuContent({
                             }}
                             aria-label={t('sessionTags.searchTags')}
                             placeholder={t('sessionTags.searchTags')}
-                            className="h-8 w-full rounded-md border border-[var(--line)] bg-[var(--paper)] pl-8 pr-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+                            className="h-8 w-full rounded-md border border-[var(--line)] bg-[var(--bg)] pl-8 pr-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)]"
                         />
                     </div>
                 </div>
                 <div role="menu" aria-label={t('sessionTags.addTag')} className="max-h-64 overflow-y-auto py-1">
                     {loading ? (
-                        <div className="flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-[var(--ink-muted)]" /></div>
+                        <div className="flex justify-center py-6"><Loader2 className="h-4 w-4 animate-spin text-[var(--muted)]" /></div>
                     ) : (
                         <>
                             {candidates.map((tag, index) => {
@@ -538,13 +538,13 @@ function SessionTagMenuContent({
                                         disabled={disabled}
                                         onMouseEnter={() => setActiveIndex(index)}
                                         onClick={() => { void toggle(tag.name); }}
-                                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-45 ${activeIndex === index ? 'bg-[var(--hover-bg)]' : ''}`}
+                                        className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-45 ${activeIndex === index ? 'bg-[var(--hover)]' : ''}`}
                                     >
-                                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--on-accent)]' : 'border-[var(--line-strong)]'}`}>
+                                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--on-primary)]' : 'border-[var(--line-2)]'}`}>
                                             {checked && <Check className="h-3 w-3" />}
                                         </span>
                                         <span className="min-w-0 flex-1 truncate">{tag.name}</span>
-                                        {mutating?.toLowerCase() === tag.name.toLowerCase() && <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--ink-muted)]" />}
+                                        {mutating?.toLowerCase() === tag.name.toLowerCase() && <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--muted)]" />}
                                     </button>
                                 );
                             })}
@@ -555,26 +555,26 @@ function SessionTagMenuContent({
                                     disabled={atLimit || mutating !== null}
                                     onMouseEnter={() => setActiveIndex(candidates.length)}
                                     onClick={() => { void toggle(normalizedQuery.tag.name, true); }}
-                                    className={`w-full px-3 py-2 text-left text-sm text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-45 ${activeIndex === candidates.length ? 'bg-[var(--hover-bg)]' : ''}`}
+                                    className={`w-full px-3 py-2 text-left text-sm text-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-45 ${activeIndex === candidates.length ? 'bg-[var(--hover)]' : ''}`}
                                 >
                                     {t('sessionTags.createTag', { name: normalizedQuery.tag.name })}
                                 </button>
                             )}
                             {candidates.length === 0 && !canCreate && !loading && (
-                                <p className="px-3 py-5 text-center text-xs text-[var(--ink-muted)]">{t('sessionTags.noTags')}</p>
+                                <p className="px-3 py-5 text-center text-xs text-[var(--muted)]">{t('sessionTags.noTags')}</p>
                             )}
                         </>
                     )}
                 </div>
                 {(atLimit || error) && (
-                    <p role={error ? 'alert' : undefined} className={`border-t border-[var(--line-subtle)] px-3 py-2 text-xs ${error ? 'text-[var(--error)]' : 'text-[var(--ink-muted)]'}`}>
+                    <p role={error ? 'alert' : undefined} className={`border-t border-[var(--line)] px-3 py-2 text-xs ${error ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`}>
                         {error ?? t('sessionTags.limitHint', { count: MAX_SESSION_USER_TAGS })}
                     </p>
                 )}
                 <button
                     type="button"
                     onClick={() => { setOpen(false); setManagerOpen(true); }}
-                    className="flex w-full items-center gap-2 border-t border-[var(--line-subtle)] px-3 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                    className="flex w-full items-center gap-2 border-t border-[var(--line)] px-3 py-2 text-left text-sm text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                 >
                     <Tags className="h-3.5 w-3.5" />
                     {t('sessionTags.manageTags')}

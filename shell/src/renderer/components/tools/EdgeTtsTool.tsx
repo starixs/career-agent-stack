@@ -28,20 +28,20 @@ export default function EdgeTtsTool({ tool }: EdgeTtsToolProps) {
     <div className="flex items-center gap-1.5">
       <ToolHeader tool={tool} toolName={tool.name} label={toolLabel} />
       {isGenerating && (
-        <span className="text-xs text-[var(--ink-muted)] animate-pulse">
+        <span className="text-xs text-[var(--muted)] animate-pulse">
           {isListVoices ? t('shell.toolChrome.tts.querying') : t('shell.toolChrome.tts.generating')}
         </span>
       )}
       {parsed.voice && (
-        <span className="rounded bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs text-[var(--ink-muted)] font-mono">
+        <span className="rounded bg-[var(--inset)] px-1.5 py-0.5 text-xs text-[var(--muted)] font-mono">
           {parsed.voice}
         </span>
       )}
       {parsed.duration && (
-        <span className="text-xs text-[var(--ink-muted)]">{parsed.duration}</span>
+        <span className="text-xs text-[var(--muted)]">{parsed.duration}</span>
       )}
       {parsed.textPreview && (
-        <span className="truncate text-xs text-[var(--ink-muted)] max-w-[300px]">
+        <span className="truncate text-xs text-[var(--muted)] max-w-[300px]">
           {parsed.textPreview}
         </span>
       )}
@@ -52,7 +52,7 @@ export default function EdgeTtsTool({ tool }: EdgeTtsToolProps) {
     <div className="space-y-2 mt-1">
       {/* Parameters */}
       {tool.inputJson && (
-        <div className="text-xs text-[var(--ink-muted)] font-mono">
+        <div className="text-xs text-[var(--muted)] font-mono">
           {(() => {
             try {
               const input = JSON.parse(tool.inputJson);
@@ -89,7 +89,7 @@ export default function EdgeTtsTool({ tool }: EdgeTtsToolProps) {
 
       {/* Metadata */}
       {parsed.filePath && !parsed.error && (
-        <div className="text-xs text-[var(--ink-muted)] space-y-0.5 mt-1">
+        <div className="text-xs text-[var(--muted)] space-y-0.5 mt-1">
           {parsed.voice && <div>{t('shell.toolChrome.tts.voice')}: {parsed.voice}</div>}
           {parsed.duration && <div>{t('shell.toolChrome.tts.duration')}: {parsed.duration}</div>}
           {parsed.format && parsed.size && <div>{t('shell.toolChrome.tts.format')}: {parsed.format} | {t('shell.toolChrome.tts.size')}: {parsed.size}</div>}
@@ -102,14 +102,14 @@ export default function EdgeTtsTool({ tool }: EdgeTtsToolProps) {
 
       {/* Voice list result */}
       {parsed.isVoiceList && tool.result && (
-        <pre className="overflow-x-auto overflow-y-auto max-h-[300px] rounded bg-[var(--paper-inset)]/50 px-2 py-1.5 font-mono text-xs whitespace-pre-wrap text-[var(--ink-secondary)]">
+        <pre className="overflow-x-auto overflow-y-auto max-h-[300px] rounded bg-[var(--inset)]/50 px-2 py-1.5 font-mono text-xs whitespace-pre-wrap text-[var(--ink-2)]">
           {tool.result}
         </pre>
       )}
 
       {/* Error display */}
       {parsed.error && (
-        <pre className="overflow-x-auto rounded bg-[var(--error-bg)] px-2 py-1 font-mono text-xs break-words whitespace-pre-wrap text-[var(--error)]">
+        <pre className="overflow-x-auto rounded bg-[var(--danger-bg)] px-2 py-1 font-mono text-xs break-words whitespace-pre-wrap text-[var(--danger)]">
           {parsed.error}
         </pre>
       )}

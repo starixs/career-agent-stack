@@ -110,13 +110,13 @@ export function AudioRecordCard({
   };
   const summary = (
     <>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--primary-soft)] text-[var(--primary)]">
         <Mic className="h-3.5 w-3.5" strokeWidth={1.5} />
       </span>
       <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--ink)]">
         {record.title || t('records.untitled')}
       </span>
-      <span className="shrink-0 tabular-nums text-xs text-[var(--ink-muted)]">
+      <span className="shrink-0 tabular-nums text-xs text-[var(--muted)]">
         {formatDuration(displayedDurationMs)}
       </span>
     </>
@@ -133,12 +133,12 @@ export function AudioRecordCard({
       tabIndex={selectMode && active ? undefined : 0}
       onClick={handleCardClick}
       onKeyDown={handleCardKeyDown}
-      className={`group relative w-full min-w-0 max-w-full overflow-hidden rounded-[var(--radius-lg)] bg-[var(--paper-elevated)] p-4 outline-none transition-shadow hover:shadow-sm focus-visible:ring-1 focus-visible:ring-[var(--accent-warm)] ${
+      className={`group relative w-full min-w-0 max-w-full overflow-hidden rounded-[var(--radius-lg)] bg-[var(--paper)] p-4 outline-none transition-shadow hover:shadow-sm focus-visible:ring-1 focus-visible:ring-[var(--primary)] ${
         !selectMode || !active ? 'cursor-pointer' : ''
-      } ${selected ? 'bg-[var(--accent-warm-subtle)] ring-1 ring-[var(--accent-warm)]' : ''}`}
+      } ${selected ? 'bg-[var(--primary-soft)] ring-1 ring-[var(--primary)]' : ''}`}
     >
       <div className="mb-2 flex h-5 min-w-0 items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-xs text-[var(--ink-muted)]/60">
+        <span className="min-w-0 flex-1 truncate text-xs text-[var(--muted)]/60">
           {dateLabel}
         </span>
         {!selectMode && (
@@ -148,7 +148,7 @@ export function AudioRecordCard({
                 ref={discussAnchorRef}
                 type="button"
                 onClick={() => setShowWorkspacePicker((value) => !value)}
-                className="flex items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-sm text-[var(--ink-muted)] opacity-0 transition-opacity hover:bg-[var(--paper-inset)] hover:text-[var(--accent-cool)] group-hover:opacity-100 group-focus-within:opacity-100"
+                className="flex items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-sm text-[var(--muted)] opacity-0 transition-opacity hover:bg-[var(--inset)] hover:text-[var(--info)] group-hover:opacity-100 group-focus-within:opacity-100"
               >
                 <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.5} />
                 {t('thoughts.aiDiscuss')}
@@ -160,7 +160,7 @@ export function AudioRecordCard({
               onClick={() => setShowMenu((value) => !value)}
               disabled={active}
               title={t('thoughts.moreActions')}
-              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--ink-muted)]/70 transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-40"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--muted)]/70 transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-40"
             >
               <MoreHorizontal className="h-3.5 w-3.5" strokeWidth={1.5} />
             </button>
@@ -178,7 +178,7 @@ export function AudioRecordCard({
                     setShowMenu(false);
                     onEnterSelectMode();
                   }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--ink-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--ink-2)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                 >
                   <CheckSquare className="h-3.5 w-3.5" strokeWidth={1.5} />
                   {t('thoughts.multiSelect')}
@@ -190,7 +190,7 @@ export function AudioRecordCard({
                   setShowMenu(false);
                   void onArchive(record.id, !record.archived);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--ink-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--ink-2)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
               >
                 {record.archived ? (
                   <ArchiveRestore className="h-3.5 w-3.5" strokeWidth={1.5} />
@@ -207,7 +207,7 @@ export function AudioRecordCard({
                   setShowMenu(false);
                   void onDelete(record.id);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--error)] hover:bg-[var(--error-bg)]"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)]"
               >
                 <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                 {t('common.delete')}
@@ -228,7 +228,7 @@ export function AudioRecordCard({
       )}
 
       {searchHit?.snippet && (
-        <p className="mt-2 line-clamp-2 text-left text-xs leading-5 text-[var(--ink-muted)]">
+        <p className="mt-2 line-clamp-2 text-left text-xs leading-5 text-[var(--muted)]">
           {searchHit.snippet}
         </p>
       )}

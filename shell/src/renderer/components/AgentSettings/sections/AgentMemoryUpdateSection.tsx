@@ -138,12 +138,12 @@ export default function AgentMemoryUpdateSection({ agent, workspacePath, onAgent
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-medium text-[var(--ink)]">{t('agentSettings.memory.title')}</h3>
-            <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+            <p className="mt-0.5 text-xs text-[var(--muted)]">
               {t('agentSettings.memory.descriptionPrefix')}{' '}
               <button
                 type="button"
                 onClick={handleOpenFile}
-                className="rounded bg-[var(--paper-inset)] px-1 py-0.5 text-[var(--accent)] hover:underline cursor-pointer"
+                className="rounded bg-[var(--inset)] px-1 py-0.5 text-[var(--primary)] hover:underline cursor-pointer"
               >
                 UPDATE_MEMORY.md
               </button>
@@ -156,7 +156,7 @@ export default function AgentMemoryUpdateSection({ agent, workspacePath, onAgent
             aria-checked={enabled}
             onClick={handleToggle}
             className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
-              enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+              enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
             }`}
           >
             <span
@@ -173,7 +173,7 @@ export default function AgentMemoryUpdateSection({ agent, workspacePath, onAgent
               type="button"
               aria-expanded={moreSettingsOpen}
               onClick={() => setMoreSettingsOpen(open => !open)}
-              className="flex items-center gap-2 text-sm font-medium text-[var(--ink)] transition-colors hover:text-[var(--accent)]"
+              className="flex items-center gap-2 text-sm font-medium text-[var(--ink)] transition-colors hover:text-[var(--primary)]"
             >
               <ChevronDown className={`h-4 w-4 transition-transform ${moreSettingsOpen ? '' : '-rotate-90'}`} />
               {t('agentSettings.common.moreSettings')}
@@ -192,8 +192,8 @@ export default function AgentMemoryUpdateSection({ agent, workspacePath, onAgent
                         onClick={() => updateConfig({ intervalHours: hours })}
                         className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                           intervalHours === hours
-                            ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                            : 'bg-[var(--paper-inset)] text-[var(--ink-muted)] hover:bg-[var(--paper-hover)]'
+                            ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                            : 'bg-[var(--inset)] text-[var(--muted)] hover:bg-[var(--paper-hover)]'
                         }`}
                       >
                         {t('agentSettings.memory.intervalHours', { count: hours })}
@@ -210,16 +210,16 @@ export default function AgentMemoryUpdateSection({ agent, workspacePath, onAgent
                       type="time"
                       value={windowStart}
                       onChange={e => updateConfig({ updateWindowStart: e.target.value })}
-                      className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                      className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                     />
-                    <span className="text-xs text-[var(--ink-muted)]">—</span>
+                    <span className="text-xs text-[var(--muted)]">—</span>
                     <input
                       type="time"
                       value={windowEnd}
                       onChange={e => updateConfig({ updateWindowEnd: e.target.value })}
-                      className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                      className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
                     />
-                    <span className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2 py-1.5 text-xs text-[var(--ink)]">
+                    <span className="rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 py-1.5 text-xs text-[var(--ink)]">
                       {config?.updateWindowTimezone || agent.heartbeat?.activeHours?.timezone || 'Asia/Shanghai'}
                     </span>
                   </div>
@@ -229,7 +229,7 @@ export default function AgentMemoryUpdateSection({ agent, workspacePath, onAgent
                 <div>
                   <label className="block text-sm font-medium text-[var(--ink)] mb-2">{t('agentSettings.memory.threshold')}</label>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--ink-muted)]">{t('agentSettings.memory.thresholdPrefix')}</span>
+                    <span className="text-xs text-[var(--muted)]">{t('agentSettings.memory.thresholdPrefix')}</span>
                     <input
                       type="number"
                       min={3}
@@ -239,16 +239,16 @@ export default function AgentMemoryUpdateSection({ agent, workspacePath, onAgent
                         const v = parseInt(e.target.value, 10);
                         if (v >= 3 && v <= 50) updateConfig({ queryThreshold: v });
                       }}
-                      className="w-14 rounded-md bg-[var(--paper-inset)] px-2 py-1 text-xs text-[var(--ink)] text-center border border-[var(--line)]"
+                      className="w-14 rounded-md bg-[var(--inset)] px-2 py-1 text-xs text-[var(--ink)] text-center border border-[var(--line)]"
                     />
-                    <span className="text-xs text-[var(--ink-muted)]">{t('agentSettings.memory.thresholdSuffix')}</span>
+                    <span className="text-xs text-[var(--muted)]">{t('agentSettings.memory.thresholdSuffix')}</span>
                   </div>
                 </div>
 
                 {/* Last batch info */}
                 {lastBatchLabel && (
                   <div className="border-t border-dashed border-[var(--line)] pt-3">
-                    <span className="text-xs text-[var(--ink-muted)]">
+                    <span className="text-xs text-[var(--muted)]">
                       {t('agentSettings.memory.lastUpdated', { time: lastBatchLabel })}
                     </span>
                   </div>

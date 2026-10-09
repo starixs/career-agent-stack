@@ -319,19 +319,19 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
       : `${enabledMcpNames.slice(0, 2).join(' / ')} +${enabledMcpNames.length - 2}`;
 
   if (!project) {
-    return <p className="text-sm text-[var(--ink-subtle)]">{t('agentSettings.general.missingWorkspace')}</p>;
+    return <p className="text-sm text-[var(--subtle)]">{t('agentSettings.general.missingWorkspace')}</p>;
   }
 
   return (
     <div className="space-y-3">
       {/* Name + Icon — single row: [label] [icon] [input] */}
       <div className="relative flex items-center gap-3">
-        <label className="w-16 shrink-0 text-sm text-[var(--ink-muted)]">{t('agentSettings.basics.name')}</label>
+        <label className="w-16 shrink-0 text-sm text-[var(--muted)]">{t('agentSettings.basics.name')}</label>
         <button
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors ${
             openPopup === 'icon'
-              ? 'border-[var(--accent)] bg-[var(--accent-warm-muted)]'
-              : 'border-[var(--line)] hover:border-[var(--line-strong)]'
+              ? 'border-[var(--primary)] bg-[var(--primary-muted)]'
+              : 'border-[var(--line)] hover:border-[var(--line-2)]'
           }`}
           onClick={() => setOpenPopup(openPopup === 'icon' ? null : 'icon')}
           title={t('agentSettings.basics.chooseIcon')}
@@ -339,7 +339,7 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
           <WorkspaceIcon icon={project.icon || DEFAULT_WORKSPACE_ICON} size={22} />
         </button>
         <input
-          className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-1.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none"
+          className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-1.5 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none"
           value={name}
           onChange={e => setName(e.target.value)}
           onBlur={handleNameBlur}
@@ -350,13 +350,13 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
         {openPopup === 'icon' && (
           <>
             <div className="fixed inset-0 z-40" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpenPopup(null); }} />
-            <div className="absolute left-20 top-10 z-50 max-h-[260px] w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-2 shadow-lg">
+            <div className="absolute left-20 top-10 z-50 max-h-[260px] w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-[var(--line)] bg-[var(--paper)] p-2 shadow-lg">
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
                   onClick={() => handleIconSelect('')}
                   className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${
-                    !project.icon ? 'bg-[var(--accent-warm-muted)] ring-1 ring-[var(--accent-warm)]' : 'hover:bg-[var(--hover-bg)]'
+                    !project.icon ? 'bg-[var(--primary-muted)] ring-1 ring-[var(--primary)]' : 'hover:bg-[var(--hover)]'
                   }`}
                   title={t('agentSettings.basics.defaultIcon')}
                 >
@@ -371,8 +371,8 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
                       onClick={() => handleIconSelect(iconId)}
                       className={`flex h-9 w-9 items-center justify-center rounded-lg transition-all ${
                         project.icon === iconId
-                          ? 'bg-[var(--accent-warm-muted)] ring-1 ring-[var(--accent-warm)]'
-                          : 'hover:bg-[var(--hover-bg)]'
+                          ? 'bg-[var(--primary-muted)] ring-1 ring-[var(--primary)]'
+                          : 'hover:bg-[var(--hover)]'
                       }`}
                       title={iconId}
                     >
@@ -387,8 +387,8 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
 
       {/* Workspace path — read-only */}
       <div className="flex items-center gap-3">
-        <label className="w-16 shrink-0 text-sm text-[var(--ink-muted)]">{t('agentSettings.basics.workspace')}</label>
-        <span className="flex-1 truncate rounded-lg px-3 py-1.5 text-sm text-[var(--ink-subtle)]" title={agentDir}>
+        <label className="w-16 shrink-0 text-sm text-[var(--muted)]">{t('agentSettings.basics.workspace')}</label>
+        <span className="flex-1 truncate rounded-lg px-3 py-1.5 text-sm text-[var(--subtle)]" title={agentDir}>
           {agentDir}
         </span>
       </div>
@@ -397,7 +397,7 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
       {config.multiAgentRuntime && (
         <>
           <div className="flex items-center gap-3">
-            <label className="w-16 shrink-0 text-sm text-[var(--ink-muted)]">{t('agentSettings.basics.runtime')}</label>
+            <label className="w-16 shrink-0 text-sm text-[var(--muted)]">{t('agentSettings.basics.runtime')}</label>
             <div className="flex-1">
               <RuntimeSelector
                 value={currentRuntime}
@@ -415,7 +415,7 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
               : currentRuntime === 'gemini' ? 'Gemini CLI'
               : currentRuntime;
             return (
-              <p className="rounded-lg bg-[var(--accent-warm-subtle)] px-3.5 py-2.5 text-xs leading-relaxed text-[var(--ink-muted)]">
+              <p className="rounded-lg bg-[var(--primary-soft)] px-3.5 py-2.5 text-xs leading-relaxed text-[var(--muted)]">
                 {t('agentSettings.basics.externalRuntimeNotice', { runtime: runtimeLabel })}
               </p>
             );
@@ -449,8 +449,8 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
                 key={value}
                 className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 text-xs leading-relaxed transition-colors ${
                   proxyMode === value
-                    ? 'border-[var(--accent-warm)] bg-[var(--accent-warm-subtle)]'
-                    : 'border-[var(--line)] hover:border-[var(--line-strong)]'
+                    ? 'border-[var(--primary)] bg-[var(--primary-soft)]'
+                    : 'border-[var(--line)] hover:border-[var(--line-2)]'
                 }`}
               >
                 <input
@@ -463,14 +463,14 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
                 />
                 <div className="min-w-0">
                   <div className="font-medium text-[var(--ink)]">{label}</div>
-                  <div className="text-[var(--ink-muted)]">{hint}</div>
+                  <div className="text-[var(--muted)]">{hint}</div>
                 </div>
               </label>
             );
 
             return (
               <div className="flex items-start gap-3">
-                <label className="w-16 shrink-0 pt-2 text-sm text-[var(--ink-muted)]">{t('agentSettings.basics.networkProxy')}</label>
+                <label className="w-16 shrink-0 pt-2 text-sm text-[var(--muted)]">{t('agentSettings.basics.networkProxy')}</label>
                 <div className="flex-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {radio('keystone', t('agentSettings.basics.proxykeystone'), t('agentSettings.basics.proxykeystoneHint'))}
                   {radio('terminal', t('agentSettings.basics.proxyTerminal'), t('agentSettings.basics.proxyTerminalHint'))}
@@ -484,9 +484,9 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
       {/* Model — hidden when external runtime (they manage their own models) */}
       {currentRuntime === 'builtin' && (
       <div className="relative flex items-center gap-3">
-        <label className="w-16 shrink-0 text-sm text-[var(--ink-muted)]">{t('agentSettings.basics.model')}</label>
+        <label className="w-16 shrink-0 text-sm text-[var(--muted)]">{t('agentSettings.basics.model')}</label>
         <button
-          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-strong)]"
+          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-2)]"
           onClick={() => setOpenPopup(openPopup === 'model' ? null : 'model')}
         >
           <span className="flex min-w-0 items-center gap-2">
@@ -502,22 +502,22 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
               </span>
             )}
           </span>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--ink-subtle)]" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--subtle)]" />
         </button>
 
         {openPopup === 'model' && (
           <>
             <div className="fixed inset-0 z-40" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpenPopup(null); }} />
-            <div className="absolute left-20 top-0 z-50 max-h-[300px] w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-2 shadow-lg">
+            <div className="absolute left-20 top-0 z-50 max-h-[300px] w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-[var(--line)] bg-[var(--paper)] p-2 shadow-lg">
               {availableProviders.length === 0 ? (
                 <div className="px-3 py-3">
-                  <p className="mb-2 text-xs leading-relaxed text-[var(--ink-muted)]">
+                  <p className="mb-2 text-xs leading-relaxed text-[var(--muted)]">
                     {t('agentSettings.basics.noProviders')}
                   </p>
                   <button
                     type="button"
                     onClick={openProviderSettings}
-                    className="text-xs font-medium text-[var(--accent-warm)] hover:underline"
+                    className="text-xs font-medium text-[var(--primary)] hover:underline"
                   >
                     {t('agentSettings.basics.openProviderSettings')}
                   </button>
@@ -525,14 +525,14 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
               ) : (
                 availableProviders.map(provider => (
                   <div key={provider.id} className="mb-1">
-                    <div className="px-2 py-1 text-xs font-medium text-[var(--ink-muted)]">{provider.name}</div>
+                    <div className="px-2 py-1 text-xs font-medium text-[var(--muted)]">{provider.name}</div>
                     {provider.models?.map(model => (
                       <button
                         key={`${provider.id}:${model.model}`}
                         className={`flex w-full items-center rounded-lg px-3 py-1.5 text-left text-sm transition-colors ${
                           effectiveProviderId === provider.id && effectiveModel === model.model
-                            ? 'bg-[var(--accent-warm-muted)] text-[var(--accent-warm)]'
-                            : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                            ? 'bg-[var(--primary-muted)] text-[var(--primary)]'
+                            : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                         }`}
                         onClick={() => handleModelSelect(provider.id, model.model)}
                       >
@@ -551,10 +551,10 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
       {/* Permission — hidden when external runtime */}
       {currentRuntime === 'builtin' && (
       <div className="relative flex items-center gap-3">
-        <label className="w-16 shrink-0 text-sm text-[var(--ink-muted)]">{t('agentSettings.basics.permission')}</label>
+        <label className="w-16 shrink-0 text-sm text-[var(--muted)]">{t('agentSettings.basics.permission')}</label>
         <button
           ref={permissionButtonRef}
-          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-strong)]"
+          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-2)]"
           onClick={() => setOpenPopup(openPopup === 'permission' ? null : 'permission')}
         >
           <span className="flex items-center gap-1.5">
@@ -565,7 +565,7 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
             />
             {permissionMode.label}
           </span>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--ink-subtle)]" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--subtle)]" />
         </button>
 
         <Popover
@@ -588,38 +588,38 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
       {/* 推理强度 — hidden when external runtime (configured via chat toolbar there) */}
       {currentRuntime === 'builtin' && effectiveReasoningEffortChoices !== null && (
       <div className="relative flex items-center gap-3">
-        <label className="w-16 shrink-0 text-sm text-[var(--ink-muted)]">{t('agentSettings.basics.reasoningEffort')}</label>
+        <label className="w-16 shrink-0 text-sm text-[var(--muted)]">{t('agentSettings.basics.reasoningEffort')}</label>
         <button
-          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-strong)]"
+          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-2)]"
           onClick={() => setOpenPopup(openPopup === 'effort' ? null : 'effort')}
         >
           <span>{effectiveReasoningEffort === 'default' ? defaultEffortLabel : effectiveReasoningEffort}</span>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--ink-subtle)]" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--subtle)]" />
         </button>
 
         {openPopup === 'effort' && (
           <>
             <div className="fixed inset-0 z-40" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpenPopup(null); }} />
-            <div className="absolute left-20 top-0 z-50 w-[280px] rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-2 shadow-lg">
+            <div className="absolute left-20 top-0 z-50 w-[280px] rounded-xl border border-[var(--line)] bg-[var(--paper)] p-2 shadow-lg">
               {['default', ...(effectiveReasoningEffortChoices ?? [])].map(level => (
                 <button
                   key={level}
                   className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition-colors ${
                     effectiveReasoningEffort === level
-                      ? 'bg-[var(--accent-warm-muted)] text-[var(--accent-warm)]'
-                      : 'text-[var(--ink)] hover:bg-[var(--hover-bg)]'
+                      ? 'bg-[var(--primary-muted)] text-[var(--primary)]'
+                      : 'text-[var(--ink)] hover:bg-[var(--hover)]'
                   }`}
                   onClick={() => handleEffortSelect(level)}
                 >
                   <span className="shrink-0 text-sm font-medium">{level === 'default' ? defaultEffortLabel : level}</span>
-                  <span title={usesManagedCodexProvider ? effortModel?.supportedReasoningEfforts?.find(option => option.reasoningEffort === level)?.description : undefined} className="ml-3 min-w-0 truncate text-xs text-[var(--ink-muted)]">
+                  <span title={usesManagedCodexProvider ? effortModel?.supportedReasoningEfforts?.find(option => option.reasoningEffort === level)?.description : undefined} className="ml-3 min-w-0 truncate text-xs text-[var(--muted)]">
                     {usesManagedCodexProvider ? effortModel?.supportedReasoningEfforts?.find(option => option.reasoningEffort === level)?.description ?? '' : t(`agentSettings.reasoning.descriptions.${level}`, {
                       defaultValue: REASONING_EFFORT_DESCRIPTIONS[level] ?? '',
                     })}
                   </span>
                 </button>
               ))}
-              <div className="mt-1 whitespace-nowrap border-t border-[var(--line)] px-3 pb-1 pt-2 text-xs text-[var(--ink-muted)]/60">
+              <div className="mt-1 whitespace-nowrap border-t border-[var(--line)] px-3 pb-1 pt-2 text-xs text-[var(--muted)]/60">
                 {t('agentSettings.basics.reasoningSupportHint')}
               </div>
             </div>
@@ -631,21 +631,21 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
       {/* MCP Tools — hidden when external runtime */}
       {currentRuntime === 'builtin' && (
       <div className="relative flex items-center gap-3">
-        <label className="w-16 shrink-0 text-sm text-[var(--ink-muted)]">{t('agentSettings.basics.tools')}</label>
+        <label className="w-16 shrink-0 text-sm text-[var(--muted)]">{t('agentSettings.basics.tools')}</label>
         <button
-          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-strong)]"
+          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-2)]"
           onClick={() => setOpenPopup(openPopup === 'mcp' ? null : 'mcp')}
         >
           <span className="truncate">{mcpSummary}</span>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--ink-subtle)]" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--subtle)]" />
         </button>
 
         {openPopup === 'mcp' && (
           <>
             <div className="fixed inset-0 z-40" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpenPopup(null); }} />
-            <div className="absolute left-20 top-0 z-50 max-h-[300px] w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-2 shadow-lg">
+            <div className="absolute left-20 top-0 z-50 max-h-[300px] w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-[var(--line)] bg-[var(--paper)] p-2 shadow-lg">
               {availableMcpServers.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-[var(--ink-subtle)]">
+                <p className="px-3 py-2 text-xs text-[var(--subtle)]">
                   {t('agentSettings.basics.noGlobalTools')}
                 </p>
               ) : (
@@ -654,7 +654,7 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
                   return (
                     <label
                       key={server.id}
-                      className="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-[var(--hover-bg)]"
+                      className="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-[var(--hover)]"
                     >
                       <input
                         type="checkbox"
@@ -665,7 +665,7 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-[var(--ink)]">{server.name}</p>
                         {server.description && (
-                          <p className="truncate text-xs text-[var(--ink-muted)]">{server.description}</p>
+                          <p className="truncate text-xs text-[var(--muted)]">{server.description}</p>
                         )}
                       </div>
                     </label>
@@ -684,25 +684,25 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
        *  empty "未启用插件" row for users who haven't installed any. */}
       {currentRuntime === 'builtin' && visiblePlugins.length > 0 && (
       <div className="relative flex items-center gap-3">
-        <label className="w-16 shrink-0 text-sm text-[var(--ink-muted)]">{t('agentSettings.basics.plugins')}</label>
+        <label className="w-16 shrink-0 text-sm text-[var(--muted)]">{t('agentSettings.basics.plugins')}</label>
         <button
-          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-strong)]"
+          className="flex flex-1 items-center justify-between rounded-lg border border-[var(--line)] px-3 py-1.5 text-left text-sm text-[var(--ink)] transition-colors hover:border-[var(--line-2)]"
           onClick={() => setOpenPopup(openPopup === 'plugins' ? null : 'plugins')}
         >
           <span className="truncate">{pluginSummary}</span>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--ink-subtle)]" />
+          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--subtle)]" />
         </button>
 
         {openPopup === 'plugins' && (
           <>
             <div className="fixed inset-0 z-40" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpenPopup(null); }} />
-            <div className="absolute left-20 top-0 z-50 max-h-[300px] w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-2 shadow-lg">
+            <div className="absolute left-20 top-0 z-50 max-h-[300px] w-[320px] overflow-y-auto overscroll-contain rounded-xl border border-[var(--line)] bg-[var(--paper)] p-2 shadow-lg">
               {visiblePlugins.map(plugin => {
                 const checked = effectiveEnabledPlugins?.includes(plugin.id) ?? false;
                 return (
                   <label
                     key={plugin.id}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-[var(--hover-bg)]"
+                    className="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-[var(--hover)]"
                   >
                     <input
                       type="checkbox"
@@ -713,7 +713,7 @@ export default function WorkspaceBasicsSection({ project, agent, agentDir }: Wor
                     <div className="min-w-0 flex-1">
                       <p className="text-sm text-[var(--ink)]">{plugin.name}</p>
                       {plugin.description && (
-                        <p className="truncate text-xs text-[var(--ink-muted)]">{plugin.description}</p>
+                        <p className="truncate text-xs text-[var(--muted)]">{plugin.description}</p>
                       )}
                     </div>
                   </label>

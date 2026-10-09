@@ -214,7 +214,7 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
       recordingBusy = false,
       // Guide-style placeholder — tells new users both *what* to write and
       // *how* to tag it, so the empty state doesn't look like dead space.
-      // DESIGN.md §5.2 rules the placeholder color (--ink-muted) which is already
+      // DESIGN.md §5.2 rules the placeholder color (--muted) which is already
       // applied by the textarea className below.
       placeholder,
       autoFocus = false,
@@ -495,7 +495,7 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
       <div className="w-full">
         <div
           ref={cardRef}
-          className={`relative flex flex-col border border-[var(--line)] bg-[var(--paper-elevated)] ${theme.focusClass} ${theme.cardClass}`}
+          className={`relative flex flex-col border border-[var(--line)] bg-[var(--paper)] ${theme.focusClass} ${theme.cardClass}`}
         >
           {/* Mirror layer: same text as the textarea but with coloured `#tag`
             runs. Must match the textarea's font metrics so the highlighted
@@ -539,7 +539,7 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
                     seg.type === 'tag' ? (
                       <span
                         key={i}
-                        className="rounded-[var(--radius-sm)] bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]"
+                        className="rounded-[var(--radius-sm)] bg-[var(--primary-soft)] text-[var(--primary)]"
                       >
                         {seg.value}
                       </span>
@@ -596,7 +596,7 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
               // the mirror. Editing the geometry props here without also
               // updating the shared helper would re-create the wrap-mismatch
               // / caret-floating-on-mystery-whitespace bug.
-              className={`block relative w-full resize-none overflow-y-auto bg-transparent text-transparent caret-[var(--ink)] placeholder:text-[var(--ink-muted)] placeholder:[-webkit-text-fill-color:var(--ink-muted)] focus:outline-none ${MIRROR_TEXTAREA_SHARED_CLASS(theme)}`}
+              className={`block relative w-full resize-none overflow-y-auto bg-transparent text-transparent caret-[var(--ink)] placeholder:text-[var(--muted)] placeholder:[-webkit-text-fill-color:var(--muted)] focus:outline-none ${MIRROR_TEXTAREA_SHARED_CLASS(theme)}`}
               style={{
                 ...MIRROR_TEXTAREA_SHARED_STYLE,
                 WebkitTextFillColor: 'transparent',
@@ -630,7 +630,7 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
             className="w-56 py-1 shadow-md"
           >
             {tagMenu && (
-              <div className="px-3 pb-1 pt-0.5 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">
+              <div className="px-3 pb-1 pt-0.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">
                 {tagMenu.query
                   ? t('thoughts.tagMenuMatch', { query: tagMenu.query })
                   : t('thoughts.tagMenuChoose')}
@@ -648,12 +648,12 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
                 onMouseEnter={() => setTagIndex(i)}
                 className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-sm transition-colors ${
                   i === tagIndex
-                    ? 'bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]'
-                    : 'text-[var(--ink-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]'
+                    ? 'bg-[var(--primary-soft)] text-[var(--primary)]'
+                    : 'text-[var(--ink-2)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
                 }`}
               >
                 <span>#{tag}</span>
-                <span className="text-xs text-[var(--ink-muted)]/60">{n}</span>
+                <span className="text-xs text-[var(--muted)]/60">{n}</span>
               </button>
             ))}
           </Popover>
@@ -667,7 +667,7 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
                 onClick={handleHashButton}
                 disabled={interactionBusy}
                 title={t('thoughts.insertTag')}
-                className={`rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--accent-warm)] disabled:cursor-not-allowed disabled:opacity-50 ${theme.toolbarButtonPaddingClass}`}
+                className={`rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50 ${theme.toolbarButtonPaddingClass}`}
               >
                 <Hash className="h-4 w-4" />
               </button>
@@ -678,7 +678,7 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
                   type="button"
                   onClick={() => void onStartRecording()}
                   disabled={interactionBusy}
-                  className={`inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--accent-warm)] disabled:cursor-wait disabled:opacity-50 ${
+                  className={`inline-flex items-center gap-1.5 rounded-lg text-sm font-medium text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--primary)] disabled:cursor-wait disabled:opacity-50 ${
                     variant === 'launcher' ? 'h-8 px-2.5' : 'h-7 px-2'
                   }`}
                 >
@@ -699,7 +699,7 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
                   type="button"
                   onClick={() => void handleSubmit()}
                   disabled={!canSend || recordingBusy}
-                  className={`rounded-lg bg-[var(--button-primary-bg)] text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:bg-[var(--ink-muted)]/15 disabled:text-[var(--ink-muted)]/60 ${theme.toolbarButtonPaddingClass}`}
+                  className={`rounded-lg bg-[var(--primary)] text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:bg-[var(--muted)]/15 disabled:text-[var(--muted)]/60 ${theme.toolbarButtonPaddingClass}`}
                 >
                   <PenLine className="h-4 w-4" />
                 </button>
@@ -708,7 +708,7 @@ export const ThoughtInput = forwardRef<ThoughtInputHandle, Props>(
           </div>
         </div>
         {error && (
-          <div className="mt-1.5 text-xs text-[var(--error)]">{error}</div>
+          <div className="mt-1.5 text-xs text-[var(--danger)]">{error}</div>
         )}
       </div>
     );

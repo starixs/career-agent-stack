@@ -61,12 +61,12 @@ export default function FeedbackPopover({ open, onClose, onOpenBugReport, trigge
         >
             {/* Header */}
             <div className="flex items-center justify-between px-4 pt-3.5 pb-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ink-muted)]">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
                     {t('titlebar.feedbackTitle')}
                 </span>
                 <button
                     onClick={onClose}
-                    className="rounded-md p-0.5 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                    className="rounded-md p-0.5 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                     title={t('titlebar.close')}
                     aria-label={t('titlebar.close')}
                 >
@@ -81,16 +81,16 @@ export default function FeedbackPopover({ open, onClose, onOpenBugReport, trigge
                         onClose();
                         onOpenBugReport();
                     }}
-                    className="group w-full rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-3.5
-                        text-left transition-all hover:border-[var(--line-strong)] hover:shadow-sm"
+                    className="group w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3.5
+                        text-left transition-all hover:border-[var(--line-2)] hover:shadow-sm"
                 >
                     <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent-warm-subtle)] transition-colors group-hover:bg-[var(--accent-warm-muted)]">
-                            <Bot className="h-4 w-4 text-[var(--accent-warm)]" />
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--primary-soft)] transition-colors group-hover:bg-[var(--primary-muted)]">
+                            <Bot className="h-4 w-4 text-[var(--primary)]" />
                         </div>
                         <div className="min-w-0">
                             <p className="text-sm font-medium text-[var(--ink)]">{t('titlebar.helper')}</p>
-                            <p className="mt-0.5 text-xs leading-relaxed text-[var(--ink-muted)]">
+                            <p className="mt-0.5 text-xs leading-relaxed text-[var(--muted)]">
                                 {t('titlebar.helperDescription')}
                             </p>
                         </div>
@@ -101,14 +101,14 @@ export default function FeedbackPopover({ open, onClose, onOpenBugReport, trigge
             {/* 加入用户群 */}
             {(qrLoading || qrCodeUrl) && (
                 <div className="px-3 pb-3.5">
-                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-3.5">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3.5">
                         <div className="flex items-center gap-2.5">
-                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent-warm-subtle)]">
-                                <Users className="h-4 w-4 text-[var(--accent-warm)]" />
+                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--primary-soft)]">
+                                <Users className="h-4 w-4 text-[var(--primary)]" />
                             </div>
                             <div className="min-w-0">
                                 <p className="text-sm font-medium text-[var(--ink)]">{t('titlebar.communityTitle')}</p>
-                                <p className="mt-0.5 text-xs leading-relaxed text-[var(--ink-muted)]">
+                                <p className="mt-0.5 text-xs leading-relaxed text-[var(--muted)]">
                                     {t('titlebar.communityDescription')}
                                 </p>
                             </div>
@@ -116,7 +116,7 @@ export default function FeedbackPopover({ open, onClose, onOpenBugReport, trigge
                         <div className="mt-3 flex justify-center">
                             {qrLoading ? (
                                 <div className="flex h-32 w-32 items-center justify-center">
-                                    <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+                                    <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
                                 </div>
                             ) : (
                                 <img

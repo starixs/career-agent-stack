@@ -101,7 +101,7 @@ export default function WorkspaceGeneralTab({
   if (!project) {
     return (
       <div className="flex items-center justify-center py-12">
-        <span className="text-sm text-[var(--ink-subtle)]">{t('agentSettings.general.missingWorkspace')}</span>
+        <span className="text-sm text-[var(--subtle)]">{t('agentSettings.general.missingWorkspace')}</span>
       </div>
     );
   }
@@ -110,9 +110,9 @@ export default function WorkspaceGeneralTab({
     <div className="h-full overflow-auto px-8 py-6">
       <div className="mx-auto max-w-2xl space-y-6 pb-8">
         {/* Card 1: Basic settings */}
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
           <h3 className="flex items-center gap-2 text-base font-medium text-[var(--ink)]">
-            <Settings2 className="h-[18px] w-[18px] text-[var(--ink-muted)]" />
+            <Settings2 className="h-[18px] w-[18px] text-[var(--muted)]" />
             {t('agentSettings.general.basicsTitle')}
           </h3>
           <div className="mt-4">
@@ -121,7 +121,7 @@ export default function WorkspaceGeneralTab({
         </div>
 
         {/* Card 2: Channels — independent from Proactive Agent mode */}
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
           {agent && (
             <AgentChannelsSection
               agent={agent}
@@ -134,14 +134,14 @@ export default function WorkspaceGeneralTab({
         </div>
 
         {/* Card 3: Proactive Agent mode */}
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
           <div className="flex items-center justify-between">
             <div className="flex-1 pr-4">
               <h3 className="flex items-center gap-2 text-base font-medium text-[var(--ink)]">
-                <HeartPulse className="h-[18px] w-[18px] text-[var(--heartbeat)]" />
+                <HeartPulse className="h-[18px] w-[18px] text-[var(--success)]" />
                 {t('agentSettings.general.proactiveTitle')}
               </h3>
-              <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
+              <p className="mt-0.5 text-xs text-[var(--muted)]">
                 {t('agentSettings.general.proactiveDescription')}
               </p>
             </div>
@@ -149,7 +149,7 @@ export default function WorkspaceGeneralTab({
               className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
                 toggling ? 'cursor-wait opacity-50' : 'cursor-pointer'
               } ${
-                isProactive ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+                isProactive ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
               }`}
               onClick={handleToggleProactive}
               disabled={toggling}
@@ -186,7 +186,7 @@ export default function WorkspaceGeneralTab({
         </div>
 
         {/* Card 4: Tasks — independent from Proactive Agent mode */}
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
           <AgentTasksSection workspacePath={project.path} />
         </div>
       </div>

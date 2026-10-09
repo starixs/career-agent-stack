@@ -44,7 +44,7 @@ export function McpStatusNotice({ server, stale, busy, onRetry }: {
     }
   };
   return (
-    <div className="mt-0.5 flex items-center gap-1 text-xs text-[var(--ink-muted)]">
+    <div className="mt-0.5 flex items-center gap-1 text-xs text-[var(--muted)]">
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
       <span className="min-w-0">
         {stale ? t('input.mcpStatus.stale') : failed ? reason : t('input.mcpStatus.needsAuth')}
@@ -54,7 +54,7 @@ export function McpStatusNotice({ server, stale, busy, onRetry }: {
           <button
             type="button"
             aria-label={t('input.mcpStatus.retry')}
-            className="compact-action ml-auto shrink-0 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-40"
+            className="compact-action ml-auto shrink-0 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-40"
             disabled={busy || retrying}
             onClick={(event) => { event.stopPropagation(); void retry(); }}
           >

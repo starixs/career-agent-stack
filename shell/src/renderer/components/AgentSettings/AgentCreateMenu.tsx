@@ -26,7 +26,7 @@ export default memo(function AgentCreateMenu({
       <button
         ref={buttonRef}
         onClick={toggle}
-        className="flex items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 py-2 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+        className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
       >
         <Plus className="h-3.5 w-3.5" />
         {t('agentSettings.createMenu.create')}
@@ -42,18 +42,18 @@ export default memo(function AgentCreateMenu({
           type="button"
           role="menuitem"
           onClick={() => { setOpen(false); onUpgradeWorkspace(); }}
-          className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+          className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
         >
-          <FolderUp className="h-3.5 w-3.5 text-[var(--ink-subtle)]" />
+          <FolderUp className="h-3.5 w-3.5 text-[var(--subtle)]" />
           {t('agentSettings.createMenu.upgradeWorkspace')}
         </button>
         <button
           type="button"
           role="menuitem"
           onClick={() => { setOpen(false); onCreateFromTemplate(); }}
-          className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]"
+          className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--inset)]"
         >
-          <LayoutTemplate className="h-3.5 w-3.5 text-[var(--ink-subtle)]" />
+          <LayoutTemplate className="h-3.5 w-3.5 text-[var(--subtle)]" />
           {t('agentSettings.createMenu.fromTemplate')}
         </button>
       </Popover>

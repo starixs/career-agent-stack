@@ -137,7 +137,7 @@ describe('TabBar', () => {
         const tab = document.querySelector('[data-tab-id="tab-1"]') as HTMLElement;
         const sessionTitle = within(tab).getByText('Session 1');
 
-        expect(tab).toHaveClass('text-[var(--ink-muted)]', 'hover:bg-[var(--hover-bg)]', 'hover:text-[var(--ink)]');
+        expect(tab).toHaveClass('text-[var(--muted)]', 'hover:bg-[var(--hover)]', 'hover:text-[var(--ink)]');
         expect(sessionTitle.className).not.toContain('text-[var(--ink');
     });
 
@@ -145,26 +145,26 @@ describe('TabBar', () => {
         renderTabBar();
 
         const activeTab = document.querySelector('[data-tab-id="tab-1"]') as HTMLElement;
-        expect(activeTab).toHaveClass('h-8', 'rounded-md', 'bg-[var(--hover-bg)]', 'text-[var(--ink)]');
-        expect(activeTab).not.toHaveClass('rounded-lg', 'bg-[var(--paper-inset)]', 'shadow-sm');
-        expect(activeTab.querySelector('[data-tab-active-indicator]')).toHaveClass('bg-[var(--accent)]/70');
+        expect(activeTab).toHaveClass('h-8', 'rounded-md', 'bg-[var(--hover)]', 'text-[var(--ink)]');
+        expect(activeTab).not.toHaveClass('rounded-lg', 'bg-[var(--inset)]', 'shadow-sm');
+        expect(activeTab.querySelector('[data-tab-active-indicator]')).toHaveClass('bg-[var(--primary)]/70');
     });
 
     it('uses the shared hover wash for titlebar auxiliary actions', () => {
         renderTabBar();
         const newTabButton = screen.getByTitle(/新建标签页/);
-        expect(newTabButton).toHaveClass('hover:bg-[var(--hover-bg)]');
-        expect(newTabButton).not.toHaveClass('hover:bg-[var(--paper-inset)]/60');
+        expect(newTabButton).toHaveClass('hover:bg-[var(--hover)]');
+        expect(newTabButton).not.toHaveClass('hover:bg-[var(--inset)]/60');
 
         const track = screen.getByLabelText('打开的标签页');
         setTabTrackMetrics(track, 600, 240);
         fireEvent.scroll(track);
         const overflowButton = screen.getByLabelText('所有标签页');
-        expect(overflowButton).toHaveClass('hover:bg-[var(--hover-bg)]');
+        expect(overflowButton).toHaveClass('hover:bg-[var(--hover)]');
 
         fireEvent.click(overflowButton);
-        expect(overflowButton).toHaveClass('bg-[var(--hover-bg)]');
-        expect(overflowButton).not.toHaveClass('bg-[var(--paper-inset)]');
+        expect(overflowButton).toHaveClass('bg-[var(--hover)]');
+        expect(overflowButton).not.toHaveClass('bg-[var(--inset)]');
     });
 
     it('does not repeat the workspace when it matches the session title', () => {

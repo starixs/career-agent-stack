@@ -68,14 +68,14 @@ export default function SessionStatsModal({
                 {/* Header */}
                 <div className="flex flex-shrink-0 items-center justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
                     <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--accent-warm-muted)]">
-                            <BarChart2 className="h-4 w-4 text-[var(--accent)]" />
+                        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--primary-muted)]">
+                            <BarChart2 className="h-4 w-4 text-[var(--primary)]" />
                         </div>
                         <div className="min-w-0">
                             <div className="truncate text-sm font-semibold text-[var(--ink)]">
                                 {t('shell.stats.title')}
                             </div>
-                            <div className="truncate text-xs text-[var(--ink-muted)]">
+                            <div className="truncate text-xs text-[var(--muted)]">
                                 {sessionTitle}
                             </div>
                         </div>
@@ -83,7 +83,7 @@ export default function SessionStatsModal({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]"
                     >
                         <X className="h-4 w-4" />
                     </button>
@@ -92,20 +92,20 @@ export default function SessionStatsModal({
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-5">
                     {isLoading ? (
-                        <div className="flex h-32 items-center justify-center gap-2 text-[var(--ink-muted)]">
+                        <div className="flex h-32 items-center justify-center gap-2 text-[var(--muted)]">
                             <Loader2 className="h-5 w-5 animate-spin" />
                             <span className="text-sm">{t('shell.stats.loading')}</span>
                         </div>
                     ) : error ? (
-                        <div className="flex h-32 items-center justify-center text-[var(--error)]">
+                        <div className="flex h-32 items-center justify-center text-[var(--danger)]">
                             {error}
                         </div>
                     ) : stats ? (
                         <div className="space-y-6">
                             {/* Summary Cards */}
                             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-4">
-                                    <div className="flex items-center gap-2 text-[var(--ink-muted)]">
+                                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4">
+                                    <div className="flex items-center gap-2 text-[var(--muted)]">
                                         <MessageSquare className="h-4 w-4" />
                                         <span className="text-xs">{t('shell.stats.summary.turns')}</span>
                                     </div>
@@ -113,8 +113,8 @@ export default function SessionStatsModal({
                                         {stats.summary.turnCount}
                                     </div>
                                 </div>
-                                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-4">
-                                    <div className="flex items-center gap-2 text-[var(--ink-muted)]">
+                                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4">
+                                    <div className="flex items-center gap-2 text-[var(--muted)]">
                                         <UserRound className="h-4 w-4" />
                                         <span className="text-xs">{t('shell.stats.summary.humanQueries')}</span>
                                     </div>
@@ -122,30 +122,30 @@ export default function SessionStatsModal({
                                         {stats.summary.humanQueryCount}
                                     </div>
                                 </div>
-                                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-4">
-                                    <div className="flex items-center gap-2 text-[var(--ink-muted)]">
+                                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4">
+                                    <div className="flex items-center gap-2 text-[var(--muted)]">
                                         <BarChart2 className="h-4 w-4" />
                                         <span className="text-xs">{t('shell.stats.summary.totalTokens')}</span>
                                     </div>
                                     <div className="mt-2 text-2xl font-semibold text-[var(--ink)]">
                                         {formatTokens(totalTokens)}
                                     </div>
-                                    <div className="mt-1 text-xs text-[var(--ink-muted)]">
+                                    <div className="mt-1 text-xs text-[var(--muted)]">
                                         {t('shell.stats.summary.inputOutput', {
                                             input: formatTokens(stats.summary.totalInputTokens),
                                             output: formatTokens(stats.summary.totalOutputTokens),
                                         })}
                                     </div>
                                 </div>
-                                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-4">
-                                    <div className="flex items-center gap-2 text-[var(--ink-muted)]">
+                                <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4">
+                                    <div className="flex items-center gap-2 text-[var(--muted)]">
                                         <Clock className="h-4 w-4" />
                                         <span className="text-xs">{t('shell.stats.summary.inputCache')}</span>
                                     </div>
                                     <div className="mt-2 text-2xl font-semibold text-[var(--ink)]">
                                         {formatTokens((stats.summary.totalCacheReadTokens ?? 0) + (stats.summary.totalCacheCreationTokens ?? 0))}
                                     </div>
-                                    <div className="mt-1 text-xs text-[var(--ink-muted)]">
+                                    <div className="mt-1 text-xs text-[var(--muted)]">
                                         {t('shell.stats.summary.inputCacheTokens')}
                                     </div>
                                 </div>
@@ -159,21 +159,21 @@ export default function SessionStatsModal({
                                     </h3>
                                     <div className="overflow-hidden rounded-lg border border-[var(--line)]">
                                         <table className="w-full text-sm">
-                                            <thead className="bg-[var(--paper-elevated)]">
+                                            <thead className="bg-[var(--paper)]">
                                                 <tr>
-                                                    <th className="px-4 py-2 text-left text-xs font-medium text-[var(--ink-muted)]">
+                                                    <th className="px-4 py-2 text-left text-xs font-medium text-[var(--muted)]">
                                                         {t('shell.stats.byModel.model')}
                                                     </th>
-                                                    <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                                         {t('shell.stats.common.input')}
                                                     </th>
-                                                    <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                                         {t('shell.stats.common.output')}
                                                     </th>
-                                                    <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                                         {t('shell.stats.common.inputCache')}
                                                     </th>
-                                                    <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                                         {t('shell.stats.byModel.count')}
                                                     </th>
                                                 </tr>
@@ -185,21 +185,21 @@ export default function SessionStatsModal({
                                                             <td className="px-4 py-2 text-[var(--ink)]">
                                                                 <div>{data.model ?? key}</div>
                                                                 {data.providerId && (
-                                                                    <div className="mt-0.5 text-xs text-[var(--ink-muted)]">
+                                                                    <div className="mt-0.5 text-xs text-[var(--muted)]">
                                                                         {data.providerId}
                                                                     </div>
                                                                 )}
                                                             </td>
-                                                            <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                                            <td className="px-4 py-2 text-right text-[var(--muted)]">
                                                                 {formatTokens(data.inputTokens)}
                                                             </td>
-                                                            <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                                            <td className="px-4 py-2 text-right text-[var(--muted)]">
                                                                 {formatTokens(data.outputTokens)}
                                                             </td>
-                                                            <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                                            <td className="px-4 py-2 text-right text-[var(--muted)]">
                                                                 {formatTokens((data.cacheReadTokens ?? 0) + (data.cacheCreationTokens ?? 0))}
                                                             </td>
-                                                            <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                                            <td className="px-4 py-2 text-right text-[var(--muted)]">
                                                                 {data.count}
                                                             </td>
                                                         </tr>
@@ -220,24 +220,24 @@ export default function SessionStatsModal({
                                     <div className="overflow-hidden rounded-lg border border-[var(--line)]">
                                         <div className="max-h-64 overflow-y-auto">
                                             <table className="w-full text-sm">
-                                                <thead className="sticky top-0 bg-[var(--paper-elevated)]">
+                                                <thead className="sticky top-0 bg-[var(--paper)]">
                                                     <tr>
-                                                        <th className="px-4 py-2 text-left text-xs font-medium text-[var(--ink-muted)]">
+                                                        <th className="px-4 py-2 text-left text-xs font-medium text-[var(--muted)]">
                                                             {t('shell.stats.turnDetails.trigger')}
                                                         </th>
-                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                                             {t('shell.stats.common.input')}
                                                         </th>
-                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                                             {t('shell.stats.common.output')}
                                                         </th>
-                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                                             {t('shell.stats.common.inputCache')}
                                                         </th>
-                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                                             <Wrench className="inline h-3 w-3" />
                                                         </th>
-                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--ink-muted)]">
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-[var(--muted)]">
                                                             <Clock className="inline h-3 w-3" />
                                                         </th>
                                                     </tr>
@@ -251,19 +251,19 @@ export default function SessionStatsModal({
                                                             >
                                                                 {detail.turnTrigger || '-'}
                                                             </td>
-                                                            <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                                            <td className="px-4 py-2 text-right text-[var(--muted)]">
                                                                 {formatTokens(detail.inputTokens)}
                                                             </td>
-                                                            <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                                            <td className="px-4 py-2 text-right text-[var(--muted)]">
                                                                 {formatTokens(detail.outputTokens)}
                                                             </td>
-                                                            <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                                            <td className="px-4 py-2 text-right text-[var(--muted)]">
                                                                 {formatTokens((detail.cacheReadTokens ?? 0) + (detail.cacheCreationTokens ?? 0))}
                                                             </td>
-                                                            <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                                            <td className="px-4 py-2 text-right text-[var(--muted)]">
                                                                 {detail.toolCount ?? '-'}
                                                             </td>
-                                                            <td className="px-4 py-2 text-right text-[var(--ink-muted)]">
+                                                            <td className="px-4 py-2 text-right text-[var(--muted)]">
                                                                 {detail.durationMs
                                                                     ? formatDuration(detail.durationMs)
                                                                     : '-'}
@@ -279,7 +279,7 @@ export default function SessionStatsModal({
 
                             {/* Empty state */}
                             {stats.details.length === 0 && (
-                                <div className="py-8 text-center text-sm text-[var(--ink-muted)]">
+                                <div className="py-8 text-center text-sm text-[var(--muted)]">
                                     {t('shell.stats.empty')}
                                 </div>
                             )}
@@ -292,7 +292,7 @@ export default function SessionStatsModal({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-md border border-[var(--line-strong)] bg-[var(--button-secondary-bg)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--button-secondary-bg-hover)]"
+                        className="rounded-md border border-[var(--line-2)] bg-[var(--paper)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--hover)]"
                     >
                         {t('shell.common.close')}
                     </button>

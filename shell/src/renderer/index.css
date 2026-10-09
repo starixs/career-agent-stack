@@ -15,8 +15,8 @@
    separate `--theme-*` radius/shadow namespace avoids self-referential custom
    properties such as `--shadow-sm: var(--shadow-sm)`. */
 @theme inline {
-  --font-sans: var(--font-body);
-  --font-mono: var(--font-code);
+  /* --font-sans / --font-mono / --font-human are declared by the Theme package;
+     Tailwind's font-* utilities read them by name, so no bridge is needed. */
 
   --radius-*: initial;
   --radius: var(--theme-radius-base);
@@ -35,11 +35,12 @@
   --shadow-lg: var(--theme-shadow-lg);
   --shadow-xl: var(--theme-shadow-xl);
   --shadow-2xl: var(--theme-shadow-2xl);
+  --shadow-hard: var(--theme-shadow-hard);
 
-  --default-transition-duration: var(--duration-fast);
-  --transition-duration-150: var(--duration-fast);
-  --transition-duration-200: var(--duration-normal);
-  --transition-duration-300: var(--duration-slow);
+  --default-transition-duration: var(--motion-fast);
+  --transition-duration-150: var(--motion-fast);
+  --transition-duration-200: var(--motion-base);
+  --transition-duration-300: var(--motion-slow);
 }
 
 /* Markdown lives in a separately loaded stylesheet. Keep its reading roles
@@ -141,7 +142,7 @@
 }
 
 .composer-toolbar-menu-enter {
-  animation: composerToolbarMenuIn var(--duration-normal) cubic-bezier(0.16, 1, 0.3, 1);
+  animation: composerToolbarMenuIn var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -269,7 +270,7 @@
   clip-path: inset(0 0 0 0);
   content: '';
   pointer-events: none;
-  transition: clip-path var(--duration-normal) var(--ease-in-out);
+  transition: clip-path var(--motion-base) var(--ease-in-out);
 }
 
 .global-sidebar[data-global-sidebar-mode='rail']::before {
@@ -286,9 +287,9 @@
   clip-path: inset(0 0 0 0);
   transform: translateX(0);
   transition:
-    opacity var(--duration-fast) var(--ease-default),
-    clip-path var(--duration-normal) var(--ease-in-out),
-    transform var(--duration-normal) var(--ease-in-out);
+    opacity var(--motion-fast) var(--ease-default),
+    clip-path var(--motion-base) var(--ease-in-out),
+    transform var(--motion-base) var(--ease-in-out);
 }
 
 .global-sidebar-nav-label {
@@ -315,11 +316,11 @@
 }
 
 .global-sidebar-resource-row:is(:hover, :focus-within, [data-menu-open='true']) {
-  --global-sidebar-row-bg: var(--hover-bg);
+  --global-sidebar-row-bg: var(--hover);
 }
 
 .global-sidebar-resource-row[aria-current='page'] {
-  --global-sidebar-row-bg: var(--paper-inset);
+  --global-sidebar-row-bg: var(--inset);
 }
 
 .global-sidebar-resource-row[aria-current='page']::before {
@@ -329,7 +330,7 @@
   left: 0;
   width: var(--space-0-5);
   border-radius: var(--radius-full);
-  background: var(--accent);
+  background: var(--primary);
   content: '';
   pointer-events: none;
 }
@@ -352,7 +353,7 @@
 }
 
 [data-global-sidebar-workspace-region] {
-  animation: global-sidebar-expanded-content-in var(--duration-normal) var(--ease-in-out) both;
+  animation: global-sidebar-expanded-content-in var(--motion-base) var(--ease-in-out) both;
 }
 
 .global-sidebar[data-global-sidebar-mode='rail'] [data-global-sidebar-workspace-region] {
@@ -361,7 +362,7 @@
 }
 
 [data-global-sidebar-workspace-rail] {
-  animation: global-sidebar-rail-content-in var(--duration-normal) var(--ease-out) both;
+  animation: global-sidebar-rail-content-in var(--motion-base) var(--ease-out) both;
 }
 
 /* Expanded navigation places each 16px glyph at x=24px (12px section inset
@@ -398,13 +399,13 @@
 [data-global-sidebar-motion='collapse'] ~ [data-tab-workspace]
   > .custom-titlebar {
   --app-shell-follow-offset: var(--global-sidebar-tab-content-shift);
-  animation: app-shell-sidebar-follow var(--duration-normal) var(--ease-in-out) backwards;
+  animation: app-shell-sidebar-follow var(--motion-base) var(--ease-in-out) backwards;
 }
 
 [data-global-sidebar-motion='expand'] ~ [data-tab-workspace]
   > .custom-titlebar {
   --app-shell-follow-offset: var(--global-sidebar-tab-content-shift-negative);
-  animation: app-shell-sidebar-follow var(--duration-normal) var(--ease-in-out) backwards;
+  animation: app-shell-sidebar-follow var(--motion-base) var(--ease-in-out) backwards;
 }
 
 /* Windows keeps the toggle inside the rail, so its Tab row travels the full
@@ -428,13 +429,13 @@
 [data-global-sidebar-motion='collapse'] ~ [data-tab-workspace]
   > [data-tab-content-workspace] {
   --app-shell-follow-offset: var(--global-sidebar-content-center-shift);
-  animation: app-shell-sidebar-follow var(--duration-normal) var(--ease-in-out) backwards;
+  animation: app-shell-sidebar-follow var(--motion-base) var(--ease-in-out) backwards;
 }
 
 [data-global-sidebar-motion='expand'] ~ [data-tab-workspace]
   > [data-tab-content-workspace] {
   --app-shell-follow-offset: var(--global-sidebar-content-center-shift-negative);
-  animation: app-shell-sidebar-follow var(--duration-normal) var(--ease-in-out) backwards;
+  animation: app-shell-sidebar-follow var(--motion-base) var(--ease-in-out) backwards;
 }
 
 @keyframes global-sidebar-flyout-in {
@@ -493,21 +494,21 @@
    settles into the final one-shot flex layout. Overlay mode only moves the
    panel because it does not resize the conversation. */
 [data-chat-workspace-panel-motion='expand'] {
-  animation: chat-workspace-panel-expand var(--duration-normal) var(--ease-in-out) backwards;
+  animation: chat-workspace-panel-expand var(--motion-base) var(--ease-in-out) backwards;
 }
 
 [data-chat-workspace-panel-motion='collapse'] {
-  animation: chat-workspace-panel-collapse var(--duration-normal) var(--ease-in-out) forwards;
+  animation: chat-workspace-panel-collapse var(--motion-base) var(--ease-in-out) forwards;
 }
 
 [data-chat-workspace-motion='expand'] > [data-chat-conversation] {
   --chat-workspace-follow-offset: max(16.6667%, var(--chat-workspace-min-center-shift));
-  animation: chat-workspace-conversation-follow var(--duration-normal) var(--ease-in-out) backwards;
+  animation: chat-workspace-conversation-follow var(--motion-base) var(--ease-in-out) backwards;
 }
 
 [data-chat-workspace-motion='collapse'] > [data-chat-conversation] {
   --chat-workspace-follow-offset: min(-12.5%, var(--chat-workspace-min-center-shift-negative));
-  animation: chat-workspace-conversation-follow var(--duration-normal) var(--ease-in-out) backwards;
+  animation: chat-workspace-conversation-follow var(--motion-base) var(--ease-in-out) backwards;
 }
 
 @keyframes chat-workspace-panel-expand {
@@ -556,27 +557,14 @@ body {
 }
 
 body {
-  font-family: var(--font-body);
+  font-family: var(--font-sans);
   color: var(--ink);
-  background: var(--theme-body-background);
+  background: var(--bg);
   min-height: 100vh;
   /* Cross-platform font rendering */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-}
-
-
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image: var(--theme-body-texture);
-  background-size: 3px 3px;
-  opacity: var(--theme-body-texture-opacity);
-  mix-blend-mode: var(--theme-body-texture-blend);
-  z-index: 0;
 }
 
 
@@ -586,20 +574,19 @@ body::before {
   z-index: 1;
 }
 
-.font-display {
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
+.font-human {
+  font-family: var(--font-human);
 }
 
 .glass-panel {
   border: 1px solid var(--line);
-  background: var(--paper-elevated);
+  background: var(--paper);
   box-shadow: var(--shadow-xl);
   border-radius: var(--radius-2xl);
 }
 
 .ink-muted {
-  color: var(--ink-muted);
+  color: var(--muted);
 }
 
 /* Shared geometry for chat actions and workspace/preview toolbars.
@@ -615,7 +602,7 @@ body::before {
 }
 
 .compact-action:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -626,7 +613,7 @@ body::before {
   gap: 0.35rem;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: var(--paper-elevated);
+  background: var(--paper);
   color: var(--ink);
   transition:
     transform 0.15s ease,
@@ -634,17 +621,17 @@ body::before {
     border-color 0.15s ease,
     background 0.15s ease,
     color 0.15s ease;
-  box-shadow: var(--action-shadow);
+  box-shadow: var(--shadow-xs);
 }
 
 .action-button:hover {
-  border-color: var(--line-strong);
+  border-color: var(--line-2);
   transform: translateY(-1px);
 }
 
 .action-button:active {
   transform: translateY(1px) scale(0.98);
-  box-shadow: var(--action-shadow-active);
+  box-shadow: var(--shadow-xs);
 }
 
 .action-button:disabled {
@@ -685,7 +672,7 @@ button:disabled {
 
 [data-tree-row]:active:not(:has(:is(button, [role="button"], [data-tree-row]):active)) {
   transform: scale(0.98);
-  background-color: var(--paper-inset) !important;
+  background-color: var(--inset) !important;
 }
 
 /* Pulse animation for tab status dot (AI streaming on non-active tab) */
@@ -745,7 +732,7 @@ button:disabled {
 
 /* PRD 0.2.17 — Agent Status Panel 点击 SubAgent 行后短暂高亮目标 TaskTool 卡片 */
 @keyframes agent-status-flash {
-  0%   { background-color: var(--accent-warm-subtle); }
+  0%   { background-color: var(--primary-soft); }
   100% { background-color: transparent; }
 }
 .agent-status-flash {
@@ -756,7 +743,7 @@ button:disabled {
 
 /* Terminal-like monospace typography for tool calls */
 .tool-input {
-  font-family: var(--font-code);
+  font-family: var(--font-mono);
   font-size: var(--text-sm);
   line-height: 1.6;
   letter-spacing: -0.01em;
@@ -769,7 +756,7 @@ button:disabled {
 
 /* Clean code block styling */
 pre code {
-  font-family: var(--font-code);
+  font-family: var(--font-mono);
   font-size: var(--text-sm);
   line-height: 1.6;
   letter-spacing: -0.01em;
@@ -779,23 +766,23 @@ pre code {
 .tool-container {
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
-  background: var(--paper-elevated);
+  background: var(--paper);
   padding: 0.75rem 1rem;
-  box-shadow: var(--tool-shadow);
+  box-shadow: var(--shadow-sm);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
 }
 
 .tool-container:hover {
-  border-color: var(--line-strong);
-  box-shadow: var(--tool-shadow-hover);
+  border-color: var(--line-2);
+  box-shadow: var(--shadow-md);
 }
 
 /* Create border with gaps for icons in expanded sections */
 .expanded-block-section {
   position: relative;
-  background-image: linear-gradient(to bottom, var(--expanded-block-line) 0%, var(--expanded-block-line) 100%);
+  background-image: linear-gradient(to bottom, var(--line-2) 0%, var(--line-2) 100%);
   background-size: 1px 100%;
   background-position: 0 0;
   background-repeat: repeat-y;
@@ -805,7 +792,7 @@ pre code {
 .expanded-block-section .flex.h-4.w-4.items-center.justify-center {
   position: relative;
   margin-left: -18.5px;
-  background-color: var(--paper-elevated);
+  background-color: var(--paper);
   z-index: 1;
   padding: 3px 2px;
   border-radius: 2px;
@@ -831,7 +818,7 @@ pre code {
   top: 50%;
   transform: translateY(-50%);
   height: 18px;
-  background-color: var(--paper-elevated);
+  background-color: var(--paper);
   border-radius: 2px;
   z-index: 0;
 }
@@ -886,7 +873,7 @@ pre code {
   bottom: 6px;
   width: 2px;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--accent) 80%, transparent);
+  background: color-mix(in srgb, var(--primary) 80%, transparent);
 }
 
 @media (max-width: 640px) {
@@ -964,7 +951,7 @@ pre code {
 
 /* User message bubble */
 .user-message {
-  background: var(--paper-inset);
+  background: var(--inset);
   border-radius: var(--radius-lg);
   padding: var(--space-4);
 }
@@ -981,30 +968,30 @@ pre code {
 
 /* Tool call card */
 .tool-call-card {
-  background: var(--paper-elevated);
+  background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   padding: var(--space-3);
-  transition: border-color var(--duration-fast);
+  transition: border-color var(--motion-fast);
 }
 
 .tool-call-card:hover {
-  border-color: var(--line-strong);
+  border-color: var(--line-2);
 }
 
 /* Thinking block */
 .thinking-block {
   border-left: 2px solid var(--line);
   padding: var(--space-3) 0 var(--space-3) var(--space-4);
-  color: var(--ink-muted);
+  color: var(--muted);
   font-size: var(--text-sm);
 }
 
 /* Inline code */
 .inline-code {
-  background: var(--paper-inset);
+  background: var(--inset);
   color: var(--ink);
-  font-family: var(--font-code);
+  font-family: var(--font-mono);
   font-size: 0.9em;
   border-radius: var(--radius-sm);
   padding: 2px 6px;
@@ -1013,7 +1000,7 @@ pre code {
 /* Permission prompt card */
 .permission-card {
   background: var(--warning-bg);
-  border: 1px solid var(--warning-border);
+  border: 1px solid var(--warning);
   border-radius: var(--radius-lg);
   padding: var(--space-4);
 }
@@ -1073,7 +1060,7 @@ code {
 .linenumber::selection,
 .react-syntax-highlighter-line-number::selection {
   background: transparent;
-  color: var(--code-line-number);
+  color: var(--subtle);
 }
 
 
@@ -1087,7 +1074,7 @@ code {
 /* ── Introduction overlay — immersive welcome content for empty sessions ── */
 /* Guide-layer palette: two steps back from conversation content (--ink).   */
 /* Everything here should feel lighter than real AI messages — backdrop,    */
-/* not content. Real messages use --ink; this layer stays at --ink-muted    */
+/* not content. Real messages use --ink; this layer stays at --muted    */
 /* and below so the hierarchy is unambiguous once the user starts chatting. */
 /* De-emphasis is carried by the muted PALETTE, not by font-size: body uses */
 /* the same prose tier (16px) as real AI replies — a second prose base      */
@@ -1096,7 +1083,7 @@ code {
 .introduction-content {
   font-size: var(--text-base);
   line-height: 1.625;
-  color: var(--ink-muted);
+  color: var(--muted);
 }
 
 /* H1 acts as a "nameplate", not a document title — lighter weight on purpose */
@@ -1104,18 +1091,18 @@ code {
   font-size: var(--text-2xl);
   font-weight: 500;
   letter-spacing: -0.01em;
-  color: var(--ink-muted);
+  color: var(--muted);
   margin-bottom: 20px;
   text-align: center;
 }
 
-/* H2/H3 match H1 color — all guide-layer titles stay at --ink-muted.        */
+/* H2/H3 match H1 color — all guide-layer titles stay at --muted.        */
 /* Sizes follow the Markdown heading ladder (18/16) so the guide layer and   */
 /* real replies share one scale; h3 sits at body size, weight carries it.    */
 .introduction-content h2 {
   font-size: var(--text-lg);
   font-weight: 600;
-  color: var(--ink-muted);
+  color: var(--muted);
   margin-top: 28px;
   margin-bottom: 8px;
 }
@@ -1123,7 +1110,7 @@ code {
 .introduction-content h3 {
   font-size: var(--text-base);
   font-weight: 600;
-  color: var(--ink-muted);
+  color: var(--muted);
   margin-top: 16px;
   margin-bottom: 6px;
 }
@@ -1132,29 +1119,29 @@ code {
 .introduction-content ul,
 .introduction-content ol,
 .introduction-content li {
-  color: var(--ink-muted);
+  color: var(--muted);
 }
 
-/* Bold text capped at --ink-muted so it doesn't jump back to dark */
+/* Bold text capped at --muted so it doesn't jump back to dark */
 .introduction-content strong {
   font-weight: 600;
-  color: var(--ink-muted);
+  color: var(--muted);
 }
 
 /* HR nearly invisible — structural hint, not visual break */
 .introduction-content hr {
   border: none;
-  border-top: 1px solid var(--line-subtle);
+  border-top: 1px solid var(--line);
   margin: 24px 0;
 }
 
 /* Blockquotes styled as warm-accent prompt examples */
 .introduction-content blockquote {
-  border-left: 3px solid var(--accent-warm-subtle);
-  background: var(--accent-warm-subtle);
+  border-left: 3px solid var(--primary-soft);
+  background: var(--primary-soft);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   padding: 10px 14px;
-  color: var(--ink-muted);
+  color: var(--muted);
   font-style: normal;
 }
 
@@ -1186,7 +1173,7 @@ code {
 }
 
 .monaco-editor-host .keystone-monaco-search-focus-line {
-  background-color: var(--accent-warm-subtle) !important;
+  background-color: var(--primary-soft) !important;
 }
 
 /* Monaco's find widget creates its own hover popovers for the Aa/ab/.* controls.
@@ -1205,10 +1192,10 @@ code {
   max-width: min(260px, calc(100vw - 16px));
   transform: translateX(-50%);
   padding: 6px 10px;
-  border: 1px solid color-mix(in srgb, var(--button-dark-bg) 72%, var(--line-strong));
+  border: 1px solid color-mix(in srgb, var(--ink) 72%, var(--line-2));
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--button-dark-bg) 94%, transparent);
-  color: var(--button-dark-text);
+  background: color-mix(in srgb, var(--ink) 94%, transparent);
+  color: var(--bg);
   box-shadow: var(--shadow-lg);
   font-size: var(--text-xs);
   line-height: 1.35;

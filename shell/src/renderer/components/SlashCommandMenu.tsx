@@ -46,7 +46,7 @@ export default function SlashCommandMenu({
     if (isEmpty || commands.length === 0) {
         return (
             <div className="w-80 max-h-64 overflow-auto">
-                <div className="px-3 py-2 text-sm text-[var(--ink-muted)]">
+                <div className="px-3 py-2 text-sm text-[var(--muted)]">
                     {t('input.slashCommands.noResults')}
                 </div>
             </div>
@@ -60,24 +60,24 @@ export default function SlashCommandMenu({
                     key={`${cmd.source}-${commandIdentity(cmd)}`}
                     ref={index === selectedIndex ? selectedItemRef : null}
                     className={`flex items-center gap-3 px-3 py-2 cursor-pointer text-sm ${index === selectedIndex
-                        ? 'bg-[var(--accent)]/10 text-[var(--ink)]'
-                        : 'text-[var(--ink-muted)] hover:bg-[var(--hover-bg)]'
+                        ? 'bg-[var(--primary)]/10 text-[var(--ink)]'
+                        : 'text-[var(--muted)] hover:bg-[var(--hover)]'
                         }`}
                     onClick={() => onSelect(cmd)}
                 >
                     <span className="font-medium text-[var(--ink)] whitespace-nowrap">/{cmd.name}</span>
                     {cmd.source === 'skill' && (
-                        <span className="text-xs text-[var(--ink-muted)]/60 bg-[var(--paper-inset)] px-1.5 py-0.5 rounded shrink-0">
+                        <span className="text-xs text-[var(--muted)]/60 bg-[var(--inset)] px-1.5 py-0.5 rounded shrink-0">
                             skill
                         </span>
                     )}
                     {cmd.source === 'sdk' && (
-                        <span className="text-xs text-[var(--ink-muted)]/60 bg-[var(--paper-inset)] px-1.5 py-0.5 rounded shrink-0">
+                        <span className="text-xs text-[var(--muted)]/60 bg-[var(--inset)] px-1.5 py-0.5 rounded shrink-0">
                             plugin
                         </span>
                     )}
                     <span
-                        className="text-[var(--ink-muted)] text-xs truncate flex-1"
+                        className="text-[var(--muted)] text-xs truncate flex-1"
                         title={cmd.description}
                     >
                         {cmd.description}

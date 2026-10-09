@@ -52,9 +52,9 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
       actions={<Button variant="ghost" onClick={() => setShowLog(v => !v)}>{showLog ? '收起访问记录' : '访问记录'}</Button>}
     >
       <div className="space-y-5 px-4 py-3">
-        <div className="flex items-start gap-2 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-3 py-2 text-xs text-[var(--ink-muted)]">
+        <div className="flex items-start gap-2 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-3 py-2 text-xs text-[var(--muted)]">
           <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>这一页的内容不会进入个人助理的对话上下文。助理只知道「哪些项已填」，需要时用占位符（如 <code className="rounded bg-[var(--paper)] px-1">{'{{vault:profile.phone}}'}</code>）指代；填网申、登录投递网站、导出简历时，产品在本机把占位符替换成真实值，并记录每一次使用。</span>
+          <span>这一页的内容不会进入个人助理的对话上下文。助理只知道「哪些项已填」，需要时用占位符（如 <code className="rounded bg-[var(--bg)] px-1">{'{{vault:profile.phone}}'}</code>）指代；填网申、登录投递网站、导出简历时，产品在本机把占位符替换成真实值，并记录每一次使用。</span>
         </div>
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !data && <LoadingRow />}
@@ -84,7 +84,7 @@ function ProfileSection({ data, onChanged }: { data: VaultOverview; onChanged: (
           if (!fields.length) return null;
           return (
             <Card key={group} title={GROUP_TITLES[group]}>
-              <ul className="divide-y divide-[var(--line-subtle)]">
+              <ul className="divide-y divide-[var(--line)]">
                 {fields.map(f => <ProfileFieldRow key={f.field} def={f} item={byField.get(f.field)} onChanged={onChanged} />)}
               </ul>
             </Card>
@@ -129,8 +129,8 @@ function ProfileFieldRow({ def, item, onChanged }: { def: VaultProfileFieldDef; 
             <Badge tone={def.sensitive ? 'accent' : 'neutral'} title={def.sensitive ? '模型只能看到占位符' : '可以明文给模型（用于起草）'}>{def.sensitive ? '不进模型' : '可给模型'}</Badge>
           </div>
           {!editing && (
-            <div className="mt-0.5 text-xs text-[var(--ink-muted)]" data-testid={`vault-preview-${def.field}`}>
-              {item ? (item.preview || '已设置') : <span className="text-[var(--ink-subtle)]">未填</span>}
+            <div className="mt-0.5 text-xs text-[var(--muted)]" data-testid={`vault-preview-${def.field}`}>
+              {item ? (item.preview || '已设置') : <span className="text-[var(--subtle)]">未填</span>}
             </div>
           )}
         </div>
@@ -153,7 +153,7 @@ function ProfileFieldRow({ def, item, onChanged }: { def: VaultProfileFieldDef; 
               </Button>
             )}
           </div>
-          {def.hint && <div className="text-xs text-[var(--ink-subtle)]">{def.hint}</div>}
+          {def.hint && <div className="text-xs text-[var(--subtle)]">{def.hint}</div>}
           <div className="flex gap-2">
             <Button variant="primary" busy={action.busy} onClick={() => void save()}>保存</Button>
             <Button variant="ghost" onClick={() => { setEditing(false); setValue(''); }}>取消</Button>
@@ -161,7 +161,7 @@ function ProfileFieldRow({ def, item, onChanged }: { def: VaultProfileFieldDef; 
           </div>
         </div>
       )}
-      {action.error && <div role="alert" className="mt-1 text-xs text-[var(--error)]">{action.error}</div>}
+      {action.error && <div role="alert" className="mt-1 text-xs text-[var(--danger)]">{action.error}</div>}
     </li>
   );
 }
@@ -176,7 +176,7 @@ function SitesSection({ data, onChanged }: { data: VaultOverview; onChanged: () 
       <SectionTitle extra={<Button onClick={() => setAdding(v => !v)}><Plus className="h-3.5 w-3.5" />添加网站账号</Button>}>
         投递网站账号（{sites.length}）
       </SectionTitle>
-      <p className="mb-2 text-xs text-[var(--ink-muted)]">
+      <p className="mb-2 text-xs text-[var(--muted)]">
         遇到登录页时，产品可以在本机把账号密码填进输入框（需要你打开「自动代填」），但登录按钮、验证码、短信码仍由你本人完成。密码不会给助理，也不会出现在对话里。
       </p>
       {adding && <SiteForm onDone={() => { setAdding(false); onChanged(); }} onCancel={() => setAdding(false)} />}
@@ -200,15 +200,15 @@ function SiteRow({ site, onChanged }: { site: ReturnType<typeof groupSites>[numb
     onChanged();
   });
   return (
-    <li className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2">
+    <li className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
       <div className="min-w-0 flex-1">
         <div className="text-sm text-[var(--ink)]">{site.label ? `${site.label} · ` : ''}{site.host}</div>
-        <div className="text-xs text-[var(--ink-muted)]">账号 {site.usernamePreview || '未填'} · 密码 {site.hasPassword ? '已设置' : '未填'}</div>
+        <div className="text-xs text-[var(--muted)]">账号 {site.usernamePreview || '未填'} · 密码 {site.hasPassword ? '已设置' : '未填'}</div>
       </div>
       <Badge tone={site.autofill ? 'success' : 'neutral'}>{site.autofill ? '自动代填：开' : '自动代填：关'}</Badge>
       <Button variant="ghost" busy={action.busy} onClick={() => void toggleAutofill()} aria-label={`切换 ${site.host} 自动代填`}>{site.autofill ? '关闭代填' : '开启代填'}</Button>
       <Button variant="danger" busy={action.busy} onClick={() => void remove()} aria-label={`删除 ${site.host}`}><Trash2 className="h-3.5 w-3.5" /></Button>
-      {action.error && <div role="alert" className="w-full text-xs text-[var(--error)]">{action.error}</div>}
+      {action.error && <div role="alert" className="w-full text-xs text-[var(--danger)]">{action.error}</div>}
     </li>
   );
 }
@@ -239,11 +239,11 @@ function SiteForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => vo
           </div>
         </Field>
       </div>
-      <label className="mt-2 flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+      <label className="mt-2 flex items-center gap-2 text-xs text-[var(--muted)]">
         <input type="checkbox" checked={form.autofill} onChange={e => setForm(f => ({ ...f, autofill: e.target.checked }))} />
         遇到该网站登录页时自动把账号密码填进输入框（不点登录）
       </label>
-      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{action.error}</div>}
+      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
       <div className="mt-3 flex gap-2">
         <Button variant="primary" busy={action.busy} onClick={() => void submit()}>保存</Button>
         <Button variant="ghost" onClick={onCancel}>取消</Button>
@@ -271,7 +271,7 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
   return (
     <section>
       <SectionTitle>经历的保密补充</SectionTitle>
-      <p className="mb-2 text-xs text-[var(--ink-muted)]">
+      <p className="mb-2 text-xs text-[var(--muted)]">
         经历库里只写脱敏说法（如「某头部电商」），真实公司名、客户名、保密数据放这里。助理只能看到占位符，导出简历或填网申时产品会替换成真实值。
       </p>
       {list.length === 0 && <EmptyState title="经历库还是空的" hint="先在「经历库」添加经历，再回来补充它的保密信息。" />}
@@ -280,10 +280,10 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
           const items = byExp.get(e.id) ?? [];
           const open = openId === e.id;
           return (
-            <li key={e.id} ref={e.id === focusExperienceId ? focusRef : undefined} className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2">
+            <li key={e.id} ref={e.id === focusExperienceId ? focusRef : undefined} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
               <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setOpenId(open ? null : e.id)} aria-expanded={open}>
                 <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]">{e.title}</span>
-                <span className="text-xs text-[var(--ink-muted)]">{[e.org, e.role].filter(Boolean).join(' · ')}{e.start_date ? ` · ${formatDate(e.start_date)}` : ''}</span>
+                <span className="text-xs text-[var(--muted)]">{[e.org, e.role].filter(Boolean).join(' · ')}{e.start_date ? ` · ${formatDate(e.start_date)}` : ''}</span>
                 <Badge tone={items.length ? 'accent' : 'neutral'}>{items.length ? `${items.length} 项保密` : '无'}</Badge>
               </button>
               {open && <ExperienceFields experienceId={e.id} items={items} onChanged={onChanged} />}
@@ -297,7 +297,7 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
 
 function ExperienceFields({ experienceId, items, onChanged }: { experienceId: string; items: VaultItemMeta[]; onChanged: () => void }) {
   return (
-    <div className="mt-2 border-t border-[var(--line-subtle)] pt-2">
+    <div className="mt-2 border-t border-[var(--line)] pt-2">
       <VaultExperienceFields experienceId={experienceId} items={items} onChanged={onChanged} />
     </div>
   );
@@ -310,9 +310,9 @@ function AccessLog() {
   return (
     <Card title="最近访问记录">
       {log.loading && !log.data && <LoadingRow />}
-      {log.data && log.data.length === 0 && <div className="text-xs text-[var(--ink-subtle)]">还没有任何读取记录</div>}
+      {log.data && log.data.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有任何读取记录</div>}
       {log.data && log.data.length > 0 && (
-        <ul className="max-h-48 space-y-1 overflow-auto text-xs text-[var(--ink-muted)]">
+        <ul className="max-h-48 space-y-1 overflow-auto text-xs text-[var(--muted)]">
           {log.data.map(row => (
             <li key={row.id}>{formatDate(row.at)} · {ACTOR_LABELS[row.actor] ?? row.actor}{row.purpose ? ` · ${row.purpose}` : ''}</li>
           ))}

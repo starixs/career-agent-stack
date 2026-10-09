@@ -62,7 +62,7 @@ export default function SessionRenameDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="session-rename-dialog-title"
-        className="w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5 shadow-xl"
+        className="w-full max-w-md rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5 shadow-xl"
         onKeyDown={(event) => {
           if (isImeComposingEvent(event)) return;
           if (event.key === 'Escape') {
@@ -94,7 +94,7 @@ export default function SessionRenameDialog({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-50"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-50"
             aria-label={tCommon('actions.close')}
           >
             <X className="h-4 w-4" />
@@ -122,7 +122,7 @@ export default function SessionRenameDialog({
               void submit();
             }
           }}
-          className="w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20 disabled:opacity-60"
+          className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition-colors focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 disabled:opacity-60"
           aria-invalid={Boolean(error)}
           aria-describedby={error ? 'session-rename-error' : undefined}
         />
@@ -138,7 +138,7 @@ export default function SessionRenameDialog({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-50"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-50"
           >
             {tCommon('actions.cancel')}
           </button>

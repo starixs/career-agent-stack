@@ -39,8 +39,8 @@ export default memo(function AddWorkspaceMenu({
                 ref={buttonRef}
                 onClick={toggle}
                 className={variant === 'icon'
-                    ? 'flex h-8 w-8 items-center justify-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]'
-                    : 'flex items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-2.5 py-1 text-sm font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]'}
+                    ? 'flex h-8 w-8 items-center justify-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]'
+                    : 'flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-2.5 py-1 text-sm font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]'}
                 aria-label={t('addWorkspaceMenu.add')}
             >
                 <Plus className="h-3.5 w-3.5" />
@@ -66,18 +66,18 @@ export default memo(function AddWorkspaceMenu({
                     type="button"
                     role="menuitem"
                     onClick={() => { setMenuOpen(false); onAddFolder(); }}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover-bg)]"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                 >
-                    <FolderPlus className="h-3.5 w-3.5 text-[var(--ink-muted)]" />
+                    <FolderPlus className="h-3.5 w-3.5 text-[var(--muted)]" />
                     {t('addWorkspaceMenu.addLocalFolder')}
                 </button>
                 <button
                     type="button"
                     role="menuitem"
                     onClick={() => { setMenuOpen(false); onCreateFromTemplate(); }}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover-bg)]"
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
                 >
-                    <LayoutTemplate className="h-3.5 w-3.5 text-[var(--ink-muted)]" />
+                    <LayoutTemplate className="h-3.5 w-3.5 text-[var(--muted)]" />
                     {t('addWorkspaceMenu.createFromTemplateAgent')}
                 </button>
             </Popover>

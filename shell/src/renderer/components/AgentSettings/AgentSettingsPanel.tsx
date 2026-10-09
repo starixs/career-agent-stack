@@ -45,7 +45,7 @@ export default function AgentSettingsPanel({ agentId }: AgentSettingsPanelProps)
   if (!agent) {
     return (
       <div className="flex items-center justify-center py-12">
-        <span className="text-sm text-[var(--ink-subtle)]">
+        <span className="text-sm text-[var(--subtle)]">
           {t('agentSettings.panel.agentNotFound', { id: agentId })}
         </span>
       </div>
@@ -61,14 +61,14 @@ export default function AgentSettingsPanel({ agentId }: AgentSettingsPanelProps)
     <div className="space-y-0 pb-8">
       {/* Header */}
       <div className="flex items-center gap-3 pb-6">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--paper-inset)]">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--inset)]">
           <WorkspaceIcon icon={iconId} size={24} />
         </div>
         <div>
           <h2 className="text-base font-semibold text-[var(--ink)]">
             {displayName}
           </h2>
-          <span className="text-xs text-[var(--ink-subtle)]">
+          <span className="text-xs text-[var(--subtle)]">
             {workspacePath ?? '—'}
           </span>
         </div>

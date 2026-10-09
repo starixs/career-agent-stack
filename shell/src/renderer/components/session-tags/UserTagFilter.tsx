@@ -47,11 +47,11 @@ export default function UserTagFilter({ tags, value, onChange }: UserTagFilterPr
                     setOpen((current) => !current);
                     queueMicrotask(() => inputRef.current?.focus());
                 }}
-                className="flex h-8 w-40 shrink-0 items-center gap-1.5 rounded-md border border-[var(--line)] bg-[var(--paper-elevated)] px-2.5 text-sm text-[var(--ink-secondary)] transition-colors hover:border-[var(--line-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/20"
+                className="flex h-8 w-40 shrink-0 items-center gap-1.5 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2.5 text-sm text-[var(--ink-2)] transition-colors hover:border-[var(--line-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/20"
             >
-                <Tags className="h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)]" />
+                <Tags className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
                 <span className="min-w-0 flex-1 truncate text-left">{value ?? t('sessionTags.allTags')}</span>
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)]" />
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
             </button>
             <Popover
                 open={open}
@@ -61,9 +61,9 @@ export default function UserTagFilter({ tags, value, onChange }: UserTagFilterPr
                 matchAnchorWidth
                 className="w-56"
             >
-                <div className="border-b border-[var(--line-subtle)] p-2">
+                <div className="border-b border-[var(--line)] p-2">
                     <div className="relative">
-                        <Search className="pointer-events-none absolute left-2 top-2.5 h-3.5 w-3.5 text-[var(--ink-muted)]" />
+                        <Search className="pointer-events-none absolute left-2 top-2.5 h-3.5 w-3.5 text-[var(--muted)]" />
                         <input
                             ref={inputRef}
                             value={query}
@@ -77,7 +77,7 @@ export default function UserTagFilter({ tags, value, onChange }: UserTagFilterPr
                             }}
                             placeholder={t('sessionTags.searchTags')}
                             aria-label={t('sessionTags.searchTags')}
-                            className="h-8 w-full rounded-md border border-[var(--line)] bg-[var(--paper)] pl-7 pr-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--accent)]"
+                            className="h-8 w-full rounded-md border border-[var(--line)] bg-[var(--bg)] pl-7 pr-2 text-sm text-[var(--ink)] outline-none focus:border-[var(--primary)]"
                         />
                     </div>
                 </div>
@@ -87,9 +87,9 @@ export default function UserTagFilter({ tags, value, onChange }: UserTagFilterPr
                         role="option"
                         aria-selected={value === null}
                         onClick={() => select(null)}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--hover-bg)]"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--hover)]"
                     >
-                        <span className="w-4">{value === null && <Check className="h-3.5 w-3.5 text-[var(--accent)]" />}</span>
+                        <span className="w-4">{value === null && <Check className="h-3.5 w-3.5 text-[var(--primary)]" />}</span>
                         <span className="flex-1">{t('sessionTags.allTags')}</span>
                     </button>
                     {filtered.map((tag) => (
@@ -99,15 +99,15 @@ export default function UserTagFilter({ tags, value, onChange }: UserTagFilterPr
                             role="option"
                             aria-selected={value?.toLowerCase() === tag.name.toLowerCase()}
                             onClick={() => select(tag.name)}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--hover-bg)]"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--hover)]"
                         >
-                            <span className="w-4">{value?.toLowerCase() === tag.name.toLowerCase() && <Check className="h-3.5 w-3.5 text-[var(--accent)]" />}</span>
+                            <span className="w-4">{value?.toLowerCase() === tag.name.toLowerCase() && <Check className="h-3.5 w-3.5 text-[var(--primary)]" />}</span>
                             <span className="min-w-0 flex-1 truncate">{tag.name}</span>
-                            <span className="text-xs text-[var(--ink-muted)]">{tag.count}</span>
+                            <span className="text-xs text-[var(--muted)]">{tag.count}</span>
                         </button>
                     ))}
                     {filtered.length === 0 && (
-                        <p className="px-3 py-5 text-center text-xs text-[var(--ink-muted)]">{t('sessionTags.noTags')}</p>
+                        <p className="px-3 py-5 text-center text-xs text-[var(--muted)]">{t('sessionTags.noTags')}</p>
                     )}
                 </div>
             </Popover>

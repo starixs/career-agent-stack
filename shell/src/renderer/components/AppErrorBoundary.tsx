@@ -55,7 +55,7 @@ export default class AppErrorBoundary extends Component<Props, State> {
                 alignItems: 'center',
                 justifyContent: 'center',
                 height: '100vh',
-                backgroundColor: 'var(--paper, #fafafa)',
+                backgroundColor: 'var(--bg, #fafafa)',
                 color: 'var(--ink, #1a1a1a)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Microsoft YaHei UI", sans-serif',
             }}>
@@ -63,7 +63,7 @@ export default class AppErrorBoundary extends Component<Props, State> {
                     maxWidth: 420,
                     padding: 32,
                     borderRadius: 12,
-                    backgroundColor: 'var(--paper-inset, #f0f0f0)',
+                    backgroundColor: 'var(--inset, #f0f0f0)',
                     textAlign: 'center',
                 }}>
                     <h2 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 600 }}>
@@ -72,7 +72,7 @@ export default class AppErrorBoundary extends Component<Props, State> {
                     <p style={{
                         margin: '0 0 20px',
                         fontSize: 14,
-                        color: 'var(--ink-muted,)',
+                        color: 'var(--muted,)',
                         lineHeight: 1.5,
                     }}>
                         {this.state.error?.message || t('errorBoundary.unknown')}
@@ -83,8 +83,8 @@ export default class AppErrorBoundary extends Component<Props, State> {
                             padding: '8px 24px',
                             fontSize: 14,
                             fontWeight: 500,
-                            color: '#fff',
-                            backgroundColor: 'var(--accent, #2563eb)',
+                            color: 'var(--on-primary, #fff)',
+                            backgroundColor: 'var(--primary, #2563eb)',
                             border: 'none',
                             borderRadius: 8,
                             cursor: 'pointer',

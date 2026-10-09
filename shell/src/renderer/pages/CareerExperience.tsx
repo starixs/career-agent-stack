@@ -76,16 +76,16 @@ export default function CareerExperience({ embedded = false }: { embedded?: bool
                         type="button"
                         onClick={() => setSelectedId(e.id)}
                         aria-current={active ? 'true' : undefined}
-                        className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${active ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--line-subtle)] hover:bg-[var(--paper-inset)]'}`}
+                        className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${active ? 'border-[var(--primary)] bg-[var(--primary)]/5' : 'border-[var(--line)] hover:bg-[var(--inset)]'}`}
                       >
                         <div className="flex items-center gap-2">
                           <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--ink)]">{e.title}</span>
                           {pending > 0 && <Badge tone="warning">待核实 {pending}</Badge>}
                         </div>
-                        <div className="mt-0.5 truncate text-xs text-[var(--ink-muted)]">
+                        <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
                           {[e.org, e.role].filter(Boolean).join(' · ') || '未知机构'}
                         </div>
-                        <div className="text-xs text-[var(--ink-subtle)]">{formatDate(e.start_date)} – {e.end_date ? formatDate(e.end_date) : '至今'}</div>
+                        <div className="text-xs text-[var(--subtle)]">{formatDate(e.start_date)} – {e.end_date ? formatDate(e.end_date) : '至今'}</div>
                       </button>
                     </li>
                   );
@@ -108,7 +108,7 @@ function ExperienceDetail({ experience, onChanged }: { experience: ExperienceNod
         title={experience.title}
         extra={<Badge>{EXPERIENCE_TYPES.find(t => t.value === experience.type)?.label ?? experience.type}</Badge>}
       >
-        <div className="text-xs text-[var(--ink-muted)]">
+        <div className="text-xs text-[var(--muted)]">
           {[experience.org, experience.role].filter(Boolean).join(' · ') || '机构 / 角色未知'} · {formatDate(experience.start_date)} – {experience.end_date ? formatDate(experience.end_date) : '至今'}
         </div>
         {experience.summary && <p className="mt-2 whitespace-pre-wrap text-sm text-[var(--ink)]">{experience.summary}</p>}
@@ -118,7 +118,7 @@ function ExperienceDetail({ experience, onChanged }: { experience: ExperienceNod
         主张（{experience.claims.length}）
       </SectionTitle>
       {experience.claims.length === 0 && (
-        <div className="rounded-lg border border-dashed border-[var(--line)] px-3 py-4 text-xs text-[var(--ink-muted)]">
+        <div className="rounded-lg border border-dashed border-[var(--line)] px-3 py-4 text-xs text-[var(--muted)]">
           这段经历还没有主张。在对话里说「帮我拆解这段经历的贡献」。
         </div>
       )}
@@ -148,13 +148,13 @@ function PrivateSupplement({ experience }: { experience: ExperienceNode }) {
       )}
     >
       {!open && (
-        <div className="text-xs text-[var(--ink-muted)]">
+        <div className="text-xs text-[var(--muted)]">
           {experience.redacted ? '这段经历只录了脱敏摘要。' : ''}真实公司名、客户名、保密指标放这里，不会进入对话；助理用占位符指代，导出和填表时自动替换。
         </div>
       )}
       {open && (
         <>
-          {vault.error && <div role="alert" className="mb-2 text-xs text-[var(--error)]">{vault.error}</div>}
+          {vault.error && <div role="alert" className="mb-2 text-xs text-[var(--danger)]">{vault.error}</div>}
           <VaultExperienceFields experienceId={experience.id} items={items} onChanged={vault.reload} />
         </>
       )}
@@ -169,7 +169,7 @@ function ClaimCard({ claim, onChanged }: { claim: ClaimNode; onChanged: () => vo
     onChanged();
   });
   return (
-    <li className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-3">
+    <li className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-sm text-[var(--ink)]">{claim.text}</div>
@@ -177,18 +177,18 @@ function ClaimCard({ claim, onChanged }: { claim: ClaimNode; onChanged: () => vo
             <Badge tone={STATUS_TONE[claim.status] ?? 'neutral'}>{CLAIM_STATUS_LABELS[claim.status] ?? claim.status}</Badge>
             <Badge tone={claim.attribution === 'self' ? 'accent' : 'neutral'} title="贡献归属">{ATTRIBUTION_LABELS[claim.attribution] ?? claim.attribution}</Badge>
             {claim.result_metric && <Badge tone="info" title="结果指标">{claim.result_metric}</Badge>}
-            <span className="text-xs text-[var(--ink-subtle)]">来源：{claim.created_from}</span>
+            <span className="text-xs text-[var(--subtle)]">来源：{claim.created_from}</span>
           </div>
         </div>
         {claim.status === 'pending' && (
           <Button variant="primary" busy={action.busy} onClick={() => void confirm()}>确认</Button>
         )}
       </div>
-      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{action.error}</div>}
+      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
       {claim.evidence.length > 0 && (
-        <ul className="mt-2 space-y-1 border-t border-[var(--line-subtle)] pt-2">
+        <ul className="mt-2 space-y-1 border-t border-[var(--line)] pt-2">
           {claim.evidence.map(ev => (
-            <li key={ev.id} className="flex items-start gap-2 text-xs text-[var(--ink-muted)]">
+            <li key={ev.id} className="flex items-start gap-2 text-xs text-[var(--muted)]">
               <Badge tone={STRENGTH_TONE[ev.strength] ?? 'neutral'}>{STRENGTH_LABELS[ev.strength] ?? ev.strength}</Badge>
               <span className="shrink-0">{ev.kind}</span>
               <span className="min-w-0 flex-1 break-all">{ev.locator}{ev.excerpt ? ` — ${ev.excerpt}` : ''}</span>
@@ -196,7 +196,7 @@ function ClaimCard({ claim, onChanged }: { claim: ClaimNode; onChanged: () => vo
           ))}
         </ul>
       )}
-      {claim.evidence.length === 0 && <div className="mt-2 text-xs text-[var(--ink-subtle)]">暂无证据</div>}
+      {claim.evidence.length === 0 && <div className="mt-2 text-xs text-[var(--subtle)]">暂无证据</div>}
     </li>
   );
 }
@@ -224,7 +224,7 @@ function ExperienceForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         <Field label="类型"><Select value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={EXPERIENCE_TYPES} /></Field>
       </div>
       <div className="mt-2"><Field label="概述"><TextArea value={form.summary} onChange={set('summary')} /></Field></div>
-      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{action.error}</div>}
+      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
       <div className="mt-3 flex gap-2">
         <Button variant="primary" busy={action.busy} onClick={() => void submit()}>保存</Button>
         <Button variant="ghost" onClick={onCancel}>取消</Button>

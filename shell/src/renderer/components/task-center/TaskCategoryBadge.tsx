@@ -7,8 +7,8 @@
 // Four categories, four icons, four color families — all reuse existing
 // DESIGN.md tokens (no new colors introduced):
 //
-//   loop       → Flag    + --heartbeat   ("目标模式")
-//   once       → Play    + --accent-warm ("一次性")
+//   loop       → Flag    + --success   ("目标模式")
+//   once       → Play    + --primary ("一次性")
 //   scheduled  → Clock   + --success     ("定时")
 //   recurring  → Repeat  + --info        ("周期")
 //
@@ -34,13 +34,13 @@ interface CategoryStyle {
 const CATEGORY_STYLE: Record<Category, CategoryStyle> = {
   loop: {
     icon: Flag,
-    bg: 'bg-[var(--heartbeat-bg)]',
-    fg: 'text-[var(--heartbeat)]',
+    bg: 'bg-[var(--success-bg)]',
+    fg: 'text-[var(--success)]',
   },
   once: {
     icon: Play,
-    bg: 'bg-[var(--accent-warm-subtle)]',
-    fg: 'text-[var(--accent-warm)]',
+    bg: 'bg-[var(--primary-soft)]',
+    fg: 'text-[var(--primary)]',
   },
   scheduled: {
     icon: Clock,
@@ -80,7 +80,7 @@ export function TaskCategoryBadge({ mode, legacy, compact }: Props) {
         ? t('badges.category.legacyLoop')
         : t(`badges.category.${mode}`)}
       {legacy && (
-        <span className="text-[var(--ink-muted)]/80" aria-label={t('badges.category.legacyTask')}>
+        <span className="text-[var(--muted)]/80" aria-label={t('badges.category.legacyTask')}>
           · {t('badges.category.legacy')}
         </span>
       )}

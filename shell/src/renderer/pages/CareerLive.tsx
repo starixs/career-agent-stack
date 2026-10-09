@@ -75,7 +75,7 @@ export default function CareerLive() {
     >
       <div className="grid grid-cols-1 gap-4 px-4 py-3 lg:grid-cols-[1fr_320px]">
         <div>
-          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[var(--ink-muted)]">
+          <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
             <Eye className="h-3.5 w-3.5" />
             <span>{connLabel}</span>
             <Badge tone={control === 'human' ? 'info' : control === 'agent' ? 'success' : 'neutral'}>{control === 'human' ? '你在操作' : control === 'agent' ? '助理在操作' : '浏览器未打开'}</Badge>
@@ -92,25 +92,25 @@ export default function CareerLive() {
           {takeover?.message && takeover.state === 'paused' && (
             <div role="status" className="mt-2 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--ink)]">{takeover.message}</div>
           )}
-          <p className="mt-2 text-xs text-[var(--ink-subtle)]">{humanActive ? '你已接管：直接在画面里点、输入、滚动，真实 Chrome 同步执行；做完点「交回，继续」，助理从当前页接着填。' : '遇到登录、滑块、短信码时直接点画面即可接管，然后在画面里操作；浏览器一直留在产品里。'}</p>
-          {action.error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{action.error}</div>}
+          <p className="mt-2 text-xs text-[var(--subtle)]">{humanActive ? '你已接管：直接在画面里点、输入、滚动，真实 Chrome 同步执行；做完点「交回，继续」，助理从当前页接着填。' : '遇到登录、滑块、短信码时直接点画面即可接管，然后在画面里操作；浏览器一直留在产品里。'}</p>
+          {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
         </div>
         <div className="space-y-3">
           <Card title="批量投递" extra={batch ? <Badge tone={BATCH_TONES[batch.status]}>{BATCH_LABELS[batch.status]}</Badge> : undefined}>
-            <div className="text-xs text-[var(--ink-muted)]">{batchSummaryLine(batch)}</div>
-            {batch?.phase && <div className="mt-1 text-xs text-[var(--ink-muted)]">阶段：{PHASE_LABELS[batch.phase] ?? batch.phase}</div>}
+            <div className="text-xs text-[var(--muted)]">{batchSummaryLine(batch)}</div>
+            {batch?.phase && <div className="mt-1 text-xs text-[var(--muted)]">阶段：{PHASE_LABELS[batch.phase] ?? batch.phase}</div>}
             {batch?.message && <div className="mt-1 text-sm text-[var(--ink)]">{batch.message}</div>}
-            {batch?.currentTitle && <div className="mt-1 text-xs text-[var(--ink-subtle)]">当前：{batch.currentTitle}</div>}
-            {batch?.lastError && <div className="mt-1 text-xs text-[var(--error)]">最近错误：{batch.lastError}</div>}
+            {batch?.currentTitle && <div className="mt-1 text-xs text-[var(--subtle)]">当前：{batch.currentTitle}</div>}
+            {batch?.lastError && <div className="mt-1 text-xs text-[var(--danger)]">最近错误：{batch.lastError}</div>}
             <div className="mt-3 flex flex-wrap gap-2">
               {batch?.status !== 'running' && <Button variant="primary" busy={action.busy} onClick={() => void batchCmd('start')}><Play className="h-3.5 w-3.5" />开始 / 继续</Button>}
               {batch?.status === 'running' && <Button busy={action.busy} onClick={() => void batchCmd('pause')}><Pause className="h-3.5 w-3.5" />暂停</Button>}
               {(batch?.status === 'running' || batch?.status === 'paused') && <Button variant="danger" busy={action.busy} onClick={() => void batchCmd('stop')}><Square className="h-3.5 w-3.5" />停止</Button>}
             </div>
-            <p className="mt-2 text-xs text-[var(--ink-subtle)]">队列 = 「岗位与投递」里你已批准的填表动作。运行器在后台一份份填，遇到登录 / 验证码停下等你，交回后自动继续；两份之间会像真人一样停一会。</p>
+            <p className="mt-2 text-xs text-[var(--subtle)]">队列 = 「岗位与投递」里你已批准的填表动作。运行器在后台一份份填，遇到登录 / 验证码停下等你，交回后自动继续；两份之间会像真人一样停一会。</p>
           </Card>
           <SectionTitle>等你处理（{handoffs.data ?? 0}）</SectionTitle>
-          <div className="text-xs text-[var(--ink-muted)]">
+          <div className="text-xs text-[var(--muted)]">
             {(handoffs.data ?? 0) > 0 ? '浏览器里有需要你本人完成的步骤（登录 / 验证码 / 测评）。点「接管」操作，完成后点「交回，继续」。' : '没有等待处理的接管。'}
           </div>
         </div>

@@ -12,7 +12,7 @@ export default function KillShellTool({ tool }: KillShellToolProps) {
   return (
     <ExpandableResult
       content={tool.result}
-      className="rounded bg-[var(--paper-inset)]/50 px-2 py-1 break-words text-[var(--ink-secondary)]"
+      className="rounded bg-[var(--inset)]/50 px-2 py-1 break-words text-[var(--ink-2)]"
     />
   );
 }

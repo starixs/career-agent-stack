@@ -30,13 +30,13 @@ describe('LauncherInputContextRow', () => {
     expect(workspaceChip).toHaveClass(
       'border',
       'border-[var(--line)]',
-      'bg-[var(--paper-elevated)]',
+      'bg-[var(--paper)]',
       'shadow-xs',
-      'hover:bg-[var(--hover-bg)]',
+      'hover:bg-[var(--hover)]',
       'hover:shadow-sm',
-      'focus-within:bg-[var(--paper-inset)]',
+      'focus-within:bg-[var(--inset)]',
     );
-    expect(workspaceChip).not.toHaveClass('bg-[var(--hover-bg)]', 'shadow-md');
+    expect(workspaceChip).not.toHaveClass('bg-[var(--hover)]', 'shadow-md');
   });
 
   it('gives the two bordered launcher chips the same outer height', () => {

@@ -9,15 +9,15 @@ export default function BotStatusPanel({ status }: { status: ImBotStatus | null 
     const dotColor = {
         online: 'bg-[var(--success)]',
         connecting: 'bg-[var(--warning)]',
-        error: 'bg-[var(--error)]',
-        stopped: 'bg-[var(--ink-subtle)]',
+        error: 'bg-[var(--danger)]',
+        stopped: 'bg-[var(--subtle)]',
     }[status.status];
 
     const labelColor = {
         online: 'text-[var(--success)]',
         connecting: 'text-[var(--warning)]',
-        error: 'text-[var(--error)]',
-        stopped: 'text-[var(--ink-muted)]',
+        error: 'text-[var(--danger)]',
+        stopped: 'text-[var(--muted)]',
     }[status.status];
 
     const statusLabel = {
@@ -38,23 +38,23 @@ export default function BotStatusPanel({ status }: { status: ImBotStatus | null 
     const isActive = status.status === 'online' || status.status === 'connecting';
 
     return (
-        <div className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-4 py-3 text-xs">
+        <div className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-xs">
             {/* Status dot + label */}
             <div className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotColor}`} />
             <span className={`font-medium ${labelColor}`}>{statusLabel}</span>
 
             {isActive && (
                 <>
-                    <span className="text-[var(--line-strong)]">·</span>
-                    <span className="text-[var(--ink-muted)]">{formatUptime(status.uptimeSeconds)}</span>
-                    <span className="text-[var(--line-strong)]">·</span>
-                    <span className="text-[var(--ink-muted)]">
+                    <span className="text-[var(--line-2)]">·</span>
+                    <span className="text-[var(--muted)]">{formatUptime(status.uptimeSeconds)}</span>
+                    <span className="text-[var(--line-2)]">·</span>
+                    <span className="text-[var(--muted)]">
                         {t('agentSettings.imComponents.activeSessions', { count: status.activeSessions.length })}
                     </span>
                     {status.restartCount > 0 && (
                         <>
-                            <span className="text-[var(--line-strong)]">·</span>
-                            <span className="text-[var(--ink-muted)]">
+                            <span className="text-[var(--line-2)]">·</span>
+                            <span className="text-[var(--muted)]">
                                 {t('agentSettings.imComponents.restartCount', { count: status.restartCount })}
                             </span>
                         </>
@@ -64,8 +64,8 @@ export default function BotStatusPanel({ status }: { status: ImBotStatus | null 
 
             {status.errorMessage && (
                 <>
-                    <span className="text-[var(--line-strong)]">·</span>
-                    <span className="truncate text-[var(--error)]">{status.errorMessage}</span>
+                    <span className="text-[var(--line-2)]">·</span>
+                    <span className="truncate text-[var(--danger)]">{status.errorMessage}</span>
                 </>
             )}
         </div>

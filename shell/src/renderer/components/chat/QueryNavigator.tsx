@@ -200,7 +200,7 @@ export default function QueryNavigator({
             : 'w-5 border border-transparent'
         }`}
         style={isExpanded ? {
-          background: 'var(--paper-elevated)',
+          background: 'var(--paper)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
         } : undefined}
@@ -210,7 +210,7 @@ export default function QueryNavigator({
           className={`pointer-events-none absolute inset-x-0 top-0 z-10 h-5 transition-opacity duration-200 ${
             isExpanded ? 'opacity-100' : 'opacity-0'
           }`}
-          style={{ background: 'linear-gradient(to bottom, var(--paper-elevated), var(--paper-elevated-a0))' }}
+          style={{ background: 'linear-gradient(to bottom, var(--paper), var(--paper-a0))' }}
         />
 
         {/* Scrollable list — each row: [text (conditional)] + [dash (always)] */}
@@ -229,7 +229,7 @@ export default function QueryNavigator({
                 onClick={() => isExpanded && handleQueryClick(q.id)}
                 className={`flex w-full items-center gap-1.5 py-[5px] text-left transition-colors ${
                   isExpanded
-                    ? `px-3 cursor-pointer rounded-lg ${isActive ? 'bg-[var(--hover-bg)]' : 'hover:bg-[var(--hover-bg)]'}`
+                    ? `px-3 cursor-pointer rounded-lg ${isActive ? 'bg-[var(--hover)]' : 'hover:bg-[var(--hover)]'}`
                     : 'px-0 cursor-default justify-end'
                 }`}
               >
@@ -237,7 +237,7 @@ export default function QueryNavigator({
                 <span
                   className={`flex-1 truncate text-sm leading-6 transition-opacity duration-200 ${
                     isExpanded ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden'
-                  } ${isActive ? 'text-[var(--accent)] font-medium' : 'text-[var(--ink-muted)]'}`}
+                  } ${isActive ? 'text-[var(--primary)] font-medium' : 'text-[var(--muted)]'}`}
                 >
                   {q.text}
                 </span>
@@ -246,10 +246,10 @@ export default function QueryNavigator({
                 <span
                   className={`flex-shrink-0 rounded-full transition-all duration-150 ${
                     isActive
-                      ? 'w-[10px] h-[3px] bg-[var(--accent)]'
+                      ? 'w-[10px] h-[3px] bg-[var(--primary)]'
                       : isExpanded
-                        ? 'w-[8px] h-[2px] bg-[var(--ink-faint)]'
-                        : 'w-[8px] h-[2px] bg-[var(--ink-faint)] opacity-40'
+                        ? 'w-[8px] h-[2px] bg-[var(--subtle)]'
+                        : 'w-[8px] h-[2px] bg-[var(--subtle)] opacity-40'
                   } ${isExpanded ? 'mr-1' : 'mr-1.5'}`}
                 />
               </button>
@@ -262,7 +262,7 @@ export default function QueryNavigator({
           className={`pointer-events-none absolute inset-x-0 bottom-0 z-10 h-5 transition-opacity duration-200 ${
             isExpanded ? 'opacity-100' : 'opacity-0'
           }`}
-          style={{ background: 'linear-gradient(to top, var(--paper-elevated), var(--paper-elevated-a0))' }}
+          style={{ background: 'linear-gradient(to top, var(--paper), var(--paper-a0))' }}
         />
       </div>
     </div>

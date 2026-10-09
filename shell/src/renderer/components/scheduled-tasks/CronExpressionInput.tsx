@@ -316,8 +316,8 @@ export default function CronExpressionInput({
                 onClick={() => handleFreqChange(opt.value)}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
                   freq === opt.value
-                    ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                    : 'bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--paper-inset)]'
+                    ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                    : 'bg-[var(--bg)] text-[var(--ink)] hover:bg-[var(--inset)]'
                 }`}
               >
                 {opt.label}
@@ -331,16 +331,16 @@ export default function CronExpressionInput({
               pickers are meaningless here. */}
           {freq === 'interval' ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-[var(--ink-muted)]">{t('schedule.every')}</span>
+              <span className="text-xs text-[var(--muted)]">{t('schedule.every')}</span>
               <input
                 type="number"
                 min={MIN_INTERVAL}
                 max={MAX_INTERVAL}
                 value={intervalValue}
                 onChange={e => handleIntervalInputChange(e.target.value)}
-                className="w-24 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-1.5 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
+                className="w-24 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-3 py-1.5 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none"
               />
-              <span className="text-xs text-[var(--ink-muted)]">
+              <span className="text-xs text-[var(--muted)]">
                 {t('schedule.intervalSuffix', { min: MIN_INTERVAL })}
               </span>
             </div>
@@ -348,16 +348,16 @@ export default function CronExpressionInput({
             <>
               {/* Time picker — shared by daily / weekdays / weekly / monthly */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--ink-muted)]">{t('schedule.time')}</span>
+                <span className="text-xs text-[var(--muted)]">{t('schedule.time')}</span>
                 <CustomSelect value={String(hour)} options={HOUR_OPTIONS} onChange={v => setHour(Number(v))} compact className="w-20" />
-                <span className="text-sm text-[var(--ink-muted)]">:</span>
+                <span className="text-sm text-[var(--muted)]">:</span>
                 <CustomSelect value={String(minute)} options={MINUTE_OPTIONS} onChange={v => setMinute(Number(v))} compact className="w-20" />
               </div>
 
               {/* Weekly: day picker */}
               {freq === 'weekly' && (
                 <div className="flex items-center gap-1.5">
-                  <span className="mr-1 text-xs text-[var(--ink-muted)]">{t('schedule.weekday')}</span>
+                  <span className="mr-1 text-xs text-[var(--muted)]">{t('schedule.weekday')}</span>
                   {weekdayLabels.map((label, i) => {
                     const cronDay = WEEKDAY_CRON[i];
                     const isSelected = weekdays.includes(cronDay);
@@ -368,8 +368,8 @@ export default function CronExpressionInput({
                         onClick={() => toggleWeekday(cronDay)}
                         className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium transition-colors ${
                           isSelected
-                            ? 'bg-[var(--accent)] text-[var(--on-accent)]'
-                            : 'bg-[var(--paper)] border border-[var(--line)] text-[var(--ink-muted)] hover:border-[var(--line-strong)]'
+                            ? 'bg-[var(--primary)] text-[var(--on-primary)]'
+                            : 'bg-[var(--bg)] border border-[var(--line)] text-[var(--muted)] hover:border-[var(--line-2)]'
                         }`}
                       >
                         {label}
@@ -382,7 +382,7 @@ export default function CronExpressionInput({
               {/* Monthly: day picker */}
               {freq === 'monthly' && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-[var(--ink-muted)]">{t('schedule.date')}</span>
+                  <span className="text-xs text-[var(--muted)]">{t('schedule.date')}</span>
                   <CustomSelect value={String(monthDay)} options={monthDayOptions} onChange={v => setMonthDay(Number(v))} compact className="w-24" />
                 </div>
               )}
@@ -392,7 +392,7 @@ export default function CronExpressionInput({
               <button
                 type="button"
                 onClick={handleSwitchToCustom}
-                className="flex items-center gap-1 text-xs text-[var(--ink-muted)]/60 hover:text-[var(--ink-muted)] transition-colors"
+                className="flex items-center gap-1 text-xs text-[var(--muted)]/60 hover:text-[var(--muted)] transition-colors"
               >
                 <Code2 className="h-3 w-3" />
                 {t('schedule.useCron')}
@@ -410,11 +410,11 @@ export default function CronExpressionInput({
               onChange={e => handleCustomExprChange(e.target.value)}
               placeholder="0 8 * * 1-5"
               className={`w-full rounded-[var(--radius-sm)] border bg-transparent px-3 py-2 font-mono text-sm text-[var(--ink)] focus:outline-none transition-colors ${
-                parseError ? 'border-[var(--error)]' : 'border-[var(--line)] focus:border-[var(--accent)]'
+                parseError ? 'border-[var(--danger)]' : 'border-[var(--line)] focus:border-[var(--primary)]'
               }`}
             />
             {parseError && (
-              <div className="mt-1.5 flex items-center gap-1 text-xs text-[var(--error)]">
+              <div className="mt-1.5 flex items-center gap-1 text-xs text-[var(--danger)]">
                 <AlertCircle className="h-3 w-3" />
                 {parseError}
               </div>
@@ -428,8 +428,8 @@ export default function CronExpressionInput({
             disabled={!canSwitchToVisual}
             className={`flex items-center gap-1 text-xs transition-colors ${
               canSwitchToVisual
-                ? 'text-[var(--ink-muted)]/60 hover:text-[var(--ink-muted)]'
-                : 'text-[var(--ink-subtle)] cursor-not-allowed'
+                ? 'text-[var(--muted)]/60 hover:text-[var(--muted)]'
+                : 'text-[var(--subtle)] cursor-not-allowed'
             }`}
           >
             {canSwitchToVisual ? t('schedule.backToVisual') : t('schedule.unsupportedVisual')}
@@ -443,11 +443,11 @@ export default function CronExpressionInput({
       {mode === 'visual' && freq === 'interval' ? null : (
         description && !parseError && (
           <div className="rounded-[var(--radius-sm)] border border-[var(--line)] px-3 py-2">
-            <p className="text-sm font-medium text-[var(--ink-secondary)]">{description}</p>
+            <p className="text-sm font-medium text-[var(--ink-2)]">{description}</p>
             {nextTimes.length > 0 && (
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
                 {nextTimes.map((time, i) => (
-                  <span key={i} className="text-xs text-[var(--ink-muted)]">• {time}</span>
+                  <span key={i} className="text-xs text-[var(--muted)]">• {time}</span>
                 ))}
               </div>
             )}
@@ -459,7 +459,7 @@ export default function CronExpressionInput({
           cadence is timezone-independent). */}
       {!(mode === 'visual' && freq === 'interval') && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[var(--ink-muted)]">{t('schedule.timezone')}</span>
+          <span className="text-xs text-[var(--muted)]">{t('schedule.timezone')}</span>
           <CustomSelect value={tz} options={tzOptions} onChange={v => onChangeRef.current(mode === 'custom' ? customExpr : buildCronFromVisual(freq, hour, minute, weekdays, monthDay), v)} compact className="w-48" />
         </div>
       )}

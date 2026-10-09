@@ -85,9 +85,9 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
                 {offers.map(o => (
                   <Card key={o.id} title={`${textOrUnknown(o.company_name)} · ${textOrUnknown(o.title)}`} extra={<Button variant="ghost" onClick={() => setEditing(o)}>编辑</Button>}>
                     <dl className="space-y-1 text-xs">
-                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--ink-muted)]">薪酬</dt><dd className="text-[var(--ink)]">{compSummary(compOf(o))}</dd></div>
-                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--ink-muted)]">地点</dt><dd className="text-[var(--ink)]">{textOrUnknown(o.location)}</dd></div>
-                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--ink-muted)]">截止</dt><dd className="text-[var(--ink)]">{o.deadline ? <Badge tone="warning">{formatDate(o.deadline)}</Badge> : '未知'}</dd></div>
+                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">薪酬</dt><dd className="text-[var(--ink)]">{compSummary(compOf(o))}</dd></div>
+                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">地点</dt><dd className="text-[var(--ink)]">{textOrUnknown(o.location)}</dd></div>
+                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">截止</dt><dd className="text-[var(--ink)]">{o.deadline ? <Badge tone="warning">{formatDate(o.deadline)}</Badge> : '未知'}</dd></div>
                     </dl>
                   </Card>
                 ))}
@@ -97,10 +97,10 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
               <SectionTitle>对比</SectionTitle>
               <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
                 <table className="w-full border-collapse text-xs">
-                  <thead className="bg-[var(--paper-inset)] text-left text-[var(--ink-muted)]">
+                  <thead className="bg-[var(--inset)] text-left text-[var(--muted)]">
                     <tr>
                       <th className="px-2 py-1.5 font-medium">维度</th>
-                      {offers.map(o => <th key={o.id} className="px-2 py-1.5 font-medium text-[var(--ink)]">{textOrUnknown(o.company_name)}<div className="font-normal text-[var(--ink-muted)]">{textOrUnknown(o.title)}</div></th>)}
+                      {offers.map(o => <th key={o.id} className="px-2 py-1.5 font-medium text-[var(--ink)]">{textOrUnknown(o.company_name)}<div className="font-normal text-[var(--muted)]">{textOrUnknown(o.title)}</div></th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -111,8 +111,8 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
                       { label: '风险', render: (o: Offer) => textOrUnknown(o.risk_notes) },
                       { label: '截止', render: (o: Offer) => formatDate(o.deadline) },
                     ].map(row => (
-                      <tr key={row.label} className="border-t border-[var(--line-subtle)] align-top">
-                        <td className="px-2 py-1.5 font-medium text-[var(--ink-muted)]">{row.label}</td>
+                      <tr key={row.label} className="border-t border-[var(--line)] align-top">
+                        <td className="px-2 py-1.5 font-medium text-[var(--muted)]">{row.label}</td>
                         {offers.map(o => <td key={o.id} className="px-2 py-1.5 text-[var(--ink)]">{row.render(o)}</td>)}
                       </tr>
                     ))}
@@ -178,7 +178,7 @@ function OfferForm({ offer, onDone, onCancel }: { offer: Offer | null; onDone: (
         </div>
       </div>
       <div className="mt-2"><Field label="风险备注"><TextArea value={form.risk_notes} onChange={set('risk_notes')} /></Field></div>
-      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{action.error}</div>}
+      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
       <div className="mt-3 flex gap-2">
         <Button variant="primary" busy={action.busy} onClick={() => void submit()}>保存</Button>
         <Button variant="ghost" onClick={onCancel}>取消</Button>

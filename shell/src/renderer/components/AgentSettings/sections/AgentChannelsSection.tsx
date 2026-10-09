@@ -93,11 +93,11 @@ function ChannelOverlayPanel({
   return createPortal(
     <OverlayBackdrop onClose={onClose} className="z-[210]">
       <div
-        className="relative flex h-[90vh] w-[90vw] max-w-5xl flex-col overflow-hidden rounded-2xl bg-[var(--paper-elevated)] shadow-2xl"
+        className="relative flex h-[90vh] w-[90vw] max-w-5xl flex-col overflow-hidden rounded-2xl bg-[var(--paper)] shadow-2xl"
       >
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 rounded-lg p-2 text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+          className="absolute right-4 top-4 z-10 rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
         >
           <X className="h-5 w-5" />
         </button>
@@ -250,7 +250,7 @@ export default function AgentChannelsSection({
         <div className="flex items-center justify-between">
           <h3 className="text-base font-medium text-[var(--ink)]">{t('agentSettings.channels.title')}</h3>
           <button
-            className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-xs font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)]"
+            className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)]"
             onClick={() => setOverlay({ view: 'add' })}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -259,8 +259,8 @@ export default function AgentChannelsSection({
         </div>
 
         {(agent.channels?.length ?? 0) === 0 && (
-          <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--paper-inset)]/30 py-6">
-            <p className="text-xs text-[var(--ink-subtle)]">
+          <div className="flex flex-col items-center rounded-xl border border-dashed border-[var(--line)] bg-[var(--inset)]/30 py-6">
+            <p className="text-xs text-[var(--subtle)]">
               {t('agentSettings.channels.empty')}
             </p>
           </div>
@@ -286,7 +286,7 @@ export default function AgentChannelsSection({
             return (
               <div
                 key={channel.id}
-                className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-4 py-3 transition-all hover:border-[var(--line-strong)] hover:shadow-sm"
+                className="flex cursor-pointer items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 transition-all hover:border-[var(--line-2)] hover:shadow-sm"
                 onClick={() => setOverlay({ view: 'detail', channelId: channel.id })}
               >
                 <span className="flex-shrink-0">{getPlatformIcon(channel.type)}</span>
@@ -296,10 +296,10 @@ export default function AgentChannelsSection({
                   </span>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
                     <div className={`h-1.5 w-1.5 rounded-full ${
-                      isRunning ? 'bg-[var(--success)]' : 'bg-[var(--ink-subtle)]'
+                      isRunning ? 'bg-[var(--success)]' : 'bg-[var(--subtle)]'
                     }`} />
                     <span className={`text-xs ${
-                      isRunning ? 'text-[var(--success)]' : 'text-[var(--ink-muted)]'
+                      isRunning ? 'text-[var(--success)]' : 'text-[var(--muted)]'
                     }`}>
                       {statusText}
                     </span>
@@ -308,8 +308,8 @@ export default function AgentChannelsSection({
                 <button
                   className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
                     shouldStop
-                      ? 'border border-[var(--error)]/40 text-[var(--error)] hover:bg-[var(--error)]/10'
-                      : 'bg-[var(--button-primary-bg)] text-[var(--button-primary-text)] hover:bg-[var(--button-primary-bg-hover)]'
+                      ? 'border border-[var(--danger)]/40 text-[var(--danger)] hover:bg-[var(--danger)]/10'
+                      : 'bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]'
                   }`}
                   onClick={e => {
                     e.stopPropagation();

@@ -450,12 +450,12 @@ export default function BrowserPanel({
   // No `transition-colors` — let global `button { transition-property: ...transform... }` handle it,
   // so the unified active:scale(0.98) animates smoothly instead of snapping.
   const navBtn =
-    'flex h-7 w-7 items-center justify-center rounded-md text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]';
+    'flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)]';
 
   return (
     <div className="flex h-full flex-col">
       {/* Navigation toolbar — always includes close button (single row for all states) */}
-      <div className="relative flex h-9 flex-shrink-0 items-center gap-0.5 border-b border-[var(--line)] bg-[var(--paper)] px-2">
+      <div className="relative flex h-9 flex-shrink-0 items-center gap-0.5 border-b border-[var(--line)] bg-[var(--bg)] px-2">
         <Tip label={t('browserPanel.back')} position="bottom">
           <button type="button" className={navBtn} onClick={handleGoBack}>
             <ChevronLeft className="h-3.5 w-3.5" />
@@ -482,7 +482,7 @@ export default function BrowserPanel({
             ref={urlInputRef}
             autoFocus
             placeholder={urlPlaceholder}
-            className="ml-1.5 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-2 py-0.5 text-xs text-[var(--ink)] outline-none placeholder:text-[var(--ink-faint)] focus:border-[var(--accent)]"
+            className="ml-1.5 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-[var(--line)] bg-transparent px-2 py-0.5 text-xs text-[var(--ink)] outline-none placeholder:text-[var(--subtle)] focus:border-[var(--primary)]"
             value={urlDraft}
             onChange={(e) => setUrlDraft(e.target.value)}
             onKeyDown={handleUrlKeyDown}
@@ -493,13 +493,13 @@ export default function BrowserPanel({
           <button
             type="button"
             onClick={handleUrlClick}
-            className="ml-1.5 min-w-0 flex-1 cursor-text truncate rounded-[var(--radius-sm)] px-2 py-0.5 text-left text-xs transition-colors hover:bg-[var(--paper-inset)]"
+            className="ml-1.5 min-w-0 flex-1 cursor-text truncate rounded-[var(--radius-sm)] px-2 py-0.5 text-left text-xs transition-colors hover:bg-[var(--inset)]"
             title={isBlankPage ? urlPlaceholder : currentUrl}
           >
             {isBlankPage ? (
-              <span className="text-[var(--ink-faint)]">{urlPlaceholder}</span>
+              <span className="text-[var(--subtle)]">{urlPlaceholder}</span>
             ) : (
-              <span className="text-[var(--ink-muted)]">{currentUrl}</span>
+              <span className="text-[var(--muted)]">{currentUrl}</span>
             )}
           </button>
         )}
@@ -534,16 +534,16 @@ export default function BrowserPanel({
         {/* Loading progress indicator */}
         {isLoading && (
           <div className="absolute inset-x-0 bottom-0 h-[2px] overflow-hidden">
-            <div className="animate-indeterminate h-full w-1/3 bg-[var(--accent-warm)]" />
+            <div className="animate-indeterminate h-full w-1/3 bg-[var(--primary)]" />
           </div>
         )}
       </div>
 
       {/* Placeholder container — native Webview overlays this area */}
-      <div ref={containerRef} className="relative min-h-0 flex-1 bg-[var(--paper)]">
+      <div ref={containerRef} className="relative min-h-0 flex-1 bg-[var(--bg)]">
         {!browserAlive && !isBlankPage && (
           <div className="flex h-full items-center justify-center">
-            <div className="flex flex-col items-center gap-2 text-[var(--ink-subtle)]">
+            <div className="flex flex-col items-center gap-2 text-[var(--subtle)]">
               <Globe className="h-6 w-6" />
               <span className="text-xs">{url ? t('common.loading') : ''}</span>
             </div>
@@ -555,7 +555,7 @@ export default function BrowserPanel({
           <button
             type="button"
             onClick={handleUrlClick}
-            className="group absolute inset-0 flex cursor-text select-none flex-col items-center justify-center bg-[var(--paper)] text-left outline-none"
+            className="group absolute inset-0 flex cursor-text select-none flex-col items-center justify-center bg-[var(--bg)] text-left outline-none"
           >
             {/* Soft radial wash for warmth */}
             <div
@@ -563,13 +563,13 @@ export default function BrowserPanel({
               className="pointer-events-none absolute inset-0"
               style={{
                 background:
-                  'radial-gradient(ellipse at 50% 38%, var(--accent-warm-subtle) 0%, var(--accent-warm-subtle-a0) 60%)',
+                  'radial-gradient(ellipse at 50% 38%, var(--primary-soft) 0%, var(--primary-soft-a0) 60%)',
               }}
             />
             <div className="relative flex flex-col items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--paper-elevated)] shadow-md">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--paper)] shadow-md">
                 <Globe
-                  className="h-7 w-7 text-[var(--accent-warm)]"
+                  className="h-7 w-7 text-[var(--primary)]"
                   strokeWidth={1.5}
                 />
               </div>
@@ -577,7 +577,7 @@ export default function BrowserPanel({
                 <div className="text-base font-medium tracking-tight text-[var(--ink)]">
                   {t('browserPanel.newTab')}
                 </div>
-                <div className="text-xs text-[var(--ink-muted)]">
+                <div className="text-xs text-[var(--muted)]">
                   {t('browserPanel.blankHint')}
                 </div>
               </div>
@@ -586,8 +586,8 @@ export default function BrowserPanel({
         )}
 
         {(isDraggingSplit || isSplitTransitioning) && browserAlive && !isBlankPage && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--paper)]/80 backdrop-blur-md">
-            <div className="flex flex-col items-center gap-2 text-[var(--ink-subtle)]">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--bg)]/80 backdrop-blur-md">
+            <div className="flex flex-col items-center gap-2 text-[var(--subtle)]">
               <Globe className="h-5 w-5" />
               <span className="text-xs">{displayUrl}</span>
             </div>

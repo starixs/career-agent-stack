@@ -115,7 +115,7 @@ function CareerBootSurface({ startError }: { startError: string | null }) {
   const { t } = useTranslation('launcher');
   return (
     <div
-      className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[var(--paper)] text-[var(--ink-muted)]"
+      className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[var(--bg)] text-[var(--muted)]"
       data-career-boot-surface
     >
       <span className="text-sm">{t('brand.preparingAssistant')}</span>
@@ -1278,7 +1278,7 @@ export function LegacyLauncher({
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[var(--paper)] text-[var(--ink)]">
+    <div className="flex h-full flex-col overflow-hidden bg-[var(--bg)] text-[var(--ink)]">
       {/* Path Input Dialog (browser dev mode) */}
       <PathInputDialog
         isOpen={pathDialogOpen}

@@ -65,10 +65,10 @@ export default function CareerInterview({ embedded = false }: { embedded?: boole
                           type="button"
                           onClick={() => setSelectedId(iv.id)}
                           aria-current={iv.id === activeId ? 'true' : undefined}
-                          className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${iv.id === activeId ? 'border-[var(--accent)] bg-[var(--accent)]/5' : 'border-[var(--line-subtle)] hover:bg-[var(--paper-inset)]'}`}
+                          className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${iv.id === activeId ? 'border-[var(--primary)] bg-[var(--primary)]/5' : 'border-[var(--line)] hover:bg-[var(--inset)]'}`}
                         >
                           <div className="truncate text-sm font-medium text-[var(--ink)]">{textOrUnknown(iv.company_name)} · {textOrUnknown(iv.title)}</div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-[var(--ink-muted)]">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-[var(--muted)]">
                             <span>{INTERVIEW_ROUND_LABELS[iv.round] ?? iv.round}</span>
                             <span>· {formatDate(iv.date)}</span>
                             <Badge tone={RESULT_TONE[iv.result] ?? 'neutral'}>{INTERVIEW_RESULT_LABELS[iv.result] ?? iv.result}</Badge>
@@ -97,7 +97,7 @@ function InterviewDetail({ interview }: { interview: Interview }) {
   return (
     <div className="space-y-3">
       <Card title={`${textOrUnknown(interview.company_name)} · ${textOrUnknown(interview.title)}`}>
-        <div className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--ink-muted)]">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--muted)]">
           <span>{INTERVIEW_ROUND_LABELS[interview.round] ?? interview.round}</span>
           <span>· {formatDate(interview.date)}</span>
           {interview.interviewer_role_guess && <span>· 面试官可能是：{interview.interviewer_role_guess}</span>}
@@ -112,11 +112,11 @@ function InterviewDetail({ interview }: { interview: Interview }) {
       </Card>
       <Card title="过程记录">
         {interview.transcript
-          ? <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-[var(--font-body)] text-sm text-[var(--ink)]">{interview.transcript}</pre>
-          : <div className="text-xs text-[var(--ink-subtle)]">暂无记录。在对话里说「帮我记录这场面试的过程」。</div>}
+          ? <pre className="max-h-80 overflow-auto whitespace-pre-wrap font-[var(--font-sans)] text-sm text-[var(--ink)]">{interview.transcript}</pre>
+          : <div className="text-xs text-[var(--subtle)]">暂无记录。在对话里说「帮我记录这场面试的过程」。</div>}
       </Card>
       <Card title="复盘">
-        {retro ? <StructuredJson value={retro} /> : <div className="text-xs text-[var(--ink-subtle)]">还没有复盘。在对话里说「帮我复盘这场面试」。</div>}
+        {retro ? <StructuredJson value={retro} /> : <div className="text-xs text-[var(--subtle)]">还没有复盘。在对话里说「帮我复盘这场面试」。</div>}
       </Card>
     </div>
   );
@@ -149,7 +149,7 @@ function InterviewForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
         <Field label="标签（逗号分隔）"><TextInput value={form.tags} onChange={set('tags')} /></Field>
         <Field label="过程记录"><TextArea value={form.transcript} onChange={set('transcript')} /></Field>
       </div>
-      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{action.error}</div>}
+      {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
       <div className="mt-3 flex gap-2">
         <Button variant="primary" busy={action.busy} onClick={() => void submit()}>保存</Button>
         <Button variant="ghost" onClick={onCancel}>取消</Button>
@@ -163,7 +163,7 @@ function MockSection({ mocks }: { mocks: MockInterview[] }) {
   return (
     <section>
       <SectionTitle>模拟面试（{mocks.length}）</SectionTitle>
-      {mocks.length === 0 && <div className="text-xs text-[var(--ink-subtle)]">还没有模拟面试。在对话里说「帮我模拟一场深挖追问」。</div>}
+      {mocks.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有模拟面试。在对话里说「帮我模拟一场深挖追问」。</div>}
       <div className="space-y-2">
         {mocks.map(m => {
           const turns = safeJson<unknown[]>(m.turns_json, []);
@@ -173,14 +173,14 @@ function MockSection({ mocks }: { mocks: MockInterview[] }) {
             <Card key={m.id} title={`${MOCK_MODE_LABELS[m.mode] ?? m.mode}${m.round ? ` · ${INTERVIEW_ROUND_LABELS[m.round] ?? m.round}` : ''}`}
               extra={(
                 <>
-                  <span className="text-xs text-[var(--ink-subtle)]">{formatDate(m.created_at)} · {turns.length} 轮</span>
+                  <span className="text-xs text-[var(--subtle)]">{formatDate(m.created_at)} · {turns.length} 轮</span>
                   <Button variant="ghost" onClick={() => setOpenId(open ? null : m.id)}>{open ? '收起' : '查看报告'}</Button>
                 </>
               )}>
-              {m.company_type && <div className="text-xs text-[var(--ink-muted)]">公司类型：{m.company_type}</div>}
+              {m.company_type && <div className="text-xs text-[var(--muted)]">公司类型：{m.company_type}</div>}
               {open && (
-                <div className="mt-2 rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] p-2 text-sm">
-                  {report ? <StructuredJson value={report} /> : <span className="text-xs text-[var(--ink-subtle)]">暂无报告</span>}
+                <div className="mt-2 rounded-lg border border-[var(--line)] bg-[var(--inset)] p-2 text-sm">
+                  {report ? <StructuredJson value={report} /> : <span className="text-xs text-[var(--subtle)]">暂无报告</span>}
                 </div>
               )}
             </Card>
@@ -198,19 +198,19 @@ function PredictionSection({ predictions }: { predictions: ProbePrediction[] }) 
   return (
     <section>
       <SectionTitle>深挖点预测（{predictions.length}）</SectionTitle>
-      {predictions.length === 0 && <div className="text-xs text-[var(--ink-subtle)]">还没有预测。在对话里说「帮我预测这版简历会被追问的点」。</div>}
+      {predictions.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有预测。在对话里说「帮我预测这版简历会被追问的点」。</div>}
       <ul className="space-y-1.5">
         {predictions.map(p => {
           const chain = safeJson<unknown[]>(p.expected_chain_json, []);
           return (
-            <li key={p.id} className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2">
+            <li key={p.id} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge tone={RISK_TONE[p.risk] ?? 'neutral'}>风险 {p.risk}</Badge>
                 <Badge>{TARGET_LABELS[p.target_type] ?? p.target_type}</Badge>
                 <span className="text-sm text-[var(--ink)]">{p.statement}</span>
               </div>
               {chain.length > 0 && (
-                <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs text-[var(--ink-muted)]">
+                <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs text-[var(--muted)]">
                   {chain.map((c, i) => <li key={i}>{typeof c === 'string' ? c : JSON.stringify(c)}</li>)}
                 </ol>
               )}

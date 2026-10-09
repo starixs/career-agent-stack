@@ -58,7 +58,7 @@ export function CareerSetupCards() {
   if (!needLlm && !suggestSearch) return null;
   const dismissSearch = () => { try { window.localStorage.setItem(SEARCH_SETUP_DISMISSED_KEY, '1'); } catch { /* 隐私模式 */ } setSearchDismissed(true); };
   return (
-    <div data-testid="career-setup-cards" className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 shadow-sm">
+    <div data-testid="career-setup-cards" className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-[var(--ink)]">{needLlm ? '先配置模型 Key，助理才能开始工作' : '建议配置搜索 Key'}</span>
         {needLlm ? <Badge tone="warning">必需</Badge> : <Badge tone="info">建议</Badge>}
@@ -96,22 +96,22 @@ export function CareerReviewCard({ review, onDecision }: {
   };
   const kindLabel = ACTION_KIND_LABELS[review.kind as ActionKind] ?? review.kind;
   return (
-    <div data-testid="career-review-card" className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 shadow-sm">
+    <div data-testid="career-review-card" className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
       <div className="flex items-center gap-2.5">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)]/10">
-          <ListChecks className="size-4 text-[var(--accent)]" />
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]/10">
+          <ListChecks className="size-4 text-[var(--primary)]" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <Badge tone="accent">待审核</Badge>
             <Badge>{kindLabel}</Badge>
-            <span className="text-xs text-[var(--ink-muted)]">{review.actionIds.length} 个动作</span>
+            <span className="text-xs text-[var(--muted)]">{review.actionIds.length} 个动作</span>
           </div>
           <div className="mt-1 text-sm text-[var(--ink)]">{review.summary}</div>
         </div>
       </div>
-      <div className="mt-3 text-xs text-[var(--ink-muted)]">提交与发送永远需要你批准后才会执行。</div>
-      {error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{error}</div>}
+      <div className="mt-3 text-xs text-[var(--muted)]">提交与发送永远需要你批准后才会执行。</div>
+      {error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div>}
       <div className="mt-3 flex items-center gap-2">
         <Button variant="primary" busy={busy === 'approved'} disabled={busy !== null} onClick={() => void decide('approved')}>批准</Button>
         <Button variant="danger" busy={busy === 'rejected'} disabled={busy !== null} onClick={() => void decide('rejected')}>拒绝</Button>
@@ -139,7 +139,7 @@ export function CareerTakeoverCard({ takeover, onAction }: {
   const stateLabel = TAKEOVER_STATE_LABELS[takeover.state] ?? takeover.state;
   const tone = takeover.state === 'paused' ? 'warning' : takeover.state === 'human_active' ? 'info' : 'neutral';
   return (
-    <div data-testid="career-takeover-card" className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 shadow-sm">
+    <div data-testid="career-takeover-card" className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
       <div className="flex items-center gap-2.5">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--warning-bg)]">
           <Globe className="size-4 text-[var(--warning)]" />
@@ -149,14 +149,14 @@ export function CareerTakeoverCard({ takeover, onAction }: {
             <span className="text-sm font-medium text-[var(--ink)]">浏览器需要你</span>
             <Badge tone={tone}>{stateLabel}</Badge>
           </div>
-          <div className="mt-1 text-xs text-[var(--ink-muted)]">
+          <div className="mt-1 text-xs text-[var(--muted)]">
             {reason ? `原因：${reason}` : '原因：未知'}
             {takeover.message ? ` · ${takeover.message}` : ''}
           </div>
-          {takeover.url && <div className="mt-0.5 truncate text-xs text-[var(--ink-subtle)]">{takeover.url}</div>}
+          {takeover.url && <div className="mt-0.5 truncate text-xs text-[var(--subtle)]">{takeover.url}</div>}
         </div>
       </div>
-      {error && <div role="alert" className="mt-2 text-xs text-[var(--error)]">{error}</div>}
+      {error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button onClick={() => openLiveDrawer()}>在旁边打开现场</Button>
         {takeover.state === 'paused' && (
@@ -174,21 +174,21 @@ export function CareerProgressRow({ progress, onDismiss }: { progress: CareerPro
   const [open, setOpen] = useState(false);
   const pct = typeof progress.progress === 'number' ? Math.round(Math.max(0, Math.min(1, progress.progress)) * 100) : null;
   return (
-    <div data-testid="career-progress-row" className="rounded-lg border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-3 py-1.5 text-xs text-[var(--ink-muted)]">
+    <div data-testid="career-progress-row" className="rounded-lg border border-[var(--line)] bg-[var(--inset)] px-3 py-1.5 text-xs text-[var(--muted)]">
       <button type="button" onClick={() => setOpen(v => !v)} className="flex w-full items-center gap-2 text-left">
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[var(--accent)]" />
+        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[var(--primary)]" />
         <span className="shrink-0 font-medium text-[var(--ink)]">{progress.phase}</span>
         <span className="min-w-0 flex-1 truncate">{progress.message}</span>
         {pct !== null && <span className="shrink-0 tabular-nums">{pct}%</span>}
       </button>
       {open && (
-        <div className="mt-1.5 flex items-center gap-3 pl-5 text-xs text-[var(--ink-subtle)]">
+        <div className="mt-1.5 flex items-center gap-3 pl-5 text-xs text-[var(--subtle)]">
           {progress.taskId && <span>任务 {progress.taskId}</span>}
           {progress.runId && <span>运行 {progress.runId}</span>}
           {pct !== null && (
-            <span className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--line-subtle)]">
-              <span className="block h-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
+            <span className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--line)]">
+              <span className="block h-full bg-[var(--primary)]" style={{ width: `${pct}%` }} />
             </span>
           )}
           {onDismiss && <button type="button" onClick={onDismiss} className="underline underline-offset-2">隐藏</button>}

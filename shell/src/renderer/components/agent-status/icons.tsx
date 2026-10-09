@@ -15,7 +15,7 @@ export function TodoPendingIcon({ className = '' }: IconProps) {
   return (
     <span
       aria-hidden
-      className={`inline-block size-3.5 shrink-0 rounded-[3px] border border-[var(--ink-subtle)] ${className}`}
+      className={`inline-block size-3.5 shrink-0 rounded-[3px] border border-[var(--subtle)] ${className}`}
     />
   );
 }
@@ -24,7 +24,7 @@ export function TodoInProgressIcon({ className = '' }: IconProps) {
   return (
     <span
       aria-hidden
-      className={`inline-block size-3.5 shrink-0 rounded-[3px] bg-[var(--accent-warm)] ${className}`}
+      className={`inline-block size-3.5 shrink-0 rounded-[3px] bg-[var(--primary)] ${className}`}
     />
   );
 }
@@ -33,7 +33,7 @@ export function TodoCompletedIcon({ className = '' }: IconProps) {
   return (
     <span
       aria-hidden
-      className={`inline-flex size-3.5 shrink-0 items-center justify-center rounded-[3px] bg-[var(--success)] text-[var(--on-success)] ${className}`}
+      className={`inline-flex size-3.5 shrink-0 items-center justify-center rounded-[3px] bg-[var(--success)] text-[var(--on-primary)] ${className}`}
     >
       <Check className="size-2.5" strokeWidth={3} />
     </span>
@@ -43,8 +43,8 @@ export function TodoCompletedIcon({ className = '' }: IconProps) {
 export function SubagentRunningIcon({ className = '' }: IconProps) {
   return (
     <span aria-hidden className={`relative inline-flex size-3.5 shrink-0 items-center justify-center ${className}`}>
-      <span className="absolute inline-flex size-2.5 rounded-full bg-[var(--accent-cool)] opacity-70 animate-ping" />
-      <span className="relative inline-flex size-2 rounded-full bg-[var(--accent-cool)]" />
+      <span className="absolute inline-flex size-2.5 rounded-full bg-[var(--info)] opacity-70 animate-ping" />
+      <span className="relative inline-flex size-2 rounded-full bg-[var(--info)]" />
     </span>
   );
 }

@@ -26,13 +26,13 @@ export default function NotebookEditTool({ tool }: NotebookEditToolProps) {
       <div className="flex flex-wrap items-center gap-1.5 text-sm">
         <FilePath path={input.notebook_path} />
         {input.cell_id && (
-          <span className="text-xs text-[var(--ink-muted)]">cell: {input.cell_id}</span>
+          <span className="text-xs text-[var(--muted)]">cell: {input.cell_id}</span>
         )}
-        <span className="rounded border border-[var(--accent-cool)]/30 bg-[var(--accent-cool)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--accent-cool)]">
+        <span className="rounded border border-[var(--info)]/30 bg-[var(--info)]/10 px-1.5 py-0.5 text-xs font-medium text-[var(--info)]">
           {cellType}
         </span>
         {editMode === 'delete' && (
-          <span className="rounded border border-[var(--error)]/30 bg-[var(--error-bg)] px-1.5 py-0.5 text-xs font-medium text-[var(--error)]">
+          <span className="rounded border border-[var(--danger)]/30 bg-[var(--danger-bg)] px-1.5 py-0.5 text-xs font-medium text-[var(--danger)]">
             delete
           </span>
         )}
@@ -40,7 +40,7 @@ export default function NotebookEditTool({ tool }: NotebookEditToolProps) {
 
       {editMode !== 'delete' && (
         <ExpandableContainer>
-          <pre className="overflow-x-auto rounded bg-[var(--paper-inset)]/50 px-2 py-1 font-mono text-sm break-words whitespace-pre-wrap text-[var(--ink-secondary)] select-text">
+          <pre className="overflow-x-auto rounded bg-[var(--inset)]/50 px-2 py-1 font-mono text-sm break-words whitespace-pre-wrap text-[var(--ink-2)] select-text">
             {input.new_source || ''}
           </pre>
         </ExpandableContainer>

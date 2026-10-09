@@ -51,7 +51,7 @@ describe('TerminalReasonBanner diagnostics action', () => {
     expect(screen.getByText(
       'The context reached its limit several times shortly after automatic compaction. Reduce file or tool output and try again; if it still fails, start a new chat.',
     )).toBeInTheDocument();
-    expect(container.firstChild).toHaveClass('bg-[var(--error-bg)]');
+    expect(container.firstChild).toHaveClass('bg-[var(--danger-bg)]');
 
     fireEvent.click(screen.getByRole('button', { name: 'Ask helper to diagnose' }));
     expect(onDiagnose).toHaveBeenCalledWith('rapid_refill_breaker');

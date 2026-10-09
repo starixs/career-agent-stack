@@ -48,8 +48,8 @@ export interface HelperModelPickerProps {
 
 const DEFAULT_TRIGGER_CLASS =
     'flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-sm font-medium ' +
-    'text-[var(--ink-muted)] transition-colors ' +
-    'hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]';
+    'text-[var(--muted)] transition-colors ' +
+    'hover:bg-[var(--inset)] hover:text-[var(--ink)]';
 
 /**
  * Resolve a sensible default `(providerId, model)` for surfaces that mount
@@ -142,7 +142,7 @@ export function HelperModelPicker({
                                     setOpen(false);
                                     onNavigateToProviders?.();
                                 }}
-                                className="w-full px-3 py-2.5 text-left text-sm text-[var(--accent)] transition-colors hover:bg-[var(--paper-inset)]"
+                                className="w-full px-3 py-2.5 text-left text-sm text-[var(--primary)] transition-colors hover:bg-[var(--inset)]"
                             >
                                 {t('helperModelPicker.configureModel')}
                             </button>
@@ -153,7 +153,7 @@ export function HelperModelPicker({
                             {idx > 0 && (
                                 <div className="mx-2 my-1 border-t border-[var(--line)]" />
                             )}
-                            <div className="px-3 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]/60">
+                            <div className="px-3 pb-0.5 pt-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]/60">
                                 {provider.name}
                             </div>
                             {provider.models.map(model => {
@@ -170,8 +170,8 @@ export function HelperModelPicker({
                                         }}
                                         className={`flex w-full items-center rounded-md px-3 py-1.5 text-left text-sm transition-colors ${
                                             isSelected
-                                                ? 'bg-[var(--accent)]/10 font-medium text-[var(--accent)]'
-                                                : 'text-[var(--ink)] hover:bg-[var(--paper-inset)]'
+                                                ? 'bg-[var(--primary)]/10 font-medium text-[var(--primary)]'
+                                                : 'text-[var(--ink)] hover:bg-[var(--inset)]'
                                         }`}
                                     >
                                         <span className="truncate">{model.modelName}</span>

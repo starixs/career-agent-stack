@@ -103,7 +103,7 @@ export function DropdownMenu({
           setOpen((v) => !v);
         }}
         title={triggerTitle}
-        className={`flex items-center justify-center text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-50 ${triggerCls}`}
+        className={`flex items-center justify-center text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-50 ${triggerCls}`}
       >
         <MoreHorizontal className={iconCls} />
       </button>
@@ -119,7 +119,7 @@ export function DropdownMenu({
         {nonEmpty.map((section, idx) => (
           <div key={idx}>
             {idx > 0 && (
-              <div className="my-1 border-t border-[var(--line-subtle)]" />
+              <div className="my-1 border-t border-[var(--line)]" />
             )}
             {section.items.map((item, i) => (
               <MenuItem
@@ -157,8 +157,8 @@ function MenuItem({
   const colour = className
     ? className
     : danger
-      ? 'text-[var(--error)] hover:bg-[var(--error-bg)]'
-      : 'text-[var(--ink-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]';
+      ? 'text-[var(--danger)] hover:bg-[var(--danger-bg)]'
+      : 'text-[var(--ink-2)] hover:bg-[var(--hover)] hover:text-[var(--ink)]';
   return (
     <button
       type="button"

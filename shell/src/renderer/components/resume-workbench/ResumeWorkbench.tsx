@@ -63,7 +63,7 @@ export function ResumeWorkbench({ initialResumeId }: { initialResumeId?: string 
   const [picked, setPicked] = useState<string | null>(initialResumeId ?? null);
   const resumeId = picked ?? options[0]?.id ?? null;
   if (!resumeId) {
-    return <div className="flex h-full items-center justify-center p-8 text-sm text-[var(--ink-muted)]">还没有简历。在对话里说「帮我生成主简历」，生成后会在这里打开。</div>;
+    return <div className="flex h-full items-center justify-center p-8 text-sm text-[var(--muted)]">还没有简历。在对话里说「帮我生成主简历」，生成后会在这里打开。</div>;
   }
   return <WorkbenchBody key={resumeId} resumeId={resumeId} options={options} onPick={setPicked} />;
 }
@@ -109,31 +109,31 @@ function WorkbenchBody({ resumeId, options, onPick }: { resumeId: string; option
   const onPages = useCallback(() => {}, []);
 
   const preview = useMemo(() => (doc.data ? (
-    <div className="h-full overflow-auto bg-[var(--paper-inset)]">
+    <div className="h-full overflow-auto bg-[var(--inset)]">
       <StudioPreview data={doc.data} preview={doc.preview} zoom={zoom} onPages={onPages} />
     </div>
   ) : null), [doc.data, doc.preview, zoom, onPages]);
 
-  if (doc.error && !doc.data) return <div role="alert" className="p-6 text-sm text-[var(--error)]">打开简历失败：{doc.error}</div>;
-  if (doc.loading || !doc.data) return <div className="flex h-full items-center justify-center text-sm text-[var(--ink-muted)]">正在打开简历…</div>;
+  if (doc.error && !doc.data) return <div role="alert" className="p-6 text-sm text-[var(--danger)]">打开简历失败：{doc.error}</div>;
+  if (doc.loading || !doc.data) return <div className="flex h-full items-center justify-center text-sm text-[var(--muted)]">正在打开简历…</div>;
   const data = doc.data;
 
   return (
     <div ref={rootRef} data-testid="resume-workbench" className="flex h-full min-h-0 flex-col">
       {/* 顶栏 */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line-subtle)] px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] px-3 py-2">
         <div className="w-64 max-w-full">
           <CustomSelect ariaLabel="选择简历版本" value={resumeId} options={options.length ? options.map(o => ({ value: o.id, label: o.label })) : [{ value: resumeId, label }]} onChange={v => { void doc.flush().then(() => onPick(v)); }} />
         </div>
-        <span data-testid="studio-save-state" className={`text-xs ${doc.saveState === 'error' ? 'text-[var(--error)]' : 'text-[var(--ink-muted)]'}`} title={doc.saveError ?? undefined}>{SAVE_LABEL[doc.saveState]}</span>
+        <span data-testid="studio-save-state" className={`text-xs ${doc.saveState === 'error' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`} title={doc.saveError ?? undefined}>{SAVE_LABEL[doc.saveState]}</span>
         <div className="ml-auto flex items-center gap-1">
           <Button variant="ghost" aria-label="撤销" title="撤销（⌘Z）" disabled={!doc.canUndo} onClick={doc.undo}><Undo2 className="h-3.5 w-3.5" /></Button>
           <Button variant="ghost" aria-label="重做" title="重做（⇧⌘Z）" disabled={!doc.canRedo} onClick={doc.redo}><Redo2 className="h-3.5 w-3.5" /></Button>
-          <span className="mx-1 h-4 w-px bg-[var(--line-subtle)]" />
+          <span className="mx-1 h-4 w-px bg-[var(--line)]" />
           <Button variant="ghost" aria-label="缩小" onClick={() => zoomStep(-1)}><Minus className="h-3.5 w-3.5" /></Button>
-          <span className="w-10 text-center text-xs tabular-nums text-[var(--ink-muted)]">{Math.round(zoom * 100)}%</span>
+          <span className="w-10 text-center text-xs tabular-nums text-[var(--muted)]">{Math.round(zoom * 100)}%</span>
           <Button variant="ghost" aria-label="放大" onClick={() => zoomStep(1)}><Plus className="h-3.5 w-3.5" /></Button>
-          <span className="mx-1 h-4 w-px bg-[var(--line-subtle)]" />
+          <span className="mx-1 h-4 w-px bg-[var(--line)]" />
           <Button variant="ghost" title="让助理按岗位或你的要求改这份简历" onClick={() => suggestToChat(`帮我看看这份简历哪里可以改得更好（${label}）`)}><Sparkles className="h-3.5 w-3.5" />让助理改</Button>
           <Button variant="primary" busy={exporting === 'pdf'} disabled={exporting !== null} onClick={() => void doExport('pdf')}>导出 PDF</Button>
           <Button busy={exporting === 'docx'} disabled={exporting !== null} onClick={() => void doExport('docx')}>Word</Button>
@@ -141,25 +141,25 @@ function WorkbenchBody({ resumeId, options, onPick }: { resumeId: string; option
         </div>
       </div>
       {(exported || exportError) && (
-        <div className="flex items-center gap-2 border-b border-[var(--line-subtle)] bg-[var(--paper-inset)] px-3 py-1.5 text-xs">
+        <div className="flex items-center gap-2 border-b border-[var(--line)] bg-[var(--inset)] px-3 py-1.5 text-xs">
           {exportError
-            ? <span role="alert" className="text-[var(--error)]">导出失败：{exportError}</span>
-            : <><span className="truncate text-[var(--ink-muted)]">已导出：{exported!.path}</span><Button variant="ghost" onClick={() => void openExternal(fileDirname(exported!.path))}><FolderOpen className="h-3.5 w-3.5" />打开文件夹</Button></>}
+            ? <span role="alert" className="text-[var(--danger)]">导出失败：{exportError}</span>
+            : <><span className="truncate text-[var(--muted)]">已导出：{exported!.path}</span><Button variant="ghost" onClick={() => void openExternal(fileDirname(exported!.path))}><FolderOpen className="h-3.5 w-3.5" />打开文件夹</Button></>}
         </div>
       )}
 
       {wide ? (
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(340px,400px)_minmax(0,1fr)_300px]">
-          <div className="min-h-0 overflow-y-auto border-r border-[var(--line-subtle)] p-3"><SectionsPanel data={data} update={doc.update} /></div>
+          <div className="min-h-0 overflow-y-auto border-r border-[var(--line)] p-3"><SectionsPanel data={data} update={doc.update} /></div>
           <div className="min-h-0">{preview}</div>
-          <div className="min-h-0 overflow-y-auto border-l border-[var(--line-subtle)]"><DesignPanel data={data} update={doc.update} /></div>
+          <div className="min-h-0 overflow-y-auto border-l border-[var(--line)]"><DesignPanel data={data} update={doc.update} /></div>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <div role="tablist" aria-label="工作台视图" className="flex gap-1 border-b border-[var(--line-subtle)] px-3">
+          <div role="tablist" aria-label="工作台视图" className="flex gap-1 border-b border-[var(--line)] px-3">
             {([['content', '内容'], ['preview', '预览'], ['design', '模板与设计']] as const).map(([key, text]) => (
               <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => setTab(key)}
-                className={`border-b-2 px-3 py-2 text-sm ${tab === key ? 'border-[var(--accent)] text-[var(--ink)]' : 'border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}>{text}</button>
+                className={`border-b-2 px-3 py-2 text-sm ${tab === key ? 'border-[var(--primary)] text-[var(--ink)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'}`}>{text}</button>
             ))}
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">

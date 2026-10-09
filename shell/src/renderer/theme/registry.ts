@@ -24,16 +24,7 @@ import {
   type ThemeCssBlock,
 } from './stylesheet-contract';
 import type { ResolvedTheme, ThemeDefinition, ThemePreviewSwatches } from './types';
-import { absolutelyThemeManifest } from './themes/absolutely';
-import { codexThemeManifest } from './themes/codex';
-import { defaultBlackThemeManifest } from './themes/default-black';
-import { linearThemeManifest } from './themes/linear';
-import { keystoneLightThemeManifest } from './themes/keystone-light';
-import { keystoneDefaultTheme } from './themes/keystone-default';
-import { createPresetTheme, type PresetThemeManifest } from './themes/preset-theme';
-import { proofThemeManifest } from './themes/proof';
-import { raycastThemeManifest } from './themes/raycast';
-import { sageThemeManifest } from './themes/sage';
+import { careerTheme } from './themes/career';
 
 export { REQUIRED_THEME_CSS_TOKENS, REQUIRED_WIDGET_CSS_VARIABLES } from './registry-contract';
 
@@ -268,18 +259,11 @@ function resolveTokenValue(
 function themeTokenProperty(token: string): string {
   if (token.startsWith('--font-')) return 'font-family';
   if (token.startsWith('--radius-') || token.startsWith('--theme-radius-')) return 'border-radius';
-  if (token.startsWith('--duration-')) return 'transition-duration';
-  if (token === '--theme-body-background' || token === '--featured-card-background') return 'background';
-  if (token === '--theme-body-texture') return 'background-image';
-  if (token === '--theme-body-texture-opacity') return 'opacity';
-  if (token === '--theme-body-texture-blend') return 'mix-blend-mode';
+  if (token.startsWith('--motion-')) return 'transition-duration';
   if (
     token.startsWith('--shadow-')
     || token.startsWith('--theme-shadow-')
-    || token.startsWith('--action-shadow')
-    || token.startsWith('--tool-shadow')
     || token === '--fb-window-shadow'
-    || token === '--featured-card-shadow'
   ) return 'box-shadow';
   return 'color';
 }
@@ -411,7 +395,7 @@ function validateStylesheet(definition: ThemeDefinition): ThemePreviewSwatches {
     if (missingTokens.length > 0) {
       throw new Error(`[theme] ${definition.id}.${scheme}: stylesheet missing CSS tokens: ${missingTokens.join(', ')}`);
     }
-    const primary = resolveTokenValue(effectiveTokens, '--button-primary-bg');
+    const primary = resolveTokenValue(effectiveTokens, '--primary');
     if (primary === null || !isLiteralCssColor(primary)) {
       throw new Error(`[theme] ${definition.id}.${scheme}: preview primary color is invalid`);
     }
@@ -718,46 +702,5 @@ export interface OptionalThemeFactory {
   readonly create: () => ThemeDefinition;
 }
 
-function presetFactory(manifest: PresetThemeManifest): OptionalThemeFactory {
-  return {
-    id: manifest.id,
-    create: () => createPresetTheme(manifest),
-  };
-}
-
-const defaultBlackFactory: OptionalThemeFactory = {
-  id: defaultBlackThemeManifest.id,
-  create: () => ({
-    ...defaultBlackThemeManifest,
-    hero: keystoneDefaultTheme.hero,
-    schemes: keystoneDefaultTheme.schemes,
-  }),
-};
-
-/** Production catalog order is also the product order shown by Settings. */
-export const themeRegistry = new ThemeRegistry(
-  [keystoneDefaultTheme],
-  [
-    defaultBlackFactory,
-    ...[
-      keystoneLightThemeManifest,
-      sageThemeManifest,
-      absolutelyThemeManifest,
-      linearThemeManifest,
-      proofThemeManifest,
-      codexThemeManifest,
-      raycastThemeManifest,
-    ].map(presetFactory),
-  ],
-  [
-    keystoneLightThemeManifest.id,
-    keystoneDefaultTheme.id,
-    defaultBlackThemeManifest.id,
-    sageThemeManifest.id,
-    absolutelyThemeManifest.id,
-    linearThemeManifest.id,
-    proofThemeManifest.id,
-    codexThemeManifest.id,
-    raycastThemeManifest.id,
-  ],
-);
+/** The product ships exactly one Theme; appearance mode chooses light or dark. */
+export const themeRegistry = new ThemeRegistry([careerTheme]);

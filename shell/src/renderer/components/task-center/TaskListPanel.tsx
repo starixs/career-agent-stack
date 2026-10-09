@@ -547,7 +547,7 @@ export function TaskListPanel({
         <div className={`${searchActive ? 'hidden @[720px]:flex' : 'flex'} shrink-0 items-center gap-2`}>
           {/* `relative top-[1px]` keeps optical centering consistent with
               ThoughtPanel's Lightbulb — see the comment there. */}
-          <CheckSquare className="relative top-[1px] h-4 w-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
+          <CheckSquare className="relative top-[1px] h-4 w-4 text-[var(--muted)]" strokeWidth={1.5} />
           <span className="whitespace-nowrap text-base font-semibold text-[var(--ink)]">
             {t('tasks.title')}
           </span>
@@ -564,12 +564,12 @@ export function TaskListPanel({
               type="button"
               onClick={onCreateTask}
               aria-label={t('tasks.newTask')}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] @[720px]:w-auto @[720px]:gap-1 @[720px]:px-2.5"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-xs text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] @[720px]:w-auto @[720px]:gap-1 @[720px]:px-2.5"
             >
               <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
               <span className="sr-only @[720px]:not-sr-only">{t('tasks.new')}</span>
             </button>
-            <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-[var(--ink)] px-2 py-1 text-xs font-medium text-[var(--paper)] opacity-0 shadow-md transition-opacity duration-150 group-hover/newTask:opacity-100">
+            <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1.5 -translate-x-1/2 whitespace-nowrap rounded-md bg-[var(--ink)] px-2 py-1 text-xs font-medium text-[var(--bg)] opacity-0 shadow-md transition-opacity duration-150 group-hover/newTask:opacity-100">
               {t('tasks.newTask')}
             </span>
           </div>
@@ -580,7 +580,7 @@ export function TaskListPanel({
               in that case and would just eat header width. */}
           {workspaceOptions.length > 2 && (
             <CustomSelect
-              className={`${searchActive ? 'hidden @[720px]:block' : 'block'} w-7 @[720px]:w-[160px] [&>button]:h-7 [&>button]:justify-center [&>button]:!rounded-full [&>button]:!border-transparent [&>button]:!bg-[var(--paper-inset)] [&>button]:!p-0 [&>button]:active:scale-[0.97] @[720px]:[&>button]:justify-start @[720px]:[&>button]:!rounded-lg @[720px]:[&>button]:!border-[var(--line)] @[720px]:[&>button]:!bg-[var(--paper)] @[720px]:[&>button]:!px-2 [&>button>span:nth-of-type(2)]:sr-only @[720px]:[&>button>span:nth-of-type(2)]:not-sr-only [&>button>svg]:hidden @[720px]:[&>button>svg]:block`}
+              className={`${searchActive ? 'hidden @[720px]:block' : 'block'} w-7 @[720px]:w-[160px] [&>button]:h-7 [&>button]:justify-center [&>button]:!rounded-full [&>button]:!border-transparent [&>button]:!bg-[var(--inset)] [&>button]:!p-0 [&>button]:active:scale-[0.97] @[720px]:[&>button]:justify-start @[720px]:[&>button]:!rounded-lg @[720px]:[&>button]:!border-[var(--line)] @[720px]:[&>button]:!bg-[var(--bg)] @[720px]:[&>button]:!px-2 [&>button>span:nth-of-type(2)]:sr-only @[720px]:[&>button>span:nth-of-type(2)]:not-sr-only [&>button>svg]:hidden @[720px]:[&>button>svg]:block`}
               value={workspaceFilter}
               options={workspaceOptions}
               onChange={(nextWorkspace) => {
@@ -621,7 +621,7 @@ export function TaskListPanel({
       <div className="@container flex-1 overflow-y-auto px-4 py-3">
         {routeLoadError && pendingRoute?.route.name === 'task.comment' && (
           <div
-            className="mb-3 flex items-center gap-3 rounded-lg border border-[var(--error)]/30 bg-[var(--error-bg)] px-3 py-2 text-xs text-[var(--error)]"
+            className="mb-3 flex items-center gap-3 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger-bg)] px-3 py-2 text-xs text-[var(--danger)]"
             role="alert"
           >
             <span className="min-w-0 flex-1">{routeLoadError}</span>
@@ -635,11 +635,11 @@ export function TaskListPanel({
           </div>
         )}
         {loading ? (
-          <div className="py-8 text-center text-sm text-[var(--ink-muted)]">
+          <div className="py-8 text-center text-sm text-[var(--muted)]">
             {t('common.loading')}
           </div>
         ) : totalCount === 0 ? (
-          <div className="py-12 text-center text-sm text-[var(--ink-muted)]">
+          <div className="py-12 text-center text-sm text-[var(--muted)]">
             {t('tasks.empty')}
           </div>
         ) : (
@@ -670,7 +670,7 @@ export function TaskListPanel({
                     <button
                       type="button"
                       onClick={() => setFinishedVisibleCount((count) => count + FINISHED_LIST_PAGE_SIZE)}
-                      className="mt-1 rounded-[var(--radius-md)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] active:translate-y-px"
+                      className="mt-1 rounded-[var(--radius-md)] px-3 py-1.5 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] active:translate-y-px"
                     >
                       {t('tasks.loadMore')}
                     </button>
@@ -736,13 +736,13 @@ export function TaskListPanel({
 function BucketHeader({ label, count }: { label: string; count: number }) {
   return (
     <div className="mb-2 flex items-center gap-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--ink-muted)]">
+      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
         {label}
       </span>
-      <span className="text-xs tabular-nums text-[var(--ink-subtle)]">
+      <span className="text-xs tabular-nums text-[var(--subtle)]">
         {count}
       </span>
-      <span className="ml-1 h-px flex-1 bg-[var(--line-subtle)]" aria-hidden />
+      <span className="ml-1 h-px flex-1 bg-[var(--line)]" aria-hidden />
     </div>
   );
 }

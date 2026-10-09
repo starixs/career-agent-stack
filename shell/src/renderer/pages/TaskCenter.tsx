@@ -203,13 +203,13 @@ export default function TaskCenter({
 
   if (!taskCenterAvailable()) {
     return (
-      <div className="flex h-full items-center justify-center bg-[var(--paper)] px-8 text-center">
-        <div className="max-w-md text-sm leading-relaxed text-[var(--ink-muted)]">
-          <p className="font-medium text-[var(--ink-secondary)]">
+      <div className="flex h-full items-center justify-center bg-[var(--bg)] px-8 text-center">
+        <div className="max-w-md text-sm leading-relaxed text-[var(--muted)]">
+          <p className="font-medium text-[var(--ink-2)]">
             {t('center.title')}
           </p>
           <p className="mt-2">{t('center.desktopOnly')}</p>
-          <p className="mt-2 text-[var(--ink-muted)]/70">
+          <p className="mt-2 text-[var(--muted)]/70">
             {t('center.desktopUnavailable')}
           </p>
         </div>
@@ -218,7 +218,7 @@ export default function TaskCenter({
   }
 
   return (
-    <div className="flex h-full flex-col bg-[var(--paper)]">
+    <div className="flex h-full flex-col bg-[var(--bg)]">
       {recordingSourceDialog && (
         <RecordingSourceDialog
           mode="start"
@@ -278,7 +278,7 @@ export default function TaskCenter({
             like a continuous surface rather than two pages cut apart.
             A full --line (10%) reads heavier than the card borders, which
             made the split feel over-emphasized. */}
-        <div className="w-px bg-[var(--line-subtle)]" />
+        <div className="w-px bg-[var(--line)]" />
 
         {/* Right: Task list */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

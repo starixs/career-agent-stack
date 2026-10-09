@@ -45,7 +45,7 @@ const LauncherTabRenderer = memo(function LauncherTabRenderer({
   binding: LauncherRenderBinding;
 }) {
   if (isDeferred) {
-    return <div className="h-full w-full bg-[var(--paper)]" />;
+    return <div className="h-full w-full bg-[var(--bg)]" />;
   }
   return (
     <Suspense fallback={PAGE_FALLBACK}>

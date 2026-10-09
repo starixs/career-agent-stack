@@ -177,11 +177,11 @@ export default function RuntimeDiagnosticsBanner({
                     <div className="font-semibold">
                       {t('shell.runtimeDiagnostics.sections.extensions')} [{diagnostics.extensions.state}]
                     </div>
-                    <div className="text-[var(--ink-muted)] font-mono text-xs leading-tight">
+                    <div className="text-[var(--muted)] font-mono text-xs leading-tight">
                       desired: {diagnostics.extensions.desiredRevision.slice(0, 12) || '(none)'} • effective: {diagnostics.extensions.effectiveRevision?.slice(0, 12) ?? '(none)'}
                     </div>
                     {assessment.failedExtensionComponents.length > 0 && (
-                      <ul className="list-disc pl-4 mt-1 space-y-0.5 text-[var(--ink-muted)]">
+                      <ul className="list-disc pl-4 mt-1 space-y-0.5 text-[var(--muted)]">
                         {assessment.failedExtensionComponents.map((item, index) => (
                           <li key={`${item.component}:${item.id ?? ''}:${item.code}:${index}`}>
                             {t('shell.runtimeDiagnostics.problems.extensionComponent', {
@@ -203,7 +203,7 @@ export default function RuntimeDiagnosticsBanner({
                   {t('shell.runtimeDiagnostics.sections.auth')} [{renderStatusLabel(diagnostics.status.auth, t)}]
                 </div>
                 {diagnostics.auth && (
-                  <div className="text-[var(--ink-muted)]">
+                  <div className="text-[var(--muted)]">
                     method: {diagnostics.auth.authMethod ?? '(null)'}
                     {diagnostics.auth.requiresLogin && t('shell.runtimeDiagnostics.requiresLoginSuffix')}
                   </div>
@@ -215,7 +215,7 @@ export default function RuntimeDiagnosticsBanner({
                   {t('shell.runtimeDiagnostics.sections.featureFlags')} [{renderStatusLabel(diagnostics.status.features, t)}]
                 </div>
                 {diagnostics.features && diagnostics.features.length > 0 && (
-                  <div className="text-[var(--ink-muted)] flex flex-wrap gap-x-2 gap-y-0.5">
+                  <div className="text-[var(--muted)] flex flex-wrap gap-x-2 gap-y-0.5">
                     {diagnostics.features.slice(0, 12).map(f => (
                       <span key={f.name} className={f.enabled ? '' : 'opacity-60 line-through'}>
                         {f.name}
@@ -231,7 +231,7 @@ export default function RuntimeDiagnosticsBanner({
                   {t('shell.runtimeDiagnostics.sections.mcpServers')} [{renderStatusLabel(diagnostics.status.mcpServers, t)}]
                 </div>
                 {diagnostics.mcpServers && diagnostics.mcpServers.length > 0 && (
-                  <ul className="list-disc pl-4 space-y-0.5 text-[var(--ink-muted)]">
+                  <ul className="list-disc pl-4 space-y-0.5 text-[var(--muted)]">
                     {diagnostics.mcpServers.map(s => (
                       <li key={s.name}>
                         {s.name} • tools={s.toolCount} resources={s.resourceCount ?? 0}
@@ -248,7 +248,7 @@ export default function RuntimeDiagnosticsBanner({
                   {t('shell.runtimeDiagnostics.sections.apps')} [{renderStatusLabel(diagnostics.status.apps, t)}]
                 </div>
                 {diagnostics.apps && diagnostics.apps.length > 0 && (
-                  <ul className="list-disc pl-4 space-y-0.5 text-[var(--ink-muted)]">
+                  <ul className="list-disc pl-4 space-y-0.5 text-[var(--muted)]">
                     {diagnostics.apps.map(a => (
                       <li
                         key={a.id}
@@ -268,7 +268,7 @@ export default function RuntimeDiagnosticsBanner({
 
               <div>
                 <div className="font-semibold">{t('shell.runtimeDiagnostics.sections.effectiveEnv')}</div>
-                <div className="text-[var(--ink-muted)] font-mono text-xs leading-tight">
+                <div className="text-[var(--muted)] font-mono text-xs leading-tight">
                   <div>cwd: {diagnostics.effectiveEnv.cwd}</div>
                   <div>HTTP_PROXY:  {diagnostics.effectiveEnv.proxy?.http ?? '(unset)'}</div>
                   <div>HTTPS_PROXY: {diagnostics.effectiveEnv.proxy?.https ?? '(unset)'}</div>
@@ -287,7 +287,7 @@ export default function RuntimeDiagnosticsBanner({
                 </div>
               </div>
 
-              <div className="text-xs text-[var(--ink-muted)] italic">
+              <div className="text-xs text-[var(--muted)] italic">
                 {t('shell.runtimeDiagnostics.snapshot', { timestamp: diagnostics.timestamp })}
                 <code className="ml-1">keystone diagnose runtime {diagnostics.runtime}</code>
               </div>
@@ -298,7 +298,7 @@ export default function RuntimeDiagnosticsBanner({
           <button
             type="button"
             onClick={() => onDiagnose(diagnostics)}
-            className="rounded p-0.5 text-[var(--ink-subtle)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--accent)]"
+            className="rounded p-0.5 text-[var(--subtle)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--primary)]"
             title={t('shell.diagnostics.askHelper')}
             aria-label={t('shell.diagnostics.askHelper')}
           >
@@ -312,7 +312,7 @@ export default function RuntimeDiagnosticsBanner({
           onClick={() => setDismissed(true)}
           aria-label={t('shell.common.close')}
           title={t('shell.runtimeDiagnostics.closeTitle')}
-          className="flex-shrink-0 rounded p-0.5 text-[var(--ink-muted)] hover:bg-[var(--paper-hover)] hover:text-[var(--ink)]"
+          className="flex-shrink-0 rounded p-0.5 text-[var(--muted)] hover:bg-[var(--paper-hover)] hover:text-[var(--ink)]"
         >
           <X className="h-3.5 w-3.5" />
         </button>

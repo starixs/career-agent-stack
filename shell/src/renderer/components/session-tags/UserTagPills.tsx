@@ -22,7 +22,7 @@ function TagButton({ name, onClick }: { name: string; onClick: () => void }) {
                 event.stopPropagation();
                 onClick();
             }}
-            className="inline-flex h-5 max-w-28 shrink-0 items-center truncate rounded-full border border-[var(--accent)]/20 bg-[var(--accent-warm-subtle)] px-2 text-xs font-medium text-[var(--accent)] transition-colors hover:border-[var(--accent)]/35 hover:bg-[var(--accent-warm-subtle)]/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
+            className="inline-flex h-5 max-w-28 shrink-0 items-center truncate rounded-full border border-[var(--primary)]/20 bg-[var(--primary-soft)] px-2 text-xs font-medium text-[var(--primary)] transition-colors hover:border-[var(--primary)]/35 hover:bg-[var(--primary-soft)]/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
         >
             <span className="truncate">{name}</span>
         </button>
@@ -66,7 +66,7 @@ export default function UserTagPills({
                             event.stopPropagation();
                             setOverflowOpen((current) => !current);
                         }}
-                        className="inline-flex h-5 shrink-0 items-center rounded-full border border-[var(--line)] bg-[var(--paper-inset)] px-1.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/25"
+                        className="inline-flex h-5 shrink-0 items-center rounded-full border border-[var(--line)] bg-[var(--inset)] px-1.5 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/25"
                     >
                         +{overflow.length}
                     </button>

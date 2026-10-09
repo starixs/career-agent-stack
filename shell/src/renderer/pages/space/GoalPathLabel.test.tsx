@@ -22,7 +22,7 @@ describe("GoalPathLabel", () => {
 
     const label = screen.getByTitle("keystone社区 / keystone BUGFIX");
     expect(within(label).getByText("keystone社区")).toHaveClass(
-      "text-[var(--ink-muted)]/75",
+      "text-[var(--muted)]/75",
     );
     const leaf = within(label).getByText("keystone BUGFIX");
     expect(leaf).toHaveClass("font-normal", "text-[var(--ink)]");
@@ -40,7 +40,7 @@ describe("GoalPathLabel", () => {
 
     const label = screen.getByTitle(fullLabel);
     expect(within(label).getByText("../keystone BUGFIX")).toHaveClass(
-      "text-[var(--ink-muted)]/75",
+      "text-[var(--muted)]/75",
     );
     expect(within(label).getByText("Windows 系统兼容性优化")).toHaveClass(
       "font-normal",
@@ -75,7 +75,7 @@ describe("GoalPathLabel", () => {
 
     const label = screen.getByTitle(fullLabel);
     expect(within(label).getByText("../Platform")).toHaveClass(
-      "text-[var(--ink-muted)]/75",
+      "text-[var(--muted)]/75",
     );
     expect(within(label).getByText("Docs/API polish")).toHaveClass(
       "font-normal",

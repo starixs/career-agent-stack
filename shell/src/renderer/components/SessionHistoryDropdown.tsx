@@ -431,7 +431,7 @@ export default function SessionHistoryDropdown({
                 anchorRef={triggerRef}
                 placement="bottom-end"
                 zIndex={50}
-                className="w-96 bg-[var(--paper)] shadow-lg"
+                className="w-96 bg-[var(--bg)] shadow-lg"
             >
                 {/* Header */}
                 <div className="border-b border-[var(--line)] px-4 py-2">
@@ -446,7 +446,7 @@ export default function SessionHistoryDropdown({
                             <button
                                 type="button"
                                 onClick={() => setShowAutomationSessions(value => !value)}
-                                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                                className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                                 aria-label={showAutomationSessions
                                     ? t('shell.history.automationVisible')
                                     : t('shell.history.automationHidden')}
@@ -461,7 +461,7 @@ export default function SessionHistoryDropdown({
 
                 {/* Delete error toast */}
                 {deleteError && (
-                    <div className="border-b border-[var(--error)]/20 bg-[var(--error)]/10 px-4 py-2 text-xs text-[var(--error)]">
+                    <div className="border-b border-[var(--danger)]/20 bg-[var(--danger)]/10 px-4 py-2 text-xs text-[var(--danger)]">
                         {deleteError}
                     </div>
                 )}
@@ -469,11 +469,11 @@ export default function SessionHistoryDropdown({
                 {/* Session list */}
                 <div className="h-80 overflow-y-auto">
                     {isLoading ? (
-                        <div className="flex h-full items-center justify-center px-4 text-center text-sm text-[var(--ink-muted)]">
+                        <div className="flex h-full items-center justify-center px-4 text-center text-sm text-[var(--muted)]">
                             {t('shell.history.loading')}
                         </div>
                     ) : sortedSessions.length === 0 ? (
-                        <div className="flex h-full items-center justify-center px-4 text-center text-sm text-[var(--ink-muted)]">
+                        <div className="flex h-full items-center justify-center px-4 text-center text-sm text-[var(--muted)]">
                             {t('shell.history.empty')}
                         </div>
                     ) : (
@@ -493,10 +493,10 @@ export default function SessionHistoryDropdown({
                                 <div
                                     key={session.id}
                                     className={`group relative cursor-pointer transition-colors ${isCurrent
-                                        ? 'bg-[var(--accent)]/10'
+                                        ? 'bg-[var(--primary)]/10'
                                         : menuOpen
-                                            ? 'bg-[var(--hover-bg)]'
-                                            : 'hover:bg-[var(--hover-bg)]'
+                                            ? 'bg-[var(--hover)]'
+                                            : 'hover:bg-[var(--hover)]'
                                         }`}
                                     onClick={() => {
                                         if (!isCurrent) {
@@ -513,7 +513,7 @@ export default function SessionHistoryDropdown({
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
                                                 {isCurrent && (
-                                                    <span className="flex-shrink-0 rounded bg-[var(--accent)]/20 px-1.5 py-0.5 text-xs font-medium text-[var(--accent)]">
+                                                    <span className="flex-shrink-0 rounded bg-[var(--primary)]/20 px-1.5 py-0.5 text-xs font-medium text-[var(--primary)]">
                                                         {t('shell.history.current')}
                                                     </span>
                                                 )}
@@ -524,11 +524,11 @@ export default function SessionHistoryDropdown({
                                                     count={unreadNotificationCount}
                                                     label={t('shell.history.unreadNotifications', { count: unreadNotificationCount })}
                                                 />
-                                                <span className={`truncate text-sm ${isCurrent ? 'font-medium text-[var(--accent)]' : 'text-[var(--ink)]'}`}>
+                                                <span className={`truncate text-sm ${isCurrent ? 'font-medium text-[var(--primary)]' : 'text-[var(--ink)]'}`}>
                                                     {displayText}
                                                 </span>
                                             </div>
-                                            <div className="mt-1 flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+                                            <div className="mt-1 flex items-center gap-2 text-xs text-[var(--muted)]">
                                                 <span className="flex items-center gap-1">
                                                     <Clock className="h-3 w-3" />
                                                     {formatTime(session.lastActiveAt, new Date(), locale)}
@@ -555,14 +555,14 @@ export default function SessionHistoryDropdown({
                                             ? 'pointer-events-auto opacity-100'
                                             : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
                                     }`}>
-                                        <div className="h-full w-10 bg-gradient-to-r from-[var(--paper-inset-a0)] to-[var(--paper-inset)]" />
-                                        <div className="flex h-full items-center gap-1 bg-[var(--paper-inset)] pr-3">
+                                        <div className="h-full w-10 bg-gradient-to-r from-[var(--inset-a0)] to-[var(--inset)]" />
+                                        <div className="flex h-full items-center gap-1 bg-[var(--inset)] pr-3">
                                             {onOpenInNewTab && (
                                                 <Tip label={t('shell.history.openInNewTab')} position="bottom">
                                                     <button
                                                         type="button"
                                                         aria-label={t('shell.history.openInNewTab')}
-                                                        className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--ink)]"
+                                                        className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--ink)]"
                                                         onClick={(e) => handleOpenInNewTab(e, session)}
                                                     >
                                                         <SquareArrowOutUpRight className="h-3.5 w-3.5" />
@@ -575,10 +575,10 @@ export default function SessionHistoryDropdown({
                                                     aria-label={t('shell.history.moreActions')}
                                                     aria-haspopup="menu"
                                                     aria-expanded={menuOpen}
-                                                    className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--paper)] ${
+                                                    className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-[var(--bg)] ${
                                                         menuOpen
-                                                            ? 'bg-[var(--paper)] text-[var(--ink)]'
-                                                            : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                                                            ? 'bg-[var(--bg)] text-[var(--ink)]'
+                                                            : 'text-[var(--muted)] hover:text-[var(--ink)]'
                                                     }`}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -631,7 +631,7 @@ export default function SessionHistoryDropdown({
                             label={t('shell.history.viewStats')}
                             onClick={() => { closeMenu(); handleShowStats(menuSession); }}
                         />
-                        <div className="my-1 border-t border-[var(--line-subtle)]" />
+                        <div className="my-1 border-t border-[var(--line)]" />
                         <MenuItem
                             icon={<Trash2 className="h-3.5 w-3.5" />}
                             label={t('shell.history.delete')}

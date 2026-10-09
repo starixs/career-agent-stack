@@ -5,7 +5,7 @@ export function TaskTriggerBadge({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation('task');
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--line-subtle)] bg-[var(--paper-inset)] font-medium text-[var(--ink-muted)] ${
+      className={`inline-flex shrink-0 items-center gap-1 rounded-md border border-[var(--line)] bg-[var(--inset)] font-medium text-[var(--muted)] ${
         compact ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-1 text-xs'
       }`}
       title={t('trigger.badgeTitle')}

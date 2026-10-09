@@ -142,7 +142,7 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
       <div className="flex h-full flex-col">
         {/* Action Bar */}
         {!loading && (exists || isEditing) && (
-          <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--line)] bg-[var(--paper-inset)]/30 px-6 py-2">
+          <div className="flex flex-shrink-0 items-center justify-between border-b border-[var(--line)] bg-[var(--inset)]/30 px-6 py-2">
             <div className="flex items-center gap-2">
               <FileIcon name={FILENAME} size="regular" />
               <span className="text-sm font-medium text-[var(--ink)]">{FILENAME}</span>
@@ -153,7 +153,7 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
                   <button
                     type="button"
                     onClick={() => setDeleteConfirm(true)}
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--error)]/10 hover:text-[var(--error)]"
+                    className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--danger)]/10 hover:text-[var(--danger)]"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     {t('agentSettings.common.delete')}
@@ -161,7 +161,7 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
                   <button
                     type="button"
                     onClick={handleCancel}
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+                    className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--muted)] hover:bg-[var(--inset)]"
                   >
                     <X className="h-3.5 w-3.5" />
                     {t('agentSettings.common.cancel')}
@@ -170,7 +170,7 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
                     type="button"
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center gap-1 rounded-lg bg-[var(--button-primary-bg)] px-2.5 py-1 text-xs font-medium text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:opacity-50"
+                    className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-2.5 py-1 text-xs font-medium text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:opacity-50"
                   >
                     {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                     {t('agentSettings.common.save')}
@@ -181,7 +181,7 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
                   <button
                     type="button"
                     onClick={() => setDeleteConfirm(true)}
-                    className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--error)]/10 hover:text-[var(--error)]"
+                    className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--danger)]/10 hover:text-[var(--danger)]"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     {t('agentSettings.common.delete')}
@@ -189,7 +189,7 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
                   <button
                     type="button"
                     onClick={handleEdit}
-                    className="flex items-center gap-1 rounded-lg bg-[var(--button-dark-bg)] px-2.5 py-1 text-xs font-medium text-[var(--button-dark-text)] transition-colors hover:bg-[var(--button-dark-bg-hover)]"
+                    className="flex items-center gap-1 rounded-lg bg-[var(--ink)] px-2.5 py-1 text-xs font-medium text-[var(--bg)] transition-colors hover:bg-[var(--ink-2)]"
                   >
                     <Edit2 className="h-3.5 w-3.5" />
                     {t('agentSettings.common.edit')}
@@ -204,7 +204,7 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
         <div className="flex-1 overflow-hidden">
           {loading ? (
             <div className="flex h-full items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-[var(--ink-muted)]" />
+              <Loader2 className="h-8 w-8 animate-spin text-[var(--muted)]" />
             </div>
           ) : !exists && !isEditing ? (
             // Mirrors the SystemPromptsPanel CLAUDE.md empty state — single "手动创建"
@@ -214,7 +214,7 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
                 <p className="text-lg font-semibold text-[var(--ink)]">
                   {t('agentSettings.introduction.emptyTitle')}
                 </p>
-                <p className="mt-1.5 text-sm text-[var(--ink-muted)]">
+                <p className="mt-1.5 text-sm text-[var(--muted)]">
                   {t('agentSettings.introduction.emptyDescription')}
                 </p>
               </div>
@@ -222,20 +222,20 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
                 <button
                   type="button"
                   onClick={handleCreate}
-                  className="group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper-elevated)] px-4 py-3.5 text-left transition-shadow hover:shadow-sm"
+                  className="group flex cursor-pointer flex-col gap-1.5 rounded-xl bg-[var(--paper)] px-4 py-3.5 text-left transition-shadow hover:shadow-sm"
                 >
                   <div className="flex items-center gap-2">
                     <Edit2 className="h-4 w-4 shrink-0 text-amber-500" />
                     <h4 className="text-base font-semibold text-[var(--ink)]">{t('agentSettings.introduction.manualTitle')}</h4>
                   </div>
-                  <p className="text-sm leading-relaxed text-[var(--ink-muted)]">
+                  <p className="text-sm leading-relaxed text-[var(--muted)]">
                     {t('agentSettings.introduction.manualDescription')}
                   </p>
                 </button>
               </div>
             </div>
           ) : isEditing ? (
-            <div className="h-full bg-[var(--paper)]">
+            <div className="h-full bg-[var(--bg)]">
               <MonacoEditor
                 value={editContent}
                 onChange={setEditContent}
@@ -243,13 +243,13 @@ const IntroductionPanel = forwardRef<IntroductionPanelRef, IntroductionPanelProp
               />
             </div>
           ) : (
-            <div className="h-full overflow-auto bg-[var(--paper-elevated)] p-6">
+            <div className="h-full overflow-auto bg-[var(--paper)] p-6">
               {content.trim() ? (
                 <div className="introduction-content">
                   <Markdown raw>{content}</Markdown>
                 </div>
               ) : (
-                <span className="text-sm text-[var(--ink-muted)]/60">
+                <span className="text-sm text-[var(--muted)]/60">
                   {t('agentSettings.common.emptyContent')}
                 </span>
               )}

@@ -220,8 +220,8 @@ export default function BotPlatformRegistry({
         { npmSpec: plugin.npmSpec },
       ),
       iconElement: (
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-warm-subtle)]">
-          <Puzzle className="h-6 w-6 text-[var(--accent-warm)]" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--primary-soft)]">
+          <Puzzle className="h-6 w-6 text-[var(--primary)]" />
         </div>
       ),
       plugin,
@@ -239,7 +239,7 @@ export default function BotPlatformRegistry({
         type="button"
         onClick={() => void handleUpdatePlugin(plugin.npmSpec, plugin.pluginId)}
         disabled={updatingSet.has(plugin.pluginId)}
-        className="rounded-full p-1 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:opacity-50"
+        className="rounded-full p-1 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:opacity-50"
         title={t('agentSettings.botRegistry.checkUpdates')}
       >
         <RefreshCw className={`h-3 w-3 ${updatingSet.has(plugin.pluginId) ? 'animate-spin' : ''}`} />
@@ -250,7 +250,7 @@ export default function BotPlatformRegistry({
   return (
     <div>
       <h2 className="text-lg font-semibold text-[var(--ink)]">{t('agentSettings.botRegistry.title')}</h2>
-      <p className="mt-1 text-sm text-[var(--ink-muted)]">
+      <p className="mt-1 text-sm text-[var(--muted)]">
         {t('agentSettings.botRegistry.description')}
       </p>
 
@@ -258,7 +258,7 @@ export default function BotPlatformRegistry({
         {allPlatforms.map(platform => (
           <div
             key={platform.id}
-            className="group relative flex min-h-52 flex-col items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5"
+            className="group relative flex min-h-52 flex-col items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
           >
             {platform.icon
               ? <img src={platform.icon} alt={platform.name} className="h-12 w-12 rounded-xl" />
@@ -267,14 +267,14 @@ export default function BotPlatformRegistry({
               <p className="text-sm font-medium text-[var(--ink)]">{platform.name}</p>
               {platform.plugin && versionControls(platform.plugin)}
             </div>
-            <p className="text-center text-xs text-[var(--ink-muted)]">{platform.description}</p>
+            <p className="text-center text-xs text-[var(--muted)]">{platform.description}</p>
             {platform.deprecationNotice && (
               <p className="text-center text-xs text-[var(--warning)]">⚠ {platform.deprecationNotice}</p>
             )}
             <button
               type="button"
               onClick={() => setWorkspacePlatform(platform.id)}
-              className="mt-auto rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-warm-subtle)] hover:text-[var(--accent)]"
+              className="mt-auto rounded-lg border border-[var(--line-2)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
             >
               {t('agentSettings.botRegistry.addToWorkspace')}
             </button>
@@ -283,7 +283,7 @@ export default function BotPlatformRegistry({
                 type="button"
                 onClick={() => setPendingUninstall(platform.plugin!)}
                 title={t('agentSettings.botRegistry.uninstallPlugin')}
-                className="absolute right-2 top-2 rounded-md p-1.5 text-[var(--ink-muted)] opacity-0 transition-all hover:bg-[var(--error-bg)] hover:text-[var(--error)] group-hover:opacity-100"
+                className="absolute right-2 top-2 rounded-md p-1.5 text-[var(--muted)] opacity-0 transition-all hover:bg-[var(--danger-bg)] hover:text-[var(--danger)] group-hover:opacity-100"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -298,19 +298,19 @@ export default function BotPlatformRegistry({
           return (
             <div
               key={promoted.pluginId}
-              className="group relative flex min-h-52 flex-col items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5"
+              className="group relative flex min-h-52 flex-col items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5"
             >
               <img src={promoted.icon} alt={promoted.name} className="h-12 w-12 rounded-xl" />
               <div className="flex items-center justify-center gap-1.5">
                 <p className="text-sm font-medium text-[var(--ink)]">{promoted.name}</p>
                 {installedPlugin && versionControls(installedPlugin)}
               </div>
-              <p className="text-center text-xs text-[var(--ink-muted)]">{promoted.description}</p>
+              <p className="text-center text-xs text-[var(--muted)]">{promoted.description}</p>
               {installedPlugin ? (
                 <button
                   type="button"
                   onClick={() => setWorkspacePlatform(`openclaw:${promoted.pluginId}`)}
-                  className="mt-auto rounded-lg border border-[var(--line-strong)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-warm-subtle)] hover:text-[var(--accent)]"
+                  className="mt-auto rounded-lg border border-[var(--line-2)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
                 >
                   {t('agentSettings.botRegistry.addToWorkspace')}
                 </button>
@@ -319,7 +319,7 @@ export default function BotPlatformRegistry({
                   type="button"
                   onClick={() => void handlePromotedInstall(promoted)}
                   disabled={isInstalling || isUpdating || loading}
-                  className="mt-auto flex items-center gap-1.5 rounded-lg bg-[var(--button-primary-bg)] px-3 py-1.5 text-xs font-medium text-[var(--button-primary-text)] disabled:opacity-50"
+                  className="mt-auto flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] disabled:opacity-50"
                 >
                   {(isInstalling || isUpdating) && <Loader2 className="h-3 w-3 animate-spin" />}
                   {isInstalling || isUpdating
@@ -335,20 +335,20 @@ export default function BotPlatformRegistry({
           type="button"
           onClick={() => setShowInstallInput(true)}
           disabled={loading}
-          className="flex min-h-52 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--line-strong)] p-5 transition-all hover:border-[var(--accent-warm)] hover:bg-[var(--accent-warm-subtle)]"
+          className="flex min-h-52 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--line-2)] p-5 transition-all hover:border-[var(--primary)] hover:bg-[var(--primary-soft)]"
         >
           {loading ? (
-            <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)]" />
+            <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
           ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-[var(--ink-subtle)]">
-              <Download className="h-6 w-6 text-[var(--ink-muted)]" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-[var(--subtle)]">
+              <Download className="h-6 w-6 text-[var(--muted)]" />
             </div>
           )}
           <div className="text-center">
-            <p className="text-sm font-medium text-[var(--ink-muted)]">
+            <p className="text-sm font-medium text-[var(--muted)]">
               {t('agentSettings.botRegistry.installCommunityPlugin')}
             </p>
-            <p className="mt-0.5 text-xs text-[var(--ink-subtle)]">
+            <p className="mt-0.5 text-xs text-[var(--subtle)]">
               {t('agentSettings.botRegistry.installFromNpm')}
             </p>
           </div>
@@ -363,21 +363,21 @@ export default function BotPlatformRegistry({
             onChange={event => setInstallNpmSpec(event.target.value)}
             onKeyDown={event => { if (isImeComposingEvent(event)) return; if (event.key === 'Enter') void handleInstallPlugin(); }}
             placeholder={t('agentSettings.botRegistry.installPlaceholder')}
-            className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none"
+            className="flex-1 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none"
             autoFocus
           />
           <button
             type="button"
             onClick={() => void handleInstallPlugin()}
             disabled={!installNpmSpec.trim() || installing}
-            className="rounded-lg bg-[var(--button-primary-bg)] px-4 py-2 text-sm font-medium text-[var(--button-primary-text)] disabled:opacity-50"
+            className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--on-primary)] disabled:opacity-50"
           >
             {installing ? <Loader2 className="h-4 w-4 animate-spin" /> : t('agentSettings.botRegistry.install')}
           </button>
           <button
             type="button"
             onClick={() => { setShowInstallInput(false); setInstallNpmSpec(''); }}
-            className="rounded-lg border border-[var(--line)] px-3 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--paper-inset)]"
+            className="rounded-lg border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)] hover:bg-[var(--inset)]"
           >
             {t('agentSettings.botRegistry.cancel')}
           </button>

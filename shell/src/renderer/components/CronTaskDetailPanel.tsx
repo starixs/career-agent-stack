@@ -50,25 +50,25 @@ interface CronTaskDetailPanelProps {
     onOpenSession?: (sessionId: string) => void;
 }
 
-const INPUT_CLS = 'w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:border-[var(--accent)] focus:outline-none transition-colors';
+const INPUT_CLS = 'w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2.5 text-sm text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:outline-none transition-colors';
 
 function SectionHeader({ icon: Icon, children }: { icon?: typeof Clock; children: React.ReactNode }) {
     return (
         <div className="flex items-center gap-2">
-            {Icon && <Icon className="h-4 w-4 text-[var(--ink-muted)]" />}
+            {Icon && <Icon className="h-4 w-4 text-[var(--muted)]" />}
             <h4 className="text-sm font-semibold text-[var(--ink)]">{children}</h4>
         </div>
     );
 }
 
 function DetailTag({ label }: { label: string }) {
-    return <span className="rounded-lg border border-[var(--line)] px-2.5 py-1 text-xs text-[var(--ink-muted)]">{label}</span>;
+    return <span className="rounded-lg border border-[var(--line)] px-2.5 py-1 text-xs text-[var(--muted)]">{label}</span>;
 }
 
 function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
     return (
         <button type="button" role="switch" aria-checked={enabled} onClick={() => onChange(!enabled)}
-            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'}`}>
+            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'}`}>
             <span className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-[var(--toggle-thumb)] shadow-sm transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
         </button>
     );
@@ -77,7 +77,7 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (v: b
 function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
     return (
         <button type="button" onClick={() => onChange(!checked)} className="flex items-center gap-2.5 text-sm text-[var(--ink)]">
-            <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${checked ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--on-accent)]' : 'border-[var(--line-strong)] bg-transparent'}`}>
+            <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${checked ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--on-primary)]' : 'border-[var(--line-2)] bg-transparent'}`}>
                 {checked && <Check className="h-2.5 w-2.5" />}
             </span>
             {label}
@@ -246,19 +246,19 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
             {showSyncConfirm && <ConfirmDialog title={t('cron.detail.syncTitle')} message={t('cron.detail.syncMessage')} confirmText={t('cron.detail.syncConfirm')} cancelText={t('cron.detail.cancelConfirm')} loading={isSyncing} onConfirm={handleSyncToAgent} onCancel={() => setShowSyncConfirm(false)} />}
 
             <OverlayBackdrop onClose={onClose} className="z-50" style={{ animation: 'overlayFadeIn 200ms ease-out' }}>
-                <div className="flex h-[80vh] w-full max-w-lg flex-col rounded-2xl bg-[var(--paper-elevated)] shadow-lg"
+                <div className="flex h-[80vh] w-full max-w-lg flex-col rounded-2xl bg-[var(--paper)] shadow-lg"
                     style={{ animation: 'overlayPanelIn 250ms ease-out' }}>
 
                     {/* Header */}
                     <div className="flex shrink-0 items-center justify-between px-6 py-4">
                         <div className="flex min-w-0 items-center gap-2.5">
-                            <Clock className="h-4 w-4 shrink-0 text-[var(--accent)]" />
+                            <Clock className="h-4 w-4 shrink-0 text-[var(--primary)]" />
                             <h3 className="min-w-0 truncate text-lg font-semibold text-[var(--ink)]">
                                 {isEditing ? t('cron.detail.editTitle') : displayName}
                             </h3>
                             {!isEditing && <span className={`shrink-0 text-xs font-medium ${getCronStatusColor(task.status)}`}>{formatCronStatusText(task.status, t)}</span>}
                         </div>
-                        <button onClick={() => isEditing ? setIsEditing(false) : onClose()} className="ml-2 shrink-0 rounded-lg p-1.5 text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] transition-colors">
+                        <button onClick={() => isEditing ? setIsEditing(false) : onClose()} className="ml-2 shrink-0 rounded-lg p-1.5 text-[var(--muted)] hover:bg-[var(--inset)] hover:text-[var(--ink)] transition-colors">
                             <X className="h-4 w-4" />
                         </button>
                     </div>
@@ -272,11 +272,11 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                                     <SectionHeader icon={FileText}>{t('cron.detail.sectionBasic')}</SectionHeader>
                                     <div className="mt-3 space-y-4">
                                         <div>
-                                            <label className="mb-1.5 block text-sm font-medium text-[var(--ink-secondary)]">{t('cron.detail.taskName')}<span className="ml-1 font-normal text-[var(--ink-muted)]">{t('cron.detail.optional')}</span></label>
+                                            <label className="mb-1.5 block text-sm font-medium text-[var(--ink-2)]">{t('cron.detail.taskName')}<span className="ml-1 font-normal text-[var(--muted)]">{t('cron.detail.optional')}</span></label>
                                             <input type="text" value={editName} onChange={e => setEditName(e.target.value)} maxLength={50} placeholder={t('cron.detail.namePlaceholder')} className={INPUT_CLS} />
                                         </div>
                                         <div>
-                                            <label className="mb-1.5 block text-sm font-medium text-[var(--ink-secondary)]">{t('cron.detail.sectionAiPrompt')}</label>
+                                            <label className="mb-1.5 block text-sm font-medium text-[var(--ink-2)]">{t('cron.detail.sectionAiPrompt')}</label>
                                             <textarea value={editPrompt} onChange={e => setEditPrompt(e.target.value)} rows={5} placeholder={t('cron.detail.promptPlaceholder')} className={`${INPUT_CLS} resize-none`} />
                                         </div>
                                     </div>
@@ -295,30 +295,30 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                                     <div>
                                         <SectionHeader icon={Flag}>{t('cron.detail.sectionEndConditions')}</SectionHeader>
                                         <div className="mt-3 space-y-3">
-                                            <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--paper-inset)] p-1">
-                                                <button type="button" onClick={() => setEditEndMode('forever')} className={`flex flex-1 items-center justify-center rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors ${editEndMode === 'forever' ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}>{t('cron.settingsModal.forever')}</button>
-                                                <button type="button" onClick={() => setEditEndMode('conditional')} className={`flex flex-1 items-center justify-center rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors ${editEndMode === 'conditional' ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'}`}>{t('cron.settingsModal.conditional')}</button>
+                                            <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--inset)] p-1">
+                                                <button type="button" onClick={() => setEditEndMode('forever')} className={`flex flex-1 items-center justify-center rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors ${editEndMode === 'forever' ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}>{t('cron.settingsModal.forever')}</button>
+                                                <button type="button" onClick={() => setEditEndMode('conditional')} className={`flex flex-1 items-center justify-center rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors ${editEndMode === 'conditional' ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}>{t('cron.settingsModal.conditional')}</button>
                                             </div>
                                             {editEndMode === 'conditional' && (
-                                            <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)]">
+                                            <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)]">
                                                 <div className="flex cursor-pointer items-center justify-between border-b border-[var(--line)] px-3 py-2.5" onClick={() => setEditDeadline(editDeadline ? '' : new Date(Date.now() + 86400000).toISOString().slice(0, 16))}>
                                                     <Checkbox checked={!!editDeadline} onChange={v => setEditDeadline(v ? new Date(Date.now() + 86400000).toISOString().slice(0, 16) : '')} label={t('cron.settingsModal.deadline')} />
                                                     <input type="datetime-local" value={editDeadline.slice(0, 16)} onChange={e => setEditDeadline(e.target.value)} onClick={e => e.stopPropagation()}
-                                                        className={`w-44 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none ${!editDeadline ? 'opacity-50' : ''}`} />
+                                                        className={`w-44 rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none ${!editDeadline ? 'opacity-50' : ''}`} />
                                                 </div>
                                                 <div className="flex cursor-pointer items-center justify-between border-b border-[var(--line)] px-3 py-2.5" onClick={() => setEditMaxExec(editMaxExec ? '' : '10')}>
                                                     <Checkbox checked={!!editMaxExec} onChange={v => setEditMaxExec(v ? '10' : '')} label={t('cron.settingsModal.maxExecutions')} />
                                                     <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                                                         <input type="number" min={1} max={999} value={editMaxExec || 10} onChange={e => setEditMaxExec(e.target.value)}
-                                                            className={`w-16 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-center text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none ${!editMaxExec ? 'opacity-50' : ''}`} />
-                                                        <span className={`text-sm text-[var(--ink-secondary)] ${!editMaxExec ? 'opacity-50' : ''}`}>{t('cron.settingsModal.timesSuffix')}</span>
+                                                            className={`w-16 rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-center text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none ${!editMaxExec ? 'opacity-50' : ''}`} />
+                                                        <span className={`text-sm text-[var(--ink-2)] ${!editMaxExec ? 'opacity-50' : ''}`}>{t('cron.settingsModal.timesSuffix')}</span>
                                                     </div>
                                                 </div>
                                             </div>
                                             )}
 
                                             {/* AI 自主结束 — 在永久运行和条件停止模式下都显示 */}
-                                            <div className="flex cursor-pointer items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5" onClick={() => setEditAiCanExit(!editAiCanExit)}>
+                                            <div className="flex cursor-pointer items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5" onClick={() => setEditAiCanExit(!editAiCanExit)}>
                                                 <Checkbox checked={editAiCanExit} onChange={setEditAiCanExit} label={t('cron.settingsModal.aiCanExit')} />
                                             </div>
                                         </div>
@@ -329,7 +329,7 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                                 <div>
                                     <SectionHeader icon={Bell}>{t('cron.detail.sectionNotifications')}</SectionHeader>
                                     <div className="mt-2 space-y-3">
-                                        <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
+                                        <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-3">
                                             <span className="text-sm text-[var(--ink)]">{t('cron.settingsModal.notifyOnCompletion')}</span>
                                             <ToggleSwitch enabled={editNotify} onChange={setEditNotify} />
                                         </div>
@@ -350,11 +350,11 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                                     <SectionHeader icon={FolderOpen}>{t('cron.detail.sectionBasic')}</SectionHeader>
                                     <div className="mt-2 space-y-1.5">
                                         <div className="flex items-center justify-between py-1">
-                                            <span className="text-sm text-[var(--ink-muted)]">{t('cron.detail.taskName')}</span>
+                                            <span className="text-sm text-[var(--muted)]">{t('cron.detail.taskName')}</span>
                                             <span className="text-sm text-[var(--ink)]">{displayName}</span>
                                         </div>
                                         <div className="flex items-center justify-between py-1">
-                                            <span className="text-sm text-[var(--ink-muted)]">{t('cron.detail.executeAgent')}</span>
+                                            <span className="text-sm text-[var(--muted)]">{t('cron.detail.executeAgent')}</span>
                                             <div className="flex items-center gap-1.5">
                                                 <WorkspaceIcon icon={project?.icon} size={14} />
                                                 <span className="text-sm text-[var(--ink)]">{getFolderName(task.workspacePath)}</span>
@@ -362,7 +362,7 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                                         </div>
                                         {botInfo && (
                                             <div className="flex items-center justify-between py-1">
-                                                <span className="text-sm text-[var(--ink-muted)]">{t('cron.detail.source')}</span>
+                                                <span className="text-sm text-[var(--muted)]">{t('cron.detail.source')}</span>
                                                 <span className="text-sm text-[var(--ink)]">{botInfo.name} ({botInfo.platform})</span>
                                             </div>
                                         )}
@@ -376,7 +376,7 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                                     <>
                                         <div>
                                             <SectionHeader icon={FileText}>{t('cron.detail.sectionAiPrompt')}</SectionHeader>
-                                            <div className="mt-2 rounded-lg border border-[var(--line)] px-3.5 py-3 text-sm leading-relaxed text-[var(--ink-secondary)] whitespace-pre-wrap break-words">{task.prompt}</div>
+                                            <div className="mt-2 rounded-lg border border-[var(--line)] px-3.5 py-3 text-sm leading-relaxed text-[var(--ink-2)] whitespace-pre-wrap break-words">{task.prompt}</div>
                                         </div>
                                         <div className="border-t border-[var(--line)]" />
                                     </>
@@ -395,7 +395,7 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                                     <SectionHeader icon={Clock}>{t('cron.detail.sectionSchedule')}</SectionHeader>
                                     <div className="mt-2 flex items-center justify-between rounded-lg border border-[var(--line)] px-3.5 py-3">
                                         <span className="text-sm font-medium text-[var(--ink)]">{scheduleDesc}</span>
-                                        <span className={`text-xs ${task.status === 'running' ? 'text-[var(--ink-secondary)]' : 'text-[var(--ink-muted)]/50'}`}>
+                                        <span className={`text-xs ${task.status === 'running' ? 'text-[var(--ink-2)]' : 'text-[var(--muted)]/50'}`}>
                                             {task.status === 'running' ? t('cron.detail.next', { time: nextExec }) : t('cron.detail.stopped')}
                                         </span>
                                     </div>
@@ -436,21 +436,21 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                                     <SectionHeader icon={BarChart2}>{t('cron.detail.sectionStats')}</SectionHeader>
                                     <div className="mt-2 grid grid-cols-3 gap-3">
                                         <div>
-                                            <span className="text-xs text-[var(--ink-muted)]">{t('cron.detail.executionCount')}</span>
+                                            <span className="text-xs text-[var(--muted)]">{t('cron.detail.executionCount')}</span>
                                             <p className="mt-0.5 text-sm font-medium text-[var(--ink)]">{task.endConditions.maxExecutions ? `${task.executionCount} / ${task.endConditions.maxExecutions}` : t('cron.detail.executionCountValue', { count: task.executionCount })}</p>
                                         </div>
                                         <div>
-                                            <span className="text-xs text-[var(--ink-muted)]">{t('cron.detail.lastRun')}</span>
+                                            <span className="text-xs text-[var(--muted)]">{t('cron.detail.lastRun')}</span>
                                             <p className="mt-0.5 text-sm font-medium text-[var(--ink)]">{task.lastExecutedAt ? new Date(task.lastExecutedAt).toLocaleString(locale, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</p>
                                         </div>
                                         {task.exitReason && (
                                             <div>
-                                                <span className="text-xs text-[var(--ink-muted)]">{t('cron.detail.exitReason')}</span>
+                                                <span className="text-xs text-[var(--muted)]">{t('cron.detail.exitReason')}</span>
                                                 <p className="mt-0.5 text-sm font-medium text-[var(--ink)]">{task.exitReason}</p>
                                             </div>
                                         )}
                                     </div>
-                                    {task.lastError && <p className="mt-2 text-xs text-[var(--error)]">{task.lastError}</p>}
+                                    {task.lastError && <p className="mt-2 text-xs text-[var(--danger)]">{task.lastError}</p>}
                                 </div>
 
                                 <div className="border-t border-[var(--line)]" />
@@ -469,11 +469,11 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                     <div className="flex shrink-0 items-center justify-between border-t border-[var(--line)] px-6 py-3.5">
                         {isEditing ? (
                             <>
-                                {editErrors.length > 0 ? <p className="text-xs text-[var(--error)]">{editErrors[0]}</p> : <div />}
+                                {editErrors.length > 0 ? <p className="text-xs text-[var(--danger)]">{editErrors[0]}</p> : <div />}
                                 <div className="flex items-center gap-2.5">
-                                    <button onClick={() => setIsEditing(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--paper-inset)] transition-colors">{t('cron.detail.cancel')}</button>
+                                    <button onClick={() => setIsEditing(false)} className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--muted)] hover:bg-[var(--inset)] transition-colors">{t('cron.detail.cancel')}</button>
                                     <button onClick={handleSave} disabled={editErrors.length > 0 || isSaving}
-                                        className="rounded-lg bg-[var(--accent)] px-5 py-2 text-sm font-medium text-[var(--on-accent)] transition hover:bg-[var(--accent-warm-hover)] disabled:opacity-50 disabled:cursor-not-allowed">
+                                        className="rounded-lg bg-[var(--primary)] px-5 py-2 text-sm font-medium text-[var(--on-primary)] transition hover:bg-[var(--primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed">
                                         {isSaving ? t('cron.detail.saving') : t('cron.detail.save')}
                                     </button>
                                 </div>
@@ -481,7 +481,7 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                         ) : (
                             <>
                                 {isManagedTask ? <div /> : (
-                                    <button onClick={() => setShowDeleteConfirm(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--error)] hover:bg-[var(--error-bg)] transition-colors">
+                                    <button onClick={() => setShowDeleteConfirm(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-bg)] transition-colors">
                                         <Trash2 className="h-3.5 w-3.5" />{t('cron.detail.delete')}
                                     </button>
                                 )}
@@ -490,28 +490,28 @@ export default function CronTaskDetailPanel({ task, botInfo, onClose, onDelete, 
                                         <button
                                             onClick={() => setShowSyncConfirm(true)}
                                             title={t('cron.detail.syncTooltip')}
-                                            className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)] hover:border-[var(--line-strong)] hover:text-[var(--ink)] transition-colors"
+                                            className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:border-[var(--line-2)] hover:text-[var(--ink)] transition-colors"
                                         >
                                             <ArrowUpToLine className="h-3.5 w-3.5" />{t('cron.detail.syncToAgent')}
                                         </button>
                                     )}
                                     {!isManagedTask && (
-                                        <button onClick={startEditing} className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)] hover:border-[var(--line-strong)] hover:text-[var(--ink)] transition-colors">
+                                        <button onClick={startEditing} className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-4 py-2 text-sm font-medium text-[var(--muted)] hover:border-[var(--line-2)] hover:text-[var(--ink)] transition-colors">
                                             <Pencil className="h-3.5 w-3.5" />{t('cron.detail.edit')}
                                         </button>
                                     )}
                                     {!isManagedTask && task.status === 'running' && onStop && (
                                         <button onClick={() => setShowStopConfirm(true)} disabled={isStopping}
-                                            className="flex items-center gap-1.5 rounded-lg border border-[var(--error)]/30 px-4 py-2 text-sm font-medium text-[var(--error)] hover:bg-[var(--error-bg)] disabled:opacity-50 transition-colors">
+                                            className="flex items-center gap-1.5 rounded-lg border border-[var(--danger)]/30 px-4 py-2 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-bg)] disabled:opacity-50 transition-colors">
                                             <Square className="h-3.5 w-3.5" />{isStopping ? t('cron.detail.stopping') : t('cron.detail.stop')}
                                         </button>
                                     )}
                                     {!isManagedTask && task.status === 'stopped' && (!resumeBlockReason ? (
                                         <button onClick={handleResume} disabled={isResuming}
-                                            className="flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-5 py-2 text-sm font-medium text-[var(--on-accent)] hover:bg-[var(--accent-warm-hover)] disabled:opacity-50 transition-colors">
+                                            className="flex items-center gap-1.5 rounded-lg bg-[var(--primary)] px-5 py-2 text-sm font-medium text-[var(--on-primary)] hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-colors">
                                             <Play className="h-3.5 w-3.5" />{isResuming ? t('cron.detail.resuming') : t('cron.detail.resume')}
                                         </button>
-                                    ) : <span className="text-xs text-[var(--ink-muted)]/50">{resumeBlockReason}</span>)}
+                                    ) : <span className="text-xs text-[var(--muted)]/50">{resumeBlockReason}</span>)}
                                 </div>
                             </>
                         )}

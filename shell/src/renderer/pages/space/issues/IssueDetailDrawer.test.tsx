@@ -180,7 +180,7 @@ describe('IssueDetailDrawer', () => {
     );
 
     const goalLabel = screen.getByTitle(compactPath);
-    expect(within(goalLabel).getByText('../keystone BUGFIX')).toHaveClass('text-[var(--ink-muted)]/75');
+    expect(within(goalLabel).getByText('../keystone BUGFIX')).toHaveClass('text-[var(--muted)]/75');
     expect(within(goalLabel).getByText('Windows 系统兼容性优化')).toHaveClass('font-normal', 'text-[var(--ink)]');
   });
 

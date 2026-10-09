@@ -81,20 +81,20 @@ export default function SheetViewer({ bytes, onError, onEmpty }: RichDocSubViewe
   const current = sheets[Math.min(active, sheets.length - 1)];
 
   return (
-    <div className="flex h-full flex-col bg-[var(--paper-elevated)]">
+    <div className="flex h-full flex-col bg-[var(--paper)]">
       <div className="flex-1 overflow-auto overscroll-contain p-3">
         {current.truncated && (
-          <div className="mb-2 rounded-[var(--radius-sm)] bg-[var(--paper-inset)] px-3 py-1.5 text-xs text-[var(--ink-muted)]">
+          <div className="mb-2 rounded-[var(--radius-sm)] bg-[var(--inset)] px-3 py-1.5 text-xs text-[var(--muted)]">
             {t('richDoc.sheetTruncated', { rows: MAX_ROWS, cols: MAX_COLS })}
           </div>
         )}
         <div
-          className="inline-block [&_table]:border-collapse [&_table]:text-sm [&_table]:text-[var(--ink)] [&_td]:border [&_td]:border-[var(--line)] [&_td]:px-2 [&_td]:py-1 [&_td]:align-top [&_th]:border [&_th]:border-[var(--line)] [&_th]:bg-[var(--paper-inset)] [&_th]:px-2 [&_th]:py-1"
+          className="inline-block [&_table]:border-collapse [&_table]:text-sm [&_table]:text-[var(--ink)] [&_td]:border [&_td]:border-[var(--line)] [&_td]:px-2 [&_td]:py-1 [&_td]:align-top [&_th]:border [&_th]:border-[var(--line)] [&_th]:bg-[var(--inset)] [&_th]:px-2 [&_th]:py-1"
           dangerouslySetInnerHTML={{ __html: current.html }}
         />
       </div>
       {sheets.length > 1 && (
-        <div className="flex flex-shrink-0 items-center gap-1 overflow-x-auto border-t border-[var(--line)] bg-[var(--paper-elevated)] px-2 py-1.5">
+        <div className="flex flex-shrink-0 items-center gap-1 overflow-x-auto border-t border-[var(--line)] bg-[var(--paper)] px-2 py-1.5">
           {sheets.map((s, i) => (
             <button
               key={s.name}
@@ -102,8 +102,8 @@ export default function SheetViewer({ bytes, onError, onEmpty }: RichDocSubViewe
               onClick={() => setActive(i)}
               className={`flex-shrink-0 rounded-[var(--radius-sm)] px-2.5 py-1 text-xs font-medium transition-colors ${
                 i === active
-                  ? 'bg-[var(--paper-inset)] text-[var(--ink)]'
-                  : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                  ? 'bg-[var(--inset)] text-[var(--ink)]'
+                  : 'text-[var(--muted)] hover:text-[var(--ink)]'
               }`}
             >
               {s.name}

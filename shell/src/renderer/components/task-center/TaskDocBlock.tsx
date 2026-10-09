@@ -169,7 +169,7 @@ export function TaskDocBlock({
           type="button"
           disabled={!path}
           onClick={handleOpenFile}
-          className="min-w-0 flex-1 truncate text-left font-mono text-xs text-[var(--ink-muted)]/70 enabled:hover:text-[var(--ink)] enabled:hover:underline"
+          className="min-w-0 flex-1 truncate text-left font-mono text-xs text-[var(--muted)]/70 enabled:hover:text-[var(--ink)] enabled:hover:underline"
           title={displayPath}
         >
           {displayPath}
@@ -178,7 +178,7 @@ export function TaskDocBlock({
           type="button"
           onClick={handleOpenFolder}
           title={t('docBlock.openDocsDirTitle')}
-          className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-xs text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+          className="inline-flex shrink-0 items-center gap-1 rounded-[var(--radius-md)] px-2 py-0.5 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
         >
           <FolderOpen className="h-3 w-3" />
           {t('docBlock.openDocsDir')}
@@ -186,11 +186,11 @@ export function TaskDocBlock({
       </div>
 
       {!loaded ? (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--line-subtle)] bg-[var(--paper)] p-3 text-xs text-[var(--ink-muted)]">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--bg)] p-3 text-xs text-[var(--muted)]">
           {t('docBlock.loading')}
         </div>
       ) : content ? (
-        <div className="min-w-0 max-w-full overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line-subtle)] bg-[var(--paper)]">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-[var(--radius-lg)] border border-[var(--line)] bg-[var(--bg)]">
           <div
             // `relative` so the fade gradient can position absolutely.
             // `overflow-hidden` guarantees the clip happens at this layer
@@ -211,16 +211,16 @@ export function TaskDocBlock({
             {showFade && (
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--paper)] to-[var(--paper-a0)]"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[var(--bg)] to-[var(--bg-a0)]"
               />
             )}
           </div>
           {showCollapseAffordance && (
-            <div className="flex items-center justify-center border-t border-[var(--line-subtle)]">
+            <div className="flex items-center justify-center border-t border-[var(--line)]">
               <button
                 type="button"
                 onClick={() => setExpanded((v) => !v)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
               >
                 {expanded ? (
                   <>
@@ -238,7 +238,7 @@ export function TaskDocBlock({
           )}
         </div>
       ) : (
-        <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--line)] bg-[var(--paper)] p-3 text-xs text-[var(--ink-muted)]">
+        <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--line)] bg-[var(--bg)] p-3 text-xs text-[var(--muted)]">
           {emptyHint}
         </div>
       )}

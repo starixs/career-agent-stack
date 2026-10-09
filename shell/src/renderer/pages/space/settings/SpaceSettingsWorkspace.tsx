@@ -116,8 +116,8 @@ function SummaryMetric({
   value: string | number | null | undefined;
 }) {
   return (
-    <div className="min-w-0 rounded-xl bg-[var(--paper-elevated)]/70 px-3 py-1.5">
-      <div className="truncate text-xs font-medium text-[var(--ink-muted)]">
+    <div className="min-w-0 rounded-xl bg-[var(--paper)]/70 px-3 py-1.5">
+      <div className="truncate text-xs font-medium text-[var(--muted)]">
         {label}
       </div>
       <div className="mt-0.5 truncate text-sm font-semibold text-[var(--ink)]">
@@ -141,13 +141,13 @@ function ResourceMetric({
   const { t } = useTranslation("app");
   return (
     <div
-      className={`flex min-h-10 min-w-0 items-center justify-between gap-3 rounded-xl bg-[var(--paper-elevated)]/55 px-3 py-2 ${className}`}
+      className={`flex min-h-10 min-w-0 items-center justify-between gap-3 rounded-xl bg-[var(--paper)]/55 px-3 py-2 ${className}`}
     >
-      <div className="min-w-0 truncate text-sm font-medium text-[var(--ink-muted)]">
+      <div className="min-w-0 truncate text-sm font-medium text-[var(--muted)]">
         {label}
       </div>
       <div
-        className={`flex shrink-0 items-center gap-2 truncate text-right text-sm font-semibold ${overLimit ? "text-[var(--warning)]" : "text-[var(--ink-secondary)]"}`}
+        className={`flex shrink-0 items-center gap-2 truncate text-right text-sm font-semibold ${overLimit ? "text-[var(--warning)]" : "text-[var(--ink-2)]"}`}
       >
         <span>{value}</span>
         {overLimit ? (
@@ -426,8 +426,8 @@ export function SpaceSettingsWorkspace({
   };
 
   const renderShell = (children: ReactNode) => (
-    <div className="flex min-h-0 flex-1 flex-col bg-[var(--paper)]/40">
-      <header className="border-b border-[var(--line-subtle)] bg-[var(--paper-elevated)]/35 px-6 py-2 backdrop-blur-md">
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--bg)]/40">
+      <header className="border-b border-[var(--line)] bg-[var(--paper)]/35 px-6 py-2 backdrop-blur-md">
         <div className="flex min-h-10 w-full items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -438,7 +438,7 @@ export function SpaceSettingsWorkspace({
                   ? t("space.sidebar.settings")
                   : t("space.sidebar.issues")
               }
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
@@ -447,7 +447,7 @@ export function SpaceSettingsWorkspace({
                 <button
                   type="button"
                   onClick={() => setSection(null)}
-                  className="rounded-md text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+                  className="rounded-md text-[var(--muted)] transition-colors hover:text-[var(--ink)]"
                 >
                   {t("space.sidebar.settings")}
                 </button>
@@ -458,7 +458,7 @@ export function SpaceSettingsWorkspace({
               )}
               {section ? (
                 <>
-                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--ink-subtle)]" />
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[var(--subtle)]" />
                   <span className="truncate">{activeTitle}</span>
                 </>
               ) : null}
@@ -471,7 +471,7 @@ export function SpaceSettingsWorkspace({
                 toast.error(spaceErrorMessage(error)),
               )
             }
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
             aria-label={t("space.common.refresh")}
             title={t("space.common.refresh")}
           >
@@ -518,10 +518,10 @@ export function SpaceSettingsWorkspace({
         ].map(([role, description]) => (
           <section
             key={role}
-            className="rounded-xl border border-[var(--line-subtle)] bg-[var(--paper-elevated)]/70 px-4 py-3.5"
+            className="rounded-xl border border-[var(--line)] bg-[var(--paper)]/70 px-4 py-3.5"
           >
             <h3 className="text-sm font-semibold text-[var(--ink)]">{role}</h3>
-            <p className="mt-1 text-sm leading-relaxed text-[var(--ink-muted)]">
+            <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">
               {description}
             </p>
           </section>
@@ -533,11 +533,11 @@ export function SpaceSettingsWorkspace({
   if (section === "members") {
     return renderShell(
       <div className={`${SPACE_COLLECTION_FRAME_CLASS} space-y-5`}>
-        <div className="inline-flex min-h-11 max-w-full flex-wrap items-center gap-2 rounded-xl border border-[var(--line-subtle)] bg-[var(--paper-elevated)]/55 px-3 py-2">
-          <span className="min-w-0 text-sm font-medium text-[var(--ink-secondary)]">
+        <div className="inline-flex min-h-11 max-w-full flex-wrap items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper)]/55 px-3 py-2">
+          <span className="min-w-0 text-sm font-medium text-[var(--ink-2)]">
             {t("space.settings.joinByShortSlug")}
           </span>
-          <code className="max-w-full shrink-0 truncate rounded-md bg-[var(--paper-inset)]/55 px-2 py-0.5 font-mono text-sm font-semibold text-[var(--ink)]">
+          <code className="max-w-full shrink-0 truncate rounded-md bg-[var(--inset)]/55 px-2 py-0.5 font-mono text-sm font-semibold text-[var(--ink)]">
             {session.space.slug || session.space.id}
           </code>
           <button
@@ -545,7 +545,7 @@ export function SpaceSettingsWorkspace({
             onClick={copySlug}
             title={t("fileActions.copy")}
             aria-label={t("fileActions.copy")}
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--button-secondary-bg)] text-[var(--button-secondary-text)] transition-colors hover:bg-[var(--button-secondary-bg-hover)]"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[var(--paper)] text-[var(--ink)] transition-colors hover:bg-[var(--hover)]"
           >
             <Copy className="h-3.5 w-3.5" />
           </button>
@@ -563,7 +563,7 @@ export function SpaceSettingsWorkspace({
             {membersState.joinRequests.map((request) => (
               <div
                 key={request.id}
-                className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2"
+                className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2"
               >
                 <SpaceAvatar
                   name={request.user.name}
@@ -575,7 +575,7 @@ export function SpaceSettingsWorkspace({
                   <div className="truncate text-sm font-semibold text-[var(--ink)]">
                     {request.user.name || request.user.email}
                   </div>
-                  <div className="truncate text-xs text-[var(--ink-muted)]">
+                  <div className="truncate text-xs text-[var(--muted)]">
                     {request.user.email}
                   </div>
                 </div>
@@ -598,7 +598,7 @@ export function SpaceSettingsWorkspace({
                         }),
                     )
                   }
-                  className="grid h-8 w-8 place-items-center rounded-lg text-[var(--success)] hover:bg-[var(--hover-bg)] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="grid h-8 w-8 place-items-center rounded-lg text-[var(--success)] hover:bg-[var(--hover)] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Check className="h-4 w-4" />
                 </button>
@@ -615,7 +615,7 @@ export function SpaceSettingsWorkspace({
                         }),
                     )
                   }
-                  className="grid h-8 w-8 place-items-center rounded-lg text-[var(--error)] hover:bg-[var(--hover-bg)]"
+                  className="grid h-8 w-8 place-items-center rounded-lg text-[var(--danger)] hover:bg-[var(--hover)]"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -631,7 +631,7 @@ export function SpaceSettingsWorkspace({
             {membersState.invitations.map((invitation) => (
               <div
                 key={invitation.id}
-                className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] px-3 py-2"
+                className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2"
               >
                 <SpaceAvatar
                   name={invitation.email}
@@ -642,7 +642,7 @@ export function SpaceSettingsWorkspace({
                   <div className="truncate text-sm font-semibold text-[var(--ink)]">
                     {invitation.email}
                   </div>
-                  <div className="truncate text-xs text-[var(--ink-muted)]">
+                  <div className="truncate text-xs text-[var(--muted)]">
                     {roleLabel(invitation.role, t)} · {invitation.status}
                   </div>
                 </div>
@@ -655,14 +655,14 @@ export function SpaceSettingsWorkspace({
             {t("space.settings.members")}
           </h3>
           {membersLoading ? (
-            <div className="min-h-8 rounded-lg text-sm text-[var(--ink-muted)]">
+            <div className="min-h-8 rounded-lg text-sm text-[var(--muted)]">
               {t("space.settings.loadingMembers")}
             </div>
           ) : null}
           {membersState?.members.map((member: SpaceMember) => (
             <div
               key={member.id}
-              className="group flex items-center gap-3 border-b border-[var(--line-subtle)] px-1 py-3"
+              className="group flex items-center gap-3 border-b border-[var(--line)] px-1 py-3"
             >
               <SpaceAvatar
                 name={member.user.name}
@@ -674,11 +674,11 @@ export function SpaceSettingsWorkspace({
                 <div className="truncate text-sm font-semibold text-[var(--ink)]">
                   {member.user.name || member.user.email}
                 </div>
-                <div className="truncate text-xs text-[var(--ink-muted)]">
+                <div className="truncate text-xs text-[var(--muted)]">
                   {member.user.email}
                 </div>
               </div>
-              <span className="rounded-full bg-[var(--paper-inset)] px-2 py-1 text-xs font-semibold text-[var(--ink-muted)]">
+              <span className="rounded-full bg-[var(--inset)] px-2 py-1 text-xs font-semibold text-[var(--muted)]">
                 {roleLabel(member.role, t)}
               </span>
               {member.role !== "owner" ? (
@@ -690,12 +690,12 @@ export function SpaceSettingsWorkspace({
                         menuMemberId === member.id ? null : member.id,
                       )
                     }
-                    className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] opacity-0 transition-opacity hover:bg-[var(--hover-bg)] hover:text-[var(--ink)] group-hover:opacity-100"
+                    className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] opacity-0 transition-opacity hover:bg-[var(--hover)] hover:text-[var(--ink)] group-hover:opacity-100"
                   >
                     <MoreHorizontal className="h-4 w-4" />
                   </button>
                   {menuMemberId === member.id ? (
-                    <div className="absolute right-0 z-20 mt-1 w-36 rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)] p-1 shadow-md">
+                    <div className="absolute right-0 z-20 mt-1 w-36 rounded-lg border border-[var(--line)] bg-[var(--paper)] p-1 shadow-md">
                       <button
                         type="button"
                         onClick={() =>
@@ -711,7 +711,7 @@ export function SpaceSettingsWorkspace({
                               }),
                           )
                         }
-                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--ink)] hover:bg-[var(--hover-bg)]"
+                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--ink)] hover:bg-[var(--hover)]"
                       >
                         {member.role === "admin"
                           ? t("space.settings.changeToMember")
@@ -730,7 +730,7 @@ export function SpaceSettingsWorkspace({
                               }),
                           )
                         }
-                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--error)] hover:bg-[var(--hover-bg)]"
+                        className="w-full rounded-md px-2 py-1.5 text-left text-xs text-[var(--danger)] hover:bg-[var(--hover)]"
                       >
                         {t("space.settings.removeMember")}
                       </button>
@@ -779,8 +779,8 @@ export function SpaceSettingsWorkspace({
           }
           className="z-[220] items-center justify-center px-4 py-8"
         >
-          <section className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] shadow-xl">
-            <header className="flex min-h-14 items-center justify-between gap-3 border-b border-[var(--line-subtle)] px-5">
+          <section className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)] shadow-xl">
+            <header className="flex min-h-14 items-center justify-between gap-3 border-b border-[var(--line)] px-5">
               <h2 className="text-lg font-semibold text-[var(--ink)]">
                 {t("space.settings.editOverviewTitle")}
               </h2>
@@ -788,7 +788,7 @@ export function SpaceSettingsWorkspace({
                 type="button"
                 disabled={busyKey === "overview" || pickingAvatar}
                 onClick={closeOverviewEditor}
-                className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
+                className="grid h-8 w-8 place-items-center rounded-lg text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)] disabled:cursor-wait disabled:opacity-60"
                 aria-label={t("space.detail.close")}
               >
                 <X className="h-4 w-4" />
@@ -800,7 +800,7 @@ export function SpaceSettingsWorkspace({
                   type="button"
                   disabled={busyKey === "overview" || pickingAvatar}
                   onClick={() => void pickAvatar()}
-                  className="group relative grid h-16 w-16 shrink-0 place-items-center rounded-[22%] text-[var(--ink-muted)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-warm)] disabled:cursor-wait disabled:opacity-70"
+                  className="group relative grid h-16 w-16 shrink-0 place-items-center rounded-[22%] text-[var(--muted)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--primary)] disabled:cursor-wait disabled:opacity-70"
                   aria-label={t("space.spaceActions.chooseAvatar")}
                   title={t("space.spaceActions.chooseAvatar")}
                 >
@@ -809,7 +809,7 @@ export function SpaceSettingsWorkspace({
                     avatarUrl={editPreview}
                     size={64}
                   />
-                  <span className="absolute inset-0 grid place-items-center rounded-[22%] bg-[var(--ink)]/45 text-[var(--paper)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <span className="absolute inset-0 grid place-items-center rounded-[22%] bg-[var(--ink)]/45 text-[var(--bg)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                     {pickingAvatar ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
@@ -822,7 +822,7 @@ export function SpaceSettingsWorkspace({
                     type="button"
                     disabled={busyKey === "overview" || pickingAvatar}
                     onClick={() => void pickAvatar()}
-                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-3 text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-wait disabled:opacity-70"
+                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)] disabled:cursor-wait disabled:opacity-70"
                   >
                     {pickingAvatar ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -831,7 +831,7 @@ export function SpaceSettingsWorkspace({
                     )}
                     {t("space.spaceActions.chooseAvatar")}
                   </button>
-                  <p className="mt-2 truncate text-xs text-[var(--ink-muted)]">
+                  <p className="mt-2 truncate text-xs text-[var(--muted)]">
                     {avatarFilePath
                       ? basename(avatarFilePath)
                       : t("space.profile.avatarHint")}
@@ -847,16 +847,16 @@ export function SpaceSettingsWorkspace({
                   value={name}
                   disabled={busyKey === "overview"}
                   onChange={(event) => setName(event.target.value)}
-                  className="h-10 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--ink-muted)] focus:border-[var(--accent-warm)] disabled:cursor-wait disabled:opacity-70"
+                  className="h-10 rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 text-sm text-[var(--ink)] outline-none transition-colors placeholder:text-[var(--muted)] focus:border-[var(--primary)] disabled:cursor-wait disabled:opacity-70"
                 />
               </label>
             </div>
-            <footer className="flex justify-end gap-2 border-t border-[var(--line-subtle)] px-5 py-3">
+            <footer className="flex justify-end gap-2 border-t border-[var(--line)] px-5 py-3">
               <button
                 type="button"
                 disabled={busyKey === "overview" || pickingAvatar}
                 onClick={closeOverviewEditor}
-                className="inline-flex h-9 items-center rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] px-3 text-sm font-semibold text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)] disabled:cursor-wait disabled:opacity-70"
+                className="inline-flex h-9 items-center rounded-xl border border-[var(--line)] bg-[var(--paper)] px-3 text-sm font-semibold text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)] disabled:cursor-wait disabled:opacity-70"
               >
                 {t("space.common.cancel")}
               </button>
@@ -866,7 +866,7 @@ export function SpaceSettingsWorkspace({
                   busyKey === "overview" || pickingAvatar || !name.trim()
                 }
                 onClick={() => void saveOverview()}
-                className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--button-primary-bg)] px-3 text-sm font-semibold text-[var(--button-primary-text)] transition-colors hover:bg-[var(--button-primary-bg-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--primary)] px-3 text-sm font-semibold text-[var(--on-primary)] transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {busyKey === "overview" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -881,7 +881,7 @@ export function SpaceSettingsWorkspace({
       ) : null}
 
       <div className={`${SPACE_SETTINGS_ROOT_FRAME_CLASS} space-y-4`}>
-        <section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]">
+        <section className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)]">
           <div className="px-5 py-4">
             <div className="flex flex-wrap items-center gap-3">
               <SpaceIcon
@@ -893,12 +893,12 @@ export function SpaceSettingsWorkspace({
                 <h2 className="truncate text-xl font-semibold text-[var(--ink)]">
                   {session.space.name}
                 </h2>
-                <div className="mt-0.5 flex min-w-0 items-center gap-2 text-sm font-medium text-[var(--ink-muted)]">
+                <div className="mt-0.5 flex min-w-0 items-center gap-2 text-sm font-medium text-[var(--muted)]">
                   <span className="min-w-0 truncate">{session.space.slug}</span>
                   <button
                     type="button"
                     onClick={copySlug}
-                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
                     aria-label={t("space.toasts.spaceSlugCopied")}
                     title={t("space.toasts.spaceSlugCopied")}
                   >
@@ -909,7 +909,7 @@ export function SpaceSettingsWorkspace({
               <button
                 type="button"
                 onClick={() => setEditingOverview(true)}
-                className="rounded-lg border border-[var(--line)] bg-[var(--paper-elevated)]/75 px-3 py-1.5 text-sm font-semibold text-[var(--ink-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+                className="rounded-lg border border-[var(--line)] bg-[var(--paper)]/75 px-3 py-1.5 text-sm font-semibold text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
               >
                 {t("space.settings.editOverview")}
               </button>
@@ -925,8 +925,8 @@ export function SpaceSettingsWorkspace({
               />
             </div>
           </div>
-          <div className="border-t border-[var(--line-subtle)] px-5 py-3.5">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
+          <div className="border-t border-[var(--line)] px-5 py-3.5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
               {t("space.settings.resourcesTitle", { plan: resourcePlan })}
             </h3>
             <div className="mt-2.5 grid grid-cols-2 gap-2">
@@ -1007,7 +1007,7 @@ export function SpaceSettingsWorkspace({
                 className="col-span-2"
               />
             </div>
-            <p className="mt-2.5 text-xs leading-relaxed text-[var(--ink-muted)]">
+            <p className="mt-2.5 text-xs leading-relaxed text-[var(--muted)]">
               {t("space.settings.quotaCountingHint")}
             </p>
           </div>
@@ -1021,20 +1021,20 @@ export function SpaceSettingsWorkspace({
                 key={item.id}
                 type="button"
                 onClick={() => setSection(item.id)}
-                className="group flex w-full items-center gap-3 rounded-xl border border-transparent bg-[var(--paper-elevated)]/60 px-4 py-3.5 text-left transition-colors hover:border-[var(--line)] hover:bg-[var(--paper-elevated)]"
+                className="group flex w-full items-center gap-3 rounded-xl border border-transparent bg-[var(--paper)]/60 px-4 py-3.5 text-left transition-colors hover:border-[var(--line)] hover:bg-[var(--paper)]"
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--accent-warm-subtle)] text-[var(--accent-warm)]">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[var(--primary-soft)] text-[var(--primary)]">
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-[var(--ink)]">
                     {item.label}
                   </span>
-                  <span className="mt-0.5 block truncate text-xs text-[var(--ink-muted)]">
+                  <span className="mt-0.5 block truncate text-xs text-[var(--muted)]">
                     {item.hint}
                   </span>
                 </span>
-                <ChevronRight className="h-4 w-4 shrink-0 text-[var(--ink-subtle)] transition-transform group-hover:translate-x-0.5" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-[var(--subtle)] transition-transform group-hover:translate-x-0.5" />
               </button>
             );
           })}

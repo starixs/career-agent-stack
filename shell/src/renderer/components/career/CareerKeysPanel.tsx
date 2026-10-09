@@ -84,20 +84,20 @@ export function CareerKeysPanel({ show = 'all', onSaved }: { show?: 'all' | 'llm
       {show !== 'search' && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
-            模型 API Key <span className="text-xs font-normal text-[var(--ink-muted)]">必需 · DeepSeek</span>
+            模型 API Key <span className="text-xs font-normal text-[var(--muted)]">必需 · DeepSeek</span>
             {sourceBadge(status?.llm, llmSaved)}
           </div>
           <div className="flex gap-2">
             <TextInput aria-label="模型 API Key" type="password" autoComplete="new-password" placeholder={llmSaved ? '输入新 Key 替换' : 'sk-...'} value={llmKey} onChange={e => setLlmKey(e.target.value)} />
             <Button variant="primary" busy={busy === 'llm'} disabled={!llmKey.trim() || busy !== null} onClick={() => void save('llm')}>保存</Button>
           </div>
-          <p className="text-xs text-[var(--ink-subtle)]">在 platform.deepseek.com 的「API keys」创建。保存在本机配置里，助理对话和所有工具都用它，不用再在命令行注入。</p>
+          <p className="text-xs text-[var(--subtle)]">在 platform.deepseek.com 的「API keys」创建。保存在本机配置里，助理对话和所有工具都用它，不用再在命令行注入。</p>
         </div>
       )}
       {show !== 'llm' && (
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
-            搜索 API Key <span className="text-xs font-normal text-[var(--ink-muted)]">建议配置</span>
+            搜索 API Key <span className="text-xs font-normal text-[var(--muted)]">建议配置</span>
             {sourceBadge(status?.search, searchSaved)}
           </div>
           <div className="flex flex-wrap gap-2">
@@ -112,10 +112,10 @@ export function CareerKeysPanel({ show = 'all', onSaved }: { show?: 'all' | 'llm
             <div className="min-w-0 flex-1"><TextInput aria-label="搜索 API Key" type="password" autoComplete="new-password" placeholder={searchSaved ? '输入新 Key 替换' : 'API Key'} value={searchKey} onChange={e => setSearchKey(e.target.value)} /></div>
             <Button variant="primary" busy={busy === 'search'} disabled={!searchKey.trim() || busy !== null} onClick={() => void save('search')}>保存</Button>
           </div>
-          <p className="text-xs text-[var(--ink-subtle)]">{SEARCH_LABELS[provider].help}。不配置也能用，但公司调研、岗位核实只能靠模型已有知识，可能过时。</p>
+          <p className="text-xs text-[var(--subtle)]">{SEARCH_LABELS[provider].help}。不配置也能用，但公司调研、岗位核实只能靠模型已有知识，可能过时。</p>
         </div>
       )}
-      {error && <div role="alert" className="text-xs text-[var(--error)]">{error}</div>}
+      {error && <div role="alert" className="text-xs text-[var(--danger)]">{error}</div>}
       {notice && <div role="status" className="text-xs text-[var(--success)]">{notice}</div>}
     </div>
   );

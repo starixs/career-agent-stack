@@ -64,8 +64,8 @@ const StickyAncestorRow = memo(function StickyAncestorRow({
       data-tree-path={ancestor.path}
       className={`flex w-full cursor-pointer items-center gap-2 px-3 text-sm font-medium transition-colors ${
         isDropTarget
-          ? "ring-1 ring-inset ring-[var(--accent)]/40 bg-[var(--accent)]/8 text-[var(--ink)]"
-          : "text-[var(--ink-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--ink)]"
+          ? "ring-1 ring-inset ring-[var(--primary)]/40 bg-[var(--primary)]/8 text-[var(--ink)]"
+          : "text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]"
       }`}
       style={{
         height: rowHeight,
@@ -87,7 +87,7 @@ const StickyAncestorRow = memo(function StickyAncestorRow({
       <button
         type="button"
         title={t("workspaceTree.collapseFolder")}
-        className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]"
+        className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
         onClick={(e) => {
           e.stopPropagation();
           onClosePath(ancestor.path);
@@ -128,7 +128,7 @@ export const WorkspaceTreeStickyAncestors = memo(
 
     return (
       <div
-        className="absolute left-0 right-0 top-0 z-10 border-b border-[var(--line-subtle)] bg-[var(--paper-elevated)] shadow-xs"
+        className="absolute left-0 right-0 top-0 z-10 border-b border-[var(--line)] bg-[var(--paper)] shadow-xs"
         // VS Code-style push transition: the viewport writes the sub-row
         // scroll fraction into `--tree-sticky-push` (pure DOM write, no
         // re-render) and the bar slides up as the deepest folder's subtree

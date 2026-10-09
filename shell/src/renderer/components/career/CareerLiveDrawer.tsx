@@ -100,9 +100,9 @@ function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDon
     onDone(null);
   };
   return (
-    <div data-testid="live-file-chooser" role="dialog" aria-label="页面请求上传文件" className="mt-2 rounded-md border border-[var(--accent)]/50 bg-[var(--paper-inset)] px-3 py-2 text-xs text-[var(--ink)]">
+    <div data-testid="live-file-chooser" role="dialog" aria-label="页面请求上传文件" className="mt-2 rounded-md border border-[var(--primary)]/50 bg-[var(--inset)] px-3 py-2 text-xs text-[var(--ink)]">
       <div className="flex items-center gap-1.5 font-medium"><Paperclip className="h-3.5 w-3.5" />页面请求上传文件{chooser.accept ? `（${chooser.accept}）` : ''}</div>
-      <p className="mt-1 text-[var(--ink-muted)]">在这里选文件，会直接交给网页里的上传框，不会弹出别的窗口。</p>
+      <p className="mt-1 text-[var(--muted)]">在这里选文件，会直接交给网页里的上传框，不会弹出别的窗口。</p>
       <input
         ref={inputRef}
         type="file"
@@ -115,7 +115,7 @@ function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDon
       <div className="mt-2 flex items-center gap-2">
         <Button variant="primary" busy={busy} onClick={() => inputRef.current?.click()}>选择文件</Button>
         <Button variant="ghost" disabled={busy} onClick={() => void cancel()}>取消</Button>
-        {error && <span role="alert" className="text-[var(--error)]">{error}</span>}
+        {error && <span role="alert" className="text-[var(--danger)]">{error}</span>}
       </div>
     </div>
   );
@@ -197,9 +197,9 @@ function DrawerBody({ takeover, fullscreen, onToggleFullscreen, onClose, onTakeo
       data-testid="career-live-drawer"
       data-fullscreen={fullscreen ? 'true' : 'false'}
       aria-label="浏览器现场"
-      className={`fixed z-40 flex flex-col bg-[var(--paper)] shadow-2xl ${fullscreen ? 'inset-0' : 'inset-y-0 right-0 w-[min(560px,92vw)] border-l border-[var(--line)]'}`}
+      className={`fixed z-40 flex flex-col bg-[var(--bg)] shadow-2xl ${fullscreen ? 'inset-0' : 'inset-y-0 right-0 w-[min(560px,92vw)] border-l border-[var(--line)]'}`}
     >
-      <div className="flex items-center gap-2 border-b border-[var(--line-subtle)] px-3 py-2 text-xs text-[var(--ink-muted)]">
+      <div className="flex items-center gap-2 border-b border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)]">
         <Eye className="h-3.5 w-3.5" />
         <span className="text-sm font-medium text-[var(--ink)]">浏览器现场</span>
         <Badge tone={control === 'human' ? 'info' : control === 'agent' ? 'success' : 'neutral'}>{control === 'human' ? '你在操作' : control === 'agent' ? '助理在操作' : '浏览器未打开'}</Badge>
@@ -223,7 +223,7 @@ function DrawerBody({ takeover, fullscreen, onToggleFullscreen, onClose, onTakeo
         {takeover?.message && takeover.state === 'paused' && (
           <div role="status" className="mt-2 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--ink)]">{takeover.message}</div>
         )}
-        {snapshot?.browser.url && <div className="mt-2 truncate text-xs text-[var(--ink-subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</div>}
+        {snapshot?.browser.url && <div className="mt-2 truncate text-xs text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</div>}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {!humanActive && <Button variant="primary" busy={busy === 'take'} disabled={!canTake} onClick={() => void act('take')}>接管</Button>}
           {humanActive && <Button variant="primary" busy={busy === 'handback'} disabled={busy !== null} onClick={() => void act('handback')}>交回，继续</Button>}
@@ -233,16 +233,16 @@ function DrawerBody({ takeover, fullscreen, onToggleFullscreen, onClose, onTakeo
               <AppWindow className="h-3.5 w-3.5" />{revealed ? '收回真实窗口' : '显示真实窗口'}
             </Button>
           )}
-          {notice && <span role="alert" className="text-xs text-[var(--error)]">{notice}</span>}
+          {notice && <span role="alert" className="text-xs text-[var(--danger)]">{notice}</span>}
           {!notice && info && <span role="status" className="text-xs text-[var(--success)]">{info}</span>}
         </div>
-        <p className="mt-2 text-xs text-[var(--ink-subtle)]">
+        <p className="mt-2 text-xs text-[var(--subtle)]">
           {humanActive
             ? '直接在画面里点、输入、滚动；上传附件会在这里让你选文件。做完点「交回，继续」。'
             : '遇到登录 / 滑块 / 短信码时，直接点画面即可接管，浏览器一直留在产品里。'}
         </p>
         {batch && batch.status !== 'idle' && (
-          <div className="mt-3 rounded-md border border-[var(--line-subtle)] bg-[var(--paper-inset)] px-3 py-2 text-xs text-[var(--ink-muted)]">
+          <div className="mt-3 rounded-md border border-[var(--line)] bg-[var(--inset)] px-3 py-2 text-xs text-[var(--muted)]">
             批量：{batch.message ?? batch.status} · 已填好 {batch.done} · 等你处理 {batch.handoffs} · 队列 {batch.queued}
           </div>
         )}

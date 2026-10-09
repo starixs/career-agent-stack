@@ -66,9 +66,9 @@ export default function OpenClawToolGroupsSelector({
     const allGroups = [...toolGroups, ...unknownGroups];
 
     return (
-        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-5">
+        <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-5">
             <h3 className="mb-4 text-sm font-semibold text-[var(--ink)]">{t('agentSettings.toolGroups.title')}</h3>
-            <p className="mb-3 text-xs text-[var(--ink-muted)]">
+            <p className="mb-3 text-xs text-[var(--muted)]">
                 {t('agentSettings.toolGroups.description')}
             </p>
             <div className="space-y-2">
@@ -77,7 +77,7 @@ export default function OpenClawToolGroupsSelector({
                     return (
                         <label
                             key={group.id}
-                            className="flex cursor-pointer items-center gap-3 rounded-lg border border-[var(--line)] p-3 transition-colors hover:border-[var(--line-strong)]"
+                            className="flex cursor-pointer items-center gap-3 rounded-lg border border-[var(--line)] p-3 transition-colors hover:border-[var(--line-2)]"
                         >
                             <input
                                 type="checkbox"
@@ -89,7 +89,7 @@ export default function OpenClawToolGroupsSelector({
                                 <div className="flex items-center gap-2">
                                     <p className="text-sm font-medium text-[var(--ink)]">{group.name}</p>
                                     {group.toolCount > 0 && (
-                                        <span className="rounded-full bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-subtle)]">
+                                        <span className="rounded-full bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--subtle)]">
                                             {t('agentSettings.toolGroups.toolCount', { count: group.toolCount })}
                                         </span>
                                     )}
@@ -99,7 +99,7 @@ export default function OpenClawToolGroupsSelector({
                                         </span>
                                     )}
                                 </div>
-                                <p className="text-xs text-[var(--ink-muted)]">{group.description}</p>
+                                <p className="text-xs text-[var(--muted)]">{group.description}</p>
                             </div>
                         </label>
                     );

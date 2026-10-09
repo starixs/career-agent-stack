@@ -129,7 +129,7 @@ const AgentStatusPanel = memo(function AgentStatusPanel({ containerRef, onJumpTo
     <div
       aria-hidden={!opaque}
       inert={!opaque}
-      className={`flex w-[260px] flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)]/95 shadow-lg backdrop-blur-md transition-opacity duration-200 [&:not(:only-child)]:mr-auto ${
+      className={`flex w-[260px] flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)]/95 shadow-lg backdrop-blur-md transition-opacity duration-200 [&:not(:only-child)]:mr-auto ${
         opaque ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'
       }`}
     >
@@ -171,8 +171,8 @@ const AgentStatusBar = memo(function AgentStatusBar({ summary, expanded, onToggl
       onClick={onToggle}
       aria-expanded={expanded}
       aria-label={expanded ? t('agentStatus.collapse') : t('agentStatus.expand')}
-      className={`flex items-center gap-4 px-3 py-2 text-xs text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)]/40 ${
-        expanded ? 'border-t border-[var(--line-subtle)]' : ''
+      className={`flex items-center gap-4 px-3 py-2 text-xs text-[var(--ink)] transition-colors hover:bg-[var(--inset)]/40 ${
+        expanded ? 'border-t border-[var(--line)]' : ''
       }`}
     >
       {hasTodos && (
@@ -187,7 +187,7 @@ const AgentStatusBar = memo(function AgentStatusBar({ summary, expanded, onToggl
           {summary.subagentRunning > 0 ? (
             <SubagentRunningIcon />
           ) : summary.subagentTerminalStatus === 'failed' ? (
-            <OctagonX className="size-3.5 text-[var(--error)]" />
+            <OctagonX className="size-3.5 text-[var(--danger)]" />
           ) : summary.subagentTerminalStatus === 'interrupted' ? (
             <StopCircle className="size-3.5 text-[var(--warning)]" />
           ) : (
@@ -196,7 +196,7 @@ const AgentStatusBar = memo(function AgentStatusBar({ summary, expanded, onToggl
         </span>
       )}
 
-      <span className="ml-auto text-[var(--ink-muted)]">
+      <span className="ml-auto text-[var(--muted)]">
         {expanded ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
       </span>
     </button>

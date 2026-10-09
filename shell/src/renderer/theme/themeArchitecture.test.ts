@@ -2,12 +2,6 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import {
-  collectContractBlocks,
-  collectDeclaredTokens,
-  parseThemeStylesheet,
-} from './stylesheet-contract';
-
 const root = resolve(import.meta.dirname, '../../..');
 
 function source(relativePath: string): string {
@@ -21,24 +15,6 @@ function rendererSourceFiles(directory = resolve(root, 'src/renderer')): string[
     if (!/\.(?:ts|tsx|css)$/.test(entry.name) || /\.test\./.test(entry.name)) return [];
     return [path];
   });
-}
-
-function ruleBodyAfter(css: string, selector: string): string {
-  const selectorIndex = css.indexOf(selector);
-  expect(selectorIndex).toBeGreaterThanOrEqual(0);
-  const open = css.indexOf('{', selectorIndex);
-  const close = css.indexOf('}', open);
-  expect(open).toBeGreaterThan(selectorIndex);
-  expect(close).toBeGreaterThan(open);
-  return css.slice(open + 1, close);
-}
-
-function sourceSection(contents: string, startMarker: string, endMarker: string): string {
-  const start = contents.indexOf(startMarker);
-  const end = contents.indexOf(endMarker, start + startMarker.length);
-  expect(start).toBeGreaterThanOrEqual(0);
-  expect(end).toBeGreaterThan(start);
-  return contents.slice(start, end);
 }
 
 describe('Theme architecture guardrails', () => {
@@ -66,32 +42,11 @@ describe('Theme architecture guardrails', () => {
     expect(source('src/renderer/theme/index.ts')).not.toContain('syntheticTheme');
   });
 
-  it('keeps every optional package scoped, side-effect free, and independent from Space', () => {
-    const optionalThemeIds = [
-      'keystone-light', 'default-black', 'sage', 'absolutely', 'linear', 'proof', 'codex', 'raycast',
-    ];
-    for (const themeId of optionalThemeIds) {
-      const manifest = source(`src/renderer/theme/themes/${themeId}.ts`);
-      const css = source(`src/renderer/theme/themes/${themeId}.css`);
-      expect(manifest).toContain(`from './${themeId}.css?inline'`);
-      expect(manifest).not.toContain(`import './${themeId}.css'`);
-      expect(css).toContain(`html[data-theme-id='${themeId}'] {`);
-      expect(css).toContain(`html[data-theme-id='${themeId}'][data-color-scheme='light'] {`);
-      expect(css).toContain(`html[data-theme-id='${themeId}'][data-color-scheme='dark'] {`);
-      expect(css).not.toContain(':root');
-      expect(css).not.toContain('data-ui-theme');
-      expect(css).not.toContain('@theme');
-      expect(css).not.toContain('@font-face');
-      expect(css).not.toMatch(/https?:\/\//);
-    }
-    expect(source('src/renderer/theme/themes/preset-theme.ts')).not.toContain('keystone-default');
-  });
-
   it('keeps the global sidebar structural surface scoped to App Shell chrome', () => {
     const consumers = rendererSourceFiles()
       // Theme definitions may alias message surfaces; UI consumers stay scoped.
       .filter(file => !file.startsWith(`${root}/src/renderer/theme/themes/`))
-      .filter(file => source(file.slice(root.length + 1)).includes('var(--global-sidebar-bg)'))
+      .filter(file => source(file.slice(root.length + 1)).includes('var(--rail)'))
       .map(file => file.slice(root.length + 1));
 
     expect(consumers).toEqual([
@@ -99,87 +54,6 @@ describe('Theme architecture guardrails', () => {
       'src/renderer/components/TabBar.tsx',
       'src/renderer/components/global-sidebar/GlobalSidebar.tsx',
     ]);
-  });
-
-  it('keeps Default Black equal to canonical host tokens except its light primary button pair', () => {
-    const canonicalStylesheet = parseThemeStylesheet(
-      source('src/renderer/theme/themes/keystone-default.css'),
-    );
-    const variantStylesheet = parseThemeStylesheet(
-      source('src/renderer/theme/themes/default-black.css'),
-    );
-    const canonicalRoot = "html[data-theme-id='keystone-default']";
-    const variantRoot = "html[data-theme-id='default-black']";
-    const collect = (
-      stylesheet: ReturnType<typeof parseThemeStylesheet>,
-      selector: string,
-      allowedSelectorLists: string[][],
-    ) => collectDeclaredTokens(collectContractBlocks(
-      stylesheet.topLevelBlocks,
-      selector,
-      allowedSelectorLists,
-      `Default Black equality selector ${selector}`,
-    ));
-
-    expect(collect(variantStylesheet, variantRoot, [[variantRoot]])).toEqual(
-      collect(canonicalStylesheet, canonicalRoot, [[':root', canonicalRoot]]),
-    );
-
-    for (const scheme of ['light', 'dark'] as const) {
-      const canonicalScheme = `${canonicalRoot}[data-color-scheme='${scheme}']`;
-      const variantScheme = `${variantRoot}[data-color-scheme='${scheme}']`;
-      const canonicalTokens = collect(
-        canonicalStylesheet,
-        canonicalScheme,
-        [[`html[data-color-scheme='${scheme}']`, canonicalScheme]],
-      );
-      const variantTokens = collect(variantStylesheet, variantScheme, [[variantScheme]]);
-
-      if (scheme === 'light') {
-        canonicalTokens.set('--button-primary-bg', '#111111');
-        canonicalTokens.set('--button-primary-bg-hover', '#2b2b2b');
-      }
-      expect(variantTokens).toEqual(canonicalTokens);
-    }
-  });
-
-  it('keeps keystone Light equal to Claude except its light primary button pair', () => {
-    const claudeStylesheet = parseThemeStylesheet(
-      source('src/renderer/theme/themes/absolutely.css'),
-    );
-    const lightStylesheet = parseThemeStylesheet(
-      source('src/renderer/theme/themes/keystone-light.css'),
-    );
-    const claudeRoot = "html[data-theme-id='absolutely']";
-    const lightRoot = "html[data-theme-id='keystone-light']";
-    const collect = (
-      stylesheet: ReturnType<typeof parseThemeStylesheet>,
-      selector: string,
-    ) => collectDeclaredTokens(collectContractBlocks(
-      stylesheet.topLevelBlocks,
-      selector,
-      [[selector]],
-      `keystone Light equality selector ${selector}`,
-    ));
-
-    expect(collect(lightStylesheet, lightRoot)).toEqual(collect(claudeStylesheet, claudeRoot));
-
-    for (const scheme of ['light', 'dark'] as const) {
-      const claudeTokens = collect(
-        claudeStylesheet,
-        `${claudeRoot}[data-color-scheme='${scheme}']`,
-      );
-      const lightTokens = collect(
-        lightStylesheet,
-        `${lightRoot}[data-color-scheme='${scheme}']`,
-      );
-
-      if (scheme === 'light') {
-        claudeTokens.set('--button-primary-bg', '#111111');
-        claudeTokens.set('--button-primary-bg-hover', '#2b2b2b');
-      }
-      expect(lightTokens).toEqual(claudeTokens);
-    }
   });
 
   it('reuses one Theme-owned product wordmark across Launcher, About, and the global sidebar', () => {
@@ -206,9 +80,9 @@ describe('Theme architecture guardrails', () => {
   });
 
   it('keeps a complete default visual fallback for unknown pre-React Theme IDs', () => {
-    const css = source('src/renderer/theme/themes/keystone-default.css');
+    const css = source('src/renderer/theme/themes/career.css');
     expect(css).toContain(":root,\nhtml[data-theme-id='keystone-default']");
-    expect(css).toContain('--font-body:');
+    expect(css).toContain('--font-sans:');
     expect(css).toContain('--theme-radius-full:');
     expect(css).toContain("html[data-color-scheme='light']");
     expect(css).toContain("html[data-color-scheme='dark']");
@@ -217,85 +91,31 @@ describe('Theme architecture guardrails', () => {
 
   it('keeps Tailwind utility generation bridged to runtime Theme tokens', () => {
     const entry = source('src/renderer/index.css');
-    const theme = source('src/renderer/theme/themes/keystone-default.css');
+    const theme = source('src/renderer/theme/themes/career.css');
     expect(entry).toContain('@theme inline');
-    expect(entry).toContain('--font-mono: var(--font-code)');
+    // Font tokens share Tailwind's names, so the bridge must not alias them to themselves.
+    expect(entry).not.toMatch(/--font-(?:sans|mono): var\(--font-(?:sans|mono)\)/);
     expect(entry).toContain('--radius-full: var(--theme-radius-full)');
     expect(entry).toContain('--shadow-sm: var(--theme-shadow-sm)');
-    expect(entry).toContain('--transition-duration-150: var(--duration-fast)');
+    expect(entry).toContain('--transition-duration-150: var(--motion-fast)');
     expect(theme).not.toContain('@theme');
-  });
-
-  it('keeps the restored warm default action palette aligned with embedded adapters', () => {
-    const theme = source('src/renderer/theme/themes/keystone-default.css');
-    const themeLight = ruleBodyAfter(theme, "html[data-color-scheme='light'],");
-    const themeDark = ruleBodyAfter(theme, "html[data-color-scheme='dark'],");
-    const expectedThemeByScheme = {
-      light: [
-        '--hover-bg: rgba(194, 109, 58, 0.07)',
-        '--accent: #c26d3a', '--accent-warm: #c26d3a', '--accent-warm-hover: #e18a58',
-        '--accent-warm-subtle: rgba(194, 109, 58, 0.08)',
-        '--accent-warm-muted: rgba(194, 109, 58, 0.15)',
-        '--accent-warm-subtle-a0: rgba(194, 109, 58, 0)', '--on-accent: #ffffff',
-        '--button-primary-bg: #c26d3a', '--button-primary-bg-hover: #b05e2d',
-        '--button-primary-text: var(--on-accent)', '--focus-border: #1c1612', '--toggle-thumb: #ffffff',
-      ],
-      dark: [
-        '--hover-bg: rgba(194, 109, 58, 0.12)',
-        '--accent: #d4803f', '--accent-warm: #d4803f', '--accent-warm-hover: #e89860',
-        '--accent-warm-subtle: rgba(212, 128, 63, 0.12)',
-        '--accent-warm-muted: rgba(212, 128, 63, 0.20)',
-        '--accent-warm-subtle-a0: rgba(212, 128, 63, 0)', '--on-accent: #ffffff',
-        '--button-primary-bg: #b05e2d', '--button-primary-bg-hover: #9c5027',
-        '--button-primary-text: var(--on-accent)', '--focus-border: var(--accent)', '--toggle-thumb: #ffffff',
-      ],
-    } as const;
-    for (const declaration of expectedThemeByScheme.light) {
-      expect(themeLight).toContain(declaration);
-    }
-    for (const declaration of expectedThemeByScheme.dark) {
-      expect(themeDark).toContain(declaration);
-    }
-    expect(themeDark).not.toContain('--accent: #c26d3a');
-    expect(themeLight).not.toContain('--accent: #d4803f');
-    const adapters = source('src/renderer/theme/themes/keystone-default.ts');
-    const lightWidget = sourceSection(adapters, 'const lightWidgetVariables', 'const darkWidgetVariables');
-    const darkWidget = sourceSection(adapters, 'const darkWidgetVariables', 'const light: ThemeSchemeDefinition');
-    const lightAdapter = sourceSection(adapters, 'const light: ThemeSchemeDefinition', 'const dark: ThemeSchemeDefinition');
-    const darkAdapter = sourceSection(adapters, 'const dark: ThemeSchemeDefinition', 'const noHeroBackground');
-    for (const declaration of [
-      "'--widget-accent': '#c26d3a'", "'--widget-accent-hover': '#e18a58'",
-      "'--widget-accent-subtle': 'rgba(194, 109, 58, 0.08)'", "'--widget-primary-text': '#ffffff'",
-    ]) expect(lightWidget).toContain(declaration);
-    for (const declaration of [
-      "'--widget-accent': '#d4803f'", "'--widget-accent-hover': '#e89860'",
-      "'--widget-accent-subtle': 'rgba(212, 128, 63, 0.12)'", "'--widget-primary-text': '#ffffff'",
-    ]) expect(darkWidget).toContain(declaration);
-    for (const declaration of [
-      "cursor: '#c26d3a'", "selectionBackground: 'rgba(194, 109, 58, 0.18)'",
-      "selectionInactiveBackground: 'rgba(194, 109, 58, 0.10)'",
-    ]) expect(lightAdapter).toContain(declaration);
-    for (const declaration of [
-      "cursor: '#c26d3a'", "selectionBackground: 'rgba(194, 109, 58, 0.25)'",
-      "selectionInactiveBackground: 'rgba(194, 109, 58, 0.15)'",
-    ]) expect(darkAdapter).toContain(declaration);
   });
 
   it('keeps action surfaces paired with their Theme-owned foreground tokens', () => {
     const forbiddenPairs = [
       /bg-\[var\(--(?:accent|accent-warm)\)\][^'"`]*\btext-white\b/,
       /\btext-white\b[^'"`]*bg-\[var\(--(?:accent|accent-warm)\)\]/,
-      /bg-\[var\(--button-primary-bg\)\][^'"`]*text-\[var\(--button-dark-text\)\]/,
-      /bg-\[var\(--button-dark-bg\)\][^'"`]*text-\[var\(--button-primary-text\)\]/,
-      /background(?:-color)?\s*:\s*var\(--accent\)\s*;[^}]*color\s*:\s*#(?:fff|ffffff)\b/is,
-      /background(?:-color)?\s*:\s*var\(--button-dark-bg\)[^}]*color\s*:\s*var\(--button-primary-text\)/is,
+      /bg-\[var\(--primary\)\][^'"`]*text-\[var\(--bg\)\]/,
+      /bg-\[var\(--ink\)\][^'"`]*text-\[var\(--on-primary\)\]/,
+      /background(?:-color)?\s*:\s*var\(--primary\)\s*;[^}]*color\s*:\s*#(?:fff|ffffff)\b/is,
+      /background(?:-color)?\s*:\s*var\(--ink\)[^}]*color\s*:\s*var\(--on-primary\)/is,
     ];
     const violations = rendererSourceFiles()
       .filter(file => forbiddenPairs.some(pattern => pattern.test(readFileSync(file, 'utf8'))));
     expect(violations).toEqual([]);
 
     const unvalidatedAccentHoverViolations = rendererSourceFiles()
-      .filter(file => /bg-\[var\(--accent\)\][^'"`]*hover:brightness-/.test(readFileSync(file, 'utf8')));
+      .filter(file => /bg-\[var\(--primary\)\][^'"`]*hover:brightness-/.test(readFileSync(file, 'utf8')));
     expect(unvalidatedAccentHoverViolations).toEqual([]);
 
     for (const primaryAction of [
@@ -304,54 +124,64 @@ describe('Theme architecture guardrails', () => {
       'src/renderer/components/task-center/editors/PanelChrome.tsx',
     ]) {
       const contents = source(primaryAction);
-      expect(contents).toContain('bg-[var(--button-primary-bg)]');
-      expect(contents).toContain('text-[var(--button-primary-text)]');
-      expect(contents).toContain('hover:bg-[var(--button-primary-bg-hover)]');
+      expect(contents).toContain('bg-[var(--primary)]');
+      expect(contents).toContain('text-[var(--on-primary)]');
+      expect(contents).toContain('hover:bg-[var(--primary-hover)]');
     }
 
-    const statusNames = ['success', 'error', 'warning', 'info'] as const;
+    // Filled status surfaces flip between light and dark schemes, so their
+    // foreground must be the Theme-owned --on-primary, never a literal white.
+    const statusNames = ['success', 'danger', 'warning', 'info'] as const;
     const statusViolations = rendererSourceFiles()
       .filter(file => {
         const contents = readFileSync(file, 'utf8');
-        return statusNames.some(status => {
-          const wrongForeground = `(?:white|\\[var\\(--on-(?!${status}\\b)[a-z-]+\\)\\])`;
-          return new RegExp(`bg-\\[var\\(--${status}\\)\\][^'"\\x60]*text-${wrongForeground}`).test(contents)
-            || new RegExp(`text-${wrongForeground}[^'"\\x60]*bg-\\[var\\(--${status}\\)\\]`).test(contents)
-            || new RegExp(`background(?:-color)?\\s*:\\s*var\\(--${status}\\)\\s*;[^}]*color\\s*:\\s*var\\(--on-(?!${status}\\b)[a-z-]+\\)`, 'is').test(contents);
-        });
+        return statusNames.some(status =>
+          new RegExp(`bg-\\[var\\(--${status}\\)\\][^'"\\x60]*\\btext-white\\b`).test(contents)
+          || new RegExp(`\\btext-white\\b[^'"\\x60]*bg-\\[var\\(--${status}\\)\\]`).test(contents));
       });
     expect(statusViolations).toEqual([]);
 
-    expect(source('src/renderer/hooks/useChatSearch.ts')).toContain('color: var(--on-accent)');
-    expect(source('src/renderer/index.css')).toContain('color: var(--button-dark-text)');
+    expect(source('src/renderer/hooks/useChatSearch.ts')).toContain('color: var(--on-primary)');
+    expect(source('src/renderer/index.css')).toContain('color: var(--bg)');
     const tip = source('src/renderer/components/Tip.tsx');
-    expect(tip).toContain('text-[var(--button-dark-text)]/70');
+    expect(tip).toContain('text-[var(--bg)]/70');
     expect(tip).not.toContain('text-white');
     const floatingBall = source('src/renderer/floating-ball/fb.css');
     expect(floatingBall).toContain('color-mix(in srgb, var(--core-c) 45%, var(--fb-highlight-strong))');
-    expect(floatingBall).toContain('background: var(--success);\n  color: var(--on-success);');
-    expect(floatingBall).toContain('.fbw-inputrow .send.stop { background: var(--button-dark-bg); color: var(--button-dark-text); }');
-    expect(floatingBall).toContain('.fbw-inputrow .send.stop:hover { background: var(--button-dark-bg-hover); }');
-    expect(source('src/renderer/components/SettingsHelperInbox.tsx')).toContain('bg-[var(--ink)]/70 text-[var(--paper)]');
+    expect(floatingBall).toContain('background: var(--success);\n  color: var(--on-primary);');
+    expect(floatingBall).toContain('.fbw-inputrow .send.stop { background: var(--ink); color: var(--bg); }');
+    expect(floatingBall).toContain('.fbw-inputrow .send.stop:hover { background: var(--ink-2); }');
+    expect(source('src/renderer/components/SettingsHelperInbox.tsx')).toContain('bg-[var(--ink)]/70 text-[var(--bg)]');
   });
 
   it('keeps Settings on the disk-first Theme and appearance write paths', () => {
     const settings = source('src/renderer/pages/settings/SettingsPage.tsx');
     expect(settings).toContain('updateConfig({ appearanceMode: mode })');
-    expect(settings).toContain('themeSelectionExplicit: true');
-    expect(settings).toContain("tSettings('general.themeTitle')");
+    // One product Theme: Settings offers appearance mode only, no Theme picker.
+    expect(settings).not.toContain('ThemePresetSelect');
     expect(settings).not.toContain("tSettings('about.developer.themeTitle')");
     expect(settings).not.toContain('updateConfig({ theme:');
     expect(settings).not.toContain('colorTheme');
   });
 
-  it('keeps product default selection separate from canonical fallback', () => {
+  it('keeps the single product Theme as both default and canonical fallback', () => {
     const sharedTheme = source('src/shared/theme.ts');
     const registry = source('src/renderer/theme/registry.ts');
     expect(sharedTheme).toContain("CANONICAL_THEME_ID = 'keystone-default'");
-    expect(sharedTheme).toContain("DEFAULT_THEME_ID = 'keystone-light'");
+    expect(sharedTheme).toContain('DEFAULT_THEME_ID = CANONICAL_THEME_ID');
+    expect(registry).toContain('new ThemeRegistry([careerTheme])');
     expect(sharedTheme).toContain('themeSelectionExplicit');
     expect(registry).toContain('this.definitions.get(CANONICAL_THEME_ID)');
     expect(source('src/renderer/theme/bootstrap.ts')).toContain('THEME_BOOTSTRAP_VERSION = 2');
+  });
+
+  it('keeps retired keystone token names out of renderer sources', () => {
+    // specs/CAREER_DESIGN.md §9.1 replaced these names; reintroducing one would
+    // silently resolve to nothing because no Theme declares it any more.
+    const retired = /var\(--(?:paper-elevated|paper-inset|ink-muted|ink-secondary|ink-subtle|ink-faint|line-strong|line-subtle|hover-bg|accent(?:-warm[a-z0-9-]*|-cool[a-z0-9-]*)?|on-accent|error(?:-bg|-hover|-subtle)?|button-(?:primary|dark|secondary)[a-z-]*|global-sidebar-bg[a-z0-9-]*|message-user-bg[a-z0-9-]*|focus-border|font-body|font-display|font-code|duration-(?:fast|normal|slow)|code-(?:bg|header-bg|text|line-number)|heartbeat[a-z-]*|media-[a-z-]+)\)/;
+    const offenders = rendererSourceFiles()
+      .filter(file => retired.test(readFileSync(file, 'utf8')))
+      .map(file => file.slice(root.length + 1));
+    expect(offenders).toEqual([]);
   });
 });

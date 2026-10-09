@@ -64,7 +64,7 @@ function syncMainWindowBackground(): void {
   if (!isTauriEnvironment()) return;
 
   const currentWindow = getCurrentWindow();
-  const paper = getComputedStyle(document.documentElement).getPropertyValue('--paper').trim();
+  const paper = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   void currentWindow.setBackgroundColor(paper)
     .catch(error => console.warn('[theme] Failed to sync native window background:', error));
 }

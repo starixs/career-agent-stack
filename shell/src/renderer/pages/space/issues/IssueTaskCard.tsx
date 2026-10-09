@@ -65,7 +65,7 @@ export function IssueTaskCard({
   return (
     <section
       aria-label={t('space.detail.taskCard')}
-      className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 shadow-sm max-sm:grid-cols-1"
+      className="mt-6 grid grid-cols-2 gap-x-6 gap-y-3 rounded-xl border border-[var(--line)] bg-[var(--bg)] px-4 py-3 shadow-sm max-sm:grid-cols-1"
     >
       <TaskFact label={t('space.detail.creator')}>
         <SpaceIdentityLine
@@ -86,14 +86,14 @@ export function IssueTaskCard({
             type="button"
             disabled={!admin || goalBusy}
             onClick={() => setGoalOpen((value) => !value)}
-            className="inline-flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] active:scale-[0.98] disabled:pointer-events-none"
+            className="inline-flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] active:scale-[0.98] disabled:pointer-events-none"
           >
             {goalBusy && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />}
             <GoalPathLabel
               label={goalLabel}
               leafLabel={goalLeafLabel || goalLabel}
             />
-            {admin && <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)]" />}
+            {admin && <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />}
           </button>
           <Popover
             open={goalOpen && admin}
@@ -110,10 +110,10 @@ export function IssueTaskCard({
                   if (!issue.goalId) return setGoalOpen(false);
                   void onChangeGoal(null).then(() => setGoalOpen(false));
                 }}
-                className="flex min-h-9 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)]"
+                className="flex min-h-9 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)]"
               >
                 <span className="truncate">{t('space.detail.noGoal')}</span>
-                {!issue.goalId && <Check className="h-4 w-4 shrink-0 text-[var(--accent-cool)]" />}
+                {!issue.goalId && <Check className="h-4 w-4 shrink-0 text-[var(--info)]" />}
               </button>
               {goals.filter((goal) => !goal.archivedAt).map((goal) => {
                 const selected = goal.id === issue.goalId;
@@ -126,13 +126,13 @@ export function IssueTaskCard({
                       if (selected) return setGoalOpen(false);
                       void onChangeGoal(goal.id).then(() => setGoalOpen(false));
                     }}
-                    className="flex min-h-9 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--ink-secondary)] transition-colors hover:bg-[var(--paper-inset)]"
+                    className="flex min-h-9 w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-[var(--ink-2)] transition-colors hover:bg-[var(--inset)]"
                   >
                     <GoalPathLabel
                       label={goal.goalPathLabel || goal.path || goal.title}
                       leafLabel={goal.title}
                     />
-                    {selected && <Check className="h-4 w-4 shrink-0 text-[var(--accent-cool)]" />}
+                    {selected && <Check className="h-4 w-4 shrink-0 text-[var(--info)]" />}
                   </button>
                 );
               })}
@@ -171,7 +171,7 @@ export function IssueTaskCard({
                       if (selected) return setStatusOpen(false);
                       void onChangeStatus(option).then(() => setStatusOpen(false));
                     }}
-                    className="flex h-9 w-full items-center justify-between gap-3 rounded-lg px-2.5 text-left text-sm font-semibold transition-colors hover:bg-[var(--paper-inset)]"
+                    className="flex h-9 w-full items-center justify-between gap-3 rounded-lg px-2.5 text-left text-sm font-semibold transition-colors hover:bg-[var(--inset)]"
                   >
                     <span className={statusTextClass(option.value)}>{option.label}</span>
                     {selected && <Check className={`h-4 w-4 ${statusTextClass(option.value)}`} />}
@@ -199,7 +199,7 @@ export function IssueTaskCard({
 function TaskFact({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2">
-      <span className="text-xs font-medium text-[var(--ink-subtle)]">{label}</span>
+      <span className="text-xs font-medium text-[var(--subtle)]">{label}</span>
       <span className="min-w-0 text-sm text-[var(--ink)]">{children}</span>
     </div>
   );

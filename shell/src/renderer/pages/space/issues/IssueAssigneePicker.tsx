@@ -167,7 +167,7 @@ export function IssueAssigneePicker({
         type="button"
         disabled={!canInteract}
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex min-w-0 items-center rounded-md px-1.5 py-1 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper-inset)] active:scale-[0.98] disabled:pointer-events-none"
+        className="inline-flex min-w-0 items-center rounded-md px-1.5 py-1 text-sm font-medium text-[var(--ink)] transition-colors hover:bg-[var(--inset)] active:scale-[0.98] disabled:pointer-events-none"
         aria-expanded={open}
       >
         {assignee ? (
@@ -180,11 +180,11 @@ export function IssueAssigneePicker({
               nameClassName="font-medium text-[var(--ink)]"
             />
             {assignee.type === 'registered_agent' && (
-              <span className="ml-1.5 rounded-md bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">Agent</span>
+              <span className="ml-1.5 rounded-md bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">Agent</span>
             )}
           </>
         ) : (
-          <span className="text-[var(--ink-muted)]">{t('space.detail.unassigned')}</span>
+          <span className="text-[var(--muted)]">{t('space.detail.unassigned')}</span>
         )}
       </button>
 
@@ -195,21 +195,21 @@ export function IssueAssigneePicker({
         offset={8}
         className="w-80 rounded-xl p-2"
       >
-          <label className="flex h-9 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-2.5">
-            <Search className="h-3.5 w-3.5 shrink-0 text-[var(--ink-muted)]" />
+          <label className="flex h-9 items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2.5">
+            <Search className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
             <input
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="min-w-0 flex-1 border-0 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)]"
+              className="min-w-0 flex-1 border-0 bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[var(--muted)]"
               placeholder={t('space.detail.assigneeSearch')}
             />
           </label>
 
           {assignee && (
-            <div className="mt-2 border-b border-[var(--line-subtle)] pb-2">
-              <div className="px-2 pb-1 text-xs font-medium text-[var(--ink-subtle)]">{t('space.detail.currentAssignee')}</div>
-              <div className="flex h-9 items-center justify-between gap-2 rounded-lg bg-[var(--paper-inset)] px-2">
+            <div className="mt-2 border-b border-[var(--line)] pb-2">
+              <div className="px-2 pb-1 text-xs font-medium text-[var(--subtle)]">{t('space.detail.currentAssignee')}</div>
+              <div className="flex h-9 items-center justify-between gap-2 rounded-lg bg-[var(--inset)] px-2">
                 <span className="inline-flex min-w-0 items-center">
                   <SpaceIdentityLine
                     name={assignee.name ?? assignee.id}
@@ -219,7 +219,7 @@ export function IssueAssigneePicker({
                     nameClassName="font-medium text-[var(--ink)]"
                   />
                   {assignee.type === 'registered_agent' && (
-                    <span className="ml-1.5 rounded-md bg-[var(--paper-elevated)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">Agent</span>
+                    <span className="ml-1.5 rounded-md bg-[var(--paper)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">Agent</span>
                   )}
                 </span>
                 {canCancel && (
@@ -232,7 +232,7 @@ export function IssueAssigneePicker({
                         setConfirmCancel(true);
                       }
                     }}
-                    className="grid h-7 w-7 place-items-center rounded-md text-[var(--ink-muted)] transition-colors hover:bg-[var(--paper-elevated)] hover:text-[var(--error)]"
+                    className="grid h-7 w-7 place-items-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--paper)] hover:text-[var(--danger)]"
                     aria-label={t('space.detail.cancelAssignee')}
                   >
                     <X className="h-3.5 w-3.5" />
@@ -244,12 +244,12 @@ export function IssueAssigneePicker({
 
           <div className="mt-2 max-h-64 overflow-y-auto">
             {loadingMembers && choices.length === 0 ? (
-              <div className="flex h-12 items-center justify-center text-xs text-[var(--ink-muted)]">
+              <div className="flex h-12 items-center justify-center text-xs text-[var(--muted)]">
                 <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
                 {t('space.detail.loadingAssignees')}
               </div>
             ) : choices.length === 0 ? (
-              <div className="px-2 py-4 text-center text-xs text-[var(--ink-muted)]">{t('space.detail.noAssignees')}</div>
+              <div className="px-2 py-4 text-center text-xs text-[var(--muted)]">{t('space.detail.noAssignees')}</div>
             ) : (
               choices.map((choice) => {
                 const key = `${choice.type}:${choice.id}`;
@@ -259,7 +259,7 @@ export function IssueAssigneePicker({
                     type="button"
                     disabled={busyKey !== null}
                     onClick={() => void select(choice)}
-                    className="flex h-10 w-full items-center justify-between gap-2 rounded-lg px-2 text-left transition-colors hover:bg-[var(--paper-inset)] active:scale-[0.99] disabled:opacity-60"
+                    className="flex h-10 w-full items-center justify-between gap-2 rounded-lg px-2 text-left transition-colors hover:bg-[var(--inset)] active:scale-[0.99] disabled:opacity-60"
                   >
                     <SpaceIdentityLine
                       name={choice.name}
@@ -270,9 +270,9 @@ export function IssueAssigneePicker({
                     />
                     <span className="flex shrink-0 items-center gap-2">
                       {choice.type === 'registered_agent' && (
-                        <span className="rounded-md bg-[var(--paper-inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--ink-muted)]">Agent</span>
+                        <span className="rounded-md bg-[var(--inset)] px-1.5 py-0.5 text-xs font-medium text-[var(--muted)]">Agent</span>
                       )}
-                      {busyKey === key && <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--ink-muted)]" />}
+                      {busyKey === key && <Loader2 className="h-3.5 w-3.5 animate-spin text-[var(--muted)]" />}
                     </span>
                   </button>
                 );

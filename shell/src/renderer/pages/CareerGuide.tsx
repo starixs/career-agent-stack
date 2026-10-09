@@ -94,10 +94,10 @@ export default function CareerGuide({ embedded = false }: CareerPageProps) {
             {START_STEPS.map((step, idx) => (
               <Card key={step.surface}>
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 text-xs text-[var(--accent)]">{idx + 1}</span>
+                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--primary)]/30 bg-[var(--primary)]/10 text-xs text-[var(--primary)]">{idx + 1}</span>
                   <span className="text-sm font-medium text-[var(--ink)]">{step.title}</span>
                 </div>
-                <div className="mt-1 text-xs text-[var(--ink-muted)]">{step.detail}</div>
+                <div className="mt-1 text-xs text-[var(--muted)]">{step.detail}</div>
                 <div className="mt-2">
                   <Button variant="secondary" onClick={() => emitEvent('career:focus', { surface: step.surface } satisfies CareerFocusEvent)}>{step.button}</Button>
                 </div>
@@ -108,12 +108,12 @@ export default function CareerGuide({ embedded = false }: CareerPageProps) {
 
         {LOOPS.map(loop => (
           <section key={loop.key}>
-            <SectionTitle extra={<span className="text-xs normal-case tracking-normal text-[var(--ink-subtle)]">{loop.summary}</span>}>{loop.title}</SectionTitle>
+            <SectionTitle extra={<span className="text-xs normal-case tracking-normal text-[var(--subtle)]">{loop.summary}</span>}>{loop.title}</SectionTitle>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {loop.items.map(cap => (
                 <Card key={cap.name} title={cap.name} extra={used(cap.usedKey) ? <Badge tone="success">已用过</Badge> : cap.chat ? null : <Badge tone="neutral">自动</Badge>}>
                   <div className="text-xs text-[var(--ink)]">{cap.what}</div>
-                  <div className="mt-0.5 text-xs text-[var(--ink-subtle)]">怎么触发：{cap.how}</div>
+                  <div className="mt-0.5 text-xs text-[var(--subtle)]">怎么触发：{cap.how}</div>
                   {cap.chat && (
                     <div className="mt-2">
                       <ChatActionButton text={cap.chat} context={{ surface: 'guide', note: `指南 · ${loop.title} · ${cap.name}` }} variant="secondary">试试：「{cap.chat}」</ChatActionButton>
@@ -132,7 +132,7 @@ export default function CareerGuide({ embedded = false }: CareerPageProps) {
               {NEVER_DO.map(n => (
                 <li key={n.label} className="flex items-start gap-2 text-xs">
                   <Badge tone="warning">{n.label}</Badge>
-                  <span className="text-[var(--ink-muted)]">{n.why}</span>
+                  <span className="text-[var(--muted)]">{n.why}</span>
                 </li>
               ))}
             </ul>

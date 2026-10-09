@@ -97,10 +97,10 @@ export function PermissionPrompt({ request, onDecision }: PermissionPromptProps)
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
             {/* 反相版（PRD 0.2.34）：中性白卡 + 淡琥珀「命令盒」承载焦点内容，
                 颜色当重点而非整卡底色。权限语义＝warning 琥珀（对齐 DESIGN.md §8.2）。 */}
-            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper-elevated)] p-4 shadow-sm">
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
                 {showQueueProgress && (
                     <div className="mb-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                        <div className="mb-1.5 text-xs font-medium text-[var(--ink-muted)]">
+                        <div className="mb-1.5 text-xs font-medium text-[var(--muted)]">
                             {t('shell.permissionPrompt.progress', { index: queuePosition, total: queueTotal })}
                         </div>
                         <div className="h-1 overflow-hidden rounded-full bg-[var(--warning)]/15">
@@ -119,7 +119,7 @@ export function PermissionPrompt({ request, onDecision }: PermissionPromptProps)
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-[var(--ink)]">{t('shell.permissionPrompt.title')}</div>
-                        <div className="mt-0.5 text-xs text-[var(--ink-muted)]">{t('shell.permissionPrompt.subtitle')}</div>
+                        <div className="mt-0.5 text-xs text-[var(--muted)]">{t('shell.permissionPrompt.subtitle')}</div>
                     </div>
                     <span className="flex items-center rounded-full bg-[var(--warning)]/15 px-2.5 py-1 text-xs font-medium text-[var(--warning)]">
                         {t('shell.permissionPrompt.badge')}
@@ -132,7 +132,7 @@ export function PermissionPrompt({ request, onDecision }: PermissionPromptProps)
                         {formatToolName(request.toolName)}
                     </span>
                     {formattedInput && (
-                        <div className="max-h-48 overflow-y-auto whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-[var(--ink-secondary)]">
+                        <div className="max-h-48 overflow-y-auto whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-[var(--ink-2)]">
                             {formattedInput}
                         </div>
                     )}
@@ -146,7 +146,7 @@ export function PermissionPrompt({ request, onDecision }: PermissionPromptProps)
                         onClick={() => handleDecision('deny')}
                         disabled={isResponding}
                         className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] px-3 py-1.5 text-xs font-medium
-                            text-[var(--ink-muted)] transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]
+                            text-[var(--muted)] transition-colors hover:border-[var(--line-2)] hover:bg-[var(--inset)] hover:text-[var(--ink)]
                             disabled:opacity-50"
                     >
                         <X className="size-3.5" />
@@ -171,7 +171,7 @@ export function PermissionPrompt({ request, onDecision }: PermissionPromptProps)
                         onClick={() => handleDecision('allow_once')}
                         disabled={isResponding}
                         className="flex items-center gap-1.5 rounded-lg bg-[var(--warning)] px-3 py-1.5 text-xs font-medium
-                            text-[var(--on-warning)] transition-colors hover:brightness-110 disabled:opacity-50"
+                            text-[var(--on-primary)] transition-colors hover:brightness-110 disabled:opacity-50"
                     >
                         <Check className="size-3.5" />
                         <span>{t('shell.permissionPrompt.allow')}</span>

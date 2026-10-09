@@ -21,7 +21,7 @@ function ToggleSwitch({ enabled, onChange }: { enabled: boolean; onChange: (v: b
   return (
     <button type="button" role="switch" aria-checked={enabled} onClick={() => onChange(!enabled)}
       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors ${
-        enabled ? 'bg-[var(--accent)]' : 'bg-[var(--line-strong)]'
+        enabled ? 'bg-[var(--primary)]' : 'bg-[var(--line-2)]'
       }`}>
       <span className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-[var(--toggle-thumb)] shadow-sm transition-transform ${
         enabled ? 'translate-x-4' : 'translate-x-0.5'
@@ -35,10 +35,10 @@ function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: (v
   return (
     <button type="button" role="checkbox" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)}
       className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border-2 transition-colors ${
-        checked ? 'border-[var(--accent)] bg-[var(--accent)]' : 'border-[var(--line-strong)] bg-transparent hover:border-[var(--accent-muted)]'
+        checked ? 'border-[var(--primary)] bg-[var(--primary)]' : 'border-[var(--line-2)] bg-transparent hover:border-[var(--accent-muted)]'
       }`}>
       {checked && (
-        <svg className="h-3 w-3 text-[var(--on-accent)]" viewBox="0 0 12 12" fill="none">
+        <svg className="h-3 w-3 text-[var(--on-primary)]" viewBox="0 0 12 12" fill="none">
           <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       )}
@@ -49,7 +49,7 @@ function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: (v
 function SectionHeader({ icon: Icon, children }: { icon: typeof Clock; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2">
-      <Icon className="h-4 w-4 text-[var(--ink-muted)]" />
+      <Icon className="h-4 w-4 text-[var(--muted)]" />
       <h3 className="text-sm font-semibold text-[var(--ink)]">{children}</h3>
     </div>
   );
@@ -59,7 +59,7 @@ function PillButton({ selected, onClick, children }: { selected: boolean; onClic
   return (
     <button type="button" onClick={onClick}
       className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-        selected ? 'bg-[var(--accent)] text-[var(--on-accent)]' : 'bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--paper-inset)]'
+        selected ? 'bg-[var(--primary)] text-[var(--on-primary)]' : 'bg-[var(--bg)] text-[var(--ink)] hover:bg-[var(--inset)]'
       }`}>{children}</button>
   );
 }
@@ -242,14 +242,14 @@ function CronTaskSettingsForm({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }} />
 
-      <div className="relative z-10 flex h-[80vh] w-full max-w-lg flex-col rounded-2xl bg-[var(--paper-elevated)] shadow-xl">
+      <div className="relative z-10 flex h-[80vh] w-full max-w-lg flex-col rounded-2xl bg-[var(--paper)] shadow-xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2.5">
-            <Clock className="h-4 w-4 text-[var(--accent)]" />
+            <Clock className="h-4 w-4 text-[var(--primary)]" />
             <h2 className="text-lg font-semibold text-[var(--ink)]">{t(isGoalMode ? 'cron.settingsModal.goalTitle' : 'cron.settingsModal.title')}</h2>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-[var(--ink-muted)] transition hover:bg-[var(--paper-inset)] hover:text-[var(--ink)]">
+          <button onClick={onClose} className="rounded-lg p-1.5 text-[var(--muted)] transition hover:bg-[var(--inset)] hover:text-[var(--ink)]">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -274,7 +274,7 @@ function CronTaskSettingsForm({
                     <PillButton selected={executionTarget === 'current_session'} onClick={() => setExecutionTarget('current_session')}>{t('cron.settingsModal.currentSession')}</PillButton>
                     <PillButton selected={executionTarget === 'new_task'} onClick={() => setExecutionTarget('new_task')}>{t('cron.settingsModal.newTask')}</PillButton>
                   </div>
-                  <p className="mt-1.5 text-sm text-[var(--ink-muted)]">
+                  <p className="mt-1.5 text-sm text-[var(--muted)]">
                     {executionTarget === 'current_session'
                       ? t('cron.settingsModal.currentSessionDescription')
                       : t('cron.settingsModal.newTaskDescription')}
@@ -291,20 +291,20 @@ function CronTaskSettingsForm({
             <div>
               <SectionHeader icon={Flag}>{t('cron.settingsModal.endConditions')}</SectionHeader>
               <div className="mt-3 space-y-3">
-                <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--paper-inset)] p-1">
+                <div className="flex gap-1.5 rounded-[var(--radius-md)] bg-[var(--inset)] p-1">
                   <button type="button" onClick={() => setEndMode('forever')}
                     className={`flex flex-1 items-center justify-center rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors ${
-                      endMode === 'forever' ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                      endMode === 'forever' ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--ink)]'
                     }`}>{t('cron.settingsModal.forever')}</button>
                   <button type="button" onClick={() => setEndMode('conditional')}
                     className={`flex flex-1 items-center justify-center rounded-[var(--radius-sm)] px-3 py-1.5 text-sm font-medium transition-colors ${
-                      endMode === 'conditional' ? 'bg-[var(--paper-elevated)] text-[var(--ink)] shadow-xs' : 'text-[var(--ink-muted)] hover:text-[var(--ink)]'
+                      endMode === 'conditional' ? 'bg-[var(--paper)] text-[var(--ink)] shadow-xs' : 'text-[var(--muted)] hover:text-[var(--ink)]'
                     }`}>{t('cron.settingsModal.conditional')}</button>
                 </div>
 
                 {endMode === 'conditional' && (
                   <>
-                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)]">
+                    <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)]">
                       <div className="flex cursor-pointer items-center justify-between border-b border-[var(--line)] px-3 py-2.5"
                         onClick={() => setUseDeadline(!useDeadline)}>
                         <div className="flex items-center gap-2.5">
@@ -313,7 +313,7 @@ function CronTaskSettingsForm({
                         </div>
                         <input type="datetime-local" value={deadline} onChange={e => setDeadline(e.target.value)}
                           onClick={e => e.stopPropagation()}
-                          className={`w-44 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none ${!useDeadline ? 'opacity-50' : ''}`} />
+                          className={`w-44 rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none ${!useDeadline ? 'opacity-50' : ''}`} />
                       </div>
                       <div className="flex cursor-pointer items-center justify-between border-b border-[var(--line)] px-3 py-2.5"
                         onClick={() => setUseMaxExecutions(!useMaxExecutions)}>
@@ -324,18 +324,18 @@ function CronTaskSettingsForm({
                         <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                           <input type="number" value={maxExecutions} onChange={e => setMaxExecutions(parseInt(e.target.value, 10) || 1)}
                             min={1} max={999}
-                            className={`w-16 rounded-md border border-[var(--line)] bg-[var(--paper)] px-2 py-1 text-center text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none ${!useMaxExecutions ? 'opacity-50' : ''}`} />
-                          <span className={`text-sm text-[var(--ink-secondary)] ${!useMaxExecutions ? 'opacity-50' : ''}`}>{t('cron.settingsModal.timesSuffix')}</span>
+                            className={`w-16 rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-center text-sm text-[var(--ink)] focus:border-[var(--primary)] focus:outline-none ${!useMaxExecutions ? 'opacity-50' : ''}`} />
+                          <span className={`text-sm text-[var(--ink-2)] ${!useMaxExecutions ? 'opacity-50' : ''}`}>{t('cron.settingsModal.timesSuffix')}</span>
                         </div>
                       </div>
                     </div>
-                    <p className="text-sm text-[var(--ink-muted)]">{t('cron.settingsModal.conditionalHint')}</p>
+                    <p className="text-sm text-[var(--muted)]">{t('cron.settingsModal.conditionalHint')}</p>
                   </>
                 )}
 
                 {/* AI 自主结束 — 在永久运行和条件停止模式下都显示 */}
                 {!isAtSchedule && (
-                  <div className="flex cursor-pointer items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2.5"
+                  <div className="flex cursor-pointer items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5"
                     onClick={() => setAiCanExit(!aiCanExit)}>
                     <div className="flex items-center gap-2.5">
                       <Checkbox checked={aiCanExit} onChange={setAiCanExit} label={t('cron.settingsModal.aiCanExit')} />
@@ -351,7 +351,7 @@ function CronTaskSettingsForm({
           <div>
             <SectionHeader icon={Bell}>{t('cron.settingsModal.notifications')}</SectionHeader>
             <div className="mt-3 space-y-3">
-              <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
+              <div className="flex items-center justify-between rounded-lg border border-[var(--line)] bg-[var(--bg)] px-4 py-3">
                 <span className="text-sm text-[var(--ink)]">{t(isGoalMode ? 'cron.settingsModal.goalNotifyOnStop' : 'cron.settingsModal.notifyOnCompletion')}</span>
                 <ToggleSwitch enabled={notifyEnabled} onChange={setNotifyEnabled} />
               </div>
@@ -366,9 +366,9 @@ function CronTaskSettingsForm({
 
           {/* Validation Errors */}
           {validationErrors.length > 0 && (
-            <div className="flex items-start gap-2 rounded-lg border border-[var(--error)]/30 bg-[var(--error)]/5 p-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--error)]" />
-              <div className="text-xs text-[var(--error)]">
+            <div className="flex items-start gap-2 rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/5 p-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--danger)]" />
+              <div className="text-xs text-[var(--danger)]">
                 {validationErrors.map((err, i) => <p key={i}>{err}</p>)}
               </div>
             </div>
@@ -377,9 +377,9 @@ function CronTaskSettingsForm({
 
         {/* Footer */}
         <div className="flex shrink-0 items-center justify-end gap-2.5 border-t border-[var(--line)] px-6 py-3.5">
-          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-[var(--paper-inset)]">{t('cron.settingsModal.cancel')}</button>
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-[var(--muted)] transition hover:bg-[var(--inset)]">{t('cron.settingsModal.cancel')}</button>
           <button onClick={handleConfirm} disabled={!isValid}
-            className="rounded-lg bg-[var(--accent)] px-5 py-2 text-sm font-medium text-[var(--on-accent)] transition hover:bg-[var(--accent-warm-hover)] disabled:cursor-not-allowed disabled:opacity-50">
+            className="rounded-lg bg-[var(--primary)] px-5 py-2 text-sm font-medium text-[var(--on-primary)] transition hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-50">
             {t('cron.settingsModal.confirm')}
           </button>
         </div>
