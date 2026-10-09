@@ -1,6 +1,6 @@
 /* The only production Theme. Values and roles are defined in
    specs/CAREER_DESIGN.md §2–4; this file is their runtime source.
-   Light is calibrated; dark is provisional until the dark-mode pass. */
+   Light and dark are both contrast-checked; see §2.2 for the pairs. */
 
 /* Package globals are also the pre-React fallback; the registered Theme root
    is listed beside :root so registry validation reads the selectors the
@@ -34,8 +34,8 @@ html[data-theme-id='keystone-default'][data-color-scheme='light'] {
   --side: #f6f2ea;
   --paper: #fffefb;
   --inset: #f3eee4;
-  --hover: #ece5d8;
-  --selected: #e6decf;
+  --hover: #f0eadf;
+  --selected: #ebe4d6;
   --bg-a0: rgb(253 251 247 / 0);
   --rail-a0: rgb(241 236 226 / 0);
   --paper-a0: rgb(255 254 251 / 0);
@@ -112,25 +112,25 @@ html[data-theme-id='keystone-default'][data-color-scheme='light'] {
   --fb-drag-handle: rgb(42 36 28 / 0.18);
 }
 
-/* Provisional dark palette (CAREER_DESIGN.md §2, dark pass pending). */
+/* Dark palette, contrast-checked 2026-10-09 (CAREER_DESIGN.md §2.2). */
 html[data-color-scheme='dark'],
 html[data-theme-id='keystone-default'][data-color-scheme='dark'] {
   --bg: #1b1916;
   --rail: #15130f;
   --side: #201d19;
   --paper: #26231e;
-  --inset: #2d2924;
+  --inset: #2a2621;
   --hover: #2f2b25;
-  --selected: #38332c;
+  --selected: #322d27;
   --bg-a0: rgb(27 25 22 / 0);
   --rail-a0: rgb(21 19 15 / 0);
   --paper-a0: rgb(38 35 30 / 0);
-  --inset-a0: rgb(45 41 36 / 0);
+  --inset-a0: rgb(42 38 33 / 0);
 
   --ink: #f1ece3;
   --ink-2: #d8d0c3;
   --muted: #b0a696;
-  --subtle: #958b7c;
+  --subtle: #9d9385;
 
   --line: #38332c;
   --line-2: #4a443b;

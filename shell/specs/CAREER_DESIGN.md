@@ -73,17 +73,34 @@
 
 变量名就用短名，和样稿 `career-shell.html` 一致。keystone 原有的界面类 Token 全部删除，不再并存（已确认，2026-10-09，见 9.1）。
 
-### 2.2 对比度（WCAG 2.2 AA，普通文字 ≥ 4.5:1，按计算值）
+### 2.2 深色与对比度（WCAG 2.2 AA，普通文字 ≥ 4.5:1，按计算值）
 
-| 组合 | 比值 |
-|---|---:|
-| ink / bg | 14.9 |
-| muted / bg · side · rail | 7.4 · 6.9 · 6.5 |
-| subtle / bg · side | 5.7 · 5.3 |
-| 白字 / primary | 8.0 |
-| primary 文字 / bg | 7.7 |
-| warning · danger · success 文字 / bg | 5.3 · 5.3 · 5.1 |
-| ink / note 便利贴 | 13.5 |
+深色已于 2026-10-09 校准，数值在 `src/renderer/theme/themes/career.css`：
+
+| Token | 浅色 | 深色 |
+|---|---|---|
+| bg / rail / side | `#FDFBF7` / `#F1ECE2` / `#F6F2EA` | `#1B1916` / `#15130F` / `#201D19` |
+| paper / inset | `#FFFEFB` / `#F3EEE4` | `#26231E` / `#2A2621` |
+| hover / selected | `#F0EADF` / `#EBE4D6` | `#2F2B25` / `#322D27` |
+| ink / ink-2 / muted / subtle | `#2A241C` / `#433A2E` / `#5C5244` / `#6E6352` | `#F1ECE3` / `#D8D0C3` / `#B0A696` / `#9D9385` |
+| primary / on-primary | `#2F4BA0` / 白 | `#8FA6F0` / `#15130F`（深色下主按钮是浅蓝底深字） |
+| note / mark / mint | `#FFF1A8` / `#FFE066` / `#DDF1E3` | `#4A4220` / `#6B5A12` / `#22382B` |
+| success / warning / danger / info | `#2E7A4F` / `#9A5B00` / `#C0392B` / `#2F6E8F` | `#6CC596` / `#E2A54A` / `#F08A7E` / `#6CB8D0` |
+
+校准时改了三处：最弱文字 subtle 原来在内嵌底和选中底上不到 4.5:1，深色 subtle 提亮到 `#9D9385`，深色 inset / selected 各压暗一档；浅色 selected 提亮到 `#EBE4D6`，hover 跟着提亮。品牌印章的「职」在两种模式下都是白字。
+
+| 组合 | 浅色 | 深色 |
+|---|---:|---:|
+| ink / bg | 14.9 | 14.9 |
+| muted / bg · side · selected | 7.4 · 6.9 · 6.1 | 7.3 · 7.0 · 5.7 |
+| subtle / bg · inset · selected | 5.7 · 5.1 · 4.7 | 5.8 · 5.0 · 4.5 |
+| on-primary / primary | 8.0 | 7.9 |
+| primary 文字 / bg | 7.7 | 7.4 |
+| success · warning · danger · info / bg | 5.1 · 5.3 · 5.3 · 5.6 | 8.4 · 8.1 · 7.2 · 7.9 |
+| 状态色 / 各自浅底 | ≥ 4.7 | ≥ 5.9 |
+| ink / note 便利贴 | 13.5 | 8.5 |
+
+`--line` 与 `--line-2` 只作装饰性边界（对主区 1.4–1.8:1）；凡是要传达含义的边界都同时带文字。实际渲染截图：`career-mockups/app-shots/dark-*.png`。
 
 ### 2.3 表面与装饰（已确认：装饰轻）
 
@@ -300,7 +317,7 @@
 - 窄于 1280 时二级栏自动收起；收起时悬停一级入口弹出浮层，离开 300ms 或 Esc 关闭。
 - 对话页右栏：默认是伙伴面板（`CompanionPanel.tsx`，宠物形象沿用桌面宠物包，名字暂用宠物包名）；「正在做」来自 career:progress，「接下来」来自 /api/career/today，「今天做过」来自新增的 /api/career/activity。
 - 浏览器三态：收起是对话底部的浏览器工具卡（`BrowserWorkCard.tsx`，带实时缩略），展开是右栏的浏览器会话（替换伙伴面板，对话收到 460px，伙伴缩成浮动头像），交接时状态点变黄并出现「这一步要你本人来」。原来浮在窗口右侧的现场抽屉已去掉。
-- 还没做：工具卡锚定到具体那次工具调用（现在在对话底部）、改简历 / 模拟面试等其他工作面、⌘1–5 快捷键。
+- 工作面工具卡挂在发起它的那次工具调用下面；改简历、模拟面试、笔试练习（新增 exam_practice 工具与表）都已接入同一套三态。快捷键按决定不做。
 
 ### 5.5 行为
 
@@ -561,7 +578,6 @@ keystone 的界面类 Token 和主题体系**全部删除**，只保留本文定
 
 ## 11. 未决项
 
-- 深色模式的配色。
 - 5.7 里改简历、模拟面试、笔试等工作面的具体内容。
 - 小芽的正式名字和形象。
 - 其他页面右下角的迷你小芽要不要保留。

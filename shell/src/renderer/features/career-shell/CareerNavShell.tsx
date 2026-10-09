@@ -214,7 +214,7 @@ export function CareerNavShell({ activeView, onOpen }: CareerNavShellProps) {
         {/* Drag strip; on macOS the native traffic lights sit here. */}
         <div className="custom-titlebar h-11 w-full shrink-0" data-tauri-drag-region />
         <div
-          className="mb-4 grid h-[34px] w-[34px] place-items-center rounded-[7px] bg-[var(--seal)] font-human text-lg font-semibold text-[var(--on-primary)] shadow-[inset_0_0_0_2px_var(--bg),0_0_0_1.5px_var(--seal)]"
+          className="mb-4 grid h-[34px] w-[34px] place-items-center rounded-[7px] bg-[var(--seal)] font-human text-lg font-semibold text-white shadow-[inset_0_0_0_2px_var(--bg),0_0_0_1.5px_var(--seal)]"
           aria-hidden="true"
         >
           职

@@ -45,10 +45,10 @@ const lightWidgetVariables = {
 const darkWidgetVariables = {
   '--widget-text': '#f1ece3',
   '--widget-text-secondary': '#b0a696',
-  '--widget-text-muted': '#958b7c',
+  '--widget-text-muted': '#9d9385',
   '--widget-bg': 'transparent',
   '--widget-bg-elevated': '#26231e',
-  '--widget-bg-inset': '#2d2924',
+  '--widget-bg-inset': '#2a2621',
   '--widget-border': '#38332c',
   '--widget-border-strong': '#4a443b',
   '--widget-accent': '#8fa6f0',

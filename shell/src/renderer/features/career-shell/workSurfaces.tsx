@@ -310,7 +310,7 @@ export function ExamSurfaceView({ exam, loading }: { exam: ExamPractice | null; 
       surface="exam"
       status={exam?.status === 'reviewed'
         ? { tone: 'idle', text: `已批改 · 对 ${correct} / ${questions.length}` }
-        : waiting ? { tone: 'waiting', text: `轮到你作答 · 已答 ${answers.size} / ${questions.length}` } : { tone: 'idle', text: exam?.title ?? '笔试练习' }}
+        : waiting ? { tone: 'waiting', text: `轮到你作答 · 已答 ${answers.size} / ${questions.length}` } : { tone: 'idle', text: exam ? exam.title : '还没有记录' }}
       handoff={waiting ? { title: '轮到你作答', detail: '在对话框里按题号回答，比如「1. B　2. 16」；答完说「交卷」，小芽会逐题批改。' } : null}
     >
       <div className="space-y-3 px-5 py-4">
