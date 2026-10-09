@@ -33,7 +33,8 @@ const SettingsTabRenderer = memo(function SettingsTabRenderer({
     <Suspense fallback={PAGE_FALLBACK}>
       <Settings
         mode="settings"
-        initialSection={tab.navigationIntent?.section ?? 'providers'}
+        // 只在有导航意图时传分区：意图被消费后传默认值会把用户刚选的分区又跳回去。
+        initialSection={tab.navigationIntent?.section}
         navigationNonce={generation}
         onSectionChange={generation === undefined ? undefined : () => binding.onNavigationConsumed(tab.id, generation)}
         isActive={isActive}

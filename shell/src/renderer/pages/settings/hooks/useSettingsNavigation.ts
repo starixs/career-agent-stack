@@ -32,7 +32,8 @@ export function useSettingsNavigation({
       }
       return initialSection as SettingsSection;
     }
-    return 'providers';
+    // 模型供应商在求职助理里不可达（见 App 的 HIDDEN_SETTINGS_SECTIONS），默认落到通用设置。
+    return 'general';
   };
 
   const [activeSection, setActiveSection] = useState<SettingsSection>(getInitialSection);
