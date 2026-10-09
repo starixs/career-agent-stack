@@ -10,13 +10,12 @@ import { useMemo, useState } from 'react';
 import { ExternalLink } from '@/components/ExternalLink';
 
 import { careerApi } from './careerApi';
-import { STAGE_LABELS, STAGE_TRANSITIONS } from './careerConstants';
+import { STAGE_LABELS, STAGE_TONES, STAGE_TRANSITIONS } from './careerConstants';
 import { Badge, Button, EmptyState, ErrorRow, LoadingRow, SectionTitle, Select, TextInput, formatDate, textOrUnknown, type BadgeTone } from './CareerPrimitives';
 import type { ApplicationStage, EmploymentType, JobBoardFilter, JobBoardRow, JobPrefs } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
 const TYPE_LABEL: Record<EmploymentType, string> = { campus: '校招', intern: '实习', social: '社招', unknown: '' };
-const STAGE_TONE: Partial<Record<ApplicationStage, BadgeTone>> = { blocked: 'error', needs_user: 'warning', offer: 'success', hired: 'success', interview: 'info', applied: 'info', rejected: 'neutral', discarded: 'neutral' };
 
 export function JobBoard({ onChanged }: { onChanged?: () => void }) {
   const [filter, setFilter] = useState<JobBoardFilter>({ open_only: true, sort: 'match' });
@@ -181,7 +180,7 @@ function BoardRow({ row, checked, onToggle, onChanged }: { row: JobBoardRow; che
         <td className="px-2 py-1.5">
           {application ? (
             <div className="flex flex-col gap-1">
-              <Badge tone={STAGE_TONE[application.stage] ?? 'neutral'}>{STAGE_LABELS[application.stage] ?? application.stage}</Badge>
+              <Badge tone={STAGE_TONES[application.stage] ?? 'neutral'}>{STAGE_LABELS[application.stage] ?? application.stage}</Badge>
               {targets.length > 0 && <Select ariaLabel={`切换阶段 ${job.title}`} value="" placeholder="改为…" disabled={stageAction.busy} onChange={v => void changeStage(v)} options={targets.map(t => ({ value: t, label: STAGE_LABELS[t] ?? t }))} />}
               {stageAction.error && <span role="alert" className="text-[var(--danger)]">{stageAction.error}</span>}
             </div>

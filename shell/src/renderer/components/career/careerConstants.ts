@@ -1,3 +1,4 @@
+import type { BadgeTone } from './CareerPrimitives';
 import type { ActionKind, ApplicationStage } from './types';
 
 /** 与 packages/core/src/states.ts 的 STAGE_TRANSITIONS 保持一致（前端副本，只用于展示允许的目标阶段）。 */
@@ -59,3 +60,14 @@ export const TAKEOVER_STATE_LABELS: Record<string, string> = {
 };
 
 export const GAP_CATEGORY_LABELS = { have: '已具备', need_evidence: '需补证据', missing: '缺失' } as const;
+
+/**
+ * 投递阶段的状态色（CAREER_DESIGN 6.1）：面试 / 笔试是当前最需要投入的（钢笔蓝），
+ * 已投是常态（中性），被拒不用红色，卡住写成「需要你」用 warning。
+ */
+export const STAGE_TONES: Record<ApplicationStage, BadgeTone> = {
+  evaluated: 'neutral', ready: 'neutral', approved: 'neutral', pending: 'neutral', applied: 'neutral',
+  responded: 'info', interview: 'accent', offer: 'success', hired: 'success',
+  needs_user: 'warning', blocked: 'warning',
+  rejected: 'neutral', discarded: 'neutral', skip: 'neutral',
+};

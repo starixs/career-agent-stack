@@ -8,9 +8,9 @@ import type { ReactNode } from 'react';
 import { onEvent } from '@/api/eventBus';
 import { ExternalLink } from '@/components/ExternalLink';
 import { careerApi, safeJson } from '@/components/career/careerApi';
-import { ACTION_KIND_LABELS, INTERVIEW_RESULT_LABELS, INTERVIEW_ROUND_LABELS, STAGE_LABELS, TRAFFIC_LIGHT_LABELS } from '@/components/career/careerConstants';
+import { ACTION_KIND_LABELS, INTERVIEW_RESULT_LABELS, INTERVIEW_ROUND_LABELS, STAGE_LABELS, STAGE_TONES, TRAFFIC_LIGHT_LABELS } from '@/components/career/careerConstants';
 import {
-  Badge, Button, CareerPage, ChatActionButton, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, Select, StructuredJson, TextArea, TextInput,
+  Badge, Button, CareerPage, ChatActionButton, EmptyState, ErrorRow, Field, LoadingRow, Select, StructuredJson, TextArea, TextInput,
   formatDate, textOrUnknown,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
@@ -52,11 +52,18 @@ const TRAFFIC_TONE: Record<string, BadgeTone> = { green: 'success', yellow: 'war
 // ─── 本地小工具 ───
 
 function stageTone(stage: ApplicationStage): BadgeTone {
-  if (stage === 'interview' || stage === 'offer' || stage === 'hired') return 'success';
-  if (stage === 'blocked' || stage === 'needs_user') return 'warning';
-  if (stage === 'applied' || stage === 'responded' || stage === 'pending') return 'info';
-  return 'neutral';
+  return STAGE_TONES[stage] ?? 'neutral';
 }
+
+/** 投递线按阶段分组（7.3）：先放要你动手的，再放正在推进的，最后是在等的。 */
+const STAGE_GROUPS: Array<{ label: string; stages: ApplicationStage[] }> = [
+  { label: '需要你', stages: ['needs_user', 'blocked'] },
+  { label: '面试 / 笔试', stages: ['interview'] },
+  { label: 'Offer', stages: ['offer', 'hired'] },
+  { label: '有回应', stages: ['responded'] },
+  { label: '已投', stages: ['applied'] },
+  { label: '待投', stages: ['evaluated', 'ready', 'approved', 'pending'] },
+];
 
 function daysSince(iso: string | null | undefined): number {
   const ms = iso ? Date.parse(iso) : NaN;
@@ -209,28 +216,32 @@ function DossierLine({ focus }: { focus: FocusRequest | null }) {
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="flex w-[260px] shrink-0 flex-col border-r border-[var(--line)]">
-        <div className="border-b border-[var(--line)] p-2">
+      <aside className="flex w-[280px] shrink-0 flex-col border-r border-[var(--line)]">
+        <div className="p-3">
           <TextInput aria-label="搜索投递线" placeholder="搜公司或岗位" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div className="min-h-0 flex-1 overflow-auto p-2">
+        <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
           {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
           {query.loading && !summaries && <LoadingRow />}
           {summaries && summaries.length === 0 && (
             <div className="px-1 py-6 text-center text-xs text-[var(--subtle)]">还没有投递。投出去之后每条线会在这里有一份档案。</div>
           )}
-          {open.length > 0 && <div className="px-1 pb-1 text-xs font-semibold text-[var(--muted)]">进行中（{open.length}）</div>}
-          <ul className="space-y-1">
-            {open.map(s => <SummaryRow key={s.application_id} summary={s} selected={s.application_id === effectiveId} onSelect={() => select(s.application_id)} />)}
-          </ul>
+          {groupByStage(open).map(group => (
+            <div key={group.label} className="mb-3">
+              <div className="px-2 pb-1 text-xs font-medium text-[var(--muted)]">{group.label}（{group.items.length}）</div>
+              <ul>
+                {group.items.map(s => <SummaryRow key={s.application_id} summary={s} selected={s.application_id === effectiveId} onSelect={() => select(s.application_id)} />)}
+              </ul>
+            </div>
+          ))}
           {closed.length > 0 && (
             <>
-              <button type="button" onClick={() => setShowClosed(v => !v)} className="mt-3 flex w-full items-center px-1 pb-1 text-xs font-semibold text-[var(--muted)] hover:text-[var(--ink)]">
+              <button type="button" onClick={() => setShowClosed(v => !v)} className="mt-1 flex w-full items-center rounded-md px-2 py-1 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]">
                 已关闭（{closed.length}）<span className="ml-auto">{showClosed ? '收起' : '展开'}</span>
               </button>
               {showClosed && (
-                <ul className="space-y-1">
-                  {closed.map(s => <SummaryRow key={s.application_id} summary={s} selected={s.application_id === effectiveId} onSelect={() => select(s.application_id)} />)}
+                <ul>
+                  {closed.map(s => <SummaryRow key={s.application_id} summary={s} selected={s.application_id === effectiveId} onSelect={() => select(s.application_id)} showStage />)}
                 </ul>
               )}
             </>
@@ -255,7 +266,15 @@ function DossierLine({ focus }: { focus: FocusRequest | null }) {
   );
 }
 
-function SummaryRow({ summary, selected, onSelect }: { summary: DossierSummary; selected: boolean; onSelect: () => void }) {
+function groupByStage(list: DossierSummary[]): Array<{ label: string; items: DossierSummary[] }> {
+  const groups = STAGE_GROUPS.map(g => ({ label: g.label, items: list.filter(s => g.stages.includes(s.stage)) }));
+  const known = new Set(STAGE_GROUPS.flatMap(g => g.stages));
+  const other = list.filter(s => !known.has(s.stage));
+  if (other.length) groups.push({ label: '其他', items: other });
+  return groups.filter(g => g.items.length > 0);
+}
+
+function SummaryRow({ summary, selected, onSelect, showStage = false }: { summary: DossierSummary; selected: boolean; onSelect: () => void; showStage?: boolean }) {
   const days = summary.days_since_update;
   const showQuiet = days >= 7 && ACTIVE_STAGES.has(summary.stage);
   return (
@@ -264,15 +283,16 @@ function SummaryRow({ summary, selected, onSelect }: { summary: DossierSummary; 
         type="button"
         onClick={onSelect}
         aria-current={selected ? 'true' : undefined}
-        className={`w-full rounded-lg border px-2 py-1.5 text-left transition-colors ${selected ? 'border-[var(--primary)] bg-[var(--paper)]' : 'border-transparent hover:bg-[var(--inset)]'}`}
+        title={`${summary.company_name ?? '未知公司'} · ${summary.title}`}
+        className={`relative w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${selected ? 'bg-[var(--selected)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-[var(--primary)]' : 'hover:bg-[var(--hover)]'}`}
       >
         <div className="truncate text-sm font-medium text-[var(--ink)]">{summary.company_name ?? '未知公司'} · {summary.title}</div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
-          <Badge tone={stageTone(summary.stage)}>{STAGE_LABELS[summary.stage] ?? summary.stage}</Badge>
-          {showQuiet && <span className={days >= 14 ? 'text-[var(--warning)]' : 'text-[var(--muted)]'}>{days} 天无动静</span>}
-        </div>
-        {summary.next_deadline && (
-          <div className="mt-0.5 truncate text-xs text-[var(--muted)]">{summary.next_deadline.title} · {relativeDue(summary.next_deadline.due_at)}</div>
+        {(showStage || showQuiet || summary.next_deadline) && (
+          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-[var(--muted)]">
+            {showStage && <Badge tone={stageTone(summary.stage)}>{STAGE_LABELS[summary.stage] ?? summary.stage}</Badge>}
+            {summary.next_deadline && <span className="truncate">{summary.next_deadline.title} · {relativeDue(summary.next_deadline.due_at)}</span>}
+            {showQuiet && <span className={`shrink-0 ${days >= 14 ? 'text-[var(--warning)]' : ''}`}>{days} 天无动静</span>}
+          </div>
         )}
       </button>
     </li>
@@ -293,7 +313,7 @@ function DossierDetail({ id, summary, interviewMode, onToggleInterviewMode, onLi
 
   const big = interviewMode;
   return (
-    <div className={`space-y-6 px-5 py-4 ${big ? 'max-w-4xl' : ''}`}>
+    <div className={`max-w-4xl space-y-8 px-6 py-5 ${big ? 'text-base' : ''}`}>
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       <DossierHeader d={d} summary={summary} interviewMode={interviewMode} onToggleInterviewMode={onToggleInterviewMode} onChanged={onChanged} />
       <InterviewInfo d={d} big={big} onChanged={onChanged} />
@@ -337,23 +357,23 @@ function DossierHeader({ d, summary, interviewMode, onToggleInterviewMode, onCha
     <header className="space-y-3">
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="text-xs text-[var(--muted)]">{textOrUnknown(d.job?.company_name)}</div>
-          <h2 className={`font-semibold text-[var(--ink)] ${interviewMode ? 'text-2xl' : 'text-lg'}`}>{d.job?.title ?? '未知岗位'}</h2>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+          <div className={`font-human font-semibold text-[var(--ink)] ${interviewMode ? 'text-3xl' : 'text-2xl'}`}>{textOrUnknown(d.job?.company_name)}</div>
+          <h2 className={`mt-0.5 font-medium text-[var(--ink-2)] ${interviewMode ? 'text-lg' : 'text-base'}`}>{d.job?.title ?? '未知岗位'}</h2>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
             <Badge tone={stageTone(stage)}>{STAGE_LABELS[stage] ?? stage}</Badge>
             <span>{days === 0 ? '今天有更新' : `${days} 天没有更新`}</span>
-            {d.job?.location && <span>· {d.job.location}</span>}
+            {d.job?.location && <span>{d.job.location}</span>}
             {d.job?.url && <ExternalLink href={d.job.url} className="text-[var(--primary)] underline underline-offset-2">岗位页面</ExternalLink>}
           </div>
         </div>
-        <Button variant={interviewMode ? 'primary' : 'secondary'} aria-pressed={interviewMode} onClick={onToggleInterviewMode}>
+        <Button variant={interviewMode ? 'primary' : 'ghost'} aria-pressed={interviewMode} onClick={onToggleInterviewMode}>
           {interviewMode ? '退出面试模式' : '面试模式'}
         </Button>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <ChatActionButton text="帮我准备这场面试" context={{ surface: 'dossier', refs: { application_id: app.id } }} />
-        <ChatActionButton variant="secondary" text="用主简历给这个岗位改一版简历" context={{ surface: 'dossier', refs }} />
-        <ChatActionButton variant="secondary" text="帮我给这个岗位写投递邮件" context={{ surface: 'dossier', refs }} />
+        <ChatActionButton variant="ghost" text="用主简历给这个岗位改一版简历" context={{ surface: 'dossier', refs }} />
+        <ChatActionButton variant="ghost" text="帮我给这个岗位写投递邮件" context={{ surface: 'dossier', refs }} />
         <div className="ml-auto w-32">
           <Select
             ariaLabel="移动阶段"
@@ -368,9 +388,9 @@ function DossierHeader({ d, summary, interviewMode, onToggleInterviewMode, onCha
       {stageAction.error && <ErrorRow message={stageAction.error} />}
       {closeAction.error && <ErrorRow message={closeAction.error} />}
       {isStale(stage, days) && (
-        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--warning)]">
+        <div role="status" className="flex flex-wrap items-center gap-2 border-l-[3px] border-[var(--warning)] pl-3 text-sm text-[var(--ink-2)]">
           <span className="min-w-0 flex-1">已经 {days} 天没有动静。沉默比被拒常见，可以关掉这条线，把注意力留给别处。</span>
-          <Button variant="secondary" busy={closeAction.busy} onClick={() => void close()}>关闭这条线</Button>
+          <Button variant="ghost" size="sm" busy={closeAction.busy} onClick={() => void close()}>关闭这条线</Button>
         </div>
       )}
     </header>
@@ -379,15 +399,18 @@ function DossierHeader({ d, summary, interviewMode, onToggleInterviewMode, onCha
 
 function Spread({ title, extra, big = false, children }: { title: string; extra?: ReactNode; big?: boolean; children: ReactNode }) {
   return (
-    <section className={big ? 'rounded-lg border border-[var(--line)] bg-[var(--paper)] p-4' : ''}>
-      <SectionTitle extra={extra}>{title}</SectionTitle>
+    <section>
+      <div className="mb-2 flex items-center gap-2">
+        <h3 className={`font-semibold text-[var(--ink)] ${big ? 'text-base' : 'text-sm'}`}>{title}</h3>
+        {extra && <div className="ml-auto flex items-center gap-2">{extra}</div>}
+      </div>
       <div className={big ? 'space-y-3 text-base' : 'space-y-2 text-sm'}>{children}</div>
     </section>
   );
 }
 
 function Muted({ children }: { children: ReactNode }) {
-  return <div className="text-xs text-[var(--subtle)]">{children}</div>;
+  return <div className="text-sm text-[var(--muted)]">{children}</div>;
 }
 
 function InterviewInfo({ d, big, onChanged }: { d: Dossier; big: boolean; onChanged: () => void }) {
@@ -400,23 +423,23 @@ function InterviewInfo({ d, big, onChanged }: { d: Dossier; big: boolean; onChan
       {action.error && <ErrorRow message={action.error} />}
       {upcoming.length === 0 && interviews.length === 0 && <Muted>还没有面试、笔试或测评安排。收到邀约丢进收件箱就会出现在这里。</Muted>}
       {upcoming.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="divide-y divide-[var(--line)]">
           {upcoming.map(dl => (
-            <li key={dl.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+            <li key={dl.id} className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 py-2">
               <Badge tone="accent">{DEADLINE_KIND_LABELS[dl.kind] ?? dl.kind}</Badge>
               <span className={`min-w-0 flex-1 font-medium text-[var(--ink)] ${big ? 'text-lg' : ''}`}>{dl.title}</span>
-              <span className="text-xs text-[var(--muted)]">{formatDateTime(dl.due_at)} · {relativeDue(dl.due_at)}</span>
+              <span className="text-xs tabular-nums text-[var(--muted)]">{formatDateTime(dl.due_at)} · {relativeDue(dl.due_at)}</span>
               {dl.url && <ExternalLink href={dl.url} className="text-xs text-[var(--primary)] underline underline-offset-2">打开链接</ExternalLink>}
-              <Button variant="ghost" busy={action.busy} onClick={() => void done(dl)}>完成</Button>
+              <Button variant="ghost" size="sm" busy={action.busy} onClick={() => void done(dl)}>完成</Button>
             </li>
           ))}
         </ul>
       )}
       {interviews.length > 0 && (
-        <ul className="space-y-1">
+        <ul className="space-y-1.5">
           {interviews.map(iv => (
-            <li key={iv.id} className="flex flex-wrap items-center gap-2">
-              <Badge tone="info">{INTERVIEW_ROUND_LABELS[iv.round] ?? iv.round}</Badge>
+            <li key={iv.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Badge tone="accent">{INTERVIEW_ROUND_LABELS[iv.round] ?? iv.round}</Badge>
               <span className="text-[var(--ink)]">{formatDateTime(iv.date) === '未知' ? '时间未知' : formatDateTime(iv.date)}</span>
               {iv.interviewer_role_guess && <span className="text-xs text-[var(--muted)]">面试官可能是 {iv.interviewer_role_guess}</span>}
               <span className="text-xs text-[var(--muted)]">· {INTERVIEW_RESULT_LABELS[iv.result] ?? iv.result}</span>
@@ -438,7 +461,6 @@ function ResumeSent({ d, big }: { d: Dossier; big: boolean }) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={r.kind === 'tailored' ? 'accent' : 'neutral'}>{r.kind === 'tailored' ? '定制版' : '主简历'}</Badge>
           <Badge tone={r.confirmed ? 'success' : 'warning'}>{r.confirmed ? '已确认' : '未确认'}</Badge>
-          <span className="text-xs text-[var(--subtle)]" title={r.id}>#{r.id.slice(0, 8)}</span>
           {summary && (
             <span className="text-xs text-[var(--muted)]">
               {summary.name ? `${summary.name} · ` : ''}{summary.experiences} 段经历 · {summary.projects} 个项目
@@ -460,11 +482,11 @@ function SaidSection({ d, big }: { d: Dossier; big: boolean }) {
     <Spread title="对这家公司说过的话" big={big}>
       {empty && <Muted>还没有记录。网申答案、邮件和面试里说过的话会汇总在这里，下一轮前后一致。</Muted>}
       {uses.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="space-y-3">
           {uses.map(u => (
-            <li key={u.id} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
-              <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-                <Badge tone="accent">{u.context}</Badge>
+            <li key={u.id} className="border-l-2 border-[var(--line-2)] pl-3">
+              <div className="mb-1 flex flex-wrap items-center gap-x-3 text-xs text-[var(--muted)]">
+                <span className="font-medium text-[var(--ink-2)]">{u.context}</span>
                 <span>{formatDate(u.used_at)}</span>
               </div>
               <ClampText text={u.content_snapshot} big={big} />
@@ -487,8 +509,8 @@ function NoteList({ notes, big }: { notes: DossierNote[]; big: boolean }) {
   return (
     <ul className="space-y-1.5">
       {notes.map(n => (
-        <li key={n.id} className="flex items-start gap-2">
-          <Badge tone={n.kind === 'said' ? 'info' : 'neutral'}>{NOTE_KIND_LABELS[n.kind] ?? n.kind}</Badge>
+        <li key={n.id} className="flex items-start gap-3">
+          <span className="w-12 shrink-0 pt-0.5 text-xs font-medium text-[var(--muted)]">{NOTE_KIND_LABELS[n.kind] ?? n.kind}</span>
           <div className="min-w-0 flex-1">
             <ClampText text={n.content} big={big} />
             <div className="text-xs text-[var(--subtle)]">{n.round ? `${INTERVIEW_ROUND_LABELS[n.round] ?? n.round} · ` : ''}{formatDate(n.created_at)}</div>
@@ -507,13 +529,13 @@ function HeardSection({ d, big }: { d: Dossier; big: boolean }) {
       {heard.length === 0 && mails.length === 0 && <Muted>还没有听到的信息或往来邮件。</Muted>}
       {heard.length > 0 && <NoteList notes={heard} big={big} />}
       {mails.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="divide-y divide-[var(--line)]">
           {mails.map(m => (
-            <li key={m.id} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={m.direction === 'in' ? 'info' : 'accent'}>{m.direction === 'in' ? '收' : '发'}</Badge>
+            <li key={m.id} className="py-2">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-xs font-medium text-[var(--muted)]">{m.direction === 'in' ? '收' : '发'}</span>
                 <span className={`min-w-0 flex-1 font-medium text-[var(--ink)] ${big ? 'text-base' : 'text-sm'}`}>{m.subject ?? '（无主题）'}</span>
-                <span className="text-xs text-[var(--muted)]">{formatDateTime(m.received_at ?? m.created_at)}</span>
+                <span className="text-xs tabular-nums text-[var(--muted)]">{formatDateTime(m.received_at ?? m.created_at)}</span>
               </div>
               {m.snippet && <div className={`mt-1 text-[var(--muted)] ${big ? 'text-sm' : 'text-xs'}`}>{m.snippet}</div>}
             </li>
@@ -532,7 +554,7 @@ function CompanySection({ d }: { d: Dossier }) {
       {!c && (
         <div className="flex flex-wrap items-center gap-2">
           <Muted>还没有这家公司的调研。</Muted>
-          <ChatActionButton variant="secondary" text="帮我查查这家公司靠不靠谱" context={{ surface: 'dossier', refs: { application_id: d.application.id } }} />
+          <ChatActionButton variant="ghost" size="sm" text="帮我查查这家公司靠不靠谱" context={{ surface: 'dossier', refs: { application_id: d.application.id } }} />
         </div>
       )}
       {c && (
@@ -597,7 +619,7 @@ function PendingActions({ d, onChanged }: { d: Dossier; onChanged: () => void })
                   <span className="text-xs text-[var(--subtle)]">{formatDate(a.created_at)}</span>
                   <div className="ml-auto flex items-center gap-1">
                     <Button variant="primary" busy={review.busy} onClick={() => void decide(a, 'approved')}>{isMail ? '批准并发送' : '批准'}</Button>
-                    <Button variant="danger" busy={review.busy} onClick={() => void decide(a, 'rejected')}>拒绝</Button>
+                    <Button variant="ghost" busy={review.busy} onClick={() => void decide(a, 'rejected')}>不发了</Button>
                   </div>
                 </div>
                 {isMail && (
