@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>细节变量对比</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css">
+<style>
+@font-face { font-family:"Career Sans"; src:url(https://fonts.gstatic.com/s/sourcesans3/v20/nwpStKy2OAdR1K-IwhWudF-R3w8aZejf5Hc.woff2) format('woff2'); font-weight:200 900; size-adjust:106%; unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DC, U+20AC, U+2122, U+2212; }
+:root { --sans:"Career Sans","PingFang SC","Microsoft YaHei UI",sans-serif; --human:"LXGW WenKai Screen","Kaiti SC",serif; --hard:#2A241C; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:#E6DCC7; font:400 14px/22px var(--sans); color:#2A241C; padding:20px 24px 24px; }
+h1 { font:600 20px/28px var(--sans); margin-bottom:4px; }
+.lead { font-size:13px; color:#5C5244; margin-bottom:16px; }
+.cols { display:grid; grid-template-columns:repeat(var(--n,3),1fr); gap:20px; }
+.label { font:600 15px var(--sans); margin-bottom:8px; display:flex; gap:8px; align-items:center; }
+.label i { font-style:normal; font-weight:500; font-size:11px; padding:0 7px; border:1.5px solid var(--hard); border-radius:9px; line-height:16px; }
+
+/* ── 可调变量（默认 = 当前样稿） ── */
+.scene {
+  --bg:#FDFBF7; --side:#F6F2EA; --paper:#FFFEFB; --line:#E8E1D3; --line-2:#CBB892;
+  --ink:#2A241C; --ink-2:#433A2E; --muted:#5C5244;
+  --primary:#2F4BA0; --mark:#FFE066; --note:#FFF1A8; --mint:#DDF1E3;
+  --warning:#9A5B00; --danger:#C0392B;
+  --btn-bw:1.5px; --btn-sh:2px 2px 0 var(--hard); --btn-bc:var(--hard);
+  --btn-r:8px; --card-r:6px; --pill-r:15px;
+  --stamp-rot:-3deg;
+  --tilt:.6deg;
+  display:grid; grid-template-columns:150px 1fr; border:2px solid var(--hard); border-radius:10px; overflow:hidden; height:272px; background:var(--bg);
+}
+.scene .side { background:var(--side); border-right:1px solid var(--line); padding:14px 8px; display:flex; flex-direction:column; gap:2px; }
+.item { position:relative; height:34px; border-radius:8px; display:flex; align-items:center; padding:0 10px; font:400 15px var(--human); color:var(--ink-2); }
+.item .c { margin-left:auto; font:400 12px var(--sans); color:var(--muted); }
+/* 选中样式 */
+.sel-mark .item.on { color:var(--ink); background:linear-gradient(transparent 52%, var(--mark) 52%, var(--mark) 88%, transparent 88%); border-radius:0; }
+.sel-note .item.on { color:var(--ink); background:var(--note); border-radius:3px; box-shadow:1px 2px 0 rgb(120 90 30 / .16); transform:rotate(-.6deg); }
+.sel-tape .item.on { color:var(--ink); background:var(--paper); }
+.sel-tape .item.on::before { content:""; position:absolute; left:-4px; top:5px; width:8px; height:24px; background:var(--primary); opacity:.75; transform:rotate(-4deg); border-radius:1px; }
+
+.main { padding:16px 18px; display:flex; flex-direction:column; gap:12px; min-width:0; }
+.deco-full .main { background-image:radial-gradient(#DCCFB2 1px, transparent 1.2px); background-size:16px 16px; }
+.tape { align-self:flex-start; padding:1px 12px; font:400 14px var(--human); background:rgb(244 182 160 / .6); transform:rotate(-1.2deg); }
+.deco-light .tape { transform:none; }
+.deco-light, .deco-none { --stamp-rot:0deg; }
+.deco-none .tape { background:none; padding:0; font:600 13px var(--sans); color:var(--muted); }
+.card { padding:10px 0 14px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:7px; }
+.deco-none .card { box-shadow:none; }
+.top { display:flex; align-items:center; gap:6px; }
+.t { font:600 16px/22px var(--human); flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.s { font-size:12px; color:var(--muted); }
+.stamp { flex-shrink:0; height:22px; padding:0 7px; border:1.5px solid currentColor; border-radius:5px; font:400 13px/19px var(--human); transform:rotate(var(--stamp-rot)); }
+.stamp.w { color:var(--warning); } .stamp.a { color:var(--primary); }
+.stamp-fill .stamp { border:0; border-radius:11px; font:500 12px/22px var(--sans); transform:none; padding:0 9px; }
+.stamp-fill .stamp.w { background:#FDEFD0; } .stamp-fill .stamp.a { background:color-mix(in srgb, var(--primary) 12%, white); }
+.act { display:flex; gap:8px; margin-top:2px; }
+.btn { white-space:nowrap; height:32px; padding:0 14px; border-radius:var(--btn-r); display:inline-flex; align-items:center; font:600 13px var(--sans); border:var(--btn-bw) solid var(--btn-bc); background:var(--paper); color:var(--ink); box-shadow:var(--btn-sh); }
+.btn.p { background:var(--primary); color:#fff; }
+.note { align-self:flex-end; max-width:86%; background:var(--note); padding:6px 12px; border-radius:2px; transform:rotate(var(--tilt)); box-shadow:2px 3px 0 rgb(120 90 30 / .14); font:400 14px/22px var(--human); }
+.deco-light .note { transform:none; }
+.deco-none .note { transform:none; box-shadow:none; border-radius:10px; background:color-mix(in srgb, var(--primary) 9%, white); font-family:var(--sans); }
+
+.tag-dot .stamp, .tag-mark .stamp, .tag-bar .stamp, .tag-text .stamp { border:0; transform:none; border-radius:0; height:auto; padding:0; font:500 13px/20px var(--sans); background:none; }
+.tag-dot .stamp { display:inline-flex; align-items:center; gap:6px; }
+.tag-dot .stamp::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
+.tag-mark .stamp { color:var(--ink) !important; padding:0 2px; }
+.tag-mark .stamp.w { background:linear-gradient(transparent 55%, #FBD992 55%, #FBD992 92%, transparent 92%); }
+.tag-mark .stamp.a { background:linear-gradient(transparent 55%, #C9D4F5 55%, #C9D4F5 92%, transparent 92%); }
+.tag-bar .stamp { padding-left:8px; border-left:3px solid currentColor; }
+.tag-text .stamp { font-weight:600; }
+.tag-text .stamp + .stamp::before { content:"·"; color:var(--muted); margin-right:6px; font-weight:400; }
+</style>
+</head>
+<body>
+<div id="out"></div>
+<template id="scene">
+  <div class="side">
+    <div class="item">岗位收藏<span class="c">12</span></div>
+    <div class="item on">面试记录<span class="c">3</span></div>
+    <div class="item">笔试记录<span class="c">5</span></div>
+  </div>
+  <div class="main">
+    <span class="tape">接下来</span>
+    <div class="card">
+      <div class="top"><span class="t">星河科技 · 二面</span><span class="stamp w">剩 2 天</span><span class="stamp a">面试</span></div>
+      <div class="s">周五 14:00 · 视频面试 · 投的：产品经理岗位版</div>
+      <div class="act"><span class="btn p">开始准备</span><span class="btn">摊开卷宗</span></div>
+    </div>
+    <div class="note">先把开放题确认掉，后面就轻松了</div>
+  </div>
+</template>
+<script>
+const V = {
+  1: ['主色', '主按钮、强调印章、选中指示用的颜色', [
+      ['钢笔蓝', '当前', '--primary:#2F4BA0'],
+      ['墨绿', '', '--primary:#2F6B4F'],
+      ['黛紫', '', '--primary:#5B3E8C']]],
+  2: ['纸底色', '整页底色与二级栏底色', [
+      ['米黄纸', '当前', '--bg:#FBF6EA;--side:#F5EDDC'],
+      ['象牙白', '更干净', '--bg:#FDFBF7;--side:#F6F2EA;--line:#E8E1D3'],
+      ['牛皮纸', '更暖', '--bg:#F5ECD9;--side:#EDE0C6;--line:#DCCBA9']]],
+  3: ['按钮力度', '描边粗细与投影', [
+      ['粗描边 + 硬投影', '当前', ''],
+      ['细描边 + 小投影', '', '--btn-bw:1.5px;--btn-sh:2px 2px 0 var(--hard)'],
+      ['无描边 + 柔阴影', '', '--btn-bw:1px;--btn-bc:var(--line-2);--btn-sh:0 2px 6px rgb(90 70 30 / .18)']]],
+  4: ['二级栏选中样式', '当前在哪一项', [
+      ['荧光笔划线', '当前', '', 'sel-mark'],
+      ['便利贴色块', '', '', 'sel-note'],
+      ['左侧胶带', '', '', 'sel-tape']]],
+  5: ['状态标签（第二轮）', '剩几天、面试这类状态。上一轮三种都没选中，这轮都不做成「框」', [
+      ['色点 + 文字', '推荐', '', 'tag-dot'],
+      ['荧光笔划线', '和划重点呼应', '', 'tag-mark'],
+      ['左侧色条', '和二级栏胶带呼应', '', 'tag-bar'],
+      ['纯色文字', '最安静', '', 'tag-text']]],
+  6: ['圆角', '按钮与卡片的圆角', [
+      ['小圆角', '更像纸', '--btn-r:4px;--card-r:3px'],
+      ['中圆角', '当前', ''],
+      ['大圆角', '更软萌', '--btn-r:16px;--card-r:16px']]],
+  7: ['装饰强度', '点阵、胶带、便签倾斜这些手账元素', [
+      ['满', '当前', '', 'deco-full'],
+      ['轻', '去点阵，元素不倾斜', '', 'deco-light'],
+      ['无', '纯纸面', '', 'deco-none']]],
+};
+const n = new URLSearchParams(location.search).get('var') || '1';
+const [title, lead, opts] = V[n];
+const tpl = document.getElementById('scene').innerHTML;
+const base = { 4:'deco-full', 7:'sel-mark' };
+document.getElementById('out').innerHTML =
+  `<style>.cols{--n:${opts.length > 3 ? 2 : opts.length}}</style><h1>变量 ${n} · ${title}</h1><div class="lead">${lead}。各列只有这一项不同，其余已按选定的方案（钢笔蓝、象牙白、细描边、左侧胶带、中圆角、装饰轻）。</div><div class="cols">` +
+  opts.map(([name, note, style, cls = ''], i) => {
+    const defaults = ['sel-tape', 'deco-light'].filter(c => !cls.startsWith(c.split('-')[0]));
+    return `<div><div class="label">${'ABCD'[i]} · ${name}${note ? `<i>${note}</i>` : ''}</div>
+      <div class="scene ${defaults.join(' ')} ${cls}" style="${style}">${tpl}</div></div>`;
+  }).join('') + '</div>';
+</script>
+</body>
+</html>

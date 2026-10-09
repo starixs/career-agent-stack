@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>英文字体测试</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-screen-webfont@1.7.0/style.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&family=Nunito:wght@400;600;700&display=block">
+<style>
+:root { --bg:#EFE4CC; --paper:#FFFDF6; --ink:#2A241C; --ink-2:#433A2E; --muted:#5C5244; --line:#E2D5BB; --line-2:#CBB892; --primary:#2F4BA0; --danger:#C0392B; --warning:#9A5B00; --hard:#2A241C;
+  --cjk:"PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif; --human:"LXGW WenKai Screen","Kaiti SC",serif; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--ink); padding:20px; font-family:var(--cjk); }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.p { background:var(--paper); border:2px solid var(--hard); border-radius:10px; padding:18px 22px; display:flex; flex-direction:column; gap:12px; }
+.tag { display:flex; align-items:baseline; gap:10px; font:600 17px var(--cjk); padding-bottom:10px; border-bottom:1px dashed var(--line-2); }
+.tag span { font-weight:400; font-size:13px; color:var(--muted); }
+.tag i { font-style:normal; margin-left:auto; font-size:12px; font-weight:500; padding:1px 8px; border:1.5px solid var(--hard); border-radius:10px; }
+.lb { font-size:11px; color:var(--muted); letter-spacing:.04em; margin-bottom:2px; }
+.h1 { font:600 21px/30px var(--human); }
+.h2 { font-size:21px; line-height:30px; font-weight:600; }
+.body { font-size:16px; line-height:28px; }
+.row { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font-size:14px; line-height:22px; }
+.row .co { font-weight:500; } .row .ro { font-size:12px; color:var(--muted); }
+.row .m { margin-left:auto; display:flex; gap:8px; align-items:center; font-size:12px; color:var(--muted); }
+.b { height:20px; padding:0 7px; border:1.5px solid currentColor; border-radius:5px; font-size:12px; line-height:17px; }
+.cv { border:1px solid var(--line-2); padding:12px 14px; background:#fff; font-size:13px; line-height:20px; color:#1d1d1f; }
+.cv .n { font-size:18px; font-weight:600; letter-spacing:.02em; }
+.cv .sec { margin-top:6px; font-size:12px; font-weight:600; letter-spacing:.12em; color:var(--primary); border-bottom:1px solid #ddd; }
+.cv .r { display:flex; justify-content:space-between; font-weight:600; margin-top:4px; }
+.cv .r span { font-weight:400; color:#6e6e73; }
+.cv ul { padding-left:16px; }
+.num { font-variant-numeric:tabular-nums; }
+.glyph { font-size:15px; display:flex; gap:22px; color:var(--ink-2); }
+/* 候选：英文字体放前面，中文回落到苹方 / 微软雅黑 */
+.f-sys  { --lat:-apple-system,BlinkMacSystemFont,"Segoe UI"; }
+.f-inter{ --lat:"Inter"; }
+.f-src  { --lat:"Source Sans 3"; }
+.f-nun  { --lat:"Nunito"; }
+.p .body, .p .row, .p .cv, .p .glyph, .p .h2 { font-family:var(--lat), var(--cjk); }
+.p .h2 { font-family:var(--lat), var(--human); }
+
+@font-face { font-family:"SS3 Adj"; src:url(https://fonts.gstatic.com/s/sourcesans3/v20/nwpStKy2OAdR1K-IwhWudF-R3w8aZejf5Hc.woff2) format('woff2'); font-weight:200 900; size-adjust:106%; unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212; }
+@font-face { font-family:"SS3 Adj Latin"; src:url(https://fonts.gstatic.com/s/sourcesans3/v20/nwpStKy2OAdR1K-IwhWudF-R3w8aZejf5Hc.woff2) format('woff2'); font-weight:200 900; size-adjust:106%; unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DC, U+20AC, U+2122, U+2212; }
+.f-src-adj { --lat:"SS3 Adj"; }
+.f-src-adj2 { --lat:"SS3 Adj Latin"; }
+</style>
+</head>
+<body>
+<div class="grid">
+  <script>
+  const C = [
+    ['f-sys','参照 · 系统默认','用来对比英文和中文的大小关系','—'],
+    ['f-src','C · Source Sans 3 原样','英文明显比中文小','原样'],
+    ['f-src-adj','C · 放大 106%','英文字身对齐苹方','size-adjust 106%'],
+    ['f-src-adj2','C · 放大 106% + 标点交给苹方','“ ” — … 改用中文字体渲染','推荐'],
+  ];
+  for (const [cls, name, desc, cost] of C) document.write(`
+  <section class="p ${cls}">
+    <div class="tag">${name}<span>${desc}</span><i>${cost}</i></div>
+    <div><div class="lb">标题 · 文楷自带英文</div><div class="h1">AI 填网申 · Shopee Backend Engineer 二面准备</div></div>
+    <div><div class="lb">标题 · 英文换成本方案、中文仍是文楷</div><div class="h2">AI 填网申 · Shopee Backend Engineer 二面准备</div></div>
+    <div><div class="lb">对话正文（中英混排）</div><div class="body">先说结论：Shopee 的二面通常是 Engineering Manager 来面，会追问你在 “Campus Market” 项目里怎么做 A/B testing。准备好 QPS、P99 latency 的口径——比如“峰值 1,200 QPS，P99 从 480ms 降到 120ms”。JD 里写了 Go / Kubernetes，记得提一下你 GitHub 上的 side project…</div></div>
+    <div><div class="lb">列表与数字</div>
+      <div class="row"><div><div class="co">Shopee · Backend Engineer</div><div class="ro">Payment · Singapore / Shanghai</div></div><div class="m"><span class="b" style="color:var(--primary)">Interview</span><span class="num">Oct 10, 14:00</span></div></div>
+      <div class="row"><div><div class="co">ByteDance 字节跳动 · Product Manager Intern</div><div class="ro">TikTok Shop · 抖音电商</div></div><div class="m"><span class="b" style="color:var(--danger)">剩 18 小时</span><span class="num">86%</span></div></div>
+    </div>
+    <div><div class="lb">英文简历片段</div>
+      <div class="cv"><div class="n">Lin Xiaohe — Product Manager (Campus)</div><div class="sec">EXPERIENCE</div>
+        <div class="r">Yuanshan Data · Product Intern, Growth<span class="num">Jul 2026 – Sep 2026</span></div>
+        <ul><li>Redesigned the onboarding flow and ran an A/B test; sign-up conversion +4.2 pp.</li><li>Synthesized 60+ user feedback items into a prioritized backlog; 5 shipped next quarter.</li></ul>
+      </div>
+    </div>
+    <div><div class="lb">易混字符与数字</div><div class="glyph num"><span>Il1| O0 rn·m</span><span>0123456789</span><span>“ ” ‘ ’ — … ·</span><span>@ % &amp; #</span></div></div>
+  </section>`);
+  </script>
+</div>
+</body>
+</html>
