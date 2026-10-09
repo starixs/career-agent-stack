@@ -29,7 +29,6 @@ describe('native scrollbar policy', () => {
     );
 
     for (const scrollOwner of [
-      'src/renderer/components/global-sidebar/GlobalSidebar.tsx',
       'src/renderer/components/MessageList.tsx',
       'src/renderer/components/workspace-tree/WorkspaceTreeViewport.tsx',
       'src/renderer/components/AgentCapabilitiesPanel.tsx',

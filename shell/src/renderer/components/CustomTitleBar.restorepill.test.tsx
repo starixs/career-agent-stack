@@ -20,7 +20,6 @@ vi.mock('@tauri-apps/api/window', () => ({
         unmaximize: vi.fn(),
     }),
 }));
-vi.mock('./FeedbackPopover', () => ({ default: () => null }));
 
 import { i18n } from '@/i18n';
 import CustomTitleBar from './CustomTitleBar';

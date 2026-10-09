@@ -191,31 +191,10 @@ describe('App Shell chrome contract', () => {
     expect(directory).toContain('workspaceFiles.directory.openAgentSettings');
   });
 
-  it('wires layout-aware pointer leave handling to the forced-rail workspace flyout', () => {
-    const sidebar = source(
-      'src/renderer/components/global-sidebar/GlobalSidebar.tsx',
-    );
-
-    expect(sidebar).toContain('onPointerLeave={handleFlyoutPointerLeave}');
-    expect(sidebar).toContain(
-      'isPointerWithinBounds(bounds, event.clientX, event.clientY)',
-    );
-    expect(sidebar).toContain('previousActiveTabIdRef');
-    expect(sidebar).not.toContain('pendingSessionNavigationRef');
-  });
-
-  it('animates the sidebar material without continuously resizing the Tab workspace', () => {
-    const sidebar = source(
-      'src/renderer/components/global-sidebar/GlobalSidebar.tsx',
-    );
+  it('keeps the titlebar and Tab row on the rail surface', () => {
     const titlebar = source('src/renderer/components/CustomTitleBar.tsx');
     const tabbar = source('src/renderer/components/TabBar.tsx');
-    const app = source('src/renderer/App.tsx');
-    const styles = source('src/renderer/index.css');
 
-    expect(sidebar).toContain(
-      '[--global-sidebar-surface:var(--rail)]',
-    );
     expect(titlebar).toContain('bg-[var(--rail)]');
     expect(titlebar).not.toContain('border-b border-[var(--line)]');
     expect(tabbar).toMatch(
@@ -225,37 +204,6 @@ describe('App Shell chrome contract', () => {
       /maskImage:\s*["']linear-gradient\(to right, #000 0%, rgba\(0, 0, 0, 0\) 100%\)["']/,
     );
     expect(tabbar).not.toContain('var(--bg-a0)');
-    expect(sidebar).toContain(
-      'data-global-sidebar-motion={sidebarMotion ?? undefined}',
-    );
-    expect(sidebar).toMatch(
-      /data-global-sidebar-titlebar-follow=\{isWindows \? ["']full["'] : ["']toggle-slot["']\}/,
-    );
-    expect(sidebar).not.toContain('transition-[width]');
-    expect(app).toContain('data-tab-content-workspace');
-    expect(styles).toContain('.global-sidebar::before');
-    expect(styles).toContain(
-      'transition: clip-path var(--motion-base) var(--ease-in-out)',
-    );
-    expect(styles).toContain(
-      ".global-sidebar[data-global-sidebar-mode='rail']::before",
-    );
-    expect(styles).toContain(
-      "[data-global-sidebar-motion='collapse'] ~ [data-tab-workspace]",
-    );
-    expect(styles).toContain(
-      "[data-global-sidebar-motion='expand'] ~ [data-tab-workspace]",
-    );
-    expect(styles).toContain(
-      "[data-global-sidebar-titlebar-follow='full'][data-global-sidebar-motion='collapse']",
-    );
-    expect(styles).toContain('@keyframes app-shell-sidebar-follow');
-    expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
-    expect(styles).toContain('--global-sidebar-rail-width: 64px;');
-    expect(styles).toContain('--global-sidebar-tabbar-toggle-inset: 60px;');
-    expect(styles).toContain('--global-sidebar-tab-content-shift: 140px;');
-    expect(styles).toContain('--global-sidebar-content-center-shift: 96px;');
-    expect(styles).toContain('--global-sidebar-brand-icon-left: 22px;');
   });
 
   it('mirrors real Chat workspace disclosure edges without replaying them for reveal navigation', () => {
@@ -317,52 +265,6 @@ describe('App Shell chrome contract', () => {
     );
     expect(settings).toContain(
       'className="h-full flex-1 overflow-y-auto overscroll-contain"',
-    );
-  });
-
-  it('opens history search with immediate chrome and virtualizes the empty-query archive', () => {
-    const sidebar = source(
-      'src/renderer/components/global-sidebar/GlobalSidebar.tsx',
-    );
-    const overlay = source(
-      'src/renderer/components/HistorySearchOverlayContent.tsx',
-    );
-    const storeProjection = source('src/renderer/hooks/useTaskCenterData.ts');
-
-    // One shared in-flight import serves both the effect preload and
-    // React.lazy, so the two callers never race on separate dynamic imports.
-    expect(sidebar).toMatch(
-      /const loadHistorySearchOverlayContent = \(\) => \{[\s\S]*?historySearchOverlayContentImport = import\('@\/components\/HistorySearchOverlayContent'\);[\s\S]*?return historySearchOverlayContentImport;\s*\};/,
-    );
-    expect(sidebar).toContain('lazy(loadHistorySearchOverlayContent)');
-    // The sidebar search button is hidden in the single-session shell; the
-    // overlay chunk is still preloaded when a history tag intent arrives.
-    expect(sidebar).not.toContain("t('globalSidebar.search')");
-    expect(sidebar).toMatch(/void loadHistorySearchOverlayContent\(\);/);
-    expect(sidebar).toContain(
-      '<HistorySearchOverlayFrame onClose={handleSearchClose}>',
-    );
-    expect(sidebar).toMatch(
-      /<Suspense\s+fallback=\{\s*<HistorySearchOverlayFallback onClose=\{handleSearchClose\} \/>\s*\}\s*>/,
-    );
-    expect(sidebar).not.toContain(
-      '<Suspense fallback={null}>\n          <HistorySearchOverlayContent',
-    );
-    expect(sidebar).toContain('data-history-search-fallback-filters');
-    expect(sidebar).toContain('data-history-search-fallback-compact');
-    expect(sidebar).not.toContain('initialMode="search"');
-
-    expect(overlay).toContain("import { Virtuoso } from 'react-virtuoso'");
-    expect(overlay).not.toContain('<OverlayBackdrop');
-    expect(overlay).not.toContain('overlayFadeIn');
-    expect(overlay).not.toContain('overlayPanelIn');
-    expect(overlay).toContain('data={browseRows}');
-    expect(overlay).toContain('data-history-search-compact-trigger');
-    expect(overlay).toContain('data-history-search-expanding-surface');
-    expect(overlay).not.toContain('filteredSessions.map');
-    expect(overlay).not.toContain('task-center-overlay-open');
-    expect(storeProjection).toContain(
-      "reason: 'global-sidebar-search', silent: true",
     );
   });
 

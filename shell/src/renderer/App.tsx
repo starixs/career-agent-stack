@@ -4561,6 +4561,7 @@ export default function App() {
       return;
     }
     if (target.kind === 'taskcenter') {
+      track('task_center_open', {});
       handleOpenTaskCenter();
       return;
     }

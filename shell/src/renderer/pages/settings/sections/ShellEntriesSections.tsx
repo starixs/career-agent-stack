@@ -6,7 +6,7 @@
  */
 import { useTranslation } from 'react-i18next';
 
-import { FeedbackPanel } from '@/components/FeedbackPopover';
+import { FeedbackPanel } from '@/components/FeedbackPanel';
 import { requestAppRoute, requestBugReport } from '@/features/career-shell/shellEvents';
 import NotificationCenterFlyout from '@/notifications/NotificationCenterFlyout';
 import { useNotificationCenter } from '@/notifications/useNotificationCenter';

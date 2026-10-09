@@ -91,6 +91,9 @@ describe('analytics event registry', () => {
       'im_bot_create',
       'im_bot_toggle',
       'im_bot_remove',
+      // Workspace creation from a template lived in the retired keystone global
+      // sidebar; the career shell has no workspace entry yet.
+      'workspace_create',
     ]);
 
     const missingCallSites = [...declared]
