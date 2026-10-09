@@ -1,6 +1,6 @@
 /**
  * 求职面板共用的小组件：页面骨架、「交给助理」按钮、徽标、按钮、表单项、空态、结构化 JSON 展示。
- * 样式沿用壳的主题 token（--ink / --bg / --line / --primary …），不引入新的视觉语言。
+ * 视觉规则见 specs/CAREER_DESIGN.md：按钮 7.1、状态标签 6.0、卡片 2.3、字阶 3.2。
  */
 import { AlertCircle, Loader2, MessageSquareText } from 'lucide-react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react';
@@ -32,11 +32,11 @@ export function useSuggestToChat(): (text: string, context?: ChatContext) => voi
 }
 
 /** 面板上的"让助理做"按钮：点一下就把带对象上下文的意图发进对话。 */
-export function ChatActionButton({ text, context, children, variant = 'primary', className }: { text: string; context?: ChatContext; children?: ReactNode; variant?: 'primary' | 'secondary' | 'ghost'; className?: string }) {
+export function ChatActionButton({ text, context, children, variant = 'secondary', className }: { text: string; context?: ChatContext; children?: ReactNode; variant?: 'primary' | 'secondary' | 'ghost'; className?: string }) {
   const suggest = useSuggestToChat();
   return (
     <Button variant={variant} className={className} onClick={() => suggest(text, context)}>
-      <MessageSquareText className="h-3.5 w-3.5" strokeWidth={1.75} />
+      <MessageSquareText className="h-4 w-4" strokeWidth={1.75} />
       {children ?? text}
     </Button>
   );
@@ -45,15 +45,15 @@ export function ChatActionButton({ text, context, children, variant = 'primary',
 export function CommandHint({ examples }: { examples: string[] }) {
   const suggest = useSuggestToChat();
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-3 py-2 text-xs text-[var(--muted)]">
-      <MessageSquareText className="h-3.5 w-3.5 shrink-0 text-[var(--primary)]" strokeWidth={1.75} />
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-[var(--muted)]">
+      <MessageSquareText className="h-4 w-4 shrink-0 text-[var(--primary)]" strokeWidth={1.75} />
       <span>这一页由对话指挥：你可以在对话里直接说</span>
       {examples.map(ex => (
         <button
           key={ex}
           type="button"
           onClick={() => suggest(ex)}
-          className="rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-0.5 text-xs text-[var(--ink)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)]"
+          className="rounded-full border border-[var(--line-2)] px-2.5 py-0.5 text-xs text-[var(--ink-2)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
         >
           「{ex}」
         </button>
@@ -72,16 +72,16 @@ export function CareerPage({ title, subtitle, examples, actions, children, embed
   if (embedded) {
     return (
       <div className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--bg)] text-[var(--ink)]">
-        {actions && <div className="flex flex-wrap items-center justify-end gap-2 px-4 pt-3">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center justify-end gap-2 px-6 pt-3">{actions}</div>}
         <div className="min-h-0 flex-1 overflow-auto">{children}</div>
       </div>
     );
   }
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--bg)] text-[var(--ink)]">
-      <div className="flex flex-col gap-2 border-b border-[var(--line)] px-4 pb-3 pt-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-lg font-semibold">{title}</h1>
+      <div className="flex flex-col gap-3 border-b border-[var(--line)] px-6 pb-3 pt-5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="font-human text-lg font-semibold">{title}</h1>
           {subtitle && <span className="text-xs text-[var(--muted)]">{subtitle}</span>}
           {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
@@ -95,19 +95,27 @@ export function CareerPage({ title, subtitle, examples, actions, children, embed
 export function SectionTitle({ children, extra }: { children: ReactNode; extra?: ReactNode }) {
   return (
     <div className="mb-2 flex items-center gap-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{children}</span>
-      <span className="h-px flex-1 bg-[var(--line)]" aria-hidden />
+      <span className="text-xs font-medium text-[var(--muted)]">{children}</span>
       {extra}
     </div>
   );
 }
 
-export function Card({ title, extra, children, className = '' }: { title?: ReactNode; extra?: ReactNode; children: ReactNode; className?: string }) {
+/**
+ * 区块。默认直接放在纸面上，不画框（2.3「去掉不必要的卡片」）；
+ * 只有「待你批准」用 `approval`：纸底、1.5px 墨线描边、3px 硬投影，意思是「这里在等你」。
+ */
+export function Card({ title, extra, children, className = '', variant = 'plain' }: {
+  title?: ReactNode; extra?: ReactNode; children: ReactNode; className?: string; variant?: 'plain' | 'approval';
+}) {
+  const surface = variant === 'approval'
+    ? 'rounded-lg border-[1.5px] border-[var(--hard)] bg-[var(--paper)] p-4 shadow-hard-lg'
+    : 'py-1';
   return (
-    <section className={`rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3 ${className}`}>
+    <section className={`${surface} ${className}`}>
       {(title || extra) && (
         <div className="mb-2 flex items-center gap-2">
-          {title && <div className="text-sm font-medium text-[var(--ink)]">{title}</div>}
+          {title && <div className="min-w-0 truncate text-sm font-semibold text-[var(--ink)]">{title}</div>}
           {extra && <div className="ml-auto flex items-center gap-2">{extra}</div>}
         </div>
       )}
@@ -153,39 +161,49 @@ export function ErrorRow({ message, onRetry }: { message: string; onRetry?: () =
 export type BadgeTone = 'neutral' | 'success' | 'warning' | 'error' | 'info' | 'accent';
 
 const BADGE_TONES: Record<BadgeTone, string> = {
-  neutral: 'bg-[var(--inset)] text-[var(--muted)] border-[var(--line)]',
-  success: 'bg-[var(--success-bg)] text-[var(--success)] border-[var(--success)]/20',
-  warning: 'bg-[var(--warning-bg)] text-[var(--warning)] border-[var(--warning)]/20',
-  error: 'bg-[var(--danger-bg)] text-[var(--danger)] border-[var(--danger)]/20',
-  info: 'bg-[var(--info-bg)] text-[var(--info)] border-[var(--info)]/20',
-  accent: 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/20',
+  neutral: 'text-[var(--muted)]',
+  success: 'text-[var(--success)]',
+  warning: 'text-[var(--warning)]',
+  error: 'text-[var(--danger)]',
+  info: 'text-[var(--info)]',
+  accent: 'text-[var(--primary)]',
 };
 
+/** 状态标签（6.0 方案 C）：3px 状态色竖条 + 状态色文字，不铺底、不加框、不换行。 */
 export function Badge({ tone = 'neutral', children, title }: { tone?: BadgeTone; children: ReactNode; title?: string }) {
   return (
-    <span title={title} className={`inline-flex items-center whitespace-nowrap rounded-md border px-1.5 py-0.5 text-xs font-medium ${BADGE_TONES[tone]}`}>
+    <span title={title} className={`inline-flex h-5 items-center gap-2 whitespace-nowrap text-xs font-medium ${BADGE_TONES[tone]}`}>
+      <span className="h-3.5 w-[3px] shrink-0 rounded-full bg-current" aria-hidden />
       {children}
     </span>
   );
 }
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+/** 描边按钮（7.1）：Primary / Secondary 带 1.5px 墨线与 2px 硬投影，按下时投影收回；Ghost 与 Danger 不描边。 */
+const OUTLINED = 'border-[1.5px] border-[var(--hard)] shadow-hard active:translate-x-px active:translate-y-px active:shadow-none disabled:border-[var(--line-2)] disabled:bg-[var(--inset)] disabled:shadow-none';
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)] border-transparent',
-  secondary: 'bg-[var(--bg)] text-[var(--ink)] border-[var(--line)] hover:bg-[var(--inset)]',
-  ghost: 'bg-transparent text-[var(--muted)] border-transparent hover:bg-[var(--inset)] hover:text-[var(--ink)]',
-  danger: 'bg-[var(--danger-bg)] text-[var(--danger)] border-[var(--danger)]/30 hover:bg-[var(--danger-bg)]',
+  primary: `${OUTLINED} bg-[var(--primary)] text-[var(--on-primary)] hover:bg-[var(--primary-hover)]`,
+  secondary: `${OUTLINED} bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--hover)]`,
+  ghost: 'border-[1.5px] border-transparent bg-transparent text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]',
+  danger: 'border-[1.5px] border-transparent bg-transparent text-[var(--danger)] hover:bg-[var(--danger-bg)]',
 };
 
-export function Button({ variant = 'secondary', busy, className = '', children, disabled, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; busy?: boolean }) {
+const BUTTON_SIZES = {
+  md: 'h-8 px-3.5',
+  /** 列表行内、工具栏。 */
+  sm: 'h-[30px] px-3',
+} as const;
+
+export function Button({ variant = 'secondary', size = 'md', busy, className = '', children, disabled, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: keyof typeof BUTTON_SIZES; busy?: boolean }) {
   return (
     <button
       type="button"
       disabled={disabled || busy}
-      className={`inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${BUTTON_VARIANTS[variant]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:cursor-not-allowed disabled:text-[var(--subtle)] ${BUTTON_SIZES[size]} ${BUTTON_VARIANTS[variant]} ${className}`}
       {...rest}
     >
-      {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+      {busy && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}
     </button>
   );
@@ -193,7 +211,7 @@ export function Button({ variant = 'secondary', busy, className = '', children, 
 
 // ─── 表单 ───
 
-const CONTROL_CLASS = 'w-full rounded-md border border-[var(--line)] bg-[var(--bg)] px-2 py-1 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none';
+const CONTROL_CLASS = 'w-full rounded-md border border-[var(--line-2)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-muted)]';
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
@@ -206,11 +224,11 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 }
 
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`${CONTROL_CLASS} ${props.className ?? ''}`} />;
+  return <input {...props} className={`${CONTROL_CLASS} h-9 ${props.className ?? ''}`} />;
 }
 
 export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={`${CONTROL_CLASS} min-h-[72px] font-[var(--font-sans)] ${props.className ?? ''}`} />;
+  return <textarea {...props} className={`${CONTROL_CLASS} min-h-[72px] py-2 font-[var(--font-sans)] ${props.className ?? ''}`} />;
 }
 
 /** 主题化下拉（壳的 CustomSelect），表单项统一用它；onChange 直接给值。 */

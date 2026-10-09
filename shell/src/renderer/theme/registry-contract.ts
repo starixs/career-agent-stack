@@ -21,6 +21,7 @@ export const REQUIRED_THEME_CSS_TOKENS = [
   '--theme-radius-xl', '--theme-radius-2xl', '--theme-radius-full',
   '--theme-shadow-base', '--theme-shadow-xs', '--theme-shadow-sm', '--theme-shadow-md',
   '--theme-shadow-lg', '--theme-shadow-xl', '--theme-shadow-2xl', '--theme-shadow-hard',
+  '--theme-shadow-hard-lg',
   '--motion-fast', '--motion-base', '--motion-slow',
 ] as const;
 

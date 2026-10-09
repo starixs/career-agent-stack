@@ -183,7 +183,7 @@ function TodayItemCard({ item, action, prominent = false, onChanged, onSnooze, o
   const isSendMail = action?.kind === 'send_mail';
 
   return (
-    <Card className={prominent ? 'border-[var(--primary)]/40' : ''}>
+    <Card variant={item.kind === 'review' ? 'approval' : 'plain'}>
       <div className="flex flex-wrap items-center gap-1.5">
         <Badge tone={KIND_TONES[item.kind] ?? 'neutral'}>{KIND_LABELS[item.kind] ?? item.kind}</Badge>
         {action && <Badge tone="neutral">{ACTION_KIND_LABELS[action.kind] ?? action.kind}</Badge>}

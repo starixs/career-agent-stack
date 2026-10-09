@@ -82,6 +82,7 @@ html[data-theme-id='keystone-default'][data-color-scheme='light'] {
   --theme-shadow-xl: 0 24px 48px rgb(42 36 28 / 0.20);
   --theme-shadow-2xl: 0 32px 64px -12px rgb(42 36 28 / 0.25);
   --theme-shadow-hard: 2px 2px 0 #2a241c;
+  --theme-shadow-hard-lg: 3px 3px 0 #2a241c;
 
   /* Floating ball material: glass tints derived from --bg and --ink. */
   --fb-surface-peek: rgb(253 251 247 / 0.15);
@@ -168,6 +169,7 @@ html[data-theme-id='keystone-default'][data-color-scheme='dark'] {
   --theme-shadow-xl: 0 24px 48px rgb(0 0 0 / 0.42);
   --theme-shadow-2xl: 0 32px 64px -12px rgb(0 0 0 / 0.52);
   --theme-shadow-hard: 2px 2px 0 #0b0a08;
+  --theme-shadow-hard-lg: 3px 3px 0 #0b0a08;
 
   --fb-surface-peek: rgb(27 25 22 / 0.22);
   --fb-surface-glass: rgb(38 35 30 / 0.58);

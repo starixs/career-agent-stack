@@ -111,7 +111,7 @@ export function CareerReviewCard({ review, onDecision }: {
   };
   const kindLabel = ACTION_KIND_LABELS[review.kind as ActionKind] ?? review.kind;
   return (
-    <div data-testid="career-review-card" className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
+    <div data-testid="career-review-card" className="rounded-lg border-[1.5px] border-[var(--hard)] bg-[var(--paper)] p-4 shadow-hard-lg">
       <div className="flex items-center gap-2.5">
         <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]/10">
           <ListChecks className="size-4 text-[var(--primary)]" />

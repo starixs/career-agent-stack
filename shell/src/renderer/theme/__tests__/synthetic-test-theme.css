@@ -91,6 +91,7 @@ html[data-theme-id='synthetic-test-theme'] {
   --mark: #ffd6f6;
   --mint: #def6ea;
   --theme-shadow-hard: 2px 2px 0 #21002f;
+  --theme-shadow-hard-lg: 3px 3px 0 #21002f;
 }
 
 html[data-theme-id='synthetic-test-theme'][data-color-scheme='light'] {
@@ -101,6 +102,7 @@ html[data-theme-id='synthetic-test-theme'][data-color-scheme='dark'] {
   --side: #1a001a;
   --hard: #ffe8ff;
   --theme-shadow-hard: 2px 2px 0 #000000;
+  --theme-shadow-hard-lg: 3px 3px 0 #000000;
   --ink: #ffe8ff;
   --ink-2: #f2c8f4;
   --muted: #c89dcc;

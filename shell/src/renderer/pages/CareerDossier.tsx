@@ -585,13 +585,13 @@ function PendingActions({ d, onChanged }: { d: Dossier; onChanged: () => void })
       {review.error && <ErrorRow message={review.error} />}
       {pending.length === 0 && <Muted>这条线上没有等你批准的动作。</Muted>}
       {pending.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className="space-y-3">
           {pending.map(a => {
             const payload = safeJson<Record<string, unknown>>(a.payload_json, {});
             const isMail = a.kind === 'send_mail';
             const summary = typeof payload.summary === 'string' ? payload.summary : typeof payload.text === 'string' ? payload.text : null;
             return (
-              <li key={a.id} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+              <li key={a.id} className="rounded-lg border-[1.5px] border-[var(--hard)] bg-[var(--paper)] p-4 shadow-hard-lg">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone="accent">{ACTION_KIND_LABELS[a.kind] ?? a.kind}</Badge>
                   <span className="text-xs text-[var(--subtle)]">{formatDate(a.created_at)}</span>

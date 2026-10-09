@@ -36,6 +36,7 @@
   --shadow-xl: var(--theme-shadow-xl);
   --shadow-2xl: var(--theme-shadow-2xl);
   --shadow-hard: var(--theme-shadow-hard);
+  --shadow-hard-lg: var(--theme-shadow-hard-lg);
 
   --default-transition-duration: var(--motion-fast);
   --transition-duration-150: var(--motion-fast);
