@@ -171,7 +171,6 @@ describe('Ubuntu settings availability', () => {
     settingsMocks.linux = false;
     render(<ToastProvider><Settings mode="settings" initialSection="about" isActive /></ToastProvider>);
     await waitFor(() => expect(screen.getByRole('button', { name: String(i18n.t('about.checkUpdates', { ns: 'settings' })) })).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: String(i18n.t('sidebar.nav.floatingBall', { ns: 'settings' })) })).toBeInTheDocument();
     expect(screen.queryByText(String(i18n.t('about.manualLinuxUpdate', { ns: 'settings' })))).not.toBeInTheDocument();
   });
 });

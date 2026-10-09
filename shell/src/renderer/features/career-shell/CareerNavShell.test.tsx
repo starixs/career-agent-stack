@@ -26,7 +26,9 @@ describe('navModel', () => {
     expect(locateNav('career-material', { 'career-material': 'resume' })).toEqual({ area: 'assets', itemId: 'resumes' });
     expect(locateNav('career-dossier', { 'career-dossier': 'offer' })).toEqual({ area: 'career', itemId: 'offers' });
     expect(locateNav('career-review', {})).toEqual({ area: 'market', itemId: null });
-    expect(locateNav('settings', {})).toEqual({ area: 'settings', itemId: null });
+    expect(locateNav('settings', {})).toEqual({ area: 'settings', itemId: 'general' });
+    expect(locateNav('settings', { settings: 'notifications' })).toEqual({ area: 'settings', itemId: 'notifications' });
+    expect(locateNav('capabilities', {})).toEqual({ area: 'settings', itemId: 'capabilities' });
   });
 });
 

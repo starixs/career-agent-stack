@@ -205,10 +205,11 @@ import type {
   SubscriptionStatus,
 } from './types';
 import { useSettingsNavigation } from './hooks/useSettingsNavigation';
-import { SettingsSidebar } from './components/SettingsSidebar';
 import { SkillsAgentsSection } from './sections/SkillsAgentsSection';
 import { ToolboxSection } from './sections/ToolboxSection';
 import { ExternalCliSettingsSection } from './sections/ExternalCliSettingsSection';
+import { FeedbackSection, NotificationsSection } from './sections/ShellEntriesSections';
+import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import codexModelSelectorOnboarding from '@/assets/onboarding/codex-model-selector.png';
 
 type ManagedCodexLoginStatus =
@@ -518,6 +519,11 @@ export default function Settings({
     floatingBallDevGate: linuxDesktop ? false : config.floatingBallDevGate,
     onSectionChange,
   });
+
+  // 二级栏的选中态跟着当前分区走。
+  useEffect(() => {
+    if (mode === 'settings') setCareerSubView('settings', activeSection);
+  }, [activeSection, mode]);
   useEffect(() => {
     if (mode !== 'capabilities') return;
     if (
@@ -4933,7 +4939,7 @@ export default function Settings({
   };
 
   return (
-    <div className="settings-root flex h-full bg-[var(--bg)]">
+    <div className="settings-root relative flex h-full bg-[var(--bg)]">
       {/* Logs Panel */}
       {mode === 'settings' && (
         <UnifiedLogsPanel
@@ -4944,14 +4950,16 @@ export default function Settings({
         />
       )}
 
-      {mode === 'settings' && (
-        <SettingsSidebar
-          activeSection={activeSection}
-          setActiveSection={setActiveSection}
-          showDevTools={config.showDevTools}
-          floatingBallDevGate={linuxDesktop ? false : config.floatingBallDevGate}
-          onShowLogs={() => setShowLogs(true)}
-        />
+      {/* 分区导航由 App Shell 的二级栏承担（features/career-shell/navModel.ts）；
+          开发者日志入口留在页面右上角。 */}
+      {mode === 'settings' && config.showDevTools && (
+        <button
+          type="button"
+          onClick={() => setShowLogs(true)}
+          className="absolute right-6 top-4 z-10 rounded-md px-2 py-1 text-xs text-[var(--muted)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--ink)]"
+        >
+          Logs
+        </button>
       )}
 
       {/* Right content area — h-full ensures height is explicit for WebKit scroll */}
@@ -5051,6 +5059,10 @@ export default function Settings({
           !linuxDesktop && config.floatingBallDevGate !== false && <FloatingBallPetSettings />}
 
         {activeSection === 'external-cli' && <ExternalCliSettingsSection />}
+
+        {activeSection === 'notifications' && <NotificationsSection />}
+
+        {activeSection === 'feedback' && <FeedbackSection />}
 
         {/* Providers section uses wider layout */}
         {activeSection === 'providers' && (

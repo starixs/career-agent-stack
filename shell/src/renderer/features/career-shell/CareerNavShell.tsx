@@ -4,6 +4,14 @@
  */
 import {
   Award,
+  Bell,
+  Cat,
+  Globe,
+  Info,
+  Keyboard,
+  LifeBuoy,
+  SlidersHorizontal,
+  Wrench,
   Briefcase,
   FileText,
   FolderOpen,
@@ -56,6 +64,14 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   file: FileText,
   quote: Quote,
   award: Award,
+  sliders: SlidersHorizontal,
+  pet: Cat,
+  globe: Globe,
+  keyboard: Keyboard,
+  wrench: Wrench,
+  bell: Bell,
+  help: LifeBuoy,
+  info: Info,
 };
 
 const COLLAPSE_KEY = 'career:subnav-collapsed';

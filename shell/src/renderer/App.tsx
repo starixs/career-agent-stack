@@ -54,6 +54,7 @@ import { DispatchTaskDialog } from '@/components/task-center/DispatchTaskDialog'
 import CustomTitleBar from '@/components/CustomTitleBar';
 import { CareerNavShell } from '@/features/career-shell/CareerNavShell';
 import { CAREER_NAVIGATE_EVENT, type NavTarget } from '@/features/career-shell/navModel';
+import { OPEN_APP_ROUTE_EVENT, OPEN_BUG_REPORT_EVENT } from '@/features/career-shell/shellEvents';
 import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import LinkContextMenuProvider from '@/components/LinkContextMenuProvider';
 import { SessionDeletionContext } from '@/context/SessionDeletionContext';
@@ -4544,9 +4545,6 @@ export default function App() {
     [tabWorkspaceController],
   );
 
-  const handleOpenGeneralSettings = useCallback(() => {
-    void handleOpenSettings('general');
-  }, [handleOpenSettings]);
 
   // 两级导航的唯一出口：L2 条目先写入目标页的子视图，再打开（或聚焦）对应的单实例 Tab。
   const handleOpenNavTarget = useCallback((target: NavTarget) => {
@@ -4555,7 +4553,11 @@ export default function App() {
       return;
     }
     if (target.kind === 'settings') {
-      handleOpenGeneralSettings();
+      void handleOpenSettings(target.section ?? 'general');
+      return;
+    }
+    if (target.kind === 'capabilities') {
+      handleOpenCapabilities();
       return;
     }
     if (target.kind === 'taskcenter') {
@@ -4564,10 +4566,15 @@ export default function App() {
     }
     if (target.view) setCareerSubView(target.kind, target.view);
     handleOpenCareerPage(target.kind);
-  }, [handleOpenAssistantChat, handleOpenCareerPage, handleOpenGeneralSettings, handleOpenTaskCenter]);
+  }, [handleOpenAssistantChat, handleOpenCapabilities, handleOpenCareerPage, handleOpenSettings, handleOpenTaskCenter]);
   useEffect(() => onEvent<NavTarget>(CAREER_NAVIGATE_EVENT, target => {
     if (target?.kind) handleOpenNavTarget(target);
   }), [handleOpenNavTarget]);
+  // 设置里的「小助理与反馈」「通知」通过事件请求 App 打开反馈浮层与通知路由。
+  useEffect(() => onEvent(OPEN_BUG_REPORT_EVENT, () => setShowBugReport(true)), []);
+  useEffect(() => onEvent<{ route?: AppRoute }>(OPEN_APP_ROUTE_EVENT, payload => {
+    if (payload?.route) handleOpenAppRoute(payload.route);
+  }), [handleOpenAppRoute]);
 
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
