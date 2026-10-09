@@ -53,7 +53,7 @@ import BugReportOverlay from '@/components/BugReportOverlay';
 import { DispatchTaskDialog } from '@/components/task-center/DispatchTaskDialog';
 import CustomTitleBar from '@/components/CustomTitleBar';
 import { CareerNavShell } from '@/features/career-shell/CareerNavShell';
-import type { NavTarget } from '@/features/career-shell/navModel';
+import { CAREER_NAVIGATE_EVENT, type NavTarget } from '@/features/career-shell/navModel';
 import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import LinkContextMenuProvider from '@/components/LinkContextMenuProvider';
 import { SessionDeletionContext } from '@/context/SessionDeletionContext';
@@ -4565,6 +4565,9 @@ export default function App() {
     if (target.view) setCareerSubView(target.kind, target.view);
     handleOpenCareerPage(target.kind);
   }, [handleOpenAssistantChat, handleOpenCareerPage, handleOpenGeneralSettings, handleOpenTaskCenter]);
+  useEffect(() => onEvent<NavTarget>(CAREER_NAVIGATE_EVENT, target => {
+    if (target?.kind) handleOpenNavTarget(target);
+  }), [handleOpenNavTarget]);
 
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {

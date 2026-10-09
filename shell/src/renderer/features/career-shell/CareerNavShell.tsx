@@ -3,6 +3,7 @@
  * Layout and states follow specs/CAREER_DESIGN.md §5.
  */
 import {
+  Award,
   Briefcase,
   FileText,
   FolderOpen,
@@ -23,7 +24,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import {
   AREA_DIRECT_TARGET,
@@ -54,9 +55,24 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   user: User,
   file: FileText,
   quote: Quote,
+  award: Award,
 };
 
 const COLLAPSE_KEY = 'career:subnav-collapsed';
+/** Below this width L2 always collapses into a flyout (specs/CAREER_DESIGN.md §5.6). */
+const NARROW_QUERY = '(max-width: 1279px)';
+const FLYOUT_CLOSE_DELAY_MS = 300;
+
+function subscribeNarrow(onChange: () => void): () => void {
+  if (typeof window.matchMedia !== 'function') return () => {};
+  const query = window.matchMedia(NARROW_QUERY);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
+function readNarrow(): boolean {
+  return typeof window.matchMedia === 'function' && window.matchMedia(NARROW_QUERY).matches;
+}
 const LAST_ITEM_KEY = 'career:subnav-last-item';
 
 function readJson<T>(key: string, fallback: T): T {
@@ -103,8 +119,34 @@ export function CareerNavShell({ activeView, onOpen }: CareerNavShellProps) {
     });
   }, []);
 
+  const narrow = useSyncExternalStore(subscribeNarrow, readNarrow, () => false);
+  const effectiveCollapsed = collapsed || narrow;
+
+  // Collapsed L2 reappears as a flyout over the content while the pointer or
+  // focus is on the rail; it never pushes the layout.
+  const [flyoutArea, setFlyoutArea] = useState<NavArea | null>(null);
+  const closeTimer = useRef<number | null>(null);
+  const cancelClose = () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = window.setTimeout(() => setFlyoutArea(null), FLYOUT_CLOSE_DELAY_MS);
+  };
+  useEffect(() => () => cancelClose(), []);
+  const peekArea = (next: NavArea) => {
+    if (!effectiveCollapsed) return;
+    cancelClose();
+    setFlyoutArea(areaDefinition(next).items.length > 0 ? next : null);
+  };
+
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setFlyoutArea(null);
+        return;
+      }
       const mod = navigator.platform.toLowerCase().includes('mac') ? event.metaKey : event.ctrlKey;
       if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'b') {
         event.preventDefault();
@@ -138,7 +180,12 @@ export function CareerNavShell({ activeView, onOpen }: CareerNavShellProps) {
   };
 
   const definition = area ? areaDefinition(area) : null;
-  const showSubNav = Boolean(definition && definition.items.length > 0) && !collapsed;
+  const showSubNav = Boolean(definition && definition.items.length > 0) && !effectiveCollapsed;
+  const flyoutDefinition = effectiveCollapsed && flyoutArea ? areaDefinition(flyoutArea) : null;
+  const selectItem = (item: NavItem) => {
+    setFlyoutArea(null);
+    onOpen(item.target);
+  };
 
   return (
     <>
@@ -146,6 +193,7 @@ export function CareerNavShell({ activeView, onOpen }: CareerNavShellProps) {
         className="flex h-full w-[var(--nav-rail-width)] shrink-0 flex-col items-center border-r border-[var(--line)] bg-[var(--rail)] pb-3"
         aria-label="主导航"
         data-career-rail
+        onMouseLeave={flyoutDefinition ? scheduleClose : undefined}
       >
         {/* Drag strip; on macOS the native traffic lights sit here. */}
         <div className="custom-titlebar h-11 w-full shrink-0" data-tauri-drag-region />
@@ -155,9 +203,9 @@ export function CareerNavShell({ activeView, onOpen }: CareerNavShellProps) {
         >
           职
         </div>
-        <RailGroup areas={NAV_AREAS.filter(item => !item.footer)} active={area} onSelect={openArea} />
+        <RailGroup areas={NAV_AREAS.filter(item => !item.footer)} active={area} onSelect={openArea} onPeek={peekArea} />
         <div className="flex-1" />
-        <RailGroup areas={NAV_AREAS.filter(item => item.footer)} active={area} onSelect={openArea} />
+        <RailGroup areas={NAV_AREAS.filter(item => item.footer)} active={area} onSelect={openArea} onPeek={peekArea} />
       </nav>
 
       {showSubNav && definition && (
@@ -169,20 +217,32 @@ export function CareerNavShell({ activeView, onOpen }: CareerNavShellProps) {
           <div className="custom-titlebar flex h-11 shrink-0 items-center justify-end" data-tauri-drag-region>
             <CollapseButton collapsed={false} onToggle={toggleCollapsed} />
           </div>
-          <ul className="flex flex-col gap-0.5 pt-1">
-            {definition.items.map(item => (
-              <SubNavItem
-                key={item.id}
-                item={item}
-                active={area === located.area && item.id === located.itemId}
-                onSelect={() => onOpen(item.target)}
-              />
-            ))}
-          </ul>
+          <SubNavList
+            items={definition.items}
+            activeId={area === located.area ? located.itemId : null}
+            onSelect={selectItem}
+          />
         </nav>
       )}
 
-      {collapsed && definition && definition.items.length > 0 && (
+      {flyoutDefinition && (
+        <nav
+          className="absolute bottom-0 left-[var(--nav-rail-width)] top-0 z-30 flex w-[var(--nav-sub-width)] flex-col border-r border-[var(--line)] bg-[var(--side)] px-2.5 shadow-lg"
+          aria-label={flyoutDefinition.label}
+          data-career-subnav-flyout={flyoutDefinition.id}
+          onMouseEnter={cancelClose}
+          onMouseLeave={scheduleClose}
+        >
+          <div className="h-11 shrink-0" />
+          <SubNavList
+            items={flyoutDefinition.items}
+            activeId={flyoutDefinition.id === located.area ? located.itemId : null}
+            onSelect={selectItem}
+          />
+        </nav>
+      )}
+
+      {collapsed && !narrow && definition && definition.items.length > 0 && !flyoutDefinition && (
         <div className="absolute left-[calc(var(--nav-rail-width)+4px)] top-1.5 z-30" data-no-drag>
           <CollapseButton collapsed onToggle={toggleCollapsed} />
         </div>
@@ -191,10 +251,11 @@ export function CareerNavShell({ activeView, onOpen }: CareerNavShellProps) {
   );
 }
 
-function RailGroup({ areas, active, onSelect }: {
+function RailGroup({ areas, active, onSelect, onPeek }: {
   areas: readonly (typeof NAV_AREAS)[number][];
   active: NavArea | null;
   onSelect: (area: NavArea) => void;
+  onPeek: (area: NavArea) => void;
 }) {
   return (
     <ul className="flex flex-col items-center gap-1.5">
@@ -206,6 +267,8 @@ function RailGroup({ areas, active, onSelect }: {
             <button
               type="button"
               onClick={() => onSelect(definition.id)}
+              onMouseEnter={() => onPeek(definition.id)}
+              onFocus={() => onPeek(definition.id)}
               aria-current={selected ? 'page' : undefined}
               className={`flex min-h-[58px] w-[62px] flex-col items-center justify-center gap-1 rounded-[10px] font-human text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
                 selected
@@ -220,6 +283,20 @@ function RailGroup({ areas, active, onSelect }: {
           </li>
         );
       })}
+    </ul>
+  );
+}
+
+function SubNavList({ items, activeId, onSelect }: {
+  items: readonly NavItem[];
+  activeId: string | null;
+  onSelect: (item: NavItem) => void;
+}) {
+  return (
+    <ul className="flex flex-col gap-0.5 pt-1">
+      {items.map(item => (
+        <SubNavItem key={item.id} item={item} active={item.id === activeId} onSelect={() => onSelect(item)} />
+      ))}
     </ul>
   );
 }

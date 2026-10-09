@@ -1,5 +1,6 @@
 /**
- * 指南：静态能力地图（投递 / 面试 / 素材三条回路 + 复盘），每张卡一句"它帮你做什么"、"怎么触发"，
+ * 功能市场：顶部是能直接打开的工具（Offer 对比、漏斗复盘、调研），下面是能力地图
+ * （投递 / 面试 / 素材三条回路 + 复盘），每张卡一句"它帮你做什么"、"怎么触发"，
  * 以及一个真的会把话发进对话的按钮。用 onboarding 清单标出已经用过的能力。
  */
 import { emitEvent } from '@/api/eventBus';
@@ -8,6 +9,7 @@ import { Badge, Button, CareerPage, Card, ChatActionButton, SectionTitle } from 
 import type { CareerFocusEvent, OnboardingChecklist } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
+import { requestNavigation, type NavTarget } from '@/features/career-shell/navModel';
 
 const ONBOARDING_TABLES = ['experience', 'claim', 'resume_master', 'mail_account', 'job', 'application', 'material'] as const;
 
@@ -62,6 +64,13 @@ const LOOPS: Loop[] = [
   },
 ];
 
+/** 能直接打开的工具页；目标与二级导航共用同一套 NavTarget。 */
+const TOOLS: Array<{ name: string; what: string; target: NavTarget }> = [
+  { name: 'Offer 对比', what: '把拿到的 Offer 放在一起，薪资、城市、成长一项项比。', target: { kind: 'career-dossier', view: 'offer' } },
+  { name: '求职漏斗与周复盘', what: '投了多少、回了多少、卡在哪一环，每周看一次就够。', target: { kind: 'career-review', view: 'funnel' } },
+  { name: '公司调研与方向', what: '投之前查查这家公司，也看看还有哪些方向适合你。', target: { kind: 'career-review', view: 'research' } },
+];
+
 const NEVER_DO = [
   { label: '登录', why: '账号是你的，密码不经过助理。' },
   { label: '验证码', why: '遇到就暂停，交回给你。' },
@@ -86,8 +95,22 @@ export default function CareerGuide({ embedded = false }: CareerPageProps) {
   const used = (key?: keyof OnboardingChecklist) => isUsed(onboarding.data, key);
 
   return (
-    <CareerPage embedded={embedded} title="指南" subtitle="助理能做什么、怎么开口" examples={['帮我评估这个岗位', '帮我模拟一场一面', '给我做一次本周复盘']}>
+    <CareerPage embedded={embedded} title="功能市场" subtitle="想做什么，挑一个交给小芽" examples={['帮我评估这个岗位', '帮我模拟一场一面', '给我做一次本周复盘']}>
       <div className="space-y-6 px-4 py-3">
+        <section>
+          <SectionTitle>工具</SectionTitle>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            {TOOLS.map(tool => (
+              <Card key={tool.name} title={tool.name}>
+                <div className="text-xs text-[var(--muted)]">{tool.what}</div>
+                <div className="mt-2">
+                  <Button variant="secondary" onClick={() => requestNavigation(tool.target)}>打开</Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+
         <section>
           <SectionTitle>怎么开始</SectionTitle>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">

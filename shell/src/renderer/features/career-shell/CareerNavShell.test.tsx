@@ -12,7 +12,7 @@ describe('navModel', () => {
       expect(area.items.map(item => item.label)).not.toContain(area.label);
     }
     expect(NAV_AREAS.find(area => area.id === 'career')!.items.map(item => item.label))
-      .toEqual(['岗位收藏', '投递记录', '笔试记录', '面试记录']);
+      .toEqual(['岗位收藏', '投递记录', '笔试记录', '面试记录', 'Offer 记录']);
     expect(NAV_AREAS.find(area => area.id === 'assets')!.items.map(item => item.label))
       .toEqual(['基本资料', '经历', '简历', '常用表达']);
   });
@@ -24,6 +24,8 @@ describe('navModel', () => {
     expect(locateNav('career-dossier', { 'career-dossier': 'apply' })).toEqual({ area: 'career', itemId: 'saved' });
     expect(locateNav('career-dossier', { 'career-dossier': 'interview' })).toEqual({ area: 'career', itemId: 'interviews' });
     expect(locateNav('career-material', { 'career-material': 'resume' })).toEqual({ area: 'assets', itemId: 'resumes' });
+    expect(locateNav('career-dossier', { 'career-dossier': 'offer' })).toEqual({ area: 'career', itemId: 'offers' });
+    expect(locateNav('career-review', {})).toEqual({ area: 'market', itemId: null });
     expect(locateNav('settings', {})).toEqual({ area: 'settings', itemId: null });
   });
 });
@@ -71,5 +73,22 @@ describe('CareerNavShell', () => {
     expect(document.querySelector('[data-career-subnav]')).toBeNull();
     fireEvent.keyDown(window, { key: 'b', metaKey: true, ctrlKey: true });
     expect(document.querySelector('[data-career-subnav="work"]')).not.toBeNull();
+  });
+
+  it('shows a collapsed L2 as a flyout while hovering the rail, and Esc closes it', () => {
+    const onOpen = vi.fn();
+    render(<CareerNavShell activeView="career-today" onOpen={onOpen} />);
+    fireEvent.keyDown(window, { key: 'b', metaKey: true, ctrlKey: true });
+    expect(document.querySelector('[data-career-subnav]')).toBeNull();
+    fireEvent.mouseEnter(screen.getByRole('button', { name: /我的资料/ }));
+    const flyout = document.querySelector('[data-career-subnav-flyout="assets"]') as HTMLElement;
+    expect(flyout).not.toBeNull();
+    fireEvent.click(within(flyout).getByRole('button', { name: '简历' }));
+    expect(onOpen).toHaveBeenLastCalledWith({ kind: 'career-material', view: 'resume' });
+    expect(document.querySelector('[data-career-subnav-flyout]')).toBeNull();
+    fireEvent.mouseEnter(screen.getByRole('button', { name: /工作台/ }));
+    expect(document.querySelector('[data-career-subnav-flyout="work"]')).not.toBeNull();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(document.querySelector('[data-career-subnav-flyout]')).toBeNull();
   });
 });

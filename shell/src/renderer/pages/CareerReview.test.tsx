@@ -6,6 +6,7 @@ vi.mock('@/pages/CareerResearch', () => ({ default: () => <div data-testid="embe
 
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
+import { resetCareerSubViews, setCareerSubView } from '@/features/career-shell/subViewStore';
 import CareerReview from './CareerReview';
 
 const funnel = {
@@ -41,6 +42,7 @@ function mockGet(opts: { empty?: boolean; noReviews?: boolean } = {}) {
 
 describe('CareerReview', () => {
   beforeEach(() => {
+    resetCareerSubViews();
     vi.mocked(apiGetJson).mockReset();
     vi.mocked(apiPostJson).mockReset();
   });
@@ -124,7 +126,8 @@ describe('CareerReview', () => {
     act(() => { emitEvent('career:focus', { surface: 'review', id: 'r0' }); });
     await waitFor(() => expect(scroll).toHaveBeenCalled());
     expect(document.getElementById('weekly-review-r0')?.querySelector('.ring-2')).not.toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: '调研与方向' }));
+    act(() => { setCareerSubView('career-review', 'research'); });
     expect(await screen.findByTestId('embedded-research')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '公司调研与方向' })).toBeInTheDocument();
   });
 });

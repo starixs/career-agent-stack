@@ -15,11 +15,17 @@ import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import type { CareerFocusEvent, Funnel, FunnelRow, WeeklyReview } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
+import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
+import { useCareerSubView } from '@/features/career-shell/subViewStore';
 
 const CareerResearch = lazy(() => import('@/pages/CareerResearch'));
 
+// 子视图由功能市场的入口选择（features/career-shell），页面本身不再放切换控件。
 type View = 'funnel' | 'research';
-const VIEWS: Array<{ value: View; label: string }> = [{ value: 'funnel', label: '漏斗与周复盘' }, { value: 'research', label: '调研与方向' }];
+const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
+  funnel: { title: '求职漏斗与周复盘', subtitle: '每周一次，用数字代替猜测' },
+  research: { title: '公司调研与方向', subtitle: '投之前先看一眼，也看看还有哪些方向适合你' },
+};
 
 const EMPTY_ROW: FunnelRow = { key: 'overall', total: 0, applied: 0, responded: 0, interview: 0, offer: 0, rejected: 0, silent: 0 };
 
@@ -27,27 +33,9 @@ function rate(num: number, den: number): string {
   return den > 0 ? `${Math.round((num / den) * 100)}%` : '—';
 }
 
-function Segmented<T extends string>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void }) {
-  return (
-    <div role="tablist" className="inline-flex rounded-lg border border-[var(--line)] bg-[var(--inset)] p-0.5">
-      {options.map(o => (
-        <button
-          key={o.value}
-          type="button"
-          role="tab"
-          aria-selected={o.value === value}
-          onClick={() => onChange(o.value)}
-          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${o.value === value ? 'bg-[var(--bg)] text-[var(--ink)] shadow-sm' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export default function CareerReview({ embedded = false }: CareerPageProps) {
-  const [view, setView] = useState<View>('funnel');
+  const [view, setView] = useCareerSubView<View>('career-review', DEFAULT_SUB_VIEWS['career-review']);
   const [focusId, setFocusId] = useState<string | null>(null);
   const query = useCareerQuery(careerApi.review, ['application', 'application_history', 'weekly_review', 'job']);
   const data = query.data;
@@ -56,7 +44,7 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
     if (payload?.surface !== 'review') return;
     setView('funnel');
     if (payload.id) setFocusId(payload.id);
-  }), []);
+  }), [setView]);
 
   // 只对同一个焦点滚动一次；用户手动切视图即清除高亮。
   const scrolledFor = useRef<string | null>(null);
@@ -67,15 +55,13 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
     scrolledFor.current = focusId;
     el.scrollIntoView?.({ block: 'start' });
   }, [focusId, data]);
-  const changeView = (v: View) => { setFocusId(null); setView(v); };
 
   return (
     <CareerPage
       embedded={embedded}
-      title="复盘"
-      subtitle="每周一次，用数字代替猜测"
+      title={VIEW_HEADINGS[view].title}
+      subtitle={VIEW_HEADINGS[view].subtitle}
       examples={['帮我做本周复盘', '按平台看看哪里过简历率最低', '接下来该投什么']}
-      actions={<Segmented value={view} options={VIEWS} onChange={changeView} />}
     >
       {view === 'funnel' && (
         <div className="space-y-6 px-4 py-3">

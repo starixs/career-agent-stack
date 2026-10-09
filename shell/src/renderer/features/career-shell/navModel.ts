@@ -5,6 +5,7 @@
  * existing tab view plus, for pages that hold several views, the sub-view to show.
  * The L2 list never repeats the area name.
  */
+import { emitEvent } from '@/api/eventBus';
 import type { CareerPageKind } from '@/types/tab';
 
 export type NavArea = 'work' | 'chat' | 'career' | 'market' | 'assets' | 'settings';
@@ -24,7 +25,7 @@ export interface NavItem {
 
 export type NavIconName =
   | 'dashboard' | 'chat' | 'briefcase' | 'grid' | 'folder' | 'settings'
-  | 'sun' | 'list' | 'inbox' | 'star' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote';
+  | 'sun' | 'list' | 'inbox' | 'star' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote' | 'award';
 
 export interface NavAreaDefinition {
   id: NavArea;
@@ -51,6 +52,7 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
       { id: 'applications', label: '投递记录', icon: 'send', target: { kind: 'career-dossier', view: 'line' } },
       { id: 'exams', label: '笔试记录', icon: 'pencil', target: { kind: 'career-dossier', view: 'exam' } },
       { id: 'interviews', label: '面试记录', icon: 'users', target: { kind: 'career-dossier', view: 'interview' } },
+      { id: 'offers', label: 'Offer 记录', icon: 'award', target: { kind: 'career-dossier', view: 'offer' } },
     ],
   },
   { id: 'market', label: '功能市场', icon: 'grid', items: [] },
@@ -69,6 +71,7 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
 export const DEFAULT_SUB_VIEWS = {
   'career-dossier': 'line',
   'career-material': 'library',
+  'career-review': 'funnel',
 } as const;
 
 /** Target opened when an area without L2 items is chosen. */
@@ -93,7 +96,8 @@ export function locateNav(
   if (!activeView) return { area: null, itemId: null };
   if (activeView === 'chat' || activeView === 'launcher') return { area: 'chat', itemId: null };
   if (activeView === 'settings' || activeView === 'capabilities') return { area: 'settings', itemId: null };
-  if (activeView === 'career-guide') return { area: 'market', itemId: null };
+  // 功能市场没有二级栏；从它打开的复盘页也归在这里。
+  if (activeView === 'career-guide' || activeView === 'career-review') return { area: 'market', itemId: null };
   for (const area of NAV_AREAS) {
     const match = area.items.find(item => {
       if (item.target.kind !== activeView) return false;
@@ -105,4 +109,11 @@ export function locateNav(
   }
   if (activeView === 'record') return { area: 'work', itemId: 'tasks' };
   return { area: null, itemId: null };
+}
+
+/** Event pages emit to navigate elsewhere; App.tsx owns tabs and turns it into a real open. */
+export const CAREER_NAVIGATE_EVENT = 'career:navigate';
+
+export function requestNavigation(target: NavTarget): void {
+  emitEvent(CAREER_NAVIGATE_EVENT, target);
 }
