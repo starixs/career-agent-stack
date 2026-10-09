@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 
 import { useTabStateOptional } from '@/context/TabContext';
 
+import { BrowserWorkCard, shouldShowBrowserCard } from './BrowserWorkCard';
 import { CareerFlowCards, useBatchState } from './CareerFlowCards';
 import { CareerKeysPanel, useCareerSetupStatus } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
@@ -33,8 +34,8 @@ function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useT
     <div className="space-y-2 py-2">
       <CareerSetupCards />
       {careerProgress && <CareerProgressRow progress={careerProgress} onDismiss={tab.dismissCareerProgress} />}
-      {careerTakeover && careerTakeover.state !== 'running' && (
-        <CareerTakeoverCard takeover={careerTakeover} onAction={tab.requestCareerTakeover} />
+      {shouldShowBrowserCard(careerTakeover, careerProgress, batch) && (
+        <BrowserWorkCard takeover={careerTakeover} progress={careerProgress} />
       )}
       <CareerFlowCards cards={cards} batch={batch} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
       {pendingCareerReview && <CareerReviewCard review={pendingCareerReview} onDecision={tab.respondCareerReview} />}

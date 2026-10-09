@@ -7,6 +7,7 @@ import type { ResumeData as StudioResumeData } from '@career/resume-studio/schem
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 
 import type {
+  ActivityEntry,
   CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
   InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
@@ -173,6 +174,8 @@ export const careerApi = {
     const d = asDict(r);
     return { items: pickList<TodayQueue['items'][number]>(d.items), waiting: (d.waiting as TodayQueue['waiting']) ?? { count: 0, by_stage: [] }, inbox_new: typeof d.inbox_new === 'number' ? d.inbox_new : 0, pending_review: typeof d.pending_review === 'number' ? d.pending_review : 0 } satisfies TodayQueue;
   }),
+  /** 「今天做过」：从 since（本地零点）起的活动，新的在前。 */
+  activity: (since: string) => apiGetJson<unknown>(careerPath(`/activity?since=${encodeURIComponent(since)}`)).then(r => pickList<ActivityEntry>(r, 'entries')),
   onboarding: () => apiGetJson<unknown>(careerPath('/onboarding')).then(r => pickObject<OnboardingChecklist>(r, 'checklist')),
   handoffs: () => apiGetJson<unknown>(careerPath('/handoffs')).then(r => pickList<{ id: string; reason: string; message: string | null; paused_at: string }>(r, 'handoffs')),
 

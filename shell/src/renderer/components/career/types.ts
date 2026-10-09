@@ -210,6 +210,8 @@ export interface MailMessage {
 }
 export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'followup';
 export interface TodayItem { kind: TodayItemKind; priority: number; title: string; detail?: string; due_at?: string | null; ref: { type: string; id: string }; suggest?: string }
+/** 「今天做过」一条：任务进展 / 投递阶段变化 / 动作执行。 */
+export interface ActivityEntry { id: string; at: string; kind: 'task' | 'stage' | 'action'; status: string; title: string; detail: string | null }
 export interface TodayQueue { items: TodayItem[]; waiting: { count: number; by_stage: Array<{ stage: string; n: number }> }; inbox_new: number; pending_review: number }
 export interface OnboardingChecklist { has_experience: boolean; has_confirmed_claim: boolean; has_master_resume: boolean; has_mail_account: boolean; has_job: boolean; has_application: boolean; has_material: boolean }
 export interface DossierSummary {

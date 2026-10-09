@@ -60,6 +60,9 @@ import CronTaskSettingsModal, {
 } from '@/components/cron/CronTaskSettingsModal';
 import { transitionChannelBoundSession } from '@/pages/chatChannelSession';
 import { useTabState, useTabActive } from '@/context/TabContext';
+import { BrowserSessionPanel } from '@/components/career/CareerLiveDrawer';
+import { CompanionChip, CompanionPanel } from '@/features/career-shell/CompanionPanel';
+import { useWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
 import { useChatScrollController } from '@/hooks/useChatScrollController';
 import { useChatScrollModel } from '@/hooks/useChatScrollModel';
 import { useAgentStatuses } from '@/hooks/useAgentStatuses';
@@ -576,6 +579,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
     forceExecuteQueuedMessage,
     isConnected,
   } = useTabState();
+  const workSurfaces = useWorkSurfaces();
   const projectedSessionMeta = usePassiveSessionMetadata(agentDir, sessionId);
 
   useEffect(() => {
@@ -5084,6 +5088,15 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
     return success;
   }, [onNewSession, resetSession, surfaces.channel, sessionId, newSessionKeepingBinding]);
 
+  // 右栏归属：浏览器展开优先；工作区面板或分屏占用右侧时不再叠一列；窄窗口让给对话。
+  const careerRightColumn: 'browser' | 'companion' | null =
+    workSurfaces.expanded === 'browser'
+      ? 'browser'
+      : !isNarrowLayout && !splitPanelVisible && !(showWorkspace && !shouldUseWorkspaceOverlay)
+        ? 'companion'
+        : null;
+  const browserSurfaceDocked = careerRightColumn === 'browser' && !workSurfaces.fullscreen;
+
   return (
           <BrowserPanelContext.Provider value={browserPanelCtx}>
           {/*
@@ -5113,7 +5126,11 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
         style={{ width: splitPanelVisible && !browserUsesFullscreen ? `${splitRatio * 100}%` : '100%' }}
         data-chat-workspace-motion={shouldUseWorkspaceOverlay ? undefined : (workspacePanelMotion ?? undefined)}
       >
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden" data-chat-conversation>
+      <div
+        className={`relative flex min-w-0 flex-col overflow-hidden ${browserSurfaceDocked ? 'w-[460px] flex-none' : 'flex-1'}`}
+        data-chat-conversation
+      >
+        {browserSurfaceDocked && <CompanionChip />}
         {/* Compact header - single row */}
         <div className="relative z-10 flex h-12 flex-shrink-0 items-center justify-between bg-[var(--paper)] px-4 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-gradient-to-b after:from-[var(--paper)] after:to-[var(--paper-a0)]">
           <div className="flex min-w-0 items-center gap-2">
@@ -5577,6 +5594,10 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
           />
         </div>
       </div>
+
+      {/* 求职右栏：默认是伙伴面板；对话内工作面（浏览器）展开时换成它的会话栏。 */}
+      {careerRightColumn === 'browser' && <BrowserSessionPanel onStop={() => void handleStop()} />}
+      {careerRightColumn === 'companion' && <CompanionPanel />}
 
       {/* Workspace panel — single instance, container style switches between side panel and overlay */}
       {workspacePanelMounted && (

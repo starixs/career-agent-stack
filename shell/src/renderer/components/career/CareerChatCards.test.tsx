@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import { onEvent } from '@/api/eventBus';
 import { TabContext, type TabContextValue } from '@/context/TabContext';
+import { resetWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
 
 import { CareerChatCards } from './CareerChatCards';
 
@@ -32,16 +34,19 @@ describe('CareerChatCards', () => {
     await waitFor(() => expect(respond).toHaveBeenCalledWith(['a1', 'a2'], 'approved'));
   });
 
-  it('浏览器需要你：paused 显示原因，接管调用 requestCareerTakeover', async () => {
-    const takeover = vi.fn(async () => true);
+  it('浏览器交接：工具卡说明停在哪一步，「去处理」展开右侧浏览器栏', async () => {
+    resetWorkSurfaces();
     renderWithTab({
       careerTakeover: { sessionId: 's1', runId: 'run1', state: 'paused', reason: 'login', url: 'https://example.com' },
-      requestCareerTakeover: takeover,
+      requestCareerTakeover: vi.fn(async () => true),
     });
-    expect(screen.getByTestId('career-takeover-card')).toHaveTextContent('原因：需要登录');
-    expect(screen.getByRole('button', { name: '在旁边打开现场' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '接管' }));
-    await waitFor(() => expect(takeover).toHaveBeenCalledWith('run1', 'take'));
+    const card = screen.getByTestId('career-browser-card');
+    expect(card).toHaveTextContent('停在这一步「需要登录」');
+    const events: unknown[] = [];
+    const off = onEvent('career:live-drawer', p => events.push(p));
+    fireEvent.click(screen.getByRole('button', { name: '去处理' }));
+    off();
+    await waitFor(() => expect(events).toEqual([{ open: true }]));
   });
 
   it('running 状态不显示接管卡片；进度行可折叠', () => {

@@ -440,6 +440,12 @@ const ROUTES: Route[] = [
 
   // ---------- 今日 ----------
   route('GET', '/api/career/today', ({ repos }) => ok(repos.today())),
+  // 「今天做过」：since 由客户端给本地零点（ISO），服务端不猜时区。
+  route('GET', '/api/career/activity', ({ repos, url }) => {
+    const since = url.searchParams.get('since');
+    if (!since || Number.isNaN(Date.parse(since))) return ok({ entries: [] });
+    return ok({ entries: repos.activitySince(new Date(since).toISOString(), 50) });
+  }),
   route('GET', '/api/career/onboarding', ({ repos, store }) => {
     const claims = repos.listClaims();
     return ok({

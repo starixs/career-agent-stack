@@ -76,3 +76,21 @@ describe('工具', () => {
     expect(parseFrontmatter('---\nname: a\ndescription: b\n---\nbody').meta.name).toBe('a')
   })
 })
+
+describe('今天做过', () => {
+  it('汇总任务进展和投递阶段变化，新的在前，只看起点之后', () => {
+    const r = mem()
+    const j = r.upsertJob({ source_platform: 'campus', title: '产品经理', company_name: '星河科技' })
+    const a = r.createApplication(j.id)
+    r.db.run(`UPDATE application_history SET created_at='2020-01-01T00:00:00.000Z'`)
+    r.transition(a.id, 'ready', '材料齐了')
+    const t = r.createTask({ title: '填写星河科技网申', kind: 'apply' })
+    r.updateTask(t.id, { status: 'running', step: '在填教育经历' })
+    const entries = r.activitySince('2021-01-01T00:00:00.000Z')
+    expect(entries.map(e => e.kind).sort()).toEqual(['stage', 'task'])
+    const stage = entries.find(e => e.kind === 'stage')!
+    expect(stage).toMatchObject({ status: 'ready', title: '星河科技 产品经理', detail: '材料齐了' })
+    expect(entries.find(e => e.kind === 'task')).toMatchObject({ title: '填写星河科技网申', status: 'running', detail: '在填教育经历' })
+    expect(r.activitySince('2999-01-01T00:00:00.000Z')).toEqual([])
+  })
+})

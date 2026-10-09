@@ -1,64 +1,71 @@
 /**
- * 聊天旁的"浏览器现场"侧边抽屉：浏览器只在产品里出现，不弹真实 Chrome 窗口。
- *  - 打开：eventBus `career:live-drawer {open:true}`（接管卡片、状态条按钮），接管事件进入 paused、
- *    或页面请求选文件时自动弹出；
- *  - 接管：点「接管」或直接点画面（先接管，再把这一下点击转发）；之后点击 / 输入 / 滚动都在画面里完成；
- *  - 全屏：抽屉可铺满整个窗口，退出全屏回到侧栏，后台运行不受影响；
- *  - 选文件：页面里点「上传附件」时，系统选文件框被拦下，这里出现「选择文件」，选好后交回页面；
- *  - 逃生口：插件弹窗等画面里处理不了的情况，可临时显示真实窗口，用完收回。
- *  - 关闭：只是收起画面，后台填表 / 批量不受影响。
- * 挂在 App 根上，所有页签都能用。
+ * 浏览器工作面（specs/CAREER_DESIGN.md §5.7 收起 / 展开 / 交接）：
+ *  - `CareerLiveDrawer` 挂在 App 根上，只负责把事件变成状态：打开请求、助理 ui_open(live)、
+ *    交接暂停、页面请求选文件 → 展开对话页右侧的浏览器栏并切到对话；同时记录接管与进度。
+ *  - `BrowserSessionPanel` 是展开后的右侧栏：实时画面、停止、控制浏览器 / 交还给小芽、全屏、
+ *    选文件、临时显示真实窗口。关闭只是收起，后台填表 / 批量不受影响。
+ * 浏览器只在产品里出现，不弹真实 Chrome 窗口。
  */
-import { AppWindow, Eye, Maximize2, Minimize2, Paperclip, X } from 'lucide-react';
+import { AppWindow, Lock, Maximize2, Minimize2, Paperclip, Square, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 
 import { emitEvent, onEvent } from '@/api/eventBus';
+import { requestNavigation } from '@/features/career-shell/navModel';
+import {
+  collapseWorkSurface,
+  expandWorkSurface,
+  recordProgress,
+  recordTakeover,
+  setWorkSurfaceFullscreen,
+  useWorkSurfaces,
+} from '@/features/career-shell/workSurfaceStore';
 
 import { dispatchTakeoverAction } from './BrowserStatusBar';
 import { careerApi } from './careerApi';
 import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport } from './CareerLiveViewport';
-import { Badge, Button, suggestToChat } from './CareerPrimitives';
-import type { BatchState, CareerTakeoverEvent, LiveFileChooser, LiveFileChooserEvent, LiveFrame, LiveSnapshot, LiveStreamEvent } from './types';
+import { Button, suggestToChat } from './CareerPrimitives';
+import type { BatchState, CareerProgressEvent, CareerTakeoverEvent, LiveFileChooser, LiveFileChooserEvent, LiveFrame, LiveSnapshot, LiveStreamEvent } from './types';
 import { useLiveStream } from './useGlobalLive';
 
 const DRAWER_EVENT = 'career:live-drawer';
 const FILE_EVENT = 'career:live-filechooser';
 export function openLiveDrawer(options: { fullscreen?: boolean } = {}): void { emitEvent(DRAWER_EVENT, { open: true, ...options }); }
 
+/** 展开浏览器栏，并把用户带到唯一的对话页（栏长在对话页右侧）。 */
+function showBrowserSurface(options: { fullscreen?: boolean } = {}): void {
+  expandWorkSurface('browser', options);
+  emitEvent(DRAWER_OPENED_EVENT, { name: 'live' });
+  requestNavigation({ kind: 'chat' });
+}
+
+/** App 根上的事件控制器：不渲染任何东西。 */
 export function CareerLiveDrawer({ autoOpenOnHandoff = true }: { autoOpenOnHandoff?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
-  const [takeover, setTakeover] = useState<CareerTakeoverEvent | null>(null);
   useEffect(() => onEvent<{ open?: boolean; fullscreen?: boolean }>(DRAWER_EVENT, p => {
-    setOpen(p?.open !== false);
-    if (typeof p?.fullscreen === 'boolean') setFullscreen(p.fullscreen);
-    if (p?.open !== false) emitEvent(DRAWER_OPENED_EVENT, { name: 'live' });
+    if (p?.open === false) collapseWorkSurface();
+    else showBrowserSurface({ fullscreen: p?.fullscreen });
   }), []);
   // 助理调用 ui_open(live)：career:focus {surface:'live_drawer'}
   useEffect(() => onEvent<{ surface?: string }>('career:focus', p => {
-    if (p?.surface === 'live_drawer') { setOpen(true); emitEvent(DRAWER_OPENED_EVENT, { name: 'live' }); }
+    if (p?.surface === 'live_drawer') showBrowserSurface();
   }), []);
-  // 抽屉互斥：简历编辑器打开时收起现场
-  useEffect(() => onEvent<{ name?: string }>(DRAWER_OPENED_EVENT, p => { if (p?.name !== 'live') setOpen(false); }), []);
+  // 抽屉互斥：简历编辑器打开时收起浏览器栏
+  useEffect(() => onEvent<{ name?: string }>(DRAWER_OPENED_EVENT, p => { if (p?.name !== 'live') collapseWorkSurface(); }), []);
   useEffect(() => onEvent<CareerTakeoverEvent>('career:takeover', p => {
     if (!p?.runId) return;
-    setTakeover(p);
-    if (autoOpenOnHandoff && p.state === 'paused') setOpen(true);
+    recordTakeover(p);
+    if (autoOpenOnHandoff && p.state === 'paused') showBrowserSurface();
   }), [autoOpenOnHandoff]);
-  // 页面请求选文件：系统框被拦下了，必须把抽屉打开让用户在产品里选
-  useEffect(() => onEvent<LiveFileChooserEvent>(FILE_EVENT, p => { if (p?.state === 'open') setOpen(true); }), []);
-  if (!open) return null;
-  return (
-    <DrawerBody
-      takeover={takeover}
-      fullscreen={fullscreen}
-      onToggleFullscreen={() => setFullscreen(f => !f)}
-      onClose={() => { setOpen(false); setFullscreen(false); }}
-      onTakeoverChange={setTakeover}
-    />
-  );
+  useEffect(() => onEvent<CareerProgressEvent>('career:progress', p => { if (p) recordProgress(p); }), []);
+  // 页面请求选文件：系统框被拦下了，必须展开浏览器栏让用户在产品里选
+  useEffect(() => onEvent<LiveFileChooserEvent>(FILE_EVENT, p => { if (p?.state === 'open') showBrowserSurface(); }), []);
+  return null;
+}
+
+function hostOf(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try { return new URL(url).host; } catch { return null; }
 }
 
 function readAsBase64(file: File): Promise<string> {
@@ -121,13 +128,14 @@ function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDon
   );
 }
 
-function DrawerBody({ takeover, fullscreen, onToggleFullscreen, onClose, onTakeoverChange }: {
-  takeover: CareerTakeoverEvent | null;
-  fullscreen: boolean;
-  onToggleFullscreen: () => void;
-  onClose: () => void;
-  onTakeoverChange: (t: CareerTakeoverEvent | null) => void;
-}) {
+export interface BrowserSessionPanelProps {
+  /** Stops the assistant's current turn when no batch is running (owned by Chat). */
+  onStop?: () => void;
+}
+
+/** 展开态：对话页右侧的浏览器会话栏。 */
+export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
+  const { takeover, fullscreen } = useWorkSurfaces();
   const [frame, setFrame] = useState<LiveFrame | null>(null);
   const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
   const [batch, setBatch] = useState<BatchState | null>(null);
@@ -151,7 +159,7 @@ function DrawerBody({ takeover, fullscreen, onToggleFullscreen, onClose, onTakeo
       }
       case 'frame-error': setFrameError(String((ev as { error: string }).error)); return;
       case 'career:batch': setBatch(ev as unknown as BatchState); return;
-      case 'career:takeover': onTakeoverChange(ev as unknown as CareerTakeoverEvent); return;
+      case 'career:takeover': recordTakeover(ev as unknown as CareerTakeoverEvent); return;
       case FILE_EVENT: {
         const f = ev as unknown as LiveFileChooserEvent;
         if (f.state === 'open') setChooser({ id: f.id, sessionId: f.sessionId ?? '', multiple: f.multiple === true, accept: f.accept ?? null, url: f.url ?? '', ts: f.ts ?? Date.now() });
@@ -161,7 +169,7 @@ function DrawerBody({ takeover, fullscreen, onToggleFullscreen, onClose, onTakeo
       case 'career:live-window': setRevealed((ev as { revealed?: boolean }).revealed === true); return;
       default: return;
     }
-  }, [onTakeoverChange]);
+  }, []);
   const stream = useLiveStream(true, onEventCb);
 
   const control = snapshot?.browser.control ?? 'none';
@@ -176,7 +184,7 @@ function DrawerBody({ takeover, fullscreen, onToggleFullscreen, onClose, onTakeo
     setBusy(null);
     if (!ok) { setNotice('操作失败，请重试'); return false; }
     setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: action === 'take' ? 'human' : 'agent' } } : s));
-    onTakeoverChange(takeover ? { ...takeover, state: action === 'take' ? 'human_active' : 'resuming' } : takeover);
+    recordTakeover(takeover ? { ...takeover, state: action === 'take' ? 'human_active' : 'resuming' } : takeover);
     // 交回后：批量运行器会自己从当前页继续；单次填表要让对话里的助理接着填（apply_continue）
     if (action === 'handback' && batch?.status !== 'running') suggestToChat('浏览器里的事我已经处理完并交回了，请从当前页继续填表');
     return true;
@@ -192,61 +200,94 @@ function DrawerBody({ takeover, fullscreen, onToggleFullscreen, onClose, onTakeo
     ? { maxWidth: `calc((100vh - 170px) * ${frame.width / frame.height})`, marginInline: 'auto' }
     : undefined;
 
+  const handoff = takeover?.state === 'paused';
+  const host = hostOf(snapshot?.browser.url);
+  const statusTone = handoff || humanActive ? 'bg-[var(--warning)]' : control === 'agent' ? 'bg-[var(--success)]' : 'bg-[var(--subtle)]';
+  const statusText = handoff
+    ? `等你处理${reason ? `：${reason}` : ''}`
+    : humanActive ? '你在控制中' : control === 'agent' ? '正在工作' : '浏览器未打开';
+  const stop = async () => {
+    setNotice(null);
+    if (batch?.status === 'running' || batch?.status === 'paused') {
+      try { setBatch((await careerApi.batchCommand('stop')) ?? batch); } catch (e) { setNotice(e instanceof Error ? e.message : String(e)); }
+      return;
+    }
+    onStop?.();
+  };
+
   return (
-    <aside
+    <section
       data-testid="career-live-drawer"
       data-fullscreen={fullscreen ? 'true' : 'false'}
-      aria-label="浏览器现场"
-      className={`fixed z-40 flex flex-col bg-[var(--bg)] shadow-2xl ${fullscreen ? 'inset-0' : 'inset-y-0 right-0 w-[min(560px,92vw)] border-l border-[var(--line)]'}`}
+      aria-label="浏览器会话"
+      className={fullscreen
+        ? 'fixed inset-0 z-40 flex flex-col bg-[var(--side)]'
+        : 'flex h-full min-w-0 flex-1 flex-col border-l border-[var(--line)] bg-[var(--side)]'}
     >
-      <div className="flex items-center gap-2 border-b border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)]">
-        <Eye className="h-3.5 w-3.5" />
-        <span className="text-sm font-medium text-[var(--ink)]">浏览器现场</span>
-        <Badge tone={control === 'human' ? 'info' : control === 'agent' ? 'success' : 'neutral'}>{control === 'human' ? '你在操作' : control === 'agent' ? '助理在操作' : '浏览器未打开'}</Badge>
-        {takeover?.state === 'paused' && <Badge tone="warning">等你处理{reason ? `：${reason}` : ''}</Badge>}
-        <span className="ml-auto">{stream.status === 'open' ? '直播中' : stream.status === 'connecting' ? '连接中…' : '重连中'}</span>
-        <Button variant="ghost" onClick={onToggleFullscreen} aria-label={fullscreen ? '退出全屏' : '全屏'} title={fullscreen ? '退出全屏，回到侧栏' : '全屏操作'}>
+      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--line)] px-5 pb-3 pt-4">
+        <div className="min-w-0 flex-1">
+          <div className="font-human text-lg font-semibold text-[var(--ink)]">浏览器会话</div>
+          <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
+            <span className="truncate">{statusText}{host ? ` · ${host}` : ''}</span>
+            <span className="ml-2 shrink-0 text-[var(--subtle)]">{stream.status === 'open' ? '直播中' : stream.status === 'connecting' ? '连接中…' : '重连中'}</span>
+          </div>
+        </div>
+        {(control === 'agent' || batch?.status === 'running') && (
+          <Button variant="ghost" onClick={() => void stop()} className="text-[var(--danger)]">
+            <Square className="h-3.5 w-3.5" />停止
+          </Button>
+        )}
+        {!humanActive && <Button variant="primary" busy={busy === 'take'} disabled={!canTake} onClick={() => void act('take')}>控制浏览器</Button>}
+        {humanActive && <Button variant="primary" busy={busy === 'handback'} disabled={busy !== null} onClick={() => void act('handback')}>交还给小芽</Button>}
+        <Button variant="ghost" onClick={() => setWorkSurfaceFullscreen(!fullscreen)} aria-label={fullscreen ? '退出全屏' : '全屏'} title={fullscreen ? '退出全屏，回到侧栏' : '全屏操作'}>
           {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </Button>
-        <Button variant="ghost" onClick={onClose} aria-label="收起现场"><X className="h-3.5 w-3.5" /></Button>
-      </div>
-      <div className="flex-1 overflow-auto p-3">
-        <CareerLiveViewport
-          frame={frame}
-          interactive={humanActive}
-          onInputError={setNotice}
-          onRequestControl={canTake ? () => act('take') : undefined}
-          style={viewportStyle}
-          placeholder={frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开。助理开始填表后画面会出现。' : '等待画面…')}
-        />
+        <Button variant="ghost" onClick={collapseWorkSurface} aria-label="收起浏览器"><X className="h-3.5 w-3.5" /></Button>
+      </header>
+
+      {(handoff || humanActive) && (
+        <div role="status" className="mx-5 mt-3 flex items-start gap-2.5 rounded-lg border border-[var(--hard)] bg-[var(--note)] px-3.5 py-2.5 text-sm text-[var(--ink)] shadow-[var(--theme-shadow-hard)]">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <div className="min-w-0">
+            <div className="font-human font-semibold">这一步要你本人来{reason ? `：${reason}` : ''}</div>
+            <div className="text-xs text-[var(--ink-2)]">
+              {takeover?.message ?? (humanActive
+                ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。'
+                : '点画面或「控制浏览器」接手，完成后交还给小芽。')}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-auto px-5 py-3">
+        <div className="overflow-hidden rounded-lg border border-[var(--line-2)] bg-[var(--paper)] shadow-md">
+          <CareerLiveViewport
+            frame={frame}
+            interactive={humanActive}
+            onInputError={setNotice}
+            onRequestControl={canTake ? () => act('take') : undefined}
+            style={viewportStyle}
+            placeholder={frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开。小芽开始填表后画面会出现。' : '等待画面…')}
+          />
+        </div>
         {chooser && <FileChooserPanel key={chooser.id} chooser={chooser} onDone={msg => { setChooser(null); setInfo(msg); }} />}
-        {takeover?.message && takeover.state === 'paused' && (
-          <div role="status" className="mt-2 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--ink)]">{takeover.message}</div>
-        )}
-        {snapshot?.browser.url && <div className="mt-2 truncate text-xs text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</div>}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {!humanActive && <Button variant="primary" busy={busy === 'take'} disabled={!canTake} onClick={() => void act('take')}>接管</Button>}
-          {humanActive && <Button variant="primary" busy={busy === 'handback'} disabled={busy !== null} onClick={() => void act('handback')}>交回，继续</Button>}
-          {!fullscreen && <Button variant="ghost" onClick={onToggleFullscreen}><Maximize2 className="h-3.5 w-3.5" />全屏操作</Button>}
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          {snapshot?.browser.url && <span className="min-w-0 flex-1 truncate text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
           {embedded && snapshot?.browser.hasBrowser && (
             <Button variant="ghost" busy={busy === 'window'} disabled={busy !== null} onClick={() => void toggleWindow()} title="画面里处理不了时（插件弹窗等）临时显示真实 Chrome 窗口">
               <AppWindow className="h-3.5 w-3.5" />{revealed ? '收回真实窗口' : '显示真实窗口'}
             </Button>
           )}
-          {notice && <span role="alert" className="text-xs text-[var(--danger)]">{notice}</span>}
-          {!notice && info && <span role="status" className="text-xs text-[var(--success)]">{info}</span>}
+          {notice && <span role="alert" className="text-[var(--danger)]">{notice}</span>}
+          {!notice && info && <span role="status" className="text-[var(--success)]">{info}</span>}
         </div>
-        <p className="mt-2 text-xs text-[var(--subtle)]">
-          {humanActive
-            ? '直接在画面里点、输入、滚动；上传附件会在这里让你选文件。做完点「交回，继续」。'
-            : '遇到登录 / 滑块 / 短信码时，直接点画面即可接管，浏览器一直留在产品里。'}
-        </p>
         {batch && batch.status !== 'idle' && (
           <div className="mt-3 rounded-md border border-[var(--line)] bg-[var(--inset)] px-3 py-2 text-xs text-[var(--muted)]">
             批量：{batch.message ?? batch.status} · 已填好 {batch.done} · 等你处理 {batch.handoffs} · 队列 {batch.queued}
           </div>
         )}
       </div>
-    </aside>
+    </section>
   );
 }

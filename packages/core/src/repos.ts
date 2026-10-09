@@ -334,6 +334,30 @@ export class Repos {
     return { items: sortToday(items), waiting: { count: waiting.length, by_stage: [...byStage].map(([stage, n]) => ({ stage, n })) }, inbox_new: inboxNew.length, pending_review: pendingActions.length }
   }
 
+  /**
+   * 「今天做过」：从 sinceIso（客户端本地零点）起，助理和你推进过的事，新的在前。
+   * 汇总三处记录：任务进展、投递阶段变化、需要审批或已执行的动作。
+   */
+  activitySince(sinceIso: string, limit = 50): ActivityEntry[] {
+    const entries: ActivityEntry[] = []
+    const tasks = this.db.all<Task>(
+      `SELECT * FROM task WHERE updated_at >= ? AND status IN ('running','needs_user','done','failed') ORDER BY updated_at DESC LIMIT ?`, [sinceIso, limit])
+    for (const t of tasks) entries.push({ id: `task:${t.id}`, at: t.updated_at, kind: 'task', status: t.status, title: t.title, detail: t.step ?? null })
+    const history = this.db.all<{ id: string; to_stage: ApplicationStage; note: string | null; created_at: string; title: string; company_name: string | null }>(
+      `SELECT h.id, h.to_stage, h.note, h.created_at, j.title, j.company_name FROM application_history h
+       JOIN application a ON a.id=h.application_id JOIN job j ON j.id=a.job_id
+       WHERE h.created_at >= ? ORDER BY h.created_at DESC LIMIT ?`, [sinceIso, limit])
+    for (const h of history) entries.push({ id: `stage:${h.id}`, at: h.created_at, kind: 'stage', status: h.to_stage, title: `${h.company_name ?? ''} ${h.title}`.trim(), detail: h.note })
+    const actions = this.db.all<ActionQueueItem>(
+      `SELECT * FROM action_queue WHERE updated_at >= ? AND status IN ('done','needs_user','failed','executing') ORDER BY updated_at DESC LIMIT ?`, [sinceIso, limit])
+    for (const a of actions) {
+      const app = a.application_id ? this.getApplication(a.application_id) : undefined
+      const job = app ? this.getJob(app.job_id) : undefined
+      entries.push({ id: `action:${a.id}`, at: a.updated_at, kind: 'action', status: a.status, title: `${actionLabel(a.kind)}${job ? ` · ${job.company_name ?? ''} ${job.title}` : ''}`, detail: null })
+    }
+    return entries.sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0)).slice(0, limit)
+  }
+
   // ---------- 漏斗 / 复盘 ----------
   funnel(nowIso = now()): { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null } {
     const rows = this.applicationsWithJob()
@@ -414,4 +438,14 @@ export function shortestStagePath(from: ApplicationStage, to: ApplicationStage):
 
 function stripUndefined<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>
+}
+
+export interface ActivityEntry {
+  id: string
+  at: string
+  kind: 'task' | 'stage' | 'action'
+  /** task: TaskStatus；stage: 到达的阶段；action: 动作状态 */
+  status: string
+  title: string
+  detail: string | null
 }

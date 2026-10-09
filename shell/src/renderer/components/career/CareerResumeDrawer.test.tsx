@@ -11,7 +11,14 @@ vi.mock('./useGlobalLive', () => ({ useLiveStream: () => ({ status: 'open', deta
 
 import { emitEvent } from '@/api/eventBus';
 
-import { CareerLiveDrawer, openLiveDrawer } from './CareerLiveDrawer';
+import { resetWorkSurfaces, useWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
+
+import { BrowserSessionPanel, CareerLiveDrawer, openLiveDrawer } from './CareerLiveDrawer';
+
+function LiveHarness() {
+  const { expanded } = useWorkSurfaces();
+  return <><CareerLiveDrawer />{expanded === 'browser' && <BrowserSessionPanel />}</>;
+}
 import { CareerResumeDrawer, openResumeDrawer } from './CareerResumeDrawer';
 
 describe('CareerResumeDrawer', () => {
@@ -44,7 +51,8 @@ describe('CareerResumeDrawer', () => {
   });
 
   it('和浏览器现场抽屉互斥：一个打开另一个收起；ui_open(live) 打开现场', async () => {
-    render(<><CareerResumeDrawer /><CareerLiveDrawer /></>);
+    resetWorkSurfaces();
+    render(<><CareerResumeDrawer /><LiveHarness /></>);
     act(() => openResumeDrawer('rm_1'));
     await screen.findByTestId('career-resume-drawer');
     act(() => openLiveDrawer());
