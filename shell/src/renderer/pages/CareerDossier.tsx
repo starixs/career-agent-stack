@@ -705,7 +705,7 @@ function ExamRecords() {
     requestNavigation({ kind: 'chat' });
   };
   return (
-    <div className="px-4 py-3">
+    <div className="max-w-4xl px-6 py-6">
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       {query.loading && !query.data && <LoadingRow />}
       {query.data && exams.length === 0 && (
@@ -723,9 +723,9 @@ function ExamRecords() {
                     <div className="truncate text-sm font-medium text-[var(--ink)]">{exam.title}</div>
                     <div className="text-xs text-[var(--muted)]">{[exam.kind, exam.company_name, formatDate(exam.updated_at)].filter(Boolean).join(' · ')}</div>
                   </div>
-                  <span className={`shrink-0 border-l-[3px] border-current pl-2 text-xs font-medium ${exam.status === 'reviewed' ? 'text-[var(--muted)]' : 'text-[var(--warning)]'}`}>
-                    {exam.status === 'reviewed' ? '已批改' : `已答 ${answered} / ${total}`}
-                  </span>
+                  <Badge tone={exam.status === 'reviewed' ? 'success' : 'accent'}>
+                    {exam.status === 'reviewed' ? '已批改' : `轮到你作答 · 已答 ${answered} / ${total}`}
+                  </Badge>
                 </button>
               </li>
             );

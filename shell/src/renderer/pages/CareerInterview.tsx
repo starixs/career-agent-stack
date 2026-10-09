@@ -48,7 +48,7 @@ export default function CareerInterview({ embedded = false }: { embedded?: boole
       examples={['帮我准备这场面试', '帮我复盘昨天的面试', '帮我模拟一场深挖追问']}
       actions={<Button onClick={() => setShowForm(v => !v)}><Plus className="h-3.5 w-3.5" />新建记录</Button>}
     >
-      <div className="space-y-5 px-4 py-3">
+      <div className="space-y-10 px-6 py-6">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {showForm && <InterviewForm onDone={() => { setShowForm(false); query.reload(); }} onCancel={() => setShowForm(false)} />}
         {query.loading && !query.data && <LoadingRow />}
@@ -58,22 +58,22 @@ export default function CareerInterview({ embedded = false }: { embedded?: boole
               <SectionTitle>面试记录（{interviews.length}）</SectionTitle>
               {interviews.length === 0 && <EmptyState title="还没有面试记录" hint="记录每一轮的过程和结果，复盘和预测才有依据。没有反馈的会标为「无反馈（推测）」。" example="帮我记录刚才的面试" />}
               {interviews.length > 0 && (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-[320px_1fr]">
-                  <ul className="space-y-1.5">
+                <div className="grid grid-cols-1 gap-8 md:grid-cols-[300px_1fr]">
+                  <ul>
                     {interviews.map(iv => (
                       <li key={iv.id}>
                         <button
                           type="button"
                           onClick={() => setSelectedId(iv.id)}
                           aria-current={iv.id === activeId ? 'true' : undefined}
-                          className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${iv.id === activeId ? 'border-[var(--primary)] bg-[var(--primary)]/5' : 'border-[var(--line)] hover:bg-[var(--inset)]'}`}
+                          className={`relative w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${iv.id === activeId ? 'bg-[var(--selected)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-[var(--primary)]' : 'hover:bg-[var(--hover)]'}`}
                         >
                           <div className="truncate text-sm font-medium text-[var(--ink)]">{textOrUnknown(iv.company_name)} · {textOrUnknown(iv.title)}</div>
-                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-[var(--muted)]">
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--muted)]">
                             <span>{INTERVIEW_ROUND_LABELS[iv.round] ?? iv.round}</span>
                             <span>· {formatDate(iv.date)}</span>
                             <Badge tone={RESULT_TONE[iv.result] ?? 'neutral'}>{INTERVIEW_RESULT_LABELS[iv.result] ?? iv.result}</Badge>
-                            <Badge tone={SOURCE_TONE[iv.result_source] ?? 'neutral'} title="结果来源">{INTERVIEW_RESULT_SOURCE_LABELS[iv.result_source] ?? iv.result_source}</Badge>
+                            <span title="结果来源">{INTERVIEW_RESULT_SOURCE_LABELS[iv.result_source] ?? iv.result_source}</span>
                           </div>
                         </button>
                       </li>
@@ -181,7 +181,7 @@ function MockSection({ mocks }: { mocks: MockInterview[] }) {
               )}>
               {m.company_type && <div className="text-xs text-[var(--muted)]">公司类型：{m.company_type}</div>}
               {open && (
-                <div className="mt-2 rounded-lg border border-[var(--line)] bg-[var(--inset)] p-2 text-sm">
+                <div className="mt-2 border-l-2 border-[var(--line-2)] pl-3 text-sm">
                   {report ? <StructuredJson value={report} /> : <span className="text-xs text-[var(--subtle)]">暂无报告</span>}
                 </div>
               )}
@@ -201,11 +201,11 @@ function PredictionSection({ predictions }: { predictions: ProbePrediction[] }) 
     <section>
       <SectionTitle>深挖点预测（{predictions.length}）</SectionTitle>
       {predictions.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有预测。在对话里说「帮我预测这版简历会被追问的点」。</div>}
-      <ul className="space-y-1.5">
+      <ul className="divide-y divide-[var(--line)]">
         {predictions.map(p => {
           const chain = safeJson<unknown[]>(p.expected_chain_json, []);
           return (
-            <li key={p.id} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+            <li key={p.id} className="py-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge tone={RISK_TONE[p.risk] ?? 'neutral'}>风险 {p.risk}</Badge>
                 <Badge>{TARGET_LABELS[p.target_type] ?? p.target_type}</Badge>

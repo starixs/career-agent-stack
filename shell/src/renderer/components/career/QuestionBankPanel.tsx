@@ -36,7 +36,7 @@ export function QuestionBankPanel() {
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       {query.loading && !query.data && <LoadingRow />}
       {query.data && list.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有题目。让助理按岗位出题、复盘一场真实面试，或者补录你见过的题，都会存到这里。</div>}
-      <ul className="space-y-1.5">{list.map(item => <QuestionRowView key={item.id} item={item} onChanged={query.reload} />)}</ul>
+      <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">{list.map(item => <QuestionRowView key={item.id} item={item} onChanged={query.reload} />)}</ul>
     </section>
   );
 }
@@ -47,7 +47,7 @@ function QuestionRowView({ item, onChanged }: { item: QuestionItem; onChanged: (
   const act = useCareerAction();
   const probe = safeList(item.probe_points_json);
   return (
-    <li className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+    <li className="py-3">
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <Badge tone={SOURCE[item.source].tone}>{SOURCE[item.source].label}</Badge>
         <span className="text-[var(--muted)]">{KIND[item.kind]}{item.category ? ` · ${item.category}` : ''}{item.company_name ? ` · ${item.company_name}` : ''}</span>
@@ -87,7 +87,7 @@ function AddQuestion({ onDone }: { onDone: () => void }) {
     setContent(''); onDone();
   });
   return (
-    <div className="mb-3 space-y-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
+    <div className="mb-3 space-y-2 border-l-2 border-[var(--primary)] py-1 pl-3">
       <TextArea aria-label="见过的题" placeholder="一行一道，按原话写" rows={3} value={content} onChange={e => setContent(e.target.value)} />
       <div className="flex flex-wrap items-center gap-2">
         <TextInput aria-label="哪家公司" placeholder="哪家公司（可选）" value={company} onChange={e => setCompany(e.target.value)} className="w-40" />

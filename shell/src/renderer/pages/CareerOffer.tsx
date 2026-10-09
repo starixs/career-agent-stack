@@ -6,10 +6,7 @@ import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { careerApi, safeJson } from '@/components/career/careerApi';
-import {
-  Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput,
-  formatDate, textOrUnknown,
-} from '@/components/career/CareerPrimitives';
+import { Button, Card, CareerPage, DueLabel, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, formatDate, textOrUnknown } from '@/components/career/CareerPrimitives';
 import type { Offer } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 
@@ -63,7 +60,7 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
       examples={['帮我对比这几个 Offer', '帮我录入一个 Offer', '帮我分析这个 Offer 的风险']}
       actions={<Button onClick={() => setEditing(editing === 'new' ? null : 'new')}><Plus className="h-3.5 w-3.5" />新建 Offer</Button>}
     >
-      <div className="space-y-5 px-4 py-3">
+      <div className="max-w-6xl space-y-8 px-6 py-6">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {editing && (
           <OfferForm
@@ -81,13 +78,13 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
           <>
             <section>
               <SectionTitle>Offer（{offers.length}）</SectionTitle>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2 xl:grid-cols-3">
                 {offers.map(o => (
-                  <Card key={o.id} title={`${textOrUnknown(o.company_name)} · ${textOrUnknown(o.title)}`} extra={<Button variant="ghost" onClick={() => setEditing(o)}>编辑</Button>}>
-                    <dl className="space-y-1 text-xs">
+                  <Card key={o.id} title={`${textOrUnknown(o.company_name)} · ${textOrUnknown(o.title)}`} extra={<Button variant="ghost" size="sm" onClick={() => setEditing(o)}>编辑</Button>}>
+                    <dl className="space-y-1.5 text-sm">
                       <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">薪酬</dt><dd className="text-[var(--ink)]">{compSummary(compOf(o))}</dd></div>
                       <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">地点</dt><dd className="text-[var(--ink)]">{textOrUnknown(o.location)}</dd></div>
-                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">截止</dt><dd className="text-[var(--ink)]">{o.deadline ? <Badge tone="warning">{formatDate(o.deadline)}</Badge> : '未知'}</dd></div>
+                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">截止</dt><dd className="text-[var(--ink)]"><DueLabel at={o.deadline} suffix="前答复" /></dd></div>
                     </dl>
                   </Card>
                 ))}
@@ -95,12 +92,12 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
             </section>
             <section>
               <SectionTitle>对比</SectionTitle>
-              <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
-                <table className="w-full border-collapse text-xs">
-                  <thead className="bg-[var(--inset)] text-left text-[var(--muted)]">
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="border-b border-[var(--line-2)] text-left text-[var(--muted)]">
                     <tr>
-                      <th className="px-2 py-1.5 font-medium">维度</th>
-                      {offers.map(o => <th key={o.id} className="px-2 py-1.5 font-medium text-[var(--ink)]">{textOrUnknown(o.company_name)}<div className="font-normal text-[var(--muted)]">{textOrUnknown(o.title)}</div></th>)}
+                      <th className="w-28 px-2 py-2 text-xs font-medium">维度</th>
+                      {offers.map(o => <th key={o.id} className="px-2 py-2 font-semibold text-[var(--ink)]">{textOrUnknown(o.company_name)}<div className="font-normal text-[var(--muted)]">{textOrUnknown(o.title)}</div></th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -111,9 +108,9 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
                       { label: '风险', render: (o: Offer) => textOrUnknown(o.risk_notes) },
                       { label: '截止', render: (o: Offer) => formatDate(o.deadline) },
                     ].map(row => (
-                      <tr key={row.label} className="border-t border-[var(--line)] align-top">
-                        <td className="px-2 py-1.5 font-medium text-[var(--muted)]">{row.label}</td>
-                        {offers.map(o => <td key={o.id} className="px-2 py-1.5 text-[var(--ink)]">{row.render(o)}</td>)}
+                      <tr key={row.label} className="border-b border-[var(--line)] align-top">
+                        <td className="px-2 py-2.5 text-xs font-medium text-[var(--muted)]">{row.label}</td>
+                        {offers.map(o => <td key={o.id} className="px-2 py-2.5 text-[var(--ink)]">{row.render(o)}</td>)}
                       </tr>
                     ))}
                   </tbody>

@@ -179,6 +179,20 @@ export function Badge({ tone = 'neutral', children, title }: { tone?: BadgeTone;
   );
 }
 
+/**
+ * 截止紧迫度（6.2）：> 72 小时只写日期；24–72 小时 warning「剩 N 天」；< 24 小时 danger「剩 N 小时」；过了写「已逾期」。
+ */
+export function DueLabel({ at, now = new Date(), suffix = '截止' }: { at: string | null | undefined; now?: Date; suffix?: string }) {
+  if (!at) return <span className="text-[var(--muted)]">未知</span>;
+  const due = new Date(at);
+  if (Number.isNaN(due.getTime())) return <span className="text-[var(--muted)]">{at}</span>;
+  const hours = (due.getTime() - now.getTime()) / 3_600_000;
+  if (hours < 0) return <Badge tone="error">{`已逾期 ${Math.max(1, Math.round(-hours / 24))} 天`}</Badge>;
+  if (hours < 24) return <Badge tone="error">{`剩 ${Math.max(1, Math.floor(hours))} 小时`}</Badge>;
+  if (hours <= 72) return <Badge tone="warning">{`剩 ${Math.ceil(hours / 24)} 天`}</Badge>;
+  return <span className="tabular-nums text-[var(--muted)]">{`${due.getMonth() + 1} 月 ${due.getDate()} 日${suffix}`}</span>;
+}
+
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 /** 描边按钮（7.1）：Primary / Secondary 带 1.5px 墨线与 2px 硬投影，按下时投影收回；Ghost 与 Danger 不描边。 */
 const OUTLINED = 'border-[1.5px] border-[var(--hard)] shadow-hard active:translate-x-px active:translate-y-px active:shadow-none disabled:border-[var(--line-2)] disabled:bg-[var(--inset)] disabled:shadow-none';
