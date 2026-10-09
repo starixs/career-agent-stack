@@ -132,6 +132,6 @@ describe('CareerInbox', () => {
     await screen.findByText(/某某科技 后端开发实习生 JD/);
     act(() => { emitEvent('career:focus', { surface: 'inbox', id: 'i2' }); });
     const row = (await screen.findByText(/诚邀您参加甲公司一面/)).closest('li');
-    expect(row?.className).toContain('ring-2');
+    expect(row?.className).toContain('bg-[var(--primary-soft)]');
   });
 });
