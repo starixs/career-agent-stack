@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react';
 
 import type { CareerProgressEvent, CareerTakeoverEvent } from '@/components/career/types';
 
-export type WorkSurface = 'browser';
+export type WorkSurface = 'browser' | 'resume' | 'mock-interview' | 'exam';
 
 export interface ProgressStep {
   message: string;
@@ -30,6 +30,12 @@ export interface ProgressRun {
 
 interface WorkSurfaceState {
   expanded: WorkSurface | null;
+  /** Object the expanded surface shows (resume / mock interview / exam id). */
+  refId: string | null;
+  /** Bumped on every expand so a panel can re-select even for the same id. */
+  nonce: number;
+  /** Short text the card hands to the panel (e.g. the current interview question). */
+  context: string | null;
   fullscreen: boolean;
   takeover: CareerTakeoverEvent | null;
   /** Latest run first; only a short history is kept. */
@@ -40,7 +46,7 @@ const MAX_RUNS = 5;
 const MAX_STEPS = 12;
 const FINISHED_PHASES = /(?:^|[_:-])(done|finished|complete|completed|failed|error|cancelled)$/i;
 
-let state: WorkSurfaceState = { expanded: null, fullscreen: false, takeover: null, runs: [] };
+let state: WorkSurfaceState = { expanded: null, refId: null, nonce: 0, context: null, fullscreen: false, takeover: null, runs: [] };
 const listeners = new Set<() => void>();
 
 function setState(patch: Partial<WorkSurfaceState>): void {
@@ -61,12 +67,20 @@ export function useWorkSurfaces(): WorkSurfaceState {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
-export function expandWorkSurface(surface: WorkSurface, options: { fullscreen?: boolean } = {}): void {
-  setState({ expanded: surface, fullscreen: options.fullscreen ?? state.fullscreen });
+export function expandWorkSurface(surface: WorkSurface, options: { fullscreen?: boolean; refId?: string | null; context?: string | null } = {}): void {
+  // Only one surface is expanded at a time; opening another replaces it.
+  setState({
+    expanded: surface,
+    refId: options.refId === undefined ? (state.expanded === surface ? state.refId : null) : options.refId,
+    context: options.context === undefined ? (state.expanded === surface ? state.context : null) : options.context,
+    nonce: state.nonce + 1,
+    fullscreen: options.fullscreen ?? (state.expanded === surface ? state.fullscreen : false),
+  });
 }
 
-export function collapseWorkSurface(): void {
-  setState({ expanded: null, fullscreen: false });
+export function collapseWorkSurface(surface?: WorkSurface): void {
+  if (surface && state.expanded !== surface) return;
+  setState({ expanded: null, refId: null, context: null, fullscreen: false });
 }
 
 export function setWorkSurfaceFullscreen(fullscreen: boolean): void {
@@ -99,5 +113,5 @@ export function recordProgress(event: CareerProgressEvent, now = Date.now()): vo
 
 /** Test helper. */
 export function resetWorkSurfaces(): void {
-  setState({ expanded: null, fullscreen: false, takeover: null, runs: [] });
+  setState({ expanded: null, refId: null, nonce: 0, context: null, fullscreen: false, takeover: null, runs: [] });
 }

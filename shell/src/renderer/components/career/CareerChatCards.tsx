@@ -8,6 +8,8 @@ import { useMemo, useState } from 'react';
 
 import { useTabStateOptional } from '@/context/TabContext';
 
+import { surfaceForTool } from '@/features/career-shell/workSurfaces';
+
 import { BrowserWorkCard, shouldShowBrowserCard } from './BrowserWorkCard';
 import { CareerFlowCards, useBatchState } from './CareerFlowCards';
 import { CareerKeysPanel, useCareerSetupStatus } from './CareerKeysPanel';
@@ -29,12 +31,14 @@ function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useT
   // 底部只放"无处可挂"的待处理卡片：没有锚点（后台批量等），或锚点那次工具调用不在已加载的消息里。
   // 有锚点的卡片渲染在对应回复下面（Message.tsx），处理完折叠，不在底部堆叠。
   const anchoredIds = useMemo(() => collectToolUseIds(tab.messages ?? []), [tab.messages]);
+  // 浏览器卡默认挂在发起它的 apply_* 调用下面；只有后台批量或找不到那次调用时才放在底部。
+  const hasBrowserToolCall = useMemo(() => hasToolCall(tab.messages ?? [], name => surfaceForTool(name) === 'browser'), [tab.messages]);
   const cards = useMemo(() => (tab.careerCards ?? []).filter(c => (c.state ?? 'pending') === 'pending' && (!c.toolUseId || !anchoredIds.has(c.toolUseId))), [tab.careerCards, anchoredIds]);
   return (
     <div className="space-y-2 py-2">
       <CareerSetupCards />
       {careerProgress && <CareerProgressRow progress={careerProgress} onDismiss={tab.dismissCareerProgress} />}
-      {shouldShowBrowserCard(careerTakeover, careerProgress, batch) && (
+      {shouldShowBrowserCard(careerTakeover, careerProgress, batch) && (batch?.status === 'running' || !hasBrowserToolCall) && (
         <BrowserWorkCard takeover={careerTakeover} progress={careerProgress} />
       )}
       <CareerFlowCards cards={cards} batch={batch} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
@@ -71,6 +75,16 @@ export function CareerSetupCards() {
 }
 
 /** 已加载消息里所有顶层工具调用的 id（卡片锚点）。 */
+function hasToolCall(messages: ReadonlyArray<{ content: unknown }>, match: (name: string | undefined) => boolean): boolean {
+  for (const m of messages) {
+    if (!Array.isArray(m.content)) continue;
+    for (const b of m.content as Array<{ type?: string; tool?: { name?: string } }>) {
+      if ((b.type === 'tool_use' || b.type === 'server_tool_use') && match(b.tool?.name)) return true;
+    }
+  }
+  return false;
+}
+
 export function collectToolUseIds(messages: ReadonlyArray<{ content: unknown }>): Set<string> {
   const ids = new Set<string>();
   for (const m of messages) {

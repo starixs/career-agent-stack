@@ -43,7 +43,7 @@ function showBrowserSurface(options: { fullscreen?: boolean } = {}): void {
 /** App 根上的事件控制器：不渲染任何东西。 */
 export function CareerLiveDrawer({ autoOpenOnHandoff = true }: { autoOpenOnHandoff?: boolean }) {
   useEffect(() => onEvent<{ open?: boolean; fullscreen?: boolean }>(DRAWER_EVENT, p => {
-    if (p?.open === false) collapseWorkSurface();
+    if (p?.open === false) collapseWorkSurface('browser');
     else showBrowserSurface({ fullscreen: p?.fullscreen });
   }), []);
   // 助理调用 ui_open(live)：career:focus {surface:'live_drawer'}
@@ -51,7 +51,7 @@ export function CareerLiveDrawer({ autoOpenOnHandoff = true }: { autoOpenOnHando
     if (p?.surface === 'live_drawer') showBrowserSurface();
   }), []);
   // 抽屉互斥：简历编辑器打开时收起浏览器栏
-  useEffect(() => onEvent<{ name?: string }>(DRAWER_OPENED_EVENT, p => { if (p?.name !== 'live') collapseWorkSurface(); }), []);
+  useEffect(() => onEvent<{ name?: string }>(DRAWER_OPENED_EVENT, p => { if (p?.name !== 'live') collapseWorkSurface('browser'); }), []);
   useEffect(() => onEvent<CareerTakeoverEvent>('career:takeover', p => {
     if (!p?.runId) return;
     recordTakeover(p);
@@ -243,7 +243,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <Button variant="ghost" onClick={() => setWorkSurfaceFullscreen(!fullscreen)} aria-label={fullscreen ? '退出全屏' : '全屏'} title={fullscreen ? '退出全屏，回到侧栏' : '全屏操作'}>
           {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </Button>
-        <Button variant="ghost" onClick={collapseWorkSurface} aria-label="收起浏览器"><X className="h-3.5 w-3.5" /></Button>
+        <Button variant="ghost" onClick={() => collapseWorkSurface('browser')} aria-label="收起浏览器"><X className="h-3.5 w-3.5" /></Button>
       </header>
 
       {(handoff || humanActive) && (

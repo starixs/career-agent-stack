@@ -14,6 +14,7 @@ import Tip from '@/components/Tip';
 import ToolAttachmentGallery from '@/components/tools/ToolAttachmentGallery';
 import { TurnFileEditSummary } from '@/components/TurnFileEditSummary';
 import { CareerFlowCards } from '@/components/career/CareerFlowCards';
+import { MessageSurfaceCards } from '@/features/career-shell/MessageSurfaceCards';
 import { useNotifyRowLayoutChanged } from '@/context/ChatRowLayoutContext';
 import { useCareerCards } from '@/context/CareerCardsContext';
 import { buildReplyMarkdown, downloadMarkdown, localDateStr } from '@/utils/markdownExport';
@@ -638,6 +639,9 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
                       <ToolAttachmentGallery attachments={groupAttachments} />
                     </div>
                   )}
+                  <MessageSurfaceCards
+                    tools={item.map(b => (b.type === 'tool_use' || b.type === 'server_tool_use') ? b.tool : undefined)}
+                  />
                   {groupCards.length > 0 && (
                     <div data-testid="career-inline-cards" className="space-y-2 px-1 py-1">
                       <CareerFlowCards cards={groupCards} onStateChange={setCareerCardState} />

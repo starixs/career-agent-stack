@@ -423,3 +423,19 @@ CREATE TABLE IF NOT EXISTS mail_message (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_message_uid ON mail_message(account_id, uid);
 CREATE INDEX IF NOT EXISTS idx_mail_message_app ON mail_message(application_id, received_at);
+
+-- ===== 笔试练习（对话内「笔试」工作面）=====
+CREATE TABLE IF NOT EXISTS exam_practice (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  company_name TEXT,
+  job_id TEXT,
+  kind TEXT,                                -- 笔试|测评|行测|编程|其他
+  questions_json TEXT NOT NULL DEFAULT '[]',-- [{q, kind?, options?, reference?}]
+  answers_json TEXT NOT NULL DEFAULT '[]',  -- [{index, answer}]
+  review_json TEXT NOT NULL DEFAULT '[]',   -- [{index, verdict, comment}]
+  summary TEXT,
+  status TEXT NOT NULL DEFAULT 'answering', -- answering|reviewed
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);

@@ -887,6 +887,26 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ mock_interview_id: mock.id, result: out });
       })()),
 
+      tool('exam_practice', '笔试练习：出题后把题目存档；用户作答后把答案按题号写回；批改后写逐题点评与总结（finish=true）。题目、作答与点评会显示在对话里的「笔试」工作面上。出题由你按岗位与题型生成，参考答案放 reference，不要提前告诉用户。', {
+        exam_id: z.string().optional().describe('继续已有练习时传；不传则新建'),
+        title: z.string().optional().describe('新建时必填，如「星河科技 产品经理 行测」'),
+        company_name: z.string().optional(), job_id: z.string().optional(),
+        kind: z.enum(['笔试', '测评', '行测', '编程', '其他']).optional(),
+        questions: z.array(z.object({ q: z.string(), kind: z.string().optional(), options: z.array(z.string()).optional(), reference: z.string().optional() })).optional(),
+        answers: z.array(z.object({ index: z.number().int().min(0), answer: z.string() })).optional().describe('用户的作答，index 从 0 开始'),
+        review: z.array(z.object({ index: z.number().int().min(0), verdict: z.enum(['对', '错', '部分对']), comment: z.string().optional() })).optional(),
+        summary: z.string().optional(), finish: z.boolean().optional().describe('批改完成'),
+      }, async (args) => wrap(async () => {
+        const exam = store().saveExamPractice({
+          id: args.exam_id, title: args.title, company_name: args.company_name, job_id: args.job_id, kind: args.kind,
+          questions: args.questions, answers: args.answers, review: args.review, summary: args.summary, finish: args.finish,
+        });
+        changed('exam_practice');
+        const questions = JSON.parse(exam.questions_json) as unknown[];
+        const answered = (JSON.parse(exam.answers_json) as unknown[]).length;
+        return text({ exam_id: exam.id, status: exam.status, questions: questions.length, answered });
+      })()),
+
       tool('interview_project_story', '项目讲述练习打分：结构 / 时长 / 框架 / 数据可信度，只用用户已说过的事实给改进版。', {
         text: z.string().describe('用户的讲述文本或转写'), experience_id: z.string().optional(), job_id: z.string().optional(), target_seconds: z.number().optional(),
       }, async (args) => wrap(async () => {

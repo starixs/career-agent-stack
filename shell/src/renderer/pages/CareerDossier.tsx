@@ -19,8 +19,9 @@ import type {
 } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
-import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
+import { DEFAULT_SUB_VIEWS, requestNavigation } from '@/features/career-shell/navModel';
 import { useCareerSubView } from '@/features/career-shell/subViewStore';
+import { expandWorkSurface } from '@/features/career-shell/workSurfaceStore';
 
 const CareerApply = lazy(() => import('@/pages/CareerApply'));
 const CareerInterview = lazy(() => import('@/pages/CareerInterview'));
@@ -163,13 +164,7 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
       examples={['帮我准备明天的面试', '这家公司我之前说过什么', '把没动静的投递线关掉']}
     >
       {view === 'line' && <DossierLine focus={focus} />}
-      {view === 'exam' && (
-        <EmptyState
-          title="笔试记录还在搭建中"
-          hint="收到笔试或测评通知时，小芽会先把时间记进工作台；这里之后会列出每一场笔试和复盘。"
-          example="帮我看看最近有哪些笔试"
-        />
-      )}
+      {view === 'exam' && <ExamRecords />}
       {view !== 'line' && view !== 'exam' && (
         <Suspense fallback={<div className="px-4"><LoadingRow /></div>}>
           {view === 'apply' && <CareerApply embedded />}
@@ -675,5 +670,46 @@ function NoteForm({ applicationId, onChanged }: { applicationId: string; onChang
         <Button variant="primary" busy={action.busy} onClick={() => void submit()}>记下</Button>
       </div>
     </Spread>
+  );
+}
+
+// ─── 笔试记录：每次笔试练习一行，点开在对话页右栏摊开题目、作答与点评 ───
+
+function ExamRecords() {
+  const query = useCareerQuery(careerApi.examPractices, ['exam_practice']);
+  const exams = query.data ?? [];
+  const open = (id: string) => {
+    expandWorkSurface('exam', { refId: id });
+    requestNavigation({ kind: 'chat' });
+  };
+  return (
+    <div className="px-4 py-3">
+      {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
+      {query.loading && !query.data && <LoadingRow />}
+      {query.data && exams.length === 0 && (
+        <EmptyState title="还没有笔试练习" hint="让小芽按岗位出一套题，你作答后它会逐题批改，记录会留在这里。" example="帮我出一套产品经理的行测题" />
+      )}
+      {exams.length > 0 && (
+        <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
+          {exams.map(exam => {
+            const total = safeJson<unknown[]>(exam.questions_json, []).length;
+            const answered = safeJson<unknown[]>(exam.answers_json, []).length;
+            return (
+              <li key={exam.id}>
+                <button type="button" onClick={() => open(exam.id)} className="flex w-full items-center gap-3 px-1 py-3 text-left hover:bg-[var(--hover)]">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium text-[var(--ink)]">{exam.title}</div>
+                    <div className="text-xs text-[var(--muted)]">{[exam.kind, exam.company_name, formatDate(exam.updated_at)].filter(Boolean).join(' · ')}</div>
+                  </div>
+                  <span className={`shrink-0 border-l-[3px] border-current pl-2 text-xs font-medium ${exam.status === 'reviewed' ? 'text-[var(--muted)]' : 'text-[var(--warning)]'}`}>
+                    {exam.status === 'reviewed' ? '已批改' : `已答 ${answered} / ${total}`}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }

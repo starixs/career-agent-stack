@@ -87,6 +87,12 @@ export interface MockInterview {
   company_type: string | null; round: string | null; turns_json: string; report_json: string | null;
   created_at: string; updated_at: string;
 }
+/** 笔试练习：题目 / 作答 / 点评都是 JSON 数组，按题号（index 从 0 起）对应。 */
+export interface ExamPractice {
+  id: string; title: string; company_name: string | null; job_id: string | null; kind: string | null;
+  questions_json: string; answers_json: string; review_json: string; summary: string | null;
+  status: 'answering' | 'reviewed'; created_at: string; updated_at: string;
+}
 export interface ProbePrediction {
   id: string; resume_tailored_id: string | null; claim_id: string | null; statement: string;
   target_type: string; expected_chain_json: string; risk: string; created_at: string;

@@ -8,6 +8,7 @@ import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 
 import type {
   ActivityEntry,
+  ExamPractice,
   CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
   InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
@@ -122,6 +123,7 @@ export const careerApi = {
   createInterview: (body: Partial<Interview>) => apiPostJson<unknown>(careerPath('/interviews'), body).then(r => pickObject<Interview>(r, 'interview')),
   updateInterview: (id: string, body: Partial<Interview>) =>
     apiPutJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}`), body).then(r => pickObject<Interview>(r, 'interview')),
+  examPractices: () => apiGetJson<unknown>(careerPath('/exam-practices')).then(r => pickList<ExamPractice>(r, 'examPractices')),
   mockInterviews: () => apiGetJson<unknown>(careerPath('/mock-interviews')).then(r => pickList<MockInterview>(r, 'mockInterviews', 'mock_interviews', 'items')),
   /** API.md 未列出该路由；后端若未实现则按空列表处理。 */
   probePredictions: () => apiGetJson<unknown>(careerPath('/probe-predictions'))

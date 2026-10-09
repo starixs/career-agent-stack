@@ -13,6 +13,7 @@ export type CoreIds = Pick<CoreModule, 'newId' | 'now'>;
 export interface Direction { id: string; name: string; status: 'candidate' | 'tentative' | 'chosen' | 'dropped'; rationale_json: string | null; created_at: string; updated_at: string }
 export interface GapPlan { id: string; job_id: string | null; direction_id: string | null; gaps_json: string; actions_json: string; created_at: string }
 export interface MockInterview { id: string; job_id: string | null; resume_tailored_id: string | null; mode: string; company_type: string | null; round: string | null; turns_json: string; report_json: string | null; created_at: string; updated_at: string }
+export interface ExamPractice { id: string; title: string; company_name: string | null; job_id: string | null; kind: string | null; questions_json: string; answers_json: string; review_json: string; summary: string | null; status: 'answering' | 'reviewed'; created_at: string; updated_at: string }
 export interface AnswerBankRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; updated_at: string }
 export interface ProbePrediction { id: string; resume_tailored_id: string | null; claim_id: string | null; statement: string; target_type: string; expected_chain_json: string; risk: string; created_at: string }
 export type ApplicationWithJob = Application & { title: string; company_name: string | null; deadline: string | null };
@@ -149,6 +150,49 @@ export class CareerStore {
     this.db.insert('mock_interview', { id, job_id: input.job_id ?? null, resume_tailored_id: input.resume_tailored_id ?? null, mode: input.mode, company_type: input.company_type ?? null, round: input.round ?? null, turns_json: jsonOrEmpty(input.turns, '[]'), report_json: input.report !== undefined ? jsonOrEmpty(input.report) : null, created_at: t, updated_at: t });
     return this.db.get<MockInterview>('SELECT * FROM mock_interview WHERE id=?', [id])!;
   }
+  // ---------- 笔试练习 ----------
+  listExamPractices(): ExamPractice[] { return this.db.all<ExamPractice>('SELECT * FROM exam_practice ORDER BY updated_at DESC'); }
+  getExamPractice(id: string): ExamPractice | undefined { return this.db.get<ExamPractice>('SELECT * FROM exam_practice WHERE id=?', [id]); }
+  /** 出题时新建；作答 / 批改时按 index 合并答案与点评（后写覆盖同题），finish 后标记已复盘。 */
+  saveExamPractice(input: {
+    id?: string; title?: string; company_name?: string | null; job_id?: string | null; kind?: string | null;
+    questions?: unknown[]; answers?: Array<{ index: number; answer: string }>; review?: Array<{ index: number; verdict: string; comment?: string }>;
+    summary?: string | null; finish?: boolean;
+  }): ExamPractice {
+    const t = this.now();
+    const existing = input.id ? this.getExamPractice(input.id) : undefined;
+    if (input.id && !existing) throw new Error(`exam_practice 不存在: ${input.id}`);
+    const mergeByIndex = <T extends { index: number }>(current: string, next: T[] | undefined): string => {
+      if (!next) return current;
+      const byIndex = new Map<number, T>((JSON.parse(current) as T[]).map(item => [item.index, item]));
+      for (const item of next) byIndex.set(item.index, item);
+      return JSON.stringify([...byIndex.values()].sort((a, b) => a.index - b.index));
+    };
+    if (!existing) {
+      if (!input.title) throw new Error('新建笔试练习需要 title');
+      const id = this.newId('exm');
+      this.db.insert('exam_practice', {
+        id, title: input.title, company_name: input.company_name ?? null, job_id: input.job_id ?? null, kind: input.kind ?? null,
+        questions_json: jsonOrEmpty(input.questions ?? [], '[]'),
+        answers_json: mergeByIndex('[]', input.answers), review_json: mergeByIndex('[]', input.review),
+        summary: input.summary ?? null, status: input.finish ? 'reviewed' : 'answering', created_at: t, updated_at: t,
+      });
+      return this.getExamPractice(id)!;
+    }
+    this.db.update('exam_practice', existing.id, {
+      title: input.title ?? existing.title,
+      company_name: input.company_name !== undefined ? input.company_name : existing.company_name,
+      kind: input.kind !== undefined ? input.kind : existing.kind,
+      questions_json: input.questions ? jsonOrEmpty(input.questions, '[]') : existing.questions_json,
+      answers_json: mergeByIndex(existing.answers_json, input.answers),
+      review_json: mergeByIndex(existing.review_json, input.review),
+      summary: input.summary !== undefined ? input.summary : existing.summary,
+      status: input.finish ? 'reviewed' : existing.status,
+      updated_at: t,
+    });
+    return this.getExamPractice(existing.id)!;
+  }
+
   addProbePredictions(rows: Array<{ resume_tailored_id?: string | null; claim_id?: string | null; statement: string; target_type: string; expected_chain?: unknown; risk?: string }>): ProbePrediction[] {
     const out: ProbePrediction[] = [];
     this.db.transaction(() => {

@@ -11,6 +11,8 @@ import { useWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
 import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { CareerLiveViewport } from './CareerLiveViewport';
+import type { ToolUseSimple } from '@/types/chat';
+
 import type { BatchState, CareerProgressEvent, CareerTakeoverEvent, LiveFrame, LiveStreamEvent } from './types';
 import { useLiveStream } from './useGlobalLive';
 
@@ -27,21 +29,26 @@ export function shouldShowBrowserCard(
   return Boolean(progress && BROWSER_PHASE.test(progress.phase ?? ''));
 }
 
-export function BrowserWorkCard({ takeover, progress }: {
+export function BrowserWorkCard({ takeover, progress, tool }: {
   takeover: CareerTakeoverEvent | null | undefined;
   progress: CareerProgressEvent | null | undefined;
+  /** The apply_* call this card hangs under; a finished call shows 已完成 without a live view. */
+  tool?: ToolUseSimple;
 }) {
   const { expanded } = useWorkSurfaces();
   const open = expanded === 'browser';
-  const handoff = takeover?.state === 'paused';
-  const humanActive = takeover?.state === 'human_active';
-  const reason = takeover?.reason ? (HANDOFF_REASON_LABELS[takeover.reason] ?? takeover.reason) : null;
-  const done = !takeover && typeof progress?.progress === 'number' && progress.progress >= 1;
+  // A finished tool call only owns the live state if a handoff is still open on it.
+  const live = !tool || tool.isLoading === true || Boolean(takeover && takeover.state !== 'running');
+  const effectiveTakeover = live ? takeover : null;
+  const handoff = effectiveTakeover?.state === 'paused';
+  const humanActive = effectiveTakeover?.state === 'human_active';
+  const reason = effectiveTakeover?.reason ? (HANDOFF_REASON_LABELS[effectiveTakeover.reason] ?? effectiveTakeover.reason) : null;
+  const done = (tool && !live) || (!effectiveTakeover && typeof progress?.progress === 'number' && progress.progress >= 1);
   const dot = handoff || humanActive ? 'bg-[var(--warning)]' : done ? 'bg-[var(--subtle)]' : 'bg-[var(--success)]';
   const status = handoff
     ? `停在这一步${reason ? `「${reason}」` : ''} · 需要你本人操作`
     : humanActive ? '你在控制中'
-      : done ? '已完成' : (progress?.message ?? '正在工作');
+      : done ? (tool?.isError ? '出错了，可以让小芽重试' : '已完成 · 查看') : (progress?.message ?? '正在工作');
 
   return (
     <div
@@ -60,7 +67,7 @@ export function BrowserWorkCard({ takeover, progress }: {
           </div>
         </div>
       </div>
-      {!open && <BrowserThumbnail />}
+      {!open && live && <BrowserThumbnail />}
       {open ? (
         <div className="mt-2.5 flex h-9 items-center justify-center rounded-lg border border-dashed border-[var(--line-2)] bg-[var(--inset)] text-sm text-[var(--muted)]">
           已在右侧打开 →

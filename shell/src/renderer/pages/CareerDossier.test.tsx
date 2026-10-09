@@ -54,6 +54,7 @@ function mockGet() {
     if (path.startsWith('/api/career/dossiers/a1')) return { ok: true, dossier: dossierA1 };
     if (path.startsWith('/api/career/dossiers/a2')) return { ok: true, dossier: dossierA2 };
     if (path.startsWith('/api/career/dossiers')) return { ok: true, dossiers: summaries };
+    if (path.startsWith('/api/career/exam-practices')) return { ok: true, examPractices: [] };
     return { ok: true };
   });
 }
@@ -174,7 +175,7 @@ describe('CareerDossier', () => {
     expect(await screen.findByTestId('embedded-apply')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '岗位收藏' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'exam'); });
-    expect(await screen.findByText('笔试记录还在搭建中')).toBeInTheDocument();
+    expect(await screen.findByText('还没有笔试练习')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).toBeNull();
   });
 });

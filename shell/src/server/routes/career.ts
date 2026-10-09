@@ -325,6 +325,7 @@ const ROUTES: Route[] = [
     }
   }),
   route('GET', '/api/career/mock-interviews', ({ store }) => ok({ mockInterviews: store.listMockInterviews() })),
+  route('GET', '/api/career/exam-practices', ({ store }) => ok({ examPractices: store.listExamPractices() })),
 
   // ---------- 方向 / 差距 / Offer ----------
   route('GET', '/api/career/directions', ({ store }) => ok({ directions: store.listDirections() })),
