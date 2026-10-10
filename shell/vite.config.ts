@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
+import { API_PROXY_PATTERN } from './scripts/vite-api-proxy.mjs';
+
 // Read version info from package.json and Cargo.toml at build time
 function getBuildVersions() {
   const packageJson = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'));
@@ -73,8 +75,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // All API endpoints under /api/ (excludes source files like /api/*.ts)
-      '^/api/(?!.*\\.(ts|tsx|js|jsx)$)': {
+      // All API endpoints under /api/ (excludes source files like /api/*.ts, with or without HMR query)
+      [API_PROXY_PATTERN]: {
         target: 'http://localhost:3000',
         changeOrigin: true,
         rewrite: (path) => path, // Keep path as-is
