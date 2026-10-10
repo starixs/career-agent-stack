@@ -1,5 +1,6 @@
 import { Db, now } from './db/db.js'
 import { newId } from './ids.js'
+import { MemoryRepo } from './memories.js'
 import { canonicalJson, jobKey, sha256 } from './keys.js'
 import { inferEmploymentType, normalizeCohort } from './jobs.js'
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
@@ -15,6 +16,9 @@ export interface ChatCardRow { id: string; session_id: string | null; tool_use_i
 
 export class Repos {
   constructor(public readonly db: Db) {}
+  private memoryRepo?: MemoryRepo
+  /** 长期记忆（memories.ts）。 */
+  get memories(): MemoryRepo { return (this.memoryRepo ??= new MemoryRepo(this.db)) }
 
   // ---------- 经历库 ----------
   createExperience(e: Partial<Experience> & { title: string }): Experience {

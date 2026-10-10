@@ -154,6 +154,33 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec('CREATE INDEX IF NOT EXISTS idx_attempt_question ON question_attempt(question_id, created_at)')
     },
   },
+  {
+    version: 6,
+    name: 'memory',
+    up(db) {
+      // 长期记忆（见 memories.ts）：只记别的表没有的——协作习惯、明确偏好与纠正、和公司 / 投递相关的零散事实
+      db.exec(`CREATE TABLE IF NOT EXISTS memory (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,                     -- fact|preference|collaboration|insight
+        scope TEXT NOT NULL DEFAULT 'user',     -- user | company:<名字> | application:<id>
+        content TEXT NOT NULL,
+        content_key TEXT NOT NULL,              -- 去空白标点的小写：同 scope 同内容 = 同一条
+        importance INTEGER NOT NULL DEFAULT 3,  -- 1–5
+        evidence_count INTEGER NOT NULL DEFAULT 1,
+        pinned INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'active',  -- active|superseded|forgotten（软删除，保留审计）
+        superseded_by TEXT,
+        source TEXT NOT NULL,                   -- explicit|extracted|user_edit|consolidation
+        source_ref TEXT,
+        last_used_at TEXT,
+        last_decay_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`)
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_active_key ON memory(scope, content_key) WHERE status='active'")
+      db.exec('CREATE INDEX IF NOT EXISTS idx_memory_scope ON memory(status, scope)')
+    },
+  },
 ]
 
 export function currentVersion(db: DatabaseSync): number {

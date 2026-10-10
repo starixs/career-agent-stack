@@ -1,12 +1,13 @@
 /**
  * 素材：一套说法复用到几十家，前后一致。
- * 视图：说法库（新）/ 经历与主张（嵌入 CareerExperience）/ 简历（嵌入 CareerResume）。
+ * 视图：说法库（新）/ 经历与主张（嵌入 CareerExperience）/ 简历（嵌入 CareerResume）/ 助理记住的事（长期记忆）。
  */
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { onEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
+import { CareerMemoryList } from '@/components/career/CareerMemoryList';
 import {
   Badge, Button, CareerPage, Card, ChatActionButton, EmptyState, ErrorRow, Field, LoadingRow, Select, TextArea, TextInput, formatDate,
 } from '@/components/career/CareerPrimitives';
@@ -20,11 +21,12 @@ const CareerExperience = lazy(() => import('@/pages/CareerExperience'));
 const CareerResume = lazy(() => import('@/pages/CareerResume'));
 
 // 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
-type View = 'library' | 'experience' | 'resume';
+type View = 'library' | 'experience' | 'resume' | 'memory';
 const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
   experience: { title: '经历', subtitle: '做过的事和能拿出来讲的主张' },
   resume: { title: '简历', subtitle: '每一份都记得投给了谁' },
   library: { title: '常用表达', subtitle: '一套说法复用到几十家，前后一致' },
+  memory: { title: '助理记住的事', subtitle: '协作习惯、偏好和跟公司有关的事；不对就改或忘掉' },
 };
 
 /** 素材类型文案（共享常量里没有，先放在本页）。 */
@@ -76,7 +78,8 @@ export default function CareerMaterial({ embedded = false }: CareerPageProps) {
           {data && <Library data={data} highlightId={highlightId} onChanged={query.reload} />}
         </div>
       )}
-      {effectiveView !== 'library' && (
+      {effectiveView === 'memory' && <CareerMemoryList />}
+      {effectiveView !== 'library' && effectiveView !== 'memory' && (
         <Suspense fallback={<div className="px-4"><LoadingRow /></div>}>
           {effectiveView === 'experience' && <CareerExperience embedded />}
           {effectiveView === 'resume' && <CareerResume embedded />}

@@ -26,7 +26,7 @@ export interface NavItem {
 
 export type NavIconName =
   | 'dashboard' | 'chat' | 'briefcase' | 'grid' | 'folder' | 'settings'
-  | 'sun' | 'list' | 'inbox' | 'star' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote' | 'award'
+  | 'sun' | 'list' | 'inbox' | 'star' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote' | 'award' | 'brain'
   | 'sliders' | 'pet' | 'globe' | 'keyboard' | 'wrench' | 'bell' | 'help' | 'info';
 
 export interface NavAreaDefinition {
@@ -64,6 +64,7 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
       { id: 'experience', label: '经历', icon: 'star', target: { kind: 'career-material', view: 'experience' } },
       { id: 'resumes', label: '简历', icon: 'file', target: { kind: 'career-material', view: 'resume' } },
       { id: 'phrases', label: '常用表达', icon: 'quote', target: { kind: 'career-material', view: 'library' } },
+      { id: 'memory', label: '助理记住的事', icon: 'brain', target: { kind: 'career-material', view: 'memory' } },
     ],
   },
   {

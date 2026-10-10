@@ -167,8 +167,12 @@ export function startAnswerSync(intervalMs = 10 * 60_000): void {
 
 /** bootstrap（global）：上次还在跑就续上；同时启动接管守护、提交执行器与答案回传。 */
 export async function resumeBatchIfRunning(): Promise<void> {
+  void import('./legacy-memory-cleanup').then(m => m.removePristineLegacyMemoryRules(careerWorkspacePath()))
+    .then(removed => { if (removed.length) console.log(`[career] 已撤掉基座记忆的默认规则文件：${removed.join('、')}`); })
+    .catch(() => { /* 下次启动再试 */ });
   startHandoffKeeper();
   startAnswerSync();
+  void import('./memory-consolidate').then(m => m.startMemoryConsolidation()).catch(() => { /* 下次启动再试 */ });
   try { (await getSubmitExecutor()).start(); } catch (error) { console.warn('[career] 提交执行器启动失败：', error instanceof Error ? error.message : error); }
   try { (await getBatchRunner()).resumeIfRunning(); } catch (error) { console.warn('[career] 批量运行器恢复失败：', error instanceof Error ? error.message : error); }
   startBatchCommandPoll();

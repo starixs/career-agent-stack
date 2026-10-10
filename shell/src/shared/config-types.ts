@@ -701,10 +701,11 @@ export const PRESET_TEMPLATES: WorkspaceTemplate[] = [
       '求职执行工作台助理：整理经历、做简历、研究公司、投递、准备面试、对比 Offer。',
     icon: 'lightning',
     isBuiltin: true,
+    // 基座的工作区记忆与定时心跳在求职产品里关闭（见 shared/careerMemoryPolicy.ts）
     agentDefaults: {
       enabled: true,
       heartbeat: {
-        enabled: true,
+        enabled: false,
         intervalMinutes: 240,
         ackMaxChars: 300,
         activeHours: {
@@ -714,7 +715,7 @@ export const PRESET_TEMPLATES: WorkspaceTemplate[] = [
         },
       },
       memoryAutoUpdate: {
-        enabled: true,
+        enabled: false,
         intervalHours: 24,
         queryThreshold: 3,
         updateWindowStart: '21:00',
@@ -722,7 +723,7 @@ export const PRESET_TEMPLATES: WorkspaceTemplate[] = [
         updateWindowTimezone: undefined,
       },
       memoryEvolution: {
-        enabled: true,
+        enabled: false,
       },
     },
   },

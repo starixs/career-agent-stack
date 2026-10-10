@@ -24,6 +24,7 @@ import {
     shouldAutoUpdateManagedCodexRuntime,
     withManagedCodexProviderCatalog,
 } from './types';
+import { retireLegacyMemoryJobs } from '../../shared/careerMemoryPolicy';
 import type { RuntimeModelInfo } from '../../shared/types/runtime';
 import type { TokenDanceAuthView } from '../../shared/tokendance';
 import type { AgentConfig } from '../../shared/types/agent';
@@ -533,6 +534,10 @@ export function ConfigProvider({ children }: { children: React.ReactNode }) {
         await atomicModifyConfig(current => {
             repairedAgents = normalizeAgents(current);
             migrateToolGroups(current);
+            // 求职产品：退役基座的工作区记忆与定时心跳（记忆改由求职数据库承担）
+            if (retireLegacyMemoryJobs(current.agents)) {
+                console.log('[ConfigProvider] Retired legacy memory / heartbeat jobs for the career product');
+            }
             return current;
         });
         if (repairedAgents) {

@@ -14,7 +14,7 @@ describe('navModel', () => {
     expect(NAV_AREAS.find(area => area.id === 'career')!.items.map(item => item.label))
       .toEqual(['岗位收藏', '投递记录', '笔试记录', '面试记录', 'Offer 记录']);
     expect(NAV_AREAS.find(area => area.id === 'assets')!.items.map(item => item.label))
-      .toEqual(['基本资料', '经历', '简历', '常用表达']);
+      .toEqual(['基本资料', '经历', '简历', '常用表达', '助理记住的事']);
   });
 
   it('locates the area and item from the active tab and the page sub-view', () => {

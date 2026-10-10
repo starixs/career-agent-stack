@@ -281,10 +281,6 @@ import {
 } from '../shared/config-types';
 import { workspacePathsEqual } from '../shared/workspacePath';
 import { ensureDirSync, ensureDir, isDirEntry } from './utils/fs-utils';
-import {
-  buildMemoryUpdateReminder,
-  MEMORY_UPDATE_COMPLETION_MARKER,
-} from './utils/memory-update-reminder';
 import { setImCronContext } from './tools/im-cron-tool';
 // admin-api module (~2900 lines, depends on zod + full config/session/cron surface)
 // is lazy-loaded on first /api/admin/* hit to shave ~150ms off sidecar cold
@@ -593,7 +589,6 @@ import {
   stopOwnedTurnByQueueId,
 } from './session-engine';
 import { goalOrchestrator } from './session-engine';
-import { createTaskDispatchGuard } from './session-engine/task-turn-orchestrator';
 import { handleSessionEngineQueueRoute } from './routes/session-engine-queue';
 import { handleSessionEngineRuntimeRoute } from './routes/session-engine-runtime';
 import { handleSessionReadRoute } from './routes/session-read';
@@ -8603,145 +8598,9 @@ description: >
 
       // POST /api/memory/update — Trigger memory update in current session (v0.1.43)
       if (pathname === '/api/memory/update' && request.method === 'POST') {
-        try {
-          const payload = await request.json() as {
-            source: 'auto' | 'manual';
-            sessionId?: string;
-            taskId?: string;
-            queueId?: string;
-          };
-          const isAuto = payload.source === 'auto';
-          const managementSessionId = payload.sessionId?.trim() ?? '';
-          const taskId = payload.taskId?.trim() ?? '';
-          const queueId = payload.queueId?.trim() ?? '';
-          if (isAuto && (!managementSessionId || !taskId || !queueId)) {
-            return jsonResponse(
-              { status: 'error', reason: 'Auto memory update requires sessionId, taskId, and queueId' },
-              400,
-            );
-          }
-
-          // (issue v0.2.15) Busy gate — refuse auto-injection when the
-          // session is actively working. The Rust-side `lastActiveAt` cooldown
-          // is only a disk-timestamp proxy and ages past its 15-min threshold
-          // during a single long turn, so this check is the authoritative one.
-          // Manual updates (user clicked the button) bypass — explicit user
-          // intent is allowed to queue behind the active turn as expected.
-          // Busy gate is runtime-aware: external (Codex/CC/Gemini) sessions track
-          // in-flight work via isExternalSessionActive(); builtin via isSessionBusy().
-          const engine = getSessionEngine();
-          if (isAuto && engine.isBusy()) {
-            console.log('[memory-update] Skipped: session busy (auto)');
-            return jsonResponse({ status: 'skipped', reason: 'session_busy' });
-          }
-
-          // Read UPDATE_MEMORY.md from workspace root
-          const updateMdPath = join(currentAgentDir, 'UPDATE_MEMORY.md');
-          let rawContent = '';
-          try {
-            rawContent = readFileSync(updateMdPath, 'utf-8');
-          } catch {
-            return jsonResponse({ status: 'skipped', reason: 'file_not_found' });
-          }
-
-          // Strip YAML frontmatter
-          const promptContent = stripYamlFrontmatter(rawContent);
-
-          // Build the hidden official-workflow prompt. Empty UPDATE_MEMORY.md
-          // body means there are no workspace-specific additions; it does not
-          // disable the versioned keystone-memory-update system skill.
-          const now = new Date().toLocaleString('en-US', {
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            year: 'numeric', month: '2-digit', day: '2-digit',
-            hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
-          });
-
-          const completionMarker = MEMORY_UPDATE_COMPLETION_MARKER;
-          const prompt = buildMemoryUpdateReminder({
-            workspaceMemoryInstructions: promptContent,
-            currentTime: now,
-          });
-
-          // Inject + run the <MEMORY_UPDATE> turn on the session's ACTUAL runtime.
-          // Memory update is unattended, so it always runs at the runtime's max agency
-          // (builtin 'fullAgency' / Codex 'no-restrictions' / CC 'bypassPermissions' /
-          // Gemini 'yolo') so Bash/file tools (git commit, file writes) don't block on
-          // approval.
-          //
-          // Routing is load-bearing: an external (Codex/CC/Gemini) session driven
-          // through the builtin SDK path asks Claude Code to *resume* a session it never
-          // created → "No conversation found with session ID" → 0 turns, no assistant
-          // output, leaving an orphaned <MEMORY_UPDATE> user bubble and the memory
-          // silently NOT updated. Runtime-specific injection now lives behind
-          // SessionEngine, matching heartbeat, chat/send, and cron routing.
-          //
-          // 60 min timeout — memory update is slow for large sessions (loading 100K+
-          // token context, reading log/topic files, writing updates, git commit+push).
-          const MEMORY_UPDATE_TIMEOUT_MS = 3600000;
-          const runtimeType = engine.kind === 'external' ? getActiveRuntimeType() : 'builtin';
-          const runtimeSessionId = getRuntimeSessionIdForRequest();
-          const taskDispatchGuard = isAuto
-            ? createTaskDispatchGuard(taskId, queueId, managementSessionId)
-            : undefined;
-          const turnResult = await engine.runInjectedTurn({
-            prompt,
-            sessionId: runtimeSessionId,
-            workspacePath: currentAgentDir,
-            scenario: { type: 'desktop' },
-            permissionMode: engine.kind === 'external'
-              ? getMaxPermissionForRuntime(runtimeType)
-              : 'fullAgency',
-            model: engine.kind === 'builtin' ? getSessionModel() ?? undefined : undefined,
-            providerEnv: engine.kind === 'builtin' ? getSessionProviderEnv() : undefined,
-            analyticsOrigin: { kind: 'automation', surface: 'memory_update' },
-            assistantChannelDelivery: 'none',
-            timeoutMs: MEMORY_UPDATE_TIMEOUT_MS,
-            pollMs: 1000,
-            beforeDispatch: taskDispatchGuard,
-            requiredSystemSkill: 'keystone-memory-update',
-            ...(isAuto ? {
-              queueId,
-              turnOwner: { kind: 'task' as const, id: taskId },
-            } : {}),
-          });
-          if (!turnResult.success && turnResult.status === 408) {
-            console.warn('[memory-update] AI memory update timed out (60 min)');
-            return jsonResponse({
-              status: 'timeout',
-              reason: turnResult.error ?? 'AI memory update timed out',
-              ...(turnResult.terminationUnconfirmed ? { terminationUnconfirmed: true } : {}),
-            });
-          }
-          if (!turnResult.success && !turnResult.enqueued) {
-            console.warn(`[memory-update] ${engine.kind} enqueue rejected: ${turnResult.error}`);
-            return jsonResponse({ status: 'error', reason: turnResult.error ?? `${engine.kind}_enqueue_failed` }, 500);
-          }
-          const turnOk = turnResult.success && turnResult.text?.trim() === completionMarker;
-
-          // Gate `completed` on the turn actually succeeding. Previously this reported
-          // success purely from waitForSessionIdle returning, so a turn that errored out
-          // (the cross-runtime resume failure above, or any SDK/API error) still logged
-          // false success — and Rust recorded "Session … updated successfully".
-          if (turnOk) {
-            console.log(`[memory-update] AI completed memory update (source=${payload.source}, runtime=${runtimeType})`);
-            return jsonResponse({ status: 'completed' });
-          }
-          const failureReason = turnResult.success
-            ? 'completion_marker_missing'
-            : 'turn_failed';
-          console.warn(`[memory-update] AI memory update turn failed (${failureReason})`);
-          return jsonResponse({
-            status: 'error',
-            reason: failureReason,
-            ...(turnResult.terminationUnconfirmed ? { terminationUnconfirmed: true } : {}),
-          });
-        } catch (error) {
-          console.error('[memory-update] Error:', error);
-          return jsonResponse(
-            { status: 'error', reason: error instanceof Error ? error.message : 'Unknown error' },
-            500,
-          );
-        }
+        // 求职产品不跑基座的工作区记忆巩固：它要 Write / Bash（产品已禁用），注定失败，
+        // 还会把隐藏轮插进用户的主对话。记忆由求职数据库的 memory 表承担（见 shared/careerMemoryPolicy.ts）。
+        return jsonResponse({ status: 'skipped', reason: 'replaced_by_career_memory' });
       }
 
       // POST /api/im/system-event — Receive system events (e.g. cron task completion) for heartbeat relay
