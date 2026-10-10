@@ -3669,7 +3669,8 @@ export default function TabProvider({
                 const payload = data as { sessionId?: string | null; surface?: string; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string } | null;
                 if (!payload || typeof payload.surface !== 'string') break;
                 if (!shouldAcceptInteractiveEvent(payload.sessionId)) break;
-                emitEvent('career:focus', payload);
+                // 来自小芽：只是提示「东西在哪」，不能把正在对话的用户带去别的页面
+                emitEvent('career:focus', { ...payload, origin: 'assistant' });
                 break;
             }
 

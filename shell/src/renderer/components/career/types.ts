@@ -250,7 +250,11 @@ export interface IntakeResult {
   focus: CareerFocusEvent; summary: string;
 }
 /** 工具 / 路由完成后让面板跳到对应对象。 */
-export interface CareerFocusEvent { sessionId?: string | null; surface: 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string }
+export interface CareerFocusEvent {
+  sessionId?: string | null; surface: 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
+  /** assistant = 小芽在对话里做完事推来的提示：只记下定位，不把用户从对话里带走。 */
+  origin?: 'user' | 'assistant';
+}
 /** 面板 → 对话：把一句带对象上下文的话真的发进对话。 */
 export interface CareerChatSuggestEvent { text: string; context?: { surface?: string; refs?: Record<string, string | null | undefined>; note?: string }; mode?: 'send' | 'prefill' }
 

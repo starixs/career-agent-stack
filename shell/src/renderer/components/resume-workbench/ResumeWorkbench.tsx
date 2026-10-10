@@ -134,7 +134,7 @@ function WorkbenchBody({ resumeId, onBack }: { resumeId: string; onBack?: () => 
       {/* 顶栏：返回 / 标题 / 内容·版式 / 撤销 / 缩放 / 导出 */}
       <div className="flex items-center gap-x-3 border-b border-[var(--line)] px-4 py-2">
         {back && <Button variant="ghost" size="sm" className="-ml-2" onClick={back}><ArrowLeft className="h-4 w-4" />全部简历</Button>}
-        {!compact && <span className="min-w-0 max-w-[260px] shrink truncate font-human text-base font-semibold text-[var(--ink)]" title={title}>{title}</span>}
+        {width >= 960 && <span className="min-w-0 max-w-[260px] shrink truncate font-human text-base font-semibold text-[var(--ink)]" title={title}>{title}</span>}
         <div role="tablist" aria-label="编辑内容或版式" className="inline-flex shrink-0 rounded-full border border-[var(--line-2)] p-0.5">
           {MODES.map(m => (
             <button key={m.id} type="button" role="tab" aria-selected={mode === m.id} onClick={() => setMode(m.id)}

@@ -523,6 +523,16 @@ function isCurrentSessionGoal(goal: SessionGoal | null | undefined): goal is Ses
   return Boolean(goal);
 }
 
+/**
+ * 侧栏打开时左边对话占的比例（0.35–0.65，与拖动范围一致）。
+ * 改简历的编辑页自身是左改右看的双栏，最需要宽度；浏览器现场次之；其余对半。
+ */
+export function defaultSplitRatio(viewKey: string): number {
+  if (viewKey === 'surface:resume') return 0.36;
+  if (viewKey === 'surface:browser') return 0.4;
+  return 0.5;
+}
+
 export default function Chat({ registerFileEditSubmitter, windowPresentation, onNewSession, onOpenSession, onOpenSessionInNewTab, initialMessage, onInitialMessageConsumed, sidecarConfigDisposition, onSidecarConfigAdopted, sessionTitle, onRenameSession, onForkSession, onLaunchRuntimeBackedProviderSession, pendingFilePreview, onFilePreviewIntentConsumed, sessionNotificationBadgeCounts, onOpenHistoryTag }: ChatProps) {
   // Get state from TabContext (required - Chat must be inside TabProvider)
   const {
@@ -810,6 +820,10 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
     return () => { cancelled = true; };
   }, [splitViewRequested, splitFile]);
   const [splitRatio, setSplitRatio] = useState(0.5); // 0-1, left panel fraction
+  // 每类侧栏内容的合适比例：一打开就直接到位，左边对话跟着让出宽度。
+  // 用户拖过的比例按内容类型记住，同一会话里再打开同类内容沿用。
+  const userSplitRatiosRef = useRef<Record<string, number>>({});
+  const splitViewKeyRef = useRef('file');
   const [isDraggingSplit, setIsDraggingSplit] = useState(false);
   const [isSplitWidthTransitioning, setIsSplitWidthTransitioning] = useState(false);
   const isDraggingSplitRef = useRef(false);
@@ -940,6 +954,13 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
     }
     return false;
   }, 0);
+
+  // 侧栏当前内容变了就换到它的比例（用户拖过的优先）。
+  const splitViewKey = splitActiveView === 'surface' && workSurfaces.expanded ? `surface:${workSurfaces.expanded}` : splitActiveView;
+  useEffect(() => {
+    splitViewKeyRef.current = splitViewKey;
+    setSplitRatio(userSplitRatiosRef.current[splitViewKey] ?? defaultSplitRatio(splitViewKey));
+  }, [splitViewKey]);
 
   // 打开一个工作面（工具卡「打开」、助理推送）就切到它那一页；打开文件时切回文件页由 handleSplitFilePreview 负责。
   useEffect(() => {
@@ -1189,6 +1210,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
     const onMouseUp = () => {
       isDraggingSplitRef.current = false;
       setIsDraggingSplit(false);
+      userSplitRatiosRef.current[splitViewKeyRef.current] = splitRatioRef.current;
       dragMoveRef.current = null;
       dragUpRef.current = null;
       document.removeEventListener('mousemove', onMouseMove);

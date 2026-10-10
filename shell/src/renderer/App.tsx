@@ -3292,6 +3292,8 @@ export default function App() {
     if (!kind) return;
     // 面还没挂载时会错过这个事件：先存下来，挂载后取走定位
     stashCareerFocus(payload);
+    // 小芽做完事推来的聚焦不跳页：用户正专注在对话里，自己点进去时再定位到那一条
+    if (payload?.origin === 'assistant') return;
     handleOpenCareerPage(kind);
   }), [handleOpenCareerPage]);
 
