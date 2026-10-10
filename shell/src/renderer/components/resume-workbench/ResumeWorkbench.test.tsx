@@ -12,7 +12,7 @@ import { apiGetJson, apiPutJson } from '@/api/apiFetch';
 import { buildRich, parseRich, BulletsEditor } from './BulletsEditor';
 import CareerResume from '@/pages/CareerResume';
 
-import { ResumeWorkbench } from './ResumeWorkbench';
+import { fitPageZoom, ResumeWorkbench } from './ResumeWorkbench';
 
 function doc(): ResumeData {
   const d = structuredClone(defaultResumeData);
@@ -112,5 +112,13 @@ describe('简历工作台', () => {
     expect(await screen.findByTestId('resume-workbench')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '全部简历' }));
     expect(await screen.findByTestId('resume-gallery')).toBeInTheDocument();
+  });
+
+  it('默认缩放让一整页 A4 完整可见：高度不够时按高度缩', () => {
+    // 笔记本上预览区大约 1000 × 760：按宽度会是 160%，按高度只有 84%，取能放下整页的那个
+    const z = fitPageZoom(1000, 760);
+    expect(842 * z).toBeLessThanOrEqual(760 - 48);
+    expect(595 * z).toBeLessThanOrEqual(1000 - 48);
+    expect(fitPageZoom(0, 0)).toBe(0.9);
   });
 });

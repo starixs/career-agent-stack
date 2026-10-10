@@ -16,7 +16,7 @@ export default function CareerResume({ embedded = false, initialResumeId = null 
 } = {}) {
   const [openId, setOpenId] = useState<string | null>(initialResumeId);
   return (
-    <div className={embedded ? 'h-[calc(100vh-7rem)] min-h-[560px]' : 'h-full'}>
+    <div className={embedded ? 'h-full min-h-[560px]' : 'h-full'}>
       {openId
         ? <ResumeWorkbench resumeId={openId} onBack={() => setOpenId(null)} />
         : <ResumeGallery onOpen={setOpenId} />}

@@ -64,7 +64,8 @@ export default function CareerMaterial({ embedded = false }: CareerPageProps) {
 
   return (
     <CareerPage
-      embedded={embedded}
+      // 简历自带汇总标题和编辑顶栏，再加页头只会挤掉预览的高度。
+      embedded={embedded || effectiveView === 'resume'}
       title={VIEW_HEADINGS[effectiveView].title}
       subtitle={VIEW_HEADINGS[effectiveView].subtitle}
     >
