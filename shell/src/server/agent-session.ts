@@ -10520,6 +10520,17 @@ export function retryBuiltinUserMessage(
   });
 }
 
+/** True only when the native chain was read and the anchor is not on it (e.g. compacted away). */
+async function isRewindAnchorOffNativeChain(sdkSessionId: string, anchorUuid: string, dir: string): Promise<boolean> {
+  try {
+    const chain = await sdkGetSessionMessages(sdkSessionId, { dir });
+    return chain.length > 0 && !chain.some(m => m.uuid === anchorUuid);
+  } catch (e) {
+    console.warn(`[agent] rewind anchor probe failed, leaving the decision to native resume: ${e instanceof Error ? e.message : String(e)}`);
+    return false;
+  }
+}
+
 /** Rewind native history and product history while retaining workspace checkpoints. */
 export async function rewindSession(userMessageId: string): Promise<{
   success: boolean;
@@ -10548,6 +10559,16 @@ export async function rewindSession(userMessageId: string): Promise<{
 
     const sourceMeta = getSessionMetadata(productSessionId);
     const sourceSdkSessionId = sourceMeta ? resolveBuiltinSdkSessionId(sourceMeta) ?? null : null;
+    // Compaction re-roots the native chain at its compact_boundary; product
+    // history still shows (and offers rewind on) the messages before it. A
+    // pre-compact anchor is never resumable, and native resume keeps the
+    // boundary for retry, so committing it would brick the session in a
+    // "No message found with message.uuid" loop. Refuse before anything is
+    // aborted or truncated. A failed probe keeps the old behavior.
+    if (resumeSessionAt && sourceSdkSessionId && sourceMeta?.agentDir
+      && await isRewindAnchorOffNativeChain(sourceSdkSessionId, resumeSessionAt, sourceMeta.agentDir)) {
+      return { success: false as const, error: '这条消息在上下文压缩之前，压缩后无法再回退到这里；直接发新消息继续即可' };
+    }
     const targetUserUuid = targetMessage.sdkUuid;
     const sourceFailure = await prepareSessionTranscriptMutation(productSessionId);
     if (sourceFailure) throw new Error(`${sourceFailure.reason}: ${sourceFailure.error}`);

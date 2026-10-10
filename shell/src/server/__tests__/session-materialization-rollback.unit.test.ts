@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sdkMocks = vi.hoisted(() => ({
   query: vi.fn(),
+  getSessionMessages: vi.fn(),
   dispatchedPrompts: [] as unknown[],
 }));
 
@@ -10,6 +11,8 @@ vi.mock('@anthropic-ai/claude-agent-sdk', async (importOriginal) => {
   return {
     ...actual,
     query: (...args: Parameters<typeof actual.query>) => sdkMocks.query(...args),
+    getSessionMessages: (...args: Parameters<typeof actual.getSessionMessages>) =>
+      (sdkMocks.getSessionMessages.getMockImplementation() ? sdkMocks.getSessionMessages(...args) : actual.getSessionMessages(...args)),
   };
 });
 
@@ -649,6 +652,45 @@ describe('materializePendingDesktopSession rollback guard', () => {
     });
     expect(sdkMocks.query.mock.calls[0]?.[0]?.options).not.toHaveProperty('resume');
     expect(await waitForSessionIdle(2_000, 10)).toBe(true);
+  });
+
+  it('refuses to rewind onto an anchor that compaction removed from the native chain', async () => {
+    const productSessionId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const metadata: SessionMetadata = {
+      id: productSessionId,
+      runtime: 'builtin',
+      sdkSessionId: 'efefefef-efef-4efe-8efe-efefefefefef',
+      unifiedSession: false,
+      agentDir: '/tmp/workspace',
+      title: 'Compacted Session',
+      createdAt: '2026-10-10T00:00:00.000Z',
+      lastActiveAt: '2026-10-10T00:00:00.000Z',
+    };
+    mockedGetSessionMetadata.mockImplementation(id => id === productSessionId ? metadata : null);
+    await initializeAgent('/tmp/workspace', null, productSessionId, { preWarmDisabled: true });
+    setQuerySession(null);
+    loadTranscriptFromSessionMessages([
+      { id: 'user-0', role: 'user', content: 'apply to meituan', timestamp: '2026-10-10T08:36:00.000Z', sdkUuid: 'pre-compact-user' },
+      { id: 'assistant-0', role: 'assistant', content: 'old answer', timestamp: '2026-10-10T08:37:06.000Z', sdkUuid: 'pre-compact-assistant' },
+      { id: 'user-1', role: 'user', content: 'basic info filled, continue', timestamp: '2026-10-10T11:31:01.000Z', sdkUuid: 'pre-compact-user-2' },
+    ], { persistedMessageCount: 3 } as TranscriptWriteCursor);
+    vi.clearAllMocks();
+    mockedGetSessionMetadata.mockImplementation(id => id === productSessionId ? metadata : null);
+    // After /compact the native chain starts at the compact boundary.
+    sdkMocks.getSessionMessages.mockImplementation(async () => [
+      { type: 'user', uuid: 'compact-summary', session_id: metadata.sdkSessionId, message: {}, parent_tool_use_id: null },
+    ]);
+    try {
+      await expect(rewindSession('user-1')).resolves.toMatchObject({
+        success: false,
+        error: expect.stringContaining('上下文压缩之前'),
+      });
+      expect(sdkMocks.getSessionMessages).toHaveBeenCalledWith(metadata.sdkSessionId, { dir: '/tmp/workspace' });
+      expect(mockedCommitBuiltinConversationRewind).not.toHaveBeenCalled();
+      expect(mockedUpdateSessionMetadata).not.toHaveBeenCalledWith(productSessionId, expect.objectContaining({ sdkResumeSessionAt: expect.anything() }), expect.anything());
+    } finally {
+      sdkMocks.getSessionMessages.mockReset();
+    }
   });
 
   it('fails closed before send when a builtin rewind intent cannot recover (#541)', async () => {
