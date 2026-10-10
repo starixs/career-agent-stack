@@ -15,23 +15,43 @@ export async function activePage(context: BrowserContext): Promise<Page> {
   return live ?? context.newPage();
 }
 
-async function activateMacApp(channel: BrowserChannel): Promise<void> {
-  const bundleId = channel === 'chrome' ? 'com.google.Chrome' : 'org.chromium.Chromium';
-  await new Promise<void>((resolve, reject) => {
-    execFile(
-      'osascript',
-      ['-e', `tell application id "${bundleId}" to activate`],
-      { timeout: MAC_ACTIVATE_TIMEOUT_MS },
-      error => (error ? reject(error) : resolve()),
-    );
-  });
+const run = (cmd: string, args: string[]) => new Promise<string>((resolve, reject) => {
+  execFile(cmd, args, { timeout: MAC_ACTIVATE_TIMEOUT_MS, maxBuffer: 8 * 1024 * 1024 }, (error, stdout) => (error ? reject(error) : resolve(stdout)));
+});
+
+/** 从进程表里挑出托管 Chrome 的主进程：带这个 profile 目录、且不是 --type= 的子进程。纯函数便于测试。 */
+export function findBrowserMainPid(psOutput: string, profileDir: string): number | null {
+  const marker = `--user-data-dir=${profileDir}`;
+  for (const line of psOutput.split('\n')) {
+    const m = /^\s*(\d+)\s+(.*)$/.exec(line);
+    if (!m) continue;
+    const command = m[2];
+    if (!command.includes(marker) || command.includes(' --type=')) continue;
+    if (!new RegExp(`${marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`).test(command)) continue;
+    return Number(m[1]);
+  }
+  return null;
+}
+
+/**
+ * 激活托管 Chrome：按进程号，而不是按应用 ID。按 `com.google.Chrome` 激活会把用户自己正在用的 Chrome 拉到前台，
+ * 输入也可能落进用户的窗口——托管浏览器和用户的浏览器是同一个应用、不同进程，只能按进程区分。
+ * 找不到进程就不激活（宁可不前置，也不碰错进程）。
+ */
+async function activateManagedBrowser(_channel: BrowserChannel, profileDir?: string): Promise<void> {
+  if (!profileDir) throw new Error('profile directory unknown; refusing to activate by bundle id');
+  const pid = findBrowserMainPid(await run('ps', ['-axo', 'pid=,command=']), profileDir);
+  if (!pid) throw new Error('managed browser process not found');
+  await run('osascript', ['-e', `tell application "System Events" to set frontmost of (first process whose unix id is ${pid}) to true`]);
 }
 
 export interface BringToFrontOptions {
   channel?: BrowserChannel;
   platform?: NodeJS.Platform;
+  /** 托管 Chrome 的 profile 目录：按它找到进程号再激活。 */
+  profileDir?: string | null;
   /** 可替换的 OS 级激活（测试注入）。 */
-  activateApp?: (channel: BrowserChannel) => Promise<void>;
+  activateApp?: (channel: BrowserChannel, profileDir?: string) => Promise<void>;
   /**
    * 内嵌窗口模式：用户在产品内的现场画面里操作，不能把真实 Chrome 拉到前面打断心流。
    * 只返回当前页，不切前台、不恢复窗口、不激活应用。
@@ -175,7 +195,7 @@ export async function bringToFront(
   }
   if ((options.platform ?? process.platform) === 'darwin') {
     try {
-      await (options.activateApp ?? activateMacApp)(options.channel ?? 'chrome');
+      await (options.activateApp ?? activateManagedBrowser)(options.channel ?? 'chrome', options.profileDir ?? undefined);
     } catch (error) {
       console.warn(`[browser-host] bring-to-front=activate-failed error=${error instanceof Error ? error.message : 'unknown'}`);
     }

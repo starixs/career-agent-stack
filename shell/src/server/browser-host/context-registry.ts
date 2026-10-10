@@ -27,6 +27,12 @@ import { waitForBrowserResource, type BrowserResourceResolution } from './resour
 
 /** 页面弹出系统选文件框时的回调（内嵌模式下原生框挂在看不见的窗口上，改由产品内选文件）。 */
 export type FileChooserListener = (productSessionId: string, chooser: FileChooser) => void;
+/**
+ * 托管窗口事件（内嵌模式、窗口没被用户放出来时）：Chrome 启动 / 开新页时 macOS 会把它激活、抢走产品窗口的焦点，
+ * 宿主据此通知渲染层把焦点拿回来（渲染层自己的窗口 setFocus 不受跨进程激活限制）。
+ */
+export type BrowserWindowEvent = 'page';
+export type BrowserWindowListener = (productSessionId: string, event: BrowserWindowEvent) => void;
 
 type BrowserCookie = Parameters<BrowserContext['addCookies']>[0][number];
 
@@ -70,6 +76,8 @@ interface ContextEntry {
   checkpointTimer: ReturnType<typeof setTimeout> | null;
   closePromise: Promise<void> | null;
   finalizePromise: Promise<void> | null;
+  /** 持久 profile 目录；用来按进程号找到这个托管 Chrome（绝不按应用 ID 激活，那会碰到用户自己的 Chrome）。 */
+  userDataDir: string | null;
 }
 
 /**
@@ -300,6 +308,16 @@ export class BrowserContextRegistry {
    */
   setFileChooserListener(listener: FileChooserListener | null): void {
     this.fileChooserListener = listener;
+  }
+
+  private windowListener: BrowserWindowListener | null = null;
+  setWindowListener(listener: BrowserWindowListener | null): void {
+    this.windowListener = listener;
+  }
+
+  /** 这个会话托管 Chrome 的 profile 目录（隔离模式为 null）。 */
+  profileDirFor(productSessionId: string): string | null {
+    return this.entries.get(productSessionId)?.userDataDir ?? null;
   }
 
   isWindowRevealed(productSessionId: string): boolean {
@@ -658,6 +676,7 @@ export class BrowserContextRegistry {
       checkpointTimer: null,
       closePromise: null,
       finalizePromise: null,
+      userDataDir: compiled.userDataDir,
     };
     this.entries.set(binding.productSessionId, entry);
     // Selection/order live through MCP disconnect and reattach grace, so their
@@ -668,9 +687,11 @@ export class BrowserContextRegistry {
     };
     const observePage = (page: Page) => {
       if (embedded) {
+        const parked = !this.revealedWindows.has(binding.productSessionId);
         const viewport = this.liveViewports.get(binding.productSessionId);
-        if (viewport) void fitPageViewport(context, page, viewport, { park: !this.revealedWindows.has(binding.productSessionId) });
-        else if (!this.revealedWindows.has(binding.productSessionId)) void parkWindow(context, page);
+        if (viewport) void fitPageViewport(context, page, viewport, { park: parked });
+        else if (parked) void parkWindow(context, page);
+        if (parked) this.windowListener?.(binding.productSessionId, 'page');
         page.on('filechooser', onFileChooser);
       }
       page.once('close', () => {

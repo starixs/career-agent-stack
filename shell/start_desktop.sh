@@ -15,8 +15,15 @@ export CAREER_LLM_MODEL="${CAREER_LLM_MODEL:-deepseek-flash}"
 export SHARP_IGNORE_GLOBAL_LIBVIPS=1
 # 清理残留进程：浏览器模式的侧车/Vite，以及上一次桌面 App 被强杀后遗留的会话侧车
 # （侧车是 App 的子进程，App 被 kill -9 时不会跟着退出；旧侧车会继续用旧代码服务，改动看起来"不生效"）。
+# 侧车收到 SIGTERM 会先正常关掉托管 Chrome；不等它退完就继续，Chrome 会被连带强杀，
+# profile 记成"崩溃"，下次启动弹"Chrome 未正确关闭"。所以先发 SIGTERM，最多等 10 秒，还在的才强杀。
 pkill -f "node.*src/server/index.ts" 2>/dev/null || true
 pkill -f "node.*server-dist.js" 2>/dev/null || true
+for _ in $(seq 1 20); do
+  pgrep -f "node.*(src/server/index.ts|server-dist.js)" >/dev/null 2>&1 || break
+  sleep 0.5
+done
+pkill -9 -f "node.*(src/server/index.ts|server-dist.js)" 2>/dev/null || true
 pkill -f "node_modules/.bin/vite" 2>/dev/null || true
 pkill -x keystone 2>/dev/null || true
 sleep 1

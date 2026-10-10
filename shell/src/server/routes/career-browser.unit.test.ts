@@ -104,7 +104,7 @@ describe('career browser route: auth and control', () => {
     );
     expect(response?.status).toBe(200);
     await expect(response!.json()).resolves.toMatchObject({ ok: true, control: 'human', reason: '验证码' });
-    expect(bringToFront).toHaveBeenCalledWith(context, 'chrome');
+    expect(bringToFront).toHaveBeenCalledWith(context, 'chrome', null);
     expect(host.setControl).toHaveBeenCalledWith('session-a', 'human', '验证码');
     expect(vi.mocked(host.withContext).mock.calls[0]?.[2]).toMatchObject({ allowHumanControl: true });
     // Window focus failures must not block the takeover.

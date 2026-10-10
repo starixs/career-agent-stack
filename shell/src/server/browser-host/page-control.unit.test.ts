@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BrowserContext, Page } from 'playwright';
 
-import { activePage, bringToFront, fitPageViewport, parkedBoundsFor, parkWindow, PARKED_WINDOW_BOUNDS, restoreIfMinimized, viewportForFrame } from './page-control';
+import { activePage, bringToFront, findBrowserMainPid, fitPageViewport, parkedBoundsFor, parkWindow, PARKED_WINDOW_BOUNDS, restoreIfMinimized, viewportForFrame } from './page-control';
 
 function fakePage(closed = false): Page {
   return {
@@ -37,13 +37,24 @@ describe('bringToFront', () => {
     } as unknown as BrowserContext;
     const activateApp = vi.fn(async () => {});
 
-    await bringToFront(context, { channel: 'chrome', platform: 'darwin', activateApp });
+    await bringToFront(context, { channel: 'chrome', platform: 'darwin', activateApp, profileDir: '/p/ae7e' });
 
     expect(page.bringToFront).toHaveBeenCalledOnce();
     expect(send).toHaveBeenCalledWith('Browser.getWindowForTarget');
     expect(send).toHaveBeenCalledWith('Browser.setWindowBounds', { windowId: 7, bounds: { windowState: 'normal' } });
     expect(detach).toHaveBeenCalledOnce();
-    expect(activateApp).toHaveBeenCalledWith('chrome');
+    expect(activateApp).toHaveBeenCalledWith('chrome', '/p/ae7e');
+  });
+
+  it('findBrowserMainPid：只认带这个 profile 的托管 Chrome 主进程，不认子进程、不认用户自己的 Chrome', () => {
+    const ps = [
+      '  101 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '  202 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --no-first-run --user-data-dir=/Users/x/.keystone/browser-profile/ae7e --remote-debugging-pipe',
+      '  203 /Applications/Google Chrome.app/.../Google Chrome Helper --type=renderer --user-data-dir=/Users/x/.keystone/browser-profile/ae7e',
+      '  303 /Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir=/Users/x/.keystone/browser-profile/ae7e-other',
+    ].join('\n');
+    expect(findBrowserMainPid(ps, '/Users/x/.keystone/browser-profile/ae7e')).toBe(202);
+    expect(findBrowserMainPid(ps, '/Users/x/.keystone/browser-profile/nope')).toBeNull();
   });
 
   it('only logs when CDP or the OS activation fail, and skips osascript off macOS', async () => {

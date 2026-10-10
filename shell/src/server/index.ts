@@ -1915,6 +1915,9 @@ async function main() {
         try {
           const { fileChooserBroker } = await import('./career/batch-service');
           host.setFileChooserListener((productSessionId, chooser) => { void fileChooserBroker.offer(productSessionId, chooser).catch(() => {}); });
+          // 焦点守卫：托管 Chrome 开新页时 macOS 会激活它、抢走产品窗口焦点；告诉渲染层把焦点拿回来
+          const { liveHub } = await import('./career/batch-service');
+          host.setWindowListener((productSessionId, event) => { liveHub.publish('career:browser-window', { sessionId: productSessionId, event, at: Date.now() }); });
         } catch (error) {
           console.warn(`[career-live] file-chooser=wire-failed error=${error instanceof Error ? error.message : String(error)}`);
         }

@@ -14,6 +14,7 @@ import {
   type BrowserControl,
   type BrowserControlState,
   type FileChooserListener,
+  type BrowserWindowListener,
 } from './context-registry';
 import { revealWindow, viewportForFrame } from './page-control';
 import { verifyBrowserCapability, type VerifiedBrowserCapability } from './capability-client';
@@ -289,6 +290,15 @@ export class PlaywrightBrowserHost {
     return this.dependencies.registry.isWindowRevealed(productSessionId);
   }
 
+  profileDirFor(productSessionId: string): string | null {
+    return this.dependencies.registry.profileDirFor(productSessionId);
+  }
+
+  /** 托管窗口事件（开新页时会抢焦点）：交给 Global 广播给渲染层还焦点。 */
+  setWindowListener(listener: BrowserWindowListener | null): void {
+    this.dependencies.registry.setWindowListener(listener);
+  }
+
   setFileChooserListener(listener: FileChooserListener | null): void {
     this.dependencies.registry.setFileChooserListener(listener);
   }
@@ -312,7 +322,7 @@ export class PlaywrightBrowserHost {
     const registry = this.dependencies.registry;
     if (visible) {
       await registry.setWindowRevealed(productSessionId, true);
-      await this.withProductSession(productSessionId, context => revealWindow(context, { channel: this.browserChannel() }), { allowHumanControl: true });
+      await this.withProductSession(productSessionId, context => revealWindow(context, { channel: this.browserChannel(), profileDir: registry.profileDirFor(productSessionId) }), { allowHumanControl: true });
       return { revealed: true };
     }
     await registry.setWindowRevealed(productSessionId, false);

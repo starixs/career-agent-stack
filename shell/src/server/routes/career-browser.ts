@@ -34,6 +34,8 @@ export interface CareerBrowserHost {
   /** 内嵌窗口模式：接管时不前置真实 Chrome（用户在产品画面里操作）。 */
   embeddedWindow?(): boolean;
   isWindowRevealed?(productSessionId: string): boolean;
+  /** 托管 Chrome 的 profile 目录：前置时按它找进程号，不按应用 ID（会碰到用户自己的 Chrome）。 */
+  profileDirFor?(productSessionId: string): string | null;
   /** 让现场画面 / 输入转发切到这一页（多份网申各有页面时）。 */
   focusPage?(productSessionId: string, page: Page): void;
 }
@@ -86,7 +88,7 @@ export interface LlmLike {
 
 export interface CareerBrowserRouteDependencies {
   host: CareerBrowserHost;
-  bringToFront?: (context: BrowserContext, channel: BrowserChannel) => Promise<unknown>;
+  bringToFront?: (context: BrowserContext, channel: BrowserChannel, profileDir?: string | null) => Promise<unknown>;
   loadApply?: () => Promise<ApplyEngineModule | null>;
   /** `drive` 需要模型。由后端组合层通过 {@link registerCareerBrowserLlmResolver} 接入。 */
   resolveLlm?: () => Promise<LlmLike | null>;
@@ -687,7 +689,7 @@ export async function handleCareerBrowserRoute(
         const embedded = (host.embeddedWindow?.() ?? false) && !(host.isWindowRevealed?.(binding.productSessionId) ?? false);
         if (!embedded) {
           try {
-            await (deps.bringToFront ?? ((ctx, channel) => bringContextToFront(ctx, { channel })))(context, host.browserChannel());
+            await (deps.bringToFront ?? ((ctx, channel, profileDir) => bringContextToFront(ctx, { channel, profileDir })))(context, host.browserChannel(), host.profileDirFor?.(binding.productSessionId) ?? null);
           } catch (error) {
             console.warn(`[career-browser] bring-to-front=failed error=${errorName(error) || 'unknown'}`);
           }
