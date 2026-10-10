@@ -171,6 +171,20 @@ export async function resumeBatchIfRunning(): Promise<void> {
   startAnswerSync();
   try { (await getSubmitExecutor()).start(); } catch (error) { console.warn('[career] 提交执行器启动失败：', error instanceof Error ? error.message : error); }
   try { (await getBatchRunner()).resumeIfRunning(); } catch (error) { console.warn('[career] 批量运行器恢复失败：', error instanceof Error ? error.message : error); }
+  startBatchCommandPoll();
+}
+
+/**
+ * 批量命令轮询：命令写在 kv（对话审批卡片 / apply_batch 工具都在 Session 进程，只能写 kv），
+ * 运行器自己的循环只在跑的时候读命令；空闲时由这里读，否则"批准即填写"永远没人接。
+ */
+let commandTimer: ReturnType<typeof setInterval> | null = null;
+export function startBatchCommandPoll(intervalMs = 2000): void {
+  if (commandTimer) return;
+  commandTimer = setInterval(() => {
+    void getBatchRunner().then(runner => { runner.pollCommand(); }).catch(() => { /* 下一轮再试 */ });
+  }, intervalMs);
+  commandTimer.unref?.();
 }
 
 /**

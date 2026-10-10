@@ -833,7 +833,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       })()),
 
       // ---------- 投递 ----------
-      tool('apply_prepare', '为岗位创建投递记录，把要投的简历冻结成材料包（简历快照 + PDF + JD 原文），并把 fill_form 动作入待审队列；用户批准后再用 apply_run 执行。不传 resume_id 时：用这个岗位的定制简历，没有就用唯一一份主简历；有多份主简历时会报错，请先让用户选。', {
+      tool('apply_prepare', '为岗位创建投递记录，把要投的简历冻结成材料包（简历快照 + PDF + JD 原文），并把 fill_form 动作入待审队列；用户在卡片上批准后，产品后台会自动打开网申页面填写（不需要再调 apply_run）。不传 resume_id 时：用这个岗位的定制简历，没有就用唯一一份主简历；有多份主简历时会报错，请先让用户选。', {
         job_id: z.string(), resume_id: z.string().optional().describe('要投的简历 id（主简历或定制简历）'),
       }, async (args) => wrap(async () => {
         const job = requireJob(args.job_id);
@@ -847,7 +847,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const action = r.enqueueAction('fill_form', { job_id: job.id, resume_id: picked?.id ?? null, packet_id: packet.id, application_id: application.id, url: job.url }, application.id);
         changed('application', 'action_queue');
         review([action.id], 'fill_form', `为「${job.company_name ?? ''} ${job.title}」填写网申表单${picked ? `（简历：${picked.reason}）` : '（没有简历附件）'}`);
-        return text({ application, action, packet: { id: packet.id, resume_id: packet.resume_id, resume_kind: packet.resume_kind, resume_pick_reason: picked?.reason ?? null, has_pdf: !!packet.resume_pdf_path }, ...(warning ? { warning } : {}), note: '动作已进入待审核队列；批准的是这份材料包（之后再改简历不影响这次投递）。用户批准后调用 apply_run(action_id)。' });
+        return text({ application, action, packet: { id: packet.id, resume_id: packet.resume_id, resume_kind: packet.resume_kind, resume_pick_reason: picked?.reason ?? null, has_pdf: !!packet.resume_pdf_path }, ...(warning ? { warning } : {}), note: '动作已进入待审核队列，对话里有批准卡片；批准的是这份材料包（之后再改简历不影响这次投递）。用户批准后产品后台会立刻打开网申页面填写，进度显示在对话里的浏览器卡片上；遇到登录 / 验证码会在对话里请用户接管，填好后会弹出提交审核卡片。不需要你再调用 apply_run。' });
       })()),
 
       tool('jobs_board', '岗位汇总表（校招 / 实习网申汇总 + 我的进度 + 可解释匹配）。按条件筛选、按匹配分排序；每条带"哪条要求对应用户哪段经历"。推荐时只推荐 fits=true 的（不违反用户明确条件）。', {
@@ -912,7 +912,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ results, queued: queued.length });
       })()),
 
-      tool('apply_run', '在托管浏览器上执行已批准的填表动作（不提交）；遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
+      tool('apply_run', '在托管浏览器上执行已批准的填表动作（不提交）。通常不需要：用户批准后产品后台会自动执行；只在动作仍停在 approved（后台没接走）时用；遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
         const action = repos().getAction(args.action_id);
         if (!action) return err(`动作不存在：${args.action_id}`);
         if (action.status !== 'approved') return err(`动作状态为 ${action.status}，只能执行已批准（approved）的动作${action.status === 'needs_user' || action.status === 'executing' ? '；要从接管处继续请用 apply_continue' : ''}`);

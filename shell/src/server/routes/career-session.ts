@@ -2,12 +2,14 @@
  * Session 路由 `/api/career-session/*`（docs/API.md）：依赖当前对话会话。
  *
  * - review：对话内审核卡片回传，内部同 Global review，然后 broadcast `career:data-changed`。
+ *   批准即执行：fill_form 交给 Global 的批量运行器（写 kv 命令），submit 由提交执行器轮询接走。
  * - takeover：用户在对话里点"我来接管 / 交还"；更新 run 状态机（内存）并通过
  *   Global 的 `/api/career/browser/control` 切换浏览器控制权（url/token 来自 Browser capability）。
  */
 import type { Repos } from '@career/core';
 
 import { acquireBrowserCapability } from '../browser-host/capability-client';
+import { BatchRunner } from '../career/batch-runner';
 import { getRepos } from '../career/db';
 import { resetPageTrust } from '../career/submit-policy';
 import { getRunRegistry, type RunRegistry } from '../career/runs';
@@ -63,12 +65,17 @@ export async function handleCareerSessionRoute(pathname: string, request: Reques
     if (!ids.length) return fail('actionIds 不能为空');
     if (decision !== 'approved' && decision !== 'rejected') return fail("decision 必须是 'approved' | 'rejected'");
     const repos = deps.repos ?? await getRepos();
-    const rejectedSubmits = decision === 'rejected' ? ids.map(id => repos.getAction(id)).filter(a => a?.kind === 'submit' && a.status === 'pending_review') : [];
+    const reviewed = ids.map(id => repos.getAction(id)).filter((a): a is NonNullable<typeof a> => !!a && a.status === 'pending_review');
     const n = repos.reviewActions(ids, decision, 'user');
     // 拒绝提交：这张表的自学习计数清零（批准的提交由 Global 的提交执行器在几秒内执行）
-    for (const a of rejectedSubmits) { try { const p = JSON.parse(a!.payload_json) as { formSignature?: string }; resetPageTrust(repos, p.formSignature); } catch { /* ignore */ } }
+    if (decision === 'rejected') {
+      for (const a of reviewed.filter(x => x.kind === 'submit')) { try { const p = JSON.parse(a.payload_json) as { formSignature?: string }; resetPageTrust(repos, p.formSignature); } catch { /* ignore */ } }
+    }
+    // 批准填表：模型这一轮早已结束，不能等它再调 apply_run；交给后台运行器立刻开始填
+    const filling = decision === 'approved' ? reviewed.filter(a => a.kind === 'fill_form').map(a => a.id) : [];
+    if (filling.length) BatchRunner.command(repos, 'start', 'approval');
     broadcast('career:data-changed', { sessionId: sessionId(), tables: ['action_queue'] });
-    return ok({ n });
+    return ok({ n, filling });
   }
 
   if (pathname === '/api/career-session/takeover') {

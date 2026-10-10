@@ -31,6 +31,7 @@ import { loadSkillPrompt } from '../career/skills';
 import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
 import { confirmSubmitResult } from '../career/submit-executor';
+import { BatchRunner } from '../career/batch-runner';
 import { computeMatches, getJobPrefs, jobBoard, prepareJobs, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
@@ -437,10 +438,13 @@ const ROUTES: Route[] = [
         if (a.application_id) void releasePage(a.application_id);
       }
     }
-    // 批准即执行：发送投递邮件；提交交给提交执行器（立即踢一轮，不等轮询）
+    // 批准即执行：发送投递邮件；提交交给提交执行器（立即踢一轮，不等轮询）；填表交给批量运行器
     const sent = decision === 'approved' ? await executeApprovedSendMails(intakeDeps(ctx), ids) : [];
     if (decision === 'approved' && submits.length) void kickSubmit();
-    return ok({ n, sent, submitting: decision === 'approved' ? submits.map(a => a.id) : [] });
+    // 批准填表同样即执行：交给后台批量运行器（命令轮询几秒内接走）
+    const filling = decision === 'approved' ? actions.filter(a => a.kind === 'fill_form').map(a => a.id) : [];
+    if (filling.length) BatchRunner.command(ctx.repos, 'start', 'approval');
+    return ok({ n, sent, submitting: decision === 'approved' ? submits.map(a => a.id) : [], filling });
   }),
 
   route('POST', '/api/career/actions/:id/confirm-submit', (ctx) => {

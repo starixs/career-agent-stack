@@ -5486,6 +5486,27 @@ export default function TabProvider({
         return () => { cancelled = true; };
     }, [currentSessionId]);
 
+    // Global 后台（批量填表 / 提交执行器）推来的审核与接管：经 CareerLiveBridge 转到 eventBus（带 type 字段），
+    // 不走本会话 SSE。批准填表后的"填好了，审核提交"和"需要你登录"都从这里进对话。
+    // 本 Provider 自己转发 SSE 时也会 emit 同名事件（不带 type），据此跳过，避免自己收自己。
+    useEffect(() => {
+        const offReview = onEvent<CareerReviewEvent & { type?: string }>('career:review', payload => {
+            if (payload?.type !== 'career:review' || !Array.isArray(payload.actionIds) || payload.actionIds.length === 0) return;
+            if (!shouldAcceptInteractiveEvent(payload.sessionId)) return;
+            const { type: _type, ...review } = payload;
+            setPendingCareerReview(review);
+            if (!isActiveRef.current || shouldNotifyUser()) onUnreadChangeRef.current?.(true);
+        });
+        const offTakeover = onEvent<CareerTakeoverEvent & { type?: string }>('career:takeover', payload => {
+            if (payload?.type !== 'career:takeover' || !payload.runId) return;
+            if (!shouldAcceptInteractiveEvent(payload.sessionId)) return;
+            const { type: _type, ...takeover } = payload;
+            setCareerTakeover(takeover);
+            if (takeover.state === 'paused' && (!isActiveRef.current || shouldNotifyUser())) onUnreadChangeRef.current?.(true);
+        });
+        return () => { offReview(); offTakeover(); };
+    }, [shouldAcceptInteractiveEvent]);
+
     // 其他页面（岗位与投递的浏览器状态条）通过 eventBus 把接管动作交给当前会话的 Chat Tab 执行。
     const careerTakeoverRunId = careerTakeover?.runId ?? null;
     useEffect(() => {
