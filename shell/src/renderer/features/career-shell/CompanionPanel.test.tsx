@@ -18,8 +18,10 @@ vi.mock('@/components/career/careerApi', () => ({
 vi.mock('@/config/useConfigData', () => ({ useConfigData: () => ({ config: { floatingBallPetId: null } }) }));
 vi.mock('@/floating-ball/petPackLibrary', () => ({ resolveSelectedPetPack: async () => (await import('@/floating-ball/defaultPetPack')).MINO_DEFAULT_PET_PACK }));
 
-import { CompanionPanel, deadlineLabel } from './CompanionPanel';
-import { emitEvent } from '@/api/eventBus';
+import { CompanionPanel, deadlineLabel, openTodoItem } from './CompanionPanel';
+import { CAREER_NAVIGATE_EVENT } from './navModel';
+import { stashCareerFocus, takeCareerFocus } from './pendingFocus';
+import { emitEvent, onEvent } from '@/api/eventBus';
 import { CareerLiveDrawer } from '@/components/career/CareerLiveDrawer';
 
 import { recordProgress, recordTakeover, resetWorkSurfaces, settleProgressRuns, useWorkSurfaces } from './workSurfaceStore';
@@ -79,6 +81,28 @@ describe('CompanionPanel', () => {
     expect(screen.getByText(/剩 \d+ 小时/)).toBeInTheDocument();
     expect(await screen.findByText('填写星河科技网申')).toBeInTheDocument();
     expect(screen.getByText('今天 2 件事，1 件急')).toBeInTheDocument();
+  });
+
+  it('clicking a todo goes where it belongs', async () => {
+    const focus: unknown[] = [];
+    const nav: unknown[] = [];
+    const offFocus = onEvent('career:focus', p => focus.push(p));
+    const offNav = onEvent(CAREER_NAVIGATE_EVENT, p => nav.push(p));
+    render(<CompanionPanel />);
+    fireEvent.click(await screen.findByRole('button', { name: /确认两道开放题/ }));
+    expect(nav.at(-1)).toEqual({ kind: 'career-today' });
+    openTodoItem({ kind: 'interview_today', priority: 1, title: '字节二面', ref: { type: 'application', id: 'app_1' } });
+    expect(focus.at(-1)).toEqual({ surface: 'dossier', application_id: 'app_1' });
+    openTodoItem({ kind: 'review', priority: 1, title: '网申等你确认', ref: { type: 'action', id: 'act_1' } });
+    expect(nav.at(-1)).toEqual({ kind: 'career-dossier', view: 'apply' });
+    offFocus(); offNav();
+  });
+
+  it('a focus sent before the page mounts is kept for that page once', () => {
+    stashCareerFocus({ surface: 'dossier', application_id: 'app_1' });
+    expect(takeCareerFocus('inbox')).toBeNull();
+    expect(takeCareerFocus('dossier')).toEqual({ surface: 'dossier', application_id: 'app_1' });
+    expect(takeCareerFocus('dossier')).toBeNull();
   });
 
   it('switches to the waiting state on a browser handoff and filters tabs', async () => {

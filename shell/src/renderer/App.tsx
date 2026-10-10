@@ -54,6 +54,8 @@ import { DispatchTaskDialog } from '@/components/task-center/DispatchTaskDialog'
 import CustomTitleBar from '@/components/CustomTitleBar';
 import { CareerNavShell } from '@/features/career-shell/CareerNavShell';
 import { CAREER_NAVIGATE_EVENT, type NavTarget } from '@/features/career-shell/navModel';
+import type { CareerFocusEvent } from '@/components/career/types';
+import { stashCareerFocus } from '@/features/career-shell/pendingFocus';
 import { OPEN_APP_ROUTE_EVENT, OPEN_BUG_REPORT_EVENT } from '@/features/career-shell/shellEvents';
 import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import LinkContextMenuProvider from '@/components/LinkContextMenuProvider';
@@ -3285,9 +3287,12 @@ export default function App() {
     handleOpenAssistantChat();
   }), [handleOpenAssistantChat]);
   // 工具 / 路由完成后推 focus：打开对应的面（对象定位由该面自己订阅同一事件完成）。
-  useEffect(() => onEvent<{ surface?: string }>('career:focus', payload => {
+  useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
     const kind = surfaceToKind(payload?.surface);
-    if (kind) handleOpenCareerPage(kind);
+    if (!kind) return;
+    // 面还没挂载时会错过这个事件：先存下来，挂载后取走定位
+    stashCareerFocus(payload);
+    handleOpenCareerPage(kind);
   }), [handleOpenCareerPage]);
 
 

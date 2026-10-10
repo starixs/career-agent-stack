@@ -20,6 +20,7 @@ import type {
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { DEFAULT_SUB_VIEWS, requestNavigation } from '@/features/career-shell/navModel';
+import { takeCareerFocus } from '@/features/career-shell/pendingFocus';
 import { useCareerSubView } from '@/features/career-shell/subViewStore';
 import { expandWorkSurface } from '@/features/career-shell/workSurfaceStore';
 
@@ -154,7 +155,11 @@ interface FocusRequest { application_id: string | null; job_id: string | null }
 
 export default function CareerDossier({ embedded = false }: CareerPageProps) {
   const [view, setView] = useCareerSubView<View>('career-dossier', DEFAULT_SUB_VIEWS['career-dossier']);
-  const [focus, setFocus] = useState<FocusRequest | null>(null);
+  // 从别的面（小芽面板、今日）跳进来时，事件可能在本页挂载前就发了
+  const [focus, setFocus] = useState<FocusRequest | null>(() => {
+    const pending = takeCareerFocus('dossier');
+    return pending ? { application_id: pending.application_id ?? pending.id ?? null, job_id: pending.job_id ?? null } : null;
+  });
 
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
     if (payload?.surface !== 'dossier') return;

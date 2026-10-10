@@ -6,8 +6,9 @@
 import { CheckCircle2, Clock, Globe, ListTodo, Loader2, Pencil, Settings, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { emitEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
-import type { ActivityEntry, TodayItem } from '@/components/career/types';
+import type { ActivityEntry, CareerFocusEvent, TodayItem } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import { useConfigData } from '@/config/useConfigData';
 import { MINO_DEFAULT_PET_PACK } from '@/floating-ball/defaultPetPack';
@@ -216,6 +217,20 @@ function NowSection({ run, handoff }: { run: ProgressRun | null; handoff: boolea
   );
 }
 
+/**
+ * 点一条待办去它该去的地方：投递相关 → 那条投递的档案；待批准 → 岗位收藏里的审批卡；
+ * 收件箱 → 收件箱；需要你接手 → 展开浏览器侧栏；其余 → 今日。
+ */
+export function openTodoItem(item: TodayItem): void {
+  const { type, id } = item.ref;
+  if (item.kind === 'handoff') { emitEvent('career:focus', { surface: 'live_drawer' }); return; }
+  if (item.kind === 'review' || type === 'action') { requestNavigation({ kind: 'career-dossier', view: 'apply' }); return; }
+  if (type === 'application') { emitEvent('career:focus', { surface: 'dossier', application_id: id } satisfies CareerFocusEvent); return; }
+  if (type === 'job') { emitEvent('career:focus', { surface: 'dossier', job_id: id } satisfies CareerFocusEvent); return; }
+  if (item.kind === 'inbox' || type === 'inbox_item') { emitEvent('career:focus', { surface: 'inbox', id: type === 'inbox_item' ? id : null } satisfies CareerFocusEvent); return; }
+  requestNavigation({ kind: 'career-today' });
+}
+
 function TodoList({ items, loading }: { items: readonly TodayItem[]; loading: boolean }) {
   if (loading) return <p className="mx-1 text-xs text-[var(--subtle)]">加载中…</p>;
   if (items.length === 0) return <p className="mx-1 text-xs text-[var(--subtle)]">今天没有要赶的事。</p>;
@@ -224,13 +239,20 @@ function TodoList({ items, loading }: { items: readonly TodayItem[]; loading: bo
       {items.map(item => {
         const deadline = deadlineLabel(item.due_at);
         return (
-          <li key={`${item.ref.type}:${item.ref.id}:${item.kind}`} className="flex items-start gap-2.5 px-1 py-1.5">
-            <span className="mt-1 h-4 w-4 shrink-0 rounded-[5px] border-[1.5px] border-[var(--line-2)] bg-[var(--paper)]" aria-hidden="true" />
-            <div className="min-w-0 flex-1">
-              <div className="font-human text-sm text-[var(--ink)]">{item.title}</div>
-              {item.detail && <div className="truncate text-xs text-[var(--muted)]">{item.detail}</div>}
-            </div>
-            {deadline && <StatusTag text={deadline.text} tone={deadline.tone} />}
+          <li key={`${item.ref.type}:${item.ref.id}:${item.kind}`}>
+            <button
+              type="button"
+              onClick={() => openTodoItem(item)}
+              title="打开"
+              className="flex w-full items-start gap-2.5 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+            >
+              <span className="mt-1 h-4 w-4 shrink-0 rounded-[5px] border-[1.5px] border-[var(--line-2)] bg-[var(--paper)]" aria-hidden="true" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-human text-sm text-[var(--ink)]">{item.title}</span>
+                {item.detail && <span className="block truncate text-xs text-[var(--muted)]">{item.detail}</span>}
+              </span>
+              {deadline && <StatusTag text={deadline.text} tone={deadline.tone} />}
+            </button>
           </li>
         );
       })}
