@@ -61,6 +61,9 @@ export interface BringToFrontOptions {
 
 /** 内嵌模式下窗口停靠的位置：极远的左下角，macOS 会夹回屏幕内只露出一小角。 */
 export const PARKED_WINDOW_BOUNDS = { left: -10000, top: 10000, width: 500, height: 375 } as const;
+/** Windows 不夹回：停到屏幕外就完全看不见（再配合工具窗口样式去掉任务栏按钮）。 */
+export const PARKED_WINDOW_BOUNDS_WIN32 = { left: -10000, top: -10000, width: 500, height: 375 } as const;
+export const parkedWindowBounds = (platform: NodeJS.Platform = process.platform) => (platform === 'win32' ? PARKED_WINDOW_BOUNDS_WIN32 : PARKED_WINDOW_BOUNDS);
 /** 用户临时要看真实窗口时放出来的位置。 */
 export const REVEALED_WINDOW_BOUNDS = { left: 80, top: 60, width: 1400, height: 900 } as const;
 
@@ -86,9 +89,18 @@ async function setPageWindowBounds(
   }
 }
 
-/** 把页面所在的窗口停到屏幕角落（内嵌模式）。失败只记日志。 */
-export function parkWindow(context: BrowserContext, page: Page): Promise<boolean> {
-  return setPageWindowBounds(context, page, { ...PARKED_WINDOW_BOUNDS });
+/**
+ * 把页面所在的窗口停到屏幕角落（内嵌模式）。Windows 上再把托管 Chrome 从任务栏 / Alt+Tab 去掉（按 profile 找进程）。
+ * 失败只记日志。
+ */
+export async function parkWindow(context: BrowserContext, page: Page, opts: { profileDir?: string | null; platform?: NodeJS.Platform; hideFromTaskbar?: (profileDir: string) => Promise<number> } = {}): Promise<boolean> {
+  const platform = opts.platform ?? process.platform;
+  const ok = await setPageWindowBounds(context, page, { ...parkedWindowBounds(platform) });
+  if (platform === 'win32' && opts.profileDir) {
+    const hide = opts.hideFromTaskbar ?? (async (dir: string) => (await import('./windows-window')).hideManagedChromeFromTaskbar(dir));
+    void hide(opts.profileDir).catch(error => console.warn(`[browser-host] taskbar-hide=failed error=${error instanceof Error ? error.message : 'unknown'}`));
+  }
+  return ok;
 }
 
 /** 临时把真实窗口放出来并前置（文件框、插件弹窗等现场画面处理不了的情况）。 */

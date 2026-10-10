@@ -666,7 +666,7 @@ export class BrowserContextRegistry {
     const observePage = (page: Page) => {
       if (embedded) {
         if (!this.revealedWindows.has(binding.productSessionId)) {
-          void parkWindow(context, page);
+          void parkWindow(context, page, { profileDir: compiled.userDataDir });
           this.windowListener?.(binding.productSessionId, 'page');
         }
         page.on('filechooser', onFileChooser);

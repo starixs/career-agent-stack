@@ -67,6 +67,23 @@ export const EMBEDDED_WINDOW_CHROMIUM_ARGS: readonly string[] = [
   "--window-position=-10000,10000",
 ];
 
+/**
+ * Windows 版内嵌窗口参数：Windows 不会把屏幕外的窗口夹回来，停在屏幕外就是真的看不见；
+ * Chrome 在 Windows 上另有原生遮挡计算，窗口看不见就停画，要单独关掉（macOS 没有这个开关）。
+ */
+export const EMBEDDED_WINDOW_CHROMIUM_ARGS_WIN32: readonly string[] = [
+  "--disable-backgrounding-occluded-windows",
+  "--disable-renderer-backgrounding",
+  "--disable-background-timer-throttling",
+  "--disable-features=CalculateNativeWinOcclusion",
+  "--window-size=500,375",
+  "--window-position=-10000,-10000",
+];
+
+export function embeddedWindowArgs(platform: NodeJS.Platform = process.platform): readonly string[] {
+  return platform === "win32" ? EMBEDDED_WINDOW_CHROMIUM_ARGS_WIN32 : EMBEDDED_WINDOW_CHROMIUM_ARGS;
+}
+
 export const IGNORED_DEFAULT_CHROMIUM_ARGS: readonly string[] = ["--enable-automation"];
 
 export const HUMAN_LIKE_CONTEXT_OPTIONS: Readonly<BrowserContextOptions> = {
@@ -222,7 +239,7 @@ export function compileBrowserRuntimeSettings(
     // 本机 Chrome 由 Playwright 按 channel 自己定位；托管 Chromium 的
     // executablePath 由 Registry 在解析完 Rust 资源后再补上。
     ...(channel === "chrome" ? { channel: "chrome" } : {}),
-    args: [...HUMAN_LIKE_CHROMIUM_ARGS, ...(policy.embeddedWindow ? EMBEDDED_WINDOW_CHROMIUM_ARGS : [])],
+    args: [...HUMAN_LIKE_CHROMIUM_ARGS, ...(policy.embeddedWindow ? embeddedWindowArgs() : [])],
     ignoreDefaultArgs: [...IGNORED_DEFAULT_CHROMIUM_ARGS],
   };
   const contextOptions: BrowserContextOptions = {
