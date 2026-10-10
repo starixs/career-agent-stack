@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { localTimestamp } from '../shared/logTime';
 import { isLiveRevisionEnvelope, type LiveRevisionEnvelope } from '../shared/liveRevision';
 import { summarizeSensitiveValueForLog } from './utils/log-summary';
+import { outputMasker } from './career/output-mask';
 
 type SseClient = {
   id: string;
@@ -368,7 +369,12 @@ type ChunkBuffer = {
   merged: string;
   timer: ReturnType<typeof setTimeout>;
   liveScope?: LiveRevisionScope;
+  /** 只剩上一次留下的尾巴（可能是私密值的开头）、还没有新片段并进来。 */
+  holdOnly?: boolean;
 };
+
+/** 尾巴最多再等多久：没有新片段就原样（打码后）推出去，不让文字卡住。 */
+const MASK_HOLD_MS = 200;
 
 const chunkBuffers = new Map<string, ChunkBuffer>();
 
@@ -386,31 +392,54 @@ const NON_FLUSHING_EVENTS = new Set<string>(['chat:log']);
 // mixing cannot happen here. If that invariant ever changes, key the buffer
 // by client id instead.
 
-function flushCoalescedChunk(event: string): void {
+function flushCoalescedChunk(event: string, final = false): void {
   const entry = chunkBuffers.get(event);
   if (!entry) return;
   chunkBuffers.delete(event);
   clearTimeout(entry.timer);
+  // 输出打码：一个私密值可能被拆在两段里，定时刷出时先扣下"可能是值开头"的尾巴，并到下一段再打码；
+  // 段落结束（工具调用 / 消息完成等事件触发的 flushAll）或尾巴等够了就整段打码推出
+  const masker = outputMasker();
+  let text = entry.merged;
+  if (masker.active) {
+    if (final || entry.holdOnly) {
+      text = masker.mask(text);
+    } else {
+      const { emit, hold } = masker.splitForStream(text);
+      text = emit;
+      if (hold) {
+        chunkBuffers.set(event, {
+          merged: hold,
+          liveScope: entry.liveScope,
+          holdOnly: true,
+          timer: setTimeout(() => flushCoalescedChunk(event), MASK_HOLD_MS),
+        });
+      }
+    }
+  }
+  if (!text) return;
   if (entry.liveScope) {
     const envelope: LiveRevisionEnvelope<string> = {
       sessionId: entry.liveScope.sessionId,
       liveRevision: entry.liveScope.nextRevision(),
-      payload: entry.merged,
+      payload: text,
     };
-    broadcastImmediate(event, envelope);
+    broadcastImmediate(event, envelope, true);
     return;
   }
-  broadcastImmediate(event, entry.merged);
+  broadcastImmediate(event, text, true);
 }
 
 function flushAllCoalesced(): void {
   if (chunkBuffers.size === 0) return;
   // Copy keys — flushCoalescedChunk deletes entries as it runs.
   const keys = Array.from(chunkBuffers.keys());
-  for (const k of keys) flushCoalescedChunk(k);
+  for (const k of keys) flushCoalescedChunk(k, true);
 }
 
-function broadcastImmediate(event: string, data: unknown): void {
+function broadcastImmediate(event: string, rawData: unknown, alreadyMasked = false): void {
+  // 界面出口 hook：私密信息明文 / 占位符一律打码（日志里也只留打码后的）
+  const data = alreadyMasked ? rawData : outputMasker().maskDeep(rawData);
   const eventPayload = isLiveRevisionEnvelope(data) ? data.payload : data;
   if (!SILENT_EVENTS.has(event)) {
     console.log(`[sse] ${event} -> ${summarizeSsePayload(event, eventPayload)}`);
@@ -435,6 +464,7 @@ export function broadcast(event: string, data: unknown): void {
       chunkBuffers.set(event, entry);
     } else {
       entry.merged += data;
+      entry.holdOnly = false;
     }
     return;
   }
@@ -468,6 +498,7 @@ export function broadcastLive(
       chunkBuffers.set(event, entry);
     } else {
       entry.merged += data;
+      entry.holdOnly = false;
     }
     return;
   }

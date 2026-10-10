@@ -7,9 +7,11 @@ import {
 } from '../utils/session-message-preview';
 import { toClientSessionMetadata } from '../utils/session-metadata-wire';
 import type { SessionMessage, SessionMetadata } from '../types/session';
+import { outputMasker } from '../career/output-mask';
 
+/** 这里都是只读输出（会话详情 / 历史分页 / 最新结果）：出口统一给私密信息打码，同 SSE。 */
 function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
+  return new Response(JSON.stringify(outputMasker().maskDeep(body)), {
     status,
     headers: { 'Content-Type': 'application/json' },
   });

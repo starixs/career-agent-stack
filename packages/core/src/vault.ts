@@ -290,6 +290,11 @@ export class Vault {
     if (!pairs.length) return value
     return mapStrings(value, s => applyRedactions(s, pairs))
   }
+  /**
+   * 界面输出打码用：敏感项的明文（过滤规则同 redact）。只在 Node 进程内用来做马赛克替换，
+   * 不出进程、不写访问日志（不是"使用"明文，只是认出它）。
+   */
+  maskingValues(): string[] { return this.sensitiveValues().map(x => x.value) }
   private sensitiveValues(): Redaction[] {
     const rows = this.db.all<VaultRow>('SELECT * FROM vault_item WHERE sensitive=1')
     return rows

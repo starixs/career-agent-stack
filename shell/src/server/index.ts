@@ -558,6 +558,7 @@ import { appendUnifiedLogBatch, getRecentLogLines, getActiveUnifiedLogPath } fro
 import { getActiveSessionLogPath } from './AgentLogger';
 import { runLogRetentionSweep, startPeriodicSweep } from './log-retention';
 import { broadcast, createSseClient, getClients } from './sse';
+import { outputMasker } from './career/output-mask';
 import { imEventBus } from './utils/im-event-bus';
 import { buildImCancelledPayload } from './utils/im-terminal-payload';
 import { imRequestRegistry } from './utils/im-request-registry';
@@ -2869,7 +2870,7 @@ async function main() {
           for (const session of sessions) {
             if (isHistoryVisibleSession(session)) safeSessions.push(toClientSessionMetadata(await normalizeSessionListPreview(session)));
           }
-          return jsonResponse({ success: true, sessions: safeSessions });
+          return jsonResponse({ success: true, sessions: outputMasker().maskDeep(safeSessions) });
         } catch (error) {
           console.error('[sessions] Error in GET /sessions:', error);
           return jsonResponse({
@@ -3119,7 +3120,7 @@ async function main() {
         const tail = shrinkSessionMessagesForClient(session.messages.slice(idx + 1));
         // Same metadata-only shape as GET /sessions/:id (P0) — previews are
         // resolved via the keystone:// custom protocol on the client.
-        return jsonResponse({ success: true, fromIndex: idx, messages: tail });
+        return jsonResponse({ success: true, fromIndex: idx, messages: outputMasker().maskDeep(tail) });
       }
 
       // GET /sessions/:id/stats - Get detailed session statistics
