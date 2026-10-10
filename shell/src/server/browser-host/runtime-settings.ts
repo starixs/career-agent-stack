@@ -49,6 +49,8 @@ export const HUMAN_LIKE_CHROMIUM_ARGS: readonly string[] = [
   "--no-first-run",
   "--no-default-browser-check",
   "--disable-infobars",
+  // 托管浏览器的页面由产品恢复；Chrome 自己的"未正确关闭 / 恢复页面"气泡只会让用户以为浏览器崩了
+  "--hide-crash-restore-bubble",
 ];
 
 /**

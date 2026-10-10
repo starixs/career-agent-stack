@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync } from 'fs';
 
+import { markProfileExitedCleanly } from './profile-hygiene';
 import type {
   Browser,
   BrowserContext,
@@ -587,6 +588,9 @@ export class BrowserContextRegistry {
     if (compiled.userDataDir) {
       seedCookies = !existsSync(compiled.userDataDir);
       mkdirSync(compiled.userDataDir, { recursive: true });
+      // 上次被强杀留下的"崩溃"标记会让 Chrome 弹恢复提示，用户看到的就是"浏览器崩溃了"
+      const repaired = markProfileExitedCleanly(compiled.userDataDir);
+      console.log(`[browser-host] context=launch mode=persistent channel=${compiled.channel} crash-mark=${repaired ? 'cleared' : 'clean'}`);
       const browserType = await this.dependencies.loadBrowserType();
       context = await browserType.launchPersistentContext(compiled.userDataDir, {
         ...launchOptions,
@@ -597,6 +601,8 @@ export class BrowserContextRegistry {
       const browser = await this.getBrowser(launchOptions);
       context = await browser.newContext(compiled.contextOptions);
     }
+    console.log(`[browser-host] context=launched mode=${compiled.userDataDir ? 'persistent' : 'isolated'}`);
+    context.on('close', () => console.log('[browser-host] context=closed'));
     try {
       await context.addInitScript(compiled.initScript);
       if (seedCookies && identity.state.cookies.length > 0) {
