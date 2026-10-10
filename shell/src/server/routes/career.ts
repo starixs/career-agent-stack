@@ -724,6 +724,46 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 素材 ----------
+  // ---------- 长期记忆（「我的资料 / 助理记住的事」）：用户可以看、改、删、置顶、手动加 ----------
+  route('GET', '/api/career/memories', ({ repos, url }) => {
+    const status = url.searchParams.get('status');
+    return ok({ memories: repos.memories.list({
+      q: url.searchParams.get('q') ?? undefined, scope: url.searchParams.get('scope') ?? undefined,
+      status: status === 'all' || status === 'superseded' || status === 'forgotten' ? status : 'active', limit: 500,
+    }) });
+  }),
+  route('POST', '/api/career/memories', async (ctx) => {
+    const { applyRemember } = await import('../career/memory-service');
+    const out = applyRemember(ctx.repos, ctx.vault, {
+      kind: String(ctx.body.kind ?? 'preference'), content: String(ctx.body.content ?? ''), scope: typeof ctx.body.scope === 'string' ? ctx.body.scope : 'user',
+      importance: typeof ctx.body.importance === 'number' ? ctx.body.importance : 4, source: 'explicit',
+    });
+    if (!out.ok) return fail(out.reason);
+    dataChanged(ctx, ['memory']);
+    return ok({ memory: out.memory, action: out.action });
+  }),
+  route('POST', '/api/career/memories/:id/forget', (ctx) => {
+    if (!ctx.repos.memories.forget(ctx.params.id)) return fail(`没有这条有效记忆：${ctx.params.id}`, 404);
+    dataChanged(ctx, ['memory']);
+    return ok({ forgotten: ctx.params.id });
+  }),
+  route('POST', '/api/career/memories/:id', (ctx) => {
+    const b = ctx.body;
+    if (typeof b.content === 'string' && /\{\{\s*vault:/.test(ctx.vault.redact(b.content))) return fail('含私密信息（姓名 / 手机 / 邮箱等），这类内容只存私密信息库');
+    try {
+      const memory = ctx.repos.memories.update(ctx.params.id, {
+        content: typeof b.content === 'string' ? b.content : undefined,
+        importance: typeof b.importance === 'number' ? b.importance : undefined,
+        pinned: typeof b.pinned === 'boolean' ? b.pinned : undefined,
+        kind: typeof b.kind === 'string' ? b.kind as never : undefined,
+      });
+      dataChanged(ctx, ['memory']);
+      return ok({ memory });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : String(error), 404);
+    }
+  }),
+
   route('GET', '/api/career/materials', ({ repos, url }) => {
     const kind = url.searchParams.get('kind') ?? undefined;
     return ok({ materials: repos.listMaterials(kind ? { kind: kind as never } : {}) });

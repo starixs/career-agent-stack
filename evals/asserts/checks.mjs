@@ -44,3 +44,29 @@ export function gradingCorrect(output, { vars }) {
   const wrong = (vars.expected ?? []).filter((v, i) => review.find(r => r.index === i)?.verdict !== v)
   return wrong.length ? { pass: false, score: 1 - wrong.length / vars.expected.length, reason: `${wrong.length} 题判错：期望 ${JSON.stringify(vars.expected)}，实际 ${JSON.stringify(review.map(r => r.verdict))}` } : { pass: true, score: 1, reason: '逐题判定正确' }
 }
+
+/**
+ * 记忆提炼：克制（闲聊 / 一次性请求不记）、范围隔离（公司事实记在那家公司下，不串到别家）、
+ * 更正（用 supersedes 或 forget 处理旧说法）、敏感不复述（个人信息不进记忆内容）、每轮最多 3 条。
+ */
+export function memoryExtractOk(output, { vars }) {
+  const o = parse(output)
+  const all = Array.isArray(o?.memories) ? o.memories : []
+  const written = all.filter(m => !m.route)
+  const forgot = Array.isArray(o?.forget) ? o.forget : []
+  const contents = written.map(m => String(m.content ?? ''))
+  const fail = reason => ({ pass: false, score: 0, reason })
+  if (written.length > 3) return fail(`一轮写了 ${written.length} 条，超过 3 条`)
+  const leaked = (vars.forbidden ?? []).filter(t => contents.some(c => c.includes(t)))
+  if (leaked.length) return fail(`记忆内容里出现了不该记的信息：${leaked.join('、')}`)
+  if (vars.expect_replaces) {
+    const handled = forgot.includes(vars.expect_replaces) || written.some(m => [].concat(m.supersedes ?? []).includes(vars.expect_replaces))
+    if (!handled) return fail(`用户更正了 ${vars.expect_replaces}，但没有取代或忘掉它`)
+  }
+  if (vars.expect_none) return written.length ? fail(`这一轮不该记，却记了：${contents.join(' / ')}`) : { pass: true, score: 1, reason: '克制：没有记' }
+  if (vars.must_include?.length && !contents.some(c => vars.must_include.some(t => c.includes(t)))) return fail(`没有记下应该记的（${vars.must_include.join(' / ')}），实际：${contents.join(' / ') || '无'}`)
+  if (vars.expect_scope && !written.some(m => (m.scope ?? 'user') === vars.expect_scope)) return fail(`应记到 ${vars.expect_scope}，实际 scope：${written.map(m => m.scope ?? 'user').join('、') || '无'}`)
+  if (vars.forbid_scope && written.some(m => (m.scope ?? 'user') === vars.forbid_scope)) return fail(`不该记到 ${vars.forbid_scope}`)
+  if (vars.expect_route && !all.some(m => m.route === vars.expect_route)) return fail(`应转到 ${vars.expect_route}，实际 route：${all.map(m => m.route ?? 'null').join('、') || '无'}`)
+  return { pass: true, score: 1, reason: `记下 ${written.length} 条：${contents.join(' / ') || '无'}` }
+}

@@ -1,0 +1,81 @@
+# 长期记忆提炼（skills/memory-extract）：克制 / 范围隔离 / 更正 / 敏感不复述
+- description: 克制——一次性操作请求不记
+  vars:
+    task: memory_extract
+    expect_none: true
+    user: 帮我把这份简历导出成 PDF，再投一下刚才那个岗位
+    assistant: 好的，已经导出 PDF，投递卡片在下面，你点批准就开始填。
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:memoryExtractOk
+- description: 克制——寒暄不记
+  vars:
+    task: memory_extract
+    expect_none: true
+    user: 谢谢，今天先到这吧
+    assistant: 不客气，明天见。
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:memoryExtractOk
+- description: 协作习惯——用户明确要求以后都这样
+  vars:
+    task: memory_extract
+    must_include: [结论]
+    expect_scope: user
+    user: 以后回复先说结论再说依据，别铺垫那么长
+    assistant: 收到，之后我先给结论。
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:memoryExtractOk
+- description: 范围隔离——美团的事实记在美团下，不当成全局
+  vars:
+    task: memory_extract
+    must_include: [扫码]
+    expect_scope: company:美团
+    forbid_scope: company:字节跳动
+    user: 美团的网申得先用微信扫码登录才能看到申请表，字节那边是手机号就行
+    assistant: 明白了，美团需要先扫码登录，我在投递时会提醒你接管。
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:memoryExtractOk
+- description: 更正——用户推翻旧偏好，要取代旧记忆
+  vars:
+    task: memory_extract
+    expect_replaces: mem_old_pref
+    user: 之前说不考虑外包是我想错了，驻场的也可以，只是不要劳务派遣
+    assistant: 好的，我把外包的条件改一下：驻场可以，劳务派遣不考虑。
+    existing:
+      - { id: mem_old_pref, kind: preference, scope: user, content: 用户不考虑任何外包岗位 }
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:memoryExtractOk
+- description: 更正——用户说别记这个
+  vars:
+    task: memory_extract
+    expect_replaces: mem_wrong
+    expect_none: true
+    user: 你记的"讨厌长笔试"不对，我没这么说过，删掉
+    assistant: 抱歉，已经去掉这条。
+    existing:
+      - { id: mem_wrong, kind: preference, scope: user, content: 用户讨厌笔试时间长的公司 }
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:memoryExtractOk
+- description: 敏感不复述——个人信息转到私密信息库，不进记忆
+  vars:
+    task: memory_extract
+    forbidden: ['13812345678', zhangsan@example.com]
+    user: 我手机是 13812345678，邮箱 zhangsan@example.com，填表的时候用这个
+    assistant: 好的，已经记到私密信息库，填表时自动带上。
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:memoryExtractOk
+- description: 路由——求职条件交给 job_prefs，不记成记忆
+  vars:
+    task: memory_extract
+    expect_route: job_prefs
+    user: 我只考虑上海和杭州，薪资 20k 以上
+    assistant: 记下了，之后推荐只看上海、杭州，20k 起。
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:memoryExtractOk

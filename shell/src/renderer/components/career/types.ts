@@ -208,6 +208,13 @@ export interface Deadline {
 }
 export interface DossierNote { id: string; application_id: string; kind: 'note' | 'said' | 'heard' | 'contact' | 'referral' | 'mail'; round: string | null; content: string; created_at: string }
 export type MaterialKind = 'open_question' | 'project_story' | 'self_intro' | 'why_company' | 'why_role' | 'strength_weakness' | 'career_plan' | 'other';
+/** 长期记忆（镜像 packages/core/src/memories.ts 的 MemoryRow）。 */
+export type MemoryKind = 'collaboration' | 'preference' | 'fact' | 'insight';
+export interface MemoryItem {
+  id: string; kind: MemoryKind; scope: string; content: string; importance: number; evidence_count: number; pinned: number;
+  status: 'active' | 'superseded' | 'forgotten'; source: 'explicit' | 'extracted' | 'user_edit' | 'consolidation';
+  last_used_at: string | null; created_at: string; updated_at: string;
+}
 export interface Material {
   id: string; kind: MaterialKind; title: string; question_key: string | null; content: string; length_variant: string | null;
   claim_ids_json: string; tags_json: string; company_scope: string | null; confirmed: number; created_at: string; updated_at: string;
