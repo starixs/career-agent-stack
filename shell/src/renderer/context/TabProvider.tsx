@@ -5459,10 +5459,20 @@ export default function TabProvider({
 
     const requestCareerTakeover = useCallback(async (runId: string, action: 'take' | 'handback', resumedFromStep?: string): Promise<boolean> => {
         try {
-            await postJson('/api/career-session/takeover', { runId, action, resumedFromStep });
+            const result = await postJson<{ run?: { actionId?: string } | null }>('/api/career-session/takeover', { runId, action, resumedFromStep });
             setCareerTakeover(prev => (prev && prev.runId === runId
                 ? { ...prev, state: action === 'take' ? 'human_active' : 'resuming' }
                 : prev));
+            // 交接：助理在对话里 apply_run 发起的填写，交还后要它调 apply_continue 才会接着填；
+            // 后台批量的 run 不在本会话（run 为 null），运行器自己续跑，不打扰助理以免两边抢同一份
+            if (action === 'handback' && result?.run) {
+                const actionId = result.run.actionId;
+                emitEvent('career:chat-suggest', {
+                    text: `我已在浏览器里处理好并交还${actionId ? `（动作 ${actionId}）` : ''}，请调用 apply_continue 从当前页接着填写。`,
+                    context: { surface: 'apply', refs: actionId ? { action_id: actionId } : {} },
+                    mode: 'send',
+                });
+            }
             return true;
         } catch (error) {
             console.error('[TabProvider] career takeover request failed:', error);

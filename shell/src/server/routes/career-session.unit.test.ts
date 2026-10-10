@@ -11,32 +11,23 @@ async function review(deps: Parameters<typeof handleCareerSessionRoute>[2], acti
 }
 
 describe('career-session review', () => {
-  it('批准填表即交给后台运行器：只填这一份（run 命令）（模型那一轮已经结束，不能等它调 apply_run）', async () => {
+  it('对话里批准填表：只落审批，执行交给助理（apply_run），不再让后台运行器抢同一份', async () => {
     const repos = createMemoryRepos();
     const events: string[] = [];
     const fill = repos.enqueueAction('fill_form', { job_id: 'job_1', url: 'https://zhaopin.meituan.com/x' });
     const res = await review({ repos, broadcast: e => { events.push(e); }, sessionId: () => 's1' }, [fill.id], 'approved');
     expect(res.status).toBe(200);
-    expect(res.json).toMatchObject({ n: 1, filling: [fill.id] });
+    expect(res.json).toMatchObject({ n: 1 });
     expect(repos.getAction(fill.id)?.status).toBe('approved');
-    expect(repos.kvGet(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run', by: 'approval', ids: [fill.id] });
+    expect(repos.kvGet(BATCH_COMMAND_KEY)).toBeFalsy();
     expect(events).toContain('career:data-changed');
   });
 
-  it('拒绝 / 非填表动作 / 已审过的动作不启动运行器', async () => {
+  it('拒绝提交：动作置为 rejected', async () => {
     const repos = createMemoryRepos();
-    const deps = { repos, broadcast: () => {}, sessionId: () => 's1' };
-    const fill = repos.enqueueAction('fill_form', { job_id: 'job_1' });
-    await review(deps, [fill.id], 'rejected');
-    expect(repos.kvGet(BATCH_COMMAND_KEY)).toBeFalsy();
-
     const submit = repos.enqueueAction('submit', { url: 'https://x' });
-    const res = await review(deps, [submit.id], 'approved');
-    expect(res.json.filling).toEqual([]);
-    expect(repos.kvGet(BATCH_COMMAND_KEY)).toBeFalsy();
-
-    const again = await review(deps, [fill.id], 'approved');
-    expect(again.json.filling).toEqual([]);
-    expect(repos.kvGet(BATCH_COMMAND_KEY)).toBeFalsy();
+    const res = await review({ repos, broadcast: () => {}, sessionId: () => 's1' }, [submit.id], 'rejected');
+    expect(res.json).toMatchObject({ n: 1 });
+    expect(repos.getAction(submit.id)?.status).toBe('rejected');
   });
 });

@@ -6,6 +6,7 @@
 import { ChevronDown, ChevronRight, Globe, ListChecks, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { emitEvent } from '@/api/eventBus';
 import { useTabStateOptional } from '@/context/TabContext';
 
 import { surfaceForTool } from '@/features/career-shell/workSurfaces';
@@ -42,7 +43,12 @@ function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useT
         <BrowserWorkCard takeover={careerTakeover} progress={careerProgress} />
       )}
       <CareerFlowCards cards={cards} batch={batch} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
-      {pendingCareerReview && <CareerReviewCard review={pendingCareerReview} onDecision={tab.respondCareerReview} />}
+      {pendingCareerReview && <CareerReviewCard review={pendingCareerReview} onDecision={async (ids, decision) => {
+        const ok = await tab.respondCareerReview(ids, decision);
+        // 交接：卡片上的决定要让助理知道，它才会接着执行（apply_run）或跟进结果，而不是停在上一轮
+        if (ok) emitEvent('career:chat-suggest', { text: reviewDecisionMessage(pendingCareerReview, decision), context: { surface: 'apply', refs: { action_id: ids.join(',') } }, mode: 'send' });
+        return ok;
+      }} />}
     </div>
   );
 }
@@ -94,6 +100,15 @@ export function collectToolUseIds(messages: ReadonlyArray<{ content: unknown }>)
     }
   }
   return ids;
+}
+
+/** 用户在对话卡片上做了决定后发给助理的那句话：说清是哪个动作、接下来该它做什么。 */
+export function reviewDecisionMessage(review: CareerReviewEvent, decision: 'approved' | 'rejected'): string {
+  const ids = review.actionIds.join('、');
+  if (decision === 'rejected') return `我在卡片上拒绝了：${review.summary}（动作 ${ids}）。先别执行，问问我接下来怎么办。`;
+  if (review.kind === 'fill_form') return `我在卡片上批准了：${review.summary}（动作 ${ids}）。请调用 apply_run 开始填写，并在对话里告诉我进展。`;
+  if (review.kind === 'submit') return `我在卡片上批准了提交：${review.summary}（动作 ${ids}）。产品正在替我点提交，请跟进提交结果并告诉我。`;
+  return `我在卡片上批准了：${review.summary}（动作 ${ids}）。请继续，并告诉我结果。`;
 }
 
 export function CareerReviewCard({ review, onDecision }: {

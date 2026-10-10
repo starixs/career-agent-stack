@@ -180,15 +180,17 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
 
   const act = async (action: 'take' | 'handback'): Promise<boolean> => {
     setBusy(action); setNotice(null);
-    const ok = takeover?.runId && takeover.runId !== 'live'
+    const viaRun = Boolean(takeover?.runId && takeover.runId !== 'live')
+    const ok = viaRun && takeover
       ? await dispatchTakeoverAction(takeover.runId, action)
       : await careerApi.liveControl(action === 'take' ? 'human' : 'agent', action === 'take' ? 'user_request' : undefined).then(() => true).catch(() => false);
     setBusy(null);
     if (!ok) { setNotice('操作失败，请重试'); return false; }
     setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: action === 'take' ? 'human' : 'agent' } } : s));
     recordTakeover(takeover ? { ...takeover, state: action === 'take' ? 'human_active' : 'resuming' } : takeover);
-    // 交回后：批量运行器会自己从当前页继续；单次填表要让对话里的助理接着填（apply_continue）
-    if (action === 'handback' && batch?.status !== 'running') suggestToChat('浏览器里的事我已经处理完并交回了，请从当前页继续填表');
+    // 交回后：走 run 的由会话的接管交接统一通知助理（只在对话发起的填写上，批量自己续跑）；
+    // 直接切控制权的这条没有 run，批量没在跑时让助理接着填（apply_continue）
+    if (action === 'handback' && !viaRun && batch?.status !== 'running') suggestToChat('浏览器里的事我已经处理完并交回了，请从当前页继续填表');
     return true;
   };
   const toggleWindow = async () => {
