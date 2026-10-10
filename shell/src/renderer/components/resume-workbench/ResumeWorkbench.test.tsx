@@ -10,6 +10,8 @@ vi.mock('./StudioPreview', () => ({ StudioPreview: ({ data }: { data: ResumeData
 import { apiGetJson, apiPutJson } from '@/api/apiFetch';
 
 import { buildRich, parseRich, BulletsEditor } from './BulletsEditor';
+import CareerResume from '@/pages/CareerResume';
+
 import { ResumeWorkbench } from './ResumeWorkbench';
 
 function doc(): ResumeData {
@@ -54,7 +56,7 @@ describe('简历工作台', () => {
 
   it('打开、编辑条目、自动保存；私密字段显示为"来自私密信息"而不是花括号', async () => {
     mockApi();
-    render(<ResumeWorkbench initialResumeId="rm_1" />);
+    render(<ResumeWorkbench resumeId="rm_1" />);
     expect(await screen.findByTestId('resume-workbench')).toBeInTheDocument();
     expect(screen.getByText('来自私密信息：姓名')).toBeInTheDocument();
     fireEvent.click(screen.getByText('字节跳动'));
@@ -68,13 +70,14 @@ describe('简历工作台', () => {
     await waitFor(() => expect(screen.getByTestId('studio-save-state')).toHaveTextContent('已自动保存'));
   });
 
-  it('换模板、撤销 / 重做；预览拿到的是同一份文档', async () => {
+  it('版式里换模板，右侧预览同时可见；撤销 / 重做', async () => {
     mockApi();
-    render(<ResumeWorkbench initialResumeId="rm_1" />);
+    render(<ResumeWorkbench resumeId="rm_1" />);
     await screen.findByTestId('resume-workbench');
-    fireEvent.click(screen.getByRole('tab', { name: '模板与设计' }));
+    // 内容和预览并排：不切换就能看到预览
+    expect(screen.getByTestId('preview-stub')).toHaveTextContent('onyx');
+    fireEvent.click(screen.getByRole('tab', { name: '版式' }));
     fireEvent.click(screen.getByRole('button', { name: 'Azurill · 双栏' }));
-    fireEvent.click(screen.getByRole('tab', { name: '预览' }));
     expect(screen.getByTestId('preview-stub')).toHaveTextContent('azurill');
     fireEvent.click(screen.getByRole('button', { name: '撤销' }));
     expect(screen.getByTestId('preview-stub')).toHaveTextContent('onyx');
@@ -84,12 +87,30 @@ describe('简历工作台', () => {
 
   it('添加经历：新条目展开编辑，删除后消失', async () => {
     mockApi();
-    render(<ResumeWorkbench initialResumeId="rm_1" />);
+    render(<ResumeWorkbench resumeId="rm_1" />);
     await screen.findByTestId('resume-workbench');
     fireEvent.click(screen.getByRole('button', { name: '添加经历' }));
     expect(screen.getByDisplayValue('新单位')).toBeInTheDocument();
     const deletes = screen.getAllByRole('button', { name: '删除' });
     await act(async () => { fireEvent.click(deletes[deletes.length - 1]); });
     expect(screen.queryByDisplayValue('新单位')).not.toBeInTheDocument();
+  });
+
+  it('汇总页列出每一份简历，点开进入编辑页，返回回到汇总', async () => {
+    mockApi();
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
+      if (path.endsWith('/studio')) return { ok: true, data: doc(), content_updated_at: 't1', preview: {} };
+      if (path.endsWith('/resumes')) return { ok: true, masters: [{ id: 'rm_1', name: '后端方向', direction: '后端开发', updated_at: '2026-10-09T00:00:00Z' }], tailored: [{ id: 'rt_1', master_id: 'rm_1', job_id: 'job_1', diff_confirmed_at: null, export_pdf: null, updated_at: '2026-10-10T00:00:00Z' }] };
+      if (path.endsWith('/jobs')) return { ok: true, jobs: [{ id: 'job_1', company_name: '字节跳动', title: '后端开发工程师' }] };
+      return { ok: true };
+    });
+    render(<CareerResume />);
+    expect(await screen.findByText(/2 份简历/)).toBeInTheDocument();
+    expect(screen.getByText('字节跳动 · 后端开发工程师')).toBeInTheDocument();
+    expect(screen.getByText('待确认改动')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '打开简历：后端方向' }));
+    expect(await screen.findByTestId('resume-workbench')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '全部简历' }));
+    expect(await screen.findByTestId('resume-gallery')).toBeInTheDocument();
   });
 });

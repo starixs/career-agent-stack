@@ -34,12 +34,14 @@ export async function renderStudioPdf(doc: ResumeData): Promise<Blob> {
 
 interface RenderedPage { width: number; height: number; url: string }
 
-export function StudioPreview({ data, preview, zoom, onPages }: {
+export function StudioPreview({ data, preview, zoom, onPages, thumbnail = false }: {
   data: ResumeData;
   preview: Record<string, string>;
   /** 1 = 100%（A4 宽约 595pt）。 */
   zoom: number;
   onPages?: (count: number) => void;
+  /** 汇总页缩略图：只画第一页，不留边距、不显示状态文字。 */
+  thumbnail?: boolean;
 }) {
   const doc = useMemo(() => withPreviewValues(data, preview), [data, preview]);
   const [pages, setPages] = useState<RenderedPage[]>([]);
@@ -90,6 +92,13 @@ export function StudioPreview({ data, preview, zoom, onPages }: {
   }, [doc, onPages]);
 
   useEffect(() => () => { urls.current.forEach(u => URL.revokeObjectURL(u)); }, []);
+
+  if (thumbnail) {
+    const first = pages[0];
+    return first
+      ? <img src={first.url} alt="第 1 页" draggable={false} className="block h-auto w-full select-none bg-white" />
+      : <div className="h-full w-full animate-pulse bg-[var(--inset)]" aria-label={error ? '缩略图生成失败' : '正在生成缩略图'} />;
+  }
 
   return (
     <div data-testid="studio-preview" className="relative flex flex-col items-center gap-4 py-6">

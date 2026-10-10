@@ -11,19 +11,9 @@ import CustomSelect from '@/components/CustomSelect';
 
 import { EDITABLE_SECTIONS, edit } from './studioEdit';
 import { AtsPanel } from './AtsPanel';
+import { TEMPLATES, thumbOf } from './templateCatalog';
 
 type Update = (recipe: (d: ResumeData) => ResumeData, opts?: { merge?: string }) => void;
-
-const THUMBS = import.meta.glob('./templates/*.jpg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
-const thumbOf = (t: string) => THUMBS[`./templates/${t}.jpg`];
-
-const TEMPLATES: Array<{ id: ResumeData['metadata']['template']; label: string }> = [
-  { id: 'onyx', label: 'Onyx · 经典单栏' }, { id: 'azurill', label: 'Azurill · 双栏' }, { id: 'pikachu', label: 'Pikachu · 色块页眉' },
-  { id: 'bronzor', label: 'Bronzor · 简洁' }, { id: 'chikorita', label: 'Chikorita · 侧栏' }, { id: 'ditto', label: 'Ditto · 横幅' },
-  { id: 'gengar', label: 'Gengar · 深色侧栏' }, { id: 'glalie', label: 'Glalie · 浅色侧栏' }, { id: 'kakuna', label: 'Kakuna · 居中' },
-  { id: 'lapras', label: 'Lapras · 卡片' }, { id: 'leafish', label: 'Leafish · 双色' }, { id: 'meowth', label: 'Meowth · 紧凑' },
-  { id: 'rhyhorn', label: 'Rhyhorn · 线条' }, { id: 'scizor', label: 'Scizor · 现代' }, { id: 'ditgar', label: 'Ditgar · 混合' },
-];
 
 /** 字体：中文优先（中文字形由 Noto Sans SC 兜底，标题 / 西文用所选字体）。 */
 const FONT_CHOICES = ['Noto Sans SC', 'Noto Serif SC', 'IBM Plex Serif', 'IBM Plex Sans', 'Inter', 'Lato', 'Merriweather', 'Open Sans', 'Roboto', 'Source Sans 3', 'PT Serif', 'EB Garamond', 'Lora', 'Montserrat', 'Nunito Sans']
@@ -91,7 +81,6 @@ export function DesignPanel({ data, update, resumeId }: { data: ResumeData; upda
 
   return (
     <div data-testid="studio-design" className="text-sm">
-      {resumeId && <Group title="过机筛"><AtsPanel resumeId={resumeId} /></Group>}
       <Group title="模板">
         <div className="grid grid-cols-3 gap-2">
           {TEMPLATES.map(t => {
@@ -188,6 +177,7 @@ export function DesignPanel({ data, update, resumeId }: { data: ResumeData; upda
         <Toggle label="显示联系方式图标" checked={!m.page.hideIcons} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.hideIcons = !v; }))} />
         <Toggle label="链接加下划线" checked={!m.page.hideLinkUnderline} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.hideLinkUnderline = !v; }))} />
       </Group>
+      {resumeId && <Group title="过机筛"><AtsPanel resumeId={resumeId} /></Group>}
     </div>
   );
 }

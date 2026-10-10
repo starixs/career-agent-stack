@@ -1,83 +1,79 @@
 /**
- * 简历工作台（resume-studio 风格）：左栏内容编辑 / 中间实时排版预览 / 右栏模板与设计。
- *  - 宽屏三栏；窄（聊天旁抽屉）时变成「内容 / 预览 / 设计」三个标签页；
- *  - 撤销 / 重做（⌘Z / ⇧⌘Z，输入框里交给浏览器自己的撤销）、自动保存、缩放；
+ * 简历编辑页：顶部「内容 / 版式」两块，两块都是双栏——左边改，右边实时排版预览（所见即所得）。
+ *  - 内容：分区与条目；版式：模板、分栏、字体、配色、页面（含过机筛）；
+ *  - 撤销 / 重做（⌘Z / ⇧⌘Z，输入框里交给浏览器自己的撤销）、自动保存、缩放（默认适应宽度）；
  *  - 导出走侧车（PDF / Word / 图片），PDF 与预览同一套模板。
- * 内容改动会回写到简历内容（助理读的那份），排版只存在工作台文档里。
+ * 内容改动会回写到简历内容（助理读的那份），版式只存在工作台文档里。
  */
-import { FolderOpen, Minus, Plus, Redo2, Sparkles, Undo2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, FolderOpen, Minus, Plus, Redo2, Sparkles, Undo2 } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 
-import CustomSelect from '@/components/CustomSelect';
 import { careerApi } from '@/components/career/careerApi';
 import { Button, fileDirname, suggestToChat } from '@/components/career/CareerPrimitives';
 import type { Job, ResumeMaster, ResumeTailored } from '@/components/career/types';
 import { openExternal } from '@/utils/openExternal';
 
 import { DesignPanel } from './DesignPanel';
+import { buildResumeEntries } from './ResumeGallery';
 import { SectionsPanel } from './SectionsPanel';
 import { StudioPreview } from './StudioPreview';
 import { useStudioDocument, type SaveState } from './useStudioDocument';
 
-const WIDE_MIN = 1100;
+/** A4 宽约 595pt；预览区左右各留 24px。 */
+const A4_WIDTH = 595;
 const ZOOMS = [0.5, 0.6, 0.75, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2];
+/** 左栏宽：窄窗口（聊天旁）收窄，但始终双栏。 */
+const NARROW = 900;
 
 const SAVE_LABEL: Record<SaveState, string> = { idle: '已同步', dirty: '有未保存的修改', saving: '保存中…', saved: '已自动保存', error: '保存失败' };
 
-interface ResumeOption { id: string; label: string }
+type Mode = 'content' | 'layout';
+const MODES: Array<{ id: Mode; label: string }> = [{ id: 'content', label: '内容' }, { id: 'layout', label: '版式' }];
 
-function useResumeOptions(): ResumeOption[] {
-  const [options, setOptions] = useState<ResumeOption[]>([]);
+function useResumeTitle(resumeId: string): string {
+  const [title, setTitle] = useState('简历');
   useEffect(() => {
     let cancelled = false;
     Promise.all([careerApi.resumes(), careerApi.jobs().catch(() => [] as Job[])]).then(([r, jobs]) => {
       if (cancelled) return;
-      const byJob = new Map(jobs.map(j => [j.id, j]));
-      const masters = (r.masters ?? []) as ResumeMaster[];
-      const tailored = (r.tailored ?? []) as ResumeTailored[];
-      setOptions([
-        ...masters.map(m => ({ id: m.id, label: `主简历 · ${m.name}` })),
-        ...tailored.map(t => { const j = t.job_id ? byJob.get(t.job_id) : undefined; return { id: t.id, label: `岗位版 · ${j ? `${j.company_name ?? ''} ${j.title}`.trim() : t.id}` }; }),
-      ]);
-    }).catch(() => { /* 列表拿不到就只显示当前这份 */ });
+      const entry = buildResumeEntries((r.masters ?? []) as ResumeMaster[], (r.tailored ?? []) as ResumeTailored[], jobs).find(e => e.id === resumeId);
+      if (entry) setTitle(entry.kind === 'master' ? `主简历 · ${entry.title}` : `岗位版 · ${entry.title}`);
+    }).catch(() => { /* 标题拿不到就叫「简历」 */ });
     return () => { cancelled = true; };
-  }, []);
-  return options;
+  }, [resumeId]);
+  return title;
 }
 
-function useWidth(): [React.RefObject<HTMLDivElement | null>, number] {
-  const ref = useRef<HTMLDivElement | null>(null);
+/** 回调式 ref：元素在加载完成后才出现，也能量到宽度。 */
+function useWidth(): [(el: HTMLDivElement | null) => void, number] {
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver(entries => setWidth(entries[0]?.contentRect.width ?? 0));
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
-  return [ref, width];
+  }, [el]);
+  return [setEl, width];
 }
 
-export function ResumeWorkbench({ initialResumeId }: { initialResumeId?: string | null }) {
-  const options = useResumeOptions();
-  const [picked, setPicked] = useState<string | null>(initialResumeId ?? null);
-  const resumeId = picked ?? options[0]?.id ?? null;
-  if (!resumeId) {
-    return <div className="flex h-full items-center justify-center p-8 text-sm text-[var(--muted)]">还没有简历。在对话里说「帮我生成主简历」，生成后会在这里打开。</div>;
-  }
-  return <WorkbenchBody key={resumeId} resumeId={resumeId} options={options} onPick={setPicked} />;
+export function ResumeWorkbench({ resumeId, onBack }: { resumeId: string; onBack?: () => void }) {
+  return <WorkbenchBody key={resumeId} resumeId={resumeId} onBack={onBack} />;
 }
 
-function WorkbenchBody({ resumeId, options, onPick }: { resumeId: string; options: ResumeOption[]; onPick: (id: string) => void }) {
+function WorkbenchBody({ resumeId, onBack }: { resumeId: string; onBack?: () => void }) {
   const doc = useStudioDocument(resumeId);
-  const [zoom, setZoom] = useState(0.9);
-  const [tab, setTab] = useState<'content' | 'preview' | 'design'>('content');
+  const title = useResumeTitle(resumeId);
+  const [mode, setMode] = useState<Mode>('content');
+  // null = 适应预览区宽度
+  const [zoom, setZoom] = useState<number | null>(null);
   const [rootRef, width] = useWidth();
-  const wide = width >= WIDE_MIN;
+  const [previewRef, previewWidth] = useWidth();
   const [exporting, setExporting] = useState<string | null>(null);
   const [exported, setExported] = useState<{ format: string; path: string } | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
-  const label = options.find(o => o.id === resumeId)?.label ?? '简历';
+  const fitZoom = previewWidth > 0 ? Math.min(1.5, Math.max(0.4, (previewWidth - 48) / A4_WIDTH)) : 0.9;
+  const effectiveZoom = zoom ?? fitZoom;
 
   // ⌘Z / ⇧⌘Z：焦点在输入框时交给浏览器自己的撤销
   useEffect(() => {
@@ -105,70 +101,66 @@ function WorkbenchBody({ resumeId, options, onPick }: { resumeId: string; option
     }
   }, [doc, resumeId]);
 
-  const zoomStep = (d: 1 | -1) => setZoom(z => { const i = ZOOMS.findIndex(x => x >= z - 0.001); const next = ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, (i < 0 ? 4 : i) + d))]; return next; });
-  const onPages = useCallback(() => {}, []);
-
-  const preview = useMemo(() => (doc.data ? (
-    <div className="h-full overflow-auto bg-[var(--inset)]">
-      <StudioPreview data={doc.data} preview={doc.preview} zoom={zoom} onPages={onPages} />
-    </div>
-  ) : null), [doc.data, doc.preview, zoom, onPages]);
+  const zoomStep = (d: 1 | -1) => setZoom(() => {
+    const z = effectiveZoom;
+    const i = ZOOMS.findIndex(x => x >= z - 0.001);
+    return ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, (i < 0 ? ZOOMS.length - 1 : i) + d))];
+  });
+  const back = onBack ? () => { void doc.flush().then(onBack); } : undefined;
 
   if (doc.error && !doc.data) return <div role="alert" className="p-6 text-sm text-[var(--danger)]">打开简历失败：{doc.error}</div>;
   if (doc.loading || !doc.data) return <div className="flex h-full items-center justify-center text-sm text-[var(--muted)]">正在打开简历…</div>;
   const data = doc.data;
+  const narrow = width > 0 && width < NARROW;
 
   return (
     <div ref={rootRef} data-testid="resume-workbench" className="flex h-full min-h-0 flex-col">
-      {/* 顶栏 */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] px-3 py-2">
-        <div className="w-64 max-w-full">
-          <CustomSelect ariaLabel="选择简历版本" value={resumeId} options={options.length ? options.map(o => ({ value: o.id, label: o.label })) : [{ value: resumeId, label }]} onChange={v => { void doc.flush().then(() => onPick(v)); }} />
+      {/* 顶栏：返回 / 标题 / 内容·版式 / 撤销 / 缩放 / 导出 */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-[var(--line)] px-4 py-2.5">
+        {back && <Button variant="ghost" size="sm" className="-ml-2" onClick={back}><ArrowLeft className="h-4 w-4" />全部简历</Button>}
+        <span className="min-w-0 max-w-[280px] truncate font-human text-base font-semibold text-[var(--ink)]" title={title}>{title}</span>
+        <div role="tablist" aria-label="编辑内容或版式" className="inline-flex rounded-full border border-[var(--line-2)] p-0.5">
+          {MODES.map(m => (
+            <button key={m.id} type="button" role="tab" aria-selected={mode === m.id} onClick={() => setMode(m.id)}
+              className={`h-7 rounded-full px-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${mode === m.id ? 'bg-[var(--ink)] font-medium text-[var(--bg)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}>
+              {m.label}
+            </button>
+          ))}
         </div>
         <span data-testid="studio-save-state" className={`text-xs ${doc.saveState === 'error' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`} title={doc.saveError ?? undefined}>{SAVE_LABEL[doc.saveState]}</span>
-        <div className="ml-auto flex items-center gap-1">
-          <Button variant="ghost" aria-label="撤销" title="撤销（⌘Z）" disabled={!doc.canUndo} onClick={doc.undo}><Undo2 className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" aria-label="重做" title="重做（⇧⌘Z）" disabled={!doc.canRedo} onClick={doc.redo}><Redo2 className="h-3.5 w-3.5" /></Button>
+        <div className="ml-auto flex flex-wrap items-center gap-1">
+          <Button variant="ghost" size="sm" aria-label="撤销" title="撤销（⌘Z）" disabled={!doc.canUndo} onClick={doc.undo}><Undo2 className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="sm" aria-label="重做" title="重做（⇧⌘Z）" disabled={!doc.canRedo} onClick={doc.redo}><Redo2 className="h-4 w-4" /></Button>
           <span className="mx-1 h-4 w-px bg-[var(--line)]" />
-          <Button variant="ghost" aria-label="缩小" onClick={() => zoomStep(-1)}><Minus className="h-3.5 w-3.5" /></Button>
-          <span className="w-10 text-center text-xs tabular-nums text-[var(--muted)]">{Math.round(zoom * 100)}%</span>
-          <Button variant="ghost" aria-label="放大" onClick={() => zoomStep(1)}><Plus className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="sm" aria-label="缩小" onClick={() => zoomStep(-1)}><Minus className="h-4 w-4" /></Button>
+          <button type="button" title="适应宽度" onClick={() => setZoom(null)} className="w-11 rounded-md text-center text-xs tabular-nums text-[var(--muted)] hover:text-[var(--ink)]">{Math.round(effectiveZoom * 100)}%</button>
+          <Button variant="ghost" size="sm" aria-label="放大" onClick={() => zoomStep(1)}><Plus className="h-4 w-4" /></Button>
           <span className="mx-1 h-4 w-px bg-[var(--line)]" />
-          <Button variant="ghost" title="让助理按岗位或你的要求改这份简历" onClick={() => suggestToChat(`帮我看看这份简历哪里可以改得更好（${label}）`)}><Sparkles className="h-3.5 w-3.5" />让助理改</Button>
-          <Button variant="primary" busy={exporting === 'pdf'} disabled={exporting !== null} onClick={() => void doExport('pdf')}>导出 PDF</Button>
-          <Button busy={exporting === 'docx'} disabled={exporting !== null} onClick={() => void doExport('docx')}>Word</Button>
-          <Button busy={exporting === 'png'} disabled={exporting !== null} onClick={() => void doExport('png')}>图片</Button>
+          <Button variant="ghost" size="sm" title="让助理按岗位或你的要求改这份简历" onClick={() => suggestToChat(`帮我看看这份简历哪里可以改得更好（${title}）`)}><Sparkles className="h-4 w-4" />让助理改</Button>
+          <Button variant="primary" size="sm" busy={exporting === 'pdf'} disabled={exporting !== null} onClick={() => void doExport('pdf')}>导出 PDF</Button>
+          <Button variant="ghost" size="sm" busy={exporting === 'docx'} disabled={exporting !== null} onClick={() => void doExport('docx')}>Word</Button>
+          <Button variant="ghost" size="sm" busy={exporting === 'png'} disabled={exporting !== null} onClick={() => void doExport('png')}>图片</Button>
         </div>
       </div>
       {(exported || exportError) && (
-        <div className="flex items-center gap-2 border-b border-[var(--line)] bg-[var(--inset)] px-3 py-1.5 text-xs">
+        <div className="flex items-center gap-2 border-b border-[var(--line)] px-4 py-1.5 text-xs">
           {exportError
             ? <span role="alert" className="text-[var(--danger)]">导出失败：{exportError}</span>
-            : <><span className="truncate text-[var(--muted)]">已导出：{exported!.path}</span><Button variant="ghost" onClick={() => void openExternal(fileDirname(exported!.path))}><FolderOpen className="h-3.5 w-3.5" />打开文件夹</Button></>}
+            : <><span className="truncate text-[var(--muted)]">已导出：{exported!.path}</span><Button variant="ghost" size="sm" onClick={() => void openExternal(fileDirname(exported!.path))}><FolderOpen className="h-4 w-4" />打开文件夹</Button></>}
         </div>
       )}
 
-      {wide ? (
-        <div className="grid min-h-0 flex-1 grid-cols-[minmax(340px,400px)_minmax(0,1fr)_300px]">
-          <div className="min-h-0 overflow-y-auto border-r border-[var(--line)] p-3"><SectionsPanel data={data} update={doc.update} /></div>
-          <div className="min-h-0">{preview}</div>
-          <div className="min-h-0 overflow-y-auto border-l border-[var(--line)]"><DesignPanel data={data} update={doc.update} resumeId={resumeId} /></div>
+      {/* 两块都是双栏：左边改，右边即时渲染 */}
+      <div className={`grid min-h-0 flex-1 ${narrow ? 'grid-cols-[minmax(260px,320px)_minmax(0,1fr)]' : 'grid-cols-[minmax(340px,420px)_minmax(0,1fr)]'}`}>
+        <div role="tabpanel" aria-label={mode === 'content' ? '内容' : '版式'} className="min-h-0 overflow-y-auto border-r border-[var(--line)]">
+          {mode === 'content'
+            ? <div className="p-4"><SectionsPanel data={data} update={doc.update} /></div>
+            : <DesignPanel data={data} update={doc.update} resumeId={resumeId} />}
         </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div role="tablist" aria-label="工作台视图" className="flex gap-1 border-b border-[var(--line)] px-3">
-            {([['content', '内容'], ['preview', '预览'], ['design', '模板与设计']] as const).map(([key, text]) => (
-              <button key={key} role="tab" type="button" aria-selected={tab === key} onClick={() => setTab(key)}
-                className={`border-b-2 px-3 py-2 text-sm ${tab === key ? 'border-[var(--primary)] text-[var(--ink)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'}`}>{text}</button>
-            ))}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {tab === 'content' && <div className="p-3"><SectionsPanel data={data} update={doc.update} /></div>}
-            {tab === 'preview' && preview}
-            {tab === 'design' && <DesignPanel data={data} update={doc.update} resumeId={resumeId} />}
-          </div>
+        <div ref={previewRef} className="min-h-0 overflow-auto bg-[var(--inset)]">
+          <StudioPreview data={data} preview={doc.preview} zoom={effectiveZoom} />
         </div>
-      )}
+      </div>
     </div>
   );
 }
