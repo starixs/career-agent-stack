@@ -414,7 +414,9 @@ export async function runOperation(
   }
   let page: Page;
   try {
-    page = await pageForApplication(context, sessionKey, appKey, op === 'submit' ? 'submit' : op === 'drive' && !(typeof body.url === 'string' && body.url.trim()) ? 'continue' : 'start');
+    page = await pageForApplication(context, sessionKey, appKey, op === 'submit' ? 'submit' : op === 'drive' && !(typeof body.url === 'string' && body.url.trim()) ? 'continue' : 'start', {
+      siteUrl: typeof body.siteUrl === 'string' && body.siteUrl.trim() ? body.siteUrl.trim() : undefined,
+    });
   } catch (error) {
     out.emit({ type: 'error', status: 410, code: errorName(error) ?? 'APPLICATION_PAGE_GONE', error: error instanceof Error ? error.message : String(error) });
     return;

@@ -142,6 +142,17 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     deps.changed('task', 'action_queue', 'application');
     return { kind: 'failed', blocked, message, summary };
   };
+  // 交还后核对身份没过（页面换了网站 / 找不到网申页面）：不算失败，重新交给用户——回到网申页面后再交还就能接着填
+  const code = (errorLine as { code?: string } | undefined)?.code;
+  if (!result && (code === 'APPLICATION_PAGE_MOVED' || code === 'APPLICATION_PAGE_GONE')) {
+    const message = errorLine?.error ?? '这份网申的页面不对，请回到网申页面后再交还';
+    const h = r.openHandoff('user_request', { actionId: action.id, taskId, message });
+    r.setActionStatus(action.id, 'needs_user', { status: 'handoff', reason: 'page_identity', message, userAction: message });
+    r.updateTask(taskId, { status: 'needs_user' });
+    if (action.application_id) { try { r.transition(action.application_id, 'needs_user', message, { blocker_reason: `page_identity: ${message}`, next_action: '回到网申页面后交还' }); } catch { /* 已在等用户 */ } }
+    deps.changed('handoff', 'task', 'action_queue', 'application');
+    return { kind: 'handoff', handoffId: h.id, reason: 'user_request', userAction: message, message, summary: { status: 'handoff', reason: 'page_identity', message } };
+  }
   if (!result) return fail(errorLine ? `${errorLine.error ?? '浏览器路由报错'}（HTTP ${errorLine.status ?? '?'}）` : '浏览器没有返回填表结果');
   const summary = summarizeDriveResult(result);
   // 用户接管期间自己填好的字段 → 答案库（未确认），下次同类问题直接用原话

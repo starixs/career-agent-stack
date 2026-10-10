@@ -468,7 +468,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       // 续跑：上次 needs_user 的标签交给引擎，用户在接管期间自己填好的值会被学进答案库
       const prevSummary = mode === 'continue' ? parseJson<{ needsUser?: Array<{ label?: string }> }>(action.result_json) : undefined;
       const learnFrom = (prevSummary?.needsUser ?? []).map(p => p.label).filter((l): l is string => typeof l === 'string' && !!l);
-      await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload, ...(mode === 'start' && typeof payload.url === 'string' ? { url: payload.url } : {}), ...(resumePath ? { resumePath } : {}), ...(learnFrom.length ? { learnFrom } : {}) }, (ev) => {
+      await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload, ...(mode === 'start' && typeof payload.url === 'string' ? { url: payload.url } : {}), ...(mode === 'continue' && typeof payload.url === 'string' ? { siteUrl: payload.url } : {}), ...(resumePath ? { resumePath } : {}), ...(learnFrom.length ? { learnFrom } : {}) }, (ev) => {
         events.push(ev);
         if (ev.type === 'progress') progress('fill_form', String(ev.message ?? ''), { runId, taskId, progress: ev.progress });
       });

@@ -77,6 +77,8 @@ export async function getBatchRunner(): Promise<BatchRunner> {
           const body: Record<string, unknown> = {
             op: 'drive', actionId: req.action.id, applicationId: req.action.application_id, payload: req.payload,
             ...(req.mode === 'start' && typeof req.payload.url === 'string' ? { url: req.payload.url } : {}),
+            // 续跑不重开链接，但要带上网申所在网站：交还后页面不在这个网站上就停下问用户（app-pages 核对）
+            ...(req.mode === 'continue' && typeof req.payload.url === 'string' ? { siteUrl: req.payload.url } : {}),
             ...(req.resumePath ? { resumePath: req.resumePath } : {}),
             ...(req.learnFrom?.length ? { learnFrom: req.learnFrom } : {}),
           };
