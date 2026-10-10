@@ -244,7 +244,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
   // effect and the textarea `rows` / min/max style props. Keep as a single
   // derived constant so a later tweak (e.g. bump to 4) propagates everywhere
   // without the three-site scan the prior duplicated ternary required.
-  const effectiveMinLines = isLauncherMode ? LAUNCHER_MIN_LINES : 2;
+  const effectiveMinLines = isLauncherMode ? LAUNCHER_MIN_LINES : 1;
   const isExternalRuntime = runtime !== 'builtin';
   const overlayRootRef = useRef<HTMLDivElement>(null);
   const attachmentSessionId = sessionId;
@@ -1383,6 +1383,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
     ? stoppedCronTask
     : null;
   const hasStatusBar = showDraftGoalBar || showDraftCronBar || !!visibleGoal || !!activeCronTask || !!visibleStoppedCronTask;
+  // 空输入框收成一行（文字在左、工具在右），一开始打字或加图就恢复两排：纵向高度留给对话正文。
+  const compactComposer = !isLauncherMode && inputValue.length === 0 && images.length === 0;
 
   return (
     <>
@@ -1420,7 +1422,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
           click and block message selection (Codex review). Cards themselves
           override with `pointer-events-auto`. */}
       {!isLauncherMode && (
-        <div className="pointer-events-none mb-2 flex w-full max-w-3xl items-end justify-end gap-2 empty:hidden">
+        <div className="pointer-events-none mb-2 flex w-full max-w-[820px] items-end justify-end gap-2 empty:hidden">
           {agentStatusSlot}
           {queuedMessages.length > 0 && (
             <QueuedMessagesPanel
@@ -1435,7 +1437,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
       {/* Input container */}
       <div className={isLauncherMode
         ? 'relative w-full'
-        : 'pointer-events-auto relative w-full max-w-3xl'
+        : 'pointer-events-auto relative w-full max-w-[820px]'
       }>
         {/* Cron task status bar — shown when cron mode is enabled but the task
          *  hasn't started yet. PRD 0.2.7 D1: launcher SHOULD show this so the
@@ -1492,14 +1494,14 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
           />
         )}
 
-        <div className={`relative border border-[var(--line)] bg-[var(--paper)] shadow-md ${
+        <div className={`relative border border-[var(--line)] bg-[var(--paper)] shadow-md ${compactComposer ? 'flex items-center' : ''} ${
           hasStatusBar
             ? 'rounded-b-2xl rounded-t-none border-t-0'  // StatusBar visible: no top rounded, no top border
             : 'rounded-2xl'  // Normal: fully rounded
         }`}>
           {/* Clickable area for focus - covers input area but not toolbar */}
           <div
-            className="cursor-text"
+            className={`cursor-text ${compactComposer ? 'min-w-0 flex-1' : ''}`}
             onClick={(e) => {
               // Only focus if not clicking on a button or interactive element
               const target = e.target as HTMLElement;
@@ -1540,7 +1542,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
           )}
 
           {/* Textarea area */}
-          <div ref={textareaWrapperRef} className="relative px-4 pt-3">
+          <div ref={textareaWrapperRef} className={`relative px-4 ${compactComposer ? 'py-3' : 'pt-3'}`}>
             <textarea
               ref={textareaRef}
               value={inputValue}
@@ -1760,7 +1762,11 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
               In thought mode (PRD §4.2) the left-side action strip collapses so
               the input reads as a pure note-taking box; the right-side send
               button remains so users can commit the thought with a click. */}
-          <div className="toolbar-menus flex items-center px-3 pb-2 pt-1 flex-nowrap min-w-0" style={{ containerType: 'inline-size' }}>
+          <div
+            className={`toolbar-menus flex items-center flex-nowrap ${compactComposer ? 'shrink-0 py-1.5 pl-0 pr-2' : 'min-w-0 px-3 pb-2 pt-1'}`}
+            // 单行时工具栏随内容取宽，不能做 inline-size 容器（会被压成 0 宽）
+            style={{ containerType: compactComposer ? 'normal' : 'inline-size' }}
+          >
             {/* Left side - action buttons (hidden in thought mode). Uses
                 `ml-auto` on the right group instead of `justify-between` so
                 the send button stays right-aligned even when the left strip

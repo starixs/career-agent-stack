@@ -570,3 +570,39 @@
   background: transparent;
   padding: 0;
 }
+
+/*
+ * Chat reading rhythm (specs/CAREER_DESIGN.md 3.2, 2026-10-10 revision).
+ * Long assistant replies used ~30% of each screen on gaps between list items,
+ * paragraphs and headings, so a 14" laptop showed ~460 characters per screen.
+ * Chat (`.chat-reading`) tightens that rhythm; documents and previews keep the
+ * shared default. When the conversation column is narrow (a side panel is
+ * open) the body steps down to 15px and lists indent less, so a 500px column
+ * still reads in full lines instead of wrapping every list item.
+ */
+@layer components {
+  .chat-reading .markdown-content {
+    --markdown-line-height: 1.65;
+    --markdown-flow-gap: var(--space-2);
+    --markdown-paragraph-gap: var(--space-3);
+    --markdown-list-block-gap: var(--space-1);
+    --markdown-list-item-gap: var(--space-1);
+    --markdown-loose-list-item-gap: var(--space-2);
+    --markdown-nested-list-gap: var(--space-0-5);
+    --markdown-after-list-gap: var(--space-3);
+    --markdown-rule-gap: var(--space-5);
+  }
+  .chat-reading .markdown-h1,
+  .chat-reading .markdown-h2 { margin-block-start: var(--space-6); }
+  .chat-reading .markdown-h3 { margin-block-start: var(--space-4); }
+
+  @container chat-conversation (max-width: 600px) {
+    .chat-reading .markdown-content {
+      --markdown-font-size: 15px;
+      --markdown-list-indent: var(--space-5);
+      --markdown-nested-list-indent: var(--space-4);
+    }
+    .chat-reading .markdown-h3 { margin-block-start: var(--space-3); }
+    .chat-reading .user-message { font-size: 15px; }
+  }
+}

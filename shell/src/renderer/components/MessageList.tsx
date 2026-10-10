@@ -93,6 +93,8 @@ interface MessageListProps {
   /** Stable projection of persisted Codex root-turn anchors for user-row eligibility. */
   rewindableUserMessageIds?: ReadonlySet<string>;
   bottomSpacerPx?: number;
+  /** Extra tail so a just-sent question can sit at the top while its reply is shorter than a screen. */
+  anchorTailPx?: number;
 }
 
 interface MessageActionContext {
@@ -230,6 +232,7 @@ type FooterProps = {
   systemNotice?: SystemNotice | null;
   onDismissSystemNotice?: () => void;
   bottomSpacerPx?: number;
+  anchorTailPx?: number;
 };
 
 interface MessageListContext extends MessageActionContext {
@@ -242,10 +245,11 @@ const VirtuosoFooter = memo(function VirtuosoFooter({
   showStatus, statusMessage, getQueryElapsedSeconds,
   systemNotice, onDismissSystemNotice,
   bottomSpacerPx,
+  anchorTailPx = 0,
 }: FooterProps) {
-  const spacerHeight = resolveChatBottomSpacerPx(bottomSpacerPx);
+  const spacerHeight = resolveChatBottomSpacerPx(bottomSpacerPx) + anchorTailPx;
   return (
-    <div className="mx-auto max-w-3xl px-3">
+    <div className="chat-reading mx-auto max-w-[820px] px-3">
       {/* 求职卡片（待审核 / 浏览器需要你 / 进度行）直接读 TabContext，不经 Chat.tsx 透传 */}
       <CareerChatCards />
       {pendingPermission && onPermissionDecision && (
@@ -327,6 +331,7 @@ const MessageList = memo(function MessageList({
   conversationOperations = 'builtin',
   rewindableUserMessageIds,
   bottomSpacerPx,
+  anchorTailPx,
 }: MessageListProps) {
   const { t } = useTranslation('chat');
   const viewportRootRef = useRef<HTMLDivElement>(null);
@@ -564,7 +569,7 @@ const MessageList = memo(function MessageList({
     // measurement fix without the clipping.
     return (
       <div
-        className="mx-auto max-w-3xl px-3 py-1 flow-root"
+        className="chat-reading mx-auto max-w-[820px] px-3 py-1 flow-root"
         data-chat-search-scope=""
         data-message-id={message.id}
       >
@@ -595,9 +600,9 @@ const MessageList = memo(function MessageList({
       pendingPermission, onPermissionDecision,
       pendingAskUserQuestion, onAskUserQuestionSubmit, onAskUserQuestionCancel,
       showStatus, statusMessage, getQueryElapsedSeconds,
-      systemNotice, onDismissSystemNotice, bottomSpacerPx,
+      systemNotice, onDismissSystemNotice, bottomSpacerPx, anchorTailPx,
     },
-  }), [messageActionContext, pendingPermission, onPermissionDecision, pendingAskUserQuestion, onAskUserQuestionSubmit, onAskUserQuestionCancel, showStatus, statusMessage, getQueryElapsedSeconds, systemNotice, onDismissSystemNotice, bottomSpacerPx]);
+  }), [messageActionContext, pendingPermission, onPermissionDecision, pendingAskUserQuestion, onAskUserQuestionSubmit, onAskUserQuestionCancel, showStatus, statusMessage, getQueryElapsedSeconds, systemNotice, onDismissSystemNotice, bottomSpacerPx, anchorTailPx]);
 
   // ── Freeze the data fed to Virtuoso while the internal Tab is inactive ──────
   // An inactive internal Tab is wrapped in `content-visibility: hidden`, so any

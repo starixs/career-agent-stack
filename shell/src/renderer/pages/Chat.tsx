@@ -52,6 +52,7 @@ import SelectionCommentMenu from '@/components/SelectionCommentMenu';
 import TerminalReasonBanner from '@/components/TerminalReasonBanner';
 import RuntimeDiagnosticsBanner from '@/components/RuntimeDiagnosticsBanner';
 import { UnifiedLogsPanel } from '@/components/UnifiedLogsPanel';
+import { useSendAnchor } from '@/hooks/useSendAnchor';
 import WorkspaceConfigPanel, { type Tab as WorkspaceTab } from '@/components/WorkspaceConfigPanel';
 import CronTaskSettingsModal, {
   GOAL_SLASH_PRESET,
@@ -3392,6 +3393,13 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
     restoreAnchorAfterNextCommit,
     onRowLayoutChanged,
   } = chatScrollController;
+  // 发送后把这条问题顶到视口上方，回复在下面长、页面不动（见 useSendAnchor）。
+  const { armAnchor, tailPx: sendAnchorTailPx } = useSendAnchor({
+    messages: chatScrollModel.data,
+    scrollerRef,
+    scrollToMessage,
+    pauseAutoScroll,
+  });
   const handleInputOverlayHeightChange = useCallback((height: number) => {
     setInputOverlayHeight(prev => Math.abs(prev - height) < 1 ? prev : Math.ceil(height));
   }, []);
@@ -3899,9 +3907,9 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
       return false;
     }
 
-    // Scroll to bottom immediately so user sees their query
-    // This also re-enables auto-scroll if user had scrolled up
-    scrollToBottom();
+    // The new question will move to the top of the viewport once it arrives and the
+    // reply grows below it without auto-follow (send-anchored reading).
+    armAnchor();
 
     // Scheduling a future Task does not start an AI turn. TabProvider owns
     // loading for ordinary sends and actual scheduled execution events.
@@ -3999,7 +4007,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
       return false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- toastRef/currentProviderRef/apiKeysRef/cronStateRef are refs (stable); scrollToBottom/setMessages/setIsLoading/setSessionState are stable
-  }, [sessionState, isSessionLoading, isLoading, queuedMessages.length, startScheduledTask, sendMessage, effectivePermissionMode, effectiveModel, reasoningEffort, isExternalRuntime, isCrossRuntimeSession, scrollToBottom, pinnedProviderUnavailable, builtinSnapshotProviderSelectionIncomplete, showPinnedProviderUnavailableToast, showSnapshotProviderIncompleteToast, t]);
+  }, [sessionState, isSessionLoading, isLoading, queuedMessages.length, startScheduledTask, sendMessage, effectivePermissionMode, effectiveModel, reasoningEffort, isExternalRuntime, isCrossRuntimeSession, armAnchor, pinnedProviderUnavailable, builtinSnapshotProviderSelectionIncomplete, showPinnedProviderUnavailableToast, showSnapshotProviderIncompleteToast, t]);
 
   // Ref-stabilize handleSendMessage for handleRetry (avoids frequent re-creation)
   const handleSendMessageRef = useRef(handleSendMessage);
@@ -5170,11 +5178,24 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
         data-chat-workspace-motion={shouldUseWorkspaceOverlay ? undefined : (workspacePanelMotion ?? undefined)}
       >
       <div
-        className="relative flex min-w-0 flex-1 flex-col overflow-hidden"
+        className="relative flex min-w-0 flex-1 flex-col overflow-hidden [container-name:chat-conversation] [container-type:inline-size]"
         data-chat-conversation
       >
         {showCompanionChip && <CompanionChip />}
-        {/* Compact header - single row */}
+        {/* Compact header - single row. 单一对话壳不显示：项目名和「新对话」对单一对话没有信息量，纵向高度留给正文。 */}
+        {SINGLE_SESSION_SHELL && config.showDevTools && (
+          <button
+            type="button"
+            onClick={() => setShowLogs((prev) => !prev)}
+            className={`absolute right-3 top-2 z-20 rounded-lg px-2.5 py-1 text-sm font-medium transition-colors ${showLogs
+              ? 'bg-[var(--inset)] text-[var(--ink)]'
+              : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
+              }`}
+          >
+            Logs
+          </button>
+        )}
+        {!SINGLE_SESSION_SHELL && (
         <div className="relative z-10 flex h-12 flex-shrink-0 items-center justify-between bg-[var(--paper)] px-4 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-gradient-to-b after:from-[var(--paper)] after:to-[var(--paper-a0)]">
           <div className="flex min-w-0 items-center gap-2">
             {/* Project name */}
@@ -5311,6 +5332,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
             )}
           </div>
         </div>
+        )}
 
         {/* Content area with relative positioning for floating input */}
         <div
@@ -5375,7 +5397,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
             const canRetry = !!lastUserMsg && !isLoading;
             return (
             <div className="relative z-10 flex-shrink-0 border-b border-[var(--line)] bg-[var(--inset)] px-4 py-2 text-xs text-[var(--ink)]">
-              <div className="mx-auto flex max-w-3xl items-start gap-2">
+              <div className="mx-auto flex max-w-[820px] items-start gap-2">
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--primary)]" />
                 <div className="flex-1">
                   <span className="font-semibold text-[var(--ink)]">{t('shell.agentError.title')}</span>
@@ -5504,6 +5526,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
               conversationOperations={currentRuntime === 'codex' ? 'codex' : 'builtin'}
               rewindableUserMessageIds={rewindableUserMessageIds}
               bottomSpacerPx={inputOverlayHeight}
+              anchorTailPx={sendAnchorTailPx}
             />
 
             {/* Introduction overlay — shown in empty sessions when INTRODUCTION.md exists */}
@@ -5515,7 +5538,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
 
             {/* Inline cron task card — shown in message flow after creating a "新开对话" task */}
             {cronCardTask && (
-              <div className="mx-auto w-full max-w-3xl px-4 py-2">
+              <div className="mx-auto w-full max-w-[820px] px-4 py-2">
                 <CronTaskCard
                   taskId={cronCardTask.id}
                   name={cronCardTask.name || cronCardTask.prompt.slice(0, 20)}

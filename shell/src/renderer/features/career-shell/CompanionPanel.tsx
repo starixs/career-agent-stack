@@ -97,7 +97,7 @@ export function CompanionPanel() {
 
   return (
     <aside
-      className="flex h-full w-[360px] shrink-0 flex-col border-l border-[var(--line)] bg-[var(--side)]"
+      className="flex h-full w-[300px] shrink-0 flex-col border-l border-[var(--line)] bg-[var(--side)]"
       aria-label="伙伴面板"
       data-companion-panel
     >
