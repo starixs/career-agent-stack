@@ -73,6 +73,11 @@ export async function pageForApplication(context: BrowserContext, sessionKey: st
   return page;
 }
 
+/** 让某个页面成为这份网申（或浏览页）的页面：点击打开了新标签页时，后续操作跟着新标签走。 */
+export function adoptApplicationPage(sessionKey: string, appKey: string, page: Page): void {
+  register(slot(sessionKey, appKey), page);
+}
+
 function register(key: string, page: Page): void {
   const frame = identity(page);
   entries.set(key, { frame, key, openedAt: Date.now() });
