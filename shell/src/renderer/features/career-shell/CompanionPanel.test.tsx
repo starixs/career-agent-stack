@@ -19,7 +19,10 @@ vi.mock('@/config/useConfigData', () => ({ useConfigData: () => ({ config: { flo
 vi.mock('@/floating-ball/petPackLibrary', () => ({ resolveSelectedPetPack: async () => (await import('@/floating-ball/defaultPetPack')).MINO_DEFAULT_PET_PACK }));
 
 import { CompanionPanel, deadlineLabel } from './CompanionPanel';
-import { recordProgress, recordTakeover, resetWorkSurfaces, useWorkSurfaces } from './workSurfaceStore';
+import { emitEvent } from '@/api/eventBus';
+import { CareerLiveDrawer } from '@/components/career/CareerLiveDrawer';
+
+import { recordProgress, recordTakeover, resetWorkSurfaces, settleProgressRuns, useWorkSurfaces } from './workSurfaceStore';
 
 describe('deadlineLabel', () => {
   const now = Date.parse('2026-10-09T00:00:00.000Z');
@@ -52,6 +55,20 @@ describe('workSurfaceStore progress', () => {
 
 describe('CompanionPanel', () => {
   beforeEach(() => resetWorkSurfaces());
+
+  it('a step that only reported its start is settled when the tool returns or the turn ends', () => {
+    // resume_export 只发了「正在导出 pdf」，从来不发完成
+    recordProgress({ phase: 'resume_export', message: '正在导出 pdf' }, 1);
+    settleProgressRuns();
+    function Probe() { const { runs } = useWorkSurfaces(); return <div data-testid="active">{runs.filter(r => !r.finished).length}</div>; }
+    render(<><CareerLiveDrawer /><Probe /></>);
+    expect(screen.getByTestId('active')).toHaveTextContent('0');
+    // 再来一次，经由事件（TabProvider 在 tool-result / message-complete 时发）
+    act(() => recordProgress({ phase: 'resume_export', message: '正在导出 pdf' }, 2));
+    expect(screen.getByTestId('active')).toHaveTextContent('1');
+    act(() => emitEvent('career:progress-settled', null));
+    expect(screen.getByTestId('active')).toHaveTextContent('0');
+  });
 
   it('shows the pet, what it is doing, the next todos and today trail from real data', async () => {
     act(() => recordProgress({ runId: 'r1', phase: 'apply_run', message: '在填教育经历' }));

@@ -2806,6 +2806,9 @@ export default function TabProvider({
 
             case 'chat:tool-result-start':
             case 'chat:tool-result-complete': {
+                // 工具出结果 / 一轮结束：进度只报了开始没报完成的，在这里收口，否则「正在导出…」会一直挂着。
+                setCareerProgress(null);
+                emitEvent('career:progress-settled', null);
                 const payload = data as {
                     toolUseId: string;
                     content?: string;
@@ -2871,6 +2874,9 @@ export default function TabProvider({
             }
 
             case 'chat:message-complete': {
+                // 工具出结果 / 一轮结束：进度只报了开始没报完成的，在这里收口，否则「正在导出…」会一直挂着。
+                setCareerProgress(null);
+                emitEvent('career:progress-settled', null);
                 console.log(`[TabProvider ${tabId}] message-complete received`);
                 // Track message_complete event with usage data
                 const completePayload = data as {
@@ -3075,6 +3081,9 @@ export default function TabProvider({
             }
 
             case 'chat:message-stopped': {
+                // 工具出结果 / 一轮结束：进度只报了开始没报完成的，在这里收口，否则「正在导出…」会一直挂着。
+                setCareerProgress(null);
+                emitEvent('career:progress-settled', null);
                 console.log(`[TabProvider ${tabId}] message-stopped received`);
                 flushSync(() => {
                     // isStreamingRef.current set inside moveStreamingToHistory's updater
@@ -3095,6 +3104,9 @@ export default function TabProvider({
             }
 
             case 'chat:message-error': {
+                // 工具出结果 / 一轮结束：进度只报了开始没报完成的，在这里收口，否则「正在导出…」会一直挂着。
+                setCareerProgress(null);
+                emitEvent('career:progress-settled', null);
                 console.log(`[TabProvider ${tabId}] message-error received`);
                 const errorMessage = typeof data === 'string'
                     ? data

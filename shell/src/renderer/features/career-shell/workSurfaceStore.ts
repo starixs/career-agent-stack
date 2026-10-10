@@ -111,6 +111,15 @@ export function recordProgress(event: CareerProgressEvent, now = Date.now()): vo
   setState({ runs: [run, ...state.runs.filter(other => other.key !== key)].slice(0, MAX_RUNS) });
 }
 
+/**
+ * Tools only report that a step started; when a tool returns or the turn ends nothing says it finished.
+ * Called at those moments so the companion stops showing a step that is already over.
+ */
+export function settleProgressRuns(): void {
+  if (!state.runs.some(run => !run.finished)) return;
+  setState({ runs: state.runs.map(run => (run.finished ? run : { ...run, finished: true })) });
+}
+
 /** Test helper. */
 export function resetWorkSurfaces(): void {
   setState({ expanded: null, refId: null, nonce: 0, context: null, fullscreen: false, takeover: null, runs: [] });

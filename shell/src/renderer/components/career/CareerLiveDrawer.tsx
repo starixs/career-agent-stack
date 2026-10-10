@@ -15,6 +15,7 @@ import {
   collapseWorkSurface,
   expandWorkSurface,
   recordProgress,
+  settleProgressRuns,
   recordTakeover,
   setWorkSurfaceFullscreen,
   useWorkSurfaces,
@@ -58,6 +59,7 @@ export function CareerLiveDrawer({ autoOpenOnHandoff = true }: { autoOpenOnHando
     if (autoOpenOnHandoff && p.state === 'paused') showBrowserSurface();
   }), [autoOpenOnHandoff]);
   useEffect(() => onEvent<CareerProgressEvent>('career:progress', p => { if (p) recordProgress(p); }), []);
+  useEffect(() => onEvent('career:progress-settled', () => settleProgressRuns()), []);
   // 页面请求选文件：系统框被拦下了，必须展开浏览器栏让用户在产品里选
   useEffect(() => onEvent<LiveFileChooserEvent>(FILE_EVENT, p => { if (p?.state === 'open') showBrowserSurface(); }), []);
   return null;
