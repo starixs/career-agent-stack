@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 
+import { VirtualDisplay, setVirtualParkTarget } from './virtual-display';
 import { markProfileExitedCleanly } from './profile-hygiene';
 import type {
   Browser,
@@ -311,6 +313,35 @@ export class BrowserContextRegistry {
   }
 
   private windowListener: BrowserWindowListener | null = null;
+  /** macOS 虚拟屏（policy.virtualDisplay）：和托管 Chrome 同生共死，见 virtual-display.ts。 */
+  private virtualDisplay: VirtualDisplay | null = null;
+
+  /** 启动 Chrome 前确保虚拟屏就绪；失败退回角落停靠（不挡启动）。 */
+  private async ensureVirtualDisplay(): Promise<void> {
+    if (!this.runtimePolicy.embeddedWindow || !this.runtimePolicy.virtualDisplay) return;
+    if (!this.virtualDisplay) {
+      this.virtualDisplay = new VirtualDisplay({
+        binDir: join(this.runtimePolicy.profileRoot, '..', 'bin'),
+        log: msg => console.log(`[browser-host] ${msg}`),
+        // 助手意外退出：macOS 会把窗口搬到主屏正中——立刻停回角落
+        onLost: () => { setVirtualParkTarget(null); void this.reparkAll(); },
+      });
+    }
+    try {
+      setVirtualParkTarget(await this.virtualDisplay.ensure());
+    } catch (error) {
+      setVirtualParkTarget(null);
+      console.warn(`[browser-host] virtual-display=unavailable fallback=corner error=${error instanceof Error ? error.message : 'unknown'}`);
+    }
+  }
+
+  /** 把所有没被用户放出来的托管窗口重新停靠（停靠目标变了时）。 */
+  private async reparkAll(): Promise<void> {
+    for (const [sessionId, entry] of this.entries) {
+      if (this.revealedWindows.has(sessionId)) continue;
+      for (const page of entry.context.pages()) if (!page.isClosed()) await parkWindow(entry.context, page, { profileDir: entry.userDataDir }).catch(() => false);
+    }
+  }
   setWindowListener(listener: BrowserWindowListener | null): void {
     this.windowListener = listener;
   }
@@ -604,6 +635,7 @@ export class BrowserContextRegistry {
     signal?: AbortSignal,
   ): Promise<BrowserContext> {
     if (signal?.aborted) throw new Error('BROWSER_CONTEXT_CANCELLED');
+    await this.ensureVirtualDisplay();
     const compiled = compileBrowserRuntimeSettings(
       binding.productSessionId,
       binding.workspacePath,
@@ -952,6 +984,11 @@ export class BrowserContextRegistry {
     if (this.browser) await this.browser.close();
     this.browser = null;
     this.browserPromise = null;
+    // 窗口都关了才放虚拟屏（反过来 macOS 会把窗口搬到主屏正中）
+    if (!options.preserveConnectionOwners && this.virtualDisplay) {
+      this.virtualDisplay.stop();
+      setVirtualParkTarget(null);
+    }
   }
 
   async shutdown(): Promise<void> {

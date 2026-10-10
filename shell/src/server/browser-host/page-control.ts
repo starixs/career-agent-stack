@@ -3,6 +3,7 @@ import { execFile } from 'child_process';
 import type { BrowserContext, Page } from 'playwright';
 
 import type { BrowserChannel } from './runtime-settings';
+import { virtualParkTarget } from './virtual-display';
 
 const MAC_ACTIVATE_TIMEOUT_MS = 3_000;
 
@@ -67,7 +68,11 @@ export interface BringToFrontOptions {
 export const PARKED_WINDOW_BOUNDS = { left: -10000, top: 10000, width: 1440, height: 1000 } as const;
 /** Windows 不夹回：停到屏幕外就完全看不见（再配合工具窗口样式去掉任务栏按钮）。 */
 export const PARKED_WINDOW_BOUNDS_WIN32 = { left: -10000, top: -10000, width: 1440, height: 1000 } as const;
-export const parkedWindowBounds = (platform: NodeJS.Platform = process.platform) => (platform === 'win32' ? PARKED_WINDOW_BOUNDS_WIN32 : PARKED_WINDOW_BOUNDS);
+export const parkedWindowBounds = (platform: NodeJS.Platform = process.platform): { left: number; top: number; width: number; height: number } => {
+  if (platform === 'win32') return PARKED_WINDOW_BOUNDS_WIN32;
+  // macOS 有虚拟屏时停到虚拟屏上（见 virtual-display.ts），否则角落
+  return (platform === 'darwin' ? virtualParkTarget() : null) ?? PARKED_WINDOW_BOUNDS;
+};
 /** 页面视口的固定宽度（桌面版布局）；高度按现场画面框的比例跟随。 */
 export const LIVE_VIEWPORT_WIDTH = 1366;
 const LIVE_VIEWPORT_MIN_HEIGHT = 600;

@@ -5,6 +5,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "path";
 import type { createConnection } from "@playwright/mcp";
 import type { BrowserContextOptions, LaunchOptions } from "playwright";
 
+import { virtualParkTarget } from "./virtual-display";
+
 export type PlaywrightConnectionConfig = NonNullable<
   Parameters<typeof createConnection>[0]
 >;
@@ -29,6 +31,11 @@ export interface BrowserRuntimePolicy {
    * 用户只在产品内的现场画面里看 / 操作。`CAREER_BROWSER_WINDOW=window` 退回独立窗口。
    */
   embeddedWindow?: boolean;
+  /**
+   * macOS 虚拟屏（可选，`CAREER_BROWSER_WINDOW=virtual-display`）：内嵌窗口停到一块看不见的虚拟屏上，
+   * 不占用户桌面角落（browser-host/virtual-display.ts）。创建失败退回角落停靠。
+   */
+  virtualDisplay?: boolean;
 }
 
 export interface CompiledBrowserRuntimeSettings {
@@ -81,7 +88,17 @@ export const EMBEDDED_WINDOW_CHROMIUM_ARGS_WIN32: readonly string[] = [
 ];
 
 export function embeddedWindowArgs(platform: NodeJS.Platform = process.platform): readonly string[] {
-  return platform === "win32" ? EMBEDDED_WINDOW_CHROMIUM_ARGS_WIN32 : EMBEDDED_WINDOW_CHROMIUM_ARGS;
+  if (platform === "win32") return EMBEDDED_WINDOW_CHROMIUM_ARGS_WIN32;
+  // 有虚拟屏：一启动就开在虚拟屏上（不在用户桌面上闪一下）
+  const target = platform === "darwin" ? virtualParkTarget() : null;
+  if (target) {
+    return [
+      ...EMBEDDED_WINDOW_CHROMIUM_ARGS.filter(a => !a.startsWith("--window-position=") && !a.startsWith("--window-size=")),
+      `--window-position=${target.left},${target.top}`,
+      `--window-size=${target.width},${target.height}`,
+    ];
+  }
+  return EMBEDDED_WINDOW_CHROMIUM_ARGS;
 }
 
 export const IGNORED_DEFAULT_CHROMIUM_ARGS: readonly string[] = ["--enable-automation"];
@@ -175,6 +192,7 @@ export function resolveBrowserRuntimePolicy(
     mirrorIdentity: env.CAREER_BROWSER_IDENTITY_MIRROR?.trim() === "1",
     profileRoot: join(home, ".keystone", "browser-profile"),
     embeddedWindow: env.CAREER_BROWSER_WINDOW?.trim().toLowerCase() !== "window",
+    virtualDisplay: platform === "darwin" && env.CAREER_BROWSER_WINDOW?.trim().toLowerCase() === "virtual-display",
   };
 }
 
