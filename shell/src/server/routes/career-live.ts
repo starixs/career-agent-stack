@@ -8,7 +8,7 @@
  *   用户直接在产品内的画面里操作；`/live/window` 是临时放出真实窗口的逃生口，
  *   `/live/file` 接住被拦截的系统选文件框。
  */
-import type { BrowserContext } from 'playwright';
+import type { BrowserContext, Page } from 'playwright';
 import type { Repos } from '@career/core';
 
 import type { BrowserControl, BrowserControlState } from '../browser-host/context-registry';
@@ -18,6 +18,7 @@ import type { BatchRunner, BatchState } from '../career/batch-runner';
 import type { FileChooserBroker, PendingFileChooser, UploadedFile } from '../career/file-chooser';
 import { BatchRunner as BatchRunnerClass } from '../career/batch-runner';
 import type { LiveHub } from '../career/live-hub';
+import { createPageFollower } from '../career/page-follower';
 import { ScreencastHub, fromPlaywrightPage } from '../career/screencast';
 
 export const CAREER_LIVE_PREFIX = '/api/career/live/';
@@ -269,33 +270,53 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
       if (wantFrames) {
         let attached = false;
         let notified = false;
+        const poll = deps.framesPollMs ?? 2000;
+        // 画面状态（渲染层据此给准确的提示，而不是一句过时的"浏览器还没打开"）：
+        // waiting 还没打开 / connecting 正在接上 / closed 接上后被关掉了；实时还是静止由帧的 source 区分
+        const status = (state: 'waiting' | 'connecting' | 'closed', message?: string) => write({ type: 'frame-status', state, ...(message ? { message } : {}) });
+        const rearm = () => { attached = false; if (!framesTimer && !abort.signal.aborted) framesTimer = setInterval(tryAttach, poll); };
         // 浏览器可能在连上之后才打开（批量 / 填表开始时）：没打开就每 2 秒再看一次，打开了立刻接上画面
         const tryAttach = () => {
           if (attached || abort.signal.aborted) return;
           const id = deps.productSessionId();
           if (!id || !deps.host.hasContext(id)) {
-            if (!notified) { notified = true; write({ type: 'frame-error', error: id ? '浏览器还没有打开；助理开始填表或你开始批量投递后画面会出现' : '还没有个人助理会话' }); }
+            if (!notified) { notified = true; status('waiting', id ? '浏览器还没有打开；助理开始填表或你开始批量投递后画面会出现' : '还没有个人助理会话'); }
             return;
           }
           attached = true;
           if (framesTimer) { clearInterval(framesTimer); framesTimer = null; }
+          status('connecting');
           // 持有一个租约直到连接断开：没有租约的话 15 秒后 Context 会被回收
           void deps.host.withProductSession(id, async context => {
-            const hub = new ScreencastHub(async () => fromPlaywrightPage(await activePage(context)), { quality: 55, maxWidth: 1280, maxHeight: 900, everyNthFrame: 2, log: msg => { console.warn(`[career-live] ${msg}`); if (/失败/.test(msg)) write({ type: 'frame-error', error: msg }); } });
+            // 跟随新开的标签页（网申弹出的登录 / 扫码页）：直到它关掉，或者选中页被引擎 / 用户换掉
+            const follower = createPageFollower<Page>(() => activePage(context));
+            const hub = new ScreencastHub(async () => fromPlaywrightPage(await follower.pick()), { quality: 55, maxWidth: 1280, maxHeight: 900, everyNthFrame: 2, log: msg => { console.warn(`[career-live] ${msg}`); if (/失败/.test(msg)) write({ type: 'frame-error', error: msg }); } });
             unsubFrames = hub.subscribe(frame => write({ type: 'frame', ...frame }));
-            const onPage = () => { void hub.refresh(); };
+            const onPage = (page: Page) => { void follower.follow(page).then(() => hub.refresh()).catch(() => {}); };
             context.on('page', onPage);
             // 多份网申各有页面：选中页切换（focusPage）时画面跟过去
             const follow = setInterval(() => { void hub.refresh(); }, 1500);
-            abort.signal.addEventListener('abort', () => clearInterval(follow), { once: true });
-            await new Promise<void>(resolve => { if (abort.signal.aborted) resolve(); else abort.signal.addEventListener('abort', () => resolve(), { once: true }); });
+            let contextClosed = false;
+            await new Promise<void>(resolve => {
+              if (abort.signal.aborted) { resolve(); return; }
+              abort.signal.addEventListener('abort', () => resolve(), { once: true });
+              context.once('close', () => { contextClosed = true; resolve(); });
+            });
+            clearInterval(follow);
+            context.off('page', onPage);
             unsubFrames?.(); unsubFrames = null;
             await hub.stop();
+            if (contextClosed && !abort.signal.aborted) {
+              // 浏览器被关了：回到等待，下次打开自动接上（不需要用户重开现场）
+              notified = true;
+              status('closed', '浏览器已关闭；助理再次打开浏览器时画面会自动接上');
+              rearm();
+            }
           }, { allowHumanControl: true, signal: abort.signal }).catch(e => {
             write({ type: 'frame-error', error: e instanceof Error ? e.message : String(e) });
             // 浏览器在接上前被关掉：回到等待状态，下次打开再接
-            attached = false; notified = false;
-            if (!framesTimer && !abort.signal.aborted) framesTimer = setInterval(tryAttach, deps.framesPollMs ?? 2000);
+            notified = false;
+            rearm();
           });
         };
         tryAttach();

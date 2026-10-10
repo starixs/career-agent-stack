@@ -175,7 +175,14 @@ export interface LiveSnapshot {
 /** 页面请求选文件（系统选文件框被拦下，改在产品里选）。 */
 export interface LiveFileChooser { id: string; sessionId: string; multiple: boolean; accept: string | null; url: string; ts: number }
 export interface LiveFileChooserEvent extends Partial<LiveFileChooser> { id: string; state: 'open' | 'done' | 'cancelled' | 'expired'; count?: number; names?: string[] }
-export interface LiveFrame { type: 'frame'; data: string; width: number; height: number; ts: number; url?: string }
+export interface LiveFrame { type: 'frame'; data: string; width: number; height: number; ts: number; url?: string; source?: 'screencast' | 'snapshot' }
+/** 画面状态（Global 推送）：waiting 还没打开 / connecting 正在接上 / closed 接上后被关掉。 */
+export interface LiveFrameStatus { type: 'frame-status'; state: 'waiting' | 'connecting' | 'closed'; message?: string }
+/** 状态 → 画面占位文字。 */
+export function liveStatusText(ev: LiveFrameStatus): string {
+  if (ev.message) return ev.message;
+  return ev.state === 'connecting' ? '正在接上浏览器画面…' : ev.state === 'closed' ? '浏览器已关闭' : '浏览器还没有打开';
+}
 export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
 
 // ---------- 对话内流程卡片（SSE career:card；对话是主场，卡片把"要用户动手的一步"就地解决） ----------

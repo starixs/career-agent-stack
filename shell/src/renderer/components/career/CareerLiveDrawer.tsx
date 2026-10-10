@@ -28,7 +28,8 @@ import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport } from './CareerLiveViewport';
 import { Button, suggestToChat } from './CareerPrimitives';
-import type { BatchState, CareerProgressEvent, CareerTakeoverEvent, LiveFileChooser, LiveFileChooserEvent, LiveFrame, LiveSnapshot, LiveStreamEvent } from './types';
+import type { BatchState, CareerProgressEvent, CareerTakeoverEvent, LiveFileChooser, LiveFileChooserEvent, LiveFrame, LiveSnapshot, LiveStreamEvent, LiveFrameStatus } from './types';
+import { liveStatusText } from './types';
 import { useLiveStream } from './useGlobalLive';
 
 const DRAWER_EVENT = 'career:live-drawer';
@@ -196,6 +197,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         return;
       }
       case 'frame-error': setFrameError(String((ev as { error: string }).error)); return;
+      case 'frame-status': { const st = ev as unknown as LiveFrameStatus; if (st.state !== 'connecting') setFrame(null); setFrameError(liveStatusText(st)); return; }
       case 'career:batch': setBatch(ev as unknown as BatchState); return;
       case 'career:takeover': recordTakeover(ev as unknown as CareerTakeoverEvent); return;
       case FILE_EVENT: {
@@ -315,6 +317,11 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         </div>
         {chooser && <FileChooserPanel key={chooser.id} chooser={chooser} onDone={msg => { setChooser(null); setInfo(msg); }} />}
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          {frame && (
+            <span data-testid="live-source" className="shrink-0 rounded border border-[var(--line)] px-1.5 py-0.5 text-[var(--muted)]" title={frame.source === 'snapshot' ? '页面没有变化时每 2 秒更新一次画面' : '页面有变化就实时更新'}>
+              {frame.source === 'snapshot' ? '静止画面 · 每 2 秒更新' : '实时'}
+            </span>
+          )}
           {snapshot?.browser.url && <span className="min-w-0 flex-1 truncate text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
           {embedded && snapshot?.browser.hasBrowser && (
             <Button variant="ghost" busy={busy === 'window'} disabled={busy !== null} onClick={() => void toggleWindow()} title="画面里处理不了时（插件弹窗等）临时显示真实 Chrome 窗口">

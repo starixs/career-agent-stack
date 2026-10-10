@@ -9,7 +9,8 @@ import { emitEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
 import { HANDOFF_REASON_LABELS } from '@/components/career/careerConstants';
 import { Badge, Button, CareerPage, Card, SectionTitle, type BadgeTone } from '@/components/career/CareerPrimitives';
-import type { BatchState, LiveFrame, LiveSnapshot, LiveStreamEvent } from '@/components/career/types';
+import type { BatchState, LiveFrame, LiveSnapshot, LiveStreamEvent, LiveFrameStatus } from '@/components/career/types';
+import { liveStatusText } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { useLiveStream } from '@/components/career/useGlobalLive';
 import { CareerLiveViewport } from '@/components/career/CareerLiveViewport';
@@ -40,6 +41,7 @@ export default function CareerLive() {
       case 'frame': setFrame(ev as LiveFrame); setFrameError(null); setFrameCount(n => n + 1); return;
       case 'snapshot': { const s = ev as LiveStreamEvent & LiveSnapshot; setSnapshot(s); if (s.batch) setBatch(s.batch); return; }
       case 'frame-error': setFrameError(String((ev as { error: string }).error)); return;
+      case 'frame-status': { const st = ev as unknown as LiveFrameStatus; if (st.state !== 'connecting') setFrame(null); setFrameError(liveStatusText(st)); return; }
       case 'career:batch': setBatch(ev as unknown as BatchState); return;
       case 'career:takeover': { const t = ev as unknown as { state: string; reason?: string; message?: string }; setTakeover(t); return; }
       default: return;

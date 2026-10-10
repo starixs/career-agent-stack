@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import type { Repos } from '@career/core';
 
@@ -10,7 +11,8 @@ import { handleCareerLiveRoute, type CareerLiveDeps, type CareerLiveHost } from 
 
 function fakeHost(hasBrowser = true): CareerLiveHost & { control: 'agent' | 'human'; front: number } {
   const page = { url: () => 'https://x.com/apply', title: async () => '网申', isClosed: () => false, context: () => ({ newCDPSession: async () => ({ send: async () => ({}), on: () => {}, detach: async () => {} }) }), once: () => {} };
-  const context = { pages: () => [page], on: () => {}, newPage: async () => page } as never;
+  const emitter = new EventEmitter();
+  const context = Object.assign(emitter, { pages: () => [page], newPage: async () => page }) as never;
   const host = {
     control: 'agent' as 'agent' | 'human', front: 0,
     hasContext: () => hasBrowser,
@@ -227,12 +229,41 @@ describe('career live route', () => {
     const decoder = new TextDecoder();
     let buf = '';
     const until = async (pred: () => boolean) => { for (let i = 0; i < 100 && !pred(); i++) { const r = await Promise.race([reader.read(), new Promise<{ value?: Uint8Array; done: boolean }>(ok => setTimeout(() => ok({ done: false }), 20))]); if (r.value) buf += decoder.decode(r.value); } };
-    await until(() => buf.includes('frame-error'));
+    await until(() => buf.includes('frame-status'));
+    expect(buf).toContain('"state":"waiting"');
     expect(buf).toContain('浏览器还没有打开');
     expect(borrowed).not.toHaveBeenCalled();
     open = true;
     await until(() => borrowed.mock.calls.length > 0);
     expect(borrowed).toHaveBeenCalledWith('sess-career');
+    controller.abort();
+  });
+
+  it('画面状态：接上时推 connecting；浏览器被关掉推 closed，重新打开后自动接上', async () => {
+    const repos = createMemoryRepos();
+    const host = fakeHost(true);
+    const contexts: EventEmitter[] = [];
+    let open = true;
+    host.hasContext = () => open;
+    const original = host.withProductSession;
+    host.withProductSession = (async (id: string, fn: (ctx: never) => Promise<unknown>, opts?: unknown) => original(id, (async (ctx: never) => { contexts.push(ctx as unknown as EventEmitter); return fn(ctx); }) as never, opts as never)) as typeof host.withProductSession;
+    const d = { ...deps(repos, host), framesPollMs: 10 };
+    const controller = new AbortController();
+    const res = await handleCareerLiveRoute('/api/career/live/stream', new Request('http://local/api/career/live/stream?frames=1', { signal: controller.signal }), d);
+    const reader = res!.body!.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    const until = async (pred: () => boolean) => { for (let i = 0; i < 100 && !pred(); i++) { const r = await Promise.race([reader.read(), new Promise<{ value?: Uint8Array; done: boolean }>(ok => setTimeout(() => ok({ done: false }), 20))]); if (r.value) buf += decoder.decode(r.value); } };
+    await until(() => buf.includes('"state":"connecting"'));
+    await new Promise(r => setTimeout(r, 30));
+    const baseline = contexts.length; // 状态快照也会借一次，画面流再借一次
+    open = false;
+    contexts[contexts.length - 1].emit('close');
+    await until(() => buf.includes('"state":"closed"'));
+    expect(buf).toContain('浏览器已关闭');
+    open = true;
+    await until(() => contexts.length > baseline);
+    expect(contexts.length).toBeGreaterThan(baseline);
     controller.abort();
   });
 });
