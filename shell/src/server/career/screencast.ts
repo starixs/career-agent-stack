@@ -3,7 +3,8 @@
  * 一个页面只开一路 screencast，多个订阅者共享；最后一个订阅者离开就停，不白耗 CPU。
  * 只读：看不等于控；接管 / 交回仍走控制权接口。
  */
-export interface ScreencastFrame { data: string; width: number; height: number; ts: number; url?: string; title?: string }
+/** source：screencast = 页面在动的实时帧；snapshot = 页面静止时的补截图（渲染层据此显示"实时 / 静止画面"）。 */
+export interface ScreencastFrame { data: string; width: number; height: number; ts: number; url?: string; title?: string; source?: 'screencast' | 'snapshot' }
 export interface CdpSessionLike {
   send(method: string, params?: Record<string, unknown>): Promise<unknown>;
   on(event: 'Page.screencastFrame', listener: (ev: { data: string; sessionId: number; metadata: { deviceWidth?: number; deviceHeight?: number; timestamp?: number } }) => void): unknown;
@@ -72,7 +73,7 @@ export class ScreencastHub {
       const session = await page.newCDPSession();
       session.on('Page.screencastFrame', ev => {
         void session.send('Page.screencastFrameAck', { sessionId: ev.sessionId }).catch(() => { /* 页面可能已关闭 */ });
-        this.emit({ data: ev.data, width: ev.metadata.deviceWidth ?? 0, height: ev.metadata.deviceHeight ?? 0, ts: Date.now(), url: page.url() });
+        this.emit({ data: ev.data, width: ev.metadata.deviceWidth ?? 0, height: ev.metadata.deviceHeight ?? 0, ts: Date.now(), url: page.url(), source: 'screencast' });
       });
       // screencastFrame 事件属于 Page 域，必须先 enable；否则 startScreencast 成功但永远收不到帧
       await session.send('Page.enable').catch(() => { /* 某些实现已默认开启 */ })
@@ -109,7 +110,7 @@ export class ScreencastHub {
       ]);
       if (!shot?.data || this.session !== session) return;
       const vp = metrics?.cssVisualViewport;
-      this.emit({ data: shot.data, width: Math.round(vp?.clientWidth ?? this.last?.width ?? 0), height: Math.round(vp?.clientHeight ?? this.last?.height ?? 0), ts: Date.now(), url: page.url() });
+      this.emit({ data: shot.data, width: Math.round(vp?.clientWidth ?? this.last?.width ?? 0), height: Math.round(vp?.clientHeight ?? this.last?.height ?? 0), ts: Date.now(), url: page.url(), source: 'snapshot' });
     } catch (e) {
       this.opts.log?.(`补截图没拿到（下次再补）：${e instanceof Error ? e.message : String(e)}`);
     } finally {
