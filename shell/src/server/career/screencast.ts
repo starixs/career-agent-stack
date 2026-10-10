@@ -17,6 +17,11 @@ export interface ScreencastPageLike {
   newCDPSession(): Promise<CdpSessionLike>;
   /** 页面关闭时通知（playwright: page.once('close', …)）。 */
   onClose?(listener: () => void): void;
+  /**
+   * 跨借用稳定的页面身份（playwright: page.mainFrame()）。借用代理每次都是新 Page 对象、适配器每次也是新包装，
+   * 不按身份比较的话 refresh 会把同一页当成"换页"，每轮都停掉重开，第一帧永远到不了。缺省用对象本身。
+   */
+  identity?(): object;
 }
 export interface ScreencastOptions { quality?: number; maxWidth?: number; maxHeight?: number; everyNthFrame?: number; log?: (msg: string) => void }
 
@@ -47,7 +52,8 @@ export class ScreencastHub {
   /** 页面换了（新标签 / 跳转后 Page 对象变化）时由宿主调用。 */
   async refresh(): Promise<void> {
     const page = await this.getPage().catch(() => null);
-    if (page && page !== this.page) { await this.stop(); if (this.subscribers.size) await this.ensureStarted().catch(() => { /* 下次 refresh 再试 */ }); }
+    const id = (p: ScreencastPageLike) => p.identity?.() ?? p;
+    if (page && (!this.page || id(page) !== id(this.page))) { await this.stop(); if (this.subscribers.size) await this.ensureStarted().catch(() => { /* 下次 refresh 再试 */ }); }
   }
 
   private ensureStarted(): Promise<void> {
@@ -82,8 +88,9 @@ export class ScreencastHub {
 }
 
 /** 把 playwright 的 Page 适配成 ScreencastPageLike。 */
-export function fromPlaywrightPage(page: { url(): string; title(): Promise<string>; isClosed(): boolean; context(): { newCDPSession(p: unknown): Promise<unknown> }; once(event: 'close', fn: () => void): unknown }): ScreencastPageLike {
+export function fromPlaywrightPage(page: { url(): string; title(): Promise<string>; isClosed(): boolean; context(): { newCDPSession(p: unknown): Promise<unknown> }; once(event: 'close', fn: () => void): unknown; mainFrame?(): object }): ScreencastPageLike {
   return {
+    identity: () => (typeof page.mainFrame === 'function' ? page.mainFrame() : page),
     url: () => page.url(),
     title: () => page.title(),
     isClosed: () => page.isClosed(),

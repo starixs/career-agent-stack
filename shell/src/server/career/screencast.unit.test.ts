@@ -40,6 +40,22 @@ describe('ScreencastHub', () => {
     expect(sent.some(s => s.method === 'Page.stopScreencast')).toBe(true);
     expect(detached()).toBe(1);
   });
+  it('refresh：同一页面的新包装（借用代理每次都是新对象）不重启；真的换页才重启', async () => {
+    const { page, sent } = fakePage();
+    const frameA = {}; const frameB = {};
+    let current = frameA;
+    // 模拟 fromPlaywrightPage：每次 getPage 都是新包装，身份来自 mainFrame
+    const hub = new ScreencastHub(async () => { const frame = current; return { ...page, identity: () => frame }; });
+    const unsub = hub.subscribe(() => {});
+    await new Promise(r => setTimeout(r, 5));
+    for (let i = 0; i < 3; i++) await hub.refresh();
+    expect(sent.filter(s => s.method === 'Page.startScreencast')).toHaveLength(1);
+    expect(sent.some(s => s.method === 'Page.stopScreencast')).toBe(false);
+    current = frameB;
+    await hub.refresh();
+    expect(sent.filter(s => s.method === 'Page.startScreencast')).toHaveLength(2);
+    unsub();
+  });
   it('没有页面时启动失败不影响订阅者，stop 幂等', async () => {
     const hub = new ScreencastHub(async () => null);
     const unsub = hub.subscribe(() => {});
