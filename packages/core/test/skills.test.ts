@@ -7,13 +7,14 @@ import { listSkills, loadSkill, skillPrompt } from '../src/index.js'
 const here = dirname(fileURLToPath(import.meta.url))
 const SKILLS_ROOT = resolve(here, '../../../skills')
 
-/** 产品内置的 22 个求职技能（名称固定）。 */
+/** 产品内置的 24 个求职技能（名称固定）；memory-extract / memory-consolidate 是后台长期记忆用的。 */
 const EXPECTED = [
   'assistant-core', 'experience-interview', 'jd-parse', 'resume-draft', 'resume-tailor', 'derivatives',
   'job-evaluate', 'company-research', 'apply-playbook', 'greeting', 'interview-probe',
   'interview-questions', 'project-story', 'probe-predict', 'interview-retro',
   'direction-explore', 'gap-plan', 'offer-compare', 'campus-timeline',
   'inbox-triage', 'weekly-review', 'material-draft',
+  'memory-extract', 'memory-consolidate',
 ] as const
 
 /** 必须带 references 的技能及其最少文件数。 */
@@ -29,10 +30,10 @@ const EXPECTED_REFS: Record<string, number> = {
 describe('内置技能包', () => {
   const metas = listSkills(SKILLS_ROOT)
 
-  it('22 个技能目录都存在且名称固定', () => {
+  it('24 个技能目录都存在且名称固定', () => {
     const names = metas.map(m => m.name).sort()
     expect(names).toEqual([...EXPECTED].sort())
-    expect(metas.length).toBe(22)
+    expect(metas.length).toBe(24)
   })
 
   it('frontmatter 完整：name / description / triggers（中文触发词，非空）', () => {
