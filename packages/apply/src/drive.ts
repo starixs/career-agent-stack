@@ -155,6 +155,14 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     return finish('handoff', `${prefix}${reason}（${evidence}）。${d.userAction}`, { reason, userAction: d.userAction, captchaKind: d.kind, ...extra })
   }
   const shot = () => page.screenshot().catch(() => undefined)
+  /**
+   * 一路下来没碰到任何表单项：那个"提交类"按钮其实是岗位详情页的申请入口（立即申请 / 投递简历），不是网申表的提交。
+   * 入口按钮也可能是一键投递，所以照样不点；交给用户点进去（多半要登录），交还后从那一页接着填。
+   */
+  const untouched = () => !all.filled.length && !all.needsUser.length && !all.drafts.length && !all.uploads.length && !all.mismatches.length
+  const entryHandoff = (button: string) => finish('handoff', `这是岗位详情页，不是网申表：页面上没有可填写的字段，「${button}」是申请入口。`, {
+    reason: 'login', userAction: `请在浏览器里点「${button}」进入网申（通常要先登录），看到申请表后点"交还"，我从那一页接着填`,
+  })
   let lastFingerprint = ''
 
   try {
@@ -213,7 +221,11 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       lastFingerprint = fp
       if (!fields.length) {
-        if (index === 1) { pages.push(rec); all.escalations.push(...rec.escalations); return finish('blocked', '页面上没有可填写的表单字段') }
+        if (index === 1) {
+          pages.push(rec); all.escalations.push(...rec.escalations)
+          const entry = sig.buttons.find(b => isSubmitText(b.text, adapter))
+          return entry ? entryHandoff(entry.text) : finish('blocked', '页面上没有可填写的表单字段')
+        }
         break // 后续页没字段：可能到了确认页
       }
       rec.layer = layer
@@ -344,6 +356,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         if (vSubmit) {
           rec.escalations.push({ reason: 'no_next_button', outcome: 'stopped', evidence: `DOM 没有按钮，截图里看到提交类按钮「${vSubmit.text}」` })
           layersUsed.add('vision'); pushPage()
+          if (untouched()) return entryHandoff(vSubmit.text)
           return finish('stopped_before_submit', `已停在提交按钮「${vSubmit.text}」前（视觉层识别），等待你本人确认提交`, { submitButton: vSubmit.text, reason: 'submit_confirm' })
         }
         const vNext = await visionClickText(page, visionOpts, [...(adapter.hints.nextButton ?? []), ...NEXT_WORDS], t => isSubmitText(t, adapter))
@@ -360,6 +373,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       if (!next) {
         pushPage()
+        if (untouched()) return submit ? entryHandoff(submit.text) : finish('blocked', '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
         const msg = submit ? `已停在提交按钮「${submit.text}」前，等待你本人确认提交` : '表单已填完，页面上没有找到下一步或提交按钮，请人工检查'
         return finish('stopped_before_submit', msg, { submitButton: submit?.text, reason: submit ? 'submit_confirm' : undefined })
       }
@@ -374,6 +388,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     // 走完页数上限还没见到提交按钮
     const sig = await page.evaluate(pageSignalsScript)
     const submit = sig.buttons.find(b => isSubmitText(b.text, adapter))
+    if (submit && untouched()) return entryHandoff(submit.text)
     if (submit) return finish('stopped_before_submit', `已停在提交按钮「${submit.text}」前，等待你本人确认提交`, { submitButton: submit.text, reason: 'submit_confirm' })
     return finish('blocked', `已走完 ${maxPages} 页仍未到提交页，停止以免失控`)
   } catch (e) {

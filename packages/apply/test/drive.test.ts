@@ -79,6 +79,16 @@ describe('driveApplication', () => {
     const r = await driveApplication(page, noLLM(), profile, quiet)
     expect(r.status).toBe('blocked'); expect(r.message).toContain('手机号格式不正确')
   })
+  it('岗位详情页（没有表单，只有「立即申请」入口）→ 交给用户点进去，不当成提交、不点击', async () => {
+    const page = new FakePage({ url: 'https://zhaopin.meituan.com/web/position/detail', text: '岗位职责 任职要求', buttons: [{ text: '立即申请', submit: true }] })
+    const r = await driveApplication(page, noLLM(), profile, quiet)
+    expect(r.status).toBe('handoff')
+    expect(r.reason).toBe('login')
+    expect(r.userAction).toContain('立即申请')
+    expect(r.submitButton).toBeUndefined()
+    expect(page.submitted).toBe(false)
+    expect(page.actions.some(a => a.kind === 'click' && a.target?.startsWith('button:'))).toBe(false)
+  })
   it('没有字段 → blocked；风险锁 → blocked', async () => {
     expect((await driveApplication(new FakePage({ url: 'https://x.com/jd', text: '岗位介绍' }), noLLM(), profile, quiet)).status).toBe('blocked')
     const repos = mem(); const guard = new RiskGuard(repos, { platform: 'generic' }); guard.trip('captcha', '上次')
