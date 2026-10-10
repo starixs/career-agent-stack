@@ -9,6 +9,7 @@
  *   job_evaluate      → skills/job-evaluate，输出模型 JSON
  *   interview_questions → skills/interview-questions，输出模型 JSON
  *   exam_grade        → 笔试批改（与 exam_practice 工具同一套要求），输出 { review:[{index, verdict, comment}] }
+ *   browse_next_step  → assistant-core + 浏览工具约定：给页面观察（与 career-tools formatBrowse 同格式）和目标，输出下一步工具调用 JSON
  */
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
@@ -53,6 +54,12 @@ export async function runTask(vars, llm) {
     case 'exam_grade': {
       const system = '你是笔试批改助手。逐题对照参考答案批改用户作答，verdict 只能是 对 / 错 / 部分对；没有参考答案的题按题意判断并在 comment 写依据。不要改变题目。输出 JSON：{"review":[{"index":0,"verdict":"对","comment":""}]}'
       const res = await llm.complete({ system, messages: [{ role: 'user', content: JSON.stringify({ questions: vars.questions, answers: vars.answers }) }], json: true, temperature: 0 })
+      return core.extractJson(res.text)
+    }
+    case 'browse_next_step': {
+      const system = `${skill('assistant-core')}\n\n# 可用的浏览工具\nbrowser_open{url} / browser_observe{} / browser_act{action, observation_id, ref, text, submit, key, direction, tab} / browser_read{offset} / browser_capture_job{} / apply_prepare{job_id} / ui_open{target:"live"}（请用户在现场处理）。\n只输出下一步的一个工具调用：{"tool":"...","args":{...},"reason":"一句话"}`
+      const user = `目标：${vars.goal}\n\n最近一次结果：\n${vars.observation}`
+      const res = await llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: 0 })
       return core.extractJson(res.text)
     }
     default: throw new Error(`未知 task：${vars.task}`)
