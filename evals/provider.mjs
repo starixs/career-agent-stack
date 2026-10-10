@@ -10,6 +10,7 @@
  *   interview_questions → skills/interview-questions，输出模型 JSON
  *   exam_grade        → 笔试批改（与 exam_practice 工具同一套要求），输出 { review:[{index, verdict, comment}] }
  *   memory_extract    → skills/memory-extract，输入格式与产品 career/memory-service.ts 的 extractMemories 一致，输出模型 JSON
+ *   browse_next_step  → assistant-core + 浏览工具约定：给页面观察（与 career-tools formatBrowse 同格式）和目标，输出下一步工具调用 JSON
  */
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
@@ -60,6 +61,12 @@ export async function runTask(vars, llm) {
       const existing = (vars.existing ?? []).map(m => `${m.id} [${m.kind} · ${m.scope ?? 'user'}] ${m.content}`).join('\n') || '（无）'
       const user = `本轮用户原话：\n${vars.user}\n\n本轮助理最终回答：\n${vars.assistant ?? ''}\n\n已有的相关记忆：\n${existing}`
       const res = await llm.complete({ system: skill('memory-extract'), messages: [{ role: 'user', content: user }], json: true, temperature: 0.1 })
+      return core.extractJson(res.text)
+    }
+    case 'browse_next_step': {
+      const system = `${skill('assistant-core')}\n\n# 可用的浏览工具\nbrowser_open{url} / browser_observe{} / browser_act{action, observation_id, ref, text, submit, key, direction, tab} / browser_read{offset} / browser_capture_job{} / apply_prepare{job_id} / ui_open{target:"live"}（请用户在现场处理）。\n只输出下一步的一个工具调用：{"tool":"...","args":{...},"reason":"一句话"}`
+      const user = `目标：${vars.goal}\n\n最近一次结果：\n${vars.observation}`
+      const res = await llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: 0 })
       return core.extractJson(res.text)
     }
     default: throw new Error(`未知 task：${vars.task}`)

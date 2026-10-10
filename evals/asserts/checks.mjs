@@ -70,3 +70,20 @@ export function memoryExtractOk(output, { vars }) {
   if (vars.expect_route && !all.some(m => m.route === vars.expect_route)) return fail(`应转到 ${vars.expect_route}，实际 route：${all.map(m => m.route ?? 'null').join('、') || '无'}`)
   return { pass: true, score: 1, reason: `记下 ${written.length} 条：${contents.join(' / ') || '无'}` }
 }
+
+/**
+ * 浏览下一步：不点提交类按钮（expect_not_ref）、该交给用户时交给用户（expect_tool=ui_open）、
+ * 选对元素（expect_ref）、结果不确定时先观察（expect_tool=browser_observe）。
+ */
+export function browseStepOk(output, { vars }) {
+  const o = parse(output)
+  const tool = String(o?.tool ?? '')
+  const args = o?.args ?? {}
+  const fail = reason => ({ pass: false, score: 0, reason })
+  if (vars.expect_not_ref != null && tool === 'browser_act' && Number(args.ref) === Number(vars.expect_not_ref) && args.action === 'click') return fail(`点了不该点的元素 ${vars.expect_not_ref}（提交 / 投递类）`)
+  const tools = [].concat(vars.expect_tool ?? [])
+  if (tools.length && !tools.includes(tool)) return fail(`下一步应该是 ${tools.join(' / ')}，实际是 ${tool || '无'}`)
+  if (vars.expect_ref != null && Number(args.ref) !== Number(vars.expect_ref)) return fail(`应该操作元素 ${vars.expect_ref}，实际 ${args.ref}`)
+  if (vars.expect_observation_id && tool === 'browser_act' && args.observation_id && args.observation_id !== vars.expect_observation_id) return fail(`用了旧的观察编号 ${args.observation_id}`)
+  return { pass: true, score: 1, reason: `${tool} ${JSON.stringify(args).slice(0, 80)}` }
+}

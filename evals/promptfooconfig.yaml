@@ -13,4 +13,5 @@ tests:
   - file://cases/interview-questions.yaml
   - file://cases/exam-grade.yaml
   - file://cases/memory-extract.yaml
+  - file://cases/browse-step.yaml
 outputPath: ./results/latest.json

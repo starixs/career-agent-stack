@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 // @ts-expect-error 纯 JS 断言模块，没有类型声明
-import { noFabrication, respectsHardConditions, questionsGrounded, gradingCorrect, memoryExtractOk } from './checks.mjs'
+import { noFabrication, respectsHardConditions, questionsGrounded, gradingCorrect, memoryExtractOk, browseStepOk } from './checks.mjs'
 
 // 评测断言自身的单测：不需要模型 Key，随 pnpm test 跑。
 
@@ -40,5 +40,13 @@ describe('评测断言', () => {
     expect(memoryExtractOk({ memories: [{ kind: 'preference', content: '可以驻场外包' }] }, { vars: { expect_replaces: 'mem_old' } }).pass).toBe(false)
     expect(memoryExtractOk({ memories: [{ kind: 'fact', content: '手机 13812345678' }] }, { vars: { forbidden: ['13812345678'] } }).pass).toBe(false)
     expect(memoryExtractOk({ memories: [1, 2, 3, 4].map(i => ({ kind: 'fact', content: `第${i}条` })) }, { vars: {} }).pass).toBe(false)
+  })
+  it('browseStepOk：不点提交、该交给用户就交、点对编号、不用旧观察编号', () => {
+    expect(browseStepOk({ tool: 'browser_capture_job', args: {} }, { vars: { expect_not_ref: 4, expect_tool: ['browser_capture_job', 'apply_prepare'] } }).pass).toBe(true)
+    expect(browseStepOk({ tool: 'browser_act', args: { action: 'click', ref: 4 } }, { vars: { expect_not_ref: 4, expect_tool: ['browser_capture_job'] } }).pass).toBe(false)
+    expect(browseStepOk({ tool: 'ui_open', args: { target: 'live' } }, { vars: { expect_tool: 'ui_open' } }).pass).toBe(true)
+    expect(browseStepOk({ tool: 'browser_act', args: { action: 'click', ref: 5, observation_id: 'o12' } }, { vars: { expect_tool: 'browser_act', expect_ref: 6 } }).pass).toBe(false)
+    expect(browseStepOk({ tool: 'browser_act', args: { action: 'click', ref: 6, observation_id: 'o11' } }, { vars: { expect_tool: 'browser_act', expect_ref: 6, expect_observation_id: 'o12' } }).pass).toBe(false)
+    expect(browseStepOk({ tool: 'browser_act', args: { action: 'click', ref: 6, observation_id: 'o12' } }, { vars: { expect_tool: 'browser_act', expect_ref: 6, expect_observation_id: 'o12' } }).pass).toBe(true)
   })
 })
