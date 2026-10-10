@@ -40,7 +40,7 @@ describe('career 浏览工具', () => {
     mocks.handlers.clear(); runs.length = 0;
     await createCareerServer({
       repos: createMemoryRepos(), llm: new FakeLLM(), broadcast: () => {}, sessionId: () => 's1',
-      browserRun: async (body, onEvent) => { runs.push(body); for (const ev of reply(body)) onEvent(ev); },
+      browserRun: async (body: Record<string, unknown>, onEvent: (ev: Record<string, unknown>) => void) => { runs.push(body); for (const ev of reply(body)) onEvent(ev); },
     } as never);
   });
 

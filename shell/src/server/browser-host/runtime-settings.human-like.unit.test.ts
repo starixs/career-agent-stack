@@ -87,6 +87,7 @@ describe('resolveBrowserRuntimePolicy', () => {
       mirrorIdentity: false,
       profileRoot: '/home/tester/.keystone/browser-profile',
       embeddedWindow: true,
+      virtualDisplay: false,
     });
 
     expect(resolveBrowserRuntimePolicy({
@@ -100,6 +101,7 @@ describe('resolveBrowserRuntimePolicy', () => {
       mirrorIdentity: true,
       profileRoot: '/home/tester/.keystone/browser-profile',
       embeddedWindow: false,
+      virtualDisplay: false,
     });
   });
 
