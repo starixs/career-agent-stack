@@ -45,7 +45,6 @@ export default function CareerInterview({ embedded = false }: { embedded?: boole
     <CareerPage
       embedded={embedded}
       title="面试"
-      examples={['帮我准备这场面试', '帮我复盘昨天的面试', '帮我模拟一场深挖追问']}
       actions={<Button onClick={() => setShowForm(v => !v)}><Plus className="h-3.5 w-3.5" />新建记录</Button>}
     >
       <div className="space-y-10 px-6 py-6">

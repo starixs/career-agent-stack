@@ -88,7 +88,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   }, [inbox.data]);
 
   return (
-    <CareerPage embedded={embedded} title="收件箱" subtitle="任何东西丢进来，助理识别后归到对应投递" examples={['我收到一封面试邀请，帮我安排', '这个 JD 值不值得投', '帮我处理收件箱里没看懂的那条']}>
+    <CareerPage embedded={embedded} title="收件箱" subtitle="任何东西丢进来，助理识别后归到对应投递">
       <div className="max-w-5xl space-y-8 px-6 py-6">
         <CaptureBox onCaptured={inbox.reload} />
 

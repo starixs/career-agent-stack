@@ -54,7 +54,6 @@ export default function CareerExperience({ embedded = false }: { embedded?: bool
       embedded={embedded}
       title="经历库"
       subtitle={pendingTotal > 0 ? `${pendingTotal} 条主张待你确认` : undefined}
-      examples={['帮我整理经历', '帮我从这份简历里提取经历', '帮我补充这段实习的证据']}
       actions={(
         <>
           <Button variant="ghost" onClick={() => suggest('帮我整理这份材料里的经历：')}><Upload className="h-4 w-4" />上传材料（调用对话）</Button>

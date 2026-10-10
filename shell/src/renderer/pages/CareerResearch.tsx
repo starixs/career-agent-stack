@@ -29,7 +29,7 @@ export default function CareerResearch({ embedded = false }: { embedded?: boolea
   const query = useCareerQuery(loadAll, ['company', 'direction', 'gap_plan', 'job']);
   const data = query.data;
   return (
-    <CareerPage embedded={embedded} title="调研" examples={['帮我研究一下这家公司', '帮我探索适合的方向', '帮我做这个岗位的差距计划']}>
+    <CareerPage embedded={embedded} title="调研">
       <div className="space-y-5 px-4 py-3">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !data && <LoadingRow />}

@@ -21,10 +21,10 @@ const CareerResume = lazy(() => import('@/pages/CareerResume'));
 
 // 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
 type View = 'library' | 'experience' | 'resume';
-const VIEW_HEADINGS: Record<View, { title: string; subtitle: string; examples: string[] }> = {
-  experience: { title: '经历', subtitle: '做过的事和能拿出来讲的主张', examples: ['帮我整理经历，我先口述一段实习', '帮我补充这段实习的量化结果'] },
-  resume: { title: '简历', subtitle: '每一份都记得投给了谁', examples: ['帮我生成主简历', '对着这个岗位改一版简历', '导出 PDF'] },
-  library: { title: '常用表达', subtitle: '一套说法复用到几十家，前后一致', examples: ['帮我写一段“为什么选择我们”', '给我一分钟版自我介绍', '把这个项目写成 STAR 故事'] },
+const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
+  experience: { title: '经历', subtitle: '做过的事和能拿出来讲的主张' },
+  resume: { title: '简历', subtitle: '每一份都记得投给了谁' },
+  library: { title: '常用表达', subtitle: '一套说法复用到几十家，前后一致' },
 };
 
 /** 素材类型文案（共享常量里没有，先放在本页）。 */
@@ -67,7 +67,6 @@ export default function CareerMaterial({ embedded = false }: CareerPageProps) {
       embedded={embedded}
       title={VIEW_HEADINGS[effectiveView].title}
       subtitle={VIEW_HEADINGS[effectiveView].subtitle}
-      examples={VIEW_HEADINGS[effectiveView].examples}
     >
       {effectiveView === 'library' && (
         <div className="space-y-6 px-6 py-6">

@@ -29,7 +29,7 @@ export default function CareerApply({ embedded = false }: { embedded?: boolean }
   const data = query.data;
 
   return (
-    <CareerPage embedded={embedded} title="岗位与投递" examples={['帮我导入这个岗位链接', '帮我评估岗位池', '帮我准备投递这个岗位']}>
+    <CareerPage embedded={embedded} title="岗位与投递">
       <BrowserStatusBar />
       <div className="space-y-10 px-6 py-6">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}

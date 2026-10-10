@@ -61,7 +61,6 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
       embedded={embedded}
       title={VIEW_HEADINGS[view].title}
       subtitle={VIEW_HEADINGS[view].subtitle}
-      examples={['帮我做本周复盘', '按平台看看哪里过简历率最低', '接下来该投什么']}
     >
       {view === 'funnel' && (
         <div className="space-y-6 px-4 py-3">

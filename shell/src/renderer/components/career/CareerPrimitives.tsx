@@ -42,31 +42,11 @@ export function ChatActionButton({ text, context, children, variant = 'secondary
   );
 }
 
-export function CommandHint({ examples }: { examples: string[] }) {
-  const suggest = useSuggestToChat();
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-[var(--muted)]">
-      <MessageSquareText className="h-4 w-4 shrink-0 text-[var(--primary)]" strokeWidth={1.75} />
-      <span>这一页由对话指挥：你可以在对话里直接说</span>
-      {examples.map(ex => (
-        <button
-          key={ex}
-          type="button"
-          onClick={() => suggest(ex)}
-          className="rounded-full border border-[var(--line-2)] px-2.5 py-0.5 text-xs text-[var(--ink-2)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--primary-soft)] hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-        >
-          「{ex}」
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // ─── 页面骨架 ───
 
-export function CareerPage({ title, subtitle, examples, actions, children, embedded = false }: {
-  title: string; subtitle?: string; examples: string[]; actions?: ReactNode; children: ReactNode;
-  /** 作为别的面的一个视图嵌入时不渲染页头与示例话术。 */
+export function CareerPage({ title, subtitle, actions, children, embedded = false }: {
+  title: string; subtitle?: string; actions?: ReactNode; children: ReactNode;
+  /** 作为别的面的一个视图嵌入时不渲染页头。示例话术统一放在功能市场，不在各页重复。 */
   embedded?: boolean;
 }) {
   if (embedded) {
@@ -79,13 +59,12 @@ export function CareerPage({ title, subtitle, examples, actions, children, embed
   }
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--bg)] text-[var(--ink)]">
-      <div className="flex flex-col gap-3 border-b border-[var(--line)] px-6 pb-3 pt-5">
+      <div className="flex flex-col gap-3 border-b border-[var(--line)] px-6 pb-4 pt-5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="font-human text-lg font-semibold">{title}</h1>
           {subtitle && <span className="text-xs text-[var(--muted)]">{subtitle}</span>}
           {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
-        <CommandHint examples={examples} />
       </div>
       <div className="min-h-0 flex-1 overflow-auto">{children}</div>
     </div>

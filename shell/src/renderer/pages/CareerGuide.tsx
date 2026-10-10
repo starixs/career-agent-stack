@@ -97,7 +97,7 @@ export default function CareerGuide({ embedded = false }: CareerPageProps) {
   const used = (key?: keyof OnboardingChecklist) => isUsed(onboarding.data, key);
 
   return (
-    <CareerPage embedded={embedded} title="功能市场" subtitle="想做什么，挑一个交给小芽" examples={['帮我评估这个岗位', '帮我模拟一场一面', '给我做一次本周复盘']}>
+    <CareerPage embedded={embedded} title="功能市场" subtitle="想做什么，挑一个交给小芽">
       <div className="max-w-6xl space-y-10 px-6 py-6">
         <section>
           <SectionTitle>工具</SectionTitle>

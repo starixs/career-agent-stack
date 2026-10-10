@@ -64,7 +64,6 @@ export default function CareerLive() {
     <CareerPage
       title="浏览器现场"
       subtitle="看助理在浏览器里做什么。关掉这一页不影响后台继续跑。"
-      examples={['开始批量投递', '暂停批量投递', '现在填到哪了？']}
       actions={(
         <>
           {!humanActive && <Button variant="primary" busy={action.busy} disabled={!snapshot?.browser.hasBrowser} onClick={() => void take()}>接管</Button>}

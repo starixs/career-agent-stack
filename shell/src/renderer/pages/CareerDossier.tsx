@@ -168,7 +168,6 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
       embedded={embedded}
       title={heading.title}
       subtitle={heading.subtitle}
-      examples={['帮我准备明天的面试', '这家公司我之前说过什么', '把没动静的投递线关掉']}
     >
       {view === 'line' && <DossierLine focus={focus} />}
       {view === 'exam' && <ExamRecords />}

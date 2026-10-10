@@ -57,7 +57,6 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
     <CareerPage
       embedded={embedded}
       title="Offer"
-      examples={['帮我对比这几个 Offer', '帮我录入一个 Offer', '帮我分析这个 Offer 的风险']}
       actions={<Button onClick={() => setEditing(editing === 'new' ? null : 'new')}><Plus className="h-3.5 w-3.5" />新建 Offer</Button>}
     >
       <div className="max-w-6xl space-y-8 px-6 py-6">

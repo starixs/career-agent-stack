@@ -49,7 +49,6 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
     <CareerPage
       title="基本资料"
       subtitle={data ? `${filledCount} 项基本信息 · ${data.status.sites.length} 个网站账号 · 加密保存在本机，不进入模型对话` : '加密保存在本机，不进入模型对话'}
-      examples={['检查我的私密信息还缺什么', '把联系方式用占位符写进简历', '帮我投这个岗位（会自动用这里的资料填表）']}
       actions={<Button variant="ghost" onClick={() => setShowLog(v => !v)}>{showLog ? '收起访问记录' : '访问记录'}</Button>}
     >
       <div className="max-w-5xl space-y-8 px-6 py-6">

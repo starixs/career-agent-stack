@@ -78,7 +78,7 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
   const snooze = (item: TodayItem) => setSnoozed(prev => new Set(prev).add(`${item.ref.type}:${item.ref.id}`));
 
   return (
-    <CareerPage embedded={embedded} title="今日" subtitle="今天只做三件事，其余交给等待" examples={['帮我看看今天该做什么', '帮我准备明天的面试', '帮我看看接下来该投什么']}>
+    <CareerPage embedded={embedded} title="今日" subtitle="今天只做三件事，其余交给等待">
       <div ref={topRef} className="max-w-6xl space-y-8 px-6 py-6">
         {today.error && <ErrorRow message={today.error} onRetry={today.reload} />}
         {today.loading && !today.data && <LoadingRow />}
