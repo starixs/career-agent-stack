@@ -63,6 +63,8 @@ function useResumeEntries() {
 
 export function ResumeGallery({ onOpen }: { onOpen: (id: string) => void }) {
   const { entries, error, reload } = useResumeEntries();
+  // 每次进入汇总页都重新取各份简历的工作台文档：刚在编辑页改过的版式要立刻反映在缩略图上。
+  const [loadStudio] = useState(makeStudioLoader);
   if (error) return <div className="px-6 py-6"><ErrorRow message={error} onRetry={reload} /></div>;
   if (!entries) return <div className="px-6 py-6"><LoadingRow text="正在整理你的简历…" /></div>;
 
@@ -99,14 +101,14 @@ export function ResumeGallery({ onOpen }: { onOpen: (id: string) => void }) {
               aria-label={`打开简历：${entry.title}`}
               className="group block w-full text-left focus-visible:outline-none"
             >
-              <ResumeThumb id={entry.id} />
+              <ResumeThumb id={entry.id} load={loadStudio} />
               <div className="mt-3 flex items-center gap-2">
                 <Badge tone={entry.kind === 'master' ? 'accent' : 'neutral'}>{entry.kind === 'master' ? '主简历' : '岗位版'}</Badge>
                 {entry.kind === 'tailored' && !entry.confirmed && <Badge>待确认改动</Badge>}
               </div>
               <div className="mt-1 truncate text-sm font-semibold text-[var(--ink)] group-hover:text-[var(--primary)]" title={entry.title}>{entry.title}</div>
               <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
-                <TemplateName id={entry.id} />{` · ${formatDate(entry.updatedAt)} 更新${entry.exported ? ' · 已导出' : ''}`}
+                <TemplateName id={entry.id} load={loadStudio} />{` · ${formatDate(entry.updatedAt)} 更新${entry.exported ? ' · 已导出' : ''}`}
               </div>
             </button>
           </li>
@@ -116,30 +118,35 @@ export function ResumeGallery({ onOpen }: { onOpen: (id: string) => void }) {
   );
 }
 
-/** 每份简历的工作台文档只取一次，缩略图和模板名共用。 */
-const studioCache = new Map<string, Promise<{ data: ResumeData; preview: Record<string, string> }>>();
-function loadStudio(id: string) {
-  let p = studioCache.get(id);
-  if (!p) {
-    p = careerApi.getStudio(id).then(r => ({ data: r.data, preview: r.preview }));
-    p.catch(() => studioCache.delete(id));
-    studioCache.set(id, p);
-  }
-  return p;
+type StudioSnapshot = { data: ResumeData; preview: Record<string, string> };
+type StudioLoader = (id: string) => Promise<StudioSnapshot>;
+
+/** 一次汇总页内，每份简历的工作台文档只取一次，缩略图和模板名共用。 */
+function makeStudioLoader(): StudioLoader {
+  const cache = new Map<string, Promise<StudioSnapshot>>();
+  return id => {
+    let p = cache.get(id);
+    if (!p) {
+      p = careerApi.getStudio(id).then(r => ({ data: r.data, preview: r.preview }));
+      p.catch(() => cache.delete(id));
+      cache.set(id, p);
+    }
+    return p;
+  };
 }
 
-function useStudioSnapshot(id: string) {
-  const [snap, setSnap] = useState<{ data: ResumeData; preview: Record<string, string> } | null>(null);
+function useStudioSnapshot(id: string, load: StudioLoader) {
+  const [snap, setSnap] = useState<StudioSnapshot | null>(null);
   useEffect(() => {
     let cancelled = false;
-    loadStudio(id).then(s => { if (!cancelled) setSnap(s); }).catch(() => { /* 缩略图拿不到就留占位 */ });
+    load(id).then(s => { if (!cancelled) setSnap(s); }).catch(() => { /* 缩略图拿不到就留占位 */ });
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, load]);
   return snap;
 }
 
-function ResumeThumb({ id }: { id: string }) {
-  const snap = useStudioSnapshot(id);
+function ResumeThumb({ id, load }: { id: string; load: StudioLoader }) {
+  const snap = useStudioSnapshot(id, load);
   return (
     <div className="aspect-[1/1.414] w-full overflow-hidden rounded-lg border-[1.5px] border-[var(--line-2)] bg-white transition-shadow group-hover:border-[var(--hard)] group-hover:shadow-hard-lg group-focus-visible:ring-2 group-focus-visible:ring-[var(--primary)]">
       {snap ? <StudioPreview data={snap.data} preview={snap.preview} zoom={1} thumbnail /> : <div className="h-full w-full animate-pulse bg-[var(--inset)]" />}
@@ -147,7 +154,7 @@ function ResumeThumb({ id }: { id: string }) {
   );
 }
 
-function TemplateName({ id }: { id: string }) {
-  const snap = useStudioSnapshot(id);
+function TemplateName({ id, load }: { id: string; load: StudioLoader }) {
+  const snap = useStudioSnapshot(id, load);
   return <>{snap ? templateLabel(snap.data.metadata.template).split(' · ')[0] : '…'}</>;
 }

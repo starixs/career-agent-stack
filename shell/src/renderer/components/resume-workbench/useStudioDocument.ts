@@ -50,6 +50,7 @@ export function useStudioDocument(resumeId: string): StudioDocument {
   const current = useRef<ResumeData | null>(null);
   const dirty = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inflight = useRef<Promise<void>>(Promise.resolve());
   const idRef = useRef(resumeId);
   const [nonce, setNonce] = useState(0);
 
@@ -62,7 +63,9 @@ export function useStudioDocument(resumeId: string): StudioDocument {
     dirty.current = false;
     setSaveState('saving');
     try {
-      const out = await careerApi.saveStudio(id, doc);
+      const request = careerApi.saveStudio(id, doc);
+      inflight.current = request.then(() => undefined, () => undefined);
+      const out = await request;
       setPreview(out.preview);
       setSaveError(null);
       setSaveState(dirty.current ? 'dirty' : 'saved');
@@ -73,8 +76,10 @@ export function useStudioDocument(resumeId: string): StudioDocument {
     }
   }, []);
 
+  /** 离开前调用：等正在进行的保存落盘，再把还没存的改动存掉。 */
   const flush = useCallback(async () => {
     if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null; }
+    await inflight.current;
     await save();
   }, [save]);
 

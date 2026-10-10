@@ -121,4 +121,27 @@ describe('简历工作台', () => {
     expect(595 * z).toBeLessThanOrEqual(1000 - 48);
     expect(fitPageZoom(0, 0)).toBe(0.9);
   });
+
+  it('改完版式返回汇总页：缩略图和模板名是刚保存的那一版', async () => {
+    let stored = doc();
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
+      if (path.endsWith('/studio')) return { ok: true, data: structuredClone(stored), content_updated_at: 't1', preview: {} };
+      if (path.endsWith('/resumes')) return { ok: true, masters: [{ id: 'rm_1', name: '后端方向', direction: null, updated_at: '2026-10-09T00:00:00Z' }], tailored: [] };
+      return { ok: true, jobs: [] };
+    });
+    vi.mocked(apiPutJson).mockImplementation(async (_path: string, body: unknown) => {
+      stored = structuredClone((body as { data: ResumeData }).data);
+      return { ok: true, content_updated_at: 't2', preview: {} };
+    });
+    render(<CareerResume />);
+    const card = await screen.findByRole('button', { name: '打开简历：后端方向' });
+    await waitFor(() => expect(card).toHaveTextContent('Onyx'));
+    fireEvent.click(card);
+    await screen.findByTestId('resume-workbench');
+    fireEvent.click(screen.getByRole('tab', { name: '版式' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Azurill · 双栏' }));
+    fireEvent.click(screen.getByRole('button', { name: '全部简历' }));
+    const back = await screen.findByRole('button', { name: '打开简历：后端方向' });
+    await waitFor(() => expect(back).toHaveTextContent('Azurill'));
+  });
 });
