@@ -56,6 +56,41 @@ describe('ScreencastHub', () => {
     expect(sent.filter(s => s.method === 'Page.startScreencast')).toHaveLength(2);
     unsub();
   });
+  it('静止页面没有 screencast 帧：接上就补一张截图（宽高用 CSS 视口），之后空闲时继续补；有真帧就不补', async () => {
+    const sent: string[] = [];
+    let listener: ((ev: { data: string; sessionId: number; metadata: Record<string, number> }) => void) | null = null;
+    let shots = 0;
+    const session: CdpSessionLike = {
+      send: async (method) => {
+        sent.push(method);
+        if (method === 'Page.captureScreenshot') { shots++; return { data: `SHOT${shots}` }; }
+        if (method === 'Page.getLayoutMetrics') return { cssVisualViewport: { clientWidth: 1366, clientHeight: 768 } };
+        return {};
+      },
+      on: (_e, fn) => { listener = fn as typeof listener; },
+      detach: async () => {},
+    };
+    const page: ScreencastPageLike = { url: () => 'https://zhaopin.meituan.com/x', title: async () => '职位详情', isClosed: () => false, newCDPSession: async () => session };
+    const hub = new ScreencastHub(async () => page, { idleSnapshotMs: 40 });
+    const frames: Array<{ data: string; width: number; height: number }> = [];
+    const unsub = hub.subscribe(f => frames.push(f));
+    await new Promise(r => setTimeout(r, 10));
+    expect(frames[0]).toMatchObject({ data: 'SHOT1', width: 1366, height: 768 });
+    await new Promise(r => setTimeout(r, 120));
+    expect(shots).toBeGreaterThan(1); // 空闲时持续补
+    // 页面开始动了：真帧源源不断时不再补截图
+    const before = shots;
+    const pump = setInterval(() => listener?.({ data: 'LIVE', sessionId: 1, metadata: { deviceWidth: 1366, deviceHeight: 768 } }), 10);
+    await new Promise(r => setTimeout(r, 120));
+    clearInterval(pump);
+    expect(shots - before).toBeLessThanOrEqual(1);
+    expect(frames.at(-1)?.data).toBe('LIVE');
+    unsub();
+    await new Promise(r => setTimeout(r, 5));
+    const afterStop = shots;
+    await new Promise(r => setTimeout(r, 120));
+    expect(shots).toBe(afterStop); // 退订后定时器停掉
+  });
   it('没有页面时启动失败不影响订阅者，stop 幂等', async () => {
     const hub = new ScreencastHub(async () => null);
     const unsub = hub.subscribe(() => {});
