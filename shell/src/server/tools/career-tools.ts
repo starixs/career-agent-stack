@@ -967,6 +967,35 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ auto_mode: cur.enabled, learn_threshold: LEARN_THRESHOLD });
       })()),
 
+      // ---------- 长期记忆（career/memory-service.ts；每轮开始会注入相关记忆，后台也会自动提炼） ----------
+      tool('memory_remember', '记住一条关于用户的长期记忆，或用新说法取代旧的（replaces 填旧记忆 id）。只记别处没有的：协作习惯与纠正（collaboration）、明确偏好（preference）、和某家公司相关的事实（fact，scope=company:<公司名>）、用户对自己的稳定判断（insight）。求职条件用 job_prefs、经历用 experience_add、个人信息走私密信息库，不要记在这里。用户说"记住 / 以后都这样"时调用。', {
+        content: z.string().describe('一句话、第三人称："用户希望……"'),
+        kind: z.enum(['collaboration', 'preference', 'fact', 'insight']),
+        scope: z.string().optional().describe('user（默认）/ company:<公司名> / application:<投递 id>'),
+        importance: z.number().int().min(1).max(5).optional().describe('用户明确要求记住 = 5'),
+        replaces: z.array(z.string()).optional().describe('被这条取代的旧记忆 id'),
+      }, async (args) => wrap(async () => {
+        const { applyRemember } = await import('../career/memory-service');
+        const out = applyRemember(repos(), sharedVault, { kind: args.kind, content: args.content, scope: args.scope, importance: args.importance ?? 5, supersedes: args.replaces, source: 'explicit' });
+        if (!out.ok) return err(out.reason);
+        changed('memory');
+        return text({ action: out.action, memory: { id: out.memory.id, kind: out.memory.kind, scope: out.memory.scope, content: out.memory.content } });
+      })()),
+
+      tool('memory_search', '检索长期记忆（关键词；不传 q 列出最重要的）。搜不到时先去掉关键词再列一次，不要把"没搜到"说成"没有记忆"。', {
+        q: z.string().optional(), scope: z.string().optional().describe('只看某个 scope，如 company:美团'),
+        limit: z.number().int().min(1).max(50).optional(), offset: z.number().int().min(0).optional(),
+      }, async (args) => wrap(async () => {
+        const rows = repos().memories.list({ q: args.q, scope: args.scope, limit: args.limit ?? 20, offset: args.offset ?? 0 });
+        return text({ memories: rows.map(m => ({ id: m.id, kind: m.kind, scope: m.scope, content: m.content, importance: m.importance, pinned: !!m.pinned, updated_at: m.updated_at })), next_offset: rows.length === (args.limit ?? 20) ? (args.offset ?? 0) + rows.length : null });
+      })()),
+
+      tool('memory_forget', '忘掉一条长期记忆（用户说"别记这个 / 这条不对"时）。保留审计，不再注入。', { id: z.string() }, async (args) => wrap(async () => {
+        if (!repos().memories.forget(args.id)) return err(`没有这条有效记忆：${args.id}`);
+        changed('memory');
+        return text({ forgotten: args.id });
+      })()),
+
       tool('review_queue', '列出动作队列（默认 pending_review）。', {
         status: z.enum(['pending_review', 'approved', 'executing', 'needs_user', 'done', 'failed', 'rejected']).optional(),
       }, async (args) => wrap(() => text(repos().listActions(args.status ?? 'pending_review')))()),

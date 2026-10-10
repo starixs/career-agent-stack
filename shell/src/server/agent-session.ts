@@ -11848,6 +11848,9 @@ async function startStreamingSession(preWarm = false): Promise<void> {
       // Claude API rejects images exceeding 8000px per dimension; MCP tools (e.g. browser screenshots)
       // can produce arbitrarily large images that bypass our user-upload resize pipeline.
       hooks: {
+        // 求职长期记忆：每轮开始注入相关记忆（只给模型看），每轮结束后台提炼（不阻塞、不进对话）。见 career/memory-service.ts
+        UserPromptSubmit: [{ hooks: [async (input: HookInput) => (await import('./career/memory-hooks')).careerMemoryPromptHook(input)] }],
+        Stop: [{ hooks: [async (input: HookInput) => (await import('./career/memory-hooks')).careerMemoryStopHook(input)] }],
         // Product plan/read-only and MCP boundaries apply in every SDK mode.
         // SDK 0.3.269 fixed the old plan+bypass callback omission; the hook still
         // owns our stricter policy and the live/SDK permission-mode race fence.
