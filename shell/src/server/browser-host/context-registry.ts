@@ -331,7 +331,7 @@ export class BrowserContextRegistry {
     const entry = this.entries.get(productSessionId);
     if (!entry || !this.runtimePolicy.embeddedWindow) return;
     for (const page of entry.context.pages()) {
-      if (!page.isClosed()) await parkWindow(entry.context, page, this.liveViewports.get(productSessionId));
+      if (!page.isClosed()) await parkWindow(entry.context, page, { viewport: this.liveViewports.get(productSessionId) });
     }
   }
 
@@ -689,8 +689,8 @@ export class BrowserContextRegistry {
       if (embedded) {
         const parked = !this.revealedWindows.has(binding.productSessionId);
         const viewport = this.liveViewports.get(binding.productSessionId);
-        if (viewport) void fitPageViewport(context, page, viewport, { park: parked });
-        else if (parked) void parkWindow(context, page);
+        if (viewport) void fitPageViewport(context, page, viewport, { park: parked, profileDir: compiled.userDataDir });
+        else if (parked) void parkWindow(context, page, { profileDir: compiled.userDataDir });
         if (parked) this.windowListener?.(binding.productSessionId, 'page');
         page.on('filechooser', onFileChooser);
       }

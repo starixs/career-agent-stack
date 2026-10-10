@@ -65,6 +65,9 @@ export interface BringToFrontOptions {
  * 现场画面一打开比例就是错的，要等用户"显示真实窗口"放大一次才正常。
  */
 export const PARKED_WINDOW_BOUNDS = { left: -10000, top: 10000, width: 1440, height: 1000 } as const;
+/** Windows 不夹回：停到屏幕外就完全看不见（再配合工具窗口样式去掉任务栏按钮）。 */
+export const PARKED_WINDOW_BOUNDS_WIN32 = { left: -10000, top: -10000, width: 1440, height: 1000 } as const;
+export const parkedWindowBounds = (platform: NodeJS.Platform = process.platform) => (platform === 'win32' ? PARKED_WINDOW_BOUNDS_WIN32 : PARKED_WINDOW_BOUNDS);
 /** 页面视口的固定宽度（桌面版布局）；高度按现场画面框的比例跟随。 */
 export const LIVE_VIEWPORT_WIDTH = 1366;
 const LIVE_VIEWPORT_MIN_HEIGHT = 600;
@@ -82,13 +85,14 @@ export function viewportForFrame(box: ViewportSize, width = LIVE_VIEWPORT_WIDTH)
 }
 
 /** 停靠窗口的尺寸：至少能装下视口，不小于缺省停靠尺寸。 */
-export function parkedBoundsFor(viewport?: ViewportSize | null): { left: number; top: number; width: number; height: number } {
-  if (!viewport) return { ...PARKED_WINDOW_BOUNDS };
+export function parkedBoundsFor(viewport?: ViewportSize | null, platform: NodeJS.Platform = process.platform): { left: number; top: number; width: number; height: number } {
+  const base = parkedWindowBounds(platform);
+  if (!viewport) return { ...base };
   return {
-    left: PARKED_WINDOW_BOUNDS.left,
-    top: PARKED_WINDOW_BOUNDS.top,
-    width: Math.max(PARKED_WINDOW_BOUNDS.width, viewport.width + WINDOW_CHROME.width),
-    height: Math.max(PARKED_WINDOW_BOUNDS.height, viewport.height + WINDOW_CHROME.height),
+    left: base.left,
+    top: base.top,
+    width: Math.max(base.width, viewport.width + WINDOW_CHROME.width),
+    height: Math.max(base.height, viewport.height + WINDOW_CHROME.height),
   };
 }
 /** 用户临时要看真实窗口时放出来的位置。 */
@@ -137,16 +141,29 @@ export async function restoreIfMinimized(context: BrowserContext, page: Page): P
   }
 }
 
-/** 把页面所在的窗口停到屏幕角落（内嵌模式）；给了视口就按它放大窗口。失败只记日志。 */
-export function parkWindow(context: BrowserContext, page: Page, viewport?: ViewportSize | null): Promise<boolean> {
-  return setPageWindowBounds(context, page, parkedBoundsFor(viewport));
+/**
+ * 把页面所在的窗口停到屏幕角落（内嵌模式）；给了视口就按它放大窗口。Windows 上再把托管 Chrome
+ * 从任务栏 / Alt+Tab 去掉（按 profile 找进程）。失败只记日志。
+ */
+export async function parkWindow(
+  context: BrowserContext,
+  page: Page,
+  opts: { viewport?: ViewportSize | null; profileDir?: string | null; platform?: NodeJS.Platform; hideFromTaskbar?: (profileDir: string) => Promise<number> } = {},
+): Promise<boolean> {
+  const platform = opts.platform ?? process.platform;
+  const ok = await setPageWindowBounds(context, page, parkedBoundsFor(opts.viewport, platform));
+  if (platform === 'win32' && opts.profileDir) {
+    const hide = opts.hideFromTaskbar ?? (async (dir: string) => (await import('./windows-window')).hideManagedChromeFromTaskbar(dir));
+    void hide(opts.profileDir).catch(error => console.warn(`[browser-host] taskbar-hide=failed error=${error instanceof Error ? error.message : 'unknown'}`));
+  }
+  return ok;
 }
 
 /**
  * 让页面视口跟随现场画面框的比例（Playwright 视口模拟，不依赖真实窗口大小）。
  * park=true（内嵌且窗口没放出来）时顺带把停靠窗口放大到能装下视口。返回是否改了视口。
  */
-export async function fitPageViewport(context: BrowserContext, page: Page, viewport: ViewportSize, options: { park?: boolean } = {}): Promise<boolean> {
+export async function fitPageViewport(context: BrowserContext, page: Page, viewport: ViewportSize, options: { park?: boolean; profileDir?: string | null } = {}): Promise<boolean> {
   if (page.isClosed()) return false;
   const current = page.viewportSize();
   const changed = !current || current.width !== viewport.width || Math.abs(current.height - viewport.height) > 2;
@@ -158,7 +175,7 @@ export async function fitPageViewport(context: BrowserContext, page: Page, viewp
       return false;
     }
   }
-  if (options.park) await parkWindow(context, page, viewport);
+  if (options.park) await parkWindow(context, page, { viewport, profileDir: options.profileDir });
   return changed;
 }
 

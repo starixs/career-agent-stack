@@ -124,13 +124,16 @@ export async function defaultPerceiver(apply: ApplyEngineModule, page: ApplyPage
   if (process.env.CAREER_VISION_OCR !== '0') {
     try {
       const { AppleVisionOcrPerceiver, appleVisionAvailable } = await import('../career/perceivers/apple-vision-ocr');
-      if (appleVisionAvailable()) {
-        const ocr = new AppleVisionOcrPerceiver();
+      const { runWindowsOcr, windowsOcrAvailable } = await import('../career/perceivers/windows-ocr');
+      // macOS 用 Vision；Windows 用系统自带的 Windows.Media.Ocr（同一输出格式，复用同一套坐标换算）
+      if (appleVisionAvailable() || windowsOcrAvailable()) {
+        const ocr = windowsOcrAvailable() ? new AppleVisionOcrPerceiver({ runImpl: path => runWindowsOcr(path) }) : new AppleVisionOcrPerceiver();
         // 熔断：OCR 小程序坏了（崩溃 / 超时）连续两次就先跳过，不让每页都卡到超时
         const { withBreaker } = await import('../career/perceivers/breaker');
         const perceive = withBreaker('OCR 识别', (shot: Parameters<typeof ocr.perceive>[0], ctx: Parameters<typeof ocr.perceive>[1]) => ocr.perceive(shot, ctx), { log: msg => console.warn(`[career] ${msg}`) });
         const synth = apply.synthesizeInputsFromLabels;
-        layers.push({ id: synth ? 'apple-vision-ocr+labels' : ocr.id, perceive: async (s, c) => (synth ? synth(await perceive(s, c)) : perceive(s, c)) });
+        const ocrId = windowsOcrAvailable() ? 'windows-ocr' : 'apple-vision-ocr';
+        layers.push({ id: synth ? `${ocrId}+labels` : ocrId, perceive: async (s, c) => (synth ? synth(await perceive(s, c)) : perceive(s, c)) });
       }
     } catch (error) {
       console.warn('[career] OCR 感知器不可用：', error instanceof Error ? error.message : error);
