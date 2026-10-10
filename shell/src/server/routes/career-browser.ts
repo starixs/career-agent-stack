@@ -4,7 +4,7 @@ import type { VerifiedBrowserCapability } from '../browser-host/capability-clien
 import type { BrowserControl, BrowserControlState } from '../browser-host/context-registry';
 import { bringToFront as bringContextToFront, restoreIfMinimized } from '../browser-host/page-control';
 import type { BrowserChannel } from '../browser-host/runtime-settings';
-import { lockPage, pageForApplication, releaseApplicationPage, unlockPage } from '../career/app-pages';
+import { adoptApplicationPage, lockPage, pageForApplication, releaseApplicationPage, unlockPage } from '../career/app-pages';
 
 /**
  * Global 路由 `/api/career/browser/*`：接管状态锁、窗口前置、把托管 Context 的
@@ -393,15 +393,56 @@ export interface RunEmitter {
   aborted(): boolean;
 }
 
-export type CareerBrowserOp = 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'submit' | 'release';
+export type CareerBrowserOp = 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'submit' | 'release' | 'browse';
 
 /**
  * HTTP 路由（能力令牌）只开放这四种；submit / release 只能由 Global 进程内的提交执行器直接调用 runOperation——
  * 提交必须先在动作队列里被批准并认领，不能被任何持有浏览器令牌的调用方绕过。
  */
-const OPS: ReadonlySet<string> = new Set<CareerBrowserOp>(['screenshot', 'diagnose', 'drive', 'collect_passive']);
+const OPS: ReadonlySet<string> = new Set<CareerBrowserOp>(['screenshot', 'diagnose', 'drive', 'collect_passive', 'browse']);
+/** 模型逐步浏览用的专用页面（和各份网申的页面分开）。 */
+export const BROWSE_PAGE_KEY = '__browse__';
 
 /** 在已借到的 Context 上执行一次操作（路由与 Global 批量运行器共用）。 */
+/**
+ * 模型逐步浏览（career/browse.ts）：observe / act / read。用专用浏览页；点击开了新标签就把浏览页换成新标签；
+ * 每次操作后让现场画面切到这一页。输入里的 {{vault:...}} 在这里换成明文，模型看不到。
+ */
+async function runBrowse(body: Record<string, unknown>, context: BrowserContext, sessionKey: string, out: RunEmitter, deps: CareerBrowserRouteDependencies): Promise<void> {
+  const browse = await import('../career/browse');
+  const action = typeof body.action === 'string' ? body.action : 'observe';
+  let page = await pageForApplication(context, sessionKey, BROWSE_PAGE_KEY, 'start');
+  deps.focusPage?.(page);
+  const apply = await (deps.loadApply ?? loadApplyModule)();
+  const isSubmitText = (apply as unknown as { isSubmitText?: (t: string) => boolean } | null)?.isSubmitText ?? ((t: string) => /提交|投递|立即申请|申请职位|submit|apply now/i.test(t));
+  const vault = await import('../career/vault').then(m => m.getVault()).catch(() => null);
+  const browseDeps = {
+    isSubmitText,
+    hasPlaceholder: (t: string) => /\{\{\s*vault:[^}]+\}\}/.test(t),
+    resolveVault: vault ? (t: string) => vault.resolve(t, { actor: 'form_fill', purpose: '模型浏览时填写' }) : undefined,
+  };
+  try {
+    if (action === 'act') {
+      const req = (body.act ?? {}) as import('../career/browse').ActRequest;
+      const receipt = await browse.act(context, page, req, browseDeps);
+      if (receipt.page !== page) { adoptApplicationPage(sessionKey, BROWSE_PAGE_KEY, receipt.page); page = receipt.page; deps.focusPage?.(page); }
+      const { page: _p, ...rest } = receipt;
+      // 操作成功就顺带给出新观察，省一轮往返（观察编号随之更新）
+      const observation = receipt.ok && body.observeAfter !== false ? await browse.observe(context, page, browseDeps).catch(() => null) : null;
+      out.emit({ type: 'result', op: 'browse', action, receipt: rest, ...(observation ? { observation } : {}) });
+      return;
+    }
+    if (action === 'read') {
+      const r = await browse.read(page, typeof body.offset === 'number' ? body.offset : 0, typeof body.length === 'number' ? Math.min(body.length, 8000) : 4000);
+      out.emit({ type: 'result', op: 'browse', action, read: r });
+      return;
+    }
+    out.emit({ type: 'result', op: 'browse', action: 'observe', observation: await browse.observe(context, page, browseDeps, { textMax: typeof body.textMax === 'number' ? body.textMax : 1500 }) });
+  } catch (error) {
+    out.emit({ type: 'error', status: 500, code: 'BROWSE_FAILED', error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 export async function runOperation(
   op: CareerBrowserOp,
   body: Record<string, unknown>,
@@ -416,6 +457,10 @@ export async function runOperation(
   if (op === 'release') {
     if (appKey) await releaseApplicationPage(context, sessionKey, appKey);
     out.emit({ type: 'result', op, released: !!appKey });
+    return;
+  }
+  if (op === 'browse') {
+    await runBrowse(body, context, sessionKey, out, deps);
     return;
   }
   let page: Page;
@@ -712,7 +757,7 @@ export async function handleCareerBrowserRoute(
 
   // action === 'run'
   const op = typeof body.op === 'string' && OPS.has(body.op) ? body.op as CareerBrowserOp : null;
-  if (!op) return failure(400, "op 必须是 'screenshot' | 'diagnose' | 'drive' | 'collect_passive'");
+  if (!op) return failure(400, "op 必须是 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'browse'");
   let binding: VerifiedBrowserCapability;
   try {
     binding = await host.verifyCapability(token, request.signal);
