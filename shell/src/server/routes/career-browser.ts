@@ -126,8 +126,11 @@ export async function defaultPerceiver(apply: ApplyEngineModule, page: ApplyPage
       const { AppleVisionOcrPerceiver, appleVisionAvailable } = await import('../career/perceivers/apple-vision-ocr');
       if (appleVisionAvailable()) {
         const ocr = new AppleVisionOcrPerceiver();
+        // 熔断：OCR 小程序坏了（崩溃 / 超时）连续两次就先跳过，不让每页都卡到超时
+        const { withBreaker } = await import('../career/perceivers/breaker');
+        const perceive = withBreaker('OCR 识别', (shot: Parameters<typeof ocr.perceive>[0], ctx: Parameters<typeof ocr.perceive>[1]) => ocr.perceive(shot, ctx), { log: msg => console.warn(`[career] ${msg}`) });
         const synth = apply.synthesizeInputsFromLabels;
-        layers.push(synth ? { id: 'apple-vision-ocr+labels', perceive: async (s, c) => synth(await ocr.perceive(s, c)) } : ocr);
+        layers.push({ id: synth ? 'apple-vision-ocr+labels' : ocr.id, perceive: async (s, c) => (synth ? synth(await perceive(s, c)) : perceive(s, c)) });
       }
     } catch (error) {
       console.warn('[career] OCR 感知器不可用：', error instanceof Error ? error.message : error);
