@@ -10,11 +10,14 @@ import {
   type ArcadeGame,
   type ArcadeGameId,
   type ArcadePalette,
+  type GameEvent,
 } from '../games';
 
 export type HandheldButton = 'up' | 'down' | 'left' | 'right' | 'a' | 'b' | 'start' | 'select' | 'l' | 'r';
 export type ScreenMode = 'boot' | 'menu' | 'playing' | 'paused' | 'over';
-export type ScreenSound = 'boot' | 'move' | 'confirm' | 'score' | 'pause' | 'over';
+export type ScreenSound =
+  | 'boot' | 'move' | 'confirm' | 'pause' | 'over'
+  | 'score' | 'bonus' | 'levelup' | 'hit' | 'clear' | 'big' | 'tick' | 'lose';
 
 /** 反射式彩色 LCD 的偏灰配色：掌机是实体物件，不跟随 App 主题。 */
 export const LCD_PALETTE: ArcadePalette = {
@@ -37,6 +40,7 @@ export interface ScreenText {
   paused: string;
   pausedHint: string;
   gameOver: string;
+  newRecord: string;
   overHint: string;
   games: Record<ArcadeGameId, string>;
 }
@@ -54,12 +58,21 @@ interface ScreenOptions {
   onGameChange?: (id: ArcadeGameId) => void;
 }
 
-const DPAD: Partial<Record<HandheldButton, ArcadeAction>> = { up: 'up', down: 'down', left: 'left', right: 'right' };
-
+/** START / SELECT 归屏幕，其余实体键原样交给游戏。 */
 function toAction(button: HandheldButton): ArcadeAction | null {
-  if (button === 'a' || button === 'b') return 'action';
-  return DPAD[button] ?? null;
+  return button === 'start' || button === 'select' ? null : button;
 }
+
+const EVENT_SOUNDS: Record<GameEvent, ScreenSound> = {
+  score: 'score',
+  bonus: 'bonus',
+  levelup: 'levelup',
+  hit: 'hit',
+  clear: 'clear',
+  big: 'big',
+  tick: 'tick',
+  lose: 'lose',
+};
 
 export class HandheldScreen {
   mode: ScreenMode = 'boot';
@@ -69,7 +82,8 @@ export class HandheldScreen {
   /** 暂停时屏幕上显示的外部原因（如「AI 回复好了」），优先于普通暂停文案。 */
   notice: string | null = null;
   private held = new Set<HandheldButton>();
-  private lastScoreMark = 0;
+  /** 本局开始时的最高分，用来判断结束时是不是破了纪录。 */
+  private bestAtStart = 0;
   private readonly bests = new Map<ArcadeGameId, number>();
 
   constructor(private readonly opts: ScreenOptions) {
@@ -117,6 +131,7 @@ export class HandheldScreen {
         if (action && this.game) {
           this.held.add(button);
           this.game.key(action, true);
+          this.flushEvents();
         }
         return;
       }
@@ -134,8 +149,6 @@ export class HandheldScreen {
   release(button: HandheldButton): void {
     const action = toAction(button);
     if (!action || !this.held.delete(button)) return;
-    // A 和 B 都映射到 action：两个都松开才算松开
-    if ([...this.held].some(other => toAction(other) === action)) return;
     this.game?.key(action, false);
   }
 
@@ -163,24 +176,34 @@ export class HandheldScreen {
     }
     if (this.mode !== 'playing' || !this.game) return;
     this.game.step(dtMs);
-    this.trackScore();
+    this.trackBest();
     if (this.game.over) {
+      this.game.drainEvents(); // 结束时只放结束音效
       this.releaseAll();
       this.mode = 'over';
       this.opts.onSound?.('over');
+      return;
     }
+    this.flushEvents();
   }
 
-  private trackScore(): void {
+  /** 一帧里同类事件只响一次，避免多球同时撞砖时叠成噪音。 */
+  private flushEvents(): void {
+    const events = new Set(this.game?.drainEvents() ?? []);
+    for (const event of events) this.opts.onSound?.(EVENT_SOUNDS[event]);
+  }
+
+  private trackBest(): void {
     const score = this.score;
     if (score > this.best()) {
       this.bests.set(this.gameId, score);
       this.opts.best.write(this.gameId, score);
     }
-    // 跑酷按距离连续加分，每 100 分响一次；其余每得一分响一次
-    const mark = this.gameId === 'runner' ? Math.floor(score / 100) : score;
-    if (mark > this.lastScoreMark) this.opts.onSound?.('score');
-    this.lastScoreMark = mark;
+  }
+
+  /** 本局是否刷新了最高分。 */
+  get newRecord(): boolean {
+    return this.score > 0 && this.score > this.bestAtStart;
   }
 
   private moveMenu(delta: number): void {
@@ -200,7 +223,7 @@ export class HandheldScreen {
   private startGame(): void {
     this.releaseAll();
     this.game = createArcadeGame(this.gameId);
-    this.lastScoreMark = 0;
+    this.bestAtStart = this.best();
     this.notice = null;
     this.mode = 'playing';
     this.opts.onSound?.('confirm');
@@ -228,7 +251,8 @@ export class HandheldScreen {
     if (this.mode === 'paused') {
       this.drawPanel(ctx, this.notice ?? this.opts.text.paused, this.opts.text.pausedHint);
     } else if (this.mode === 'over') {
-      this.drawPanel(ctx, this.opts.text.gameOver, `${this.score}  ·  ${this.opts.text.overHint}`);
+      const title = this.newRecord ? this.opts.text.newRecord : this.opts.text.gameOver;
+      this.drawPanel(ctx, title, `${this.score}  ·  ${this.opts.text.overHint}`);
     }
   }
 
@@ -279,11 +303,11 @@ export class HandheldScreen {
     ctx.font = '700 11px "PingFang SC", "Helvetica Neue", sans-serif';
     ctx.fillText(text.menuTitle, W / 2, 11);
     ARCADE_GAME_IDS.forEach((id, i) => {
-      const y = 46 + i * 28;
+      const y = 40 + i * 25;
       const active = i === this.menuIndex;
       if (active) {
         ctx.fillStyle = c.line;
-        ctx.fillRect(24, y - 11, W - 48, 22);
+        ctx.fillRect(24, y - 10, W - 48, 20);
         ctx.fillStyle = c.accent;
         ctx.textAlign = 'left';
         ctx.font = '700 10px ui-monospace, monospace';
@@ -304,18 +328,32 @@ export class HandheldScreen {
     ctx.fillText(text.menuHint, W / 2, H - 12);
   }
 
+  /** 顶部一条半透明 HUD：左边等级 + 命数，右边分数。自带面板的游戏不画。 */
   private drawHud(ctx: CanvasRenderingContext2D): void {
+    const game = this.game;
+    if (!game || game.ownHud) return;
     const c = LCD_PALETTE;
-    const label = String(this.score).padStart(4, '0');
     ctx.font = '700 9px ui-monospace, monospace';
-    const w = ctx.measureText(label).width + 8;
-    // 打砖块右上角自己画关卡号，HUD 放到中间避免重叠
-    const x = this.gameId === 'breakout' ? W / 2 - w / 2 : W - w - 3;
+    const level = `LV${game.level}`;
+    const lives = game.lives !== undefined ? ' ' + '♥'.repeat(Math.max(0, game.lives)) : '';
+    const leftText = level + lives;
+    const score = String(this.score).padStart(5, '0');
+    const lw = ctx.measureText(leftText).width + 8;
+    const rw = ctx.measureText(score).width + 8;
     ctx.fillStyle = 'rgba(205,211,191,0.85)';
-    ctx.fillRect(x, 2, w, 12);
+    ctx.fillRect(2, 2, lw, 12);
+    ctx.fillRect(W - rw - 2, 2, rw, 12);
+    ctx.textAlign = 'left';
     ctx.fillStyle = c.ink;
+    ctx.fillText(level, 6, 8.5);
+    if (lives) {
+      ctx.fillStyle = c.accent;
+      ctx.fillText(lives, 6 + ctx.measureText(level).width, 8.5);
+    }
+    ctx.textAlign = 'right';
+    ctx.fillStyle = c.ink;
+    ctx.fillText(score, W - 6, 8.5);
     ctx.textAlign = 'center';
-    ctx.fillText(label, x + w / 2, 8.5);
   }
 
   private drawPanel(ctx: CanvasRenderingContext2D, title: string, hint: string): void {

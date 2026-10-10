@@ -199,6 +199,7 @@
     "mute": "Mute",
     "unmute": "Unmute",
     "games": {
+      "tetris": "Tetris",
       "snake": "Snake",
       "breakout": "Breakout",
       "runner": "Jumper"
@@ -210,6 +211,7 @@
       "paused": "PAUSED",
       "pausedHint": "START resume · SELECT menu",
       "gameOver": "GAME OVER",
+      "newRecord": "NEW RECORD!",
       "overHint": "A retry · SELECT menu"
     },
     "keys": {

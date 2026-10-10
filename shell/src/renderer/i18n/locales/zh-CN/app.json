@@ -199,6 +199,7 @@
     "mute": "静音",
     "unmute": "打开声音",
     "games": {
+      "tetris": "俄罗斯方块",
       "snake": "贪吃蛇",
       "breakout": "打砖块",
       "runner": "跳跳小人"
@@ -210,6 +211,7 @@
       "paused": "暂停",
       "pausedHint": "START 继续 · SELECT 菜单",
       "gameOver": "游戏结束",
+      "newRecord": "新纪录！",
       "overHint": "A 重来 · SELECT 菜单"
     },
     "keys": {

@@ -12,11 +12,12 @@ const TEXT: ScreenText = {
   paused: '暂停',
   pausedHint: '',
   gameOver: '游戏结束',
+  newRecord: '新纪录！',
   overHint: '',
-  games: { snake: '贪吃蛇', breakout: '打砖块', runner: '跳跳小人' },
+  games: { tetris: '俄罗斯方块', snake: '贪吃蛇', breakout: '打砖块', runner: '跳跳小人' },
 };
 
-function makeScreen(initialGame: 'snake' | 'breakout' | 'runner' = 'snake') {
+function makeScreen(initialGame: 'tetris' | 'snake' | 'breakout' | 'runner' = 'snake') {
   const store = new Map<string, number>();
   const sounds: string[] = [];
   const onGameChange = vi.fn();
@@ -44,10 +45,11 @@ describe('HandheldScreen', () => {
   });
 
   it('wraps the menu cursor and starts the chosen game', () => {
-    const { screen, onGameChange } = makeScreen('snake');
+    const { screen, onGameChange } = makeScreen('tetris');
     screen.press('start');
     screen.press('up');
     expect(screen.gameId).toBe('runner');
+    screen.press('down');
     screen.press('down');
     screen.press('down');
     expect(screen.gameId).toBe('breakout');
@@ -83,18 +85,19 @@ describe('HandheldScreen', () => {
     expect(screen.notice).toBeNull();
   });
 
-  it('keeps the action held until both A and B are released', () => {
-    const { screen } = makeScreen('breakout');
+  it('passes A, B, L and R to the game as separate buttons and plays their sounds', () => {
+    const { screen, sounds } = makeScreen('tetris');
     screen.press('a');
     screen.press('a');
-    const game = screen.game as BreakoutGame;
+    const game = screen.game!;
     const key = vi.spyOn(game, 'key');
-    screen.press('a');
     screen.press('b');
-    screen.release('a');
-    expect(key).not.toHaveBeenCalledWith('action', false);
+    screen.press('l');
     screen.release('b');
-    expect(key).toHaveBeenCalledWith('action', false);
+    expect(key).toHaveBeenCalledWith('b', true);
+    expect(key).toHaveBeenCalledWith('l', true);
+    expect(key).toHaveBeenCalledWith('b', false);
+    expect(sounds).toContain('tick'); // 旋转 / 暂存的提示音
   });
 
   it('records a new best, ends the run, and restarts with A', () => {
@@ -110,6 +113,7 @@ describe('HandheldScreen', () => {
     expect(screen.mode).toBe('over');
     expect(store.get('breakout')).toBe(120);
     expect(screen.best('breakout')).toBe(120);
+    expect(screen.newRecord).toBe(true);
     expect(sounds).toContain('over');
     screen.press('a');
     expect(screen.mode).toBe('playing');

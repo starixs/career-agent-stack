@@ -17,8 +17,8 @@ import { HandheldSound } from './sound';
 /** 外壳的设计尺寸；舞台按窗口大小整体缩放。 */
 const STAGE_W = 600;
 const STAGE_H = 400;
-/** 窗口够大时把掌机放大到这个倍数：机身要大，屏幕保持小巧。 */
-const MAX_SCALE = 1.4;
+/** 掌机最大显示倍数（1 = 600px 宽）；窗口小时整体等比缩小。 */
+const MAX_SCALE = 1;
 /** 收起动画时长，与 handheld.css 的 hh-put-away 一致；动画事件丢失时兜底。 */
 const PUT_AWAY_MS = 420;
 const MAX_FRAME_MS = 50;
@@ -84,8 +84,10 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
       paused: t('waitingArcade.lcd.paused'),
       pausedHint: t('waitingArcade.lcd.pausedHint'),
       gameOver: t('waitingArcade.lcd.gameOver'),
+      newRecord: t('waitingArcade.lcd.newRecord'),
       overHint: t('waitingArcade.lcd.overHint'),
       games: {
+        tetris: t('waitingArcade.games.tetris'),
         snake: t('waitingArcade.games.snake'),
         breakout: t('waitingArcade.games.breakout'),
         runner: t('waitingArcade.games.runner'),

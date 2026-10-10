@@ -13,6 +13,13 @@ const SOUNDS: Record<ScreenSound, { wave: OscillatorType; gain: number; notes: N
   score: { wave: 'square', gain: 0.022, notes: [[1760, 0, 40], [2349, 35, 50]] },
   pause: { wave: 'square', gain: 0.025, notes: [[1568, 0, 60], [1046.5, 70, 80]] },
   over: { wave: 'square', gain: 0.03, notes: [[784, 0, 120], [622, 130, 120], [523, 260, 120], [392, 390, 300]] },
+  bonus: { wave: 'square', gain: 0.024, notes: [[1318.5, 0, 45], [1661, 45, 45], [1976, 90, 80]] },
+  levelup: { wave: 'square', gain: 0.028, notes: [[784, 0, 70], [988, 70, 70], [1175, 140, 70], [1568, 210, 180]] },
+  hit: { wave: 'triangle', gain: 0.05, notes: [[660, 0, 25]] },
+  tick: { wave: 'triangle', gain: 0.035, notes: [[1200, 0, 15]] },
+  clear: { wave: 'square', gain: 0.026, notes: [[1046.5, 0, 50], [1318.5, 50, 50], [1568, 100, 110]] },
+  big: { wave: 'square', gain: 0.03, notes: [[1046.5, 0, 60], [1318.5, 60, 60], [1568, 120, 60], [2093, 180, 260]] },
+  lose: { wave: 'square', gain: 0.028, notes: [[523, 0, 90], [392, 100, 160]] },
 };
 
 export class HandheldSound {
