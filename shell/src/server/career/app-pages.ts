@@ -28,16 +28,40 @@ function findLive(context: BrowserContext, frame: object): Page | undefined {
 
 export type AppPageMode = 'start' | 'continue' | 'submit';
 
-export async function pageForApplication(context: BrowserContext, sessionKey: string, appKey: string | undefined, mode: AppPageMode): Promise<Page> {
+/** 主域名：zhaopin.meituan.com 与 passport.meituan.com 算同一个网站（登录常跳到同公司的单点登录域名）。 */
+export function siteOf(url: string): string | null {
+  let host: string;
+  try { host = new URL(url).hostname.toLowerCase(); } catch { return null; }
+  if (!host || /^\d+(\.\d+){3}$/.test(host)) return host || null;
+  const labels = host.replace(/^www\./, '').split('.');
+  if (labels.length <= 2) return labels.join('.');
+  // .com.cn / .co.uk 这类二级后缀多取一段
+  const sld = labels[labels.length - 2];
+  const take = ['com', 'net', 'org', 'gov', 'edu', 'co', 'ac'].includes(sld) && labels[labels.length - 1].length === 2 ? 3 : 2;
+  return labels.slice(-take).join('.');
+}
+const sameSite = (a: string, b: string) => { const x = siteOf(a); return !!x && x === siteOf(b); };
+
+export async function pageForApplication(context: BrowserContext, sessionKey: string, appKey: string | undefined, mode: AppPageMode, opts: { siteUrl?: string } = {}): Promise<Page> {
   if (!appKey) return activePage(context);
   const key = slot(sessionKey, appKey);
   const existing = entries.get(key);
   const live = existing ? findLive(context, existing.frame) : undefined;
-  if (live) return live;
+  if (live) {
+    // 续跑前核对身份：用户接管时把这一页换到了别的网站，就不能在上面接着填
+    if (mode === 'continue' && opts.siteUrl && !sameSite(live.url(), opts.siteUrl)) {
+      throw Object.assign(new Error(`这份网申的页面现在停在 ${siteOf(live.url()) ?? live.url()}，不是网申网站 ${siteOf(opts.siteUrl)}。请回到网申页面后再交还，或者让助理重新打开这份网申。`), { name: 'APPLICATION_PAGE_MOVED' });
+    }
+    return live;
+  }
   if (existing) entries.delete(key);
   if (mode === 'submit') throw Object.assign(new Error('这份网申填好的页面已经关闭（浏览器被关掉或重启过），需要重新填写后再提交'), { name: 'APPLICATION_PAGE_GONE' });
   if (mode === 'continue') {
+    // 找不到原页面时才退回当前页，而且当前页必须在网申网站上；否则停下问，不在别的网站上乱填
     const page = await activePage(context);
+    if (opts.siteUrl && !sameSite(page.url(), opts.siteUrl)) {
+      throw Object.assign(new Error(`找不到这份网申的页面了，当前页面在 ${siteOf(page.url()) ?? (page.url() || '空白页')}，不是网申网站 ${siteOf(opts.siteUrl)}。请在浏览器里回到网申页面后再交还，或者让助理重新打开这份网申。`), { name: 'APPLICATION_PAGE_GONE' });
+    }
     register(key, page);
     return page;
   }
