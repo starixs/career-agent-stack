@@ -1,14 +1,14 @@
 import { ARCADE_HEIGHT, ARCADE_WIDTH, type ArcadeAction, type ArcadeGame, type ArcadePalette, type Rng } from './types';
 
-const GROUND_Y = ARCADE_HEIGHT - 28;
-const HERO_X = 32;
-const HERO_W = 14;
-const HERO_H = 20;
-const GRAVITY = 0.0016; // px / ms²
-const JUMP_V = -0.5; // px / ms
-const START_SPEED = 0.12; // px / ms
-const MAX_SPEED = 0.32;
-const MIN_GAP = 110;
+const GROUND_Y = ARCADE_HEIGHT - 24;
+const HERO_X = 28;
+const HERO_W = 12;
+const HERO_H = 16;
+const GRAVITY = 0.0015; // px / ms²
+const JUMP_V = -0.42; // px / ms
+const START_SPEED = 0.1; // px / ms
+const MAX_SPEED = 0.27;
+const MIN_GAP = 90;
 
 export interface Obstacle { x: number; w: number; h: number }
 
@@ -63,10 +63,10 @@ export class RunnerGame implements ArcadeGame {
 
     this.nextSpawn -= dx;
     if (this.nextSpawn <= 0) {
-      const h = 12 + Math.floor(this.rng() * 3) * 6;
-      const w = 10 + Math.floor(this.rng() * 2) * 8;
+      const h = 10 + Math.floor(this.rng() * 3) * 5;
+      const w = 8 + Math.floor(this.rng() * 2) * 7;
       this.obstacles.push({ x: ARCADE_WIDTH, w, h });
-      this.nextSpawn = MIN_GAP + this.rng() * 120 + this.speed * 200;
+      this.nextSpawn = MIN_GAP + this.rng() * 100 + this.speed * 200;
     }
 
     const heroBottom = this.heroY + HERO_H;
@@ -96,6 +96,6 @@ export class RunnerGame implements ArcadeGame {
     ctx.fillStyle = c.primary;
     ctx.fillRect(HERO_X, this.heroY, HERO_W, HERO_H);
     ctx.fillStyle = c.bg;
-    ctx.fillRect(HERO_X + 8, this.heroY + 4, 3, 3);
+    ctx.fillRect(HERO_X + 7, this.heroY + 3, 3, 3);
   }
 }

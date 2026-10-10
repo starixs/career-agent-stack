@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { BreakoutGame } from './breakout';
-import { keyToArcadeAction } from './index';
 import { RunnerGame } from './runner';
 import { SNAKE_COLS, SnakeGame } from './snake';
 
@@ -102,14 +101,5 @@ describe('RunnerGame', () => {
     game.obstacles = [{ x: 30, w: 18, h: 18 }];
     game.step(16);
     expect(game.over).toBe(true);
-  });
-});
-
-describe('keyToArcadeAction', () => {
-  it('maps arrows, WASD and space by physical key code', () => {
-    expect(keyToArcadeAction('ArrowLeft')).toBe('left');
-    expect(keyToArcadeAction('KeyW')).toBe('up');
-    expect(keyToArcadeAction('Space')).toBe('action');
-    expect(keyToArcadeAction('KeyQ')).toBeNull();
   });
 });

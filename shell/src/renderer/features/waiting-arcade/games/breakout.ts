@@ -1,16 +1,16 @@
 import { ARCADE_HEIGHT, ARCADE_WIDTH, type ArcadeAction, type ArcadeGame, type ArcadePalette } from './types';
 
-const PADDLE_W = 48;
-const PADDLE_H = 6;
-const PADDLE_Y = ARCADE_HEIGHT - 14;
-const PADDLE_SPEED = 0.28; // px / ms
-const BALL_R = 4;
-const BASE_BALL_SPEED = 0.16; // px / ms
+const PADDLE_W = 40;
+const PADDLE_H = 5;
+const PADDLE_Y = ARCADE_HEIGHT - 12;
+const PADDLE_SPEED = 0.24; // px / ms
+const BALL_R = 3;
+const BASE_BALL_SPEED = 0.135; // px / ms
 const COLS = 9;
 const ROWS = 4;
-const BRICK_GAP = 3;
-const BRICK_TOP = 22;
-const BRICK_H = 9;
+const BRICK_GAP = 2;
+const BRICK_TOP = 20;
+const BRICK_H = 7;
 const BRICK_W = (ARCADE_WIDTH - BRICK_GAP * (COLS + 1)) / COLS;
 const START_LIVES = 3;
 
@@ -152,11 +152,11 @@ export class BreakoutGame implements ArcadeGame {
     ctx.arc(this.ball.x, this.ball.y, BALL_R, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = c.muted;
-    ctx.font = '10px ui-monospace, monospace';
+    ctx.font = '8px ui-monospace, monospace';
     ctx.textBaseline = 'top';
-    ctx.fillText('♥'.repeat(Math.max(0, this.lives)), 4, 6);
+    ctx.fillText('♥'.repeat(Math.max(0, this.lives)), 4, 5);
     ctx.textAlign = 'right';
-    ctx.fillText(`L${this.level}`, ARCADE_WIDTH - 4, 6);
+    ctx.fillText(`L${this.level}`, ARCADE_WIDTH - 4, 5);
     ctx.textAlign = 'left';
   }
 }

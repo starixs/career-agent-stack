@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/config/useConfigData', () => ({ useConfigData: () => ({ config: mocks.config }) }));
 // 与真实 TabContext 一样：状态变化会让订阅组件重渲染（WaitingArcade 是 memo 组件）
 vi.mock('@/context/TabContext', () => ({
+  useTabActive: () => true,
   useTabStateOptional: () => {
     useSyncExternalStore(
       (listener) => { mocks.listeners.add(listener); return () => mocks.listeners.delete(listener); },
@@ -31,11 +32,21 @@ vi.mock('@/context/TabContext', () => ({
 
 import WaitingArcade, { HINT_AFTER_SECONDS } from './WaitingArcade';
 
-function setBusy(busy: boolean) {
-  mocks.tab.isLoading = busy;
-  mocks.tab.sessionState = busy ? 'running' : 'idle';
+function setTab(patch: Partial<typeof mocks.tab>) {
+  Object.assign(mocks.tab, patch);
   mocks.version += 1;
   act(() => { mocks.listeners.forEach(listener => listener()); });
+}
+
+function setBusy(busy: boolean) {
+  setTab({ isLoading: busy, sessionState: busy ? 'running' : 'idle' });
+}
+
+function pullOut() {
+  mocks.tab.elapsed = HINT_AFTER_SECONDS;
+  render(<WaitingArcade />);
+  fireEvent.click(screen.getByRole('button', { name: '玩一把' }));
+  return screen.getByTestId('waiting-arcade-handheld');
 }
 
 describe('WaitingArcade', () => {
@@ -43,7 +54,8 @@ describe('WaitingArcade', () => {
     vi.useFakeTimers();
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     mocks.config = {};
-    setBusy(true);
+    mocks.tab.isLoading = true;
+    mocks.tab.sessionState = 'running';
     mocks.tab.elapsed = 0;
     mocks.tab.pendingPermission = null;
   });
@@ -88,51 +100,92 @@ describe('WaitingArcade', () => {
     expect(screen.getByTestId('waiting-arcade-hint')).toBeInTheDocument();
   });
 
-  it('opens a focused game card and keeps game keys away from the chat', () => {
-    mocks.tab.elapsed = HINT_AFTER_SECONDS;
-    render(<WaitingArcade />);
-    fireEvent.click(screen.getByRole('button', { name: '玩一把' }));
+  it('pulls out a focused handheld that boots into the game menu', () => {
+    const device = pullOut();
+    expect(device).toHaveFocus();
+    expect(device).toHaveAttribute('data-mode', 'boot');
+    fireEvent.keyDown(device, { code: 'Enter', key: 'Enter' });
+    expect(device).toHaveAttribute('data-mode', 'menu');
+  });
 
-    const canvas = screen.getByTestId('waiting-arcade-canvas');
-    expect(canvas).toHaveFocus();
-    expect(screen.getByRole('tab', { name: '贪吃蛇' })).toHaveAttribute('aria-selected', 'true');
+  it('presses the physical button for each key and keeps game keys away from the chat', () => {
+    const device = pullOut();
+    const a = device.querySelector('.hh-a')!;
+    const up = device.querySelector('.hh-dpad-up')!;
+    const dpad = device.querySelector('.hh-dpad') as HTMLElement;
 
     const windowKeys = vi.fn();
     window.addEventListener('keydown', windowKeys);
-    fireEvent.keyDown(canvas, { code: 'ArrowUp', key: 'ArrowUp' });
-    fireEvent.keyDown(canvas, { code: 'Space', key: ' ' });
+    fireEvent.keyDown(device, { code: 'KeyX', key: 'x' });
+    fireEvent.keyDown(device, { code: 'ArrowUp', key: 'ArrowUp' });
     window.removeEventListener('keydown', windowKeys);
     expect(windowKeys).not.toHaveBeenCalled();
-    expect(canvas).toHaveAttribute('data-phase', 'playing');
 
-    fireEvent.blur(canvas);
-    expect(canvas).toHaveAttribute('data-phase', 'paused');
+    expect(a).toHaveAttribute('data-pressed', 'true');
+    expect(up).toHaveAttribute('data-pressed', 'true');
+    expect(dpad).toHaveAttribute('data-dir', 'up');
+    expect(dpad.style.transform).toContain('rotateX(12deg)');
+
+    fireEvent.keyUp(device, { code: 'KeyX', key: 'x' });
+    fireEvent.keyUp(device, { code: 'ArrowUp', key: 'ArrowUp' });
+    expect(a).not.toHaveAttribute('data-pressed');
+    expect(dpad.style.transform).toBe('none');
   });
 
-  it('pauses and tells the user when the reply lands', () => {
-    mocks.tab.elapsed = HINT_AFTER_SECONDS;
-    render(<WaitingArcade />);
-    fireEvent.click(screen.getByRole('button', { name: '玩一把' }));
-    const canvas = screen.getByTestId('waiting-arcade-canvas');
-    fireEvent.keyDown(canvas, { code: 'ArrowUp', key: 'ArrowUp' });
-    expect(canvas).toHaveAttribute('data-phase', 'playing');
+  it('lets shortcut chords pass through untouched', () => {
+    const device = pullOut();
+    const event = new KeyboardEvent('keydown', { code: 'KeyW', key: 'w', metaKey: true, bubbles: true, cancelable: true });
+    device.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(device.querySelector('.hh-dpad-up')).not.toHaveAttribute('data-pressed');
+  });
+
+  it('works with the mouse on the shell buttons too', () => {
+    const device = pullOut();
+    const start = device.querySelector('.hh-start .hh-meta-btn')!;
+    fireEvent.pointerDown(start, { pointerId: 1 });
+    expect(start).toHaveAttribute('data-pressed', 'true');
+    expect(device).toHaveAttribute('data-mode', 'menu');
+    fireEvent.pointerUp(start, { pointerId: 1 });
+    expect(start).not.toHaveAttribute('data-pressed');
+  });
+
+  it('pauses mid-game when the reply lands and sends the user back', () => {
+    const device = pullOut();
+    fireEvent.keyDown(device, { code: 'Enter', key: 'Enter' }); // 跳过开机
+    fireEvent.keyUp(device, { code: 'Enter', key: 'Enter' });
+    fireEvent.keyDown(device, { code: 'Enter', key: 'Enter' }); // 开始游戏
+    fireEvent.keyUp(device, { code: 'Enter', key: 'Enter' });
+    expect(device).toHaveAttribute('data-mode', 'playing');
 
     setBusy(false);
-    expect(canvas).toHaveAttribute('data-phase', 'paused');
-    expect(screen.getAllByText('AI 回复好了').length).toBeGreaterThan(0);
+    expect(device).toHaveAttribute('data-mode', 'paused');
+    expect(screen.getByRole('status')).toHaveTextContent('AI 回复好了');
+    expect(device.querySelector('.hh-led')).toHaveAttribute('data-alert', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: '回去看看' }));
-    expect(screen.queryByTestId('waiting-arcade-card')).toBeNull();
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(screen.queryByTestId('waiting-arcade-handheld')).toBeNull();
   });
 
-  it('switches games and closes with Escape', () => {
-    mocks.tab.elapsed = HINT_AFTER_SECONDS;
-    render(<WaitingArcade />);
-    fireEvent.click(screen.getByRole('button', { name: '玩一把' }));
-    fireEvent.click(screen.getByRole('tab', { name: '打砖块' }));
-    expect(screen.getByTestId('waiting-arcade-canvas')).toHaveAccessibleName('打砖块');
+  it('puts the handheld away with Escape after the slide-down', () => {
+    const device = pullOut();
+    fireEvent.keyDown(device, { code: 'Escape', key: 'Escape' });
+    expect(device.closest('.hh-stage')).toHaveAttribute('data-stage', 'closing');
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(screen.queryByTestId('waiting-arcade-handheld')).toBeNull();
+    // 收起即算本轮不玩：提示不会马上又冒出来
+    expect(screen.queryByTestId('waiting-arcade-hint')).toBeNull();
+  });
 
-    fireEvent.keyDown(screen.getByTestId('waiting-arcade-canvas'), { code: 'Escape', key: 'Escape' });
-    expect(screen.queryByTestId('waiting-arcade-card')).toBeNull();
+  it('pauses when focus leaves the handheld', () => {
+    const device = pullOut();
+    fireEvent.keyDown(device, { code: 'KeyX', key: 'x' });
+    fireEvent.keyUp(device, { code: 'KeyX', key: 'x' });
+    fireEvent.keyDown(device, { code: 'KeyX', key: 'x' });
+    expect(device).toHaveAttribute('data-mode', 'playing');
+    fireEvent.blur(device);
+    expect(device).toHaveAttribute('data-mode', 'paused');
+    expect(device.querySelector('.hh-a')).not.toHaveAttribute('data-pressed');
   });
 });

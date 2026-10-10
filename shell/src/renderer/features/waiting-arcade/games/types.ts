@@ -1,13 +1,13 @@
 // 等待街机的游戏契约：纯逻辑（step / key）与绘制（draw）分离，
 // 逻辑部分不碰 DOM，可在 node 单测里直接驱动。
 
-/** 逻辑画布尺寸（CSS 像素）。宿主按 devicePixelRatio 放大 backing store。 */
-export const ARCADE_WIDTH = 288;
-export const ARCADE_HEIGHT = 192;
+/** 逻辑画布尺寸（CSS 像素），取掌机屏幕的 240×160。宿主按 devicePixelRatio 放大 backing store。 */
+export const ARCADE_WIDTH = 240;
+export const ARCADE_HEIGHT = 160;
 
 export type ArcadeAction = 'up' | 'down' | 'left' | 'right' | 'action';
 
-/** 从主题 CSS 变量解析出的颜色，宿主负责在主题切换时刷新。 */
+/** 屏幕配色，由宿主提供（掌机用固定的 LCD 配色）。 */
 export interface ArcadePalette {
   bg: string;
   ink: string;

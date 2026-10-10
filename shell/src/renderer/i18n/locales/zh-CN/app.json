@@ -192,21 +192,29 @@
     "hint": "AI 还在忙，等着也是等着——来一把？",
     "play": "玩一把",
     "dismiss": "这次不玩",
-    "close": "关闭小游戏",
-    "title": "摸鱼街机",
-    "score": "得分",
-    "best": "最高",
-    "focusToPlay": "点击开始",
-    "paused": "已暂停 · 点击继续",
-    "gameOver": "游戏结束 · 空格或点击重来",
+    "handheld": "掌机",
     "replyReady": "AI 回复好了",
     "needsYou": "AI 在等你确认",
     "backToChat": "回去看看",
-    "controls": "方向键 / WASD 移动，空格跳跃·发球，P 暂停，Esc 关闭",
+    "mute": "静音",
+    "unmute": "打开声音",
     "games": {
       "snake": "贪吃蛇",
       "breakout": "打砖块",
       "runner": "跳跳小人"
+    },
+    "lcd": {
+      "menuTitle": "选择游戏",
+      "menuHint": "↑↓ 选择   A 开始",
+      "best": "最高",
+      "paused": "暂停",
+      "pausedHint": "START 继续 · SELECT 菜单",
+      "gameOver": "游戏结束",
+      "overHint": "A 重来 · SELECT 菜单"
+    },
+    "keys": {
+      "move": "移动",
+      "putAway": "收起"
     }
   },
   "workspaceTree": {

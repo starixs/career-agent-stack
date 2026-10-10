@@ -1,6 +1,6 @@
 import { ARCADE_HEIGHT, ARCADE_WIDTH, type ArcadeAction, type ArcadeGame, type ArcadePalette, type Rng } from './types';
 
-const CELL = 12;
+const CELL = 10;
 export const SNAKE_COLS = ARCADE_WIDTH / CELL; // 24
 export const SNAKE_ROWS = ARCADE_HEIGHT / CELL; // 16
 const START_TICK_MS = 140;

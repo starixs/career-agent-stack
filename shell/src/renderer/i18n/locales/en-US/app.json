@@ -192,21 +192,29 @@
     "hint": "The AI is still working — fancy a quick game?",
     "play": "Play",
     "dismiss": "Not now",
-    "close": "Close game",
-    "title": "Waiting arcade",
-    "score": "Score",
-    "best": "Best",
-    "focusToPlay": "Click to start",
-    "paused": "Paused · click to resume",
-    "gameOver": "Game over · Space or click to restart",
+    "handheld": "Handheld console",
     "replyReady": "The AI has replied",
     "needsYou": "The AI needs your confirmation",
     "backToChat": "Take a look",
-    "controls": "Arrows / WASD to move, Space to jump or serve, P to pause, Esc to close",
+    "mute": "Mute",
+    "unmute": "Unmute",
     "games": {
       "snake": "Snake",
       "breakout": "Breakout",
       "runner": "Jumper"
+    },
+    "lcd": {
+      "menuTitle": "SELECT GAME",
+      "menuHint": "↑↓ choose   A start",
+      "best": "BEST",
+      "paused": "PAUSED",
+      "pausedHint": "START resume · SELECT menu",
+      "gameOver": "GAME OVER",
+      "overHint": "A retry · SELECT menu"
+    },
+    "keys": {
+      "move": "Move",
+      "putAway": "Put away"
     }
   },
   "workspaceTree": {
