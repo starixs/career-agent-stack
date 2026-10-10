@@ -150,6 +150,8 @@ export interface SimpleChatInputProps {
   onCancelQueued?: (queueId: string) => void;
   onForceExecuteQueued?: (queueId: string) => void;
   agentStatusSlot?: React.ReactNode;
+  /** 长任务等待时的小游戏提示 / 卡片；与 agentStatusSlot 同居输入框上方浮层行。 */
+  waitingArcadeSlot?: React.ReactNode;
   onOverlayHeightChange?: (height: number) => void;
 }
 

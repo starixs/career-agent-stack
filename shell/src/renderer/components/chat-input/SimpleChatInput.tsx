@@ -234,6 +234,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
   onCancelQueued,
   onForceExecuteQueued,
   agentStatusSlot,
+  waitingArcadeSlot,
   onOverlayHeightChange,
   workspacePath = null,
   sessionId = null,
@@ -1424,6 +1425,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
       {!isLauncherMode && (
         <div className="pointer-events-none mb-2 flex w-full max-w-[820px] items-end justify-end gap-2 empty:hidden">
           {agentStatusSlot}
+          {waitingArcadeSlot}
           {queuedMessages.length > 0 && (
             <QueuedMessagesPanel
               messages={queuedMessages}

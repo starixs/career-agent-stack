@@ -922,6 +922,8 @@ export interface AppConfig {
    *  to `zh-CN`; new installs default to `system`. */
   uiLanguage?: UiLanguage;
   minimizeToTray: boolean;
+  /** 长任务等待时在输入框上方提示「来玩一把」小游戏。缺省视为开启。 */
+  waitingArcadeEnabled?: boolean;
   /** 全局「始终阻止电脑睡眠」开关（PRD 0.2.35）。
    *  默认 `false` ⇒ 沿用「智能模式」：AI 跑中由 sidecar.rs / cron_task.rs 各自持锁。
    *  `true` ⇒ 进程启动起就持一把常开 wake-lock，直到关闭开关 / 进程结束。

@@ -188,6 +188,27 @@
     "failed": "Failed",
     "interrupted": "Stopped"
   },
+  "waitingArcade": {
+    "hint": "The AI is still working — fancy a quick game?",
+    "play": "Play",
+    "dismiss": "Not now",
+    "close": "Close game",
+    "title": "Waiting arcade",
+    "score": "Score",
+    "best": "Best",
+    "focusToPlay": "Click to start",
+    "paused": "Paused · click to resume",
+    "gameOver": "Game over · Space or click to restart",
+    "replyReady": "The AI has replied",
+    "needsYou": "The AI needs your confirmation",
+    "backToChat": "Take a look",
+    "controls": "Arrows / WASD to move, Space to jump or serve, P to pause, Esc to close",
+    "games": {
+      "snake": "Snake",
+      "breakout": "Breakout",
+      "runner": "Jumper"
+    }
+  },
   "workspaceTree": {
     "collapseFolder": "Collapse folder",
     "emptyFolderHint": "Empty folder - drop files here or right-click to create"

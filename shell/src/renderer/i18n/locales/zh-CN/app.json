@@ -188,6 +188,27 @@
     "failed": "执行失败",
     "interrupted": "已停止"
   },
+  "waitingArcade": {
+    "hint": "AI 还在忙，等着也是等着——来一把？",
+    "play": "玩一把",
+    "dismiss": "这次不玩",
+    "close": "关闭小游戏",
+    "title": "摸鱼街机",
+    "score": "得分",
+    "best": "最高",
+    "focusToPlay": "点击开始",
+    "paused": "已暂停 · 点击继续",
+    "gameOver": "游戏结束 · 空格或点击重来",
+    "replyReady": "AI 回复好了",
+    "needsYou": "AI 在等你确认",
+    "backToChat": "回去看看",
+    "controls": "方向键 / WASD 移动，空格跳跃·发球，P 暂停，Esc 关闭",
+    "games": {
+      "snake": "贪吃蛇",
+      "breakout": "打砖块",
+      "runner": "跳跳小人"
+    }
+  },
   "workspaceTree": {
     "collapseFolder": "收起文件夹",
     "emptyFolderHint": "空文件夹 — 拖入文件或右键新建"

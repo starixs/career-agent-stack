@@ -5603,6 +5603,45 @@ export default function Settings({
                   </button>
                 </div>
 
+                {/* Waiting arcade — 缺省（undefined）视为开启 */}
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="flex-1 pr-4">
+                    <p className="text-sm font-medium text-[var(--ink)]">
+                      {tSettings('general.waitingArcadeTitle')}
+                    </p>
+                    <p className="text-xs text-[var(--muted)]">
+                      {tSettings('general.waitingArcadeDescription')}
+                    </p>
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={config.waitingArcadeEnabled !== false}
+                    aria-label={tSettings('general.waitingArcadeTitle')}
+                    onClick={() => {
+                      const enabled = config.waitingArcadeEnabled !== false;
+                      updateConfig({ waitingArcadeEnabled: !enabled });
+                      toast.success(
+                        enabled
+                          ? tSettings('general.waitingArcadeDisabled')
+                          : tSettings('general.waitingArcadeEnabled'),
+                      );
+                    }}
+                    className={`relative h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors ${
+                      config.waitingArcadeEnabled !== false
+                        ? 'bg-[var(--primary)]'
+                        : 'bg-[var(--line-2)]'
+                    }`}
+                  >
+                    <span
+                      className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-[var(--toggle-thumb)] shadow transition-transform ${
+                        config.waitingArcadeEnabled !== false
+                          ? 'translate-x-5'
+                          : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
                 {/* 始终阻止电脑睡眠 (PRD 0.2.35).
                                     副标题文案锁定 (D5):必须诚实告诉用户合盖照睡 + 更耗电,
                                     用户原话「在外面 AI 始终响应」直觉对应"合盖塞包"但 mac

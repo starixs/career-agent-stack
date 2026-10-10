@@ -64,6 +64,7 @@ import { useTabState, useTabActive } from '@/context/TabContext';
 import { BrowserSessionPanel } from '@/components/career/CareerLiveDrawer';
 import { CompanionChip, CompanionPanel } from '@/features/career-shell/CompanionPanel';
 import { ExpandedWorkSurfacePanel, SURFACE_META } from '@/features/career-shell/workSurfaces';
+import WaitingArcade from '@/features/waiting-arcade/WaitingArcade';
 import { collapseWorkSurface, useWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
 import { useChatScrollController } from '@/hooks/useChatScrollController';
 import { useChatScrollModel } from '@/hooks/useChatScrollModel';
@@ -4664,6 +4665,9 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
     [supportsAgentStatusPanel, handleJumpToTool],
   );
 
+  // 等待街机自取 TabState 订阅，slot 本身恒定，不打穿 SimpleChatInput 的 React.memo。
+  const waitingArcadeSlot = useMemo(() => <WaitingArcade />, []);
+
   // PRD 0.2.32 — context 用量指示器 slot。自取数（内部 useTabState 订阅 contextUsage），
   // 数据不经 SimpleChatInput props；useMemo 让 slot identity 在流式期间稳定，不打穿
   // SimpleChatInput 的 React.memo（与 agentStatusSlot 同款）。
@@ -5656,6 +5660,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
             onCancelQueued={handleCancelQueuedVoid}
             onForceExecuteQueued={handleForceExecuteQueuedVoid}
             agentStatusSlot={agentStatusSlot}
+            waitingArcadeSlot={waitingArcadeSlot}
             onOverlayHeightChange={handleInputOverlayHeightChange}
           />
         </div>
