@@ -11,7 +11,7 @@ async function review(deps: Parameters<typeof handleCareerSessionRoute>[2], acti
 }
 
 describe('career-session review', () => {
-  it('批准填表即交给后台运行器：写 start 命令（模型那一轮已经结束，不能等它调 apply_run）', async () => {
+  it('批准填表即交给后台运行器：只填这一份（run 命令）（模型那一轮已经结束，不能等它调 apply_run）', async () => {
     const repos = createMemoryRepos();
     const events: string[] = [];
     const fill = repos.enqueueAction('fill_form', { job_id: 'job_1', url: 'https://zhaopin.meituan.com/x' });
@@ -19,7 +19,7 @@ describe('career-session review', () => {
     expect(res.status).toBe(200);
     expect(res.json).toMatchObject({ n: 1, filling: [fill.id] });
     expect(repos.getAction(fill.id)?.status).toBe('approved');
-    expect(repos.kvGet(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'start', by: 'approval' });
+    expect(repos.kvGet(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run', by: 'approval', ids: [fill.id] });
     expect(events).toContain('career:data-changed');
   });
 

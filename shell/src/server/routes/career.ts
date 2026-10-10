@@ -443,7 +443,7 @@ const ROUTES: Route[] = [
     if (decision === 'approved' && submits.length) void kickSubmit();
     // 批准填表同样即执行：交给后台批量运行器（命令轮询几秒内接走）
     const filling = decision === 'approved' ? actions.filter(a => a.kind === 'fill_form').map(a => a.id) : [];
-    if (filling.length) BatchRunner.command(ctx.repos, 'start', 'approval');
+    if (filling.length) BatchRunner.command(ctx.repos, 'run', 'approval', filling);
     return ok({ n, sent, submitting: decision === 'approved' ? submits.map(a => a.id) : [], filling });
   }),
 

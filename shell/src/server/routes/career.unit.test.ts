@@ -152,11 +152,11 @@ describe('handleCareerRoute', () => {
     expect(deps.events.at(-1)).toMatchObject({ event: 'career:data-changed', data: { tables: ['action_queue'] } });
   });
 
-  it('actions review：批准填表即下发批量 start 命令', async () => {
+  it('actions review：批准填表即下发只填这一份的 run 命令', async () => {
     const fill = repos.enqueueAction('fill_form', { job_id: 'job_1', url: 'https://zhaopin.meituan.com/x' });
     const reviewed = await call(deps, 'POST', '/api/career/actions/review', { ids: [fill.id], decision: 'approved' });
     expect(reviewed.json.filling).toEqual([fill.id]);
-    expect(repos.kvGet('apply:batch:command')).toMatchObject({ cmd: 'start', by: 'approval' });
+    expect(repos.kvGet('apply:batch:command')).toMatchObject({ cmd: 'run', by: 'approval', ids: [fill.id] });
   });
 
   it('handoffs list + close', async () => {

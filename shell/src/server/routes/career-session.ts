@@ -73,7 +73,7 @@ export async function handleCareerSessionRoute(pathname: string, request: Reques
     }
     // 批准填表：模型这一轮早已结束，不能等它再调 apply_run；交给后台运行器立刻开始填
     const filling = decision === 'approved' ? reviewed.filter(a => a.kind === 'fill_form').map(a => a.id) : [];
-    if (filling.length) BatchRunner.command(repos, 'start', 'approval');
+    if (filling.length) BatchRunner.command(repos, 'run', 'approval', filling);
     broadcast('career:data-changed', { sessionId: sessionId(), tables: ['action_queue'] });
     return ok({ n, filling });
   }

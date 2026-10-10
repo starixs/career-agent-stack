@@ -31,8 +31,13 @@ export interface BatchState {
   queued: number;
   todayCount: number;
   lastError?: string;
+  /** 只填这几份（批准即填）：不碰队列里其他已批准的；空 = 全量批量。重启后按它续，不会变成全量。 */
+  only?: string[];
+  /** 只填模式结束后回到的状态：用户之前暂停 / 停止的批量不会因为批准一份就被放开。 */
+  resumeTo?: BatchStatus;
 }
-export interface BatchCommand { cmd: 'start' | 'pause' | 'stop'; at: string; by?: string }
+/** run = 只填 ids 这几份（审批卡片批准即填）；start = 全量批量。 */
+export interface BatchCommand { cmd: 'start' | 'pause' | 'stop' | 'run'; at: string; by?: string; ids?: string[] }
 
 export const BATCH_STATE_KEY = 'apply:batch:state';
 export const BATCH_COMMAND_KEY = 'apply:batch:command';
@@ -94,16 +99,26 @@ export class BatchRunner {
     return next;
   }
 
-  /** 队列：已批准的 fill_form，按创建顺序。 */
+  /** 队列：已批准的 fill_form，按创建顺序；只填模式下只含指定的那几份。 */
   queue(): ActionQueueItem[] {
-    return this.repos.db.all<ActionQueueItem>(`SELECT * FROM action_queue WHERE kind='fill_form' AND status='approved' ORDER BY created_at`);
+    const all = this.repos.db.all<ActionQueueItem>(`SELECT * FROM action_queue WHERE kind='fill_form' AND status='approved' ORDER BY created_at`);
+    const only = this.only();
+    return only ? all.filter(a => only.has(a.id)) : all;
+  }
+  private only(): Set<string> | null {
+    const ids = this.repos.kvGet<BatchState>(BATCH_STATE_KEY)?.only;
+    return ids?.length ? new Set(ids) : null;
   }
   todayCount(): number { return this.repos.kvGet<number>(DAILY_KEY(dayOf(this.now()))) ?? 0; }
   private bumpToday(): void { this.repos.kvSet(DAILY_KEY(dayOf(this.now())), this.todayCount() + 1); }
 
   /** 写命令（任何进程都可以调）。 */
-  static command(repos: Repos, cmd: BatchCommand['cmd'], by?: string): void {
-    repos.kvSet(BATCH_COMMAND_KEY, { cmd, at: new Date().toISOString(), by } satisfies BatchCommand);
+  static command(repos: Repos, cmd: BatchCommand['cmd'], by?: string, ids?: string[]): void {
+    // 命令只有一个槽位：连续批准几份（轮询还没取走）要合并，不能后一份盖掉前一份；已有全量 start 就不用再加
+    const pending = repos.kvGet<BatchCommand>(BATCH_COMMAND_KEY);
+    if (cmd === 'run' && pending?.cmd === 'start') return;
+    const merged = cmd === 'run' ? [...new Set([...(pending?.cmd === 'run' ? pending.ids ?? [] : []), ...(ids ?? [])])] : undefined;
+    repos.kvSet(BATCH_COMMAND_KEY, { cmd, at: new Date().toISOString(), by, ...(merged ? { ids: merged } : {}) } satisfies BatchCommand);
   }
   /** 轮询命令；由宿主定时调用（或 start() 后内部循环里调用）。 */
   pollCommand(): BatchCommand | undefined {
@@ -111,6 +126,7 @@ export class BatchRunner {
     if (!c) return undefined;
     this.repos.kvSet(BATCH_COMMAND_KEY, null);
     if (c.cmd === 'start') this.start();
+    if (c.cmd === 'run') this.run(c.ids ?? []);
     if (c.cmd === 'pause') this.pause();
     if (c.cmd === 'stop') this.stop();
     return c;
@@ -118,15 +134,45 @@ export class BatchRunner {
 
   start(): BatchState {
     this.stopRequested = false; this.pauseRequested = false;
-    if (this.loop) { this.wake?.(); return this.setState({ status: 'running', message: '继续' }); }
-    const s = this.setState({ status: 'running', startedAt: this.now().toISOString(), message: '开始批量投递', lastError: undefined });
-    this.loop = this.run().catch(e => { this.setState({ status: 'stopped', lastError: e instanceof Error ? e.message : String(e), message: '运行器异常退出' }); }).finally(() => { this.loop = null; });
+    if (this.loop) { this.wake?.(); return this.setState({ status: 'running', message: '继续', only: undefined, resumeTo: undefined }); }
+    const s = this.setState({ status: 'running', startedAt: this.now().toISOString(), message: '开始批量投递', lastError: undefined, only: undefined, resumeTo: undefined });
+    this.spawn();
     return s;
   }
-  pause(): BatchState { this.pauseRequested = true; this.wake?.(); return this.setState({ status: 'paused', message: '暂停：当前这份填完就停' }); }
-  stop(): BatchState { this.stopRequested = true; this.wake?.(); return this.setState({ status: 'stopped', message: '已停止' }); }
+  /**
+   * 只填这几份（审批卡片批准即填）。全量批量正在跑：它们本来就在队列里，什么都不改；
+   * 否则只填它们，队列里其他已批准的不动，填完回到之前的状态（暂停的批量仍是暂停）。
+   */
+  run(ids: string[]): BatchState {
+    const cur = this.state();
+    if (!ids.length) return cur;
+    if (this.loop && !cur.only?.length && !this.pauseRequested && !this.stopRequested) { this.wake?.(); return cur; }
+    const resumeTo = cur.only?.length ? cur.resumeTo : (cur.status === 'paused' || cur.status === 'stopped' ? cur.status : 'idle');
+    const only = [...new Set([...(cur.only ?? []), ...ids])];
+    this.pauseRequested = false;
+    // 正在停止中的循环会退出：等它退出后再开
+    if (this.loop && this.stopRequested) this.restartAfterStop = true;
+    this.stopRequested = false;
+    const s = this.setState({ status: 'running', only, resumeTo, message: `填写你刚批准的 ${only.length} 份网申`, lastError: undefined, ...(this.loop ? {} : { startedAt: this.now().toISOString() }) });
+    if (this.loop) this.wake?.(); else this.spawn();
+    return s;
+  }
+  private restartAfterStop = false;
+  private spawn(): void {
+    this.loop = this.loopBody().catch(e => { this.setState({ status: 'stopped', lastError: e instanceof Error ? e.message : String(e), message: '运行器异常退出', only: undefined, resumeTo: undefined }); }).finally(() => {
+      this.loop = null;
+      if (this.restartAfterStop) { this.restartAfterStop = false; const s = this.state(); if (s.only?.length) this.spawn(); }
+    });
+  }
+  pause(): BatchState { this.pauseRequested = true; this.restartAfterStop = false; this.wake?.(); return this.setState({ status: 'paused', message: '暂停：当前这份填完就停', only: undefined, resumeTo: undefined }); }
+  stop(): BatchState { this.stopRequested = true; this.restartAfterStop = false; this.wake?.(); return this.setState({ status: 'stopped', message: '已停止', only: undefined, resumeTo: undefined }); }
   /** 侧车启动时调用：上次还在跑就续上。 */
-  resumeIfRunning(): void { if (this.state().status === 'running' && !this.loop) this.start(); }
+  resumeIfRunning(): void {
+    const s = this.state();
+    if (s.status !== 'running' || this.loop) return;
+    // 只填模式按原来那几份续（重启不能把它放大成全量批量）
+    if (s.only?.length) { this.stopRequested = false; this.pauseRequested = false; this.spawn(); } else this.start();
+  }
   isRunning(): boolean { return !!this.loop && !this.stopRequested && !this.pauseRequested; }
 
   private async idle(ms: number): Promise<void> {
@@ -141,7 +187,7 @@ export class BatchRunner {
     try { return new URL(url).hostname.replace(/^www\./, '') || 'generic'; } catch { return typeof payload.platform === 'string' ? payload.platform : 'generic'; }
   }
 
-  private async run(): Promise<void> {
+  private async loopBody(): Promise<void> {
     const poll = this.deps.pollMs ?? 3000;
     const cap = this.deps.dailyCap ?? 30;
     const [pLo, pHi] = this.deps.pacingMs ?? [20_000, 60_000];
@@ -180,11 +226,13 @@ export class BatchRunner {
       const nowMs = this.now().getTime();
       const blocked = busyHosts();
       const ready = (a: ActionQueueItem) => { const h = this.platformOf(a, this.payloadOf(a)); return !inFlight.has(a.id) && !blocked.has(h) && (nextAt.get(h) ?? 0) <= nowMs; };
+      const only = this.only();
       // 先处理等用户处理完的接管（handoff 已 resumed 但动作还在 needs_user）
       // Repos.closeHandoff 会把动作置回 executing，所以 needs_user / executing 都算"等续跑"；只看该动作最近一次接管
       const resumable = this.repos.db.all<ActionQueueItem>(`SELECT a.* FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status IN ('needs_user','executing') AND h.resumed_at IS NOT NULL AND h.paused_at=(SELECT MAX(paused_at) FROM handoff WHERE action_id=a.id) ORDER BY h.resumed_at`)
-        .filter(a => !inFlight.has(a.id));
-      const waiting = this.repos.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status='needs_user' AND h.resumed_at IS NULL`)?.n ?? 0;
+        .filter(a => !inFlight.has(a.id) && (!only || only.has(a.id)));
+      const waiting = this.repos.db.all<{ id: string }>(`SELECT a.id FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status='needs_user' AND h.resumed_at IS NULL`)
+        .filter(a => !only || only.has(a.id)).length;
       const q = this.queue();
       for (const a of resumable) {
         if (inFlight.size >= concurrency) break;
@@ -220,6 +268,12 @@ export class BatchRunner {
         if (n > 0) { this.setState({ message: `浏览器已关闭，重新打开 ${n} 份等你处理的网申` }); continue; }
       }
       if (waiting > 0) { this.setState({ phase: 'waiting_user', currentActionId: undefined, running: [], message: `有 ${waiting} 份等你在浏览器里处理后交回` }); await this.idle(poll); continue; }
+      const finished = this.state();
+      if (finished.only?.length) {
+        const back = finished.resumeTo ?? 'idle';
+        this.setState({ status: back, phase: undefined, currentActionId: undefined, running: [], only: undefined, resumeTo: undefined, message: back === 'idle' ? '你批准的网申已处理完' : `你批准的网申已处理完，批量投递仍是${back === 'paused' ? '暂停' : '停止'}状态` });
+        return;
+      }
       this.setState({ status: 'idle', phase: undefined, currentActionId: undefined, running: [], message: '队列已空，全部处理完' });
       return;
     }

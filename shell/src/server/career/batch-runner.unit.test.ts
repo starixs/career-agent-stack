@@ -108,6 +108,58 @@ describe('BatchRunner', () => {
     for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
   });
 
+  it('run（批准即填）：只填指定的那几份，其他已批准的不动；暂停的批量填完仍是暂停', async () => {
+    const repos = createMemoryRepos();
+    const [a, b, c] = seed(repos, 3);
+    const { runner, calls } = makeRunner(repos, () => [result('stopped_before_submit')]);
+    runner.start(); runner.pause();
+    // pause() 立刻把状态写成 paused，但正在填的那份要填完循环才退出（退出时写"已暂停"）
+    for (let i = 0; i < 50 && runner.state().message !== '已暂停'; i++) await settle();
+    const before = calls.length;
+    const left = [a, b, c].filter(id => repos.getAction(id)!.status === 'approved');
+    expect(left.length).toBeGreaterThanOrEqual(2);
+    runner.run([left[1]]);
+    expect(runner.state().only).toEqual([left[1]]);
+    for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
+    expect(calls.slice(before).map(x => x.action.id)).toEqual([left[1]]);
+    expect(repos.getAction(left[0])!.status).toBe('approved');
+    const s = runner.state();
+    expect(s.status).toBe('paused'); expect(s.only).toBeUndefined(); expect(s.queued).toBe(left.length - 1);
+  });
+
+  it('run：全量批量正在跑时不改变它；空闲时填完回到 idle', async () => {
+    const repos = createMemoryRepos();
+    const [a, b] = seed(repos, 2);
+    const { runner, calls } = makeRunner(repos, () => [result('stopped_before_submit')]);
+    runner.run([b]);
+    for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
+    expect(calls.map(x => x.action.id)).toEqual([b]);
+    expect(runner.state().status).toBe('idle');
+    expect(repos.getAction(a)!.status).toBe('approved');
+  });
+
+  it('run 命令合并：轮询前连续批准几份不会互相覆盖；已有全量 start 不被降级', () => {
+    const repos = createMemoryRepos();
+    BatchRunner.command(repos, 'run', 'approval', ['x']);
+    BatchRunner.command(repos, 'run', 'approval', ['y', 'x']);
+    expect(repos.kvGet(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run', ids: ['x', 'y'] });
+    BatchRunner.command(repos, 'start', 'user');
+    BatchRunner.command(repos, 'run', 'approval', ['z']);
+    expect(repos.kvGet(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'start' });
+  });
+
+  it('run 模式中途重启：只续原来那几份，不放大成全量', async () => {
+    const repos = createMemoryRepos();
+    const [a, b] = seed(repos, 2);
+    repos.kvSet('apply:batch:state', { status: 'running', updatedAt: new Date().toISOString(), done: 0, failed: 0, handoffs: 0, queued: 0, todayCount: 0, only: [b], resumeTo: 'paused' });
+    const { runner, calls } = makeRunner(repos, () => [result('stopped_before_submit')]);
+    runner.resumeIfRunning();
+    for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
+    expect(calls.map(x => x.action.id)).toEqual([b]);
+    expect(runner.state().status).toBe('paused');
+    expect(repos.getAction(a)!.status).toBe('approved');
+  });
+
   it('kv 命令：任何进程写 apply:batch:command，运行器轮询执行', async () => {
     const repos = createMemoryRepos();
     const { runner } = makeRunner(repos, () => [result('stopped_before_submit')]);
