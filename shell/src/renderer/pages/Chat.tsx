@@ -62,8 +62,8 @@ import { transitionChannelBoundSession } from '@/pages/chatChannelSession';
 import { useTabState, useTabActive } from '@/context/TabContext';
 import { BrowserSessionPanel } from '@/components/career/CareerLiveDrawer';
 import { CompanionChip, CompanionPanel } from '@/features/career-shell/CompanionPanel';
-import { ExpandedWorkSurfacePanel } from '@/features/career-shell/workSurfaces';
-import { useWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
+import { ExpandedWorkSurfacePanel, SURFACE_META } from '@/features/career-shell/workSurfaces';
+import { collapseWorkSurface, useWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
 import { useChatScrollController } from '@/hooks/useChatScrollController';
 import { useChatScrollModel } from '@/hooks/useChatScrollModel';
 import { useAgentStatuses } from '@/hooks/useAgentStatuses';
@@ -795,7 +795,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
   // markdown rendered preview.
   const splitViewRequested = config.experimentalSplitView ?? true;
   const [splitFile, setSplitFile] = useState<SplitPreviewFile | null>(null);
-  const isSplitViewEnabled = splitViewRequested || !!splitFile;
+  const isSplitViewEnabled = splitViewRequested || !!splitFile || workSurfaces.expanded !== null;
   const splitFilePreviewRef = useRef<FilePreviewHandle>(null);
   const fullscreenFilePreviewRef = useRef<FilePreviewHandle>(null);
   const actionFilePreviewRef = useRef<FilePreviewHandle>(null);
@@ -835,8 +835,10 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
   // false = terminal may be alive in background but not displayed.
   // Clicking terminal icon sets true; clicking terminal × sets false.
   const [terminalPinned, setTerminalPinned] = useState(false);
-  // Which view is active in the right panel: 'file', 'terminal', or 'browser'
-  const [splitActiveView, setSplitActiveView] = useState<'file' | 'terminal' | 'browser'>('file');
+  // Which view is active in the right panel: 'file', 'terminal', 'browser', or the career work surface
+  // (简历 / 浏览器现场 / 模拟面试 / 笔试). The right side is always one panel with tabs, never extra columns.
+  const [splitActiveView, setSplitActiveView] = useState<'file' | 'terminal' | 'browser' | 'surface'>('file');
+  const surfaceInSplit = workSurfaces.expanded !== null;
 
   // ── Embedded browser state ──
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
@@ -878,7 +880,8 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
   // Derived: is the right split panel visible?
   const splitPanelVisible = splitFile !== null
     || (terminalPinned && (terminalAlive || splitActiveView === 'terminal'))
-    || (browserUrl !== null);
+    || (browserUrl !== null)
+    || surfaceInSplit;
   // Should the terminal component stay mounted? (for xterm.js state preservation)
   const terminalMounted = terminalAlive || (terminalPinned && splitActiveView === 'terminal');
 
@@ -931,8 +934,29 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
       handleBrowserClose();
       return true;
     }
+    if (splitActiveView === 'surface' && workSurfaces.expanded) {
+      collapseWorkSurface(workSurfaces.expanded);
+      return true;
+    }
     return false;
   }, 0);
+
+  // 打开一个工作面（工具卡「打开」、助理推送）就切到它那一页；打开文件时切回文件页由 handleSplitFilePreview 负责。
+  useEffect(() => {
+    if (workSurfaces.expanded) setSplitActiveView('surface');
+  }, [workSurfaces.expanded, workSurfaces.nonce]);
+  // 当前页被关掉时落到还开着的另一页，侧栏不留空白页。
+  useEffect(() => {
+    const open = {
+      surface: surfaceInSplit,
+      file: splitFile !== null,
+      browser: browserUrl !== null,
+      terminal: terminalPinned && terminalAlive,
+    } as const;
+    if (open[splitActiveView]) return;
+    const next = (['surface', 'file', 'browser', 'terminal'] as const).find(view => open[view]);
+    if (next) setSplitActiveView(next);
+  }, [splitActiveView, surfaceInSplit, splitFile, browserUrl, terminalPinned, terminalAlive]);
 
   // Fullscreen BrowserPanel is an overlay-like surface above Chat chrome.
   useCloseLayer(() => {
@@ -5089,14 +5113,10 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
     return success;
   }, [onNewSession, resetSession, surfaces.channel, sessionId, newSessionKeepingBinding]);
 
-  // 右栏归属：浏览器展开优先；工作区面板或分屏占用右侧时不再叠一列；窄窗口让给对话。
-  const careerRightColumn: 'surface' | 'companion' | null =
-    workSurfaces.expanded
-      ? 'surface'
-      : !isNarrowLayout && !splitPanelVisible && !(showWorkspace && !shouldUseWorkspaceOverlay)
-        ? 'companion'
-        : null;
-  const surfaceDocked = careerRightColumn === 'surface' && !workSurfaces.fullscreen;
+  // 右侧只有一个侧栏：工作面、文件预览、浏览器都是分屏侧栏里的标签页。
+  // 小芽伙伴面板只在侧栏和工作区面板都没占用右侧时出现；占用时它缩成对话底部的小条。
+  const showCompanionPanel = !isNarrowLayout && !splitPanelVisible && !(showWorkspace && !shouldUseWorkspaceOverlay);
+  const showCompanionChip = !showCompanionPanel && surfaceInSplit && !workSurfaces.fullscreen;
 
   return (
           <BrowserPanelContext.Provider value={browserPanelCtx}>
@@ -5128,10 +5148,10 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
         data-chat-workspace-motion={shouldUseWorkspaceOverlay ? undefined : (workspacePanelMotion ?? undefined)}
       >
       <div
-        className={`relative flex min-w-0 flex-col overflow-hidden ${surfaceDocked ? 'w-[460px] flex-none' : 'flex-1'}`}
+        className="relative flex min-w-0 flex-1 flex-col overflow-hidden"
         data-chat-conversation
       >
-        {surfaceDocked && <CompanionChip />}
+        {showCompanionChip && <CompanionChip />}
         {/* Compact header - single row */}
         <div className="relative z-10 flex h-12 flex-shrink-0 items-center justify-between bg-[var(--paper)] px-4 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-gradient-to-b after:from-[var(--paper)] after:to-[var(--paper-a0)]">
           <div className="flex min-w-0 items-center gap-2">
@@ -5597,10 +5617,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
       </div>
 
       {/* 求职右栏：默认是伙伴面板；对话内工作面（浏览器 / 改简历 / 模拟面试 / 笔试）展开时换成它的面板。 */}
-      {careerRightColumn === 'surface' && (workSurfaces.expanded === 'browser'
-        ? <BrowserSessionPanel onStop={() => void handleStop()} />
-        : workSurfaces.expanded && <ExpandedWorkSurfacePanel surface={workSurfaces.expanded} />)}
-      {careerRightColumn === 'companion' && <CompanionPanel />}
+      {showCompanionPanel && <CompanionPanel />}
 
       {/* Workspace panel — single instance, container style switches between side panel and overlay */}
       {workspacePanelMounted && (
@@ -5690,10 +5707,39 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
           >
             {/* Tab switcher — only when 2+ views are active */}
             {(() => {
-              const activeViews = [splitFile, terminalPinned && terminalAlive, browserUrl].filter(Boolean).length;
+              const activeViews = [splitFile, terminalPinned && terminalAlive, browserUrl, surfaceInSplit].filter(Boolean).length;
               return activeViews >= 2;
             })() && (
               <div className="flex h-9 flex-shrink-0 items-center gap-0.5 border-b border-[var(--line)] bg-[var(--paper)] px-2">
+                {/* Career work surface tab (简历 / 浏览器现场 / 模拟面试 / 笔试) + its own × */}
+                {workSurfaces.expanded && (
+                  <button
+                    type="button"
+                    onClick={() => setSplitActiveView('surface')}
+                    data-testid="split-tab-surface"
+                    className={`group relative flex items-center gap-1 rounded-md px-2.5 py-1 text-sm font-medium transition-colors ${
+                      splitActiveView === 'surface'
+                        ? 'text-[var(--ink)]'
+                        : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    <span className="max-w-[120px] truncate">{SURFACE_META[workSurfaces.expanded].label}</span>
+                    <span
+                      role="button"
+                      aria-label={`关闭${SURFACE_META[workSurfaces.expanded].label}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (workSurfaces.expanded) collapseWorkSurface(workSurfaces.expanded);
+                      }}
+                      className="ml-0.5 flex h-5 w-5 items-center justify-center rounded opacity-0 transition-opacity hover:bg-[var(--inset)] group-hover:opacity-100"
+                    >
+                      <span className="text-sm leading-none text-[var(--muted)]">×</span>
+                    </span>
+                    {splitActiveView === 'surface' && (
+                      <div className="absolute inset-x-1 -bottom-[5px] h-[2px] rounded-full bg-[var(--primary)]" />
+                    )}
+                  </button>
+                )}
                 {/* File tab + its own × */}
                 {splitFile && (
                   <button
@@ -5898,6 +5944,15 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
                     }}
                   />
                 </Suspense>
+              </div>
+            )}
+
+            {/* Career work surface — one tab of the same side panel, never its own column */}
+            {workSurfaces.expanded && (
+              <div className={`flex min-w-0 flex-1 flex-col overflow-hidden ${splitActiveView !== 'surface' && !workSurfaces.fullscreen ? 'hidden' : ''}`}>
+                {workSurfaces.expanded === 'browser'
+                  ? <BrowserSessionPanel onStop={() => void handleStop()} />
+                  : <ExpandedWorkSurfacePanel surface={workSurfaces.expanded} />}
               </div>
             )}
 

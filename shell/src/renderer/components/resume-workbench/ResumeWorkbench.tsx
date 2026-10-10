@@ -126,13 +126,15 @@ function WorkbenchBody({ resumeId, onBack }: { resumeId: string; onBack?: () => 
   const narrow = width > 0 && width < NARROW;
   // 顶栏保持一行：窄时「让助理改」只留图标
   const narrowBar = width > 0 && width < 1080;
+  // 聊天旁的侧栏里：标题由侧栏头给出，对话就在旁边，缩放只留「整页」
+  const compact = width > 0 && width < 800;
 
   return (
     <div ref={rootRef} data-testid="resume-workbench" className="flex h-full min-h-0 flex-col">
       {/* 顶栏：返回 / 标题 / 内容·版式 / 撤销 / 缩放 / 导出 */}
       <div className="flex items-center gap-x-3 border-b border-[var(--line)] px-4 py-2">
         {back && <Button variant="ghost" size="sm" className="-ml-2" onClick={back}><ArrowLeft className="h-4 w-4" />全部简历</Button>}
-        <span className="min-w-0 max-w-[260px] shrink truncate font-human text-base font-semibold text-[var(--ink)]" title={title}>{title}</span>
+        {!compact && <span className="min-w-0 max-w-[260px] shrink truncate font-human text-base font-semibold text-[var(--ink)]" title={title}>{title}</span>}
         <div role="tablist" aria-label="编辑内容或版式" className="inline-flex shrink-0 rounded-full border border-[var(--line-2)] p-0.5">
           {MODES.map(m => (
             <button key={m.id} type="button" role="tab" aria-selected={mode === m.id} onClick={() => setMode(m.id)}
@@ -146,11 +148,11 @@ function WorkbenchBody({ resumeId, onBack }: { resumeId: string; onBack?: () => 
           <Button variant="ghost" size="sm" aria-label="撤销" title="撤销（⌘Z）" disabled={!doc.canUndo} onClick={doc.undo}><Undo2 className="h-4 w-4" /></Button>
           <Button variant="ghost" size="sm" aria-label="重做" title="重做（⇧⌘Z）" disabled={!doc.canRedo} onClick={doc.redo}><Redo2 className="h-4 w-4" /></Button>
           <span className="mx-1 h-4 w-px bg-[var(--line)]" />
-          <Button variant="ghost" size="sm" aria-label="缩小" onClick={() => zoomStep(-1)}><Minus className="h-4 w-4" /></Button>
+          {!compact && <Button variant="ghost" size="sm" aria-label="缩小" onClick={() => zoomStep(-1)}><Minus className="h-4 w-4" /></Button>}
           <button type="button" title="整页显示" onClick={() => setZoom(null)} className="w-11 rounded-md text-center text-xs tabular-nums text-[var(--muted)] hover:text-[var(--ink)]">{Math.round(effectiveZoom * 100)}%</button>
-          <Button variant="ghost" size="sm" aria-label="放大" onClick={() => zoomStep(1)}><Plus className="h-4 w-4" /></Button>
+          {!compact && <Button variant="ghost" size="sm" aria-label="放大" onClick={() => zoomStep(1)}><Plus className="h-4 w-4" /></Button>}
           <span className="mx-1 h-4 w-px bg-[var(--line)]" />
-          <Button variant="ghost" size="sm" title="让助理按岗位或你的要求改这份简历" onClick={() => suggestToChat(`帮我看看这份简历哪里可以改得更好（${title}）`)}><Sparkles className="h-4 w-4" /><span className={narrowBar ? 'sr-only' : ''}>让助理改</span></Button>
+          {!compact && <Button variant="ghost" size="sm" title="让助理按岗位或你的要求改这份简历" onClick={() => suggestToChat(`帮我看看这份简历哪里可以改得更好（${title}）`)}><Sparkles className="h-4 w-4" /><span className={narrowBar ? 'sr-only' : ''}>让助理改</span></Button>}
           <Button variant="primary" size="sm" busy={exporting === 'pdf'} disabled={exporting !== null} onClick={() => void doExport('pdf')}>导出 PDF</Button>
           <Button variant="ghost" size="sm" busy={exporting === 'docx'} disabled={exporting !== null} onClick={() => void doExport('docx')}>Word</Button>
           <Button variant="ghost" size="sm" busy={exporting === 'png'} disabled={exporting !== null} onClick={() => void doExport('png')}>图片</Button>
