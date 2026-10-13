@@ -464,3 +464,13 @@ export function buildCareerContextReminder(input: CareerContextReminderInput): s
   parts.push(`</${CAREER_CONTEXT_TAG}>`, SYSTEM_REMINDER_CLOSE);
   return parts.join('\n');
 }
+
+/** 反解 buildCareerContextReminder 写进消息的 `<surface>`：渲染端据此知道这条消息是从哪个面板发来的。 */
+export function careerContextSurface(text: string): string | null {
+  const block = text.match(new RegExp(`<${CAREER_CONTEXT_TAG}>([\\s\\S]*?)</${CAREER_CONTEXT_TAG}>`))?.[1];
+  const raw = block?.match(/<surface>([^<]*)<\/surface>/)?.[1];
+  if (!raw) return null;
+  return raw
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}

@@ -10,6 +10,7 @@ import { PermissionPrompt, type PermissionRequest } from '@/components/Permissio
 import { AskUserQuestionPrompt, type AskUserQuestionRequest } from '@/components/AskUserQuestionPrompt';
 import { ExitPlanModePrompt } from '@/components/ExitPlanModePrompt';
 import { CareerChatCards } from '@/components/career/CareerChatCards';
+import { PageReturnCard, pageReturnTargets } from '@/features/career-shell/PageReturnCard';
 import type { ExitPlanModeRequest } from '../../shared/types/planMode';
 import type { Message as MessageType } from '@/types/chat';
 import type { SessionState, SystemNotice } from '@/context/TabContext';
@@ -464,6 +465,10 @@ const MessageList = memo(function MessageList({
   const handleRetry = useCallback((messageId: string) => onRetryRef.current?.(messageId), []);
   const layoutByMessageIdRef = useRef(layoutByMessageId);
   layoutByMessageIdRef.current = layoutByMessageId;
+  // 从页面输入框发来的那一轮：最后一条助理回复下面挂「回到 XX」卡片。
+  const pageReturns = useMemo(() => pageReturnTargets(messages), [messages]);
+  const pageReturnsRef = useRef(pageReturns);
+  pageReturnsRef.current = pageReturns;
   const onRowLayoutChangedRef = useRef(onRowLayoutChanged ?? noopRowLayoutChanged);
   onRowLayoutChangedRef.current = onRowLayoutChanged ?? noopRowLayoutChanged;
   const isItemMeasurementActiveRef = useRef(canLayoutVirtualList);
@@ -586,6 +591,9 @@ const MessageList = memo(function MessageList({
             exitPlanModeSlot={message.id === exitPlanModeAnchorIdRef.current ? exitPlanModeSlotRef.current : undefined}
             initialUserCollapsed={layoutByMessageIdRef.current?.get(message.id)?.likelyUserCollapsed === true}
           />
+          {!isStreamingMsg && pageReturnsRef.current.has(message.id) && (
+            <PageReturnCard target={pageReturnsRef.current.get(message.id)!} />
+          )}
         </ChatRowLayoutProvider>
       </div>
     );

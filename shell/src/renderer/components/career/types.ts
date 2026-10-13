@@ -122,6 +122,9 @@ export interface Offer {
 // ===== SSE 事件载荷 =====
 export interface CareerProgressEvent {
   sessionId?: string | null; taskId?: string; runId?: string; phase: string; message: string; progress?: number;
+  /** 网申浏览器卡片的步骤条与对象（打开网页 → 登录 → 填表 → 传简历 → 提交）——待后端。 */
+  steps?: Array<{ label: string; state: 'done' | 'current' | 'todo' | 'failed' }>;
+  company?: string; job_title?: string;
 }
 export interface CareerTakeoverEvent {
   sessionId?: string | null; runId: string;
@@ -208,13 +211,6 @@ export interface Deadline {
 }
 export interface DossierNote { id: string; application_id: string; kind: 'note' | 'said' | 'heard' | 'contact' | 'referral' | 'mail'; round: string | null; content: string; created_at: string }
 export type MaterialKind = 'open_question' | 'project_story' | 'self_intro' | 'why_company' | 'why_role' | 'strength_weakness' | 'career_plan' | 'other';
-/** 长期记忆（镜像 packages/core/src/memories.ts 的 MemoryRow）。 */
-export type MemoryKind = 'collaboration' | 'preference' | 'fact' | 'insight';
-export interface MemoryItem {
-  id: string; kind: MemoryKind; scope: string; content: string; importance: number; evidence_count: number; pinned: number;
-  status: 'active' | 'superseded' | 'forgotten'; source: 'explicit' | 'extracted' | 'user_edit' | 'consolidation';
-  last_used_at: string | null; created_at: string; updated_at: string;
-}
 export interface Material {
   id: string; kind: MaterialKind; title: string; question_key: string | null; content: string; length_variant: string | null;
   claim_ids_json: string; tags_json: string; company_scope: string | null; confirmed: number; created_at: string; updated_at: string;
@@ -241,6 +237,8 @@ export interface OnboardingChecklist { has_experience: boolean; has_confirmed_cl
 export interface DossierSummary {
   application_id: string; job_id: string; company_name: string | null; title: string; stage: ApplicationStage; updated_at: string;
   days_since_update: number; next_deadline: Deadline | null; interview_count: number; resume_tailored_id: string | null; closed: boolean;
+  /** 以下由服务端 dossierSummaries 给出；旧数据可能缺，按缺省处理。 */
+  created_at?: string; applied_at?: string | null; reached_stages?: string[]; exam_kinds?: Array<'assessment' | 'written_test'>; job_url?: string | null;
 }
 export interface Dossier {
   application: Application; job: Job; company: Company | null;
@@ -275,7 +273,10 @@ export interface JobBoardRow {
   job: Job & { job_key?: string | null; employment_type?: EmploymentType; cohort?: string | null; source_status?: string };
   match: JobMatchResult | null;
   application: { id: string; stage: ApplicationStage; next_action: string | null; updated_at: string } | null;
+  /** 多维表格维度（server job-board.ts boardMeta）：来源数据里有才有。 */
+  meta?: JobBoardMeta;
 }
+export interface JobBoardMeta { batch: string | null; industry: string | null; type_tags: string[] }
 export interface JobBoardFilter { q?: string; employment_type?: string; city?: string; cohort?: string; open_only?: boolean; fits_only?: boolean; progress?: 'none' | 'active' | 'done'; sort?: 'match' | 'deadline' | 'updated' }
 
 // ===== 题库 =====

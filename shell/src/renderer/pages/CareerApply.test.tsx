@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn() }));
@@ -7,106 +7,102 @@ import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
 import CareerApply from './CareerApply';
 
-const board = {
-  due: [{ id: 'a1', job_id: 'j1', stage: 'approved', next_action: '填写网申', next_action_due: '2026-10-03', title: '后端工程师', company_name: '丙公司', deadline: null }],
-  blocked: [{ id: 'a2', job_id: 'j2', stage: 'blocked', blocker_reason: '需要验证码', retry_strategy: '明早重试', title: '算法工程师', company_name: '丁公司' }],
-  funnel: [{ stage: 'applied', n: 3 }, { stage: 'interview', n: 1 }],
-  pendingReview: 1,
-};
-const review = { attention: 1, requiredTotal: 2, requiredFilled: 1, rows: [
-  { fieldId: 'f0', label: '姓名', required: true, status: 'ok', value: '张三', source: 'profile' },
-  { fieldId: 'f1', label: '紧急联系人', required: true, status: 'empty', reason: '必填项还是空的' },
-] };
-const actions = [
-  { id: 'act1', application_id: 'a1', kind: 'submit', payload_json: JSON.stringify({ submitButton: '提交申请', review }), status: 'pending_review', result_json: null, reviewed_at: null, created_at: '2026-10-01', updated_at: '2026-10-01' },
-  { id: 'act2', application_id: 'a2', kind: 'send_mail', payload_json: JSON.stringify({ subject: '应聘算法工程师', to: 'hr@d.com' }), status: 'pending_review', result_json: null, reviewed_at: null, created_at: '2026-10-01', updated_at: '2026-10-01' },
-];
 const uncertain = { id: 'act9', application_id: 'a1', kind: 'submit', payload_json: '{}', status: 'needs_user', result_json: JSON.stringify({ message: '点了提交，但没等到成功提示' }), reviewed_at: null, approved_by: 'learned', created_at: '2026-10-01', updated_at: '2026-10-01' };
-const jobs = [
-  { id: 'j1', source_platform: 'boss', title: '后端工程师', company_name: '丙公司', location: '上海', salary: '20-30K', score_json: JSON.stringify({ total: 4.2 }), deadline: '2026-10-10', deadline_verified_at: null, url: 'https://example.com/j1' },
-  { id: 'j2', source_platform: 'boss', title: '算法工程师', company_name: '丁公司', location: null, salary: null, score_json: null, deadline: null },
-];
 const applications = [
-  { id: 'a1', job_id: 'j1', stage: 'approved', next_action: '填写网申', next_action_due: '2026-10-03', page_url: null },
-  { id: 'a2', job_id: 'j2', stage: 'blocked', blocker_reason: '需要验证码', retry_strategy: '明早重试', page_url: null },
+  { id: 'a1', job_id: 'j1', stage: 'approved', next_action: '填写网申', next_action_due: '2026-10-03', page_url: null, title: '后端工程师', company_name: '丙公司' },
+];
+const jobs = [
+  { id: 'j1', source_platform: 'campus', title: '后端工程师', company_name: '丙公司', location: '上海/北京', salary: null, deadline: '2099-12-10', deadline_verified_at: null, url: 'https://example.com/j1', updated_at: '2026-10-01' },
+  { id: 'j2', source_platform: 'campus', title: '算法工程师', company_name: '丁公司', location: '深圳', salary: null, deadline: null, updated_at: '2026-10-02' },
+  { id: 'j3', source_platform: 'campus', title: '数据分析', company_name: '戊公司', location: '上海', salary: null, deadline: '2020-01-01', updated_at: '2026-10-03' },
 ];
 
 const boardRows = [
-  { job: { ...jobs[0], employment_type: 'campus', cohort: '2027届', job_key: 'boss:1' }, application: { id: 'a1', stage: 'approved', next_action: '填写网申', updated_at: '2026-10-01' },
+  { job: { ...jobs[0], employment_type: 'campus', cohort: '2027届', job_key: 'c:1' }, meta: { batch: '正式批', industry: '互联网', type_tags: [] }, application: { id: 'a1', stage: 'approved', next_action: '填写网申', updated_at: '2026-10-01' },
     match: { score: 76, hard_ok: true, hard: [{ rule: 'city', label: '城市', ok: true, detail: '上海 在工作地点里' }], covered: 1, total: 2, summary: '2 项要求里有 1 项能用你的经历证明', computed_at: '2026-10-01',
       requirements: [{ requirement: '熟练使用 SQL', weight: 2, status: 'covered', terms: ['SQL'], evidence: { id: 'clm_1', kind: 'claim', text: '在 Hive 上写 SQL 做留存分析', label: '电商数据实习' } }, { requirement: 'Go', weight: 1, status: 'missing', terms: ['Go'] }] } },
-  { job: { ...jobs[1], employment_type: 'intern', cohort: null }, application: null, match: null },
+  { job: { ...jobs[1], employment_type: 'intern', cohort: null }, meta: { batch: '实习', industry: null, type_tags: ['央国企'] }, application: null, match: null },
+  // 已截止：默认「只看没截止」时不显示
+  { job: { ...jobs[2], employment_type: 'campus', cohort: null }, meta: { batch: '正式批', industry: '互联网', type_tags: [] }, application: null, match: null },
 ];
 
 function mockGet(empty = false) {
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
-    if (path.startsWith('/api/career/board')) return empty ? { ok: true, board: { due: [], blocked: [], funnel: [], pendingReview: 0 } } : { ok: true, board };
     if (path.startsWith('/api/career/actions?status=needs_user')) return { ok: true, actions: empty ? [] : [uncertain] };
-    if (path.startsWith('/api/career/actions')) return { ok: true, actions: empty ? [] : actions };
     if (path.startsWith('/api/career/apply/settings')) return { ok: true, auto_mode: false, learn_threshold: 3 };
     if (path.startsWith('/api/career/jobs/board')) return { ok: true, rows: empty ? [] : boardRows, prefs: { cohort: '2027届', cities: ['上海'] }, server: false };
-    if (path.startsWith('/api/career/jobs')) return { ok: true, jobs: empty ? [] : jobs };
     if (path.startsWith('/api/career/applications')) return { ok: true, applications: empty ? [] : applications };
     return { ok: true };
   });
 }
 
-describe('CareerApply', () => {
+const tableRows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1);
+
+describe('CareerApply · 岗位收藏', () => {
   beforeEach(() => {
     vi.mocked(apiGetJson).mockReset();
     vi.mocked(apiPostJson).mockReset();
   });
 
-  it('空状态', async () => {
+  it('空状态：表格是主体，不再有「等你批准」和投递概况；浏览器空闲时不占位；底部是页面输入框和「AI 找工作」入口', async () => {
     mockGet(true);
     render(<CareerApply />);
     expect(await screen.findByText('没有符合筛选的岗位')).toBeInTheDocument();
-    expect(screen.getByText('今天没有到期事项')).toBeInTheDocument();
-    expect(screen.getByText('没有进行中的浏览器任务')).toBeInTheDocument();
+    expect(screen.queryByText(/等你批准/)).not.toBeInTheDocument();
+    expect(screen.queryByText('投递概况')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('browser-status-bar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('page-ask-bar')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /AI 找工作/ })).toBeDisabled();
+    // 不调用旧的看板 / 待审接口
+    expect(vi.mocked(apiGetJson).mock.calls.some(([p]) => String(p).startsWith('/api/career/board'))).toBe(false);
   });
 
-  it('渲染看板三问题、待审核动作与岗位池', async () => {
+  it('多维表格：批次带届别、行业、类型标签、截止；默认只看没截止；匹配分展开看证据', async () => {
     mockGet();
     render(<CareerApply />);
-    expect(await screen.findByText('今天必须做（1）')).toBeInTheDocument();
-    expect(screen.getByText('原因：需要验证码')).toBeInTheDocument();
-    expect(screen.getByText('重试策略：明早重试')).toBeInTheDocument();
-    expect(screen.getByText('停在「提交申请」前，批准后产品替你点提交')).toBeInTheDocument();
-    // 审阅清单：需要看的项先展示，已填好的收起
-    expect(screen.getByText('紧急联系人')).toBeInTheDocument();
-    expect(screen.getByText('必填为空')).toBeInTheDocument();
-    expect(screen.queryByText('张三')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText('查看已填好的 1 项'));
-    expect(screen.getByText('张三')).toBeInTheDocument();
-    expect(screen.getByText('应聘算法工程师 → hr@d.com')).toBeInTheDocument();
-    // 岗位汇总表：匹配分点开看"哪条要求对应哪段经历"
     expect(await screen.findByText('我的条件：2027届 · 上海')).toBeInTheDocument();
+    expect(tableRows()).toHaveLength(2);
+    expect(screen.queryByText('数据分析')).not.toBeInTheDocument();
+    expect(screen.getByText('27届 · 正式批')).toBeInTheDocument();
+    expect(screen.getByText('互联网')).toBeInTheDocument();
+    expect(screen.getByText('央国企')).toBeInTheDocument();
+    expect(screen.getByText('12 月 10 日')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '网申' })).toHaveAttribute('href', 'https://example.com/j1');
+    fireEvent.click(screen.getByRole('button', { name: '只看没截止' }));
+    expect(tableRows()).toHaveLength(3);
     fireEvent.click(screen.getByLabelText('匹配详情 后端工程师'));
     expect(screen.getByText('熟练使用 SQL')).toBeInTheDocument();
     expect(screen.getByText(/电商数据实习：「在 Hive 上写 SQL 做留存分析」/)).toBeInTheDocument();
     expect(screen.getByText('暂无证据')).toBeInTheDocument();
   });
 
-  it('勾选动作后批准调用 actions/review', async () => {
+  it('筛选：选项来自已有取值（不是条件编辑器）；搜索只看公司 / 岗位', async () => {
     mockGet();
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, n: 1 });
     render(<CareerApply />);
-    fireEvent.click(await screen.findByLabelText('选择动作 act1'));
-    fireEvent.click(screen.getByRole('button', { name: '批准（1）' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', { ids: ['act1'], decision: 'approved' }));
+    await screen.findByText('后端工程师');
+    fireEvent.click(screen.getByRole('button', { name: '筛选类型' }));
+    const list = screen.getByRole('listbox', { name: '类型' });
+    expect(within(list).getAllByRole('option').map(o => o.textContent)).toEqual(['校招2', '实习1', '央国企1']);
+    fireEvent.click(within(list).getByRole('option', { name: /实习/ }));
+    expect(tableRows()).toHaveLength(1);
+    expect(screen.getByText('算法工程师')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '筛选类型' })).toHaveTextContent('类型：实习');
+    fireEvent.click(screen.getByRole('button', { name: /清除筛选/ }));
+    expect(tableRows()).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText('搜索岗位'), { target: { value: '丙' } });
+    expect(tableRows()).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /等于|包含/ })).not.toBeInTheDocument();
   });
 
-  it('全选后一次批准全部；auto 模式开关；结果不确定的提交等你确认', async () => {
+  it('auto 模式开关跟加入待投清单放在一起；结果不确定的提交仍要你确认', async () => {
     mockGet();
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, n: 2 });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true });
     render(<CareerApply />);
-    fireEvent.click(await screen.findByLabelText('全选'));
-    fireEvent.click(screen.getByRole('button', { name: '批准（2）' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', { ids: ['act1', 'act2'], decision: 'approved' }));
+    expect(await screen.findByText('点了提交，但没等到成功提示')).toBeInTheDocument();
+    expect(screen.getByText('丙公司 · 后端工程师')).toBeInTheDocument();
+    expect(screen.getByText('（自学习免确认）')).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('auto 模式'));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/apply/settings', { auto_mode: true }));
-    expect(screen.getByText('点了提交，但没等到成功提示')).toBeInTheDocument();
-    expect(screen.getByText('（自学习免确认）')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '已投递成功' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/act9/confirm-submit', { submitted: true }));
   });
@@ -119,12 +115,11 @@ describe('CareerApply', () => {
     // approved → pending / applied / blocked / needs_user / skip（STAGE_TRANSITIONS）
     for (const label of ['投递中', '已投递', '需要你', '跳过']) expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Offer' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '已评估' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '已投递' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/applications/a1/stage', { to: 'applied', note: undefined }));
   });
 
-  it('岗位汇总表：全选后加入待投清单', async () => {
+  it('全选当前筛选结果后加入待投清单', async () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, queued: 2, results: [{ job_id: 'j1', ok: true }, { job_id: 'j2', ok: true }] });
     render(<CareerApply />);
@@ -134,20 +129,25 @@ describe('CareerApply', () => {
     expect(await screen.findByText(/已加入待投清单 2 个/)).toBeInTheDocument();
   });
 
-  it('导入岗位链接调用 jobs/import', async () => {
+  it('同步 / 导出是次要的图标按钮；导入岗位收在按钮后面', async () => {
     mockGet();
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, job: { id: 'j3' } });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, job: { id: 'j3' }, stored: 3 });
     render(<CareerApply />);
-    const input = await screen.findByLabelText('导入岗位链接');
-    fireEvent.change(input, { target: { value: 'https://example.com/job/3' } });
+    await screen.findByText('后端工程师');
+    expect(screen.getByRole('button', { name: '同步校招汇总' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '导出表格' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('导入岗位链接')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '导入岗位' }));
+    fireEvent.change(screen.getByLabelText('导入岗位链接'), { target: { value: 'https://example.com/job/3' } });
     fireEvent.click(screen.getByRole('button', { name: '导入岗位链接' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/jobs/import', { url: 'https://example.com/job/3' }));
   });
 
-  it('浏览器状态条：收到 paused 后显示原因，接管动作先经 eventBus 交给 Chat Tab', async () => {
+  it('浏览器状态条：停下等你时才出现，接管动作先经 eventBus 交给 Chat Tab', async () => {
     mockGet();
     render(<CareerApply />);
-    await screen.findByText('今天必须做（1）');
+    await screen.findByText('后端工程师');
+    expect(screen.queryByTestId('browser-status-bar')).not.toBeInTheDocument();
     act(() => {
       emitEvent('career:takeover', { sessionId: 's1', runId: 'run1', state: 'paused', reason: 'captcha', url: 'https://example.com/apply' });
     });

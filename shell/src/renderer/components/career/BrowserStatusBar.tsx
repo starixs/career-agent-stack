@@ -47,7 +47,8 @@ const STATE_TONES: Record<string, BadgeTone> = {
   idle: 'neutral', running: 'success', paused: 'warning', human_active: 'info', resuming: 'accent',
 };
 
-export function BrowserStatusBar() {
+/** hideWhenIdle：没有浏览器任务时整条不占位（岗位收藏页用，表格是主体）；一旦运行 / 停下等你接管就出现。 */
+export function BrowserStatusBar({ hideWhenIdle = false }: { hideWhenIdle?: boolean } = {}) {
   const [takeover, setTakeover] = useState<CareerTakeoverEvent | null>(null);
   const [busy, setBusy] = useState<'take' | 'handback' | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -82,6 +83,7 @@ export function BrowserStatusBar() {
   const state = takeover?.state ?? 'idle';
   const reason = takeover?.reason ? (HANDOFF_REASON_LABELS[takeover.reason] ?? takeover.reason) : null;
 
+  if (hideWhenIdle && state === 'idle' && !notice) return null;
   return (
     <div data-testid="browser-status-bar" className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--inset)] px-4 py-2 text-xs text-[var(--muted)]">
       <Globe className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />

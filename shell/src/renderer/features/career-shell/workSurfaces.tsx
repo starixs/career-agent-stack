@@ -1,20 +1,22 @@
 /**
  * 对话内工作面（specs/CAREER_DESIGN.md §5.7）的公共部分：
  *  - 哪些工具调用属于哪个工作面（浏览器 / 改简历 / 模拟面试 / 笔试练习）；
- *  - 收起态：挂在那次工具调用下面的工具卡；
+ *  - 收起态：挂在那次工具调用下面的打破式卡片（BreakoutCard.tsx），内容由 tool 返回的字段驱动；
  *  - 展开态：对话页右栏的统一外壳（标题 + 状态点 + 主动作 + 全屏 + 关闭，交接时的提示条）；
  *  - 改简历 / 模拟面试 / 笔试练习三个展开面板。浏览器面板在 components/career/CareerLiveDrawer.tsx。
  */
 import { FileText, Globe, Maximize2, Minimize2, PenLine, Users, X, type LucideIcon } from 'lucide-react';
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { careerApi } from '@/components/career/careerApi';
 import { Button, LoadingRow } from '@/components/career/CareerPrimitives';
-import type { ExamPractice, MockInterview } from '@/components/career/types';
+import type { CareerCard, ExamPractice, MockInterview } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import { useTabStateOptional } from '@/context/TabContext';
 import type { ToolUseSimple } from '@/types/chat';
 
+import { BreakoutCard, ProgressAnchor, type BreakoutTone } from './BreakoutCard';
+import { examContent, makeReveal, mockInterviewContent, pendingQuestion, resumeContent, type CardContent, type Reveal } from './cardContent';
 import { requestNavigation } from './navModel';
 import { collapseWorkSurface, expandWorkSurface, setWorkSurfaceFullscreen, useWorkSurfaces, type WorkSurface } from './workSurfaceStore';
 
@@ -76,80 +78,92 @@ export function refIdForTool(surface: WorkSurface, tool: ToolUseSimple): string 
   return null;
 }
 
-/** The interview question the probe tool just asked, if it is waiting for an answer. */
-export function pendingQuestion(tool: ToolUseSimple): string | null {
-  const input = (tool.parsedInput ?? {}) as Record<string, unknown>;
-  if (input.finish === true) return null;
-  const result = parseToolResult(tool)?.result as Record<string, unknown> | string | undefined;
-  if (!result) return null;
-  if (typeof result === 'string') return result;
-  return str(result.question) ?? str(result.next_question) ?? str(result.follow_up) ?? str(result.followup) ?? null;
-}
+export { pendingQuestion } from './cardContent';
 
-// ─── 收起态：工具卡 ───
+// ─── 收起态：打破式卡片（BreakoutCard.tsx） ───
 
-type CardState = { dot: string; text: string; handoff: boolean };
+type CardState = { tone: BreakoutTone; text: string };
 
 function cardState(surface: WorkSurface, tool: ToolUseSimple, extra: { pendingDiff: boolean }): CardState {
-  if (tool.isLoading) return { dot: 'bg-[var(--success)]', text: '正在做…', handoff: false };
-  if (tool.isError || tool.isFailed) return { dot: 'bg-[var(--danger)]', text: '出错了，可以让小芽重试', handoff: false };
-  if (tool.isStopped) return { dot: 'bg-[var(--subtle)]', text: '已停止', handoff: false };
+  if (tool.isLoading) return { tone: 'running', text: '正在做…' };
+  if (tool.isError || tool.isFailed) return { tone: 'error', text: '出错了，可以让小芽重试' };
+  if (tool.isStopped) return { tone: 'idle', text: '已停止' };
   const result = parseToolResult(tool) ?? {};
-  if (surface === 'resume' && extra.pendingDiff) return { dot: 'bg-[var(--warning)]', text: '这几处修改等你采纳', handoff: true };
-  if (surface === 'mock-interview' && pendingQuestion(tool)) return { dot: 'bg-[var(--warning)]', text: '轮到你回答', handoff: true };
+  if (surface === 'resume' && extra.pendingDiff) return { tone: 'waiting', text: '这几处修改等你采纳' };
+  if (surface === 'mock-interview' && pendingQuestion(tool)) return { tone: 'waiting', text: '轮到你回答' };
   if (surface === 'exam' && result.status === 'answering') {
     const total = Number(result.questions ?? 0);
     const answered = Number(result.answered ?? 0);
-    if (total > answered) return { dot: 'bg-[var(--warning)]', text: `轮到你作答 · 已答 ${answered} / ${total}`, handoff: true };
+    if (total > answered) return { tone: 'waiting', text: `轮到你作答 · 已答 ${answered} / ${total}` };
   }
-  return { dot: 'bg-[var(--subtle)]', text: '已完成 · 查看', handoff: false };
+  return { tone: 'idle', text: '已完成 · 查看' };
+}
+
+/** 改简历卡片要显示本人信息：向本地取这份简历的「占位符 → 明文」对照表（只给界面预览，不进模型）。 */
+function useResumeReveal(resumeId: string | null): Reveal {
+  const [preview, setPreview] = useState<Record<string, string> | null>(null);
+  useEffect(() => {
+    if (!resumeId) return;
+    let alive = true;
+    careerApi.getStudio(resumeId).then(out => { if (alive) setPreview(out.preview); }).catch(() => { /* 取不到就不显示占位符 */ });
+    return () => { alive = false; };
+  }, [resumeId]);
+  return useMemo(() => makeReveal(preview), [preview]);
+}
+
+function ResumeCardContent({ tool, diffCard, refId, children }: { tool: ToolUseSimple; diffCard: CareerCard | undefined; refId: string | null; children: (content: CardContent) => ReactNode }) {
+  const reveal = useResumeReveal(refId);
+  return children(resumeContent(tool, diffCard, reveal));
+}
+
+function ExamCardContent({ tool, children }: { tool: ToolUseSimple; children: (content: CardContent) => ReactNode }) {
+  const result = parseToolResult(tool) ?? {};
+  const examId = str(result.exam_id) ?? str((tool.parsedInput as Record<string, unknown> | undefined)?.exam_id);
+  const query = useCareerQuery(careerApi.examPractices, ['exam_practice']);
+  const exam = examId ? (query.data ?? []).find(item => item.id === examId) ?? null : null;
+  const { done, total, ...content } = examContent(tool, exam);
+  return children({ ...content, anchor: <ProgressAnchor done={done} total={total} /> });
 }
 
 export function WorkSurfaceCard({ surface, tool }: { surface: Exclude<WorkSurface, 'browser'>; tool: ToolUseSimple }) {
   const tab = useTabStateOptional();
   const { expanded, refId: openRef } = useWorkSurfaces();
   const meta = SURFACE_META[surface];
-  const Icon = meta.icon;
   const refId = refIdForTool(surface, tool);
-  const pendingDiff = surface === 'resume' && Boolean(refId) && (tab?.careerCards ?? []).some(
-    card => card.kind === 'resume_diff' && (card.state ?? 'pending') === 'pending' && (card.id.endsWith(`:${refId}`) || card.toolUseId === tool.id),
-  );
+  const diffCard = surface === 'resume'
+    ? (tab?.careerCards ?? []).find(card => card.kind === 'resume_diff' && ((refId && card.id.endsWith(`:${refId}`)) || card.toolUseId === tool.id))
+    : undefined;
+  const pendingDiff = Boolean(diffCard) && (diffCard?.state ?? 'pending') === 'pending';
   const state = cardState(surface, tool, { pendingDiff });
   const open = expanded === surface && (openRef ?? null) === (refId ?? null);
   const question = surface === 'mock-interview' ? pendingQuestion(tool) : null;
 
-  return (
-    <div data-testid={`career-surface-card-${surface}`} className="w-full max-w-[380px] rounded-[10px] border border-[var(--line-2)] bg-[var(--paper)] p-3 shadow-sm">
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[var(--primary-soft)] text-[var(--primary)]">
-          <Icon className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <div className="font-human text-sm font-semibold text-[var(--ink)]">{meta.label}</div>
-          <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${state.dot}`} aria-hidden="true" />
-            <span className="truncate">{state.text}</span>
-          </div>
-        </div>
-      </div>
-      {question && <p className="mt-2 line-clamp-3 rounded-md bg-[var(--note)] px-3 py-2 font-human text-sm text-[var(--ink)]">{question}</p>}
-      {open ? (
-        <div className="mt-2.5 flex h-9 items-center justify-center rounded-lg border border-dashed border-[var(--line-2)] bg-[var(--inset)] text-sm text-[var(--muted)]">已在右侧打开 →</div>
-      ) : (
-        <button
-          type="button"
-          disabled={tool.isLoading && !refId}
-          onClick={() => {
-            expandWorkSurface(surface, { refId, context: question });
-            requestNavigation({ kind: 'chat' });
-          }}
-          className="mt-2.5 flex h-9 w-full items-center justify-center rounded-lg border-[1.5px] border-[var(--hard)] bg-[var(--paper)] text-sm font-semibold text-[var(--ink)] shadow-hard transition-colors hover:bg-[var(--hover)] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {meta.openLabel}
-        </button>
-      )}
-    </div>
+  const render = (content: CardContent) => (
+    <BreakoutCard
+      testId={`career-surface-card-${surface}`}
+      anchor={content.anchor}
+      title={content.title}
+      aside={content.aside}
+      overline={content.overline}
+      rows={content.rows}
+      status={state}
+      open={open}
+      action={{
+        label: meta.openLabel,
+        disabled: tool.isLoading && !refId,
+        onOpen: () => {
+          expandWorkSurface(surface, { refId, context: question });
+          requestNavigation({ kind: 'chat' });
+        },
+      }}
+    >
+      {content.body}
+    </BreakoutCard>
   );
+
+  if (surface === 'exam') return <ExamCardContent tool={tool}>{render}</ExamCardContent>;
+  if (surface === 'resume') return <ResumeCardContent tool={tool} diffCard={diffCard} refId={refId}>{render}</ResumeCardContent>;
+  return render(mockInterviewContent(tool));
 }
 
 // ─── 展开态：右栏外壳 ───

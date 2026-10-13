@@ -26,8 +26,8 @@ export interface NavItem {
 
 export type NavIconName =
   | 'dashboard' | 'chat' | 'briefcase' | 'grid' | 'folder' | 'settings'
-  | 'sun' | 'list' | 'inbox' | 'star' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote' | 'award' | 'brain'
-  | 'sliders' | 'pet' | 'globe' | 'keyboard' | 'wrench' | 'bell' | 'help' | 'info';
+  | 'sun' | 'list' | 'inbox' | 'star' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote' | 'award'
+  | 'sliders' | 'pet' | 'keyboard' | 'wrench' | 'help' | 'info';
 
 export interface NavAreaDefinition {
   id: NavArea;
@@ -42,9 +42,8 @@ export interface NavAreaDefinition {
 export const NAV_AREAS: readonly NavAreaDefinition[] = [
   {
     id: 'work', label: '工作台', icon: 'dashboard', items: [
-      { id: 'today', label: '今日概览', icon: 'sun', target: { kind: 'career-today' } },
-      { id: 'tasks', label: '任务中心', icon: 'list', target: { kind: 'taskcenter' } },
-      { id: 'inbox', label: '通知收件箱', icon: 'inbox', target: { kind: 'career-inbox' } },
+      { id: 'today', label: '招聘概览', icon: 'sun', target: { kind: 'career-today' } },
+      { id: 'inbox', label: '通知中心', icon: 'inbox', target: { kind: 'career-inbox' } },
     ],
   },
   { id: 'chat', label: '对话', icon: 'chat', items: [] },
@@ -64,18 +63,15 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
       { id: 'experience', label: '经历', icon: 'star', target: { kind: 'career-material', view: 'experience' } },
       { id: 'resumes', label: '简历', icon: 'file', target: { kind: 'career-material', view: 'resume' } },
       { id: 'phrases', label: '常用表达', icon: 'quote', target: { kind: 'career-material', view: 'library' } },
-      { id: 'memory', label: '助理记住的事', icon: 'brain', target: { kind: 'career-material', view: 'memory' } },
     ],
   },
   {
-    // 技能与工具、通知、小助理暂时停放在设置里，去留待定（2026-10-09）。
+    // 技能与工具、小助理暂时停放在设置里，去留待定（2026-10-09）；网络代理与通知已移除（2026-10-13）。
     id: 'settings', label: '设置', icon: 'settings', footer: true, items: [
       { id: 'general', label: '通用设置', icon: 'sliders', target: { kind: 'settings', section: 'general' } },
       { id: 'desktop-pet', label: '桌面宠物', icon: 'pet', target: { kind: 'settings', section: 'desktop-pet' } },
-      { id: 'proxy', label: '网络代理', icon: 'globe', target: { kind: 'settings', section: 'proxy' } },
       { id: 'shortcuts', label: '快捷键', icon: 'keyboard', target: { kind: 'settings', section: 'shortcuts' } },
       { id: 'capabilities', label: '技能与工具', icon: 'wrench', target: { kind: 'capabilities' } },
-      { id: 'notifications', label: '通知', icon: 'bell', target: { kind: 'settings', section: 'notifications' } },
       { id: 'feedback', label: '小助理与反馈', icon: 'help', target: { kind: 'settings', section: 'feedback' } },
       { id: 'about', label: '关于', icon: 'info', target: { kind: 'settings', section: 'about' } },
     ],
@@ -122,7 +118,8 @@ export function locateNav(
     });
     if (match) return { area: area.id, itemId: match.id };
   }
-  if (activeView === 'record') return { area: 'work', itemId: 'tasks' };
+  // 任务中心不再是工作台的二级条目；从别处打开它（或它打开的记录）时仍归在工作台下。
+  if (activeView === 'taskcenter' || activeView === 'record') return { area: 'work', itemId: null };
   return { area: null, itemId: null };
 }
 

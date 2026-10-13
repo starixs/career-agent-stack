@@ -2,11 +2,16 @@
  * 卷宗：每条投递一个档案。面试当天一键摊开——投的是哪版简历、对这家说过什么、听到什么、邮件与截止、历史轮次。
  * 视图：投递线（新）/ 岗位池与投递台 / 面试 / Offer（后三者嵌入既有页面）。
  */
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, ExternalLink as ExternalLinkIcon, Search, X } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { onEvent } from '@/api/eventBus';
+import { emitEvent, onEvent } from '@/api/eventBus';
 import { ExternalLink } from '@/components/ExternalLink';
+import OverlayBackdrop from '@/components/OverlayBackdrop';
+import { Popover } from '@/components/ui/Popover';
+import { CompactStepper, FullStepper } from '@/components/career/ApplicationStepper';
+import { applicationStepper } from '@/components/career/applicationSteps';
 import { careerApi, safeJson } from '@/components/career/careerApi';
 import { ACTION_KIND_LABELS, INTERVIEW_RESULT_LABELS, INTERVIEW_ROUND_LABELS, STAGE_LABELS, STAGE_TONES, TRAFFIC_LIGHT_LABELS } from '@/components/career/careerConstants';
 import {
@@ -17,12 +22,15 @@ import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import type {
   ActionQueueItem, ApplicationStage, CareerFocusEvent, Deadline, DeadlineKind, Dossier, DossierNote, DossierSummary,
 } from '@/components/career/types';
+import { examRecords } from '@/components/career/examSchedule';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { DEFAULT_SUB_VIEWS, requestNavigation } from '@/features/career-shell/navModel';
+import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { takeCareerFocus } from '@/features/career-shell/pendingFocus';
 import { useCareerSubView } from '@/features/career-shell/subViewStore';
 import { expandWorkSurface } from '@/features/career-shell/workSurfaceStore';
+import { useCloseLayer } from '@/hooks/useCloseLayer';
 
 const CareerApply = lazy(() => import('@/pages/CareerApply'));
 const CareerInterview = lazy(() => import('@/pages/CareerInterview'));
@@ -55,16 +63,6 @@ const TRAFFIC_TONE: Record<string, BadgeTone> = { green: 'success', yellow: 'war
 function stageTone(stage: ApplicationStage): BadgeTone {
   return STAGE_TONES[stage] ?? 'neutral';
 }
-
-/** 投递线按阶段分组（7.3）：先放要你动手的，再放正在推进的，最后是在等的。 */
-const STAGE_GROUPS: Array<{ label: string; stages: ApplicationStage[] }> = [
-  { label: '需要你', stages: ['needs_user', 'blocked'] },
-  { label: '面试 / 笔试', stages: ['interview'] },
-  { label: 'Offer', stages: ['offer', 'hired'] },
-  { label: '有回应', stages: ['responded'] },
-  { label: '已投', stages: ['applied'] },
-  { label: '待投', stages: ['evaluated', 'ready', 'approved', 'pending'] },
-];
 
 function daysSince(iso: string | null | undefined): number {
   const ms = iso ? Date.parse(iso) : NaN;
@@ -176,6 +174,12 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
     >
       {view === 'line' && <DossierLine focus={focus} />}
       {view === 'exam' && <ExamRecords />}
+      {(view === 'line' || view === 'exam') && (
+        <PageAskBar
+          target={{ kind: 'career-dossier', view }}
+          placeholder={view === 'line' ? '问问投递情况，比如「这个月投了多少、几个进了面试」' : '问问笔试安排，比如「下周有哪些笔试」'}
+        />
+      )}
       {view !== 'line' && view !== 'exam' && (
         <Suspense fallback={<div className="px-4"><LoadingRow /></div>}>
           {view === 'apply' && <CareerApply embedded />}
@@ -198,62 +202,31 @@ function resolveFocus(focus: FocusRequest, summaries: DossierSummary[] | null): 
 function DossierLine({ focus }: { focus: FocusRequest | null }) {
   const query = useCareerQuery(careerApi.dossiers, DOSSIER_TABLES);
   const summaries = query.data;
-  // 手动选择记住它是在哪次焦点之后做的：新焦点到来时焦点优先，之后用户再点则用户优先。全部是派生，不在 effect 里写 state。
-  const [manual, setManual] = useState<{ id: string; afterFocus: FocusRequest | null } | null>(null);
+  // 手动选择记住它是在哪次焦点之后做的：新焦点到来时焦点优先，之后用户再点（或返回列表）则用户优先。全部是派生，不在 effect 里写 state。
+  const [manual, setManual] = useState<{ id: string | null; afterFocus: FocusRequest | null } | null>(null);
   const [search, setSearch] = useState('');
-  const [showClosed, setShowClosed] = useState(false);
   const [interviewMode, setInterviewMode] = useState(false);
-  const select = (id: string) => setManual({ id, afterFocus: focus });
+  const [jdFor, setJdFor] = useState<DossierSummary | null>(null);
+  const select = (id: string | null) => setManual({ id, afterFocus: focus });
 
-  const filtered = useMemo(() => {
+  const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = summaries ?? [];
-    return q ? list.filter(s => `${s.company_name ?? ''} ${s.title}`.toLowerCase().includes(q)) : list;
+    return (q ? list.filter(s => `${s.company_name ?? ''} ${s.title}`.toLowerCase().includes(q)) : [...list])
+      .sort((x, y) => submittedAt(y).localeCompare(submittedAt(x)));
   }, [summaries, search]);
-  const open = filtered.filter(s => !s.closed);
-  const closed = filtered.filter(s => s.closed);
 
-  const manualId = manual && manual.afterFocus === focus ? manual.id : null;
-  const focusId = focus ? resolveFocus(focus, summaries) : null;
-  const effectiveId = manualId ?? focusId ?? (summaries ?? []).find(s => !s.closed)?.application_id ?? summaries?.[0]?.application_id ?? null;
+  const effectiveId = manual && manual.afterFocus === focus ? manual.id : focus ? resolveFocus(focus, summaries) : null;
   const selectedSummary = summaries?.find(s => s.application_id === effectiveId) ?? null;
 
-  return (
-    <div className="flex h-full min-h-0">
-      <aside className="flex w-[280px] shrink-0 flex-col border-r border-[var(--line)]">
-        <div className="p-3">
-          <TextInput aria-label="搜索投递线" placeholder="搜公司或岗位" value={search} onChange={e => setSearch(e.target.value)} />
+  if (effectiveId) {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex items-center gap-2 border-b border-[var(--line)] px-4 py-2">
+          <Button variant="ghost" size="sm" onClick={() => select(null)}><ArrowLeft className="h-4 w-4" />投递记录</Button>
+          {selectedSummary && <span className="min-w-0 truncate text-xs text-[var(--muted)]">{selectedSummary.company_name ?? '未知公司'} · {selectedSummary.title}</span>}
         </div>
-        <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
-          {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
-          {query.loading && !summaries && <LoadingRow />}
-          {summaries && summaries.length === 0 && (
-            <div className="px-1 py-6 text-center text-xs text-[var(--subtle)]">还没有投递。投出去之后每条线会在这里有一份档案。</div>
-          )}
-          {groupByStage(open).map(group => (
-            <div key={group.label} className="mb-3">
-              <div className="px-2 pb-1 text-xs font-medium text-[var(--muted)]">{group.label}（{group.items.length}）</div>
-              <ul>
-                {group.items.map(s => <SummaryRow key={s.application_id} summary={s} selected={s.application_id === effectiveId} onSelect={() => select(s.application_id)} />)}
-              </ul>
-            </div>
-          ))}
-          {closed.length > 0 && (
-            <>
-              <button type="button" onClick={() => setShowClosed(v => !v)} className="mt-1 flex w-full items-center rounded-md px-2 py-1 text-xs font-medium text-[var(--muted)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]">
-                已关闭（{closed.length}）<span className="ml-auto">{showClosed ? '收起' : '展开'}</span>
-              </button>
-              {showClosed && (
-                <ul>
-                  {closed.map(s => <SummaryRow key={s.application_id} summary={s} selected={s.application_id === effectiveId} onSelect={() => select(s.application_id)} showStage />)}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
-      </aside>
-      <div className="min-h-0 min-w-0 flex-1 overflow-auto">
-        {effectiveId ? (
+        <div className="min-h-0 flex-1 overflow-auto">
           <DossierDetail
             key={effectiveId}
             id={effectiveId}
@@ -262,44 +235,169 @@ function DossierLine({ focus }: { focus: FocusRequest | null }) {
             onToggleInterviewMode={() => setInterviewMode(v => !v)}
             onListChanged={query.reload}
           />
-        ) : summaries && summaries.length === 0 ? (
-          <EmptyState title="没有可以摊开的卷宗" hint="投递之后，面试当天在这里一键看到：投的哪版简历、说过什么、听到什么、邮件和截止。" example="帮我准备这场面试" />
-        ) : null}
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex flex-wrap items-center gap-3 px-6 pb-2 pt-4">
+        <label className="relative flex items-center">
+          <Search className="pointer-events-none absolute left-2.5 h-4 w-4 text-[var(--subtle)]" strokeWidth={1.75} aria-hidden />
+          <TextInput aria-label="搜索投递线" placeholder="搜公司或岗位" value={search} onChange={e => setSearch(e.target.value)} className="!h-8 !w-56 pl-8" />
+        </label>
+        {summaries && <span className="text-xs tabular-nums text-[var(--muted)]">{rows.length} 条投递</span>}
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
+        {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
+        {query.loading && !summaries && <LoadingRow />}
+        {summaries && summaries.length === 0 && (
+          <EmptyState title="还没有投递" hint="投出去之后每条线会在这里有一份档案：面试当天一键看到投的哪版简历、说过什么、听到什么、邮件和截止。" example="帮我准备这场面试" />
+        )}
+        {rows.length > 0 && (
+          <table className="w-full min-w-[720px] table-fixed border-collapse text-sm">
+            <thead className="text-left text-xs text-[var(--muted)] [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-[var(--bg)] [&_th]:shadow-[inset_0_-1px_0_var(--line-2)]">
+              <tr>
+                <th className="w-[180px] px-2 py-2 font-medium">公司</th>
+                <th className="px-2 py-2 font-medium">岗位</th>
+                <th className="w-[112px] px-2 py-2 font-medium">投递时间</th>
+                <th className="w-[280px] px-2 py-2 font-medium">状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(s => <LineRow key={s.application_id} summary={s} onOpen={() => select(s.application_id)} onShowJd={() => setJdFor(s)} />)}
+            </tbody>
+          </table>
+        )}
+        {summaries && summaries.length > 0 && rows.length === 0 && <div className="py-8 text-center text-xs text-[var(--subtle)]">没有匹配「{search.trim()}」的投递</div>}
+      </div>
+      {jdFor && <JdDialog summary={jdFor} onClose={() => setJdFor(null)} onOpenDossier={() => { setJdFor(null); select(jdFor.application_id); }} />}
     </div>
   );
 }
 
-function groupByStage(list: DossierSummary[]): Array<{ label: string; items: DossierSummary[] }> {
-  const groups = STAGE_GROUPS.map(g => ({ label: g.label, items: list.filter(s => g.stages.includes(s.stage)) }));
-  const known = new Set(STAGE_GROUPS.flatMap(g => g.stages));
-  const other = list.filter(s => !known.has(s.stage));
-  if (other.length) groups.push({ label: '其他', items: other });
-  return groups.filter(g => g.items.length > 0);
+/** 投递时间：第一次进入「已投递」的时刻；还没投出去的按建档时间排。 */
+function submittedAt(s: DossierSummary): string {
+  return s.applied_at ?? s.created_at ?? s.updated_at;
 }
 
-function SummaryRow({ summary, selected, onSelect, showStage = false }: { summary: DossierSummary; selected: boolean; onSelect: () => void; showStage?: boolean }) {
+/** 整行可点（Enter 也行）打开档案；岗位名单独可点，看 JD；状态格浮出完整步骤条。行内控件阻止冒泡（7.5）。 */
+function LineRow({ summary, onOpen, onShowJd }: { summary: DossierSummary; onOpen: () => void; onShowJd: () => void }) {
+  const company = summary.company_name ?? '未知公司';
   const days = summary.days_since_update;
-  const showQuiet = days >= 7 && ACTIVE_STAGES.has(summary.stage);
+  const quiet = days >= 7 && ACTIVE_STAGES.has(summary.stage);
   return (
-    <li>
+    <tr
+      tabIndex={0}
+      aria-label={`${company} · ${summary.title}`}
+      onClick={onOpen}
+      onKeyDown={e => { if (e.key === 'Enter' && e.target === e.currentTarget) onOpen(); }}
+      className={`cursor-pointer border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)] ${summary.stage === 'discarded' ? 'text-[var(--subtle)]' : ''}`}
+    >
+      <td className="truncate px-2 py-2 font-medium text-[var(--ink)]" title={company}>{company}</td>
+      <td className="px-2 py-2">
+        <button
+          type="button"
+          onClick={e => { e.stopPropagation(); onShowJd(); }}
+          onKeyDown={e => e.stopPropagation()}
+          title={`查看 JD：${summary.title}`}
+          className="block max-w-full truncate rounded-sm text-left text-[var(--ink-2)] underline decoration-[var(--line-2)] decoration-dotted underline-offset-4 hover:text-[var(--primary)] hover:decoration-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+        >
+          {summary.title}
+        </button>
+      </td>
+      <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-[var(--muted)]" title={summary.applied_at ? undefined : '还没投出去'}>
+        {summary.applied_at ? formatDate(summary.applied_at) : <span className="text-[var(--subtle)]">未投出</span>}
+      </td>
+      <td className="whitespace-nowrap px-2 py-1.5">
+        <StatusCell summary={summary} />
+        {quiet && <span className={`ml-2 text-xs ${days >= 14 ? 'text-[var(--warning)]' : 'text-[var(--subtle)]'}`}>{days} 天无动静</span>}
+      </td>
+    </tr>
+  );
+}
+
+/** 行内紧凑步骤条；鼠标移上 / 键盘聚焦 / 点击时浮出完整的带文字步骤条。 */
+function StatusCell({ summary }: { summary: DossierSummary }) {
+  const model = useMemo(() => applicationStepper(summary), [summary]);
+  const [hover, setHover] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const open = hover || pinned;
+  return (
+    <>
       <button
+        ref={anchor}
         type="button"
-        onClick={onSelect}
-        aria-current={selected ? 'true' : undefined}
-        title={`${summary.company_name ?? '未知公司'} · ${summary.title}`}
-        className={`relative w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${selected ? 'bg-[var(--selected)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-[var(--primary)]' : 'hover:bg-[var(--hover)]'}`}
+        aria-expanded={open}
+        aria-label={`投递状态：${model.label}`}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onFocus={() => setHover(true)}
+        onBlur={() => setHover(false)}
+        onClick={e => { e.stopPropagation(); setPinned(v => !v); }}
+        onKeyDown={e => e.stopPropagation()}
+        className="inline-flex rounded-sm py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
       >
-        <div className="truncate text-sm font-medium text-[var(--ink)]">{summary.company_name ?? '未知公司'} · {summary.title}</div>
-        {(showStage || showQuiet || summary.next_deadline) && (
-          <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-[var(--muted)]">
-            {showStage && <Badge tone={stageTone(summary.stage)}>{STAGE_LABELS[summary.stage] ?? summary.stage}</Badge>}
-            {summary.next_deadline && <span className="truncate">{summary.next_deadline.title} · {relativeDue(summary.next_deadline.due_at)}</span>}
-            {showQuiet && <span className={`shrink-0 ${days >= 14 ? 'text-[var(--warning)]' : ''}`}>{days} 天无动静</span>}
-          </div>
-        )}
+        <CompactStepper model={model} />
       </button>
-    </li>
+      <Popover open={open} onClose={() => { setPinned(false); setHover(false); }} anchorRef={anchor} placement="bottom-start" zIndex={50} className="w-[360px] p-3">
+        <div className="space-y-2">
+          <FullStepper model={model} />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[var(--line)] pt-2 text-xs text-[var(--muted)]">
+            <Badge tone={stageTone(summary.stage)}>{STAGE_LABELS[summary.stage] ?? summary.stage}</Badge>
+            {summary.next_deadline && <span>{summary.next_deadline.title} · {relativeDue(summary.next_deadline.due_at)}</span>}
+            {summary.interview_count > 0 && <span>面试 {summary.interview_count} 轮</span>}
+          </div>
+        </div>
+      </Popover>
+    </>
+  );
+}
+
+/** 岗位 JD：从卷宗里取岗位原文；没有原文时给标题和链接。 */
+function JdDialog({ summary, onClose, onOpenDossier }: { summary: DossierSummary; onClose: () => void; onOpenDossier: () => void }) {
+  const query = useCareerQuery(() => careerApi.dossier(summary.application_id), ['job']);
+  const job = query.data?.job;
+  const url = job?.url ?? summary.job_url ?? null;
+  const jd = job?.jd_raw?.trim() || null;
+  // 关闭后焦点回到打开它的岗位名（7.6）
+  const [returnFocus] = useState<Element | null>(() => (typeof document !== 'undefined' ? document.activeElement : null));
+  const close = useCallback(() => {
+    onClose();
+    if (returnFocus instanceof HTMLElement) returnFocus.focus();
+  }, [onClose, returnFocus]);
+  useCloseLayer(() => { close(); return true; }, 60);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [close]);
+  return (
+    <OverlayBackdrop onClose={close} className="z-[60] px-4" portal>
+      <div role="dialog" aria-modal="true" aria-label={`${summary.title} 的 JD`} className="flex max-h-[80vh] w-full max-w-[640px] flex-col rounded-2xl border border-[var(--line)] bg-[var(--paper)] shadow-lg">
+        <div className="flex items-start gap-3 border-b border-[var(--line)] px-5 py-4">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs text-[var(--muted)]">{summary.company_name ?? '未知公司'}</div>
+            <h2 className="font-human text-lg font-semibold text-[var(--ink)]">{summary.title}</h2>
+          </div>
+          <button type="button" aria-label="关闭" onClick={close} className="rounded-md p-1 text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
+          {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
+          {query.loading && !query.data && <LoadingRow text="取 JD…" />}
+          {query.data && (jd
+            ? <div className="max-w-[40em] whitespace-pre-wrap break-words text-base leading-7 text-[var(--ink)]">{jd}</div>
+            : <Muted>没有保存这个岗位的 JD 原文{url ? '，可以打开岗位页面看。' : '。'}</Muted>)}
+        </div>
+        <div className="flex items-center gap-2 border-t border-[var(--line)] px-5 py-3">
+          {url && <ExternalLink href={url} className="inline-flex items-center gap-1 text-sm text-[var(--primary)] hover:underline"><ExternalLinkIcon className="h-4 w-4" strokeWidth={1.75} />岗位页面</ExternalLink>}
+          <span className="flex-1" />
+          <Button variant="secondary" onClick={onOpenDossier}>打开档案</Button>
+        </div>
+      </div>
+    </OverlayBackdrop>
   );
 }
 
@@ -699,42 +797,105 @@ function NoteForm({ applicationId, onChanged }: { applicationId: string; onChang
   );
 }
 
-// ─── 笔试记录：每次笔试练习一行，点开在对话页右栏摊开题目、作答与点评 ───
+// ─── 笔试记录：每场笔试 / 测评一行（时间来自截止事件，见 examSchedule.ts）；笔试练习放在下面 ───
+
+const EXAM_KIND_LABELS = { written_test: '笔试', assessment: '测评' } as const;
+
+/** 本地时区的「10 月 15 日 14:00」。截止事件 due_at 存的是 UTC ISO，不能直接截字符串。 */
+function formatLocalDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getMonth() + 1} 月 ${d.getDate()} 日 ${hh}:${mm}`;
+}
+
+async function loadExamData() {
+  const [deadlines, dossiers, practices] = await Promise.all([
+    careerApi.deadlines(), careerApi.dossiers().catch(() => []), careerApi.examPractices().catch(() => []),
+  ]);
+  return { deadlines, dossiers, practices };
+}
 
 function ExamRecords() {
-  const query = useCareerQuery(careerApi.examPractices, ['exam_practice']);
-  const exams = query.data ?? [];
-  const open = (id: string) => {
+  const query = useCareerQuery(loadExamData, ['deadline', 'application', 'job', 'exam_practice']);
+  const rows = useMemo(() => (query.data ? examRecords(query.data.deadlines, query.data.dossiers) : []), [query.data]);
+  const practices = query.data?.practices ?? [];
+  const openDossier = (applicationId: string | null) => {
+    if (applicationId) emitEvent('career:focus', { surface: 'dossier', application_id: applicationId, origin: 'user' });
+  };
+  const openPractice = (id: string) => {
     expandWorkSurface('exam', { refId: id });
     requestNavigation({ kind: 'chat' });
   };
   return (
-    <div className="max-w-4xl px-6 py-6">
+    <div className="space-y-8 px-6 py-4">
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       {query.loading && !query.data && <LoadingRow />}
-      {query.data && exams.length === 0 && (
-        <EmptyState title="还没有笔试练习" hint="让小芽按岗位出一套题，你作答后它会逐题批改，记录会留在这里。" example="帮我出一套产品经理的行测题" />
+      {query.data && rows.length === 0 && (
+        <EmptyState title="还没有笔试 / 测评安排" hint="收到笔试或测评邀请，丢进通知中心，识别出时间后会出现在这里。" example="帮我记一下下周三下午两点的笔试" />
       )}
-      {exams.length > 0 && (
-        <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
-          {exams.map(exam => {
-            const total = safeJson<unknown[]>(exam.questions_json, []).length;
-            const answered = safeJson<unknown[]>(exam.answers_json, []).length;
-            return (
-              <li key={exam.id}>
-                <button type="button" onClick={() => open(exam.id)} className="flex w-full items-center gap-3 px-1 py-3 text-left hover:bg-[var(--hover)]">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-[var(--ink)]">{exam.title}</div>
-                    <div className="text-xs text-[var(--muted)]">{[exam.kind, exam.company_name, formatDate(exam.updated_at)].filter(Boolean).join(' · ')}</div>
-                  </div>
-                  <Badge tone={exam.status === 'reviewed' ? 'success' : 'accent'}>
-                    {exam.status === 'reviewed' ? '已批改' : `轮到你作答 · 已答 ${answered} / ${total}`}
-                  </Badge>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+      {rows.length > 0 && (
+        <table className="w-full min-w-[640px] table-fixed border-collapse text-sm">
+          <thead className="text-left text-xs text-[var(--muted)] [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-[var(--bg)] [&_th]:shadow-[inset_0_-1px_0_var(--line-2)]">
+            <tr>
+              <th className="w-[180px] px-2 py-2 font-medium">公司</th>
+              <th className="px-2 py-2 font-medium">岗位</th>
+              <th className="w-[200px] px-2 py-2 font-medium">时间</th>
+              <th className="w-[96px] px-2 py-2 font-medium">状态</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => {
+              const clickable = !!r.application_id;
+              return (
+                <tr
+                  key={r.id}
+                  tabIndex={clickable ? 0 : undefined}
+                  onClick={clickable ? () => openDossier(r.application_id) : undefined}
+                  onKeyDown={clickable ? e => { if (e.key === 'Enter' && e.target === e.currentTarget) openDossier(r.application_id); } : undefined}
+                  className={`border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${clickable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]' : ''} ${r.status === 'expired' ? 'text-[var(--muted)]' : ''}`}
+                >
+                  <td className="truncate px-2 py-2 font-medium text-[var(--ink)]" title={r.company_name ?? undefined}>{textOrUnknown(r.company_name)}</td>
+                  <td className="truncate px-2 py-2 text-[var(--ink-2)]" title={r.title}>
+                    {r.title}
+                    {r.url && <ExternalLink href={r.url} onClick={e => e.stopPropagation()} className="ml-2 text-xs text-[var(--primary)] hover:underline">打开链接</ExternalLink>}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-[var(--muted)]">
+                    {formatLocalDateTime(r.due_at)}<span className="ml-1.5 text-[var(--subtle)]">· {EXAM_KIND_LABELS[r.kind]}</span>
+                  </td>
+                  <td className="px-2 py-2">
+                    {r.status === 'expired' ? <Badge>已过期</Badge> : r.status === 'upcoming' ? <Badge tone="accent">未到</Badge> : <Badge>时间未知</Badge>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+      {practices.length > 0 && (
+        <section>
+          <h3 className="mb-1 text-xs font-medium text-[var(--muted)]">笔试练习（{practices.length}）</h3>
+          <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
+            {practices.map(exam => {
+              const total = safeJson<unknown[]>(exam.questions_json, []).length;
+              const answered = safeJson<unknown[]>(exam.answers_json, []).length;
+              return (
+                <li key={exam.id}>
+                  <button type="button" onClick={() => openPractice(exam.id)} className="flex w-full items-center gap-3 px-1 py-2 text-left hover:bg-[var(--hover)]">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-[var(--ink)]">{exam.title}</div>
+                      <div className="text-xs text-[var(--muted)]">{[exam.kind, exam.company_name, formatDate(exam.updated_at)].filter(Boolean).join(' · ')}</div>
+                    </div>
+                    <Badge tone={exam.status === 'reviewed' ? 'success' : 'accent'}>
+                      {exam.status === 'reviewed' ? '已批改' : `轮到你作答 · 已答 ${answered} / ${total}`}
+                    </Badge>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       )}
     </div>
   );

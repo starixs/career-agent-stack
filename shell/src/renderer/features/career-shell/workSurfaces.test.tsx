@@ -9,6 +9,7 @@ vi.mock('@/components/career/careerApi', () => ({
       created_at: '2026-10-09T01:00:00.000Z', updated_at: '2026-10-09T01:00:00.000Z',
     }]),
     examPractices: vi.fn(async () => []),
+    getStudio: vi.fn(async () => ({ data: {}, contentUpdatedAt: '', preview: { '{{vault:profile.name}}': '李明' } })),
   },
 }));
 vi.mock('@/components/career/useGlobalLive', () => ({ useLiveStream: () => ({ status: 'open', detail: null }), globalBaseUrl: async () => '' }));
@@ -81,6 +82,54 @@ describe('collapsed cards', () => {
   });
 });
 
+describe('breakout card content follows the tool fields', () => {
+  beforeEach(() => resetWorkSurfaces());
+
+  it('a new master resume shows the real name from the local preview, never the vault placeholder', async () => {
+    render(<WorkSurfaceCard surface="resume" tool={tool('resume_master_create', { result: JSON.stringify({
+      master_id: 'rm_1',
+      master: { id: 'rm_1', name: '主简历', direction: 'AI 应用开发', candidate: '{{vault:profile.name}}', objective: 'AI 应用开发工程师', education: 2, experience: 1, projects: 1 },
+      missing: ['phone'],
+    }) })} />);
+    const card = screen.getByTestId('career-surface-card-resume');
+    expect(await screen.findByText('李明')).toBeInTheDocument();
+    expect(card).toHaveTextContent('主简历 · AI 应用开发');
+    expect(card).toHaveTextContent('AI 应用开发');
+    expect(card).toHaveTextContent('教育 2 · 经历 1 · 项目 1');
+    expect(card).toHaveTextContent('还缺 1 项信息');
+    expect(card).not.toHaveTextContent('{{vault:');
+  });
+
+  it('a mock interview rail marks the follow-up stage once a transcript exists', () => {
+    render(<WorkSurfaceCard surface="mock-interview" tool={tool('interview_probe', {
+      parsedInput: { transcript: '问：…\n答：…', company_type: '大厂', round: '一面' },
+      result: JSON.stringify({ mock_interview_id: 'mok_1', result: { question: '瓶颈最后定位在哪一层？' } }),
+    })} />);
+    const card = screen.getByTestId('career-surface-card-mock-interview');
+    expect(card).toHaveTextContent('大厂 · 一面');
+    expect(card).toHaveTextContent('追问（进行中）');
+    expect(card).toHaveTextContent('瓶颈最后定位在哪一层？');
+  });
+
+  it('a finished interview shows the verdict instead of a question', () => {
+    render(<WorkSurfaceCard surface="mock-interview" tool={tool('interview_probe', {
+      parsedInput: { finish: true },
+      result: JSON.stringify({ mock_interview_id: 'mok_2', result: { verdict: 'borderline', todo: ['a', 'b'] } }),
+    })} />);
+    const card = screen.getByTestId('career-surface-card-mock-interview');
+    expect(card).toHaveTextContent('在边缘');
+    expect(card).toHaveTextContent('2 件事');
+    expect(card).toHaveTextContent('已完成 · 查看');
+  });
+
+  it('clicking anywhere on the card opens the surface', () => {
+    function Probe() { const { expanded } = useWorkSurfaces(); return <div data-testid="probe">{String(expanded)}</div>; }
+    render(<><WorkSurfaceCard surface="exam" tool={tool('exam_practice', { result: JSON.stringify({ exam_id: 'exm_1', status: 'answering', questions: 5, answered: 2 }) })} /><Probe /></>);
+    fireEvent.click(screen.getByLabelText('已答 2 / 5'));
+    expect(screen.getByTestId('probe')).toHaveTextContent('exam');
+  });
+});
+
 describe('expanded panels', () => {
   beforeEach(() => resetWorkSurfaces());
 
@@ -105,5 +154,25 @@ describe('expanded panels', () => {
     expect(screen.getByText('漏了条件')).toBeInTheDocument();
     expect(screen.getByText('数量关系再练练')).toBeInTheDocument();
     expect(screen.queryByText('轮到你作答')).not.toBeInTheDocument();
+  });
+});
+
+describe('info cards for results without a work surface', () => {
+  it('a job list shows the count, the first three rows and opens 岗位收藏', () => {
+    const rows = ['甲', '乙', '丙', '丁'].map((c, i) => ({ job_id: `j${i}`, company: `${c}公司`, title: '后端', location: '北京', deadline: '2026-10-20' }));
+    render(<MessageSurfaceCards tools={[tool('mcp__career__jobs_board', { result: JSON.stringify({ rows }) })]} />);
+    const card = screen.getByTestId('career-info-card-jobs_board');
+    expect(card).toHaveTextContent('4个岗位');
+    expect(card).toHaveTextContent('丙公司 · 后端');
+    expect(card).not.toHaveTextContent('丁公司');
+    expect(card).toHaveTextContent('1 个，在岗位收藏里看全部');
+  });
+
+  it('a deadline shows a date block and skips fields the tool did not return', () => {
+    render(<MessageSurfaceCards tools={[tool('mcp__career__deadline_add', { result: JSON.stringify({ deadline: { title: '网申截止', due_at: '2026-10-20T00:00:00+08:00', status: 'open' } }) })]} />);
+    const card = screen.getByTestId('career-info-card-deadline_add');
+    expect(card).toHaveTextContent('10 月');
+    expect(card).toHaveTextContent('网申截止');
+    expect(card).not.toHaveTextContent('提醒');
   });
 });

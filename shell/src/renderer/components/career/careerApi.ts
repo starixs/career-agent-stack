@@ -11,7 +11,7 @@ import type {
   ExamPractice,
   CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
-  InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MemoryItem, MemoryKind, MockInterview, Offer, OnboardingChecklist,
+  InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
   AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
@@ -238,10 +238,6 @@ export const careerApi = {
   // ----- 素材 -----
   materials: (kind?: Material['kind']) => apiGetJson<unknown>(careerPath(`/materials${kind ? `?kind=${kind}` : ''}`)).then(r => pickList<Material>(r, 'materials')),
   createMaterial: (body: { kind: Material['kind']; title: string; content: string; question_key?: string | null; length_variant?: string | null; company_scope?: string | null; confirmed?: boolean; claim_ids?: string[]; tags?: string[] }) => apiPostJson<unknown>(careerPath('/materials'), body).then(r => pickObject<Material>(r, 'material')),
-  memories: (q?: string) => apiGetJson<unknown>(careerPath(`/memories${q ? `?q=${encodeURIComponent(q)}` : ''}`)).then(r => pickList<MemoryItem>(r, 'memories')),
-  addMemory: (body: { content: string; kind: MemoryKind; scope?: string }) => apiPostJson<unknown>(careerPath('/memories'), body).then(r => pickObject<MemoryItem>(r, 'memory')),
-  updateMemory: (id: string, body: { content?: string; importance?: number; pinned?: boolean; kind?: MemoryKind }) => apiPostJson<unknown>(careerPath(`/memories/${encodeURIComponent(id)}`), body).then(r => pickObject<MemoryItem>(r, 'memory')),
-  forgetMemory: (id: string) => apiPostJson<unknown>(careerPath(`/memories/${encodeURIComponent(id)}/forget`), {}),
   updateMaterial: (id: string, body: { title?: string; content?: string; confirmed?: boolean; company_scope?: string | null; tags?: string[] }) => apiPutJson<unknown>(careerPath(`/materials/${encodeURIComponent(id)}`), body).then(r => pickObject<Material>(r, 'material')),
   deleteMaterial: (id: string) => apiDelete<unknown>(careerPath(`/materials/${encodeURIComponent(id)}`)),
   materialUses: (filter: { application_id?: string; company_name?: string; material_id?: string } = {}) => {

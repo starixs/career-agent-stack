@@ -172,7 +172,6 @@ export async function resumeBatchIfRunning(): Promise<void> {
     .catch(() => { /* 下次启动再试 */ });
   startHandoffKeeper();
   startAnswerSync();
-  void import('./memory-consolidate').then(m => m.startMemoryConsolidation()).catch(() => { /* 下次启动再试 */ });
   try { (await getSubmitExecutor()).start(); } catch (error) { console.warn('[career] 提交执行器启动失败：', error instanceof Error ? error.message : error); }
   try { (await getBatchRunner()).resumeIfRunning(); } catch (error) { console.warn('[career] 批量运行器恢复失败：', error instanceof Error ? error.message : error); }
   startBatchCommandPoll();

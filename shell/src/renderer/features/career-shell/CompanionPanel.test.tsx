@@ -13,8 +13,11 @@ vi.mock('@/components/career/careerApi', () => ({
     activity: vi.fn(async () => [
       { id: 'task:t1', at: '2026-10-09T02:40:00.000Z', kind: 'task', status: 'running', title: '填写星河科技网申', detail: '18 项已填' },
     ]),
+    onboarding: vi.fn(async () => onboardingChecklist),
   },
 }));
+
+let onboardingChecklist: Record<string, boolean> = { has_experience: true, has_confirmed_claim: true, has_master_resume: true, has_mail_account: true, has_job: true, has_application: true, has_material: true };
 vi.mock('@/config/useConfigData', () => ({ useConfigData: () => ({ config: { floatingBallPetId: null } }) }));
 vi.mock('@/floating-ball/petPackLibrary', () => ({ resolveSelectedPetPack: async () => (await import('@/floating-ball/defaultPetPack')).MINO_DEFAULT_PET_PACK }));
 
@@ -70,6 +73,20 @@ describe('CompanionPanel', () => {
     expect(screen.getByTestId('active')).toHaveTextContent('1');
     act(() => emitEvent('career:progress-settled', null));
     expect(screen.getByTestId('active')).toHaveTextContent('0');
+  });
+
+  it('reminds once a day about unfinished onboarding steps and starts the guide from the panel', async () => {
+    try { window.localStorage.removeItem('career:onboarding-reminder-day'); } catch { /* no storage */ }
+    onboardingChecklist = { has_experience: true, has_confirmed_claim: false, has_master_resume: false, has_mail_account: false, has_job: true, has_application: false, has_material: false };
+    const navigations: unknown[] = [];
+    const off = onEvent(CAREER_NAVIGATE_EVENT, target => navigations.push(target));
+    render(<CompanionPanel />);
+    expect(await screen.findByText('还有 3 步新手任务没走完，我带你走一遍？')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '继续新手引导' }));
+    off();
+    expect(navigations).toEqual([{ kind: 'career-today' }]);
+    expect(screen.queryByTestId('companion-onboarding-nudge')).not.toBeInTheDocument();
+    onboardingChecklist = { has_experience: true, has_confirmed_claim: true, has_master_resume: true, has_mail_account: true, has_job: true, has_application: true, has_material: true };
   });
 
   it('shows the pet, what it is doing, the next todos and today trail from real data', async () => {

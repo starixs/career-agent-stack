@@ -1,29 +1,39 @@
 /**
- * 今日：首次使用清单 → 今天只做三件事 → 等待中。
- * 页面只展示状态与做非 AI 动作（批准 / 完成 / 关闭）；要助理做的事一律通过 ChatActionButton 真的发进对话。
+ * 招聘概览：左边一整月的月历，右边是选中那天的待办（默认今天）。
+ * 每天最多三类待办——待批准 / 需要你处理 / 提醒——各占一行，只写第一件；那天这一类还有没做完的，圆点点亮，全做完变灰。
+ * 页面只做非 AI 动作（批准 / 完成 / 关闭），完成时把这一行「划掉」；要助理做的事一律通过 ChatActionButton 发进对话。
+ * 以后要做的事在底部的输入框（PageAskBar）里跟小芽说（deadline_add）。
  */
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { careerApi, safeJson } from '@/components/career/careerApi';
-import { ACTION_KIND_LABELS, STAGE_LABELS } from '@/components/career/careerConstants';
-import { Badge, Button, CareerPage, Card, ChatActionButton, ErrorRow, LoadingRow, SectionTitle } from '@/components/career/CareerPrimitives';
-import type { BadgeTone } from '@/components/career/CareerPrimitives';
-import type { ActionQueueItem, ApplicationStage, CareerFocusEvent, OnboardingChecklist, TodayItem, TodayItemKind } from '@/components/career/types';
+import { ACTION_KIND_LABELS } from '@/components/career/careerConstants';
+import { Button, CareerPage, ChatActionButton, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
+import { onOnboardingIntroRequest, takeOnboardingIntroRequest } from '@/features/career-shell/onboardingReminder';
+import { PageAskBar } from '@/features/career-shell/PageAskBar';
+import { OnboardingIntro, buildSteps, markIntroSeen, readIntroSeen } from '@/components/career/OnboardingIntro';
+import { StrikeText } from '@/components/career/StrikeText';
+import {
+  CATEGORY_COLORS, CATEGORY_LABELS, TODO_CATEGORIES, buildTodos, groupByDate, localDateKey, mergeCompleted, monthGrid, summarizeDay,
+} from '@/components/career/todoCalendar';
+import type { CalendarTodo, TodoCategory } from '@/components/career/todoCalendar';
+import type { CareerFocusEvent, TodayItemKind } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 
 const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history'] as const;
 const ONBOARDING_TABLES = ['experience', 'claim', 'resume_master', 'mail_account', 'job', 'application', 'material'] as const;
 const ACTION_TABLES = ['action_queue'] as const;
+const DEADLINE_TABLES = ['deadline'] as const;
+const ACTIVITY_TABLES = ['action_queue', 'task', 'application_history'] as const;
 
 const KIND_LABELS: Record<TodayItemKind, string> = {
-  deadline: '截止', review: '待批准', handoff: '需要你', interview_today: '今日面试', stale: '静默', inbox: '收件箱', followup: '跟进',
+  deadline: '截止', review: '待批准', handoff: '需要你', interview_today: '今日面试', stale: '静默', inbox: '通知', followup: '跟进',
 };
-const KIND_TONES: Record<TodayItemKind, BadgeTone> = {
-  deadline: 'warning', review: 'accent', handoff: 'error', interview_today: 'info', stale: 'neutral', inbox: 'info', followup: 'neutral',
-};
+const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'] as const;
+const STRIKE_MS = 700;
 
 /** 相对到期时间：已过期 / 今天 HH:mm / 明天 / x 天后。解析失败时原样返回。 */
 export function formatDue(dueAt: string | null | undefined, now: Date = new Date()): string | null {
@@ -42,233 +52,337 @@ export function formatDue(dueAt: string | null | undefined, now: Date = new Date
   return `${dayDiff} 天后`;
 }
 
-interface ChecklistStep { key: string; label: string; done: boolean; chat?: string; focus?: CareerFocusEvent['surface'] }
-
-function buildSteps(c: OnboardingChecklist): ChecklistStep[] {
-  return [
-    { key: 'experience', label: '先把经历放进来', done: Boolean(c.has_experience || c.has_confirmed_claim), chat: '帮我整理经历，我先口述一段实习' },
-    { key: 'resume', label: '生成主简历', done: Boolean(c.has_master_resume), chat: '帮我生成主简历' },
-    { key: 'mail', label: '绑定邮箱，让面试邀请自动进来', done: Boolean(c.has_mail_account), focus: 'inbox' },
-    { key: 'job', label: '丢第一个 JD 进收件箱', done: Boolean(c.has_job), chat: '我把一个 JD 贴给你，帮我评估值不值得投' },
-    { key: 'application', label: '第一条投递', done: Boolean(c.has_application), chat: '从评估过的岗位里挑一个，帮我准备第一条投递' },
-  ];
+function dayLabel(key: string): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const weekday = WEEKDAYS[(new Date(y, m - 1, d).getDay() + 6) % 7];
+  return `${m} 月 ${d} 日 · 周${weekday}`;
 }
 
 export default function CareerToday({ onOpenChat, embedded = false }: CareerPageProps) {
-  const today = useCareerQuery(careerApi.today, TODAY_TABLES);
-  const onboarding = useCareerQuery(careerApi.onboarding, ONBOARDING_TABLES);
-  const pending = useCareerQuery(careerApi.pendingActions, ACTION_TABLES);
-  const topRef = useRef<HTMLDivElement>(null);
-  // 「再等等」只在本次会话里隐藏，不改服务端状态。
-  const [snoozed, setSnoozed] = useState<Set<string>>(new Set());
+  const now = new Date();
+  const todayKey = localDateKey(now);
+  const [cursor, setCursor] = useState(() => ({ year: now.getFullYear(), month: now.getMonth() }));
+  const [selected, setSelected] = useState(todayKey);
+  const grid = useMemo(() => monthGrid(cursor.year, cursor.month), [cursor]);
+  const gridStartIso = grid[0].toISOString();
 
+  const today = useCareerQuery(careerApi.today, TODAY_TABLES);
+  const pending = useCareerQuery(careerApi.pendingActions, ACTION_TABLES);
+  const confirming = useCareerQuery(() => careerApi.submitsNeedingUser().catch(() => []), ACTION_TABLES);
+  const deadlines = useCareerQuery(() => careerApi.deadlines(), DEADLINE_TABLES);
+  const activity = useCareerQuery(() => careerApi.activity(gridStartIso).catch(() => []), ACTIVITY_TABLES);
+  const onboarding = useCareerQuery(careerApi.onboarding, ONBOARDING_TABLES);
+
+  // 翻到别的月份时补拉那段时间的活动记录（已完成的动作）。
+  const activityReload = activity.reload;
+  const lastGridStart = useRef(gridStartIso);
+  useEffect(() => {
+    if (lastGridStart.current === gridStartIso) return;
+    lastGridStart.current = gridStartIso;
+    activityReload();
+  }, [gridStartIso, activityReload]);
+
+  const topRef = useRef<HTMLDivElement>(null);
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
     if (payload?.surface !== 'today') return;
     topRef.current?.scrollIntoView?.({ block: 'start' });
   }), []);
 
+  // 本次会话里刚划掉的项：服务端刷新后它们可能从今日队列消失，这里留住，保持已完成样式。
+  const [completed, setCompleted] = useState<ReadonlyMap<string, CalendarTodo>>(() => new Map());
+  const [justDone, setJustDone] = useState<ReadonlySet<string>>(() => new Set());
+  // 「再等等」只在本次会话里隐藏，不改服务端状态。
+  const [snoozed, setSnoozed] = useState<ReadonlySet<string>>(() => new Set());
+
+  const todos = useMemo(() => {
+    const built = buildTodos({
+      today: today.data?.items, pending: pending.data, confirming: confirming.data,
+      deadlines: deadlines.error ? null : deadlines.data, activity: activity.data,
+    });
+    return mergeCompleted(built, completed).filter(t => !snoozed.has(t.key));
+  }, [today.data, pending.data, confirming.data, deadlines.data, deadlines.error, activity.data, completed, snoozed]);
+  const byDate = useMemo(() => groupByDate(todos), [todos]);
+  const todayOpen = (byDate.get(todayKey) ?? []).filter(t => !t.done).length;
+
+  const reloadAll = () => { today.reload(); pending.reload(); confirming.reload(); deadlines.reload(); activity.reload(); };
+  const markDone = (todo: CalendarTodo, note: string) => {
+    setCompleted(prev => new Map(prev).set(todo.key, { ...todo, done: true, note }));
+    setJustDone(prev => new Set(prev).add(todo.key));
+    window.setTimeout(() => setJustDone(prev => { const next = new Set(prev); next.delete(todo.key); return next; }), STRIKE_MS);
+    reloadAll();
+  };
+  const snooze = (todo: CalendarTodo) => setSnoozed(prev => new Set(prev).add(todo.key));
+
+  // 首次打开自动弹出新手引导（五步都做完就不打扰）；页头「新手引导」随时再开。
   const steps = useMemo(() => (onboarding.data ? buildSteps(onboarding.data) : null), [onboarding.data]);
-  const checklistDone = steps ? steps.every(s => s.done) : false;
-  const items = useMemo(() => (today.data?.items ?? []).filter(it => !snoozed.has(`${it.ref.type}:${it.ref.id}`)), [today.data, snoozed]);
-  const actionById = useMemo(() => new Map((pending.data ?? []).map(a => [a.id, a])), [pending.data]);
-  const topThree = items.slice(0, 3);
-  const rest = items.slice(3);
+  const [seenAtMount] = useState(readIntroSeen);
+  const [introDismissed, setIntroDismissed] = useState(false);
+  // 从 Mino 面板 / 桌面悬浮球的每日提醒点进来：直接打开引导。
+  const [introRequested, setIntroRequested] = useState(takeOnboardingIntroRequest);
+  const introOpen = !!steps && (introRequested || (!seenAtMount && !introDismissed && steps.some(s => !s.done)));
+  const closeIntro = () => { markIntroSeen(); setIntroDismissed(true); setIntroRequested(false); };
+  useEffect(() => onOnboardingIntroRequest(() => setIntroRequested(true)), []);
 
-  const reloadAll = () => { today.reload(); pending.reload(); };
-  const snooze = (item: TodayItem) => setSnoozed(prev => new Set(prev).add(`${item.ref.type}:${item.ref.id}`));
+  const shiftMonth = (delta: number) => setCursor(c => {
+    const d = new Date(c.year, c.month + delta, 1);
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+  const goToday = () => { setCursor({ year: now.getFullYear(), month: now.getMonth() }); setSelected(todayKey); };
+  const selectDay = (date: Date) => {
+    setSelected(localDateKey(date));
+    if (date.getMonth() !== cursor.month) setCursor({ year: date.getFullYear(), month: date.getMonth() });
+  };
+
+  const waitingCount = today.data?.waiting.count ?? 0;
+  const subtitle = today.data ? `今天 ${todayOpen} 件没做完${waitingCount > 0 ? ` · ${waitingCount} 家在等回音` : ''}` : undefined;
+  const loadError = today.error ?? pending.error;
 
   return (
-    <CareerPage embedded={embedded} title="今日" subtitle="今天只做三件事，其余交给等待">
-      <div ref={topRef} className="max-w-6xl space-y-8 px-6 py-6">
-        {today.error && <ErrorRow message={today.error} onRetry={today.reload} />}
-        {today.loading && !today.data && <LoadingRow />}
-
-        {steps && !checklistDone && <ChecklistCard steps={steps} />}
-
-        {today.data && (
-          <section>
-            <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-              <p className="font-human text-2xl font-semibold text-[var(--ink)]">
-                {topThree.length > 0 ? `今天有 ${topThree.length} 件事要做` : '今天没有必须做的事'}
-                <span className="text-[var(--muted)]">{`，${today.data.waiting.count} 家在等回音`}</span>
-              </p>
-              {today.data.pending_review > 0 && <Badge tone="accent">待批准 {today.data.pending_review}</Badge>}
-            </div>
-            {topThree.length === 0 && checklistDone && (
-              <div className="flex flex-col items-start gap-3">
-                <div className="text-sm text-[var(--muted)]">等待中的投递不需要你盯着；有新动静会自动出现在这里。</div>
-                <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'today' }} />
+    <div className="relative h-full min-h-0">
+      <CareerPage
+        embedded={embedded}
+        title="招聘概览"
+        subtitle={subtitle}
+        actions={steps && <Button variant="ghost" size="sm" onClick={() => setIntroRequested(true)}>新手引导</Button>}
+      >
+        <div ref={topRef} className="flex min-h-full flex-col">
+          <div className="flex flex-1 flex-col gap-6 px-6 pt-5 lg:flex-row">
+            <section aria-label="月历" className="min-w-0 flex-1">
+              {loadError && <ErrorRow message={loadError} onRetry={reloadAll} />}
+              {today.loading && !today.data && <LoadingRow />}
+              <div className="mb-3 flex items-center gap-2">
+                <h2 className="font-human text-lg font-semibold tabular-nums text-[var(--ink)]">{`${cursor.year} 年 ${cursor.month + 1} 月`}</h2>
+                <div className="ml-auto flex items-center gap-1">
+                  <Button variant="ghost" size="sm" aria-label="上个月" onClick={() => shiftMonth(-1)}><ChevronLeft className="h-4 w-4" strokeWidth={1.75} /></Button>
+                  <Button variant="secondary" size="sm" onClick={goToday}>今天</Button>
+                  <Button variant="ghost" size="sm" aria-label="下个月" onClick={() => shiftMonth(1)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
+                </div>
               </div>
-            )}
-            {topThree.length === 0 && !checklistDone && (
-              <div className="text-sm text-[var(--muted)]">先完成上面的起步步骤，之后每天这里最多只放三件事。</div>
-            )}
-            <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-3">
-              {topThree.map(item => (
-                <TodayItemCard key={`${item.ref.type}:${item.ref.id}:${item.kind}`} item={item} action={actionById.get(item.ref.id)} prominent onChanged={reloadAll} onSnooze={snooze} onOpenChat={onOpenChat} />
-              ))}
-            </div>
-            {rest.length > 0 && <RestList items={rest} actionById={actionById} onChanged={reloadAll} onSnooze={snooze} onOpenChat={onOpenChat} />}
-          </section>
-        )}
-
-        {today.data && <WaitingRow waiting={today.data.waiting} />}
-      </div>
-    </CareerPage>
-  );
-}
-
-function ChecklistCard({ steps }: { steps: ChecklistStep[] }) {
-  const [open, setOpen] = useState(true);
-  const doneCount = steps.filter(s => s.done).length;
-  return (
-    <Card
-      title={(
-        <button type="button" onClick={() => setOpen(o => !o)} className="inline-flex items-center gap-1 font-human text-base font-semibold text-[var(--ink)]">
-          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          起步：五步跑通第一条投递
-        </button>
-      )}
-      extra={<span className="text-xs text-[var(--muted)]">{`已完成 ${doneCount} / ${steps.length}`}</span>}
-    >
-      {open && (
-        <ol className="divide-y divide-[var(--line)]">
-          {steps.map((step, idx) => (
-            <li key={step.key} className="flex min-h-10 flex-wrap items-center gap-2 py-1 text-sm">
-              <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs ${step.done ? 'border-[var(--success)]/30 bg-[var(--success-bg)] text-[var(--success)]' : 'border-[var(--line)] text-[var(--muted)]'}`}>
-                {step.done ? '✓' : idx + 1}
-              </span>
-              <span className={step.done ? 'text-[var(--subtle)] line-through' : 'text-[var(--ink)]'}>{step.label}</span>
-              {!step.done && step.chat && <ChatActionButton text={step.chat} context={{ surface: 'today', note: `起步步骤：${step.label}` }} variant="ghost" size="sm" className="ml-auto" />}
-              {!step.done && step.focus && (
-                <Button variant="ghost" size="sm" className="ml-auto" onClick={() => emitEvent('career:focus', { surface: step.focus ?? 'inbox' } satisfies CareerFocusEvent)}>去收件箱绑定</Button>
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
-    </Card>
-  );
-}
-
-function RestList({ items, actionById, onChanged, onSnooze, onOpenChat }: {
-  items: TodayItem[]; actionById: Map<string, ActionQueueItem>; onChanged: () => void; onSnooze: (item: TodayItem) => void; onOpenChat: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-4">
-      <button type="button" onClick={() => setOpen(o => !o)} className="inline-flex items-center gap-1 rounded-md text-sm text-[var(--muted)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]">
-        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        还有 {items.length} 件，不急
-      </button>
-      {open && (
-        <ul className="mt-2 divide-y divide-[var(--line)]">
-          {items.map(item => (
-            <li key={`${item.ref.type}:${item.ref.id}:${item.kind}`}>
-              <TodayItemCard item={item} action={actionById.get(item.ref.id)} onChanged={onChanged} onSnooze={onSnooze} onOpenChat={onOpenChat} />
-            </li>
-          ))}
-        </ul>
-      )}
+              <MonthGrid grid={grid} month={cursor.month} todayKey={todayKey} selected={selected} byDate={byDate} onSelect={selectDay} />
+              <Legend />
+            </section>
+            <DaySidebar
+              dateKey={selected}
+              isToday={selected === todayKey}
+              todos={byDate.get(selected) ?? []}
+              justDone={justDone}
+              onDone={markDone}
+              onSnooze={snooze}
+              onChanged={reloadAll}
+              onOpenChat={onOpenChat}
+            />
+          </div>
+          <PageAskBar target={{ kind: 'career-today' }} placeholder="比如「10 月 20 日提醒我交测评」，或者问问今天先做哪件" />
+        </div>
+      </CareerPage>
+      {introOpen && steps && <OnboardingIntro steps={steps} onClose={closeIntro} />}
     </div>
   );
 }
 
-function TodayItemCard({ item, action, prominent = false, onChanged, onSnooze, onOpenChat }: {
-  item: TodayItem; action?: ActionQueueItem; prominent?: boolean; onChanged: () => void; onSnooze: (item: TodayItem) => void; onOpenChat: () => void;
+function MonthGrid({ grid, month, todayKey, selected, byDate, onSelect }: {
+  grid: Date[]; month: number; todayKey: string; selected: string; byDate: Map<string, CalendarTodo[]>; onSelect: (date: Date) => void;
 }) {
-  const act = useCareerAction();
-  const due = formatDue(item.due_at);
-  const refs = { [`${item.ref.type}_id`]: item.ref.id };
-  const run = (fn: () => Promise<unknown>) => act.run(async () => { await fn(); onChanged(); });
-
-  const payload = action ? safeJson<Record<string, unknown>>(action.payload_json, {}) : {};
-  const isSendMail = action?.kind === 'send_mail';
-  const isReview = item.kind === 'review';
-  // 每张卡只有一个大按钮（7.4）；其余动作降为 Ghost。
-  const main = prominent ? 'lg' : 'sm';
-  const openDossier = () => emitEvent('career:focus', { surface: 'dossier', application_id: item.ref.id } satisfies CareerFocusEvent);
-  const hasDeadlineDone = (item.kind === 'deadline' || item.kind === 'interview_today') && item.ref.type === 'deadline';
-  const hasDossier = (item.kind === 'deadline' || item.kind === 'interview_today' || item.kind === 'followup') && item.ref.type === 'application';
-  const dossierIsMain = hasDossier && item.kind !== 'interview_today' && !item.suggest;
-
-  const surface = isReview
-    ? 'rounded-xl border-[1.5px] border-[var(--hard)] bg-[var(--paper)] p-4 shadow-hard-lg'
-    : prominent
-      ? 'rounded-xl border border-[var(--line-2)] bg-[var(--paper)] p-4'
-      : 'py-3';
-
   return (
-    <section className={`flex h-full flex-col ${surface}`}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Badge tone={KIND_TONES[item.kind] ?? 'neutral'}>{KIND_LABELS[item.kind] ?? item.kind}</Badge>
-        {action && <span className="text-xs text-[var(--muted)]">{ACTION_KIND_LABELS[action.kind] ?? action.kind}</span>}
-        {due && <span className={`ml-auto text-xs tabular-nums ${due === '已过期' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`}>{due}</span>}
+    <div className="overflow-hidden rounded-[var(--radius-lg)] border-[1.5px] border-[var(--line-2)] bg-[var(--paper)]">
+      <div className="grid grid-cols-7 border-b border-[var(--line-2)]">
+        {WEEKDAYS.map(w => (
+          <div key={w} className="py-1.5 text-center font-human text-xs text-[var(--muted)]">{`周${w}`}</div>
+        ))}
       </div>
-      <div className={`mt-2 break-words font-semibold text-[var(--ink)] ${prominent ? 'font-human text-base' : 'text-sm'}`}>{item.title}</div>
-      {item.detail && <div className="mt-1 break-words text-sm text-[var(--muted)]">{item.detail}</div>}
-      {isSendMail && (typeof payload.subject === 'string' || typeof payload.to === 'string') && (
-        <div className="mt-2 border-l-2 border-[var(--line-2)] pl-3 text-sm text-[var(--ink-2)]">
-          {typeof payload.to === 'string' && <div>收件人：{payload.to}</div>}
-          {typeof payload.subject === 'string' && <div>主题：{payload.subject}</div>}
-        </div>
-      )}
-      {item.kind === 'stale' && (
-        <div className="mt-1 text-xs text-[var(--subtle)]">关闭这条线不会删除记录，之后对方来信会自动重新打开。</div>
-      )}
-      {act.error && <div className="mt-2"><ErrorRow message={act.error} /></div>}
-      <div className={`flex flex-wrap items-center gap-2 ${prominent ? 'mt-auto pt-4' : 'mt-2'}`}>
-        {isReview && (
-          <>
-            <Button variant="primary" size={main} busy={act.busy} onClick={() => void run(() => careerApi.reviewActions([item.ref.id], 'approved'))}>{isSendMail ? '批准并发送' : '批准'}</Button>
-            <Button variant="ghost" busy={act.busy} onClick={() => void run(() => careerApi.reviewActions([item.ref.id], 'rejected'))}>不发了</Button>
-          </>
-        )}
-        {hasDeadlineDone && (
-          <Button variant="primary" size={main} busy={act.busy} onClick={() => void run(() => careerApi.setDeadlineStatus(item.ref.id, 'done'))}>完成</Button>
-        )}
-        {item.kind === 'interview_today' && (
-          <ChatActionButton size={hasDeadlineDone ? 'md' : main} variant={hasDeadlineDone ? 'ghost' : 'secondary'} text="帮我准备这场面试" context={{ surface: 'today', refs: item.ref.type === 'application' ? { application_id: item.ref.id } : refs }} />
-        )}
-        {item.kind === 'stale' && (
-          <>
-            <Button size={main} busy={act.busy} onClick={() => void run(() => careerApi.closeSilent(item.ref.id))}>关闭这条线</Button>
-            <Button variant="ghost" onClick={() => onSnooze(item)}>再等等</Button>
-          </>
-        )}
-        {item.kind === 'inbox' && (
-          <Button size={main} onClick={() => emitEvent('career:focus', { surface: 'inbox', id: item.ref.type === 'inbox_item' ? item.ref.id : null } satisfies CareerFocusEvent)}>去收件箱</Button>
-        )}
-        {item.kind === 'handoff' && (
-          <Button variant="primary" size={main} onClick={onOpenChat}>打开对话接手</Button>
-        )}
-        {item.suggest && item.kind !== 'interview_today' && (
-          <ChatActionButton
-            text={item.suggest}
-            context={{ surface: 'today', refs }}
-            size={item.kind === 'deadline' && !hasDeadlineDone ? main : 'md'}
-            variant={item.kind === 'deadline' && !hasDeadlineDone ? 'secondary' : 'ghost'}
-          />
-        )}
-        {hasDossier && (
-          <Button variant={dossierIsMain ? 'secondary' : 'ghost'} size={dossierIsMain ? main : 'md'} onClick={openDossier}>打开卷宗</Button>
-        )}
+      <div className="grid grid-cols-7">
+        {grid.map((date, i) => {
+          const key = localDateKey(date);
+          return (
+            <DayCell
+              key={key}
+              date={date}
+              inMonth={date.getMonth() === month}
+              isToday={key === todayKey}
+              isSelected={key === selected}
+              lastCol={i % 7 === 6}
+              lastRow={i >= 35}
+              todos={byDate.get(key) ?? []}
+              onSelect={onSelect}
+            />
+          );
+        })}
       </div>
-    </section>
+    </div>
   );
 }
 
-function WaitingRow({ waiting }: { waiting: { count: number; by_stage: Array<{ stage: string; n: number }> } }) {
+function DayCell({ date, inMonth, isToday, isSelected, lastCol, lastRow, todos, onSelect }: {
+  date: Date; inMonth: boolean; isToday: boolean; isSelected: boolean; lastCol: boolean; lastRow: boolean; todos: CalendarTodo[]; onSelect: (date: Date) => void;
+}) {
+  const summary = summarizeDay(todos);
+  const open = todos.filter(t => !t.done).length;
+  const label = `${date.getMonth() + 1}月${date.getDate()}日${isToday ? '（今天）' : ''}${todos.length ? `，${open} 件没做完，共 ${todos.length} 件` : ''}`;
   return (
-    <section>
-      <SectionTitle>等待中（{waiting.count}）</SectionTitle>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
-        {waiting.by_stage.length === 0 && <span className="text-xs text-[var(--subtle)]">暂时没有在等回音的投递。</span>}
-        {waiting.by_stage.map(s => (
-          <Badge key={s.stage} tone="neutral">{STAGE_LABELS[s.stage as ApplicationStage] ?? s.stage} {s.n}</Badge>
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={isSelected}
+      data-date={localDateKey(date)}
+      onClick={() => onSelect(date)}
+      className={`flex min-h-[104px] min-w-0 flex-col gap-1 p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)] ${lastCol ? '' : 'border-r'} ${lastRow ? '' : 'border-b'} border-[var(--line)] ${isSelected ? 'bg-[var(--selected)]' : 'hover:bg-[var(--hover)]'}`}
+    >
+      <span
+        className={`inline-flex h-6 min-w-6 items-center justify-center self-start rounded-full px-1 text-xs tabular-nums ${isToday ? 'bg-[var(--primary)] font-semibold text-[var(--on-primary)]' : inMonth ? 'font-medium text-[var(--ink)]' : 'text-[var(--subtle)]'}`}
+      >
+        {date.getDate()}
+      </span>
+      {summary.map(s => (
+        <span key={s.category} data-category={s.category} data-lit={s.lit ? 'true' : 'false'} className="flex min-w-0 items-center gap-1.5 text-xs">
+          <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: s.lit ? CATEGORY_COLORS[s.category] : 'var(--line-2)' }} />
+          <span className={`min-w-0 flex-1 truncate ${s.lit ? 'text-[var(--ink-2)]' : 'text-[var(--subtle)] line-through'}`}>{s.first.item.title}</span>
+          {s.count > 1 && <span className="shrink-0 tabular-nums text-[var(--muted)]">{`+${s.count - 1}`}</span>}
+        </span>
+      ))}
+    </button>
+  );
+}
+
+function Legend() {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
+      {TODO_CATEGORIES.map(c => (
+        <span key={c} className="inline-flex items-center gap-1.5">
+          <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: CATEGORY_COLORS[c] }} />
+          {CATEGORY_LABELS[c]}
+        </span>
+      ))}
+      <span className="inline-flex items-center gap-1.5">
+        <span aria-hidden className="h-2 w-2 rounded-full bg-[var(--line-2)]" />
+        都做完了
+      </span>
+    </div>
+  );
+}
+
+function DaySidebar({ dateKey, isToday, todos, justDone, onDone, onSnooze, onChanged, onOpenChat }: {
+  dateKey: string; isToday: boolean; todos: CalendarTodo[]; justDone: ReadonlySet<string>;
+  onDone: (todo: CalendarTodo, note: string) => void; onSnooze: (todo: CalendarTodo) => void; onChanged: () => void; onOpenChat: () => void;
+}) {
+  const open = todos.filter(t => !t.done).length;
+  const groups = TODO_CATEGORIES
+    .map(category => ({
+      category,
+      // 排序不看完成与否：划掉的那行留在原位，不跳走。
+      items: todos.filter(t => t.category === category).sort((a, b) => a.item.priority - b.item.priority || (a.item.due_at ?? '').localeCompare(b.item.due_at ?? '')),
+    }))
+    .filter(g => g.items.length > 0);
+  return (
+    <aside aria-label="当天待办" className="w-full shrink-0 rounded-[var(--radius-lg)] bg-[var(--side)] p-4 lg:w-[320px] lg:self-start">
+      <div className="flex items-baseline gap-2">
+        <h2 className="font-human text-lg font-semibold text-[var(--ink)]">{dayLabel(dateKey)}</h2>
+        {isToday && <span className="text-xs font-medium text-[var(--primary)]">今天</span>}
+      </div>
+      <p className="mt-0.5 text-xs text-[var(--muted)]">
+        {todos.length === 0 ? '这一天没有待办' : open === 0 ? `${todos.length} 件都划掉了` : `${open} 件没做完${todos.length > open ? ` · 已划掉 ${todos.length - open} 件` : ''}`}
+      </p>
+      {todos.length === 0 && (
+        <p className="mt-4 text-sm text-[var(--muted)]">要加一件，直接在下面跟小芽说，比如「10 月 20 日提醒我交测评」。</p>
+      )}
+      <div className="mt-4 space-y-4">
+        {groups.map(group => (
+          <section key={group.category} aria-label={CATEGORY_LABELS[group.category]}>
+            <CategoryHeading category={group.category} items={group.items} />
+            <ul className="divide-y divide-[var(--line)]">
+              {group.items.map(todo => (
+                <TodoRow key={todo.key} todo={todo} animate={justDone.has(todo.key)} onDone={onDone} onSnooze={onSnooze} onChanged={onChanged} onOpenChat={onOpenChat} />
+              ))}
+            </ul>
+          </section>
         ))}
       </div>
-      <div className="mt-1.5 text-xs text-[var(--subtle)]">等待不需要你做任何事；超过阈值会自动出现在上面，你不用天天刷邮箱。</div>
-    </section>
+    </aside>
+  );
+}
+
+function CategoryHeading({ category, items }: { category: TodoCategory; items: CalendarTodo[] }) {
+  const open = items.filter(t => !t.done).length;
+  return (
+    <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-[var(--muted)]">
+      <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: open > 0 ? CATEGORY_COLORS[category] : 'var(--line-2)' }} />
+      {CATEGORY_LABELS[category]}
+      <span className="tabular-nums">{open > 0 ? `${open} / ${items.length}` : items.length}</span>
+    </div>
+  );
+}
+
+function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
+  todo: CalendarTodo; animate: boolean; onDone: (todo: CalendarTodo, note: string) => void; onSnooze: (todo: CalendarTodo) => void; onChanged: () => void; onOpenChat: () => void;
+}) {
+  const act = useCareerAction();
+  const { item, action } = todo;
+  const due = todo.done ? null : formatDue(item.due_at);
+  const refs = { [`${item.ref.type}_id`]: item.ref.id };
+  const complete = (fn: () => Promise<unknown>, note: string) => act.run(async () => { await fn(); onDone(todo, note); });
+
+  const payload = action ? safeJson<Record<string, unknown>>(action.payload_json, {}) : {};
+  const isSendMail = action?.kind === 'send_mail';
+  const isReview = item.kind === 'review' && !todo.confirmSubmit;
+  const deadlineDone = (item.kind === 'deadline' || item.kind === 'interview_today') && item.ref.type === 'deadline';
+  const applicationId = todo.applicationId ?? (item.ref.type === 'application' ? item.ref.id : null);
+  const openDossier = () => emitEvent('career:focus', { surface: 'dossier', application_id: applicationId } satisfies CareerFocusEvent);
+  const carried = !todo.done && todo.originDate && todo.originDate !== todo.date ? todo.originDate.slice(5).replace('-', '/') : null;
+  const meta = [
+    action ? ACTION_KIND_LABELS[action.kind] ?? action.kind : KIND_LABELS[item.kind] ?? item.kind,
+    isSendMail && typeof payload.to === 'string' ? `收件人：${payload.to}` : null,
+    item.detail ?? null,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <li data-todo={todo.key} data-done={todo.done ? 'true' : 'false'} className="py-2">
+      <div className="flex min-w-0 items-center gap-2 text-sm">
+        <StrikeText done={todo.done} animate={animate} className={`min-w-0 flex-1 ${todo.done ? '' : 'font-medium text-[var(--ink)]'}`}>{item.title}</StrikeText>
+        {todo.done && todo.note && <span className="shrink-0 text-xs text-[var(--subtle)]">{todo.note}</span>}
+        {due && <span className={`shrink-0 text-xs tabular-nums ${due === '已过期' ? 'text-[var(--danger)]' : 'text-[var(--muted)]'}`}>{due}</span>}
+        {!due && carried && <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">{`${carried} 起`}</span>}
+      </div>
+      {meta && !todo.done && <div className="mt-0.5 truncate text-xs text-[var(--muted)]" title={meta}>{meta}</div>}
+      {act.error && <div className="mt-1.5"><ErrorRow message={act.error} onRetry={onChanged} /></div>}
+      {!todo.done && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {isReview && (
+            <>
+              <Button variant="primary" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.reviewActions([item.ref.id], 'approved'), '已批准')}>{isSendMail ? '批准并发送' : '批准'}</Button>
+              <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.reviewActions([item.ref.id], 'rejected'), '不发了')}>不发了</Button>
+            </>
+          )}
+          {todo.confirmSubmit && (
+            <>
+              <Button variant="primary" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.confirmSubmit(item.ref.id, true), '已投递')}>已投递成功</Button>
+              <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.confirmSubmit(item.ref.id, false), '重新审核')}>没投出去</Button>
+            </>
+          )}
+          {deadlineDone && (
+            <Button variant="primary" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.setDeadlineStatus(item.ref.id, 'done'), '已完成')}>完成</Button>
+          )}
+          {item.kind === 'interview_today' && (
+            <ChatActionButton size="sm" variant="ghost" text="帮我准备这场面试" context={{ surface: 'today', refs: applicationId ? { application_id: applicationId } : refs }} />
+          )}
+          {item.kind === 'stale' && (
+            <>
+              <Button size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.closeSilent(item.ref.id), '已关闭')}>关闭这条线</Button>
+              <Button variant="ghost" size="sm" onClick={() => onSnooze(todo)}>再等等</Button>
+            </>
+          )}
+          {item.kind === 'inbox' && (
+            <Button size="sm" onClick={() => emitEvent('career:focus', { surface: 'inbox', id: item.ref.type === 'inbox_item' ? item.ref.id : null } satisfies CareerFocusEvent)}>去通知中心</Button>
+          )}
+          {item.kind === 'handoff' && !todo.confirmSubmit && (
+            <Button variant="primary" size="sm" onClick={onOpenChat}>打开对话接手</Button>
+          )}
+          {item.suggest && item.kind !== 'interview_today' && (
+            <ChatActionButton size="sm" variant="ghost" text={item.suggest} context={{ surface: 'today', refs }} />
+          )}
+          {applicationId && item.kind !== 'review' && (
+            <Button variant="ghost" size="sm" onClick={openDossier}>打开卷宗</Button>
+          )}
+        </div>
+      )}
+    </li>
   );
 }

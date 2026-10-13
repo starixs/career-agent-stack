@@ -11,23 +11,33 @@ describe('navModel', () => {
     for (const area of NAV_AREAS) {
       expect(area.items.map(item => item.label)).not.toContain(area.label);
     }
+    // 工作台只有两项：任务中心不再出现在这里
+    const work = NAV_AREAS.find(area => area.id === 'work')!.items;
+    expect(work.map(item => item.label)).toEqual(['招聘概览', '通知中心']);
+    expect(work.map(item => item.target.kind)).toEqual(['career-today', 'career-inbox']);
     expect(NAV_AREAS.find(area => area.id === 'career')!.items.map(item => item.label))
       .toEqual(['岗位收藏', '投递记录', '笔试记录', '面试记录', 'Offer 记录']);
     expect(NAV_AREAS.find(area => area.id === 'assets')!.items.map(item => item.label))
-      .toEqual(['基本资料', '经历', '简历', '常用表达', '助理记住的事']);
+      .toEqual(['基本资料', '经历', '简历', '常用表达']);
+    expect(NAV_AREAS.find(area => area.id === 'settings')!.items.map(item => item.id))
+      .toEqual(['general', 'desktop-pet', 'shortcuts', 'capabilities', 'feedback', 'about']);
   });
 
   it('locates the area and item from the active tab and the page sub-view', () => {
     expect(locateNav('chat', {})).toEqual({ area: 'chat', itemId: null });
     expect(locateNav('career-guide', {})).toEqual({ area: 'market', itemId: null });
     expect(locateNav('career-today', {})).toEqual({ area: 'work', itemId: 'today' });
+    expect(locateNav('career-inbox', {})).toEqual({ area: 'work', itemId: 'inbox' });
+    expect(locateNav('taskcenter', {})).toEqual({ area: 'work', itemId: null });
+    expect(locateNav('record', {})).toEqual({ area: 'work', itemId: null });
+    expect(locateNav('launcher', {})).toEqual({ area: 'chat', itemId: null });
     expect(locateNav('career-dossier', { 'career-dossier': 'apply' })).toEqual({ area: 'career', itemId: 'saved' });
     expect(locateNav('career-dossier', { 'career-dossier': 'interview' })).toEqual({ area: 'career', itemId: 'interviews' });
     expect(locateNav('career-material', { 'career-material': 'resume' })).toEqual({ area: 'assets', itemId: 'resumes' });
     expect(locateNav('career-dossier', { 'career-dossier': 'offer' })).toEqual({ area: 'career', itemId: 'offers' });
     expect(locateNav('career-review', {})).toEqual({ area: 'market', itemId: null });
     expect(locateNav('settings', {})).toEqual({ area: 'settings', itemId: 'general' });
-    expect(locateNav('settings', { settings: 'notifications' })).toEqual({ area: 'settings', itemId: 'notifications' });
+    expect(locateNav('settings', { settings: 'feedback' })).toEqual({ area: 'settings', itemId: 'feedback' });
     expect(locateNav('capabilities', {})).toEqual({ area: 'settings', itemId: 'capabilities' });
   });
 });

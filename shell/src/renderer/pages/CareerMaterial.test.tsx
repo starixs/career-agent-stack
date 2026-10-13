@@ -43,6 +43,14 @@ describe('CareerMaterial', () => {
     expect(screen.getByText('助理起草并经你确认的说法会存在这里；网申、邮件、面试里用过的地方都会记录')).toBeInTheDocument();
   });
 
+  it('已下线的子视图（助理记住的事）落回说法库', async () => {
+    mockGet(true);
+    setCareerSubView('career-material', 'memory');
+    render(<CareerMaterial isActive onOpenChat={vi.fn()} />);
+    expect(await screen.findByText('说法库还是空的')).toBeInTheDocument();
+    expect(vi.mocked(apiGetJson).mock.calls.some(([path]) => String(path).includes('/memories'))).toBe(false);
+  });
+
   it('渲染素材卡片：类型 / 确认态 / 适用公司 / 用过几次，展开看对谁说过', async () => {
     mockGet();
     render(<CareerMaterial isActive onOpenChat={vi.fn()} />);

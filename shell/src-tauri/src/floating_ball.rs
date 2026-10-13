@@ -3396,6 +3396,22 @@ mod commands {
         )
         .map_err(|e| format!("[fb] emit open-desktop-pet-settings: {e}"))
     }
+
+    /// Summon the main app and start the career onboarding guide on 工作台
+    /// (the ball's daily "新手任务没走完" reminder entry).
+    #[tauri::command]
+    pub async fn cmd_fb_open_onboarding(app: AppHandle) -> Result<(), String> {
+        use tauri::Emitter;
+        #[cfg(target_os = "macos")]
+        run_native_window_op(app.clone(), "suppress pin restore", |_app| {
+            imp::suppress_pin_foreground_restore();
+            Ok(())
+        })?;
+        crate::ulog_info!("[fb] cmd_fb_open_onboarding requested");
+        crate::tray::show_main_window(&app);
+        app.emit_to("main", "fb:open-onboarding", serde_json::json!({}))
+            .map_err(|e| format!("[fb] emit open-onboarding: {e}"))
+    }
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -3553,6 +3569,14 @@ mod commands {
             serde_json::json!({}),
         )
         .map_err(|e| format!("[fb] emit open-desktop-pet-settings: {e}"))
+    }
+
+    #[tauri::command]
+    pub async fn cmd_fb_open_onboarding(app: AppHandle) -> Result<(), String> {
+        use tauri::Emitter;
+        crate::tray::show_main_window(&app);
+        app.emit_to("main", "fb:open-onboarding", serde_json::json!({}))
+            .map_err(|e| format!("[fb] emit open-onboarding: {e}"))
     }
 }
 

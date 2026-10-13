@@ -45,6 +45,10 @@ export default function BallWindow() {
     const { t } = useTranslation('chat');
     const [state, setState] = useState<FbBallState>('idle');
     const [unread, setUnread] = useState(0);
+    // 主窗口推来的新手引导每日提醒（BallReminderRelay）；有提醒时点球直接回工作台开始引导。
+    const [reminder, setReminder] = useState<{ count: number; text: string | null } | null>(null);
+    const reminderRef = useRef(reminder);
+    useEffect(() => { reminderRef.current = reminder; }, [reminder]);
     const [dragging, setDragging] = useState(false);
     const [dragDirection, setDragDirection] = useState<PetDragDirection>('none');
     const [pop, setPop] = useState(false);
@@ -123,6 +127,14 @@ export default function BallWindow() {
                 setUnread(e.payload?.count ?? 0);
                 setPendingKind(e.payload?.pendingKind ?? null);
                 setHasError(Boolean(e.payload?.hasError));
+            },
+            ac.signal,
+        );
+        void listenWithCleanup<{ count?: number; text?: string | null }>(
+            'fb:reminder',
+            (e) => {
+                const count = e.payload?.count ?? 0;
+                setReminder(count > 0 ? { count, text: e.payload?.text ?? null } : null);
             },
             ac.signal,
         );
@@ -303,6 +315,13 @@ export default function BallWindow() {
             hoverTimerRef.current = null;
         }
         suppressHoverPeekUntilBallLeave(hoverIntentRef.current);
+        if (reminderRef.current && companionModeRef.current !== 'pin' && !pinInFlightRef.current) {
+            setReminder(null);
+            void invoke('cmd_fb_open_onboarding').catch((err) => {
+                console.warn('[fb-ball] open onboarding failed:', err);
+            });
+            return;
+        }
         if (companionModeRef.current === 'pin' || pinInFlightRef.current) {
             // Toggle: ball click while pinned or pinning closes the companion.
             summonGenerationRef.current += 1;
@@ -447,7 +466,7 @@ export default function BallWindow() {
     const petAnimation = useMemo(
         () =>
             derivePetAnimation({
-                ballState: state,
+                ballState: reminder && state === 'idle' ? 'blocked' : state,
                 pendingKind,
                 dragging,
                 dragDirection,
@@ -455,7 +474,7 @@ export default function BallWindow() {
                 donePulse: pop,
                 hasError,
             }),
-        [dragDirection, dragging, hasError, pendingKind, pop, state, summonPulse],
+        [dragDirection, dragging, hasError, pendingKind, pop, reminder, state, summonPulse],
     );
     const petPlayback = useMemo(
         () => deriveFloatingPetPlayback({
@@ -506,6 +525,9 @@ export default function BallWindow() {
                     </>
                 )}
                 <span className="badge">{unread || ''}</span>
+                {reminder && state === 'idle' && (
+                    <span className="fbw-reminder" title={reminder.text ?? undefined} aria-label={reminder.text ?? undefined}>{reminder.count}</span>
+                )}
             </div>
         </div>
     );

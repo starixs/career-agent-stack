@@ -171,6 +171,32 @@ html.fb-transparent #root {
 }
 .fbw-ball.state-done .badge { opacity: 1; transform: scale(1); }
 
+/* 新手引导每日提醒（主窗口 fb:reminder 推来）：右上角琥珀色小角标，轻微呼吸，点球回工作台开始引导。 */
+.fbw-ball .fbw-reminder {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  background: var(--warning);
+  color: var(--on-primary);
+  border: 1.5px solid var(--fb-highlight-line);
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  animation: fbw-reminder-breathe 1.8s ease-in-out infinite;
+}
+@keyframes fbw-reminder-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fbw-ball .fbw-reminder { animation: none; }
+}
+
 /* 宠物化球体（PRD 0.2.34 floating_ball_pet_mode Phase 1）：保持 92×92
    OS panel 不变，只替换 DOM 视觉层。状态仍由 idle/running/blocked/done 四态
    聚合；Codex 9 行只是 sprite atlas 动画名。 */

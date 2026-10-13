@@ -74,6 +74,29 @@ export interface BoardFilter {
 export interface BoardRow {
   job: Job; match: JobMatch | null;
   application: { id: string; stage: string; next_action: string | null; updated_at: string } | null;
+  /** 多维表格用的维度（批次 / 行业 / 类型标签），从来源数据里能拿到的才有，拿不到为空，不猜。 */
+  meta: BoardMeta;
+}
+export interface BoardMeta { batch: string | null; industry: string | null; type_tags: string[] }
+
+/** 校招来源把「央国企 / 外企 / 事业单位」这类企业性质也写在行业里：归到类型标签，行业只留真正的行业。 */
+const OWNERSHIP_RE = /央企|国企|央国企|外企|外资|合资|民企|事业单位|研究所|军工/;
+
+/** 来源数据里的维度：campus-radar 导入时写在 prefilter_json.campus（见 bridges/campusRadar.ts mapCampusJob）。 */
+export function boardMeta(job: Pick<Job, 'prefilter_json'>): BoardMeta {
+  let campus: Record<string, unknown> = {};
+  try {
+    const raw = job.prefilter_json ? JSON.parse(job.prefilter_json) as Record<string, unknown> : {};
+    if (raw && typeof raw.campus === 'object' && raw.campus) campus = raw.campus as Record<string, unknown>;
+  } catch { /* 坏 JSON 当没有 */ }
+  const text = (v: unknown) => (typeof v === 'string' && v.trim() && v.trim() !== '其他' ? v.trim() : null);
+  const industryRaw = text(campus.industry);
+  const ownership = industryRaw && OWNERSHIP_RE.test(industryRaw);
+  return {
+    batch: text(campus.batch),
+    industry: ownership ? null : industryRaw,
+    type_tags: ownership && industryRaw ? [industryRaw] : [],
+  };
 }
 
 const DONE = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired', 'skip']);
@@ -82,7 +105,7 @@ export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().t
   const apps = new Map<string, BoardRow['application']>();
   for (const a of repos.listApplications()) if (!apps.has(a.job_id)) apps.set(a.job_id, { id: a.id, stage: a.stage, next_action: a.next_action, updated_at: a.updated_at });
   const q = f.q?.trim().toLowerCase();
-  let rows: BoardRow[] = repos.listJobs().filter(j => j.source_status !== 'merged').map(job => ({ job, match: parseMatch(job.match_json), application: apps.get(job.id) ?? null }));
+  let rows: BoardRow[] = repos.listJobs().filter(j => j.source_status !== 'merged').map(job => ({ job, match: parseMatch(job.match_json), application: apps.get(job.id) ?? null, meta: boardMeta(job) }));
   rows = rows.filter(({ job, match, application }) => {
     if (q && !`${job.company_name ?? ''} ${job.title} ${job.location ?? ''}`.toLowerCase().includes(q)) return false;
     if (f.employment_type && job.employment_type !== f.employment_type) return false;

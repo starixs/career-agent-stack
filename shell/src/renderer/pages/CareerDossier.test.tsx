@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
@@ -17,14 +17,27 @@ const interviewDeadline = {
   source: 'mail', status: 'open', url: 'https://meet.example.com/abc', note: null, created_at: '2026-10-01', updated_at: '2026-10-01',
 };
 const summaries = [
-  { application_id: 'a1', job_id: 'j1', company_name: '丙公司', title: '后端工程师', stage: 'interview', updated_at: '2026-10-01', days_since_update: 2, next_deadline: interviewDeadline, interview_count: 1, resume_tailored_id: 'rt1', closed: false },
-  { application_id: 'a2', job_id: 'j2', company_name: '丁公司', title: '算法工程师', stage: 'applied', updated_at: '2026-09-13', days_since_update: 20, next_deadline: null, interview_count: 0, resume_tailored_id: null, closed: false },
-  { application_id: 'a3', job_id: 'j3', company_name: '戊公司', title: '数据工程师', stage: 'rejected', updated_at: '2026-09-01', days_since_update: 32, next_deadline: null, interview_count: 0, resume_tailored_id: null, closed: true },
+  { application_id: 'a1', job_id: 'j1', company_name: '丙公司', title: '后端工程师', stage: 'interview', updated_at: '2026-10-01', days_since_update: 2, next_deadline: interviewDeadline, interview_count: 1, resume_tailored_id: 'rt1', closed: false,
+    created_at: '2026-09-20', applied_at: '2026-09-21T02:00:00.000Z', reached_stages: ['evaluated', 'applied', 'responded', 'interview'], exam_kinds: ['written_test'], job_url: 'https://example.com/j1' },
+  { application_id: 'a2', job_id: 'j2', company_name: '丁公司', title: '算法工程师', stage: 'applied', updated_at: '2026-09-13', days_since_update: 20, next_deadline: null, interview_count: 0, resume_tailored_id: null, closed: false,
+    created_at: '2026-09-10', applied_at: '2026-09-11T02:00:00.000Z', reached_stages: ['evaluated', 'applied'], exam_kinds: [], job_url: null },
+  { application_id: 'a3', job_id: 'j3', company_name: '戊公司', title: '数据工程师', stage: 'rejected', updated_at: '2026-09-01', days_since_update: 32, next_deadline: null, interview_count: 0, resume_tailored_id: null, closed: true,
+    created_at: '2026-08-20', applied_at: '2026-08-21T02:00:00.000Z', reached_stages: ['evaluated', 'applied', 'rejected'], exam_kinds: ['written_test'], job_url: 'https://example.com/j3' },
+  // 还没投出去
+  { application_id: 'a4', job_id: 'j4', company_name: '己公司', title: '运营', stage: 'approved', updated_at: '2026-10-05', days_since_update: 0, next_deadline: null, interview_count: 0, resume_tailored_id: null, closed: false,
+    created_at: '2026-10-05', applied_at: null, reached_stages: ['evaluated', 'ready', 'approved'], exam_kinds: [], job_url: null },
+];
+const past = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+const examDeadlines = [
+  { ...interviewDeadline, id: 'w1', kind: 'written_test', title: '丙公司笔试', due_at: tomorrow, url: null },
+  { ...interviewDeadline, id: 'w2', kind: 'assessment', title: '戊公司测评', due_at: past, application_id: 'a3', job_id: 'j3', status: 'missed', url: null },
+  { ...interviewDeadline, id: 'w3', kind: 'written_test', title: '取消的笔试', status: 'cancelled' },
+  interviewDeadline,
 ];
 
 const dossierA1 = {
   application: { id: 'a1', job_id: 'j1', resume_tailored_id: 'rt1', stage: 'interview', next_action: null, next_action_due: null, blocker_reason: null, retry_strategy: null, submission_evidence: null, answers_used_json: '{}', page_url: null, created_at: '2026-09-20', updated_at: '2026-10-01' },
-  job: { id: 'j1', source_platform: 'boss', title: '后端工程师', company_name: '丙公司', location: '上海', url: 'https://example.com/j1' },
+  job: { id: 'j1', source_platform: 'boss', title: '后端工程师', company_name: '丙公司', location: '上海', url: 'https://example.com/j1', jd_raw: '岗位职责：负责核心交易接口开发' },
   company: null,
   resume: { kind: 'tailored', id: 'rt1', schema: { basics: { name: '张三' }, experience: [{ title: 'x' }], projects: [{}, {}] }, confirmed: true },
   answers_used: { 为什么选择我们: '看重基础设施方向的投入' },
@@ -49,17 +62,26 @@ const dossierA2 = {
   resume: null, answers_used: null, material_uses: [], notes: [], deadlines: [], interviews: [], offers: [], history: [], mails: [], actions: [], predictions: [],
 };
 
-function mockGet() {
+function mockGet({ exams = [] as unknown[] } = {}) {
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
     if (path.startsWith('/api/career/dossiers/a1')) return { ok: true, dossier: dossierA1 };
     if (path.startsWith('/api/career/dossiers/a2')) return { ok: true, dossier: dossierA2 };
     if (path.startsWith('/api/career/dossiers')) return { ok: true, dossiers: summaries };
+    if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines: exams };
     if (path.startsWith('/api/career/exam-practices')) return { ok: true, examPractices: [] };
     return { ok: true };
   });
 }
 
-describe('CareerDossier', () => {
+const bodyRows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1);
+
+/** 点一行打开档案（整行可点）。 */
+async function openLine(company: string, title: string) {
+  fireEvent.click(await screen.findByRole('row', { name: `${company} · ${title}` }));
+  return screen.findByRole('heading', { name: title });
+}
+
+describe('CareerDossier · 投递记录', () => {
   beforeEach(() => {
     resetCareerSubViews();
     vi.mocked(apiGetJson).mockReset();
@@ -67,38 +89,81 @@ describe('CareerDossier', () => {
     mockGet();
   });
 
-  it('自动选中第一条进行中的线，摊开面试当天需要的全部信息', async () => {
+  it('默认是一张普通列表：公司 / 岗位 / 投递时间 / 状态，按投递时间倒序；不分组、不自动摊开档案', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
-    expect(await screen.findByRole('heading', { name: '后端工程师' })).toBeInTheDocument();
-    // 列表：阶段、无动静提示、下一截止；已关闭默认折叠
+    await screen.findByRole('table');
+    expect(screen.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['公司', '岗位', '投递时间', '状态']);
+    // 没投出的按建档时间排在最前，显示「未投出」
+    expect(bodyRows().map(r => r.getAttribute('aria-label'))).toEqual(['己公司 · 运营', '丙公司 · 后端工程师', '丁公司 · 算法工程师', '戊公司 · 数据工程师']);
+    expect(within(bodyRows()[0]).getByText('未投出')).toBeInTheDocument();
+    expect(within(bodyRows()[1]).getByText('2026-09-21')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '后端工程师' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/已关闭（/)).not.toBeInTheDocument();
+    // 状态：紧凑步骤条 + 当前步骤文字（被拒停在笔试，不用红色）
+    expect(screen.getByRole('button', { name: '投递状态：面试' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '投递状态：网申 · 已投递' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '投递状态：笔试 · 未通过' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '投递状态：网申 · 待投' })).toBeInTheDocument();
     expect(screen.getByText('20 天无动静')).toBeInTheDocument();
-    expect(screen.getByText('已关闭（1）')).toBeInTheDocument();
-    expect(screen.queryByText('戊公司 · 数据工程师')).not.toBeInTheDocument();
-    // 面试信息
+  });
+
+  it('移到状态上浮出完整步骤条', async () => {
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    fireEvent.mouseEnter(await screen.findByRole('button', { name: '投递状态：面试' }));
+    const full = await screen.findByRole('list', { name: /^投递进度：/ });
+    expect(full).toHaveAccessibleName('投递进度：网申已完成，测评没有这一步的记录，笔试已完成，面试进行中，Offer还没到，入职还没到');
+    expect(within(full).getAllByRole('listitem').map(li => li.textContent)).toEqual(['网申', '测评', '笔试', '面试', 'Offer', '入职']);
+  });
+
+  it('点岗位名看 JD，不会打开档案；Esc 关闭；没有 JD 原文时给链接', async () => {
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: '后端工程师' }));
+    const dialog = await screen.findByRole('dialog', { name: '后端工程师 的 JD' });
+    expect(await within(dialog).findByText('岗位职责：负责核心交易接口开发')).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: '岗位页面' })).toHaveAttribute('href', 'https://example.com/j1');
+    expect(screen.queryByRole('heading', { name: '投的是哪版简历' })).not.toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: '算法工程师' }));
+    expect(await screen.findByText('没有保存这个岗位的 JD 原文。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '打开档案' }));
+    expect(await screen.findByRole('heading', { name: '算法工程师' })).toBeInTheDocument();
+  });
+
+  it('点一行摊开档案：面试当天需要的全部信息；返回回到列表', async () => {
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await openLine('丙公司', '后端工程师');
     expect(screen.getByText('技术一面')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '打开链接' })).toHaveAttribute('href', 'https://meet.example.com/abc');
     expect(screen.getByText('一面')).toBeInTheDocument();
     expect(screen.getByText('· 进入下一轮')).toBeInTheDocument();
-    // 投的是哪版简历
     expect(screen.getByText('定制版')).toBeInTheDocument();
     expect(screen.getByText('张三 · 1 段经历 · 2 个项目')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '预览 PDF' })).toHaveAttribute('href', '/api/career/resumes/rt1/file?format=pdf');
-    // 说过的话 / 听到的 / 邮件
     expect(screen.getByText('去年把核心接口 QPS 从 1 万提到 3 万')).toBeInTheDocument();
-    expect(screen.getAllByText('我说过').length).toBeGreaterThanOrEqual(2); // 备注徽标 + 记一笔默认类型
     expect(screen.getByText('我选择丙公司是因为…')).toBeInTheDocument();
     expect(screen.getByText('看重基础设施方向的投入')).toBeInTheDocument();
     expect(screen.getByText('团队今年要扩到 12 人')).toBeInTheDocument();
     expect(screen.getByText('一面邀约：后端工程师')).toBeInTheDocument();
-    // 没有调研 → 让助理查；预测追问；时间线
     expect(screen.getByRole('button', { name: '帮我查查这家公司靠不靠谱' })).toBeInTheDocument();
     expect(screen.getByText('QPS 提升的压测方法会被追问')).toBeInTheDocument();
     expect(screen.getByText('· 收到一面邀约')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '投递记录' }));
+    expect(await screen.findByRole('table')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '后端工程师' })).not.toBeInTheDocument();
+  });
+
+  it('键盘：行可聚焦，Enter 打开档案', async () => {
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    const row = await screen.findByRole('row', { name: '丁公司 · 算法工程师' });
+    fireEvent.keyDown(row, { key: 'Enter' });
+    expect(await screen.findByRole('heading', { name: '算法工程师' })).toBeInTheDocument();
   });
 
   it('待审动作：send_mail 显示收件人与主题，批准并发送调用 actions/review', async () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, n: 1 });
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await openLine('丙公司', '后端工程师');
     expect(await screen.findByText('主题：感谢一面机会')).toBeInTheDocument();
     expect(screen.getByText('收件人：hr@bing.com')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '批准并发送' }));
@@ -108,8 +173,7 @@ describe('CareerDossier', () => {
   it('沉默 14 天以上的线提示关闭，关闭调用 close-silent', async () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, application: { id: 'a2', stage: 'discarded' } });
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
-    fireEvent.click(await screen.findByText('丁公司 · 算法工程师'));
-    expect(await screen.findByRole('heading', { name: '算法工程师' })).toBeInTheDocument();
+    await openLine('丁公司', '算法工程师');
     expect(screen.getByRole('status')).toHaveTextContent('已经 20 天没有动静');
     expect(screen.getByText('黄灯')).toBeInTheDocument();
     expect(screen.getByText('核实社保缴纳主体')).toBeInTheDocument();
@@ -120,7 +184,7 @@ describe('CareerDossier', () => {
   it('记一笔：提交到 dossiers/:id/notes', async () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, note: { id: 'n9' } });
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
-    await screen.findByRole('heading', { name: '后端工程师' });
+    await openLine('丙公司', '后端工程师');
     fireEvent.change(screen.getByLabelText('轮次'), { target: { value: '二面' } });
     fireEvent.change(screen.getByLabelText('记录内容'), { target: { value: '期望薪资说的是 30K' } });
     fireEvent.click(screen.getByRole('button', { name: '记下' }));
@@ -130,7 +194,7 @@ describe('CareerDossier', () => {
   it('改阶段调用 applications/:id/stage，状态机报错显示在页面上', async () => {
     vi.mocked(apiPostJson).mockRejectedValue(new Error('interview → hired 不是允许的流转'));
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
-    await screen.findByRole('heading', { name: '后端工程师' });
+    await openLine('丙公司', '后端工程师');
     fireEvent.click(screen.getByLabelText('移动阶段'));
     expect(screen.queryByRole('button', { name: '面试中' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '已入职' }));
@@ -140,7 +204,7 @@ describe('CareerDossier', () => {
 
   it('面试模式隐藏待审 / 时间线 / 记一笔；准备面试按钮带 application_id 发进对话', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
-    await screen.findByRole('heading', { name: '后端工程师' });
+    await openLine('丙公司', '后端工程师');
     expect(screen.getByText('记一笔')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '面试模式' }));
     expect(screen.queryByText('记一笔')).not.toBeInTheDocument();
@@ -154,19 +218,19 @@ describe('CareerDossier', () => {
     off();
   });
 
-  it('焦点事件按 job_id 选中对应的线；搜索过滤列表', async () => {
+  it('焦点事件按 job_id 直接摊开对应的档案；搜索过滤列表', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
-    await screen.findByRole('heading', { name: '后端工程师' });
+    await screen.findByRole('table');
     act(() => { emitEvent('career:focus', { surface: 'dossier', job_id: 'j2' }); });
     expect(await screen.findByRole('heading', { name: '算法工程师' })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('搜索投递线'), { target: { value: '丙' } });
-    expect(screen.getByText('丙公司 · 后端工程师')).toBeInTheDocument();
-    expect(screen.queryByText('丁公司 · 算法工程师')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '投递记录' }));
+    fireEvent.change(await screen.findByLabelText('搜索投递线'), { target: { value: '丙' } });
+    expect(bodyRows().map(r => r.getAttribute('aria-label'))).toEqual(['丙公司 · 后端工程师']);
   });
 
   it('二级导航选的子视图决定页标题与嵌入页', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
-    await screen.findByRole('heading', { name: '后端工程师' });
+    await screen.findByRole('table');
     expect(screen.getByRole('heading', { name: '投递记录' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'interview'); });
     expect(await screen.findByTestId('embedded-interview')).toBeInTheDocument();
@@ -175,7 +239,35 @@ describe('CareerDossier', () => {
     expect(await screen.findByTestId('embedded-apply')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '岗位收藏' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'exam'); });
-    expect(await screen.findByText('还没有笔试练习')).toBeInTheDocument();
+    expect(await screen.findByText('还没有笔试 / 测评安排')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).toBeNull();
+  });
+});
+
+describe('CareerDossier · 笔试记录', () => {
+  beforeEach(() => {
+    resetCareerSubViews();
+    vi.mocked(apiGetJson).mockReset();
+    mockGet({ exams: examDeadlines });
+  });
+
+  it('公司 / 岗位 / 时间 / 状态；状态只分未到 / 已过期；面试和已取消的不列；点一行打开对应档案', async () => {
+    act(() => { setCareerSubView('career-dossier', 'exam'); });
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    expect(screen.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['公司', '岗位', '时间', '状态']);
+    const rows = bodyRows();
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]).getByText('丙公司')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('后端工程师')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('未到')).toBeInTheDocument();
+    expect(within(rows[0]).getByText(/· 笔试/)).toBeInTheDocument();
+    expect(within(rows[1]).getByText('戊公司')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('已过期')).toBeInTheDocument();
+    expect(within(rows[1]).getByText(/· 测评/)).toBeInTheDocument();
+    expect(screen.queryByText('取消的笔试')).not.toBeInTheDocument();
+    fireEvent.click(rows[0]);
+    expect(await screen.findByRole('heading', { name: '后端工程师' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '投递记录' })).toBeInTheDocument();
   });
 });

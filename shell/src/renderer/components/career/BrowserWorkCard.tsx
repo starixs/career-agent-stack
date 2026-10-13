@@ -1,11 +1,12 @@
 /**
- * 浏览器工作面的收起态（specs/CAREER_DESIGN.md §5.7）：对话里的一张工具卡，
- * 显示正在做哪一步、实时缩略和「打开浏览器」。展开后按钮弱化为「已在右侧打开」，
+ * 浏览器工作面的收起态（specs/CAREER_DESIGN.md §5.7）：对话里的一张打破式卡片，
+ * 视觉锚是实时缩略，正文是正在做哪一步，右下「打开浏览器」。展开后按钮弱化为「已在右侧打开」，
  * 交接时状态点变黄并说明要你做什么。
  */
 import { Globe } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
+import { BreakoutCard, StepBar, type BreakoutTone } from '@/features/career-shell/BreakoutCard';
 import { useWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
 
 import { HANDOFF_REASON_LABELS } from './careerConstants';
@@ -44,47 +45,56 @@ export function BrowserWorkCard({ takeover, progress, tool }: {
   const humanActive = effectiveTakeover?.state === 'human_active';
   const reason = effectiveTakeover?.reason ? (HANDOFF_REASON_LABELS[effectiveTakeover.reason] ?? effectiveTakeover.reason) : null;
   const done = (tool && !live) || (!effectiveTakeover && typeof progress?.progress === 'number' && progress.progress >= 1);
-  const dot = handoff || humanActive ? 'bg-[var(--warning)]' : done ? 'bg-[var(--subtle)]' : 'bg-[var(--success)]';
+  const failed = done && tool?.isError === true;
+  const tone: BreakoutTone = handoff || humanActive ? 'waiting' : failed ? 'error' : done ? 'idle' : 'running';
   const status = handoff
-    ? `停在这一步${reason ? `「${reason}」` : ''} · 需要你本人操作`
+    ? '需要你本人操作'
     : humanActive ? '你在控制中'
-      : done ? (tool?.isError ? '出错了，可以让小芽重试' : '已完成 · 查看') : (progress?.message ?? '正在工作');
+      : done ? (failed ? '出错了，可以让小芽重试' : '已完成 · 查看') : '正在工作';
+  const percent = !done && typeof progress?.progress === 'number' ? Math.round(progress.progress * 100) : null;
+
+  const host = effectiveTakeover?.url ? hostOf(effectiveTakeover.url) : null;
+  const steps = progress?.steps?.length ? progress.steps : null;
 
   return (
-    <div
-      data-testid="career-browser-card"
-      className="w-full max-w-[380px] rounded-[10px] border border-[var(--line-2)] bg-[var(--paper)] p-3 shadow-sm"
+    <BreakoutCard
+      testId="career-browser-card"
+      anchor={!open && live ? <BrowserThumbnail /> : <IconAnchor />}
+      title={progress?.company ?? '浏览器'}
+      aside={joinAside(progress?.job_title, percent !== null ? `${percent}%` : null)}
+      overline={handoff ? `停在这一步${reason ? `「${reason}」` : ''}，等你本人来` : host?.toUpperCase()}
+      status={{ tone, text: status }}
+      open={open}
+      action={{ label: handoff ? '去处理' : '打开浏览器', onOpen: () => openLiveDrawer() }}
     >
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[var(--primary-soft)] text-[var(--primary)]">
-          <Globe className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <div className="font-human text-sm font-semibold text-[var(--ink)]">浏览器</div>
-          <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
-            <span className="truncate">{status}</span>
-          </div>
-        </div>
-      </div>
-      {!open && live && <BrowserThumbnail />}
-      {open ? (
-        <div className="mt-2.5 flex h-9 items-center justify-center rounded-lg border border-dashed border-[var(--line-2)] bg-[var(--inset)] text-sm text-[var(--muted)]">
-          已在右侧打开 →
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => openLiveDrawer()}
-          className="mt-2.5 flex h-9 w-full items-center justify-center rounded-lg border-[1.5px] border-[var(--hard)] bg-[var(--paper)] text-sm font-semibold text-[var(--ink)] shadow-hard transition-colors hover:bg-[var(--hover)]"
-        >
-          {handoff ? '去处理' : '打开浏览器'}
-        </button>
+      {(steps || (!done && progress?.message)) && (
+        <>
+          {!done && progress?.message && <p className="line-clamp-2">{progress.message}</p>}
+          {steps && <div className="mt-3"><StepBar steps={steps} /></div>}
+        </>
       )}
-    </div>
+    </BreakoutCard>
   );
 }
 
+function hostOf(url: string): string | null {
+  try { return new URL(url).host; } catch { return null; }
+}
+
+function joinAside(...parts: Array<string | null | undefined>): string | undefined {
+  const kept = parts.filter((part): part is string => Boolean(part));
+  return kept.length ? kept.join(' · ') : undefined;
+}
+
+function IconAnchor() {
+  return (
+    <span aria-hidden="true" className="grid h-[92px] w-[70px] place-items-center rounded-[4px] bg-[var(--selected)] text-[var(--ink-2)]">
+      <Globe className="h-7 w-7" strokeWidth={1.5} />
+    </span>
+  );
+}
+
+/** 视觉锚：实时网页缩略。 */
 function BrowserThumbnail() {
   const [frame, setFrame] = useState<LiveFrame | null>(null);
   const onEvent = useCallback((ev: LiveStreamEvent) => {
@@ -92,8 +102,8 @@ function BrowserThumbnail() {
   }, []);
   useLiveStream(true, onEvent);
   return (
-    <div className="mt-2.5 overflow-hidden rounded-lg border border-[var(--line)] bg-[var(--inset)]">
-      <CareerLiveViewport frame={frame} interactive={false} placeholder="等待画面…" className="max-h-[200px]" />
+    <div className="w-[168px] overflow-hidden rounded-[4px] border border-[var(--line-2)] bg-[var(--inset)]">
+      <CareerLiveViewport frame={frame} interactive={false} placeholder="等待画面…" className="max-h-[110px]" />
     </div>
   );
 }

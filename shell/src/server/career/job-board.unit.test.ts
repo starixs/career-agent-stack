@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { JobListing } from '@career/core';
 
 import { loadCore } from './core-module';
-import { computeMatches, jobBoard, prepareJobs, setJobPrefs } from './job-board';
+import { boardMeta, computeMatches, jobBoard, prepareJobs, setJobPrefs } from './job-board';
 import { RemoteJobSource, syncJobSource, uploadAnswerEvents, upsertListings } from './server-api';
 import { CareerStore } from './store';
 import { createMemoryRepos } from './test-db';
@@ -121,5 +121,38 @@ describe('导出表格', () => {
     const wb = XLSX.read((await import('fs')).readFileSync(res.path));
     const answers = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets['网申答案']);
     expect(answers[0].答案).toBe('（个人信息，不导出）');
+  });
+});
+
+describe('多维表格维度与投递记录摘要', () => {
+  it('boardMeta：批次 / 行业来自校招来源的 prefilter_json；企业性质归到类型标签；拿不到就为空', () => {
+    expect(boardMeta({ prefilter_json: JSON.stringify({ campus: { batch: '正式批', industry: '互联网' } }) })).toEqual({ batch: '正式批', industry: '互联网', type_tags: [] });
+    expect(boardMeta({ prefilter_json: JSON.stringify({ campus: { batch: '提前批', industry: '央国企' } }) })).toEqual({ batch: '提前批', industry: null, type_tags: ['央国企'] });
+    expect(boardMeta({ prefilter_json: JSON.stringify({ campus: { industry: '其他' } }) })).toEqual({ batch: null, industry: null, type_tags: [] });
+    expect(boardMeta({ prefilter_json: '{坏 json' })).toEqual({ batch: null, industry: null, type_tags: [] });
+    expect(boardMeta({ prefilter_json: null })).toEqual({ batch: null, industry: null, type_tags: [] });
+  });
+
+  it('jobBoard 每行带 meta', async () => {
+    const { repos } = await setup();
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'c1', title: '后端', company_name: '甲', prefilter_json: JSON.stringify({ campus: { batch: '正式批', industry: '外企' } }) });
+    expect(jobBoard(repos)[0].meta).toEqual({ batch: '正式批', industry: null, type_tags: ['外企'] });
+  });
+
+  it('dossierSummaries：投递时间、到过的阶段、测评 / 笔试安排、岗位链接', async () => {
+    const { repos, store } = await setup();
+    const job = repos.upsertJob({ source_platform: 'manual', title: '产品', company_name: '甲', url: 'https://a.com/j' });
+    const app = repos.createApplication(job.id);
+    repos.jumpTo(app.id, 'applied');
+    repos.transition(app.id, 'rejected');
+    repos.createDeadline({ kind: 'written_test', title: '甲笔试', due_at: '2026-10-05T04:00:00.000Z', application_id: app.id });
+    const cancelled = repos.createDeadline({ kind: 'assessment', title: '甲测评', due_at: '2026-10-04T04:00:00.000Z', application_id: app.id });
+    repos.setDeadlineStatus(cancelled.id, 'cancelled');
+    const s = store.dossierSummaries().find(x => x.application_id === app.id)!;
+    expect(s.applied_at).toEqual(expect.any(String));
+    expect(s.created_at).toBe(app.created_at);
+    expect(s.reached_stages).toEqual(expect.arrayContaining(['evaluated', 'applied', 'rejected']));
+    expect(s.exam_kinds).toEqual(['written_test']);
+    expect(s.job_url).toBe('https://a.com/j');
   });
 });

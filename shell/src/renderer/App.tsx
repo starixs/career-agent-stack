@@ -53,10 +53,12 @@ import BugReportOverlay from '@/components/BugReportOverlay';
 import { DispatchTaskDialog } from '@/components/task-center/DispatchTaskDialog';
 import CustomTitleBar from '@/components/CustomTitleBar';
 import { CareerNavShell } from '@/features/career-shell/CareerNavShell';
+import { BallReminderRelay } from '@/features/career-shell/BallReminderRelay';
+import { markReminderShown, requestOnboardingIntro } from '@/features/career-shell/onboardingReminder';
 import { CAREER_NAVIGATE_EVENT, type NavTarget } from '@/features/career-shell/navModel';
 import type { CareerFocusEvent } from '@/components/career/types';
 import { stashCareerFocus } from '@/features/career-shell/pendingFocus';
-import { OPEN_APP_ROUTE_EVENT, OPEN_BUG_REPORT_EVENT } from '@/features/career-shell/shellEvents';
+import { OPEN_BUG_REPORT_EVENT } from '@/features/career-shell/shellEvents';
 import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import LinkContextMenuProvider from '@/components/LinkContextMenuProvider';
 import { SessionDeletionContext } from '@/context/SessionDeletionContext';
@@ -373,6 +375,8 @@ const HIDDEN_SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
   'agent',
   'external-cli',
   'usage-stats',
+  // 网络代理不在求职助理设置里露出；代理配置与下发链路仍由 keystone 底座维护。
+  'proxy',
 ]);
 
 /** 固定工作目录相对 home 的后缀（Rust `cmd_initialize_bundled_workspace` 的落点）。 */
@@ -502,9 +506,17 @@ export default function App() {
   // user accepts the pill; the click path validates them before committing the
   // final live Tab projection.
   const [restoreCandidate] = useState(() => buildRestoredTabs());
+  // The visible landing page is 工作台 › 招聘概览. The launcher stays as the
+  // hidden boot surface that the career boot below flips into the single
+  // assistant Chat, so 对话 is ready one click away.
   const [initialWorkspace] = useState(() => {
-    const tab = createNewTab();
-    return { tabs: [tab] as Tab[], activeTabId: tab.id };
+    const launcher = createNewTab();
+    const landing: Tab = {
+      id: generateTabId(),
+      view: 'career-today',
+      title: t(CAREER_PAGE_TITLE_KEYS['career-today']),
+    };
+    return { tabs: [launcher, landing] as Tab[], activeTabId: landing.id };
   });
   const { state: tabWorkspace, controller: tabWorkspaceController } =
     useTabWorkspaceController<Tab, typeof builtinTabModules>({
@@ -1259,6 +1271,17 @@ export default function App() {
               detail: { sessionId, workspacePath, preview },
             }),
           );
+        },
+        listenerAc.signal,
+      );
+
+      // 桌面悬浮球上的新手引导提醒被点了：回到工作台打开引导，今天不再提醒。
+      void listenWithCleanup(
+        'fb:open-onboarding',
+        () => {
+          if (!mountedRef.current) return;
+          markReminderShown();
+          requestOnboardingIntro();
         },
         listenerAc.signal,
       );
@@ -2834,14 +2857,31 @@ export default function App() {
         }
 
         const title = t('tabs.assistantChat');
+        // 落地页是工作台（招聘概览），对话在后台就绪。下面两条启动路径都会在同步阶段
+        // 激活 Launcher / 新 Chat（launch 在入口同步读取激活 Tab；spawn 用 flushSync 激活新 Tab），
+        // 这里记下用户此刻所在的页面，并在同一 tick 里把焦点还回去，中间态不会被绘制。
+        const pageToKeep = () => {
+          const snapshot = tabWorkspaceController.getSnapshot();
+          const active = snapshot.tabs.find((tab) => tab.id === snapshot.activeTabId);
+          return active && active.view !== 'launcher' && active.view !== 'chat' ? active.id : null;
+        };
+        const keepPage = (tabId: string | null) => {
+          if (tabId && tabWorkspaceController.getSnapshot().tabs.some((tab) => tab.id === tabId)) {
+            setActiveTabId(tabId);
+          }
+        };
         const savedSessionId = configRef.current.careerSessionId?.trim();
         if (savedSessionId && !isPendingSessionId(savedSessionId)) {
           const restorable = await canRestoreSession(savedSessionId, workspacePath);
-          const opened = restorable
-            ? await handleOpenTargetSession(savedSessionId, workspacePath, title)
-            : false;
+          let opened = false;
+          if (restorable) {
+            const keep = pageToKeep();
+            const opening = handleOpenTargetSession(savedSessionId, workspacePath, title);
+            keepPage(keep);
+            opened = await opening;
+          }
           if (opened) {
-            // 启动面已完成使命：移除残留的 Launcher，使 Chat 成为唯一首页。
+            // 启动面已完成使命：移除残留的 Launcher，Chat 成为唯一的对话入口。
             const launcherPlans = tabWorkspaceController
               .getSnapshot()
               .tabs.filter((tab) => tab.view === 'launcher')
@@ -2861,11 +2901,14 @@ export default function App() {
         const launcherTab = tabWorkspaceController
           .getSnapshot()
           .tabs.find((tab) => tab.view === 'launcher');
+        const keep = pageToKeep();
         if (launcherTab) setActiveTabId(launcherTab.id);
-        const launched = await handleLaunchProject(project, undefined, {
+        const launching = handleLaunchProject(project, undefined, {
           surface: 'unknown',
           entryIntent: 'open_workspace',
         });
+        keepPage(keep);
+        const launched = await launching;
         if (launched) {
           const chatTab = findAssistantChatTab(tabWorkspaceController.getSnapshot().tabs);
           if (chatTab) {
@@ -4578,11 +4621,8 @@ export default function App() {
   useEffect(() => onEvent<NavTarget>(CAREER_NAVIGATE_EVENT, target => {
     if (target?.kind) handleOpenNavTarget(target);
   }), [handleOpenNavTarget]);
-  // 设置里的「小助理与反馈」「通知」通过事件请求 App 打开反馈浮层与通知路由。
+  // 设置里的「小助理与反馈」通过事件请求 App 打开反馈浮层。
   useEffect(() => onEvent(OPEN_BUG_REPORT_EVENT, () => setShowBugReport(true)), []);
-  useEffect(() => onEvent<{ route?: AppRoute }>(OPEN_APP_ROUTE_EVENT, payload => {
-    if (payload?.route) handleOpenAppRoute(payload.route);
-  }), [handleOpenAppRoute]);
 
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
@@ -4945,6 +4985,7 @@ export default function App() {
           <CareerLiveDrawer />
           <CareerResumeDrawer />
           <CareerNavShell activeView={activeTab?.view} onOpen={handleOpenNavTarget} />
+          <BallReminderRelay activeView={activeTab?.view} />
           <div className="flex min-w-0 flex-1 flex-col" data-tab-workspace>
             {/* 标题栏：求职助理是单一对话，不再展示多 Tab 标签条与"+"；
                 标签页切换全部经由左侧全局导航。 */}

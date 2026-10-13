@@ -1,194 +1,53 @@
 /**
- * 岗位与投递：看板三问题（今天必须做 / 哪里卡住 / 漏斗）、待投清单（审阅后批准提交）、岗位汇总表、浏览器状态条。
+ * 岗位收藏：页面主体就是岗位多维表格（JobBoard）。
+ *
+ * 「等你批准」的动作队列在通知中心处理，这里不再重复。留下的只有正确性需要的两样：
+ *  - 结果不确定的提交（点了提交没等到成功提示）：有才出现一条提示，必须由用户确认，否则这条投递会一直卡着；
+ *  - 浏览器在跑 / 停下等你接管时的状态条：空闲时不占位。
+ * auto 模式开关跟「加入待投清单」放在一起（它决定加进去的网申是否检查通过直接提交）。
  */
-import { useMemo, useState } from 'react';
-
 import { BrowserStatusBar } from '@/components/career/BrowserStatusBar';
 import { careerApi, safeJson } from '@/components/career/careerApi';
-import { ACTION_KIND_LABELS, FUNNEL_ORDER, HANDOFF_REASON_LABELS, STAGE_LABELS } from '@/components/career/careerConstants';
 import { JobBoard } from '@/components/career/JobBoard';
-import {
-  Badge, Button, CareerPage, Card, ErrorRow, LoadingRow, SectionTitle, formatDate,
-} from '@/components/career/CareerPrimitives';
-import { SubmitReviewList, approvalLabel } from '@/components/career/SubmitReviewList';
-import type { ActionQueueItem, Application, ApplySettings, Board, Job, SubmitReviewSummary } from '@/components/career/types';
+import { Badge, Button, CareerPage, ErrorRow } from '@/components/career/CareerPrimitives';
+import { approvalLabel } from '@/components/career/SubmitReviewList';
+import type { ActionQueueItem, Application, ApplySettings } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 
-interface ApplyData { board: Board; actions: ActionQueueItem[]; confirming: ActionQueueItem[]; jobs: Job[]; applications: Application[]; settings: ApplySettings }
+interface ApplyData { confirming: ActionQueueItem[]; applications: Application[]; settings: ApplySettings }
 
 async function loadAll(): Promise<ApplyData> {
-  const [board, actions, confirming, jobs, applications, settings] = await Promise.all([
-    careerApi.board(), careerApi.pendingActions(), careerApi.submitsNeedingUser().catch(() => []), careerApi.jobs(), careerApi.applications(),
+  const [confirming, applications, settings] = await Promise.all([
+    careerApi.submitsNeedingUser().catch(() => []), careerApi.applications().catch(() => []),
     careerApi.applySettings().catch((): ApplySettings => ({ auto_mode: false, learn_threshold: 3 })),
   ]);
-  return { board, actions, confirming, jobs, applications, settings };
+  return { confirming, applications, settings };
 }
 
 export default function CareerApply({ embedded = false }: { embedded?: boolean } = {}) {
-  const query = useCareerQuery(loadAll, ['job', 'application', 'action_queue', 'application_history', 'handoff']);
+  const query = useCareerQuery(loadAll, ['application', 'action_queue']);
   const data = query.data;
-
-  return (
-    <CareerPage embedded={embedded} title="岗位与投递">
-      <BrowserStatusBar />
-      <div className="space-y-10 px-6 py-6">
-        {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
-        {query.loading && !data && <LoadingRow />}
-        {data && (
-          <>
-            <ActionsSection actions={data.actions} confirming={data.confirming} settings={data.settings} applications={data.applications} jobs={data.jobs} onChanged={query.reload} />
-            <JobBoard onChanged={query.reload} />
-            <BoardSection board={data.board} />
-          </>
-        )}
-      </div>
-    </CareerPage>
-  );
-}
-
-function BoardSection({ board }: { board: Board }) {
-  const funnelMap = new Map(board.funnel.map(f => [f.stage, f.n]));
-  const max = Math.max(1, ...board.funnel.map(f => f.n));
-  return (
-    <section className="border-t border-[var(--line)] pt-6">
-      <SectionTitle>投递概况</SectionTitle>
-      <div className="grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-3">
-        <Card title={`今天必须做（${board.due.length}）`}>
-          {board.due.length === 0 && <div className="text-sm text-[var(--muted)]">今天没有到期事项</div>}
-          <ul className="space-y-2.5">
-            {board.due.map(a => (
-              <li key={a.id} className="text-sm">
-                <div className="font-medium text-[var(--ink)]">{a.company_name ?? '未知公司'} · {a.title}</div>
-                <div className="text-xs text-[var(--muted)]">
-                  {a.next_action ?? '下一步未知'}
-                  {a.next_action_due ? ` · 到期 ${formatDate(a.next_action_due)}` : a.deadline ? ` · 截止 ${formatDate(a.deadline)}` : ''}
-                  {a.stage === 'needs_user' ? ' · 需要你' : ''}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-        <Card title={`哪里卡住（${board.blocked.length}）`}>
-          {board.blocked.length === 0 && <div className="text-sm text-[var(--muted)]">没有卡住的投递</div>}
-          <ul className="space-y-2.5">
-            {board.blocked.map(a => (
-              <li key={a.id} className="text-sm">
-                <div className="font-medium text-[var(--ink)]">{a.company_name ?? '未知公司'} · {a.title}</div>
-                <div className="text-xs text-[var(--warning)]">原因：{a.blocker_reason ? HANDOFF_REASON_LABELS[a.blocker_reason] ?? a.blocker_reason : '未知'}</div>
-                <div className="text-xs text-[var(--muted)]">重试策略：{a.retry_strategy ?? '未知'}</div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-        <Card title="漏斗" extra={board.pendingReview > 0 ? <Badge tone="accent">待审核 {board.pendingReview}</Badge> : null}>
-          <ul className="space-y-1.5">
-            {FUNNEL_ORDER.map(stage => {
-              const n = funnelMap.get(stage) ?? 0;
-              return (
-                <li key={stage} className={`flex items-center gap-2 text-xs ${n === 0 ? 'opacity-60' : ''}`}>
-                  <span className="w-12 shrink-0 text-[var(--muted)]">{STAGE_LABELS[stage]}</span>
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--inset)]">
-                    <span className="block h-full rounded-full bg-[var(--primary)]" style={{ width: `${Math.round((n / max) * 100)}%` }} />
-                  </span>
-                  <span className="w-6 text-right tabular-nums text-[var(--ink)]">{n}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      </div>
-    </section>
-  );
-}
-
-function ActionsSection({ actions, confirming, settings, applications, jobs, onChanged }: { actions: ActionQueueItem[]; confirming: ActionQueueItem[]; settings: ApplySettings; applications: Application[]; jobs: Job[]; onChanged: () => void }) {
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const review = useCareerAction();
   const modeAction = useCareerAction();
-  const appById = useMemo(() => new Map(applications.map(a => [a.id, a])), [applications]);
-  const jobById = useMemo(() => new Map(jobs.map(j => [j.id, j])), [jobs]);
-  // 只保留仍在列表里的勾选（列表刷新后旧 id 自动失效）
-  const live = useMemo(() => new Set([...selected].filter(id => actions.some(a => a.id === id))), [selected, actions]);
-  const allChecked = actions.length > 0 && live.size === actions.length;
-
-  const toggle = (id: string) => setSelected(prev => {
-    const next = new Set(prev);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(actions.map(a => a.id)));
-  const decide = (decision: 'approved' | 'rejected') => review.run(async () => {
-    const ids = [...live];
-    if (ids.length === 0) throw new Error('先勾选要处理的动作');
-    await careerApi.reviewActions(ids, decision);
-    setSelected(new Set());
-    onChanged();
-  });
-  const setAuto = (enabled: boolean) => modeAction.run(async () => { await careerApi.setAutoMode(enabled); onChanged(); });
+  const setAuto = (enabled: boolean) => modeAction.run(async () => { await careerApi.setAutoMode(enabled); query.reload(); });
   const labelOf = (action: ActionQueueItem) => {
-    const app = action.application_id ? appById.get(action.application_id) : undefined;
-    const job = app ? jobById.get(app.job_id) : undefined;
-    return job ? `${job.company_name ?? '未知公司'} · ${job.title}` : app?.title ? `${app.company_name ?? '未知公司'} · ${app.title}` : '未关联岗位';
+    const app = action.application_id ? data?.applications.find(a => a.id === action.application_id) : undefined;
+    return app?.title ? `${app.company_name ?? '未知公司'} · ${app.title}` : '未关联岗位';
   };
 
-  if (actions.length === 0 && confirming.length === 0) {
-    return (
-      <section className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-[var(--muted)]">
-        <span>没有等你批准的动作。网申填好后会停在提交前到这里，你批准后产品替你点提交。</span>
-        <AutoModeToggle settings={settings} busy={modeAction.busy} onChange={setAuto} />
-        {modeAction.error && <ErrorRow message={modeAction.error} />}
-      </section>
-    );
-  }
-
   return (
-    <Card
-      variant="approval"
-      title={`等你批准（${actions.length}）`}
-      extra={<AutoModeToggle settings={settings} busy={modeAction.busy} onChange={setAuto} />}
-    >
-      {review.error && <ErrorRow message={review.error} />}
-      {modeAction.error && <ErrorRow message={modeAction.error} />}
-      {confirming.length > 0 && <ConfirmSubmits actions={confirming} labelOf={labelOf} onChanged={onChanged} />}
-      {actions.length > 0 && (
-        <label className="flex items-center gap-2 border-b border-[var(--line)] pb-2 text-xs text-[var(--muted)]">
-          <input type="checkbox" aria-label="全选" checked={allChecked} ref={el => { if (el) el.indeterminate = live.size > 0 && !allChecked; }} onChange={toggleAll} />
-          全选（{live.size} / {actions.length}）
-        </label>
-      )}
-      <ul className="divide-y divide-[var(--line)]">
-        {actions.map(action => {
-          const payload = safeJson<Record<string, unknown>>(action.payload_json, {});
-          const isSubmit = action.kind === 'submit';
-          const summary = isSubmit ? `停在「${typeof payload.submitButton === 'string' ? payload.submitButton : '提交'}」前，批准后产品替你点提交`
-            : typeof payload.summary === 'string' ? payload.summary
-              : typeof payload.subject === 'string' ? `${payload.subject}${typeof payload.to === 'string' ? ` → ${payload.to}` : ''}`
-                : typeof payload.text === 'string' ? payload.text
-                  : typeof payload.message === 'string' ? payload.message
-                    : Object.keys(payload).length ? JSON.stringify(payload).slice(0, 160) : '（无摘要）';
-          return (
-            <li key={action.id} className="flex items-start gap-3 py-3">
-              <input type="checkbox" aria-label={`选择动作 ${action.id}`} checked={live.has(action.id)} onChange={() => toggle(action.id)} className="mt-1" />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <Badge tone="accent">{ACTION_KIND_LABELS[action.kind] ?? action.kind}</Badge>
-                  <span className="text-sm font-medium text-[var(--ink)]">{labelOf(action)}</span>
-                  <span className="ml-auto text-xs tabular-nums text-[var(--muted)]">{formatDate(action.created_at)}</span>
-                </div>
-                <div className="mt-1 break-words text-base leading-7 text-[var(--ink)]">{summary}</div>
-                {isSubmit && <SubmitReviewList review={payload.review as SubmitReviewSummary | null} />}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {actions.length > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--line)] pt-3">
-          <Button variant="primary" busy={review.busy} disabled={live.size === 0} onClick={() => void decide('approved')}>批准（{live.size}）</Button>
-          <Button variant="ghost" busy={review.busy} disabled={live.size === 0} onClick={() => void decide('rejected')}>不发了</Button>
-        </div>
-      )}
-    </Card>
+    <CareerPage embedded={embedded} title="岗位收藏">
+      <div className="flex h-full min-h-0 flex-col">
+        <BrowserStatusBar hideWhenIdle />
+        {data && data.confirming.length > 0 && (
+          <div className="px-6 pt-4"><ConfirmSubmits actions={data.confirming} labelOf={labelOf} onChanged={query.reload} /></div>
+        )}
+        {modeAction.error && <div className="px-6 pt-2"><ErrorRow message={modeAction.error} /></div>}
+        <JobBoard
+          onChanged={query.reload}
+          bulkExtra={data && <AutoModeToggle settings={data.settings} busy={modeAction.busy} onChange={enabled => void setAuto(enabled)} />}
+        />
+      </div>
+    </CareerPage>
   );
 }
 
@@ -209,7 +68,7 @@ function ConfirmSubmits({ actions, labelOf, onChanged }: { actions: ActionQueueI
   const act = useCareerAction();
   const confirm = (id: string, submitted: boolean) => act.run(async () => { await careerApi.confirmSubmit(id, submitted); onChanged(); });
   return (
-    <div className="mb-3 space-y-2">
+    <div className="space-y-2">
       {actions.map(a => {
         const result = safeJson<Record<string, unknown>>(a.result_json, {});
         return (

@@ -16,6 +16,7 @@ import { resolveSelectedPetPack } from '@/floating-ball/petPackLibrary';
 import { PetSprite } from '@/floating-ball/PetSprite';
 
 import { requestNavigation } from './navModel';
+import { useOnboardingReminder } from './onboardingReminder';
 import { useWorkSurfaces, type ProgressRun } from './workSurfaceStore';
 
 /** PetSprite's own box rule lives in floating-ball/fb.css, which must not load in the main window. */
@@ -155,6 +156,7 @@ export function CompanionPanel() {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         {tab === 'now' && (
           <>
+            <OnboardingNudge />
             <SectionHeading>正在做</SectionHeading>
             <NowSection run={activeRun} handoff={handoff} />
             <SectionHeading count={items.length}>接下来</SectionHeading>
@@ -177,6 +179,21 @@ export function CompanionPanel() {
         )}
       </div>
     </aside>
+  );
+}
+
+/** 新手五步没走完：每天在这里提醒一次（不进对话），点了去工作台开始引导。 */
+function OnboardingNudge() {
+  const reminder = useOnboardingReminder();
+  if (reminder.remaining === 0) return null;
+  return (
+    <div data-testid="companion-onboarding-nudge" className="mx-1 mt-3 rounded-lg bg-[var(--note)] px-3 py-2.5">
+      <p className="font-human text-sm text-[var(--ink)]">还有 {reminder.remaining} 步新手任务没走完，我带你走一遍？</p>
+      <div className="mt-2 flex items-center gap-3 text-xs">
+        <button type="button" onClick={reminder.start} className="rounded-md border-[1.5px] border-[var(--hard)] bg-[var(--paper)] px-2.5 py-1 font-semibold text-[var(--ink)] shadow-hard">继续新手引导</button>
+        <button type="button" onClick={reminder.dismiss} className="text-[var(--muted)] hover:text-[var(--ink)]">今天先不了</button>
+      </div>
+    </div>
   );
 }
 
@@ -298,10 +315,14 @@ export function CompanionChip() {
   const { runs, takeover } = useWorkSurfaces();
   const activeRun = runs.find(run => !run.finished) ?? null;
   const handoff = takeover?.state === 'paused' || takeover?.state === 'human_active';
-  const text = handoff ? '等你处理一下' : activeRun?.steps[activeRun.steps.length - 1]?.message ?? '在你身边';
+  const reminder = useOnboardingReminder();
+  const nudge = !handoff && !activeRun && reminder.remaining > 0;
+  const text = handoff ? '等你处理一下' : activeRun?.steps[activeRun.steps.length - 1]?.message ?? (nudge ? `还有 ${reminder.remaining} 步新手任务，点我继续` : '在你身边');
+  const Shell = nudge ? 'button' : 'div';
   return (
-    <div
-      className="pointer-events-none absolute left-4 top-14 z-20 flex max-w-[260px] items-center gap-2 rounded-full border-[1.5px] border-[var(--hard)] bg-[var(--paper)] py-1 pl-1 pr-3 shadow-hard"
+    <Shell
+      {...(nudge ? { type: 'button' as const, onClick: reminder.start, 'aria-label': `还有 ${reminder.remaining} 步新手任务，继续新手引导` } : {})}
+      className={`${nudge ? 'pointer-events-auto cursor-pointer' : 'pointer-events-none'} absolute left-4 top-14 z-20 flex max-w-[260px] items-center gap-2 rounded-full border-[1.5px] border-[var(--hard)] bg-[var(--paper)] py-1 pl-1 pr-3 text-left shadow-hard`}
       data-companion-chip
     >
       <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--inset)]">
@@ -312,10 +333,10 @@ export function CompanionChip() {
       <span className="min-w-0">
         <span className="block font-human text-sm font-semibold leading-[18px] text-[var(--ink)]">{pack.displayName}</span>
         <span className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${handoff ? 'bg-[var(--warning)]' : 'bg-[var(--success)]'}`} aria-hidden="true" />
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${handoff || nudge ? 'bg-[var(--warning)]' : 'bg-[var(--success)]'}`} aria-hidden="true" />
           <span className="truncate">{text}</span>
         </span>
       </span>
-    </div>
+    </Shell>
   );
 }

@@ -8599,7 +8599,7 @@ description: >
       // POST /api/memory/update — Trigger memory update in current session (v0.1.43)
       if (pathname === '/api/memory/update' && request.method === 'POST') {
         // 求职产品不跑基座的工作区记忆巩固：它要 Write / Bash（产品已禁用），注定失败，
-        // 还会把隐藏轮插进用户的主对话。记忆由求职数据库的 memory 表承担（见 shared/careerMemoryPolicy.ts）。
+        // 还会把隐藏轮插进用户的主对话（见 shared/careerMemoryPolicy.ts）。
         return jsonResponse({ status: 'skipped', reason: 'replaced_by_career_memory' });
       }
 

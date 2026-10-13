@@ -246,13 +246,28 @@ export class CareerStore {
   // ---------- 卷宗（每条投递一个档案） ----------
   /** 卷宗列表：进行中的线 + 已关闭的线，带静默天数与下一个截止。 */
   dossierSummaries(nowIso = this.now()): DossierSummary[] {
-    const deadlines = this.repos.listDeadlines({ status: 'open' });
+    const allDeadlines = this.repos.listDeadlines();
+    const deadlines = allDeadlines.filter(d => d.status === 'open');
     const interviews = this.listInterviews();
+    // 状态步骤条要知道"走到过哪一步"：阶段历史（被拒前停在哪）+ 有没有测评 / 笔试安排（阶段里不区分这两步）
+    const history = this.db.all<{ application_id: string; to_stage: string; created_at: string }>('SELECT application_id, to_stage, created_at FROM application_history ORDER BY created_at');
+    const reachedBy = new Map<string, string[]>();
+    const appliedAt = new Map<string, string>();
+    for (const h of history) {
+      const list = reachedBy.get(h.application_id) ?? [];
+      if (!list.includes(h.to_stage)) list.push(h.to_stage);
+      reachedBy.set(h.application_id, list);
+      if (h.to_stage === 'applied' && !appliedAt.has(h.application_id)) appliedAt.set(h.application_id, h.created_at);
+    }
     return this.repos.applicationsWithJob().map(a => {
       const next = deadlines.filter(d => d.application_id === a.id).sort((x, y) => x.due_at.localeCompare(y.due_at))[0] ?? null;
       const itv = interviews.filter(i => i.application_id === a.id);
       const days = Math.max(0, Math.round((Date.parse(nowIso) - Date.parse(a.updated_at)) / 86_400_000));
-      return { application_id: a.id, job_id: a.job_id, company_name: a.job.company_name, title: a.job.title, stage: a.stage, updated_at: a.updated_at, days_since_update: days, next_deadline: next, interview_count: itv.length, resume_tailored_id: a.resume_tailored_id, closed: ['rejected', 'discarded', 'skip', 'hired'].includes(a.stage) };
+      const examKinds = [...new Set(allDeadlines.filter(d => d.status !== 'cancelled' && (d.application_id === a.id || (!d.application_id && d.job_id === a.job_id)) && (d.kind === 'assessment' || d.kind === 'written_test')).map(d => d.kind as 'assessment' | 'written_test'))];
+      return {
+        application_id: a.id, job_id: a.job_id, company_name: a.job.company_name, title: a.job.title, stage: a.stage, updated_at: a.updated_at, days_since_update: days, next_deadline: next, interview_count: itv.length, resume_tailored_id: a.resume_tailored_id, closed: ['rejected', 'discarded', 'skip', 'hired'].includes(a.stage),
+        created_at: a.created_at, applied_at: appliedAt.get(a.id) ?? null, reached_stages: reachedBy.get(a.id) ?? [], exam_kinds: examKinds, job_url: a.job.url ?? null,
+      };
     });
   }
   /** 面试前一键摊开的全部材料。 */
@@ -282,7 +297,16 @@ export class CareerStore {
   }
 }
 
-export interface DossierSummary { application_id: string; job_id: string; company_name: string | null; title: string; stage: Application['stage']; updated_at: string; days_since_update: number; next_deadline: Deadline | null; interview_count: number; resume_tailored_id: string | null; closed: boolean }
+export interface DossierSummary {
+  application_id: string; job_id: string; company_name: string | null; title: string; stage: Application['stage']; updated_at: string; days_since_update: number; next_deadline: Deadline | null; interview_count: number; resume_tailored_id: string | null; closed: boolean;
+  /** 建档时间；投递时间优先用 applied_at（第一次进入 applied 的时刻），还没投出时为空。 */
+  created_at: string; applied_at: string | null;
+  /** 阶段历史里到过的阶段（去重、按时间）；被拒 / 放弃时据此知道停在哪一步。 */
+  reached_stages: string[];
+  /** 这条投递有过的测评 / 笔试安排（截止事件，不含已取消）。 */
+  exam_kinds: Array<'assessment' | 'written_test'>;
+  job_url: string | null;
+}
 export interface Dossier {
   application: Application; job: Job; company: Company | null;
   resume: { kind: 'master' | 'tailored'; id: string; schema: unknown; confirmed: boolean } | null;

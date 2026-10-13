@@ -9,7 +9,6 @@
  *   job_evaluate      → skills/job-evaluate，输出模型 JSON
  *   interview_questions → skills/interview-questions，输出模型 JSON
  *   exam_grade        → 笔试批改（与 exam_practice 工具同一套要求），输出 { review:[{index, verdict, comment}] }
- *   memory_extract    → skills/memory-extract，输入格式与产品 career/memory-service.ts 的 extractMemories 一致，输出模型 JSON
  */
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
@@ -54,12 +53,6 @@ export async function runTask(vars, llm) {
     case 'exam_grade': {
       const system = '你是笔试批改助手。逐题对照参考答案批改用户作答，verdict 只能是 对 / 错 / 部分对；没有参考答案的题按题意判断并在 comment 写依据。不要改变题目。输出 JSON：{"review":[{"index":0,"verdict":"对","comment":""}]}'
       const res = await llm.complete({ system, messages: [{ role: 'user', content: JSON.stringify({ questions: vars.questions, answers: vars.answers }) }], json: true, temperature: 0 })
-      return core.extractJson(res.text)
-    }
-    case 'memory_extract': {
-      const existing = (vars.existing ?? []).map(m => `${m.id} [${m.kind} · ${m.scope ?? 'user'}] ${m.content}`).join('\n') || '（无）'
-      const user = `本轮用户原话：\n${vars.user}\n\n本轮助理最终回答：\n${vars.assistant ?? ''}\n\n已有的相关记忆：\n${existing}`
-      const res = await llm.complete({ system: skill('memory-extract'), messages: [{ role: 'user', content: user }], json: true, temperature: 0.1 })
       return core.extractJson(res.text)
     }
     default: throw new Error(`未知 task：${vars.task}`)

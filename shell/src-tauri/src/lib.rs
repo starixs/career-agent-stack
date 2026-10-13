@@ -621,6 +621,7 @@ pub fn run() {
             floating_ball::cmd_fb_relay,
             floating_ball::cmd_fb_open_main_with_session,
             floating_ball::cmd_fb_open_desktop_pet_settings,
+            floating_ball::cmd_fb_open_onboarding,
             // OS notification + click-to-foreground deep-link (v0.2.14)
             notification::cmd_show_notification,
             notification::cmd_request_notification_permission,

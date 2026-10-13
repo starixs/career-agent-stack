@@ -209,7 +209,7 @@ import { useSettingsNavigation } from './hooks/useSettingsNavigation';
 import { SkillsAgentsSection } from './sections/SkillsAgentsSection';
 import { ToolboxSection } from './sections/ToolboxSection';
 import { ExternalCliSettingsSection } from './sections/ExternalCliSettingsSection';
-import { FeedbackSection, NotificationsSection } from './sections/ShellEntriesSections';
+import { FeedbackSection } from './sections/ShellEntriesSections';
 import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import codexModelSelectorOnboarding from '@/assets/onboarding/codex-model-selector.png';
 
@@ -5060,8 +5060,6 @@ export default function Settings({
           !linuxDesktop && config.floatingBallDevGate !== false && <FloatingBallPetSettings />}
 
         {activeSection === 'external-cli' && <ExternalCliSettingsSection />}
-
-        {activeSection === 'notifications' && <NotificationsSection />}
 
         {activeSection === 'feedback' && <FeedbackSection />}
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 // @ts-expect-error 纯 JS 断言模块，没有类型声明
-import { noFabrication, respectsHardConditions, questionsGrounded, gradingCorrect, memoryExtractOk } from './checks.mjs'
+import { noFabrication, respectsHardConditions, questionsGrounded, gradingCorrect } from './checks.mjs'
 
 // 评测断言自身的单测：不需要模型 Key，随 pnpm test 跑。
 
@@ -26,19 +26,5 @@ describe('评测断言', () => {
   it('gradingCorrect：逐题对照', () => {
     expect(gradingCorrect({ review: [{ index: 0, verdict: '错' }, { index: 1, verdict: '对' }] }, { vars: { expected: ['错', '对'] } }).pass).toBe(true)
     expect(gradingCorrect({ review: [{ index: 0, verdict: '对' }, { index: 1, verdict: '对' }] }, { vars: { expected: ['错', '对'] } }).pass).toBe(false)
-  })
-  it('memoryExtractOk：克制 / 范围 / 更正 / 敏感 / 路由 / 条数', () => {
-    expect(memoryExtractOk({ memories: [], forget: [] }, { vars: { expect_none: true } }).pass).toBe(true)
-    expect(memoryExtractOk({ memories: [{ kind: 'fact', content: '用户要导出 PDF' }] }, { vars: { expect_none: true } }).pass).toBe(false)
-    // route 不为空的不算写入
-    expect(memoryExtractOk({ memories: [{ kind: 'preference', content: '上海', route: 'job_prefs' }] }, { vars: { expect_none: true, expect_route: 'job_prefs' } }).pass).toBe(true)
-    expect(memoryExtractOk({ memories: [{ kind: 'fact', scope: 'company:美团', content: '美团要扫码登录' }] }, { vars: { must_include: ['扫码'], expect_scope: 'company:美团', forbid_scope: 'company:字节跳动' } }).pass).toBe(true)
-    expect(memoryExtractOk({ memories: [{ kind: 'fact', scope: 'user', content: '美团要扫码登录' }] }, { vars: { must_include: ['扫码'], expect_scope: 'company:美团' } }).pass).toBe(false)
-    expect(memoryExtractOk({ memories: [{ kind: 'preference', content: '可以驻场外包', supersedes: 'mem_old' }] }, { vars: { expect_replaces: 'mem_old' } }).pass).toBe(true)
-    expect(memoryExtractOk({ memories: [], forget: ['mem_old'] }, { vars: { expect_replaces: 'mem_old', expect_none: true } }).pass).toBe(true)
-    expect(memoryExtractOk({ memories: [], forget: [] }, { vars: { expect_replaces: 'mem_old', expect_none: true } }).pass).toBe(false)
-    expect(memoryExtractOk({ memories: [{ kind: 'preference', content: '可以驻场外包' }] }, { vars: { expect_replaces: 'mem_old' } }).pass).toBe(false)
-    expect(memoryExtractOk({ memories: [{ kind: 'fact', content: '手机 13812345678' }] }, { vars: { forbidden: ['13812345678'] } }).pass).toBe(false)
-    expect(memoryExtractOk({ memories: [1, 2, 3, 4].map(i => ({ kind: 'fact', content: `第${i}条` })) }, { vars: {} }).pass).toBe(false)
   })
 })
