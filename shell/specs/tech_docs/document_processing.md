@@ -37,6 +37,10 @@ keystone CLI bundle
 
 AnyDoc 不属于 Session，因此关闭 Tab、切 Runtime 或 CLI 退出不会取消 job；App 退出会统一收敛所有 queued/running job。
 
+### 求职产品的聊天附件读取
+
+求职产品禁用了 Bash，模型无法自己调用 `keystone anydoc`；内置 DeepSeek 也不接收 SDK 为 `@keystone_files/x.pdf` 自动附带的 PDF / 图片块。因此 `src/server/career/attachment-reader.ts` 在 SDK `UserPromptSubmit` hook（`career/memory-hooks.ts::careerAttachmentPromptHook`，超时 300 秒）里替模型完成转换：找出本轮消息引用的非纯文本文件，按 **AnyDoc → 内置解析（pdf.js 文本层 / docx·pptx·epub XML / SheetJS / macOS textutil）→ macOS Vision OCR → 如实告知失败原因** 的顺序逐层尝试，结果以 `additionalContext` 注入，并缓存到 `<workspace>/keystone_files/.converted/`。它只是 Management API 的普通调用方：提交 job、轮询 status、超时 cancel，不拥有队列或 job 状态；AnyDoc 资源缺失或 Management API 不可用时立即落到下一层。
+
 ## Job identity、状态与持久化
 
 Job ID 为本地日期加 12 位小写十六进制随机值：
