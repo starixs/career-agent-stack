@@ -190,6 +190,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "keystone-media-worker"
+version = "0.1.0"
+dependencies = [
+ "keystone-media-worker-protocol",
+ "libc",
+ "libloading",
+ "ogg",
+ "opus2",
+ "rubato",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sonora",
+ "sonora-aec3",
+ "symphonia",
+ "tempfile",
+ "zeroize",
+]
+
+[[package]]
+name = "keystone-media-worker-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "zeroize",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -239,35 +268,6 @@ name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
-
-[[package]]
-name = "keystonebase-media-worker"
-version = "0.4.10"
-dependencies = [
- "libc",
- "libloading",
- "keystonebase-media-worker-protocol",
- "ogg",
- "opus2",
- "rubato",
- "serde",
- "serde_json",
- "sha2",
- "sonora",
- "sonora-aec3",
- "symphonia",
- "tempfile",
- "zeroize",
-]
-
-[[package]]
-name = "keystonebase-media-worker-protocol"
-version = "0.4.10"
-dependencies = [
- "serde",
- "serde_json",
- "zeroize",
-]
 
 [[package]]
 name = "num-complex"
