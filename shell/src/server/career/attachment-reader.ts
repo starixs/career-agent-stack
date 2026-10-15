@@ -175,7 +175,7 @@ export function drawingXmlToText(xml: string): string {
     .join('\n');
 }
 
-function htmlToText(html: string): string {
+export function htmlToText(html: string): string {
   return decodeXml(html
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
     .replace(/<\/(p|div|h[1-6]|li|tr|br)>|<br\s*\/?>/gi, '\n')

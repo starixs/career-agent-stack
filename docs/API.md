@@ -67,6 +67,8 @@
 | GET | `/api/career/onboarding` | 首次引导清单 `{checklist}` |
 | GET / POST | `/api/career/inbox` | 收件箱列表（`?status=new`）/ `{text, source?, application_id?}` → 归档结果 `{result}` |
 | POST | `/api/career/inbox/:id/dismiss` · `/retry` | 忽略 / 重新识别（可带 application_id） |
+| POST | `/api/career/inbox/link` | `{url, text?, application_id?}` → 抓分享页文字后归档，`{result}`（`result.fetched` 表示是否抓到页面） |
+| POST | `/api/career/exams` | 手动新建笔试 / 测评 `{company_name, title?, kind: written_test\|assessment, due_at, url?, note?}` → `{deadline_id, application_id}` |
 | GET / POST | `/api/career/deadlines` | 截止事件（`?status=open|open_or_missed|…`）/ `{kind, title, due_at, application_id?, job_id?, url?, note?}` |
 | POST | `/api/career/deadlines/:id/status` | `{status: open|done|missed|cancelled}` |
 | GET | `/api/career/dossiers` · `/dossiers/:applicationId` | 卷宗摘要 / 完整卷宗（简历版本、说过的话、邮件、截止、面试、Offer、待审动作、时间线、预测） |

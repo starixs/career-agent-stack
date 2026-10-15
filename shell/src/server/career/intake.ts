@@ -7,6 +7,7 @@
  */
 import type { Repos, LLM, Job, JdParsed, InboxItem, InboxKind, InboxSource, DeadlineKind } from '@career/core';
 
+import { htmlToText } from './attachment-reader';
 import type { CoreModule } from './core-module';
 import { loadSkillPrompt } from './skills';
 import { CareerStore } from './store';
@@ -239,6 +240,67 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
   const appId = created.application_id ?? created.closed_application_id ?? app?.id ?? null;
   const hint: FocusHint = appId ? { surface: 'dossier', application_id: appId } : created.job_id ? { surface: 'dossier', job_id: created.job_id } : { surface: 'inbox', id: item.id };
   return { item: done, triage, created, focus: focus(deps, hint), summary: triage.summary ?? noteText };
+}
+
+// ---------- 分享链接（Boss / 猎聘等转发出来的笔试 / 面试通知） ----------
+const LINK_FETCH_TIMEOUT_MS = 10_000;
+const LINK_TEXT_LIMIT = 12_000;
+
+/** 取分享页的标题、描述和正文文字；拿不到（要登录、超时、非 HTML）返回 null，由调用方退回只用粘贴的文字。 */
+export async function fetchSharePage(url: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
+  try {
+    const res = await fetchImpl(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(LINK_FETCH_TIMEOUT_MS),
+      headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', accept: 'text/html,*/*' },
+    });
+    if (!res.ok) return null;
+    const type = res.headers.get('content-type') ?? '';
+    if (type && !/html|text/i.test(type)) return null;
+    const html = await res.text();
+    const meta = (name: string) => html.match(new RegExp(`<meta[^>]+(?:name|property)=["']${name}["'][^>]*content=["']([^"']*)["']`, 'i'))?.[1]?.trim();
+    const title = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim();
+    const parts = [title, meta('og:title'), meta('description'), meta('og:description'), htmlToText(html)].filter((p): p is string => !!p);
+    const text = [...new Set(parts)].join('\n').trim();
+    return text ? text.slice(0, LINK_TEXT_LIMIT) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 用户粘贴的分享链接（可带分享文案）→ 抓分享页文字 → 走同一条归档流程。
+ * 分享页常常要登录才看得到，所以粘贴的文案和链接本身都一起交给归档，抓不到页面也不失败。
+ */
+export async function captureLink(deps: IntakeDeps, input: { url: string; text?: string | null; application_id?: string | null }, fetchImpl?: typeof fetch): Promise<IntakeResult & { fetched: boolean }> {
+  const url = input.url.trim();
+  if (!/^https?:\/\//i.test(url)) throw new Error('请粘贴以 http 开头的分享链接');
+  const page = await fetchSharePage(url, fetchImpl);
+  const text = [input.text?.trim(), `链接：${url}`, page ? `分享页内容：\n${page}` : ''].filter(Boolean).join('\n\n');
+  const result = await captureIntake(deps, { text, source: 'url', application_id: input.application_id ?? null });
+  return { ...result, fetched: page !== null };
+}
+
+// ---------- 手动新建笔试 / 测评 ----------
+export interface ManualExamInput { company_name: string; title?: string | null; kind: 'written_test' | 'assessment'; due_at: string; url?: string | null; note?: string | null }
+
+/** 手动新建一场笔试：和收件箱识别出笔试通知走同样的落库（有进行中的同公司投递就挂上去，没有就建一条已投递），再建截止事件。 */
+export function recordExam(deps: Pick<IntakeDeps, 'repos' | 'broadcast' | 'sessionId'>, input: ManualExamInput): { deadline_id: string; application_id: string } {
+  const r = deps.repos;
+  const company = input.company_name.trim();
+  if (!company) throw new Error('请填写公司');
+  const title = input.title?.trim() || null;
+  const hits = r.findOpenApplicationsByCompany(company);
+  const existing = hits.length === 1 ? hits[0] : hits.find(a => title && a.job.title === title);
+  const label = input.kind === 'assessment' ? '测评' : '笔试';
+  const base = existing ?? r.createApplication(r.upsertJob({ source_platform: 'manual', title: title ?? '未命名岗位', company_name: company }).id);
+  const app = r.jumpTo(base.id, 'applied', `手动记录${label}`);
+  const deadline = r.createDeadline({
+    kind: input.kind, title: `${company}${title ? ` · ${title}` : ''} ${label}`, due_at: input.due_at,
+    application_id: app.id, job_id: app.job_id, source: 'manual', url: input.url?.trim() || null, note: input.note?.trim() || null,
+  });
+  dataChanged(deps, ['job', 'application', 'application_history', 'deadline']);
+  return { deadline_id: deadline.id, application_id: app.id };
 }
 
 // ---------- 小工具 ----------

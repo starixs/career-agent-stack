@@ -20,7 +20,7 @@ import { DomainUnavailableError, loadBridges } from '../career/domain';
 import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isAtsMode, setAtsMode, type ExportFormat } from '../career/export';
 import { runAtsCheck } from '../career/ats-check';
 import { getShellLLM } from '../career/llm';
-import { captureIntake, type IntakeDeps } from '../career/intake';
+import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../career/intake';
 import { deleteMailPassword, setMailPassword } from '../career/mail/credentials';
 import { MAIL_PRESETS, detectProvider, presetFor } from '../career/mail/providers';
 import { executeApprovedSendMails } from '../career/mail/send';
@@ -678,6 +678,26 @@ const ROUTES: Route[] = [
   route('GET', '/api/career/deadlines', ({ repos, url }) => {
     const status = url.searchParams.get('status');
     return ok({ deadlines: repos.listDeadlines({ status: status === 'open' || status === 'done' || status === 'missed' || status === 'cancelled' || status === 'open_or_missed' ? status : undefined }) });
+  }),
+  route('POST', '/api/career/inbox/link', async (ctx) => {
+    const url = str(ctx.body.url);
+    if (!url) return fail('url 不能为空');
+    try {
+      const result = await captureLink(intakeDeps(ctx), { url, text: str(ctx.body.text) ?? null, application_id: str(ctx.body.application_id) ?? null });
+      return ok({ result });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '链接识别失败');
+    }
+  }),
+  route('POST', '/api/career/exams', (ctx) => {
+    const company_name = str(ctx.body.company_name); const due_at = isoOrUndefined(ctx.body.due_at);
+    if (!company_name || !due_at) return fail('company_name 与 due_at（可解析的时间）不能为空');
+    const kind = ctx.body.kind === 'assessment' ? 'assessment' : 'written_test';
+    try {
+      return ok(recordExam(intakeDeps(ctx), { company_name, title: strOrNull(ctx.body.title), kind, due_at, url: strOrNull(ctx.body.url), note: strOrNull(ctx.body.note) }));
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '新建笔试失败');
+    }
   }),
   route('POST', '/api/career/deadlines', (ctx) => {
     const title = str(ctx.body.title); const due_at = isoOrUndefined(ctx.body.due_at); const kind = str(ctx.body.kind);
