@@ -2,6 +2,7 @@
  * 招聘概览的月历数据：把今日队列 / 待批准 / 截止 / 活动记录放到日期上，并按三类待办汇总。
  * 纯函数，页面只负责取数和渲染；规则见 CareerToday.tsx 顶部注释。
  */
+import { isManualSend } from './manualSendActions';
 import type { ActionQueueItem, ActivityEntry, Deadline, TodayItem, TodayItemKind } from './types';
 
 /** 三类待办：待批准 / 需要你处理 / 提醒（截止与其余一切）。 */
@@ -32,6 +33,8 @@ export interface CalendarTodo {
   applicationId?: string | null;
   /** 等你确认投递结果（submit 动作 status=needs_user）。 */
   confirmSubmit?: boolean;
+  /** 已批准、等你自己发出去的招呼语 / 开放题回答（status=needs_user），行里摆原文和「复制」。 */
+  manualSend?: boolean;
   /** 本地划掉时记下怎么处理的（已批准 / 不发了 / 已完成…）。 */
   note?: string;
 }
@@ -56,6 +59,7 @@ export function dateKeyOf(value: string | null | undefined): string | null {
 export interface TodoSources {
   today?: TodayItem[] | null;
   pending?: ActionQueueItem[] | null;
+  /** status=needs_user 的动作：submit 等你确认结果；send_greeting / answer_open_q 等你自己发出去；其余不放。 */
   confirming?: ActionQueueItem[] | null;
   deadlines?: Deadline[] | null;
   activity?: ActivityEntry[] | null;
@@ -102,6 +106,14 @@ export function buildTodos(src: TodoSources): CalendarTodo[] {
 
   for (const a of src.confirming ?? []) {
     const origin = dateKeyOf(a.updated_at);
+    if (isManualSend(a)) {
+      add({
+        key: `manual:${a.id}`, category: 'handoff', date: place(origin, false), originDate: origin, done: false, manualSend: true, action: a,
+        item: { kind: 'handoff', priority: 3, title: a.kind === 'send_greeting' ? '等你发出去：招呼语' : '等你发出去：开放题回答', detail: '已批准，复制下面的文字到平台上发', ref: { type: 'action', id: a.id } },
+      });
+      continue;
+    }
+    if (a.kind !== 'submit') continue;
     add({
       key: `confirm:${a.id}`, category: 'handoff', date: place(origin, false), originDate: origin, done: false, confirmSubmit: true, action: a,
       item: { kind: 'handoff', priority: 3, title: '等你确认：这条投递交出去了吗', detail: '提交结果不确定，请到页面上看一下', ref: { type: 'action', id: a.id } },

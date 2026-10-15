@@ -146,7 +146,7 @@ export function StepBar({ steps }: { steps: ReadonlyArray<{ label: string; state
                 : step.state === 'current'
                   ? 'border-2 border-[var(--warning)] bg-[var(--warning-bg)]'
                   : step.state === 'failed'
-                    ? 'bg-[var(--danger)] text-white'
+                    ? 'bg-[var(--danger)] text-[var(--on-primary)]'
                     : 'border-2 border-[var(--line-2)]'}`}
               aria-hidden="true"
             >

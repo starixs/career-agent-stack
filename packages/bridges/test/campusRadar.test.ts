@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { join } from 'node:path'
+import { parseBoardJson } from '@career/core'
 import { loadCampusJobs, filterCampusJobs, importCampusJobs, campusJobId, defaultCampusJobsPath, type CampusJob } from '../src/index.js'
 import { memRepos } from './helpers.js'
 
@@ -10,6 +12,13 @@ describe('campusRadar 加载（真实 jobs.json）', () => {
     expect(jobs.length).toBe(443)
     expect(jobs[0]).toMatchObject({ company: '高盛', cohort: '2027届' })
     expect(Array.isArray(jobs[0].positions)).toBe(true)
+  })
+
+  it('环境变量优先；没有环境变量时取第一个存在的候选路径', () => {
+    expect(defaultCampusJobsPath({ CAMPUS_RADAR_JOBS: '/x/jobs.json' })).toBe('/x/jobs.json')
+    expect(defaultCampusJobsPath({ CAMPUS_RADAR_DIR: '/y' })).toBe(join('/y', 'jobs.json'))
+    // 开发布局下仓库里的 jobs.json 存在，优先它
+    expect(defaultCampusJobsPath({}, '/nowhere/server-dist.js')).toMatch(/modules\/campus-radar\/jobs\.json$/)
   })
 })
 
@@ -58,6 +67,14 @@ describe('importCampusJobs → job 表', () => {
     expect(row.location).toBe(gs.locations.length ? gs.locations.join('/') : null)
     importCampusJobs(repos, sample)
     expect(repos.listJobs()).toHaveLength(5)
+  })
+
+  it('批次 / 行业写进 board_json（企业性质归类型标签），评估重写 prefilter_json 也不丢', () => {
+    const repos = memRepos()
+    const [row] = importCampusJobs(repos, [{ company: '国网', positions: ['电气'], locations: [], batch: '正式批', industry: '央国企' }])
+    expect(parseBoardJson(row.board_json)).toEqual({ batch: '正式批', industry: null, type_tags: ['央国企'] })
+    repos.db.update('job', row.id, { prefilter_json: JSON.stringify({ evaluation: { pass: true } }) })
+    expect(parseBoardJson(repos.getJob(row.id)!.board_json)).toEqual({ batch: '正式批', industry: null, type_tags: ['央国企'] })
   })
 
   it('标题：岗位 ≤3 个直接拼接，更多则加"等 N 个岗位"；无岗位用项目名', () => {

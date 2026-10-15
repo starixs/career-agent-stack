@@ -74,7 +74,8 @@ function isStale(stage: ApplicationStage, days: number): boolean {
 }
 
 /** 截止时间相对现在：今天 / 明天 / x 天后 / 已过 x 天。 */
-function relativeDue(iso: string): string {
+function relativeDue(iso: string | null): string {
+  if (!iso) return '时间待定';
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return '';
   const diffH = (ms - Date.now()) / 3_600_000;
@@ -174,12 +175,7 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
     >
       {view === 'line' && <DossierLine focus={focus} />}
       {view === 'exam' && <ExamRecords />}
-      {(view === 'line' || view === 'exam') && (
-        <PageAskBar
-          target={{ kind: 'career-dossier', view }}
-          placeholder={view === 'line' ? '问问投递情况，比如「这个月投了多少、几个进了面试」' : '问问笔试安排，比如「下周有哪些笔试」'}
-        />
-      )}
+      {view === 'exam' && <PageAskBar target={{ kind: 'career-dossier', view }} placeholder="问问笔试安排，比如「下周有哪些笔试」" />}
       {view !== 'line' && view !== 'exam' && (
         <Suspense fallback={<div className="px-4"><LoadingRow /></div>}>
           {view === 'apply' && <CareerApply embedded />}
@@ -218,6 +214,14 @@ function DossierLine({ focus }: { focus: FocusRequest | null }) {
 
   const effectiveId = manual && manual.afterFocus === focus ? manual.id : focus ? resolveFocus(focus, summaries) : null;
   const selectedSummary = summaries?.find(s => s.application_id === effectiveId) ?? null;
+  // 页面输入框跟着当前摊开的档案走：问的就是这一条（application_id 带给助理）。
+  const askBar = (
+    <PageAskBar
+      target={{ kind: 'career-dossier', view: 'line' }}
+      refs={effectiveId ? { application_id: effectiveId } : undefined}
+      placeholder={effectiveId ? '问问这条投递，比如「下一步该做什么」' : '问问投递情况，比如「这个月投了多少、几个进了面试」'}
+    />
+  );
 
   if (effectiveId) {
     return (
@@ -236,6 +240,7 @@ function DossierLine({ focus }: { focus: FocusRequest | null }) {
             onListChanged={query.reload}
           />
         </div>
+        {askBar}
       </div>
     );
   }
@@ -273,6 +278,7 @@ function DossierLine({ focus }: { focus: FocusRequest | null }) {
         {summaries && summaries.length > 0 && rows.length === 0 && <div className="py-8 text-center text-xs text-[var(--subtle)]">没有匹配「{search.trim()}」的投递</div>}
       </div>
       {jdFor && <JdDialog summary={jdFor} onClose={() => setJdFor(null)} onOpenDossier={() => { setJdFor(null); select(jdFor.application_id); }} />}
+      {askBar}
     </div>
   );
 }
@@ -530,7 +536,7 @@ function InterviewInfo({ d, big, onChanged }: { d: Dossier; big: boolean; onChan
             <li key={dl.id} className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1 py-2">
               <Badge tone="accent">{DEADLINE_KIND_LABELS[dl.kind] ?? dl.kind}</Badge>
               <span className={`min-w-0 flex-1 font-medium text-[var(--ink)] ${big ? 'text-lg' : ''}`}>{dl.title}</span>
-              <span className="text-xs tabular-nums text-[var(--muted)]">{formatDateTime(dl.due_at)} · {relativeDue(dl.due_at)}</span>
+              <span className="text-xs tabular-nums text-[var(--muted)]">{dl.due_at ? `${formatDateTime(dl.due_at)} · ${relativeDue(dl.due_at)}` : '时间未知'}</span>
               {dl.url && <ExternalLink href={dl.url} className="text-xs text-[var(--primary)] underline underline-offset-2">打开链接</ExternalLink>}
               <Button variant="ghost" size="sm" busy={action.busy} onClick={() => void done(dl)}>完成</Button>
             </li>
@@ -802,7 +808,8 @@ function NoteForm({ applicationId, onChanged }: { applicationId: string; onChang
 const EXAM_KIND_LABELS = { written_test: '笔试', assessment: '测评' } as const;
 
 /** 本地时区的「10 月 15 日 14:00」。截止事件 due_at 存的是 UTC ISO，不能直接截字符串。 */
-function formatLocalDateTime(iso: string): string {
+function formatLocalDateTime(iso: string | null): string {
+  if (!iso) return '时间未知';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const hh = String(d.getHours()).padStart(2, '0');

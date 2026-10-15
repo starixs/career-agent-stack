@@ -23,6 +23,20 @@ export const STAGE_TRANSITIONS: Record<ApplicationStage, readonly ApplicationSta
 export function canTransition(from: ApplicationStage, to: ApplicationStage): boolean {
   return (STAGE_TRANSITIONS[from] ?? []).includes(to)
 }
+/** 沿状态机能否从 from 走到 to（to 在 from 前方）。相同阶段返回 false；状态机没有回退边，所以「已在面试再收到笔试」= false。 */
+export function canReachStage(from: ApplicationStage, to: ApplicationStage): boolean {
+  if (from === to) return false
+  const seen = new Set<ApplicationStage>([from])
+  const queue: ApplicationStage[] = [from]
+  while (queue.length) {
+    const cur = queue.shift()!
+    for (const next of STAGE_TRANSITIONS[cur] ?? []) {
+      if (next === to) return true
+      if (!seen.has(next)) { seen.add(next); queue.push(next) }
+    }
+  }
+  return false
+}
 
 export const ACTION_KINDS = ['fill_form', 'submit', 'send_greeting', 'upload', 'answer_open_q', 'collect', 'research', 'send_mail'] as const
 export type ActionKind = typeof ACTION_KINDS[number]

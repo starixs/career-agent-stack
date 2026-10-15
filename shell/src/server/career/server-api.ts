@@ -6,6 +6,8 @@
  */
 import type { JobListing, JobPage, JobQuery, JobSource, Repos, AnswerEventRow } from '@career/core';
 
+import { loadCore, type CoreModule } from './core-module';
+
 export const SERVER_CONFIG_KEY = 'career:server';
 export interface ServerConfig { base_url: string; token?: string }
 
@@ -61,8 +63,11 @@ function toWire(e: AnswerEventRow) {
   return { id: e.id, kind: e.kind, question_key: e.question_key, question_text: e.question_text, answer: e.answer, previous_value: e.previous_value, source: e.source, sensitivity: e.sensitivity, job_key: e.job_key, site_host: e.site_host, created_at: e.created_at };
 }
 
-/** 把一页岗位写进本地库（按 job_key upsert；服务端下架 / 合并的保留但标记）。 */
-export function upsertListings(repos: Repos, items: JobListing[]): number {
+/**
+ * 把一页岗位写进本地库（按 job_key upsert；服务端下架 / 合并的保留但标记）。
+ * 服务端带了 batch / industry / type_tags 就写进 job.board_json（见 job-board.ts 顶部约定），没带不覆盖本地已有的。
+ */
+export function upsertListings(repos: Repos, items: JobListing[], core: Pick<CoreModule, 'serializeBoardMeta'>): number {
   let n = 0;
   repos.db.transaction(() => {
     for (const it of items) {
@@ -74,6 +79,7 @@ export function upsertListings(repos: Repos, items: JobListing[]): number {
         url: it.url ?? null, company_name: it.company_name, title: it.title, location: it.location ?? null, salary: it.salary ?? null,
         jd_raw: it.jd_raw ?? null, deadline: it.deadline ?? null, deadline_verified_at: it.deadline_verified_at ?? null,
         employment_type: it.employment_type ?? 'unknown', cohort: it.cohort ?? null, source_version: it.version ?? null, source_status: it.status ?? 'open',
+        board_json: core.serializeBoardMeta({ batch: it.batch, industry: it.industry, type_tags: it.type_tags }),
       });
       n++;
     }
@@ -85,10 +91,11 @@ export function upsertListings(repos: Repos, items: JobListing[]): number {
 export async function syncJobSource(repos: Repos, source: JobSource, query: JobQuery = {}, maxPages = 20): Promise<{ fetched: number; stored: number }> {
   let cursor: string | null | undefined = query.cursor;
   let fetched = 0; let stored = 0;
+  const core = await loadCore();
   for (let i = 0; i < maxPages; i++) {
     const page = await source.search({ ...query, cursor: cursor ?? undefined });
     fetched += page.items.length;
-    stored += upsertListings(repos, page.items);
+    stored += upsertListings(repos, page.items, core);
     cursor = page.next_cursor;
     if (!cursor || !page.items.length) break;
   }

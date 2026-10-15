@@ -45,16 +45,16 @@ const waiting = { count: 5, by_stage: [{ stage: 'applied', n: 3 }] };
 const checklistPartial = { has_experience: true, has_confirmed_claim: true, has_master_resume: false, has_mail_account: false, has_job: false, has_application: false, has_material: false };
 const checklistDone = { has_experience: true, has_confirmed_claim: true, has_master_resume: true, has_mail_account: true, has_job: true, has_application: true, has_material: true };
 
-interface MockState { items: unknown[]; actions: unknown[]; deadlines: unknown[]; checklist: unknown }
+interface MockState { items: unknown[]; actions: unknown[]; deadlines: unknown[]; checklist: unknown; needsUser: unknown[] }
 let state: MockState;
 
 function mockGet(over: Partial<MockState> = {}) {
-  state = { items, actions, deadlines, checklist: checklistDone, ...over };
+  state = { items, actions, deadlines, checklist: checklistDone, needsUser: [], ...over };
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
     if (path.startsWith('/api/career/today')) return { ok: true, items: state.items, waiting, inbox_new: 0, pending_review: state.actions.length };
     if (path.startsWith('/api/career/onboarding')) return { ok: true, checklist: state.checklist };
     if (path.startsWith('/api/career/actions?status=pending_review')) return { ok: true, actions: state.actions };
-    if (path.startsWith('/api/career/actions?status=needs_user')) return { ok: true, actions: [] };
+    if (path.startsWith('/api/career/actions?status=needs_user')) return { ok: true, actions: state.needsUser };
     if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines: state.deadlines };
     if (path.startsWith('/api/career/activity')) return { ok: true, entries: [] };
     return { ok: true };
@@ -232,5 +232,44 @@ describe('CareerToday · 新手引导', () => {
     await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司');
     await waitFor(() => expect(screen.getByRole('button', { name: '新手引导' })).toBeInTheDocument());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('页面输入框带上选中那一天（refs.date）', async () => {
+    mockGet();
+    render(<CareerToday isActive onOpenChat={vi.fn()} />);
+    await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司');
+    fireEvent.click(screen.getByRole('button', { name: cellName(tomorrow) }));
+    const seen: Array<{ context?: { surface?: string; refs?: Record<string, unknown> } }> = [];
+    const off = onEvent<{ context?: { surface?: string; refs?: Record<string, unknown> } }>('career:chat-suggest', p => { seen.push(p); });
+    fireEvent.change(screen.getByLabelText('问助理'), { target: { value: '这天有什么' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送给助理' }));
+    off();
+    expect(seen[0].context).toEqual({ surface: 'page:career-today', refs: { date: tomorrowKey } });
+  });
+
+  it('批准后等你发出去的招呼语：侧栏摆出原文和「复制」，点了才写剪贴板', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    mockGet({
+      needsUser: [
+        { id: 'g1', application_id: null, kind: 'send_greeting', payload_json: JSON.stringify({ text: '旧稿' }), status: 'needs_user', result_json: JSON.stringify({ handed_to_user: true, message: '已批准，招呼语需要你本人在平台发送：您好，我是张三，想了解一下贵司的后端岗位', text: '您好，我是张三，想了解一下贵司的后端岗位' }), reviewed_at: null, created_at: `${todayKey}T08:00:00`, updated_at: `${todayKey}T09:00:00` },
+        { id: 'f1', application_id: null, kind: 'fill_form', payload_json: '{}', status: 'needs_user', result_json: null, reviewed_at: null, created_at: `${todayKey}T08:00:00`, updated_at: `${todayKey}T09:00:00` },
+      ],
+    });
+    render(<CareerToday isActive onOpenChat={vi.fn()} />);
+    const row = (await within(sidebar()).findByText('等你发出去：招呼语')).closest('li')!;
+    expect(within(row).getByText('您好，我是张三，想了解一下贵司的后端岗位')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: '打开对话接手' })).not.toBeInTheDocument();
+    expect(writeText).not.toHaveBeenCalled();
+    fireEvent.click(within(row).getByRole('button', { name: '复制' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('您好，我是张三，想了解一下贵司的后端岗位'));
+    expect(await within(row).findByRole('button', { name: '已复制' })).toBeInTheDocument();
+    // 其它 needs_user 动作（填表交接走今日队列）不在这里重复出现
+    expect(within(sidebar()).queryByText(/等你确认：这条投递/)).not.toBeInTheDocument();
+    // 我已发送 → POST mark-sent，这一行划掉并记下「已发送」
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, action: { id: 'g1', status: 'done' } });
+    fireEvent.click(within(row).getByRole('button', { name: '我已发送' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/g1/mark-sent', {}));
+    expect(await within(sidebar()).findByText('已发送')).toBeInTheDocument();
   });
 });

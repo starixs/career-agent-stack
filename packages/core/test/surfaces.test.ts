@@ -53,7 +53,7 @@ describe('收件箱 / 截止 / 今日队列', () => {
     // 把 updated_at 拨回 30 天前制造静默
     r.db.update('application', app.id, { updated_at: '2026-09-01T00:00:00Z' })
     r.createDeadline({ kind: 'assessment', title: '乙公司测评', due_at: '2026-10-02T10:00:00Z' })
-    r.createDeadline({ kind: 'written_test', title: '丙公司笔试', due_at: '2026-10-03T12:00:00Z', application_id: app.id })
+    const written = r.createDeadline({ kind: 'written_test', title: '丙公司笔试', due_at: '2026-10-03T12:00:00Z', application_id: app.id })
     r.createDeadline({ kind: 'offer_reply', title: '丁公司 offer 回复', due_at: '2026-10-20T00:00:00Z' })
     r.enqueueAction('submit', { job_id: job.id }, app.id)
     r.createInboxItem({ raw_text: '新邮件' })
@@ -63,6 +63,9 @@ describe('收件箱 / 截止 / 今日队列', () => {
     expect(today.items[0].title).toBe('乙公司测评')
     expect(today.items[0].detail).toContain('已过期')
     expect(today.items[1].detail).toContain('今天')
+    // 挂在投递上的截止：ref 指向投递，deadline_id 仍给出截止事件本身，便于改期 / 完成
+    expect(today.items[1].ref).toEqual({ type: 'application', id: app.id })
+    expect(today.items[1].deadline_id).toBe(written.id)
     expect(today.items[4].suggest).toContain(app.id)
     expect(today.waiting).toEqual({ count: 1, by_stage: [{ stage: 'applied', n: 1 }] })
     expect(today.pending_review).toBe(1)

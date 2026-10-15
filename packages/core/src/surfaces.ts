@@ -61,6 +61,8 @@ export interface TodayItem {
   detail?: string
   due_at?: string | null
   ref: { type: string; id: string }
+  /** 截止类条目的截止事件 id（ref 可能指向所属投递），供 deadline_update / deadline_done 直接使用。 */
+  deadline_id?: string
   /** 面板一键动作对应的对话意图（带对象 id），为空则该项只能在面板处理。 */
   suggest?: string
 }
@@ -69,7 +71,8 @@ export function sortToday(items: TodayItem[]): TodayItem[] {
   return [...items].sort((a, b) => a.priority - b.priority || (a.due_at ?? '').localeCompare(b.due_at ?? ''))
 }
 
-export function deadlineToToday(d: Deadline, nowIso: string): TodayItem | null {
+/** 只处理有时间的事件；时间未知（due_at 为 null）的由调用方（Repos.today）单独处理。 */
+export function deadlineToToday(d: Deadline & { due_at: string }, nowIso: string): TodayItem | null {
   if (d.status !== 'open') return null
   const days = daysBetween(nowIso, d.due_at)
   if (days > 3) return null
@@ -80,6 +83,7 @@ export function deadlineToToday(d: Deadline, nowIso: string): TodayItem | null {
     priority: overdue ? 0 : days === 0 ? (d.kind === 'interview' ? 4 : 1) : 7,
     title: d.title, detail: `${label}截止`, due_at: d.due_at,
     ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id },
+    deadline_id: d.id,
   }
 }
 

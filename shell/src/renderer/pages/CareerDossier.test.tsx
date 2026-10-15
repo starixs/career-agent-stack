@@ -218,6 +218,25 @@ describe('CareerDossier · 投递记录', () => {
     off();
   });
 
+  it('页面输入框：列表里不带对象；摊开一条档案后带上 application_id', async () => {
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    const seen: Array<{ context?: { surface?: string; refs?: Record<string, unknown> } }> = [];
+    const off = onEvent<{ context?: { surface?: string; refs?: Record<string, unknown> } }>('career:chat-suggest', p => { seen.push(p); });
+    const ask = (text: string) => {
+      fireEvent.change(screen.getByLabelText('问助理'), { target: { value: text } });
+      fireEvent.click(screen.getByRole('button', { name: '发送给助理' }));
+    };
+    ask('这个月投了多少');
+    await openLine('丙公司', '后端工程师');
+    ask('下一步做什么');
+    off();
+    expect(seen.map(p => p.context)).toEqual([
+      { surface: 'page:career-dossier:line', refs: undefined },
+      { surface: 'page:career-dossier:line', refs: { application_id: 'a1' } },
+    ]);
+  });
+
   it('焦点事件按 job_id 直接摊开对应的档案；搜索过滤列表', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');

@@ -26,12 +26,12 @@ const actions = [
 const dossiers = [{ application_id: 'a1', job_id: 'j1', company_name: '甲公司', title: '后端工程师', stage: 'interview', updated_at: '2026-10-01', days_since_update: 1, next_deadline: null, interview_count: 1, resume_tailored_id: null, closed: false }];
 
 let pendingNow: unknown[] = actions;
-function mockGet(opts: { batch?: unknown } = {}) {
+function mockGet(opts: { batch?: unknown; needsUser?: unknown[] } = {}) {
   pendingNow = actions;
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
     if (path.startsWith('/api/career/inbox')) return { ok: true, items };
     if (path.startsWith('/api/career/actions?status=pending_review')) return { ok: true, actions: pendingNow };
-    if (path.startsWith('/api/career/actions?status=needs_user')) return { ok: true, actions: [] };
+    if (path.startsWith('/api/career/actions?status=needs_user')) return { ok: true, actions: opts.needsUser ?? [] };
     if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines };
     if (path.startsWith('/api/career/batch/state')) return { ok: true, batch: opts.batch ?? null };
     if (path.startsWith('/api/career/mail/accounts')) return { ok: true, accounts, presets };
@@ -197,5 +197,25 @@ describe('CareerInbox', () => {
     act(() => { emitEvent('career:focus', { surface: 'inbox', id: 'i2' }); });
     const row = (await screen.findByText(/诚邀您参加甲公司一面/)).closest('[data-inbox-id]');
     expect(row?.className).toContain('bg-[var(--primary-soft)]');
+  });
+
+  it('批准后等你发出去的开放题回答：显示原文和「复制」，不是一个没下文的已批准', async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    mockGet({ needsUser: [
+      { id: 'q1', application_id: 'a1', kind: 'answer_open_q', payload_json: JSON.stringify({ answer: '我想做基础设施，因为…' }), status: 'needs_user', result_json: JSON.stringify({ handed_to_user: true, message: '已批准，开放题回答需要你本人在平台填写：我想做基础设施，因为…', text: '我想做基础设施，因为…', question: '为什么选择我们' }), reviewed_at: null, created_at: '2026-10-04T08:00:00', updated_at: '2026-10-04T09:00:00' },
+    ] });
+    render(<CareerInbox isActive onOpenChat={vi.fn()} />);
+    const block = await screen.findByTestId('manual-send-text');
+    expect(block).toHaveTextContent('我想做基础设施，因为…');
+    const row = block.closest('li')!;
+    expect(within(row).getByText('等你发出去')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: '批准' })).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: '复制' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('我想做基础设施，因为…'));
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, action: { id: 'q1', status: 'done' } });
+    fireEvent.click(within(row).getByRole('button', { name: '我已发送' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/q1/mark-sent', {}));
+    expect(await within(row).findByText(/^已发送 · /)).toBeInTheDocument();
   });
 });

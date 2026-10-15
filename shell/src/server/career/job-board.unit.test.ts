@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { JobListing } from '@career/core';
 
 import { loadCore } from './core-module';
-import { boardMeta, computeMatches, jobBoard, prepareJobs, setJobPrefs } from './job-board';
+import { CAMPUS_SEEDED_KEY, boardMeta, computeMatches, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from './job-board';
 import { RemoteJobSource, syncJobSource, uploadAnswerEvents, upsertListings } from './server-api';
 import { CareerStore } from './store';
 import { createMemoryRepos } from './test-db';
@@ -14,6 +14,7 @@ import { exportCareerWorkbook } from './xlsx-export';
 // 阶段 3：岗位汇总表、可解释匹配、服务端岗位库同步、答案改动回传、导出表格。
 
 let dir: string;
+const core = await loadCore();
 beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'career-board-')); });
 afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
@@ -32,7 +33,7 @@ const listing = (over: Partial<JobListing>): JobListing => ({ job_key: 'srv:1', 
 describe('岗位汇总表与匹配', () => {
   it('只用已确认的主张当证据；违反条件的排在后面、可筛掉；我的进度并入', async () => {
     const { repos, store } = await setup();
-    upsertListings(repos, [listing({}), listing({ job_key: 'srv:2', remote_id: 'r2', title: '数据分析（社招）', employment_type: 'social', location: '北京' })]);
+    upsertListings(repos, [listing({}), listing({ job_key: 'srv:2', remote_id: 'r2', title: '数据分析（社招）', employment_type: 'social', location: '北京' })], core);
     setJobPrefs(repos, { cohort: '2027届', cities: ['上海'], employment_types: ['intern', 'campus'] });
     computeMatches(repos, store, undefined, '2026-10-10');
     const rows = jobBoard(repos, {}, '2026-10-10');
@@ -51,7 +52,7 @@ describe('岗位汇总表与匹配', () => {
   it('勾选加入待投清单：冻结材料包、fill_form 待审；已在投的跳过；没有链接的说明原因', async () => {
     const { repos, store } = await setup();
     store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } });
-    upsertListings(repos, [listing({ url: 'https://a.com/1' }), listing({ job_key: 'srv:2', remote_id: 'r2', url: null })]);
+    upsertListings(repos, [listing({ url: 'https://a.com/1' }), listing({ job_key: 'srv:2', remote_id: 'r2', url: null })], core);
     const [a, b] = repos.listJobs().sort((x, y) => (x.job_key! < y.job_key! ? -1 : 1));
     const exportPdf = async (id: string) => { const p = join(dir, `${id}.pdf`); writeFileSync(p, `%PDF ${id}`); return p; };
     const deps = { repos, store, exportPdf, exportsDir: dir };
@@ -85,8 +86,8 @@ describe('服务端岗位库', () => {
     expect(repos.getJobByKey('srv:3')!.source_status).toBe('closed');
     // 同版本再来一次不覆盖本地；新版本覆盖
     repos.db.update('job', repos.getJobByKey('srv:1')!.id, { title: '本地改过的标题' });
-    expect(upsertListings(repos, [listing({})])).toBe(0);
-    expect(upsertListings(repos, [listing({ version: 2, title: '数据分析实习生（更新）' })])).toBe(1);
+    expect(upsertListings(repos, [listing({})], core)).toBe(0);
+    expect(upsertListings(repos, [listing({ version: 2, title: '数据分析实习生（更新）' })], core)).toBe(1);
     expect(repos.getJobByKey('srv:1')!.title).toBe('数据分析实习生（更新）');
   });
 
@@ -111,7 +112,7 @@ describe('服务端岗位库', () => {
 describe('导出表格', () => {
   it('岗位汇总 / 投递进度 / 网申答案三张表，个人信息不导出值', async () => {
     const { repos } = await setup();
-    upsertListings(repos, [listing({})]);
+    upsertListings(repos, [listing({})], core);
     repos.createApplication(repos.listJobs()[0].id);
     repos.saveAnswer({ question_key: '手机号', question_text: '手机号', answer: '13800000000' });
     const res = await exportCareerWorkbook(repos, dir, new Date('2026-10-10T08:00:00Z'));
@@ -131,6 +132,45 @@ describe('多维表格维度与投递记录摘要', () => {
     expect(boardMeta({ prefilter_json: JSON.stringify({ campus: { industry: '其他' } }) })).toEqual({ batch: null, industry: null, type_tags: [] });
     expect(boardMeta({ prefilter_json: '{坏 json' })).toEqual({ batch: null, industry: null, type_tags: [] });
     expect(boardMeta({ prefilter_json: null })).toEqual({ batch: null, industry: null, type_tags: [] });
+  });
+
+  it('boardMeta：board_json 优先；评估把预筛并到 prefilter_json.evaluate 后仍能读到 campus；evaluate 里的字段不当维度', () => {
+    expect(boardMeta({ board_json: JSON.stringify({ batch: '实习', industry: '游戏', type_tags: [] }), prefilter_json: JSON.stringify({ campus: { batch: '正式批' } }) })).toEqual({ batch: '实习', industry: '游戏', type_tags: [] });
+    expect(boardMeta({ prefilter_json: JSON.stringify({ campus: { batch: '正式批', industry: '外企' }, evaluate: { pass: true, industry: '金融' } }) })).toEqual({ batch: '正式批', industry: null, type_tags: ['外企'] });
+    expect(boardMeta({ prefilter_json: JSON.stringify({ evaluate: { batch: '提前批' } }) })).toEqual({ batch: null, industry: null, type_tags: [] });
+    expect(boardMeta({ board_json: '坏', prefilter_json: JSON.stringify({ campus: ['不是对象'] }) })).toEqual({ batch: null, industry: null, type_tags: [] });
+  });
+
+  it('服务端同步带批次 / 行业 / 类型标签 → board_json；后续不带这些字段的新版本不抹掉', async () => {
+    const { repos } = await setup();
+    upsertListings(repos, [listing({ batch: '正式批', industry: '银行/金融', type_tags: ['央国企'] })], core);
+    expect(jobBoard(repos)[0].meta).toEqual({ batch: '正式批', industry: '银行/金融', type_tags: ['央国企'] });
+    upsertListings(repos, [listing({ version: 2, title: '数据分析实习生（更新）' })], core);
+    expect(jobBoard(repos)[0].meta).toEqual({ batch: '正式批', industry: '银行/金融', type_tags: ['央国企'] });
+  });
+
+  it('岗位表为空时首次自动导入校招数据一次；之后不再导入；有岗位时不导入；读不到数据不抛错', async () => {
+    const { repos, store } = await setup();
+    let loads = 0;
+    const bridges = {
+      loadCampusJobs: () => { loads++; return [{ company: '甲', positions: ['研发'], locations: ['上海'], batch: '正式批', industry: '互联网' }]; },
+      filterCampusJobs: (items: never[]) => items,
+      importCampusJobs: (r: typeof repos, items: Array<{ company: string; positions: string[] }>) => items.map(i => r.upsertJob({ source_platform: 'campus', source_job_id: i.company, title: i.positions.join('/'), company_name: i.company, board_json: core.serializeBoardMeta({ batch: '正式批', industry: '互联网' }) })),
+    } as unknown as Parameters<typeof seedCampusJobsIfEmpty>[2];
+    expect(seedCampusJobsIfEmpty(repos, store, bridges)).toEqual({ stored: 1 });
+    expect(repos.kvGet(CAMPUS_SEEDED_KEY)).toBeTruthy();
+    expect(jobBoard(repos)[0].meta).toEqual({ batch: '正式批', industry: '互联网', type_tags: [] });
+    repos.db.run('DELETE FROM job');
+    expect(seedCampusJobsIfEmpty(repos, store, bridges)).toBeNull();
+    expect(loads).toBe(1);
+
+    const other = await setup();
+    other.repos.upsertJob({ source_platform: 'manual', title: '已有岗位' });
+    expect(seedCampusJobsIfEmpty(other.repos, other.store, bridges)).toBeNull();
+    const fresh = await setup();
+    const broken = { ...bridges, loadCampusJobs: () => { throw new Error('ENOENT jobs.json'); } } as typeof bridges;
+    expect(seedCampusJobsIfEmpty(fresh.repos, fresh.store, broken)).toBeNull();
+    expect(fresh.repos.kvGet(CAMPUS_SEEDED_KEY)).toBeFalsy();
   });
 
   it('jobBoard 每行带 meta', async () => {

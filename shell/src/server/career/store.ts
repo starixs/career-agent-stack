@@ -260,7 +260,8 @@ export class CareerStore {
       if (h.to_stage === 'applied' && !appliedAt.has(h.application_id)) appliedAt.set(h.application_id, h.created_at);
     }
     return this.repos.applicationsWithJob().map(a => {
-      const next = deadlines.filter(d => d.application_id === a.id).sort((x, y) => x.due_at.localeCompare(y.due_at))[0] ?? null;
+      // 下一个截止只看有时间的；时间未知（due_at 为 null）的笔试 / 测评仍计入 exam_kinds 点亮进度条
+      const next = deadlines.filter((d): d is Deadline & { due_at: string } => d.application_id === a.id && !!d.due_at).sort((x, y) => x.due_at.localeCompare(y.due_at))[0] ?? null;
       const itv = interviews.filter(i => i.application_id === a.id);
       const days = Math.max(0, Math.round((Date.parse(nowIso) - Date.parse(a.updated_at)) / 86_400_000));
       const examKinds = [...new Set(allDeadlines.filter(d => d.status !== 'cancelled' && (d.application_id === a.id || (!d.application_id && d.job_id === a.job_id)) && (d.kind === 'assessment' || d.kind === 'written_test')).map(d => d.kind as 'assessment' | 'written_test'))];

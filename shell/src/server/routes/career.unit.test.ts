@@ -159,6 +159,25 @@ describe('handleCareerRoute', () => {
     expect(repos.kvGet('apply:batch:command')).toMatchObject({ cmd: 'run', by: 'approval', ids: [fill.id] });
   });
 
+  it('actions review：批准招呼语不显示已完成，转 needs_user 交给本人发送；发完可标记已发送', async () => {
+    const greet = repos.enqueueAction('send_greeting', { job_id: 'job_1', text: '您好，我是 27 届的张三' });
+    const reviewed = await call(deps, 'POST', '/api/career/actions/review', { ids: [greet.id], decision: 'approved' });
+    expect(reviewed.json.handed_to_user).toEqual([{ id: greet.id, kind: 'send_greeting', text: '您好，我是 27 届的张三', message: '已批准，招呼语需要你本人在平台发送' }]);
+    const after = repos.getAction(greet.id)!;
+    expect(after.status).toBe('needs_user');
+    expect(JSON.parse(after.result_json!)).toMatchObject({ handed_to_user: true, message: '已批准，招呼语需要你本人在平台发送：您好，我是 27 届的张三' });
+
+    const sent = await call(deps, 'POST', `/api/career/actions/${greet.id}/mark-sent`, {});
+    expect(sent.status).toBe(200);
+    expect(repos.getAction(greet.id)?.status).toBe('done');
+    expect((await call(deps, 'POST', `/api/career/actions/${greet.id}/mark-sent`, {})).status).toBe(409);
+
+    const rejected = repos.enqueueAction('answer_open_q', { text: 'x' });
+    const r2 = await call(deps, 'POST', '/api/career/actions/review', { ids: [rejected.id], decision: 'rejected' });
+    expect(r2.json.handed_to_user).toEqual([]);
+    expect(repos.getAction(rejected.id)?.status).toBe('rejected');
+  });
+
   it('handoffs list + close', async () => {
     const task = repos.createTask({ title: 't', kind: 'apply' });
     const handoff = repos.openHandoff('captcha', { taskId: task.id, message: '需要验证码' });

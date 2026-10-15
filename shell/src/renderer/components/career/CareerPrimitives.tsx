@@ -8,7 +8,6 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTML
 import { emitEvent } from '@/api/eventBus';
 import CustomSelect from '@/components/CustomSelect';
 import { useToastOptional } from '@/components/Toast';
-import { copyPlainText } from '@/utils/clipboard';
 
 // ─── 由对话指挥 ───
 
@@ -16,11 +15,10 @@ export interface ChatContext { surface?: string; refs?: Record<string, string | 
 
 /**
  * 面板把一句话真的发进唯一的个人助理对话（Chat 订阅 `career:chat-suggest` 后调用 sendMessage，App 同时把焦点切到对话）。
- * 带上对象 id 作为隐藏上下文，模型无需再问"哪一份"。剪贴板只是兜底：对话尚未就绪时用户仍能粘贴。
+ * 带上对象 id 作为隐藏上下文，模型无需再问"哪一份"。不碰剪贴板：用户没点「复制」就不该覆盖他剪贴板里的东西。
  */
 export function suggestToChat(text: string, context?: ChatContext, mode: 'send' | 'prefill' = 'send'): void {
   emitEvent('career:chat-suggest', { text, context, mode });
-  copyPlainText(text).catch(() => { /* 剪贴板不可用时静默 */ });
 }
 
 export function useSuggestToChat(): (text: string, context?: ChatContext) => void {

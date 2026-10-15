@@ -316,3 +316,21 @@ describe('systemReminder', () => {
     expect(parseSessionSendRequestDisplay(automaticResult)).toBeNull();
   });
 });
+
+describe('buildCareerContextReminder refs', () => {
+  it('页面状态 refs：数组逗号连接、对象转 JSON、空值丢弃，字符串原样（转义）', async () => {
+    const { buildCareerContextReminder } = await import('./systemReminder');
+    const out = buildCareerContextReminder({
+      surface: 'page:career-dossier:apply',
+      refs: { date: '2026-10-20', filters: { batch: ['正式批'], open_only: true }, job_ids: ['job_a', 'job_b'], application_id: '', empty: [], none: {}, legacy: '{"q":"<x>"}' },
+    });
+    expect(out).toContain('<surface>page:career-dossier:apply</surface>');
+    expect(out).toContain('<ref name="date">2026-10-20</ref>');
+    expect(out).toContain('<ref name="job_ids">job_a,job_b</ref>');
+    expect(out).toContain('<ref name="filters">{&quot;batch&quot;:[&quot;正式批&quot;],&quot;open_only&quot;:true}</ref>');
+    expect(out).toContain('<ref name="legacy">{&quot;q&quot;:&quot;&lt;x&gt;&quot;}</ref>');
+    expect(out).not.toContain('name="application_id"');
+    expect(out).not.toContain('name="empty"');
+    expect(out).not.toContain('name="none"');
+  });
+});

@@ -16,10 +16,10 @@ export function examTimeStatus(dueAt: string | null | undefined, now: Date = new
 
 export interface ExamRecordRow {
   id: string; kind: 'written_test' | 'assessment'; company_name: string | null; title: string;
-  due_at: string; status: ExamTimeStatus; url: string | null; application_id: string | null;
+  due_at: string | null; status: ExamTimeStatus; url: string | null; application_id: string | null;
 }
 
-/** 截止事件 + 投递摘要 → 笔试记录行：没到的按时间正序在前，过期的按时间倒序在后；已取消的不列。 */
+/** 截止事件 + 投递摘要 → 笔试记录行：没到的按时间正序在前，时间未知的随后，过期的按时间倒序在后；已取消的不列。 */
 export function examRecords(deadlines: readonly Deadline[], summaries: readonly DossierSummary[], now: Date = new Date()): ExamRecordRow[] {
   const byApp = new Map(summaries.map(s => [s.application_id, s]));
   const byJob = new Map(summaries.map(s => [s.job_id, s]));
@@ -32,7 +32,8 @@ export function examRecords(deadlines: readonly Deadline[], summaries: readonly 
         due_at: d.due_at, status: examTimeStatus(d.due_at, now), url: d.url, application_id: s?.application_id ?? d.application_id,
       };
     });
-  const upcoming = rows.filter(r => r.status !== 'expired').sort((a, b) => a.due_at.localeCompare(b.due_at));
-  const expired = rows.filter(r => r.status === 'expired').sort((a, b) => b.due_at.localeCompare(a.due_at));
-  return [...upcoming, ...expired];
+  const upcoming = rows.filter(r => r.status === 'upcoming').sort((a, b) => (a.due_at ?? '').localeCompare(b.due_at ?? ''));
+  const unknown = rows.filter(r => r.status === 'unknown');
+  const expired = rows.filter(r => r.status === 'expired').sort((a, b) => (b.due_at ?? '').localeCompare(a.due_at ?? ''));
+  return [...upcoming, ...unknown, ...expired];
 }

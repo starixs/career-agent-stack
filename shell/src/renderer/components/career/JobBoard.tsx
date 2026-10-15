@@ -18,7 +18,7 @@ import { PageAskBar } from '@/features/career-shell/PageAskBar';
 
 import { Badge, Button, DueLabel, EmptyState, ErrorRow, LoadingRow, Select, TextInput, textOrUnknown } from './CareerPrimitives';
 import {
-  DEFAULT_BOARD_FILTER, activeFilterCount, batchLabel, facetOptions, filterBoardRows, typeTagsOf,
+  DEFAULT_BOARD_FILTER, activeFilterCount, batchLabel, boardAskRefs, facetOptions, filterBoardRows, typeTagsOf,
   type BoardFilterState, type BoardSort, type FacetKey,
 } from './jobBoardFilters';
 import type { EmploymentType, JobBoardRow, JobPrefs } from './types';
@@ -138,6 +138,7 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
 
       <PageAskBar
         target={{ kind: 'career-dossier', view: 'apply' }}
+        refs={boardAskRefs(filter, ids, [...live])}
         placeholder="问问这些岗位，比如「哪些下周截止、适合我」"
         actions={(
           <button

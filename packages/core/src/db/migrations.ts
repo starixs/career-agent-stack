@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { jobKey } from '../keys.js'
 import { classifyAnswerSensitivity } from '../answers.js'
-import { inferEmploymentType, normalizeCohort } from '../jobs.js'
+import { inferEmploymentType, normalizeCohort, serializeBoardMeta } from '../jobs.js'
 
 /**
  * 增量迁移。schema.sql 是版本 1 的基线（新库整份建出来，老库靠 IF NOT EXISTS 补新表）；
@@ -179,6 +179,49 @@ export const MIGRATIONS: readonly Migration[] = [
       )`)
       db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_memory_active_key ON memory(scope, content_key) WHERE status='active'")
       db.exec('CREATE INDEX IF NOT EXISTS idx_memory_scope ON memory(status, scope)')
+    },
+  },
+  {
+    version: 7,
+    name: 'board-meta-and-unknown-time',
+    up(db) {
+      // 岗位汇总表维度（批次 / 行业 / 类型标签）独立成列（形状见 jobs.ts JobBoardMeta）：岗位评估会重写 prefilter_json，
+      // 维度放在那里会被冲掉。老数据从 prefilter_json.campus（campus-radar 早期写法）回填。
+      addColumn(db, 'job', 'board_json', 'TEXT')
+      const rows = db.prepare("SELECT id, prefilter_json FROM job WHERE board_json IS NULL AND prefilter_json LIKE '%\"campus\"%'").all() as Array<{ id: string; prefilter_json: string }>
+      const set = db.prepare('UPDATE job SET board_json=? WHERE id=?')
+      for (const r of rows) {
+        let campus: { batch?: unknown; industry?: unknown } | undefined
+        try { campus = (JSON.parse(r.prefilter_json) as { campus?: { batch?: unknown; industry?: unknown } }).campus } catch { /* 坏 JSON 跳过 */ }
+        const json = campus && typeof campus === 'object' ? serializeBoardMeta({ batch: campus.batch, industry: campus.industry }) : undefined
+        if (json) set.run(json, r.id)
+      }
+      // 截止事件允许时间未知（due_at 为 NULL）：笔试 / 测评通知没写时间也要落一条，笔试记录与投递进度才看得到。
+      // SQLite 不能直接去掉 NOT NULL，只能重建表（无其他表外键引用 deadline）。
+      const dueCol = (db.prepare('PRAGMA table_info(deadline)').all() as Array<{ name: string; notnull: number }>).find(c => c.name === 'due_at')
+      if (dueCol?.notnull) {
+        db.exec(`CREATE TABLE deadline_v7 (
+          id TEXT PRIMARY KEY,
+          kind TEXT NOT NULL,
+          title TEXT NOT NULL,
+          due_at TEXT,
+          application_id TEXT REFERENCES application(id) ON DELETE CASCADE,
+          job_id TEXT,
+          interview_id TEXT,
+          offer_id TEXT,
+          source TEXT NOT NULL DEFAULT 'manual',
+          status TEXT NOT NULL DEFAULT 'open',
+          url TEXT,
+          note TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )`)
+        db.exec(`INSERT INTO deadline_v7 (id, kind, title, due_at, application_id, job_id, interview_id, offer_id, source, status, url, note, created_at, updated_at)
+          SELECT id, kind, title, due_at, application_id, job_id, interview_id, offer_id, source, status, url, note, created_at, updated_at FROM deadline`)
+        db.exec('DROP TABLE deadline')
+        db.exec('ALTER TABLE deadline_v7 RENAME TO deadline')
+        db.exec('CREATE INDEX IF NOT EXISTS idx_deadline_due ON deadline(status, due_at)')
+      }
     },
   },
 ]

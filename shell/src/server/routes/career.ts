@@ -32,7 +32,7 @@ import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
 import { confirmSubmitResult } from '../career/submit-executor';
 import { BatchRunner } from '../career/batch-runner';
-import { computeMatches, getJobPrefs, jobBoard, prepareJobs, setJobPrefs } from '../career/job-board';
+import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
 import { broadcast as sseBroadcast } from '../sse';
@@ -275,9 +275,12 @@ const ROUTES: Route[] = [
     if (!url && !jd_raw) return fail('url 或 jd_raw 至少提供一个');
     let title = str(ctx.body.title);
     if (!title) title = jd_raw?.split('\n').map(l => l.trim()).find(Boolean)?.slice(0, 60) ?? (url ? safeHostname(url) : '未命名岗位');
+    // 汇总表维度（见 job-board.ts 顶部约定）：用户填了批次 / 行业 / 类型标签就用；否则只取原文里字面出现的批次词
+    const typeTags = Array.isArray(ctx.body.type_tags) ? ctx.body.type_tags.filter((x): x is string => typeof x === 'string') : [];
     const job = ctx.repos.upsertJob({
       source_platform: str(ctx.body.source_platform) ?? 'manual', title, url: url ?? null, jd_raw: jd_raw ?? null,
       company_name: strOrNull(ctx.body.company_name), source_job_id: str(ctx.body.source_job_id) ?? null,
+      board_json: ctx.core.serializeBoardMeta({ batch: str(ctx.body.batch) ?? ctx.core.batchFromText(title, jd_raw), industry: str(ctx.body.industry), type_tags: typeTags }),
     });
     let parsed: unknown;
     const llm = ctx.deps.llm === undefined ? getShellLLM() : ctx.deps.llm;
@@ -286,7 +289,10 @@ const ROUTES: Route[] = [
         const system = await loadSkillPrompt('jd-parse');
         const res = await llm.complete({ system, messages: [{ role: 'user', content: `公司：${job.company_name ?? '未知'}\n岗位：${job.title}\n\nJD 原文：\n${jd_raw}` }], json: true, temperature: 0.2 });
         parsed = ctx.core.extractJson(res.text);
-        ctx.repos.db.update('job', job.id, { jd_parsed_json: JSON.stringify(parsed), updated_at: new Date().toISOString() });
+        // JD 解析补充的维度只填空缺：用户手填的优先
+        const fromJd = ctx.core.parseBoardJson(ctx.core.serializeBoardMeta(ctx.core.boardMetaFromJd(parsed as Parameters<CoreModule['boardMetaFromJd']>[0], jd_raw)));
+        const board = fromJd ? JSON.stringify(ctx.core.mergeBoardMeta(fromJd, ctx.core.parseBoardJson(job.board_json))) : undefined;
+        ctx.repos.db.update('job', job.id, { jd_parsed_json: JSON.stringify(parsed), ...(board ? { board_json: board } : {}), updated_at: new Date().toISOString() });
       } catch (error) {
         console.warn('[career] 导入岗位时解析 JD 失败（已保存原文）:', error instanceof Error ? error.message : error);
       }
@@ -296,7 +302,13 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 岗位汇总表（R01 / R02 / R06 / R08） ----------
-  route('GET', '/api/career/jobs/board', ({ repos, url }) => {
+  route('GET', '/api/career/jobs/board', async (ctx) => {
+    const { repos, url } = ctx;
+    // 首次打开：岗位表为空就自动导入一次内置校招数据（幂等，只跑一次；领域库 / 数据缺失时照常返回空表）
+    if (!repos.kvGet<string>(CAMPUS_SEEDED_KEY)) {
+      const seeded = await loadBridges().then(b => seedCampusJobsIfEmpty(repos, ctx.store, b), () => null);
+      if (seeded?.stored) dataChanged(ctx, ['job']);
+    }
     const p = url.searchParams;
     const progress = p.get('progress');
     const sort = p.get('sort');
@@ -444,7 +456,21 @@ const ROUTES: Route[] = [
     // 批准填表同样即执行：交给后台批量运行器（命令轮询几秒内接走）
     const filling = decision === 'approved' ? actions.filter(a => a.kind === 'fill_form').map(a => a.id) : [];
     if (filling.length) BatchRunner.command(ctx.repos, 'run', 'approval', filling);
-    return ok({ n, sent, submitting: decision === 'approved' ? submits.map(a => a.id) : [], filling });
+    // 招呼语 / 开放题答案没有执行器（平台私信、网申开放题都只能本人操作）：批准 = 内容定稿，
+    // 交给用户本人去发，动作停在 needs_user 并带上要发的文字，不能显示成「已完成」。
+    const handedToUser = decision === 'approved' ? handOverUserSentActions(ctx.repos, actions) : [];
+    if (handedToUser.length) dataChanged(ctx, ['action_queue']);
+    return ok({ n, sent, submitting: decision === 'approved' ? submits.map(a => a.id) : [], filling, handed_to_user: handedToUser });
+  }),
+  // 用户在平台上亲手发完招呼语 / 填完开放题后确认：needs_user → done
+  route('POST', '/api/career/actions/:id/mark-sent', (ctx) => {
+    const a = ctx.repos.getAction(ctx.params.id);
+    if (!a) return fail(`动作不存在：${ctx.params.id}`, 404);
+    if (!USER_SENT_ACTION_KINDS.has(a.kind) || a.status !== 'needs_user') return fail(`只有等你本人发送的招呼语 / 开放题答案可以标记已发送（当前 ${a.kind} / ${a.status}）`, 409);
+    const prev = parseJsonObj(a.result_json);
+    ctx.repos.setActionStatus(a.id, 'done', { ...prev, handed_to_user: true, sent_by_user_at: new Date().toISOString() });
+    dataChanged(ctx, ['action_queue']);
+    return ok({ action: ctx.repos.getAction(a.id) });
   }),
 
   route('POST', '/api/career/actions/:id/confirm-submit', (ctx) => {
@@ -819,6 +845,29 @@ const ROUTES: Route[] = [
 
 function safeHostname(url: string): string {
   try { return new URL(url).hostname; } catch { return '未命名岗位'; }
+}
+
+/** 没有执行器、批准后只能由用户本人去平台发送的动作。 */
+const USER_SENT_ACTION_KINDS: ReadonlySet<string> = new Set(['send_greeting', 'answer_open_q']);
+const USER_SENT_NOTE: Record<string, string> = {
+  send_greeting: '已批准，招呼语需要你本人在平台发送',
+  answer_open_q: '已批准，开放题答案需要你本人在网申页面填写提交',
+};
+
+/** 批准后的招呼语 / 开放题答案：approved → needs_user，result 里带要发的文字与说明。返回交给用户的条目。 */
+function handOverUserSentActions(repos: Repos, reviewed: ReadonlyArray<{ id: string; kind: string }>): Array<{ id: string; kind: string; text: string | null; message: string }> {
+  const out: Array<{ id: string; kind: string; text: string | null; message: string }> = [];
+  for (const r of reviewed) {
+    if (!USER_SENT_ACTION_KINDS.has(r.kind)) continue;
+    const a = repos.getAction(r.id);
+    if (!a || a.status !== 'approved') continue;
+    const p = parseJsonObj(a.payload_json);
+    const text = [p.text, p.answer, p.greeting].find((v): v is string => typeof v === 'string' && !!v.trim()) ?? null;
+    const message = USER_SENT_NOTE[a.kind];
+    repos.setActionStatus(a.id, 'needs_user', { handed_to_user: true, message: text ? `${message}：${text}` : message, text, question: typeof p.question === 'string' ? p.question : undefined });
+    out.push({ id: a.id, kind: a.kind, text, message });
+  }
+  return out;
 }
 
 /** 入口：非 `/api/career/` 或浏览器子路径返回 null。 */

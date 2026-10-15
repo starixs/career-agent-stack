@@ -99,3 +99,23 @@ describe('todoCalendar', () => {
     expect(grid.some(d => localDateKey(d) === '2026-10-31')).toBe(true);
   });
 });
+
+describe('buildTodos · needs_user 动作', () => {
+  const base = { application_id: null, payload_json: '{}', result_json: null, reviewed_at: null, created_at: '2026-10-03T08:00:00', updated_at: '2026-10-03T09:00:00' };
+  it('submit 等你确认；招呼语 / 开放题等你发出去；其余不放', () => {
+    const todos = buildTodos({
+      now: new Date(2026, 9, 3, 12),
+      confirming: [
+        { ...base, id: 's1', kind: 'submit', status: 'needs_user' },
+        { ...base, id: 'g1', kind: 'send_greeting', status: 'needs_user' },
+        { ...base, id: 'q1', kind: 'answer_open_q', status: 'needs_user' },
+        { ...base, id: 'f1', kind: 'fill_form', status: 'needs_user' },
+      ],
+    });
+    expect(todos.map(t => [t.key, t.category, Boolean(t.confirmSubmit), Boolean(t.manualSend)])).toEqual([
+      ['confirm:s1', 'handoff', true, false],
+      ['manual:g1', 'handoff', false, true],
+      ['manual:q1', 'handoff', false, true],
+    ]);
+  });
+});

@@ -205,7 +205,7 @@ export interface InboxItem {
 }
 export type DeadlineKind = 'assessment' | 'written_test' | 'interview' | 'application_deadline' | 'offer_reply' | 'referral_expiry' | 'other';
 export interface Deadline {
-  id: string; kind: DeadlineKind; title: string; due_at: string; application_id: string | null; job_id: string | null;
+  id: string; kind: DeadlineKind; title: string; due_at: string | null; application_id: string | null; job_id: string | null;
   interview_id: string | null; offer_id: string | null; source: string; status: 'open' | 'done' | 'missed' | 'cancelled';
   url: string | null; note: string | null; created_at: string; updated_at: string;
 }

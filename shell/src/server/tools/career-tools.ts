@@ -9,9 +9,10 @@ import { AsyncLocalStorage } from 'async_hooks';
 // SDK + zod 只在 createCareerServer() 内动态 import（builtin-mcp-registry 的 lazy 约束）。
 import { existsSync } from 'fs';
 import { basename } from 'path';
-import type { Repos, LLM, Job, JdParsed, Claim, Vault, ActionQueueItem, Task } from '@career/core';
+import type { Repos, LLM, Job, JdParsed, Claim, Vault, ActionQueueItem, Task, Deadline } from '@career/core';
 
 import { loadCore } from '../career/core-module';
+import type { BoardRow } from '../career/job-board';
 import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
@@ -81,6 +82,83 @@ function parseJson<T = unknown>(raw: string | null | undefined): T | undefined {
 }
 
 export { applyJsonPatch } from '../career/tailor';
+
+/**
+ * job.prefilter_json 是多方共用的对象：`campus` 是校招来源数据（批次 / 行业 / 企业性质，岗位收藏表格按它筛选，
+ * 见 job-board.ts boardMeta），`evaluate` 是 job_evaluate 的硬约束预筛。只替换 evaluate，其余键原样保留。
+ */
+export function mergeEvaluatePrefilter(existing: string | null | undefined, prefilter: unknown): string | null {
+  const base = parseJson<Record<string, unknown>>(existing);
+  const next: Record<string, unknown> = base && typeof base === 'object' && !Array.isArray(base) ? { ...base } : {};
+  if (prefilter === null || prefilter === undefined) delete next.evaluate; else next.evaluate = prefilter;
+  return Object.keys(next).length ? JSON.stringify(next) : null;
+}
+
+// ============= 岗位收藏表格的筛选维度（与渲染端 jobBoardFilters.ts 同义） =============
+// 页面上的「批次 / 行业 / 类型 / 地点 / 进度」多选 + 搜索：jobs_board 用同一套语义，保证助理看到的就是页面那一批。
+const EMPLOYMENT_LABELS: Record<string, string> = { campus: '校招', intern: '实习', social: '社招' };
+/** 与 job-board.ts 的 DONE 一致：投出去之后的阶段。 */
+const BOARD_DONE_STAGES: ReadonlySet<string> = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired', 'skip']);
+export type BoardStage = 'none' | 'active' | 'done';
+export interface BoardFacetFilter { q?: string; batch?: string[]; industry?: string[]; type?: string[]; location?: string[]; stage?: BoardStage[] }
+
+export function boardStageOf(row: Pick<BoardRow, 'application'>): BoardStage {
+  if (!row.application) return 'none';
+  return BOARD_DONE_STAGES.has(row.application.stage) ? 'done' : 'active';
+}
+export function boardTypeTags(row: Pick<BoardRow, 'job' | 'meta'>): string[] {
+  const out: string[] = [];
+  const emp = EMPLOYMENT_LABELS[row.job.employment_type ?? ''];
+  if (emp) out.push(emp);
+  for (const t of row.meta?.type_tags ?? []) if (!out.includes(t)) out.push(t);
+  return out;
+}
+export function boardCities(row: Pick<BoardRow, 'job'>): string[] {
+  return (row.job.location ?? '').split(/[/、,，;；|\s]+/).map(c => c.trim()).filter(Boolean);
+}
+/** 多选维度：同一维度内任一命中即可，维度之间取交集；空数组 = 不限。type 也接受 campus / intern / social。 */
+export function filterBoardFacets<R extends Pick<BoardRow, 'job' | 'meta' | 'application'>>(rows: readonly R[], f: BoardFacetFilter): R[] {
+  const q = f.q?.trim().toLowerCase();
+  const types = (f.type ?? []).map(t => EMPLOYMENT_LABELS[t] ?? t);
+  const hit = (selected: readonly string[] | undefined, values: string[]) => !selected?.length || selected.some(v => values.includes(v));
+  return rows.filter(row => {
+    if (q && !`${row.job.company_name ?? ''} ${row.job.title}`.toLowerCase().includes(q)) return false;
+    return hit(f.batch, row.meta?.batch ? [row.meta.batch] : [])
+      && hit(f.industry, row.meta?.industry ? [row.meta.industry] : [])
+      && hit(types, boardTypeTags(row))
+      && hit(f.location, boardCities(row))
+      && hit(f.stage, [boardStageOf(row)]);
+  });
+}
+
+// ============= 截止事件列表 =============
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** ISO 时间在本机时区的日期（日历按本地日期分格）。 */
+function localDay(iso: string): string { const d = new Date(iso); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+export type DeadlineListStatus = 'undone' | 'open' | 'done' | 'missed' | 'cancelled' | 'all';
+export interface DeadlineListFilter { from?: string; to?: string; kind?: string; status?: DeadlineListStatus }
+
+/**
+ * 截止事件筛选：from / to 可给日期（YYYY-MM-DD，按本地日期含当天）或完整 ISO 时间。
+ * 缺省 = 未完成（open / missed）且 30 天内到期的全部，含已过期没处理的。
+ */
+export function selectDeadlines(all: readonly Deadline[], f: DeadlineListFilter, nowIso = new Date().toISOString()): Deadline[] {
+  const status = f.status ?? 'undone';
+  const nowMs = Date.parse(nowIso);
+  const to = f.to ?? (f.from ? undefined : new Date(nowMs + 30 * 86_400_000).toISOString());
+  // 时间未知的事件不按区间过滤：它们需要用户去确认时间，始终列出（排在最后）。
+  const after = (due: string, bound: string) => (DATE_ONLY.test(bound) ? localDay(due) >= bound : Date.parse(due) >= Date.parse(bound));
+  const before = (due: string, bound: string) => (DATE_ONLY.test(bound) ? localDay(due) <= bound : Date.parse(due) <= Date.parse(bound));
+  return all.filter(d => {
+    if (status === 'undone' ? !(d.status === 'open' || d.status === 'missed') : status !== 'all' && d.status !== status) return false;
+    if (f.kind && d.kind !== f.kind) return false;
+    if (!d.due_at) return true;
+    if (f.from && !after(d.due_at, f.from)) return false;
+    if (to && !before(d.due_at, to)) return false;
+    return true;
+  }).sort((a, b) => (Number(a.due_at === null) - Number(b.due_at === null)) || (a.due_at ?? '').localeCompare(b.due_at ?? ''));
+}
 
 // ============= 工具调用上下文（卡片锚点） =============
 const toolCallContext = new AsyncLocalStorage<{ toolUseId: string | null }>();
@@ -373,7 +451,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
   return createSdkMcpServer({
     name: 'career',
     version: '1.0.0',
-    instructions: '求职助理的数据与执行工具。读写一律走这些工具；submit / send_greeting / answer_open_q / send_mail 进入待审核队列，由用户批准后执行（网申提交例外：用户开了 auto 模式，或同一张表已自学习免审时会直接提交）。',
+    instructions: '求职助理的数据与执行工具。读写一律走这些工具；submit / send_greeting / answer_open_q / send_mail 进入待审核队列，由用户批准后执行（网申提交例外：用户开了 auto 模式，或同一张表已自学习免审时会直接提交）；send_greeting / answer_open_q 批准后不会自动发出，而是转为 needs_user 交给用户本人去平台发送。',
     tools: [
       // ---------- 概览 / 经历库 ----------
       tool('career_overview', '返回看板三问题（今天必须做什么 / 哪里卡住 / 漏斗分布）+ 待审数 + 进行中的任务 + 未关闭的接管。', {}, wrap(() => text(store().overview()))),
@@ -414,7 +492,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         });
       })),
       // ---------- 今日 / 收件箱 / 截止 ----------
-      tool('today_queue', '今天必须做的事（已排序：过期 / 今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线）+ 等待中的投递数。给用户最多三件。', {}, wrap(() => text(repos().today()))),
+      tool('today_queue', '今天必须做的事（已排序：过期 / 今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线）+ 等待中的投递数。给用户最多三件。只含 3 天内的时间点（条目带 deadline_id）；更远的日程用 deadline_list。', {}, wrap(() => text(repos().today()))),
 
       tool('inbox_capture', '把用户丢进来的任何内容（JD、面试邀请、测评 / 笔试通知、拒信、Offer、内推码、截止提醒）归档成结构化对象：自动建岗位 / 面试 / 截止事件 / 关闭投递 / Offer，并关联到卷宗。', {
         text: z.string().describe('原文'), source: z.enum(['paste', 'file', 'url', 'chat']).optional(), application_id: z.string().optional().describe('用户已明确归属的投递'),
@@ -448,6 +526,43 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const deadline = repos().setDeadlineStatus(args.deadline_id, args.status ?? 'done');
         changed('deadline');
         return text({ deadline });
+      })()),
+
+      tool('deadline_list', '列出时间点（日历上的测评 / 笔试 / 面试 / 截止…），每条带 deadline_id、所属公司与投递。缺省 = 30 天内到期 + 已过期还没处理的；用户在招聘概览选了某天（refs.date）就传 from=to=那天。改期 / 改标题用 deadline_update，完成用 deadline_done。', {
+        from: z.string().optional().describe('起始：YYYY-MM-DD（含当天）或 ISO 时间'), to: z.string().optional().describe('截止：YYYY-MM-DD（含当天）或 ISO 时间'),
+        kind: z.enum(['assessment', 'written_test', 'interview', 'application_deadline', 'offer_reply', 'referral_expiry', 'other']).optional(),
+        status: z.enum(['undone', 'open', 'done', 'missed', 'cancelled', 'all']).optional().describe('缺省 undone = 未完成（open + 已过期未处理的 missed）'),
+      }, async (args) => wrap(() => {
+        for (const bound of [args.from, args.to]) if (bound && Number.isNaN(Date.parse(bound))) return err(`不是可解析的时间：${bound}`);
+        const r = repos();
+        const now = new Date().toISOString();
+        const jobs = new Map<string, Job | undefined>();
+        const jobOf = (id: string | null | undefined) => { if (!id) return undefined; if (!jobs.has(id)) jobs.set(id, r.getJob(id)); return jobs.get(id); };
+        const list = selectDeadlines(r.listDeadlines(), args, now).map(d => {
+          const job = jobOf(d.job_id) ?? jobOf(d.application_id ? r.getApplication(d.application_id)?.job_id : null);
+          return { id: d.id, title: d.title, kind: d.kind, due_at: d.due_at, status: d.status, overdue: !!d.due_at && (d.status === 'open' || d.status === 'missed') && d.due_at < now, company: job?.company_name ?? null, job_title: job?.title ?? null, application_id: d.application_id, job_id: d.job_id ?? job?.id ?? null, note: d.note, url: d.url };
+        });
+        return text({ deadlines: list, total: list.length, range: { from: args.from ?? null, to: args.to ?? (args.from ? null : '30 天内'), status: args.status ?? 'undone', kind: args.kind ?? null } });
+      })()),
+
+      tool('deadline_update', '改一个时间点：改期（due_at）、改标题 / 类型 / 备注。用户说"笔试改到周五 / 这个时间记错了"时用；deadline_id 来自 deadline_list 或 today_queue 条目的 deadline_id。已过期的改到将来会重新变回未完成。', {
+        deadline_id: z.string(), due_at: z.string().optional().describe('ISO 时间，如 2026-10-05T14:00:00+08:00'), title: z.string().optional(), note: z.string().optional(),
+        kind: z.enum(['assessment', 'written_test', 'interview', 'application_deadline', 'offer_reply', 'referral_expiry', 'other']).optional(),
+      }, async (args) => wrap(() => {
+        const r = repos();
+        const current = r.getDeadline(args.deadline_id);
+        if (!current) return err(`截止事件不存在：${args.deadline_id}`);
+        if (args.due_at !== undefined && Number.isNaN(Date.parse(args.due_at))) return err('due_at 不是可解析的时间');
+        const patch: Record<string, unknown> = {};
+        if (args.due_at !== undefined) patch.due_at = new Date(args.due_at).toISOString();
+        if (args.title !== undefined && args.title.trim()) patch.title = args.title.trim();
+        if (args.note !== undefined) patch.note = args.note || null;
+        if (args.kind !== undefined) patch.kind = args.kind;
+        if (!Object.keys(patch).length) return err('没有要改的字段：due_at / title / note / kind 至少给一个');
+        if (typeof patch.due_at === 'string' && current.status === 'missed' && Date.parse(patch.due_at) > Date.now()) patch.status = 'open';
+        r.db.update('deadline', current.id, { ...patch, updated_at: new Date().toISOString() });
+        changed('deadline');
+        return text({ deadline: r.getDeadline(current.id) });
       })()),
 
       // ---------- 卷宗 ----------
@@ -662,14 +777,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ job, note: '只记录了链接；需要 JD 文本才能解析与评分。' });
       })()),
 
-      tool('job_evaluate', '岗位硬约束预筛 + 五维评分 + 投递建议（投不投由用户决定），写入 job.prefilter_json / score_json。', { job_id: z.string() }, async (args) => wrap(async () => {
+      tool('job_evaluate', '岗位硬约束预筛 + 五维评分 + 投递建议（投不投由用户决定），预筛写入 job.prefilter_json.evaluate（保留来源数据），完整评估写入 score_json。', { job_id: z.string() }, async (args) => wrap(async () => {
         const job = requireJob(args.job_id);
         const jd = jdOf(job);
         if (!jd) return err('该岗位还没有解析 JD，请先调用 jd_parse');
         const company = store().findCompany(job.company_name ?? '');
         const out = await askSkill<Record<string, unknown>>('job-evaluate', `JdParsed：\n${JSON.stringify(jd)}\n\n求职偏好：\n${JSON.stringify(prefs())}\n\n经历库已确认主张：\n${experienceDigest()}\n\n公司调研结论：${company?.traffic_light ?? '无'}`, { temperature: 0.2 });
         const prefilter = out.prefilter ?? out.hard_constraints ?? null;
-        repos().db.update('job', job.id, { prefilter_json: prefilter ? JSON.stringify(prefilter) : null, score_json: JSON.stringify(out), updated_at: new Date().toISOString() });
+        repos().db.update('job', job.id, { prefilter_json: mergeEvaluatePrefilter(job.prefilter_json, prefilter), score_json: JSON.stringify(out), updated_at: new Date().toISOString() });
         changed('job');
         return text({ job_id: job.id, evaluation: out });
       })()),
@@ -850,19 +965,35 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ application, action, packet: { id: packet.id, resume_id: packet.resume_id, resume_kind: packet.resume_kind, resume_pick_reason: picked?.reason ?? null, has_pdf: !!packet.resume_pdf_path }, ...(warning ? { warning } : {}), note: '动作已进入待审核队列，对话里有批准卡片；批准的是这份材料包（之后再改简历不影响这次投递）。现在先停下等用户点卡片，不要调用 apply_run，也不要说填写失败：用户批准后你会收到「我在卡片上批准了…（动作 act_…）」，收到后再调用 apply_run(action_id)。' });
       })()),
 
-      tool('jobs_board', '岗位汇总表（校招 / 实习网申汇总 + 我的进度 + 可解释匹配）。按条件筛选、按匹配分排序；每条带"哪条要求对应用户哪段经历"。推荐时只推荐 fits=true 的（不违反用户明确条件）。', {
-        q: z.string().optional(), employment_type: z.enum(['campus', 'intern', 'social']).optional(), city: z.string().optional(), cohort: z.string().optional().describe('如 2027届'),
+      tool('jobs_board', '岗位汇总表 = 「岗位收藏」页那张表（校招 / 实习网申汇总 + 我的进度 + 可解释匹配）。筛选维度与页面一致：批次 batch / 行业 industry / 类型 type（校招、实习、社招、央国企、外企…）/ 地点 location / 进度 stage 均可多选，q 搜公司或岗位名；页面默认只看没截止的（open_only=true）。用户在岗位收藏页问"这些 / 当前筛选"时，把 refs.filters 换成这些参数（tag→type、city→location、progress→stage，其余同名），refs.job_ids 拆成数组传 job_ids。返回 total（符合条件的总数）+ 前 limit 条（按匹配分排序）；每条带批次 / 行业 / 类型标签和"哪条要求对应用户哪段经历"。推荐时只推荐 fits=true 的（不违反用户明确条件）。', {
+        q: z.string().optional().describe('搜公司 / 岗位名'),
+        batch: z.array(z.string()).optional().describe('批次，如 ["正式批","提前批"]'), industry: z.array(z.string()).optional().describe('行业，如 ["互联网"]'),
+        type: z.array(z.string()).optional().describe('类型标签：校招 / 实习 / 社招（也可写 campus / intern / social）或企业性质，如 央国企、外企'),
+        location: z.array(z.string()).optional().describe('城市，如 ["北京","上海"]'), stage: z.array(z.enum(['none', 'active', 'done'])).optional().describe('进度：none 未投递 / active 进行中 / done 已投出'),
+        employment_type: z.enum(['campus', 'intern', 'social']).optional(), city: z.string().optional().describe('地点包含该词（模糊）'), cohort: z.string().optional().describe('如 2027届'),
         open_only: z.boolean().optional().describe('只看没截止的'), fits_only: z.boolean().optional().describe('只看符合用户条件的'), progress: z.enum(['none', 'active', 'done']).optional(),
-        sort: z.enum(['match', 'deadline', 'updated']).optional(), limit: z.number().int().min(1).max(50).optional(),
+        job_ids: z.array(z.string()).optional().describe('只看这些岗位（如页面上勾选的 refs.job_ids）'),
+        sort: z.enum(['match', 'deadline', 'updated']).optional(), limit: z.number().int().min(1).max(200).optional().describe('返回条数，缺省 30，最多 200'),
       }, async (args) => wrap(async () => {
         const { jobBoard, getJobPrefs } = await import('../career/job-board');
-        const rows = jobBoard(repos(), { ...args, limit: args.limit ?? 15 });
-        return text({ prefs: getJobPrefs(repos()), rows: rows.map(({ job, match, application }) => ({
-          job_id: job.id, job_key: job.job_key, company: job.company_name, title: job.title, type: job.employment_type, cohort: job.cohort, location: job.location, deadline: job.deadline,
-          url: job.url, progress: application?.stage ?? null, score: match?.score ?? null, fits: match?.hard_ok ?? null, summary: match?.summary ?? '尚未计算匹配',
-          hard: match?.hard.filter(h => h.ok !== true).map(h => `${h.label}：${h.detail}`), covered: match?.requirements.filter(r => r.status === 'covered').map(r => `${r.requirement} ← ${r.evidence?.label ?? ''}「${r.evidence?.text.slice(0, 40) ?? ''}」`),
-          missing: match?.requirements.filter(r => r.status === 'missing').map(r => r.requirement),
-        })), note: rows.length ? '匹配基于用户已确认的经历与简历文字；missing 里的要求不能替用户编造，只能建议去补证据或在面试准备里说明。' : '没有符合条件的岗位：可先 jobs_sync 同步校招数据，或放宽条件。' });
+        const { q, batch, industry, type, location, stage, job_ids, limit, ...base } = args;
+        const ids = job_ids?.length ? new Set(job_ids) : null;
+        const matched = filterBoardFacets(jobBoard(repos(), { ...base, limit: Number.MAX_SAFE_INTEGER }), { q, batch, industry, type, location, stage })
+          .filter(row => !ids || ids.has(row.job.id));
+        const rows = matched.slice(0, limit ?? 30);
+        // 条数多时不展开逐条证据，避免结果被截断；要细看某几条再按 job_ids 查
+        const detailed = rows.length <= 50;
+        const applied = Object.fromEntries(Object.entries(args).filter(([k, v]) => k !== 'limit' && v !== undefined && !(Array.isArray(v) && v.length === 0)));
+        return text({ prefs: getJobPrefs(repos()), total: matched.length, returned: rows.length, filters: applied, rows: rows.map(({ job, match, application, meta }) => ({
+          job_id: job.id, job_key: job.job_key, company: job.company_name, title: job.title, type: job.employment_type, cohort: job.cohort, batch: meta.batch, industry: meta.industry, type_tags: boardTypeTags({ job, meta }),
+          location: job.location, deadline: job.deadline, url: job.url, stage: boardStageOf({ application }), progress: application?.stage ?? null, score: match?.score ?? null, fits: match?.hard_ok ?? null, summary: match?.summary ?? '尚未计算匹配',
+          ...(detailed ? {
+            hard: match?.hard.filter(h => h.ok !== true).map(h => `${h.label}：${h.detail}`), covered: match?.requirements.filter(r => r.status === 'covered').map(r => `${r.requirement} ← ${r.evidence?.label ?? ''}「${r.evidence?.text.slice(0, 40) ?? ''}」`),
+            missing: match?.requirements.filter(r => r.status === 'missing').map(r => r.requirement),
+          } : {}),
+        })), note: rows.length
+          ? `${matched.length > rows.length ? `共 ${matched.length} 条，只返回前 ${rows.length} 条；` : ''}${detailed ? '' : '条数较多，未展开逐条匹配证据（要看细节用 job_ids 查）；'}匹配基于用户已确认的经历与简历文字；missing 里的要求不能替用户编造，只能建议去补证据或在面试准备里说明。`
+          : '没有符合条件的岗位：可先 jobs_sync 同步校招数据，或放宽条件。' });
       })()),
 
       tool('jobs_sync', '同步岗位到本地汇总表：campus = 内置校招 / 实习汇总数据；server = 服务端共享岗位库（需已配置服务端地址）。同步后自动重算匹配。', {
@@ -943,7 +1074,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return runDrive(action, 'continue');
       })()),
 
-      tool('greeting_compose', '生成平台招呼语（≤120 字）并自评审，入 send_greeting 待审队列；永远不会直接发送。', {
+      tool('greeting_compose', '生成平台招呼语（≤120 字）并自评审，入 send_greeting 待审队列；永远不会直接发送：用户批准后动作变为 needs_user（招呼语定稿），由用户本人复制到平台发送，不要说成"已发送"。', {
         job_id: z.string(), preferences: z.string().optional().describe('用户的招呼语偏好'),
       }, async (args) => wrap(async () => {
         const job = requireJob(args.job_id);

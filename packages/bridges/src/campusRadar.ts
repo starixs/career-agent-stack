@@ -5,11 +5,11 @@
  *       deadline 截止日期 / campus_only 是否仅限校招 / first_seen、last_seen 首次/最后收录 / confirmed_by 确认人数
  */
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { z } from 'zod'
-import { inferEmploymentType, normalizeCohort, type EmploymentType, type Repos, type Job } from '@career/core'
-import { moduleDir, envStr } from './common.js'
+import { inferEmploymentType, normalizeCohort, serializeBoardMeta, type EmploymentType, type Repos, type Job } from '@career/core'
+import { moduleDir } from './common.js'
 
 export const CampusJobSchema = z.object({
   company: z.string(),
@@ -30,8 +30,23 @@ export const CampusJobSchema = z.object({
 }).passthrough()
 export type CampusJob = z.infer<typeof CampusJobSchema>
 
-export function defaultCampusJobsPath(env: NodeJS.ProcessEnv = process.env): string {
-  return envStr('CAMPUS_RADAR_JOBS', join(envStr('CAMPUS_RADAR_DIR', moduleDir('campus-radar'), env), 'jobs.json'), env)
+/**
+ * jobs.json 的位置，按顺序取第一个存在的：
+ *  1. 环境变量 CAMPUS_RADAR_JOBS（文件）/ CAMPUS_RADAR_DIR（目录）——显式指定时直接用，不再回退；
+ *  2. <stackRoot>/modules/campus-radar/jobs.json——开发时是仓库根；发布包里 @career/bridges 部署在
+ *     Resources/node_modules/@career/bridges/dist，stackRoot 正好落在 Resources，tauri.conf 把 jobs.json 映射到
+ *     Resources/modules/campus-radar/jobs.json（scripts/stage-career-packages.mjs 负责拷过去）；
+ *  3. 侧车入口（server-dist.js）同级的 modules/campus-radar/jobs.json——万一领域库不在 Resources 下也能找到。
+ * 都不存在时返回第 2 个（报错信息里的路径最有指向性）。
+ */
+export function defaultCampusJobsPath(env: NodeJS.ProcessEnv = process.env, entry: string | undefined = process.argv[1]): string {
+  const file = env.CAMPUS_RADAR_JOBS?.trim()
+  if (file) return file
+  const dir = env.CAMPUS_RADAR_DIR?.trim()
+  if (dir) return join(dir, 'jobs.json')
+  const primary = join(moduleDir('campus-radar'), 'jobs.json')
+  const candidates = [primary, ...(entry ? [join(dirname(entry), 'modules', 'campus-radar', 'jobs.json')] : [])]
+  return candidates.find(p => existsSync(p)) ?? primary
 }
 
 /** 读取并校验 jobs.json；坏条目跳过而不是整体失败。 */
@@ -123,6 +138,8 @@ export function mapCampusJob(j: CampusJob): Parameters<Repos['upsertJob']>[0] {
     jd_raw: lines.join('\n'),
     deadline: j.deadline ?? null,
     deadline_verified_at: null,
+    // 汇总表维度单独存 board_json（岗位评估会重写 prefilter_json）；prefilter_json.campus 保留原始字段供兼容读取
+    board_json: serializeBoardMeta({ batch: j.batch, industry: j.industry }),
     prefilter_json: JSON.stringify({ campus: { cohort: j.cohort ?? null, batch: j.batch ?? null, program: j.program ?? null, industry: j.industry ?? null, positions: j.positions, official_wechat: j.official_wechat ?? null, qr_image: j.qr_image ?? null, campus_only: j.campus_only ?? null, confirmed_by: j.confirmed_by ?? null, first_seen: j.first_seen ?? null, last_seen: j.last_seen ?? null } }),
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_BOARD_FILTER, batchLabel, facetOptions, filterBoardRows, typeTagsOf } from './jobBoardFilters';
+import { ASK_REF_JOB_LIMIT, DEFAULT_BOARD_FILTER, batchLabel, boardAskRefs, facetOptions, filterBoardRows, typeTagsOf } from './jobBoardFilters';
 import type { JobBoardRow } from './types';
 
 const row = (id: string, over: { job?: Partial<JobBoardRow['job']>; meta?: JobBoardRow['meta']; stage?: string; score?: number; hard_ok?: boolean }): JobBoardRow => ({
@@ -47,5 +47,19 @@ describe('岗位收藏筛选（选项来自已有取值，不做条件编辑器�
     expect(typeTagsOf(rows[1])).toEqual(['实习', '央国企']);
     expect(batchLabel(rows[0])).toBe('27届 · 正式批');
     expect(batchLabel(rows[1])).toBe('实习');
+  });
+});
+
+describe('boardAskRefs', () => {
+  it('drops empty filters, caps visible ids and serializes to strings', () => {
+    const ids = Array.from({ length: ASK_REF_JOB_LIMIT + 5 }, (_, i) => `j${i}`);
+    const refs = boardAskRefs({ ...DEFAULT_BOARD_FILTER, openOnly: false, city: ['上海'], sort: 'deadline' }, ids, []);
+    expect(refs.filters).toBe(JSON.stringify({ city: ['上海'], sort: 'deadline' }));
+    expect(refs.job_ids?.split(',')).toHaveLength(ASK_REF_JOB_LIMIT);
+    expect(refs.selected_job_ids).toBeUndefined();
+  });
+
+  it('sends nothing for a default, empty board', () => {
+    expect(boardAskRefs({ ...DEFAULT_BOARD_FILTER, openOnly: false }, [], [])).toEqual({ filters: undefined, job_ids: undefined, selected_job_ids: undefined });
   });
 });

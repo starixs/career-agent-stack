@@ -90,10 +90,13 @@ export async function parseAndStoreJd(
   const digest = r.experienceTree().map(e => `## ${e.title}\n${e.claims.filter(c => c.status !== 'pending').map(c => `- ${c.text}`).join('\n')}`).join('\n\n') || '（经历库为空）';
   const parsed = await askSkill<JdParsed>(deps, 'jd-parse', `公司：${input.company_name ?? job?.company_name ?? '未知'}\n岗位：${input.title ?? job?.title ?? '未知'}\n\nJD 原文：\n${jdRaw}\n\n经历库摘要：\n${digest}`);
   const title = input.title ?? job?.title ?? parsed.title ?? jdRaw.split('\n').map(l => l.trim()).find(Boolean)?.slice(0, 60) ?? '未命名岗位';
+  // 汇总表维度：只取解析结果的显式字段 + 原文里字面出现的批次 / 企业性质词（见 core jobs.ts JobBoardMeta），拿不到就不写
+  const board = deps.core.serializeBoardMeta(deps.core.boardMetaFromJd(parsed, title, jdRaw));
   if (!job) {
-    job = r.upsertJob({ source_platform: input.source_platform ?? 'manual', title, url: input.url ?? null, jd_raw: jdRaw, company_name: input.company_name ?? parsed.company ?? null, location: parsed.location?.join('/') ?? null, deadline: parsed.deadline || null });
+    job = r.upsertJob({ source_platform: input.source_platform ?? 'manual', title, url: input.url ?? null, jd_raw: jdRaw, company_name: input.company_name ?? parsed.company ?? null, location: parsed.location?.join('/') ?? null, deadline: parsed.deadline || null, board_json: board });
   }
-  r.db.update('job', job.id, { jd_parsed_json: JSON.stringify(parsed), ...(parsed.deadline && !job.deadline ? { deadline: parsed.deadline } : {}), updated_at: new Date().toISOString() });
+  const mergedBoard = board ? JSON.stringify(deps.core.mergeBoardMeta(deps.core.parseBoardJson(job.board_json), deps.core.parseBoardJson(board))) : undefined;
+  r.db.update('job', job.id, { jd_parsed_json: JSON.stringify(parsed), ...(mergedBoard ? { board_json: mergedBoard } : {}), ...(parsed.deadline && !job.deadline ? { deadline: parsed.deadline } : {}), updated_at: new Date().toISOString() });
   if (parsed.deadline && !r.listDeadlines({ status: 'open' }).some(d => d.job_id === job!.id && d.kind === 'application_deadline')) {
     const due = normalizeIso(parsed.deadline, deps.now?.() ?? new Date().toISOString());
     if (due) r.createDeadline({ kind: 'application_deadline', title: `${job.company_name ?? ''} ${job.title} 网申截止`.trim(), due_at: due, job_id: job.id, source: 'job' });
@@ -149,21 +152,29 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
   if (!app && triage.match?.application_id) app = r.getApplication(triage.match.application_id);
   if (!app && company) { const hits = r.findOpenApplicationsByCompany(company); if (hits.length === 1) app = hits[0]; }
 
+  /**
+   * 找不到投递就建岗位 + 投递；然后只往前推进到目标阶段（Repos.advanceTo）：已经在面试的投递又收到一封笔试通知，
+   * 阶段不回退、也不抛错——否则整封邮件归档失败、内容全丢。
+   */
   const ensureApplication = (stage: 'interview' | 'offer' | 'applied', note: string) => {
     if (!app) {
-      const job = r.upsertJob({ source_platform: 'manual', title: title ?? '未命名岗位', company_name: company });
+      // 邮件 / 粘贴里只有公司与岗位名；批次只在原文字面出现时才记（不猜行业）
+      const board = deps.core.serializeBoardMeta({ batch: deps.core.batchFromText(title, input.mail?.subject, item.raw_text) });
+      const job = r.upsertJob({ source_platform: 'manual', title: title ?? '未命名岗位', company_name: company, board_json: board });
       app = r.createApplication(job.id);
       created.job_id = job.id;
-      tables.add('job');
+      tables.add('job').add('application');
     }
-    app = r.jumpTo(app.id, stage, note);
+    const { app: next, moved } = r.advanceTo(app.id, stage, note);
+    app = next;
     created.application_id = app.id;
-    tables.add('application').add('application_history');
+    if (moved) tables.add('application').add('application_history');
     return app;
   };
-  const addDeadline = (dk: DeadlineKind, label: string, when: string | undefined, extra: { interview_id?: string; offer_id?: string } = {}) => {
+  /** allowUnknownTime：笔试 / 测评通知没写时间也建一条（due_at 为 null = 时间未知），笔试记录和投递进度才看得到。 */
+  const addDeadline = (dk: DeadlineKind, label: string, when: string | undefined, extra: { interview_id?: string; offer_id?: string } = {}, allowUnknownTime = false) => {
     const due = normalizeIso(when, nowIso);
-    if (!due) return;
+    if (!due && !allowUnknownTime) return;
     const d = r.createDeadline({ kind: dk, title: label, due_at: due, application_id: app?.id ?? null, job_id: app?.job_id ?? null, source: input.source === 'mail' ? 'mail' : 'inbox', url: f.location_or_link?.startsWith('http') ? f.location_or_link : null, note: f.notes ?? null, ...extra });
     created.deadline_ids.push(d.id);
     tables.add('deadline');
@@ -190,7 +201,7 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       case 'assessment':
       case 'written_test': {
         const a = ensureApplication('applied', kind === 'assessment' ? '收到测评' : '收到笔试通知');
-        addDeadline(kind, `${label} ${kind === 'assessment' ? '测评' : '笔试'}`, f.due_at || f.when);
+        addDeadline(kind, `${label} ${kind === 'assessment' ? '测评' : '笔试'}`, f.due_at || f.when, {}, true);
         r.addDossierNote({ application_id: a.id, kind: 'heard', content: `${kind === 'assessment' ? '测评' : '笔试'}：${f.due_at || f.when || '时间见原文'}${f.location_or_link ? `，${f.location_or_link}` : ''}` });
         tables.add('dossier_note');
         break;

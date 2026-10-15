@@ -13,6 +13,8 @@ import { ACTION_KIND_LABELS } from '@/components/career/careerConstants';
 import { Button, CareerPage, ChatActionButton, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
 import { onOnboardingIntroRequest, takeOnboardingIntroRequest } from '@/features/career-shell/onboardingReminder';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
+import { isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
+import { ManualSendText } from '@/components/career/ManualSendText';
 import { OnboardingIntro, buildSteps, markIntroSeen, readIntroSeen } from '@/components/career/OnboardingIntro';
 import { StrikeText } from '@/components/career/StrikeText';
 import {
@@ -68,7 +70,7 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
 
   const today = useCareerQuery(careerApi.today, TODAY_TABLES);
   const pending = useCareerQuery(careerApi.pendingActions, ACTION_TABLES);
-  const confirming = useCareerQuery(() => careerApi.submitsNeedingUser().catch(() => []), ACTION_TABLES);
+  const confirming = useCareerQuery(() => careerApi.actionsNeedingUser().catch(() => []), ACTION_TABLES);
   const deadlines = useCareerQuery(() => careerApi.deadlines(), DEADLINE_TABLES);
   const activity = useCareerQuery(() => careerApi.activity(gridStartIso).catch(() => []), ACTIVITY_TABLES);
   const onboarding = useCareerQuery(careerApi.onboarding, ONBOARDING_TABLES);
@@ -172,7 +174,7 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
               onOpenChat={onOpenChat}
             />
           </div>
-          <PageAskBar target={{ kind: 'career-today' }} placeholder="比如「10 月 20 日提醒我交测评」，或者问问今天先做哪件" />
+          <PageAskBar target={{ kind: 'career-today' }} refs={{ date: selected }} placeholder="比如「10 月 20 日提醒我交测评」，或者问问今天先做哪件" />
         </div>
       </CareerPage>
       {introOpen && steps && <OnboardingIntro steps={steps} onClose={closeIntro} />}
@@ -323,6 +325,9 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
   const payload = action ? safeJson<Record<string, unknown>>(action.payload_json, {}) : {};
   const isSendMail = action?.kind === 'send_mail';
   const isReview = item.kind === 'review' && !todo.confirmSubmit;
+  // 招呼语 / 开放题回答批准后不由产品发送，而是变成「等你发出去」的一行（manualSend）。
+  const approvedNote = action && isManualSendKind(action.kind) ? '已批准，待你发送' : '已批准';
+  const sendText = todo.manualSend && action ? manualSendText(action) : null;
   const deadlineDone = (item.kind === 'deadline' || item.kind === 'interview_today') && item.ref.type === 'deadline';
   const applicationId = todo.applicationId ?? (item.ref.type === 'application' ? item.ref.id : null);
   const openDossier = () => emitEvent('career:focus', { surface: 'dossier', application_id: applicationId } satisfies CareerFocusEvent);
@@ -343,11 +348,12 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
       </div>
       {meta && !todo.done && <div className="mt-0.5 truncate text-xs text-[var(--muted)]" title={meta}>{meta}</div>}
       {act.error && <div className="mt-1.5"><ErrorRow message={act.error} onRetry={onChanged} /></div>}
+      {!todo.done && sendText && action && <ManualSendText text={sendText} actionId={action.id} onSent={note => onDone(todo, note)} />}
       {!todo.done && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {isReview && (
             <>
-              <Button variant="primary" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.reviewActions([item.ref.id], 'approved'), '已批准')}>{isSendMail ? '批准并发送' : '批准'}</Button>
+              <Button variant="primary" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.reviewActions([item.ref.id], 'approved'), approvedNote)}>{isSendMail ? '批准并发送' : '批准'}</Button>
               <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.reviewActions([item.ref.id], 'rejected'), '不发了')}>不发了</Button>
             </>
           )}
@@ -372,7 +378,7 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
           {item.kind === 'inbox' && (
             <Button size="sm" onClick={() => emitEvent('career:focus', { surface: 'inbox', id: item.ref.type === 'inbox_item' ? item.ref.id : null } satisfies CareerFocusEvent)}>去通知中心</Button>
           )}
-          {item.kind === 'handoff' && !todo.confirmSubmit && (
+          {item.kind === 'handoff' && !todo.confirmSubmit && !todo.manualSend && (
             <Button variant="primary" size="sm" onClick={onOpenChat}>打开对话接手</Button>
           )}
           {item.suggest && item.kind !== 'interview_today' && (

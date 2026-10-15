@@ -94,6 +94,23 @@ describe('CareerApply · 岗位收藏', () => {
     expect(screen.queryByRole('button', { name: /等于|包含/ })).not.toBeInTheDocument();
   });
 
+  it('页面输入框带上当前筛选（只留非空项）、可见岗位 id 和勾选的岗位', async () => {
+    mockGet();
+    render(<CareerApply />);
+    await screen.findByText('后端工程师');
+    fireEvent.change(screen.getByLabelText('搜索岗位'), { target: { value: '丙' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择岗位 后端工程师' }));
+    const seen: Array<{ context?: { surface?: string; refs?: Record<string, unknown> } }> = [];
+    const off = onEvent<{ context?: { surface?: string; refs?: Record<string, unknown> } }>('career:chat-suggest', p => { seen.push(p); });
+    fireEvent.change(screen.getByLabelText('问助理'), { target: { value: '这个适合我吗' } });
+    fireEvent.click(screen.getByRole('button', { name: '发送给助理' }));
+    off();
+    expect(seen[0].context).toEqual({
+      surface: 'page:career-dossier:apply',
+      refs: { filters: JSON.stringify({ q: '丙', open_only: true }), job_ids: 'j1', selected_job_ids: 'j1' },
+    });
+  });
+
   it('auto 模式开关跟加入待投清单放在一起；结果不确定的提交仍要你确认', async () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true });

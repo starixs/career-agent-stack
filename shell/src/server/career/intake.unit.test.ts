@@ -3,6 +3,7 @@ import { FakeLLM } from '@career/core';
 
 import { loadCore } from './core-module';
 import { captureIntake, normalizeIso } from './intake';
+import { CareerStore } from './store';
 import { createMemoryRepos } from './test-db';
 
 vi.mock('../sse', () => ({ broadcast: vi.fn() }));
@@ -82,5 +83,53 @@ describe('captureIntake', () => {
     const b = await captureIntake(d, { text: '另一段' });
     expect(b.item.status).toBe('new');
     expect(b.item.note).toContain('归类失败');
+  });
+
+  it('笔试通知没写时间：仍建一条时间未知的笔试事件，进笔试记录、点亮投递进度，今日队列提示确认时间', async () => {
+    const llm = new FakeLLM();
+    const d = await deps(llm);
+    const job = d.repos.upsertJob({ source_platform: 'manual', title: '研发', company_name: '丁公司' });
+    const app = d.repos.createApplication(job.id);
+    llm.push(JSON.stringify({ kind: 'written_test', relevance: 'job', fields: { company: '丁公司', title: '研发' }, match: { application_id: app.id }, summary: '丁公司笔试通知，时间另行通知' }));
+    const res = await captureIntake(d, { text: '您已进入笔试环节，具体时间另行通知', source: 'mail' });
+    expect(res.item.status).toBe('processed');
+    expect(res.created.deadline_ids).toHaveLength(1);
+    expect(d.repos.getDeadline(res.created.deadline_ids[0])).toMatchObject({ kind: 'written_test', due_at: null, application_id: app.id, status: 'open' });
+    expect(d.repos.getApplication(app.id)!.stage).toBe('applied');
+    const summary = new CareerStore(d.repos, d.core).dossierSummaries(NOW).find(x => x.application_id === app.id)!;
+    expect(summary.exam_kinds).toEqual(['written_test']);
+    expect(summary.next_deadline).toBeNull();
+    expect(d.repos.today(NOW).items.some(i => i.deadline_id === res.created.deadline_ids[0] && i.due_at === null)).toBe(true);
+  });
+
+  it('已在面试的投递又收到测评邮件：阶段不回退、不抛错，测评事件照样落库', async () => {
+    const llm = new FakeLLM();
+    const d = await deps(llm);
+    const job = d.repos.upsertJob({ source_platform: 'manual', title: '产品', company_name: '戊公司' });
+    const app = d.repos.createApplication(job.id);
+    d.repos.jumpTo(app.id, 'interview', '一面');
+    llm.push(JSON.stringify({ kind: 'assessment', relevance: 'job', fields: { company: '戊公司', due_at: '2026-10-06T10:00:00Z' }, match: { application_id: app.id }, summary: '戊公司测评' }));
+    const res = await captureIntake(d, { text: '请在 10 月 6 日前完成在线测评' });
+    expect(res.item.status).toBe('processed');
+    expect(res.item.note).not.toContain('落库失败');
+    expect(d.repos.getApplication(app.id)!.stage).toBe('interview');
+    expect(d.repos.listDeadlines({ application_id: app.id })).toEqual([expect.objectContaining({ kind: 'assessment', due_at: '2026-10-06T10:00:00.000Z' })]);
+  });
+
+  it('JD 入库与邮件建岗写汇总表维度：只记原文字面出现的批次 / 企业性质，拿不到就空', async () => {
+    const llm = new FakeLLM();
+    const d = await deps(llm);
+    llm.push(JSON.stringify({ kind: 'jd', relevance: 'job', fields: { company: '己公司', title: '数据分析' }, summary: '己公司 JD' }));
+    llm.push(JSON.stringify({ company: '己公司', title: '数据分析', hard_requirements: [], responsibilities: [], nice_to_have: [], keywords: { covered: [], diggable: [], missing: [] }, notes: ['公司性质：国企'] }));
+    const jd = await captureIntake(d, { text: '己公司 2027 届秋招提前批 数据分析岗\n负责经营分析' });
+    expect(d.core.parseBoardJson(d.repos.getJob(jd.created.job_id!)!.board_json)).toEqual({ batch: '提前批', industry: null, type_tags: ['国企'] });
+
+    llm.push(JSON.stringify({ kind: 'interview_invite', relevance: 'job', fields: { company: '庚公司', title: '运营', when: '2026-10-08T06:00:00Z' }, summary: '庚公司面试' }));
+    const mail = await captureIntake(d, { text: '邀请您参加春招一面', source: 'mail', mail: { subject: '庚公司春招面试邀请' } });
+    expect(d.core.parseBoardJson(d.repos.getJob(mail.created.job_id!)!.board_json)).toEqual({ batch: '春招', industry: null, type_tags: [] });
+
+    llm.push(JSON.stringify({ kind: 'offer', relevance: 'job', fields: { company: '辛公司', title: '研发' }, summary: '辛公司 offer' }));
+    const off = await captureIntake(d, { text: '恭喜录用' });
+    expect(d.repos.getJob(off.created.job_id!)!.board_json ?? null).toBeNull();
   });
 });

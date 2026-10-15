@@ -5,8 +5,17 @@
  *  - 匹配证据：已确认的经历主张 + 主简历（及定制版）里的条目文字；`matchJob` 逐条要求对证据，结果存 job.match_json / match_score。
  *  - 汇总表：岗位 + 我的进度（投递阶段）+ 匹配，按筛选条件与排序给出。
  *  - 加入待投清单：对勾选的岗位逐个 apply_prepare（冻结材料包 + fill_form 待审）。
+ *
+ * 汇总表维度（批次 / 行业 / 类型标签）的存放约定——所有导入路径与读取方都按这个来：
+ *  - 权威位置是 job.board_json（迁移 v7），形如 `{"batch":"正式批"|null,"industry":"互联网"|null,"type_tags":["央国企"]}`，
+ *    归一 / 合并规则在 @career/core jobs.ts（normalizeBoardMeta / serializeBoardMeta / mergeBoardMeta）。
+ *  - 写入方：校招静态数据（bridges/campusRadar.ts mapCampusJob）、服务端同步（server-api.ts upsertListings，
+ *    JobListing.batch / industry / type_tags）、手动导入（routes/career.ts /jobs/import，可带 batch / industry / type_tags，
+ *    并合并 JD 解析得到的维度）、JD 解析入库与邮件建岗（intake.ts）。拿不到就不写，不猜。
+ *  - 岗位评估（job_evaluate）只写 prefilter_json.evaluate / score_json，永远不碰 board_json。
+ *  - 兼容：老数据没有 board_json 时回退读 prefilter_json.campus（campus-radar 早期写法；评估合并时保留该键）。
  */
-import { JOB_PREFS_KEY, matchJob, type Job, type JobMatch, type JobPrefs, type MatchEvidence, type Repos } from '@career/core';
+import { JOB_PREFS_KEY, matchJob, normalizeBoardMeta, parseBoardJson, type Job, type JobBoardMeta, type JobMatch, type JobPrefs, type MatchEvidence, type Repos } from '@career/core';
 
 import { freezePacket, pickResumeForJob, type PacketDeps } from './packets';
 import type { CareerStore } from './store';
@@ -77,26 +86,43 @@ export interface BoardRow {
   /** 多维表格用的维度（批次 / 行业 / 类型标签），从来源数据里能拿到的才有，拿不到为空，不猜。 */
   meta: BoardMeta;
 }
-export interface BoardMeta { batch: string | null; industry: string | null; type_tags: string[] }
+export type BoardMeta = JobBoardMeta;
 
-/** 校招来源把「央国企 / 外企 / 事业单位」这类企业性质也写在行业里：归到类型标签，行业只留真正的行业。 */
-const OWNERSHIP_RE = /央企|国企|央国企|外企|外资|合资|民企|事业单位|研究所|军工/;
-
-/** 来源数据里的维度：campus-radar 导入时写在 prefilter_json.campus（见 bridges/campusRadar.ts mapCampusJob）。 */
-export function boardMeta(job: Pick<Job, 'prefilter_json'>): BoardMeta {
-  let campus: Record<string, unknown> = {};
+/** 维度读取：board_json 优先；没有时回退 prefilter_json.campus（老数据）。prefilter_json 里其他键（evaluate 等）一概不看。 */
+export function boardMeta(job: Pick<Job, 'prefilter_json'> & { board_json?: string | null }): BoardMeta {
+  const board = parseBoardJson(job.board_json);
+  if (board) return board;
+  let campus: Record<string, unknown> | null = null;
   try {
-    const raw = job.prefilter_json ? JSON.parse(job.prefilter_json) as Record<string, unknown> : {};
-    if (raw && typeof raw.campus === 'object' && raw.campus) campus = raw.campus as Record<string, unknown>;
+    const raw = job.prefilter_json ? JSON.parse(job.prefilter_json) as unknown : null;
+    const c = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>).campus : null;
+    if (c && typeof c === 'object' && !Array.isArray(c)) campus = c as Record<string, unknown>;
   } catch { /* 坏 JSON 当没有 */ }
-  const text = (v: unknown) => (typeof v === 'string' && v.trim() && v.trim() !== '其他' ? v.trim() : null);
-  const industryRaw = text(campus.industry);
-  const ownership = industryRaw && OWNERSHIP_RE.test(industryRaw);
-  return {
-    batch: text(campus.batch),
-    industry: ownership ? null : industryRaw,
-    type_tags: ownership && industryRaw ? [industryRaw] : [],
-  };
+  return normalizeBoardMeta(campus ? { batch: campus.batch, industry: campus.industry } : null);
+}
+
+/** 首次自动导入只用到 bridges 里校招数据的三个函数（测试可注入）。 */
+export type CampusSeedBridges = Pick<typeof import('@career/bridges'), 'loadCampusJobs' | 'filterCampusJobs' | 'importCampusJobs'>;
+export const CAMPUS_SEEDED_KEY = 'jobs:campus:auto_seeded_at';
+
+/**
+ * 岗位表为空且从没自动导入过时，导入一次内置校招数据并算匹配（首次打开汇总表不是一张空表）。
+ * 幂等：成功后记 kv，之后即使用户清空了岗位也不再自动导入；读不到数据（发布包缺文件等）只返回 null，不打断列表读取。
+ */
+export function seedCampusJobsIfEmpty(repos: Repos, store: CareerStore, bridges: CampusSeedBridges): { stored: number } | null {
+  if (repos.kvGet<string>(CAMPUS_SEEDED_KEY)) return null;
+  if (repos.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM job')?.n) return null;
+  let stored: number;
+  try {
+    const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), { excludeExpired: false });
+    stored = bridges.importCampusJobs(repos, items).length;
+  } catch (error) {
+    console.warn('[career] 首次自动导入校招数据失败:', error instanceof Error ? error.message : error);
+    return null;
+  }
+  repos.kvSet(CAMPUS_SEEDED_KEY, new Date().toISOString());
+  if (stored) computeMatches(repos, store);
+  return { stored };
 }
 
 const DONE = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired', 'skip']);

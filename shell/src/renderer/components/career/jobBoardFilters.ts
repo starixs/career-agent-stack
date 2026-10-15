@@ -95,3 +95,24 @@ export function filterBoardRows(rows: readonly JobBoardRow[], f: BoardFilterStat
 export function activeFilterCount(f: BoardFilterState): number {
   return f.batch.length + f.industry.length + f.tag.length + f.city.length + f.progress.length + (f.q.trim() ? 1 : 0) + (f.fitsOnly ? 1 : 0);
 }
+
+/** 页面输入框带给助理的 refs 最多列多少个可见岗位 id（再多就只是噪音）。 */
+export const ASK_REF_JOB_LIMIT = 50;
+
+/**
+ * 页面输入框（PageAskBar）带给助理的「用户正在看什么」：当前筛选（只留非空项）、可见岗位 id、勾选的岗位。
+ * CAREER_CONTEXT 的 ref 只承载字符串（shared/systemReminder.ts），所以筛选序列化成 JSON、id 用逗号连接（与 action_id 同一写法）。
+ */
+export function boardAskRefs(f: BoardFilterState, visibleIds: readonly string[], selectedIds: readonly string[]): Record<string, string | undefined> {
+  const filters: Record<string, unknown> = {};
+  if (f.q.trim()) filters.q = f.q.trim();
+  for (const key of ['batch', 'industry', 'tag', 'city', 'progress'] as const) if (f[key].length) filters[key] = f[key];
+  if (f.openOnly) filters.open_only = true;
+  if (f.fitsOnly) filters.fits_only = true;
+  if (f.sort !== DEFAULT_BOARD_FILTER.sort) filters.sort = f.sort;
+  return {
+    filters: Object.keys(filters).length ? JSON.stringify(filters) : undefined,
+    job_ids: visibleIds.length ? visibleIds.slice(0, ASK_REF_JOB_LIMIT).join(',') : undefined,
+    selected_job_ids: selectedIds.length ? selectedIds.join(',') : undefined,
+  };
+}

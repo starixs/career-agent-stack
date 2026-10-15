@@ -2,10 +2,10 @@ import { Db, now } from './db/db.js'
 import { newId } from './ids.js'
 import { MemoryRepo } from './memories.js'
 import { canonicalJson, jobKey, sha256 } from './keys.js'
-import { inferEmploymentType, normalizeCohort } from './jobs.js'
+import { inferEmploymentType, mergeBoardMeta, normalizeCohort, parseBoardJson } from './jobs.js'
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
-import { canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
+import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage } from './types.js'
 import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
 
@@ -53,9 +53,14 @@ export class Repos {
     const key = j.job_key ?? jobKey(j)
     const existing = (j.source_job_id ? this.db.get<Job>('SELECT * FROM job WHERE source_platform=? AND source_job_id=?', [j.source_platform, j.source_job_id]) : undefined)
       ?? this.db.get<Job>('SELECT * FROM job WHERE job_key=? LIMIT 1', [key])
-    if (existing) { this.db.update('job', existing.id, { ...stripUndefined(j), job_key: existing.job_key ?? key, updated_at: t }); return this.db.get<Job>('SELECT * FROM job WHERE id=?', [existing.id])! }
+    if (existing) {
+      // 汇总表维度按字段合并：后来的来源只补 / 覆盖它明确给出的字段，不把别的来源写的批次 / 行业抹掉。
+      const board = j.board_json ? JSON.stringify(mergeBoardMeta(parseBoardJson(existing.board_json), parseBoardJson(j.board_json))) : undefined
+      this.db.update('job', existing.id, { ...stripUndefined({ ...j, board_json: board }), job_key: existing.job_key ?? key, updated_at: t })
+      return this.db.get<Job>('SELECT * FROM job WHERE id=?', [existing.id])!
+    }
     const id = newId('job')
-    this.db.insert('job', { id, source_platform: j.source_platform, source_job_id: j.source_job_id ?? null, url: j.url ?? null, company_id: j.company_id ?? null, company_name: j.company_name ?? null, title: j.title, location: j.location ?? null, salary: j.salary ?? null, jd_raw: j.jd_raw ?? null, jd_parsed_json: j.jd_parsed_json ?? null, prefilter_json: j.prefilter_json ?? null, score_json: j.score_json ?? null, deadline: j.deadline ?? null, deadline_verified_at: j.deadline_verified_at ?? null, job_key: key, remote_id: j.remote_id ?? null,
+    this.db.insert('job', { id, source_platform: j.source_platform, source_job_id: j.source_job_id ?? null, url: j.url ?? null, company_id: j.company_id ?? null, company_name: j.company_name ?? null, title: j.title, location: j.location ?? null, salary: j.salary ?? null, jd_raw: j.jd_raw ?? null, jd_parsed_json: j.jd_parsed_json ?? null, prefilter_json: j.prefilter_json ?? null, board_json: j.board_json ?? null, score_json: j.score_json ?? null, deadline: j.deadline ?? null, deadline_verified_at: j.deadline_verified_at ?? null, job_key: key, remote_id: j.remote_id ?? null,
       employment_type: j.employment_type ?? inferEmploymentType(j.title, (j.jd_raw ?? '').slice(0, 400)), cohort: j.cohort ?? normalizeCohort(j.jd_raw), source_version: j.source_version ?? null, source_status: j.source_status ?? 'open', created_at: t, updated_at: t })
     return this.db.get<Job>('SELECT * FROM job WHERE id=?', [id])!
   }
@@ -99,6 +104,15 @@ export class Repos {
     let cur = app
     path.forEach((stage, i) => { cur = this.transition(appId, stage, i === path.length - 1 ? note : `自动推进（${note ?? ''}）`, i === path.length - 1 ? extra : {}) })
     return cur
+  }
+  /**
+   * 只往前推进（收件箱 / 邮件归档用）：目标阶段在当前阶段前方才 jumpTo；已经在目标阶段、或已走得更远 / 已关闭
+   * （例如已在面试又收到一封笔试通知），原样返回、不抛错——一封迟到的邮件不能让整条归档失败。
+   */
+  advanceTo(appId: string, to: ApplicationStage, note?: string): { app: Application; moved: boolean } {
+    const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
+    if (!canReachStage(app.stage, to)) return { app, moved: false }
+    return { app: this.jumpTo(appId, to, note), moved: true }
   }
   /** 看板三问题：今天必须做什么 / 哪里卡住 / 漏斗分布。 */
   board(today = now().slice(0, 10)) {
@@ -431,7 +445,8 @@ export class Repos {
   dismissInboxItem(id: string): InboxItem { return this.resolveInboxItem(id, { status: 'dismissed' }) }
 
   // ---------- 截止与定时事件（不丢球） ----------
-  createDeadline(d: { kind: DeadlineKind; title: string; due_at: string; application_id?: string | null; job_id?: string | null; interview_id?: string | null; offer_id?: string | null; source?: string; url?: string | null; note?: string | null }): Deadline {
+  /** due_at 为 null = 时间未知（例如笔试通知里没写时间）：照样建，笔试记录 / 投递进度能看到，今日队列提示去确认时间。 */
+  createDeadline(d: { kind: DeadlineKind; title: string; due_at: string | null; application_id?: string | null; job_id?: string | null; interview_id?: string | null; offer_id?: string | null; source?: string; url?: string | null; note?: string | null }): Deadline {
     const t = now(); const id = newId('ddl')
     this.db.insert('deadline', { id, kind: d.kind, title: d.title, due_at: d.due_at, application_id: d.application_id ?? null, job_id: d.job_id ?? null, interview_id: d.interview_id ?? null, offer_id: d.offer_id ?? null, source: d.source ?? 'manual', status: 'open', url: d.url ?? null, note: d.note ?? null, created_at: t, updated_at: t })
     return this.getDeadline(id)!
@@ -443,7 +458,7 @@ export class Repos {
     else if (f.status) { where.push('status=?'); params.push(f.status) }
     if (f.application_id) { where.push('application_id=?'); params.push(f.application_id) }
     if (f.until) { where.push('due_at<=?'); params.push(f.until) }
-    return this.db.all<Deadline>(`SELECT * FROM deadline ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY due_at`, params as (string | number)[])
+    return this.db.all<Deadline>(`SELECT * FROM deadline ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY due_at IS NULL, due_at`, params as (string | number)[])
   }
   setDeadlineStatus(id: string, status: DeadlineStatus): Deadline {
     if (!this.db.update('deadline', id, { status, updated_at: now() })) throw new Error(`截止事件不存在：${id}`)
@@ -520,7 +535,14 @@ export class Repos {
   today(nowIso = now()): { items: TodayItem[]; waiting: { count: number; by_stage: Array<{ stage: string; n: number }> }; inbox_new: number; pending_review: number } {
     this.markMissedDeadlines(nowIso)
     const items: TodayItem[] = []
-    for (const d of this.listDeadlines({ status: 'open_or_missed' })) { const it = deadlineToToday({ ...d, status: 'open' }, nowIso); if (it) items.push(it) }
+    for (const d of this.listDeadlines({ status: 'open_or_missed' })) {
+      if (!d.due_at) {
+        // 时间未知：不算过期也不算到期，放在末尾提醒去确认时间（deadlineToToday 只处理有时间的事件）
+        if (d.status === 'open') items.push({ kind: 'deadline', priority: 7, title: d.title, detail: '时间未知，去原邮件或官网确认后补上', due_at: null, ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id }, deadline_id: d.id })
+        continue
+      }
+      const it = deadlineToToday({ ...d, due_at: d.due_at, status: 'open' }, nowIso); if (it) items.push(it)
+    }
     const pendingActions = this.listActions('pending_review')
     for (const a of pendingActions) {
       const app = a.application_id ? this.getApplication(a.application_id) : undefined

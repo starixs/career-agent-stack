@@ -136,6 +136,10 @@ export const careerApi = {
   /** 提交结果不确定 / 接管后：用户确认是否已经投递成功。 */
   confirmSubmit: (id: string, submitted: boolean) =>
     apiPostJson<unknown>(careerPath(`/actions/${encodeURIComponent(id)}/confirm-submit`), { submitted }).then(r => pickObject<ActionQueueItem>(r, 'action')),
+  /** 所有 status=needs_user 的动作：等确认结果的提交、批准后要用户自己发出去的招呼语 / 开放题回答。 */
+  actionsNeedingUser: () => apiGetJson<unknown>(careerPath('/actions?status=needs_user')).then(r => pickList<ActionQueueItem>(r, 'actions', 'items')),
+  /** 招呼语 / 开放题回答用户已在平台上自己发出：needs_user → done（其它状态 409）。 */
+  markActionSent: (id: string) => apiPostJson<unknown>(careerPath(`/actions/${encodeURIComponent(id)}/mark-sent`), {}).then(r => pickObject<ActionQueueItem>(r, 'action')),
   /** 等用户确认结果的提交（status=needs_user 的 submit）。 */
   submitsNeedingUser: () => apiGetJson<unknown>(careerPath('/actions?status=needs_user')).then(r => pickList<ActionQueueItem>(r, 'actions', 'items').filter(a => a.kind === 'submit')),
   applySettings: () => apiGetJson<unknown>(careerPath('/apply/settings')).then(r => pickObject<ApplySettings>(r)),

@@ -64,7 +64,11 @@ export async function fetchText(fetchImpl: FetchLike, url: string, init: JsonReq
 
 export const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
-/** 仓库根目录（career-agent-stack/），modules/ 与 app/ 的父目录。 */
+/**
+ * 仓库根目录（career-agent-stack/），modules/ 与 app/ 的父目录。
+ * 发布包里本包部署在 Resources/node_modules/@career/bridges/dist，同样上溯四级 = Resources；
+ * 需要随包发布的 modules 数据由 tauri.conf 映射到 Resources/modules/<name>（目前只有 campus-radar/jobs.json）。
+ */
 export function stackRoot(): string {
   // src/common.ts 与 dist/common.js 深度相同：app/packages/bridges/{src|dist}
   return resolve(fileURLToPath(new URL('../../../../', import.meta.url)))

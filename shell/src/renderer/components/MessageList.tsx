@@ -592,7 +592,7 @@ const MessageList = memo(function MessageList({
             initialUserCollapsed={layoutByMessageIdRef.current?.get(message.id)?.likelyUserCollapsed === true}
           />
           {!isStreamingMsg && pageReturnsRef.current.has(message.id) && (
-            <PageReturnCard target={pageReturnsRef.current.get(message.id)!} />
+            <PageReturnCard {...pageReturnsRef.current.get(message.id)!} />
           )}
         </ChatRowLayoutProvider>
       </div>

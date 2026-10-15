@@ -13,6 +13,8 @@ import {
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
+import { isManualSend, isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
+import { ManualSendText } from '@/components/career/ManualSendText';
 import { StrikeText } from '@/components/career/StrikeText';
 import { SubmitReviewList, approvalLabel } from '@/components/career/SubmitReviewList';
 import type {
@@ -85,6 +87,7 @@ export function actionSummary(action: ActionQueueItem): string {
 /** 截止是否该进通知流：没做完，且已经过了或 REMIND_WITHIN_DAYS 天内到期。 */
 export function isDueSoon(d: Deadline, now: Date = new Date()): boolean {
   if (d.status !== 'open' && d.status !== 'missed') return false;
+  if (!d.due_at) return false; // 时间未知：原邮件本身已在通知流里，不再单列一条截止
   const due = new Date(d.due_at).getTime();
   if (Number.isNaN(due)) return false;
   return due - now.getTime() <= REMIND_WITHIN_DAYS * 86_400_000;
@@ -92,7 +95,7 @@ export function isDueSoon(d: Deadline, now: Date = new Date()): boolean {
 
 type FeedEntry =
   | { type: 'mail'; key: string; at: string; item: InboxItem }
-  | { type: 'review'; key: string; at: string; action: ActionQueueItem; confirm?: boolean }
+  | { type: 'review'; key: string; at: string; action: ActionQueueItem; confirm?: boolean; manual?: boolean }
   | { type: 'remind'; key: string; at: string; deadline: Deadline };
 
 /** 本地处理过的条目：批准后原地变成「已发送 · 10:42」，不跳走（7.2）。 */
@@ -103,7 +106,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   const mail = useCareerQuery(careerApi.mailAccounts, MAIL_TABLES);
   const dossiers = useCareerQuery(careerApi.dossiers, DOSSIER_TABLES);
   const pending = useCareerQuery(careerApi.pendingActions, ACTION_TABLES);
-  const confirming = useCareerQuery(() => careerApi.submitsNeedingUser().catch(() => []), ACTION_TABLES);
+  const needsUser = useCareerQuery(() => careerApi.actionsNeedingUser().catch(() => []), ACTION_TABLES);
   const deadlines = useCareerQuery(() => careerApi.deadlines('open_or_missed'), DEADLINE_TABLES);
   const batchSnapshot = useCareerQuery(() => careerApi.batchState().catch(() => null), ACTION_TABLES);
   const liveBatch = useBatchState();
@@ -138,12 +141,15 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
     const list: FeedEntry[] = [];
     for (const item of inbox.data ?? []) if (item.status !== 'dismissed') list.push({ type: 'mail', key: `mail:${item.id}`, at: item.created_at, item });
     for (const action of pending.data ?? []) list.push({ type: 'review', key: `review:${action.id}`, at: action.created_at, action });
-    for (const action of confirming.data ?? []) list.push({ type: 'review', key: `confirm:${action.id}`, at: action.updated_at, action, confirm: true });
+    for (const action of needsUser.data ?? []) {
+      if (action.kind === 'submit') list.push({ type: 'review', key: `confirm:${action.id}`, at: action.updated_at, action, confirm: true });
+      else if (isManualSend(action)) list.push({ type: 'review', key: `manual:${action.id}`, at: action.updated_at, action, manual: true });
+    }
     for (const d of deadlines.data ?? []) if (isDueSoon(d, now)) list.push({ type: 'remind', key: `remind:${d.id}`, at: d.created_at, deadline: d });
     const seen = new Set(list.map(e => e.key));
     for (const [key, entry] of kept) if (!seen.has(key)) list.push(entry);
     return list.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
-  }, [inbox.data, pending.data, confirming.data, deadlines.data, kept]);
+  }, [inbox.data, pending.data, needsUser.data, deadlines.data, kept]);
 
   const counts = useMemo(() => {
     const c: Record<Filter, number> = { all: entries.length + (showBatch ? 1 : 0), mail: 0, review: 0, batch: showBatch ? 1 : 0, remind: 0 };
@@ -157,7 +163,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
     setResolved(prev => new Map(prev).set(entry.key, { label, at: new Date().toISOString() }));
     setKept(prev => new Map(prev).set(entry.key, entry));
   };
-  const reloadFeed = () => { inbox.reload(); pending.reload(); confirming.reload(); deadlines.reload(); };
+  const reloadFeed = () => { inbox.reload(); pending.reload(); needsUser.reload(); deadlines.reload(); };
   const loading = (inbox.loading && !inbox.data) || (pending.loading && !pending.data);
   const error = inbox.error ?? pending.error ?? deadlines.error;
 
@@ -247,7 +253,7 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
   entry: Extract<FeedEntry, { type: 'review' }>; label: string; resolved?: Resolved; onResolved: (label: string) => void;
 }) {
   const act = useCareerAction();
-  const { action, confirm } = entry;
+  const { action, confirm, manual } = entry;
   const payload = safeJson<Record<string, unknown>>(action.payload_json, {});
   const isSubmit = action.kind === 'submit';
   const result = safeJson<Record<string, unknown>>(action.result_json, {});
@@ -255,7 +261,7 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
   const head = (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <TypeLabel type="review" />
-      <span className="text-xs text-[var(--muted)]">{confirm ? '等你确认' : ACTION_KIND_LABELS[action.kind] ?? action.kind}</span>
+      <span className="text-xs text-[var(--muted)]">{confirm ? '等你确认' : manual ? '等你发出去' : ACTION_KIND_LABELS[action.kind] ?? action.kind}</span>
       <span className="min-w-0 truncate text-sm font-medium text-[var(--ink)]">{label}</span>
       <span className="ml-auto text-xs tabular-nums text-[var(--muted)]">{formatDate(entry.at)}</span>
     </div>
@@ -266,6 +272,18 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
         {head}
         <div className="mt-1 text-sm"><StrikeText done animate>{actionSummary(action)}</StrikeText></div>
         <div role="status" className="mt-1 text-xs font-medium text-[var(--success)]">{`${resolved.label} · ${hhmm(resolved.at)}`}</div>
+      </div>
+    );
+  }
+  if (manual) {
+    const text = manualSendText(action);
+    return (
+      <div className="border-l-[3px] border-[var(--warning)] pl-3">
+        {head}
+        <div className="mt-1 text-sm text-[var(--ink-2)]">
+          {`${ACTION_KIND_LABELS[action.kind] ?? action.kind}已批准，产品不替你在平台上发，复制下面的文字自己发出去`}
+        </div>
+        {text ? <ManualSendText text={text} actionId={action.id} onSent={onResolved} /> : <div className="mt-1 text-sm text-[var(--muted)]">{actionSummary(action)}</div>}
       </div>
     );
   }
@@ -292,7 +310,7 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
       {isSubmit && <SubmitReviewList review={payload.review as SubmitReviewSummary | null} />}
       {act.error && <ErrorRow message={act.error} />}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button variant="primary" busy={act.busy} onClick={() => void run(() => careerApi.reviewActions([action.id], 'approved'), action.kind === 'send_mail' ? '已发送' : '已批准')}>
+        <Button variant="primary" busy={act.busy} onClick={() => void run(() => careerApi.reviewActions([action.id], 'approved'), action.kind === 'send_mail' ? '已发送' : isManualSendKind(action.kind) ? '已批准，待你发送' : '已批准')}>
           {action.kind === 'send_mail' ? '批准并发送' : '批准'}
         </Button>
         <Button variant="ghost" busy={act.busy} onClick={() => void run(() => careerApi.reviewActions([action.id], 'rejected'), '不发了')}>不发了</Button>
