@@ -1,50 +1,55 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
 
-import { apiGetJson } from '@/api/apiFetch';
 import { onEvent } from '@/api/eventBus';
-import CareerGuide from './CareerGuide';
+import { CAREER_NAVIGATE_EVENT } from '@/features/career-shell/navModel';
+import CareerGuide, { CHAT_TOOLS, IDEAS, WORKBENCHES } from './CareerGuide';
 
-const checklist = { has_experience: true, has_confirmed_claim: false, has_master_resume: false, has_mail_account: false, has_job: false, has_application: false, has_material: false };
+function capture(event: string) {
+  const seen: unknown[] = [];
+  const off = onEvent(event, p => seen.push(p));
+  return { seen, off };
+}
 
-describe('CareerGuide', () => {
-  beforeEach(() => {
-    vi.mocked(apiGetJson).mockReset();
-    vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
-      if (path.startsWith('/api/career/onboarding')) return { ok: true, checklist };
-      return { ok: true };
-    });
+describe('CareerGuide（功能市场）', () => {
+  it('工具双列排开，没有「添加」按钮；教程变成点子', () => {
+    render(<CareerGuide isActive onOpenChat={vi.fn()} />);
+    for (const item of [...WORKBENCHES, ...CHAT_TOOLS]) expect(screen.getByRole('button', { name: new RegExp(`^${item.name}`) })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /添加|安装/ })).toBeNull();
+    expect(screen.getByText('点子')).toBeInTheDocument();
+    for (const idea of IDEAS) expect(screen.getByText(idea.text)).toBeInTheDocument();
   });
 
-  it('渲染三条回路、复盘、怎么开始与永不替做清单', async () => {
+  it('大功能跳到工作台；面试助力去面试工作台', () => {
+    const nav = capture(CAREER_NAVIGATE_EVENT);
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
-    for (const title of ['投递回路', '面试回路', '素材回路', '复盘', '怎么开始', '助理永远不会替你做的事']) {
-      expect(screen.getByText(title)).toBeInTheDocument();
-    }
-    expect(screen.getByText('丢 JD 进收件箱，评估值不值得投')).toBeInTheDocument();
-    expect(screen.getByText('面试前一键摊开卷宗')).toBeInTheDocument();
-    expect(screen.getByText('开放题答案库与一致性')).toBeInTheDocument();
-    expect(screen.getByText('最终提交与发送')).toBeInTheDocument();
-    // onboarding 标出已用过的能力
-    expect(await screen.findByText('已用过')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /面试助力/ }));
+    expect(nav.seen).toEqual([{ kind: 'career-dossier', view: 'interview' }]);
+    nav.off();
   });
 
-  it('能力卡按钮真的发进对话，带 surface=guide；开始步骤发 career:focus', async () => {
+  it('笔试助力：带着「笔试」筛选打开助力记录', () => {
+    const nav = capture(CAREER_NAVIGATE_EVENT);
+    const filter = capture('career:assist-filter');
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
-    const seen: Array<{ text: string; context?: { surface?: string } }> = [];
-    const off = onEvent<{ text: string; context?: { surface?: string } }>('career:chat-suggest', p => { seen.push(p); });
-    fireEvent.click(screen.getByRole('button', { name: '试试：「帮我模拟一场一面」' }));
-    expect(seen).toHaveLength(1);
-    expect(seen[0]).toMatchObject({ text: '帮我模拟一场一面', context: { surface: 'guide' } });
-    off();
+    fireEvent.click(screen.getByRole('button', { name: /笔试助力/ }));
+    expect(filter.seen).toEqual(['exam']);
+    expect(nav.seen).toEqual([{ kind: 'career-dossier', view: 'assist' }]);
+    nav.off();
+    filter.off();
+  });
 
-    const focus: Array<{ surface: string }> = [];
-    const offFocus = onEvent<{ surface: string }>('career:focus', p => { focus.push(p); });
-    fireEvent.click(screen.getByRole('button', { name: '去收件箱' }));
-    fireEvent.click(screen.getByRole('button', { name: '去今日' }));
-    expect(focus.map(f => f.surface)).toEqual(['inbox', 'today']);
-    offFocus();
+  it('小功能和点子把话预填进对话输入框，不直接发送', () => {
+    const chat = capture('career:chat-suggest');
+    render(<CareerGuide isActive onOpenChat={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /岗位评估/ }));
+    fireEvent.click(screen.getByRole('button', { name: '做一次复盘' }));
+    expect(chat.seen).toEqual([
+      expect.objectContaining({ text: '帮我评估这个岗位，JD 是：', mode: 'prefill' }),
+      expect.objectContaining({ text: '给我做一次本周复盘', mode: 'prefill' }),
+    ]);
+    chat.off();
   });
 });

@@ -221,12 +221,17 @@ export const careerApi = {
   // ----- 收件箱 -----
   inbox: (status?: 'new' | 'processed' | 'dismissed') => apiGetJson<unknown>(careerPath(`/inbox${status ? `?status=${status}` : ''}`)).then(r => pickList<InboxItem>(r, 'items')),
   captureInbox: (body: { text: string; source?: 'paste' | 'file' | 'url'; application_id?: string | null }) => apiPostJson<unknown>(careerPath('/inbox'), body).then(r => pickObject<IntakeResult>(r, 'result')),
+  /** 分享链接（Boss / 猎聘转发的笔试、面试通知）→ 抓分享页文字后归档；fetched=false 表示页面没抓到，只用了链接和文案。 */
+  captureLink: (body: { url: string; text?: string | null; application_id?: string | null }) => apiPostJson<unknown>(careerPath('/inbox/link'), body).then(r => pickObject<IntakeResult & { fetched?: boolean }>(r, 'result')),
   dismissInbox: (id: string) => apiPostJson<unknown>(careerPath(`/inbox/${encodeURIComponent(id)}/dismiss`), {}).then(r => pickObject<InboxItem>(r, 'item')),
   retryInbox: (id: string, application_id?: string | null) => apiPostJson<unknown>(careerPath(`/inbox/${encodeURIComponent(id)}/retry`), { application_id }).then(r => pickObject<IntakeResult>(r, 'result')),
 
   // ----- 截止事件 -----
   deadlines: (status?: 'open' | 'done' | 'missed' | 'cancelled' | 'open_or_missed') => apiGetJson<unknown>(careerPath(`/deadlines${status ? `?status=${status}` : ''}`)).then(r => pickList<Deadline>(r, 'deadlines')),
   createDeadline: (body: { kind: Deadline['kind']; title: string; due_at: string; application_id?: string | null; job_id?: string | null; url?: string | null; note?: string | null }) => apiPostJson<unknown>(careerPath('/deadlines'), body).then(r => pickObject<Deadline>(r, 'deadline')),
+  /** 手动新建笔试 / 测评：挂到同公司进行中的投递上（没有就新建一条），再建截止事件。 */
+  createExam: (body: { company_name: string; title?: string | null; kind: 'written_test' | 'assessment'; due_at: string; url?: string | null; note?: string | null }) =>
+    apiPostJson<unknown>(careerPath('/exams'), body).then(r => asDict(r) as { deadline_id?: string; application_id?: string }),
   setDeadlineStatus: (id: string, status: Deadline['status']) => apiPostJson<unknown>(careerPath(`/deadlines/${encodeURIComponent(id)}/status`), { status }).then(r => pickObject<Deadline>(r, 'deadline')),
 
   // ----- 卷宗 -----

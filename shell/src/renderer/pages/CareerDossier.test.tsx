@@ -62,13 +62,23 @@ const dossierA2 = {
   resume: null, answers_used: null, material_uses: [], notes: [], deadlines: [], interviews: [], offers: [], history: [], mails: [], actions: [], predictions: [],
 };
 
-function mockGet({ exams = [] as unknown[] } = {}) {
+const interviewRows = [
+  { id: 'iv9', application_id: 'a2', company_name: '丁公司', title: '算法工程师', round: 'second', date: new Date(Date.now() + 72 * 3600 * 1000).toISOString(), interviewer_role_guess: null, transcript: null, tags_json: '[]', retro_json: null, result: 'none', result_source: 'none', created_at: '2026-10-01', updated_at: '2026-10-01' },
+];
+const mockRows = [
+  { id: 'mk1', job_id: 'j1', resume_tailored_id: null, mode: 'probe', company_type: null, round: 'first', turns_json: '[]', report_json: null, created_at: '2026-10-02T02:00:00.000Z', updated_at: '2026-10-02T02:00:00.000Z' },
+];
+
+function mockGet({ exams = [] as unknown[], interviews = [] as unknown[], mocks = [] as unknown[], mailAccounts = [] as unknown[] } = {}) {
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
     if (path.startsWith('/api/career/dossiers/a1')) return { ok: true, dossier: dossierA1 };
     if (path.startsWith('/api/career/dossiers/a2')) return { ok: true, dossier: dossierA2 };
     if (path.startsWith('/api/career/dossiers')) return { ok: true, dossiers: summaries };
     if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines: exams };
     if (path.startsWith('/api/career/exam-practices')) return { ok: true, examPractices: [] };
+    if (path.startsWith('/api/career/interviews')) return { ok: true, interviews };
+    if (path.startsWith('/api/career/mock-interviews')) return { ok: true, mockInterviews: mocks };
+    if (path.startsWith('/api/career/mail/accounts')) return { ok: true, accounts: mailAccounts, presets: {} };
     return { ok: true };
   });
 }
@@ -234,40 +244,111 @@ describe('CareerDossier · 投递记录', () => {
     expect(screen.getByRole('heading', { name: '投递记录' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'interview'); });
     expect(await screen.findByTestId('embedded-interview')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '面试记录' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '面试工作台' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'apply'); });
     expect(await screen.findByTestId('embedded-apply')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '岗位收藏' })).toBeInTheDocument();
+    // 旧的「笔试记录」视图落到助力记录
     act(() => { setCareerSubView('career-dossier', 'exam'); });
-    expect(await screen.findByText('还没有笔试 / 测评安排')).toBeInTheDocument();
-    expect(screen.queryByRole('tab')).toBeNull();
+    expect(await screen.findByText('还没有助力记录')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '助力记录' })).toBeInTheDocument();
   });
 });
 
-describe('CareerDossier · 笔试记录', () => {
+describe('CareerDossier · 助力记录', () => {
   beforeEach(() => {
     resetCareerSubViews();
     vi.mocked(apiGetJson).mockReset();
-    mockGet({ exams: examDeadlines });
+    vi.mocked(apiPostJson).mockReset();
+    mockGet({ exams: examDeadlines, interviews: interviewRows, mocks: mockRows });
+    act(() => { setCareerSubView('career-dossier', 'assist'); });
   });
 
-  it('公司 / 岗位 / 时间 / 状态；状态只分未到 / 已过期；面试和已取消的不列；点一行打开对应档案', async () => {
-    act(() => { setCareerSubView('career-dossier', 'exam'); });
+  it('笔试 / 测评 / 面试 / 模拟面试合成一张表：公司 / 岗位 / 时间 / 类型 / 助力；还没到的按时间在前；已取消的不列', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');
-    expect(screen.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['公司', '岗位', '时间', '状态']);
+    expect(screen.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['公司', '岗位', '时间', '类型', '操作']);
     const rows = bodyRows();
-    expect(rows).toHaveLength(2);
-    expect(within(rows[0]).getByText('丙公司')).toBeInTheDocument();
-    expect(within(rows[0]).getByText('后端工程师')).toBeInTheDocument();
-    expect(within(rows[0]).getByText('未到')).toBeInTheDocument();
-    expect(within(rows[0]).getByText(/· 笔试/)).toBeInTheDocument();
-    expect(within(rows[1]).getByText('戊公司')).toBeInTheDocument();
-    expect(within(rows[1]).getByText('已过期')).toBeInTheDocument();
-    expect(within(rows[1]).getByText(/· 测评/)).toBeInTheDocument();
+    // 没到的按时间正序（明天的笔试、后天的二面），其余按时间倒序（两天前过期的测评、10 月 2 日的模拟面试）
+    expect(rows.map(r => within(r).getAllByRole('cell')[0].textContent)).toEqual(['丙公司', '丁公司', '戊公司', '丙公司']);
+    expect(within(rows[0]).getByText('笔试')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('面试')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('二面')).toBeInTheDocument();
+    expect(within(rows[2]).getByText('测评')).toBeInTheDocument();
+    expect(within(rows[2]).getByText('已过')).toBeInTheDocument();
+    expect(within(rows[3]).getByText('模拟面试')).toBeInTheDocument();
+    expect(within(rows[3]).getByText('深挖追问 · 一面')).toBeInTheDocument();
     expect(screen.queryByText('取消的笔试')).not.toBeInTheDocument();
-    fireEvent.click(rows[0]);
+    rows.forEach(r => expect(within(r).getByRole('button', { name: '助力' })).toBeInTheDocument());
+  });
+
+  it('按类型筛选；点一行打开对应投递档案', async () => {
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    fireEvent.click(screen.getByRole('button', { name: /^面试 1$/ }));
+    expect(bodyRows()).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: /^笔试 2$/ }));
+    expect(bodyRows().map(r => within(r).getAllByRole('cell')[0].textContent)).toEqual(['丙公司', '戊公司']);
+    fireEvent.click(bodyRows()[0]);
     expect(await screen.findByRole('heading', { name: '后端工程师' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '投递记录' })).toBeInTheDocument();
+  });
+
+  it('助力：笔试把带投递和截止 id 的话发进对话，不打开档案', async () => {
+    const suggested: unknown[] = [];
+    const off = onEvent('career:chat-suggest', p => suggested.push(p));
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    fireEvent.click(within(bodyRows()[0]).getByRole('button', { name: '助力' }));
+    expect(suggested[0]).toMatchObject({ text: '帮我准备丙公司的笔试', context: { surface: 'dossier', refs: { application_id: 'a1', deadline_id: 'w1' } }, mode: 'send' });
+    expect(screen.getByRole('heading', { name: '助力记录' })).toBeInTheDocument();
+    off();
+  });
+
+  it('新建 › 手动填写笔试：调用 /exams；面试走 /interviews', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true });
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    fireEvent.click(screen.getByRole('button', { name: '新建' }));
+    const dialog = await screen.findByRole('dialog', { name: '新建助力记录' });
+    fireEvent.change(within(dialog).getByLabelText('公司'), { target: { value: '庚公司' } });
+    fireEvent.change(within(dialog).getByLabelText('岗位'), { target: { value: '前端' } });
+    fireEvent.change(within(dialog).getByLabelText('时间'), { target: { value: '2026-10-20T14:00' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '保存' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/exams', expect.objectContaining({
+      company_name: '庚公司', title: '前端', kind: 'written_test', due_at: new Date('2026-10-20T14:00').toISOString(),
+    })));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('新建 › 粘贴分享链接：从分享文字里取出链接交给 /inbox/link', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, result: { summary: '庚公司笔试 10 月 20 日', fetched: false } });
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    fireEvent.click(screen.getByRole('button', { name: '新建' }));
+    const dialog = await screen.findByRole('dialog', { name: '新建助力记录' });
+    fireEvent.click(within(dialog).getByRole('tab', { name: /粘贴分享链接/ }));
+    fireEvent.change(within(dialog).getByLabelText('分享文字'), { target: { value: '【Boss直聘】庚公司邀请你参加笔试 https://z.example/s/1 复制打开' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '识别' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/inbox/link', { url: 'https://z.example/s/1', text: '【Boss直聘】庚公司邀请你参加笔试 https://z.example/s/1 复制打开' }));
+    expect(await within(dialog).findByText(/庚公司笔试 10 月 20 日（分享页需要登录/)).toBeInTheDocument();
+  });
+
+  it('邮箱：没绑定时右上角是「绑定邮箱」，打开新建的邮箱页；绑定了就是「同步邮箱」', async () => {
+    const { unmount } = render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    fireEvent.click(screen.getByRole('button', { name: '绑定邮箱' }));
+    const dialog = await screen.findByRole('dialog', { name: '新建助力记录' });
+    expect(within(dialog).getByRole('tab', { name: /从邮箱同步/ })).toHaveAttribute('aria-selected', 'true');
+    expect(within(dialog).getByRole('button', { name: '绑定并验证' })).toBeInTheDocument();
+    unmount();
+
+    mockGet({ exams: examDeadlines, mailAccounts: [{ id: 'acc1', address: 'me@qq.com', provider: 'qq', status: 'ok', last_sync_at: null, last_error: null }] });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, results: [{ account_id: 'acc1', fetched: 3, stored: 3, job_related: 1, ignored: 2, archived: [] }] });
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    fireEvent.click(screen.getByRole('button', { name: '同步邮箱' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/sync', { account_id: undefined }));
+    expect(await screen.findByText(/拉到 3 封，1 封与求职相关/)).toBeInTheDocument();
   });
 });

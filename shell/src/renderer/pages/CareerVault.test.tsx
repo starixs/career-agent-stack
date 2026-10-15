@@ -1,14 +1,17 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
 
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
-import CareerVault, { groupSites } from './CareerVault';
+import { onEvent } from '@/api/eventBus';
+import CareerVault, { ACCOUNTS, accountFetchMessage, groupSites } from './CareerVault';
 import type { VaultItemMeta } from '@/components/career/types';
 
 const profileFields = [
   { field: 'name', label: '真实姓名', sensitive: true, group: 'identity' },
+  { field: 'gender', label: '性别', sensitive: false, group: 'identity' },
+  { field: 'ethnicity', label: '民族', sensitive: false, group: 'identity' },
   { field: 'phone', label: '手机号', sensitive: true, group: 'contact' },
   { field: 'school', label: '毕业院校', sensitive: false, group: 'education' },
 ];
@@ -47,6 +50,40 @@ describe('CareerVault', () => {
     expect(screen.getByText('可给模型')).toBeInTheDocument();
   });
 
+  it('只显示身份和联系方式：教育、求职偏好、民族这些不再让用户填', async () => {
+    mockGet([]);
+    render(<CareerVault />);
+    expect(await screen.findByText('真实姓名')).toBeInTheDocument();
+    expect(screen.getByText('性别')).toBeInTheDocument();
+    expect(screen.getByText('手机号')).toBeInTheDocument();
+    expect(screen.queryByText('毕业院校')).toBeNull();
+    expect(screen.queryByText('民族')).toBeNull();
+  });
+
+  it('绑定账号：GitHub 填主页后存进私密库（可给模型），并让助理抓一次', async () => {
+    mockGet([]);
+    vi.mocked(apiPutJson).mockResolvedValue({ ok: true, item: null });
+    const suggested: unknown[] = [];
+    const off = onEvent('career:chat-suggest', p => suggested.push(p));
+    render(<CareerVault />);
+    expect(await screen.findByTestId('account-github')).toHaveTextContent('未绑定');
+    const row = screen.getByTestId('account-github').closest('li')!;
+    fireEvent.click(within(row).getByRole('button', { name: '绑定' }));
+    fireEvent.change(within(row).getByLabelText('GitHub 用户名或主页'), { target: { value: 'https://github.com/me' } });
+    fireEvent.click(within(row).getByRole('button', { name: '绑定' }));
+    await waitFor(() => expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'profile', field: 'github', value: 'https://github.com/me', label: 'GitHub', sensitive: false }));
+    await waitFor(() => expect(suggested).toHaveLength(1));
+    expect(suggested[0]).toMatchObject({ text: '我绑定了GitHub（https://github.com/me）。请把公开仓库，挑出能写进简历的项目抓一次，整理进我的资料。', context: { surface: 'vault' } });
+    off();
+  });
+
+  it('需要登录的账号：让助理打开网站、登录交给本人', () => {
+    const chsi = ACCOUNTS.find(a => a.field === 'chsi')!;
+    expect(chsi.input).toBeNull();
+    expect(accountFetchMessage(chsi, null)).toContain('需要登录就交给我自己登录');
+    expect(accountFetchMessage(chsi, null)).toContain('https://my.chsi.com.cn');
+  });
+
   it('编辑手机号：先 reveal 明文再 PUT 保存', async () => {
     mockGet([phoneItem]);
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, value: '13800138000' });
@@ -66,6 +103,7 @@ describe('CareerVault', () => {
     mockGet([]);
     vi.mocked(apiPutJson).mockResolvedValue({ ok: true, item: null });
     render(<CareerVault />);
+    fireEvent.click(await screen.findByRole('button', { name: /更多/ }));
     fireEvent.click(await screen.findByRole('button', { name: '添加网站账号' }));
     fireEvent.change(screen.getByLabelText('网站域名'), { target: { value: 'zhaopin.com' } });
     fireEvent.change(screen.getByLabelText('账号 / 手机 / 邮箱'), { target: { value: 'me@x.com' } });

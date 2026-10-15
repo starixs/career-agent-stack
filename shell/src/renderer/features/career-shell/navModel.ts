@@ -51,18 +51,16 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
     id: 'career', label: '我的求职', icon: 'briefcase', items: [
       { id: 'saved', label: '岗位收藏', icon: 'star', target: { kind: 'career-dossier', view: 'apply' } },
       { id: 'applications', label: '投递记录', icon: 'send', target: { kind: 'career-dossier', view: 'line' } },
-      { id: 'exams', label: '笔试记录', icon: 'pencil', target: { kind: 'career-dossier', view: 'exam' } },
-      { id: 'interviews', label: '面试记录', icon: 'users', target: { kind: 'career-dossier', view: 'interview' } },
-      { id: 'offers', label: 'Offer 记录', icon: 'award', target: { kind: 'career-dossier', view: 'offer' } },
+      // 笔试 / 面试 / 模拟面试合成一张「助力记录」，Offer 对比放进功能市场（2026-10-13 会议定）。
+      { id: 'assists', label: '助力记录', icon: 'pencil', target: { kind: 'career-dossier', view: 'assist' } },
     ],
   },
   { id: 'market', label: '功能市场', icon: 'grid', items: [] },
   {
     id: 'assets', label: '我的资料', icon: 'folder', items: [
       { id: 'profile', label: '基本资料', icon: 'user', target: { kind: 'career-vault' } },
-      { id: 'experience', label: '经历', icon: 'star', target: { kind: 'career-material', view: 'experience' } },
+      // 经历、常用表达不再让用户维护：信息从简历和对话里来（2026-10-13 会议定）。
       { id: 'resumes', label: '简历', icon: 'file', target: { kind: 'career-material', view: 'resume' } },
-      { id: 'phrases', label: '常用表达', icon: 'quote', target: { kind: 'career-material', view: 'library' } },
     ],
   },
   {
@@ -81,9 +79,12 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
 /** View a multi-view page shows before any L2 choice; pages use the same fallback. */
 export const DEFAULT_SUB_VIEWS = {
   'career-dossier': 'line',
-  'career-material': 'library',
+  'career-material': 'resume',
   'career-review': 'funnel',
 } as const;
+
+/** 我的求职里不在二级栏、只从功能市场打开的视图。 */
+const MARKET_DOSSIER_VIEWS: ReadonlySet<string> = new Set(['interview', 'offer']);
 
 /** Target opened when an area without L2 items is chosen. */
 export const AREA_DIRECT_TARGET: Partial<Record<NavArea, NavTarget>> = {
@@ -107,8 +108,12 @@ export function locateNav(
   if (activeView === 'chat' || activeView === 'launcher') return { area: 'chat', itemId: null };
   if (activeView === 'capabilities') return { area: 'settings', itemId: 'capabilities' };
   if (activeView === 'settings') return { area: 'settings', itemId: subViews.settings ?? 'general' };
-  // 功能市场没有二级栏；从它打开的复盘页也归在这里。
+  // 功能市场没有二级栏；从它打开的工具页（复盘、面试工作台、Offer 对比）也归在这里。
   if (activeView === 'career-guide' || activeView === 'career-review') return { area: 'market', itemId: null };
+  if (activeView === 'career-dossier') {
+    const view = subViews[activeView] ?? DEFAULT_SUB_VIEWS['career-dossier'];
+    if (MARKET_DOSSIER_VIEWS.has(view)) return { area: 'market', itemId: null };
+  }
   for (const area of NAV_AREAS) {
     const match = area.items.find(item => {
       if (item.target.kind !== activeView) return false;

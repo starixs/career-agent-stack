@@ -1,16 +1,17 @@
 /**
  * 卷宗：每条投递一个档案。面试当天一键摊开——投的是哪版简历、对这家说过什么、听到什么、邮件与截止、历史轮次。
- * 视图：投递线（新）/ 岗位池与投递台 / 面试 / Offer（后三者嵌入既有页面）。
+ * 视图：投递记录 / 岗位收藏 / 助力记录（笔试、面试、模拟面试合一）；面试工作台和 Offer 对比从功能市场打开。
  */
 import { ArrowLeft, ExternalLink as ExternalLinkIcon, Search, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import { emitEvent, onEvent } from '@/api/eventBus';
+import { onEvent } from '@/api/eventBus';
 import { ExternalLink } from '@/components/ExternalLink';
 import OverlayBackdrop from '@/components/OverlayBackdrop';
 import { Popover } from '@/components/ui/Popover';
 import { CompactStepper, FullStepper } from '@/components/career/ApplicationStepper';
+import { AssistRecords } from '@/components/career/AssistRecords';
 import { applicationStepper } from '@/components/career/applicationSteps';
 import { careerApi, safeJson } from '@/components/career/careerApi';
 import { ACTION_KIND_LABELS, INTERVIEW_RESULT_LABELS, INTERVIEW_ROUND_LABELS, STAGE_LABELS, STAGE_TONES, TRAFFIC_LIGHT_LABELS } from '@/components/career/careerConstants';
@@ -22,14 +23,12 @@ import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import type {
   ActionQueueItem, ApplicationStage, CareerFocusEvent, Deadline, DeadlineKind, Dossier, DossierNote, DossierSummary,
 } from '@/components/career/types';
-import { examRecords } from '@/components/career/examSchedule';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
-import { DEFAULT_SUB_VIEWS, requestNavigation } from '@/features/career-shell/navModel';
+import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { takeCareerFocus } from '@/features/career-shell/pendingFocus';
 import { useCareerSubView } from '@/features/career-shell/subViewStore';
-import { expandWorkSurface } from '@/features/career-shell/workSurfaceStore';
 import { useCloseLayer } from '@/hooks/useCloseLayer';
 
 const CareerApply = lazy(() => import('@/pages/CareerApply'));
@@ -37,14 +36,16 @@ const CareerInterview = lazy(() => import('@/pages/CareerInterview'));
 const CareerOffer = lazy(() => import('@/pages/CareerOffer'));
 
 // 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
-type View = 'line' | 'apply' | 'exam' | 'interview' | 'offer';
+type View = 'line' | 'apply' | 'assist' | 'interview' | 'offer';
 const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
   apply: { title: '岗位收藏', subtitle: '想投的岗位和准备好的申请' },
   line: { title: '投递记录', subtitle: '每条投递一个档案' },
-  exam: { title: '笔试记录', subtitle: '笔试、测评的时间与复盘' },
-  interview: { title: '面试记录', subtitle: '每一轮都留着，准备、练习和复盘都从这里进' },
-  offer: { title: 'Offer', subtitle: '把拿到的 Offer 放在一起比' },
+  assist: { title: '助力记录', subtitle: '笔试、面试、模拟面试，每一次助力都在这里' },
+  interview: { title: '面试工作台', subtitle: '面试记录、题库、模拟面试和深挖点预测' },
+  offer: { title: 'Offer 对比', subtitle: '把拿到的 Offer 放在一起比' },
 };
+/** 已合并进助力记录的旧视图。 */
+const RENAMED_VIEWS: Record<string, View> = { exam: 'assist' };
 
 const DOSSIER_TABLES = ['application', 'application_history', 'job', 'deadline', 'interview', 'dossier_note', 'mail_message', 'material_use', 'offer', 'action_queue'] as const;
 
@@ -152,7 +153,8 @@ function ClampText({ text, big = false }: { text: string; big?: boolean }) {
 interface FocusRequest { application_id: string | null; job_id: string | null }
 
 export default function CareerDossier({ embedded = false }: CareerPageProps) {
-  const [view, setView] = useCareerSubView<View>('career-dossier', DEFAULT_SUB_VIEWS['career-dossier']);
+  const [storedView, setView] = useCareerSubView<View>('career-dossier', DEFAULT_SUB_VIEWS['career-dossier']);
+  const view: View = RENAMED_VIEWS[storedView] ?? (storedView in VIEW_HEADINGS ? storedView : DEFAULT_SUB_VIEWS['career-dossier']);
   // 从别的面（小芽面板、今日）跳进来时，事件可能在本页挂载前就发了
   const [focus, setFocus] = useState<FocusRequest | null>(() => {
     const pending = takeCareerFocus('dossier');
@@ -173,14 +175,14 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
       subtitle={heading.subtitle}
     >
       {view === 'line' && <DossierLine focus={focus} />}
-      {view === 'exam' && <ExamRecords />}
-      {(view === 'line' || view === 'exam') && (
+      {view === 'assist' && <AssistRecords />}
+      {(view === 'line' || view === 'assist') && (
         <PageAskBar
           target={{ kind: 'career-dossier', view }}
-          placeholder={view === 'line' ? '问问投递情况，比如「这个月投了多少、几个进了面试」' : '问问笔试安排，比如「下周有哪些笔试」'}
+          placeholder={view === 'line' ? '问问投递情况，比如「这个月投了多少、几个进了面试」' : '问问笔试面试安排，比如「下周有哪些笔试和面试」'}
         />
       )}
-      {view !== 'line' && view !== 'exam' && (
+      {view !== 'line' && view !== 'assist' && (
         <Suspense fallback={<div className="px-4"><LoadingRow /></div>}>
           {view === 'apply' && <CareerApply embedded />}
           {view === 'interview' && <CareerInterview embedded />}
@@ -794,109 +796,5 @@ function NoteForm({ applicationId, onChanged }: { applicationId: string; onChang
         <Button variant="primary" busy={action.busy} onClick={() => void submit()}>记下</Button>
       </div>
     </Spread>
-  );
-}
-
-// ─── 笔试记录：每场笔试 / 测评一行（时间来自截止事件，见 examSchedule.ts）；笔试练习放在下面 ───
-
-const EXAM_KIND_LABELS = { written_test: '笔试', assessment: '测评' } as const;
-
-/** 本地时区的「10 月 15 日 14:00」。截止事件 due_at 存的是 UTC ISO，不能直接截字符串。 */
-function formatLocalDateTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${d.getMonth() + 1} 月 ${d.getDate()} 日 ${hh}:${mm}`;
-}
-
-async function loadExamData() {
-  const [deadlines, dossiers, practices] = await Promise.all([
-    careerApi.deadlines(), careerApi.dossiers().catch(() => []), careerApi.examPractices().catch(() => []),
-  ]);
-  return { deadlines, dossiers, practices };
-}
-
-function ExamRecords() {
-  const query = useCareerQuery(loadExamData, ['deadline', 'application', 'job', 'exam_practice']);
-  const rows = useMemo(() => (query.data ? examRecords(query.data.deadlines, query.data.dossiers) : []), [query.data]);
-  const practices = query.data?.practices ?? [];
-  const openDossier = (applicationId: string | null) => {
-    if (applicationId) emitEvent('career:focus', { surface: 'dossier', application_id: applicationId, origin: 'user' });
-  };
-  const openPractice = (id: string) => {
-    expandWorkSurface('exam', { refId: id });
-    requestNavigation({ kind: 'chat' });
-  };
-  return (
-    <div className="space-y-8 px-6 py-4">
-      {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
-      {query.loading && !query.data && <LoadingRow />}
-      {query.data && rows.length === 0 && (
-        <EmptyState title="还没有笔试 / 测评安排" hint="收到笔试或测评邀请，丢进通知中心，识别出时间后会出现在这里。" example="帮我记一下下周三下午两点的笔试" />
-      )}
-      {rows.length > 0 && (
-        <table className="w-full min-w-[640px] table-fixed border-collapse text-sm">
-          <thead className="text-left text-xs text-[var(--muted)] [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-[var(--bg)] [&_th]:shadow-[inset_0_-1px_0_var(--line-2)]">
-            <tr>
-              <th className="w-[180px] px-2 py-2 font-medium">公司</th>
-              <th className="px-2 py-2 font-medium">岗位</th>
-              <th className="w-[200px] px-2 py-2 font-medium">时间</th>
-              <th className="w-[96px] px-2 py-2 font-medium">状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(r => {
-              const clickable = !!r.application_id;
-              return (
-                <tr
-                  key={r.id}
-                  tabIndex={clickable ? 0 : undefined}
-                  onClick={clickable ? () => openDossier(r.application_id) : undefined}
-                  onKeyDown={clickable ? e => { if (e.key === 'Enter' && e.target === e.currentTarget) openDossier(r.application_id); } : undefined}
-                  className={`border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${clickable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]' : ''} ${r.status === 'expired' ? 'text-[var(--muted)]' : ''}`}
-                >
-                  <td className="truncate px-2 py-2 font-medium text-[var(--ink)]" title={r.company_name ?? undefined}>{textOrUnknown(r.company_name)}</td>
-                  <td className="truncate px-2 py-2 text-[var(--ink-2)]" title={r.title}>
-                    {r.title}
-                    {r.url && <ExternalLink href={r.url} onClick={e => e.stopPropagation()} className="ml-2 text-xs text-[var(--primary)] hover:underline">打开链接</ExternalLink>}
-                  </td>
-                  <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-[var(--muted)]">
-                    {formatLocalDateTime(r.due_at)}<span className="ml-1.5 text-[var(--subtle)]">· {EXAM_KIND_LABELS[r.kind]}</span>
-                  </td>
-                  <td className="px-2 py-2">
-                    {r.status === 'expired' ? <Badge>已过期</Badge> : r.status === 'upcoming' ? <Badge tone="accent">未到</Badge> : <Badge>时间未知</Badge>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-      {practices.length > 0 && (
-        <section>
-          <h3 className="mb-1 text-xs font-medium text-[var(--muted)]">笔试练习（{practices.length}）</h3>
-          <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
-            {practices.map(exam => {
-              const total = safeJson<unknown[]>(exam.questions_json, []).length;
-              const answered = safeJson<unknown[]>(exam.answers_json, []).length;
-              return (
-                <li key={exam.id}>
-                  <button type="button" onClick={() => openPractice(exam.id)} className="flex w-full items-center gap-3 px-1 py-2 text-left hover:bg-[var(--hover)]">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-[var(--ink)]">{exam.title}</div>
-                      <div className="text-xs text-[var(--muted)]">{[exam.kind, exam.company_name, formatDate(exam.updated_at)].filter(Boolean).join(' · ')}</div>
-                    </div>
-                    <Badge tone={exam.status === 'reviewed' ? 'success' : 'accent'}>
-                      {exam.status === 'reviewed' ? '已批改' : `轮到你作答 · 已答 ${answered} / ${total}`}
-                    </Badge>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-    </div>
   );
 }
