@@ -18,7 +18,7 @@ import { ASSIST_TYPE_LABELS, assistRecords, filterAssists, type AssistFilter, ty
 import { careerApi } from './careerApi';
 import { INTERVIEW_ROUND_LABELS } from './careerConstants';
 import { Badge, Button, EmptyState, ErrorRow, Field, LoadingRow, Select, TextArea, TextInput, formatDate, textOrUnknown, useSuggestToChat } from './CareerPrimitives';
-import type { CareerFocusEvent, MailAccount, MailPreset } from './types';
+import type { CareerFocusEvent, IntakeResult, MailAccount, MailPreset } from './types';
 import { BindMailForm, MailAccountRow } from './MailBinding';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
@@ -294,8 +294,18 @@ function ManualForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** 分享页没抓到、只靠文字也没认出笔试 / 面试时，交给小芽用浏览器打开（多半要登录，登录交给用户）。 */
+export function linkHandoffMessage(url: string, inboxId: string): string {
+  return `帮我打开这个分享链接，看看是什么笔试或面试通知，记进助力记录：${url}\n需要登录就交给我。记好后把收件箱里那条（${inboxId}）忽略掉。`;
+}
+
+function recognized(r: IntakeResult): boolean {
+  return (r.created?.deadline_ids?.length ?? 0) > 0 || !!r.created?.interview_id;
+}
+
 function LinkForm({ onDone }: { onDone: () => void }) {
   const action = useCareerAction();
+  const suggest = useSuggestToChat();
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
   const [result, setResult] = useState<string | null>(null);
@@ -303,11 +313,15 @@ function LinkForm({ onDone }: { onDone: () => void }) {
     const pasted = url.trim() || text.match(/https?:\/\/\S+/)?.[0] || '';
     if (!pasted) throw new Error('请粘贴分享链接');
     const r = await careerApi.captureLink({ url: pasted, text: text.trim() || null });
-    const note = r.fetched === false ? '（分享页需要登录，没抓到页面，只按链接和分享文字识别）' : '';
-    setResult(`${r.summary ?? '已识别'}${note}`);
     setUrl('');
     setText('');
     onDone();
+    if (r.fetched === false && !recognized(r)) {
+      setResult('分享页要登录才能看，已交给小芽用浏览器打开，需要登录时会请你来。');
+      suggest(linkHandoffMessage(pasted, r.item.id), { surface: 'dossier', refs: { inbox_id: r.item.id }, note: '助力记录 · 分享链接没抓到页面' });
+      return;
+    }
+    setResult(r.summary ?? '已识别');
   });
   return (
     <div className="space-y-3">

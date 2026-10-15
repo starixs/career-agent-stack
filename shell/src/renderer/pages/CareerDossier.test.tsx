@@ -321,8 +321,10 @@ describe('CareerDossier · 助力记录', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('新建 › 粘贴分享链接：从分享文字里取出链接交给 /inbox/link', async () => {
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, result: { summary: '庚公司笔试 10 月 20 日', fetched: false } });
+  it('新建 › 粘贴分享链接：从分享文字里取出链接交给 /inbox/link；认出来了就显示结果', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, result: { item: { id: 'in1' }, summary: '庚公司笔试 10 月 20 日', fetched: false, created: { deadline_ids: ['dl9'] } } });
+    const suggested: unknown[] = [];
+    const off = onEvent('career:chat-suggest', p => suggested.push(p));
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');
     fireEvent.click(screen.getByRole('button', { name: '新建' }));
@@ -331,7 +333,29 @@ describe('CareerDossier · 助力记录', () => {
     fireEvent.change(within(dialog).getByLabelText('分享文字'), { target: { value: '【Boss直聘】庚公司邀请你参加笔试 https://z.example/s/1 复制打开' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '识别' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/inbox/link', { url: 'https://z.example/s/1', text: '【Boss直聘】庚公司邀请你参加笔试 https://z.example/s/1 复制打开' }));
-    expect(await within(dialog).findByText(/庚公司笔试 10 月 20 日（分享页需要登录/)).toBeInTheDocument();
+    expect(await within(dialog).findByText('庚公司笔试 10 月 20 日')).toBeInTheDocument();
+    expect(suggested).toHaveLength(0);
+    off();
+  });
+
+  it('新建 › 粘贴分享链接：分享页没抓到、也没认出来时交给小芽用浏览器打开', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, result: { item: { id: 'in2' }, summary: '没看懂', fetched: false, created: { deadline_ids: [] } } });
+    const suggested: Array<{ text: string; context?: { refs?: Record<string, string> }; mode?: string }> = [];
+    const off = onEvent<{ text: string; context?: { refs?: Record<string, string> }; mode?: string }>('career:chat-suggest', p => suggested.push(p));
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    fireEvent.click(screen.getByRole('button', { name: '新建' }));
+    const dialog = await screen.findByRole('dialog', { name: '新建助力记录' });
+    fireEvent.click(within(dialog).getByRole('tab', { name: /粘贴分享链接/ }));
+    fireEvent.change(within(dialog).getByLabelText('分享链接'), { target: { value: 'https://www.zhipin.com/share/x' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: '识别' }));
+    expect(await within(dialog).findByText(/已交给小芽用浏览器打开/)).toBeInTheDocument();
+    expect(suggested).toHaveLength(1);
+    expect(suggested[0].mode).toBe('send');
+    expect(suggested[0].text).toContain('https://www.zhipin.com/share/x');
+    expect(suggested[0].text).toContain('in2');
+    expect(suggested[0].context?.refs).toEqual({ inbox_id: 'in2' });
+    off();
   });
 
   it('邮箱：没绑定时右上角是「绑定邮箱」，打开新建的邮箱页；绑定了就是「同步邮箱」', async () => {

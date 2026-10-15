@@ -16,8 +16,8 @@ import { careerApi } from '@/components/career/careerApi';
 import {
   Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextInput, formatDate, useSuggestToChat,
 } from '@/components/career/CareerPrimitives';
-import { BindMailForm, MailAccountRow } from '@/components/career/MailBinding';
-import type { ExperienceNode, MailAccount, MailPreset, VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultProfileFieldDef } from '@/components/career/types';
+import { BindMailForm, MailAccountRow, relativeTime } from '@/components/career/MailBinding';
+import type { AccountFetchState, ExperienceNode, MailAccount, MailPreset, VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultProfileFieldDef } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { VaultExperienceFields } from '@/components/career/VaultExperienceFields';
 
@@ -46,8 +46,9 @@ export const ACCOUNTS: readonly AccountDef[] = [
 /** 绑定后发给助理的一句话：只抓这一次。 */
 export function accountFetchMessage(def: AccountDef, value: string | null): string {
   const what = `${def.label}${value ? `（${value}）` : ''}`;
-  if (def.loginUrl) return `我绑定了${what}。请用浏览器打开 ${def.loginUrl}，需要登录就交给我自己登录；登录好后把我的${def.fetches}抓一次，整理进我的资料。只抓这一次。`;
-  return `我绑定了${what}。请把${def.fetches}抓一次，整理进我的资料。`;
+  const report = `抓完用 account_fetch_report 回报结果（field=${def.field}）。`;
+  if (def.loginUrl) return `我绑定了${what}。请用浏览器打开 ${def.loginUrl}，需要登录就交给我自己登录；登录好后把我的${def.fetches}抓一次，整理进我的资料。只抓这一次。${report}`;
+  return `我绑定了${what}。请把${def.fetches}抓一次，整理进我的资料。${report}`;
 }
 
 export function placeholderOf(scope: 'profile' | 'experience', refId: string, field: string): string {
@@ -72,6 +73,7 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
   const query = useCareerQuery(careerApi.vault, ['vault']);
   const experiences = useCareerQuery(careerApi.experiences, ['experience']);
   const mail = useCareerQuery(careerApi.mailAccounts, ['mail_account']);
+  const fetches = useCareerQuery(careerApi.accountFetches, ['account_fetch']);
   const data = query.data;
   const [showLog, setShowLog] = useState(false);
 
@@ -98,7 +100,7 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
                 <div className="mb-1 text-xs font-medium text-[var(--muted)]">绑定账号：绑得越多，小芽越懂你，网申要填的也越少</div>
                 <ul className="divide-y divide-[var(--line)]">
                   <MailBindingRow accounts={mail.data?.accounts ?? []} presets={mail.data?.presets ?? {}} loading={mail.loading && !mail.data} onChanged={mail.reload} />
-                  {ACCOUNTS.map(def => <AccountRow key={def.field} def={def} item={data.items.find(i => i.scope === 'profile' && i.field === def.field)} onChanged={query.reload} />)}
+                  {ACCOUNTS.map(def => <AccountRow key={def.field} def={def} item={data.items.find(i => i.scope === 'profile' && i.field === def.field)} fetch={fetches.data?.[def.field] ?? null} onChanged={() => { query.reload(); fetches.reload(); }} />)}
                 </ul>
               </div>
             </Card>
@@ -225,7 +227,19 @@ function MailBindingRow({ accounts, presets, loading, onChanged }: { accounts: M
   );
 }
 
-function AccountRow({ def, item, onChanged }: { def: AccountDef; item?: VaultItemMeta; onChanged: () => void }) {
+/** 抓取状态的一句话：登录过期要醒目，其余是灰色小字。 */
+export function fetchStateLabel(state: AccountFetchState | null, now: Date = new Date()): { text: string; expired: boolean } | null {
+  if (!state) return null;
+  const last = state.fetched_at ? `上次抓取 ${relativeTime(state.fetched_at, now)}` : null;
+  switch (state.status) {
+    case 'requested': return { text: '已交给小芽，等它抓完', expired: false };
+    case 'ok': return { text: last ?? '已抓取', expired: false };
+    case 'login_expired': return { text: `登录已过期，重新绑定后再抓一次${last ? `（${last}）` : ''}`, expired: true };
+    case 'failed': return { text: `上次没抓到${state.note ? `：${state.note}` : ''}`, expired: false };
+  }
+}
+
+function AccountRow({ def, item, fetch, onChanged }: { def: AccountDef; item?: VaultItemMeta; fetch: AccountFetchState | null; onChanged: () => void }) {
   const action = useCareerAction();
   const suggest = useSuggestToChat();
   const [editing, setEditing] = useState(false);
@@ -238,30 +252,38 @@ function AccountRow({ def, item, onChanged }: { def: AccountDef; item?: VaultIte
     await careerApi.vaultSet({ scope: 'profile', field: def.field, value: v || `已绑定 ${new Date().toISOString().slice(0, 10)}`, label: def.label, sensitive: false });
     setEditing(false);
     setValue('');
+    await careerApi.requestAccountFetch(def.field);
     onChanged();
     suggest(accountFetchMessage(def, v || null), { surface: 'vault', note: `绑定账号 · ${def.label}` });
   });
   const refetch = () => action.run(async () => {
     const v = item && def.input ? await careerApi.vaultReveal(item.id) : null;
+    await careerApi.requestAccountFetch(def.field);
+    onChanged();
     suggest(accountFetchMessage(def, v), { surface: 'vault', note: `重新抓取 · ${def.label}` });
   });
   const unbind = () => action.run(async () => {
     if (!item) return;
     await careerApi.vaultDelete(item.id);
+    await careerApi.clearAccountFetch(def.field);
     onChanged();
   });
+  const state = fetchStateLabel(fetch);
 
   return (
     <li className="py-2">
       <div className="flex min-h-9 flex-wrap items-center gap-3">
         <span className="w-20 shrink-0 text-sm text-[var(--ink)]">{def.label}</span>
         <span className="min-w-0 flex-1 truncate text-xs text-[var(--muted)]" data-testid={`account-${def.field}`}>
-          {bound ? <><Badge tone="success">已绑定</Badge><span className="ml-2">{item?.preview}</span></> : <span className="text-[var(--subtle)]">未绑定</span>}
+          {bound
+            ? <><Badge tone={state?.expired ? 'warning' : 'success'}>{state?.expired ? '登录过期' : '已绑定'}</Badge><span className="ml-2">{item?.preview}</span></>
+            : <span className="text-[var(--subtle)]">未绑定</span>}
+          {bound && state && <span className={`ml-2 ${state.expired ? 'text-[var(--warning)]' : 'text-[var(--subtle)]'}`} data-testid={`account-state-${def.field}`}>· {state.text}</span>}
         </span>
         {!bound && !editing && <Button variant="secondary" size="sm" busy={action.busy} onClick={() => (def.input ? setEditing(true) : void bind())}>绑定</Button>}
         {bound && (
           <>
-            <Button variant="ghost" size="sm" busy={action.busy} onClick={() => void refetch()}>重新抓取</Button>
+            <Button variant={state?.expired ? 'secondary' : 'ghost'} size="sm" busy={action.busy} onClick={() => void refetch()}>{state?.expired ? '重新绑定' : '重新抓取'}</Button>
             <Button variant="ghost" size="sm" busy={action.busy} onClick={() => void unbind()} aria-label={`解绑${def.label}`}>解绑</Button>
           </>
         )}

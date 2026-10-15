@@ -31,6 +31,7 @@ import { loadSkillPrompt } from '../career/skills';
 import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
 import { confirmSubmitResult } from '../career/submit-executor';
+import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
 import { BatchRunner } from '../career/batch-runner';
 import { computeMatches, getJobPrefs, jobBoard, prepareJobs, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource } from '../career/server-api';
@@ -570,6 +571,20 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 私密信息库（只有这组接口能读写明文；模型工具永远拿不到） ----------
+  // 绑定账号的抓取状态（career/accounts.ts）：页面点绑定 / 重新抓取时记 requested，小芽抓完用工具回报。
+  route('GET', '/api/career/accounts', (ctx) => ok({ accounts: listAccountFetch(ctx.repos) })),
+  route('POST', '/api/career/accounts/:field/request', (ctx) => {
+    if (!isAccountField(ctx.params.field)) return fail(`不支持的账号：${ctx.params.field}`, 404);
+    const state = requestAccountFetch(ctx.repos, ctx.params.field);
+    dataChanged(ctx, ['account_fetch']);
+    return ok({ state });
+  }),
+  route('DELETE', '/api/career/accounts/:field', (ctx) => {
+    if (!isAccountField(ctx.params.field)) return fail(`不支持的账号：${ctx.params.field}`, 404);
+    clearAccountFetch(ctx.repos, ctx.params.field);
+    dataChanged(ctx, ['account_fetch']);
+    return ok({});
+  }),
   route('GET', '/api/career/vault', ({ vault, core }) => ok({ status: vault.status(), items: vault.list(), profileFields: core.PROFILE_FIELDS, siteFields: core.SITE_FIELDS })),
   route('PUT', '/api/career/vault/items', (ctx) => {
     const b = ctx.body;

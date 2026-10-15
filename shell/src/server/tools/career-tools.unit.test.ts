@@ -146,7 +146,7 @@ describe('career 五个面的工具', () => {
   });
 
   it('注册了全部新工具', () => {
-    for (const name of ['today_queue', 'inbox_capture', 'inbox_list', 'inbox_dismiss', 'deadline_add', 'deadline_done', 'dossier_list', 'dossier_get', 'dossier_note_add', 'application_set_stage', 'material_list', 'material_draft', 'material_save', 'material_use_record', 'weekly_review', 'mail_accounts', 'mail_sync', 'mail_list', 'mail_compose']) {
+    for (const name of ['today_queue', 'inbox_capture', 'inbox_list', 'inbox_dismiss', 'account_fetch_report', 'deadline_add', 'deadline_done', 'dossier_list', 'dossier_get', 'dossier_note_add', 'application_set_stage', 'material_list', 'material_draft', 'material_save', 'material_use_record', 'weekly_review', 'mail_accounts', 'mail_sync', 'mail_list', 'mail_compose']) {
       expect(mocks.handlers.has(name), name).toBe(true);
     }
   });

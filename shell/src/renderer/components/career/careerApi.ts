@@ -14,7 +14,7 @@ import type {
   InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
-  AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
+  AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
 } from './types';
 
 type Dict = Record<string, unknown>;
@@ -186,6 +186,10 @@ export const careerApi = {
   }),
   vaultSet: (body: { scope: VaultScope; ref_id?: string; field: string; value: string; label?: string | null; sensitive?: boolean; policy?: { autofill?: boolean } }) =>
     apiPutJson<unknown>(careerPath('/vault/items'), body).then(r => pickObject<{ item: VaultItemMeta | null; deleted?: boolean }>(r)),
+  /** 绑定账号的抓取状态（server/career/accounts.ts）。 */
+  accountFetches: () => apiGetJson<unknown>(careerPath('/accounts')).then(r => (asDict(r).accounts ?? {}) as Partial<Record<string, AccountFetchState>>),
+  requestAccountFetch: (field: string) => apiPostJson<unknown>(careerPath(`/accounts/${encodeURIComponent(field)}/request`), {}).then(r => asDict(r).state as AccountFetchState),
+  clearAccountFetch: (field: string) => apiDelete<unknown>(careerPath(`/accounts/${encodeURIComponent(field)}`)),
   vaultSetPolicy: (id: string, policy: { autofill?: boolean }) =>
     apiPostJson<unknown>(careerPath(`/vault/items/${encodeURIComponent(id)}/policy`), { policy }).then(r => pickObject<VaultItemMeta>(r, 'item')),
   vaultDelete: (id: string) => apiDelete<unknown>(careerPath(`/vault/items/${encodeURIComponent(id)}`)),
