@@ -61,6 +61,20 @@ describe('SDK result ingress projection', () => {
     expect(result.stderr).toBe(raw.stderr);
   });
 
+  it('renders MCP content-block side data as the tool text, not as a stringified array', () => {
+    const payload = { ok: true, jobs: [{ id: 'job_1', title: '后端开发工程师' }], total: 1 };
+    const blocks = [{ type: 'text', text: JSON.stringify(payload) }];
+    const result = extractSdkToolResultRenderParts(blocks, blocks);
+    expect(JSON.parse(result.text)).toEqual(payload);
+
+    const withImage = extractSdkToolResultRenderParts([], [
+      { type: 'text', text: 'captured' },
+      { type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' },
+    ]);
+    expect(withImage.text).toBe('captured');
+    expect(withImage.attachments).toHaveLength(1);
+  });
+
   it('preserves legacy text and metadata envelopes without rendering private metadata', () => {
     expect(extractSdkToolResultRenderParts('plain text', undefined).text).toBe('plain text');
     const result = extractSdkToolResultRenderParts('fallback', {

@@ -120,13 +120,24 @@ export function normalizeSdkToolUseResult(value: unknown): NormalizedSdkToolUseR
  */
 export function extractSdkToolResultRenderParts(content: unknown, toolUseResult: unknown): ToolResultRenderParts {
   const normalized = normalizeSdkToolUseResult(toolUseResult);
-  const parts = extractToolResultRenderParts(normalized.isMetadataEnvelope ? normalized.content : content);
+  // MCP tools report their CallToolResult content blocks as side data. Those
+  // blocks ARE the result, not structured metadata: stringifying the array
+  // would hand renderers `[{"type":"text","text":"{…}"}]` instead of the tool's
+  // own text, and every structured MCP card would fail to parse its payload.
+  const sideDataIsContent = normalized.isMetadataEnvelope || isContentBlockArray(toolUseResult);
+  const parts = extractToolResultRenderParts(sideDataIsContent ? normalized.content : content);
   return {
     ...parts,
-    text: !normalized.isMetadataEnvelope && toolUseResult && typeof toolUseResult === 'object'
+    text: !sideDataIsContent && toolUseResult && typeof toolUseResult === 'object'
       ? safeStringifyToolResult(toolUseResult, true)
       : parts.text,
   };
+}
+
+function isContentBlockArray(value: unknown): value is Record<string, unknown>[] {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every((block) => isRecord(block) && typeof block.type === 'string');
 }
 
 function readString(record: Record<string, unknown>, keys: string[]): string | undefined {
