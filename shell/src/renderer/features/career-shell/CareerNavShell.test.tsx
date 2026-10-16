@@ -16,9 +16,9 @@ describe('navModel', () => {
     expect(work.map(item => item.label)).toEqual(['招聘概览', '通知中心']);
     expect(work.map(item => item.target.kind)).toEqual(['career-today', 'career-inbox']);
     expect(NAV_AREAS.find(area => area.id === 'career')!.items.map(item => item.label))
-      .toEqual(['岗位收藏', '投递记录', '笔试记录', '面试记录', 'Offer 记录']);
+      .toEqual(['岗位收藏', '投递记录', '助力记录']);
     expect(NAV_AREAS.find(area => area.id === 'assets')!.items.map(item => item.label))
-      .toEqual(['基本资料', '经历', '简历', '常用表达']);
+      .toEqual(['基本资料', '简历']);
     expect(NAV_AREAS.find(area => area.id === 'settings')!.items.map(item => item.id))
       .toEqual(['general', 'desktop-pet', 'shortcuts', 'capabilities', 'feedback', 'about']);
   });
@@ -32,9 +32,11 @@ describe('navModel', () => {
     expect(locateNav('record', {})).toEqual({ area: 'work', itemId: null });
     expect(locateNav('launcher', {})).toEqual({ area: 'chat', itemId: null });
     expect(locateNav('career-dossier', { 'career-dossier': 'apply' })).toEqual({ area: 'career', itemId: 'saved' });
-    expect(locateNav('career-dossier', { 'career-dossier': 'interview' })).toEqual({ area: 'career', itemId: 'interviews' });
+    expect(locateNav('career-dossier', { 'career-dossier': 'assist' })).toEqual({ area: 'career', itemId: 'assists' });
+    // 面试工作台和 Offer 对比只从功能市场打开
+    expect(locateNav('career-dossier', { 'career-dossier': 'interview' })).toEqual({ area: 'market', itemId: null });
     expect(locateNav('career-material', { 'career-material': 'resume' })).toEqual({ area: 'assets', itemId: 'resumes' });
-    expect(locateNav('career-dossier', { 'career-dossier': 'offer' })).toEqual({ area: 'career', itemId: 'offers' });
+    expect(locateNav('career-dossier', { 'career-dossier': 'offer' })).toEqual({ area: 'market', itemId: null });
     expect(locateNav('career-review', {})).toEqual({ area: 'market', itemId: null });
     expect(locateNav('settings', {})).toEqual({ area: 'settings', itemId: 'general' });
     expect(locateNav('settings', { settings: 'feedback' })).toEqual({ area: 'settings', itemId: 'feedback' });
@@ -55,10 +57,10 @@ describe('CareerNavShell', () => {
   });
 
   it('marks the L2 item that matches the page sub-view', () => {
-    act(() => { setCareerSubView('career-dossier', 'interview'); });
+    act(() => { setCareerSubView('career-dossier', 'assist'); });
     render(<CareerNavShell activeView="career-dossier" onOpen={vi.fn()} />);
     const subnav = screen.getByRole('navigation', { name: '我的求职' });
-    expect(within(subnav).getByRole('button', { name: '面试记录' })).toHaveAttribute('aria-current', 'page');
+    expect(within(subnav).getByRole('button', { name: '助力记录' })).toHaveAttribute('aria-current', 'page');
     expect(within(subnav).getByRole('button', { name: '投递记录' })).not.toHaveAttribute('aria-current');
   });
 

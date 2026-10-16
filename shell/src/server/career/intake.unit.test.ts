@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FakeLLM } from '@career/core';
 
 import { loadCore } from './core-module';
-import { captureIntake, normalizeIso } from './intake';
+import { captureIntake, captureLink, normalizeIso, recordExam } from './intake';
 import { CareerStore } from './store';
 import { createMemoryRepos } from './test-db';
 
@@ -131,5 +131,61 @@ describe('captureIntake', () => {
     llm.push(JSON.stringify({ kind: 'offer', relevance: 'job', fields: { company: '辛公司', title: '研发' }, summary: '辛公司 offer' }));
     const off = await captureIntake(d, { text: '恭喜录用' });
     expect(d.repos.getJob(off.created.job_id!)!.board_json ?? null).toBeNull();
+  });
+});
+
+describe('captureLink', () => {
+  it('抓到分享页：页面文字和粘贴的文案一起交给归档，来源记为 url', async () => {
+    const llm = new FakeLLM();
+    const d = await deps(llm);
+    llm.push((req) => {
+      expect(req.messages[0].content).toContain('乙公司 后端开发 笔试通知');
+      expect(req.messages[0].content).toContain('我在 Boss 上收到的');
+      return JSON.stringify({ kind: 'written_test', relevance: 'job', fields: { company: '乙公司', title: '后端开发', due_at: '2026-10-08T06:00:00Z' }, summary: '乙公司笔试 10 月 8 日' });
+    });
+    const page = '<html><head><title>乙公司 后端开发 笔试通知</title></head><body><p>请于 10 月 8 日完成</p><script>x()</script></body></html>';
+    const fakeFetch = vi.fn(async () => new Response(page, { headers: { 'content-type': 'text/html' } }));
+    const res = await captureLink(d, { url: 'https://www.zhipin.com/share/abc', text: '我在 Boss 上收到的' }, fakeFetch as unknown as typeof fetch);
+    expect(res.fetched).toBe(true);
+    expect(res.item.source).toBe('url');
+    expect(d.repos.listDeadlines({}).some(x => x.kind === 'written_test')).toBe(true);
+  });
+
+  it('分享页要登录或打不开时不失败，只用链接和粘贴的文案归档', async () => {
+    const d = await deps(null);
+    const fakeFetch = vi.fn(async () => new Response('', { status: 403 }));
+    const res = await captureLink(d, { url: 'https://www.liepin.com/s/xyz' }, fakeFetch as unknown as typeof fetch);
+    expect(res.fetched).toBe(false);
+    expect(res.item.raw_text).toContain('https://www.liepin.com/s/xyz');
+  });
+
+  it('不是链接时直接报错', async () => {
+    const d = await deps(null);
+    await expect(captureLink(d, { url: '随便写的' })).rejects.toThrow('http');
+  });
+});
+
+describe('recordExam', () => {
+  it('同公司有唯一进行中的投递就挂上去，并建笔试截止事件', async () => {
+    const d = await deps(null);
+    const job = d.repos.upsertJob({ source_platform: 'boss', source_job_id: '2', title: '算法实习', company_name: '丙公司' });
+    const app = d.repos.createApplication(job.id);
+    const res = recordExam(d, { company_name: '丙公司', kind: 'written_test', due_at: '2026-10-20T06:00:00.000Z', url: 'https://exam.example' });
+    expect(res.application_id).toBe(app.id);
+    const dl = d.repos.listDeadlines({ application_id: app.id });
+    expect(dl[0]).toMatchObject({ kind: 'written_test', source: 'manual', url: 'https://exam.example', due_at: '2026-10-20T06:00:00.000Z' });
+  });
+
+  it('没有投递时新建岗位和投递；测评标题带「测评」', async () => {
+    const d = await deps(null);
+    const res = recordExam(d, { company_name: '丁公司', title: '产品经理', kind: 'assessment', due_at: '2026-10-21T06:00:00.000Z' });
+    const app = d.repos.getApplication(res.application_id)!;
+    expect(d.repos.getJob(app.job_id)).toMatchObject({ company_name: '丁公司', title: '产品经理' });
+    expect(d.repos.listDeadlines({ application_id: app.id })[0].title).toBe('丁公司 · 产品经理 测评');
+  });
+
+  it('公司为空时报错', async () => {
+    const d = await deps(null);
+    expect(() => recordExam(d, { company_name: '  ', kind: 'written_test', due_at: '2026-10-21T06:00:00.000Z' })).toThrow('公司');
   });
 });

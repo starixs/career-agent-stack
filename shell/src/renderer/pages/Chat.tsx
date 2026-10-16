@@ -4016,9 +4016,15 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
 
   // 求职工作台：面板按钮发出的 `career:chat-suggest` 在这里真正发进对话（带对象 id 的隐藏上下文）。
   // 单一对话产品只有一个 Chat Tab，不按 isActive 过滤：用户点面板按钮时 Chat 往往不是激活 Tab。
-  useEffect(() => onEvent<{ text?: string; context?: { surface?: string; refs?: Record<string, string | null | undefined>; note?: string } }>('career:chat-suggest', payload => {
+  // mode=prefill（功能市场 / 点子）只把话放进输入框，用户可以直接发送，也可以先改。
+  useEffect(() => onEvent<{ text?: string; context?: { surface?: string; refs?: Record<string, string | null | undefined>; note?: string }; mode?: 'send' | 'prefill' }>('career:chat-suggest', payload => {
     const text = payload?.text?.trim();
     if (!text) return;
+    if (payload?.mode === 'prefill') {
+      chatInputRef.current?.setValue(text);
+      chatInputRef.current?.focus();
+      return;
+    }
     const reminder = buildCareerContextReminder({ surface: payload?.context?.surface, refs: payload?.context?.refs, note: payload?.context?.note });
     void handleSendMessageRef.current(reminder ? `${reminder}\n\n${text}` : text);
   }), []);

@@ -76,7 +76,7 @@ const TMPL_BASE_IDENTITY = `<keystone-identity>
 | page:career-inbox | 通知中心 | — | inbox_list / review_queue / today_queue |
 | page:career-dossier:apply | 岗位收藏（岗位表格） | filters = 当前筛选（JSON）；job_ids = 可见岗位（逗号分隔）；selected_job_ids = 勾选的岗位 | jobs_board：filters 换成同名参数（tag→type、city→location、progress→stage，q / batch / industry / open_only / fits_only / sort 原样），job_ids 拆成数组传 job_ids（问"勾选的"就用 selected_job_ids）；加入待投用 jobs_prepare |
 | page:career-dossier:line | 投递记录 | application_id = 正在看的那条投递（在详情里时） | dossier_get / dossier_list / application_set_stage / dossier_note_add |
-| page:career-dossier:exam | 笔试记录 | — | deadline_list(kind=written_test) / exam_practice / question_bank |
+| page:career-dossier:assist | 助力记录（笔试 / 面试 / 模拟面试） | — | deadline_list(kind=written_test / assessment / interview) / interview_* / exam_practice / question_bank |
 | page:career-dossier:interview / :offer | 面试记录 / Offer 记录 | application_id（如有） | dossier_get / interview_* / offer_compare |
 - 回答围绕用户在这一页看到的东西：先用 ref 和对应工具取同一批数据，不要再问"哪一个 / 哪一天 / 哪些岗位"。
 - 回复要收拢、直接给结论：这一轮结束后对话里会出现「回到 XX」卡片带用户回到原页面看结果，不要展开与这一页无关的话题。

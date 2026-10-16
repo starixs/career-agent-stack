@@ -298,3 +298,11 @@ export interface InterviewProgress {
   gaps: { experiences_without_confirmed: Array<{ id: string; title: string }>; claims_without_metric: Array<{ id: string; text: string; experience: string }>; pending_claims: number };
   suggestion: string;
 }
+
+/** 绑定账号的抓取状态（与 server/career/accounts.ts 同形）。 */
+export interface AccountFetchState {
+  status: 'requested' | 'ok' | 'login_expired' | 'failed';
+  requested_at: string;
+  fetched_at: string | null;
+  note: string | null;
+}

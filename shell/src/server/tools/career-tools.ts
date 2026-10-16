@@ -29,6 +29,7 @@ import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { SEARCH_NOT_CONFIGURED_MESSAGE } from '../career/setup';
 import { applyJsonPatch, confirmTailorProposal, readTailorProposal } from '../career/tailor';
 import { getVault, vaultForRepos } from '../career/vault';
+import { ACCOUNT_FIELDS, reportAccountFetch } from '../career/accounts';
 import { persistDriveOutcome } from '../career/drive-outcome';
 import { freezePacket, packetResumeFile, pickResumeForJob } from '../career/packets';
 import { acquireBrowserCapability } from '../browser-host/capability-client';
@@ -492,6 +493,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         });
       })),
       // ---------- 今日 / 收件箱 / 截止 ----------
+      tool('account_fetch_report', '用户在「基本资料」绑定账号（领英 / 脉脉 / GitHub / 个人网站 / 学信网）后会让你抓一次信息。抓完必须调用它回报结果：ok 抓到了；login_expired 打开后是登录页、用户没登录或登录已失效；failed 其他原因没抓到。页面据此显示上次抓取时间，登录过期时提醒用户重新绑定。', {
+        field: z.enum(ACCOUNT_FIELDS),
+        status: z.enum(['ok', 'login_expired', 'failed']),
+        note: z.string().optional().describe('一句话说明：抓到了什么，或为什么没抓到'),
+      }, async (args) => wrap(() => {
+        const state = reportAccountFetch(repos(), args.field, args.status, args.note ?? null);
+        changed('account_fetch');
+        return text({ state });
+      })()),
       tool('today_queue', '今天必须做的事（已排序：过期 / 今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线）+ 等待中的投递数。给用户最多三件。只含 3 天内的时间点（条目带 deadline_id）；更远的日程用 deadline_list。', {}, wrap(() => text(repos().today()))),
 
       tool('inbox_capture', '把用户丢进来的任何内容（JD、面试邀请、测评 / 笔试通知、拒信、Offer、内推码、截止提醒）归档成结构化对象：自动建岗位 / 面试 / 截止事件 / 关闭投递 / Offer，并关联到卷宗。', {

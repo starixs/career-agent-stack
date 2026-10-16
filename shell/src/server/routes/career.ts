@@ -20,7 +20,7 @@ import { DomainUnavailableError, loadBridges } from '../career/domain';
 import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isAtsMode, setAtsMode, type ExportFormat } from '../career/export';
 import { runAtsCheck } from '../career/ats-check';
 import { getShellLLM } from '../career/llm';
-import { captureIntake, type IntakeDeps } from '../career/intake';
+import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../career/intake';
 import { deleteMailPassword, setMailPassword } from '../career/mail/credentials';
 import { MAIL_PRESETS, detectProvider, presetFor } from '../career/mail/providers';
 import { executeApprovedSendMails } from '../career/mail/send';
@@ -31,6 +31,7 @@ import { loadSkillPrompt } from '../career/skills';
 import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
 import { confirmSubmitResult } from '../career/submit-executor';
+import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
 import { BatchRunner } from '../career/batch-runner';
 import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource } from '../career/server-api';
@@ -596,6 +597,20 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 私密信息库（只有这组接口能读写明文；模型工具永远拿不到） ----------
+  // 绑定账号的抓取状态（career/accounts.ts）：页面点绑定 / 重新抓取时记 requested，小芽抓完用工具回报。
+  route('GET', '/api/career/accounts', (ctx) => ok({ accounts: listAccountFetch(ctx.repos) })),
+  route('POST', '/api/career/accounts/:field/request', (ctx) => {
+    if (!isAccountField(ctx.params.field)) return fail(`不支持的账号：${ctx.params.field}`, 404);
+    const state = requestAccountFetch(ctx.repos, ctx.params.field);
+    dataChanged(ctx, ['account_fetch']);
+    return ok({ state });
+  }),
+  route('DELETE', '/api/career/accounts/:field', (ctx) => {
+    if (!isAccountField(ctx.params.field)) return fail(`不支持的账号：${ctx.params.field}`, 404);
+    clearAccountFetch(ctx.repos, ctx.params.field);
+    dataChanged(ctx, ['account_fetch']);
+    return ok({});
+  }),
   route('GET', '/api/career/vault', ({ vault, core }) => ok({ status: vault.status(), items: vault.list(), profileFields: core.PROFILE_FIELDS, siteFields: core.SITE_FIELDS })),
   route('PUT', '/api/career/vault/items', (ctx) => {
     const b = ctx.body;
@@ -704,6 +719,26 @@ const ROUTES: Route[] = [
   route('GET', '/api/career/deadlines', ({ repos, url }) => {
     const status = url.searchParams.get('status');
     return ok({ deadlines: repos.listDeadlines({ status: status === 'open' || status === 'done' || status === 'missed' || status === 'cancelled' || status === 'open_or_missed' ? status : undefined }) });
+  }),
+  route('POST', '/api/career/inbox/link', async (ctx) => {
+    const url = str(ctx.body.url);
+    if (!url) return fail('url 不能为空');
+    try {
+      const result = await captureLink(intakeDeps(ctx), { url, text: str(ctx.body.text) ?? null, application_id: str(ctx.body.application_id) ?? null });
+      return ok({ result });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '链接识别失败');
+    }
+  }),
+  route('POST', '/api/career/exams', (ctx) => {
+    const company_name = str(ctx.body.company_name); const due_at = isoOrUndefined(ctx.body.due_at);
+    if (!company_name || !due_at) return fail('company_name 与 due_at（可解析的时间）不能为空');
+    const kind = ctx.body.kind === 'assessment' ? 'assessment' : 'written_test';
+    try {
+      return ok(recordExam(intakeDeps(ctx), { company_name, title: strOrNull(ctx.body.title), kind, due_at, url: strOrNull(ctx.body.url), note: strOrNull(ctx.body.note) }));
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '新建笔试失败');
+    }
   }),
   route('POST', '/api/career/deadlines', (ctx) => {
     const title = str(ctx.body.title); const due_at = isoOrUndefined(ctx.body.due_at); const kind = str(ctx.body.kind);

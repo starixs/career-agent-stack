@@ -67,6 +67,9 @@
 | GET | `/api/career/onboarding` | 首次引导清单 `{checklist}` |
 | GET / POST | `/api/career/inbox` | 收件箱列表（`?status=new`）/ `{text, source?, application_id?}` → 归档结果 `{result}` |
 | POST | `/api/career/inbox/:id/dismiss` · `/retry` | 忽略 / 重新识别（可带 application_id） |
+| POST | `/api/career/inbox/link` | `{url, text?, application_id?}` → 抓分享页文字后归档，`{result}`（`result.fetched` 表示是否抓到页面） |
+| POST | `/api/career/exams` | 手动新建笔试 / 测评 `{company_name, title?, kind: written_test\|assessment, due_at, url?, note?}` → `{deadline_id, application_id}` |
+| GET / POST / DELETE | `/api/career/accounts` · `/accounts/:field/request` · `/accounts/:field` | 绑定账号的抓取状态 `{accounts: {field: {status, requested_at, fetched_at, note}}}`；绑定 / 重新抓取前记 requested；解绑时清掉 |
 | GET / POST | `/api/career/deadlines` | 截止事件（`?status=open|open_or_missed|…`）/ `{kind, title, due_at, application_id?, job_id?, url?, note?}` |
 | POST | `/api/career/deadlines/:id/status` | `{status: open|done|missed|cancelled}` |
 | GET | `/api/career/dossiers` · `/dossiers/:applicationId` | 卷宗摘要 / 完整卷宗（简历版本、说过的话、邮件、截止、面试、Offer、待审动作、时间线、预测） |
@@ -179,6 +182,7 @@
 | `today_queue` | – | 今日队列（给用户最多三件） |
 | `inbox_capture` | text, source?, application_id? | 归档任何内容：建岗位 / 面试 / 截止 / 关闭投递 / Offer |
 | `inbox_list` / `inbox_dismiss` | status? / inbox_id | 收件箱列表 / 忽略 |
+| `account_fetch_report` | field, status: ok\|login_expired\|failed, note? | 绑定账号抓完回报；页面显示上次抓取时间，登录过期提醒重新绑定 |
 | `deadline_add` / `deadline_done` | kind, title, due_at… / deadline_id | 不能丢的时间点 |
 | `dossier_list` / `dossier_get` | – / application_id \| job_id \| company_name | 卷宗摘要 / 面试前一键摊开 |
 | `dossier_note_add` | application_id, kind, round?, content | 说过的 / 听到的 / 联系人 |
