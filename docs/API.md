@@ -82,6 +82,9 @@
 | POST | `/api/career/review/weekly` | `{week_start?, user_note?}` → 生成并保存周复盘（无模型时只存漏斗） |
 | GET / POST | `/api/career/mail/accounts` | 账号与预设 / 绑定 `{address, password?, provider?, display_name?, imap_host?, smtp_host?, verify?}`（立即同步一次验证） |
 | DELETE | `/api/career/mail/accounts/:id` | 解绑并删除本机授权码 |
+| POST | `/api/career/mail/connect` | 一键连接 `{provider: qq\|163\|126\|gmail, address?}` → `{session}`：产品浏览器打开官方页面，用户扫码登录后自动读授权码、IMAP 验证、绑定 |
+| GET / DELETE | `/api/career/mail/connect/:id` | 连接进度（`starting / login / settings / need_address / verifying / done / failed / cancelled` + 提示）/ 取消 |
+| POST | `/api/career/mail/connect/:id/address` | `{address}`：页面上没认出邮箱地址时补一个 |
 | POST | `/api/career/mail/sync` | `{account_id?}` → 同步结果（新邮件进收件箱 / 卷宗） |
 | GET | `/api/career/mail/messages` | `?application_id=&direction=in|out&relevance=job&limit=` |
 

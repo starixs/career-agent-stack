@@ -5,6 +5,8 @@
 import { homedir } from 'os';
 import { join } from 'path';
 
+import type { Page } from 'playwright';
+
 import type { PlaywrightBrowserHost } from '../browser-host';
 import { loadConfig } from '../utils/admin-config';
 import { BatchRunner } from './batch-runner';
@@ -117,6 +119,31 @@ async function runOnProductBrowser(body: Record<string, unknown>, onEvent: (ev: 
   const op = body.op === 'release' ? 'release' : 'submit';
   await host.withProductSession(id, context => runOperation(op, body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost, productSessionId: id, focusPage: page => host.focusPage(id, page) }));
   return events;
+}
+
+/**
+ * 邮箱一键连接：在产品浏览器里开一页（浏览器没开就启动），设为现场画面并把控制权交给用户（弹窗里直接扫码、点按钮），
+ * 跑完把控制权交回、关掉这一页。连接流程本身只读页面文字、按文字点按钮，见 mail/connect.ts。
+ */
+export async function withMailConnectPage(fn: (page: Page) => Promise<void>): Promise<void> {
+  if (!hostResolver) throw new Error('浏览器宿主尚未就绪（只能在 Global 侧车执行）');
+  const host = await hostResolver();
+  hostCache = host;
+  const id = careerProductSessionId();
+  if (!id) throw new Error('还没有个人助理会话：请先打开一次对话');
+  await host.withProductSession(id, async context => {
+    const page = await context.newPage();
+    host.focusPage(id, page);
+    const handedOver = host.getControl(id).control !== 'human';
+    if (handedOver) host.setControl(id, 'human', 'mail_connect');
+    try {
+      await fn(page);
+    } finally {
+      if (handedOver) { try { host.setControl(id, 'agent', 'mail_connect_done'); } catch { /* 浏览器已关闭 */ } }
+      // 至少留一页，否则 Chrome 窗口会随最后一页一起关闭
+      if (!page.isClosed() && context.pages().filter(p => !p.isClosed()).length > 1) await page.close().catch(() => { /* 已关闭 */ });
+    }
+  }, { allowHumanControl: true, create: { workspacePath: careerWorkspacePath() } });
 }
 
 let submitExecutorPromise: Promise<SubmitExecutor> | null = null;

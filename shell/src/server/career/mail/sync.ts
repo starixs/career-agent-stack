@@ -69,6 +69,14 @@ async function fetchViaImap(account: MailAccount, password: string, lookbackDays
   return out;
 }
 
+/** 只试登录、不拉信：一键连接读到授权码后先验一遍，错的授权码不落库。 */
+export async function verifyImapLogin(host: string, port: number, user: string, pass: string): Promise<void> {
+  const { ImapFlow } = await import('imapflow');
+  const client = new ImapFlow({ host, port, secure: true, auth: { user, pass }, logger: false });
+  await client.connect();
+  await client.logout().catch(() => undefined);
+}
+
 function stripHtml(html: string): string { return html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(); }
 
 export async function syncMailAccount(deps: MailSyncDeps, account: MailAccount): Promise<MailSyncResult> {

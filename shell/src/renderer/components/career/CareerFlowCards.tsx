@@ -23,6 +23,7 @@ import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { openResumeDrawer } from './CareerResumeDrawer';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
+import { MAIL_OPTIONS, MailConnectDialog, MailOptionGrid, type MailOption } from './MailBinding';
 import type { BatchState, CareerCard, CareerCardState } from './types';
 
 // ---------- 数据解析（card.data 来自服务端，逐项校验） ----------
@@ -321,6 +322,7 @@ export function MailBindCard({ card, onDone, onDismiss }: CardProps) {
   const [address, setAddress] = useState('');
   const [password, setPassword] = useState('');
   const [result, setResult] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<MailOption | null>(null);
   const { busy, error, run } = useSubmit();
   const domain = address.split('@')[1]?.toLowerCase() ?? '';
   const hint = presets.find(p => domain && (domain.startsWith(`${p.provider}.`) || (p.provider === 'outlook' && /outlook|hotmail|live/.test(domain)) || (p.provider === 'gmail' && domain === 'gmail.com')));
@@ -335,6 +337,20 @@ export function MailBindCard({ card, onDone, onDismiss }: CardProps) {
   });
   return (
     <CardShell testId="career-card-mail_bind" icon={<Mail className="size-4" />} title={card.title} onDismiss={onDismiss}>
+      {!result && (
+        <>
+          <MailOptionGrid selected={null} options={MAIL_OPTIONS.filter(o => o.connect)} onPick={setConnecting} />
+          <p className="mb-2 mt-3 text-xs text-[var(--muted)]">其他邮箱，或已经有授权码：</p>
+        </>
+      )}
+      {connecting && (
+        <MailConnectDialog
+          option={connecting}
+          onClose={() => setConnecting(null)}
+          onManual={() => setConnecting(null)}
+          onBound={message => { setConnecting(null); setResult(message); onDone(); suggestToChat('邮箱已在卡片里绑定好了，请把新邮件里和求职有关的归档一下'); }}
+        />
+      )}
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
           <span>邮箱地址</span>

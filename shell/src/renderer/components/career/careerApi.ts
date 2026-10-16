@@ -11,7 +11,7 @@ import type {
   ExamPractice,
   CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
-  InboxItem, IntakeResult, Interview, Job, MailAccount, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
+  InboxItem, IntakeResult, Interview, Job, MailAccount, MailConnectSession, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
   AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
@@ -273,6 +273,12 @@ export const careerApi = {
   }),
   bindMailAccount: (body: { address: string; password?: string; provider?: string; display_name?: string; imap_host?: string; imap_port?: number; smtp_host?: string; smtp_port?: number; verify?: boolean }) =>
     apiPostJson<unknown>(careerPath('/mail/accounts'), body).then(r => asDict(r) as { account?: MailAccount; verify?: { error?: string; fetched?: number; job_related?: number } | null }),
+  startMailConnect: (provider: MailConnectSession['provider'], address?: string) =>
+    apiPostJson<unknown>(careerPath('/mail/connect'), { provider, address }).then(r => asDict(r).session as MailConnectSession),
+  mailConnect: (id: string) => apiGetJson<unknown>(careerPath(`/mail/connect/${encodeURIComponent(id)}`)).then(r => asDict(r).session as MailConnectSession),
+  mailConnectAddress: (id: string, address: string) =>
+    apiPostJson<unknown>(careerPath(`/mail/connect/${encodeURIComponent(id)}/address`), { address }).then(r => asDict(r).session as MailConnectSession),
+  cancelMailConnect: (id: string) => apiDelete<unknown>(careerPath(`/mail/connect/${encodeURIComponent(id)}`)),
   deleteMailAccount: (id: string) => apiDelete<unknown>(careerPath(`/mail/accounts/${encodeURIComponent(id)}`)),
   syncMail: (account_id?: string) => apiPostJson<unknown>(careerPath('/mail/sync'), { account_id }).then(r => pickList<{ account_id: string; fetched: number; stored: number; job_related: number; ignored: number; error?: string; archived: Array<{ summary: string }> }>(r, 'results')),
   mailMessages: (filter: { application_id?: string; direction?: 'in' | 'out'; relevance?: 'job' | 'ignored' | 'unknown'; limit?: number } = {}) => {

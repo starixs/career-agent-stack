@@ -383,7 +383,7 @@ describe('CareerDossier · 助力记录', () => {
     fireEvent.click(screen.getByRole('button', { name: '绑定邮箱' }));
     const dialog = await screen.findByRole('dialog', { name: '新建助力记录' });
     expect(within(dialog).getByRole('tab', { name: /从邮箱同步/ })).toHaveAttribute('aria-selected', 'true');
-    expect(within(dialog).getByRole('button', { name: '绑定并验证' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /QQ 邮箱/ })).toBeInTheDocument();
     unmount();
 
     mockGet({ exams: examDeadlines, mailAccounts: [{ id: 'acc1', address: 'me@qq.com', provider: 'qq', status: 'ok', last_sync_at: null, last_error: null }] });

@@ -222,6 +222,12 @@ export interface MailAccount {
   imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; status: 'unverified' | 'ok' | 'auth_failed' | 'error';
   last_sync_at: string | null; last_uid: number; last_error: string | null; created_at: string; updated_at: string;
 }
+/** 一键连接邮箱的进度（服务端 mail/connect.ts）。 */
+export interface MailConnectSession {
+  id: string; provider: 'qq' | '163' | '126' | 'gmail';
+  status: 'starting' | 'login' | 'settings' | 'need_address' | 'verifying' | 'done' | 'failed' | 'cancelled';
+  hint: string; address: string | null; account_id: string | null; summary: string | null; error: string | null; started_at: string; updated_at: string;
+}
 export interface MailPreset { provider: string; label: string; imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; help: string }
 export interface MailMessage {
   id: string; account_id: string; uid: number | null; message_id: string | null; in_reply_to: string | null; direction: 'in' | 'out';

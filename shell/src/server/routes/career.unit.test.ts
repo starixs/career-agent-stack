@@ -320,4 +320,22 @@ describe('五个面的路由', () => {
       expect(getMailPassword(account.id)).toBeNull();
     } finally { setMailCredentialsPath(null); }
   });
+
+  it('mail connect：只开放有配方的邮箱；连接可查可取消；打不开浏览器时如实报错', async () => {
+    expect((await call(deps, 'POST', '/api/career/mail/connect', { provider: 'outlook' })).status).toBe(400);
+    expect((await call(deps, 'GET', '/api/career/mail/connect/nope')).status).toBe(404);
+    const pending = new Promise<void>(() => {});
+    deps.mailConnect = { withPage: () => pending };
+    const started = await call(deps, 'POST', '/api/career/mail/connect', { provider: 'qq' });
+    const session = started.json.session as { id: string; status: string };
+    expect(started.json.label).toBe('QQ 邮箱');
+    expect(session.status).toBe('starting');
+    expect((await call(deps, 'POST', `/api/career/mail/connect/${session.id}/address`, { address: 'x' })).status).toBe(400);
+    expect(((await call(deps, 'DELETE', `/api/career/mail/connect/${session.id}`)).json.session as { status: string }).status).toBe('cancelled');
+
+    deps.mailConnect = { withPage: async () => { throw new Error('还没有个人助理会话'); } };
+    const broken = (await call(deps, 'POST', '/api/career/mail/connect', { provider: '163' })).json.session as { id: string };
+    await new Promise(r => setTimeout(r, 0));
+    expect((await call(deps, 'GET', `/api/career/mail/connect/${broken.id}`)).json.session).toMatchObject({ status: 'failed', error: '还没有个人助理会话' });
+  });
 });

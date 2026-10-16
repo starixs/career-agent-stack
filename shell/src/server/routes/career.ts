@@ -24,7 +24,8 @@ import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../care
 import { deleteMailPassword, setMailPassword } from '../career/mail/credentials';
 import { MAIL_PRESETS, detectProvider, presetFor } from '../career/mail/providers';
 import { executeApprovedSendMails } from '../career/mail/send';
-import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
+import { syncAllMailAccounts, syncMailAccount, verifyImapLogin } from '../career/mail/sync';
+import { RECIPES, cancelMailConnect, fromPlaywrightPage, getMailConnect, isConnectProvider, provideConnectAddress, startMailConnect, type ConnectDeps } from '../career/mail/connect';
 import { draftMaterial } from '../career/materials';
 import { generateWeeklyReview } from '../career/review';
 import { loadSkillPrompt } from '../career/skills';
@@ -48,6 +49,8 @@ export interface CareerRouteDeps {
   /** undefined → 进程共享 ShellLLM；null → 不调用模型（导入岗位时不解析 JD）。 */
   llm?: LLM | null;
   resumeModule?: () => Promise<typeof import('@career/resume')>;
+  /** 邮箱一键连接借页面 / 试登录（测试注入；缺省走产品浏览器与真实 IMAP）。 */
+  mailConnect?: Partial<Pick<ConnectDeps, 'withPage' | 'verifyLogin' | 'tickMs' | 'sleep'>>;
   /** false：导出不用简历工作台模板（测试里没有 react-pdf 字体网络时用）。 */
   studioExport?: boolean;
 }
@@ -853,6 +856,44 @@ const ROUTES: Route[] = [
     // 立即验证一次（拉最近邮件），把状态写回账号
     const verify = ctx.body.verify === false ? null : await syncMailAccount(intakeDeps(ctx), account);
     return ok({ account: ctx.repos.getMailAccount(account.id), verify });
+  }),
+  // 一键连接：产品浏览器打开官方页面，扫码登录后自动读授权码、验证、绑定（mail/connect.ts）
+  route('POST', '/api/career/mail/connect', (ctx) => {
+    const provider = ctx.body.provider;
+    if (!isConnectProvider(provider)) return fail(`暂不支持一键连接：${String(provider)}`);
+    const preset = presetFor(provider)!;
+    const injected = ctx.deps.mailConnect ?? {};
+    const deps: ConnectDeps = {
+      withPage: injected.withPage ?? (async fn => {
+        const { withMailConnectPage } = await import('../career/batch-service');
+        await withMailConnectPage(page => fn(fromPlaywrightPage(page)));
+      }),
+      verifyLogin: injected.verifyLogin ?? ((_p, address, code) => verifyImapLogin(preset.imap_host, preset.imap_port, address, code)),
+      bind: async (p, address, code) => {
+        const account = ctx.repos.upsertMailAccount({ provider: p, address, imap_host: preset.imap_host, imap_port: preset.imap_port, smtp_host: preset.smtp_host, smtp_port: preset.smtp_port });
+        setMailPassword(account.id, code);
+        dataChanged(ctx, ['mail_account']);
+        const verify = await syncMailAccount(intakeDeps(ctx), account);
+        return { account_id: account.id, summary: verify.error ? `已连接，首次同步失败：${verify.error}` : `拉到 ${verify.fetched} 封，其中 ${verify.job_related} 封与求职相关` };
+      },
+      ...(injected.tickMs ? { tickMs: injected.tickMs } : {}),
+      ...(injected.sleep ? { sleep: injected.sleep } : {}),
+    };
+    return ok({ session: startMailConnect(deps, provider, { address: str(ctx.body.address) }), label: RECIPES[provider].label });
+  }),
+  route('GET', '/api/career/mail/connect/:id', ({ params }) => {
+    const session = getMailConnect(params.id);
+    return session ? ok({ session }) : fail('连接已结束或不存在', 404);
+  }),
+  route('POST', '/api/career/mail/connect/:id/address', (ctx) => {
+    const address = str(ctx.body.address)?.toLowerCase();
+    if (!address || !address.includes('@')) return fail('address 需要是邮箱地址');
+    const session = provideConnectAddress(ctx.params.id, address);
+    return session ? ok({ session }) : fail('连接已结束或不存在', 404);
+  }),
+  route('DELETE', '/api/career/mail/connect/:id', ({ params }) => {
+    const session = cancelMailConnect(params.id);
+    return session ? ok({ session }) : fail('连接已结束或不存在', 404);
   }),
   route('DELETE', '/api/career/mail/accounts/:id', (ctx) => {
     if (!ctx.repos.getMailAccount(ctx.params.id)) return fail(`邮箱账号不存在：${ctx.params.id}`, 404);

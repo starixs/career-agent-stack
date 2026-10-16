@@ -147,6 +147,8 @@ describe('CareerInbox', () => {
     expect(screen.getByText('QQ 邮箱')).toBeInTheDocument();
     expect(screen.getByText('已连接')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '绑定邮箱' }));
+    expect(screen.getByRole('button', { name: /163 邮箱/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '已经有授权码？手动填写' }));
     fireEvent.change(screen.getByLabelText('邮箱地址'), { target: { value: 'new@163.com' } });
     fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'secret-code' } });
     expect(screen.getByText(/只保存在本机，不会发给对话/)).toBeInTheDocument();
