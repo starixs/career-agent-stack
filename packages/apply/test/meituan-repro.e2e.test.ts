@@ -120,8 +120,7 @@ describe('美团式复现页（真实 Chrome）', () => {
     expect(r.review).toMatchObject({ requiredTrusted: true })
     expect(r.review!.requiredTotal).toBeGreaterThanOrEqual(8)
     expect(r.review!.requiredFilled).toBe(r.review!.requiredTotal)
-    expect(r.review!.rows.find(x => x.label === '导师')).toBeUndefined()
-    expect(r.review!.optionalEmptyRows.map(x => x.label)).toContain('导师')
+    expect(r.review!.rows.find(x => x.label === '导师')?.status).toBe('empty_optional')
     expect(r.review!.verified).toBe(true)
 
     // 没有整页被选中；高亮框动作后移除

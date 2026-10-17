@@ -98,13 +98,13 @@ describe('第二重：宁空不错 / 不假成功', () => {
     expect(r.fields.find(f => f.fieldId === 'f0')?.labelUncertain).toBeTruthy()
   })
 
-  it('审阅：选填留空不再标 ok，单独统计（不算要人看）；必填标记对不上时 requiredTrusted=false', async () => {
+  it('审阅：选填留空标 empty_optional（不算 ok、不算要人看）；必填标记对不上时 requiredTrusted=false', async () => {
     const page = new FakePage({ url: 'https://x.com/apply', fields: [{ label: '姓名', required: true }, { label: '导师' }, { label: '研究方向' }], requiredMarkers: 3, buttons: ['提交'] })
     const r = await driveApplication(page, noLLM(), profile, quiet)
     const rows = r.review!.rows
-    expect(rows.find(x => x.label === '导师')).toBeUndefined()
+    expect(rows.find(x => x.label === '导师')).toMatchObject({ status: 'empty_optional', required: false })
+    expect(rows.find(x => x.label === '导师')?.verified).toBeUndefined()
     expect(rows.find(x => x.label === '姓名')).toMatchObject({ status: 'ok', verified: true })
-    expect(r.review!.optionalEmptyRows.map(x => x.label)).toEqual(['导师', '研究方向'])
     expect(r.review).toMatchObject({ attention: 0, optionalEmpty: 2, requiredTotal: 1, requiredFilled: 1, requiredTrusted: false, verified: true })
     expect(r.review?.requiredNote).toContain('3 个必填星号')
     expect(r.fields.find(f => f.label === '导师')?.status).toBe('empty_optional')

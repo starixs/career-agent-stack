@@ -17,10 +17,10 @@ import type { FilledRecord, Mismatch, UploadCheck } from './drive.js'
  *  - openAnswersHash：开放题答案（草稿 / 长文本）的内容哈希——内容变了就不能沿用旧的批准。
  */
 /**
- * ok：读回核验通过（或页面原本就有值）；unverified：写进去了但读不回来核验（视觉层伪字段），要人看。
- * 选填且留空的不进 rows（不再标 ok），单独列在 optionalEmptyRows。
+ * ok：读回核验通过（或页面原本就有值）；empty_optional：选填且留空（不再标 ok；不算要人看，单独计数）；
+ * unverified：写进去了但读不回来核验（视觉层伪字段），要人看。
  */
-export type ReviewStatus = 'ok' | 'empty' | 'unverified' | 'mismatch' | 'needs_user' | 'draft' | 'site_error' | 'upload_unconfirmed'
+export type ReviewStatus = 'ok' | 'empty' | 'empty_optional' | 'unverified' | 'mismatch' | 'needs_user' | 'draft' | 'site_error' | 'upload_unconfirmed'
 export interface ReviewRow {
   fieldId?: string
   label: string
@@ -43,9 +43,8 @@ export interface SubmitReview {
   attention: number
   requiredTotal: number
   requiredFilled: number
-  /** 选填留空的条数；这些行不进 rows（不算 ok，也不算要人看），单独列在 optionalEmptyRows。 */
+  /** 选填留空（status=empty_optional）的条数：不算 ok，也不算要人看。 */
   optionalEmpty: number
-  optionalEmptyRows: Array<{ fieldId: string; label: string; labelUncertain?: string }>
   /** 本次写入的值是否全部读回核验通过（有视觉层未核验的值即为 false）。 */
   verified: boolean
   /**
@@ -86,7 +85,6 @@ export async function buildSubmitReview(page: PageLike, all: { filled: FilledRec
   const seen = new Set<string>()
   const add = (row: ReviewRow) => { const k = row.fieldId ?? `${row.status}:${row.label}`; if (seen.has(k)) return; seen.add(k); rows.push(row) }
 
-  const optionalEmptyRows: SubmitReview['optionalEmptyRows'] = []
   const uncertain = (id?: string) => fields.find(f => f.id === id)?.labelUncertain
   for (const m of all.mismatches) add({ fieldId: m.fieldId, label: m.label, required: !!fields.find(f => f.id === m.fieldId)?.required, status: 'mismatch', value: m.expected, reasonCode: m.code, reason: m.reason ?? (m.actual ? `页面上是「${m.actual}」，和资料对不上` : '没有生效') })
   for (const p of all.needsUser) add({ fieldId: p.fieldId, label: p.label, required: fields.find(f => f.id === p.fieldId)?.required ?? true, status: 'needs_user', reasonCode: p.code, labelUncertain: uncertain(p.fieldId), reason: p.note ?? reasonText(p.code) })
@@ -98,7 +96,7 @@ export async function buildSubmitReview(page: PageLike, all: { filled: FilledRec
     const empty = f.type === 'checkbox' ? f.value !== 'true' : !(f.value ?? '').trim()
     const filled = all.filled.find(r => r.fieldId === f.id)
     if (f.required && empty) add({ fieldId: f.id, label: f.label, required: true, status: 'empty', reason: '必填项还是空的', labelUncertain: f.labelUncertain })
-    else if (empty) { seen.add(f.id); optionalEmptyRows.push({ fieldId: f.id, label: f.label, ...(f.labelUncertain ? { labelUncertain: f.labelUncertain } : {}) }) }
+    else if (empty) add({ fieldId: f.id, label: f.label, required: false, status: 'empty_optional', reason: '选填，留空', labelUncertain: f.labelUncertain })
     else if (filled && filled.verified === false) add({ fieldId: f.id, label: f.label, required: f.required, status: 'unverified', verified: false, value: filled.value, source: filled.source, reason: '写进去了但没能读回核验，请看一眼' })
     else add({ fieldId: f.id, label: f.label, required: f.required, status: 'ok', verified: true, value: filled?.value ?? f.value, source: filled?.source, labelUncertain: f.labelUncertain })
   }
@@ -115,11 +113,10 @@ export async function buildSubmitReview(page: PageLike, all: { filled: FilledRec
   else if (!detected && fields.filter(f => f.type !== 'file').length >= 6) { requiredTrusted = false; requiredNote = '一个必填项都没认出来，这个表单的必填标记可能没识别到' }
   return {
     rows,
-    attention: rows.filter(r => r.status !== 'ok').length,
+    attention: rows.filter(r => r.status !== 'ok' && r.status !== 'empty_optional').length,
     requiredTotal: required.length,
     requiredFilled: required.filter(r => r.status === 'ok').length,
-    optionalEmpty: optionalEmptyRows.length,
-    optionalEmptyRows,
+    optionalEmpty: rows.filter(r => r.status === 'empty_optional').length,
     verified: all.filled.every(r => r.verified !== false) && !all.mismatches.length,
     requiredTrusted,
     ...(requiredNote ? { requiredNote } : {}),

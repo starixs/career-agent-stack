@@ -34,7 +34,7 @@ if (sched.canSendNow().ok) { const { text, selfReview } = await composeGreeting(
 ## 两重机制（2026-10 可靠性改造）
 - **第一重（做好）**：`blockers.ts` 障碍层——每页开始、上传后、每个分区前、点击被挡 / 超时后扫一遍模态框 / 遮罩 / cookie 横幅：已知规则（"是否解析简历附件" → 否 / 仅上传；cookie → 仅必要；温馨提示 → 我知道了），未知的让模型在按钮里选，点完核验弹窗消失。`fill.ts` 逐字段：滚到正中 + shadow root 高亮框（`widgets.ts` focusField，pointer-events:none，动作后移除）→ elementFromPoint 探测遮挡 → 自定义下拉 点开 → 枚举弹出层选项 → 字典 / 同义匹配（拿不准再问模型）→ 点选 → 读显示值；日期 能输入先输入，否则面板按 年 → 月（→ 日）导航；级联逐级。标签解析排除 fixed / sticky / 导航栏文字、不跨表单项、不隔着别的控件，支持 `::before` 伪元素标签；可疑标签记 `labelUncertain`。详情页上的入口按钮（`isEntryText`：立即申请 / 申请职位 / 我要投递 / Apply…）在页面没有任何字段时可以点进去。
 - **第二重（兜底，宁空不错）**：原生 setter 只给普通可编辑文本框（只读 / combobox / 下拉外壳一律拒绝）；成功以用户可见显示值读回为准；不可搜索的下拉不打字不回车；全选只在焦点就是目标可编辑元素时按；所有策略失败或读回不一致 → 清空回原值，`needs_user` + 原因码（`codes.ts`），清不掉记 `mismatch`；同一字段只写一次（分区填写跳过字段阶段写过 / 计划过的格子）；每个字段 30 秒看门狗；最终提交类按钮任何一层都不点。
-- **结果**：`DriveResult.fields`（字段级 `status` / `verified` / `code` / `reason` / `labelUncertain` / `requiredVia`）、`blockers`、`entryClicked`、`libraries`、`telemetry`；`review` 多了 `requiredTrusted` / `requiredNote` / `verified` / `optionalEmpty` / `optionalEmptyRows`，行级 `reasonCode` / `verified`。进度走 `onProgress`（人话），`log` 只是内部调试。
+- **结果**：`DriveResult.fields`（字段级 `status` / `verified` / `code` / `reason` / `labelUncertain` / `requiredVia`）、`blockers`、`entryClicked`、`libraries`、`telemetry`；`review` 多了 `requiredTrusted` / `requiredNote` / `verified` / `optionalEmpty`，选填留空行标 `empty_optional`（不算要人看），行级 `reasonCode` / `verified`。进度走 `onProgress`（人话），`log` 只是内部调试。
 - **运行记录**（`telemetry.ts`，`DriveOptions.telemetry = { dir, runId, keep }`）：`<dir>/<runId>/trace.jsonl`、动作前后小截图（敏感框模糊）、失败 DOM 片段、`summary.json`；值打码；保留最近 keep 次。
 
 ## 测试
