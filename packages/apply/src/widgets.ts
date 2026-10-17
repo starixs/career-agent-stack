@@ -37,13 +37,22 @@ export interface FocusFieldArg { selector: string; label?: string; highlight?: b
 export interface FocusFieldResult { ok: boolean; x?: number; y?: number; w?: number; h?: number }
 export const focusFieldScript: PageScript<FocusFieldArg, FocusFieldResult> = {
   id: WIDGET_SCRIPT_IDS.focusField,
-  fn: ({ selector, label, highlight }) => {
+  fn: async ({ selector, label, highlight }) => {
     const el = document.querySelector(selector) as HTMLElement | null
     if (!el) return { ok: false }
     let box: Element = el
     const r0 = el.getBoundingClientRect()
     if (r0.width < 4 || r0.height < 4) { const p = el.closest('[class*="select" i], [class*="picker" i], [class*="upload" i], [class*="form-item" i]'); if (p) box = p }
-    try { box.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' as ScrollBehavior }) } catch { box.scrollIntoView() }
+    // 画面跟随要像人在往下填：格子已在视口舒适区（上 15%～下 25% 之间）就不动；不在才平滑滚过去，等滚动停稳再继续。
+    // 每格都瞬间居中会让画面一下一下地跳
+    const vh = window.innerHeight
+    const rb = box.getBoundingClientRect()
+    if (rb.top < vh * 0.15 || rb.bottom > vh * 0.75) {
+      try { box.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' }) } catch { box.scrollIntoView() }
+      const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+      let last = -1
+      for (let i = 0; i < 20; i++) { await sleep(60); const y = window.scrollY; if (y === last) break; last = y }
+    }
     const r = box.getBoundingClientRect()
     if (highlight !== false) {
       const w = window as unknown as { __careerHl?: ShadowRoot }
@@ -608,7 +617,7 @@ export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
       const proto = Object.getPrototypeOf(el)
       const set = Object.getOwnPropertyDescriptor(proto, 'value')?.set ?? Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
       for (const t0 of Array.from(new Set([text, ...(texts ?? [])])).slice(0, 5)) {
-        el.focus()
+        el.focus({ preventScroll: true })
         set?.call(el, t0)
         el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }))
         for (const t of ['keydown', 'keyup']) el.dispatchEvent(new KeyboardEvent(t, { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }))
@@ -644,7 +653,7 @@ export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
     const triggers = Array.from(new Set([el, icon, shell].filter((n): n is HTMLElement => !!n)))
     let panel: Element | null = null
     for (let t = 0; t < triggers.length && !panel; t++) {
-      if (t === 0) { try { el.focus() } catch { /* ignore */ } }
+      if (t === 0) { try { el.focus({ preventScroll: true }) } catch { /* ignore */ } }
       fire(triggers[t])
       for (let i = 0; i < (t === 0 ? 8 : 5) && !panel; i++) { await sleep(120); panel = freshPanel() }
     }

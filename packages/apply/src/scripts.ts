@@ -544,7 +544,7 @@ export const fillValueScript: PageScript<FillValueArg, FillValueResult> = {
     }
     const enter = (n: Element) => { for (const t of ['keydown', 'keypress', 'keyup']) n.dispatchEvent(new KeyboardEvent(t, { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true })) }
     const typeNative = async (input: HTMLInputElement | HTMLTextAreaElement, v: string, blur = true) => {
-      input.focus(); fire(input, ['focus']); await sleep(10)
+      input.focus({ preventScroll: true }); fire(input, ['focus']); await sleep(10)
       setNative(input, v); input.setAttribute('value', v)
       fire(input, ['input', 'change'])
       if (blur) { fire(input, ['blur']); input.blur() }
@@ -646,7 +646,7 @@ export const fillValueScript: PageScript<FillValueArg, FillValueResult> = {
       return { ok: norm(input.value) === want, strategy: 'native-input', framework, detail: norm(input.value) === want ? undefined : `读回「${input.value}」` }
     }
     if (el.isContentEditable || el.getAttribute('contenteditable') === 'true') {
-      el.focus()
+      el.focus({ preventScroll: true })
       try { document.execCommand('selectAll', false); document.execCommand('insertText', false, value) } catch { el.textContent = value }
       fire(el, ['input'])
       return { ok: norm(el.textContent) === want, strategy: 'contenteditable', framework }

@@ -290,47 +290,50 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <Button variant="ghost" onClick={() => collapseWorkSurface('browser')} aria-label="收起浏览器"><X className="h-3.5 w-3.5" /></Button>
       </header>
 
-      {(handoff || humanActive) && (
-        <div role="status" className="mx-5 mt-3 flex items-start gap-2.5 rounded-lg border border-[var(--hard)] bg-[var(--note)] px-3.5 py-2.5 text-sm text-[var(--ink)] shadow-[var(--theme-shadow-hard)]">
-          <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <div className="min-w-0">
-            <div className="font-human font-semibold">这一步要你本人来{reason ? `：${reason}` : ''}</div>
-            <div className="text-xs text-[var(--ink-2)]">
-              {takeover?.message ?? (humanActive
-                ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。'
-                : '点画面或「控制浏览器」接手，完成后交还给小芽。')}
+      {/* 交接提示浮在画面上方、点击穿透，不挤占画面区域：画面区域一变，托管浏览器的视口就跟着变，页面会重排、跳动 */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {(handoff || humanActive) && (
+          <div role="status" className="pointer-events-none absolute left-5 right-5 top-3 z-10 flex items-start gap-2.5 rounded-lg border border-[var(--hard)] bg-[var(--note)] px-3.5 py-2.5 text-sm text-[var(--ink)] shadow-[var(--theme-shadow-hard)]">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <div className="min-w-0">
+              <div className="font-human font-semibold">这一步要你本人来{reason ? `：${reason}` : ''}</div>
+              <div className="text-xs text-[var(--ink-2)]">
+                {takeover?.message ?? (humanActive
+                  ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。'
+                  : '点画面或「控制浏览器」接手，完成后交还给小芽。')}
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      <div ref={frameHostRef} data-testid="live-frame-host" className="min-h-0 flex-1 overflow-auto px-5 py-3">
-        <div className="overflow-hidden rounded-lg border border-[var(--line-2)] bg-[var(--paper)] shadow-md">
-          <CareerLiveViewport
-            frame={frame}
-            interactive={humanActive}
-            onInputError={setNotice}
-            onRequestControl={canTake ? () => act('take') : undefined}
-            style={viewportStyle}
-            placeholder={frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开。小芽开始填表后画面会出现。' : '等待画面…')}
-          />
-        </div>
-        {chooser && <FileChooserPanel key={chooser.id} chooser={chooser} onDone={msg => { setChooser(null); setInfo(msg); }} />}
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-          {snapshot?.browser.url && <span className="min-w-0 flex-1 truncate text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
-          {embedded && snapshot?.browser.hasBrowser && (
-            <Button variant="ghost" busy={busy === 'window'} disabled={busy !== null} onClick={() => void toggleWindow()} title="画面里处理不了时（插件弹窗等）临时显示真实 Chrome 窗口">
-              <AppWindow className="h-3.5 w-3.5" />{revealed ? '收回真实窗口' : '显示真实窗口'}
-            </Button>
-          )}
-          {notice && <span role="alert" className="text-[var(--danger)]">{notice}</span>}
-          {!notice && info && <span role="status" className="text-[var(--success)]">{info}</span>}
-        </div>
-        {batch && batch.status !== 'idle' && (
-          <div className="mt-3 rounded-md border border-[var(--line)] bg-[var(--inset)] px-3 py-2 text-xs text-[var(--muted)]">
-            批量：{batch.message ?? batch.status} · 已填好 {batch.done} · 等你处理 {batch.handoffs} · 队列 {batch.queued}
-          </div>
         )}
+
+        <div ref={frameHostRef} data-testid="live-frame-host" className="min-h-0 flex-1 overflow-auto px-5 py-3">
+          <div className="overflow-hidden rounded-lg border border-[var(--line-2)] bg-[var(--paper)] shadow-md">
+            <CareerLiveViewport
+              frame={frame}
+              interactive={humanActive}
+              onInputError={setNotice}
+              onRequestControl={canTake ? () => act('take') : undefined}
+              style={viewportStyle}
+              placeholder={frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开。小芽开始填表后画面会出现。' : '等待画面…')}
+            />
+          </div>
+          {chooser && <FileChooserPanel key={chooser.id} chooser={chooser} onDone={msg => { setChooser(null); setInfo(msg); }} />}
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            {snapshot?.browser.url && <span className="min-w-0 flex-1 truncate text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
+            {embedded && snapshot?.browser.hasBrowser && (
+              <Button variant="ghost" busy={busy === 'window'} disabled={busy !== null} onClick={() => void toggleWindow()} title="画面里处理不了时（插件弹窗等）临时显示真实 Chrome 窗口">
+                <AppWindow className="h-3.5 w-3.5" />{revealed ? '收回真实窗口' : '显示真实窗口'}
+              </Button>
+            )}
+            {notice && <span role="alert" className="text-[var(--danger)]">{notice}</span>}
+            {!notice && info && <span role="status" className="text-[var(--success)]">{info}</span>}
+          </div>
+          {batch && batch.status !== 'idle' && (
+            <div className="mt-3 rounded-md border border-[var(--line)] bg-[var(--inset)] px-3 py-2 text-xs text-[var(--muted)]">
+              批量：{batch.message ?? batch.status} · 已填好 {batch.done} · 等你处理 {batch.handoffs} · 队列 {batch.queued}
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );
