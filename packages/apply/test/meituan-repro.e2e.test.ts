@@ -76,6 +76,9 @@ async function run(page: Page, url: string, runId: string) {
     selectInputs: Array.from(document.querySelectorAll('.mtd-select-filter-input input')).map(i => (i as HTMLInputElement).value),
     lab: (document.getElementById('lab-input') as HTMLInputElement).value,
     overlay: !!document.querySelector('[data-career-overlay]'),
+    contactEmail: (document.getElementById('contact-email') as HTMLInputElement).value,
+    // 页面上所有文本框的值（复核把值写错格子时，邮箱 / 手机号会出现在别的格子里）
+    textValues: Array.from(document.querySelectorAll('input[type=text]')).map(i => ({ id: i.id, ph: i.getAttribute('placeholder') ?? '', v: (i as HTMLInputElement).value })),
   }))
   return { result, state, progress, logs }
 }
@@ -85,6 +88,10 @@ describe('美团式复现页（真实 Chrome）', () => {
     if (!browser || !engine) return skip()
     const page = await (await browser.newContext({ viewport: { width: 1280, height: 800 } })).newPage()
     const { result: r, state, progress } = await run(page, `${base}/detail.html`, 'act_repro_ok')
+    // 加一行教育经历会让后面字段的编号顺移：复核必须认准同一个格子，不能把值写进别的格子
+    expect(state.contactEmail).toBe('zhangsan@example.com')
+    expect(state.textValues.filter(t => t.v.includes('@')).map(t => t.id)).toEqual(['', 'contact-email'].filter(id => state.textValues.some(t => t.id === id && t.v.includes('@'))))
+    expect(state.textValues.filter(t => t.v.includes('@')).length).toBe(2) // 基本信息邮箱 + 联系邮箱，别处不该有
 
     // 入口与停点：点了「立即申请」，没点「投递」
     expect(r.entryClicked).toBe('立即申请')

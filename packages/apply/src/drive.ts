@@ -398,6 +398,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       // 占位符 → 明文只发生在这里（Node 侧），之后的填写 / 核对都用明文；回传模型前由 ApplyService 再脱敏
       if (opts.resolveValue) for (const p of plans) if (p.status === 'fill' && p.value !== undefined) p.value = opts.resolveValue(p.value)
       const byId = new Map(fields.map(f => [f.id, f]))
+      /** 规划时的字段（后面重新抽取会按页面顺序重编 id，byId 会被覆盖；计划始终按这份认格子）。 */
+      const planFields = new Map(byId)
       // 宁空不错：标签可疑（吸顶栏文字 / 纯数字 / 没标签）的字段不按它填
       for (const p of plans) {
         const f = byId.get(p.fieldId)
@@ -407,12 +409,15 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         }
       }
       /** 本页已写过（或尝试写过）的字段：分区填写、复核都不再写不同来源的值。 */
+      // 按"格子"记（slotOf），不按 id：分区加一行后 id 会顺移，按 id 记会把新行当成"写过 / 计划过"、复核也会对错格子
       const written = new Map<string, { value: string; stage: string }>()
+      /** 每条填写记录对应的格子（写入那一刻的字段），复核按它认回。 */
+      const fieldOf = new WeakMap<object, FormField>()
       const record = (f: FormField, value: string, source: FieldPlan['source'], att: FieldAttempt, stage: string) => {
-        written.set(f.id, { value, stage })
-        if (att.verified) rec.filled.push({ fieldId: f.id, label: f.label, value, source, layer: att.strategy === 'vision' ? 'vision' : 'dom', verified: true, strategy: att.strategy, display: att.display })
-        else if (att.rollback === 'failed') rec.mismatches.push({ fieldId: f.id, label: f.label, expected: value, actual: att.display, code: att.code ?? 'readback_mismatch', reason: att.reason ?? reasonText(att.code) })
-        else rec.needsUser.push({ fieldId: f.id, label: f.label, status: 'needs_user', source, confidence: 0, note: att.reason ?? reasonText(att.code), code: att.code ?? 'readback_mismatch' })
+        written.set(slotOf(f), { value, stage })
+        if (att.verified) { rec.filled.push({ fieldId: f.id, label: f.label, value, source, layer: att.strategy === 'vision' ? 'vision' : 'dom', verified: true, strategy: att.strategy, display: att.display }); fieldOf.set(rec.filled[rec.filled.length - 1], f) }
+        else if (att.rollback === 'failed') { rec.mismatches.push({ fieldId: f.id, label: f.label, expected: value, actual: att.display, code: att.code ?? 'readback_mismatch', reason: att.reason ?? reasonText(att.code) }); fieldOf.set(rec.mismatches[rec.mismatches.length - 1], f) }
+        else { rec.needsUser.push({ fieldId: f.id, label: f.label, status: 'needs_user', source, confidence: 0, note: att.reason ?? reasonText(att.code), code: att.code ?? 'readback_mismatch' }); fieldOf.set(rec.needsUser[rec.needsUser.length - 1], f) }
       }
 
       // 4. 先上传简历（上传后页面可能弹"是否解析附件"、自动填充，过一遍障碍层再重新抽取）
@@ -431,7 +436,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           const check = await checkUploadEcho(page, f, p.value, areaBefore, textBefore)
           rec.uploads.push(check)
           rec.filled.push({ fieldId: f.id, label: f.label, value: basename(p.value), source: p.source, layer: 'dom', verified: check.echoed, strategy: 'upload' })
-          written.set(f.id, { value: p.value, stage: 'upload' })
+          written.set(slotOf(f), { value: p.value, stage: 'upload' })
           uploaded = true
           recorder.trace({ stage: 'upload', field: f.id, label: f.label, result: check.echoed ? 'ok' : 'fail', detail: check.evidence })
           log(`上传 ${basename(p.value)}：${check.echoed ? '页面已回显' : '未看到回显'}`)
@@ -467,8 +472,9 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         if (sameValue(f, p.value)) {
           const display = await readDisplay(page, f)
           if (displayMatches(display || f.value, p.value, f)) {
-            written.set(f.id, { value: p.value, stage: 'prefilled' })
+            written.set(slotOf(f), { value: p.value, stage: 'prefilled' })
             rec.filled.push({ fieldId: f.id, label: f.label, value: p.value, source: p.source, layer: 'dom', verified: true, strategy: 'already', display: display || f.value })
+            fieldOf.set(rec.filled[rec.filled.length - 1], f)
             continue
           }
         }
@@ -495,7 +501,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           if (!(await blockers('section', rec)) && unresolvedBlocker) { pushPage(); return blockerHandoff(unresolvedBlocker) }
           // 重新抽取：拿到第 5 步填完后的当前值，已有值的行不覆盖
           fields = await step('抽取字段', () => extractFields(page)); for (const f of fields) byId.set(f.id, f)
-          const planned = new Set(plans.filter(p => p.status !== 'skip' && !deferred.includes(p)).map(p => p.fieldId))
+          const planned = new Set(plans.filter(p => p.status !== 'skip' && !deferred.includes(p)).map(p => planFields.get(p.fieldId)).filter((f): f is FormField => !!f).map(slotOf))
           const sec = await fillRepeatingSections(page, fields, profile, {
             fill: async (f, v) => {
               const att = await fillAndVerify(fillDeps, f, v, 'section')
@@ -503,7 +509,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
               return att.verified
             },
             // 同一字段只写一次：字段阶段已写过 / 计划过的不再由分区写入
-            skip: f => written.has(f.id) || planned.has(f.id) || !!f.labelUncertain,
+            skip: f => written.has(slotOf(f)) || planned.has(slotOf(f)) || !!f.labelUncertain,
             settleMs: opts.settleMs, log, isSubmit: t => isSubmitText(t, adapter), resolveValue: opts.resolveValue,
             beforeSection: async () => { await blockers('section', rec) },
           })
@@ -515,23 +521,30 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           }
         } catch (e) { log(`重复分区填写异常：${e instanceof Error ? e.message : String(e)}`); recorder.bump('section_error') }
       }
-      for (const p of deferred) if (!written.has(p.fieldId)) rec.needsUser.push(p)
+      for (const p of deferred) { const f = planFields.get(p.fieldId); if (!f || !written.has(slotOf(f))) rec.needsUser.push(p) }
 
       // 6. 整页复核（只对 DOM 层）：核验通过的值有没有被页面后来的动作冲掉（如上传解析回填、联动清空）；冲掉的重填一次，再不行就清空留给用户
       if (layer === 'dom') {
         const after = await step('抽取字段', () => extractFields(page))
         const verifiedNow = rec.filled.filter(r => r.verified && r.strategy !== 'upload' && !byId.get(r.fieldId)?.isFile)
-        for (const d of diffAgainstPlan(after, verifiedNow)) {
-          const f = after.find(x => x.id === d.fieldId)
-          const display = f ? await readDisplay(page, f) : ''
-          if (f && displayMatches(display, d.expected, f)) continue
-          const idx = rec.filled.findIndex(r => r.fieldId === d.fieldId)
-          const old = rec.filled[idx]
+        // 重新抽取会按页面顺序重新编号：分区里加了一行，后面字段的 id 全部顺移。复核必须按"同一个格子"
+        // （同名标签 + 同一 xpath / name）认回字段，认不准就不碰——宁可不复核，也不把值写进别的格子。
+        for (const r of verifiedNow) {
+          const orig = fieldOf.get(r)
+          const key = orig && stableSlot(orig)
+          const hits = key ? after.filter(x => stableSlot(x) === key) : []
+          if (hits.length !== 1) {
+            recorder.trace({ stage: 'recheck', field: r.fieldId, label: r.label, result: 'skip', code: 'element_missing', detail: hits.length ? `认出 ${hits.length} 个同名格子，不复核` : '页面变了，认不回这个格子，不复核' })
+            continue
+          }
+          const f = hits[0]
+          const display = await readDisplay(page, f)
+          if (displayMatches(display, r.value, f)) continue
+          const idx = rec.filled.indexOf(r)
           rec.filled.splice(idx, 1)
-          recorder.trace({ stage: 'recheck', field: d.fieldId, label: d.label, result: 'fail', code: 'readback_mismatch', detail: `复核时显示「${display}」` })
-          if (!f) { rec.needsUser.push({ fieldId: d.fieldId, label: d.label, status: 'needs_user', source: old.source, confidence: 0, note: reasonText('element_missing'), code: 'element_missing' }); continue }
-          const att = await fillAndVerify(fillDeps, f, d.expected, 'recheck')
-          record(f, d.expected, old.source, att, 'recheck')
+          recorder.trace({ stage: 'recheck', field: f.id, label: f.label, result: 'fail', code: 'readback_mismatch', detail: `复核时显示「${display}」` })
+          const att = await fillAndVerify(fillDeps, f, r.value, 'recheck')
+          record(f, r.value, r.source, att, 'recheck')
         }
         // 站点记忆：读回核对通过的 profile 字段，记下"这站这个字段 ↔ 资料键"，下次别名匹配不到也能直填
         if (opts.siteMemory) {
@@ -541,6 +554,19 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
             if (!f || !p.key || p.status !== 'fill' || !good.has(p.fieldId)) continue
             opts.siteMemory.remember(host, { name: f.name, xpath: f.xpath, label: f.label }, p.key, p.note === '按站点记忆匹配' ? 'learned' : 'alias')
             all.memorized++
+          }
+        }
+        // 记录里的 fieldId 来自不同次抽取（规划时 / 分区加行后），统一换算到这次抽取的 id 再出状态表；
+        // 认不回格子的记录标成失效 id，绝不挂到别的字段上
+        if (after.length) {
+          for (const list of [rec.filled, rec.needsUser, rec.mismatches, rec.drafts] as Array<Array<{ fieldId: string }>>) {
+            for (const r of list) {
+              const orig = fieldOf.get(r) ?? planFields.get(r.fieldId)
+              const key = orig && stableSlot(orig)
+              const hit = key ? after.find(x => stableSlot(x) === key) : undefined
+              if (hit) r.fieldId = hit.id
+              else if (orig && !after.some(x => x.id === r.fieldId && x.label === orig.label)) r.fieldId = `gone:${r.fieldId}`
+            }
           }
         }
         rec.fields = outcomesFor(index, after.length ? after : fields, rec)
@@ -658,6 +684,14 @@ async function clickEntry(page: PageLike, b: ButtonInfo, adapter: SiteAdapter): 
   if ((adapter.hints.submitWords ?? []).some(w => normKey(w) === normKey(b.text)) && !/申请|apply/i.test(b.text)) throw new Error(`「${b.text}」是该站的提交按钮`)
   await page.click(b.selector)
 }
+
+/** 格子的稳定身份：标签 + 类型 + xpath（没有就用 name）。两者都没有返回 null：认不准，复核不碰它。 */
+function stableSlot(f: FormField): string | null {
+  const where = f.xpath || f.name
+  return where ? `${f.label}\u0001${f.type}\u0001${where}` : null
+}
+/** 去重用的格子键：认不准时退回到本次抽取的 id（只在同一次抽取内去重，不跨抽取复用）。 */
+function slotOf(f: FormField): string { return stableSlot(f) ?? `id:${f.id}` }
 
 function sameValue(f: FormField, v: string): boolean {
   if (f.value === undefined || f.value === '') return false
