@@ -83,14 +83,14 @@ describe('CareerInbox', () => {
     expect(screen.getByText('广告')).toBeInTheDocument();
   });
 
-  it('已归档的邮件可打开卷宗', async () => {
+  it('已归档的邮件可以去投递记录里看那一条', async () => {
     mockGet();
     render(<CareerInbox isActive onOpenChat={vi.fn()} />);
     const row = (await screen.findByText(/诚邀您参加甲公司一面/)).closest('[data-inbox-id]') as HTMLElement;
     expect(within(row).getByText('面试邀请')).toBeInTheDocument();
     const focus: Array<{ surface: string; application_id?: string | null }> = [];
     const off = onEvent<{ surface: string; application_id?: string | null }>('career:focus', p => { focus.push(p); });
-    fireEvent.click(within(row).getByRole('button', { name: '打开卷宗' }));
+    fireEvent.click(within(row).getByRole('button', { name: '在投递记录里看' }));
     expect(focus).toEqual([{ surface: 'dossier', application_id: 'a1' }]);
     off();
   });

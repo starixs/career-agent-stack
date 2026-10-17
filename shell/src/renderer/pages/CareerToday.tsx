@@ -387,7 +387,7 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
             <ChatActionButton size="sm" variant="ghost" text={item.suggest} context={{ surface: 'today', refs }} />
           )}
           {applicationId && item.kind !== 'review' && (
-            <Button variant="ghost" size="sm" onClick={openDossier}>打开卷宗</Button>
+            <Button variant="ghost" size="sm" onClick={openDossier}>在投递记录里看</Button>
           )}
         </div>
       )}

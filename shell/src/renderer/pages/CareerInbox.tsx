@@ -309,7 +309,7 @@ function RemindRow({ deadline, label, resolved, onResolved }: { deadline: Deadli
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>
           {deadline.application_id && (
-            <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: deadline.application_id } satisfies CareerFocusEvent)}>打开卷宗</Button>
+            <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: deadline.application_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
           )}
         </div>
       )}
@@ -425,7 +425,7 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
           <span>已归入{item.linked_type ? `：${LINKED_TYPE_LABELS[item.linked_type] ?? item.linked_type}` : ''}</span>
           {item.linked_type === 'application' && item.linked_id && (
-            <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: item.linked_id } satisfies CareerFocusEvent)}>打开卷宗</Button>
+            <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: item.linked_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
           )}
         </div>
       )}
