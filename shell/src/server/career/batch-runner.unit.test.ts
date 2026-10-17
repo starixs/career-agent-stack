@@ -7,7 +7,9 @@ import { createMemoryRepos } from './test-db';
 // 批量运行器：队列顺序、落库、接管等待交回后续跑、暂停 / 停止、每日上限、风控跳过。drive 用桩。
 
 type Ev = Record<string, unknown>;
-const result = (status: string, extra: Record<string, unknown> = {}): Ev => ({ type: 'result', op: 'drive', result: { status, message: status, finalUrl: 'https://x.com/p', adapterId: 'generic', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], escalations: [], layersUsed: ['dom'], ...extra } });
+/** 停在提交前默认带一份全部过关的填后检查（没过门槛的情况在 submit.unit.test.ts 里测）。 */
+const PASSING_REVIEW = { rows: [{ label: '姓名', required: true, status: 'ok' }], attention: 0, requiredTotal: 1, requiredFilled: 1 };
+const result = (status: string, extra: Record<string, unknown> = {}): Ev => ({ type: 'result', op: 'drive', result: { status, message: status, finalUrl: 'https://x.com/p', adapterId: 'generic', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], escalations: [], layersUsed: ['dom'], ...(status === 'stopped_before_submit' ? { review: PASSING_REVIEW } : {}), ...extra } });
 
 function seed(repos: Repos, n: number, host = 'x.com') {
   const ids: string[] = [];

@@ -368,7 +368,7 @@ export class BatchRunner {
     }
     const outcome = persistDriveOutcome({
       repos: r, action, taskId: task.id, events, changed,
-      review: (ids, kind, summary) => this.deps.broadcast('career:review', { sessionId: this.deps.sessionId?.() ?? 'global', actionIds: ids, kind, summary }),
+      review: (ids, kind, summary, data) => this.deps.broadcast('career:review', { sessionId: this.deps.sessionId?.() ?? 'global', actionIds: ids, kind, summary, ...(data ? { data } : {}) }),
     });
     if (mode === 'start') this.bumpToday();
     const s = this.state();
@@ -378,7 +378,7 @@ export class BatchRunner {
       this.log(`handoff ${action.id}: ${outcome.reason}`);
     } else if (outcome.kind === 'done') {
       takeover('idle');
-      this.setState({ done: s.done + 1, message: `「${title}」已填好，等你审核提交${outcome.pending ? `（${outcome.pending} 项待补）` : ''}` });
+      this.setState({ done: s.done + 1, message: `「${title}」${outcome.headline}，${outcome.autoApproved ? '正在提交' : '等你批准提交'}` });
     } else {
       takeover('idle');
       this.setState({ failed: s.failed + 1, lastError: outcome.message, message: `「${title}」${outcome.blocked ? '被阻塞' : '失败'}：${outcome.message}` });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Repos } from '@career/core';
 
-import { persistDriveOutcome } from './drive-outcome';
+import { evaluateSubmitGate, persistDriveOutcome } from './drive-outcome';
 import { SubmitExecutor, confirmSubmitResult, executeSubmitAction } from './submit-executor';
 import { LEARN_THRESHOLD, decideSubmit, getPageTrust, recordSubmitOutcome, setAutoMode } from './submit-policy';
 import { createMemoryRepos } from './test-db';
@@ -22,11 +22,11 @@ function seedFill(repos: Repos, packet?: { resumeSha: string }) {
   return { app, fill: repos.getAction(fill.id)! };
 }
 
-function driveResult(review: Partial<{ attention: number; formSignature: string; openAnswersHash: string }> | null, extra: Record<string, unknown> = {}): Ev[] {
+function driveResult(review: Record<string, unknown> | null, extra: Record<string, unknown> = {}): Ev[] {
   return [{ type: 'result', op: 'drive', result: {
     status: 'stopped_before_submit', message: 'ok', finalUrl: 'https://x.com/apply', submitButton: '提交申请',
     filled: [{ fieldId: 'f0', label: '姓名', value: '{{vault:profile.name}}', source: 'profile' }], needsUser: [], drafts: [], mismatches: [], uploads: [],
-    ...(review ? { review: { rows: [], requiredTotal: 1, requiredFilled: 1, attention: 0, formSignature: SIG, openAnswersHash: 'h-open-1', ...review } } : {}),
+    ...(review ? { review: { rows: [{ fieldId: 'f0', label: '姓名', required: true, status: 'ok' }], requiredTotal: 1, requiredFilled: 1, attention: 0, formSignature: SIG, openAnswersHash: 'h-open-1', ...review } } : {}),
     ...extra,
   } }];
 }
@@ -58,8 +58,8 @@ describe('提交策略', () => {
     expect(a.submit.approved_by).toBe('auto');
     const b = persist(repos, driveResult({ attention: 2 }));
     expect(b.submit.status).toBe('pending_review');
-    const c = persist(repos, driveResult(null));
-    expect(c.submit.status).toBe('pending_review');
+    // 没有填后检查结果：不知道填没填完，提交不入队（交给用户补 / 核对）
+    expect(() => persist(repos, driveResult(null))).toThrow('unexpected handoff');
   });
 
   it(`自学习：同一张表连续 ${LEARN_THRESHOLD} 次人工直接通过后免确认；简历或开放题变了就停`, () => {
@@ -89,6 +89,73 @@ describe('提交策略', () => {
     expect(same.submit.approved_by).toBe('learned');
     const other = persist(repos, driveResult({}), { resumeSha: 'pdf-sha-2' });
     expect(other.submit.status).toBe('pending_review');
+  });
+});
+
+describe('提交门槛：全部过关才入队提交，否则交给用户补', () => {
+  const ok = (label: string) => ({ label, required: true, status: 'ok' });
+  const run = (review: Record<string, unknown> | null, extra: Record<string, unknown> = {}) => {
+    const repos = createMemoryRepos();
+    const { app, fill } = seedFill(repos);
+    const task = repos.createTask({ title: 't', kind: 'apply' });
+    const reviews: Array<{ ids: string[]; summary: string; data?: Record<string, unknown> }> = [];
+    const events = driveResult(null, { ...(review ? { review: { attention: 0, formSignature: SIG, openAnswersHash: 'h', ...review } } : {}), ...extra });
+    const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, events, changed: () => {}, review: (ids, _k, summary, data) => reviews.push({ ids, summary, data }) });
+    return { repos, app, fill, out, reviews };
+  };
+
+  it('必填 12/12 已填并核对：入队提交，卡片文案按实际数字生成、带审阅清单', () => {
+    const rows = Array.from({ length: 12 }, (_, i) => ok(`字段${i}`));
+    const { repos, out, reviews } = run({ rows, requiredTotal: 12, requiredFilled: 12 }, { submitButton: '投递' });
+    expect(out.kind).toBe('done');
+    if (out.kind !== 'done') return;
+    expect(repos.getAction(out.submitActionId)!.status).toBe('pending_review');
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0].summary).toBe('「甲 后端」必填 12/12 已填好并核对过，停在「投递」前');
+    expect((reviews[0].data?.review as { requiredFilled: number }).requiredFilled).toBe(12);
+  });
+
+  const notReady: Array<[string, Record<string, unknown> | null, Record<string, unknown>, RegExp]> = [
+    ['必填没填满', { rows: [ok('姓名'), { label: '毕业时间', required: true, status: 'empty', reason: '必填项还是空的' }], requiredTotal: 2, requiredFilled: 1 }, {}, /毕业时间/],
+    ['有需要你填的项', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { needsUser: [{ label: '期望薪资', note: '答案库里没有' }] }, /期望薪资/],
+    ['值没生效', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { mismatches: [{ fieldId: 'x', label: '学历', expected: '本科', actual: '' }] }, /学历/],
+    ['网站报错', { rows: [ok('姓名'), { label: '手机号格式不正确', required: true, status: 'site_error' }], requiredTotal: 1, requiredFilled: 1 }, {}, /手机号格式不正确/],
+    ['附件没回显', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { uploads: [{ fieldId: 'f', file: '/x/张三.pdf', echoed: false }] }, /简历附件/],
+    ['读不到任何行（必填数不可信）', { rows: [], requiredTotal: 0, requiredFilled: 0 }, {}, /必填项核对/],
+    ['引擎说读回核验没通过', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1, verified: false }, {}, /必填项核对/],
+    ['行级读回核验没通过', { rows: [{ ...ok('姓名'), verified: false, reason: '页面上读回来是空的' }], requiredTotal: 1, requiredFilled: 1 }, {}, /姓名/],
+    ['没有填后检查', null, {}, /填后检查/],
+  ];
+  for (const [name, review, extra, label] of notReady) {
+    it(`${name}：不入队提交，填表停在 needs_user + missing_info 接管`, () => {
+      const { repos, app, fill, out, reviews } = run(review, extra);
+      expect(out.kind).toBe('handoff');
+      if (out.kind !== 'handoff') return;
+      expect(out.reason).toBe('missing_info');
+      expect(out.gate?.ready).toBe(false);
+      expect(out.message).toMatch(/^还差 \d+ 项要你补/);
+      expect(out.gate!.gaps.map(g => g.label).join(' ')).toMatch(label);
+      expect(repos.listActions().filter(a => a.kind === 'submit')).toHaveLength(0);
+      expect(reviews).toHaveLength(0);
+      expect(repos.getAction(fill.id)!.status).toBe('needs_user');
+      expect(repos.openHandoffs().map(h => h.reason)).toEqual(['missing_info']);
+      expect(repos.getApplication(app.id)!.stage).toBe('needs_user');
+    });
+  }
+
+  it('auto 模式也过不了门槛：没填完不会被自动提交', () => {
+    const repos = createMemoryRepos();
+    setAutoMode(repos, true);
+    const { fill } = seedFill(repos);
+    const task = repos.createTask({ title: 't', kind: 'apply' });
+    const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, changed: () => {}, events: driveResult({ rows: [ok('a'), { label: 'b', required: true, status: 'empty' }], requiredTotal: 2, requiredFilled: 1 }) });
+    expect(out.kind).toBe('handoff');
+    expect(repos.listActions().filter(a => a.kind === 'submit')).toHaveLength(0);
+  });
+
+  it('evaluateSubmitGate：新字段存在时优先用（review.verified=true 时 0 个必填也可信）', () => {
+    expect(evaluateSubmitGate({ review: { rows: [{ label: 'x', required: false, status: 'ok' }], requiredTotal: 0, requiredFilled: 0, attention: 0, verified: true } }).ready).toBe(true);
+    expect(evaluateSubmitGate({ review: { rows: [ok('x')], requiredTotal: 2, requiredFilled: 3, attention: 0 } }).ready).toBe(false);
   });
 });
 
