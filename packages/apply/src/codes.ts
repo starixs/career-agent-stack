@@ -12,6 +12,7 @@ export type FieldReasonCode =
   | 'no_matching_option'     // 选项里没有对得上的
   | 'option_not_selected'    // 点了选项，显示值没变
   | 'date_unparseable'       // 资料里的日期看不懂
+  | 'profile_value_invalid'  // 资料里的值格式本身不对（如邮箱用了逗号），不照抄进表单
   | 'date_panel_unsupported' // 日期面板认不出 / 导航不到
   | 'readback_mismatch'      // 写了，读回来对不上
   | 'label_uncertain'        // 标签可疑（导航栏文字 / 太长 / 认不出），不敢填
@@ -31,6 +32,7 @@ export const REASON_TEXT: Record<FieldReasonCode, string> = {
   no_matching_option: '下拉选项里没有和你的资料对得上的',
   option_not_selected: '点了选项，但页面上显示的值没变',
   date_unparseable: '资料里的日期格式看不懂',
+  profile_value_invalid: '你资料里的这一项格式不对（例如邮箱里用了逗号），没有照抄，请先在资料里改正',
   date_panel_unsupported: '日期选择面板认不出来，没能选到对应年月',
   readback_mismatch: '填进去后读回来对不上',
   label_uncertain: '没认准这一格是什么（标签可疑），宁可留空',

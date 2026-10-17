@@ -23,4 +23,13 @@ describe('自由文本核验不放过标点差异', () => {
     const out = diffAgainstPlan(fields, [{ fieldId: 'f1', label: '邮箱', value: 'lin27@qq.com' }] as never)
     expect(out).toHaveLength(1)
   })
+
+  it('资料里的邮箱本身格式不对（全角逗号 / 逗号）就不照抄，标成需要你补', async () => {
+    const { fillAndVerify } = await import('../src/fill.js')
+    const calls: string[] = []
+    const page = { evaluate: async () => ({ display: '' }), fill: async (_s: string, v: string) => { calls.push(v) }, locator: () => ({ click: async () => {} }), waitForTimeout: async () => {} }
+    const att = await fillAndVerify({ page } as never, { id: 'f1', label: '邮箱', type: 'text', selector: '#e' } as never, 'lin27@qq，com')
+    expect(att).toMatchObject({ verified: false, code: 'profile_value_invalid' })
+    expect(calls).toEqual([])
+  })
 })

@@ -65,6 +65,9 @@ export interface FieldAttempt {
   ms?: number
 }
 
+const EMAIL_OK = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/
+const isEmailField = (f: Pick<FormField, 'type' | 'label' | 'name'>) => f.type === 'email' || /邮箱|e-?mail/i.test(`${f.label} ${f.name ?? ''}`)
+
 export const isDateLike = (f: Pick<FormField, 'type' | 'label' | 'placeholder'>) => f.type === 'date' || DATE_FIELD_RX.test(`${f.label} ${f.placeholder ?? ''}`) || /yyyy|年|月/i.test(f.placeholder ?? '')
 
 /** 显示值与计划值是否一致（文本归一；下拉 / 字典同义；日期按数字；手机号按数字）。 */
@@ -349,6 +352,11 @@ export async function fillAndVerify(d: FillDeps, f: FormField, value: string, st
   const before = await readDisplay(page, f)
   try { await page.evaluate(focusFieldScript, { selector: f.selector, label: f.label, highlight: d.highlight !== false }) } catch { /* 高亮失败不影响 */ }
   d.progress?.(`正在填「${f.label}」`)
+  // 资料值自身格式不对时不照抄（邮箱用了逗号、全角符号等）：填进去页面也会报错，读回又"一致"，最容易成假成功
+  if (isEmailField(f) && !EMAIL_OK.test(value.trim())) {
+    recorder.trace({ stage, field: f.id, label: f.label, result: 'fail', code: 'profile_value_invalid', detail: '资料里的邮箱格式不对' })
+    return { verified: false, strategy: 'guard', code: 'profile_value_invalid', reason: reasonText('profile_value_invalid'), rollback: 'none', ms: Date.now() - t0 }
+  }
   const heavy = f.type === 'select' || isDateLike(f)
   if (heavy && d.capture) await d.capture(`before-${f.label}`)
   let out: Outcome | undefined
