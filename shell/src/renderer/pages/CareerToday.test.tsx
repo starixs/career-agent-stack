@@ -32,7 +32,7 @@ const items = [
   { kind: 'review', priority: 2, title: '待你批准：发送投递邮件 · 甲公司', ref: { type: 'action', id: 'act1' } },
   { kind: 'review', priority: 2, title: '待你批准：提交 · 丁公司', ref: { type: 'action', id: 'act2' } },
   { kind: 'stale', priority: 6, title: '丙公司 · 后端工程师 已静默 14 天', ref: { type: 'application', id: 'a1' } },
-  { kind: 'handoff', priority: 3, title: '需要你本人处理：captcha', ref: { type: 'handoff', id: 'h1' } },
+  { kind: 'handoff', priority: 3, title: '需要你本人处理：验证码', ref: { type: 'handoff', id: 'h1' } },
 ];
 const actions = [
   { id: 'act1', application_id: 'a9', kind: 'send_mail', payload_json: JSON.stringify({ subject: '应聘后端工程师 - 张三', to: 'hr@jia.com' }), status: 'pending_review', result_json: null, reviewed_at: null, created_at: `${todayKey}T08:00:00`, updated_at: `${todayKey}T08:00:00` },

@@ -1,4 +1,4 @@
-import type { HandoffReason } from '@career/core'
+import { handoffReasonLabel, type HandoffReason } from '@career/core'
 import type { PageLike } from './page.js'
 import { extractFields } from './extract.js'
 import { pageSignalsScript } from './scripts.js'
@@ -42,7 +42,7 @@ export async function diagnosePage(page: PageLike, opts: { url?: string; adapter
   const required = fields.filter(f => f.required).length
   const hasFile = fields.some(f => f.isFile) || sig.fileInputs > 0
   const looksLikeForm = fields.length >= 2 && (hasFile || fields.some(f => /姓名|手机|邮箱|name|phone|email/i.test(f.label)) || required > 0)
-  if (ob) notes.push(`检测到阻碍：${ob.reason}（${ob.evidence}）`)
+  if (ob) notes.push(`检测到阻碍：${handoffReasonLabel(ob.reason)}（${ob.evidence}）`)
   if (rl) notes.push(`反爬 / 限流提示：${rl}`)
   if (!fields.length) notes.push('没有抽到任何字段：可能是职位详情页而非网申表单，或表单在 iframe / 需点击"申请"后出现')
   if (fields.length && !looksLikeForm) notes.push('字段像搜索/筛选框而不是网申表单')

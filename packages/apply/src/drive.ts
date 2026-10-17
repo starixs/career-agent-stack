@@ -1,4 +1,4 @@
-import type { LLM, HandoffReason } from '@career/core'
+import { handoffReasonLabel, type LLM, type HandoffReason } from '@career/core'
 import { basename } from 'node:path'
 import type { PageLike } from './page.js'
 import { extractFields, formFingerprint, radioOptionSelector, type FormField } from './extract.js'
@@ -152,7 +152,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   }
   const handoff = (reason: HandoffReason, sig: PageSignals, evidence: string, prefix: string, extra: Partial<DriveResult> = {}) => {
     const d = describeObstacle(reason, sig, evidence, { loginFilled: extra.loginFilled })
-    return finish('handoff', `${prefix}${reason}（${evidence}）。${d.userAction}`, { reason, userAction: d.userAction, captchaKind: d.kind, ...extra })
+    return finish('handoff', `${prefix}${handoffReasonLabel(reason)}（${evidence}）。${d.userAction}`, { reason, userAction: d.userAction, captchaKind: d.kind, ...extra })
   }
   const shot = () => page.screenshot().catch(() => undefined)
   /**

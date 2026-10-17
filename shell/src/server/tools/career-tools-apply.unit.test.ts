@@ -75,7 +75,7 @@ describe('apply_run / apply_continue', () => {
   });
 
   it('接管（result.status=handoff）：开 handoff、动作 needs_user、run 暂停；apply_continue 从当前页继续且不传 url', async () => {
-    script = [{ type: 'result', op: 'drive', result: { status: 'handoff', reason: 'captcha', captchaKind: 'slider', message: '需要你本人处理：captcha', userAction: '请拖动滑块完成验证', finalUrl: 'https://x.com/apply', adapterId: 'generic', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], escalations: [], layersUsed: ['dom'] } }];
+    script = [{ type: 'result', op: 'drive', result: { status: 'handoff', reason: 'captcha', captchaKind: 'slider', message: '需要你本人处理：验证码', userAction: '请拖动滑块完成验证', finalUrl: 'https://x.com/apply', adapterId: 'generic', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], escalations: [], layersUsed: ['dom'] } }];
     const res = await call('apply_run', { action_id: actionId });
     const out = res.json() as { state: string; handoffId: string; userAction: string };
     expect(out.state).toBe('paused'); expect(out.userAction).toContain('滑块');

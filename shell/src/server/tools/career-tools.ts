@@ -68,6 +68,29 @@ export function configureCareerTools(_env: Record<string, string>, ctx: { sessio
 
 const MAX_RESULT_CHARS = 60_000;
 
+/** 伙伴面板会把进度原样展示给用户，所以这里只说在做什么，不露技能 id。 */
+const SKILL_PROGRESS: Record<string, string> = {
+  'company-research': '正在看这家公司',
+  'derivatives': '正在写邮件',
+  'direction-explore': '正在帮你看方向',
+  'experience-interview': '正在从文档里找你的经历',
+  'gap-plan': '正在对照岗位找差距',
+  'greeting': '正在写打招呼的话',
+  'interview-probe': '正在想下一个追问',
+  'interview-questions': '正在准备面试题',
+  'interview-retro': '正在复盘这场面试',
+  'job-evaluate': '正在评估这个岗位',
+  'offer-compare': '正在比较 offer',
+  'probe-predict': '正在预测面试追问',
+  'project-story': '正在理项目故事',
+  'resume-draft': '正在起草简历',
+  'resume-tailor': '正在改简历',
+};
+
+export function skillProgressMessage(skill: string): string {
+  return SKILL_PROGRESS[skill] ?? '正在想';
+}
+
 function text(data: unknown): CallToolResult {
   let body = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
   if (body.length > MAX_RESULT_CHARS) body = `${body.slice(0, MAX_RESULT_CHARS)}\n…（结果过长已截断）`;
@@ -242,7 +265,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
   /** 技能提示词 + 模型 → JSON。 */
   async function askSkill<T = unknown>(skill: string, user: string, opts: { refs?: string[]; temperature?: number; json?: boolean } = {}): Promise<T> {
     const system = await loadSkillPrompt(skill, opts.refs ?? []);
-    progress(skill, `正在调用模型（${skill}）`);
+    progress(skill, skillProgressMessage(skill));
     const res = await llm().complete({ system, messages: [{ role: 'user', content: user }], json: opts.json ?? true, temperature: opts.temperature ?? 0.3 });
     return (opts.json ?? true) ? core.extractJson<T>(res.text) : (res.text as unknown as T);
   }
@@ -687,7 +710,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         let attachment: { path: string; filename: string } | null = null;
         let packetId: string | null = null;
         if (resume) {
-          progress('mail_compose', '正在冻结简历附件（快照 + PDF）');
+          progress('mail_compose', '正在备好简历附件');
           // 附件按内容哈希冻结：批准后再导出 / 改简历，发出去的仍是批准时那一份
           const { packet, warning } = await freezePacket(packetDeps(), { applicationId: app.id, jobId: job.id, resumeId: resume.row.id });
           if (warning || !packet.resume_pdf_path) return err(warning ?? '简历 PDF 导出失败');
@@ -967,7 +990,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (args.resume_id && !picked) return err(`简历不存在：${args.resume_id}`);
         if (!picked && store().listResumeMasters().length > 1) return err(`有多份主简历，请先调用 resume_list 让用户选择这次投哪一份，再带上 resume_id：${store().listResumeMasters().map(m => `${m.id}（${m.name}）`).join('、')}`);
         const application = r.createApplication(job.id, picked?.kind === 'tailored' ? picked.id : null);
-        progress('apply_prepare', '正在冻结投递材料包（简历快照 + PDF）');
+        progress('apply_prepare', '正在打包这次投递的简历');
         const { packet, warning } = await freezePacket(packetDeps(), { applicationId: application.id, jobId: job.id, resumeId: picked?.id ?? null });
         const action = r.enqueueAction('fill_form', { job_id: job.id, resume_id: picked?.id ?? null, packet_id: packet.id, application_id: application.id, url: job.url }, application.id);
         changed('application', 'action_queue');
@@ -1176,7 +1199,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (args.enabled !== undefined) { setAtsMode(repos(), args.resume_id, args.enabled); changed('kv'); }
         let report: unknown = null;
         if (args.check) {
-          progress('resume_ats', '正在导出并做过机筛自检');
+          progress('resume_ats', '正在导出并做机筛自检');
           const { runAtsCheck } = await import('../career/ats-check');
           const res = await runAtsCheck({ store: store(), exportPdf: id => exportWithVault(id, 'pdf'), resolve: schema => vault().resolveDeep(schema, { actor: 'resume_export', purpose: `过机筛自检 ${args.resume_id}` }) }, args.resume_id);
           report = { ok: res.ok, score: res.score, issues: res.issues, pages: res.pages };

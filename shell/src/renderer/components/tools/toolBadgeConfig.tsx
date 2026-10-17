@@ -31,6 +31,7 @@ import {
   resolveFilePatchRenderModel,
   type FilePatchRenderModel,
 } from '../../../shared/toolDisplay/filePatch';
+import { getCareerToolLabel } from './careerToolLabels';
 import {
   isSubagentCallRunning,
   isSubagentContainerRunning,
@@ -609,6 +610,8 @@ export function getToolMainLabel(tool: ToolUseSimple, t?: ToolChromeTranslator):
   const displayNameOverride = getStringProp(tool.parsedInput, '_displayName');
   if (displayNameOverride) return displayNameOverride;
   if (tool.name === 'CollabAgent') return tc(t, 'labels.subAgent');
+  const careerLabel = getCareerToolLabel(tool.name);
+  if (careerLabel) return careerLabel;
   if (tool.name === 'Task' || tool.name === 'Agent') {
     const subagentType = getStringProp(tool.parsedInput, 'subagent_type');
     return subagentType || tool.name;
@@ -623,6 +626,9 @@ export function getToolMainLabel(tool: ToolUseSimple, t?: ToolChromeTranslator):
 
 // Unified label generation logic - extracts compact label from tool
 export function getToolLabel(tool: ToolUseSimple, t?: ToolChromeTranslator): string {
+  // career 工具的动作短语已经是主标签，副标签返回同一句即可被 ProcessRow 折叠掉。
+  const careerLabel = getCareerToolLabel(tool.name);
+  if (careerLabel) return careerLabel;
   if (tool.name === 'TodoWrite') {
     return getTodoWriteLabel(tool, t);
   }
@@ -836,6 +842,8 @@ export function getToolExpandedLabel(tool: ToolUseSimple, t?: ToolChromeTranslat
     case 'KillShell':
       return tc(t, 'labels.killShell');
     default: {
+      const careerLabel = getCareerToolLabel(tool.name);
+      if (careerLabel) return careerLabel;
       // MCP tools: show "ServerName: tool_action" or just ServerName
       const serverId = extractMcpServerId(tool.name);
       if (serverId) {

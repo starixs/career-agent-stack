@@ -32,7 +32,7 @@ describe('todoCalendar', () => {
   it('places deadlines on their due date, carries unfinished past items to today, keeps done ones in place', () => {
     const today: TodayItem[] = [
       { kind: 'review', priority: 2, title: '待你批准：发送投递邮件', ref: { type: 'action', id: 'act1' } },
-      { kind: 'handoff', priority: 3, title: '需要你本人处理：captcha', ref: { type: 'handoff', id: 'h1' } },
+      { kind: 'handoff', priority: 3, title: '需要你本人处理：验证码', ref: { type: 'handoff', id: 'h1' } },
       { kind: 'stale', priority: 6, title: '丙公司 已静默 14 天', ref: { type: 'application', id: 'a1' } },
       // 截止以 deadlines 列表为准，今日队列里的同一条不重复
       { kind: 'deadline', priority: 1, title: '乙公司测评', due_at: '2026-10-13T18:00:00', ref: { type: 'application', id: 'a2' } },

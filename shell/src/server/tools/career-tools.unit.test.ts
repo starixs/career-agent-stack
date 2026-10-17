@@ -23,7 +23,7 @@ vi.mock('../sse', () => ({ broadcast: vi.fn() }));
 import { FakeLLM } from '@career/core';
 
 import { createMemoryRepos } from '../career/test-db';
-import { createCareerServer } from './career-tools';
+import { createCareerServer, skillProgressMessage } from './career-tools';
 
 const call = async (name: string, args: Record<string, unknown> = {}) => {
   const h = mocks.handlers.get(name);
@@ -197,5 +197,13 @@ describe('career 五个面的工具', () => {
     expect(JSON.parse(action.payload_json).to).toBe('hr@a.com');
     expect(repos.listMailMessages({ direction: 'out' })).toHaveLength(0);
     expect(events.some(e => e.event === 'career:review')).toBe(true);
+  });
+});
+
+describe('skillProgressMessage', () => {
+  it('describes the work instead of exposing the skill id', () => {
+    expect(skillProgressMessage('resume-tailor')).toBe('正在改简历');
+    expect(skillProgressMessage('probe-predict')).toBe('正在预测面试追问');
+    expect(skillProgressMessage('some-new-skill')).toBe('正在想');
   });
 });

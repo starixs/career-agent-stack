@@ -51,6 +51,14 @@ export type TaskStatus = typeof TASK_STATUSES[number]
 
 export const HANDOFF_REASONS = ['captcha', 'login', '2fa', 'assessment', 'submit_confirm', 'missing_info', 'user_request'] as const
 export type HandoffReason = typeof HANDOFF_REASONS[number]
+/** 给用户看的接管原因：列表、伙伴面板和填表回执里都用这一份，不露英文枚举。 */
+export const HANDOFF_REASON_LABELS: Record<HandoffReason, string> = {
+  captcha: '验证码', login: '登录', '2fa': '两步验证', assessment: '测评要你本人作答',
+  submit_confirm: '最后提交前确认一下', missing_info: '有几项信息要你补', user_request: '你说要自己来',
+}
+export function handoffReasonLabel(reason: string): string {
+  return (HANDOFF_REASON_LABELS as Record<string, string>)[reason] ?? '有一步要你来'
+}
 
 /** 浏览器接管状态机：running → paused(reason) → human_active → resuming → running */
 export const BROWSER_CONTROL_STATES = ['idle', 'running', 'paused', 'human_active', 'resuming'] as const

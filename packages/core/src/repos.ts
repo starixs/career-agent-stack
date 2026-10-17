@@ -5,7 +5,7 @@ import { canonicalJson, jobKey, sha256 } from './keys.js'
 import { inferEmploymentType, mergeBoardMeta, normalizeCohort, parseBoardJson } from './jobs.js'
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
-import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
+import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage } from './types.js'
 import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
 
@@ -549,7 +549,7 @@ export class Repos {
       const job = app ? this.getJob(app.job_id) : undefined
       items.push({ kind: 'review', priority: 2, title: `待你批准：${actionLabel(a.kind)}${job ? ` · ${job.company_name ?? ''} ${job.title}` : ''}`, detail: '助理已准备好，批准后才会执行', ref: { type: 'action', id: a.id } })
     }
-    for (const h of this.openHandoffs()) items.push({ kind: 'handoff', priority: 3, title: `需要你本人处理：${h.reason}`, detail: h.message ?? undefined, ref: { type: 'handoff', id: h.id } })
+    for (const h of this.openHandoffs()) items.push({ kind: 'handoff', priority: 3, title: `需要你本人处理：${handoffReasonLabel(h.reason)}`, detail: h.message ?? undefined, ref: { type: 'handoff', id: h.id } })
     const apps = this.applicationsWithJob()
     for (const a of apps) { const it = staleToToday({ ...a, title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }
     const inboxNew = this.listInbox('new')
