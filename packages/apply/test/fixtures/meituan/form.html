@@ -17,6 +17,10 @@
   ?remote=miss：学校远程搜索永远搜不到同名学校（只返回「XX附属中学」「北京大学」这类近似项，不能选）。
 -->
 <style>
+  /* 真站图标是字体字形，有宽高；这里给空 <i> 同样的尺寸，否则翻年按钮宽度为 0、被当成不可见 */
+  .mtdicon { display: inline-block; width: 14px; height: 14px; }
+  .mtd-datepicker-pop { background: #fff; border: 1px solid #ddd; padding: 6px; z-index: 30; }
+  .mtd-month-panel-row { display: flex; gap: 8px; } .mtd-month-calendar-month-header { display: flex; gap: 8px; align-items: center; }
 body{margin:0;font:14px/1.6 -apple-system,"PingFang SC",sans-serif;color:#222;background:#f7f7f7}
 .site-header{position:sticky;top:0;height:56px;display:flex;align-items:center;gap:24px;padding:0 40px;background:#fff;border-bottom:1px solid #eee;z-index:10}
 .logo-title{font-weight:600}
@@ -243,19 +247,21 @@ canvas.label-canvas{display:block;height:20px}
     const root = slot.querySelector('.mtd-date-picker')
     const input = root.querySelector('input')
     let year = 2026
-    const pop = document.createElement('div'); pop.className = 'mtd-popper mtd-date-picker-popper'; pop.style.display = 'none'
-    pop.innerHTML = '<div class="mtd-date-picker-panel"><div class="mtd-date-panel-header"><button type="button" class="mtd-date-panel-prev-year-btn" aria-label="上一年">«</button><span class="mtd-date-panel-header-label"></span><button type="button" class="mtd-date-panel-next-year-btn" aria-label="下一年">»</button></div><table class="mtd-month-table"><tbody></tbody></table></div>'
-    const lab = pop.querySelector('.mtd-date-panel-header-label')
+    // 按真机抓到的 MTD 月份面板结构（mtd-datepicker-pop / mtd-month-calendar）：
+    // 头部是「快退 · 2026年 · 快进」，快退快进是 span[role=button] 里的 <i class="mtdicon-fast-backward/forward">；
+    // 面板里还叠着一个隐藏的年份视图（mtd-year-panel），点「2026年」才切过去。
+    const pop = document.createElement('div'); pop.className = 'mtd-datepicker-pop'; pop.style.display = 'none'; pop.style.position = 'absolute'
+    const sw = side => `<span role="button" tabindex="0" class="mtd-month-calendar-year-switcher ${side}-switcher"><i class="mtdicon mtdicon-fast-${side === 'left' ? 'backward' : 'forward'}"></i></span>`
+    let months = ''
+    for (let row = 0; row < 4; row++) { months += '<div class="mtd-month-panel-row">'; for (let c = 0; c < 3; c++) { const m = row * 3 + c + 1; months += `<div class="mtd-month-panel-list"><div role="button" tabindex="0" class="mtd-month-panel-list-data" data-m="${m}">${m}月</div></div>` } months += '</div>' }
+    pop.innerHTML = `<div class="mtd-month-calendar"><div class="mtd-month-calendar-content active"><div class="mtd-month-calendar-header"><div class="mtd-month-calendar-month-header">${sw('left')}<span role="button" tabindex="0" class="mtd-month-calendar-year-btn"></span>${sw('right')}</div></div><div class="mtd-month-calendar-panel"><div class="mtd-month-panel">${months}</div></div></div><div class="mtd-month-calendar-content" style="display:none"><div class="mtd-month-calendar-header"><div class="mtd-month-calendar-year-header">${sw('left')}<span class="mtd-month-calendar-year-header-range">2020-2029</span>${sw('right')}</div></div><div class="mtd-month-calendar-panel"><div class="mtd-year-panel"><div class="mtd-year-panel-row"><div class="mtd-year-panel-list"><div role="button" class="mtd-year-panel-list-data">2019</div></div></div></div></div></div></div>`
+    const lab = pop.querySelector('.mtd-month-calendar-year-btn')
     const draw = () => { lab.textContent = `${year}年` }
-    pop.querySelector('.mtd-date-panel-prev-year-btn').addEventListener('click', () => { year--; draw() })
-    pop.querySelector('.mtd-date-panel-next-year-btn').addEventListener('click', () => { year++; draw() })
-    const tb = pop.querySelector('tbody')
-    for (let row = 0; row < 4; row++) {
-      const tr = document.createElement('tr')
-      for (let c = 0; c < 3; c++) { const m = row * 3 + c + 1; const td = document.createElement('td'); td.className = 'mtd-month-table-cell'; td.dataset.m = m; td.innerHTML = `<div class="mtd-month-table-cell-inner">${m}月</div>`; tr.appendChild(td) }
-      tb.appendChild(tr)
-    }
-    tb.addEventListener('click', e => { const td = e.target.closest('td'); if (!td) return; model[key] = `${year}-${String(td.dataset.m).padStart(2, '0')}`; input.value = model[key]; close() })
+    const monthView = pop.querySelector('.mtd-month-calendar-content.active')
+    monthView.querySelector('.left-switcher').addEventListener('click', () => { year--; draw() })
+    monthView.querySelector('.right-switcher').addEventListener('click', () => { year++; draw() })
+    const tb = monthView.querySelector('.mtd-month-panel')
+    tb.addEventListener('click', e => { const cell = e.target.closest('[data-m]'); if (!cell) return; model[key] = `${year}-${String(cell.dataset.m).padStart(2, '0')}`; input.value = model[key]; close() })
     draw(); document.body.appendChild(pop)
     const close = () => { pop.style.display = 'none' }
     pop.__close = close; poppers.add(pop)

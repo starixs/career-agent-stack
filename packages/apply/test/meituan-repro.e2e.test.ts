@@ -125,7 +125,8 @@ describe('美团式复现页（真实 Chrome）', () => {
     expect(r.fields.some(f => f.code === 'no_matching_option' || f.code === 'field_disabled')).toBe(false)
     // 4. MTD 日期：面板只点开一次，按年 → 月选中
     expect(byLabel('毕业时间')).toEqual(['2027-06', '2024-06'])
-    expect(byLabel('在校时间')).toEqual(['2024-09', '2020-09'])
+    // 「在校时间」第一格：标签取到区间标题或占位符「入学时间」都对
+    expect([...byLabel('在校时间'), ...byLabel('入学时间')]).toEqual(['2024-09', '2020-09'])
     expect(byLabel('姓名')).toEqual(['张三'])
     expect(r.mismatches).toEqual([])
     expect(r.pages[0].sections?.[0]).toMatchObject({ key: 'education', added: 1, rowsAfter: 2 })

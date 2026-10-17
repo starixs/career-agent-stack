@@ -634,6 +634,7 @@ export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
     const freshPanel = (): Element | null => {
       let c = panelsNow().filter(p => !beforePanels.has(p))
       if (!c.length) c = layersNow().filter(p => !beforeLayers.has(p) && calendarLike(p))
+      // 只取最外层：叠在一起的子视图（月份 / 年份）各自也会命中选择器，留子视图会只看到半个面板（找不到头部的年份）
       const outer = c.filter(p => !c.some(o => o !== p && o.contains(p)))
       outer.sort((a, b) => { const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return (Math.abs(ra.top - sr.bottom) + Math.abs(ra.left - sr.left)) - (Math.abs(rb.top - sr.bottom) + Math.abs(rb.left - sr.left)) })
       return outer[0] ?? null
@@ -656,18 +657,28 @@ export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
       const en = MONTH_EN.findIndex(x => s.startsWith(x)); if (en >= 0 && s.length <= 9) return en + 1
       return null
     }
-    const cellsOf = (p: Element) => Array.from(p.querySelectorAll('td, li, button, a, span, div, [class*="cell" i]')).filter(n => vis(n) && n.children.length <= 1 && clean(n.textContent).length > 0 && clean(n.textContent).length <= 6)
-    const otherMonth = (n: Element) => { const c = `${typeof n.className === 'string' ? n.className : ''} ${typeof (n.parentElement?.className) === 'string' ? n.parentElement!.className : ''}`; return /prev-month|next-month|other|outside|last-month|not-current|disabled|is-disabled/i.test(c) }
-    const header = () => {
-      const h = panel!.querySelector('[class*="header" i], [class*="head" i], [class*="title" i], caption')
-      return clean((h ?? panel!).textContent)
+    // 同一格子常有"外层格 + 里层文字"两层（MTD：month-panel-list > month-panel-list-data），点击处理挂在里层；
+    // 只留最里层，免得点在外层上没反应
+    const cellsOf = (p: Element) => {
+      const all = Array.from(p.querySelectorAll('td, li, button, a, span, div, [class*="cell" i]')).filter(n => vis(n) && n.children.length <= 1 && clean(n.textContent).length > 0 && clean(n.textContent).length <= 6)
+      return all.filter(n => !all.some(o => o !== n && n.contains(o) && clean(o.textContent) === clean(n.textContent)))
     }
+    const otherMonth = (n: Element) => { const c = `${typeof n.className === 'string' ? n.className : ''} ${typeof (n.parentElement?.className) === 'string' ? n.parentElement!.className : ''}`; return /prev-month|next-month|other|outside|last-month|not-current|disabled|is-disabled/i.test(c) }
+    // 面板里可能叠着几个视图（月份 / 年份 / 日），只看当前可见的那个头部
+    const header = () => {
+      const hs = Array.from(panel!.querySelectorAll('[class*="header" i], [class*="head" i], [class*="title" i], caption')).filter(vis)
+      return clean((hs[0] ?? panel!).textContent)
+    }
+    const clsOf = (n: Element) => (typeof n.className === 'string' ? n.className : (n.getAttribute('class') ?? ''))
     const navBtn = (rx: RegExp) => Array.from(panel!.querySelectorAll('button, a, span, i, div, [role=button]')).filter(vis).find(n => {
-      const sig = `${typeof n.className === 'string' ? n.className : ''} ${n.getAttribute('aria-label') ?? ''} ${n.getAttribute('title') ?? ''} ${n.children.length === 0 ? clean(n.textContent) : ''}`
+      // 图标常在子节点上（<span role=button><i class="icon-fast-backward"></i></span>），子节点类名也算
+      const iconCls = n.children.length <= 2 ? Array.from(n.children).map(clsOf).join(' ') : ''
+      const sig = `${clsOf(n)} ${iconCls} ${n.getAttribute('aria-label') ?? ''} ${n.getAttribute('title') ?? ''} ${n.children.length === 0 ? clean(n.textContent) : ''}`
       return rx.test(sig)
     })
-    const PREV_YEAR = /super-prev|prev-year|year-prev|double-left|arrow-double-left|d-arrow-left|上一年|前一年|prev year|«|<</i
-    const NEXT_YEAR = /super-next|next-year|year-next|double-right|arrow-double-right|d-arrow-right|下一年|后一年|next year|»|>>/i
+    // 翻年按钮的写法很多：除了常见类名，还认"快退 / 快进""左右切换器"（MTD：year-switcher left-switcher + fast-backward）
+    const PREV_YEAR = /super-prev|prev-year|year-prev|double-left|arrow-double-left|d-arrow-left|fast-backward|fast-back|backward|left-switcher|switcher-left|上一年|前一年|prev year|«|<</i
+    const NEXT_YEAR = /super-next|next-year|year-next|double-right|arrow-double-right|d-arrow-right|fast-forward|forward|right-switcher|switcher-right|下一年|后一年|next year|»|>>/i
     const PREV_MONTH = /(^|\s|-)prev(-btn|-month|-icon)?(\s|$)|month-prev|arrow-left|上个月|上一月|prev month|‹/i
     const NEXT_MONTH = /(^|\s|-)next(-btn|-month|-icon)?(\s|$)|month-next|arrow-right|下个月|下一月|next month|›/i
     let steps = 0
@@ -680,11 +691,12 @@ export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
       const nowText = clean(panel.textContent)
       if (nowText === lastText) { if (++still >= 3) break } else still = 0
       lastText = nowText
-      const cells = cellsOf(panel)
+      const cells = cellsOf(panel).filter(n => { for (let p = n.parentElement; p && p !== panel; p = p.parentElement) if (!vis(p)) return false; return true })
       const years = cells.filter(n => /^\d{4}$/.test(clean(n.textContent)))
       const months = cells.filter(n => monthOf(clean(n.textContent)) !== null)
       const days = cells.filter(n => /^\d{1,2}$/.test(clean(n.textContent)) && !otherMonth(n))
-      const hy = (header().match(/(\d{4})/) || [])[1]
+      const yearBtn = Array.from(panel.querySelectorAll('[role=button], button, span, a')).filter(vis).find(n => n.children.length === 0 && /^\s*\d{4}\s*年?\s*$/.test(n.textContent || '') && !/list|cell|item/i.test(clsOf(n)))
+      const hy = (header().match(/(\d{4})/) || (yearBtn?.textContent ?? '').match(/(\d{4})/) || [])[1]
       const headYear = hy ? +hy : NaN
       if (years.length >= 6 && months.length < 10) {
         const hit = years.find(n => +clean(n.textContent) === y)
