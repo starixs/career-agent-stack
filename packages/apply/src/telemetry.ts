@@ -36,6 +36,8 @@ export interface RunSummary {
   entryClicked?: string
   layersUsed?: string[]
   requiredTrusted?: boolean
+  /** 站点控件记忆：这次用上了哪些（控件指纹 → 做法）、新学到 / 更新了哪些。 */
+  widgetMemory?: { used: string[]; learned: string[] }
   pages: number
   shots: number
 }

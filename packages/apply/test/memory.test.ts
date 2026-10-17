@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { SiteMemory, fieldSignatures, normalizeHost, driveApplication, FakePage } from '../src/index.js'
+import { SiteMemory, WidgetMemory, fieldSignatures, normalizeHost, driveApplication, FakePage } from '../src/index.js'
 import { mem, profile, noLLM } from './helpers.js'
 
 const quiet = { pause: [0, 0] as [number, number], settleMs: 0, sleep: async () => {} }
@@ -44,5 +44,25 @@ describe('站点映射记忆', () => {
     const page = new FakePage({ url: 'https://x.com/apply', fields: [{ label: '是否需要签证', value: '不需要' }, { label: '姓名' }], buttons: ['提交'] })
     const r = await driveApplication(page, noLLM(), { ...profile, answerBank: [] }, { ...quiet, learnFrom: ['是否需要签证', '期望薪资'] })
     expect(r.learned).toEqual([{ label: '是否需要签证', value: '不需要' }])
+  })
+})
+
+describe('站点控件记忆', () => {
+  it('成功的做法覆盖、失败只累计不抹掉；不可搜索这种结论在失败里也记；按 host 隔离；SiteMemory.forget 一并清掉', () => {
+    const store = mem()
+    const site = new SiteMemory(store)
+    const wm = site.widgets()
+    const events: string[] = []
+    const b = wm.bind('www.x.com', e => events.push(e.kind))
+    expect(b.recall('input|el-select')).toBeUndefined()
+    b.learn('input|el-date-editor', { kind: 'date', dateStrategy: 'typed', dateFormat: 'YYYY/MM' }, true)
+    b.learn('input|el-date-editor', { kind: 'date' }, false, 'date_panel_unsupported')
+    expect(wm.recall('x.com', 'input|el-date-editor')).toMatchObject({ dateStrategy: 'typed', dateFormat: 'YYYY/MM', ok: 1, fail: 1, lastCode: 'date_panel_unsupported' })
+    b.learn('input|el-select', { kind: 'select', searchable: false }, false, 'no_matching_option')
+    expect(b.recall('input|el-select')).toMatchObject({ searchable: false })
+    expect(events).toEqual(expect.arrayContaining(['learned', 'used']))
+    expect(new WidgetMemory(store).recall('y.com', 'input|el-select')).toBeUndefined()
+    site.forget('x.com')
+    expect(wm.recall('x.com', 'input|el-select')).toBeUndefined()
   })
 })
