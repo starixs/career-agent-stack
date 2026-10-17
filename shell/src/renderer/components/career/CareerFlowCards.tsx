@@ -22,6 +22,7 @@ import { careerApi } from './careerApi';
 import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { openResumeDrawer } from './CareerResumeDrawer';
+import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
 import { MAIL_OPTIONS, MailConnectDialog, MailOptionGrid, type MailOption } from './MailBinding';
 import type { BatchState, CareerCard, CareerCardState } from './types';
@@ -141,7 +142,7 @@ export function NeedsUserCard({ card, onDone, onDismiss }: CardProps) {
   }).then(ok => {
     if (!ok) return;
     onDone();
-    suggestToChat(`网申里需要我填的 ${filled.length} 项已在卡片里补齐，请从当前页继续填表${actionId ? `（action_id: ${actionId}）` : ''}`);
+    suggestToChat(`网申里需要我填的 ${filled.length} 项已在卡片里补齐，请从当前页继续填。`, { surface: 'apply', refs: actionId ? { action_id: actionId } : {}, note: '缺项已补进私密库 / 答案库：调用 apply_continue(action_id) 从当前页继续并重新检查。' });
   });
   return (
     <CardShell testId="career-card-needs_user" icon={<ListTodo className="size-4" />} title={card.title} badge={<Badge tone="warning">等你填</Badge>} onDismiss={onDismiss}>
@@ -176,7 +177,7 @@ export function DraftsCard({ card, onDone, onDismiss }: CardProps) {
   }).then(ok => {
     if (!ok) return;
     onDone();
-    suggestToChat(`我确认了 ${chosen.length} 道开放题的回答，请用确认后的版本继续填表${actionId ? `（action_id: ${actionId}）` : ''}`);
+    suggestToChat(`我确认了 ${chosen.length} 道开放题的回答，请用确认后的版本继续填。`, { surface: 'apply', refs: actionId ? { action_id: actionId } : {}, note: '开放题答案已确认进答案库：调用 apply_continue(action_id) 从当前页继续并重新检查。' });
   });
   return (
     <CardShell testId="career-card-drafts" icon={<PenLine className="size-4" />} title={card.title} badge={<Badge tone="info">草稿</Badge>} onDismiss={onDismiss}>
@@ -432,6 +433,8 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   site_login: props => <SiteLoginCard {...props} />,
   mail_bind: props => <MailBindCard {...props} />,
   search_setup: props => <SearchSetupCard {...props} />,
+  review: props => <ReviewCard {...props} />,
+  apply_gaps: props => <ApplyGapsCard {...props} />,
 };
 
 export const isRenderableCard = (c: CareerCard): boolean => !!RENDERERS[c.kind];

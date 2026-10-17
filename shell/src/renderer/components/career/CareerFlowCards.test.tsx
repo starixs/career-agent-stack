@@ -14,15 +14,16 @@ import type { CareerCard } from './types';
 const card = (kind: CareerCard['kind'], data: Record<string, unknown>, title = '卡片'): CareerCard => ({ id: `${kind}:1`, kind, title, data, createdAt: '2026-10-03T00:00:00Z' });
 
 function renderCards(cards: CareerCard[], dismiss = vi.fn(), messages: unknown[] = []) {
-  const value = { tabId: 't', agentDir: '/tmp', pendingCareerReview: null, careerTakeover: null, careerProgress: null, careerCards: cards, setCareerCardState: dismiss, messages } as unknown as TabContextValue;
+  const value = { tabId: 't', agentDir: '/tmp', careerTakeover: null, careerProgress: null, careerCards: cards, setCareerCardState: dismiss, messages } as unknown as TabContextValue;
   render(<TabContext.Provider value={value}><CareerChatCards /></TabContext.Provider>);
   return dismiss;
 }
 
 function captureSuggest() {
   const seen: string[] = [];
-  const off = onEvent<{ text: string }>('career:chat-suggest', p => { seen.push(p.text); });
-  return { seen, off };
+  const refs: Array<Record<string, string> | undefined> = [];
+  const off = onEvent<{ text: string; context?: { refs?: Record<string, string> } }>('career:chat-suggest', p => { seen.push(p.text); refs.push(p.context?.refs); });
+  return { seen, refs, off };
 }
 
 describe('对话内流程卡片', () => {
@@ -45,7 +46,7 @@ describe('对话内流程卡片', () => {
   });
 
   it('网申缺项：资料字段进私密库、其余进答案库，然后请助理从当前页继续', async () => {
-    const { seen, off } = captureSuggest();
+    const { seen, refs, off } = captureSuggest();
     renderCards([card('needs_user', { action_id: 'act1', items: [{ label: '身份证号', vault_field: 'idNumber', sensitive: true }, { label: '期望薪资', note: '月薪' }] })]);
     fireEvent.change(screen.getByLabelText('身份证号'), { target: { value: '110101200001011234' } });
     fireEvent.change(screen.getByLabelText('期望薪资'), { target: { value: '面议' } });
@@ -53,7 +54,9 @@ describe('对话内流程卡片', () => {
     await waitFor(() => expect(seen).toHaveLength(1));
     expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'profile', field: 'idNumber', value: '110101200001011234' });
     expect(apiPostJson).toHaveBeenCalledWith('/api/career/answer-bank', { question_key: '期望薪资', question_text: '期望薪资', answer: '面议', confirmed: true });
-    expect(seen[0]).toContain('action_id: act1');
+    // 动作 id 只放在隐藏上下文里，不出现在用户看得见的话里
+    expect(seen[0]).not.toContain('act1');
+    expect(refs[0]).toEqual({ action_id: 'act1' });
     expect(seen[0]).not.toContain('110101');
     off();
   });
@@ -65,6 +68,21 @@ describe('对话内流程卡片', () => {
     fireEvent.click(screen.getByRole('button', { name: '确认 1 条并继续' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledTimes(1));
     expect(apiPostJson).toHaveBeenCalledWith('/api/career/answer-bank', { question_key: '为什么选择我们', question_text: '为什么选择我们', answer: '改过的A', confirmed: true, high_impact: true });
+  });
+
+  it('还差几项：逐项列出字段与原因，「补好了」请助理从当前页继续检查（id 在隐藏上下文）', async () => {
+    const { seen, refs, off } = captureSuggest();
+    const dismiss = renderCards([card('apply_gaps', { action_id: 'act9', required_filled: 10, required_total: 12, items: [{ label: '毕业时间', reason: '必填项还是空的', status: 'empty' }, { label: '简历附件', reason: '页面没有出现上传成功提示', status: 'upload_unconfirmed' }] }, '「美团 后端」还差 2 项要你补：毕业时间、简历附件')]);
+    const el = screen.getByTestId('career-card-apply_gaps');
+    expect(el).toHaveTextContent('必填 10/12');
+    expect(el).toHaveTextContent('毕业时间');
+    expect(el).toHaveTextContent('必填项还是空的');
+    fireEvent.click(screen.getByRole('button', { name: '补好了，继续检查' }));
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(dismiss).toHaveBeenCalledWith('apply_gaps:1', 'completed');
+    expect(seen[0]).not.toMatch(/act9|apply_/);
+    expect(refs[0]).toEqual({ action_id: 'act9' });
+    off();
   });
 
   it('经历说法：只确认勾选的', async () => {

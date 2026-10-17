@@ -133,6 +133,10 @@ export interface CareerTakeoverEvent {
 }
 export interface CareerReviewEvent {
   sessionId?: string | null; actionIds: string[]; kind: string; summary: string;
+  /** 产生它的工具调用（对话里的工具才有；后台批量 / 提交执行器没有）。 */
+  toolUseId?: string | null;
+  /** 卡片里要展示的内容（提交前的审阅清单等）。 */
+  data?: Record<string, unknown>;
 }
 export interface CareerDataChangedEvent {
   sessionId?: string | null; tables: string[];
@@ -175,7 +179,7 @@ export interface LiveFrame { type: 'frame'; data: string; width: number; height:
 export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
 
 // ---------- 对话内流程卡片（SSE career:card；对话是主场，卡片把"要用户动手的一步"就地解决） ----------
-export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'resume_diff' | 'site_login' | 'mail_bind' | 'search_setup';
+export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'resume_diff' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps';
 /** 模型 Key（必需）/ 搜索 Key（建议）的配置状态；source=build 表示来自启动环境变量或打包常量。 */
 export interface CareerSetupStatus {
   llm: { configured: boolean; source: 'settings' | 'build' | 'none' };

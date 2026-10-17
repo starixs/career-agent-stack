@@ -66,4 +66,16 @@ describe('Message — 锚定的求职卡片', () => {
     expect(screen.getByTestId('career-card-collapsed-claims_confirm')).toHaveTextContent('已完成：确认「字节实习」里的 1 条说法');
     expect(screen.queryByTestId('career-card-claims_confirm')).not.toBeInTheDocument();
   });
+
+  it('审核卡片按 toolUseId 挂在各自的 apply_* 调用下面，不挤到同一个槽位', () => {
+    const review = (id: string, toolUseId: string, title: string): CareerCard => ({
+      id, kind: 'review', title, createdAt: '2026-10-17T08:00:00Z', toolUseId, state: 'pending',
+      data: { action_ids: [id.slice('review:'.length)], kind: 'submit', summary: title },
+    });
+    const cards = [review('review:s1', 'toolu_a', '「美团 后端」必填 12/12 已填好并核对过'), review('review:s2', 'toolu_b', '「字节 算法」必填 9/9 已填好并核对过')];
+    renderWith(assistantWithTool('toolu_b'), cards);
+    const shown = screen.getAllByTestId('career-review-card');
+    expect(shown).toHaveLength(1);
+    expect(shown[0]).toHaveTextContent('字节 算法');
+  });
 });

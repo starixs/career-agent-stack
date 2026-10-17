@@ -10,6 +10,8 @@ import type { CareerCard, CareerCardState } from '@/components/career/types';
 export interface CareerCardsContextValue {
   cards: CareerCard[];
   setState: (id: string, state: CareerCardState) => void;
+  /** 审核卡片上的批准 / 拒绝（经本会话的 Session 路由回传）；缺省时卡片退回 Global 路由。 */
+  respondReview?: (actionIds: string[], decision: 'approved' | 'rejected') => Promise<boolean>;
 }
 
 const EMPTY: CareerCardsContextValue = { cards: [], setState: () => {} };

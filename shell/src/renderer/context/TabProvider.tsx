@@ -43,6 +43,7 @@ import type { AskUserQuestionRequest, AskUserQuestion } from '../../shared/types
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
 import { CareerCardsContext } from '@/context/CareerCardsContext';
+import { upsertReviewCard } from '@/components/career/CareerReviewCard';
 import type { CareerCard, CareerCardEvent, CareerCardState, CareerProgressEvent, CareerReviewEvent, CareerTakeoverActionRequest, CareerTakeoverEvent } from '@/components/career/types';
 import type { ExitPlanModeRequest, EnterPlanModeRequest, ExitPlanModeAllowedPrompt } from '../../shared/types/planMode';
 import { CUSTOM_EVENTS, isPendingSessionId } from '../../shared/constants';
@@ -928,7 +929,6 @@ export default function TabProvider({
     const [pendingExitPlanMode, setPendingExitPlanMode] = useState<ExitPlanModeRequest | null>(null);
     const [pendingEnterPlanMode, setPendingEnterPlanMode] = useState<EnterPlanModeRequest | null>(null);
     // 求职对话内卡片状态（SSE career:* → 这里 → MessageList 的 CareerChatCards）
-    const [pendingCareerReview, setPendingCareerReview] = useState<CareerReviewEvent | null>(null);
     const [careerTakeover, setCareerTakeover] = useState<CareerTakeoverEvent | null>(null);
     const [careerProgress, setCareerProgress] = useState<CareerProgressEvent | null>(null);
     const [careerCards, setCareerCards] = useState<CareerCard[]>([]);
@@ -1217,7 +1217,6 @@ export default function TabProvider({
         setPendingAskUserQuestion(null);
         setPendingExitPlanMode(null);
         setPendingEnterPlanMode(null);
-        setPendingCareerReview(null);
         setCareerTakeover(null);
         setCareerProgress(null);
         setCareerCards([]);
@@ -3635,7 +3634,8 @@ export default function TabProvider({
                 const payload = data as CareerReviewEvent | null;
                 if (!payload || !Array.isArray(payload.actionIds) || payload.actionIds.length === 0) break;
                 if (!shouldAcceptInteractiveEvent(payload.sessionId)) break;
-                setPendingCareerReview(payload);
+                // 每个待审动作一张卡（id 稳定），挂在产生它的工具调用下面；不再用单槽位互相覆盖
+                setCareerCards(prev => upsertReviewCard(prev, payload));
                 emitEvent('career:review', payload);
                 if (!isActiveRef.current || shouldNotifyUser()) {
                     onUnreadChangeRef.current?.(true);
@@ -5449,7 +5449,6 @@ export default function TabProvider({
     const respondCareerReview = useCallback(async (actionIds: string[], decision: 'approved' | 'rejected'): Promise<boolean> => {
         try {
             await postJson('/api/career-session/review', { actionIds, decision });
-            setPendingCareerReview(prev => (prev && prev.actionIds.every(id => actionIds.includes(id)) ? null : prev));
             return true;
         } catch (error) {
             console.error('[TabProvider] career review respond failed:', error);
@@ -5467,9 +5466,10 @@ export default function TabProvider({
             // 后台批量的 run 不在本会话（run 为 null），运行器自己续跑，不打扰助理以免两边抢同一份
             if (action === 'handback' && result?.run) {
                 const actionId = result.run.actionId;
+                // 用户看到的是人话；要调哪个工具、哪个动作放在隐藏上下文里给助理
                 emitEvent('career:chat-suggest', {
-                    text: `我已在浏览器里处理好并交还${actionId ? `（动作 ${actionId}）` : ''}，请调用 apply_continue 从当前页接着填写。`,
-                    context: { surface: 'apply', refs: actionId ? { action_id: actionId } : {} },
+                    text: '浏览器里的事我处理好了，交还给你，请从当前页接着填。',
+                    context: { surface: 'apply', refs: actionId ? { action_id: actionId } : {}, note: '用户已交还浏览器：调用 apply_continue(action_id) 从当前页继续填写并重新检查。' },
                     mode: 'send',
                 });
             }
@@ -5504,7 +5504,7 @@ export default function TabProvider({
             if (payload?.type !== 'career:review' || !Array.isArray(payload.actionIds) || payload.actionIds.length === 0) return;
             if (!shouldAcceptInteractiveEvent(payload.sessionId)) return;
             const { type: _type, ...review } = payload;
-            setPendingCareerReview(review);
+            setCareerCards(prev => upsertReviewCard(prev, review));
             if (!isActiveRef.current || shouldNotifyUser()) onUnreadChangeRef.current?.(true);
         });
         const offTakeover = onEvent<CareerTakeoverEvent & { type?: string }>('career:takeover', payload => {
@@ -5597,7 +5597,6 @@ export default function TabProvider({
         toolCompleteCount,
         queuedMessages,
         isConnected,
-        pendingCareerReview,
         careerTakeover,
         careerProgress,
         careerCards,
@@ -5638,7 +5637,7 @@ export default function TabProvider({
         logs, unifiedLogs, systemInitInfo, mcpEffectiveSnapshot, sdkSlashCommands, runtimeDiagnostics, agentError, systemStatus, systemNotice, contextUsage, agentPlanTodos, lastTerminalReason, pendingPermission, pendingAskUserQuestion, pendingExitPlanMode, pendingEnterPlanMode, toolCompleteCount, queuedMessages, isConnected,
         getQueryElapsedSeconds, setMessages, appendLog, appendUnifiedLog, clearUnifiedLogs, sendMessage, stopResponse, retryCurrentSessionRestore, loadOlderMessages, resetSession, adoptMigratedSession,
         apiGetJson, postJson, apiPutJson, apiDeleteJson, respondPermission, respondAskUserQuestion, respondExitPlanMode, cancelQueuedMessage, forceExecuteQueuedMessage,
-        pendingCareerReview, careerTakeover, careerProgress, careerCards, respondCareerReview, requestCareerTakeover, dismissCareerProgress, dismissCareerCard, setCareerCardState
+        careerTakeover, careerProgress, careerCards, respondCareerReview, requestCareerTakeover, dismissCareerProgress, dismissCareerCard, setCareerCardState
     ]);
 
     // Lightweight API-only context value — deps are all stable (created once per tabId),
@@ -5653,7 +5652,7 @@ export default function TabProvider({
     }), [tabId, agentDir, apiGetJson, postJson, apiPutJson, apiDeleteJson]);
 
     const isActiveValue = isActive ?? false;
-    const careerCardsValue = useMemo(() => ({ cards: careerCards, setState: setCareerCardState }), [careerCards, setCareerCardState]);
+    const careerCardsValue = useMemo(() => ({ cards: careerCards, setState: setCareerCardState, respondReview: respondCareerReview }), [careerCards, setCareerCardState, respondCareerReview]);
 
     return (
         <TabActiveContext.Provider value={isActiveValue}>
