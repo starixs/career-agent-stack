@@ -41,6 +41,8 @@ export interface FieldPlan {
   note?: string
   /** 草稿用到了哪些经历（先告知用户再复用）。 */
   experiencesUsed?: string[]
+  /** needs_user 时的原因码（填写引擎核验不过 / 标签可疑等），见 codes.ts。 */
+  code?: import('./codes.js').FieldReasonCode
 }
 
 export interface InterpretOptions {

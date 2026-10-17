@@ -36,6 +36,8 @@ export interface ApplyRunSummary {
   status: DriveResult['status']; reason?: string; message: string; finalUrl: string; adapter: string
   filled: DriveResult['filled']; needsUser: DriveResult['needsUser']; drafts: DriveResult['drafts']; mismatches: DriveResult['mismatches']; uploads: DriveResult['uploads']
   submitButton?: string; loginFilled?: DriveResult['loginFilled']; screenshotPath?: string
+  /** 字段级最终状态（verified / needs_user + 原因码 / empty_optional …）。 */
+  fields?: DriveResult['fields']; blockers?: DriveResult['blockers']; entryClicked?: string; telemetry?: DriveResult['telemetry']
   pages: Array<{ index: number; url: string; fieldCount: number; nextButton?: string; errors: string[] }>
 }
 
@@ -102,6 +104,7 @@ export class ApplyService {
     const rawSummary: ApplyRunSummary = {
       status: result.status, reason: result.reason, message: result.message, finalUrl: result.finalUrl, adapter: result.adapterId,
       filled: result.filled, needsUser: result.needsUser, drafts: result.drafts, mismatches: result.mismatches, uploads: result.uploads, submitButton: result.submitButton, loginFilled: result.loginFilled, screenshotPath,
+      fields: result.fields, blockers: result.blockers, entryClicked: result.entryClicked, telemetry: result.telemetry,
       pages: result.pages.map(p => ({ index: p.index, url: p.url, fieldCount: p.fieldCount, nextButton: p.nextButton, errors: p.errors })),
     }
     // 落库 / 回传的一律脱敏：私密库里的明文换回占位符

@@ -1,42 +1,88 @@
 import { handoffReasonLabel, type LLM, type HandoffReason } from '@career/core'
 import { basename } from 'node:path'
 import type { PageLike } from './page.js'
-import { extractFields, formFingerprint, radioOptionSelector, type FormField } from './extract.js'
+import { extractFields, formFingerprint, type FormField } from './extract.js'
 import { interpretForm, normKey, type FieldPlan, type Profile, type InterpretOptions } from './interpret.js'
 import { pageSignalsScript, type PageSignals, type ButtonInfo } from './scripts.js'
-import { detectObstacle, isNextText, isSubmitText } from './guards.js'
+import { detectObstacle, findFinalSubmit, isEntryText, isNextText, isSubmitText } from './guards.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import type { RiskGuard } from './safety.js'
-import { humanDelay, typeLikeHuman, type PacingOptions } from './pacing.js'
+import { humanDelay, type PacingOptions } from './pacing.js'
 import { fillLoginForm, type LoginCredential } from './login.js'
 import { looksLikeFormVisually, pairVisualFields, type Perceiver, type UiKind } from './perception.js'
 import { visionScan, visionFill, visionClickText, visionFindButton, type VisionOptions } from './vision.js'
 import { describeObstacle, looksLikeRiskUrl, type CaptchaKind } from './obstacles.js'
 import { fillRepeatingSections, type SectionSummary } from './sections.js'
-import { fillValueScript } from './scripts.js'
 import { normalizeHost, type SiteMemory } from './memory.js'
-import { DATE_FIELD_RX, matchOption } from './normalize.js'
+import { matchOption } from './normalize.js'
 import type { FieldType } from './scripts.js'
 import { buildSubmitReview, type SubmitReview } from './review.js'
+import { clearBlockers, type HandledBlocker } from './blockers.js'
+import { displayMatches, fillAndVerify, type FieldAttempt } from './fill.js'
+import { classifyError, reasonText, withWatchdog, type FieldReasonCode } from './codes.js'
+import { isSensitiveLabel, noopRecorder, RunRecorder, type Recorder, type TelemetryOptions } from './telemetry.js'
+import { clearHighlightScript, libraryFingerprintScript, maskSensitiveScript, prepareEntryClickScript, readDisplayScript } from './widgets.js'
 
 /**
- * 多页单步驱动循环：每页 extract → interpret → 上传优先 → 填写 → 差异核对 → 找"下一步"。
- * 动作集里没有"提交"：命中 SUBMIT_RX 的按钮一律不点，停下并截图，返回 stopped_before_submit。
- * 验证码 / 登录墙 / 滑块 / 2FA / 测评 → handoff（reason 对齐 core 的 HandoffReason）。
+ * 多页单步驱动循环：每页 障碍层 → extract → interpret → 上传优先（上传后再过障碍层）→ 逐字段"填写 + 核验 + 失败回滚"
+ * → 重复分区（与字段填写去重）→ 整页复核 → 找"下一步"。
  *
- * 分层执行：
- *  L1 DOM 直驱（默认）；
- *  L2 视觉兜底（给了 opts.perceiver 且页面支持 mouse 时）：DOM 抽不到字段 / 填不进去 / 找不到按钮 → 截图感知 + 坐标操作；
- *  L3 交给用户（handoff），并用 describeObstacle 说清楚该做什么。
+ * 两重机制：
+ *  第一重（怎么做最好）：障碍层先清掉挡路的弹窗；自定义下拉点选项、日期面板按年月导航；标签解析排除吸顶栏；
+ *    详情页上的申请入口按钮（立即申请 / 申请职位…）可以点进去；实时画面跟随正在填的那一格。
+ *  第二重（兜底，宁空不错）：任何字段核验不过就清空并标 needs_user（附原因码），清不掉标 mismatch；
+ *    不用原生 setter 硬写自定义控件；危险键位白名单；同一字段只写一次；最终提交类按钮任何一层都不点。
+ *
+ * 分层执行：L1 DOM（含页内执行器）→ L2 视觉兜底（给了 perceiver 且页面支持 mouse）→ L3 交给用户（handoff）。
+ * 每次运行可写一份遥测（opts.telemetry）：trace.jsonl / 小截图 / 失败 DOM 片段 / summary.json。
  */
 export type DriveStatus = 'stopped_before_submit' | 'handoff' | 'blocked' | 'failed'
 export type DriveLayer = 'dom' | 'vision'
 
-export interface FilledRecord { fieldId: string; label: string; value: string; source: FieldPlan['source']; layer?: DriveLayer }
-export interface Mismatch { fieldId: string; label: string; expected: string; actual?: string }
+export interface FilledRecord {
+  fieldId: string; label: string; value: string; source: FieldPlan['source']; layer?: DriveLayer
+  /** 读回核验通过（显示值与计划值一致）。视觉层伪字段读不回 DOM，为 false。 */
+  verified?: boolean
+  /** 用的什么策略（type / fill / option-click / date-panel / native-select / vision …）。 */
+  strategy?: string
+  /** 核验时页面上的显示值。 */
+  display?: string
+}
+export interface Mismatch {
+  fieldId: string; label: string; expected: string
+  /** 页面上现在显示的值（不是报错原文）。 */
+  actual?: string
+  code?: FieldReasonCode
+  /** 给用户看的中文原因。 */
+  reason?: string
+}
 export interface UploadCheck { fieldId: string; file: string; echoed: boolean; evidence?: string }
 /** 一次 L1 → L2 的降级记录（给用户 / 日志看"为什么走了视觉层"）。 */
 export interface Escalation { reason: 'no_fields' | 'fill_mismatch' | 'no_next_button' | 'custom_select'; field?: string; outcome: 'recovered' | 'failed' | 'stopped'; evidence: string }
+/** 字段级最终状态（每页每个字段一条），shell 侧门槛 / 卡片 / 统计用。 */
+export type FieldStatus = 'verified' | 'unverified' | 'needs_user' | 'mismatch' | 'draft' | 'empty_optional' | 'prefilled' | 'skipped'
+export interface FieldOutcome {
+  fieldId: string
+  label: string
+  page: number
+  type: FieldType
+  required: boolean
+  /** 必填是怎么认出来的（attr / aria / class / star）；没认出为 undefined。 */
+  requiredVia?: string
+  status: FieldStatus
+  /** 是否读回核验通过。 */
+  verified: boolean
+  value?: string
+  display?: string
+  strategy?: string
+  source?: FieldPlan['source']
+  /** 留空 / 失败的原因码与中文说明。 */
+  code?: FieldReasonCode
+  reason?: string
+  /** 标签可疑的原因（导航栏文字 / 纯数字 / 太长 / 没标签）。 */
+  labelUncertain?: string
+  section?: string
+}
 export interface PageRecord {
   index: number
   url: string
@@ -52,6 +98,9 @@ export interface PageRecord {
   sections?: SectionSummary[]
   nextButton?: string
   layer?: DriveLayer
+  /** 本页处理过的弹窗。 */
+  blockers?: HandledBlocker[]
+  fields?: FieldOutcome[]
 }
 export interface DriveResult {
   status: DriveStatus
@@ -69,6 +118,18 @@ export interface DriveResult {
   uploads: UploadCheck[]
   escalations: Escalation[]
   layersUsed: DriveLayer[]
+  /** 字段级最终状态（所有页）。 */
+  fields: FieldOutcome[]
+  /** 处理过的弹窗（障碍层）。 */
+  blockers: HandledBlocker[]
+  /** 从详情页点进申请表用的入口按钮文案。 */
+  entryClicked?: string
+  /** 识别到的组件库指纹（mtd / antd / element / beisen / moka …）。 */
+  libraries: string[]
+  /** 这次运行记录的位置。 */
+  telemetry?: { dir: string; runId: string }
+  /** failed 时的原因码（timeout / fill_error …）。 */
+  failureCode?: string
   /** 停在哪个提交按钮前（文案）。 */
   submitButton?: string
   /** 登录接管时，私密库已代填了哪些登录字段（不含值）。 */
@@ -83,6 +144,9 @@ export interface DriveResult {
   /** stopped_before_submit 时的填后检查（审阅清单 + 免审指纹）。 */
   review?: SubmitReview
 }
+
+/** 给界面的人话进度（不含内部调试信息、不含明文敏感值）。 */
+export interface DriveProgress { message: string; kind: 'page' | 'field' | 'blocker' | 'upload' | 'entry' | 'section' | 'stop'; label?: string }
 
 export interface DriveOptions extends PacingOptions {
   /** 最多走几页。 */
@@ -114,51 +178,98 @@ export interface DriveOptions extends PacingOptions {
   /** 续跑时：这些标签上次是 needs_user，若现在页面上已有值（用户自己填的），回传给调用方存进答案库。 */
   learnFrom?: string[]
   onPage?: (rec: PageRecord) => void
+  /** 内部调试日志（不要广播给界面；会同时写进遥测）。 */
   log?: (msg: string) => void
+  /** 给界面的人话进度。 */
+  onProgress?: (p: DriveProgress) => void
+  /** 运行记录：给目录就写 `<dir>/<runId>/`；也可以直接给一个 Recorder。 */
+  telemetry?: TelemetryOptions | Recorder
+  /** 每个字段的看门狗（毫秒，缺省 30 秒）；页面级脚本 25 秒。 */
+  watchdogMs?: number
+  /** 实时画面跟随：填写前滚到正中并高亮（缺省开）。 */
+  highlight?: boolean
+  /** 详情页上允许点申请入口按钮进入网申表（缺省开）。 */
+  allowEntryClick?: boolean
+  /** 障碍层 / 下拉候选不确定时用的模型（缺省用 driveApplication 的 llm）。 */
+  widgetLlm?: LLM | null
 }
 
 const SUBMIT_WORDS = ['提交', '确认提交', '提交申请', '投递', '立即投递', 'Submit', 'Apply now'] as const
 const NEXT_WORDS = ['下一步', '下一页', '继续', '保存并继续', '保存并下一步', 'Next', 'Continue'] as const
 const KIND_TO_TYPE: Partial<Record<UiKind, FieldType>> = { input: 'text', select: 'select', checkbox: 'checkbox', radio: 'radio' }
+const PAGE_STEP_MS = 25_000
+const TEXTLIKE = new Set<FieldType>(['text', 'email', 'tel', 'number', 'textarea'])
+
+const isRecorder = (t: DriveOptions['telemetry']): t is Recorder => !!t && typeof (t as Recorder).trace === 'function'
 
 export async function driveApplication(page: PageLike, llm: LLM, profile: Profile, opts: DriveOptions = {}): Promise<DriveResult> {
   const maxPages = opts.maxPages ?? 6
   const adapter = opts.adapter ?? pickAdapter(page.url())
   const pause = opts.pause ?? [300, 900]
-  const log = opts.log ?? (() => {})
+  const host = normalizeHost(page.url())
+  const recorder: Recorder = isRecorder(opts.telemetry) ? opts.telemetry : opts.telemetry ? new RunRecorder(opts.telemetry, host) : noopRecorder
+  const log = (msg: string) => { opts.log?.(msg); recorder.trace({ stage: 'log', result: 'info', detail: msg }) }
+  const progress = (message: string, kind: DriveProgress['kind'] = 'field', label?: string) => { opts.onProgress?.({ message, kind, label }); recorder.trace({ stage: 'progress', result: 'info', detail: message }) }
+  const widgetLlm = opts.widgetLlm === null ? undefined : opts.widgetLlm ?? llm
   const pages: PageRecord[] = []
   const all = { filled: [] as FilledRecord[], needsUser: [] as FieldPlan[], drafts: [] as FieldPlan[], mismatches: [] as Mismatch[], uploads: [] as UploadCheck[], escalations: [] as Escalation[], learned: [] as Array<{ label: string; value: string }>, memorized: 0 }
-  const host = normalizeHost(page.url())
+  const allFields: FieldOutcome[] = []
+  const allBlockers: HandledBlocker[] = []
+  let libraries: string[] = []
+  let entryClicked: string | undefined
+  let entryClicks = 0
   const recallKey = opts.siteMemory ? opts.siteMemory.recaller(host) : undefined
-  /** 页内执行器（框架适配 / React 安全赋值）；失败返回 false，调用方再走其他路。 */
-  const actuate = async (f: FormField, value: string, kind: 'auto' | 'text' | 'select' | 'date' | 'richtext' = 'auto'): Promise<boolean> => {
-    try {
-      const r = await page.evaluate(fillValueScript, { selector: f.selector, value, kind, fieldKey: `${f.label} ${f.name ?? ''}` })
-      if (r.ok) log(`页内执行器：「${f.label}」← ${r.strategy}`)
-      return r.ok
-    } catch { return false }
-  }
   const layersUsed = new Set<DriveLayer>()
   const visionOpts: VisionOptions | null = opts.perceiver && page.mouse
     ? { perceiver: opts.perceiver, maxScrolls: opts.vision?.maxScrolls, pause: [Math.min(pause[0], 200), Math.min(pause[1], 500)], typeDelayMs: pause[1] === 0 ? 0 : undefined, log, rng: opts.rng, sleep: opts.sleep }
     : null
+  let sensitive: string[] = []
+  const capture = (name: string) => recorder.shot(name, async () => {
+    if (sensitive.length) await page.evaluate(maskSensitiveScript, { on: true, selectors: sensitive }).catch(() => {})
+    try { return await (page.screenshotSmall ? page.screenshotSmall() : page.screenshot()) } finally { if (sensitive.length) await page.evaluate(maskSensitiveScript, { on: false }).catch(() => {}) }
+  })
+  const step = <T,>(name: string, work: () => Promise<T>) => withWatchdog(name, PAGE_STEP_MS, work)
+  /** 障碍层；返回 false 表示有处理不了的模态弹窗。 */
+  let unresolvedBlocker: { text: string; buttons: string[]; reason: string } | undefined
+  const blockers = async (stage: string, rec?: PageRecord): Promise<boolean> => {
+    const r = await clearBlockers(page, { llm: widgetLlm, recorder, progress: m => progress(m, 'blocker'), log, settleMs: Math.min(opts.settleMs ?? 400, 600) || 0, stage })
+    if (r.handled.length) { allBlockers.push(...r.handled); if (rec) (rec.blockers ??= []).push(...r.handled) }
+    unresolvedBlocker = r.unresolved
+    return !r.unresolved
+  }
+  const fillDeps = { page, pause, humanTyping: opts.humanTyping, llm: widgetLlm, recorder, progress: (m: string) => progress(m, 'field'), log, watchdogMs: opts.watchdogMs ?? 30_000, clearBlockers: () => blockers('field'), capture, highlight: opts.highlight, rng: opts.rng, sleep: opts.sleep }
+
+  const summarize = (status: string, extra: Partial<DriveResult>) => {
+    const fs = allFields
+    recorder.finish({
+      status, libraries, pages: pages.length, entryClicked, layersUsed: [...layersUsed],
+      fields: { total: fs.length, verified: fs.filter(f => f.verified).length, needsUser: fs.filter(f => f.status === 'needs_user').length, mismatch: fs.filter(f => f.status === 'mismatch').length, emptyOptional: fs.filter(f => f.status === 'empty_optional').length, labelUncertain: fs.filter(f => f.labelUncertain).length },
+      blockers: allBlockers.map(b => ({ text: b.text.slice(0, 120), choice: b.choice, by: b.by, resolved: b.resolved })),
+      requiredTrusted: extra.review?.requiredTrusted,
+    })
+  }
+  const telemetryRef = recorder.dir && recorder.runId ? { dir: recorder.dir, runId: recorder.runId } : undefined
   const finish = async (status: DriveStatus, message: string, extra: Partial<DriveResult> = {}): Promise<DriveResult> => {
     let screenshot: Uint8Array | undefined
+    try { await page.evaluate(clearHighlightScript) } catch { /* ignore */ }
     try { screenshot = await page.screenshot() } catch { /* 截图失败不影响结果 */ }
     // 停在提交前：做一遍填后检查，给审核卡片的审阅清单与免审判断
     let review: SubmitReview | undefined
     if (status === 'stopped_before_submit') { try { review = await buildSubmitReview(page, all) } catch { /* 检查失败时调用方按"需要人看"处理 */ } }
-    return { status, message, pages, ...all, layersUsed: [...layersUsed], screenshot, finalUrl: page.url(), adapterId: adapter.id, ...(review ? { review } : {}), ...extra }
+    if (status === 'stopped_before_submit') progress(message, 'stop')
+    const result: DriveResult = { status, message, pages, ...all, layersUsed: [...layersUsed], fields: allFields, blockers: allBlockers, entryClicked, libraries, ...(telemetryRef ? { telemetry: telemetryRef } : {}), screenshot, finalUrl: page.url(), adapterId: adapter.id, ...(review ? { review } : {}), ...extra }
+    recorder.trace({ stage: 'finish', result: status === 'failed' ? 'fail' : 'info', detail: `${status}：${message}` })
+    summarize(status, result)
+    return result
   }
   const handoff = (reason: HandoffReason, sig: PageSignals, evidence: string, prefix: string, extra: Partial<DriveResult> = {}) => {
     const d = describeObstacle(reason, sig, evidence, { loginFilled: extra.loginFilled })
     return finish('handoff', `${prefix}${handoffReasonLabel(reason)}（${evidence}）。${d.userAction}`, { reason, userAction: d.userAction, captchaKind: d.kind, ...extra })
   }
-  const shot = () => page.screenshot().catch(() => undefined)
-  /**
-   * 一路下来没碰到任何表单项：那个"提交类"按钮其实是岗位详情页的申请入口（立即申请 / 投递简历），不是网申表的提交。
-   * 入口按钮也可能是一键投递，所以照样不点；交给用户点进去（多半要登录），交还后从那一页接着填。
-   */
+  const blockerHandoff = (u: { text: string; buttons: string[]; reason: string }) => finish('handoff', `页面弹出了一个对话框，我没把握该点哪个：「${u.text.slice(0, 80)}」（${u.reason}）`, {
+    reason: 'user_request', userAction: `页面上有个弹窗「${u.text.slice(0, 60)}」（按钮：${u.buttons.slice(0, 4).join(' / ') || '无'}），请你在浏览器里处理掉它，然后点"交还"，我接着填`,
+  })
+  /** 一路下来没碰到任何表单项。 */
   const untouched = () => !all.filled.length && !all.needsUser.length && !all.drafts.length && !all.uploads.length && !all.mismatches.length
   const entryHandoff = (button: string) => finish('handoff', `这是岗位详情页，不是网申表：页面上没有可填写的字段，「${button}」是申请入口。`, {
     reason: 'login', userAction: `请在浏览器里点「${button}」进入网申（通常要先登录），看到申请表后点"交还"，我从那一页接着填`,
@@ -166,6 +277,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   let lastFingerprint = ''
 
   try {
+    try { libraries = await page.evaluate(libraryFingerprintScript) } catch { /* ignore */ }
+    recorder.trace({ stage: 'start', result: 'info', detail: `${page.url()} | 组件库：${libraries.join(',') || '未识别'} | 适配器：${adapter.id}` })
     if (adapter.preprocess) await adapter.preprocess(page).catch(e => log(`预处理失败：${e instanceof Error ? e.message : e}`))
     for (let index = 1; index <= maxPages; index++) {
       // 0. 风险锁 / 页数上限
@@ -175,7 +288,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         if (!opts.riskGuard.reservePage()) return finish('blocked', '今日页数上限已到')
       }
       // 1. 阻碍检测
-      let sig = await page.evaluate(pageSignalsScript)
+      let sig = await step('读取页面信号', () => page.evaluate(pageSignalsScript))
       const risk = opts.riskGuard?.inspect(sig, adapter) ?? null
       const ob = detectObstacle(sig, adapter)
       if (risk && risk.reason === 'rate_limit') return finish('blocked', `平台限流提示：${risk.evidence}，已上风险锁`)
@@ -197,11 +310,35 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         }
         return handoff(ob.reason, sig, ob.evidence, '需要你本人处理：')
       }
+      const rec: PageRecord = { index, url: page.url(), fieldCount: 0, filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], errors: [], escalations: [] }
+      // 1.5 障碍层：页面一打开就挡着的弹窗（cookie / 须知 / 公告）
+      if (!(await blockers('page', rec)) && unresolvedBlocker) { pages.push(rec); return blockerHandoff(unresolvedBlocker) }
 
       // 2. 抽取（L1）；抽不到且有感知器 → L2 视觉伪字段
-      let fields = await extractFields(page)
+      let fields = await step('抽取字段', () => extractFields(page))
       let layer: DriveLayer = 'dom'
-      const rec: PageRecord = { index, url: page.url(), fieldCount: fields.length, filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], errors: [], escalations: [] }
+      rec.fieldCount = fields.length
+      // 2.1 岗位详情页：页面上没有任何表单字段、这次也没填过东西 → 允许点申请入口按钮进入网申表（最终提交仍永不点）
+      if (!fields.length && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
+        const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text))
+        if (entry) {
+          entryClicks++
+          progress(`点击「${entry.text}」进入申请表`, 'entry', entry.text)
+          recorder.trace({ stage: 'entry', action: 'click', result: 'info', detail: entry.text })
+          await page.evaluate(prepareEntryClickScript, { selector: entry.selector }).catch(() => null)
+          try {
+            await clickEntry(page, entry, adapter)
+            entryClicked = entry.text
+            await page.waitForTimeout(Math.max(opts.settleMs ?? 800, 0) * 2)
+            await humanDelay(pause[0], pause[1], opts)
+            index--
+            continue
+          } catch (e) {
+            const c = classifyError(e)
+            recorder.trace({ stage: 'entry', action: 'click', result: 'fail', code: c.code, detail: c.raw })
+          }
+        }
+      }
       if (!fields.length && visionOpts) {
         const p = await visionScan(page, visionOpts, '寻找表单输入框')
         if (looksLikeFormVisually(p)) {
@@ -221,16 +358,22 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       lastFingerprint = fp
       if (!fields.length) {
-        if (index === 1) {
+        if (index === 1 || untouched()) {
           pages.push(rec); all.escalations.push(...rec.escalations)
-          const entry = sig.buttons.find(b => isSubmitText(b.text, adapter))
+          const entry = sig.buttons.find(b => isEntryText(b.text)) ?? findFinalSubmit(sig.buttons, adapter)
           return entry ? entryHandoff(entry.text) : finish('blocked', '页面上没有可填写的表单字段')
         }
         break // 后续页没字段：可能到了确认页
       }
       rec.layer = layer
       layersUsed.add(layer)
+      sensitive = fields.filter(f => isSensitiveLabel(f.label) && f.layer !== 'vision').map(f => f.selector)
+      // 组件库指纹按页累积（详情页和表单页往往不一样）
+      try { libraries = [...new Set([...libraries, ...(await page.evaluate(libraryFingerprintScript)), ...fields.map(f => f.framework).filter((x): x is string => !!x && x !== 'native')])] } catch { /* ignore */ }
+      progress(`第 ${index} 页：找到 ${fields.length} 个要看的格子`, 'page')
       log(`第 ${index} 页：${fields.length} 个字段（${layer}）`)
+      recorder.trace({ stage: 'page', result: 'info', detail: `第 ${index} 页 ${page.url()}：${fields.map(f => `${f.id}:${f.label}${f.required ? '*' : ''}${f.labelUncertain ? '?' : ''}`).join(' | ')}` })
+      await capture(`page${index}`)
       // 续跑：用户在接管期间自己填好的字段（上次 needs_user）→ 回传给调用方存答案库
       if (index === 1 && opts.learnFrom?.length && layer === 'dom') {
         const want = new Set(opts.learnFrom.map(normKey))
@@ -243,27 +386,49 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       // 占位符 → 明文只发生在这里（Node 侧），之后的填写 / 核对都用明文；回传模型前由 ApplyService 再脱敏
       if (opts.resolveValue) for (const p of plans) if (p.status === 'fill' && p.value !== undefined) p.value = opts.resolveValue(p.value)
       const byId = new Map(fields.map(f => [f.id, f]))
+      // 宁空不错：标签可疑（吸顶栏文字 / 纯数字 / 没标签）的字段不按它填
+      for (const p of plans) {
+        const f = byId.get(p.fieldId)
+        if (f?.labelUncertain && p.status === 'fill' && !f.isFile) {
+          recorder.trace({ stage: 'plan', field: f.id, label: f.label, result: 'skip', code: 'label_uncertain', detail: f.labelUncertain })
+          Object.assign(p, { status: 'needs_user', value: undefined, code: 'label_uncertain', note: `${reasonText('label_uncertain')}（${f.labelUncertain}）` })
+        }
+      }
+      /** 本页已写过（或尝试写过）的字段：分区填写、复核都不再写不同来源的值。 */
+      const written = new Map<string, { value: string; stage: string }>()
+      const record = (f: FormField, value: string, source: FieldPlan['source'], att: FieldAttempt, stage: string) => {
+        written.set(f.id, { value, stage })
+        if (att.verified) rec.filled.push({ fieldId: f.id, label: f.label, value, source, layer: att.strategy === 'vision' ? 'vision' : 'dom', verified: true, strategy: att.strategy, display: att.display })
+        else if (att.rollback === 'failed') rec.mismatches.push({ fieldId: f.id, label: f.label, expected: value, actual: att.display, code: att.code ?? 'readback_mismatch', reason: att.reason ?? reasonText(att.code) })
+        else rec.needsUser.push({ fieldId: f.id, label: f.label, status: 'needs_user', source, confidence: 0, note: att.reason ?? reasonText(att.code), code: att.code ?? 'readback_mismatch' })
+      }
 
-      // 4. 先上传简历（上传后页面可能自动解析填充，再重新抽取）
+      // 4. 先上传简历（上传后页面可能弹"是否解析附件"、自动填充，过一遍障碍层再重新抽取）
       let uploaded = false
       for (const p of plans) {
         const f = byId.get(p.fieldId)
         if (!f || !f.isFile || p.status !== 'fill' || !p.value) continue
         try {
+          progress(`上传简历「${basename(p.value)}」`, 'upload', f.label)
           await page.setInputFiles(f.selector, p.value)
           await humanDelay(pause[0] * 2, pause[1] * 2, opts)
+          if (!(await blockers('after_upload', rec)) && unresolvedBlocker) { pushPage(); return blockerHandoff(unresolvedBlocker) }
           const check = await checkUploadEcho(page, f, p.value)
           rec.uploads.push(check)
-          rec.filled.push({ fieldId: f.id, label: f.label, value: basename(p.value), source: p.source, layer: 'dom' })
+          rec.filled.push({ fieldId: f.id, label: f.label, value: basename(p.value), source: p.source, layer: 'dom', verified: check.echoed, strategy: 'upload' })
+          written.set(f.id, { value: p.value, stage: 'upload' })
           uploaded = true
+          recorder.trace({ stage: 'upload', field: f.id, label: f.label, result: check.echoed ? 'ok' : 'fail', detail: check.evidence })
           log(`上传 ${basename(p.value)}：${check.echoed ? '页面已回显' : '未看到回显'}`)
         } catch (e) {
-          rec.uploads.push({ fieldId: f.id, file: p.value, echoed: false, evidence: `上传失败：${e instanceof Error ? e.message : String(e)}` })
+          const c = classifyError(e)
+          recorder.trace({ stage: 'upload', field: f.id, label: f.label, result: 'fail', code: c.code, detail: c.raw })
+          rec.uploads.push({ fieldId: f.id, file: basename(p.value), echoed: false, evidence: `上传失败：${c.text}` })
         }
       }
-      if (uploaded) { fields = await extractFields(page); for (const f of fields) byId.set(f.id, f) }
+      if (uploaded) { fields = await step('抽取字段', () => extractFields(page)); for (const f of fields) byId.set(f.id, f) }
 
-      // 5. 批量填写（只填与当前值不同的；高影响缺答案 / 草稿不填）
+      // 5. 逐字段：填写 + 核验 + 失败回滚（只填与当前值不同的；高影响缺答案 / 草稿不填）
       for (const p of plans) {
         const f = byId.get(p.fieldId)
         if (!f) continue
@@ -272,83 +437,101 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         if (f.isFile || p.status !== 'fill' || p.value === undefined) continue
         if (f.layer === 'vision') {
           const r = await visionFill(page, visionOpts!, f.label, p.value)
-          if (r.ok) rec.filled.push({ fieldId: f.id, label: f.label, value: p.value, source: p.source, layer: 'vision' })
-          else rec.mismatches.push({ fieldId: f.id, label: f.label, expected: p.value, actual: `视觉层填写失败：${r.evidence}` })
+          // 视觉伪字段读不回 DOM：写进去了也标"未核验"，审阅时要人看
+          if (r.ok) rec.filled.push({ fieldId: f.id, label: f.label, value: p.value, source: p.source, layer: 'vision', verified: false, strategy: 'vision' })
+          else rec.needsUser.push({ fieldId: f.id, label: f.label, status: 'needs_user', source: p.source, confidence: 0, note: `${reasonText('vision_failed')}（${r.evidence}）`, code: 'vision_failed' })
+          recorder.trace({ stage: 'field', field: f.id, label: f.label, strategy: 'vision', result: r.ok ? 'ok' : 'fail', code: r.ok ? undefined : 'vision_failed', detail: r.evidence })
           await humanDelay(pause[0], pause[1], opts)
           continue
         }
-        if (sameValue(f, p.value)) { rec.filled.push({ fieldId: f.id, label: f.label, value: p.value, source: p.source, layer: 'dom' }); continue }
-        try {
-          await fillField(page, f, p.value, opts, actuate)
-          rec.filled.push({ fieldId: f.id, label: f.label, value: p.value, source: p.source, layer: 'dom' })
-          await humanDelay(pause[0], pause[1], opts)
-        } catch (e) {
-          rec.mismatches.push({ fieldId: f.id, label: f.label, expected: p.value, actual: `填写失败：${e instanceof Error ? e.message : String(e)}` })
+        if (sameValue(f, p.value)) {
+          const display = await readDisplay(page, f)
+          if (displayMatches(display || f.value, p.value, f)) {
+            written.set(f.id, { value: p.value, stage: 'prefilled' })
+            rec.filled.push({ fieldId: f.id, label: f.label, value: p.value, source: p.source, layer: 'dom', verified: true, strategy: 'already', display: display || f.value })
+            continue
+          }
         }
+        let att = await fillAndVerify(fillDeps, f, p.value, 'field')
+        // L2：普通文本框 DOM 填不进（完全自绘 / 吞输入）→ 视觉层坐标键入，再用 DOM 读回核验
+        if (!att.verified && visionOpts && TEXTLIKE.has(f.type) && f.framework !== 'mtd' && ['readback_mismatch'].includes(att.code ?? '')) {
+          const r = await visionFill(page, visionOpts, f.label, p.value)
+          layersUsed.add('vision')
+          const display = await readDisplay(page, f)
+          const ok = r.ok && displayMatches(display, p.value, f)
+          rec.escalations.push({ reason: 'fill_mismatch', field: f.label, outcome: ok ? 'recovered' : 'failed', evidence: r.evidence })
+          if (ok) att = { verified: true, strategy: 'vision', display }
+          else if (r.ok) att = { ...att, rollback: await rollbackText(page, f) }
+        } else if (att.verified && att.strategy === 'native-setter') {
+          rec.escalations.push({ reason: 'fill_mismatch', field: f.label, outcome: 'recovered', evidence: '页内执行器重填' })
+        }
+        record(f, p.value, p.source, att, 'field')
+        await humanDelay(pause[0], pause[1], opts)
       }
 
       // 5.5 重复分区（教育 / 实习工作 / 项目经历的"表格"）：逐行填，不够就点"添加一行"再填新出现的那一行（只在 DOM 层）
       if (layer === 'dom') {
         try {
+          if (!(await blockers('section', rec)) && unresolvedBlocker) { pushPage(); return blockerHandoff(unresolvedBlocker) }
           // 重新抽取：拿到第 5 步填完后的当前值，已有值的行不覆盖
-          fields = await extractFields(page); for (const f of fields) byId.set(f.id, f)
+          fields = await step('抽取字段', () => extractFields(page)); for (const f of fields) byId.set(f.id, f)
+          const planned = new Set(plans.filter(p => p.status !== 'skip').map(p => p.fieldId))
           const sec = await fillRepeatingSections(page, fields, profile, {
-            fill: (f, v) => fillField(page, f, v, opts, actuate), settleMs: opts.settleMs, log, isSubmit: t => isSubmitText(t, adapter), resolveValue: opts.resolveValue,
+            fill: async (f, v) => {
+              const att = await fillAndVerify(fillDeps, f, v, 'section')
+              record(f, v, 'profile', att, 'section')
+              return att.verified
+            },
+            // 同一字段只写一次：字段阶段已写过 / 计划过的不再由分区写入
+            skip: f => written.has(f.id) || planned.has(f.id) || !!f.labelUncertain,
+            settleMs: opts.settleMs, log, isSubmit: t => isSubmitText(t, adapter), resolveValue: opts.resolveValue,
+            beforeSection: async () => { await blockers('section', rec) },
           })
-          for (const f of sec.filled) rec.filled.push({ fieldId: f.fieldId, label: f.label, value: f.value, source: 'profile', layer: 'dom' })
           if (sec.sections.length) rec.sections = sec.sections
           if (sec.fields !== fields) { fields = sec.fields; for (const f of fields) byId.set(f.id, f) }
-          for (const s of sec.sections) if (s.note) log(`分区「${s.key}」：${s.note}`)
-        } catch (e) { log(`重复分区填写异常：${e instanceof Error ? e.message : String(e)}`) }
+          for (const s of sec.sections) {
+            if (s.note) log(`分区「${s.key}」：${s.note}`)
+            if (s.filled || s.added) progress(`${s.key === 'education' ? '教育经历' : s.key === 'experience' ? '实习/工作经历' : '项目经历'}：填了 ${s.filled} 格${s.added ? `，新增 ${s.added} 行` : ''}`, 'section')
+          }
+        } catch (e) { log(`重复分区填写异常：${e instanceof Error ? e.message : String(e)}`); recorder.bump('section_error') }
       }
 
-      // 6. 差异核对（只对 DOM 层）：重新抽取，比对计划值；只修差异，最多修一次；仍不一致 → 视觉层兜底
+      // 6. 整页复核（只对 DOM 层）：核验通过的值有没有被页面后来的动作冲掉（如上传解析回填、联动清空）；冲掉的重填一次，再不行就清空留给用户
       if (layer === 'dom') {
-        const after = await extractFields(page)
-        const domFilled = rec.filled.filter(r => !byId.get(r.fieldId)?.isFile)
-        const diffs = diffAgainstPlan(after, domFilled)
-        for (const d of diffs) {
+        const after = await step('抽取字段', () => extractFields(page))
+        const verifiedNow = rec.filled.filter(r => r.verified && r.strategy !== 'upload' && !byId.get(r.fieldId)?.isFile)
+        for (const d of diffAgainstPlan(after, verifiedNow)) {
           const f = after.find(x => x.id === d.fieldId)
-          if (!f) { rec.mismatches.push(d); continue }
-          // 第一次重试：页内执行器（原型链 setter / 框架适配器），不行再用 Playwright 原路径
-          if (await actuate(f, d.expected, 'auto')) { rec.escalations.push({ reason: 'fill_mismatch', field: f.label, outcome: 'recovered', evidence: '页内执行器重填' }); continue }
-          try { await fillField(page, f, d.expected, opts) } catch { /* 下面再核对一次 */ }
-        }
-        if (diffs.length) {
-          let remaining = diffAgainstPlan(await extractFields(page), domFilled)
-          if (remaining.length && visionOpts) {
-            // L2：按标签找输入框，坐标点击 + 逐字键入，再用 DOM 读回核对
-            for (const m of remaining) {
-              const r = await visionFill(page, visionOpts, m.label, m.expected)
-              rec.escalations.push({ reason: 'fill_mismatch', field: m.label, outcome: r.ok ? 'recovered' : 'failed', evidence: r.evidence })
-              const rf = rec.filled.find(x => x.fieldId === m.fieldId); if (rf && r.ok) rf.layer = 'vision'
-            }
-            layersUsed.add('vision')
-            remaining = diffAgainstPlan(await extractFields(page), domFilled)
-            for (const e of rec.escalations) if (e.reason === 'fill_mismatch' && e.outcome === 'recovered' && remaining.some(m => m.label === e.field)) e.outcome = 'failed'
-          }
-          rec.mismatches.push(...remaining)
-          for (const e of rec.escalations) if (e.reason === 'fill_mismatch' && e.outcome === 'recovered' && remaining.some(m => m.label === e.field)) e.outcome = 'failed'
+          const display = f ? await readDisplay(page, f) : ''
+          if (f && displayMatches(display, d.expected, f)) continue
+          const idx = rec.filled.findIndex(r => r.fieldId === d.fieldId)
+          const old = rec.filled[idx]
+          rec.filled.splice(idx, 1)
+          recorder.trace({ stage: 'recheck', field: d.fieldId, label: d.label, result: 'fail', code: 'readback_mismatch', detail: `复核时显示「${display}」` })
+          if (!f) { rec.needsUser.push({ fieldId: d.fieldId, label: d.label, status: 'needs_user', source: old.source, confidence: 0, note: reasonText('element_missing'), code: 'element_missing' }); continue }
+          const att = await fillAndVerify(fillDeps, f, d.expected, 'recheck')
+          record(f, d.expected, old.source, att, 'recheck')
         }
         // 站点记忆：读回核对通过的 profile 字段，记下"这站这个字段 ↔ 资料键"，下次别名匹配不到也能直填
         if (opts.siteMemory) {
-          const bad = new Set(rec.mismatches.map(m => m.fieldId))
+          const good = new Set(rec.filled.filter(r => r.verified).map(r => r.fieldId))
           for (const p of plans) {
             const f = byId.get(p.fieldId)
-            if (!f || !p.key || p.status !== 'fill' || bad.has(p.fieldId) || !rec.filled.some(r => r.fieldId === p.fieldId)) continue
+            if (!f || !p.key || p.status !== 'fill' || !good.has(p.fieldId)) continue
             opts.siteMemory.remember(host, { name: f.name, xpath: f.xpath, label: f.label }, p.key, p.note === '按站点记忆匹配' ? 'learned' : 'alias')
             all.memorized++
           }
         }
-      }
-      sig = await page.evaluate(pageSignalsScript)
+        rec.fields = outcomesFor(index, after.length ? after : fields, rec)
+      } else rec.fields = outcomesFor(index, fields, rec)
+      sig = await step('读取页面信号', () => page.evaluate(pageSignalsScript))
       rec.errors = sig.errors
       // 填写过程中可能触发验证码
       const ob2 = detectObstacle(sig, adapter)
       if (ob2) { pushPage(); opts.riskGuard?.inspect(sig, adapter); return handoff(ob2.reason, sig, ob2.evidence, '填写过程中出现需要你本人处理的情况：') }
 
       // 7. 找按钮：提交一律不点；有"下一步"就点；DOM 找不到 → 视觉层找文案
-      const submit = sig.buttons.find(b => isSubmitText(b.text, adapter))
+      const submit = findFinalSubmit(sig.buttons, adapter)
       const next = sig.buttons.find(b => !b.disabled && isNextText(b.text, adapter))
       if (!next && !submit && visionOpts) {
         const submitWords = [...(adapter.hints.submitWords ?? []), ...SUBMIT_WORDS]
@@ -357,7 +540,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           rec.escalations.push({ reason: 'no_next_button', outcome: 'stopped', evidence: `DOM 没有按钮，截图里看到提交类按钮「${vSubmit.text}」` })
           layersUsed.add('vision'); pushPage()
           if (untouched()) return entryHandoff(vSubmit.text)
-          return finish('stopped_before_submit', `已停在提交按钮「${vSubmit.text}」前（视觉层识别），等待你本人确认提交`, { submitButton: vSubmit.text, reason: 'submit_confirm' })
+          return finish('stopped_before_submit', `已填完，停在「${vSubmit.text}」前（视觉层识别），等你确认后再提交`, { submitButton: vSubmit.text, reason: 'submit_confirm' })
         }
         const vNext = await visionClickText(page, visionOpts, [...(adapter.hints.nextButton ?? []), ...NEXT_WORDS], t => isSubmitText(t, adapter))
         layersUsed.add('vision')
@@ -369,32 +552,78 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           await humanDelay(pause[0], pause[1], opts)
           continue
         }
-        rec.escalations.push({ reason: 'no_next_button', outcome: 'failed', evidence: vNext.refused ? vNext.evidence : vNext.evidence })
+        rec.escalations.push({ reason: 'no_next_button', outcome: 'failed', evidence: vNext.evidence })
       }
       if (!next) {
         pushPage()
         if (untouched()) return submit ? entryHandoff(submit.text) : finish('blocked', '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
-        const msg = submit ? `已停在提交按钮「${submit.text}」前，等待你本人确认提交` : '表单已填完，页面上没有找到下一步或提交按钮，请人工检查'
+        const msg = submit ? `已填完，停在「${submit.text}」前，等你确认后再提交` : '表单已填完，页面上没有找到下一步或提交按钮，请人工检查'
         return finish('stopped_before_submit', msg, { submitButton: submit?.text, reason: submit ? 'submit_confirm' : undefined })
       }
       rec.nextButton = next.text
       pushPage()
-      await clickButton(page, next, adapter)
+      progress(`点击「${next.text}」`, 'page')
+      try { await clickButton(page, next, adapter) } catch (e) {
+        // 被弹窗挡住 / 超时：过一遍障碍层再点一次；提交类文案的拒绝不重试
+        const c = classifyError(e)
+        if (c.code !== 'blocked_by_overlay' && c.code !== 'timeout') throw e
+        recorder.trace({ stage: 'next', action: 'click', result: 'fail', code: c.code, detail: c.raw })
+        if (!(await blockers('next', rec)) && unresolvedBlocker) return blockerHandoff(unresolvedBlocker)
+        await clickButton(page, next, adapter)
+      }
       await page.waitForTimeout(opts.settleMs ?? 800)
       await humanDelay(pause[0], pause[1], opts)
 
-      function pushPage() { pages.push(rec); all.filled.push(...rec.filled); all.needsUser.push(...rec.needsUser); all.drafts.push(...rec.drafts); all.mismatches.push(...rec.mismatches); all.uploads.push(...rec.uploads); all.escalations.push(...rec.escalations); opts.onPage?.(rec) }
+      function pushPage() {
+        rec.fields ??= outcomesFor(index, fields, rec)
+        pages.push(rec); all.filled.push(...rec.filled); all.needsUser.push(...rec.needsUser); all.drafts.push(...rec.drafts); all.mismatches.push(...rec.mismatches); all.uploads.push(...rec.uploads); all.escalations.push(...rec.escalations); allFields.push(...rec.fields); opts.onPage?.(rec)
+      }
     }
     // 走完页数上限还没见到提交按钮
     const sig = await page.evaluate(pageSignalsScript)
-    const submit = sig.buttons.find(b => isSubmitText(b.text, adapter))
+    const submit = findFinalSubmit(sig.buttons, adapter)
     if (submit && untouched()) return entryHandoff(submit.text)
-    if (submit) return finish('stopped_before_submit', `已停在提交按钮「${submit.text}」前，等待你本人确认提交`, { submitButton: submit.text, reason: 'submit_confirm' })
+    if (submit) return finish('stopped_before_submit', `已填完，停在「${submit.text}」前，等你确认后再提交`, { submitButton: submit.text, reason: 'submit_confirm' })
     return finish('blocked', `已走完 ${maxPages} 页仍未到提交页，停止以免失控`)
   } catch (e) {
-    const screenshot = await shot()
-    return { status: 'failed', message: `网申驱动异常：${e instanceof Error ? e.message : String(e)}`, pages, ...all, layersUsed: [...layersUsed], screenshot, finalUrl: page.url(), adapterId: adapter.id }
+    const c = classifyError(e)
+    recorder.trace({ stage: 'crash', result: 'fail', code: c.code, detail: c.raw })
+    const screenshot = await page.screenshot().catch(() => undefined)
+    const result: DriveResult = { status: 'failed', message: `网申填写中断：${c.text}`, failureCode: c.code, pages, ...all, layersUsed: [...layersUsed], fields: allFields, blockers: allBlockers, entryClicked, libraries, ...(telemetryRef ? { telemetry: telemetryRef } : {}), screenshot, finalUrl: page.url(), adapterId: adapter.id }
+    summarize('failed', result)
+    return result
   }
+}
+
+async function readDisplay(page: PageLike, f: FormField): Promise<string> {
+  if (f.layer === 'vision') return ''
+  try { return (await page.evaluate(readDisplayScript, { selector: f.selector })).display } catch { return f.value ?? '' }
+}
+async function rollbackText(page: PageLike, f: FormField): Promise<'restored' | 'failed'> {
+  try { await page.fill(f.selector, f.value ?? ''); return normKey(await readDisplay(page, f)) === normKey(f.value ?? '') ? 'restored' : 'failed' } catch { return 'failed' }
+}
+
+/** 本页每个字段的最终状态。 */
+function outcomesFor(index: number, fields: FormField[], rec: PageRecord): FieldOutcome[] {
+  const out: FieldOutcome[] = []
+  for (const f of fields) {
+    const base = { fieldId: f.id, label: f.label, page: index, type: f.type, required: f.required, ...(f.requiredVia ? { requiredVia: f.requiredVia } : {}), ...(f.labelUncertain ? { labelUncertain: f.labelUncertain } : {}) }
+    const filled = rec.filled.find(r => r.fieldId === f.id)
+    const mm = rec.mismatches.find(r => r.fieldId === f.id)
+    const nu = rec.needsUser.find(r => r.fieldId === f.id)
+    const dr = rec.drafts.find(r => r.fieldId === f.id)
+    if (mm) out.push({ ...base, status: 'mismatch', verified: false, value: mm.expected, display: mm.actual, code: mm.code, reason: mm.reason })
+    else if (filled) out.push({ ...base, status: filled.verified ? 'verified' : 'unverified', verified: !!filled.verified, value: filled.value, display: filled.display, strategy: filled.strategy, source: filled.source })
+    else if (nu) out.push({ ...base, status: 'needs_user', verified: false, code: nu.code, reason: nu.note, source: nu.source })
+    else if (dr) out.push({ ...base, status: 'draft', verified: false, value: dr.value, source: 'draft' })
+    else {
+      const empty = f.type === 'checkbox' ? f.value !== 'true' : !(f.value ?? '').trim()
+      if (!empty) out.push({ ...base, status: 'prefilled', verified: false, display: f.value })
+      else if (f.required) out.push({ ...base, status: 'needs_user', verified: false, reason: '必填项还是空的' })
+      else out.push({ ...base, status: 'empty_optional', verified: false })
+    }
+  }
+  return out
 }
 
 /** 点击前最后一道防线：文案像提交就拒绝。 */
@@ -402,40 +631,11 @@ async function clickButton(page: PageLike, b: ButtonInfo, adapter: SiteAdapter):
   if (isSubmitText(b.text, adapter)) throw new Error(`拒绝点击提交类按钮「${b.text}」`)
   await page.click(b.selector)
 }
-
-type Actuate = (f: FormField, value: string, kind?: 'auto' | 'text' | 'select' | 'date' | 'richtext') => Promise<boolean>
-const isDateLike = (f: FormField) => f.type === 'date' || DATE_FIELD_RX.test(`${f.label} ${f.placeholder ?? ''}`) || /yyyy|年|月/i.test(f.placeholder ?? '')
-
-/**
- * 填一个字段。顺序：
- *  - 自定义下拉 / 第三方日期控件：先页内执行器（antd / element / … 按框架指纹点选），再退回"点开 → 键入 → 回车"；
- *  - 原生控件：Playwright fill / selectOption / click；
- *  - 富文本：fill 不行再页内 insertText。
- */
-async function fillField(page: PageLike, f: FormField, value: string, opts: DriveOptions, actuate?: Actuate): Promise<void> {
-  switch (f.type) {
-    case 'select': {
-      if (f.custom) {
-        if (actuate && await actuate(f, value, 'select')) return
-        if (page.keyboard) { await page.locator(f.selector).click(); await page.keyboard.type(value); await page.keyboard.press('Enter') }
-        else await page.fill(f.selector, value)
-        return
-      }
-      try { await page.selectOption(f.selector, { label: value }) } catch { try { await page.selectOption(f.selector, value) } catch (e) { if (!actuate || !(await actuate(f, value, 'select'))) throw e } }
-      return
-    }
-    case 'radio': await page.click(radioOptionSelector(f, value)); return
-    case 'checkbox': { const want = /^(true|1|yes|是)$/i.test(value); if ((f.value === 'true') !== want) await page.click(f.selector); return }
-    case 'file': await page.setInputFiles(f.selector, value); return
-    case 'richtext':
-      try { await page.fill(f.selector, value) } catch (e) { if (!actuate || !(await actuate(f, value, 'richtext'))) throw e }
-      return
-    default:
-      // 第三方日期控件（antd / element / My97…）直接 fill 往往被面板吞掉：先走页内执行器
-      if (actuate && f.framework && f.framework !== 'native' && isDateLike(f) && await actuate(f, value, 'date')) return
-      if (opts.humanTyping) await typeLikeHuman(page, f.selector, value, opts)
-      else await page.fill(f.selector, value)
-  }
+/** 申请入口：只认入口文案（立即申请 / 申请职位 / 我要投递 / Apply…），且调用方已确认页面上没有表单字段。 */
+async function clickEntry(page: PageLike, b: ButtonInfo, adapter: SiteAdapter): Promise<void> {
+  if (!isEntryText(b.text)) throw new Error(`「${b.text}」不是申请入口按钮`)
+  if ((adapter.hints.submitWords ?? []).some(w => normKey(w) === normKey(b.text)) && !/申请|apply/i.test(b.text)) throw new Error(`「${b.text}」是该站的提交按钮`)
+  await page.click(b.selector)
 }
 
 function sameValue(f: FormField, v: string): boolean {
@@ -444,7 +644,7 @@ function sameValue(f: FormField, v: string): boolean {
   if (normKey(f.value) === normKey(v)) return true
   // 下拉：页面显示的是选项文案（"硕士研究生"），计划值可能是资料写法（"硕士"）→ 字典 / 包含匹配算一致
   if (f.type === 'select') return !!matchOption([f.value], v, { label: f.label })
-  return false
+  return displayMatches(f.value, v, f)
 }
 
 /** 比对"页面现在的值"与"计划值"。 */

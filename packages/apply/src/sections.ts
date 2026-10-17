@@ -84,7 +84,12 @@ export function findAddButton(buttons: ButtonInfo[], spec: SectionSpec, adapterS
 export interface SectionFillRecord { fieldId: string; label: string; value: string; section: SectionKey; row: number }
 export interface SectionSummary { key: SectionKey; entries: number; rowsBefore: number; rowsAfter: number; filled: number; added: number; note?: string }
 export interface FillSectionsOptions {
-  fill: (field: FormField, value: string) => Promise<void>
+  /** 填一格；返回 false 表示没核验通过（不记成已填）。 */
+  fill: (field: FormField, value: string) => Promise<void | boolean>
+  /** 这一格不由分区写入（字段阶段已写过 / 计划过、标签可疑）：同一字段只写一次。 */
+  skip?: (field: FormField) => boolean
+  /** 每个分区开始前（过一遍障碍层）。 */
+  beforeSection?: () => Promise<void>
   settleMs?: number
   maxRows?: number
   log?: (msg: string) => void
@@ -103,11 +108,12 @@ export async function fillRepeatingSections(page: PageLike, fields: FormField[],
       const raw = entry[key]
       if (!raw) continue
       if (field.value && field.value.trim()) continue // 已有值（基本信息层或用户自己填的）不覆盖
+      if (opts.skip?.(field)) continue
       // 占位符 → 明文，再按字段整形（学历字典、日期按 placeholder / type 推断格式）
       const value = normalizeValueForField(opts.resolveValue ? opts.resolveValue(raw) : raw, { key, label: field.label, placeholder: field.placeholder, type: field.type, options: field.options, sample: field.value })
       try {
-        await opts.fill(field, field.maxLength ? value.slice(0, field.maxLength) : value)
-        filled.push({ fieldId: field.id, label: field.label, value, section: spec.key, row: rowIndex })
+        const ok = await opts.fill(field, field.maxLength ? value.slice(0, field.maxLength) : value)
+        if (ok !== false) filled.push({ fieldId: field.id, label: field.label, value, section: spec.key, row: rowIndex })
       } catch (e) { opts.log?.(`分区「${spec.title}」第 ${rowIndex + 1} 行「${field.label}」填写失败：${e instanceof Error ? e.message : String(e)}`) }
     }
   }
@@ -116,6 +122,7 @@ export async function fillRepeatingSections(page: PageLike, fields: FormField[],
     if (!entries.length) continue
     let rows = groupRows(current, spec)
     if (!rows.length) continue
+    await opts.beforeSection?.()
     const rowsBefore = rows.length
     let added = 0
     let note: string | undefined

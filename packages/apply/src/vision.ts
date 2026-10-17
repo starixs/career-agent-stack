@@ -1,5 +1,6 @@
 import type { PageLike } from './page.js'
 import { scrollByScript } from './scripts.js'
+import { activeEditableScript, pageSelectionScript } from './widgets.js'
 import { humanDelay, type PacingOptions } from './pacing.js'
 import { center, locateInputForLabel, locateButton, type Perceiver, type Perception, type UiElement } from './perception.js'
 
@@ -63,13 +64,26 @@ export async function visionFill(page: PageLike, opts: VisionOptions, label: str
   await page.mouse.click(c.x, c.y)
   await humanDelay(opts.pause?.[0] ?? 80, opts.pause?.[1] ?? 200, opts)
   if (hit.target.kind === 'checkbox' || hit.target.kind === 'radio') return { ok: true, via: hit.via, evidence: `已点击 ${hit.target.kind}`, perception }
+  if (hit.target.kind === 'select') {
+    // 下拉：不打字、不按回车（不可搜索的下拉打字等于没选），截图里找到选项文字再点它；核验交给 DOM 读回
+    await humanDelay(opts.pause?.[0] ?? 200, opts.pause?.[1] ?? 500, opts)
+    const opt = await visionFind(page, { ...opts, maxScrolls: 0 }, p => locateButton(p, [value]), `寻找选项「${value}」`)
+    if (!opt) return { ok: false, via: hit.via, evidence: `点开「${label}」后截图里没看到选项「${value}」`, perception }
+    const oc = center(opt.hit.box)
+    await page.mouse.click(oc.x, oc.y)
+    return { ok: true, via: hit.via, evidence: `视觉层点选「${opt.hit.text}」`, perception }
+  }
+  // 危险键位白名单：只有焦点落在可编辑元素上才全选清空 + 键入；点到标签 / 只读控件时一个键也不按（否则 Meta+A 会全选整页）
+  const focus = await page.evaluate(activeEditableScript, { x: c.x, y: c.y }).catch(() => null)
+  if (!focus?.editable || !focus.isTarget) return { ok: false, via: hit.via, evidence: `点击后焦点不在可编辑输入框上（${focus?.tag || '无焦点'}），没有键入`, perception }
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A')
   await page.keyboard.press('Backspace')
   for (const ch of Array.from(value)) {
     await page.keyboard.type(ch)
     if (opts.typeDelayMs !== 0) await humanDelay(opts.typeDelayMs ?? 40, (opts.typeDelayMs ?? 40) * 3, opts)
   }
-  if (hit.target.kind === 'select') { await humanDelay(opts.pause?.[0] ?? 200, opts.pause?.[1] ?? 500, opts); await page.keyboard.press('Enter') }
+  // 兜底：万一整页被选中（焦点在动作中途被页面抢走），收起选区
+  await page.evaluate(pageSelectionScript, { collapse: true }).catch(() => null)
   return { ok: true, via: hit.via, evidence: `视觉层键入 ${value.length} 字`, perception }
 }
 

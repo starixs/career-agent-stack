@@ -79,15 +79,35 @@ describe('driveApplication', () => {
     const r = await driveApplication(page, noLLM(), profile, quiet)
     expect(r.status).toBe('blocked'); expect(r.message).toContain('手机号格式不正确')
   })
-  it('岗位详情页（没有表单，只有「立即申请」入口）→ 交给用户点进去，不当成提交、不点击', async () => {
-    const page = new FakePage({ url: 'https://zhaopin.meituan.com/web/position/detail', text: '岗位职责 任职要求', buttons: [{ text: '立即申请', submit: true }] })
+  it('岗位详情页：「立即申请」是申请入口 → 点进去接着填，停在表单页的「投递」前且绝不点', async () => {
+    const page = new FakePage([
+      { url: 'https://zhaopin.meituan.com/web/position/detail', text: '岗位职责 任职要求', buttons: [{ text: '立即申请', goto: 'https://zhaopin.meituan.com/web/delivery' }] },
+      { url: 'https://zhaopin.meituan.com/web/delivery', fields: basics, buttons: [{ text: '投递', submit: true }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, quiet)
+    expect(r.entryClicked).toBe('立即申请')
+    expect(r.status).toBe('stopped_before_submit')
+    expect(r.submitButton).toBe('投递')
+    expect(page.submitted).toBe(false)
+    expect(page.actions.filter(a => a.kind === 'click' && a.target?.startsWith('button:')).map(a => a.target)).toEqual(['button:立即申请'])
+    expect(page.fieldValues()).toMatchObject({ 姓名: '张三' })
+  })
+  it('详情页上的「立即投递」可能是一键投递：不点，交给用户', async () => {
+    const page = new FakePage({ url: 'https://x.com/job/1', text: '岗位职责', buttons: [{ text: '立即投递', submit: true }] })
     const r = await driveApplication(page, noLLM(), profile, quiet)
     expect(r.status).toBe('handoff')
-    expect(r.reason).toBe('login')
-    expect(r.userAction).toContain('立即申请')
-    expect(r.submitButton).toBeUndefined()
+    expect(r.userAction).toContain('立即投递')
     expect(page.submitted).toBe(false)
     expect(page.actions.some(a => a.kind === 'click' && a.target?.startsWith('button:'))).toBe(false)
+  })
+  it('入口点进去跳到登录页 → 交给用户登录（不点登录）', async () => {
+    const page = new FakePage([
+      { url: 'https://x.com/job/1', text: '岗位职责', buttons: [{ text: '申请职位', goto: 'https://x.com/login' }] },
+      { url: 'https://x.com/login', login: true, fields: [{ label: '账号' }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, quiet)
+    expect(r.entryClicked).toBe('申请职位')
+    expect(r.status).toBe('handoff'); expect(r.reason).toBe('login')
   })
   it('没有字段 → blocked；风险锁 → blocked', async () => {
     expect((await driveApplication(new FakePage({ url: 'https://x.com/jd', text: '岗位介绍' }), noLLM(), profile, quiet)).status).toBe('blocked')
