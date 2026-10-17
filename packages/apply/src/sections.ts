@@ -73,12 +73,19 @@ export function entriesFor(key: SectionKey, profile: Profile): SectionEntry[] {
   return profile.experiences.filter(e => !e.org || /课程项目|个人项目|课设|毕业设计/.test(e.org)).map(e => ({ name: e.title, role: e.role, ...split(e.period), description: e.claims.join('；') || undefined }))
 }
 
+/** "添加"后面没有具体对象：只剩量词 / 泛称（一条、一行、更多、another…）。 */
+export function isBareAdd(text: string): boolean {
+  const rest = text.trim().replace(ADD_BUTTON_RX, '').replace(/^(\s|更多|一条|一行|一段|一个|一项|条|行|段|项|more|another|new|row|entry)+/i, '').replace(/[\s+＋…\.。]+$/g, '')
+  return rest.length === 0
+}
+
 /** 找该分区的"添加"按钮：带分区名的优先；只有一个泛用"添加"时也接受。 */
 export function findAddButton(buttons: ButtonInfo[], spec: SectionSpec, adapterSubmit: (t: string) => boolean = t => isSubmitText(t)): ButtonInfo | undefined {
   const adds = buttons.filter(b => !b.disabled && ADD_BUTTON_RX.test(b.text.trim()) && !adapterSubmit(b.text))
   const specific = adds.find(b => spec.titleRx.test(b.text))
   if (specific) return specific
-  const generic = adds.filter(b => !SECTIONS.some(s => s.titleRx.test(b.text)))
+  // 泛用"添加"只认不带宾语的（"+ 添加""添加一条""add more"）；"添加更多志愿""新增附件"这类写明了别的对象的，不能拿来加这一分区的行
+  const generic = adds.filter(b => !SECTIONS.some(s => s.titleRx.test(b.text)) && isBareAdd(b.text))
   return generic.length === 1 ? generic[0] : undefined
 }
 
@@ -132,7 +139,12 @@ export async function fillRepeatingSections(page: PageLike, fields: FormField[],
     while (rows.length < entries.length && rows.length < maxRows) {
       const sig = await page.evaluate(pageSignalsScript)
       const btn = findAddButton(sig.buttons, spec, opts.isSubmit)
-      if (!btn) { note = `还有 ${entries.length - rows.length} 条没地方填：没有找到「添加${spec.title}」按钮`; break }
+      if (!btn) {
+        // 遥测：页面上收集到的"添加"类入口，方便复盘为什么没认出这一分区的入口
+        const seen = sig.buttons.filter(b => ADD_BUTTON_RX.test(b.text.trim())).map(b => b.text).slice(0, 8)
+        note = `还有 ${entries.length - rows.length} 条没地方填：没有找到「添加${spec.title}」按钮${seen.length ? `（页面上的添加入口：${seen.join(' / ')}）` : '（页面上没收集到添加入口）'}`
+        break
+      }
       const prevIds = new Set(current.map(f => f.id))
       opts.log?.(`分区「${spec.title}」：点击「${btn.text}」添加第 ${rows.length + 1} 行`)
       await page.click(btn.selector)

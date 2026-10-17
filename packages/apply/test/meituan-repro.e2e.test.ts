@@ -51,7 +51,11 @@ const profile = {
     { school: '清华大学', major: '电子信息', degree: '硕士', start: '2024-09', end: '2027-06' },
     { school: '西京大学', major: '计算机科学与技术', degree: '本科', start: '2020-09', end: '2024-06' },
   ],
-  answerBank: [],
+  answerBank: [
+    { question_key: '外语语种', question_text: '外语语种', answer: '英语', high_impact: false, confirmed: true },
+    { question_key: '外语等级', question_text: '外语等级', answer: 'CET-6', high_impact: false, confirmed: true },
+    { question_key: '考试分数', question_text: '考试分数', answer: '560', high_impact: false, confirmed: true },
+  ],
   resumePath: resume,
 }
 
@@ -77,6 +81,7 @@ async function run(page: Page, url: string, runId: string) {
     lab: (document.getElementById('lab-input') as HTMLInputElement).value,
     overlay: !!document.querySelector('[data-career-overlay]'),
     contactEmail: (document.getElementById('contact-email') as HTMLInputElement).value,
+    langScore: (document.getElementById('lang-score') as HTMLInputElement).value,
     // 页面上所有文本框的值（复核把值写错格子时，邮箱 / 手机号会出现在别的格子里）
     textValues: Array.from(document.querySelectorAll('input[type=text]')).map(i => ({ id: i.id, ph: i.getAttribute('placeholder') ?? '', v: (i as HTMLInputElement).value })),
   }))
@@ -90,6 +95,10 @@ describe('美团式复现页（真实 Chrome）', () => {
     const { result: r, state, progress } = await run(page, `${base}/detail.html`, 'act_repro_ok')
     // 加一行教育经历会让后面字段的编号顺移：复核必须认准同一个格子，不能把值写进别的格子
     expect(state.contactEmail).toBe('zhangsan@example.com')
+    // 联动：外语等级点开时还是「无数据」，等选项加载后从列表里选；选了英语才出现的「考试分数」回头补上
+    expect(state.model).toMatchObject({ langType: '英语', langLevel: 'CET-6' })
+    expect(state.typed.langLevel).toBeUndefined()
+    expect(state.langScore).toBe('560')
     expect(state.textValues.filter(t => t.v.includes('@')).map(t => t.id)).toEqual(['', 'contact-email'].filter(id => state.textValues.some(t => t.id === id && t.v.includes('@'))))
     expect(state.textValues.filter(t => t.v.includes('@')).length).toBe(2) // 基本信息邮箱 + 联系邮箱，别处不该有
 

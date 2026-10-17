@@ -27,6 +27,10 @@ describe('重复分区（表格）', () => {
     const b = (text: string, i: number) => ({ id: `b${i}`, text, selector: `[data-career-btn="b${i}"]`, disabled: false })
     expect(findAddButton([b('添加教育经历', 0), b('添加工作经历', 1)], edu)?.text).toBe('添加教育经历')
     expect(findAddButton([b('+ 添加', 0)], exp)?.text).toBe('+ 添加')
+    // 写明了别的对象的「添加更多志愿」不是教育经历的添加入口（真机：点了它多出一行空的第二志愿）
+    expect(findAddButton([b('添加更多志愿', 0)], edu)).toBeUndefined()
+    expect(findAddButton([b('添加更多志愿', 0), b('添加教育经历', 1)], edu)?.text).toBe('添加教育经历')
+    expect(findAddButton([b('添加一条', 0)], edu)?.text).toBe('添加一条')
     expect(findAddButton([b('添加', 0), b('新增', 1)], exp)).toBeUndefined()
     expect(findAddButton([b('添加并提交', 0)], exp)).toBeUndefined()
   })

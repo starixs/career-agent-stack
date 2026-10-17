@@ -130,6 +130,8 @@ canvas.label-canvas{display:block;height:20px}
     <h3 class="section-title">外语能力</h3>
     <div class="mtd-form-item"><label class="mtd-form-item-label">外语语种</label><div class="mtd-form-item-content"><div class="mtd-form-item-wrapper" data-slot="langType"></div></div></div>
     <div class="mtd-form-item"><label class="mtd-form-item-label">外语等级</label><div class="mtd-form-item-content"><div class="mtd-form-item-wrapper" data-slot="langLevel"></div></div></div>
+    <!-- 真机：选了语言类型后才多出来的格子（选「英语」才出现分数）；一开始不在页面上 -->
+    <div class="mtd-form-item" id="lang-score-item" style="display:none"><label class="mtd-form-item-label">考试分数</label><div class="mtd-form-item-content"><div class="mtd-input"><input type="text" id="lang-score" placeholder="请输入分数"></div></div></div>
   </div>
   <div class="section">
     <h3 class="section-title">其他</h3>
@@ -241,7 +243,7 @@ canvas.label-canvas{display:block;height:20px}
   const city = document.querySelector('.mtd-select-multiple')
   city.querySelector('.mtd-select-filter').addEventListener('click', () => {})
   let levelsLoaded = false
-  mountSelect(document.querySelector('[data-slot="langType"]'), { key: 'langType', options: () => ['英语', '日语', '韩语'], onChange: () => { levelsLoaded = false; setTimeout(() => { levelsLoaded = true; level.refresh() }, 700) } })
+  mountSelect(document.querySelector('[data-slot="langType"]'), { key: 'langType', options: () => ['英语', '日语', '韩语'], onChange: () => { levelsLoaded = false; setTimeout(() => { levelsLoaded = true; level.refresh(); document.getElementById('lang-score-item').style.display = model.langType === '英语' ? '' : 'none' }, 700) } })
   const level = mountSelect(document.querySelector('[data-slot="langLevel"]'), { key: 'langLevel', options: () => levelsLoaded ? ['CET-4', 'CET-6', 'TEM-4', 'TEM-8', '雅思', '托福'] : [], emptyText: '无数据' })
   mountSelect(document.querySelector('[data-slot="gender"]'), { key: 'gender', options: () => ['男', '女'], readonly: true })
   mountSelect(document.querySelector('[data-slot="area"]'), { key: 'area', options: () => ['86', '852'], disabled: true, value: '86' })

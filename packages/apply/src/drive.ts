@@ -511,6 +511,35 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       await retryDisabled()
 
+      // 5.3 前面的选择让页面多出了格子（选了「英语」才出现「语言考试 / 分数」）：重新抽取，只解释、填写之前没规划过的格子，最多两轮
+      if (layer === 'dom') {
+        const known = new Set(Array.from(planFields.values()).map(slotOf))
+        for (let round = 0; round < 2; round++) {
+          let now: FormField[]
+          try { now = await step('抽取字段', () => extractFields(page)) } catch { break }
+          const fresh = now.filter(f => !f.isFile && !known.has(slotOf(f)) && !written.has(slotOf(f)))
+          if (!fresh.length) break
+          for (const f of fresh) { known.add(slotOf(f)); planFields.set(f.id, f); byId.set(f.id, f) }
+          recorder.trace({ stage: 'revealed', result: 'info', detail: `新出现 ${fresh.length} 格：${fresh.map(f => f.label || '?').join(' | ')}` })
+          log(`前面的选择让页面新出现了 ${fresh.length} 格：${fresh.map(f => f.label || '?').join('、')}`)
+          const more = await interpretForm(llm, fresh, profile, { adapter, recallKey, ...opts.interpret })
+          if (opts.resolveValue) for (const p of more) if (p.status === 'fill' && p.value !== undefined) p.value = opts.resolveValue(p.value)
+          for (const p of more) {
+            const f = byId.get(p.fieldId)
+            if (!f) continue
+            if (f.labelUncertain && p.status === 'fill') { rec.needsUser.push({ ...p, status: 'needs_user', value: undefined, code: 'label_uncertain', note: `${reasonText('label_uncertain')}（${f.labelUncertain}）` }); continue }
+            plans.push(p)
+            if (p.status === 'needs_user') { rec.needsUser.push(p); continue }
+            if (p.status === 'draft_needs_confirm') { rec.drafts.push(p); continue }
+            if (p.status !== 'fill' || p.value === undefined) continue
+            progress(`正在填「${f.label}」`, 'field', f.label)
+            record(f, p.value, p.source, await fillAndVerify(fillDeps, f, p.value, 'field'), 'field')
+            await humanDelay(pause[0], pause[1], opts)
+          }
+          await retryDisabled()
+        }
+      }
+
       // 5.5 重复分区（教育 / 实习工作 / 项目经历的"表格"）：逐行填，不够就点"添加一行"再填新出现的那一行（只在 DOM 层）
       if (layer === 'dom') {
         try {
