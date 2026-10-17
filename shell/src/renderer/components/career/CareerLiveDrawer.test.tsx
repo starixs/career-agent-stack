@@ -102,4 +102,38 @@ describe('CareerLiveDrawer', () => {
     expect(screen.getByText('输入手机收到的验证码')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '控制浏览器' })).toBeInTheDocument();
   });
+  it('画面框尺寸上报给 Global，框变化时自动跟随（不用手动切换真实窗口）', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, viewport: { width: 1366, height: 900 }, changed: 1 });
+    const size = { width: 640, height: 520 };
+    const observers: Array<() => void> = [];
+    const OriginalRO = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class { constructor(cb: () => void) { observers.push(cb); } observe() {} disconnect() {} unobserve() {} } as unknown as typeof ResizeObserver;
+    const cw = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+    const ch = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get() { return (this as HTMLElement).dataset.testid === 'live-frame-host' ? size.width : 0; } });
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get() { return (this as HTMLElement).dataset.testid === 'live-frame-host' ? size.height : 0; } });
+    try {
+      render(<Harness />);
+      act(() => openLiveDrawer());
+      await waitFor(() => expect(live.handler).not.toBeNull());
+      push(snapshot());
+      // px-5 / py-3 在 jsdom 里没有样式，内边距按 0 计；高度扣掉下方地址行
+      await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/viewport', { width: 640, height: 448 }));
+      const calls = () => vi.mocked(apiPostJson).mock.calls.filter(c => c[0] === '/api/career/live/viewport').length;
+      const before = calls();
+      // 变化很小：不重复上报
+      size.width = 644;
+      act(() => observers.forEach(cb => cb()));
+      await new Promise(r => setTimeout(r, 320));
+      expect(calls()).toBe(before);
+      // 切到全屏 / 拖宽：按新尺寸再报
+      size.width = 1200; size.height = 800;
+      act(() => observers.forEach(cb => cb()));
+      await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/viewport', { width: 1200, height: 728 }));
+    } finally {
+      globalThis.ResizeObserver = OriginalRO;
+      if (cw) Object.defineProperty(HTMLElement.prototype, 'clientWidth', cw);
+      if (ch) Object.defineProperty(HTMLElement.prototype, 'clientHeight', ch);
+    }
+  });
 });

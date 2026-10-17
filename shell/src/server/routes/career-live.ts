@@ -33,6 +33,8 @@ export interface CareerLiveHost {
   embeddedWindow?(): boolean;
   isWindowRevealed?(productSessionId: string): boolean;
   setWindowVisible?(productSessionId: string, visible: boolean): Promise<{ revealed: boolean }>;
+  /** 现场画面框尺寸（CSS 像素）→ 页面视口按比例跟随；浏览器还没开时记下来，打开后生效。 */
+  fitLiveViewport?(productSessionId: string, box: { width: number; height: number }): Promise<{ viewport: { width: number; height: number } | null; changed: number }>;
 }
 
 export interface CareerLiveDeps {
@@ -179,6 +181,25 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
       return ok(result);
     } catch (error) {
       return fail(error instanceof Error ? error.message : '切换窗口失败', 500);
+    }
+  }
+
+  /**
+   * 渲染层上报现场画面框的尺寸：页面视口按它的比例调整（宽度固定为桌面版，高度跟随），
+   * 画面一打开就对得上比例，框变大变小（侧栏 / 全屏 / 拖动）时自动跟随。
+   */
+  if (pathname === `${CAREER_LIVE_PREFIX}viewport` && method === 'POST') {
+    const body = await readBody(request);
+    const width = typeof body.width === 'number' ? body.width : NaN;
+    const height = typeof body.height === 'number' ? body.height : NaN;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0 || width > 10_000 || height > 10_000) return fail('width / height 必须是正数');
+    const id = deps.productSessionId();
+    if (!id) return fail('还没有个人助理会话', 409);
+    if (!deps.host.fitLiveViewport) return ok({ viewport: null, changed: 0, supported: false });
+    try {
+      return ok({ ...(await deps.host.fitLiveViewport(id, { width, height })) });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '调整画面比例失败', 500);
     }
   }
 

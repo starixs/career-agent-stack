@@ -22,7 +22,7 @@ import {
   type BrowserRuntimePolicy,
   type CompiledBrowserRuntimeSettings,
 } from './runtime-settings';
-import { parkWindow } from './page-control';
+import { fitPageViewport, parkWindow, type ViewportSize } from './page-control';
 import { waitForBrowserResource, type BrowserResourceResolution } from './resource-client';
 
 /** 页面弹出系统选文件框时的回调（内嵌模式下原生框挂在看不见的窗口上，改由产品内选文件）。 */
@@ -281,6 +281,8 @@ export class BrowserContextRegistry {
   private shutdownPromise: Promise<void> | null = null;
   /** 用户临时放出真实窗口的 Session：新开的页面不再自动停到角落。 */
   private readonly revealedWindows = new Set<string>();
+  /** 现场画面框比例对应的页面视口（渲染层上报）：已开和之后新开的页面都按它，停靠窗口也按它放大。 */
+  private readonly liveViewports = new Map<string, ViewportSize>();
   private fileChooserListener: FileChooserListener | null = null;
 
   constructor(dependencies: Partial<BrowserContextRegistryDependencies> = {}) {
@@ -311,8 +313,28 @@ export class BrowserContextRegistry {
     const entry = this.entries.get(productSessionId);
     if (!entry || !this.runtimePolicy.embeddedWindow) return;
     for (const page of entry.context.pages()) {
-      if (!page.isClosed()) await parkWindow(entry.context, page);
+      if (!page.isClosed()) await parkWindow(entry.context, page, this.liveViewports.get(productSessionId));
     }
+  }
+
+  liveViewport(productSessionId: string): ViewportSize | undefined {
+    return this.liveViewports.get(productSessionId);
+  }
+
+  /**
+   * 让这个 Session 的所有页面视口跟随现场画面框的比例；内嵌且窗口没放出来时顺带放大停靠窗口。
+   * 没有 Context 时只记下来，浏览器打开后新页面直接用。返回改了几页。
+   */
+  async setLiveViewport(productSessionId: string, viewport: ViewportSize): Promise<number> {
+    this.liveViewports.set(productSessionId, viewport);
+    const entry = this.entries.get(productSessionId);
+    if (!entry) return 0;
+    const park = this.runtimePolicy.embeddedWindow === true && !this.revealedWindows.has(productSessionId);
+    let changed = 0;
+    for (const page of entry.context.pages()) {
+      if (!page.isClosed() && await fitPageViewport(entry.context, page, viewport, { park })) changed++;
+    }
+    return changed;
   }
 
   getControl(productSessionId: string): BrowserControlState {
@@ -646,7 +668,9 @@ export class BrowserContextRegistry {
     };
     const observePage = (page: Page) => {
       if (embedded) {
-        if (!this.revealedWindows.has(binding.productSessionId)) void parkWindow(context, page);
+        const viewport = this.liveViewports.get(binding.productSessionId);
+        if (viewport) void fitPageViewport(context, page, viewport, { park: !this.revealedWindows.has(binding.productSessionId) });
+        else if (!this.revealedWindows.has(binding.productSessionId)) void parkWindow(context, page);
         page.on('filechooser', onFileChooser);
       }
       page.once('close', () => {

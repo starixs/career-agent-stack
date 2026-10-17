@@ -9,6 +9,7 @@
 import { AppWindow, Lock, Maximize2, Minimize2, Paperclip, Square, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 
+import { apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { requestNavigation } from '@/features/career-shell/navModel';
 import {
@@ -130,6 +131,41 @@ function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDon
   );
 }
 
+/** 画面区下方的地址行 / 批量进度等占的高度（上报可用画面框时扣掉）。 */
+const LIVE_FRAME_CHROME_PX = 72;
+const LIVE_VIEWPORT_DEBOUNCE_MS = 250;
+
+/**
+ * 把画面区可用的框（CSS 像素）上报给 Global：页面视口按它的比例调整，画面一打开就对得上，
+ * 侧栏 / 全屏 / 窗口拖动时自动跟随；浏览器后打开时（hasBrowser 变 true）再报一次。
+ */
+function useLiveViewportSync(hostRef: { current: HTMLElement | null }, hasBrowser: boolean, fullscreen: boolean): void {
+  const last = useRef<{ width: number; height: number } | null>(null);
+  useEffect(() => { last.current = null; }, [hasBrowser]);
+  useEffect(() => {
+    const el = hostRef.current;
+    if (!el) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const report = () => {
+      const style = getComputedStyle(el);
+      const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+      const padY = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+      const width = Math.round(el.clientWidth - padX);
+      const height = Math.round(el.clientHeight - padY - LIVE_FRAME_CHROME_PX);
+      if (width < 120 || height < 120) return;
+      const prev = last.current;
+      if (prev && Math.abs(prev.width - width) < 8 && Math.abs(prev.height - height) < 8) return;
+      last.current = { width, height };
+      void apiPostJson<unknown>('/api/career/live/viewport', { width, height }).catch(() => { last.current = null; });
+    };
+    const schedule = () => { if (timer) clearTimeout(timer); timer = setTimeout(report, LIVE_VIEWPORT_DEBOUNCE_MS); };
+    schedule();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(schedule) : null;
+    observer?.observe(el);
+    return () => { observer?.disconnect(); if (timer) clearTimeout(timer); };
+  }, [hostRef, hasBrowser, fullscreen]);
+}
+
 export interface BrowserSessionPanelProps {
   /** Stops the assistant's current turn when no batch is running (owned by Chat). */
   onStop?: () => void;
@@ -173,6 +209,8 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     }
   }, []);
   const stream = useLiveStream(true, onEventCb);
+  const frameHostRef = useRef<HTMLDivElement | null>(null);
+  useLiveViewportSync(frameHostRef, snapshot?.browser.hasBrowser === true, fullscreen);
 
   const control = snapshot?.browser.control ?? 'none';
   const humanActive = control === 'human' || takeover?.state === 'human_active';
@@ -264,7 +302,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-auto px-5 py-3">
+      <div ref={frameHostRef} data-testid="live-frame-host" className="min-h-0 flex-1 overflow-auto px-5 py-3">
         <div className="overflow-hidden rounded-lg border border-[var(--line-2)] bg-[var(--paper)] shadow-md">
           <CareerLiveViewport
             frame={frame}

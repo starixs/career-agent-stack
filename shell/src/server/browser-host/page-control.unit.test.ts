@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BrowserContext, Page } from 'playwright';
 
-import { activePage, bringToFront, parkWindow, PARKED_WINDOW_BOUNDS, restoreIfMinimized } from './page-control';
+import { activePage, bringToFront, fitPageViewport, parkedBoundsFor, parkWindow, PARKED_WINDOW_BOUNDS, restoreIfMinimized, viewportForFrame } from './page-control';
 
 function fakePage(closed = false): Page {
   return {
@@ -92,6 +92,36 @@ describe('embedded window', () => {
       ['Browser.setWindowBounds', { windowId: 7, bounds: { ...PARKED_WINDOW_BOUNDS } }],
     ]);
     expect(session.detach).toHaveBeenCalled();
+  });
+});
+
+describe('live viewport', () => {
+  it('停靠窗口不缩小到装不下视口（窗口比视口小时 screencast 比例会错）', () => {
+    expect(PARKED_WINDOW_BOUNDS.width).toBeGreaterThanOrEqual(1366 + 40);
+    expect(PARKED_WINDOW_BOUNDS.height).toBeGreaterThanOrEqual(768 + 160);
+  });
+
+  it('画面框 → 视口：宽度固定桌面版，高度按比例并夹在合理范围；停靠窗口按视口放大', () => {
+    expect(viewportForFrame({ width: 683, height: 500 })).toEqual({ width: 1366, height: 1000 });
+    expect(viewportForFrame({ width: 1200, height: 300 })).toEqual({ width: 1366, height: 600 });
+    expect(viewportForFrame({ width: 300, height: 1200 })).toEqual({ width: 1366, height: 1500 });
+    expect(viewportForFrame({ width: 10, height: 10 })).toBeNull();
+    expect(parkedBoundsFor({ width: 1366, height: 1500 })).toMatchObject({ left: PARKED_WINDOW_BOUNDS.left, top: PARKED_WINDOW_BOUNDS.top, width: 1440, height: 1660 });
+    expect(parkedBoundsFor(null)).toEqual({ ...PARKED_WINDOW_BOUNDS });
+  });
+
+  it('fitPageViewport 改视口并（内嵌时）把停靠窗口放大；视口没变就不重设', async () => {
+    let vp: { width: number; height: number } | null = { width: 1366, height: 768 };
+    const page = { ...fakePage(), isClosed: () => false, viewportSize: () => vp, setViewportSize: vi.fn(async (v: { width: number; height: number }) => { vp = v; }) } as unknown as Page;
+    const sent: Array<[string, unknown]> = [];
+    const session = { send: vi.fn(async (method: string, params?: unknown) => { sent.push([method, params]); return method === 'Browser.getWindowForTarget' ? { windowId: 9 } : {}; }), detach: vi.fn(async () => {}) };
+    const context = { newCDPSession: vi.fn(async () => session) } as unknown as BrowserContext;
+    expect(await fitPageViewport(context, page, { width: 1366, height: 1000 }, { park: true })).toBe(true);
+    expect(vp).toEqual({ width: 1366, height: 1000 });
+    expect(sent.at(-1)).toEqual(['Browser.setWindowBounds', { windowId: 9, bounds: parkedBoundsFor({ width: 1366, height: 1000 }) }]);
+    sent.length = 0;
+    expect(await fitPageViewport(context, page, { width: 1366, height: 1001 })).toBe(false);
+    expect(sent).toEqual([]);
   });
 });
 

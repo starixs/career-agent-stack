@@ -39,8 +39,38 @@ export interface BringToFrontOptions {
   embedded?: boolean;
 }
 
-/** 内嵌模式下窗口停靠的位置：极远的左下角，macOS 会夹回屏幕内只露出一小角。 */
-export const PARKED_WINDOW_BOUNDS = { left: -10000, top: 10000, width: 500, height: 375 } as const;
+/**
+ * 内嵌模式下窗口停靠的位置：极远的左下角，macOS 会夹回屏幕内只露出一小角。
+ * 停靠只改位置、不缩小：窗口比页面视口（1366×768）还小时，Chrome 的 screencast 按窗口尺寸出帧，
+ * 现场画面一打开比例就是错的，要等用户"显示真实窗口"放大一次才正常。
+ */
+export const PARKED_WINDOW_BOUNDS = { left: -10000, top: 10000, width: 1440, height: 1000 } as const;
+/** 页面视口的固定宽度（桌面版布局）；高度按现场画面框的比例跟随。 */
+export const LIVE_VIEWPORT_WIDTH = 1366;
+const LIVE_VIEWPORT_MIN_HEIGHT = 600;
+const LIVE_VIEWPORT_MAX_HEIGHT = 1500;
+/** 窗口外框（标签栏、地址栏、边框）比视口多出来的大致尺寸。 */
+const WINDOW_CHROME = { width: 40, height: 160 } as const;
+
+export interface ViewportSize { width: number; height: number }
+
+/** 现场画面框（CSS 像素）→ 页面视口：宽度固定，高度按画面框的宽高比，夹在合理范围里。 */
+export function viewportForFrame(box: ViewportSize, width = LIVE_VIEWPORT_WIDTH): ViewportSize | null {
+  if (!Number.isFinite(box.width) || !Number.isFinite(box.height) || box.width < 50 || box.height < 50) return null;
+  const height = Math.round(width * (box.height / box.width));
+  return { width, height: Math.min(LIVE_VIEWPORT_MAX_HEIGHT, Math.max(LIVE_VIEWPORT_MIN_HEIGHT, height)) };
+}
+
+/** 停靠窗口的尺寸：至少能装下视口，不小于缺省停靠尺寸。 */
+export function parkedBoundsFor(viewport?: ViewportSize | null): { left: number; top: number; width: number; height: number } {
+  if (!viewport) return { ...PARKED_WINDOW_BOUNDS };
+  return {
+    left: PARKED_WINDOW_BOUNDS.left,
+    top: PARKED_WINDOW_BOUNDS.top,
+    width: Math.max(PARKED_WINDOW_BOUNDS.width, viewport.width + WINDOW_CHROME.width),
+    height: Math.max(PARKED_WINDOW_BOUNDS.height, viewport.height + WINDOW_CHROME.height),
+  };
+}
 /** 用户临时要看真实窗口时放出来的位置。 */
 export const REVEALED_WINDOW_BOUNDS = { left: 80, top: 60, width: 1400, height: 900 } as const;
 
@@ -87,9 +117,29 @@ export async function restoreIfMinimized(context: BrowserContext, page: Page): P
   }
 }
 
-/** 把页面所在的窗口停到屏幕角落（内嵌模式）。失败只记日志。 */
-export function parkWindow(context: BrowserContext, page: Page): Promise<boolean> {
-  return setPageWindowBounds(context, page, { ...PARKED_WINDOW_BOUNDS });
+/** 把页面所在的窗口停到屏幕角落（内嵌模式）；给了视口就按它放大窗口。失败只记日志。 */
+export function parkWindow(context: BrowserContext, page: Page, viewport?: ViewportSize | null): Promise<boolean> {
+  return setPageWindowBounds(context, page, parkedBoundsFor(viewport));
+}
+
+/**
+ * 让页面视口跟随现场画面框的比例（Playwright 视口模拟，不依赖真实窗口大小）。
+ * park=true（内嵌且窗口没放出来）时顺带把停靠窗口放大到能装下视口。返回是否改了视口。
+ */
+export async function fitPageViewport(context: BrowserContext, page: Page, viewport: ViewportSize, options: { park?: boolean } = {}): Promise<boolean> {
+  if (page.isClosed()) return false;
+  const current = page.viewportSize();
+  const changed = !current || current.width !== viewport.width || Math.abs(current.height - viewport.height) > 2;
+  if (changed) {
+    try {
+      await page.setViewportSize(viewport);
+    } catch (error) {
+      console.warn(`[browser-host] fit-viewport=failed error=${error instanceof Error ? error.name : 'unknown'}`);
+      return false;
+    }
+  }
+  if (options.park) await parkWindow(context, page, viewport);
+  return changed;
 }
 
 /** 临时把真实窗口放出来并前置（文件框、插件弹窗等现场画面处理不了的情况）。 */

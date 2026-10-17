@@ -15,7 +15,7 @@ import {
   type BrowserControlState,
   type FileChooserListener,
 } from './context-registry';
-import { revealWindow } from './page-control';
+import { revealWindow, viewportForFrame } from './page-control';
 import { verifyBrowserCapability, type VerifiedBrowserCapability } from './capability-client';
 import { compileBrowserRuntimeSettings, type BrowserChannel } from './runtime-settings';
 
@@ -291,6 +291,17 @@ export class PlaywrightBrowserHost {
 
   setFileChooserListener(listener: FileChooserListener | null): void {
     this.dependencies.registry.setFileChooserListener(listener);
+  }
+
+  /**
+   * 现场画面框尺寸变了（渲染层上报）：页面视口按画面框比例调整，停靠窗口跟着放大，
+   * 打开画面时不用再手动"显示 / 收回真实窗口"才对得上比例。
+   */
+  async fitLiveViewport(productSessionId: string, box: { width: number; height: number }): Promise<{ viewport: { width: number; height: number } | null; changed: number }> {
+    const viewport = viewportForFrame(box);
+    if (!viewport) return { viewport: null, changed: 0 };
+    const changed = await this.dependencies.registry.setLiveViewport(productSessionId, viewport);
+    return { viewport, changed };
   }
 
   /**

@@ -55,7 +55,7 @@ export const HUMAN_LIKE_CHROMIUM_ARGS: readonly string[] = [
 
 /**
  * 内嵌窗口模式的额外参数：窗口被遮挡 / 停在屏幕外时 Chrome 默认会暂停绘制，
- * 截图、screencast、计时器都会卡住，必须关掉这三种节流。初始窗口尽量小、尽量靠外，
+ * 截图、screencast、计时器都会卡住，必须关掉这三种节流。初始窗口尽量靠外，但要装得下页面视口（窗口比视口小时 screencast 按窗口尺寸出帧，画面比例会错），
  * 启动后 Registry 再用 CDP 把每个窗口停到角落（macOS 会把位置夹回屏幕内，只露出一小角）。
  * 不用最小化 / 隐藏应用：实测这两种状态下 Page.captureScreenshot 会一直挂住。
  */
@@ -63,7 +63,7 @@ export const EMBEDDED_WINDOW_CHROMIUM_ARGS: readonly string[] = [
   "--disable-backgrounding-occluded-windows",
   "--disable-renderer-backgrounding",
   "--disable-background-timer-throttling",
-  "--window-size=500,375",
+  "--window-size=1440,1000",
   "--window-position=-10000,10000",
 ];
 

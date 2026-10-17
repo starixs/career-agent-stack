@@ -151,6 +151,20 @@ describe('career live route', () => {
     expect(bad!.status).toBe(400);
   });
 
+  it('viewport：上报画面框尺寸交给宿主按比例调整视口；参数不合法 400；宿主不支持时不报错', async () => {
+    const repos = createMemoryRepos();
+    const calls: Array<{ width: number; height: number }> = [];
+    const host = Object.assign(fakeHost(false), { fitLiveViewport: async (_id: string, box: { width: number; height: number }) => { calls.push(box); return { viewport: { width: 1366, height: 1000 }, changed: 0 }; } });
+    const d = deps(repos, host);
+    const res = await handleCareerLiveRoute('/api/career/live/viewport', req('/api/career/live/viewport', { width: 640, height: 470 }), d);
+    expect(await res!.json()).toMatchObject({ ok: true, viewport: { width: 1366, height: 1000 } });
+    // 浏览器还没开也记下来（打开后新页面直接用）
+    expect(calls).toEqual([{ width: 640, height: 470 }]);
+    expect((await handleCareerLiveRoute('/api/career/live/viewport', req('/api/career/live/viewport', { width: -1, height: 3 }), d))!.status).toBe(400);
+    const plain = await handleCareerLiveRoute('/api/career/live/viewport', req('/api/career/live/viewport', { width: 640, height: 470 }), deps(repos));
+    expect(await plain!.json()).toMatchObject({ ok: true, supported: false });
+  });
+
   it('产品内选文件：拦下的选文件框出现在快照里，上传后交给页面并广播 done', async () => {
     const repos = createMemoryRepos();
     const hub = new LiveHub();
