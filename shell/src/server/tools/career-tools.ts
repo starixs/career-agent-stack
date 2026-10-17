@@ -257,25 +257,36 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
   const profileFieldSet = new Set<string>(core.PROFILE_FIELDS.map(f => f.field));
   /** 填表需要用户补充 / 确认的项 → needs_user / drafts 卡片。资料类字段写私密库，其余写答案库。 */
   const emitDriveCards = (actionId: string, summary: Record<string, unknown> | undefined, gate?: SubmitGate, job?: string) => {
-    // 停在提交前但没过提交门槛：一张"还差 N 项要你补"的交接卡，逐项列字段名和原因；补完后从当前页继续检查
+    const asPlans = (v: unknown) => (Array.isArray(v) ? v as Array<{ fieldId?: string; label?: string; key?: string; note?: string; value?: string }> : []);
+    const needs = asPlans(summary?.needsUser).filter(p => typeof p.label === 'string' && p.label);
+    const drafts = asPlans(summary?.drafts).filter(p => typeof p.label === 'string' && p.label);
+    // 上传类格子（照片 / 作品集）不能在卡片里打字补，只能去页面上传
+    const fileLabels = new Set((Array.isArray(summary?.fields) ? summary.fields as Array<{ label?: string; type?: string }> : []).filter(f => f.type === 'file' && f.label).map(f => f.label as string));
+    /** 缺项能不能在卡片里直接填：资料类字段写私密库，其余写答案库。 */
+    const inputFor = (label: string) => {
+      const p = needs.find(n => n.label === label);
+      if (!p || fileLabels.has(label)) return null;
+      const def = p.key && profileFieldSet.has(p.key) ? core.PROFILE_FIELDS.find(f => f.field === p.key) : undefined;
+      return { vault_field: def?.field ?? null, sensitive: def?.sensitive ?? false, note: p.note ?? null };
+    };
+    // 停在提交前但没过提交门槛：一张"还差 N 项要你补"的交接卡，逐项列字段名和原因；能在卡片里填的项直接带输入框。
+    // 缺项只出这一张——不再另出一张内容重复的"需要你来填"卡
     if (gate && !gate.ready) {
       card(`apply_gaps:${actionId}`, 'apply_gaps', `「${job ?? '这个岗位'}」${gapsHeadline(gate.gaps)}`, {
         action_id: actionId, job: job ?? null,
         required_filled: gate.requiredFilled, required_total: gate.requiredTotal,
-        items: gate.gaps.slice(0, 30).map(g => ({ label: g.label, reason: g.reason, status: g.status, required: g.required })),
+        items: gate.gaps.slice(0, 30).map(g => ({ label: g.label, reason: g.reason, status: g.status, required: g.required, input: inputFor(g.label) })),
       });
-    } else if (gate?.ready) completeCard(`apply_gaps:${actionId}`);
-    const asPlans = (v: unknown) => (Array.isArray(v) ? v as Array<{ fieldId?: string; label?: string; key?: string; note?: string; value?: string }> : []);
-    const needs = asPlans(summary?.needsUser).filter(p => typeof p.label === 'string' && p.label);
-    const drafts = asPlans(summary?.drafts).filter(p => typeof p.label === 'string' && p.label);
-    if (needs.length) {
-      card(`needs_user:${actionId}`, 'needs_user', `网申表里有 ${needs.length} 项需要你来填`, {
-        action_id: actionId,
-        items: needs.slice(0, 20).map(p => {
-          const def = p.key && profileFieldSet.has(p.key) ? core.PROFILE_FIELDS.find(f => f.field === p.key) : undefined;
-          return { label: p.label, note: p.note ?? null, vault_field: def?.field ?? null, sensitive: def?.sensitive ?? false };
-        }),
-      });
+      completeCard(`needs_user:${actionId}`);
+    } else {
+      if (gate?.ready) completeCard(`apply_gaps:${actionId}`);
+      const fillable = needs.filter(p => !fileLabels.has(p.label!));
+      if (fillable.length) {
+        card(`needs_user:${actionId}`, 'needs_user', `网申表里有 ${fillable.length} 项需要你来填`, {
+          action_id: actionId,
+          items: fillable.slice(0, 20).map(p => ({ label: p.label, ...inputFor(p.label!) })),
+        });
+      }
     }
     if (drafts.length) {
       card(`drafts:${actionId}`, 'drafts', `${drafts.length} 道开放题已起草，确认后再填`, {

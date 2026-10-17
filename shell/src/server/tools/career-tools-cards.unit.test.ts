@@ -82,7 +82,7 @@ describe('对话内流程卡片', () => {
     expect((c.card.data.claims as Array<{ text: string; result_metric: string | null }>).map(x => [x.text, x.result_metric])).toEqual([['主导召回重构', 'CTR +3%'], ['带 3 人小组', null]]);
   });
 
-  it('apply_run：需要用户填的项 → needs_user 卡（资料字段标记写私密库），开放题 → drafts 卡', async () => {
+  it('apply_run：没过提交门槛时缺项只出一张 apply_gaps 卡，能填的项带输入（资料字段写私密库）；开放题 → drafts 卡', async () => {
     const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j1', title: '算法实习生', company_name: 'B 公司', url: 'https://x.com/apply' });
     const app = repos.createApplication(job.id);
     repos.transition(app.id, 'ready'); repos.transition(app.id, 'approved');
@@ -96,11 +96,13 @@ describe('对话内流程卡片', () => {
     } }];
     await call('apply_run', { action_id: action.id });
     const byKind = Object.fromEntries(cards().map(c => [c.card.kind, c.card]));
-    expect(byKind.needs_user).toMatchObject({ id: `needs_user:${action.id}`, data: { action_id: action.id } });
-    expect(byKind.needs_user.data.items).toEqual([
-      { label: '身份证号', note: null, vault_field: 'idNumber', sensitive: true },
-      { label: '期望薪资', note: '月薪', vault_field: null, sensitive: false },
-    ]);
+    // 不再另出一张内容重复的 needs_user 卡
+    expect(byKind.needs_user).toBeUndefined()
+    expect(byKind.apply_gaps).toMatchObject({ id: `apply_gaps:${action.id}`, data: { action_id: action.id } });
+    const inputs = (byKind.apply_gaps.data.items as Array<{ label: string; input: unknown }>).map(i => [i.label, i.input]);
+    expect(inputs).toContainEqual(['身份证号', { vault_field: 'idNumber', sensitive: true, note: null }]);
+    expect(inputs).toContainEqual(['期望薪资', { vault_field: null, sensitive: false, note: '月薪' }]);
+    expect(inputs).toContainEqual(['为什么选择我们', null]);
     expect(byKind.drafts.data.items).toEqual([{ label: '为什么选择我们', value: '因为……', note: null }]);
   });
 

@@ -61,6 +61,25 @@ describe('对话内流程卡片', () => {
     off();
   });
 
+  it('还差几项（合并后的唯一缺项卡）：能填的项带输入框，填了就保存并继续检查；上传类只列不填', async () => {
+    const { seen, refs, off } = captureSuggest();
+    renderCards([card('apply_gaps', { action_id: 'act1', required_filled: 18, required_total: 20, items: [
+      { label: '证件号码', reason: '高影响问题', status: 'needs_user', required: true, input: { vault_field: 'idNumber', sensitive: true } },
+      { label: '作品集', reason: '不确定该上传什么文件', status: 'needs_user', required: true, input: null },
+    ] }, '「美团」还差 2 项要你补')]);
+    const box = screen.getByTestId('career-card-apply_gaps');
+    expect(box).toHaveTextContent('作品集');
+    expect(screen.queryByLabelText('作品集')).toBeNull();
+    expect(screen.getByRole('button', { name: '补好了，继续检查' })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('证件号码'), { target: { value: '110101200001011234' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存 1 项并继续检查' }));
+    await waitFor(() => expect(seen).toHaveLength(1));
+    expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'profile', field: 'idNumber', value: '110101200001011234' });
+    expect(refs[0]).toEqual({ action_id: 'act1' });
+    expect(seen[0]).not.toContain('110101');
+    off();
+  });
+
   it('开放题草稿：可改、可不采用，确认的写进答案库', async () => {
     renderCards([card('drafts', { action_id: 'act1', items: [{ label: '为什么选择我们', value: '草稿A' }, { label: '职业规划', value: '草稿B' }] })]);
     fireEvent.change(screen.getByLabelText('回答：为什么选择我们'), { target: { value: '改过的A' } });

@@ -18,7 +18,7 @@ import { reviewCardId, REVIEW_CARD_KIND } from '../../../shared/careerReviewCard
 import { careerApi } from './careerApi';
 import { ACTION_KIND_LABELS } from './careerConstants';
 import { openLiveDrawer } from './CareerLiveDrawer';
-import { Badge, Button, suggestToChat, type ChatContext } from './CareerPrimitives';
+import { Badge, Button, suggestToChat, TextInput, type ChatContext } from './CareerPrimitives';
 import { SubmitReviewList } from './SubmitReviewList';
 import type { ActionKind, CareerCard, CareerReviewEvent, SubmitReviewSummary } from './types';
 
@@ -118,18 +118,40 @@ const GAP_LABELS: Record<string, { label: string; tone: 'error' | 'warning' }> =
   unverified: { label: '没核对上', tone: 'warning' },
 };
 
-/** 停在提交前但还差几项：逐项列字段名和原因；用户补好后让助理从当前页继续检查（提交卡要等检查通过才出现）。 */
+/**
+ * 停在提交前但还差几项：逐项列字段名和原因；能在卡片里填的项（文本类，不含上传）直接带输入框，
+ * 资料类写私密库、其余写答案库。填了就"保存并继续检查"，在页面上自己补完就"补好了，继续检查"。
+ * 缺项只有这一张卡（不再另出"需要你来填"卡）。
+ */
 export function ApplyGapsCard({ card, onDone, onDismiss }: CardProps) {
   const actionId = str(card.data.action_id);
   const items = (Array.isArray(card.data.items) ? card.data.items : [])
     .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
-    .map(i => ({ label: str(i.label) ?? '', reason: str(i.reason), status: str(i.status) ?? '' }))
+    .map(i => {
+      const input = i.input && typeof i.input === 'object' ? i.input as Record<string, unknown> : null;
+      return { label: str(i.label) ?? '', reason: str(i.reason), status: str(i.status) ?? '', input: input ? { vaultField: str(input.vault_field), sensitive: input.sensitive === true } : null };
+    })
     .filter(i => i.label);
   const filled = typeof card.data.required_filled === 'number' ? card.data.required_filled : null;
   const total = typeof card.data.required_total === 'number' ? card.data.required_total : null;
-  const resume = () => {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const typed = items.filter(i => i.input && (values[i.label] ?? '').trim());
+  const resume = async () => {
+    if (typed.length) {
+      setBusy(true); setError(null);
+      try {
+        for (const i of typed) {
+          const value = values[i.label].trim();
+          if (i.input?.vaultField) await careerApi.vaultSet({ scope: 'profile', field: i.input.vaultField, value });
+          else await careerApi.saveAnswer({ question_key: i.label, question_text: i.label, answer: value, confirmed: true });
+        }
+      } catch (e) { setError(e instanceof Error ? e.message : String(e)); setBusy(false); return; }
+      setBusy(false);
+    }
     onDone();
-    suggestToChat('缺的几项我补好了，请从当前页接着检查。', { surface: 'apply', refs: actionId ? { action_id: actionId } : {}, note: '用户说缺项已补好：调用 apply_continue(action_id) 从当前页继续填写并重新检查。' });
+    suggestToChat(typed.length ? `缺的项我在卡片里补了 ${typed.length} 项（${typed.map(i => i.label).join('、')}），请从当前页接着填并检查。` : '缺的几项我补好了，请从当前页接着检查。', { surface: 'apply', refs: actionId ? { action_id: actionId } : {}, note: typed.length ? '缺项已补进私密库 / 答案库：调用 apply_continue(action_id) 从当前页继续填写并重新检查。' : '用户说缺项已补好：调用 apply_continue(action_id) 从当前页继续填写并重新检查。' });
   };
   return (
     <div data-testid="career-card-apply_gaps" className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
@@ -144,18 +166,24 @@ export function ApplyGapsCard({ card, onDone, onDismiss }: CardProps) {
         </div>
         <Button variant="ghost" onClick={onDismiss} aria-label="稍后再说">稍后</Button>
       </div>
-      <ul className="mt-3 space-y-1 text-xs">
+      <ul className="mt-3 space-y-2 text-xs">
         {items.map((i, idx) => (
-          <li key={`${i.label}-${idx}`} className="flex flex-wrap items-baseline gap-1.5">
-            <Badge tone={GAP_LABELS[i.status]?.tone ?? 'warning'}>{GAP_LABELS[i.status]?.label ?? '要你看'}</Badge>
-            <span className="font-medium text-[var(--ink)]">{i.label}</span>
-            {i.reason && <span className="text-[var(--muted)]">— {i.reason}</span>}
+          <li key={`${i.label}-${idx}`}>
+            <div className="flex flex-wrap items-baseline gap-1.5">
+              <Badge tone={GAP_LABELS[i.status]?.tone ?? 'warning'}>{GAP_LABELS[i.status]?.label ?? '要你看'}</Badge>
+              <span className="font-medium text-[var(--ink)]">{i.label}</span>
+              {i.reason && <span className="text-[var(--muted)]">— {i.reason}</span>}
+              {i.input?.vaultField && <span className="text-[var(--subtle)]">· 存私密库</span>}
+            </div>
+            {i.input && <TextInput className="mt-1" aria-label={i.label} autoComplete="off" value={values[i.label] ?? ''} onChange={e => setValues(v => ({ ...v, [i.label]: e.target.value }))} />}
           </li>
         ))}
       </ul>
+      {items.some(i => i.input?.vaultField) && <p className="mt-2 text-xs text-[var(--subtle)]">私密项只存进本机私密库，填表时在本地替换，助理看不到原文。</p>}
+      {error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button onClick={() => openLiveDrawer()}>在旁边打开页面</Button>
-        <Button variant="primary" onClick={resume}>补好了，继续检查</Button>
+        <Button variant="primary" busy={busy} disabled={busy} onClick={() => void resume()}>{typed.length ? `保存 ${typed.length} 项并继续检查` : '补好了，继续检查'}</Button>
       </div>
     </div>
   );
