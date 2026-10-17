@@ -153,6 +153,14 @@ describe('提交门槛：全部过关才入队提交，否则交给用户补', (
     expect(repos.listActions().filter(a => a.kind === 'submit')).toHaveLength(0);
   });
 
+  it('引擎新字段：选填留空（empty_optional）不拦提交；requiredTrusted=false 一律不算过关并带上引擎的说明', () => {
+    expect(evaluateSubmitGate({ review: { rows: [ok('姓名'), { label: '个人网站', required: false, status: 'empty_optional' }], requiredTotal: 1, requiredFilled: 1, attention: 0, requiredTrusted: true } }).ready).toBe(true);
+    const g = evaluateSubmitGate({ review: { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1, attention: 0, requiredTrusted: false, requiredNote: '页面上有 6 个必填星号，只认出 1 个' } });
+    expect(g.ready).toBe(false);
+    expect(g.gaps[0].reason).toContain('6 个必填星号');
+    expect(evaluateSubmitGate({ review: { rows: [{ label: '学校', required: true, status: 'unverified' }], requiredTotal: 1, requiredFilled: 0, attention: 1 } }).gaps.map(x => x.status)).toEqual(['unverified']);
+  });
+
   it('evaluateSubmitGate：新字段存在时优先用（review.verified=true 时 0 个必填也可信）', () => {
     expect(evaluateSubmitGate({ review: { rows: [{ label: 'x', required: false, status: 'ok' }], requiredTotal: 0, requiredFilled: 0, attention: 0, verified: true } }).ready).toBe(true);
     expect(evaluateSubmitGate({ review: { rows: [ok('x')], requiredTotal: 2, requiredFilled: 3, attention: 0 } }).ready).toBe(false);

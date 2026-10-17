@@ -13,9 +13,9 @@ import type { ActionQueueItem, Repos } from '@career/core';
 
 import { decideSubmit } from './submit-policy';
 
-/** @career/apply 的 SubmitReview（只用到这些字段；verified / 行级 verified / reasonCode 是引擎可选的读回核验结果）。 */
+/** @career/apply 的 SubmitReview（只用到这些字段；requiredTrusted / verified / 行级 verified / code 是引擎可选的核验结果，有就优先用）。 */
 interface SubmitReviewRowLike { fieldId?: string; label?: string; required?: boolean; status?: string; reason?: string; verified?: boolean; reasonCode?: string }
-interface SubmitReviewLike { rows: SubmitReviewRowLike[]; attention: number; requiredTotal: number; requiredFilled: number; formSignature?: string; openAnswersHash?: string; verified?: boolean }
+interface SubmitReviewLike { rows: SubmitReviewRowLike[]; attention: number; requiredTotal: number; requiredFilled: number; formSignature?: string; openAnswersHash?: string; verified?: boolean; /** 引擎判断 requiredTotal 是否可信（认出的必填数和页面星号对得上） */ requiredTrusted?: boolean; requiredNote?: string }
 const parseObj = (raw: string | null | undefined): Record<string, unknown> => { try { const v = JSON.parse(raw ?? '{}'); return v && typeof v === 'object' ? v as Record<string, unknown> : {}; } catch { return {}; } };
 
 /** 一项还没过关的字段：给用户看的名字 + 原因（人话）。 */
@@ -55,6 +55,8 @@ export function evaluateSubmitGate(result: Record<string, unknown>): SubmitGate 
   const rows = review && Array.isArray(review.rows) ? review.rows : [];
   for (const row of rows) {
     if (!row || typeof row !== 'object') continue;
+    // empty_optional：选填留空，不算缺项
+    if (row.status === 'empty_optional') continue;
     if (row.status && row.status !== 'ok') add(strOf(row.label), row.status, strOf(row.reason), row.required !== false);
     else if (row.verified === false) add(strOf(row.label), 'unverified', strOf(row.reason), row.required !== false);
   }
@@ -70,8 +72,8 @@ export function evaluateSubmitGate(result: Record<string, unknown>): SubmitGate 
   }
   const total = isCount(review.requiredTotal) ? review.requiredTotal : null;
   const filled = isCount(review.requiredFilled) ? review.requiredFilled : null;
-  const trusted = total !== null && filled !== null && filled <= total && rows.length > 0 && review.verified !== false;
-  if (!trusted) add('必填项核对', 'unverified', '没能读回表单核对必填项');
+  const trusted = total !== null && filled !== null && filled <= total && rows.length > 0 && review.verified !== false && review.requiredTrusted !== false;
+  if (!trusted) add('必填项核对', 'unverified', strOf(review.requiredNote) ?? '没能读回表单核对必填项');
   else if (filled < total && !gaps.some(g => g.required)) add('必填项', 'empty', `还有 ${total - filled} 个必填项没填好`);
   return { ready: trusted && filled === total && gaps.length === 0, requiredFilled: filled, requiredTotal: total, gaps };
 }

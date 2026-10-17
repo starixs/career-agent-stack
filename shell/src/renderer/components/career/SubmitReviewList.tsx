@@ -10,6 +10,8 @@ import type { SubmitReviewRow, SubmitReviewStatus, SubmitReviewSummary } from '.
 const STATUS: Record<SubmitReviewStatus, { label: string; tone: BadgeTone }> = {
   ok: { label: '已填', tone: 'success' },
   empty: { label: '必填为空', tone: 'error' },
+  empty_optional: { label: '选填留空', tone: 'neutral' },
+  unverified: { label: '没核对上', tone: 'warning' },
   mismatch: { label: '没生效', tone: 'error' },
   needs_user: { label: '需要你填', tone: 'warning' },
   draft: { label: '草稿待确认', tone: 'warning' },
@@ -25,8 +27,9 @@ export function approvalLabel(by: string | null | undefined): string | null {
 export function SubmitReviewList({ review }: { review: SubmitReviewSummary | null | undefined }) {
   const [showOk, setShowOk] = useState(false);
   if (!review) return <div className="text-xs text-[var(--warning)]">没有拿到填后检查结果，请在浏览器现场里看一遍再批准。</div>;
-  const attention = review.rows.filter(r => r.status !== 'ok');
-  const ok = review.rows.filter(r => r.status === 'ok');
+  // 选填留空不算要人看，和已填好的一起收起
+  const attention = review.rows.filter(r => r.status !== 'ok' && r.status !== 'empty_optional');
+  const ok = review.rows.filter(r => r.status === 'ok' || r.status === 'empty_optional');
   const group = (rows: SubmitReviewRow[], required: boolean) => rows.filter(r => r.required === required);
   return (
     <div className="mt-1.5 space-y-1.5 text-xs">
@@ -63,7 +66,7 @@ function Rows({ title, rows }: { title: string; rows: SubmitReviewRow[] }) {
       <ul className="space-y-0.5">
         {rows.map((r, i) => (
           <li key={`${r.fieldId ?? r.label}-${i}`} className="flex flex-wrap items-baseline gap-1.5">
-            <Badge tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Badge>
+            <Badge tone={STATUS[r.status]?.tone ?? 'warning'}>{STATUS[r.status]?.label ?? '要你看'}</Badge>
             <span className="font-medium text-[var(--ink)]">{r.label}</span>
             {r.value && <span className="max-w-[28rem] truncate text-[var(--muted)]" title={r.value}>{r.value}</span>}
             {r.source && SOURCE[r.source] && <span className="text-[var(--subtle)]">· {SOURCE[r.source]}</span>}

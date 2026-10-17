@@ -68,7 +68,7 @@ export interface ActionQueueItem {
   approved_by?: string | null; packet_id?: string | null;
 }
 /** 填后检查的审阅清单（submit 动作 payload.review.rows）。 */
-export type SubmitReviewStatus = 'ok' | 'empty' | 'mismatch' | 'needs_user' | 'draft' | 'site_error' | 'upload_unconfirmed';
+export type SubmitReviewStatus = 'ok' | 'empty' | 'empty_optional' | 'unverified' | 'mismatch' | 'needs_user' | 'draft' | 'site_error' | 'upload_unconfirmed';
 export interface SubmitReviewRow { fieldId?: string; label: string; required: boolean; status: SubmitReviewStatus; value?: string; source?: string; reason?: string }
 export interface SubmitReviewSummary { rows: SubmitReviewRow[]; attention: number; requiredTotal: number; requiredFilled: number }
 export interface ApplySettings { auto_mode: boolean; learn_threshold: number }
