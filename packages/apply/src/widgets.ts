@@ -177,16 +177,20 @@ export const scanDialogsScript: PageScript<void, DialogScan> = {
     const dialogs: DialogInfo[] = []
     roots.forEach((root, i) => {
       const buttons: DialogButton[] = []
-      const seen = new Set<Element>()
+      // `[class*=btn]` 也会命中按钮外面的容器（如 `xx-footer-btns`）；容器在文档顺序里排在前面，
+      // 先收了它就会把两个按钮的文字拼成一个"按钮"。所以先收齐候选，只留不包含其他候选的最内层元素。
+      const candidates = Array.from(root.querySelectorAll('button, [role=button], a, [class*="btn" i], [class*="close" i], [aria-label*="关闭"], [aria-label*="close" i]'))
+        .filter(b => shown(b) || b.getBoundingClientRect().width >= 8)
+        .map(b => {
+          const cls = typeof b.className === 'string' ? b.className : ''
+          let text = clean((b as HTMLElement).innerText || b.getAttribute('aria-label') || b.getAttribute('title'))
+          if (!text && /close/i.test(cls)) text = '关闭'
+          return { b, text }
+        })
+        .filter(c => c.text && c.text.length <= 30)
+      const leaves = candidates.filter(c => !candidates.some(o => o !== c && c.b.contains(o.b)))
       let j = 0
-      for (const b of Array.from(root.querySelectorAll('button, [role=button], a, [class*="btn" i], [class*="close" i], [aria-label*="关闭"], [aria-label*="close" i]'))) {
-        if (!shown(b) && !(b.getBoundingClientRect().width >= 8)) continue
-        if (Array.from(seen).some(s => s.contains(b) || b.contains(s))) continue
-        const cls = typeof b.className === 'string' ? b.className : ''
-        let text = clean((b as HTMLElement).innerText || b.getAttribute('aria-label') || b.getAttribute('title'))
-        if (!text && /close/i.test(cls)) text = '关闭'
-        if (!text || text.length > 30) continue
-        seen.add(b)
+      for (const { b, text } of leaves) {
         const id = `d${i}b${j++}`
         b.setAttribute('data-career-dlg-btn', id)
         buttons.push({ id, text, selector: `[data-career-dlg-btn="${id}"]` })

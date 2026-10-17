@@ -168,7 +168,7 @@ canvas.label-canvas{display:block;height:20px}
     const f = e.target.files[0]; if (!f) return
     document.querySelector('.file-name').textContent = f.name
     const w = document.createElement('div'); w.className = 'mtd-modal-wrapper mtd-confirm-wrapper common_modal-wrapper'
-    w.innerHTML = '<div class="mtd-modal-mask"></div><div class="mtd-modal" role="dialog"><div class="mtd-modal-body">是否需要对简历附件进行解析并填充下方简历内容？</div><div class="mtd-modal-footer"><button type="button" class="mtd-btn" data-act="no">否，仅做附件上传</button><button type="button" class="mtd-btn mtd-btn-primary" data-act="yes">是，需同步更新简历内容</button></div></div>'
+    w.innerHTML = '<div class="mtd-modal-mask"></div><div class="mtd-modal" role="dialog"><div class="mtd-modal-body">是否需要对简历附件进行解析并填充下方简历内容？</div><div class="mtd-modal-footer mtd-modal-footer-btns"><button type="button" class="mtd-btn" data-act="no">否，仅做附件上传</button><button type="button" class="mtd-btn mtd-btn-primary" data-act="yes">是，需同步更新简历内容</button></div></div>'
     setTimeout(() => document.body.appendChild(w), 150)
     w.addEventListener('click', ev => {
       const act = ev.target.closest('[data-act]')?.dataset.act; if (!act) return
