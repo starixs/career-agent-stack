@@ -10,7 +10,7 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   apply_auto_mode: '查看自动投递设置',
   apply_batch: '安排批量投递',
   apply_continue: '接着填网申',
-  apply_prepare: '准备网申材料',
+  apply_prepare: '准备材料并开始填网申',
   apply_run: '打开网申页填表',
   career_overview: '看求职全局',
   claim_confirm: '记下你确认的经历',

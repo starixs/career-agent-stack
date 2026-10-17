@@ -53,6 +53,17 @@ describe('动作队列与接管', () => {
     expect(r.enqueueAction('send_greeting', {}, null, true).status).toBe('pending_review')
     expect(r.enqueueAction('fill_form', {}, null, true).status).toBe('approved')
   })
+  it('今日队列：没开始的填表不写成「待你批准」（填写本身不提交，不需要事前批准）', () => {
+    const r = mem()
+    const job = r.upsertJob({ source_platform: 'campus', title: '后端开发', company_name: '美团' })
+    const app = r.createApplication(job.id)
+    r.enqueueAction('fill_form', { job_id: job.id }, app.id)
+    r.enqueueAction('submit', { job_id: job.id }, app.id)
+    const titles = r.today().items.filter(i => i.kind === 'review').map(i => i.title)
+    expect(titles).toContain('待投清单：还没开始填 · 美团 后端开发')
+    expect(titles).toContain('待你批准：提交网申 · 美团 后端开发')
+    expect(titles.some(t => t.includes('待你批准：网申填表'))).toBe(false)
+  })
   it('批量审核与接管开闭', () => {
     const r = mem()
     const a1 = r.enqueueAction('fill_form', {}); const a2 = r.enqueueAction('upload', {})

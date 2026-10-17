@@ -51,7 +51,7 @@ const WRITE_TOOLS: Record<string, string> = {
   job_import: '加入了一个岗位',
   jobs_sync: '同步了岗位库',
   jobs_prepare: '把岗位加进了待投清单',
-  apply_prepare: '准备好了投递材料',
+  apply_prepare: '开始填了网申',
   apply_run: '在浏览器里填了表',
   apply_batch: '开始了批量投递',
   apply_continue: '继续了网申',

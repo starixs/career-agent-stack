@@ -30,12 +30,13 @@ import { SEARCH_NOT_CONFIGURED_MESSAGE } from '../career/setup';
 import { applyJsonPatch, confirmTailorProposal, readTailorProposal } from '../career/tailor';
 import { getVault, vaultForRepos } from '../career/vault';
 import { ACCOUNT_FIELDS, reportAccountFetch } from '../career/accounts';
-import { persistDriveOutcome } from '../career/drive-outcome';
+import { gapsHeadline, jobLabel, persistDriveOutcome, type SubmitGate } from '../career/drive-outcome';
 import { freezePacket, packetResumeFile, pickResumeForJob } from '../career/packets';
 import { acquireBrowserCapability } from '../browser-host/capability-client';
 import { broadcast as sseBroadcast } from '../sse';
 import { cancellableFetch } from '../utils/cancellation';
 import { getCurrentTurnSignal } from '../utils/turn-abort';
+import { REVIEW_CARD_KIND, reviewCardId } from '../../shared/careerReviewCard';
 
 type CallToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
@@ -225,8 +226,6 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
   const progress = (phase: string, message: string, extra: Record<string, unknown> = {}) =>
     broadcast('career:progress', { sessionId: sessionId(), phase, message, ...extra });
   const changed = (...tables: string[]) => broadcast('career:data-changed', { sessionId: sessionId(), tables });
-  const review = (actionIds: string[], kind: string, summary: string) =>
-    broadcast('career:review', { sessionId: sessionId(), actionIds, kind, summary });
   /**
    * 对话内流程卡片：把"要用户动手的一步"直接放进对话（填资料 / 回答 / 确认），用户在卡片里完成，
    * 值走产品自己的接口落库（私密信息进私密库），不经过模型上下文。同 id 的卡片会被覆盖。
@@ -239,9 +238,33 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     try { createdAt = repos().upsertChatCard({ id, session_id: sid, tool_use_id: toolUseId, kind, title, data }).created_at; } catch { /* 落库失败也照常推送 */ }
     broadcast('career:card', { sessionId: sid, card: { id, kind, title, data, createdAt, sessionId: sid, toolUseId, state: 'pending' } });
   };
+  /**
+   * 待你批准的动作（提交 / 发送）→ 对话内审核卡片：和其他流程卡片一样落库并锚定到这次工具调用，
+   * 每个动作一张（id 稳定），不会互相覆盖，刷新后读回。data 是卡片里要展示的内容（如提交前的审阅清单）。
+   */
+  const review = (actionIds: string[], kind: string, summary: string, data: Record<string, unknown> = {}) =>
+    card(reviewCardId(actionIds), REVIEW_CARD_KIND, summary, { ...data, action_ids: actionIds, kind, summary });
+  /** 卡片已经没用了（如缺项已补齐、填表重新检查通过）：折叠成"已完成"。 */
+  const completeCard = (id: string) => {
+    let row: ReturnType<Repos['getChatCard']>;
+    try { row = repos().getChatCard(id); } catch { return; }
+    if (!row || row.state !== 'pending') return;
+    try { repos().setChatCardState(id, 'completed'); } catch { return; }
+    let data: Record<string, unknown> = {};
+    try { data = JSON.parse(row.data_json) as Record<string, unknown>; } catch { /* ignore */ }
+    broadcast('career:card', { sessionId: row.session_id, card: { id, kind: row.kind, title: row.title, data, createdAt: row.created_at, sessionId: row.session_id, toolUseId: row.tool_use_id, state: 'completed' } });
+  };
   const profileFieldSet = new Set<string>(core.PROFILE_FIELDS.map(f => f.field));
   /** 填表需要用户补充 / 确认的项 → needs_user / drafts 卡片。资料类字段写私密库，其余写答案库。 */
-  const emitDriveCards = (actionId: string, summary: Record<string, unknown> | undefined) => {
+  const emitDriveCards = (actionId: string, summary: Record<string, unknown> | undefined, gate?: SubmitGate, job?: string) => {
+    // 停在提交前但没过提交门槛：一张"还差 N 项要你补"的交接卡，逐项列字段名和原因；补完后从当前页继续检查
+    if (gate && !gate.ready) {
+      card(`apply_gaps:${actionId}`, 'apply_gaps', `「${job ?? '这个岗位'}」${gapsHeadline(gate.gaps)}`, {
+        action_id: actionId, job: job ?? null,
+        required_filled: gate.requiredFilled, required_total: gate.requiredTotal,
+        items: gate.gaps.slice(0, 30).map(g => ({ label: g.label, reason: g.reason, status: g.status, required: g.required })),
+      });
+    } else if (gate?.ready) completeCard(`apply_gaps:${actionId}`);
     const asPlans = (v: unknown) => (Array.isArray(v) ? v as Array<{ fieldId?: string; label?: string; key?: string; note?: string; value?: string }> : []);
     const needs = asPlans(summary?.needsUser).filter(p => typeof p.label === 'string' && p.label);
     const drafts = asPlans(summary?.drafts).filter(p => typeof p.label === 'string' && p.label);
@@ -302,7 +325,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cap.token}` }, body: JSON.stringify(body) },
       { parentSignal, timeoutMs: 10 * 60_000 },
     );
-    if (!response.ok || !response.body) throw new Error(`浏览器 run 请求失败（HTTP ${response.status}）`);
+    if (!response.ok || !response.body) throw new Error(`浏览器没有接下这次填表（HTTP ${response.status}）`);
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';
@@ -336,6 +359,17 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     if (!found) return undefined;
     if (found.kind === 'tailored' && found.row.export_pdf && existsSync(found.row.export_pdf)) return found.row.export_pdf;
     try { return await exportWithVault(resumeId, 'pdf'); } catch { return undefined; }
+  };
+
+  /** 简历在文案里的叫法：写具体名字（主简历名 / 某岗位的定制版），不写"指定"这类内部原因。 */
+  const resumeLabel = (resumeId: string): string => {
+    const found = store().getResume(resumeId);
+    if (!found) return '';
+    if (found.kind === 'master') return `「${found.row.name}」`;
+    const master = store().getResume(found.row.master_id);
+    const base = master?.kind === 'master' ? `「${master.row.name}」` : '';
+    const forJob = found.row.job_id ? repos().getJob(found.row.job_id) : undefined;
+    return `${base}为「${jobLabel(forJob)}」定制的版本`;
   };
 
   const packetDeps = () => ({ repos: repos(), store: store(), exportPdf: (id: string) => exportWithVault(id, 'pdf'), exportsDir: exportsDir() });
@@ -385,7 +419,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
    * 浏览器路由只发 progress / page / result / error 四种行；接管体现在 result.status === 'handoff'，
    * 错误行（501 引擎未就绪 / 400 缺资料 / 401 / 409）一律按失败处理，不再被误记成"已填好"。
    */
-  async function runDrive(action: ActionQueueItem, mode: 'start' | 'continue'): Promise<CallToolResult> {
+  async function runDrive(action: ActionQueueItem, mode: 'start' | 'continue', opts: { claimed?: boolean } = {}): Promise<CallToolResult> {
     const r = repos();
     const payload = parseJson<Record<string, unknown>>(action.payload_json) ?? {};
     const runId = `run_${action.id}`;
@@ -395,9 +429,9 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     const taskId = task.id;
     r.updateTask(taskId, { status: 'running' });
     if (mode === 'continue') {
-      for (const h of r.openHandoffs()) if (h.action_id === action.id) r.closeHandoff(h.id, 'apply_continue');
+      for (const h of r.openHandoffs()) if (h.action_id === action.id) r.closeHandoff(h.id, '继续填写');
       r.setActionStatus(action.id, 'executing');
-    } else {
+    } else if (!opts.claimed) {
       // 认领：approved → executing 原子切换并核对批准时的内容哈希；后台批量已经拿走 / 批准后内容变了都会失败
       const claim = r.claimAction(action.id);
       if (!claim.ok) {
@@ -406,7 +440,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return err(claim.reason === 'content_changed' ? '这份网申在批准之后内容有变化，已退回待审核，请让用户重新确认后再执行' : `动作已不是待执行状态（${claim.action?.status ?? '不存在'}），可能后台批量投递正在处理它`);
       }
     }
-    if (action.application_id) { try { r.transition(action.application_id, 'pending', mode === 'start' ? 'apply_run 开始' : 'apply_continue 继续'); } catch { /* 阶段已在执行态 */ } }
+    if (action.application_id) { try { r.transition(action.application_id, 'pending', mode === 'start' ? '开始填写网申' : '接着填写网申'); } catch { /* 阶段已在执行态 */ } }
     changed('task', 'action_queue', 'application', 'handoff');
     const existing = registry.get(runId);
     if (!existing) registry.start(runId, { taskId, actionId: action.id, url: typeof payload.url === 'string' ? payload.url : undefined });
@@ -428,7 +462,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     try {
       // 填表资料（姓名 / 手机 / 邮箱 / 证件号…）由浏览器路由在 Node 侧从私密库组装，这里不传、也看不到明文；
       // 返回的事件已脱敏（明文 → {{vault:...}} 占位符）。continue 不传 url：从当前页继续。
-      const file = await packetResumeFile(r, payload, resumeFileFor);
+      const file = await packetResumeFile(r, payload, resumeFileFor, { resolveText: t => vault().resolve(t, { actor: 'resume_export', purpose: '简历附件文件名' }) });
       if (file.error) return failRun(file.error);
       const resumePath = file.path;
       // 续跑：上次 needs_user 的标签交给引擎，用户在接管期间自己填好的值会被学进答案库
@@ -436,7 +470,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       const learnFrom = (prevSummary?.needsUser ?? []).map(p => p.label).filter((l): l is string => typeof l === 'string' && !!l);
       await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload, ...(mode === 'start' && typeof payload.url === 'string' ? { url: payload.url } : {}), ...(resumePath ? { resumePath } : {}), ...(learnFrom.length ? { learnFrom } : {}) }, (ev) => {
         events.push(ev);
-        if (ev.type === 'progress') progress('apply_run', String(ev.message ?? ''), { runId, taskId, progress: ev.progress });
+        if (ev.type === 'progress') progress('fill_form', String(ev.message ?? ''), { runId, taskId, progress: ev.progress });
       });
     } catch (error) {
       return failRun(error instanceof Error ? error.message : String(error));
@@ -447,10 +481,11 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       r.updateTask(taskId, { status: 'queued' });
       registry.finish(runId);
       changed('task', 'action_queue');
-      return err('后台批量投递正在使用浏览器填另一份网申。这份已放回队列（批准仍有效）：可以等批量顺带处理，或让用户先暂停批量再执行。');
+      return err(`后台批量投递正在使用浏览器填另一份网申。这份已放回队列：可以等批量顺带处理，或让用户先暂停批量后用 apply_run(${action.id}) 再执行。`);
     }
     const outcome = persistDriveOutcome({ repos: r, action, taskId, events, changed, review });
-    if (outcome.kind !== 'failed') emitDriveCards(action.id, outcome.summary);
+    const jobName = jobLabel(typeof payload.job_id === 'string' ? r.getJob(payload.job_id) : undefined);
+    if (outcome.kind !== 'failed') emitDriveCards(action.id, outcome.summary, outcome.gate, jobName);
     // 卡在登录页且私密库里没有这个站的账号：对话里给一张「保存登录账号」卡，存好后产品在登录页代填（点登录仍由用户）
     if (outcome.kind === 'handoff' && outcome.reason === 'login' && outcome.finalUrl) {
       const host = core.normalizeHost(outcome.finalUrl);
@@ -463,13 +498,20 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     }
     if (outcome.kind === 'handoff') {
       try { registry.pause(runId, outcome.reason, { handoffId: outcome.handoffId, url: outcome.finalUrl, message: outcome.userAction ?? outcome.message }); } catch { /* 已是暂停态 */ }
-      return text({ runId, taskId, state: 'paused', handoffId: outcome.handoffId, reason: outcome.reason, userAction: outcome.userAction, summary: outcome.summary, note: '已暂停：请把 userAction 原话告诉用户；用户在浏览器里处理完并点"交回"后，调用 apply_continue(action_id) 从当前页继续。' });
+      if (outcome.gate) {
+        // 停在提交前但没过门槛：不是"填好了"，提交也没有入队
+        const g = outcome.gate;
+        return text({ runId, taskId, state: 'needs_user', action_id: action.id, handoffId: outcome.handoffId, reason: outcome.reason, gaps: g.gaps, requiredFilled: g.requiredFilled, requiredTotal: g.requiredTotal, summary: outcome.summary,
+          note: `还没填完，提交没有入队：${gapsHeadline(g.gaps)}${g.requiredTotal !== null ? `（必填 ${g.requiredFilled}/${g.requiredTotal}）` : ''}。对话里有一张卡片逐项列出了这些字段和原因。把缺的项用人话告诉用户（这时还没填完，别跟用户说已经填完了；不要提工具名或动作 id）；用户补好后会发来消息，届时调用 apply_continue(action_id) 从当前页继续并重新检查。` });
+      }
+      return text({ runId, taskId, state: 'paused', action_id: action.id, handoffId: outcome.handoffId, reason: outcome.reason, userAction: outcome.userAction, summary: outcome.summary, note: '已暂停：请把 userAction 原话告诉用户；用户在浏览器里处理完并点"交回"后，调用 apply_continue(action_id) 从当前页继续。' });
     }
     registry.finish(runId);
-    return text({ runId, taskId, state: 'done', submitActionId: outcome.submitActionId, autoApproved: outcome.autoApproved ?? null, decision: outcome.decision, summary: outcome.summary,
+    return text({ runId, taskId, state: 'done', submitActionId: outcome.submitActionId, autoApproved: outcome.autoApproved ?? null, decision: outcome.decision,
+      requiredFilled: outcome.gate.requiredFilled, requiredTotal: outcome.gate.requiredTotal, summary: outcome.summary,
       note: outcome.autoApproved
-        ? `表单已填好，${outcome.decision}；产品会在几秒内自动点提交，结果会更新到这份投递。`
-        : `表单已填好但未提交；提交动作已进待审核队列（${outcome.decision ?? '需要你确认'}）。用户看过审阅清单批准后，产品替用户点提交。${outcome.pending > 0 ? `有 ${outcome.pending} 项需要用户补充 / 确认（见 needsUser / drafts / mismatches）。` : ''}` });
+        ? `${outcome.headline}；${outcome.decision}，产品会在几秒内自动点提交，结果会更新到这份投递。`
+        : `${outcome.headline}，还没有提交。对话里有一张提交卡片带审阅清单（${outcome.decision ?? '需要用户确认'}）；用户看过批准后，产品替用户点提交。告诉用户去卡片里看一遍，不要提工具名或动作 id。` });
   }
 
   return createSdkMcpServer({
@@ -981,7 +1023,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       })()),
 
       // ---------- 投递 ----------
-      tool('apply_prepare', '为岗位创建投递记录，把要投的简历冻结成材料包（简历快照 + PDF + JD 原文），并把 fill_form 动作入待审队列；用户在对话里的卡片上批准后，你会收到「我在卡片上批准了…」，收到后调用 apply_run 执行。不传 resume_id 时：用这个岗位的定制简历，没有就用唯一一份主简历；有多份主简历时会报错，请先让用户选。', {
+      tool('apply_prepare', '开始一份网申：为岗位创建投递记录，把要投的简历冻结成材料包（简历快照 + PDF + JD 原文），然后直接在托管浏览器上开始填写（填写本身不会提交，不需要用户事先批准）。填到提交按钮前停下：必填全部填好并核对过，就在对话里给用户一张提交卡片，用户批准后产品替用户点提交；还差项就给一张"还差 N 项要你补"的卡片，用户补好后调用 apply_continue 继续检查。遇登录 / 验证码 / 测评会暂停交给用户，用户交回后调用 apply_continue。不传 resume_id 时：用这个岗位的定制简历，没有就用唯一一份主简历；有多份主简历时会报错，请先让用户选。', {
         job_id: z.string(), resume_id: z.string().optional().describe('要投的简历 id（主简历或定制简历）'),
       }, async (args) => wrap(async () => {
         const job = requireJob(args.job_id);
@@ -992,10 +1034,21 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const application = r.createApplication(job.id, picked?.kind === 'tailored' ? picked.id : null);
         progress('apply_prepare', '正在打包这次投递的简历');
         const { packet, warning } = await freezePacket(packetDeps(), { applicationId: application.id, jobId: job.id, resumeId: picked?.id ?? null });
-        const action = r.enqueueAction('fill_form', { job_id: job.id, resume_id: picked?.id ?? null, packet_id: packet.id, application_id: application.id, url: job.url }, application.id);
+        // 填表不需要事前批准：入队即批准（approved_by=system）并在同一个事务里认领成 executing，
+        // 后台批量运行器只拾取 approved 的 fill_form，看不到这一份，不会两边各跑一次。
+        const claimed = r.db.transaction(() => {
+          const queued = r.enqueueAction('fill_form', { job_id: job.id, resume_id: picked?.id ?? null, packet_id: packet.id, application_id: application.id, url: job.url }, application.id, true);
+          return r.claimAction(queued.id);
+        });
         changed('application', 'action_queue');
-        review([action.id], 'fill_form', `为「${job.company_name ?? ''} ${job.title}」填写网申表单${picked ? `（简历：${picked.reason}）` : '（没有简历附件）'}`);
-        return text({ application, action, packet: { id: packet.id, resume_id: packet.resume_id, resume_kind: packet.resume_kind, resume_pick_reason: picked?.reason ?? null, has_pdf: !!packet.resume_pdf_path }, ...(warning ? { warning } : {}), note: '动作已进入待审核队列，对话里有批准卡片；批准的是这份材料包（之后再改简历不影响这次投递）。现在先停下等用户点卡片，不要调用 apply_run，也不要说填写失败：用户批准后你会收到「我在卡片上批准了…（动作 act_…）」，收到后再调用 apply_run(action_id)。' });
+        if (!claimed.ok) return err('这份网申没能开始填写，请稍后重试');
+        try { r.jumpTo(application.id, 'approved', '开始填写网申（填写不会提交）'); } catch { /* 阶段已在更后面 */ }
+        progress('fill_form', `开始填写「${jobLabel(job)}」的网申（${picked ? `用简历${resumeLabel(picked.id)}` : '没有简历附件'}）`);
+        const res = await runDrive(claimed.action, 'start', { claimed: true });
+        if (res.isError) return res;
+        let body: Record<string, unknown> = {};
+        try { body = JSON.parse(res.content[0].text) as Record<string, unknown>; } catch { /* ignore */ }
+        return text({ application_id: application.id, action_id: claimed.action.id, packet: { id: packet.id, resume_id: packet.resume_id, resume_kind: packet.resume_kind, resume_pick_reason: picked?.reason ?? null, has_pdf: !!packet.resume_pdf_path }, ...(warning ? { warning } : {}), ...body });
       })()),
 
       tool('jobs_board', '岗位汇总表 = 「岗位收藏」页那张表（校招 / 实习网申汇总 + 我的进度 + 可解释匹配）。筛选维度与页面一致：批次 batch / 行业 industry / 类型 type（校招、实习、社招、央国企、外企…）/ 地点 location / 进度 stage 均可多选，q 搜公司或岗位名；页面默认只看没截止的（open_only=true）。用户在岗位收藏页问"这些 / 当前筛选"时，把 refs.filters 换成这些参数（tag→type、city→location、progress→stage，其余同名），refs.job_ids 拆成数组传 job_ids。返回 total（符合条件的总数）+ 前 limit 条（按匹配分排序）；每条带批次 / 行业 / 类型标签和"哪条要求对应用户哪段经历"。推荐时只推荐 fits=true 的（不违反用户明确条件）。', {
@@ -1072,11 +1125,11 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const results = await prepareJobs({ ...packetDeps(), store: store() }, args.job_ids, args.resume_id ?? null);
         changed('application', 'action_queue');
         const queued = results.filter(x => x.ok).map(x => x.action_id!).filter(Boolean);
-        if (queued.length) review(queued, 'fill_form', `${queued.length} 个岗位已加入待投清单，勾选批准后开始批量填写`);
+        if (queued.length) review(queued, 'fill_form', `${queued.length} 个岗位已加入待投清单，选好后就开始批量填写（填到提交前会停下等你确认）`);
         return text({ results, queued: queued.length });
       })()),
 
-      tool('apply_run', '在托管浏览器上执行已批准的填表动作（不提交）。只对 approved 的动作调用：还在待审核就先等用户点卡片；遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
+      tool('apply_run', '在托管浏览器上执行一份已经排进队列的填表动作（不提交）。新开一份网申用 apply_prepare（准备好会直接开始填）；apply_run 只用于队列里已批准、还没开始的那份（如待投清单里用户选好的、或浏览器忙时放回队列的）。遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
         const action = repos().getAction(args.action_id);
         if (!action) return err(`动作不存在：${args.action_id}`);
         if (action.status !== 'approved') return err(`动作状态为 ${action.status}，只能执行已批准（approved）的动作${action.status === 'needs_user' || action.status === 'executing' ? '；要从接管处继续请用 apply_continue' : ''}`);
@@ -1100,7 +1153,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ command: args.command, batch: state, note });
       })()),
 
-      tool('apply_continue', '用户在浏览器里处理完登录 / 验证码 / 测评并交还后（你会收到「我已在浏览器里处理好并交还…」），从当前页面继续填表（不重新打开链接，不提交）。', { action_id: z.string().describe('之前 apply_run 的 action_id') }, async (args) => wrap(async () => {
+      tool('apply_continue', '从当前页面继续填表并重新检查（不重新打开链接，不提交）：用户在浏览器里处理完登录 / 验证码 / 测评并交还后，或在卡片里补齐了缺项后调用。', { action_id: z.string().describe('之前 apply_prepare / apply_run 返回的 action_id') }, async (args) => wrap(async () => {
         const action = repos().getAction(args.action_id);
         if (!action) return err(`动作不存在：${args.action_id}`);
         if (action.status !== 'needs_user' && action.status !== 'executing') return err(`动作状态为 ${action.status}，只有接管中（needs_user / executing）的填表动作可以继续`);

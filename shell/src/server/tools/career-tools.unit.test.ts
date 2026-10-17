@@ -196,7 +196,8 @@ describe('career 五个面的工具', () => {
     expect(action.status).toBe('pending_review');
     expect(JSON.parse(action.payload_json).to).toBe('hr@a.com');
     expect(repos.listMailMessages({ direction: 'out' })).toHaveLength(0);
-    expect(events.some(e => e.event === 'career:review')).toBe(true);
+    // 待审动作是一张对话内审核卡片（每个动作一张，落库可读回）
+    expect(events.some(e => e.event === 'career:card' && (e.data as { card: { kind: string } }).card.kind === 'review')).toBe(true);
   });
 });
 

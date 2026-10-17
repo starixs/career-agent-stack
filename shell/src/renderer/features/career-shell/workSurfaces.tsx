@@ -25,6 +25,7 @@ const CareerResume = lazy(() => import('@/pages/CareerResume'));
 // ─── 工具 → 工作面 ───
 
 const TOOL_SURFACES: Record<string, WorkSurface> = {
+  apply_prepare: 'browser',
   apply_run: 'browser',
   apply_continue: 'browser',
   apply_batch: 'browser',

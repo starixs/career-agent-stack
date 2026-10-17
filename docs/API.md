@@ -162,8 +162,8 @@
 | `resume_export` | resume_id, format | 导出并返回路径 |
 | `company_research` | company_name | intel-compass 九段报告 → company 表 |
 | `web_search` | query, count? | 唯一的外部动作 |
-| `apply_prepare` | job_id, resume_id? | 创建 application，冻结材料包（简历快照 + PDF + JD），入队 fill_form（需审核）；不传 resume_id 时用该岗位定制版或唯一主简历 |
-| `apply_run` | action_id | 在托管浏览器上执行填表 run（不提交）。结果按浏览器路由的 `result.status` 处理：`stopped_before_submit` → submit 进待审队列；`handoff` → 开接管、动作 needs_user、返回 `userAction`（该让用户做什么）；`blocked` / `failed` / 路由 `error` 行 → 动作 failed、投递 blocked |
+| `apply_prepare` | job_id, resume_id? | 创建 application，冻结材料包（简历快照 + PDF + JD），fill_form 入队即批准（system）并在同一事务里认领，随即直接填写（填写不提交，不需要事前审批；批量运行器看不到这份）；不传 resume_id 时用该岗位定制版或唯一主简历 |
+| `apply_run` | action_id | 在托管浏览器上执行填表 run（不提交）。结果按浏览器路由的 `result.status` 处理：`stopped_before_submit` → 过提交门槛（必填全部已填并读回核验、无待补 / 没生效 / 站点报错 / 附件没回显 / 草稿）才入队 submit 并推提交卡（审阅清单，文案按实际数字），否则动作 needs_user + `missing_info` 接管 + `apply_gaps` 卡，补完 apply_continue 重新检查；`handoff` → 开接管、动作 needs_user、返回 `userAction`（该让用户做什么）；`blocked` / `failed` / 路由 `error` 行 → 动作 failed、投递 blocked |
 | `apply_continue` | action_id | 用户在浏览器里处理完登录 / 验证码 / 测评并点"交回"后，从当前页继续填表（不重新打开链接）；复用同一任务，关闭该动作的接管 |
 | `apply_batch` | command: start / pause / stop / status | 后台长程批量：把所有已批准的 fill_form 排队由 Global 运行器一份份填（接管等用户交回后自动续跑、拟人间歇、平台风控跳过、每日上限、侧车重启续跑）。命令经 kv `apply:batch:command` 下发；进度在「浏览器现场」页实时可见 |
 | `jobs_board` | 筛选条件 | 岗位汇总表 + 可解释匹配（只推荐 fits=true 的） |

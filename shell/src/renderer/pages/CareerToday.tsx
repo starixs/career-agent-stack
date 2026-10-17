@@ -325,6 +325,8 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
   const payload = action ? safeJson<Record<string, unknown>>(action.payload_json, {}) : {};
   const isSendMail = action?.kind === 'send_mail';
   const isReview = item.kind === 'review' && !todo.confirmSubmit;
+  // 待投清单里没开始的填表：不是「批准」，而是「开始填写」（填到提交前会停下等你确认）
+  const isFill = action?.kind === 'fill_form';
   // 招呼语 / 开放题回答批准后不由产品发送，而是变成「等你发出去」的一行（manualSend）。
   const approvedNote = action && isManualSendKind(action.kind) ? '已批准，待你发送' : '已批准';
   const sendText = todo.manualSend && action ? manualSendText(action) : null;
@@ -353,8 +355,8 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {isReview && (
             <>
-              <Button variant="primary" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.reviewActions([item.ref.id], 'approved'), approvedNote)}>{isSendMail ? '批准并发送' : '批准'}</Button>
-              <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.reviewActions([item.ref.id], 'rejected'), '不发了')}>不发了</Button>
+              <Button variant="primary" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.reviewActions([item.ref.id], 'approved'), isFill ? '开始填写' : approvedNote)}>{isSendMail ? '批准并发送' : isFill ? '开始填写' : '批准'}</Button>
+              <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.reviewActions([item.ref.id], 'rejected'), isFill ? '已移出' : '不发了')}>{isFill ? '移出清单' : '不发了'}</Button>
             </>
           )}
           {todo.confirmSubmit && (
