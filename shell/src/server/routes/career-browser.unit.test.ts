@@ -5,6 +5,7 @@ import type { BrowserContext, Page } from 'playwright';
 import { humanControlError } from '../browser-host/context-registry';
 import {
   collectPassiveResponses,
+  defaultTelemetry,
   handleCareerBrowserRoute,
   matchesPassiveFilter,
   type ApplyEngineModule,
@@ -212,6 +213,43 @@ describe('career browser route: run', () => {
       type: 'result', op: 'drive', result: { status: 'stopped_before_submit' }, screenshot: { base64: Buffer.from([9]).toString('base64') },
     });
     expect(apply.driveApplication).toHaveBeenCalledWith(expect.anything(), expect.anything(), { basics: {} }, expect.objectContaining({ maxPages: 2, humanTyping: true }));
+  });
+
+  it('drive：界面只收人话进度（不广播内部日志）；运行记录目录按 actionId 传给引擎', async () => {
+    const { host, page } = fakeHost();
+    let seen: Record<string, unknown> = {};
+    const apply: ApplyEngineModule = {
+      fromPlaywright: vi.fn(() => ({ goto: async () => {}, url: () => page.url() })),
+      diagnosePage: vi.fn(async () => ({})),
+      driveApplication: vi.fn(async (_p, _l, _profile, options?: Record<string, unknown>) => {
+        seen = options ?? {};
+        (options?.onProgress as (p: { message: string; kind: string }) => void)({ message: '正在填「学历」', kind: 'field' });
+        expect(options?.log).toBeUndefined();
+        return { status: 'stopped_before_submit' };
+      }),
+    };
+    const res = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'drive', actionId: 'act_t1' } }), {
+      host, loadApply: async () => apply, resolveLlm: async () => ({ complete: async () => ({}) }),
+      resolveDriveProfile: async () => ({ profile: { basics: {} } }),
+      resolveTelemetry: async body => ({ dir: '/data/runs', runId: String(body.actionId), keep: 50 }),
+    });
+    const lines = await ndjson(res!);
+    const progress = lines.filter(l => l.type === 'progress').map(l => l.message);
+    expect(progress).toEqual(['开始填写（不会提交）', '正在填「学历」']);
+    expect(seen.telemetry).toEqual({ dir: '/data/runs', runId: 'act_t1', keep: 50 });
+    expect(lines.at(-1)).toMatchObject({ type: 'result', op: 'drive' });
+  });
+
+  it('defaultTelemetry：$CAREER_DATA_DIR/runs/<actionId>，测试资料 / 显式关闭时不记', async () => {
+    const prev = process.env.CAREER_DATA_DIR;
+    process.env.CAREER_DATA_DIR = '/tmp/career-data-test';
+    try {
+      expect(await defaultTelemetry({ actionId: 'act_9' })).toEqual({ dir: '/tmp/career-data-test/runs', runId: 'act_9', keep: 50 });
+      expect(await defaultTelemetry({ actionId: 'act_9', profile: {} })).toBeNull();
+      expect(await defaultTelemetry({ actionId: 'act_9', telemetry: false })).toBeNull();
+    } finally {
+      if (prev === undefined) delete process.env.CAREER_DATA_DIR; else process.env.CAREER_DATA_DIR = prev;
+    }
   });
 
   it('同一浏览器上下文同时只允许一份网申在填：第二份拿到 BROWSER_BUSY，第一份填完后释放', async () => {

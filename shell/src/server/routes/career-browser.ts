@@ -101,6 +101,11 @@ export interface CareerBrowserRouteDependencies {
   productSessionId?: string;
   /** 让现场画面切到这一页（registry 的选中页）。force：遇到接管时无论如何切过去，让用户看到要处理的那一页。 */
   focusPage?: (page: Page, force?: boolean) => void;
+  /**
+   * drive 的运行记录位置（`$CAREER_DATA_DIR/runs/<actionId|runId>/`：trace.jsonl / 小截图 / 失败 DOM 片段 / summary.json）。
+   * 缺省 {@link defaultTelemetry}；返回 null 不记录（测试 / body.telemetry === false）。
+   */
+  resolveTelemetry?: (body: Record<string, unknown>) => Promise<{ dir: string; runId: string; keep?: number } | null>;
   /** submit 的私密库钩子：把 filled 里的占位符解成明文再与页面比对、回传前脱敏。缺省用私密库单例。 */
   resolveSubmitVault?: () => Promise<{ resolve(v: string): string; redact<T>(v: T): T } | null>;
 }
@@ -149,6 +154,24 @@ export async function defaultDriveProfile(body: Record<string, unknown>, apply: 
     },
     redact: value => vault.redactDeep(value),
   };
+}
+
+/** 运行记录保留最近多少次。 */
+const TELEMETRY_KEEP = 50;
+
+/**
+ * 缺省运行记录目录：`$CAREER_DATA_DIR/runs/<actionId 或 runId>/`。测试（给了 body.profile）或 body.telemetry === false 时不记。
+ * 目录拿不到就不记，不影响填表。
+ */
+export async function defaultTelemetry(body: Record<string, unknown>): Promise<{ dir: string; runId: string; keep: number } | null> {
+  if (body.telemetry === false || body.profile) return null;
+  const id = typeof body.actionId === 'string' && body.actionId ? body.actionId : typeof body.runId === 'string' && body.runId ? body.runId : `run_${Date.now()}`;
+  try {
+    const [{ careerDataDir }, { join }] = await Promise.all([import('../career/db'), import('path')]);
+    return { dir: join(careerDataDir(), 'runs'), runId: id, keep: TELEMETRY_KEEP };
+  } catch {
+    return null;
+  }
 }
 
 /** 后端组合层在启动时注册一次；未注册时 `op:'drive'` 返回 501。 */
@@ -481,14 +504,15 @@ export async function runOperation(
     }
     let perceiver: PerceiverLike | undefined;
     if (body.vision !== false) {
-      try { perceiver = await (deps.createPerceiver ?? defaultPerceiver)(apply, engineLikePage, llm); } catch (error) { out.emit({ type: 'progress', phase: 'drive', message: `视觉兜底层不可用：${error instanceof Error ? error.message : String(error)}` }); }
+      try { perceiver = await (deps.createPerceiver ?? defaultPerceiver)(apply, engineLikePage, llm); } catch (error) { console.warn(`[career-browser] perceiver=unavailable error=${error instanceof Error ? error.message : String(error)}`); }
     }
     // 站点映射记忆（kv，与求职库同一连接）；测试给 body.profile 时不动真实库
     let siteMemory: unknown;
     if (typeof apply.SiteMemory === 'function' && !body.profile) {
       try { const { getRepos } = await import('../career/db'); siteMemory = new apply.SiteMemory(await getRepos()); } catch { /* 数据层未就绪就不记 */ }
     }
-    out.emit({ type: 'progress', phase: 'drive', message: `开始填写（不提交）${perceiver ? `，视觉兜底：${perceiver.id}` : ''}` });
+    out.emit({ type: 'progress', phase: 'drive', message: '开始填写（不会提交）' });
+    const telemetry = await (deps.resolveTelemetry ?? defaultTelemetry)(body);
     const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
       maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
       humanTyping: body.humanTyping !== false,
@@ -498,8 +522,10 @@ export async function runOperation(
       ...(perceiver ? { perceiver } : {}),
       ...(siteMemory ? { siteMemory } : {}),
       ...(Array.isArray(body.learnFrom) ? { learnFrom: (body.learnFrom as unknown[]).filter((x): x is string => typeof x === 'string') } : {}),
-      log: (message: string) => out.emit({ type: 'progress', phase: 'drive', message: redact(message) }),
+      // 内部调试日志只进运行记录（引擎写 trace.jsonl），不广播给界面；界面只收人话进度
+      onProgress: (p: { message: string; kind?: string; label?: string }) => out.emit({ type: 'progress', phase: 'drive', message: redact(p.message), ...(p.kind ? { kind: p.kind } : {}) }),
       onPage: (record: unknown) => out.emit({ type: 'page', record: redact(record) }),
+      ...(telemetry ? { telemetry } : {}),
     });
     const { screenshot, ...rest } = result;
     if (rest.status === 'handoff') deps.focusPage?.(page, true);
