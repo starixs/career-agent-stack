@@ -33,7 +33,19 @@ const list = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.fi
 const OP_LABELS: Record<string, string> = { replace: '改写', add: '新增', remove: '删除', move: '调整顺序' };
 const SECTION_LABELS: Record<string, string> = {
   basics: '基本信息', summary: '个人简介', experiences: '经历', experience: '经历', projects: '项目', education: '教育', skills: '技能', awards: '奖项', bullets: '要点',
+  objective: '求职意向', keywords: '关键词', name: '名称', title: '名称', position: '职位', role: '角色', org: '单位', department: '部门', location: '地点',
+  start: '开始时间', end: '结束时间', school: '学校', major: '专业', degree: '学历', gpa: '成绩', courses: '课程', level: '熟练度',
+  phone: '手机', email: '邮箱', city: '城市', target_cities: '意向城市', availability: '到岗时间', links: '链接', certifications: '证书', custom_sections: '其他',
 };
+/** 改动值若是 JSON 字符串数组（如技能关键词），按顿号连起来显示，不露出方括号和引号。 */
+export function humanizeValue(value: string): string {
+  if (!value.startsWith('[')) return value;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) return parsed.join('、');
+  } catch { /* 不是 JSON，原样显示 */ }
+  return value;
+}
 /** `/experiences/0/bullets/1` → `经历 1 · 要点 2`。 */
 export function humanizePath(path: string): string {
   const parts = path.split('/').filter(Boolean);
@@ -255,7 +267,7 @@ export function ResumeDiffCard({ card, onDone, onDismiss }: CardProps) {
               <input type="checkbox" className="mt-0.5" checked={!!picked[o.path]} onChange={e => setPicked(p => ({ ...p, [o.path]: e.target.checked }))} aria-label={`应用：${humanizePath(o.path)}`} />
               <span className="min-w-0 flex-1">
                 <span className="font-medium text-[var(--ink)]">{OP_LABELS[o.op] ?? o.op} · {humanizePath(o.path)}</span>
-                {o.value && <span className="mt-1 block whitespace-pre-wrap text-sm text-[var(--ink)]">{o.value}</span>}
+                {o.value && <span className="mt-1 block whitespace-pre-wrap text-sm text-[var(--ink)]">{humanizeValue(o.value)}</span>}
                 {o.reason && <span className="mt-1 block">理由：{o.reason}</span>}
               </span>
             </label>

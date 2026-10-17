@@ -8,7 +8,7 @@ import { emitEvent, onEvent } from '@/api/eventBus';
 import { TabContext, type TabContextValue } from '@/context/TabContext';
 
 import { CareerChatCards, collectToolUseIds } from './CareerChatCards';
-import { CareerFlowCards, humanizePath } from './CareerFlowCards';
+import { CareerFlowCards, humanizePath, humanizeValue } from './CareerFlowCards';
 import type { CareerCard } from './types';
 
 const card = (kind: CareerCard['kind'], data: Record<string, unknown>, title = '卡片'): CareerCard => ({ id: `${kind}:1`, kind, title, data, createdAt: '2026-10-03T00:00:00Z' });
@@ -169,5 +169,14 @@ describe('对话内流程卡片', () => {
   it('humanizePath', () => {
     expect(humanizePath('/basics/summary')).toBe('基本信息 · 个人简介');
     expect(humanizePath('/projects/-')).toBe('项目（末尾）');
+    expect(humanizePath('/basics/objective')).toBe('基本信息 · 求职意向');
+    expect(humanizePath('/skills/0/keywords')).toBe('技能 1 · 关键词');
+  });
+
+  it('humanizeValue shows string arrays as a plain list', () => {
+    expect(humanizeValue('["Java","MySQL"]')).toBe('Java、MySQL');
+    expect(humanizeValue('[1,2]')).toBe('[1,2]');
+    expect(humanizeValue('[未完')).toBe('[未完');
+    expect(humanizeValue('普通文字')).toBe('普通文字');
   });
 });
