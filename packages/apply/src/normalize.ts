@@ -153,5 +153,7 @@ export function matchOption(options: string[], value: string | undefined, hint: 
   if (containing.length) return containing[0]
   const contained = options.filter(o => { const n = normKey(o); return n.length >= 2 && v.includes(n) }).sort((a, b) => b.length - a.length)
   if (contained.length) return contained[0]
-  return options.find(o => fuzzyEquals(o, value))
+  // 模糊相等只给够长的文本（OCR 错字级别）；两三个字的选项差一个字就是另一个意思（藏族 ≠ 汉族）
+  if (v.length < 4) return undefined
+  return options.find(o => normKey(o).length >= 4 && fuzzyEquals(o, value))
 }

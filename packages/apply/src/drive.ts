@@ -13,7 +13,7 @@ import { looksLikeFormVisually, pairVisualFields, type Perceiver, type UiKind } 
 import { visionScan, visionFill, visionClickText, visionFindButton, type VisionOptions } from './vision.js'
 import { describeObstacle, looksLikeRiskUrl, type CaptchaKind } from './obstacles.js'
 import { fillRepeatingSections, matchRowField, SECTIONS, type SectionSummary } from './sections.js'
-import { normalizeHost, type SiteMemory } from './memory.js'
+import { normalizeHost, type SiteMemory, type WidgetMemory } from './memory.js'
 import { matchOption } from './normalize.js'
 import type { FieldType } from './scripts.js'
 import { buildSubmitReview, type SubmitReview } from './review.js'
@@ -175,6 +175,10 @@ export interface DriveOptions extends PacingOptions {
   vision?: { maxFieldsPerPage?: number; maxScrolls?: number }
   /** 站点映射记忆：别名匹配不到的字段按上次记录直填；读回核对通过的 profile 字段记下来。 */
   siteMemory?: SiteMemory
+  /** 站点控件记忆；不传时用 siteMemory 同一存储上的控件记忆。 */
+  widgetMemory?: WidgetMemory
+  /** 关掉语义兜底层（启发式失败时让模型走一步）。 */
+  semanticFallback?: boolean
   /** 续跑时：这些标签上次是 needs_user，若现在页面上已有值（用户自己填的），回传给调用方存进答案库。 */
   learnFrom?: string[]
   onPage?: (rec: PageRecord) => void
@@ -237,7 +241,14 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     unresolvedBlocker = r.unresolved
     return !r.unresolved
   }
-  const fillDeps = { page, pause, humanTyping: opts.humanTyping, llm: widgetLlm, recorder, progress: (m: string) => progress(m, 'field'), log, watchdogMs: opts.watchdogMs ?? 30_000, clearBlockers: () => blockers('field'), capture, highlight: opts.highlight, rng: opts.rng, sleep: opts.sleep }
+  const widgetEvents = { used: new Set<string>(), learned: new Set<string>() }
+  const widgetStore = opts.widgetMemory ?? opts.siteMemory?.widgets()
+  const widgetMemory = widgetStore?.bind(host, e => { (e.kind === 'used' ? widgetEvents.used : widgetEvents.learned).add(`${e.sig} → ${e.detail}`); if (e.kind === 'learned') log(`控件记忆：${e.sig} → ${e.detail}`) })
+  const snapshot = async () => {
+    if (sensitive.length) await page.evaluate(maskSensitiveScript, { on: true, selectors: sensitive }).catch(() => {})
+    try { return await (page.screenshotSmall ? page.screenshotSmall() : page.screenshot()) } finally { if (sensitive.length) await page.evaluate(maskSensitiveScript, { on: false }).catch(() => {}) }
+  }
+  const fillDeps = { widgetMemory, snapshot, semantic: opts.semanticFallback, page, pause, humanTyping: opts.humanTyping, llm: widgetLlm, recorder, progress: (m: string) => progress(m, 'field'), log, watchdogMs: opts.watchdogMs ?? 30_000, clearBlockers: () => blockers('field'), capture, highlight: opts.highlight, rng: opts.rng, sleep: opts.sleep }
 
   const summarize = (status: string, extra: Partial<DriveResult>) => {
     const fs = allFields
@@ -246,6 +257,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       fields: { total: fs.length, verified: fs.filter(f => f.verified).length, needsUser: fs.filter(f => f.status === 'needs_user').length, mismatch: fs.filter(f => f.status === 'mismatch').length, emptyOptional: fs.filter(f => f.status === 'empty_optional').length, labelUncertain: fs.filter(f => f.labelUncertain).length },
       blockers: allBlockers.map(b => ({ text: b.text.slice(0, 120), choice: b.choice, by: b.by, resolved: b.resolved })),
       requiredTrusted: extra.review?.requiredTrusted,
+      ...(widgetEvents.used.size || widgetEvents.learned.size ? { widgetMemory: { used: [...widgetEvents.used].slice(0, 20), learned: [...widgetEvents.learned].slice(0, 20) } } : {}),
     })
   }
   const telemetryRef = recorder.dir && recorder.runId ? { dir: recorder.dir, runId: recorder.runId } : undefined
@@ -671,7 +683,8 @@ export function diffAgainstPlan(fields: FormField[], filled: FilledRecord[]): Mi
 /**
  * 上传回显（不认类名，上传前后对比）：页面 / 上传区出现文件名（原名、全半角与各种横线归一、去扩展名的主干）、
  * "上传成功 / 已上传 / 重新上传 / 删除"等提示新出现、上传区多出带扩展名的文件项，任一成立即算回显。
- * 站点上传是异步的（先弹"是否解析"、再传、再回显），所以轮询几秒。只有 input.files 有值不算（那只说明浏览器选了文件）。
+ * 站点上传是异步的（先弹"是否解析"、再传、再回显），所以轮询几秒。只有 input.files 有值不算（那只说明浏览器选了文件，
+ * 站点上传失败也一样有值——算它就是假成功）。
  */
 export const looseName = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\s\-‐‑‒–—―_－~·•.。、,，()（）[\]【】]/g, '')
 export async function checkUploadEcho(page: PageLike, f: FormField, filePath: string, before?: UploadAreaResult, beforeText?: string): Promise<UploadCheck> {
@@ -681,9 +694,7 @@ export async function checkUploadEcho(page: PageLike, f: FormField, filePath: st
   const stem = looseName(name.replace(/\.[^.]+$/, ''))
   const SUCCESS = /(上传成功|已上传|解析成功|解析完成|简历解析|重新上传|uploaded|attached|upload complete|re-?upload)/i
   for (let i = 0; i < 12; i++) {
-    const fields = await extractFields(page)
-    const cur = fields.find(x => x.id === f.id)
-    if (cur?.value && looseName(cur.value).includes(stem)) return { fieldId: f.id, file: name, echoed: true, evidence: `字段值：${cur.value}` }
+    // 注意：文件框自己的 files / value 只说明浏览器选了文件，站点没处理也会有值，不算回显
     const sig: PageSignals = await page.evaluate(pageSignalsScript)
     const text = looseName(sig.text)
     if (text.includes(full)) return { fieldId: f.id, file: name, echoed: true, evidence: '页面文本中出现文件名' }

@@ -26,6 +26,8 @@ export const WIDGET_SCRIPT_IDS = {
   domSnippet: 'career.domSnippet',
   clearSelect: 'career.clearSelect',
   uploadArea: 'career.uploadArea',
+  widgetSignature: 'career.widgetSignature',
+  semanticContext: 'career.semanticContext',
 } as const
 
 // ---------------------------------------------------------------------------
@@ -213,18 +215,24 @@ export const scanDialogsScript: PageScript<void, DialogScan> = {
 }
 
 // ---------------------------------------------------------------------------
-// 自定义下拉：点开 → 认准"属于这个字段的弹出层"→ 枚举选项（打 data-career-opt 标记）
-//  - 外壳先认已知组件库的根（.mtd-select 等），再退到泛 [class*=select]：MTD 的输入框外面还套着
-//    `.mtd-select-filter-input`（类名也含 select），把它当外壳就读不到旁边的选中值、点不到真正的触发器；
-//  - 弹出层归属：先看 aria-controls / aria-owns；否则只认"点开后新出现"的可见弹层，取离触发器最近的；
-//    别的下拉外壳里的节点（多选标签、提示文字）、点开前就可见的旧弹层一律不算（以前会把另一个下拉的
-//    「请输入工作城市」当成选项）；
+// 自定义下拉：点开 → 认准"属于这个字段的弹出层"→ 枚举选项（打 data-career-opt 标记）。观察行为，类名只是加速：
+//  - 外壳先认已知组件库的根（.mtd-select 等），再退到泛 [class*=select]（MTD 输入框外还套着 .mtd-select-filter-input）；
+//  - 弹层归属（依次）：aria-controls / aria-owns 指向的元素 → 点击后"新变为可见"的已知弹层类名 →
+//    MutationObserver 记下点击后新增 / 改了样式的节点，往上找 position:absolute/fixed 的浮层（自研组件、随机类名也认）；
+//    点开前就可见的旧弹层、别的下拉外壳里的节点（多选标签、提示文字）一律不算，多个候选取离触发器最近的；
+//  - 浮层里的选项：先认 option / li 等，认不出就取"带完整短文本的最内层节点"里同一父节点下最多的那组；
 //  - 依次尝试 输入框 → 箭头图标 → 外壳，每次点完都检查，避免"点两下又收起"；
-//  - 可搜索 = 外壳里的输入框不是 readonly / disabled（远程搜索型下拉点开时可能一个选项都没有）。
+//  - searchable 只说明"输入框可编辑"，是否真的能搜由 fill.ts 输入一两个字后看候选有没有变化来判定。
 // ---------------------------------------------------------------------------
 export interface OptionInfo { id: string; text: string; disabled?: boolean }
 export interface OpenOptionsArg { selector: string; reopen?: boolean; waitMs?: number }
-export interface OpenOptionsResult { opened: boolean; options: OptionInfo[]; searchable: boolean; cascade: boolean; detail?: string }
+export interface OpenOptionsResult {
+  opened: boolean; options: OptionInfo[]; searchable: boolean; cascade: boolean; detail?: string
+  /** 弹层是怎么认出来的：aria / class / mutation / options（只认出了新选项）/ marked（复用上次标记）。 */
+  via?: 'aria' | 'class' | 'mutation' | 'options' | 'marked'
+  /** 弹层可见文字（截断），用来比较"键入后候选有没有变化"。 */
+  popupText?: string
+}
 export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = {
   id: WIDGET_SCRIPT_IDS.openOptions,
   fn: async ({ selector, reopen, waitMs }) => {
@@ -243,6 +251,7 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
     }
     const OPT = '[role=option], [class*="select-item" i]:not([class*="group" i]), [class*="select-option" i], [class*="dropdown" i] li, [class*="select" i] li, [class*="popper" i] li, [class*="cascader" i] li, [class*="cascader-node" i], [class*="menu-item" i], .layui-anim dd, [class*="option" i]:not([class*="options" i]):not(select):not(option)'
     const POP = '[class*="dropdown" i], [class*="popper" i], [class*="popup" i], [role=listbox], [class*="menu" i], [class*="cascader" i], .layui-anim'
+    const EMPTY_RX = /^(无匹配|无数据|暂无|没有|加载中|搜索中|请输入|输入关键字|no (data|match|result)|loading|searching)/i
     const fire = (n: Element) => {
       if (typeof PointerEvent === 'function') n.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }))
       n.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }))
@@ -259,11 +268,25 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
       if (n === el || n.contains(el) || n.closest('[class*="selection" i], [data-career-overlay]') || otherShell(n) || n.querySelector(OPT)) return false
       const t = clean(n.textContent); return t.length > 0 && t.length <= 60 && vis(n)
     })
-    /** 弹出层根：最外层的弹层容器（不包含字段本身）。 */
-    const popRoot = (n: Element): Element | null => {
-      let c = n.closest(POP); if (!c || c.contains(shell)) return null
-      for (let up = c.parentElement?.closest(POP) ?? null; up && !up.contains(shell); up = up.parentElement?.closest(POP) ?? null) c = up
-      return c
+    /** 浮层里的选项：先认常见选项节点；认不出就取同一父节点下最多的"带完整短文本的最内层节点"。 */
+    const optionsIn = (layer: Element): Element[] => {
+      const known = collect().filter(n => layer.contains(n))
+      if (known.length) return known
+      const leaves = Array.from(layer.querySelectorAll('*')).filter(n => {
+        if (/^(INPUT|TEXTAREA|SELECT|BUTTON|SCRIPT|STYLE|SVG)$/i.test(n.tagName)) return false
+        const t = clean(n.textContent)
+        if (!t || t.length > 60 || EMPTY_RX.test(t)) return false
+        if (Array.from(n.children).some(c => clean(c.textContent) === t)) return false
+        return vis(n)
+      })
+      const groups = new Map<Element, Element[]>()
+      for (const n of leaves) { const p = n.parentElement ?? layer; groups.set(p, [...(groups.get(p) ?? []), n]) }
+      // 每个选项可能是 <div><span>文本</span></div>：按"父节点的父节点"再聚一次
+      const best = Array.from(groups.values()).sort((x, y) => y.length - x.length)[0] ?? []
+      if (best.length >= 2) return best
+      const groups2 = new Map<Element, Element[]>()
+      for (const n of leaves) { const p = n.parentElement?.parentElement ?? layer; groups2.set(p, [...(groups2.get(p) ?? []), n]) }
+      return Array.from(groups2.values()).sort((x, y) => y.length - x.length)[0] ?? []
     }
     const owned = (): Element | null => {
       for (const n of [el, shell, ...Array.from(shell.querySelectorAll('[aria-controls], [aria-owns]'))]) {
@@ -275,46 +298,72 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
     const dist = (c: Element) => { const r = c.getBoundingClientRect(); return Math.abs(r.top - fr.bottom) + Math.abs(r.left - fr.left) }
     const visiblePops = () => Array.from(document.querySelectorAll(POP)).filter(p => !p.contains(shell) && vis(p))
     const marked = () => { const m = document.querySelector('[data-career-popup="1"]'); return m && vis(m) && !m.contains(shell) ? m : null }
+    const positioned = (n: Element) => { const p = getComputedStyle(n).position; return p === 'absolute' || p === 'fixed' }
+    /** 节点所在的浮层：往上最外层的 absolute / fixed 祖先（不能包含字段本身）。 */
+    const layerOf = (n: Element): Element | null => {
+      let best: Element | null = null
+      for (let a: Element | null = n, i = 0; a && a !== document.body && i < 12; a = a.parentElement, i++) { if (a.contains(shell)) break; if (positioned(a)) best = a }
+      return best
+    }
     let popup: Element | null = null
     let nodes: Element[] = []
+    let via: OpenOptionsResult['via']
     if (!reopen) {
       for (const m of Array.from(document.querySelectorAll('[data-career-popup]'))) m.removeAttribute('data-career-popup')
       const beforePops = new Set(visiblePops())
       const beforeOpts = new Set(collect())
-      const freshPopup = (): Element | null => {
-        const o = owned(); if (o && vis(o)) return o
+      const beforeLayers = new Set<Element>()
+      for (const n of Array.from(document.body.querySelectorAll('*')).slice(0, 6000)) if (positioned(n) && vis(n)) beforeLayers.add(n)
+      const mutated = new Set<Element>()
+      const mo = typeof MutationObserver === 'function' ? new MutationObserver(list => {
+        for (const m of list) {
+          if (m.type === 'childList') m.addedNodes.forEach(x => { if (x.nodeType === 1) mutated.add(x as Element) })
+          else if (m.target.nodeType === 1) mutated.add(m.target as Element)
+        }
+      }) : null
+      mo?.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'hidden', 'aria-hidden'] })
+      const freshPopup = (): { p: Element; via: OpenOptionsResult['via'] } | null => {
+        const o = owned(); if (o && vis(o)) return { p: o, via: 'aria' }
         const fresh = visiblePops().filter(p => !beforePops.has(p))
         const roots = fresh.filter(p => !fresh.some(q => q !== p && q.contains(p))).sort((a, b) => dist(a) - dist(b))
-        return roots[0] ?? null
+        if (roots[0]) return { p: roots[0], via: 'class' }
+        const layers = new Set<Element>()
+        for (const n of mutated) { if (!n.isConnected || shell.contains(n)) continue; const l = layerOf(n); if (l && !beforeLayers.has(l) && vis(l)) layers.add(l) }
+        const lr = Array.from(layers).filter(l => !Array.from(layers).some(q => q !== l && q.contains(l))).sort((a, b) => dist(a) - dist(b))
+        return lr[0] ? { p: lr[0], via: 'mutation' } : null
       }
       const freshOptions = () => collect().filter(n => !beforeOpts.has(n))
-      const icon = shell.querySelector('[class*="icon" i], [class*="arrow" i], [class*="suffix" i], [class*="caret" i]')
+      const icon = shell === el ? null : shell.querySelector('[class*="icon" i], [class*="arrow" i], [class*="suffix" i], [class*="caret" i]')
       const triggers = Array.from(new Set([el, icon, shell].filter((n): n is HTMLElement => !!n)))
       const total = waitMs ?? 1500
-      for (let t = 0; t < triggers.length && !popup && !nodes.length; t++) {
-        if (t === 0) { try { el.focus({ preventScroll: true }) } catch { /* ignore */ } }
-        fire(triggers[t])
-        const deadline = Date.now() + (t === 0 ? total : Math.max(400, total / 3))
-        while (Date.now() < deadline) {
-          await sleep(120)
-          popup = freshPopup()
-          nodes = popup ? collect().filter(n => popup!.contains(n)) : freshOptions()
-          if (popup && !nodes.length) { await sleep(200); nodes = collect().filter(n => popup!.contains(n)) }
-          if (popup || nodes.length) break
+      try {
+        for (let t = 0; t < triggers.length && !popup && !nodes.length; t++) {
+          if (t === 0) { try { el.focus({ preventScroll: true }) } catch { /* ignore */ } }
+          fire(triggers[t])
+          const deadline = Date.now() + (t === 0 ? total : Math.max(400, total / 3))
+          while (Date.now() < deadline) {
+            await sleep(120)
+            const fp = freshPopup()
+            if (fp) { popup = fp.p; via = fp.via }
+            nodes = popup ? optionsIn(popup) : freshOptions()
+            if (popup && !nodes.length) { await sleep(200); nodes = optionsIn(popup) }
+            if (popup || nodes.length) break
+          }
         }
-      }
+      } finally { mo?.disconnect() }
       if (!popup && nodes.length) {
-        // 弹层类名认不出来：按新出现的选项分组，取离字段最近的那组
+        // 弹层认不出来：按新出现的选项分组，取离字段最近的那组
         const groups = new Map<Element, Element[]>()
-        for (const n of nodes) { const c = popRoot(n) ?? n.parentElement ?? document.body; groups.set(c, [...(groups.get(c) ?? []), n]) }
+        for (const n of nodes) { const c = layerOf(n) ?? n.closest(POP) ?? n.parentElement ?? document.body; groups.set(c, [...(groups.get(c) ?? []), n]) }
         const best = Array.from(groups.entries()).sort((a, b) => dist(a[0]) - dist(b[0]))[0]
-        popup = best[0]; nodes = best[1]
+        popup = best[0]; nodes = best[1]; via = 'options'
       }
     } else {
       // 键入关键字后重新枚举：认之前标记的弹层；等选项列表稳定（远程搜索会一边返回一边重渲染）且没有加载中
       const deadline = Date.now() + (waitMs ?? 2500)
       let last = ''
       let stable = 0
+      via = 'marked'
       while (Date.now() < deadline) {
         await sleep(150)
         popup = marked() ?? owned()
@@ -322,10 +371,10 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
           const withOpts = visiblePops().filter(p => collect().some(n => p.contains(n)))
           popup = withOpts.filter(p => !withOpts.some(q => q !== p && q.contains(p))).sort((a, b) => dist(a) - dist(b))[0] ?? null
         }
-        const list = popup ? collect().filter(n => popup!.contains(n)) : []
-        const loading = !!popup && Array.from(popup.querySelectorAll('[class*="loading" i], [class*="spin" i]')).some(vis)
-        const sig = list.map(n => clean(n.textContent)).join('|')
-        if (!loading && sig === last) { if (++stable >= 2 && list.length) { nodes = list; break } } else stable = 0
+        const list = popup ? optionsIn(popup) : []
+        const loading = !!popup && (Array.from(popup.querySelectorAll('[class*="loading" i], [class*="spin" i]')).some(vis) || /加载中|搜索中|loading/i.test(clean((popup as HTMLElement).innerText)))
+        const sig = `${list.map(n => clean(n.textContent)).join('|')}#${popup ? clean((popup as HTMLElement).innerText).slice(0, 200) : ''}`
+        if (!loading && sig === last) { if (++stable >= 2) { nodes = list; break } } else stable = 0
         last = sig; nodes = list
       }
       if (!popup) return { opened: false, options: [], searchable: false, cascade: false, detail: '弹出层不见了' }
@@ -342,7 +391,7 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
       return { id, text: clean(n.textContent), disabled: /disabled/i.test(cls) || n.getAttribute('aria-disabled') === 'true' || undefined }
     })
     const cascade = nodes.some(n => /cascader/i.test(`${(n.closest(POP) as HTMLElement | null)?.className ?? ''} ${typeof n.className === 'string' ? n.className : ''}`))
-    return { opened: true, options, searchable, cascade }
+    return { opened: true, options, searchable, cascade, via, popupText: popup ? clean((popup as HTMLElement).innerText).slice(0, 300) : '' }
   },
 }
 
@@ -358,7 +407,7 @@ export const pickOptionScript: PageScript<{ selector: string; optId: string; tex
     // 远程搜索的列表可能在枚举后又重渲染了一次：按原文在同一个弹层里重新找
     if (el && text && (!opt || !opt.isConnected || !vis(opt))) {
       const pop = document.querySelector('[data-career-popup="1"]')
-      const again = pop ? Array.from(pop.querySelectorAll('[role=option], li, [class*="option" i], [class*="item" i], dd')).filter(n => vis(n) && clean(n.textContent) === text) : []
+      const again = pop ? Array.from(pop.querySelectorAll('*')).filter(n => vis(n) && clean(n.textContent) === text) : []
       opt = (again.filter(n => !again.some(o => o !== n && n.contains(o)))[0] as HTMLElement | undefined) ?? null
     }
     if (!el || !opt) return { ok: false, display: '', detail: el ? '选项不见了' : '元素不存在' }
@@ -370,7 +419,7 @@ export const pickOptionScript: PageScript<{ selector: string; optId: string; tex
       n.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }))
       n.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
     }
-    const popup = opt.closest('[class*="dropdown" i], [class*="popper" i], [class*="popup" i], [role=listbox], [class*="menu" i], [class*="cascader" i], .layui-anim')
+    const popup = opt.closest('[data-career-popup], [class*="dropdown" i], [class*="popper" i], [class*="popup" i], [role=listbox], [class*="menu" i], [class*="cascader" i], .layui-anim')
     const cascadeCols = () => popup ? Array.from(popup.querySelectorAll('[class*="cascader-menu" i]:not([class*="menus" i]), [class*="cascader-list" i], [class*="cascader-panel" i] ul, [role=menu]')).filter(vis).length : 0
     const colsBefore = cascadeCols()
     fire(opt)
@@ -482,6 +531,21 @@ export const readDisplayScript: PageScript<{ selector: string }, ReadDisplayResu
     const pe = el.parentElement
     const shell = pe ? (pe.closest(KNOWN) ?? pe.closest(GENERIC)) : null
     if (el.tagName === 'SELECT') { const s = el as HTMLSelectElement; return { exists: true, display: s.selectedIndex >= 0 ? clean(s.options[s.selectedIndex]?.textContent) : '' } }
+    // 无障碍属性直接给出的显示值
+    const vt = el.getAttribute('aria-valuetext'); if (vt && clean(vt)) return { exists: true, display: clean(vt) }
+    /**
+     * 通用兜底：控件里用户看得到的文字（innerText 只含可见节点），去掉占位提示（placeholder / hint 节点、
+     * 与 placeholder 属性相同的字、"请选择 / 请输入 / select" 这类提示语）与图标字符；有 title 时优先 title。
+     */
+    const PROMPT_RX = /^(请选择|请输入|请填写|选择|搜索|please select|select|choose|--)/i
+    const seen = (root: Element): string => {
+      let t = clean((root as HTMLElement).innerText)
+      for (const n of Array.from(root.querySelectorAll('[class*="placeholder" i], [class*="hint" i]'))) { const x = clean((n as HTMLElement).innerText); if (x) t = t.replace(x, '') }
+      for (const ph of [el.getAttribute('placeholder'), el.getAttribute('aria-placeholder'), root.getAttribute('aria-placeholder')]) if (ph) t = t.replace(ph, '')
+      t = clean(t.replace(/[\p{So}\p{Co}×✕✖⨯⌄∨˅]/gu, ''))
+      if (!t || PROMPT_RX.test(t)) return ''
+      return t
+    }
     if (shell) {
       const VALUE = '[class*="selection-item" i], [class*="selected-value" i], [class*="single-value" i], [class*="selection__rendered" i], [class*="selected-item" i], [class*="select-value" i], [class*="filter-label" i], [class*="label" i]:not(label)'
       const nodes = Array.from(shell.querySelectorAll(VALUE))
@@ -494,9 +558,12 @@ export const readDisplayScript: PageScript<{ selector: string }, ReadDisplayResu
       }
       if (nodes.length) return { exists: true, display: '' }
       for (const i of Array.from(shell.querySelectorAll('input'))) { const v = clean((i as HTMLInputElement).value); if (v && vis(i)) return { exists: true, display: v } }
-      return { exists: true, display: clean((el as HTMLInputElement).value ?? '') }
+      const own = clean((el as HTMLInputElement).value ?? '')
+      if (own) return { exists: true, display: own }
+      return { exists: true, display: seen(shell) }
     }
     if (el.isContentEditable) return { exists: true, display: clean(el.innerText) }
+    if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return { exists: true, display: seen(el) } // 自研 div 下拉（role=combobox）
     return { exists: true, display: clean((el as HTMLInputElement).value ?? el.textContent) }
   },
 }
@@ -504,11 +571,12 @@ export const readDisplayScript: PageScript<{ selector: string }, ReadDisplayResu
 // ---------------------------------------------------------------------------
 // 日期 / 月份：能输入先输入再核验；否则点开面板，按 年 → 月（→ 日）导航点击
 // ---------------------------------------------------------------------------
-export interface DatePickArg { selector: string; y: number; m: number; d?: number; text: string; typable: boolean }
-export interface DatePickResult { ok: boolean; display: string; strategy: 'typed' | 'panel' | 'none'; steps: number; detail?: string }
+/** texts：可输入时按顺序试的写法（如 2027-06、2027/06、2027.06、2027年06月），第一个通常按 placeholder / 现有值推断。 */
+export interface DatePickArg { selector: string; y: number; m: number; d?: number; text: string; texts?: string[]; typable: boolean }
+export interface DatePickResult { ok: boolean; display: string; strategy: 'typed' | 'panel' | 'none'; steps: number; detail?: string; used?: string }
 export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
   id: WIDGET_SCRIPT_IDS.datePick,
-  fn: async ({ selector, y, m, d, text, typable }) => {
+  fn: async ({ selector, y, m, d, text, texts, typable }) => {
     const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
     const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim()
     const el = document.querySelector(selector) as HTMLInputElement | null
@@ -531,29 +599,38 @@ export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
     const digits = (s: string) => (s.match(/\d+/g) || []).map(Number)
     const okDisplay = () => { const n = digits(display()); return n[0] === y && n[1] === m && (d === undefined || n[2] === d) }
     const outside = () => { for (const t of ['mousedown', 'mouseup', 'click']) document.body.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window, clientX: 1, clientY: 1 })) }
-    // 1. 可输入：原型链 setter + input/change，回车只在可编辑输入框上
+    // 1. 可输入：逐个写法试（原型链 setter + input/change，回车只在可编辑输入框上），以可见显示值核验；都不行清空
     if (typable && !el.readOnly) {
       const proto = Object.getPrototypeOf(el)
       const set = Object.getOwnPropertyDescriptor(proto, 'value')?.set ?? Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
-      el.focus()
-      set?.call(el, text)
-      el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }))
-      for (const t of ['keydown', 'keyup']) el.dispatchEvent(new KeyboardEvent(t, { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }))
-      await sleep(200)
-      el.dispatchEvent(new Event('blur')); el.blur(); outside()
-      await sleep(200)
-      if (okDisplay()) return { ok: true, display: display(), strategy: 'typed', steps: 0 }
-      set?.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }))
+      for (const t0 of Array.from(new Set([text, ...(texts ?? [])])).slice(0, 5)) {
+        el.focus()
+        set?.call(el, t0)
+        el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }))
+        for (const t of ['keydown', 'keyup']) el.dispatchEvent(new KeyboardEvent(t, { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true }))
+        await sleep(200)
+        el.dispatchEvent(new Event('blur')); el.blur(); outside()
+        await sleep(200)
+        if (okDisplay()) return { ok: true, display: display(), strategy: 'typed', steps: 0, used: t0 }
+        set?.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }))
+        await sleep(60)
+      }
     }
     // 2. 面板：先记下已经可见的面板（别的日期框没收起的），点开后只认新出现的、离字段最近的那个。
     //    依次点 输入框 → 日历图标 → 外壳，每点一次就检查：MTD 的日期框是"点一下开、再点一下关"，
     //    以前输入框和外壳连点两下，面板刚开就被关掉（真机「没有看到日期面板」）。
     const PANEL = '[class*="picker-panel" i], [class*="date-panel" i], [class*="calendar" i], [class*="datepicker" i], [class*="picker-dropdown" i], [class*="picker-popup" i], [class*="picker" i][class*="popper" i], [class*="date-picker" i][class*="popper" i], [class*="date-picker" i][class*="panel" i], [class*="month-panel" i], [class*="year-panel" i], [class*="picker-container" i], [class*="month-table" i]'
     const panelsNow = () => Array.from(document.querySelectorAll(PANEL)).filter(p => !p.contains(el) && !shell.contains(p) && vis(p) && /\d{4}/.test(p.textContent || ''))
+    // 不认类名的兜底：点开后新变为可见的 absolute / fixed 浮层，里面有四位年份和成排的短文本格子
+    const positioned = (n: Element) => { const ps = getComputedStyle(n).position; return ps === 'absolute' || ps === 'fixed' }
+    const layersNow = () => Array.from(document.body.querySelectorAll('*')).slice(0, 6000).filter(n => positioned(n) && !n.contains(el) && !shell.contains(n) && vis(n))
+    const calendarLike = (p: Element) => { const t = p.textContent || ''; if (!/\d{4}/.test(t)) return false; const cells = Array.from(p.querySelectorAll('td, li, button, span, div, a')).filter(n => n.children.length <= 1 && /^\s*(\d{1,4}|[一二三四五六七八九十]{1,3}月|\d{1,2}\s*月|[a-z]{3,9})\s*$/i.test(n.textContent || '')); return cells.length >= 10 }
+    const beforeLayers = new Set(layersNow())
     const beforePanels = new Set(panelsNow())
     const sr = shell.getBoundingClientRect()
     const freshPanel = (): Element | null => {
-      const c = panelsNow().filter(p => !beforePanels.has(p))
+      let c = panelsNow().filter(p => !beforePanels.has(p))
+      if (!c.length) c = layersNow().filter(p => !beforeLayers.has(p) && calendarLike(p))
       const outer = c.filter(p => !c.some(o => o !== p && o.contains(p)))
       outer.sort((a, b) => { const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return (Math.abs(ra.top - sr.bottom) + Math.abs(ra.left - sr.left)) - (Math.abs(rb.top - sr.bottom) + Math.abs(rb.left - sr.left)) })
       return outer[0] ?? null
@@ -592,8 +669,14 @@ export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
     const NEXT_MONTH = /(^|\s|-)next(-btn|-month|-icon)?(\s|$)|month-next|arrow-right|下个月|下一月|next month|›/i
     let steps = 0
     let switched = false
+    // 翻页按钮被禁用（可选范围外）时面板不会变：连续 3 步面板文字都没变就停，不空转
+    let lastText = ''
+    let still = 0
     for (; steps < 60; steps++) {
       if (!vis(panel)) break
+      const nowText = clean(panel.textContent)
+      if (nowText === lastText) { if (++still >= 3) break } else still = 0
+      lastText = nowText
       const cells = cellsOf(panel)
       const years = cells.filter(n => /^\d{4}$/.test(clean(n.textContent)))
       const months = cells.filter(n => monthOf(clean(n.textContent)) !== null)
@@ -756,5 +839,79 @@ export const domSnippetScript: PageScript<{ selector: string; max?: number }, st
     const root = item ?? el.closest('[class*="form-item" i], [class*="form-group" i], [class*="field" i]') ?? el.parentElement ?? el
     const html = root.outerHTML.replace(/value="[^"]*"/g, 'value="…"')
     return html.slice(0, max ?? 4000)
+  },
+}
+
+// ---------------------------------------------------------------------------
+// 控件指纹（站点控件记忆的键）：外壳的稳定类名（去掉状态类 / 哈希类）+ 控件标签 / role。
+// 同一站同一种组件（如所有 MTD 下拉）共用一条记忆；不含字段名与任何值。
+// ---------------------------------------------------------------------------
+export const widgetSignatureScript: PageScript<{ selector: string }, { sig: string }> = {
+  id: WIDGET_SCRIPT_IDS.widgetSignature,
+  fn: ({ selector }) => {
+    const el = document.querySelector(selector) as HTMLElement | null
+    if (!el) return { sig: '' }
+    const KNOWN = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const pe = el.parentElement
+    const shell = (pe ? (pe.closest(KNOWN) ?? pe.closest('[class*="select" i], [class*="picker" i], [class*="date" i], [class*="cascader" i], [role=combobox]')) : null) ?? el
+    const STATE = /(^is-|^has-|-(focus|focused|open|opened|active|disabled|large|small|lg|sm|md|hint|empty|multiple|single|clearable|suffix|prefix|show-search|allow-clear|visible|hidden|selected|error|success|warning)$)/i
+    const tokens = (typeof shell.className === 'string' ? shell.className : '').split(/\s+/).filter(t => t && !STATE.test(t) && !/\d{3,}|[a-f0-9]{6,}|__/.test(t)).slice(0, 3)
+    const role = el.getAttribute('role')
+    return { sig: `${el.tagName.toLowerCase()}${role ? `[${role}]` : ''}|${tokens.join('.') || 'bare'}` }
+  },
+}
+
+// ---------------------------------------------------------------------------
+// 语义兜底层的上下文：字段所在表单项 + 附近新出现的浮层，列出可操作节点（打 data-career-ref），
+// 文本截断并打码（长数字 / 邮箱），不含输入框里已有的值。给模型做"受限动作集"的一步决策。
+// ---------------------------------------------------------------------------
+export interface SemanticNode { ref: string; tag: string; role?: string; text: string; editable?: boolean; inPopup?: boolean }
+export const semanticContextScript: PageScript<{ selector: string }, { nodes: SemanticNode[] }> = {
+  id: WIDGET_SCRIPT_IDS.semanticContext,
+  fn: ({ selector }) => {
+    const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim()
+    const mask = (s: string) => s.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '***@***').replace(/\d{5,}/g, m => `${m.slice(0, 2)}***`)
+    const el = document.querySelector(selector) as HTMLElement | null
+    if (!el) return { nodes: [] }
+    for (const n of Array.from(document.querySelectorAll('[data-career-ref]'))) n.removeAttribute('data-career-ref')
+    const vis = (n: Element) => { const r = n.getBoundingClientRect(); if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.top > window.innerHeight) return false; const cs = getComputedStyle(n); return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || '1') > 0.05 }
+    const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem)(\s|$)/i
+    let item: Element = el.parentElement ?? el
+    for (let n = el.parentElement, i = 0; n && n !== document.body && i < 8; n = n.parentElement, i++) {
+      if (ITEM_RX.test(typeof n.className === 'string' ? n.className : '')) { item = n; break }
+      if (n.querySelectorAll('input:not([type=hidden]), select, textarea').length > 3) break
+      item = n
+    }
+    const ir = item.getBoundingClientRect()
+    const layers = Array.from(document.body.querySelectorAll('*')).slice(0, 6000).filter(n => {
+      const p = getComputedStyle(n).position
+      if ((p !== 'absolute' && p !== 'fixed') || n.contains(el) || item.contains(n) || !vis(n)) return false
+      const r = n.getBoundingClientRect()
+      return r.width * r.height > 2000 && Math.abs(r.top - ir.bottom) < 500 && clean((n as HTMLElement).innerText).length > 0
+    })
+    const outer = layers.filter(l => !layers.some(o => o !== l && o.contains(l))).slice(0, 3)
+    const nodes: SemanticNode[] = []
+    const seen = new Set<Element>()
+    const CAND = 'input:not([type=hidden]):not([type=file]), textarea, button, a, [role=option], [role=button], [role=combobox], [role=menuitem], [role=gridcell], li, td, dd, span, div, i'
+    for (const [root, inPopup] of [[item, false], ...outer.map(o => [o, true] as const)] as Array<[Element, boolean]>) {
+      for (const n of Array.from(root.querySelectorAll(CAND))) {
+        if (nodes.length >= 80) break
+        if (seen.has(n) || !vis(n)) continue
+        const tag = n.tagName.toLowerCase()
+        const isInput = tag === 'input' || tag === 'textarea'
+        const text = isInput ? clean((n as HTMLInputElement).placeholder) : clean((n as HTMLElement).innerText)
+        // 只要"叶子样"的可点节点：自身有短文字且没有同文字的子节点；输入框单列
+        if (!isInput) {
+          if (!text || text.length > 40) { if (!(tag === 'i' || /icon|arrow|suffix|caret|trigger/i.test(typeof n.className === 'string' ? n.className : ''))) continue }
+          if (Array.from(n.children).some(c => clean((c as HTMLElement).innerText) === text && text)) continue
+        }
+        seen.add(n)
+        const ref = `r${nodes.length}`
+        n.setAttribute('data-career-ref', ref)
+        const inp = n as HTMLInputElement
+        nodes.push({ ref, tag, role: n.getAttribute('role') || undefined, text: mask(text || `(${tag} 图标)`).slice(0, 40), editable: isInput ? !inp.readOnly && !inp.disabled : undefined, inPopup: inPopup || undefined })
+      }
+    }
+    return { nodes }
   },
 }

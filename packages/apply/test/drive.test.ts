@@ -62,8 +62,8 @@ describe('driveApplication', () => {
   it('没有回显时 uploads.echoed=false', async () => {
     const page = new FakePage({ url: 'https://x.com/apply', fields: [{ label: '上传简历', type: 'file' }, { label: '姓名' }], buttons: ['提交'] })
     const r = await driveApplication(page, noLLM(), profile, quiet)
-    // FakePage 把文件名写进字段值，所以仍视为回显；用无 resumePath 的 profile 验证 needs_user
-    expect(r.uploads[0].echoed).toBe(true)
+    // 文件框自己的值（FakePage 把文件名写进字段值）只说明浏览器选了文件，页面没回显就不算
+    expect(r.uploads[0].echoed).toBe(false)
     const r2 = await driveApplication(new FakePage({ url: 'https://x.com/apply', fields: [{ label: '上传简历', type: 'file' }], buttons: ['提交'] }), noLLM(), { ...profile, resumePath: undefined }, quiet)
     expect(r2.needsUser.map(p => p.label)).toEqual(['上传简历'])
   })

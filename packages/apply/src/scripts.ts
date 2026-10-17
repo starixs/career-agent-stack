@@ -349,7 +349,9 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const tag = el.tagName.toLowerCase()
       const itype = ((el as HTMLInputElement).type || '').toLowerCase()
       const role = el.getAttribute('role') || ''
-      if (tag === 'input' && ['hidden', 'submit', 'button', 'image', 'reset', 'search'].includes(itype)) continue
+      if (tag === 'input' && ['hidden', 'submit', 'button', 'image', 'reset'].includes(itype)) continue
+      // type=search 一般是站内搜索框；但 antd Select 的输入框也是 type=search（role=combobox、在下拉外壳里），那是表单控件
+      if (tag === 'input' && itype === 'search' && role !== 'combobox' && !selectShellOf(el)) continue
       const isFile = itype === 'file'
       if (!isFile && itype !== 'radio' && itype !== 'checkbox' && !vis(el)) continue
       if (el.closest('[class*="search" i][class*="box" i], [role="search"]')) continue
