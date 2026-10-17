@@ -60,7 +60,11 @@ export async function getBatchRunner(): Promise<BatchRunner> {
           if (!id || !hostCache) return false;
           try { return hostCache.hasContext(id); } catch { return false; }
         },
-        resumeFileFor: payload => packetResumeFile(repos, payload, legacyResumeFile),
+        // 上传文件名用简历上的姓名（占位符在 Node 侧解开，只进文件名，不回传模型）
+        resumeFileFor: async payload => {
+          const vault = await import('./vault').then(m => m.getVault()).catch(() => null);
+          return packetResumeFile(repos, payload, legacyResumeFile, vault ? { resolveText: text => vault.resolve(text, { actor: 'resume_export', purpose: '简历附件文件名' }) } : {});
+        },
         drive: async (req, onEvent) => {
           if (!hostResolver) throw new Error('浏览器宿主尚未就绪（批量运行器只能在 Global 侧车运行）');
           const host = await hostResolver();

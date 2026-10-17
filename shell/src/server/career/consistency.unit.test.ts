@@ -8,7 +8,7 @@ import { BatchRunner } from './batch-runner';
 import { loadCore } from './core-module';
 import { setMailCredentialsPath, setMailPassword } from './mail/credentials';
 import { executeApprovedSendMails, executeSendMailAction } from './mail/send';
-import { fileSha256, freezePacket, packetResumeFile, pickResumeForJob } from './packets';
+import { fileSha256, freezePacket, packetResumeFile, pickResumeForJob, readableResumeFileName } from './packets';
 import { CareerStore } from './store';
 import { createMemoryRepos } from './test-db';
 
@@ -50,8 +50,24 @@ describe('投递材料包', () => {
     s.store.saveResume(master.id, { basics: { name: '张三（改）' } });
     await s.exportPdf(master.id);
     const file = await packetResumeFile(s.repos, { packet_id: packet.id });
-    expect(file.path).toBe(packet.resume_pdf_path);
+    // 上传用可读文件名的副本（内容仍是冻结的那一份，名字取冻结时简历上的姓名）
+    expect(file.path).toBe(join(dir, 'packets', 'upload', packet.id, '张三-后端-甲.pdf'));
     expect(fileSha256(file.path!)).toBe(frozen);
+  });
+
+  it('上传文件名：姓名占位符在本机解开；解不开用简历名；去掉非法字符；岗位名缺失不写"未命名岗位"', async () => {
+    const s = await setup();
+    const master = s.store.createResumeMaster({ name: '通用版', schema_json: { basics: { name: '{{vault:profile.name}}' } } });
+    const job = s.repos.upsertJob({ source_platform: 'campus', source_job_id: '2', title: '算法/推荐: 实习*', company_name: '乙 公司' });
+    const { packet } = await freezePacket({ repos: s.repos, store: s.store, exportPdf: s.exportPdf, exportsDir: dir }, { jobId: job.id, resumeId: master.id });
+    const resolved = await packetResumeFile(s.repos, { packet_id: packet.id }, undefined, { resolveText: t => t.replace('{{vault:profile.name}}', '李四') });
+    expect(resolved.path!.endsWith('/李四-算法推荐 实习-乙 公司.pdf')).toBe(true);
+    expect(fileSha256(resolved.path!)).toBe(packet.resume_pdf_sha256);
+    const unresolved = await packetResumeFile(s.repos, { packet_id: packet.id });
+    expect(unresolved.path!.endsWith('/通用版-算法推荐 实习-乙 公司.pdf')).toBe(true);
+    expect(readableResumeFileName({ resumeName: '通用版', jobTitle: '未命名岗位', company: null })).toBe('通用版.pdf');
+    expect(readableResumeFileName({})).toBe('简历.pdf');
+    expect(readableResumeFileName({ person: '../王五', jobTitle: '后端\n开发', company: 'a:b' })).toBe('王五-后端 开发-ab.pdf');
   });
 
   it('材料包文件被篡改：拒绝上传', async () => {
