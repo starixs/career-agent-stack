@@ -82,6 +82,8 @@ export interface Recorder {
 export const noopRecorder: Recorder = { trace() {}, async shot() { return undefined }, dom() { return undefined }, summary() {}, bump() {}, finish() {} }
 
 const safeId = (s: string) => s.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 80) || `run_${Date.now()}`
+/** 截图 / DOM 片段文件名里的字段名：保留中文，只去掉文件系统非法字符、控制字符与空白。 */
+export const safeFileName = (s: string) => s.replace(/[\\/:*?"<>|\u0000-\u001f\s]+/g, '_').replace(/^[._]+/, '').slice(0, 60) || 'field'
 
 export class RunRecorder implements Recorder {
   readonly dir: string
@@ -112,13 +114,13 @@ export class RunRecorder implements Recorder {
     let bytes: Uint8Array | undefined
     try { bytes = await capture() } catch { return undefined }
     if (!bytes || bytes.byteLength > (this.opts.maxShotBytes ?? 600 * 1024)) return undefined
-    const file = `shot-${String(++this.seq).padStart(3, '0')}-${safeId(name)}.jpg`
+    const file = `shot-${String(++this.seq).padStart(3, '0')}-${safeFileName(name)}.jpg`
     if (!this.write(file, bytes)) return undefined
     this.shots++; this.shotBytes += bytes.byteLength; this.sum.shots = this.shots
     return file
   }
   dom(name: string, html: string): string | undefined {
-    const file = `dom-${String(++this.seq).padStart(3, '0')}-${safeId(name)}.html`
+    const file = `dom-${String(++this.seq).padStart(3, '0')}-${safeFileName(name)}.html`
     return this.write(file, maskText(html).slice(0, 20_000)) ? file : undefined
   }
   summary(patch: Partial<RunSummary>): void { this.sum = { ...this.sum, ...patch } }

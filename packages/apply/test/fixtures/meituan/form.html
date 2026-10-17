@@ -1,73 +1,112 @@
 <!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><title>投递确认 - 美团校园招聘（复现页）</title>
 <!--
-  美团式网申复现页（MTD 组件库形态，纯本地 HTML + 少量 JS），模拟真机诊断出的坑：
-   1. 上传简历后弹"是否需要对简历附件进行解析并填充下方简历内容？"模态框，遮罩挡住所有点击；
-   2. MTD 风格不可搜索下拉：readonly input + 挂在 body 上的弹出层；值只认数据模型（往 input 里硬写值，失焦就被模型冲回去）；
-   3. 年 / 月选择器面板（« 2026年 » + 1 月…12 月）；
-   4. 吸顶导航栏含"LongCat人才招聘"，进页面时锚点滚动让某个没标签的输入框正好在它下面；
-   5. 必填：label 的 mtd-form-item-required class + ::before 星号；另有星号节点、aria-required 两种写法；
-   6. "添加教育经历"重复分组；最终按钮文案是「投递」。
-  ?broken=1：学历下拉点了选项也不生效（"做不到就留空"用例）。
+  美团网申复现页：控件结构按真机运行记录（runs/act_EIX5ZnqSWBXa/dom-*.html）里的 MTD 组件抽取并脱敏，
+  只保留结构 / 类名 / 交互方式，选项与资料全是虚构值。覆盖真机失败的 5 类问题：
+   1. 学历（MTD select）：选中值显示在 .mtd-select-filter-label（没选时同一节点带 -hint、写"请选择"），
+      输入框只是搜索框、值为空——读 input 就会读成「」；
+   2. 手机号码：账号绑定、整组禁用（区号 mtd-select-disabled「86」+ 禁用的号码框）；页面上方「意向城市」多选下拉
+      外壳里常驻一个 li「请输入工作城市」——以前点禁用下拉没反应，就把它当成"弹出的选项"；
+      专业名称 / 学院名称在选学校之前是禁用的（联动）；
+   3. 学校名称：远程搜索型下拉，点开只有"请输入关键字搜索"，要键入关键字、等结果（会边返回边重渲染）再点选；
+   4. 毕业时间（MTD date-picker）：readonly 输入框 + 日历图标；面板挂在 body 下、平时 display:none 常驻；
+      在根节点上"点一下开、再点一下关"——以前输入框和外壳连点两下，面板刚开就被关掉；
+   5. 上传：先弹"是否解析附件"模态框，再异步上传，约 1.5 秒后才回显文件名，且站点把文件名里的 "-" 改成了 "–"。
+  另保留：吸顶导航栏"LongCat人才招聘"、canvas 画的标签（不该被误认）、::before 伪元素标签、"添加教育经历"、最终按钮「投递」。
+  ?broken=1：学历点了选项也不生效（"做不到就留空"）。
+  ?remote=miss：学校远程搜索永远搜不到同名学校（只返回「XX附属中学」「北京大学」这类近似项，不能选）。
 -->
 <style>
 body{margin:0;font:14px/1.6 -apple-system,"PingFang SC",sans-serif;color:#222;background:#f7f7f7}
 .site-header{position:sticky;top:0;height:56px;display:flex;align-items:center;gap:24px;padding:0 40px;background:#fff;border-bottom:1px solid #eee;z-index:10}
 .logo-title{font-weight:600}
-.mtd-form{max-width:760px;margin:16px 40px 400px;background:#fff;padding:16px 0}
+.apply-form{max-width:760px;margin:16px 40px 400px;background:#fff;padding:16px 24px}
 .section{padding:8px 0 16px}
-.section-title{margin:0 0 8px;padding-left:0;font-size:16px}
+.section-title{margin:0 0 8px;font-size:16px}
 .mtd-form-item{margin:0 0 16px}
 .mtd-form-item-label{display:block;font-size:13px;color:#555;height:20px}
 .mtd-form-item-required::before{content:"*";color:#f5222d;margin-right:4px}
 .mtd-form-item[data-label]::before{content:attr(data-label);display:block;font-size:13px;color:#555;height:20px}
-.mtd-input{box-sizing:border-box;width:320px;height:32px;padding:0 8px;border:1px solid #d9d9d9;border-radius:4px;font:inherit}
-.mtd-select,.mtd-picker{display:inline-block;width:320px;cursor:pointer}
-.mtd-select .mtd-input,.mtd-picker .mtd-input{cursor:pointer;background:#fff}
-.mtd-select-dropdown{position:absolute;z-index:2000;background:#fff;border:1px solid #ddd;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:320px}
-.mtd-select-dropdown ul{list-style:none;margin:0;padding:4px 0}
-.mtd-select-item{padding:4px 12px;cursor:pointer}
-.mtd-select-item:hover{background:#f5f5f5}
-.mtd-picker-dropdown{position:absolute;z-index:2000;background:#fff;border:1px solid #ddd;box-shadow:0 4px 12px rgba(0,0,0,.12);width:280px}
-.mtd-picker-header{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid #eee}
-.mtd-picker-header button{border:0;background:none;cursor:pointer;font-size:16px}
-.mtd-picker-month-table{width:100%;border-collapse:collapse}
-.mtd-picker-cell{text-align:center;padding:8px 0;cursor:pointer}
-.mtd-picker-cell:hover{background:#fffbe6}
-.mtd-upload .file-name{margin-left:8px;color:#1890ff}
+.mtd-input{box-sizing:border-box;display:inline-flex;align-items:center;width:320px;height:36px;border:1px solid #d9d9d9;border-radius:4px;background:#fff}
+.mtd-input input{flex:1;border:0;outline:0;height:30px;padding:0 8px;font:inherit;background:transparent;min-width:0}
+.mtd-input-disabled,.mtd-select-disabled .mtd-input{background:#f5f5f5}
+.mtd-select{position:relative;display:inline-block;width:320px;cursor:pointer}
+.mtd-select-filter{position:relative}
+.mtd-select-filter-label{position:absolute;left:9px;top:7px;pointer-events:none}
+.mtd-select-filter-hint{color:#bbb}
+.mtd-select-filter-icon{position:absolute;right:8px;top:7px;pointer-events:none}
+.mtd-select-filter-delete{position:absolute;right:28px;top:7px;cursor:pointer;color:#999}
+.mtd-select-filter-tags{list-style:none;margin:0;padding:0 8px;height:34px;display:flex;align-items:center;border:1px solid #d9d9d9;border-radius:4px}
+.mtd-select-filter-tags input{border:0;outline:0;width:40px}
+.mtd-popper{position:absolute;z-index:2000;background:#fff;border:1px solid #ddd;box-shadow:0 4px 12px rgba(0,0,0,.12);min-width:320px}
+.mtd-select-dropdown-menu{list-style:none;margin:0;padding:4px 0;max-height:240px;overflow:auto}
+.mtd-select-option{padding:4px 12px;cursor:pointer}
+.mtd-select-option:hover{background:#fffbe6}
+.mtd-select-empty,.mtd-select-loading{padding:8px 12px;color:#999}
+.phone-group{display:flex;gap:0}
+.phone-group .mtd-select{width:90px}
+.phone-group .mtd-select .mtd-input{width:90px}
+.phone-group>.mtd-input{width:230px}
+.date-range{display:flex;gap:16px}
+.mtd-date-picker{display:inline-block;width:150px}
+.mtd-date-picker .mtd-input{width:150px}
+.mtd-date-picker-panel{width:260px}
+.mtd-date-panel-header{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid #eee}
+.mtd-date-panel-header button{border:0;background:none;cursor:pointer;font-size:16px}
+.mtd-month-table{width:100%;border-collapse:collapse}
+.mtd-month-table-cell{text-align:center;padding:8px 0;cursor:pointer}
+.resume-upload{border:1px dashed #e8d48a;background:#fffbe6;padding:16px;text-align:center}
+.upload-actions a{color:#1677ff;margin:0 4px;cursor:pointer}
 .mtd-modal-wrapper{position:fixed;inset:0;z-index:1000}
 .mtd-modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.45)}
 .mtd-modal{position:relative;width:420px;margin:160px auto;background:#fff;border-radius:6px;padding:24px}
 .mtd-modal-footer{margin-top:16px;text-align:right}
 .mtd-btn{padding:4px 16px;margin-left:8px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer}
 .mtd-btn-primary{background:#ffd100;border-color:#ffd100}
-.star{color:#f5222d;font-style:normal;margin-right:4px}
 .footer{padding:16px 0}
 #lab{scroll-margin-top:60px}
 canvas.label-canvas{display:block;height:20px}
 </style></head>
 <body>
 <header class="site-header"><span class="logo-title">LongCat人才招聘</span><a href="#">首页</a><a href="#">我的投递</a></header>
-<form class="mtd-form" id="apply" onsubmit="return false">
+<form class="apply-form" id="apply" onsubmit="return false">
+  <div class="section">
+    <h3 class="section-title">志愿</h3>
+    <div class="mtd-form-item"><label class="mtd-form-item-label">意向城市</label>
+      <div class="mtd-form-item-content"><div class="mtd-form-item-wrapper">
+        <div class="mtd-select mtd-select-large mtd-select-multiple" data-model="city" data-options="北京,上海,深圳">
+          <div class="mtd-select-filter"><div role="button" tabindex="0">
+            <ul class="mtd-select-filter-tags"><li class="mtd-select-filter-tag-input"><span class="mtd-select-filter-hint">请输入工作城市</span><input type="text" maxlength="Infinity"></li></ul>
+          </div></div>
+        </div>
+      </div></div></div>
+  </div>
   <div class="section">
     <h3 class="section-title">简历附件</h3>
     <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">上传简历附件</label>
-      <div class="mtd-form-item-content"><div class="mtd-upload"><input type="file" id="resume" accept=".pdf"><span class="file-name"></span></div></div></div>
+      <div class="mtd-form-item-content"><div class="resume-upload">
+        <input type="file" id="resume" accept=".pdf,.doc,.docx" style="display:none">
+        <div class="upload-empty">拖拽或点击上传附件简历</div>
+        <div class="upload-file" style="display:none"><div class="upload-file-name"></div><div class="upload-actions"><a>预览</a>|<a>删除</a>|<a>重新上传</a></div></div>
+        <div class="upload-desc">支持doc、docx、pdf格式（10M以下）</div>
+      </div></div></div>
   </div>
   <div class="section">
-    <!-- 锚点：进页面时滚到这里，下面那个"画在 canvas 里的标签"的输入框正好在吸顶栏下方 -->
     <div id="lab"></div>
     <div class="mtd-form-item"><canvas class="label-canvas" width="80" height="20"></canvas>
-      <div class="mtd-form-item-content"><input class="mtd-input" id="lab-input" placeholder="请输入"></div></div>
-    <h3 class="section-title">基本信息</h3>
+      <div class="mtd-form-item-content"><div class="mtd-input mtd-input-lg"><input type="text" id="lab-input" placeholder="请输入"></div></div></div>
+    <h3 class="section-title">基础信息</h3>
     <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">姓名</label>
-      <div class="mtd-form-item-content"><input class="mtd-input" maxlength="50" placeholder="请输入你的真实姓名"></div></div>
-    <div class="mtd-form-item"><label class="mtd-form-item-label"><i class="star">*</i>手机号</label>
-      <div class="mtd-form-item-content"><input class="mtd-input" type="tel" placeholder="请输入手机号"></div></div>
-    <div class="mtd-form-item"><label class="mtd-form-item-label">邮箱</label>
-      <div class="mtd-form-item-content"><input class="mtd-input" aria-required="true" placeholder="建议填写QQ邮箱"></div></div>
+      <div class="mtd-form-item-content"><div class="mtd-input mtd-input-lg"><input type="text" maxlength="50" placeholder="请输入你的真实姓名"></div></div></div>
     <div class="mtd-form-item"><label class="mtd-form-item-label">性别</label>
-      <div class="mtd-form-item-content"><div class="mtd-select" data-model="gender" data-options="男,女"><div class="mtd-select-selection"><input class="mtd-input" readonly placeholder="请选择"></div></div></div></div>
+      <div class="mtd-form-item-content"><div class="mtd-form-item-wrapper" data-slot="gender"></div></div></div>
+    <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">手机号码<i class="mtdicon mtdicon-info-circle-o"></i></label>
+      <div class="mtd-form-item-content"><div class="phone-group">
+        <div class="mtd-form-item-wrapper" data-slot="area"></div>
+        <div class="mtd-input mtd-input-lg mtd-input-disabled"><input type="text" disabled maxlength="Infinity" value="13800000000"></div>
+      </div></div></div>
+    <div class="mtd-form-item"><label class="mtd-form-item-label">邮箱</label>
+      <div class="mtd-form-item-content"><div class="mtd-input mtd-input-lg mtd-input-clearable"><input type="text" aria-required="true" placeholder="建议填写QQ邮箱"></div></div></div>
   </div>
   <div class="section" id="edu">
     <h3 class="section-title">教育经历</h3>
@@ -77,104 +116,194 @@ canvas.label-canvas{display:block;height:20px}
   <div class="section">
     <h3 class="section-title">其他</h3>
     <div class="mtd-form-item"><label class="mtd-form-item-label">导师</label>
-      <div class="mtd-form-item-content"><input class="mtd-input" placeholder="请输入"></div></div>
+      <div class="mtd-form-item-content"><div class="mtd-input mtd-input-lg"><input type="text" placeholder="如无导师可填写无"></div></div></div>
   </div>
-  <div class="footer"><button type="button" class="mtd-btn mtd-btn-primary" id="submit-btn">投递</button></div>
+  <div class="footer"><button type="button" class="mtd-btn" id="cancel-btn">取消</button><button type="button" class="mtd-btn mtd-btn-primary" id="submit-btn">投递</button></div>
 </form>
 <script>
 (function () {
-  const broken = new URLSearchParams(location.search).get('broken') === '1'
+  const qs = new URLSearchParams(location.search)
+  const broken = qs.get('broken') === '1'
+  const remoteMiss = qs.get('remote') === 'miss'
   const model = window.__model = {}
   window.__submitted = false
   window.__parsedResume = false
   window.__maxSelection = 0
+  window.__typedInto = {}
   document.addEventListener('selectionchange', () => { const n = (window.getSelection() || '').toString().length; if (n > window.__maxSelection) window.__maxSelection = n })
   const canvas = document.querySelector('.label-canvas'); const cx = canvas.getContext('2d'); cx.font = '13px sans-serif'; cx.fillText('实验室', 0, 14)
 
-  // ---- MTD 风格下拉：值只认 model；input 只是展示，任何 input/change/blur 都按 model 重新渲染 ----
-  let openPopup = null
-  const closePopup = () => { if (openPopup) { openPopup.remove(); openPopup = null } }
-  document.addEventListener('mousedown', e => { if (openPopup && !openPopup.contains(e.target) && !e.target.closest('.mtd-select, .mtd-picker')) closePopup() })
-  const render = (shell) => { const input = shell.querySelector('input'); input.value = model[shell.dataset.model] || '' }
-  const bindShell = (shell) => {
-    const input = shell.querySelector('input')
-    for (const t of ['input', 'change', 'blur']) input.addEventListener(t, () => setTimeout(() => render(shell), 0))
-  }
-  const openSelect = (shell) => {
-    closePopup()
-    const r = shell.getBoundingClientRect()
-    const pop = document.createElement('div'); pop.className = 'mtd-select-dropdown mtd-popper'
-    pop.style.top = `${r.bottom + window.scrollY + 4}px`; pop.style.left = `${r.left + window.scrollX}px`
-    const ul = document.createElement('ul'); ul.className = 'mtd-select-dropdown-list'
-    for (const text of shell.dataset.options.split(',')) {
-      const li = document.createElement('li'); li.className = 'mtd-select-item'; li.textContent = text
-      li.addEventListener('click', () => {
-        if (!(broken && shell.dataset.model.startsWith('degree'))) model[shell.dataset.model] = text
-        render(shell); closePopup()
-      })
-      ul.appendChild(li)
+  const SCHOOLS = ['清华大学', '清华大学深圳国际研究生院', '西京大学', '西京大学附属学院', '东海大学', '南山科技大学']
+  const MAJORS = ['电子信息', '计算机科学与技术', '经济学', '软件工程']
+  const COLLEGES = ['电子工程系', '计算机学院', '经济管理学院']
+  const DEGREES = ['大专', '大学本科', '硕士研究生', '博士研究生']
+
+  // ---------------- MTD Select（结构按真机 DOM） ----------------
+  const poppers = new Set()
+  const closeAll = (except) => { for (const p of poppers) if (p !== except && p.__close) p.__close() }
+  const selectHtml = (opts) => `
+    <div class="mtd-select mtd-select-large${opts.disabled ? ' mtd-select-disabled' : ''}" style="position: relative;">
+      <div class="mtd-select-filter"><div role="button" tabindex="0">
+        <div class="mtd-select-filter-input mtd-input mtd-input-lg"><input type="text" maxlength="Infinity"${opts.readonly ? ' readonly' : ''}${opts.disabled ? ' disabled' : ''}></div>
+        <span class="mtd-select-filter-label mtd-select-filter-hint" title="">请选择</span>
+        <div class="mtd-select-filter-icon"><i class="mtdicon mtdicon-down-thick"></i></div>
+      </div></div>
+    </div>`
+  /** opts: { key, options?: () => string[], remote?: (q) => string[], readonly?, disabled?, value?, onChange? } */
+  const mountSelect = (slot, opts) => {
+    slot.innerHTML = selectHtml(opts)
+    const root = slot.querySelector('.mtd-select')
+    const filter = root.querySelector('.mtd-select-filter')
+    const input = root.querySelector('input')
+    const label = root.querySelector('.mtd-select-filter-label')
+    let pop = null, timer = null
+    const api = { root, opts }
+    const renderLabel = () => {
+      const v = model[opts.key]
+      label.style.display = input.value ? 'none' : ''
+      if (v) { label.textContent = v; label.title = v; label.classList.remove('mtd-select-filter-hint') }
+      else { label.textContent = '请选择'; label.title = ''; label.classList.add('mtd-select-filter-hint') }
+      let del = filter.querySelector('.mtd-select-filter-delete')
+      if (v && !del) { del = document.createElement('div'); del.className = 'mtd-select-filter-delete'; del.setAttribute('role', 'button'); del.innerHTML = '<i class="mtdicon mtdicon-error-circle">×</i>'; filter.appendChild(del); del.addEventListener('click', e => { e.stopPropagation(); delete model[opts.key]; renderLabel(); opts.onChange && opts.onChange() }) }
+      if (!v && del) del.remove()
     }
-    pop.appendChild(ul); document.body.appendChild(pop); openPopup = pop
+    const fill = (list, empty) => {
+      const box = pop.querySelector('.mtd-select-dropdown')
+      box.innerHTML = ''
+      if (!list.length) { const d = document.createElement('div'); d.className = 'mtd-select-empty'; d.textContent = empty; box.appendChild(d); return }
+      const ul = document.createElement('ul'); ul.className = 'mtd-select-dropdown-menu'
+      for (const text of list) {
+        const li = document.createElement('li'); li.className = 'mtd-select-option'; li.innerHTML = `<span>${text}</span>`
+        li.addEventListener('click', () => {
+          if (!(broken && opts.key.startsWith('degree'))) model[opts.key] = text
+          input.value = ''; close(); renderLabel(); opts.onChange && opts.onChange()
+        })
+        ul.appendChild(li)
+      }
+      box.appendChild(ul)
+    }
+    const search = () => {
+      const q = input.value.trim()
+      if (opts.remote) {
+        if (!q) { fill([], '请输入关键字搜索'); return }
+        pop.querySelector('.mtd-select-dropdown').innerHTML = '<div class="mtd-select-loading">加载中…</div>'
+        clearTimeout(timer)
+        timer = setTimeout(() => { if (pop && pop.style.display !== 'none') fill(opts.remote(q), '无匹配结果') }, 350)
+      } else fill(opts.options().filter(o => !q || o.includes(q)), '无匹配结果')
+    }
+    const open = () => {
+      closeAll(pop)
+      if (!pop) {
+        pop = document.createElement('div'); pop.className = 'mtd-popper mtd-select-popper'
+        pop.innerHTML = '<div class="mtd-select-dropdown"></div>'
+        pop.__close = close
+        document.body.appendChild(pop); poppers.add(pop)
+      }
+      const r = root.getBoundingClientRect()
+      pop.style.top = `${r.bottom + window.scrollY + 4}px`; pop.style.left = `${r.left + window.scrollX}px`; pop.style.display = ''
+      search()
+    }
+    const close = () => { if (pop) pop.style.display = 'none'; clearTimeout(timer); if (input.value) { input.value = ''; renderLabel() } }
+    const isOpen = () => !!pop && pop.style.display !== 'none'
+    // 点击筛选区：开 / 关切换（禁用时没反应）
+    filter.addEventListener('click', e => { if (root.classList.contains('mtd-select-disabled') || e.target.closest('.mtd-select-filter-delete')) return; isOpen() ? close() : open() })
+    input.addEventListener('input', () => { window.__typedInto[opts.key] = (window.__typedInto[opts.key] || '') + '|' + input.value; if (!isOpen()) open(); renderLabel(); search() })
+    document.addEventListener('mousedown', e => { if (isOpen() && !root.contains(e.target) && !pop.contains(e.target)) close() })
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen()) close() })
+    api.setDisabled = (d) => { root.classList.toggle('mtd-select-disabled', d); input.disabled = d; if (d) close() }
+    if (opts.value) model[opts.key] = opts.value
+    renderLabel()
+    return api
   }
-  const openPicker = (shell) => {
-    closePopup()
+
+  // 意向城市（多选）：外壳里常驻 li「请输入工作城市」
+  const city = document.querySelector('.mtd-select-multiple')
+  city.querySelector('.mtd-select-filter').addEventListener('click', () => {})
+  mountSelect(document.querySelector('[data-slot="gender"]'), { key: 'gender', options: () => ['男', '女'], readonly: true })
+  mountSelect(document.querySelector('[data-slot="area"]'), { key: 'area', options: () => ['86', '852'], disabled: true, value: '86' })
+
+  // ---------------- MTD DatePicker（月份）：面板挂 body、常驻隐藏；根节点上点击开 / 关切换 ----------------
+  const datePickerHtml = (ph) => `
+    <div class="mtd-date-picker "><div class="mtd-input mtd-input-lg mtd-input-suffix mtd-input-clearable"><span class="mtd-input-affix-wrapper mtd-input-affix-wrapper-lg">
+      <input readonly placeholder="${ph}" type="text" maxlength="Infinity">
+      <div class="mtd-input-suffix-wrapper"><span class="mtd-input-suffix"><i class="mtdicon mtdicon-calendar-o"></i></span></div>
+    </span></div></div>`
+  const mountDate = (slot, key, ph) => {
+    slot.innerHTML = datePickerHtml(ph)
+    const root = slot.querySelector('.mtd-date-picker')
+    const input = root.querySelector('input')
     let year = 2026
-    const r = shell.getBoundingClientRect()
-    const pop = document.createElement('div'); pop.className = 'mtd-picker-dropdown'
-    pop.style.top = `${r.bottom + window.scrollY + 4}px`; pop.style.left = `${r.left + window.scrollX}px`
-    pop.innerHTML = '<div class="mtd-picker-panel mtd-picker-month-panel"><div class="mtd-picker-header"><button type="button" class="mtd-picker-prev-year-btn" aria-label="上一年">«</button><span class="mtd-picker-header-label"></span><button type="button" class="mtd-picker-next-year-btn" aria-label="下一年">»</button></div><table class="mtd-picker-month-table"><tbody></tbody></table></div>'
-    const label = pop.querySelector('.mtd-picker-header-label')
-    const draw = () => { label.textContent = `${year}年` }
-    pop.querySelector('.mtd-picker-prev-year-btn').addEventListener('click', () => { year--; draw() })
-    pop.querySelector('.mtd-picker-next-year-btn').addEventListener('click', () => { year++; draw() })
+    const pop = document.createElement('div'); pop.className = 'mtd-popper mtd-date-picker-popper'; pop.style.display = 'none'
+    pop.innerHTML = '<div class="mtd-date-picker-panel"><div class="mtd-date-panel-header"><button type="button" class="mtd-date-panel-prev-year-btn" aria-label="上一年">«</button><span class="mtd-date-panel-header-label"></span><button type="button" class="mtd-date-panel-next-year-btn" aria-label="下一年">»</button></div><table class="mtd-month-table"><tbody></tbody></table></div>'
+    const lab = pop.querySelector('.mtd-date-panel-header-label')
+    const draw = () => { lab.textContent = `${year}年` }
+    pop.querySelector('.mtd-date-panel-prev-year-btn').addEventListener('click', () => { year--; draw() })
+    pop.querySelector('.mtd-date-panel-next-year-btn').addEventListener('click', () => { year++; draw() })
     const tb = pop.querySelector('tbody')
     for (let row = 0; row < 4; row++) {
       const tr = document.createElement('tr')
-      for (let c = 0; c < 3; c++) {
-        const m = row * 3 + c + 1
-        const td = document.createElement('td'); td.className = 'mtd-picker-cell'; td.innerHTML = `<span>${m}月</span>`
-        td.addEventListener('click', () => { model[shell.dataset.model] = `${year}-${String(m).padStart(2, '0')}`; render(shell); closePopup() })
-        tr.appendChild(td)
-      }
+      for (let c = 0; c < 3; c++) { const m = row * 3 + c + 1; const td = document.createElement('td'); td.className = 'mtd-month-table-cell'; td.dataset.m = m; td.innerHTML = `<div class="mtd-month-table-cell-inner">${m}月</div>`; tr.appendChild(td) }
       tb.appendChild(tr)
     }
-    draw(); document.body.appendChild(pop); openPopup = pop
+    tb.addEventListener('click', e => { const td = e.target.closest('td'); if (!td) return; model[key] = `${year}-${String(td.dataset.m).padStart(2, '0')}`; input.value = model[key]; close() })
+    draw(); document.body.appendChild(pop)
+    const close = () => { pop.style.display = 'none' }
+    pop.__close = close; poppers.add(pop)
+    const isOpen = () => pop.style.display !== 'none'
+    root.addEventListener('click', () => {
+      if (isOpen()) { close(); return }
+      closeAll(pop)
+      const r = root.getBoundingClientRect(); pop.style.top = `${r.bottom + window.scrollY + 4}px`; pop.style.left = `${r.left + window.scrollX}px`; pop.style.display = ''
+    })
+    document.addEventListener('mousedown', e => { if (isOpen() && !root.contains(e.target) && !pop.contains(e.target)) close() })
+    // 只读展示框：任何硬写都会被模型冲回去
+    for (const t of ['input', 'change', 'blur']) input.addEventListener(t, () => setTimeout(() => { input.value = model[key] || '' }, 0))
   }
-  document.addEventListener('click', e => {
-    const sel = e.target.closest('.mtd-select'); if (sel) { openSelect(sel); return }
-    const pk = e.target.closest('.mtd-picker'); if (pk) { openPicker(pk); return }
-  })
 
-  // ---- 教育经历：重复分组 ----
+  // ---------------- 教育经历：重复分组（学校 → 学院 / 专业 联动解锁） ----------------
   let rows = 0
   const addEdu = () => {
     const i = rows++
     const div = document.createElement('div'); div.className = 'edu-row'
     div.innerHTML = `
-      <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">学校名称</label><div class="mtd-form-item-content"><input class="mtd-input" placeholder="请输入"></div></div>
-      <div class="mtd-form-item" data-label="学院名称"><div class="mtd-form-item-content"><input class="mtd-input" placeholder="请输入"></div></div>
-      <div class="mtd-form-item"><label class="mtd-form-item-label">专业名称</label><div class="mtd-form-item-content"><input class="mtd-input" placeholder="请输入"></div></div>
-      <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">学历</label><div class="mtd-form-item-content"><div class="mtd-select" data-model="degree${i}" data-options="大专,本科,硕士研究生,博士研究生"><div class="mtd-select-selection"><input class="mtd-input" readonly placeholder="请选择"></div></div></div></div>
-      <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">毕业时间</label><div class="mtd-form-item-content"><div class="mtd-picker mtd-date-picker" data-model="grad${i}"><input class="mtd-input" readonly placeholder="请选择毕业时间"></div></div></div>`
+      <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">学校名称</label><div class="mtd-form-item-content"><div class="mtd-form-item-wrapper" data-slot="school"></div></div></div>
+      <div class="mtd-form-item" data-label="学院名称"><div class="mtd-form-item-content"><div class="mtd-form-item-wrapper" data-slot="college"></div></div></div>
+      <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">专业名称</label><div class="mtd-form-item-content"><div class="mtd-form-item-wrapper" data-slot="major"></div></div></div>
+      <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">学历</label><div class="mtd-form-item-content"><div class="mtd-form-item-wrapper" data-slot="degree"></div></div></div>
+      <div class="mtd-form-item"><label class="mtd-form-item-label mtd-form-item-required">在校时间</label><div class="mtd-form-item-content"><div class="date-range"><div class="mtd-form-item-wrapper" data-slot="start"></div><div class="mtd-form-item-wrapper" data-slot="end"></div></div></div></div>`
     document.getElementById('edu-rows').appendChild(div)
-    div.querySelectorAll('.mtd-select, .mtd-picker').forEach(bindShell)
+    const slot = n => div.querySelector(`[data-slot="${n}"]`)
+    const college = mountSelect(slot('college'), { key: `college${i}`, options: () => COLLEGES, disabled: true })
+    const major = mountSelect(slot('major'), { key: `major${i}`, options: () => MAJORS, disabled: true })
+    mountSelect(slot('school'), {
+      key: `school${i}`,
+      remote: q => remoteMiss ? [`${q}附属中学`, '北京大学'] : SCHOOLS.filter(s => s.includes(q)),
+      // 选了学校之后，学院 / 专业稍后（异步加载）才解锁
+      onChange: () => { const on = !!model[`school${i}`]; setTimeout(() => { college.setDisabled(!on); major.setDisabled(!on) }, 300) },
+    })
+    mountSelect(slot('degree'), { key: `degree${i}`, options: () => DEGREES })
+    mountDate(slot('start'), `start${i}`, '入学时间')
+    mountDate(slot('end'), `grad${i}`, '毕业时间')
   }
   addEdu()
   document.getElementById('add-edu').addEventListener('click', addEdu)
-  document.querySelectorAll('.mtd-select, .mtd-picker').forEach(bindShell)
 
-  // ---- 上传后：是否解析附件的模态框（遮罩挡住整页点击） ----
+  // ---------------- 上传：先弹"是否解析附件"，再异步上传，~1.5 秒后回显（"-" 被站点改成 "–"） ----------------
   document.getElementById('resume').addEventListener('change', e => {
     const f = e.target.files[0]; if (!f) return
-    document.querySelector('.file-name').textContent = f.name
     const w = document.createElement('div'); w.className = 'mtd-modal-wrapper mtd-confirm-wrapper common_modal-wrapper'
-    w.innerHTML = '<div class="mtd-modal-mask"></div><div class="mtd-modal" role="dialog"><div class="mtd-modal-body">是否需要对简历附件进行解析并填充下方简历内容？</div><div class="mtd-modal-footer mtd-modal-footer-btns"><button type="button" class="mtd-btn" data-act="no">否，仅做附件上传</button><button type="button" class="mtd-btn mtd-btn-primary" data-act="yes">是，需同步更新简历内容</button></div></div>'
+    w.innerHTML = '<div class="mtd-modal-mask"></div><div class="mtd-modal" role="dialog"><div class="mtd-modal-title">提示</div><div class="mtd-modal-body">是否需要对简历附件进行解析并填充下方简历内容？</div><div class="mtd-modal-footer mtd-modal-footer-btns"><button type="button" class="mtd-btn" data-act="no">否，仅做附件上传</button><button type="button" class="mtd-btn mtd-btn-primary" data-act="yes">是，需同步更新简历内容</button></div></div>'
     setTimeout(() => document.body.appendChild(w), 150)
     w.addEventListener('click', ev => {
       const act = ev.target.closest('[data-act]')?.dataset.act; if (!act) return
-      if (act === 'yes') { window.__parsedResume = true; model.degree0 = 'GPA 4.60/5.0；获国家奖学金'; document.querySelectorAll('.mtd-select').forEach(render) }
+      if (act === 'yes') { window.__parsedResume = true; model.degree0 = 'GPA 4.60/5.0；获国家奖学金' }
       w.remove()
     })
+    setTimeout(() => {
+      document.querySelector('.upload-empty').style.display = 'none'
+      document.querySelector('.upload-file').style.display = ''
+      document.querySelector('.upload-file-name').textContent = f.name.replace(/-/g, '–')
+    }, 1500)
   })
   document.getElementById('submit-btn').addEventListener('click', () => { window.__submitted = true })
 })()

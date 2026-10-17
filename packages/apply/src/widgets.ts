@@ -24,6 +24,8 @@ export const WIDGET_SCRIPT_IDS = {
   libraryFingerprint: 'career.libraryFingerprint',
   formStats: 'career.formStats',
   domSnippet: 'career.domSnippet',
+  clearSelect: 'career.clearSelect',
+  uploadArea: 'career.uploadArea',
 } as const
 
 // ---------------------------------------------------------------------------
@@ -101,9 +103,12 @@ export const probeTargetScript: PageScript<{ selector: string }, ProbeResult> = 
     const type = (input.type || '').toLowerCase()
     const role = el.getAttribute('role') || ''
     const readonly = !!input.readOnly || el.hasAttribute('readonly')
-    const disabled = !!input.disabled || el.getAttribute('aria-disabled') === 'true'
-    const SHELL = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, [class*="select" i], [class*="picker" i], [class*="cascader" i]'
-    const shell = el.parentElement ? el.parentElement.closest(SHELL) : null
+    const KNOWN = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const pe = el.parentElement
+    const shell = pe ? (pe.closest(KNOWN) ?? pe.closest('[class*="select" i], [class*="picker" i], [class*="cascader" i]')) : null
+    // 禁用：控件自身 disabled / aria-disabled，或组件外壳带 xx-disabled / is-disabled（MTD 的 mtd-select-disabled）
+    const shellCls = shell && typeof shell.className === 'string' ? shell.className : ''
+    const disabled = !!input.disabled || el.getAttribute('aria-disabled') === 'true' || /(^|\s)([\w]+-)*(select|picker|cascader|input)-disabled(\s|$)|(^|\s)is-disabled(\s|$)/i.test(shellCls)
     const textLike = (tag === 'input' && !['checkbox', 'radio', 'file', 'button', 'submit', 'image', 'reset', 'hidden', 'range', 'color'].includes(type)) || tag === 'textarea' || el.isContentEditable
     const editable = textLike && !readonly && !disabled && role !== 'combobox'
     let target: Element = el
@@ -208,7 +213,14 @@ export const scanDialogsScript: PageScript<void, DialogScan> = {
 }
 
 // ---------------------------------------------------------------------------
-// 自定义下拉：点开 → 枚举弹出层选项（打 data-career-opt 标记）；可搜索时允许键入关键字再枚举
+// 自定义下拉：点开 → 认准"属于这个字段的弹出层"→ 枚举选项（打 data-career-opt 标记）
+//  - 外壳先认已知组件库的根（.mtd-select 等），再退到泛 [class*=select]：MTD 的输入框外面还套着
+//    `.mtd-select-filter-input`（类名也含 select），把它当外壳就读不到旁边的选中值、点不到真正的触发器；
+//  - 弹出层归属：先看 aria-controls / aria-owns；否则只认"点开后新出现"的可见弹层，取离触发器最近的；
+//    别的下拉外壳里的节点（多选标签、提示文字）、点开前就可见的旧弹层一律不算（以前会把另一个下拉的
+//    「请输入工作城市」当成选项）；
+//  - 依次尝试 输入框 → 箭头图标 → 外壳，每次点完都检查，避免"点两下又收起"；
+//  - 可搜索 = 外壳里的输入框不是 readonly / disabled（远程搜索型下拉点开时可能一个选项都没有）。
 // ---------------------------------------------------------------------------
 export interface OptionInfo { id: string; text: string; disabled?: boolean }
 export interface OpenOptionsArg { selector: string; reopen?: boolean; waitMs?: number }
@@ -220,10 +232,17 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
     const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim()
     const el = document.querySelector(selector) as HTMLElement | null
     if (!el) return { opened: false, options: [], searchable: false, cascade: false, detail: '元素不存在' }
-    const SHELL = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, [class*="select" i], [class*="cascader" i], [role=combobox]'
-    const shell = ((el.parentElement ? el.parentElement.closest(SHELL) : null) as HTMLElement | null) ?? el
-    const vis = (n: Element) => { const r = n.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; const cs = getComputedStyle(n); return cs.visibility !== 'hidden' && cs.display !== 'none' }
+    const KNOWN = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const GENERIC = '[class*="select" i], [class*="cascader" i], [role=combobox]'
+    const pe = el.parentElement
+    const shell = ((pe ? (pe.closest(KNOWN) ?? pe.closest(GENERIC)) : null) as HTMLElement | null) ?? el
+    const vis = (n: Element) => {
+      const r = n.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false
+      for (let a: Element | null = n, i = 0; a && i < 12; a = a.parentElement, i++) { const cs = getComputedStyle(a); if (cs.display === 'none' || Number(cs.opacity || '1') < 0.05 || (i === 0 && cs.visibility === 'hidden')) return false }
+      return true
+    }
     const OPT = '[role=option], [class*="select-item" i]:not([class*="group" i]), [class*="select-option" i], [class*="dropdown" i] li, [class*="select" i] li, [class*="popper" i] li, [class*="cascader" i] li, [class*="cascader-node" i], [class*="menu-item" i], .layui-anim dd, [class*="option" i]:not([class*="options" i]):not(select):not(option)'
+    const POP = '[class*="dropdown" i], [class*="popper" i], [class*="popup" i], [role=listbox], [class*="menu" i], [class*="cascader" i], .layui-anim'
     const fire = (n: Element) => {
       if (typeof PointerEvent === 'function') n.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }))
       n.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }))
@@ -231,54 +250,117 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
       n.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }))
       n.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
     }
-    const collect = () => Array.from(document.querySelectorAll(OPT)).filter(n => vis(n) && n !== el && !n.contains(el) && !n.closest('[class*="selection" i], [data-career-overlay]') && !n.querySelector(OPT) && clean(n.textContent).length > 0 && clean(n.textContent).length <= 60)
-    const before = new Set(collect())
-    if (!reopen) {
-      const trigger = (shell.querySelector('.ant-select-selector, .el-select__wrapper, .el-input, .ivu-select-selection, .mtd-select-selection, [class*="selection" i], [class*="trigger" i]') as HTMLElement | null) ?? shell
-      try { el.focus({ preventScroll: true }) } catch { /* ignore */ }
-      fire(trigger)
+    /** 节点属于别的下拉外壳（另一个字段的多选标签 / 占位提示），不是这个字段的选项。 */
+    const otherShell = (n: Element) => {
+      const s = n.closest(KNOWN) ?? (n.closest(POP) ? null : n.closest('[class*="select" i]'))
+      return !!s && s !== shell && !s.contains(shell) && !shell.contains(s)
     }
-    let nodes: Element[] = []
-    const deadline = Date.now() + (waitMs ?? 1500)
-    while (Date.now() < deadline) {
-      await sleep(120)
-      nodes = collect()
-      if (nodes.length && (reopen || nodes.some(n => !before.has(n)) || before.size === 0)) break
+    const collect = () => Array.from(document.querySelectorAll(OPT)).filter(n => {
+      if (n === el || n.contains(el) || n.closest('[class*="selection" i], [data-career-overlay]') || otherShell(n) || n.querySelector(OPT)) return false
+      const t = clean(n.textContent); return t.length > 0 && t.length <= 60 && vis(n)
+    })
+    /** 弹出层根：最外层的弹层容器（不包含字段本身）。 */
+    const popRoot = (n: Element): Element | null => {
+      let c = n.closest(POP); if (!c || c.contains(shell)) return null
+      for (let up = c.parentElement?.closest(POP) ?? null; up && !up.contains(shell); up = up.parentElement?.closest(POP) ?? null) c = up
+      return c
     }
-    if (!nodes.length) return { opened: false, options: [], searchable: false, cascade: false, detail: '点开后没有出现选项' }
-    // 同一弹出层：取离字段最近的那个容器里的选项
-    const POP = '[class*="dropdown" i], [class*="popper" i], [class*="popup" i], [role=listbox], [class*="menu" i], [class*="cascader" i], .layui-anim'
-    const groups = new Map<Element, Element[]>()
-    for (const n of nodes) { const c = n.closest(POP) ?? document.body; groups.set(c, [...(groups.get(c) ?? []), n]) }
+    const owned = (): Element | null => {
+      for (const n of [el, shell, ...Array.from(shell.querySelectorAll('[aria-controls], [aria-owns]'))]) {
+        for (const attr of ['aria-controls', 'aria-owns']) for (const id of (n.getAttribute(attr) || '').split(/\s+/).filter(Boolean)) { const t = document.getElementById(id); if (t && !t.contains(shell)) return t }
+      }
+      return null
+    }
     const fr = shell.getBoundingClientRect()
-    let best: Element[] = nodes
-    let bestDist = Infinity
-    for (const [c, list] of groups) {
-      const r = c.getBoundingClientRect()
-      const dist = Math.abs(r.top - fr.bottom) + Math.abs(r.left - fr.left) + (list.some(n => !before.has(n)) ? 0 : 5000)
-      if (dist < bestDist) { bestDist = dist; best = list }
+    const dist = (c: Element) => { const r = c.getBoundingClientRect(); return Math.abs(r.top - fr.bottom) + Math.abs(r.left - fr.left) }
+    const visiblePops = () => Array.from(document.querySelectorAll(POP)).filter(p => !p.contains(shell) && vis(p))
+    const marked = () => { const m = document.querySelector('[data-career-popup="1"]'); return m && vis(m) && !m.contains(shell) ? m : null }
+    let popup: Element | null = null
+    let nodes: Element[] = []
+    if (!reopen) {
+      for (const m of Array.from(document.querySelectorAll('[data-career-popup]'))) m.removeAttribute('data-career-popup')
+      const beforePops = new Set(visiblePops())
+      const beforeOpts = new Set(collect())
+      const freshPopup = (): Element | null => {
+        const o = owned(); if (o && vis(o)) return o
+        const fresh = visiblePops().filter(p => !beforePops.has(p))
+        const roots = fresh.filter(p => !fresh.some(q => q !== p && q.contains(p))).sort((a, b) => dist(a) - dist(b))
+        return roots[0] ?? null
+      }
+      const freshOptions = () => collect().filter(n => !beforeOpts.has(n))
+      const icon = shell.querySelector('[class*="icon" i], [class*="arrow" i], [class*="suffix" i], [class*="caret" i]')
+      const triggers = Array.from(new Set([el, icon, shell].filter((n): n is HTMLElement => !!n)))
+      const total = waitMs ?? 1500
+      for (let t = 0; t < triggers.length && !popup && !nodes.length; t++) {
+        if (t === 0) { try { el.focus({ preventScroll: true }) } catch { /* ignore */ } }
+        fire(triggers[t])
+        const deadline = Date.now() + (t === 0 ? total : Math.max(400, total / 3))
+        while (Date.now() < deadline) {
+          await sleep(120)
+          popup = freshPopup()
+          nodes = popup ? collect().filter(n => popup!.contains(n)) : freshOptions()
+          if (popup && !nodes.length) { await sleep(200); nodes = collect().filter(n => popup!.contains(n)) }
+          if (popup || nodes.length) break
+        }
+      }
+      if (!popup && nodes.length) {
+        // 弹层类名认不出来：按新出现的选项分组，取离字段最近的那组
+        const groups = new Map<Element, Element[]>()
+        for (const n of nodes) { const c = popRoot(n) ?? n.parentElement ?? document.body; groups.set(c, [...(groups.get(c) ?? []), n]) }
+        const best = Array.from(groups.entries()).sort((a, b) => dist(a[0]) - dist(b[0]))[0]
+        popup = best[0]; nodes = best[1]
+      }
+    } else {
+      // 键入关键字后重新枚举：认之前标记的弹层；等选项列表稳定（远程搜索会一边返回一边重渲染）且没有加载中
+      const deadline = Date.now() + (waitMs ?? 2500)
+      let last = ''
+      let stable = 0
+      while (Date.now() < deadline) {
+        await sleep(150)
+        popup = marked() ?? owned()
+        if (!popup) {
+          const withOpts = visiblePops().filter(p => collect().some(n => p.contains(n)))
+          popup = withOpts.filter(p => !withOpts.some(q => q !== p && q.contains(p))).sort((a, b) => dist(a) - dist(b))[0] ?? null
+        }
+        const list = popup ? collect().filter(n => popup!.contains(n)) : []
+        const loading = !!popup && Array.from(popup.querySelectorAll('[class*="loading" i], [class*="spin" i]')).some(vis)
+        const sig = list.map(n => clean(n.textContent)).join('|')
+        if (!loading && sig === last) { if (++stable >= 2 && list.length) { nodes = list; break } } else stable = 0
+        last = sig; nodes = list
+      }
+      if (!popup) return { opened: false, options: [], searchable: false, cascade: false, detail: '弹出层不见了' }
     }
-    const options: OptionInfo[] = best.slice(0, 300).map((n, i) => {
+    const inp = (el.tagName === 'INPUT' ? el : shell.querySelector('input:not([type=hidden])')) as HTMLInputElement | null
+    const ae = document.activeElement as HTMLInputElement | null
+    const searchable = (!!inp && !inp.readOnly && !inp.disabled) || (!!ae && ae.tagName === 'INPUT' && !ae.readOnly && !ae.disabled && !!popup && popup.contains(ae))
+    if (!popup && !nodes.length) return { opened: false, options: [], searchable, cascade: false, detail: '点开后没有出现属于这个字段的弹出层' }
+    if (popup) popup.setAttribute('data-career-popup', '1')
+    const options: OptionInfo[] = nodes.slice(0, 300).map((n, i) => {
       const id = `o${i}`
       n.setAttribute('data-career-opt', id)
       const cls = typeof n.className === 'string' ? n.className : ''
       return { id, text: clean(n.textContent), disabled: /disabled/i.test(cls) || n.getAttribute('aria-disabled') === 'true' || undefined }
     })
-    const ae = document.activeElement as HTMLInputElement | null
-    const searchable = !!ae && ae.tagName === 'INPUT' && !ae.readOnly && !ae.disabled && (shell.contains(ae) || !!ae.closest(POP))
-    const cascade = best.some(n => /cascader/i.test(`${(n.closest(POP) as HTMLElement | null)?.className ?? ''} ${typeof n.className === 'string' ? n.className : ''}`))
+    const cascade = nodes.some(n => /cascader/i.test(`${(n.closest(POP) as HTMLElement | null)?.className ?? ''} ${typeof n.className === 'string' ? n.className : ''}`))
     return { opened: true, options, searchable, cascade }
   },
 }
 
 export interface PickOptionResult { ok: boolean; display: string; next?: OptionInfo[]; stillOpen?: boolean; detail?: string }
-export const pickOptionScript: PageScript<{ selector: string; optId: string; settleMs?: number }, PickOptionResult> = {
+export const pickOptionScript: PageScript<{ selector: string; optId: string; text?: string; settleMs?: number }, PickOptionResult> = {
   id: WIDGET_SCRIPT_IDS.pickOption,
-  fn: async ({ selector, optId, settleMs }) => {
+  fn: async ({ selector, optId, text, settleMs }) => {
     const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
     const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim()
+    const vis = (n: Element) => { const r = n.getBoundingClientRect(); return r.width >= 2 && r.height >= 2 && getComputedStyle(n).visibility !== 'hidden' }
     const el = document.querySelector(selector) as HTMLElement | null
-    const opt = document.querySelector(`[data-career-opt="${optId}"]`) as HTMLElement | null
+    let opt = document.querySelector(`[data-career-opt="${optId}"]`) as HTMLElement | null
+    // 远程搜索的列表可能在枚举后又重渲染了一次：按原文在同一个弹层里重新找
+    if (el && text && (!opt || !opt.isConnected || !vis(opt))) {
+      const pop = document.querySelector('[data-career-popup="1"]')
+      const again = pop ? Array.from(pop.querySelectorAll('[role=option], li, [class*="option" i], [class*="item" i], dd')).filter(n => vis(n) && clean(n.textContent) === text) : []
+      opt = (again.filter(n => !again.some(o => o !== n && n.contains(o)))[0] as HTMLElement | undefined) ?? null
+    }
     if (!el || !opt) return { ok: false, display: '', detail: el ? '选项不见了' : '元素不存在' }
     try { opt.scrollIntoView({ block: 'nearest' }) } catch { /* ignore */ }
     const fire = (n: Element) => {
@@ -288,21 +370,25 @@ export const pickOptionScript: PageScript<{ selector: string; optId: string; set
       n.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }))
       n.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))
     }
-    const vis = (n: Element) => { const r = n.getBoundingClientRect(); return r.width >= 2 && r.height >= 2 && getComputedStyle(n).visibility !== 'hidden' }
     const popup = opt.closest('[class*="dropdown" i], [class*="popper" i], [class*="popup" i], [role=listbox], [class*="menu" i], [class*="cascader" i], .layui-anim')
     const cascadeCols = () => popup ? Array.from(popup.querySelectorAll('[class*="cascader-menu" i]:not([class*="menus" i]), [class*="cascader-list" i], [class*="cascader-panel" i] ul, [role=menu]')).filter(vis).length : 0
     const colsBefore = cascadeCols()
     fire(opt)
     await sleep(settleMs ?? 250)
-    const SHELL = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, [class*="select" i], [class*="cascader" i], [role=combobox]'
-    const shell = (el.parentElement ? el.parentElement.closest(SHELL) : null) as HTMLElement | null
+    const KNOWN = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const pe = el.parentElement
+    const shell = (pe ? (pe.closest(KNOWN) ?? pe.closest('[class*="select" i], [class*="cascader" i], [role=combobox]')) : null) as HTMLElement | null
     const display = () => {
       if (shell) {
-        for (const n of Array.from(shell.querySelectorAll('[class*="selection-item" i], [class*="selected-value" i], [class*="single-value" i], [class*="selection__rendered" i], [class*="selected-item" i], [class*="select-value" i], [class*="label" i]:not(label)'))) {
+        const VALUE = '[class*="selection-item" i], [class*="selected-value" i], [class*="single-value" i], [class*="selection__rendered" i], [class*="selected-item" i], [class*="select-value" i], [class*="filter-label" i], [class*="label" i]:not(label)'
+        const nodes = Array.from(shell.querySelectorAll(VALUE))
+        for (const n of nodes) {
+          if (n.querySelector(VALUE)) continue
           const c = typeof n.className === 'string' ? n.className : ''
-          if (/placeholder/i.test(c) || !vis(n)) continue
-          const t = clean(n.textContent); if (t) return t
+          if (/hint|is-transparent/i.test(c) || (/placeholder/i.test(c) && !/selected|selection-item/i.test(c)) || !vis(n)) continue
+          const t = clean(n.textContent) || clean(n.getAttribute('title')); if (t) return t
         }
+        if (nodes.length) return ''
         for (const i of Array.from(shell.querySelectorAll('input'))) { const v = clean((i as HTMLInputElement).value); if (v) return v }
       }
       return clean((el as HTMLInputElement).value ?? el.textContent)
@@ -315,6 +401,50 @@ export const pickOptionScript: PageScript<{ selector: string; optId: string; set
       if (next.length) return { ok: true, display: display(), next, stillOpen: true }
     }
     return { ok: true, display: display(), stillOpen: !!popup && vis(popup) }
+  },
+}
+
+/** 核验不过时清掉自定义下拉的选中值：只点外壳里的清除图标（MTD 的 filter-delete、antd 的 clear），不碰别的按钮。 */
+export const clearSelectScript: PageScript<{ selector: string }, { clicked: boolean }> = {
+  id: WIDGET_SCRIPT_IDS.clearSelect,
+  fn: async ({ selector }) => {
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+    const el = document.querySelector(selector) as HTMLElement | null
+    if (!el) return { clicked: false }
+    const KNOWN = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const pe = el.parentElement
+    const shell = pe ? (pe.closest(KNOWN) ?? pe.closest('[class*="select" i], [class*="cascader" i]')) : null
+    if (!shell) return { clicked: false }
+    for (const t of ['mouseenter', 'mouseover']) shell.dispatchEvent(new MouseEvent(t, { bubbles: t === 'mouseover', cancelable: true, view: window }))
+    await sleep(60)
+    const btn = shell.querySelector('[class*="delete" i], [class*="clear" i], [class*="close-circle" i], [class*="error-circle" i]')
+    if (!btn) return { clicked: false }
+    for (const t of ['mousedown', 'mouseup', 'click']) btn.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window }))
+    await sleep(200)
+    return { clicked: true }
+  },
+}
+
+/**
+ * 上传区快照（不认类名）：从文件框往上找、不含其他输入控件的最大祖先（上传后站点在这里回显文件名 / 预览 / 删除）；
+ * 另给出文件框的 files 数、上传区里"像文件列表项"的节点数，供上传前后对比。
+ */
+export interface UploadAreaResult { text: string; files: number; items: number }
+export const uploadAreaScript: PageScript<{ selector: string }, UploadAreaResult> = {
+  id: WIDGET_SCRIPT_IDS.uploadArea,
+  fn: ({ selector }) => {
+    const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim()
+    const el = document.querySelector(selector) as HTMLInputElement | null
+    if (!el) return { text: '', files: 0, items: 0 }
+    let best: Element | null = null
+    for (let n = el.parentElement, i = 0; n && n !== document.body && i < 8; n = n.parentElement, i++) {
+      const others = n.querySelectorAll('input:not([type=file]):not([type=hidden]), select, textarea').length
+      const t = clean((n as HTMLElement).innerText)
+      if (others > 0 || t.length > 600) break
+      best = n
+    }
+    const items = best ? Array.from(best.querySelectorAll('li, [class*="file" i], [class*="item" i]')).filter(n => /\.[a-z0-9]{2,5}\b/i.test(clean(n.textContent))).length : 0
+    return { text: best ? clean((best as HTMLElement).innerText).slice(0, 600) : '', files: el.files?.length ?? 0, items }
   },
 }
 
@@ -334,7 +464,11 @@ export const closePopupScript: PageScript<{ selector?: string }, boolean> = {
   },
 }
 
-/** 用户可见的显示值：自定义下拉读选中项展示文字（不读隐藏 input），原生控件读值。 */
+/**
+ * 用户可见的显示值：自定义下拉读选中项展示文字（不读隐藏 input），原生控件读值。
+ * MTD 下拉的选中值在 `.mtd-select-filter-label`（没选时同一节点带 `-hint` 类、显示"请选择"），
+ * 输入框是给搜索用的：外壳里有这类展示节点时，绝不拿输入框里的字（可能是没选中的搜索词）当显示值。
+ */
 export interface ReadDisplayResult { exists: boolean; display: string }
 export const readDisplayScript: PageScript<{ selector: string }, ReadDisplayResult> = {
   id: WIDGET_SCRIPT_IDS.readDisplay,
@@ -343,15 +477,22 @@ export const readDisplayScript: PageScript<{ selector: string }, ReadDisplayResu
     const el = document.querySelector(selector) as HTMLElement | null
     if (!el) return { exists: false, display: '' }
     const vis = (n: Element) => { const r = n.getBoundingClientRect(); return r.width >= 2 && r.height >= 2 && getComputedStyle(n).visibility !== 'hidden' }
-    const SHELL = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, [class*="select" i], [class*="picker" i], [class*="cascader" i], [role=combobox]'
-    const shell = el.parentElement ? el.parentElement.closest(SHELL) : null
+    const KNOWN = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const GENERIC = '[class*="select" i], [class*="picker" i], [class*="cascader" i], [role=combobox]'
+    const pe = el.parentElement
+    const shell = pe ? (pe.closest(KNOWN) ?? pe.closest(GENERIC)) : null
     if (el.tagName === 'SELECT') { const s = el as HTMLSelectElement; return { exists: true, display: s.selectedIndex >= 0 ? clean(s.options[s.selectedIndex]?.textContent) : '' } }
     if (shell) {
-      for (const n of Array.from(shell.querySelectorAll('[class*="selection-item" i], [class*="selected-value" i], [class*="single-value" i], [class*="selection__rendered" i], [class*="selected-item" i], [class*="select-value" i], [class*="label" i]:not(label)'))) {
+      const VALUE = '[class*="selection-item" i], [class*="selected-value" i], [class*="single-value" i], [class*="selection__rendered" i], [class*="selected-item" i], [class*="select-value" i], [class*="filter-label" i], [class*="label" i]:not(label)'
+      const nodes = Array.from(shell.querySelectorAll(VALUE))
+      for (const n of nodes) {
+        if (n.querySelector(VALUE)) continue // 只看最内层（外层容器的文字里混着占位提示）
         const c = typeof n.className === 'string' ? n.className : ''
-        if (/placeholder/i.test(c) || !vis(n)) continue
-        const t = clean(n.textContent); if (t) return { exists: true, display: t }
+        if (/hint|is-transparent/i.test(c) || (/placeholder/i.test(c) && !/selected|selection-item/i.test(c))) continue
+        if (!vis(n)) continue
+        const t = clean(n.textContent) || clean(n.getAttribute('title')); if (t) return { exists: true, display: t }
       }
+      if (nodes.length) return { exists: true, display: '' }
       for (const i of Array.from(shell.querySelectorAll('input'))) { const v = clean((i as HTMLInputElement).value); if (v && vis(i)) return { exists: true, display: v } }
       return { exists: true, display: clean((el as HTMLInputElement).value ?? '') }
     }
@@ -404,14 +545,26 @@ export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
       if (okDisplay()) return { ok: true, display: display(), strategy: 'typed', steps: 0 }
       set?.call(el, ''); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }))
     }
-    // 2. 面板
-    fire(el); if (shell !== el) fire(shell)
-    const PANEL = '[class*="picker-panel" i], [class*="date-panel" i], [class*="calendar" i], [class*="datepicker" i], [class*="picker-dropdown" i], [class*="picker-popup" i], [class*="picker" i][class*="popper" i], [class*="month-panel" i], [class*="year-panel" i], [class*="picker-container" i]'
+    // 2. 面板：先记下已经可见的面板（别的日期框没收起的），点开后只认新出现的、离字段最近的那个。
+    //    依次点 输入框 → 日历图标 → 外壳，每点一次就检查：MTD 的日期框是"点一下开、再点一下关"，
+    //    以前输入框和外壳连点两下，面板刚开就被关掉（真机「没有看到日期面板」）。
+    const PANEL = '[class*="picker-panel" i], [class*="date-panel" i], [class*="calendar" i], [class*="datepicker" i], [class*="picker-dropdown" i], [class*="picker-popup" i], [class*="picker" i][class*="popper" i], [class*="date-picker" i][class*="popper" i], [class*="date-picker" i][class*="panel" i], [class*="month-panel" i], [class*="year-panel" i], [class*="picker-container" i], [class*="month-table" i]'
+    const panelsNow = () => Array.from(document.querySelectorAll(PANEL)).filter(p => !p.contains(el) && !shell.contains(p) && vis(p) && /\d{4}/.test(p.textContent || ''))
+    const beforePanels = new Set(panelsNow())
+    const sr = shell.getBoundingClientRect()
+    const freshPanel = (): Element | null => {
+      const c = panelsNow().filter(p => !beforePanels.has(p))
+      const outer = c.filter(p => !c.some(o => o !== p && o.contains(p)))
+      outer.sort((a, b) => { const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return (Math.abs(ra.top - sr.bottom) + Math.abs(ra.left - sr.left)) - (Math.abs(rb.top - sr.bottom) + Math.abs(rb.left - sr.left)) })
+      return outer[0] ?? null
+    }
+    const icon = shell === el ? null : shell.querySelector('[class*="suffix" i] i, [class*="calendar" i]:not(input), [class*="date-icon" i], [class*="icon" i]:not(input)')
+    const triggers = Array.from(new Set([el, icon, shell].filter((n): n is HTMLElement => !!n)))
     let panel: Element | null = null
-    for (let i = 0; i < 12 && !panel; i++) {
-      await sleep(120)
-      const cands = Array.from(document.querySelectorAll(PANEL)).filter(p => vis(p) && !p.contains(el) && /\d{4}/.test(p.textContent || ''))
-      panel = cands.filter(p => !cands.some(o => o !== p && o.contains(p)))[0] ?? null
+    for (let t = 0; t < triggers.length && !panel; t++) {
+      if (t === 0) { try { el.focus() } catch { /* ignore */ } }
+      fire(triggers[t])
+      for (let i = 0; i < (t === 0 ? 8 : 5) && !panel; i++) { await sleep(120); panel = freshPanel() }
     }
     if (!panel) return { ok: false, display: display(), strategy: 'none', steps: 0, detail: '没有看到日期面板' }
     const MONTH_CN = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
@@ -596,7 +749,11 @@ export const domSnippetScript: PageScript<{ selector: string; max?: number }, st
   fn: ({ selector, max }) => {
     const el = document.querySelector(selector)
     if (!el) return ''
-    const root = el.closest('[class*="form-item" i], [class*="form-group" i], [class*="field" i]') ?? el.parentElement ?? el
+    // 取整个表单项（带标签与同组控件），而不是只包住控件的 xx-form-item-wrapper
+    const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem)(\s|$)/i
+    let item: Element | null = null
+    for (let n = el.parentElement, i = 0; n && n !== document.body && i < 10; n = n.parentElement, i++) if (ITEM_RX.test(typeof n.className === 'string' ? n.className : '')) { item = n; break }
+    const root = item ?? el.closest('[class*="form-item" i], [class*="form-group" i], [class*="field" i]') ?? el.parentElement ?? el
     const html = root.outerHTML.replace(/value="[^"]*"/g, 'value="…"')
     return html.slice(0, max ?? 4000)
   },

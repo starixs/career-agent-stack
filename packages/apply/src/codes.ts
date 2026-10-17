@@ -7,6 +7,7 @@ export type FieldReasonCode =
   | 'timeout'                // 动作超时（看门狗或 Playwright）
   | 'element_missing'        // 控件不见了（页面重渲染）
   | 'not_editable'           // 只读 / 禁用 / 自定义控件，不能直接写值
+  | 'field_disabled'         // 控件是灰的（禁用）：联动没解锁，或网站锁定了（如账号绑定的手机号）
   | 'options_not_found'      // 自定义下拉点开后没看到选项
   | 'no_matching_option'     // 选项里没有对得上的
   | 'option_not_selected'    // 点了选项，显示值没变
@@ -25,6 +26,7 @@ export const REASON_TEXT: Record<FieldReasonCode, string> = {
   timeout: '操作超时，页面没有响应',
   element_missing: '这一格在页面上找不到了（页面可能刷新过）',
   not_editable: '这一格不能直接输入（只读或自定义控件），没敢硬写',
+  field_disabled: '这一格是灰的（禁用），可能要先填前面的格子，或网站锁定了不让改',
   options_not_found: '点开下拉后没看到可选项',
   no_matching_option: '下拉选项里没有和你的资料对得上的',
   option_not_selected: '点了选项，但页面上显示的值没变',

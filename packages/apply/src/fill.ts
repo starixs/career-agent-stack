@@ -3,12 +3,12 @@ import type { PageLike } from './page.js'
 import { extractFields, radioOptionSelector, type FormField } from './extract.js'
 import { fillValueScript } from './scripts.js'
 import {
-  activeEditableScript, closePopupScript, datePickScript, domSnippetScript, focusFieldScript, clearHighlightScript, openOptionsScript,
+  activeEditableScript, clearSelectScript, closePopupScript, datePickScript, domSnippetScript, focusFieldScript, clearHighlightScript, openOptionsScript,
   pageSelectionScript, pickOptionScript, probeTargetScript, readDisplayScript, type OptionInfo, type ProbeResult,
 } from './widgets.js'
 import { classifyError, reasonText, withWatchdog, type FieldReasonCode } from './codes.js'
-import { DATE_FIELD_RX, matchOption, parseLooseDate } from './normalize.js'
-import { normKey } from './text.js'
+import { DATE_FIELD_RX, dictFor, matchOption, normalizeByDict, parseLooseDate } from './normalize.js'
+import { fuzzyEquals, normKey } from './text.js'
 import { humanDelay, type PacingOptions } from './pacing.js'
 import { noopRecorder, type Recorder } from './telemetry.js'
 
@@ -91,10 +91,19 @@ async function llmPickOption(llm: LLM, label: string, value: string, options: Op
   } catch { return undefined }
 }
 
-function pickByText(options: OptionInfo[], value: string, label: string): OptionInfo | undefined {
+function pickByText(options: OptionInfo[], value: string, label: string, strict = false): OptionInfo | undefined {
   const enabled = options.filter(o => !o.disabled)
   const hit = matchOption(enabled.map(o => o.text), value, { label })
-  return hit ? enabled.find(o => o.text === hit) : undefined
+  if (!hit) return undefined
+  // 搜索出来的结果（学校 / 专业 / 城市）：只认同一个意思（相等 / 字典同义 / 错别字级别），
+  // 不认"包含"——搜「西京大学」出来的「西京大学附属学院」不是同一所学校（宁空不错）
+  if (strict && !sameMeaning(hit, value, label)) return undefined
+  return enabled.find(o => o.text === hit)
+}
+function sameMeaning(option: string, value: string, label: string): boolean {
+  if (normKey(option) === normKey(value) || fuzzyEquals(option, value)) return true
+  const dict = dictFor(undefined, label)
+  return !!dict && normalizeByDict(dict, option) === normalizeByDict(dict, value) && normalizeByDict(dict, value) !== value.trim()
 }
 
 async function typeInto(d: FillDeps, f: FormField, value: string): Promise<boolean> {
@@ -130,49 +139,72 @@ async function fillText(d: FillDeps, f: FormField, value: string, probe: ProbeRe
 
 async function fillCustomSelect(d: FillDeps, f: FormField, value: string): Promise<Outcome> {
   const { page } = d
+  const close = () => page.evaluate(closePopupScript, { selector: f.selector }).catch(() => {})
+  // 先收起别的字段没关上的弹层，免得把它的选项当成这个字段的
+  await close()
   let open = await page.evaluate(openOptionsScript, { selector: f.selector })
-  if (!open.opened || !open.options.length) { await page.evaluate(closePopupScript, { selector: f.selector }).catch(() => {}); return fail('custom-select', 'options_not_found') }
+  if (!open.opened || (!open.options.length && !open.searchable)) { await close(); return fail('custom-select', 'options_not_found') }
   const segments = value.split(/\s*[/／>＞]\s*/).filter(Boolean)
   const first = segments.length > 1 && open.cascade ? segments[0] : value
-  let opt = pickByText(open.options, first, f.label)
+  let opt = open.options.length ? pickByText(open.options, first, f.label) : undefined
   let strategy = 'option-click'
-  // 可搜索的下拉（远程搜索 / 长列表）：允许键入关键字过滤，但不按回车，仍然点选项
+  let typed = false
+  // 可搜索的下拉（远程搜索 / 长列表）：允许键入关键字过滤，但不按回车，仍然点选项；搜出来的只认同一个意思。
+  // 不可搜索（输入框 readonly）的绝不打字
   if (!opt && open.searchable && page.keyboard) {
     if (await typeInto(d, f, first)) {
-      await page.waitForTimeout(600)
-      open = await page.evaluate(openOptionsScript, { selector: f.selector, reopen: true, waitMs: 1500 })
-      opt = pickByText(open.options, first, f.label)
+      typed = true
+      await page.waitForTimeout(400)
+      open = await page.evaluate(openOptionsScript, { selector: f.selector, reopen: true, waitMs: 3000 })
+      opt = pickByText(open.options, first, f.label, true)
       strategy = 'search-click'
     }
   }
-  if (!opt && d.llm) { opt = await llmPickOption(d.llm, f.label, first, open.options); if (opt) strategy = 'llm-option-click' }
+  if (!opt && !typed && d.llm && open.options.length) { opt = await llmPickOption(d.llm, f.label, first, open.options); if (opt) strategy = 'llm-option-click' }
   if (!opt) {
-    d.recorder?.trace({ stage: 'field', action: 'options', label: f.label, result: 'fail', code: 'no_matching_option', detail: open.options.slice(0, 20).map(o => o.text).join(' | ') })
-    await page.evaluate(closePopupScript, { selector: f.selector }).catch(() => {})
-    return fail('custom-select', 'no_matching_option')
+    d.recorder?.trace({ stage: 'field', action: 'options', label: f.label, result: 'fail', code: 'no_matching_option', detail: open.options.slice(0, 20).map(o => o.text).join(' | ') || '（没有选项）' })
+    await close()
+    if (typed) await clearQuery(d, f)
+    return fail(typed ? 'search-click' : 'custom-select', 'no_matching_option')
   }
-  let pick = await page.evaluate(pickOptionScript, { selector: f.selector, optId: opt.id })
+  let pick = await page.evaluate(pickOptionScript, { selector: f.selector, optId: opt.id, text: opt.text })
   let chosen = opt.text
   // 级联：逐级点
   for (let level = 1; pick.ok && pick.next?.length && level < 5; level++) {
     const seg = segments[level]
     const next = seg ? pickByText(pick.next, seg, f.label) : undefined
-    if (!next) { await page.evaluate(closePopupScript, { selector: f.selector }).catch(() => {}); return fail('cascade', 'no_matching_option', pick.display) }
-    pick = await page.evaluate(pickOptionScript, { selector: f.selector, optId: next.id })
+    if (!next) { await close(); return fail('cascade', 'no_matching_option', pick.display) }
+    pick = await page.evaluate(pickOptionScript, { selector: f.selector, optId: next.id, text: next.text })
     chosen = `${chosen}/${next.text}`
     strategy = 'cascade-click'
   }
-  if (pick.stillOpen) await page.evaluate(closePopupScript, { selector: f.selector }).catch(() => {})
-  await page.waitForTimeout(120)
-  const display = await readDisplay(page, f)
+  if (pick.stillOpen) await close()
   const last = chosen.split('/').pop() ?? chosen
-  if (displayMatches(display, value, f, last) || (display && normKey(display).includes(normKey(last)))) return { verified: true, strategy, display, chosen }
+  const ok = (display: string) => displayMatches(display, value, f, last) || (!!display && normKey(display).includes(normKey(last)))
+  // 读回：选中值的展示可能晚一拍渲染（远程下拉回填 label），最多等 ~1 秒
+  let display = ''
+  for (let i = 0; i < 6; i++) {
+    await page.waitForTimeout(i ? 180 : 120)
+    display = await readDisplay(page, f)
+    if (ok(display)) return { verified: true, strategy, display, chosen }
+  }
+  if (typed) await clearQuery(d, f)
   return { ...fail(strategy, 'option_not_selected', display), chosen }
+}
+
+/** 搜索型下拉没选中：把输入框里剩下的搜索词清掉（它不是值，但看起来像），只动这个可编辑的搜索框。 */
+async function clearQuery(d: FillDeps, f: FormField): Promise<void> {
+  try {
+    const probe = await d.page.evaluate(probeTargetScript, { selector: f.selector })
+    if (probe.editable) await d.page.fill(f.selector, '')
+    await d.page.evaluate(closePopupScript, { selector: f.selector })
+  } catch { /* 清不掉由回滚核对显示值 */ }
 }
 
 async function fillDate(d: FillDeps, f: FormField, value: string, probe: ProbeResult): Promise<Outcome> {
   const p = parseLooseDate(value)
   if (!p || !p.m) return fail('date', 'date_unparseable')
+  await d.page.evaluate(closePopupScript, { selector: f.selector }).catch(() => {}) // 别的面板先收起
   const r = await d.page.evaluate(datePickScript, { selector: f.selector, y: p.y, m: p.m, d: p.d, text: value, typable: !!probe.editable })
   const display = await readDisplay(d.page, f)
   if (r.ok && displayMatches(display || r.display, value, f)) return { verified: true, strategy: `date-${r.strategy}`, display: display || r.display }
@@ -182,8 +214,14 @@ async function fillDate(d: FillDeps, f: FormField, value: string, probe: ProbeRe
 
 async function fillOnce(d: FillDeps, f: FormField, value: string): Promise<Outcome> {
   const { page } = d
-  const probe = await page.evaluate(probeTargetScript, { selector: f.selector })
+  let probe = await page.evaluate(probeTargetScript, { selector: f.selector })
   if (!probe.exists) return fail('probe', 'element_missing')
+  // 禁用（灰的）：多半是联动（选了学校才能选学院 / 专业），等一会儿；还是灰的就不碰（账号锁定的手机号之类）
+  for (let i = 0; probe.disabled && i < 8; i++) {
+    await page.waitForTimeout(250)
+    probe = await page.evaluate(probeTargetScript, { selector: f.selector })
+  }
+  if (probe.disabled) return fail('probe', 'field_disabled')
   if (probe.blocked && probe.overlay) {
     const cleared = d.clearBlockers ? await d.clearBlockers() : false
     const again = cleared ? await page.evaluate(probeTargetScript, { selector: f.selector }) : probe
@@ -230,6 +268,13 @@ async function fillOnce(d: FillDeps, f: FormField, value: string): Promise<Outco
 async function rollback(d: FillDeps, f: FormField, before: string): Promise<'restored' | 'failed' | 'none'> {
   const now = await readDisplay(d.page, f)
   if (normKey(now) === normKey(before)) return 'restored'
+  try {
+    // 自定义下拉选上了别的值：原来是空的就点外壳里的清除图标，再读一次
+    if (f.type === 'select' && f.custom && !before.trim()) {
+      const r = await d.page.evaluate(clearSelectScript, { selector: f.selector })
+      if (r.clicked && !(await readDisplay(d.page, f)).trim()) return 'restored'
+    }
+  } catch { /* 继续按文本框处理 */ }
   try {
     const probe = await d.page.evaluate(probeTargetScript, { selector: f.selector })
     if (probe.editable && ['text', 'email', 'tel', 'number', 'textarea', 'date'].includes(f.type)) {

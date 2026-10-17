@@ -12,7 +12,7 @@ import { fillLoginForm, type LoginCredential } from './login.js'
 import { looksLikeFormVisually, pairVisualFields, type Perceiver, type UiKind } from './perception.js'
 import { visionScan, visionFill, visionClickText, visionFindButton, type VisionOptions } from './vision.js'
 import { describeObstacle, looksLikeRiskUrl, type CaptchaKind } from './obstacles.js'
-import { fillRepeatingSections, type SectionSummary } from './sections.js'
+import { fillRepeatingSections, matchRowField, SECTIONS, type SectionSummary } from './sections.js'
 import { normalizeHost, type SiteMemory } from './memory.js'
 import { matchOption } from './normalize.js'
 import type { FieldType } from './scripts.js'
@@ -21,7 +21,7 @@ import { clearBlockers, type HandledBlocker } from './blockers.js'
 import { displayMatches, fillAndVerify, type FieldAttempt } from './fill.js'
 import { classifyError, reasonText, withWatchdog, type FieldReasonCode } from './codes.js'
 import { isSensitiveLabel, noopRecorder, RunRecorder, type Recorder, type TelemetryOptions } from './telemetry.js'
-import { clearHighlightScript, libraryFingerprintScript, maskSensitiveScript, prepareEntryClickScript, readDisplayScript } from './widgets.js'
+import { clearHighlightScript, libraryFingerprintScript, maskSensitiveScript, prepareEntryClickScript, readDisplayScript, uploadAreaScript, type UploadAreaResult } from './widgets.js'
 
 /**
  * 多页单步驱动循环：每页 障碍层 → extract → interpret → 上传优先（上传后再过障碍层）→ 逐字段"填写 + 核验 + 失败回滚"
@@ -410,10 +410,13 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         if (!f || !f.isFile || p.status !== 'fill' || !p.value) continue
         try {
           progress(`上传简历「${basename(p.value)}」`, 'upload', f.label)
+          let areaBefore: UploadAreaResult | undefined
+          try { areaBefore = await page.evaluate(uploadAreaScript, { selector: f.selector }) } catch { areaBefore = undefined }
+          const textBefore = await page.evaluate(pageSignalsScript).then(x => x.text).catch(() => '')
           await page.setInputFiles(f.selector, p.value)
           await humanDelay(pause[0] * 2, pause[1] * 2, opts)
           if (!(await blockers('after_upload', rec)) && unresolvedBlocker) { pushPage(); return blockerHandoff(unresolvedBlocker) }
-          const check = await checkUploadEcho(page, f, p.value)
+          const check = await checkUploadEcho(page, f, p.value, areaBefore, textBefore)
           rec.uploads.push(check)
           rec.filled.push({ fieldId: f.id, label: f.label, value: basename(p.value), source: p.source, layer: 'dom', verified: check.echoed, strategy: 'upload' })
           written.set(f.id, { value: p.value, stage: 'upload' })
@@ -428,11 +431,16 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       if (uploaded) { fields = await step('抽取字段', () => extractFields(page)); for (const f of fields) byId.set(f.id, f) }
 
+      const deferred: FieldPlan[] = []
       // 5. 逐字段：填写 + 核验 + 失败回滚（只填与当前值不同的；高影响缺答案 / 草稿不填）
       for (const p of plans) {
         const f = byId.get(p.fieldId)
         if (!f) continue
-        if (p.status === 'needs_user') { rec.needsUser.push(p); continue }
+        if (p.status === 'needs_user') {
+          // 资料里找不到、但标签是分区行字段（如「在校时间」=入学）：先留给重复分区按行填，分区也没填上再记"要你补"
+          if (p.source === 'none' && layer === 'dom' && !f.labelUncertain && SECTIONS.some(spec => matchRowField(f.label, spec))) { deferred.push(p); continue }
+          rec.needsUser.push(p); continue
+        }
         if (p.status === 'draft_needs_confirm') { rec.drafts.push(p); continue }
         if (f.isFile || p.status !== 'fill' || p.value === undefined) continue
         if (f.layer === 'vision') {
@@ -475,7 +483,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           if (!(await blockers('section', rec)) && unresolvedBlocker) { pushPage(); return blockerHandoff(unresolvedBlocker) }
           // 重新抽取：拿到第 5 步填完后的当前值，已有值的行不覆盖
           fields = await step('抽取字段', () => extractFields(page)); for (const f of fields) byId.set(f.id, f)
-          const planned = new Set(plans.filter(p => p.status !== 'skip').map(p => p.fieldId))
+          const planned = new Set(plans.filter(p => p.status !== 'skip' && !deferred.includes(p)).map(p => p.fieldId))
           const sec = await fillRepeatingSections(page, fields, profile, {
             fill: async (f, v) => {
               const att = await fillAndVerify(fillDeps, f, v, 'section')
@@ -495,6 +503,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           }
         } catch (e) { log(`重复分区填写异常：${e instanceof Error ? e.message : String(e)}`); recorder.bump('section_error') }
       }
+      for (const p of deferred) if (!written.has(p.fieldId)) rec.needsUser.push(p)
 
       // 6. 整页复核（只对 DOM 层）：核验通过的值有没有被页面后来的动作冲掉（如上传解析回填、联动清空）；冲掉的重填一次，再不行就清空留给用户
       if (layer === 'dom') {
@@ -659,14 +668,40 @@ export function diffAgainstPlan(fields: FormField[], filled: FilledRecord[]): Mi
 }
 
 /** 上传后读取页面回显：文件名出现在字段值或页面文本里，或出现"上传成功/解析完成"类提示。 */
-export async function checkUploadEcho(page: PageLike, f: FormField, filePath: string): Promise<UploadCheck> {
+/**
+ * 上传回显（不认类名，上传前后对比）：页面 / 上传区出现文件名（原名、全半角与各种横线归一、去扩展名的主干）、
+ * "上传成功 / 已上传 / 重新上传 / 删除"等提示新出现、上传区多出带扩展名的文件项，任一成立即算回显。
+ * 站点上传是异步的（先弹"是否解析"、再传、再回显），所以轮询几秒。只有 input.files 有值不算（那只说明浏览器选了文件）。
+ */
+export const looseName = (s: string) => s.normalize('NFKC').toLowerCase().replace(/[\s\-‐‑‒–—―_－~·•.。、,，()（）[\]【】]/g, '')
+export async function checkUploadEcho(page: PageLike, f: FormField, filePath: string, before?: UploadAreaResult, beforeText?: string): Promise<UploadCheck> {
   const name = basename(filePath)
-  const fields = await extractFields(page)
-  const cur = fields.find(x => x.id === f.id)
-  if (cur?.value && cur.value.includes(name)) return { fieldId: f.id, file: name, echoed: true, evidence: `字段值：${cur.value}` }
-  const sig: PageSignals = await page.evaluate(pageSignalsScript)
-  if (sig.text.includes(name)) return { fieldId: f.id, file: name, echoed: true, evidence: '页面文本中出现文件名' }
-  const m = sig.text.match(/(上传成功|已上传|解析成功|解析完成|简历解析|uploaded|attached|upload complete)/i)
-  if (m) return { fieldId: f.id, file: name, echoed: true, evidence: m[0] }
+  const ext = (name.match(/\.([a-z0-9]{2,5})$/i)?.[1] ?? '').toLowerCase()
+  const full = looseName(name)
+  const stem = looseName(name.replace(/\.[^.]+$/, ''))
+  const SUCCESS = /(上传成功|已上传|解析成功|解析完成|简历解析|重新上传|uploaded|attached|upload complete|re-?upload)/i
+  for (let i = 0; i < 12; i++) {
+    const fields = await extractFields(page)
+    const cur = fields.find(x => x.id === f.id)
+    if (cur?.value && looseName(cur.value).includes(stem)) return { fieldId: f.id, file: name, echoed: true, evidence: `字段值：${cur.value}` }
+    const sig: PageSignals = await page.evaluate(pageSignalsScript)
+    const text = looseName(sig.text)
+    if (text.includes(full)) return { fieldId: f.id, file: name, echoed: true, evidence: '页面文本中出现文件名' }
+    let area: UploadAreaResult | undefined
+    try { area = await page.evaluate(uploadAreaScript, { selector: f.selector }) } catch { area = undefined }
+    if (area) {
+      const at = looseName(area.text)
+      if (stem.length >= 2 && at.includes(stem)) return { fieldId: f.id, file: name, echoed: true, evidence: `上传区显示文件名：${area.text.slice(0, 80)}` }
+      const changed = !before || area.text !== before.text
+      const token = ext ? area.text.match(new RegExp(`[^\\s|/\\\\]{1,60}\\.${ext}\\b`, 'i'))?.[0] : undefined
+      if (changed && token && !(before?.text ?? '').includes(token)) return { fieldId: f.id, file: name, echoed: true, evidence: `上传区新出现「${token}」（站点改写了文件名）` }
+      if (changed && area.items > (before?.items ?? 0)) return { fieldId: f.id, file: name, echoed: true, evidence: '上传区新增了文件项' }
+      const m = area.text.match(SUCCESS)
+      if (changed && m && !SUCCESS.test(before?.text ?? '')) return { fieldId: f.id, file: name, echoed: true, evidence: m[0] }
+    }
+    const m = sig.text.match(SUCCESS)
+    if (m && !SUCCESS.test(beforeText ?? '')) return { fieldId: f.id, file: name, echoed: true, evidence: m[0] }
+    if (i < 11) await page.waitForTimeout(400)
+  }
   return { fieldId: f.id, file: name, echoed: false, evidence: '页面没有出现文件名或上传成功提示，请人工确认附件' }
 }

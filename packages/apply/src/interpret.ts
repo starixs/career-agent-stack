@@ -184,6 +184,8 @@ export async function interpretForm(llm: LLM, fields: FormField[], profile: Prof
     if (isOpen && f.type !== 'checkbox' && !f.options.length) { toDraft.push(f); continue }
     // 其余：选择题 / 复选框 / 未知短文本
     if (f.type === 'checkbox') { plans.push({ ...base, status: 'skip', source: 'none', confidence: 0, note: '复选框需用户自行勾选' }); continue }
+    // 资料里没有、但页面上已经有值（账号预填 / 默认区号「86」）：保留页面原值，不当成要补
+    if (f.value && f.value.trim()) { plans.push({ ...base, status: 'skip', source: 'none', confidence: 0, note: '页面已有值，保留' }); continue }
     plans.push({ ...base, status: f.required ? 'needs_user' : 'skip', source: 'none', confidence: 0, note: '无法从资料确定' })
   }
 

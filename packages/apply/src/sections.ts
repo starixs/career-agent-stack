@@ -16,7 +16,8 @@ export type SectionEntry = Record<string, string | undefined>
 
 // 时间类标签分区各自一套：教育用"入学 / 毕业"，工作用"入职 / 离职"，通用的"开始 / 结束"都收，但靠锚字段切行，不会串到别的分区
 const GENERIC_TIME = { start: ['开始时间', '起始时间', '开始年月', '开始日期', 'start date', 'start'], end: ['结束时间', '结束年月', '结束日期', 'end date', 'end'] }
-const EDU_TIME = { start: ['入学时间', '入学年月', ...GENERIC_TIME.start], end: ['毕业时间', '毕业年月', ...GENERIC_TIME.end] }
+// 「在校时间」「就读时间」是起止两格共用的标签：第一格（拿到这个标签的那格）是入学，第二格一般只剩占位符「毕业时间」
+const EDU_TIME = { start: ['入学时间', '入学年月', '在校时间', '就读时间', ...GENERIC_TIME.start], end: ['毕业时间', '毕业年月', ...GENERIC_TIME.end] }
 const WORK_TIME = { start: ['入职时间', '入职年月', ...GENERIC_TIME.start], end: ['离职时间', '离职年月', ...GENERIC_TIME.end] }
 export const SECTIONS: readonly SectionSpec[] = [
   { key: 'education', title: '教育经历', titleRx: /(教育经历|教育背景|学历信息|教育信息|学习经历|education)/i, anchorKeys: ['school'],

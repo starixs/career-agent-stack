@@ -136,6 +136,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
     const WRAP = '[class*="form-item" i], [class*="form-group" i], [class*="field" i], [class*="question" i], fieldset, li, tr'
     const LABEL = 'label, legend, [class*="form-item__label" i], [class*="form-item-label" i], [class*="label" i], [class*="title" i], h3, h4, h5'
     const wrapperOf = (el: Element) => el.closest(WRAP)
+    /** 最近一次 labelFor 用到的标签节点（组合控件判断"两个控件共用一个标签"用）。 */
+    let labelNode: Element | null = null
     // 稳定 XPath（quillfill form-sensor）：唯一 id 直接用；否则逐级 tag[idx]，input 带 name / placeholder
     const xpathOf = (el: Element): string => {
       const id = (el as HTMLElement).id
@@ -195,6 +197,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const sameRow = texts.filter(x => Math.abs(x.b.top - r.top) <= 14 && x.b.left + x.b.width <= r.left + 8).sort((a, b) => b.b.left - a.b.left)[0]
       const above = texts.filter(x => Math.abs(x.b.left - r.left) <= 48 && r.top - x.b.bottom >= -2 && r.top - x.b.bottom < 60).sort((a, b) => b.b.top - a.b.top)[0]
       const hit = sameRow ?? above
+      if (hit) labelNode = hit.t
       return hit ? stripStar(hit.text) : ''
     }
     /** 最近的"表单项"祖先（ant-form-item / mtd-form-item / el-form-item / form-group / li / tr / fieldset）。 */
@@ -212,19 +215,38 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       if (!l || isChrome(l) || l.closest('[data-career-overlay]')) return false
       const it = itemOf(l)
       if (it && !it.contains(el)) return false
+      // 别的控件外壳里的"标签样"节点（MTD 下拉的 .mtd-select-filter-label 显示的是选中值，如区号「86」）不是字段标签
+      const ls = l.parentElement?.closest('.ant-select, .el-select, .ivu-select, .mtd-select, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, [class*="select" i], [class*="picker" i]')
+      if (ls && !ls.contains(el) && ls.querySelector('input, select, textarea')) return false
       if (l.contains(el)) return true
       if (!(l.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) return false
-      // 标签和控件之间不能隔着别的控件（否则是上一格 / 分区标题的文字）
+      // 标签和控件之间不能隔着别的控件（否则是上一格 / 分区标题的文字）。
+      // 例外：组合控件——同一表单项里"前缀下拉 + 号码输入框"（区号 + 手机号、证件类型 + 证件号），
+      // 标签属于后面的输入框；前缀下拉另起名字（见 prefixLabel）
+      const elInSelect = !!selectShellOf(el)
       for (const c of controlsInDoc()) {
         if (c === el || c.contains(el)) continue
-        if ((l.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) && (c.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) return false
+        if ((l.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) && (c.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+          if (!elInSelect && isPlainText(el) && selectShellOf(c) && it && it.contains(c)) continue
+          return false
+        }
       }
       return true
+    }
+    const KNOWN_SELECT = '.ant-select, .el-select, .ivu-select, .mtd-select, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    /** 控件所在的自定义下拉外壳：先认已知组件库的根，再退到泛 [class*=select]（MTD 输入框外还套着 mtd-select-filter-input）。 */
+    function selectShellOf(n: Element): Element | null {
+      const p = n.parentElement
+      return p ? (p.closest(KNOWN_SELECT) ?? p.closest('[class*="select" i]')) : null
+    }
+    function isPlainText(n: Element): boolean {
+      const t = ((n as HTMLInputElement).type || '').toLowerCase()
+      return (n.tagName === 'INPUT' && ['', 'text', 'tel', 'email', 'number'].includes(t)) || n.tagName === 'TEXTAREA'
     }
     let controlsCache: Element[] | null = null
     const controlsInDoc = (): Element[] => controlsCache ??= Array.from(document.querySelectorAll('input:not([type=hidden]), select, textarea, [contenteditable="true"]'))
     const firstLabel = (root: Element, el: Element): string => {
-      for (const l of Array.from(root.querySelectorAll(LABEL)).slice(0, 40)) { if (okLabelNode(l, el)) { const t = pure(l); if (ok(t)) return t } }
+      for (const l of Array.from(root.querySelectorAll(LABEL)).slice(0, 40)) { if (okLabelNode(l, el)) { const t = pure(l); if (ok(t)) { labelNode = l; return t } } }
       return ''
     }
     /** 用 CSS 伪元素（::before content）画出来的标签。 */
@@ -241,6 +263,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
     }
     let labelVia = ''
     function labelFor(el: Element): string {
+      labelNode = null
       labelVia = 'aria'
       const aria = el.getAttribute('aria-label'); if (ok(aria)) return stripStar(aria!)
       const lb = el.getAttribute('aria-labelledby')
@@ -358,14 +381,37 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         continue
       }
       // 自定义下拉外壳只看祖先（antd 的隐藏搜索框自己的类名就含 "select"，不能把输入框当外壳）
-      const SHELL = '.ant-select, .el-select, .ivu-select, .mtd-select, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, [class*="select" i]'
-      const shellAncestor = el.parentElement ? el.parentElement.closest(SHELL) : null
+      const shellAncestor = selectShellOf(el)
       if (role === 'combobox' || shellAncestor) {
         const shell = shellAncestor || el
-        const shownEl = shell === el ? null : shell.querySelector('[class*="selection-item" i], [class*="single-value" i], [class*="selected-value" i], .el-input__inner, .layui-input') as HTMLElement | null
-        const shown = clean((shownEl && shownEl !== el ? ((shownEl as HTMLInputElement).value || shownEl.textContent) : '') || (el as HTMLInputElement).value)
-        const label = clean(labelFor(el))
-        out.push({ id, label, name, type: 'select', options: [], required, custom: true, value: shown && !isGeneric(shown) ? shown : undefined, readonly: (el as HTMLInputElement).readOnly || undefined, requiredVia: req.via, labelUncertain: suspicious(label, labelVia) || undefined })
+        // 选中值的展示节点；MTD 是 .mtd-select-filter-label（没选时带 -hint 类、写"请选择"，不算值）
+        const shownEl = shell === el ? null : shell.querySelector('[class*="selection-item" i], [class*="single-value" i], [class*="selected-value" i], [class*="filter-label" i]:not([class*="hint" i]), .el-input__inner, .layui-input') as HTMLElement | null
+        const hasLabelNode = shell !== el && !!shell.querySelector('[class*="filter-label" i], [class*="selection-item" i], [class*="placeholder" i]:not(input)')
+        const shown = clean((shownEl && shownEl !== el ? ((shownEl as HTMLInputElement).value || shownEl.textContent) : '') || (hasLabelNode ? '' : (el as HTMLInputElement).value))
+        let label = clean(labelFor(el))
+        let uncertain = suspicious(label, labelVia)
+        // 组合控件的前缀下拉（区号 / 证件类型）：和后面的输入框共用一个标签。标签归输入框，前缀下拉按提示文字另起名，
+        // 认不出含义就标"标签可疑"（不按它填），免得把手机号写进区号下拉
+        const own = labelNode as Element | null
+        if (own && shell !== el) {
+          const all = controlsInDoc()
+          const next = all.slice(all.indexOf(el) + 1).find(c => vis(c) && !['hidden', 'checkbox', 'radio', 'file'].includes(((c as HTMLInputElement).type || '').toLowerCase()))
+          if (next && isPlainText(next) && !selectShellOf(next) && !next.parentElement?.closest('[class*="picker" i], [class*="date" i]')) {
+            const keepVia = labelVia
+            labelFor(next)
+            const shared = labelNode === own
+            labelVia = keepVia; labelNode = own
+            if (shared) {
+              const hintEl = shell.querySelector('[class*="hint" i], [class*="placeholder" i]:not(input)')
+              const hint = clean(hintEl?.textContent) || (el as HTMLInputElement).placeholder || ''
+              const derived = stripStar(hint.replace(/^(请选择|请输入|选择)\s*/, ''))
+              if (derived && derived.length <= 12 && !isGeneric(derived)) { label = derived; uncertain = '' }
+              else if (/^[+＋]?\d{1,4}$/.test(shown)) { label = '国际区号'; uncertain = '' }
+              else uncertain = `「${label}」组合控件里的前缀下拉，含义不明`
+            }
+          }
+        }
+        out.push({ id, label, name, type: 'select', options: [], required, custom: true, value: shown && !isGeneric(shown) ? shown : undefined, readonly: (el as HTMLInputElement).readOnly || undefined, requiredVia: req.via, labelUncertain: uncertain || undefined })
         continue
       }
       if (el.getAttribute('contenteditable') === 'true') {
