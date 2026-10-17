@@ -24,7 +24,9 @@ describe('ScreencastHub', () => {
     const frames: string[] = [];
     const unsub = hub.subscribe(f => frames.push(f.data));
     await new Promise(r => setTimeout(r, 5));
-    expect(sent.map(s => s.method).slice(0, 2)).toEqual(['Page.enable', 'Page.startScreencast']); // 不 enable 收不到帧
+    const methods = sent.map(s => s.method);
+    expect(methods.indexOf('Page.enable')).toBeGreaterThanOrEqual(0);
+    expect(methods.indexOf('Page.enable')).toBeLessThan(methods.indexOf('Page.startScreencast')); // 不先 enable 收不到帧
     expect(sent.find(s => s.method === 'Page.startScreencast')).toMatchObject({ params: { format: 'jpeg', quality: 40 } });
     emit('AAA'); emit('BBB');
     expect(frames).toEqual(['AAA', 'BBB']);
@@ -99,5 +101,34 @@ describe('ScreencastHub', () => {
     unsub();
     await hub.stop(); await hub.stop();
     expect(hub.subscriberCount).toBe(0);
+  });
+  it('视口被模拟后：实时帧和静止帧按同一个 CSS 视口上报宽高，补截图只截可见视口并缩到实时帧的大小', async () => {
+    const hold: { listener: ((ev: { data: string; sessionId: number; metadata: Record<string, number> }) => void) | null } = { listener: null };
+    const sent: Array<{ method: string; params?: Record<string, unknown> }> = [];
+    const session: CdpSessionLike = {
+      send: async (method, params) => {
+        sent.push({ method, params });
+        if (method === 'Page.getLayoutMetrics') return { cssVisualViewport: { clientWidth: 1366, clientHeight: 1000, pageX: 0, pageY: 240 } };
+        if (method === 'Page.captureScreenshot') return { data: 'SHOT' };
+        return {};
+      },
+      on: (_e, fn) => { hold.listener = fn as typeof hold.listener; },
+      detach: async () => {},
+    };
+    const page: ScreencastPageLike = { url: () => 'https://x.com', title: async () => '', isClosed: () => false, newCDPSession: async () => session };
+    const hub = new ScreencastHub(async () => page, { idleSnapshotMs: 0 });
+    const frames: Array<{ w: number; h: number; source?: string }> = [];
+    const unsub = hub.subscribe(f => frames.push({ w: f.width, h: f.height, source: f.source }));
+    await new Promise(r => setTimeout(r, 10));
+    // 窗口比模拟视口大：元数据里的设备尺寸和视口不一样
+    hold.listener?.({ data: 'LIVE', sessionId: 1, metadata: { deviceWidth: 1440, deviceHeight: 1100 } });
+    const sizes = frames.map(f => `${f.w}x${f.h}`);
+    expect(new Set(sizes)).toEqual(new Set(['1366x1000']));
+    expect(frames.some(f => f.source === 'snapshot')).toBe(true);
+    expect(frames.some(f => f.source === 'screencast')).toBe(true);
+    const shot = sent.find(s => s.method === 'Page.captureScreenshot');
+    expect(shot?.params?.clip).toMatchObject({ x: 0, y: 240, width: 1366, height: 1000 });
+    expect((shot?.params?.clip as { scale: number }).scale).toBeCloseTo(0.9, 2); // 1366×1000 缩进 1280×900
+    unsub();
   });
 });

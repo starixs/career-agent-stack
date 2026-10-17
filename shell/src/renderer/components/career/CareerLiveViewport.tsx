@@ -26,6 +26,17 @@ export function translateKey(ev: { key: string; metaKey: boolean; ctrlKey: boole
   return null;
 }
 
+/**
+ * 画面框的宽高比：只有和当前比例差超过 2% 才换。实时帧和静止补截图交替到达时，
+ * 几像素的尺寸出入不应该让画面框跟着重排、来回跳。
+ */
+export function stableAspect(current: number | null, width: number | undefined, height: number | undefined): number | null {
+  if (!width || !height) return current;
+  const next = width / height;
+  if (current && Math.abs(next / current - 1) < 0.02) return current;
+  return next;
+}
+
 export function CareerLiveViewport({ frame, interactive, placeholder, onInputError, onRequestControl, className = '', style }: {
   frame: LiveFrame | null;
   /** 用户已接管：允许转发输入。 */
@@ -41,6 +52,10 @@ export function CareerLiveViewport({ frame, interactive, placeholder, onInputErr
   const [focused, setFocused] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
+  const [aspect, setAspect] = useState<number | null>(() => stableAspect(null, frame?.width, frame?.height));
+  // 渲染时按新帧尺寸校正比例（React 的"根据上一次渲染调整状态"写法），差得不多就不动
+  const nextAspect = stableAspect(aspect, frame?.width, frame?.height);
+  if (nextAspect !== aspect) setAspect(nextAspect);
 
   const send = useCallback(async (input: Parameters<typeof careerApi.liveInput>[0], label: string) => {
     try { await careerApi.liveInput(input); setLastAction(label); } catch (error) { onInputError?.(error instanceof Error ? error.message : String(error)); }
@@ -108,7 +123,7 @@ export function CareerLiveViewport({ frame, interactive, placeholder, onInputErr
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       className={`relative overflow-hidden rounded-lg border bg-black/90 outline-none ${interactive ? 'cursor-crosshair' : onRequestControl && frame ? 'cursor-pointer' : 'cursor-default'} ${focused && interactive ? 'border-[var(--primary)] ring-1 ring-[var(--primary)]' : 'border-[var(--line)]'} ${className}`}
-      style={{ aspectRatio: frame && frame.width && frame.height ? `${frame.width} / ${frame.height}` : '16 / 10', ...style }}
+      style={{ aspectRatio: aspect ? String(aspect) : '16 / 10', ...style }}
     >
       {frame
         ? <img alt="浏览器实时画面" src={`data:image/jpeg;base64,${frame.data}`} className="h-full w-full select-none object-contain" draggable={false} />

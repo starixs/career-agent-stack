@@ -42,6 +42,12 @@ export class ScreencastHub {
   private lastFrameAt = 0;
   private idleTimer: ReturnType<typeof setInterval> | null = null;
   private snapshotting = false;
+  /**
+   * 页面的 CSS 视口尺寸：实时帧和补截图都按它上报宽高。screencast 元数据里的 deviceWidth 在视口被模拟
+   * （跟随现场画面框）后会和真实视口不一致，两种帧按各自尺寸上报，现场窗的比例就会来回跳。
+   */
+  private viewport: { width: number; height: number } | null = null;
+  private viewportAt = 0;
   constructor(private readonly getPage: () => Promise<ScreencastPageLike | null>, private readonly opts: ScreencastOptions = {}) {}
 
   get subscriberCount(): number { return this.subscribers.size; }
@@ -73,10 +79,14 @@ export class ScreencastHub {
       const session = await page.newCDPSession();
       session.on('Page.screencastFrame', ev => {
         void session.send('Page.screencastFrameAck', { sessionId: ev.sessionId }).catch(() => { /* 页面可能已关闭 */ });
-        this.emit({ data: ev.data, width: ev.metadata.deviceWidth ?? 0, height: ev.metadata.deviceHeight ?? 0, ts: Date.now(), url: page.url(), source: 'screencast' });
+        if (Date.now() - this.viewportAt > 1000) void this.readViewport(session);
+        const width = this.viewport?.width ?? ev.metadata.deviceWidth ?? 0;
+        const height = this.viewport?.height ?? ev.metadata.deviceHeight ?? 0;
+        this.emit({ data: ev.data, width, height, ts: Date.now(), url: page.url(), source: 'screencast' });
       });
       // screencastFrame 事件属于 Page 域，必须先 enable；否则 startScreencast 成功但永远收不到帧
       await session.send('Page.enable').catch(() => { /* 某些实现已默认开启 */ })
+      await this.readViewport(session);
       await session.send('Page.startScreencast', { format: 'jpeg', quality: this.opts.quality ?? 55, maxWidth: this.opts.maxWidth ?? 1280, maxHeight: this.opts.maxHeight ?? 900, everyNthFrame: this.opts.everyNthFrame ?? 2 });
       page.onClose?.(() => { void this.stop(); if (this.subscribers.size) setTimeout(() => void this.ensureStarted().catch(() => {}), 500); });
       this.session = session; this.page = page;
@@ -99,18 +109,30 @@ export class ScreencastHub {
     for (const s of this.subscribers) { try { s(frame); } catch { /* 订阅者自己处理 */ } }
   }
 
-  /** 用 Page.captureScreenshot 补一帧；宽高用 CSS 视口尺寸（和 screencast 的 deviceWidth 同一坐标系，点击换算不受影响）。 */
+  /** 读页面的 CSS 视口（和点击换算同一坐标系）；读不到就沿用上次的。 */
+  private async readViewport(session: CdpSessionLike): Promise<{ width: number; height: number; pageX: number; pageY: number } | null> {
+    this.viewportAt = Date.now();
+    const metrics = await session.send('Page.getLayoutMetrics').catch(() => null) as { cssVisualViewport?: { clientWidth?: number; clientHeight?: number; pageX?: number; pageY?: number } } | null;
+    const vp = metrics?.cssVisualViewport;
+    if (!vp?.clientWidth || !vp.clientHeight) return null;
+    this.viewport = { width: Math.round(vp.clientWidth), height: Math.round(vp.clientHeight) };
+    return { ...this.viewport, pageX: vp.pageX ?? 0, pageY: vp.pageY ?? 0 };
+  }
+
+  /**
+   * 用 Page.captureScreenshot 补一帧。只截可见视口，并缩到和 screencast 帧同样的像素上限，
+   * 宽高按 CSS 视口上报：静止帧和实时帧比例一致，现场窗不会在两种来源之间跳。
+   */
   private async snapshot(session: CdpSessionLike, page: ScreencastPageLike): Promise<void> {
     if (this.snapshotting || this.session !== session || page.isClosed()) return;
     this.snapshotting = true;
     try {
-      const [shot, metrics] = await Promise.all([
-        session.send('Page.captureScreenshot', { format: 'jpeg', quality: this.opts.quality ?? 55, optimizeForSpeed: true }) as Promise<{ data?: string }>,
-        session.send('Page.getLayoutMetrics').catch(() => null) as Promise<{ cssVisualViewport?: { clientWidth?: number; clientHeight?: number } } | null>,
-      ]);
+      const vp = await this.readViewport(session);
+      const maxW = this.opts.maxWidth ?? 1280, maxH = this.opts.maxHeight ?? 900;
+      const clip = vp ? { x: vp.pageX, y: vp.pageY, width: vp.width, height: vp.height, scale: Math.min(1, maxW / vp.width, maxH / vp.height) } : undefined;
+      const shot = await session.send('Page.captureScreenshot', { format: 'jpeg', quality: this.opts.quality ?? 55, optimizeForSpeed: true, ...(clip ? { clip } : {}) }) as { data?: string };
       if (!shot?.data || this.session !== session) return;
-      const vp = metrics?.cssVisualViewport;
-      this.emit({ data: shot.data, width: Math.round(vp?.clientWidth ?? this.last?.width ?? 0), height: Math.round(vp?.clientHeight ?? this.last?.height ?? 0), ts: Date.now(), url: page.url(), source: 'snapshot' });
+      this.emit({ data: shot.data, width: this.viewport?.width ?? this.last?.width ?? 0, height: this.viewport?.height ?? this.last?.height ?? 0, ts: Date.now(), url: page.url(), source: 'snapshot' });
     } catch (e) {
       this.opts.log?.(`补截图没拿到（下次再补）：${e instanceof Error ? e.message : String(e)}`);
     } finally {
