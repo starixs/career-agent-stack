@@ -280,10 +280,12 @@ canvas.label-canvas{display:block;height:20px}
     mountSelect(slot('school'), {
       key: `school${i}`,
       remote: q => remoteMiss ? [`${q}附属中学`, '北京大学'] : SCHOOLS.filter(s => s.includes(q)),
-      // 选了学校之后，学院 / 专业稍后（异步加载）才解锁
-      onChange: () => { const on = !!model[`school${i}`]; setTimeout(() => { college.setDisabled(!on); major.setDisabled(!on) }, 300) },
+      // 选了学校之后学院才解锁；专业要学校和学历都选了才解锁——而学历在页面上排在专业后面（真机就是这样），
+      // 按页面顺序填会先碰到灰的专业，靠"联动重试"才能填上
+      onChange: () => unlock(),
     })
-    mountSelect(slot('degree'), { key: `degree${i}`, options: () => DEGREES })
+    const unlock = () => setTimeout(() => { college.setDisabled(!model[`school${i}`]); major.setDisabled(!(model[`school${i}`] && model[`degree${i}`])) }, 300)
+    mountSelect(slot('degree'), { key: `degree${i}`, options: () => DEGREES, onChange: () => unlock() })
     mountDate(slot('start'), `start${i}`, '入学时间')
     mountDate(slot('end'), `grad${i}`, '毕业时间')
   }

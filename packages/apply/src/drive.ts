@@ -413,7 +413,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       const written = new Map<string, { value: string; stage: string }>()
       /** 每条填写记录对应的格子（写入那一刻的字段），复核按它认回。 */
       const fieldOf = new WeakMap<object, FormField>()
+      /** 因为控件被禁用（联动没解锁）而失败的格子：主循环填完后再试一次。 */
+      const disabledQueue: Array<{ f: FormField; value: string; source: FieldPlan['source'] }> = []
       const record = (f: FormField, value: string, source: FieldPlan['source'], att: FieldAttempt, stage: string) => {
+        if (!att.verified && att.code === 'field_disabled' && (stage === 'field' || stage === 'section')) disabledQueue.push({ f, value, source })
         written.set(slotOf(f), { value, stage })
         if (att.verified) { rec.filled.push({ fieldId: f.id, label: f.label, value, source, layer: att.strategy === 'vision' ? 'vision' : 'dom', verified: true, strategy: att.strategy, display: att.display }); fieldOf.set(rec.filled[rec.filled.length - 1], f) }
         else if (att.rollback === 'failed') { rec.mismatches.push({ fieldId: f.id, label: f.label, expected: value, actual: att.display, code: att.code ?? 'readback_mismatch', reason: att.reason ?? reasonText(att.code) }); fieldOf.set(rec.mismatches[rec.mismatches.length - 1], f) }
@@ -495,6 +498,19 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         await humanDelay(pause[0], pause[1], opts)
       }
 
+      // 5.2 联动重试：后面的选择可能刚解锁前面被禁用的格子（如"专业"要等"学历"选了才能选）。每个格子只重试一次。
+      const retryDisabled = async () => {
+        const queue = disabledQueue.splice(0)
+        for (const q of queue) {
+          const idx = rec.needsUser.findIndex(r => fieldOf.get(r) === q.f)
+          const att = await fillAndVerify(fillDeps, q.f, q.value, 'field-retry')
+          if (!att.verified) { recorder.trace({ stage: 'field-retry', field: q.f.id, label: q.f.label, result: 'fail', code: att.code, detail: '联动后重试仍未成功' }); continue }
+          if (idx >= 0) rec.needsUser.splice(idx, 1)
+          record(q.f, q.value, q.source, att, 'field-retry')
+        }
+      }
+      await retryDisabled()
+
       // 5.5 重复分区（教育 / 实习工作 / 项目经历的"表格"）：逐行填，不够就点"添加一行"再填新出现的那一行（只在 DOM 层）
       if (layer === 'dom') {
         try {
@@ -521,6 +537,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           }
         } catch (e) { log(`重复分区填写异常：${e instanceof Error ? e.message : String(e)}`); recorder.bump('section_error') }
       }
+      await retryDisabled() // 分区里新加的行同样有联动（第二段学历选了，专业才解锁）
       for (const p of deferred) { const f = planFields.get(p.fieldId); if (!f || !written.has(slotOf(f))) rec.needsUser.push(p) }
 
       // 6. 整页复核（只对 DOM 层）：核验通过的值有没有被页面后来的动作冲掉（如上传解析回填、联动清空）；冲掉的重填一次，再不行就清空留给用户
