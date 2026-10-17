@@ -15,7 +15,7 @@
   "input": {
     "launcherPlaceholder": "What do you want to do today?",
     "placeholder": "Message Career Assistant, use @ for files and / for skills...",
-    "companionPlaceholder": "Ask Mino or delegate a task...",
+    "companionPlaceholder": "Ask {{name}} or delegate a task...",
     "addScreenshot": "Add screenshot",
     "send": "Send",
     "stop": "Stop",
@@ -236,16 +236,16 @@
       "thinkingDone": "Thought for {{seconds}}s",
       "background": "Background"
     },
-    "watchingApp": "Mino · Watching {{appName}}",
-    "watchingAppWindow": "Mino · Watching {{appName}} — {{windowTitle}}",
+    "watchingApp": "{{name}} · Watching {{appName}}",
+    "watchingAppWindow": "{{name}} · Watching {{appName}} — {{windowTitle}}",
     "chrome": {
       "openPetSettings": "Open Desktop Pet settings",
       "openInkeystone": "Open in Career Assistant (continue in a new tab)",
       "closeEsc": "Close (Esc)"
     },
     "connecting": "Connecting to {{workspace}}...",
-    "processing": "Mino is working...",
-    "axPrompt": "Allow Accessibility access so Mino can include selected text when summoned. You only need to grant this once.",
+    "processing": "{{name}} is working...",
+    "axPrompt": "Allow Accessibility access so {{name}} can include selected text when summoned. You only need to grant this once.",
     "grantAccessibility": "Grant access",
     "removeQuote": "Remove quote",
     "resizeHandle": "Drag to resize",

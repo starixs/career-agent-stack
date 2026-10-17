@@ -15,7 +15,7 @@
   "input": {
     "launcherPlaceholder": "今天，想干点啥？",
     "placeholder": "输入消息，使用 @ 引用文件，/ 使用技能...",
-    "companionPlaceholder": "问问 Mino，或者派个活…",
+    "companionPlaceholder": "问问{{name}}，或者派个活…",
     "addScreenshot": "添加屏幕截图",
     "send": "发送",
     "stop": "停止",
@@ -236,16 +236,16 @@
       "thinkingDone": "思考了 {{seconds}}s",
       "background": "后台"
     },
-    "watchingApp": "Mino · 正在看 {{appName}}",
-    "watchingAppWindow": "Mino · 正在看 {{appName}} — {{windowTitle}}",
+    "watchingApp": "{{name}} · 正在看 {{appName}}",
+    "watchingAppWindow": "{{name}} · 正在看 {{appName}} — {{windowTitle}}",
     "chrome": {
       "openPetSettings": "打开桌面宠物设置",
       "openInkeystone": "在 求职助理 中打开（新 Tab 接上这条会话）",
       "closeEsc": "关闭（Esc）"
     },
     "connecting": "正在连接 {{workspace}}…",
-    "processing": "Mino 正在处理…",
-    "axPrompt": "授权「辅助功能」后，唤起时能自动带上你选中的文字（一次授权，长期有效）。",
+    "processing": "{{name}}正在处理…",
+    "axPrompt": "授权「辅助功能」后，唤起{{name}}时能自动带上你选中的文字（一次授权，长期有效）。",
     "grantAccessibility": "去授权",
     "removeQuote": "去掉引用",
     "resizeHandle": "拖动调节高度",

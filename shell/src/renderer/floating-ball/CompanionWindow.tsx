@@ -48,6 +48,7 @@ import { isNearBottom } from './convoAutoFollow';
 import { createFocusConvergence } from './focusConvergence';
 import { useFloatingSession, type FbAttachment, type FbMsg } from './useFloatingSession';
 import { useFloatingComposerKeydown } from './useFloatingComposerKeydown';
+import { usePetName } from './usePetName';
 import { describeNativeFloatingBallError } from './nativeFloatingBall';
 
 import './fb.css';
@@ -283,6 +284,7 @@ function shotToImageDraft(shot: FbShot): FbImageDraft {
 
 export default function CompanionWindow() {
     const { t } = useTranslation('chat');
+    const petName = usePetName();
     // `mode` drives rendering; `modeRef` mirrors it for event handlers and the
     // session hook. The ref is written ONLY inside applyMode (every mode
     // transition funnels through it) — never during render (react-hooks/refs).
@@ -384,14 +386,15 @@ export default function CompanionWindow() {
         return modelSupportsModality(providerForCapability, modelId, 'image');
     }, [providerForCapability, session.model, session.runtime]);
     const whoLabel = useMemo(() => {
-        if (!whoContext) return 'Mino';
+        if (!whoContext) return petName;
         return whoContext.windowTitle
             ? t('floatingBall.watchingAppWindow', {
+                name: petName,
                 appName: whoContext.appName,
                 windowTitle: whoContext.windowTitle,
             })
-            : t('floatingBall.watchingApp', { appName: whoContext.appName });
-    }, [t, whoContext]);
+            : t('floatingBall.watchingApp', { name: petName, appName: whoContext.appName });
+    }, [petName, t, whoContext]);
 
     const clearPinnedInputFocusRetries = useCallback(() => {
         for (const timer of pinFocusTimersRef.current) clearTimeout(timer);
@@ -1447,7 +1450,7 @@ export default function CompanionWindow() {
             {session.busy && session.activities.length === 0 && !session.liveMessage && (
                 <div className="fbw-statusline">
                     <span className="fbw-spinner" />
-                    <span style={{ flex: 1 }}>{t('floatingBall.processing')}</span>
+                    <span style={{ flex: 1 }}>{t('floatingBall.processing', { name: petName })}</span>
                 </div>
             )}
             {session.error && session.ready && (
@@ -1457,7 +1460,7 @@ export default function CompanionWindow() {
             {/* AX 授权引导（第一次想给引用时） */}
             {mode === 'pin' && axNeeded && (
                 <div className="fbw-ax">
-                    {t('floatingBall.axPrompt')}
+                    {t('floatingBall.axPrompt', { name: petName })}
                     <br />
                     <button onClick={() => void onGrantAx()}>{t('floatingBall.grantAccessibility')}</button>
                 </div>
@@ -1497,7 +1500,7 @@ export default function CompanionWindow() {
                         ref={inputRef}
                         rows={1}
                         value={input}
-                        placeholder={t('input.companionPlaceholder')}
+                        placeholder={t('input.companionPlaceholder', { name: petName })}
                         onChange={(e) => {
                             setInput(e.target.value);
                             // IME 组合期间不写 style（：触发 WebKit 候选窗重排卡顿）
