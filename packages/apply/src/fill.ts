@@ -269,7 +269,8 @@ async function fillDate(d: FillDeps, f: FormField, value: string, probe: ProbeRe
   const style = r.used ? cands.find(c => c.text === r.used)?.style : undefined
   const learned: WidgetPatch = { kind: 'date', dateStrategy: r.strategy === 'none' ? undefined : r.strategy, dateFormat: style }
   if (r.ok && displayMatches(display || r.display, value, f)) return { verified: true, strategy: `date-${r.strategy}`, display: display || r.display, learned }
-  d.recorder?.trace({ stage: 'field', action: 'date', label: f.label, result: 'fail', code: 'date_panel_unsupported', detail: r.detail })
+  const panelFile = r.panelHtml && d.recorder ? d.recorder.dom(`panel-${f.label}`, r.panelHtml) : undefined
+  d.recorder?.trace({ stage: 'field', action: 'date', label: f.label, result: 'fail', code: 'date_panel_unsupported', detail: r.detail, ...(panelFile ? { shot: panelFile } : {}) })
   return { ...fail(`date-${r.strategy}`, 'date_panel_unsupported', display || r.display), learned: { kind: 'date' } }
 }
 

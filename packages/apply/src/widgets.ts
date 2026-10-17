@@ -573,7 +573,7 @@ export const readDisplayScript: PageScript<{ selector: string }, ReadDisplayResu
 // ---------------------------------------------------------------------------
 /** texts：可输入时按顺序试的写法（如 2027-06、2027/06、2027.06、2027年06月），第一个通常按 placeholder / 现有值推断。 */
 export interface DatePickArg { selector: string; y: number; m: number; d?: number; text: string; texts?: string[]; typable: boolean }
-export interface DatePickResult { ok: boolean; display: string; strategy: 'typed' | 'panel' | 'none'; steps: number; detail?: string; used?: string }
+export interface DatePickResult { ok: boolean; display: string; strategy: 'typed' | 'panel' | 'none'; steps: number; detail?: string; used?: string; /** 失败时的面板结构（复盘用）。 */ panelHtml?: string }
 export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
   id: WIDGET_SCRIPT_IDS.datePick,
   fn: async ({ selector, y, m, d, text, texts, typable }) => {
@@ -736,9 +736,12 @@ export const datePickScript: PageScript<DatePickArg, DatePickResult> = {
       if (okBtn && okDisplay() === false) { fire(okBtn); await sleep(150) }
       else if (okBtn) { fire(okBtn); await sleep(150) }
     }
+    // 失败时把面板结构带回去（收起前抓）：面板一般挂在 body 下，表单项片段里看不到，复盘要靠它
+    const panelHtml = vis(panel) ? panel.outerHTML.replace(/value="[^"]*"/g, 'value="…"').slice(0, 8000) : undefined
     try { el.blur() } catch { /* ignore */ }
     outside(); await sleep(200)
-    return { ok: okDisplay(), display: display(), strategy: 'panel', steps, detail: okDisplay() ? undefined : `面板导航 ${steps} 步后显示「${display()}」` }
+    const ok = okDisplay()
+    return { ok, display: display(), strategy: 'panel', steps, detail: ok ? undefined : `面板导航 ${steps} 步后显示「${display()}」`, ...(ok ? {} : { panelHtml }) }
   },
 }
 
