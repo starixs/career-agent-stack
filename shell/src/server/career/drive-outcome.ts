@@ -63,7 +63,7 @@ export function evaluateSubmitGate(result: Record<string, unknown>): SubmitGate 
   // 驱动记录兜底：没有 review 或 review 漏掉的项
   for (const p of asList(result.needsUser)) add(strOf(p.label), 'needs_user', strOf(p.note));
   for (const p of asList(result.drafts)) add(strOf(p.label), 'draft', undefined, false);
-  for (const m of asList(result.mismatches)) add(strOf(m.label), 'mismatch', strOf(m.actual) ? `页面上是「${strOf(m.actual)}」，没有生效` : undefined);
+  for (const m of asList(result.mismatches)) add(strOf(m.label), 'mismatch', strOf(m.reason) || (strOf(m.actual) ? `页面上是「${strOf(m.actual)}」，没有生效` : undefined));
   for (const u of asList(result.uploads)) if (u.echoed !== true) add('简历附件', 'upload_unconfirmed', strOf(u.evidence));
 
   if (!review) {
