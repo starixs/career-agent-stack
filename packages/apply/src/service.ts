@@ -6,6 +6,7 @@ import { driveApplication, type DriveOptions, type DriveResult } from './drive.j
 import type { Profile } from './interpret.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import { RiskGuard } from './safety.js'
+import { normalizeDegree } from './normalize.js'
 
 /**
  * ApplyService：把 driveApplication 的结果落到 Repos。
@@ -66,10 +67,11 @@ export class ApplyService {
     // 停用的不用；excluded（证件 / 密码 / 是否使用 AI…）从不进答案库；固定的排最前
     const answerBank = this.repos.db.all<{ question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: string }>(`SELECT question_key, question_text, answer, high_impact, confirmed, status FROM answer_bank WHERE status!='archived' AND sensitivity!='excluded' ORDER BY (status='pinned') DESC, confirmed DESC, updated_at DESC`)
       .map(a => ({ question_key: a.question_key, question_text: a.question_text, answer: a.answer, high_impact: !!a.high_impact, confirmed: !!a.confirmed, pinned: a.status === 'pinned' }))
-    // 教育经历：经历库里 type=education 的经历优先（title=学校，role=专业，summary=学历），否则由基本信息拼一段
+    // 教育经历：经历库里 type=education 的经历优先（学历 / 专业从结构化字段解析：role 形如「硕士研究生（电子信息）」，
+    // title 形如「清华大学 电子信息 专业型硕士」），解析不出学历就留空交给用户——绝不拿 summary（GPA / 奖项）顶
     const eduExps = this.repos.experienceTree().filter(e => e.type === 'education')
     const education = eduExps.length
-      ? eduExps.map(e => ({ school: e.org ?? e.title, major: e.role ?? undefined, degree: e.summary ?? basics.degree, start: e.start_date ?? undefined, end: e.end_date ?? undefined }))
+      ? eduExps.map(e => { const p = parseEducation(e); return { school: p.school, major: p.major, degree: p.degree ?? (eduExps.length === 1 ? basics.degree : undefined), start: e.start_date ?? undefined, end: e.end_date ?? undefined } })
       : basics.school ? [{ school: basics.school, major: basics.major, degree: basics.degree, end: basics.graduation }] : []
     return { basics, experiences: experiences.filter(e => !eduExps.some(x => x.title === e.title)), education, answerBank, resumePath }
   }
@@ -144,4 +146,21 @@ export class ApplyService {
     const application = this.repos.getApplication(applicationId)!
     return { result, summary, action: this.repos.getAction(action.id)!, submitAction, handoff, application, screenshotPath }
   }
+}
+
+const DEGREE_WORD_RX = /(博士研究生|博士后|博士|硕士研究生|专业型硕士|学术型硕士|专业硕士|学术硕士|工学硕士|理学硕士|硕士|研究生|本科生|大学本科|本科|工学学士|理学学士|文学学士|学士|大专|专科|高职)/
+
+/** 教育经历 → 学校 / 专业 / 学历（只用 title / org / role，不用 summary）。 */
+export function parseEducation(e: { title: string; org?: string | null; role?: string | null }): { school: string; major?: string; degree?: string } {
+  const school = (e.org ?? '').trim() || e.title.split(/\s+/)[0] || e.title
+  const role = (e.role ?? '').trim()
+  const degreeRaw = role.match(DEGREE_WORD_RX)?.[1] ?? e.title.match(DEGREE_WORD_RX)?.[1]
+  const degree = degreeRaw ? normalizeDegree(degreeRaw) : undefined
+  let major = role.match(/[（(]\s*([^）)]+?)\s*[）)]/)?.[1]?.trim()
+  if (!major && role && !DEGREE_WORD_RX.test(role)) major = role
+  if (!major) {
+    const rest = e.title.replace(school, ' ').replace(new RegExp(DEGREE_WORD_RX.source, 'g'), ' ').replace(/\s+/g, ' ').trim()
+    if (rest && rest.length <= 30) major = rest
+  }
+  return { school, ...(major ? { major } : {}), ...(degree ? { degree } : {}) }
 }
