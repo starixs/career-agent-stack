@@ -11,7 +11,7 @@ import type { BoundWidgetMemory, WidgetPatch } from './memory.js'
 import { formatDate, type DateStyle } from './normalize.js'
 import { isNextText, isSubmitText } from './guards.js'
 import { DATE_FIELD_RX, dictFor, matchOption, normalizeByDict, parseLooseDate } from './normalize.js'
-import { fuzzyEquals, normKey } from './text.js'
+import { fuzzyEquals, normKey, strictText } from './text.js'
 import { humanDelay, type PacingOptions } from './pacing.js'
 import { noopRecorder, type Recorder } from './telemetry.js'
 
@@ -71,10 +71,16 @@ export const isDateLike = (f: Pick<FormField, 'type' | 'label' | 'placeholder'>)
 export function displayMatches(display: string | undefined, value: string, f: Pick<FormField, 'label' | 'type' | 'maxLength'>, chosen?: string): boolean {
   const d = (display ?? '').trim()
   if (!d) return !value.trim()
+  const choice = f.type === 'select' || f.type === 'radio'
+  if (!choice) {
+    // 自由填写的文本：标点必须一致（normKey 会去掉标点，"qq,com" 会被当成 "qq.com"，那就是假成功）
+    const sd = strictText(d), sv = strictText(value)
+    if (sd === sv) return true
+    if (f.maxLength && sv.startsWith(sd) && sd.length >= Math.min(f.maxLength, sv.length)) return true
+  }
   const nd = normKey(d), nv = normKey(value)
-  if (nd === nv) return true
-  if (chosen && (nd === normKey(chosen) || nd.includes(normKey(chosen)))) return true
-  if (f.maxLength && nv.startsWith(nd) && nd.length >= Math.min(f.maxLength, nv.length)) return true
+  if (choice && nd === nv) return true
+  if (choice && chosen && (nd === normKey(chosen) || nd.includes(normKey(chosen)))) return true
   const dd = d.match(/\d+/g)?.map(Number) ?? [], vd = value.match(/\d+/g)?.map(Number) ?? []
   if (isDateLike(f as FormField) && vd.length >= 2 && dd.length >= 2 && dd[0] === vd[0] && dd[1] === vd[1] && (vd.length < 3 || dd[2] === vd[2])) return true
   if (/手机|电话|phone|mobile|tel/i.test(f.label) && d.replace(/\D/g, '').endsWith(value.replace(/\D/g, '')) && value.replace(/\D/g, '').length >= 7) return true

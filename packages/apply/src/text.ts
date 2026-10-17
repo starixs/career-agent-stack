@@ -5,6 +5,14 @@ export function normKey(s: string): string {
   return s.toLowerCase().replace(/[\s*＊:：（）()\[\]【】.,，。、?？!！\-_/]/g, '')
 }
 
+/**
+ * 严格归一：只抹平全角 / 半角和空白差异，标点与大小写都保留。
+ * 用于核验用户自由填写的文本（邮箱、姓名、手机号、开放题）——"qq,com" 和 "qq.com" 不能算一样。
+ */
+export function strictText(s: string): string {
+  return s.normalize('NFKC').replace(/\s+/g, ' ').trim()
+}
+
 /** 编辑距离（短文本用）。 */
 export function editDistance(a: string, b: string): number {
   const m = a.length, n = b.length

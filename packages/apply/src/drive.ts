@@ -662,7 +662,8 @@ async function clickEntry(page: PageLike, b: ButtonInfo, adapter: SiteAdapter): 
 function sameValue(f: FormField, v: string): boolean {
   if (f.value === undefined || f.value === '') return false
   if (f.type === 'checkbox') return (f.value === 'true') === /^(true|1|yes|是)$/i.test(v)
-  if (normKey(f.value) === normKey(v)) return true
+  // 只有选项类才按去标点的宽松写法比；自由文本交给 displayMatches 严格比（标点不同就是没填对）
+  if ((f.type === 'select' || f.type === 'radio') && normKey(f.value) === normKey(v)) return true
   // 下拉：页面显示的是选项文案（"硕士研究生"），计划值可能是资料写法（"硕士"）→ 字典 / 包含匹配算一致
   if (f.type === 'select') return !!matchOption([f.value], v, { label: f.label })
   return displayMatches(f.value, v, f)
