@@ -66,6 +66,27 @@ async function setPageWindowBounds(
   }
 }
 
+/**
+ * Chrome 不给最小化的窗口出帧：截图、读页面都会一直等到超时。用户接管时可能顺手把放出来的
+ * 真实窗口最小化，助理接着操作前先把它恢复成 normal（位置不动）。返回是否做了恢复；失败只记日志。
+ */
+export async function restoreIfMinimized(context: BrowserContext, page: Page): Promise<boolean> {
+  try {
+    const session = await context.newCDPSession(page);
+    try {
+      const { windowId, bounds } = await session.send('Browser.getWindowForTarget') as { windowId: number; bounds?: { windowState?: string } };
+      if (bounds?.windowState !== 'minimized') return false;
+      await session.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } });
+      return true;
+    } finally {
+      await session.detach().catch(() => {});
+    }
+  } catch (error) {
+    console.warn(`[browser-host] restore-minimized=failed error=${error instanceof Error ? error.name : 'unknown'}`);
+    return false;
+  }
+}
+
 /** 把页面所在的窗口停到屏幕角落（内嵌模式）。失败只记日志。 */
 export function parkWindow(context: BrowserContext, page: Page): Promise<boolean> {
   return setPageWindowBounds(context, page, { ...PARKED_WINDOW_BOUNDS });

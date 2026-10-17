@@ -2,7 +2,7 @@ import type { BrowserContext, Page } from 'playwright';
 
 import type { VerifiedBrowserCapability } from '../browser-host/capability-client';
 import type { BrowserControl, BrowserControlState } from '../browser-host/context-registry';
-import { bringToFront as bringContextToFront } from '../browser-host/page-control';
+import { bringToFront as bringContextToFront, restoreIfMinimized } from '../browser-host/page-control';
 import type { BrowserChannel } from '../browser-host/runtime-settings';
 import { lockPage, pageForApplication, releaseApplicationPage, unlockPage } from '../career/app-pages';
 
@@ -395,6 +395,8 @@ export async function runOperation(
     return;
   }
   if (appKey) deps.focusPage?.(page);
+  // 用户接管后可能把真实窗口最小化了；不恢复的话后面的截图会挂到超时
+  await restoreIfMinimized(context, page);
   if (op === 'screenshot') {
     out.emit({ type: 'progress', phase: 'screenshot', message: '正在截图' });
     const bytes = await page.screenshot({ type: 'jpeg', quality: 60, fullPage: body.fullPage === true });

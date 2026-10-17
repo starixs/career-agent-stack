@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BrowserContext, Page } from 'playwright';
 
-import { activePage, bringToFront, parkWindow, PARKED_WINDOW_BOUNDS } from './page-control';
+import { activePage, bringToFront, parkWindow, PARKED_WINDOW_BOUNDS, restoreIfMinimized } from './page-control';
 
 function fakePage(closed = false): Page {
   return {
@@ -92,5 +92,37 @@ describe('embedded window', () => {
       ['Browser.setWindowBounds', { windowId: 7, bounds: { ...PARKED_WINDOW_BOUNDS } }],
     ]);
     expect(session.detach).toHaveBeenCalled();
+  });
+});
+
+describe('restoreIfMinimized', () => {
+  const contextWith = (windowState: string) => {
+    const send = vi.fn(async (method: string) => (method === 'Browser.getWindowForTarget' ? { windowId: 3, bounds: { windowState } } : {}));
+    const detach = vi.fn(async () => {});
+    return { send, detach, context: { newCDPSession: vi.fn(async () => ({ send, detach })) } as unknown as BrowserContext };
+  };
+
+  it('restores a minimized window to normal without moving it', async () => {
+    const { send, detach, context } = contextWith('minimized');
+    expect(await restoreIfMinimized(context, fakePage())).toBe(true);
+    expect(send).toHaveBeenCalledWith('Browser.setWindowBounds', { windowId: 3, bounds: { windowState: 'normal' } });
+    expect(detach).toHaveBeenCalledOnce();
+  });
+
+  it('leaves a visible or parked window alone', async () => {
+    const { send, context } = contextWith('normal');
+    expect(await restoreIfMinimized(context, fakePage())).toBe(false);
+    expect(send).not.toHaveBeenCalledWith('Browser.setWindowBounds', expect.anything());
+  });
+
+  it('only logs when CDP is unavailable', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const context = { newCDPSession: vi.fn(async () => { throw new Error('no cdp'); }) } as unknown as BrowserContext;
+      expect(await restoreIfMinimized(context, fakePage())).toBe(false);
+      expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
