@@ -452,6 +452,7 @@ export const pageSignalsScript: PageScript<void, PageSignals> = {
     const captchaDom = Array.from(document.querySelectorAll(CAPTCHA)).some(vis)
     const hasPasswordInput = Array.from(document.querySelectorAll('input[type="password"]')).some(vis)
     const buttons: ButtonInfo[] = []
+    const tagged: Element[] = []
     let n = 0
     for (const b of Array.from(document.querySelectorAll('button, a, input[type="submit"], input[type="button"], [role="button"]'))) {
       if (!vis(b)) continue
@@ -461,7 +462,26 @@ export const pageSignalsScript: PageScript<void, PageSignals> = {
       b.setAttribute('data-career-btn', id)
       const disabled = (b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true' || /(^|\s)(is-disabled|disabled)(\s|$)/.test(b.className || '')
       buttons.push({ id, text, selector: `[data-career-btn="${id}"]`, disabled })
+      tagged.push(b)
       if (n >= 80) break
+    }
+    // 很多站的"添加一段经历"是带点击事件的 div / span（美团「添加教育经历」就是），不是 button：
+    // 按行为补收——可点（手形光标 / onclick / tabindex）、文字是"添加 / 新增 …"的最内层元素。只补这类入口，不碰提交按钮识别。
+    const ADD_RX = /^(\+|＋)?\s*(添加|新增|增加|继续添加|再添加)/
+    const addCands = Array.from(document.querySelectorAll('div, span, p, li, i, label, em, strong')).filter(el => {
+      // 只排除本次已当按钮收下的元素（上一次扫描留下的标记不算，否则第二次扫描就把它漏了）
+      if (tagged.some(b => b.contains(el)) || !vis(el)) return false
+      const t = clean((el as HTMLElement).innerText)
+      if (!t || t.length > 16 || !ADD_RX.test(t)) return false
+      const clickable = getComputedStyle(el).cursor === 'pointer' || el.hasAttribute('onclick') || el.getAttribute('tabindex') === '0'
+      return clickable
+    })
+    for (const el of addCands) {
+      if (addCands.some(o => o !== el && el.contains(o))) continue
+      const id = `b${n++}`
+      el.setAttribute('data-career-btn', id)
+      buttons.push({ id, text: clean((el as HTMLElement).innerText).slice(0, 60), selector: `[data-career-btn="${id}"]`, disabled: /(^|\s)(is-disabled|disabled)(\s|$)/.test(typeof el.className === 'string' ? el.className : '') })
+      if (n >= 100) break
     }
     const errors: string[] = []
     for (const e of Array.from(document.querySelectorAll('[aria-invalid="true"] ~ *, [role="alert"], [class*="error" i]:not([class*="clear" i]), [class*="form-item__error" i], [class*="explain-error" i]'))) {
