@@ -1,6 +1,7 @@
 import type { Page } from 'playwright-core'
 import { basename } from 'node:path'
 import { SCRIPT_IDS, type PageScript, type RawField, type PageSignals, type ButtonInfo, type FieldType } from './scripts.js'
+import { WIDGET_SCRIPT_IDS, type DialogInfo } from './widgets.js'
 
 /**
  * PageLike：引擎只依赖这个最小接口。真实实现由 fromPlaywright 适配 playwright-core 的 Page；
@@ -39,6 +40,8 @@ export interface PageLike {
   setInputFiles(selector: string, files: string | string[]): Promise<void>
   waitForTimeout(ms: number): Promise<void>
   screenshot(): Promise<Uint8Array>
+  /** 遥测用的小截图（低质量、CSS 像素）；没有就用 screenshot。 */
+  screenshotSmall?(): Promise<Uint8Array>
   locator(selector: string): LocatorLike
   keyboard?: KeyboardLike
   /** 没有 mouse 的实现无法走视觉兜底层。 */
@@ -70,6 +73,7 @@ export function fromPlaywright(page: Page): PageLike {
     setInputFiles: (s, f) => page.setInputFiles(s, f),
     waitForTimeout: ms => page.waitForTimeout(ms),
     screenshot: () => page.screenshot({ type: 'jpeg', quality: 45 }),
+    screenshotSmall: () => page.screenshot({ type: 'jpeg', quality: 30, scale: 'css', timeout: 5000 }),
     locator: s => wrapLocator(page.locator(s)),
     keyboard: { type: (t, o) => page.keyboard.type(t, o), press: k => page.keyboard.press(k) },
     mouse: { click: (x, y) => page.mouse.click(x, y), move: (x, y) => page.mouse.move(x, y, { steps: 8 }) },
@@ -102,7 +106,15 @@ export interface FakeFieldSpec {
   actuatorFails?: boolean
   /** UI 框架指纹（给 RawField.framework）。 */
   framework?: string
+  /** 只读展示框（自定义下拉 / 日期面板）。 */
+  readonly?: boolean
+  /** 自定义下拉：点了选项也不生效（模拟永远选不中的控件）。 */
+  neverSelects?: boolean
+  /** 抽取脚本标出的可疑标签原因。 */
+  labelUncertain?: string
 }
+/** 弹窗（模态 / 横幅）。modal 时挡住所有点击；点 dismissBy 里的按钮（缺省任意按钮）后消失。 */
+export interface FakeDialogSpec { text: string; buttons: string[]; modal?: boolean; cookie?: boolean; afterUpload?: boolean; dismissBy?: string[] }
 export interface FakeButtonSpec {
   text: string; goto?: string; submit?: boolean; disabled?: boolean; box?: [number, number, number, number]; domHidden?: boolean
   /** "添加一行"类按钮：点击后在当前页追加这些字段（模拟重复分区）。 */
@@ -128,16 +140,25 @@ export interface FakePageSpec {
   uploadEcho?: string | ((file: string) => string)
   /** 上传后"解析简历"自动填充：label → value。 */
   uploadAutofill?: Record<string, string>
+  /** 弹窗：afterUpload 的在上传后出现，其余一开始就在。 */
+  dialogs?: FakeDialogSpec[]
+  /** 页面上可见的必填星号数（缺省 = 必填字段数）。 */
+  requiredMarkers?: number
+  /** 组件库指纹。 */
+  libraries?: string[]
 }
 
-interface LiveField extends Required<Pick<FakeFieldSpec, 'label' | 'type' | 'required'>> { id: string; name?: string; options?: string[]; value?: string; maxLength?: number; placeholder?: string; files?: string[]; box?: [number, number, number, number]; domHidden?: boolean; rejectFill?: boolean; actuatorFails?: boolean; framework?: string }
-interface LivePage { spec: FakePageSpec; fields: LiveField[]; buttons: Array<FakeButtonSpec & { id: string }>; captcha: boolean; login: boolean; extraText: string; errors: string[]; scrollY: number }
+interface LiveField extends Required<Pick<FakeFieldSpec, 'label' | 'type' | 'required'>> { id: string; name?: string; options?: string[]; value?: string; maxLength?: number; placeholder?: string; files?: string[]; box?: [number, number, number, number]; domHidden?: boolean; rejectFill?: boolean; actuatorFails?: boolean; framework?: string; readonly?: boolean; neverSelects?: boolean; labelUncertain?: string }
+interface LiveDialog { id: string; spec: FakeDialogSpec; visible: boolean }
+interface LivePage { spec: FakePageSpec; fields: LiveField[]; buttons: Array<FakeButtonSpec & { id: string }>; captcha: boolean; login: boolean; extraText: string; errors: string[]; scrollY: number; dialogs: LiveDialog[] }
 
-export interface FakeAction { kind: 'goto' | 'fill' | 'click' | 'select' | 'upload' | 'type' | 'press' | 'scroll' | 'screenshot' | 'mouse'; target?: string; value?: string }
+export interface FakeAction { kind: 'goto' | 'fill' | 'click' | 'select' | 'upload' | 'type' | 'press' | 'scroll' | 'screenshot' | 'mouse' | 'dialog' | 'option'; target?: string; value?: string }
 
 const inBox = (b: [number, number, number, number] | undefined, x: number, y: number) => !!b && x >= b[0] && x <= b[0] + b[2] && y >= b[1] && y <= b[1] + b[3]
 
 const FIELD_SEL = /^\[data-career-field="([^"]+)"\](?:\[data-career-option="([^"]*)"\])?$/
+const DLG_SEL = /^\[data-career-dlg-btn="d(\d+)b(\d+)"\]$/
+const TEXTLIKE = new Set(['text', 'email', 'tel', 'number', 'date', 'textarea', 'richtext'])
 const BTN_SEL = /^\[data-career-btn="([^"]+)"\]$/
 const SUBMITISH = /提交|投递|submit|apply now/i
 
@@ -151,6 +172,9 @@ export class FakePage {
   private current: LivePage
   private focused: LiveField | null = null
   private selectedAll = false
+  private openField: LiveField | null = null
+  /** 用户（测试）看到的弹窗点击记录：按钮文案。 */
+  readonly dialogChoices: string[] = []
   keyboard: KeyboardLike
   mouse: MouseLike
 
@@ -209,7 +233,7 @@ export class FakePage {
 
   async evaluate<A, R>(script: PageScript<A, R>, arg?: A): Promise<R> {
     switch (script.id) {
-      case SCRIPT_IDS.extractFields: return this.current.fields.filter(f => !f.domHidden).map(f => ({ id: f.id, label: f.label, name: f.name, type: f.type, options: f.options, required: f.required, value: f.value, maxLength: f.maxLength, placeholder: f.placeholder, custom: f.framework ? true : undefined, xpath: `/html/body/form/${f.type}[${f.id}]`, framework: f.framework ?? 'native' } satisfies RawField)) as unknown as R
+      case SCRIPT_IDS.extractFields: return this.current.fields.filter(f => !f.domHidden).map(f => ({ id: f.id, label: f.label, name: f.name, type: f.type, options: f.framework && f.type === 'select' ? [] : f.options, required: f.required, value: f.value, maxLength: f.maxLength, placeholder: f.placeholder, custom: f.framework && f.type === 'select' ? true : undefined, xpath: `/html/body/form/${f.type}[${f.id}]`, framework: f.framework ?? 'native', readonly: f.readonly, labelUncertain: f.labelUncertain, requiredVia: f.required ? 'attr' : undefined } satisfies RawField)) as unknown as R
       case SCRIPT_IDS.fillValue: {
         // 页内执行器：原型链 setter 能绕过 rejectFill（React 受控组件）；actuatorFails 模拟完全自绘控件
         const a = arg as unknown as { selector: string; value: string; kind?: string }
@@ -217,6 +241,7 @@ export class FakePage {
         this.actions.push({ kind: 'fill', target: field?.id ?? a.selector, value: `actuator:${a.value}` })
         if (!field) return { ok: false, strategy: 'none', framework: 'native', detail: '元素不存在' } as unknown as R
         if (field.actuatorFails) return { ok: false, strategy: 'native-input', framework: field.framework ?? 'native', detail: '读回为空' } as unknown as R
+        if (field.readonly || (field.type === 'select' && field.framework)) return { ok: false, strategy: 'refused', framework: field.framework ?? 'native', detail: '只读或自定义控件' } as unknown as R
         if (field.type === 'select') {
           const hit = matchOption(field.options ?? [], a.value)
           if (!hit) return { ok: false, strategy: `${field.framework ?? 'native'}-select`, framework: field.framework ?? 'native', detail: '选项不存在' } as unknown as R
@@ -243,6 +268,64 @@ export class FakePage {
         const b = this.current.buttons.find(b => inBox(b.box, x, y)); if (b) return { tag: 'button', label: b.text } as unknown as R
         return null as unknown as R
       }
+      case WIDGET_SCRIPT_IDS.focusField: case WIDGET_SCRIPT_IDS.clearHighlight: case WIDGET_SCRIPT_IDS.maskSensitive: case WIDGET_SCRIPT_IDS.closePopup:
+        return (script.id === WIDGET_SCRIPT_IDS.focusField ? { ok: !!this.resolve((arg as unknown as { selector: string }).selector).field } : true) as unknown as R
+      case WIDGET_SCRIPT_IDS.prepareEntryClick: return { ok: true } as unknown as R
+      case WIDGET_SCRIPT_IDS.probeTarget: {
+        const { field } = this.resolve((arg as unknown as { selector: string }).selector)
+        if (!field) return { exists: false } as unknown as R
+        const modal = this.modalOpen()
+        const editable = TEXTLIKE.has(field.type) && !field.readonly && !(field.type === 'select')
+        return { exists: true, visible: true, editable, readonly: !!field.readonly, tag: field.type === 'select' && !field.framework ? 'select' : 'input', inShell: !!field.framework, blocked: modal, overlay: modal, blocker: modal ? { tag: 'div', cls: 'mtd-modal-mask', text: '' } : undefined } as unknown as R
+      }
+      case WIDGET_SCRIPT_IDS.scanDialogs: {
+        const dialogs: DialogInfo[] = this.current.dialogs.filter(d => d.visible).map((d, i) => ({ id: `d${i}`, text: d.spec.text, modal: d.spec.modal !== false, kind: d.spec.cookie ? 'cookie' : 'dialog', buttons: d.spec.buttons.map((t, j) => ({ id: `d${this.current.dialogs.indexOf(d)}b${j}`, text: t, selector: `[data-career-dlg-btn="d${this.current.dialogs.indexOf(d)}b${j}"]` })) }))
+        return { dialogs, mask: dialogs.some(d => d.modal) } as unknown as R
+      }
+      case WIDGET_SCRIPT_IDS.openOptions: {
+        const { field } = this.resolve((arg as unknown as { selector: string }).selector)
+        if (!field || field.actuatorFails || !field.options?.length) return { opened: false, options: [], searchable: false, cascade: false } as unknown as R
+        this.actions.push({ kind: 'click', target: field.id, value: 'open' })
+        this.openField = field
+        return { opened: true, options: field.options.map((t, i) => ({ id: `o${i}`, text: t })), searchable: false, cascade: false } as unknown as R
+      }
+      case WIDGET_SCRIPT_IDS.pickOption: {
+        const a = arg as unknown as { selector: string; optId: string }
+        const { field } = this.resolve(a.selector)
+        const text = field?.options?.[Number(a.optId.replace(/\D/g, ''))]
+        if (!field || text === undefined) return { ok: false, display: '' } as unknown as R
+        this.actions.push({ kind: 'option', target: field.id, value: text })
+        if (!field.neverSelects) field.value = text
+        this.openField = null
+        return { ok: true, display: field.value ?? '', stillOpen: false } as unknown as R
+      }
+      case WIDGET_SCRIPT_IDS.readDisplay: {
+        const { field } = this.resolve((arg as unknown as { selector: string }).selector)
+        return { exists: !!field, display: field?.value ?? '' } as unknown as R
+      }
+      case WIDGET_SCRIPT_IDS.datePick: {
+        const a = arg as unknown as { selector: string; text: string }
+        const { field } = this.resolve(a.selector)
+        if (!field || field.actuatorFails || field.neverSelects) return { ok: false, display: field?.value ?? '', strategy: 'none', steps: 0 } as unknown as R
+        field.value = a.text
+        this.actions.push({ kind: 'fill', target: field.id, value: `date:${a.text}` })
+        return { ok: true, display: a.text, strategy: field.readonly ? 'panel' : 'typed', steps: 1 } as unknown as R
+      }
+      case WIDGET_SCRIPT_IDS.activeEditable: {
+        const f = this.focused
+        const a = (arg as unknown as { selector?: string; x?: number; y?: number } | undefined) ?? {}
+        const editable = !!f && TEXTLIKE.has(f.type) && !f.readonly
+        const isTarget = a.selector ? !!f && this.resolve(a.selector).field === f : typeof a.x === 'number' ? !!f && inBox(f.box, a.x, a.y ?? 0) : true
+        return { editable, isTarget, tag: f ? 'input' : 'body' } as unknown as R
+      }
+      case WIDGET_SCRIPT_IDS.pageSelection: {
+        const whole = this.selectedAll && !this.focused
+        if (whole && (arg as unknown as { collapse?: boolean } | undefined)?.collapse) this.selectedAll = false
+        return { chars: whole ? 1000 : 0, whole, collapsed: whole } as unknown as R
+      }
+      case WIDGET_SCRIPT_IDS.libraryFingerprint: return (this.current.spec.libraries ?? []) as unknown as R
+      case WIDGET_SCRIPT_IDS.formStats: return { markers: this.current.spec.requiredMarkers ?? this.current.fields.filter(f => f.required).length, controls: this.current.fields.length } as unknown as R
+      case WIDGET_SCRIPT_IDS.domSnippet: return '<div class="fake">…</div>' as unknown as R
       default: throw new Error(`FakePage 不支持脚本 ${script.id}`)
     }
   }
@@ -259,6 +342,17 @@ export class FakePage {
     else field.value = field.maxLength ? value.slice(0, field.maxLength) : value
   }
   async click(selector: string): Promise<void> {
+    const dm = selector.match(DLG_SEL)
+    if (dm) {
+      const d = this.current.dialogs[Number(dm[1])]
+      const text = d?.spec.buttons[Number(dm[2])]
+      if (!d || !d.visible || text === undefined) throw new Error(`FakePage: 弹窗按钮不存在 ${selector}`)
+      this.actions.push({ kind: 'dialog', target: d.spec.text, value: text })
+      this.dialogChoices.push(text)
+      if (!d.spec.dismissBy || d.spec.dismissBy.includes(text)) d.visible = false
+      return
+    }
+    if (this.modalOpen()) throw new Error('locator.click: Timeout 8000ms exceeded.\n  - <div class="mtd-modal-mask"></div> from <div class="mtd-modal-wrapper">…</div> subtree intercepts pointer events')
     const { field, option, button } = this.resolve(selector)
     if (button) return this.pressButton(button)
     if (!field) throw new Error(`FakePage: click 找不到 ${selector}`)
@@ -286,7 +380,12 @@ export class FakePage {
     const echo = this.current.spec.uploadEcho
     if (echo) this.current.extraText += ' ' + (typeof echo === 'function' ? echo(list[0]) : echo)
     for (const [label, v] of Object.entries(this.current.spec.uploadAutofill ?? {})) { const f = this.findField(label); if (f) f.value = v }
+    for (const d of this.current.dialogs) if (d.spec.afterUpload) d.visible = true
   }
+  /** 当前页有没有挡住点击的模态弹窗。 */
+  modalOpen(): boolean { return this.current.dialogs.some(d => d.visible && d.spec.modal !== false) }
+  /** 测试用：弹出一个弹窗。 */
+  showDialog(spec: FakeDialogSpec): void { this.current.dialogs.push({ id: `d${this.current.dialogs.length}`, spec, visible: true }) }
   async waitForTimeout(_ms: number): Promise<void> { /* 测试里不真的等 */ }
   async screenshot(): Promise<Uint8Array> { this.screenshots++; this.actions.push({ kind: 'screenshot' }); return new TextEncoder().encode(`fake-screenshot:${this.url()}`) }
   locator(selector: string): LocatorLike {
@@ -336,6 +435,7 @@ export class FakePage {
     const parts = [this.current.spec.title ?? '', this.current.spec.text ?? '', this.current.extraText]
     for (const f of this.current.fields) parts.push(f.label)
     for (const b of this.current.buttons) parts.push(b.text)
+    for (const d of this.current.dialogs) if (d.visible) parts.push(d.spec.text, ...d.spec.buttons)
     if (this.current.captcha) parts.push('请完成安全验证 拖动滑块完成拼图')
     if (this.current.login) parts.push('请先登录 账号密码登录 手机验证码登录')
     return parts.filter(Boolean).join(' ')
@@ -352,9 +452,10 @@ export class FakePage {
 }
 
 function materialize(spec: FakePageSpec): LivePage {
-  const fields: LiveField[] = (spec.fields ?? []).map((f, i) => ({ id: `f${i}`, label: f.label, name: f.name, type: f.type ?? 'text', options: f.options, required: !!f.required, value: f.type === 'checkbox' ? (f.value ?? 'false') : f.value, maxLength: f.maxLength, placeholder: f.placeholder, box: f.box, domHidden: f.domHidden, rejectFill: f.rejectFill, actuatorFails: f.actuatorFails, framework: f.framework }))
+  const fields: LiveField[] = (spec.fields ?? []).map((f, i) => ({ id: `f${i}`, label: f.label, name: f.name, type: f.type ?? 'text', options: f.options, required: !!f.required, value: f.type === 'checkbox' ? (f.value ?? 'false') : f.value, maxLength: f.maxLength, placeholder: f.placeholder, box: f.box, domHidden: f.domHidden, rejectFill: f.rejectFill, actuatorFails: f.actuatorFails, framework: f.framework, readonly: f.readonly, neverSelects: f.neverSelects, labelUncertain: f.labelUncertain }))
   const buttons = (spec.buttons ?? []).map((b, i) => ({ ...(typeof b === 'string' ? { text: b } : b), id: `b${i}` }))
-  return { spec, fields, buttons, captcha: !!spec.captcha, login: !!spec.login, extraText: '', errors: [...(spec.errors ?? [])], scrollY: 0 }
+  const dialogs = (spec.dialogs ?? []).map((d, i) => ({ id: `d${i}`, spec: d, visible: !d.afterUpload }))
+  return { spec, fields, buttons, captcha: !!spec.captcha, login: !!spec.login, extraText: '', errors: [...(spec.errors ?? [])], scrollY: 0, dialogs }
 }
 function matchOption(options: string[], want: string): string | undefined {
   const w = want.trim().toLowerCase()
