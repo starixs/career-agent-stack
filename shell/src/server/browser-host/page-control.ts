@@ -113,11 +113,12 @@ export function parkedBoundsFor(viewport?: ViewportSize | null, platform: NodeJS
 /** 用户临时要看真实窗口时放出来的位置。 */
 export const REVEALED_WINDOW_BOUNDS = { left: 80, top: 60, width: 1400, height: 900 } as const;
 
+/** 设窗口位置大小；返回系统实际给的大小（macOS 会把窗口压到不超过所在屏幕），失败返回 null。 */
 async function setPageWindowBounds(
   context: BrowserContext,
   page: Page,
   bounds: Record<string, number | string>,
-): Promise<boolean> {
+): Promise<{ width: number; height: number } | null> {
   try {
     const session = await context.newCDPSession(page);
     try {
@@ -125,13 +126,15 @@ async function setPageWindowBounds(
       // 最小化 / 全屏状态下不能直接改位置，先回到 normal
       await session.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } });
       await session.send('Browser.setWindowBounds', { windowId, bounds });
-      return true;
+      const actual = await session.send('Browser.getWindowBounds', { windowId }).catch(() => null) as { bounds?: { width?: number; height?: number } } | null;
+      const w = actual?.bounds?.width ?? Number(bounds.width), h = actual?.bounds?.height ?? Number(bounds.height);
+      return { width: Number.isFinite(w) ? w : 0, height: Number.isFinite(h) ? h : 0 };
     } finally {
       await session.detach().catch(() => {});
     }
   } catch (error) {
     console.warn(`[browser-host] window-bounds=failed error=${error instanceof Error ? error.name : 'unknown'}`);
-    return false;
+    return null;
   }
 }
 
@@ -166,12 +169,16 @@ export async function parkWindow(
   opts: { viewport?: ViewportSize | null; profileDir?: string | null; platform?: NodeJS.Platform; hideFromTaskbar?: (profileDir: string) => Promise<number> } = {},
 ): Promise<boolean> {
   const platform = opts.platform ?? process.platform;
-  const ok = await setPageWindowBounds(context, page, parkedBoundsFor(opts.viewport, platform));
+  const actual = await parkWindowActual(context, page, opts.viewport, platform);
   if (platform === 'win32' && opts.profileDir) {
     const hide = opts.hideFromTaskbar ?? (async (dir: string) => (await import('./windows-window')).hideManagedChromeFromTaskbar(dir));
     void hide(opts.profileDir).catch(error => console.warn(`[browser-host] taskbar-hide=failed error=${error instanceof Error ? error.message : 'unknown'}`));
   }
-  return ok;
+  return actual !== null;
+}
+
+function parkWindowActual(context: BrowserContext, page: Page, viewport: ViewportSize | null | undefined, platform: NodeJS.Platform): Promise<{ width: number; height: number } | null> {
+  return setPageWindowBounds(context, page, parkedBoundsFor(viewport, platform));
 }
 
 /**
@@ -180,8 +187,13 @@ export async function parkWindow(
  */
 export async function fitPageViewport(context: BrowserContext, page: Page, viewport: ViewportSize, options: { park?: boolean; profileDir?: string | null } = {}): Promise<boolean> {
   if (page.isClosed()) return false;
-  // 停靠时视口不能比停靠窗口装得下的还高（否则窗口被屏幕压矮，实时帧和截图对不上）
-  if (options.park) viewport = { ...viewport, height: Math.min(viewport.height, Math.max(LIVE_VIEWPORT_MIN_HEIGHT, maxParkedViewportHeight())) };
+  // 停靠时视口不能比停靠窗口装得下的还高：macOS 不让窗口比所在屏幕高，窗口被压矮后实时帧只拍到视口上半截，
+  // 和完整视口的截图交替出现就会跳。先停靠，按系统实际给的窗口高度收视口
+  if (options.park) {
+    viewport = { ...viewport, height: Math.min(viewport.height, Math.max(LIVE_VIEWPORT_MIN_HEIGHT, maxParkedViewportHeight())) };
+    const actual = await parkWindowActual(context, page, viewport, process.platform);
+    if (actual && actual.height > 0) viewport = { ...viewport, height: Math.min(viewport.height, Math.max(LIVE_VIEWPORT_MIN_HEIGHT, actual.height - WINDOW_CHROME.height)) };
+  }
   const current = page.viewportSize();
   const changed = !current || current.width !== viewport.width || Math.abs(current.height - viewport.height) > 2;
   if (changed) {
@@ -192,7 +204,7 @@ export async function fitPageViewport(context: BrowserContext, page: Page, viewp
       return false;
     }
   }
-  if (options.park) await parkWindow(context, page, { viewport, profileDir: options.profileDir });
+  if (options.park && process.platform === 'win32' && options.profileDir) await parkWindow(context, page, { viewport, profileDir: options.profileDir });
   return changed;
 }
 

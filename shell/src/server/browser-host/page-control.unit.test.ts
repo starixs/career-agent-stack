@@ -102,6 +102,7 @@ describe('embedded window', () => {
       ['Browser.getWindowForTarget', undefined],
       ['Browser.setWindowBounds', { windowId: 7, bounds: { windowState: 'normal' } }],
       ['Browser.setWindowBounds', { windowId: 7, bounds: { ...PARKED_WINDOW_BOUNDS } }],
+      ['Browser.getWindowBounds', { windowId: 7 }],
     ]);
     expect(session.detach).toHaveBeenCalled();
   });
@@ -130,10 +131,19 @@ describe('live viewport', () => {
     const context = { newCDPSession: vi.fn(async () => session) } as unknown as BrowserContext;
     expect(await fitPageViewport(context, page, { width: 1366, height: 1000 }, { park: true })).toBe(true);
     expect(vp).toEqual({ width: 1366, height: 1000 });
-    expect(sent.at(-1)).toEqual(['Browser.setWindowBounds', { windowId: 9, bounds: parkedBoundsFor({ width: 1366, height: 1000 }) }]);
+    expect(sent.at(-2)).toEqual(['Browser.setWindowBounds', { windowId: 9, bounds: parkedBoundsFor({ width: 1366, height: 1000 }) }]);
     sent.length = 0;
     expect(await fitPageViewport(context, page, { width: 1366, height: 1001 })).toBe(false);
     expect(sent).toEqual([]);
+  });
+
+  it('系统把停靠窗口压矮了（屏幕不够高）：视口按实际窗口高度收，不让实时帧只拍到半截', async () => {
+    let vp: { width: number; height: number } | null = { width: 1366, height: 768 };
+    const page = { ...fakePage(), isClosed: () => false, viewportSize: () => vp, setViewportSize: vi.fn(async (v: { width: number; height: number }) => { vp = v; }) } as unknown as Page;
+    const session = { send: vi.fn(async (method: string) => method === 'Browser.getWindowForTarget' ? { windowId: 9 } : method === 'Browser.getWindowBounds' ? { bounds: { width: 1440, height: 900 } } : {}), detach: vi.fn(async () => {}) };
+    const context = { newCDPSession: vi.fn(async () => session) } as unknown as BrowserContext;
+    await fitPageViewport(context, page, { width: 1366, height: 1100 }, { park: true });
+    expect(vp).toEqual({ width: 1366, height: 900 - 160 });
   });
 });
 
