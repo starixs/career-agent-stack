@@ -24,7 +24,7 @@ import {
   type BrowserRuntimePolicy,
   type CompiledBrowserRuntimeSettings,
 } from './runtime-settings';
-import { fitPageViewport, parkWindow, type ViewportSize } from './page-control';
+import { fitPageViewport, PARK_DISPLAY_SIZE, parkWindow, type ViewportSize } from './page-control';
 import { waitForBrowserResource, type BrowserResourceResolution } from './resource-client';
 
 /** 页面弹出系统选文件框时的回调（内嵌模式下原生框挂在看不见的窗口上，改由产品内选文件）。 */
@@ -322,6 +322,7 @@ export class BrowserContextRegistry {
     if (!this.virtualDisplay) {
       this.virtualDisplay = new VirtualDisplay({
         binDir: join(this.runtimePolicy.profileRoot, '..', 'bin'),
+        width: PARK_DISPLAY_SIZE.width, height: PARK_DISPLAY_SIZE.height,
         log: msg => console.log(`[browser-host] ${msg}`),
         // 助手意外退出：macOS 会把窗口搬到主屏正中——立刻停回角落
         onLost: () => { setVirtualParkTarget(null); void this.reparkAll(); },
@@ -339,7 +340,7 @@ export class BrowserContextRegistry {
   private async reparkAll(): Promise<void> {
     for (const [sessionId, entry] of this.entries) {
       if (this.revealedWindows.has(sessionId)) continue;
-      for (const page of entry.context.pages()) if (!page.isClosed()) await parkWindow(entry.context, page, { profileDir: entry.userDataDir }).catch(() => false);
+      for (const page of entry.context.pages()) if (!page.isClosed()) await parkWindow(entry.context, page, { viewport: this.liveViewports.get(sessionId), profileDir: entry.userDataDir }).catch(() => false);
     }
   }
   setWindowListener(listener: BrowserWindowListener | null): void {

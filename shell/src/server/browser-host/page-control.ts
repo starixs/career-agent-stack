@@ -79,6 +79,16 @@ const LIVE_VIEWPORT_MIN_HEIGHT = 600;
 const LIVE_VIEWPORT_MAX_HEIGHT = 1500;
 /** 窗口外框（标签栏、地址栏、边框）比视口多出来的大致尺寸。 */
 const WINDOW_CHROME = { width: 40, height: 160 } as const;
+/**
+ * 虚拟停靠屏的尺寸：要能装下最大的页面视口加窗口外框。macOS 不让窗口比所在屏幕高，
+ * 屏幕太小时窗口被压矮，实时帧只拍到视口的上半截，和完整视口的截图交替出现就会跳。
+ */
+export const PARK_DISPLAY_SIZE = { width: LIVE_VIEWPORT_WIDTH + WINDOW_CHROME.width + 34, height: LIVE_VIEWPORT_MAX_HEIGHT + WINDOW_CHROME.height } as const;
+/** 停靠窗口能装下的最大视口高度：停在虚拟屏上时受屏幕高度限制。 */
+export function maxParkedViewportHeight(): number {
+  const target = virtualParkTarget();
+  return target ? target.height - WINDOW_CHROME.height : LIVE_VIEWPORT_MAX_HEIGHT;
+}
 
 export interface ViewportSize { width: number; height: number }
 
@@ -170,6 +180,8 @@ export async function parkWindow(
  */
 export async function fitPageViewport(context: BrowserContext, page: Page, viewport: ViewportSize, options: { park?: boolean; profileDir?: string | null } = {}): Promise<boolean> {
   if (page.isClosed()) return false;
+  // 停靠时视口不能比停靠窗口装得下的还高（否则窗口被屏幕压矮，实时帧和截图对不上）
+  if (options.park) viewport = { ...viewport, height: Math.min(viewport.height, Math.max(LIVE_VIEWPORT_MIN_HEIGHT, maxParkedViewportHeight())) };
   const current = page.viewportSize();
   const changed = !current || current.width !== viewport.width || Math.abs(current.height - viewport.height) > 2;
   if (changed) {

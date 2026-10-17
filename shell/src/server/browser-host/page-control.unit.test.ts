@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BrowserContext, Page } from 'playwright';
 
-import { activePage, bringToFront, findBrowserMainPid, fitPageViewport, parkedBoundsFor, parkWindow, PARKED_WINDOW_BOUNDS, restoreIfMinimized, viewportForFrame } from './page-control';
+import { activePage, bringToFront, findBrowserMainPid, fitPageViewport, maxParkedViewportHeight, PARK_DISPLAY_SIZE, parkedBoundsFor, parkWindow, PARKED_WINDOW_BOUNDS, restoreIfMinimized, viewportForFrame } from './page-control';
+import { setVirtualParkTarget } from './virtual-display';
 
 function fakePage(closed = false): Page {
   return {
@@ -165,5 +166,17 @@ describe('restoreIfMinimized', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('parked viewport fits its screen', () => {
+  it('caps the viewport at what a window on the virtual display can show, and sizes that display for the tallest viewport', () => {
+    // 1366×768 的虚拟屏：窗口最多 768 高，视口超过约 608 就会被压矮——实时帧和截图对不上
+    setVirtualParkTarget({ displayID: 1, x: -1366, y: -768, w: 1366, h: 768 });
+    expect(maxParkedViewportHeight()).toBe(768 - 160);
+    setVirtualParkTarget(null);
+    expect(maxParkedViewportHeight()).toBe(1500);
+    // 现在建的虚拟屏能装下最高的视口
+    expect(PARK_DISPLAY_SIZE.height - 160).toBeGreaterThanOrEqual(viewportForFrame({ width: 100, height: 1000 })!.height);
   });
 });

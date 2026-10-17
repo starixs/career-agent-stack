@@ -6,7 +6,7 @@
  *    没给则只看。
  * 「浏览器现场」页签与聊天旁的侧边抽屉共用。
  */
-import { useCallback, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type WheelEvent, type ClipboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type WheelEvent, type ClipboardEvent } from 'react';
 
 import { careerApi } from './careerApi';
 import type { LiveFrame } from './types';
@@ -37,7 +37,49 @@ export function stableAspect(current: number | null, width: number | undefined, 
   return next;
 }
 
-export function CareerLiveViewport({ frame, interactive, placeholder, onInputError, onRequestControl, className = '', style }: {
+/**
+ * 帧闸门：按图片实际像素的宽高比把关。新帧和正在显示的比例差超过 2% 时先不换，
+ * 同一新比例连续到 3 帧（或持续 1 秒）才认——偶发的一两张尺寸不同的帧（窗口被压矮时的实时帧、
+ * 截图补帧）不会让画面一高一矮地闪。
+ */
+export interface FrameGate { aspect: number | null; pending: { aspect: number; count: number; since: number } | null }
+const FRAME_GATE_CONFIRM = 3;
+const FRAME_GATE_MAX_HOLD_MS = 1000;
+const near = (a: number, b: number) => Math.abs(a / b - 1) < 0.02;
+export function gateFrame(gate: FrameGate, aspect: number, now: number): { show: boolean; gate: FrameGate } {
+  if (!Number.isFinite(aspect) || aspect <= 0) return { show: true, gate };
+  if (gate.aspect === null || near(aspect, gate.aspect)) return { show: true, gate: { aspect: gate.aspect ?? aspect, pending: null } };
+  const pending = gate.pending && near(aspect, gate.pending.aspect) ? { ...gate.pending, count: gate.pending.count + 1 } : { aspect, count: 1, since: now };
+  if (pending.count >= FRAME_GATE_CONFIRM || now - pending.since >= FRAME_GATE_MAX_HOLD_MS) return { show: true, gate: { aspect, pending: null } };
+  return { show: false, gate: { aspect: gate.aspect, pending } };
+}
+
+/** 没有图片解码能力的环境（测试 DOM）不过闸门，直接显示。 */
+const CAN_DECODE = typeof HTMLImageElement !== 'undefined' && 'decode' in HTMLImageElement.prototype;
+
+/** 解码新帧拿到实际像素尺寸，过闸门后才替换显示的那一帧。 */
+function useSteadyFrame(incoming: LiveFrame | null): LiveFrame | null {
+  const [shown, setShown] = useState<LiveFrame | null>(null);
+  const gate = useRef<FrameGate>({ aspect: null, pending: null });
+  const lastTs = useRef(0);
+  useEffect(() => {
+    if (!incoming || !CAN_DECODE) return;
+    let alive = true;
+    const img = new Image();
+    img.src = `data:image/jpeg;base64,${incoming.data}`;
+    img.decode().then(() => {
+      if (!alive || incoming.ts < lastTs.current) return;
+      const r = gateFrame(gate.current, img.naturalWidth / img.naturalHeight, Date.now());
+      gate.current = r.gate;
+      if (r.show) { lastTs.current = incoming.ts; setShown(incoming); }
+    }, () => { if (alive) setShown(incoming); });
+    return () => { alive = false; };
+  }, [incoming]);
+  if (!incoming) return null;
+  return CAN_DECODE ? shown ?? incoming : incoming;
+}
+
+export function CareerLiveViewport({ frame: incoming, interactive, placeholder, onInputError, onRequestControl, className = '', style }: {
   frame: LiveFrame | null;
   /** 用户已接管：允许转发输入。 */
   interactive: boolean;
@@ -48,6 +90,7 @@ export function CareerLiveViewport({ frame, interactive, placeholder, onInputErr
   onInputError?: (message: string) => void;
   className?: string;
 }) {
+  const frame = useSteadyFrame(incoming);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [focused, setFocused] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
