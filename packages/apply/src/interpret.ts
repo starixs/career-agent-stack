@@ -99,6 +99,11 @@ function matchBasic(label: string, aliases: Record<string, string[]>): string | 
   return best?.key ?? null
 }
 
+/** 18 位（末位可为 X）的居民身份证号 → 身份证；其他格式看不出来就不猜。 */
+export function idDocumentKind(id: string): string | undefined {
+  return /^\d{17}[\dXx]$/.test(id.trim()) ? '身份证' : undefined
+}
+
 /** 答案库匹配：question_key / question_text 与 label 互相包含即命中；confirmed 与更长的 key 优先。 */
 export function findBankAnswer(label: string, bank: AnswerBankEntry[]): AnswerBankEntry | null {
   const l = normKey(label)
@@ -144,6 +149,17 @@ export async function interpretForm(llm: LLM, fields: FormField[], profile: Prof
     const ck = Object.keys(confirmed).find(k => normKey(k) === normKey(label))
     if (ck) { plans.push({ ...base, status: 'fill', source: 'draft', confidence: 0.85, value: confirmed[ck], note: '用户已确认的草稿' }); continue }
 
+    // 证件：只用私密库里本人存的证件号（从不进答案库、从不猜）；证件类型随号码推断
+    const idValue = profile.basics.idNumber?.trim()
+    if (idValue && !f.options.length && f.type !== 'checkbox' && matchBasic(label, { idNumber: BASIC_ALIASES.idNumber }) === 'idNumber') {
+      plans.push({ ...base, status: 'fill', source: 'profile', confidence: 0.95, value: idValue, key: 'idNumber' }); continue
+    }
+    if (idValue && /证件类型|证件种类|id type/i.test(`${label} ${f.placeholder ?? ''}`)) {
+      const kind = idDocumentKind(idValue)
+      const v = kind ? (f.options.length ? pickOption(f.options, kind) ?? f.options.find(o => o.includes(kind)) : kind) : undefined
+      plans.push(v ? { ...base, status: 'fill', source: 'profile', confidence: 0.9, value: v, key: 'idType' } : { ...base, status: f.required ? 'needs_user' : 'skip', source: 'none', confidence: 0, note: '看不出证件类型' })
+      continue
+    }
     // 高影响：只用答案库原话
     if (highImpact) {
       const a = findBankAnswer(label, profile.answerBank)

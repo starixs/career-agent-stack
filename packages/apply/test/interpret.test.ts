@@ -19,6 +19,13 @@ describe('interpret', () => {
     expect(plans.every(p => p.status === 'needs_user' && p.source === 'none')).toBe(true)
     expect(llm.calls.length).toBe(0)
   })
+  it('证件号只用私密库里本人存的号码，证件类型随号码推断；没存就不猜', async () => {
+    const fields = await fieldsOf({ url: 'u', fields: [{ label: '', placeholder: '请选择证件类型', type: 'select', options: ['居民身份证', '护照'] }, { label: '证件号码', required: true }] })
+    const withId = await interpretForm(noLLM(), fields, { ...profile, basics: { ...profile.basics, idNumber: '11010120000101123X' } })
+    expect(withId.map(p => [p.status, p.source, p.value])).toEqual([['fill', 'profile', '居民身份证'], ['fill', 'profile', '11010120000101123X']])
+    const without = await interpretForm(noLLM(), fields, profile)
+    expect(without[1]).toMatchObject({ status: 'needs_user', source: 'none' })
+  })
   it('高影响问题有答案库原话 → 原话填，source=answer_bank', async () => {
     const fields = await fieldsOf({ url: 'u', fields: [{ label: '期望薪资（月薪）' }] })
     const [p] = await interpretForm(noLLM(), fields, profile)
