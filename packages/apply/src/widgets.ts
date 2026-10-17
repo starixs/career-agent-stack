@@ -269,7 +269,8 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
     }
     const collect = () => Array.from(document.querySelectorAll(OPT)).filter(n => {
       if (n === el || n.contains(el) || n.closest('[class*="selection" i], [data-career-overlay]') || otherShell(n) || n.querySelector(OPT)) return false
-      const t = clean(n.textContent); return t.length > 0 && t.length <= 60 && vis(n)
+      // 空状态（「无数据」「暂无」「加载中」）是下拉的占位提示，不是选项
+      const t = clean(n.textContent); return t.length > 0 && t.length <= 60 && !EMPTY_RX.test(t) && vis(n)
     })
     /** 浮层里的选项：先认常见选项节点；认不出就取同一父节点下最多的"带完整短文本的最内层节点"。 */
     const optionsIn = (layer: Element): Element[] => {

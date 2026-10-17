@@ -99,6 +99,9 @@ async function readDisplay(page: PageLike, f: FormField): Promise<string> {
   try { return (await page.evaluate(readDisplayScript, { selector: f.selector })).display } catch { return '' }
 }
 
+/** 点开后的列表至少这么长，才可能是只显示了一部分（远程 / 虚拟滚动），值得打字搜。 */
+const SEARCH_WORTHY_OPTIONS = 20
+
 async function llmPickOption(llm: LLM, label: string, value: string, options: OptionInfo[]): Promise<OptionInfo | undefined> {
   const list = options.filter(o => !o.disabled).slice(0, 80)
   if (!list.length) return undefined
@@ -171,15 +174,24 @@ async function fillCustomSelect(d: FillDeps, f: FormField, value: string, sig: s
   const learned: WidgetPatch = { kind: 'select', popup: open.via }
   // 输入框可编辑 ≠ 能搜：记忆里说过"打字没反应"的同类控件直接当不可搜索
   const editable = open.searchable && known?.searchable !== false
+  // 点开了但是空的（「无数据」）：联动选项往往在前一格选完后才异步加载，先等一会儿重读，不急着打字；
+  // 还空且不能搜 → 交给联动重试
+  if (open.opened && !open.options.length) open = await page.evaluate(openOptionsScript, { selector: f.selector, reopen: true, waitMs: 2500 })
+  if (open.opened && !open.options.length && !editable) { await close(); return { ...fail('custom-select', 'options_empty'), learned } }
   if (!open.opened || (!open.options.length && !editable)) { await close(); return { ...fail('custom-select', 'options_not_found'), learned } }
+  d.recorder?.trace({ stage: 'field', action: 'options_seen', label: f.label, result: 'info', detail: `${open.options.length} 项：${open.options.slice(0, 12).map(o => o.text).join(' | ')}` })
   const segments = value.split(/\s*[/／>＞]\s*/).filter(Boolean)
   const first = segments.length > 1 && open.cascade ? segments[0] : value
+  // 先在点开后的列表里选：字典 / 文本匹配 → 匹配不上把整张列表交给模型按意思挑（"英语六级"↔"CET-6"）
   let opt = open.options.length ? pickByText(open.options, first, f.label) : undefined
   let strategy = 'option-click'
+  if (!opt && d.llm && open.options.length) { opt = await llmPickOption(d.llm, f.label, first, open.options); if (opt) strategy = 'llm-option-click' }
   let typed = false
+  // 只有列表是空的（远程搜索要先输关键字）或很长、可能只显示了一部分时才打字搜。短列表里没有就是没有，不打字。
+  const mayBePartial = !open.options.length || open.options.length >= SEARCH_WORTHY_OPTIONS
   // 可搜索探测（行为，不看类名）：先键入一两个字，看候选 / 弹层文字有没有变化；没变化 → 不可搜索，清空、不再打字。
   // 不可编辑（readonly）的输入框一个字都不打。搜出来的结果只认同一个意思，不按回车，仍然点选项
-  if (!opt && editable && page.keyboard) {
+  if (!opt && editable && mayBePartial && page.keyboard) {
     const chars = Array.from(first)
     const head = known?.searchable ? chars.join('') : chars.slice(0, Math.min(2, chars.length)).join('')
     if (await typeInto(d, f, head)) {
@@ -203,7 +215,6 @@ async function fillCustomSelect(d: FillDeps, f: FormField, value: string, sig: s
       strategy = 'search-click'
     }
   }
-  if (!opt && !typed && d.llm && open.options.length) { opt = await llmPickOption(d.llm, f.label, first, open.options); if (opt) strategy = 'llm-option-click' }
   if (!opt) {
     d.recorder?.trace({ stage: 'field', action: 'options', label: f.label, result: 'fail', code: 'no_matching_option', detail: open.options.slice(0, 20).map(o => o.text).join(' | ') || '（没有选项）' })
     await close()

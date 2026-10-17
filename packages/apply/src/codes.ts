@@ -9,6 +9,7 @@ export type FieldReasonCode =
   | 'not_editable'           // 只读 / 禁用 / 自定义控件，不能直接写值
   | 'field_disabled'         // 控件是灰的（禁用）：联动没解锁，或网站锁定了（如账号绑定的手机号）
   | 'options_not_found'      // 自定义下拉点开后没看到选项
+  | 'options_empty'          // 下拉点开了但还是空的（「无数据」）：往往要等前面的选择把选项加载出来
   | 'no_matching_option'     // 选项里没有对得上的
   | 'option_not_selected'    // 点了选项，显示值没变
   | 'date_unparseable'       // 资料里的日期看不懂
@@ -29,6 +30,7 @@ export const REASON_TEXT: Record<FieldReasonCode, string> = {
   not_editable: '这一格不能直接输入（只读或自定义控件），没敢硬写',
   field_disabled: '这一格是灰的（禁用），可能要先填前面的格子，或网站锁定了不让改',
   options_not_found: '点开下拉后没看到可选项',
+  options_empty: '下拉里还没有可选项，可能要等前面的选择加载出来',
   no_matching_option: '下拉选项里没有和你的资料对得上的',
   option_not_selected: '点了选项，但页面上显示的值没变',
   date_unparseable: '资料里的日期格式看不懂',

@@ -125,6 +125,12 @@ canvas.label-canvas{display:block;height:20px}
     <div class="mtd-form-item"><label class="mtd-form-item-label">语言水平</label>
       <div class="mtd-form-item-content"><div class="mtd-input"><input type="text" readonly placeholder="请输入"></div></div></div>
   </div>
+  <!-- 真机：「语言水平」下拉在选好语言类型之前是空的（「无数据」），选完后异步加载；选项是 CET-4 / CET-6 这类写法 -->
+  <div class="section">
+    <h3 class="section-title">外语能力</h3>
+    <div class="mtd-form-item"><label class="mtd-form-item-label">外语语种</label><div class="mtd-form-item-content"><div class="mtd-form-item-wrapper" data-slot="langType"></div></div></div>
+    <div class="mtd-form-item"><label class="mtd-form-item-label">外语等级</label><div class="mtd-form-item-content"><div class="mtd-form-item-wrapper" data-slot="langLevel"></div></div></div>
+  </div>
   <div class="section">
     <h3 class="section-title">其他</h3>
     <div class="mtd-form-item"><label class="mtd-form-item-label"><span class="req">*</span>联系邮箱</label>
@@ -203,7 +209,7 @@ canvas.label-canvas{display:block;height:20px}
         pop.querySelector('.mtd-select-dropdown').innerHTML = '<div class="mtd-select-loading">加载中…</div>'
         clearTimeout(timer)
         timer = setTimeout(() => { if (pop && pop.style.display !== 'none') fill(opts.remote(q), '无匹配结果') }, 350)
-      } else fill(opts.options().filter(o => !q || o.includes(q)), '无匹配结果')
+      } else { const all = opts.options(); fill(all.filter(o => !q || o.includes(q)), all.length ? '无匹配结果' : (opts.emptyText || '无匹配结果')) }
     }
     const open = () => {
       closeAll(pop)
@@ -224,6 +230,7 @@ canvas.label-canvas{display:block;height:20px}
     input.addEventListener('input', () => { window.__typedInto[opts.key] = (window.__typedInto[opts.key] || '') + '|' + input.value; if (!isOpen()) open(); renderLabel(); search() })
     document.addEventListener('mousedown', e => { if (isOpen() && !root.contains(e.target) && !pop.contains(e.target)) close() })
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen()) close() })
+    api.refresh = () => { if (isOpen()) search() }
     api.setDisabled = (d) => { root.classList.toggle('mtd-select-disabled', d); input.disabled = d; if (d) close() }
     if (opts.value) model[opts.key] = opts.value
     renderLabel()
@@ -233,6 +240,9 @@ canvas.label-canvas{display:block;height:20px}
   // 意向城市（多选）：外壳里常驻 li「请输入工作城市」
   const city = document.querySelector('.mtd-select-multiple')
   city.querySelector('.mtd-select-filter').addEventListener('click', () => {})
+  let levelsLoaded = false
+  mountSelect(document.querySelector('[data-slot="langType"]'), { key: 'langType', options: () => ['英语', '日语', '韩语'], onChange: () => { levelsLoaded = false; setTimeout(() => { levelsLoaded = true; level.refresh() }, 700) } })
+  const level = mountSelect(document.querySelector('[data-slot="langLevel"]'), { key: 'langLevel', options: () => levelsLoaded ? ['CET-4', 'CET-6', 'TEM-4', 'TEM-8', '雅思', '托福'] : [], emptyText: '无数据' })
   mountSelect(document.querySelector('[data-slot="gender"]'), { key: 'gender', options: () => ['男', '女'], readonly: true })
   mountSelect(document.querySelector('[data-slot="area"]'), { key: 'area', options: () => ['86', '852'], disabled: true, value: '86' })
 

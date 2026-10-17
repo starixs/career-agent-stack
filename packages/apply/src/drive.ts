@@ -413,10 +413,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       const written = new Map<string, { value: string; stage: string }>()
       /** 每条填写记录对应的格子（写入那一刻的字段），复核按它认回。 */
       const fieldOf = new WeakMap<object, FormField>()
-      /** 因为控件被禁用（联动没解锁）而失败的格子：主循环填完后再试一次。 */
+      /** 因为联动没解锁（控件禁用 / 下拉还是空的）而失败的格子：主循环填完后再试一次。 */
       const disabledQueue: Array<{ f: FormField; value: string; source: FieldPlan['source'] }> = []
       const record = (f: FormField, value: string, source: FieldPlan['source'], att: FieldAttempt, stage: string) => {
-        if (!att.verified && att.code === 'field_disabled' && (stage === 'field' || stage === 'section')) disabledQueue.push({ f, value, source })
+        if (!att.verified && (att.code === 'field_disabled' || att.code === 'options_empty') && (stage === 'field' || stage === 'section')) disabledQueue.push({ f, value, source })
         written.set(slotOf(f), { value, stage })
         if (att.verified) { rec.filled.push({ fieldId: f.id, label: f.label, value, source, layer: att.strategy === 'vision' ? 'vision' : 'dom', verified: true, strategy: att.strategy, display: att.display }); fieldOf.set(rec.filled[rec.filled.length - 1], f) }
         else if (att.rollback === 'failed') { rec.mismatches.push({ fieldId: f.id, label: f.label, expected: value, actual: att.display, code: att.code ?? 'readback_mismatch', reason: att.reason ?? reasonText(att.code) }); fieldOf.set(rec.mismatches[rec.mismatches.length - 1], f) }

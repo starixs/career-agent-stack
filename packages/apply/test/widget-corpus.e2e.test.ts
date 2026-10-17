@@ -89,6 +89,20 @@ describe('控件语料库（真实 Chrome）', () => {
     expect(r.display).toBe('')
   }, 90_000)
 
+  it('MTD 联动下拉：点开是「无数据」先等选项加载，不打字；字面对不上按意思从列表里挑', async ({ skip }) => {
+    if (!browser || !engine) return skip()
+    const page = await open('meituan/form.html')
+    let r = await fill(page, '外语语种', '英语')
+    expect(r.att).toMatchObject({ verified: true, display: '英语' })
+    const calls: LlmRequest[] = []
+    const llm = new FakeLLM([(req: LlmRequest) => { calls.push(req); return JSON.stringify({ index: JSON.parse(String(req.messages[0].content)).options.findIndex((o: { text: string }) => o.text === 'CET-6') }) }])
+    r = await fill(page, '外语等级', '英语六级', { llm })
+    expect(r.att).toMatchObject({ verified: true, strategy: 'llm-option-click', display: 'CET-6' })
+    expect(r.model.langLevel).toBe('CET-6')
+    expect((await page.evaluate(() => (window as unknown as { __typedInto: Record<string, string> }).__typedInto)).langLevel).toBeUndefined()
+    expect(calls).toHaveLength(1)
+  }, 90_000)
+
   it('antd Select：不可搜索不打字、showSearch 搜索选中；选项里没有 / 搜不到留空', async ({ skip }) => {
     if (!browser || !engine) return skip()
     const page = await open('corpus/antd-select.html')
@@ -123,7 +137,8 @@ describe('控件语料库（真实 Chrome）', () => {
     left(r.att)
     expect(r.model.school).toBeUndefined()
     expect(r.display).toBe('')
-    // 行为探测：民族框没有 readonly，打两个字候选没变化 → 清空、按不可搜索处理，并记进控件记忆
+    // 行为探测：民族框没有 readonly、列表长（可能只显示了一部分），打两个字候选没变化 → 清空、按不可搜索处理，并记进控件记忆。
+    // 列表里没有「藏族」：短列表不会打字，长列表才值得试搜
     const store = memStore()
     const events: string[] = []
     const widgetMemory = new engine.WidgetMemory(store).bind('127.0.0.1', ev => events.push(`${ev.kind}:${ev.detail}`))
@@ -136,7 +151,7 @@ describe('控件语料库（真实 Chrome）', () => {
     // 同站同类控件：记忆说不可搜索 → 一个字都不打
     r = await fill(page2, '籍贯', '江苏', { widgetMemory })
     left(r.att)
-    expect(r.typed.hometown).toBeUndefined()
+    expect(r.typed.hometown).toBeUndefined() // 记忆说不可搜索，且列表短：一个字都不打
     expect(events.some(x => x.startsWith('used:'))).toBe(true)
   }, 90_000)
 
