@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>语料：上传组件回显</title>
+<!--
+  上传回显的几种真实形态（虚构数据），?mode= 选一种：
+   original：约 0.8 秒后在上传区显示原文件名；
+   renamed：站点把文件改名成哈希（a8f3e1c2.pdf），带「删除 / 重新上传」；
+   list：element-ui el-upload 的文件列表新增一项（.el-upload-list__item），名字被改写；
+   none：什么都不变（上传失败没提示）——不能报"已回显"。
+  页面别处常驻一个「简历模板.pdf」下载链接，不能当成回显。
+-->
+<style>body{font:14px -apple-system,"PingFang SC",sans-serif;margin:24px}.box{border:1px dashed #ccc;padding:16px;width:360px}</style>
+</head><body>
+<form>
+  <div class="form-item"><label>附件简历</label>
+    <div class="box"><input type="file" id="f" style="display:none"><div class="tip">点击或拖拽上传</div><ul class="el-upload-list el-upload-list--text"></ul></div>
+  </div>
+  <div class="form-item"><label>姓名</label><input type="text" name="name"></div>
+</form>
+<p><a href="#">简历模板.pdf</a></p>
+<script>
+(function () {
+  const mode = new URLSearchParams(location.search).get('mode') || 'original'
+  const box = document.querySelector('.box'), tip = box.querySelector('.tip'), list = box.querySelector('ul')
+  document.getElementById('f').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f || mode === 'none') return
+    setTimeout(() => {
+      if (mode === 'original') tip.textContent = f.name
+      if (mode === 'renamed') tip.innerHTML = '<span class="fn">a8f3e1c2.pdf</span> <a>删除</a> <a>重新上传</a>'
+      if (mode === 'list') list.innerHTML = '<li class="el-upload-list__item is-success"><a class="el-upload-list__item-name">resume_1017.pdf</a></li>'
+    }, 800)
+  })
+})()
+</script></body></html>

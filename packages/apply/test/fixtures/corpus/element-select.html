@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>语料：element-ui el-select</title>
+<!--
+  element-ui 2 el-select 的 DOM 形态（虚构数据）：.el-select > .el-input > input.el-input__inner（不可搜索时 readonly，
+  选中值就写在这个输入框里）；下拉 .el-select-dropdown.el-popper 挂 body、平时 display:none 常驻；在外壳上点击开 / 关。
+  filterable + remote：输入框可编辑，打字后 300ms 才返回候选（期间显示"加载中"），收起时输入框恢复成选中值。
+  data-fakeedit：输入框没有 readonly，但打字没有任何反应（有些站点就是这样）——引擎要试出它"不可搜索"、清空、不再打字。
+-->
+<style>
+body{font:14px -apple-system,"PingFang SC",sans-serif;margin:24px}
+.el-form-item{margin-bottom:18px;display:flex}
+.el-form-item__label{width:100px;text-align:right;padding-right:12px;line-height:40px}
+.el-select{position:relative;display:inline-block;width:240px}
+.el-input__inner{box-sizing:border-box;width:100%;height:40px;border:1px solid #dcdfe6;border-radius:4px;padding:0 30px 0 15px;cursor:pointer}
+.el-input__suffix{position:absolute;right:8px;top:12px;pointer-events:none}
+.el-select-dropdown{position:absolute;z-index:2001;background:#fff;border:1px solid #e4e7ed;border-radius:4px;box-shadow:0 2px 12px rgba(0,0,0,.1);min-width:240px}
+.el-select-dropdown__list{list-style:none;margin:0;padding:6px 0}
+.el-select-dropdown__item{padding:0 20px;height:34px;line-height:34px;cursor:pointer}
+.el-select-dropdown__empty{padding:10px 0;margin:0;text-align:center;color:#999}
+</style></head><body>
+<form class="el-form">
+  <div class="el-form-item is-required"><label class="el-form-item__label">学历</label><div class="el-form-item__content"><div data-mount="degree" data-opts="大专,本科,硕士,博士"></div></div></div>
+  <div class="el-form-item is-required"><label class="el-form-item__label">毕业院校</label><div class="el-form-item__content"><div data-mount="school" data-remote="1"></div></div></div>
+  <div class="el-form-item"><label class="el-form-item__label">民族</label><div class="el-form-item__content"><div data-mount="ethnicity" data-fakeedit="1" data-opts="汉族,回族,满族,壮族"></div></div></div>
+  <div class="el-form-item"><label class="el-form-item__label">籍贯</label><div class="el-form-item__content"><div data-mount="hometown" data-fakeedit="1" data-opts="北京,河北,山东"></div></div></div>
+</form>
+<script>
+(function () {
+  const model = window.__model = {}; const typed = window.__typed = {}
+  const SCHOOLS = ['清华大学', '清华大学深圳国际研究生院', '西京大学', '东海大学']
+  const all = []
+  document.addEventListener('mousedown', e => { for (const s of all) if (s.open && !s.root.contains(e.target) && !s.pop.contains(e.target)) s.close() })
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') for (const s of all) if (s.open) s.close() })
+  for (const mount of document.querySelectorAll('[data-mount]')) {
+    const key = mount.dataset.mount, remote = mount.dataset.remote === '1', fake = mount.dataset.fakeedit === '1'
+    const opts = (mount.dataset.opts || '').split(',').filter(Boolean)
+    mount.outerHTML = `<div class="el-select" data-key="${key}"><div class="el-input el-input--suffix"><input type="text" autocomplete="off" placeholder="请选择"${remote || fake ? '' : ' readonly'} class="el-input__inner"><span class="el-input__suffix"><span class="el-input__suffix-inner"><i class="el-select__caret el-input__icon el-icon-arrow-up">⌄</i></span></span></div></div>`
+    const root = document.querySelector(`[data-key="${key}"]`), input = root.querySelector('input')
+    const pop = document.createElement('div'); pop.className = 'el-select-dropdown el-popper'; pop.style.display = 'none'
+    pop.innerHTML = '<div class="el-scrollbar"><div class="el-select-dropdown__wrap el-scrollbar__wrap"><ul class="el-scrollbar__view el-select-dropdown__list"></ul></div></div>'
+    document.body.appendChild(pop)
+    const ul = pop.querySelector('ul')
+    const s = { root, pop, open: false }
+    let timer = null
+    const fill = (list, empty) => {
+      pop.querySelector('.el-select-dropdown__empty')?.remove()
+      ul.innerHTML = list.map(o => `<li class="el-select-dropdown__item"><span>${o}</span></li>`).join('')
+      if (!list.length) { const p = document.createElement('p'); p.className = 'el-select-dropdown__empty'; p.textContent = empty; pop.appendChild(p) }
+      for (const li of ul.querySelectorAll('li')) li.addEventListener('click', () => { model[key] = li.textContent; s.close() })
+    }
+    const render = () => {
+      if (!remote) { fill(opts, '无数据'); return }
+      const q = input.value.trim()
+      if (!q) { fill([], '请输入关键词'); return }
+      fill([], '加载中'); clearTimeout(timer)
+      timer = setTimeout(() => { if (s.open) fill(SCHOOLS.filter(x => x.includes(q)), '无匹配数据') }, 300)
+    }
+    s.close = () => { s.open = false; pop.style.display = 'none'; clearTimeout(timer); input.value = model[key] || '' }
+    const openIt = () => { for (const o of all) if (o !== s && o.open) o.close(); s.open = true; const r = root.getBoundingClientRect(); pop.style.left = `${r.left + scrollX}px`; pop.style.top = `${r.bottom + scrollY + 4}px`; pop.style.display = ''; if (remote) input.value = ''; render() }
+    root.addEventListener('click', () => { s.open ? s.close() : openIt() })
+    input.addEventListener('input', () => { typed[key] = (typed[key] || '') + '|' + input.value; if (fake) return; if (!s.open) openIt(); render() })
+    all.push(s)
+  }
+})()
+</script></body></html>

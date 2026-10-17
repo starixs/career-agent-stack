@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>语料：antd DatePicker（月份）</title>
+<!--
+  antd v5 DatePicker picker="month" 的 DOM 形态：.ant-picker > .ant-picker-input > input（可输入；?readonly=1 时 inputReadOnly）；
+  输入框 mousedown 打开 .ant-picker-dropdown（挂 body）：头部 « 年份 »（.ant-picker-header-super-prev/next-btn、.ant-picker-year-btn），
+  表格 td.ant-picker-cell > .ant-picker-cell-inner「1月」…「12月」。输入只接受 YYYY-MM，回车或失焦生效，不合法就恢复原值。
+  ?max=2026：只能选到 2026 年（往后的翻页按钮禁用、输入也拒绝）——"做不到就留空"。
+-->
+<style>
+body{font:14px -apple-system,"PingFang SC",sans-serif;margin:24px}
+.ant-form-item{margin-bottom:16px}
+.ant-picker{display:inline-flex;border:1px solid #d9d9d9;border-radius:6px;padding:4px 11px;width:200px}
+.ant-picker-input{display:flex;width:100%}
+.ant-picker-input input{border:0;outline:0;flex:1;font:inherit}
+.ant-picker-dropdown{position:absolute;z-index:1050;background:#fff;box-shadow:0 6px 16px rgba(0,0,0,.08);border-radius:8px}
+.ant-picker-dropdown-hidden{display:none}
+.ant-picker-header{display:flex;justify-content:space-between;padding:6px 8px;border-bottom:1px solid #f0f0f0}
+.ant-picker-header button{border:0;background:none;cursor:pointer}
+.ant-picker-content td{padding:10px 14px;text-align:center;cursor:pointer}
+</style></head><body>
+<form>
+  <div class="ant-form-item"><label>入学时间</label><div class="ant-picker" data-key="start"><div class="ant-picker-input"><input placeholder="请选择月份" size="12" autocomplete="off" value=""><span class="ant-picker-suffix"><span role="img" aria-label="calendar" class="anticon anticon-calendar">▦</span></span></div></div></div>
+  <div class="ant-form-item"><label>毕业时间</label><div class="ant-picker" data-key="grad"><div class="ant-picker-input"><input placeholder="请选择月份" size="12" autocomplete="off" value=""><span class="ant-picker-suffix"><span role="img" aria-label="calendar" class="anticon anticon-calendar">▦</span></span></div></div></div>
+</form>
+<script>
+(function () {
+  const qs = new URLSearchParams(location.search)
+  const max = qs.get('max') ? +qs.get('max') : 9999
+  const ro = qs.get('readonly') === '1'
+  const model = window.__model = {}
+  const all = []
+  document.addEventListener('mousedown', e => { for (const p of all) if (p.open && !p.root.contains(e.target) && !p.drop.contains(e.target)) p.close() })
+  for (const root of document.querySelectorAll('.ant-picker')) {
+    const key = root.dataset.key, input = root.querySelector('input')
+    if (ro) input.readOnly = true
+    let year = 2026
+    const drop = document.createElement('div'); drop.className = 'ant-picker-dropdown ant-picker-dropdown-hidden'
+    drop.innerHTML = '<div class="ant-picker-panel-container"><div class="ant-picker-month-panel"><div class="ant-picker-header"><button type="button" class="ant-picker-header-super-prev-btn" tabindex="-1"><span class="ant-picker-super-prev-icon"></span>«</button><div class="ant-picker-header-view"><button type="button" class="ant-picker-year-btn"></button></div><button type="button" class="ant-picker-header-super-next-btn" tabindex="-1"><span class="ant-picker-super-next-icon"></span>»</button></div><div class="ant-picker-body"><table class="ant-picker-content"><tbody></tbody></table></div></div></div>'
+    document.body.appendChild(drop)
+    const yb = drop.querySelector('.ant-picker-year-btn'), tb = drop.querySelector('tbody')
+    for (let r = 0; r < 4; r++) { const tr = document.createElement('tr'); for (let c = 0; c < 3; c++) { const m = r * 3 + c + 1; tr.innerHTML += `<td class="ant-picker-cell ant-picker-cell-in-view" data-m="${m}"><div class="ant-picker-cell-inner">${m}月</div></td>` } tb.appendChild(tr) }
+    const draw = () => { yb.textContent = String(year) }
+    const p = { root, drop, open: false }
+    p.close = () => { p.open = false; drop.classList.add('ant-picker-dropdown-hidden'); input.value = model[key] || '' }
+    const openIt = () => { for (const o of all) if (o !== p && o.open) o.close(); p.open = true; const r = root.getBoundingClientRect(); drop.style.left = `${r.left + scrollX}px`; drop.style.top = `${r.bottom + scrollY + 4}px`; drop.classList.remove('ant-picker-dropdown-hidden'); draw() }
+    drop.querySelector('.ant-picker-header-super-prev-btn').addEventListener('click', () => { year--; draw() })
+    drop.querySelector('.ant-picker-header-super-next-btn').addEventListener('click', () => { if (year < max) year++; draw() })
+    tb.addEventListener('click', e => { const td = e.target.closest('td'); if (!td) return; model[key] = `${year}-${String(td.dataset.m).padStart(2, '0')}`; p.close() })
+    input.addEventListener('mousedown', () => { if (!p.open) openIt() })
+    const commit = () => { const v = input.value.trim(); if (/^\d{4}-\d{2}$/.test(v) && +v.slice(0, 4) <= max && +v.slice(5) >= 1 && +v.slice(5) <= 12) model[key] = v; input.value = model[key] || '' }
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { commit(); p.close() } })
+    input.addEventListener('blur', () => setTimeout(commit, 0))
+    all.push(p)
+  }
+})()
+</script></body></html>

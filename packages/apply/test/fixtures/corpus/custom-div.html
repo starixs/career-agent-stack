@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>语料：自研 div 下拉 + 原生 select</title>
+<!--
+  自研组件（虚构数据）：触发器是 div[role=combobox]，没有 input；类名都是构建工具生成的短哈希（不含 select / dropdown / option）；
+  点开后往 body 追加一个 position:absolute 的浮层，选项是 <div><span>文字</span></div>，收起时整个浮层被移除。
+  页面上另有一个常驻可见的 absolute 浮层（客服气泡），不能被当成下拉。
+  「工作年限」是内联展开的列表（不是浮层、也没有可识别的类名），启发式认不出选项，留给语义兜底层。
+  「性别」是原生 <select>。
+-->
+<style>
+body{font:14px -apple-system,"PingFang SC",sans-serif;margin:24px}
+.r9{display:flex;align-items:center;margin-bottom:16px}
+.l3{width:90px}
+.q1{position:relative;width:220px;height:34px;border:1px solid #ccc;border-radius:4px;display:flex;align-items:center;padding:0 10px;cursor:pointer}
+.q1 .t7{flex:1;color:#333}
+.q1 .t7.p0{color:#aaa}
+.zz{position:absolute;background:#fff;border:1px solid #ddd;box-shadow:0 4px 10px rgba(0,0,0,.1);width:240px;z-index:99}
+.zz>div{padding:6px 10px;cursor:pointer}
+.bubble{position:fixed;right:10px;bottom:10px;background:#1677ff;color:#fff;padding:6px 10px;border-radius:16px}
+.k2{border:1px solid #eee;margin-top:4px;width:240px}
+.k2>div{padding:4px 10px;cursor:pointer}
+</style></head><body>
+<form>
+  <div class="r9"><div class="l3">最高学历</div><div class="c5"><div class="q1" role="combobox" aria-haspopup="listbox" tabindex="0" data-key="degree" data-opts="本科,硕士研究生,博士研究生"><span class="t7 p0">请选择</span><b>▾</b></div></div></div>
+  <div class="r9"><div class="l3">外语语种</div><div class="c5"><div class="q1" role="combobox" aria-haspopup="listbox" tabindex="0" data-key="lang" data-opts="英语,日语,德语"><span class="t7 p0">请选择</span><b>▾</b></div></div></div>
+  <div class="r9"><div class="l3">工作年限</div><div class="c5"><div class="q1" role="combobox" tabindex="0" data-key="years" data-inline="1" data-opts="应届,1-3年,3-5年"><span class="t7 p0">请选择</span><b>▾</b></div></div></div>
+  <div class="r9"><label class="l3" for="g">性别</label><select id="g" name="gender"><option value="">请选择</option><option value="m">男</option><option value="f">女</option></select></div>
+</form>
+<div class="bubble">在线客服 1 2 3 4 5 6</div>
+<script>
+(function () {
+  const model = window.__model = {}
+  let layer = null, owner = null
+  const closeLayer = () => { if (layer) { layer.remove(); layer = null; owner = null } }
+  document.addEventListener('mousedown', e => { if (layer && !layer.contains(e.target) && !(owner && owner.contains(e.target))) closeLayer() })
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLayer() })
+  for (const box of document.querySelectorAll('.q1')) {
+    const key = box.dataset.key, opts = box.dataset.opts.split(','), txt = box.querySelector('.t7')
+    const show = () => { txt.textContent = model[key] || '请选择'; txt.classList.toggle('p0', !model[key]) }
+    if (box.dataset.inline === '1') {
+      // 内联展开：列表插在触发器下面，点触发器开 / 关
+      box.addEventListener('click', () => {
+        const ex = box.parentElement.querySelector('.k2'); if (ex) { ex.remove(); return }
+        const k = document.createElement('div'); k.className = 'k2'
+        k.innerHTML = opts.map(o => `<div data-v="${o}">${o}</div>`).join('')
+        k.addEventListener('click', e => { const v = e.target.closest('[data-v]'); if (!v) return; model[key] = v.dataset.v; show(); k.remove() })
+        box.parentElement.appendChild(k)
+      })
+      continue
+    }
+    box.addEventListener('click', () => {
+      if (owner === box) { closeLayer(); return }
+      closeLayer()
+      const r = box.getBoundingClientRect()
+      layer = document.createElement('div'); layer.className = 'zz'; owner = box
+      layer.style.left = `${r.left + scrollX}px`; layer.style.top = `${r.bottom + scrollY + 2}px`
+      layer.innerHTML = opts.map(o => `<div><span>${o}</span></div>`).join('')
+      layer.addEventListener('click', e => { const d = e.target.closest('.zz > div'); if (!d) return; model[key] = d.textContent; show(); closeLayer() })
+      document.body.appendChild(layer)
+    })
+  }
+  document.getElementById('g').addEventListener('change', e => { model.gender = e.target.selectedOptions[0].textContent })
+})()
+</script></body></html>

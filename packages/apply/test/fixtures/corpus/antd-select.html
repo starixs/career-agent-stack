@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>语料：antd Select</title>
+<!--
+  antd v5 Select 的 DOM 形态（虚构数据）：输入框 type=search + role=combobox + aria-controls 指向一个 0 尺寸的无障碍 listbox；
+  真正可见的选项在挂到 body 的 .ant-select-dropdown 虚拟列表里（.ant-select-item-option > -content）；
+  在 .ant-select-selector 上 mousedown 开 / 关；选中值在 .ant-select-selection-item，没选时是 .ant-select-selection-placeholder；
+  showSearch 的输入框可编辑、边打边过滤，打字时选中值 visibility:hidden。
+-->
+<style>
+body{font:14px -apple-system,"PingFang SC",sans-serif;margin:24px}
+.ant-form-item{margin-bottom:16px}
+.ant-select{position:relative;display:inline-block;width:280px;cursor:pointer}
+.ant-select-selector{position:relative;border:1px solid #d9d9d9;border-radius:6px;height:32px;padding:0 11px;display:flex;align-items:center}
+.ant-select-selection-search{position:absolute;inset:0 11px}
+.ant-select-selection-search-input{width:100%;height:30px;border:0;outline:0;background:transparent;padding:0}
+.ant-select-selection-placeholder{color:#bfbfbf}
+.ant-select-arrow{position:absolute;right:11px;top:8px}
+.ant-select-dropdown{position:absolute;background:#fff;box-shadow:0 6px 16px rgba(0,0,0,.08);border-radius:8px;padding:4px;width:280px;z-index:1050}
+.ant-select-dropdown-hidden{display:none}
+.ant-select-item{padding:5px 12px;cursor:pointer}
+.ant-select-item-empty{padding:5px 12px;color:#999}
+</style></head><body>
+<form>
+  <div class="ant-form-item"><div class="ant-form-item-label"><label class="ant-form-item-required">学历</label></div><div class="ant-form-item-control"><div data-mount="degree" data-opts="大专,本科,硕士研究生,博士研究生"></div></div></div>
+  <div class="ant-form-item"><div class="ant-form-item-label"><label>政治面貌</label></div><div class="ant-form-item-control"><div data-mount="politics" data-opts="中共党员,共青团员,群众"></div></div></div>
+  <div class="ant-form-item"><div class="ant-form-item-label"><label>期望城市</label></div><div class="ant-form-item-control"><div data-mount="city" data-search="1" data-opts="北京,上海,广州,深圳,杭州,成都,南京,武汉,西安,苏州,天津,重庆"></div></div></div>
+</form>
+<script>
+(function () {
+  const model = window.__model = {}; const typed = window.__typed = {}
+  let seq = 0
+  const all = []
+  document.addEventListener('mousedown', e => { for (const s of all) if (s.open && !s.root.contains(e.target) && !s.drop.contains(e.target)) s.close() })
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') for (const s of all) if (s.open) s.close() })
+  for (const mount of document.querySelectorAll('[data-mount]')) {
+    const key = mount.dataset.mount, opts = mount.dataset.opts.split(','), search = mount.dataset.search === '1', id = `rc_select_${seq++}`
+    mount.outerHTML = `<div class="ant-select ant-select-single ant-select-show-arrow${search ? ' ant-select-show-search' : ''}" data-key="${key}"><div class="ant-select-selector"><span class="ant-select-selection-search"><input type="search" autocomplete="off" class="ant-select-selection-search-input" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-owns="${id}_list" aria-controls="${id}_list" aria-autocomplete="list" id="${id}"${search ? '' : ' readonly unselectable="on" style="opacity:0"'}></span><span class="ant-select-selection-placeholder">请选择</span></div><span class="ant-select-arrow" unselectable="on"><span role="img" class="anticon anticon-down">▾</span></span></div>`
+    const root = document.querySelector(`[data-key="${key}"]`)
+    const input = root.querySelector('input'), selector = root.querySelector('.ant-select-selector')
+    const drop = document.createElement('div'); drop.innerHTML = `<div class="ant-select-dropdown ant-select-dropdown-placement-bottomLeft ant-select-dropdown-hidden"><div><div role="listbox" id="${id}_list" style="height:0;width:0;overflow:hidden"></div><div class="rc-virtual-list"><div class="rc-virtual-list-holder"><div class="rc-virtual-list-holder-inner"></div></div></div></div></div>`
+    document.body.appendChild(drop)
+    const pop = drop.firstElementChild, inner = drop.querySelector('.rc-virtual-list-holder-inner'), aria = drop.querySelector('[role=listbox]')
+    const s = { root, drop: pop, open: false }
+    const render = () => {
+      const q = search ? input.value.trim() : ''
+      const list = opts.filter(o => !q || o.includes(q))
+      aria.innerHTML = list.slice(0, 2).map(o => `<div role="option" aria-selected="false">${o}</div>`).join('')
+      inner.innerHTML = list.length ? list.map(o => `<div class="ant-select-item ant-select-item-option" title="${o}"><div class="ant-select-item-option-content">${o}</div></div>`).join('') : '<div class="ant-select-item-empty">暂无数据</div>'
+      for (const it of inner.querySelectorAll('.ant-select-item-option')) it.addEventListener('click', () => { model[key] = it.title; input.value = ''; s.close(); show() })
+    }
+    const show = () => {
+      selector.querySelector('.ant-select-selection-item, .ant-select-selection-placeholder')?.remove()
+      const span = document.createElement('span')
+      if (model[key]) { span.className = 'ant-select-selection-item'; span.title = model[key]; span.textContent = model[key] } else { span.className = 'ant-select-selection-placeholder'; span.textContent = '请选择' }
+      if (search && input.value) span.style.visibility = 'hidden'
+      selector.appendChild(span)
+    }
+    s.close = () => { s.open = false; pop.classList.add('ant-select-dropdown-hidden'); input.setAttribute('aria-expanded', 'false'); if (input.value) { input.value = ''; show() } }
+    s.show = () => { for (const o of all) if (o !== s && o.open) o.close(); s.open = true; const r = root.getBoundingClientRect(); pop.style.left = `${r.left + scrollX}px`; pop.style.top = `${r.bottom + scrollY + 4}px`; pop.classList.remove('ant-select-dropdown-hidden'); input.setAttribute('aria-expanded', 'true'); render() }
+    selector.addEventListener('mousedown', e => { s.open && !search ? s.close() : (s.open || s.show()) })
+    input.addEventListener('input', () => { typed[key] = (typed[key] || '') + '|' + input.value; if (!s.open) s.show(); render(); show() })
+    all.push(s); show()
+  }
+})()
+</script></body></html>

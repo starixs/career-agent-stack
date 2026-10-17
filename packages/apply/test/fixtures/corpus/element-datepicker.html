@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>语料：element-ui DatePicker（月份）</title>
+<!--
+  element-ui 2 el-date-picker type="month" format="yyyy/MM" 的 DOM 形态：.el-date-editor.el-input > input.el-input__inner
+  （?readonly=1 时 :editable=false → readonly）；聚焦即打开 .el-picker-panel.el-date-picker.el-popper（挂 body）：
+  头部 .el-date-picker__header（d-arrow-left / d-arrow-right 图标按钮 + 「2026 年」），表格 .el-month-table td > div > a.cell「一月」…「十二月」。
+  输入只认 yyyy/MM（"2027-06" 会被拒绝）——引擎要换写法再试，并把成功的写法记进站点控件记忆。
+  ?lock=1：所有月份格子 disabled，点了没反应——"做不到就留空"。
+-->
+<style>
+body{font:14px -apple-system,"PingFang SC",sans-serif;margin:24px}
+.el-form-item{margin-bottom:18px;display:flex}
+.el-form-item__label{width:100px;text-align:right;padding-right:12px;line-height:40px}
+.el-date-editor{position:relative;display:inline-block;width:220px}
+.el-input__inner{box-sizing:border-box;width:100%;height:40px;border:1px solid #dcdfe6;border-radius:4px;padding:0 30px}
+.el-input__prefix{position:absolute;left:8px;top:12px}
+.el-picker-panel{position:absolute;z-index:2001;background:#fff;border:1px solid #e4e7ed;box-shadow:0 2px 12px rgba(0,0,0,.1);width:300px}
+.el-date-picker__header{display:flex;justify-content:space-between;padding:8px 12px}
+.el-picker-panel__icon-btn{border:0;background:none;cursor:pointer}
+.el-month-table td{padding:12px 10px;text-align:center}
+.el-month-table td .cell{cursor:pointer}
+.el-month-table td.disabled .cell{color:#ccc;cursor:not-allowed}
+</style></head><body>
+<form class="el-form">
+  <div class="el-form-item"><label class="el-form-item__label">入学年月</label><div class="el-form-item__content"><div class="el-date-editor el-input el-input--prefix el-input--suffix el-date-editor--month" data-key="start"><input type="text" autocomplete="off" placeholder="选择月份" class="el-input__inner"><span class="el-input__prefix"><i class="el-input__icon el-icon-date">▦</i></span><span class="el-input__suffix"><span class="el-input__suffix-inner"><i class="el-input__icon"></i></span></span></div></div></div>
+  <div class="el-form-item"><label class="el-form-item__label">毕业年月</label><div class="el-form-item__content"><div class="el-date-editor el-input el-input--prefix el-input--suffix el-date-editor--month" data-key="grad"><input type="text" autocomplete="off" placeholder="选择月份" class="el-input__inner"><span class="el-input__prefix"><i class="el-input__icon el-icon-date">▦</i></span><span class="el-input__suffix"><span class="el-input__suffix-inner"><i class="el-input__icon"></i></span></span></div></div></div>
+</form>
+<script>
+(function () {
+  const qs = new URLSearchParams(location.search)
+  const ro = qs.get('readonly') === '1', lock = qs.get('lock') === '1'
+  const model = window.__model = {}
+  const CN = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
+  const all = []
+  document.addEventListener('mousedown', e => { for (const p of all) if (p.open && !p.root.contains(e.target) && !p.panel.contains(e.target)) p.close() })
+  for (const root of document.querySelectorAll('.el-date-editor')) {
+    const key = root.dataset.key, input = root.querySelector('input')
+    if (ro) input.readOnly = true
+    let year = 2026
+    const panel = document.createElement('div'); panel.className = 'el-picker-panel el-date-picker el-popper'; panel.style.display = 'none'
+    panel.innerHTML = '<div class="el-picker-panel__body-wrapper"><div class="el-picker-panel__body"><div class="el-date-picker__header"><button type="button" aria-label="前一年" class="el-picker-panel__icon-btn el-date-picker__prev-btn el-icon-d-arrow-left">«</button><span role="button" class="el-date-picker__header-label"></span><button type="button" aria-label="后一年" class="el-picker-panel__icon-btn el-date-picker__next-btn el-icon-d-arrow-right">»</button></div><div class="el-picker-panel__content"><table class="el-month-table"><tbody></tbody></table></div></div></div>'
+    document.body.appendChild(panel)
+    const lab = panel.querySelector('.el-date-picker__header-label'), tb = panel.querySelector('tbody')
+    for (let r = 0; r < 3; r++) { const tr = document.createElement('tr'); for (let c = 0; c < 4; c++) { const m = r * 4 + c + 1; tr.innerHTML += `<td class="${lock ? 'disabled' : ''}" data-m="${m}"><div><a class="cell">${CN[m - 1]}月</a></div></td>` } tb.appendChild(tr) }
+    const draw = () => { lab.textContent = `${year} 年` }
+    const fmt = v => v ? v.replace('-', '/') : ''
+    const p = { root, panel, open: false }
+    p.close = () => { p.open = false; panel.style.display = 'none' }
+    const openIt = () => { if (p.open) return; for (const o of all) if (o !== p && o.open) o.close(); p.open = true; const r = root.getBoundingClientRect(); panel.style.left = `${r.left + scrollX}px`; panel.style.top = `${r.bottom + scrollY + 4}px`; panel.style.display = ''; draw() }
+    panel.querySelector('.el-date-picker__prev-btn').addEventListener('click', () => { year--; draw() })
+    panel.querySelector('.el-date-picker__next-btn').addEventListener('click', () => { year++; draw() })
+    tb.addEventListener('click', e => { const td = e.target.closest('td'); if (!td || td.classList.contains('disabled')) return; model[key] = `${year}-${String(td.dataset.m).padStart(2, '0')}`; input.value = fmt(model[key]); p.close() })
+    input.addEventListener('focus', openIt)
+    input.addEventListener('mousedown', openIt)
+    input.addEventListener('change', () => { const m = input.value.trim().match(/^(\d{4})\/(\d{2})$/); if (m && !lock) model[key] = `${m[1]}-${m[2]}`; input.value = fmt(model[key]) })
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { input.dispatchEvent(new Event('change')); p.close() } })
+    all.push(p)
+  }
+})()
+</script></body></html>
