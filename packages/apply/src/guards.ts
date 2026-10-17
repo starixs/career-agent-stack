@@ -1,6 +1,6 @@
 import type { HandoffReason } from '@career/core'
 import type { SiteAdapter } from './adapters/types.js'
-import type { PageSignals } from './scripts.js'
+import type { ButtonInfo, PageSignals } from './scripts.js'
 
 /**
  * 提交守卫：命中即一律停止，绝不点击。动作集里没有"提交"这个动作，
@@ -19,6 +19,27 @@ export function isSubmitText(text: string, adapter?: SiteAdapter): boolean {
   if (SUBMIT_RX.test(t) || SUBMIT_RX.test(tz)) return true
   for (const w of adapter?.hints.submitWords ?? []) if (tz.includes(nospace(w))) return true
   return false
+}
+
+/**
+ * 申请入口按钮（岗位详情页上"进入网申表"的按钮）。只在页面上还没有任何表单字段、本次也没填过东西时才允许点；
+ * 不含"投递 / 立即投递 / 投递简历 / 提交"——这些可能是一键投递，永远不点。最终提交（表单页的「投递」「提交」）永远不点。
+ */
+export const ENTRY_RX = /^(立即申请|马上申请|在线申请|申请职位|申请该职位|申请此职位|申请岗位|我要申请|我要投递|去申请|去网申|网申入口|进入网申|开始申请|apply|apply now|apply online|apply for this (job|position|role)|start (your )?application)$/i
+export function isEntryText(text: string): boolean {
+  const t = squash(text).replace(/[>›→»]+$/, '').trim()
+  if (!t || t.length > 24) return false
+  return ENTRY_RX.test(t) || ENTRY_RX.test(nospace(t))
+}
+
+/**
+ * 页面上的"最终提交"按钮：导航里的「我的投递」「查看投递记录」之类也命中提交词，但不是表单的提交按钮；
+ * 优先短文案、排在后面的（表单底部）。只用于"停在哪个按钮前"的描述，永远不点。
+ */
+export function findFinalSubmit(buttons: ButtonInfo[], adapter?: SiteAdapter): ButtonInfo | undefined {
+  const all = buttons.filter(b => isSubmitText(b.text, adapter))
+  const real = all.filter(b => !/^(我的|查看|历史|全部)/.test(nospace(b.text)) && nospace(b.text).length <= 10)
+  return real[real.length - 1] ?? all[all.length - 1]
 }
 
 export function isNextText(text: string, adapter?: SiteAdapter): boolean {

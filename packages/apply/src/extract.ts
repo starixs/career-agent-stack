@@ -25,6 +25,11 @@ export interface FormField {
   xpath?: string
   /** UI 框架指纹（antd / element / … / native），决定页内执行器走哪个适配器。 */
   framework?: string
+  readonly?: boolean
+  /** 必填是怎么认出来的（attr / aria / class / star）。 */
+  requiredVia?: string
+  /** 标签可疑的原因；有值时不按这个标签填（宁空不错）。 */
+  labelUncertain?: string
 }
 
 /** 确定性抽取：在页面里跑一段纯 DOM 脚本（FakePage 用内存模型回答）。 */
@@ -50,6 +55,9 @@ export function normalizeField(r: RawField): FormField {
     selector: `[data-career-field="${r.id}"]`,
     xpath: r.xpath,
     framework: r.framework,
+    ...(r.readonly ? { readonly: true } : {}),
+    ...(r.requiredVia ? { requiredVia: r.requiredVia } : {}),
+    ...(r.labelUncertain ? { labelUncertain: r.labelUncertain } : {}),
   }
 }
 

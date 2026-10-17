@@ -28,6 +28,12 @@ export interface RawField {
   xpath?: string
   /** 识别到的 UI 框架指纹（antd / element / iview / layui / mtd / kuma / fusion / phoenix / my97 / native）。 */
   framework?: string
+  /** 只读（自定义下拉 / 日期面板的展示框）。 */
+  readonly?: boolean
+  /** 必填是怎么认出来的：attr / aria / class / star / pseudo。 */
+  requiredVia?: string
+  /** 标签可疑的原因（吸顶 / 导航栏文字、过长、纯数字、只有占位符…）；有值时引擎不敢按它填。 */
+  labelUncertain?: string
 }
 
 export interface ButtonInfo { id: string; text: string; selector: string; disabled: boolean }
@@ -158,12 +164,32 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       }
       return 'native'
     }
-    // 几何兜底（quillfill associateLabels）：结构上找不到标签时，取同一行左侧最近 / 正上方最近的短文本
+    // 吸顶 / 固定 / 导航栏里的文字不是表单标签（滚动后几何兜底最容易抓到它们）
+    const chromeCache = new Map<Element, boolean>()
+    const isChrome = (t: Element): boolean => {
+      if (t.closest('header, nav, [role=banner], [role=navigation], [class*="navbar" i], [class*="nav-bar" i], [class*="topbar" i], [class*="top-bar" i], [class*="site-header" i], [class*="page-header" i], [class*="header-wrap" i]')) return true
+      for (let n: Element | null = t, i = 0; n && n !== document.body && i < 12; n = n.parentElement, i++) {
+        const hit = chromeCache.get(n)
+        if (hit !== undefined) return hit
+        let pos = ''
+        try { pos = getComputedStyle(n).position } catch { /* ignore */ }
+        if (pos === 'fixed' || pos === 'sticky') { chromeCache.set(n, true); return true }
+      }
+      return false
+    }
+    // 几何兜底只在同一个表单容器里找（form，或往上第一个包含 ≥3 个控件的祖先）
+    const containerOf = (el: Element): Element => {
+      const f = el.closest('form'); if (f) return f
+      let c: Element | null = el.parentElement
+      for (let i = 0; c && i < 10; i++, c = c.parentElement) if (c.querySelectorAll('input, select, textarea').length >= 3) return c
+      return document.body
+    }
+    // 几何兜底（quillfill associateLabels）：结构上找不到标签时，取同一容器内同一行左侧最近 / 正上方最近的短文本
     const geometryLabel = (el: Element): string => {
       const r = el.getBoundingClientRect()
       if (!r.width) return ''
-      const texts = Array.from(document.querySelectorAll('label, span, div, p, td, th, dt, b, strong, h3, h4, h5, h6'))
-        .filter(t => t !== el && !t.contains(el) && !t.closest('input, select, textarea, button, option') && t.children.length <= 2)
+      const texts = Array.from(containerOf(el).querySelectorAll('label, span, div, p, td, th, dt, b, strong, h3, h4, h5, h6'))
+        .filter(t => t !== el && !t.contains(el) && !t.closest('input, select, textarea, button, option, [data-career-overlay]') && t.children.length <= 2 && !t.querySelector('input, select, textarea, button') && !isChrome(t) && (() => { const it = itemOf(t); return !it || it.contains(el) })())
         .map(t => ({ t, text: clean(t.textContent), b: t.getBoundingClientRect() }))
         .filter(x => x.text && x.text.length <= 40 && x.b.width > 0 && !isGeneric(x.text))
       const sameRow = texts.filter(x => Math.abs(x.b.top - r.top) <= 14 && x.b.left + x.b.width <= r.left + 8).sort((a, b) => b.b.left - a.b.left)[0]
@@ -171,20 +197,81 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const hit = sameRow ?? above
       return hit ? stripStar(hit.text) : ''
     }
+    /** 最近的"表单项"祖先（ant-form-item / mtd-form-item / el-form-item / form-group / li / tr / fieldset）。 */
+    const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem)(\s|$)/i
+    const itemOf = (n: Element): Element | null => {
+      let c: Element | null = n.parentElement
+      for (let i = 0; c && c !== document.body && i < 8; i++, c = c.parentElement) {
+        const cls = typeof c.className === 'string' ? c.className : ''
+        if (ITEM_RX.test(cls) || c.tagName === 'FIELDSET' || c.tagName === 'LI' || c.tagName === 'TR') return c
+      }
+      return null
+    }
+    /** 结构上找到的标签候选：不能来自吸顶 / 导航栏，不能属于另一个表单项，且在 DOM 顺序上不晚于控件太多。 */
+    const okLabelNode = (l: Element | null, el: Element): boolean => {
+      if (!l || isChrome(l) || l.closest('[data-career-overlay]')) return false
+      const it = itemOf(l)
+      if (it && !it.contains(el)) return false
+      if (l.contains(el)) return true
+      if (!(l.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) return false
+      // 标签和控件之间不能隔着别的控件（否则是上一格 / 分区标题的文字）
+      for (const c of controlsInDoc()) {
+        if (c === el || c.contains(el)) continue
+        if ((l.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) && (c.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) return false
+      }
+      return true
+    }
+    let controlsCache: Element[] | null = null
+    const controlsInDoc = (): Element[] => controlsCache ??= Array.from(document.querySelectorAll('input:not([type=hidden]), select, textarea, [contenteditable="true"]'))
+    const firstLabel = (root: Element, el: Element): string => {
+      for (const l of Array.from(root.querySelectorAll(LABEL)).slice(0, 40)) { if (okLabelNode(l, el)) { const t = pure(l); if (ok(t)) return t } }
+      return ''
+    }
+    /** 用 CSS 伪元素（::before content）画出来的标签。 */
+    const pseudoLabel = (el: Element): string => {
+      const it = itemOf(el)
+      if (!it) return ''
+      for (const n of [it, ...Array.from(it.children)].slice(0, 5)) {
+        let c = ''
+        try { c = getComputedStyle(n, '::before').content } catch { /* ignore */ }
+        const m = c.match(/^"(.+)"$/)
+        if (m) { const t = stripStar(m[1]); if (ok(t) && t.length <= 30) return t }
+      }
+      return ''
+    }
+    let labelVia = ''
     function labelFor(el: Element): string {
+      labelVia = 'aria'
       const aria = el.getAttribute('aria-label'); if (ok(aria)) return stripStar(aria!)
       const lb = el.getAttribute('aria-labelledby')
       if (lb) { const t = lb.split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' '); if (ok(t)) return stripStar(clean(t)) }
+      labelVia = 'for'
       const id = (el as HTMLElement).id
       if (id) { const l = document.querySelector(`label[for="${CSS.escape(id)}"]`); if (l && ok(pure(l))) return pure(l) }
       const pl = el.closest('label'); if (pl && ok(pure(pl))) return pure(pl)
+      labelVia = 'wrapper'
       const w = wrapperOf(el)
-      if (w) { const l = w.querySelector(LABEL); if (l && ok(pure(l))) return pure(l) }
+      if (w) { const t = firstLabel(w, el); if (t) return t }
       let c: Element | null = el.parentElement
-      for (let i = 0; i < 4 && c; i++, c = c.parentElement) { const l = c.querySelector(LABEL); if (l && ok(pure(l))) return pure(l) }
+      for (let i = 0; i < 4 && c; i++, c = c.parentElement) { const t = firstLabel(c, el); if (t) return t }
+      labelVia = 'pseudo'
+      const ps = pseudoLabel(el); if (ps) return ps
+      labelVia = 'geometry'
       const geo = geometryLabel(el); if (ok(geo)) return geo
+      labelVia = 'placeholder'
       const ph = (el as HTMLInputElement).placeholder; if (ok(ph)) return stripStar(ph)
+      labelVia = 'name'
       return stripStar(ok((el as HTMLInputElement).name))
+    }
+    const NAV_WORD_RX = /(人才招聘|招聘官网|校园招聘|社会招聘|首页|登录|注册|个人中心|我的投递|职位搜索|关于我们|加入我们|longcat|join us|careers?$)/i
+    const FIELDISH_RX = /(姓名|名称|学校|学院|专业|学历|学位|时间|日期|电话|手机|邮箱|地址|城市|证件|性别|民族|籍贯|政治|职位|岗位|公司|单位|经历|描述|成绩|排名|导师|方向|语言|水平|证书|奖项|链接|网址|作品|简历|附件|照片|期望|薪资|到岗|是否|name|school|major|degree|date|phone|email|city|title|company)/i
+    const suspicious = (label: string, via: string): string => {
+      if (!label) return '没有找到标签'
+      if (NAV_WORD_RX.test(label) && !FIELDISH_RX.test(label)) return '标签像导航栏 / 站点名'
+      if (/^[+＋]?\d+$/.test(label)) return '标签是纯数字（多半是区号前缀）'
+      if (label.length > 30 && !FIELDISH_RX.test(label)) return '标签过长，像说明文字'
+      if (via === 'name' && /^[a-z0-9_-]+$/i.test(label) && label.length > 18) return '只有内部字段名'
+      return ''
     }
     function groupLabel(first: Element, options: string[]): string {
       const rg = first.closest('[role=radiogroup], fieldset, [class*="radio-group" i]')
@@ -199,13 +286,36 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       }
       return ''
     }
-    const requiredOf = (el: Element) => {
-      if ((el as HTMLInputElement).required || el.getAttribute('aria-required') === 'true') return true
-      const w = wrapperOf(el)
-      if (!w) return false
-      if (/(^|\s)(is-required|required|ant-form-item-required)(\s|$)/i.test(w.className || '')) return true
-      const l = w.querySelector(LABEL)
-      return !!l && /[*＊]/.test(clean(l.textContent))
+    const REQ_CLASS_RX = /(^|\s)([\w-]*-)?(is-)?required(\s|$)|(^|\s)[\w-]*-required[\w-]*(\s|$)|(^|\s)(star|asterisk)(\s|$)/i
+    const starIn = (n: Element | null): boolean => {
+      if (!n) return false
+      for (const s of Array.from(n.querySelectorAll('i, em, span, b, sup, [class*="required" i], [class*="star" i], [class*="asterisk" i]')).slice(0, 12)) {
+        if (s.children.length === 0 && /^[*＊]$/.test((s.textContent || '').trim())) return true
+      }
+      try { if (/^"[*＊]/.test(getComputedStyle(n, '::before').content) || /^"[*＊]/.test(getComputedStyle(n, '::after').content)) return true } catch { /* ignore */ }
+      return /^[\s]*[*＊]/.test(clean(n.textContent)) || /[*＊][\s]*$/.test(clean(n.textContent))
+    }
+    const requiredOf = (el: Element): { required: boolean; via?: string } => {
+      if ((el as HTMLInputElement).required) return { required: true, via: 'attr' }
+      if (el.getAttribute('aria-required') === 'true') return { required: true, via: 'aria' }
+      // 表单项（mtd-form-item / ant-form-item / el-form-item / form-group / li / tr / fieldset）以内：
+      // 祖先 class 带 required，或表单项里的标签带 required class / 星号节点 / ::before 星号
+      const item = itemOf(el)
+      for (let n: Element | null = el.parentElement, i = 0; n && i < 6; n = n.parentElement, i++) {
+        if (n.getAttribute('aria-required') === 'true') return { required: true, via: 'aria' }
+        const cls = typeof n.className === 'string' ? n.className : ''
+        if (REQ_CLASS_RX.test(cls)) return { required: true, via: 'class' }
+        if (n === item || (!item && i >= 2)) break
+      }
+      if (item) {
+        for (const l of Array.from(item.querySelectorAll(LABEL)).filter(l => !l.contains(el)).slice(0, 3)) {
+          const lc = typeof l.className === 'string' ? l.className : ''
+          if (REQ_CLASS_RX.test(lc)) return { required: true, via: 'class' }
+          if (starIn(l)) return { required: true, via: 'star' }
+        }
+        if (starIn(item.firstElementChild)) return { required: true, via: 'star' }
+      }
+      return { required: false }
     }
     const out: RawField[] = []
     const meta: Record<string, { xpath: string; framework: string }> = {}
@@ -221,7 +331,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       if (!isFile && itype !== 'radio' && itype !== 'checkbox' && !vis(el)) continue
       if (el.closest('[class*="search" i][class*="box" i], [role="search"]')) continue
       const name = (el as HTMLInputElement).name || (el as HTMLElement).id || undefined
-      const required = requiredOf(el)
+      const req = requiredOf(el)
+      const required = req.required
       if (itype === 'radio') {
         const rn = (el as HTMLInputElement).name
         if (rn && seenRadio.has(rn)) continue
@@ -232,7 +343,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         const options = group.map(r => clean(labelFor(r) || (r as HTMLInputElement).value)).filter(Boolean)
         let value: string | undefined
         group.forEach((r, i) => { r.setAttribute('data-career-field', id); r.setAttribute('data-career-option', options[i] ?? String(i)); if ((r as HTMLInputElement).checked) value = options[i] })
-        out.push({ id, label: clean(groupLabel(el, options)) || rn || '', name: rn, type: 'radio', options, required, value })
+        out.push({ id, label: clean(groupLabel(el, options)) || rn || '', name: rn, type: 'radio', options, required, value, requiredVia: req.via })
         continue
       }
       const id = `f${n++}`
@@ -242,7 +353,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         const sel = el as HTMLSelectElement
         const options = Array.from(sel.options).map(o => clean(o.textContent)).filter(o => o && !isGeneric(o))
         const cur = sel.selectedIndex >= 0 ? clean(sel.options[sel.selectedIndex]?.textContent) : ''
-        out.push({ id, label: clean(labelFor(el)), name, type: 'select', options, required, value: cur && !isGeneric(cur) ? cur : undefined })
+        const label = clean(labelFor(el))
+        out.push({ id, label, name, type: 'select', options, required, value: cur && !isGeneric(cur) ? cur : undefined, requiredVia: req.via, labelUncertain: suspicious(label, labelVia) || undefined })
         continue
       }
       // 自定义下拉外壳只看祖先（antd 的隐藏搜索框自己的类名就含 "select"，不能把输入框当外壳）
@@ -252,11 +364,13 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         const shell = shellAncestor || el
         const shownEl = shell === el ? null : shell.querySelector('[class*="selection-item" i], [class*="single-value" i], [class*="selected-value" i], .el-input__inner, .layui-input') as HTMLElement | null
         const shown = clean((shownEl && shownEl !== el ? ((shownEl as HTMLInputElement).value || shownEl.textContent) : '') || (el as HTMLInputElement).value)
-        out.push({ id, label: clean(labelFor(el)), name, type: 'select', options: [], required, custom: true, value: shown && !isGeneric(shown) ? shown : undefined })
+        const label = clean(labelFor(el))
+        out.push({ id, label, name, type: 'select', options: [], required, custom: true, value: shown && !isGeneric(shown) ? shown : undefined, readonly: (el as HTMLInputElement).readOnly || undefined, requiredVia: req.via, labelUncertain: suspicious(label, labelVia) || undefined })
         continue
       }
       if (el.getAttribute('contenteditable') === 'true') {
-        out.push({ id, label: clean(labelFor(el)), name, type: 'richtext', required, value: clean((el as HTMLElement).innerText) || undefined })
+        const label = clean(labelFor(el))
+        out.push({ id, label, name, type: 'richtext', required, value: clean((el as HTMLElement).innerText) || undefined, requiredVia: req.via, labelUncertain: suspicious(label, labelVia) || undefined })
         continue
       }
       let type: FieldType = 'text'
@@ -268,7 +382,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       else if (type === 'file') value = input.files && input.files.length ? Array.from(input.files).map(f => f.name).join(', ') : undefined
       else value = input.value || undefined
       const ml = input.maxLength
-      out.push({ id, label: clean(labelFor(el)), name, type, required, value, maxLength: ml && ml > 0 ? ml : undefined, placeholder: ok(input.placeholder) || undefined })
+      const label = clean(labelFor(el))
+      out.push({ id, label, name, type, required, value, maxLength: ml && ml > 0 ? ml : undefined, placeholder: ok(input.placeholder) || undefined, readonly: input.readOnly || undefined, requiredVia: req.via, labelUncertain: type === 'file' || type === 'checkbox' ? undefined : suspicious(label, labelVia) || undefined })
     }
     for (const f of out) { const m = meta[f.id]; if (m) { f.xpath = m.xpath; f.framework = m.framework } }
     return out
@@ -454,6 +569,10 @@ export const fillValueScript: PageScript<FillValueArg, FillValueResult> = {
     if (tag === 'input' || tag === 'textarea') {
       const input = el as HTMLInputElement
       if (input.type === 'checkbox' || input.type === 'radio') { if (!input.checked) await click(input); return { ok: input.checked, strategy: 'native-check', framework } }
+      // 第二重：原型链 setter 只给普通可编辑文本框。只读 / combobox / 自定义下拉外壳里的展示框写进去只是"看起来有值"，
+      // 框架的数据模型并没有变（以前在这里读回相同就报成功，就是"学历 ← native-input"的假成功）
+      const inWidget = !!el.parentElement?.closest('.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, [class*="select" i], [class*="picker" i], [class*="cascader" i]')
+      if (input.readOnly || input.disabled || el.getAttribute('role') === 'combobox' || inWidget) return { ok: false, strategy: 'refused', framework, detail: '只读或自定义控件，不用原生赋值' }
       await typeNative(input, value)
       if (/school|major|学校|院校|专业|city|城市/i.test(fieldKey || '')) await click(document.body, 20) // 收起联想下拉
       return { ok: norm(input.value) === want, strategy: 'native-input', framework, detail: norm(input.value) === want ? undefined : `读回「${input.value}」` }
