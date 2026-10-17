@@ -193,8 +193,12 @@ describe('对话内流程卡片', () => {
 
   it('humanizeValue shows string arrays as a plain list', () => {
     expect(humanizeValue('["Java","MySQL"]')).toBe('Java、MySQL');
-    expect(humanizeValue('[1,2]')).toBe('[1,2]');
+    expect(humanizeValue('[1,2]')).toBe('1、2');
     expect(humanizeValue('[未完')).toBe('[未完');
     expect(humanizeValue('普通文字')).toBe('普通文字');
+    expect(humanizeValue(JSON.stringify([{ id: 'awd-1', title: '国家奖学金', claim_ids: ['c1'] }, { id: 'awd-2', title: '数模一等奖' }]))).toBe('国家奖学金、数模一等奖');
+    expect(humanizeValue(JSON.stringify(['education', 'experience', 'skills']), '/section_order')).toBe('教育 → 经历 → 技能');
+    expect(humanizeValue(JSON.stringify([{ id: 'x' }]))).toBe('1 项');
+    expect(humanizePath('/section_order')).toBe('板块顺序');
   });
 });

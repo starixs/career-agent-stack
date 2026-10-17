@@ -30,7 +30,7 @@ import { SEARCH_NOT_CONFIGURED_MESSAGE } from '../career/setup';
 import { applyJsonPatch, confirmTailorProposal, readTailorProposal } from '../career/tailor';
 import { getVault, vaultForRepos } from '../career/vault';
 import { ACCOUNT_FIELDS, reportAccountFetch } from '../career/accounts';
-import { gapsHeadline, jobLabel, persistDriveOutcome, type SubmitGate } from '../career/drive-outcome';
+import { applyTaskTitle, gapsHeadline, jobLabel, persistDriveOutcome, type SubmitGate } from '../career/drive-outcome';
 import { freezePacket, packetResumeFile, pickResumeForJob } from '../career/packets';
 import { acquireBrowserCapability } from '../browser-host/capability-client';
 import { broadcast as sseBroadcast } from '../sse';
@@ -471,7 +471,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     const runId = `run_${action.id}`;
     const registry = runs();
     let task = mode === 'continue' ? r.db.get<Task>('SELECT * FROM task WHERE kind=? AND payload_json LIKE ? ORDER BY created_at DESC LIMIT 1', ['apply', `%"action_id":"${action.id}"%`]) : undefined;
-    if (!task) task = r.createTask({ title: `网申填表 ${String(payload.job_id ?? '')}`, kind: 'apply', sessionId: sessionId(), payload: { ...payload, action_id: action.id } });
+    if (!task) task = r.createTask({ title: applyTaskTitle(typeof payload.job_id === 'string' ? r.getJob(payload.job_id) : undefined), kind: 'apply', sessionId: sessionId(), payload: { ...payload, action_id: action.id } });
     const taskId = task.id;
     r.updateTask(taskId, { status: 'running' });
     if (mode === 'continue') {

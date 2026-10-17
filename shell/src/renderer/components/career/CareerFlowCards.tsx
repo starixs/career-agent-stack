@@ -36,14 +36,33 @@ const SECTION_LABELS: Record<string, string> = {
   basics: '基本信息', summary: '个人简介', experiences: '经历', experience: '经历', projects: '项目', education: '教育', skills: '技能', awards: '奖项', bullets: '要点',
   objective: '求职意向', keywords: '关键词', name: '名称', title: '名称', position: '职位', role: '角色', org: '单位', department: '部门', location: '地点',
   start: '开始时间', end: '结束时间', school: '学校', major: '专业', degree: '学历', gpa: '成绩', courses: '课程', level: '熟练度',
-  phone: '手机', email: '邮箱', city: '城市', target_cities: '意向城市', availability: '到岗时间', links: '链接', certifications: '证书', custom_sections: '其他',
+  phone: '手机', email: '邮箱', city: '城市', target_cities: '意向城市', availability: '到岗时间', links: '链接', certifications: '证书', custom_sections: '其他', section_order: '板块顺序', section_titles: '板块标题',
 };
-/** 改动值若是 JSON 字符串数组（如技能关键词），按顿号连起来显示，不露出方括号和引号。 */
-export function humanizeValue(value: string): string {
+/** 对象里最像"名字"的字段，用来概括一项奖项 / 经历 / 证书。 */
+const NAME_KEYS = ['title', 'name', 'school', 'org', 'position', 'label', 'text', 'value'] as const;
+function itemName(item: unknown): string | null {
+  if (typeof item === 'string') return item;
+  if (typeof item === 'number' && Number.isFinite(item)) return String(item);
+  if (!item || typeof item !== 'object') return null;
+  for (const k of NAME_KEYS) {
+    const v = (item as Record<string, unknown>)[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return null;
+}
+/**
+ * 改动值若是 JSON 数组，按顿号连起来显示，不露出方括号、引号和内部 id：
+ * 字符串数组（技能关键词）直接连；对象数组（奖项、经历）取每项的名字；板块顺序换成中文板块名。
+ */
+export function humanizeValue(value: string, path = ''): string {
   if (!value.startsWith('[')) return value;
   try {
     const parsed: unknown = JSON.parse(value);
-    if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) return parsed.join('、');
+    if (!Array.isArray(parsed)) return value;
+    if (/section_order$/.test(path) && parsed.every(x => typeof x === 'string')) return parsed.map(x => SECTION_LABELS[x] ?? x).join(' → ');
+    const names = parsed.map(itemName);
+    if (names.every((n): n is string => n !== null)) return names.join('、');
+    return `${parsed.length} 项`;
   } catch { /* 不是 JSON，原样显示 */ }
   return value;
 }
@@ -268,7 +287,7 @@ export function ResumeDiffCard({ card, onDone, onDismiss }: CardProps) {
               <input type="checkbox" className="mt-0.5" checked={!!picked[o.path]} onChange={e => setPicked(p => ({ ...p, [o.path]: e.target.checked }))} aria-label={`应用：${humanizePath(o.path)}`} />
               <span className="min-w-0 flex-1">
                 <span className="font-medium text-[var(--ink)]">{OP_LABELS[o.op] ?? o.op} · {humanizePath(o.path)}</span>
-                {o.value && <span className="mt-1 block whitespace-pre-wrap text-sm text-[var(--ink)]">{humanizeValue(o.value)}</span>}
+                {o.value && <span className="mt-1 block whitespace-pre-wrap text-sm text-[var(--ink)]">{humanizeValue(o.value, o.path)}</span>}
                 {o.reason && <span className="mt-1 block">理由：{o.reason}</span>}
               </span>
             </label>

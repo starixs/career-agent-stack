@@ -11,7 +11,7 @@
  */
 import PQueue from 'p-queue';
 import type { ActionQueueItem, Repos, Task } from '@career/core';
-import { persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
+import { applyTaskTitle, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
 export interface BatchState {
@@ -314,7 +314,7 @@ export class BatchRunner {
 
   private taskFor(action: ActionQueueItem, payload: Record<string, unknown>, mode: 'start' | 'continue'): Task {
     const existing = mode === 'continue' ? this.repos.db.get<Task>('SELECT * FROM task WHERE kind=? AND payload_json LIKE ? ORDER BY created_at DESC LIMIT 1', ['apply', `%"action_id":"${action.id}"%`]) : undefined;
-    return existing ?? this.repos.createTask({ title: `网申填表 ${String(payload.job_id ?? '')}`, kind: 'apply', sessionId: this.deps.sessionId?.() ?? null, payload: { ...payload, action_id: action.id, batch: true } });
+    return existing ?? this.repos.createTask({ title: applyTaskTitle(typeof payload.job_id === 'string' ? this.repos.getJob(payload.job_id) : undefined), kind: 'apply', sessionId: this.deps.sessionId?.() ?? null, payload: { ...payload, action_id: action.id, batch: true } });
   }
 
   async runOne(action: ActionQueueItem, mode: 'start' | 'continue', running?: () => BatchState['running']): Promise<DriveOutcome> {

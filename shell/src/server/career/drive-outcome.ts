@@ -85,6 +85,12 @@ export function jobLabel(job: { company_name?: string | null; title?: string | n
   return text || '这个岗位';
 }
 
+/** 填表任务的标题（"今天做过"、任务中心都直接显示它），不带内部 id。 */
+export function applyTaskTitle(job: { company_name?: string | null; title?: string | null } | undefined | null): string {
+  const label = jobLabel(job);
+  return label === '这个岗位' ? '网申填表' : `网申填表 · ${label}`;
+}
+
 /** 提交卡片 / 给模型的说明里那句"填到哪了"，按实际数字生成。 */
 export function gateHeadline(gate: Pick<SubmitGate, 'requiredFilled' | 'requiredTotal'>, submitButton?: string): string {
   const where = submitButton ? `，停在「${submitButton}」前` : '，停在提交前';
