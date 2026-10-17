@@ -172,9 +172,12 @@ export const scanDialogsScript: PageScript<void, DialogScan> = {
       const cs = getComputedStyle(el)
       const r = el.getBoundingClientRect()
       const floating = cs.position === 'fixed' || cs.position === 'absolute' || cs.position === 'sticky'
-      if (!floating && r.width * r.height > vw * vh * 0.6) continue // 文档流里的大容器（布局类名碰巧带 modal / popup）
-      // 内容本身就是表单（抽屉里的网申表）：不是障碍
-      const inputs = Array.from(el.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select')).filter(shown)
+      // 不浮在页面上的东西不是障碍：真正挡路的弹窗必然 fixed / absolute 盖在表单上面，或有 aria-modal / role=dialog。
+      // 表单里的分区类名碰巧带 dialog / popup（美团"语言水平"一节就是）时，它在文档流里，不会挡住任何东西。
+      const declared = el.getAttribute('aria-modal') === 'true' || /^(dialog|alertdialog)$/.test(el.getAttribute('role') ?? '')
+      if (!floating && !declared) continue
+      // 内容本身就是表单（抽屉里的网申表、带输入框的分区）：不是障碍
+      const inputs = Array.from(el.querySelectorAll('input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select, [role=combobox]')).filter(shown)
       if (inputs.length >= 2) continue
       // 只保留最外层
       if (roots.some(x => x.contains(el))) continue
