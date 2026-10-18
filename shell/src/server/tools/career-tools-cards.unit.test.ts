@@ -106,7 +106,7 @@ describe('对话内流程卡片', () => {
     expect(byKind.drafts.data.items).toEqual([{ label: '为什么选择我们', value: '因为……', note: null }]);
   });
 
-  it('resume_tailor：推「简历改动」卡片；卡片的确认接口只应用勾选的路径', async () => {
+  it('resume_tailor：改动直接应用，不推「简历改动」卡片', async () => {
     const master = (await call('resume_master_create', { name: '主简历', basics: { name: '张三' } })).json();
     const job = repos.upsertJob({ source_platform: 'manual', title: '数据分析', company_name: '甲公司', jd_raw: 'JD', jd_parsed_json: JSON.stringify({ title: '数据分析', keywords: ['SQL'] }) });
     llm.push(() => JSON.stringify({
@@ -115,12 +115,19 @@ describe('对话内流程卡片', () => {
       unresolved: ['想补 Kafka'],
     }));
     const out = (await call('resume_tailor', { master_id: master.master_id, job_id: job.id })).json();
-    const c = cards().find(x => x.card.kind === 'resume_diff')!;
-    expect(c.card).toMatchObject({ id: `resume_diff:${out.tailored_id}`, title: '为「数据分析」定制简历：2 处改动', data: { tailored_id: out.tailored_id, unresolved: ['想补 Kafka'] } });
-    expect(c.card.data.ops).toEqual([
-      { op: 'add', path: '/basics/summary', value: '熟悉 SQL', reason: '对齐 JD 关键词 SQL' },
-      { op: 'add', path: '/basics/city', value: '上海', reason: null },
-    ]);
+    expect(cards().find(x => x.card.kind === 'resume_diff')).toBeUndefined();
+    expect(out).toMatchObject({ applied_ops: 2, unresolved: ['想补 Kafka'] });
+    const tailoredResume = (await call('resume_get', { resume_id: out.tailored_id })).json().resume as { basics: Record<string, string> };
+    expect(tailoredResume.basics).toMatchObject({ name: '张三', summary: '熟悉 SQL', city: '上海' });
+  });
+
+  it('确认接口只应用勾选的路径', async () => {
+    const master = (await call('resume_master_create', { name: '主简历', basics: { name: '张三' } })).json();
+    const job = repos.upsertJob({ source_platform: 'manual', title: '数据分析', company_name: '甲公司', jd_raw: 'JD', jd_parsed_json: JSON.stringify({ title: '数据分析', keywords: ['SQL'] }) });
+    llm.push(() => JSON.stringify({ patch: [{ op: 'add', path: '/basics/summary', value: '熟悉 SQL' }, { op: 'add', path: '/basics/city', value: '上海' }], reasons: [] }));
+    const out = (await call('resume_tailor', { master_id: master.master_id, job_id: job.id })).json();
+    // 回到母版内容，再只确认其中一处
+    repos.db.update('resume_tailored', String(out.tailored_id), { schema_json: JSON.stringify(parseResume({ basics: { name: '张三' } })) });
 
     const request = new Request(`http://local/api/career/resumes/${String(out.tailored_id)}/confirm`, { method: 'POST', body: JSON.stringify({ accepted_paths: ['/basics/summary'] }), headers: { 'Content-Type': 'application/json' } });
     const routeEvents: string[] = [];

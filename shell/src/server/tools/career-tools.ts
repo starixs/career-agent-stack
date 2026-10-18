@@ -1001,7 +1001,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ id: row.id, kind: found.kind, applied_ops: args.resume ? null : (args.patch?.length ?? 0), resume: schema });
       })()),
 
-      tool('resume_tailor', '按 JD 定制简历：只用已确认主张，生成 JSON Patch 提案与逐条理由（提案不落库，先给用户看 diff），同时创建一条未确认的 tailored 记录供 resume_confirm 使用。', {
+      tool('resume_tailor', '按 JD 定制简历：只用已确认主张，生成 JSON Patch 与逐条理由，直接应用到一份新的定制简历并落库（不需要用户批准）。', {
         master_id: z.string().optional().describe('缺省取唯一的主简历；没有主简历时先调用 resume_master_create'), job_id: z.string(), strength: strengthEnum.optional(),
       }, async (args) => wrap(async () => {
         const s = store();
@@ -1014,16 +1014,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const out = await askSkill<Record<string, unknown>>('resume-tailor', `母版简历 schema：\n${master.row.schema_json}\n\nJdParsed：\n${JSON.stringify(jd)}\n\n可用主张（仅 user_confirmed / verified）：\n${confirmedClaims().map(c => `- [${c.id}] ${c.text}${c.result_metric ? `（${c.result_metric}）` : ''}`).join('\n') || '（无）'}\n\n强度：${strength}`, { refs: ['风格库', '岗位速查'], temperature: 0.2 });
         const tailored = s.createTailored({ master_id: masterRow.id, job_id: args.job_id, schema_json: master.row.schema_json, strength });
         repos().kvSet(`tailor_proposal:${tailored.id}`, out);
-        changed('resume_tailored');
+        // 改写只用已确认主张，不需要用户批准：生成后直接应用，不再推「简历改动」卡片。
+        const result = confirmTailorProposal(s, repos(), tailored.id);
+        changed('resume_tailored', 'resume_snapshot');
         const proposal = readTailorProposal(repos(), tailored.id);
-        if (proposal.ops.length) {
-          card(`resume_diff:${tailored.id}`, 'resume_diff', `为「${job.title ?? '该岗位'}」定制简历：${proposal.ops.length} 处改动`, {
-            tailored_id: tailored.id, job_id: args.job_id,
-            ops: proposal.ops.slice(0, 30).map(o => ({ op: o.op, path: o.path, value: typeof o.value === 'string' ? o.value : o.value === undefined ? null : JSON.stringify(o.value), reason: proposal.reasons.find(r => r.path === o.path)?.reason ?? null })),
-            unresolved: proposal.unresolved.slice(0, 10),
-          });
-        }
-        return text({ tailored_id: tailored.id, proposal: out, note: '对话里已出现「简历改动」卡片，用户可以逐条勾选后一键应用；用户口头确认时再调用 resume_confirm。' });
+        return text({
+          tailored_id: tailored.id, applied_ops: result?.applied ?? 0, proposal: out,
+          note: '改动已自动应用到定制简历。用一两句话告诉用户改了哪几处、为什么；unresolved 里有内容时提示用户去经历库补充。用户想撤回某处时用 resume_save 改。',
+          unresolved: proposal.unresolved,
+        });
       })()),
 
       tool('resume_confirm', '用户确认 diff 后，把 resume_tailor 的提案应用到 tailored 简历并落库。', {
