@@ -116,31 +116,13 @@ describe('对话内流程卡片', () => {
     }));
     const out = (await call('resume_tailor', { master_id: master.master_id, job_id: job.id })).json();
     expect(cards().find(x => x.card.kind === 'resume_diff')).toBeUndefined();
-    expect(out).toMatchObject({ applied_ops: 2, unresolved: ['想补 Kafka'] });
+    expect(out).toMatchObject({ applied_ops: 2, job_title: '数据分析', company: '甲公司', unresolved: ['想补 Kafka'] });
+    expect(out.ops).toEqual([
+      { op: 'add', path: '/basics/summary', value: '熟悉 SQL', reason: '对齐 JD 关键词 SQL' },
+      { op: 'add', path: '/basics/city', value: '上海', reason: null },
+    ]);
     const tailoredResume = (await call('resume_get', { resume_id: out.tailored_id })).json().resume as { basics: Record<string, string> };
     expect(tailoredResume.basics).toMatchObject({ name: '张三', summary: '熟悉 SQL', city: '上海' });
-  });
-
-  it('确认接口只应用勾选的路径', async () => {
-    const master = (await call('resume_master_create', { name: '主简历', basics: { name: '张三' } })).json();
-    const job = repos.upsertJob({ source_platform: 'manual', title: '数据分析', company_name: '甲公司', jd_raw: 'JD', jd_parsed_json: JSON.stringify({ title: '数据分析', keywords: ['SQL'] }) });
-    llm.push(() => JSON.stringify({ patch: [{ op: 'add', path: '/basics/summary', value: '熟悉 SQL' }, { op: 'add', path: '/basics/city', value: '上海' }], reasons: [] }));
-    const out = (await call('resume_tailor', { master_id: master.master_id, job_id: job.id })).json();
-    // 回到母版内容，再只确认其中一处
-    repos.db.update('resume_tailored', String(out.tailored_id), { schema_json: JSON.stringify(parseResume({ basics: { name: '张三' } })) });
-
-    const request = new Request(`http://local/api/career/resumes/${String(out.tailored_id)}/confirm`, { method: 'POST', body: JSON.stringify({ accepted_paths: ['/basics/summary'] }), headers: { 'Content-Type': 'application/json' } });
-    const routeEvents: string[] = [];
-    const res = await handleCareerRoute(new URL(request.url).pathname, request, { repos, vault, llm: null, broadcast: (e) => { routeEvents.push(e); }, sessionId: () => 'sess-1' });
-    const body = await res!.json() as { ok: boolean; applied_ops: number };
-    expect(body).toMatchObject({ ok: true, applied_ops: 1 });
-    const resume = (await call('resume_get', { resume_id: out.tailored_id })).json().resume as { basics: Record<string, string> };
-    expect(resume.basics).toMatchObject({ name: '张三', summary: '熟悉 SQL' });
-    expect(resume.basics.city).toBeUndefined();
-    expect(routeEvents).toContain('career:data-changed');
-
-    const missing = await handleCareerRoute('/api/career/resumes/nope/confirm', new Request('http://local/api/career/resumes/nope/confirm', { method: 'POST', body: '{}' }), { repos, vault, llm: null, broadcast: () => {}, sessionId: () => 's' });
-    expect(missing!.status).toBe(404);
   });
 
   it('apply_run 卡在登录页且没存账号 → site_login 卡；已存密码则不推', async () => {

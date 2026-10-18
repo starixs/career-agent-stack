@@ -64,7 +64,6 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   question_attempt: '记下这次作答',
   question_bank: '翻题库',
   resume_ats: '做机筛自检',
-  resume_confirm: '改好简历',
   resume_export: '导出简历',
   resume_get: '读简历',
   resume_list: '看简历列表',

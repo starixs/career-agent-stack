@@ -8,7 +8,7 @@ import { emitEvent, onEvent } from '@/api/eventBus';
 import { TabContext, type TabContextValue } from '@/context/TabContext';
 
 import { CareerChatCards, collectToolUseIds } from './CareerChatCards';
-import { CareerFlowCards, humanizePath, humanizeValue } from './CareerFlowCards';
+import { CareerFlowCards } from './CareerFlowCards';
 import type { CareerCard } from './types';
 
 const card = (kind: CareerCard['kind'], data: Record<string, unknown>, title = '卡片'): CareerCard => ({ id: `${kind}:1`, kind, title, data, createdAt: '2026-10-03T00:00:00Z' });
@@ -112,16 +112,6 @@ describe('对话内流程卡片', () => {
     expect(apiPostJson).not.toHaveBeenCalledWith('/api/career/claims/c2/confirm', {});
   });
 
-  it('简历改动：按勾选路径应用', async () => {
-    renderCards([card('resume_diff', { tailored_id: 'rt1', ops: [{ op: 'replace', path: '/experiences/0/bullets/1', value: '新要点', reason: '对齐 JD 关键词' }, { op: 'remove', path: '/skills/3' }], unresolved: ['想补 Kafka 经验'] })]);
-    expect(screen.getByText('改写 · 经历 1 · 要点 2')).toBeInTheDocument();
-    expect(screen.getByText('理由：对齐 JD 关键词')).toBeInTheDocument();
-    expect(screen.getByText(/缺少已确认的经历支撑/)).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('应用：技能 4'));
-    fireEvent.click(screen.getByRole('button', { name: '应用所选 1 处' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/resumes/rt1/confirm', { accepted_paths: ['/experiences/0/bullets/1'] }));
-  });
-
   it('批量投递进行中：对话里出现进度卡，可暂停', async () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, batch: { status: 'paused', updatedAt: '', done: 2, failed: 0, handoffs: 0, queued: 3, todayCount: 2 } });
     renderCards([]);
@@ -201,23 +191,5 @@ describe('对话内流程卡片', () => {
 
   it('collectToolUseIds 只收集顶层工具调用', () => {
     expect([...collectToolUseIds([{ content: 'text' }, { content: [{ type: 'text' }, { type: 'tool_use', tool: { id: 't1' } }, { type: 'server_tool_use', tool: { id: 't2' } }] }])]).toEqual(['t1', 't2']);
-  });
-
-  it('humanizePath', () => {
-    expect(humanizePath('/basics/summary')).toBe('基本信息 · 个人简介');
-    expect(humanizePath('/projects/-')).toBe('项目（末尾）');
-    expect(humanizePath('/basics/objective')).toBe('基本信息 · 求职意向');
-    expect(humanizePath('/skills/0/keywords')).toBe('技能 1 · 关键词');
-  });
-
-  it('humanizeValue shows string arrays as a plain list', () => {
-    expect(humanizeValue('["Java","MySQL"]')).toBe('Java、MySQL');
-    expect(humanizeValue('[1,2]')).toBe('1、2');
-    expect(humanizeValue('[未完')).toBe('[未完');
-    expect(humanizeValue('普通文字')).toBe('普通文字');
-    expect(humanizeValue(JSON.stringify([{ id: 'awd-1', title: '国家奖学金', claim_ids: ['c1'] }, { id: 'awd-2', title: '数模一等奖' }]))).toBe('国家奖学金、数模一等奖');
-    expect(humanizeValue(JSON.stringify(['education', 'experience', 'skills']), '/section_order')).toBe('教育 → 经历 → 技能');
-    expect(humanizeValue(JSON.stringify([{ id: 'x' }]))).toBe('1 项');
-    expect(humanizePath('/section_order')).toBe('板块顺序');
   });
 });

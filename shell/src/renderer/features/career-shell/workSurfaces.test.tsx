@@ -100,6 +100,20 @@ describe('breakout card content follows the tool fields', () => {
     expect(card).not.toHaveTextContent('{{vault:');
   });
 
+  it('a tailored resume summarises the applied changes straight from the tool result', () => {
+    render(<WorkSurfaceCard surface="resume" tool={tool('resume_tailor', { result: JSON.stringify({
+      tailored_id: 'rt_1', job_title: 'AI 应用开发', company: '甲公司', applied_ops: 2,
+      ops: [{ op: 'replace', path: '/basics/objective', value: 'AI 应用开发工程师', reason: '对齐岗位方向' }, { op: 'add', path: '/skills/-', value: 'RAG', reason: null }],
+      unresolved: ['想补 Kafka'],
+    }) })} />);
+    const card = screen.getByTestId('career-surface-card-resume');
+    expect(card).toHaveTextContent('甲公司');
+    expect(card).toHaveTextContent('重写 1 · 新增 1');
+    expect(card).toHaveTextContent('1 处缺经历支撑');
+    expect(card).toHaveTextContent('已完成 · 查看');
+    expect(card).not.toHaveTextContent('等你采纳');
+  });
+
   it('a mock interview rail marks the follow-up stage once a transcript exists', () => {
     render(<WorkSurfaceCard surface="mock-interview" tool={tool('interview_probe', {
       parsedInput: { transcript: '问：…\n答：…', company_type: '大厂', round: '一面' },

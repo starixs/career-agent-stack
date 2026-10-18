@@ -6,7 +6,7 @@
  */
 import type { ReactNode } from 'react';
 
-import type { CareerCard, ExamPractice } from '@/components/career/types';
+import type { ExamPractice } from '@/components/career/types';
 import type { ToolUseSimple } from '@/types/chat';
 
 import { CountAnchor, DateAnchor, InitialAnchor, PageAnchor, RailAnchor, type BreakoutRow, type RailState } from './BreakoutCard';
@@ -102,10 +102,10 @@ function shortDate(value: unknown): string | null {
 
 // ─── 档案型 / 修订型：简历 ───
 
-export function resumeContent(tool: ToolUseSimple, diffCard: CareerCard | undefined, reveal: Reveal): CardContent {
+export function resumeContent(tool: ToolUseSimple, reveal: Reveal): CardContent {
   const result = parseResult(tool);
-  if (diffCard) {
-    const data = diffCard.data;
+  if (Array.isArray(result.ops)) {
+    const data = result;
     const ops = list(data.ops).map(dict).filter((op): op is Dict => Boolean(op));
     const sample = ops.find(op => str(op.value));
     const tally = (kind: string, label: string) => {
@@ -113,10 +113,10 @@ export function resumeContent(tool: ToolUseSimple, diffCard: CareerCard | undefi
       return n > 0 ? `${label} ${n}` : null;
     };
     const unresolved = count(data.unresolved) ?? 0;
-    const jobTitle = str(data.job_title) ?? /「(.+?)」/.exec(diffCard.title)?.[1] ?? null; // job_title：待后端
+    const jobTitle = str(data.job_title);
     return {
       anchor: <CountAnchor value={ops.length} unit="处修改" />,
-      title: str(data.company) ?? jobTitle ?? '定制简历', // company：待后端
+      title: str(data.company) ?? jobTitle ?? '定制简历',
       aside: str(data.company) ? jobTitle : null,
       overline: '按 JD 定制 · 基于主简历',
       body: sample && (
@@ -128,7 +128,7 @@ export function resumeContent(tool: ToolUseSimple, diffCard: CareerCard | undefi
       ),
       rows: [
         { label: '改动', value: joinParts([tally('replace', '重写'), tally('add', '新增'), tally('remove', '删除')]) },
-        { label: '待定', value: unresolved > 0 ? `${unresolved} 处要你拍板` : null },
+        { label: '待补', value: unresolved > 0 ? `${unresolved} 处缺经历支撑` : null },
       ],
     };
   }

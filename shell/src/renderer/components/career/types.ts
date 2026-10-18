@@ -186,7 +186,7 @@ export function liveStatusText(ev: LiveFrameStatus): string {
 export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
 
 // ---------- 对话内流程卡片（SSE career:card；对话是主场，卡片把"要用户动手的一步"就地解决） ----------
-export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'resume_diff' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps';
+export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps';
 /** 模型 Key（必需）/ 搜索 Key（建议）的配置状态；source=build 表示来自启动环境变量或打包常量。 */
 export interface CareerSetupStatus {
   llm: { configured: boolean; source: 'settings' | 'build' | 'none' };

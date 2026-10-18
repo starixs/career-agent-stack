@@ -57,7 +57,6 @@
 | GET | `/api/career/offers` | offer[] |
 | POST/PUT | `/api/career/offers[/:id]` | 新建 / 更新 |
 | GET | `/api/career/answer-bank` | answer_bank[] |
-| POST | `/api/career/resumes/:id/confirm` | `{accepted_paths?: string[]}`：把 resume_tailor 的提案（只取勾选的 JSON Pointer 路径，缺省全部）应用到定制简历并确认；与 resume_confirm 工具共用 `career/tailor.ts`。对话内「简历改动」卡片用 |
 | GET / PUT | `/api/career/resumes/:id/studio` | 简历工作台文档（resume-studio `ResumeData`）。GET 回 `{data, content_updated_at, rebuilt, preview}`（preview：占位符 → 明文，只给预览用）；PUT `{data}` 回写内容并存排版 |
 | GET | `/api/career/cards?session_id=` | 该会话的对话内卡片（含 `toolUseId` 锚点与 `state`） |
 | POST | `/api/career/cards/:id/state` | `{state:'pending'|'completed'|'dismissed'}` 完成 / 稍后 / 重新打开 |
@@ -157,8 +156,7 @@
 | `resume_master_create` | name?, direction?, basics?, education?, draft? | 创建主简历；缺省用 resume-draft 技能从已确认主张起草，basics / education 只搬运用户给的信息 |
 | `resume_get` | resume_id? | 读取简历完整 JSON（缺省唯一主简历） |
 | `resume_save` | resume_id?, resume \| patch | 按用户要求改简历并保存（先存快照） |
-| `resume_tailor` | master_id?, job_id, strength | 生成 JSON Patch 提案（不落库），返回 diff 摘要；master_id 缺省取唯一主简历 |
-| `resume_confirm` | tailored_id | 用户确认 diff 后落库 |
+| `resume_tailor` | master_id?, job_id, strength | 生成改动并直接写进新的定制简历（无审核），返回改动明细；master_id 缺省取唯一主简历 |
 | `resume_export` | resume_id, format | 导出并返回路径 |
 | `company_research` | company_name | intel-compass 九段报告 → company 表 |
 | `web_search` | query, count? | 唯一的外部动作 |

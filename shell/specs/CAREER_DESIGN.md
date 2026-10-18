@@ -384,7 +384,7 @@
 | 〃 | 〃 | `master.school` `degree` `graduation` | 次级标注「学校 · 学位 · 届别」 | 待后端 |
 | 〃 | 〃 | `master.skills` `awards`（数量） | 经历行「技能 N · 奖项 N」 | 待后端 |
 | 保存简历（档案） | resume_save | `kind` `applied_ops` `resume.basics.name/objective` `resume.education[0]` 各分区 | 全部 | 已有 |
-| 定制简历（修订） | resume_tailor + `resume_diff` 卡 | `ops[].op/value/reason`、`unresolved` | 「N 处修改」锚、改动统计、示例、待定 | 已有 |
+| 定制简历（修订） | resume_tailor 结果（改动直接生效，无审核卡） | `ops[].op/value/reason`、`unresolved` | 「N 处修改」锚、改动统计、示例、待定 | 已有 |
 | 〃 | 〃 | `company` `job_title`（现从卡片标题里截） | 标题 + 旁注 | 待后端 |
 | 〃 | 〃 | `ops[].old_value` | 示例里的删除线旧文字 | 待后端 |
 | 模拟面试（题目） | interview_probe | `result.question/follow_up`、`input.company_type/round/transcript/finish`、`result.verdict/todo` | 题目、旁注、轨道（开场/追问/复盘）、结论 | 已有 |

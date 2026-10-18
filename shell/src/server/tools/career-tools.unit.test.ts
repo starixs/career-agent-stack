@@ -56,7 +56,7 @@ describe('career 简历工具', () => {
   });
 
   it('注册了主简历工具，resume_tailor 的 master_id 变为可选', () => {
-    for (const name of ['resume_list', 'resume_master_create', 'resume_get', 'resume_save', 'resume_tailor', 'resume_confirm', 'resume_export']) {
+    for (const name of ['resume_list', 'resume_master_create', 'resume_get', 'resume_save', 'resume_tailor', 'resume_export']) {
       expect(mocks.handlers.has(name), name).toBe(true);
     }
   });

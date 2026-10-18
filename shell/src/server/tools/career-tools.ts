@@ -27,7 +27,7 @@ import { getSearchProvider, type CareerSearchProvider } from '../career/search';
 import { loadSkillPrompt } from '../career/skills';
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { SEARCH_NOT_CONFIGURED_MESSAGE } from '../career/setup';
-import { applyJsonPatch, confirmTailorProposal, readTailorProposal } from '../career/tailor';
+import { applyJsonPatch, parseTailorProposal } from '../career/tailor';
 import { getVault, vaultForRepos } from '../career/vault';
 import { ACCOUNT_FIELDS, reportAccountFetch } from '../career/accounts';
 import { applyTaskTitle, gapsHeadline, jobLabel, persistDriveOutcome, type SubmitGate } from '../career/drive-outcome';
@@ -1001,7 +1001,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ id: row.id, kind: found.kind, applied_ops: args.resume ? null : (args.patch?.length ?? 0), resume: schema });
       })()),
 
-      tool('resume_tailor', '按 JD 定制简历：只用已确认主张，生成 JSON Patch 与逐条理由，直接应用到一份新的定制简历并落库（不需要用户批准）。', {
+      tool('resume_tailor', '按 JD 定制简历：只用已确认主张生成改动并直接写进一份新的定制简历（不需要用户审核），返回改了哪几处与理由。', {
         master_id: z.string().optional().describe('缺省取唯一的主简历；没有主简历时先调用 resume_master_create'), job_id: z.string(), strength: strengthEnum.optional(),
       }, async (args) => wrap(async () => {
         const s = store();
@@ -1012,26 +1012,16 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (!jd) return err('该岗位还没有解析 JD，请先调用 jd_parse');
         const strength = args.strength ?? 'keywords';
         const out = await askSkill<Record<string, unknown>>('resume-tailor', `母版简历 schema：\n${master.row.schema_json}\n\nJdParsed：\n${JSON.stringify(jd)}\n\n可用主张（仅 user_confirmed / verified）：\n${confirmedClaims().map(c => `- [${c.id}] ${c.text}${c.result_metric ? `（${c.result_metric}）` : ''}`).join('\n') || '（无）'}\n\n强度：${strength}`, { refs: ['风格库', '岗位速查'], temperature: 0.2 });
+        const { ops, reasons, unresolved } = parseTailorProposal(out);
         const tailored = s.createTailored({ master_id: masterRow.id, job_id: args.job_id, schema_json: master.row.schema_json, strength });
-        repos().kvSet(`tailor_proposal:${tailored.id}`, out);
-        // 改写只用已确认主张，不需要用户批准：生成后直接应用，不再推「简历改动」卡片。
-        const result = confirmTailorProposal(s, repos(), tailored.id);
+        s.confirmTailored(tailored.id, applyJsonPatch(JSON.parse(master.row.schema_json), ops));
         changed('resume_tailored', 'resume_snapshot');
-        const proposal = readTailorProposal(repos(), tailored.id);
         return text({
-          tailored_id: tailored.id, applied_ops: result?.applied ?? 0, proposal: out,
-          note: '改动已自动应用到定制简历。用一两句话告诉用户改了哪几处、为什么；unresolved 里有内容时提示用户去经历库补充。用户想撤回某处时用 resume_save 改。',
-          unresolved: proposal.unresolved,
+          tailored_id: tailored.id, job_title: job.title ?? null, company: job.company_name ?? null, applied_ops: ops.length,
+          ops: ops.slice(0, 30).map(o => ({ op: o.op, path: o.path, value: typeof o.value === 'string' ? o.value : o.value === undefined ? null : JSON.stringify(o.value), reason: reasons.find(r => r.path === o.path)?.reason ?? null })),
+          unresolved,
+          note: '改动已直接写进定制简历。用一两句话告诉用户改了哪几处、为什么；unresolved 里有内容时提示用户去经历库补充。用户想改回某处时用 resume_save 改。',
         });
-      })()),
-
-      tool('resume_confirm', '用户确认 diff 后，把 resume_tailor 的提案应用到 tailored 简历并落库。', {
-        tailored_id: z.string(), accepted_paths: z.array(z.string()).optional().describe('只应用这些 JSON Pointer 路径的改动；缺省全部'),
-      }, async (args) => wrap(() => {
-        const result = confirmTailorProposal(store(), repos(), args.tailored_id, args.accepted_paths);
-        if (!result) return err(`定制简历不存在：${args.tailored_id}`);
-        changed('resume_tailored', 'resume_snapshot');
-        return text({ tailored: result.tailored, applied_ops: result.applied });
       })()),
 
       tool('resume_export', '导出简历为 pdf / docx / png，返回文件路径。', { resume_id: z.string(), format: z.enum(EXPORT_FORMATS) }, async (args) => wrap(async () => {

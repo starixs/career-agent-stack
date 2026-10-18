@@ -13,7 +13,6 @@ import type { Repos, ApplicationStage, JobPrefs, LLM, Vault, VaultScope } from '
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { StudioResumeNotFoundError, loadStudio, previewPlaceholders, saveStudio } from '../career/resume-studio';
 import { careerSetupStatus } from '../career/setup';
-import { confirmTailorProposal } from '../career/tailor';
 import { loadCore, type CoreModule } from '../career/core-module';
 import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges } from '../career/domain';
@@ -220,14 +219,6 @@ const ROUTES: Route[] = [
     }
   }),
 
-  /** 对话内「简历改动」卡片：只应用用户勾选的路径（缺省全部），与 resume_confirm 工具同一条路径。 */
-  route('POST', '/api/career/resumes/:id/confirm', (ctx) => {
-    const accepted = Array.isArray(ctx.body.accepted_paths) ? (ctx.body.accepted_paths as unknown[]).filter((p): p is string => typeof p === 'string') : undefined;
-    const result = confirmTailorProposal(ctx.store, ctx.repos, ctx.params.id, accepted);
-    if (!result) return fail(`定制简历不存在：${ctx.params.id}`, 404);
-    dataChanged(ctx, ['resume_tailored', 'resume_snapshot']);
-    return ok({ tailored: result.tailored, applied_ops: result.applied });
-  }),
   // 过机筛开关：开了之后导出与投递材料包都用单栏无照片的 ATS 版；自检按当前设置导出后抽文字对照
   route('GET', '/api/career/resumes/:id/ats', ({ repos, params }) => ok({ enabled: isAtsMode(repos, params.id) })),
   route('PUT', '/api/career/resumes/:id/ats', (ctx) => {

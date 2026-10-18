@@ -75,8 +75,6 @@ export const careerApi = {
   saveAnswer: (body: { question_key: string; question_text: string; answer: string; high_impact?: boolean; confirmed?: boolean }) =>
     apiPostJson<unknown>(careerPath('/answer-bank'), body).then(r => asDict(r)),
   /** 应用定制简历提案（只取勾选的 JSON Pointer 路径；缺省全部）并确认。 */
-  confirmResume: (id: string, acceptedPaths?: string[]) =>
-    apiPostJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/confirm`), acceptedPaths ? { accepted_paths: acceptedPaths } : {}).then(r => asDict(r)),
 
   // ----- 简历 -----
   resumes: () => apiGetJson<unknown>(careerPath('/resumes')).then(r => {
