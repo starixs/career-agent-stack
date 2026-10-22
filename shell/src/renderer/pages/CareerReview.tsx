@@ -1,9 +1,11 @@
 /**
- * 复盘：每周一次，用数字代替猜测。漏斗 + 基准线说明 + 周复盘（一件今天就能做的小事）。
+ * 复盘：每周一次，用数字代替猜测。顶部关键数字 + 累计漏斗（投出之后，对方的反馈）+ 本周甘特（有截止的事，自己的完成情况）
+ * + 周复盘（一件今天就能做的小事）。漏斗与甘特分工见 packages/core/src/review-board.ts。
  * 视图：漏斗与周复盘（新）/ 调研与方向（嵌入 CareerResearch）。
  */
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { onEvent } from '@/api/eventBus';
 import { careerApi, safeJson } from '@/components/career/careerApi';
@@ -12,7 +14,10 @@ import {
   Badge, Button, CareerPage, Card, ChatActionButton, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, formatDate,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
-import type { CareerFocusEvent, Funnel, FunnelRow, WeeklyReview } from '@/components/career/types';
+import { ReviewFunnelChart } from '@/components/career/review/ReviewFunnelChart';
+import { ReviewWeekGantt } from '@/components/career/review/ReviewWeekGantt';
+import { addDays, percent, shortDate } from '@/components/career/review/reviewLinks';
+import type { CareerFocusEvent, ReviewBoard, WeeklyReview } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
@@ -27,17 +32,14 @@ const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
   research: { title: '公司调研与方向', subtitle: '投之前先看一眼，也看看还有哪些方向适合你' },
 };
 
-const EMPTY_ROW: FunnelRow = { key: 'overall', total: 0, applied: 0, responded: 0, interview: 0, offer: 0, rejected: 0, silent: 0 };
-
-function rate(num: number, den: number): string {
-  return den > 0 ? `${Math.round((num / den) * 100)}%` : '—';
-}
-
-
 export default function CareerReview({ embedded = false }: CareerPageProps) {
   const [view, setView] = useCareerSubView<View>('career-review', DEFAULT_SUB_VIEWS['career-review']);
   const [focusId, setFocusId] = useState<string | null>(null);
-  const query = useCareerQuery(careerApi.review, ['application', 'application_history', 'weekly_review', 'job']);
+  // 看哪一周（周一日期）；null = 本周。看板的周数字和甘特跟着变，漏斗始终是累计。
+  const [week, setWeek] = useState<string | null>(null);
+  const query = useCareerQuery(() => careerApi.review(week ?? undefined), ['application', 'application_history', 'weekly_review', 'job', 'deadline', 'interview']);
+  const reload = query.reload;
+  const changeWeek = (next: string | null) => { setWeek(next); reload(); };
   const data = query.data;
 
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
@@ -63,10 +65,10 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
       subtitle={VIEW_HEADINGS[view].subtitle}
     >
       {view === 'funnel' && (
-        <div className="space-y-6 px-4 py-3">
+        <div className="space-y-8 px-6 py-4">
           {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
           {query.loading && !data && <LoadingRow />}
-          {data && <FunnelSection funnel={data.funnel} />}
+          {data && <BoardSection board={data.board} week={week} onWeek={changeWeek} />}
           {data && <WeeklySection reviews={data.reviews} highlightId={focusId} onChanged={query.reload} />}
         </div>
       )}
@@ -79,14 +81,14 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
   );
 }
 
-// ─── 漏斗 ───
+// ─── 本周看板：顶部数字 + 累计漏斗 + 本周甘特 ───
 
-function FunnelSection({ funnel }: { funnel: Funnel }) {
-  const overall = funnel.overall ?? EMPTY_ROW;
-  if (overall.total === 0) {
+function BoardSection({ board, week, onWeek }: { board: ReviewBoard | null; week: string | null; onWeek: (week: string | null) => void }) {
+  if (!board) return null;
+  const empty = board.funnel[0].n === 0 && board.gantt.length === 0 && board.undated.length === 0;
+  if (empty && board.week.is_current) {
     return (
       <section>
-        <SectionTitle>漏斗</SectionTitle>
         <EmptyState title="还没有投递数据。先在收件箱丢几个 JD，投出去之后这里会出现漏斗。" />
         <div className="flex justify-center">
           <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'review' }} />
@@ -94,93 +96,58 @@ function FunnelSection({ funnel }: { funnel: Funnel }) {
       </section>
     );
   }
-  const tiles: Array<{ label: string; value: number }> = [
-    { label: '总计', value: overall.total }, { label: '已投递', value: overall.applied }, { label: '有回应', value: overall.responded },
-    { label: '面试', value: overall.interview }, { label: 'Offer', value: overall.offer }, { label: '被拒', value: overall.rejected }, { label: '沉默', value: overall.silent },
-  ];
-  const rates: Array<{ label: string; value: string }> = [
-    { label: '过简历率', value: rate(overall.responded, overall.applied) },
-    { label: '面试推进率', value: rate(overall.interview, overall.responded) },
-    { label: 'Offer 率', value: rate(overall.offer, overall.interview) },
-  ];
+  const k = board.kpis;
+  const delta = k.applied - k.applied_prev;
+  const prevLabel = board.week.is_current ? '上周' : '前一周';
+  const lastDay = board.week.days[6];
   return (
-    <section className="space-y-4">
-      <div>
-        <SectionTitle>总体</SectionTitle>
-        <div className="grid grid-cols-4 gap-2 md:grid-cols-7" aria-label="总体数字">
-          {tiles.map(t => (
-            <div key={t.label} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
-              <div className="text-xs text-[var(--muted)]">{t.label}</div>
-              <div className="text-xl font-semibold tabular-nums text-[var(--ink)]" aria-label={`${t.label} ${t.value}`}>{t.value}</div>
-            </div>
-          ))}
+    <>
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="ghost" aria-label="上一周" onClick={() => onWeek(addDays(board.week.start, -7))}><ChevronLeft className="h-4 w-4" strokeWidth={1.75} /></Button>
+          <span className="text-sm font-medium tabular-nums text-[var(--ink)]" aria-live="polite">
+            {shortDate(board.week.start)} – {shortDate(lastDay)}{board.week.is_current ? ' · 本周' : ''}
+          </span>
+          <Button size="sm" variant="ghost" aria-label="下一周" disabled={board.week.is_current} onClick={() => onWeek(addDays(board.week.start, 7))}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
+          {week && !board.week.is_current && <Button size="sm" variant="ghost" onClick={() => onWeek(null)}>回到本周</Button>}
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" aria-label="转化率">
-          {rates.map(r => (
-            <span key={r.label} className="text-[var(--muted)]">{r.label} <span className="font-semibold tabular-nums text-[var(--ink)]">{r.value}</span></span>
-          ))}
+        <dl className="flex flex-wrap gap-x-10 gap-y-4" aria-label="关键数字">
+          <Stat label="投出" value={k.applied} note={delta === 0 ? `和${prevLabel}一样` : `比${prevLabel}${delta > 0 ? '多' : '少'} ${Math.abs(delta)}`} />
+          <Stat label="新回应" value={k.responded} note="第一次有回音的投递" />
+          <Stat label="面试" value={k.interviews} note="这周排上的面试" />
+          <Stat
+            label="到期事项完成"
+            value={k.due > 0 ? `${k.done}/${k.due}` : '—'}
+            note={k.missed > 0 ? `错过 ${k.missed} 件` : k.due > 0 ? '没有错过' : '还没有到期的事'}
+            noteTone={k.missed > 0 ? 'danger' : undefined}
+          />
+          <Stat label="累计回应率" value={percent(k.response_rate)} note="有回应 / 已投递" />
+        </dl>
+      </section>
+
+      <section className="space-y-2">
+        <SectionTitle extra={<span className="text-xs text-[var(--muted)]">累计 · 悬停看每一层的去向，点击钉住</span>}>投出之后走到了哪</SectionTitle>
+        <ReviewFunnelChart layers={board.funnel} />
+        <p className="text-xs text-[var(--subtle)]">经验上网申过简历率通常只有一到两成，沉默比被拒常见；这不是能力结论。</p>
+      </section>
+
+      <section className="space-y-2">
+        <SectionTitle extra={<span className="text-xs text-[var(--muted)]">{board.week.is_current ? '本周' : '所选这周'} · 点一行看对应投递</span>}>这周的事做完了没</SectionTitle>
+        <div className="overflow-x-auto">
+          <ReviewWeekGantt board={board} />
         </div>
-        <p className="mt-2 text-xs text-[var(--subtle)]">经验上网申过简历率通常只有一到两成，沉默比被拒常见；这不是能力结论。</p>
-      </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <FunnelTable title="按岗位类别" rows={funnel.by_category ?? []} />
-        <FunnelTable title="按平台" rows={funnel.by_platform ?? []} />
-      </div>
-    </section>
+      </section>
+    </>
   );
 }
 
-const COLS: Array<{ key: keyof FunnelRow; label: string }> = [
-  { key: 'total', label: '总计' }, { key: 'applied', label: '投递' }, { key: 'responded', label: '回应' },
-  { key: 'interview', label: '面试' }, { key: 'offer', label: 'Offer' }, { key: 'silent', label: '沉默' },
-];
-
-/** 推进率 = 面试 / 投递；只对有投递的行比较。 */
-function advanceRate(r: FunnelRow): number | null {
-  return r.applied > 0 ? r.interview / r.applied : null;
-}
-
-function FunnelTable({ title, rows }: { title: string; rows: FunnelRow[] }) {
-  const maxTotal = Math.max(1, ...rows.map(r => r.total));
-  let best: string | null = null;
-  let worst: string | null = null;
-  let bestRate = -1;
-  let worstRate = Number.POSITIVE_INFINITY;
-  for (const r of rows) {
-    const a = advanceRate(r);
-    if (a == null) continue;
-    if (a > bestRate) { bestRate = a; best = r.key; }
-    if (r.applied >= 3 && a < worstRate) { worstRate = a; worst = r.key; }
-  }
-  if (best === worst) worst = null;
+function Stat({ label, value, note, noteTone }: { label: string; value: number | string; note: string; noteTone?: 'danger' }) {
   return (
-    <Card title={title}>
-      {rows.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有可以分组的数据。</div>}
-      {rows.length > 0 && (
-        <div className="grid grid-cols-[minmax(96px,1.4fr)_repeat(6,minmax(40px,1fr))_minmax(60px,2fr)] gap-x-2 gap-y-1 text-xs" role="table" aria-label={title}>
-          <div className="contents text-[var(--muted)]" role="row">
-            <div role="columnheader">分组</div>
-            {COLS.map(c => <div key={c.key} role="columnheader" className="text-right">{c.label}</div>)}
-            <div role="columnheader" />
-          </div>
-          {rows.map(r => (
-            <div key={r.key} className="contents" role="row">
-              <div role="cell" className="flex min-w-0 flex-wrap items-center gap-1 text-[var(--ink)]">
-                <span className="truncate font-medium">{r.key || '未分类'}</span>
-                {r.key === best && <Badge tone="success">走得最远</Badge>}
-                {r.key === worst && <Badge tone="warning">挂得最多</Badge>}
-              </div>
-              {COLS.map(c => <div key={c.key} role="cell" className="text-right tabular-nums text-[var(--ink)]">{r[c.key]}</div>)}
-              <div role="cell" className="flex items-center">
-                <span className="h-2 w-full overflow-hidden rounded-full bg-[var(--inset)]">
-                  <span className="block h-full rounded-full bg-[var(--primary)]" style={{ width: `${Math.round((r.total / maxTotal) * 100)}%` }} />
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
+    <div className="min-w-[88px]">
+      <dt className="text-xs text-[var(--muted)]">{label}</dt>
+      <dd className="text-3xl font-semibold text-[var(--ink)]" aria-label={`${label} ${value}`}>{value}</dd>
+      <dd className={`text-xs ${noteTone === 'danger' ? 'text-[var(--danger)]' : 'text-[var(--subtle)]'}`}>{note}</dd>
+    </div>
   );
 }
 

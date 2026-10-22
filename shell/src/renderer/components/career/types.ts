@@ -266,6 +266,26 @@ export interface Dossier {
 }
 export interface FunnelRow { key: string; total: number; applied: number; responded: number; interview: number; offer: number; rejected: number; silent: number }
 export interface Funnel { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null }
+/** 漏斗与周复盘页的看板，结构同 @career/core 的 ReviewBoard。 */
+export type FunnelLayerKey = 'applied' | 'responded' | 'interview' | 'offer';
+export interface ReviewFunnelLayer {
+  layer: FunnelLayerKey; n: number; rate: number | null; new_this_week: number;
+  stopped: { waiting: number; silent: number; rejected: number; discarded: number; hired: number };
+  median_days_to_next: number | null; application_ids: string[]; silent_ids: string[]; summary: string;
+}
+export type GanttStatus = 'done' | 'open' | 'missed' | 'cancelled';
+export interface GanttItem {
+  id: string; source: 'deadline' | 'interview'; kind: DeadlineKind; title: string; company_name: string | null; application_id: string | null;
+  start: string; end: string; status: GanttStatus;
+}
+export interface ReviewBoard {
+  week: { start: string; days: string[]; is_current: boolean; tz_offset_minutes: number };
+  kpis: { applied: number; applied_prev: number; responded: number; interviews: number; due: number; done: number; missed: number; response_rate: number | null };
+  funnel: ReviewFunnelLayer[];
+  gantt: GanttItem[];
+  undated: Array<Pick<GanttItem, 'id' | 'kind' | 'title' | 'company_name' | 'application_id'>>;
+  daily: Array<{ date: string; n: number; by_platform: Array<{ key: string; n: number }>; application_ids: string[] }>;
+}
 export interface IntakeResult {
   item: InboxItem; triage: { kind?: string; summary?: string; urgency?: string } | null;
   created: { job_id?: string; application_id?: string; interview_id?: string; offer_id?: string; deadline_ids: string[]; closed_application_id?: string };
@@ -274,6 +294,8 @@ export interface IntakeResult {
 /** 工具 / 路由完成后让面板跳到对应对象。 */
 export interface CareerFocusEvent {
   sessionId?: string | null; surface: 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
+  /** 投递记录按一组投递筛选（从漏斗、甘特跳过去）；label 说明这组是什么。 */
+  filter?: { label: string; application_ids: string[] };
   /** assistant = 小芽在对话里做完事推来的提示：只记下定位，不把用户从对话里带走。 */
   origin?: 'user' | 'assistant';
 }

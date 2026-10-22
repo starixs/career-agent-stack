@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
@@ -9,18 +9,32 @@ import { emitEvent, onEvent } from '@/api/eventBus';
 import { resetCareerSubViews, setCareerSubView } from '@/features/career-shell/subViewStore';
 import CareerReview from './CareerReview';
 
-const funnel = {
-  overall: { key: 'overall', total: 12, applied: 10, responded: 3, interview: 2, offer: 1, rejected: 2, silent: 5 },
-  by_category: [
-    { key: '后端', total: 6, applied: 5, responded: 2, interview: 2, offer: 1, rejected: 1, silent: 2 },
-    { key: '算法', total: 4, applied: 4, responded: 1, interview: 0, offer: 0, rejected: 1, silent: 3 },
-    { key: '数据', total: 2, applied: 1, responded: 0, interview: 0, offer: 0, rejected: 0, silent: 0 },
+const funnel = { overall: null, by_category: [], by_platform: [] };
+const layer = (layer: string, n: number, extra: Record<string, unknown> = {}) => ({
+  layer, n, rate: null, new_this_week: 0, stopped: { waiting: 0, silent: 0, rejected: 0, discarded: 0, hired: 0 },
+  median_days_to_next: null, application_ids: [], silent_ids: [], summary: '', ...extra,
+});
+const board = {
+  week: { start: '2026-10-19', days: ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25'], is_current: true, tz_offset_minutes: 480 },
+  kpis: { applied: 3, applied_prev: 2, responded: 1, interviews: 1, due: 3, done: 2, missed: 1, response_rate: 0.5 },
+  funnel: [
+    layer('applied', 4, { new_this_week: 3, stopped: { waiting: 1, silent: 1, rejected: 0, discarded: 0, hired: 0 }, application_ids: ['a', 'b', 'c', 'd'], silent_ids: ['c'], summary: '累计投出 4 条。' }),
+    layer('responded', 2, { rate: 0.5, new_this_week: 1, application_ids: ['a', 'b'], median_days_to_next: 4, summary: '已投递的 4 条里，2 条走到了有回应（50%）。' }),
+    layer('interview', 2, { rate: 1, stopped: { waiting: 1, silent: 0, rejected: 1, discarded: 0, hired: 0 }, application_ids: ['a', 'b'] }),
+    layer('offer', 0, { rate: 0 }),
   ],
-  by_platform: [
-    { key: 'boss', total: 8, applied: 7, responded: 3, interview: 2, offer: 1, rejected: 1, silent: 3 },
-    { key: 'liepin', total: 4, applied: 3, responded: 0, interview: 0, offer: 0, rejected: 1, silent: 2 },
+  gantt: [
+    { id: 'late', source: 'deadline', kind: 'written_test', title: '甲公司笔试', company_name: '甲公司', application_id: 'a', start: '2026-10-19T02:00:00Z', end: '2026-10-20T06:00:00Z', status: 'missed' },
+    { id: 'i2', source: 'interview', kind: 'interview', title: '乙公司 二面', company_name: '乙公司', application_id: 'b', start: '2026-10-19T00:00:00Z', end: '2026-10-21T02:00:00Z', status: 'done' },
+    { id: 'next', source: 'deadline', kind: 'assessment', title: '无主测评', company_name: null, application_id: null, start: '2026-10-21T00:00:00Z', end: '2026-10-29T06:00:00Z', status: 'open' },
+  ],
+  undated: [{ id: 'tbd', kind: 'assessment', title: '丙 测评', company_name: '丙公司', application_id: 'c' }],
+  daily: [
+    { date: '2026-10-19', n: 2, by_platform: [{ key: 'boss', n: 1 }, { key: 'campus', n: 1 }], application_ids: ['d', 'e'] },
+    ...['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25'].map((date, i) => ({ date, n: i === 1 ? 1 : 0, by_platform: i === 1 ? [{ key: 'boss', n: 1 }] : [], application_ids: i === 1 ? ['f'] : [] })),
   ],
 };
+const emptyBoard = { ...board, kpis: { ...board.kpis, applied: 0 }, funnel: board.funnel.map(l => ({ ...l, n: 0 })), gantt: [], undated: [], daily: board.daily.map(d => ({ ...d, n: 0 })) };
 const reviews = [
   {
     id: 'r1', week_start: '2026-09-28', funnel_json: '{}', small_action: '给丙公司发一封一面后的跟进邮件',
@@ -34,7 +48,7 @@ const reviews = [
 function mockGet(opts: { empty?: boolean; noReviews?: boolean } = {}) {
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
     if (path.startsWith('/api/career/review')) {
-      return { ok: true, funnel: opts.empty ? { overall: null, by_category: [], by_platform: [] } : funnel, reviews: opts.noReviews || opts.empty ? [] : reviews };
+      return { ok: true, funnel, board: opts.empty ? emptyBoard : board, reviews: opts.noReviews || opts.empty ? [] : reviews };
     }
     return { ok: true };
   });
@@ -52,32 +66,69 @@ describe('CareerReview', () => {
     render(<CareerReview isActive onOpenChat={vi.fn()} />);
     expect(await screen.findByText('还没有投递数据。先在收件箱丢几个 JD，投出去之后这里会出现漏斗。')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '帮我看看接下来该投什么' })).toBeInTheDocument();
-    expect(screen.queryByText('过简历率')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('累计漏斗')).not.toBeInTheDocument();
   });
 
-  it('总体数字、转化率、基准线说明与分组表', async () => {
+  it('顶部关键数字：投出和上周比、到期事项完成与错过、累计回应率', async () => {
     mockGet();
     render(<CareerReview isActive onOpenChat={vi.fn()} />);
-    expect(await screen.findByLabelText('总计 12')).toBeInTheDocument();
-    expect(screen.getByLabelText('沉默 5')).toBeInTheDocument();
-    const rates = screen.getByLabelText('转化率');
-    expect(rates).toHaveTextContent('过简历率 30%');
-    expect(rates).toHaveTextContent('面试推进率 67%');
-    expect(rates).toHaveTextContent('Offer 率 50%');
-    expect(screen.getByText('经验上网申过简历率通常只有一到两成，沉默比被拒常见；这不是能力结论。')).toBeInTheDocument();
-    const byCategory = screen.getByRole('table', { name: '按岗位类别' });
-    expect(byCategory).toHaveTextContent('后端');
-    expect(byCategory).toHaveTextContent('走得最远');
-    expect(byCategory).toHaveTextContent('挂得最多');
-    const byPlatform = screen.getByRole('table', { name: '按平台' });
-    expect(byPlatform).toHaveTextContent('boss');
-    expect(byPlatform.querySelectorAll('[role="row"]')).toHaveLength(3);
+    const stats = await screen.findByLabelText('关键数字');
+    expect(within(stats).getByLabelText('投出 3')).toBeInTheDocument();
+    expect(stats).toHaveTextContent('比上周多 1');
+    expect(within(stats).getByLabelText('到期事项完成 2/3')).toBeInTheDocument();
+    expect(stats).toHaveTextContent('错过 1 件');
+    expect(within(stats).getByLabelText('累计回应率 50%')).toBeInTheDocument();
+    expect(screen.getByText('10/19 – 10/25 · 本周')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下一周' })).toBeDisabled();
   });
 
-  it('分母为 0 时转化率显示 —', async () => {
-    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, funnel: { overall: { key: 'overall', total: 3, applied: 0, responded: 0, interview: 0, offer: 0, rejected: 0, silent: 0 }, by_category: [], by_platform: [] }, reviews: [] });
+  it('漏斗：悬停弹出去向和总结，按钮带着这一层的投递跳到投递记录', async () => {
+    mockGet();
     render(<CareerReview isActive onOpenChat={vi.fn()} />);
-    expect(await screen.findByLabelText('转化率')).toHaveTextContent('过简历率 —');
+    const applied = await screen.findByRole('button', { name: '已投递 4 条' });
+    expect(screen.getByRole('button', { name: '有回应 2 条，上一层的 50%' })).toBeInTheDocument();
+    fireEvent.mouseEnter(applied);
+    const pop = screen.getByRole('dialog', { name: '已投递详情' });
+    expect(pop).toHaveTextContent('累计投出 4 条。');
+    expect(within(pop).getByLabelText('去向')).toHaveTextContent('走到下一层2还在等1沉默1');
+    const seen: unknown[] = [];
+    const off = onEvent('career:focus', p => { seen.push(p); });
+    fireEvent.click(within(pop).getByRole('button', { name: '只看沉默的 1 条' }));
+    expect(seen).toEqual([{ surface: 'dossier', origin: 'user', filter: { label: '漏斗 · 停在已投递且已沉默', application_ids: ['c'] } }]);
+    off();
+    fireEvent.mouseLeave(applied);
+    expect(screen.queryByRole('dialog', { name: '已投递详情' })).not.toBeInTheDocument();
+    // 点击钉住，Esc 收起
+    fireEvent.click(screen.getByRole('button', { name: '有回应 2 条，上一层的 50%' }));
+    fireEvent.mouseLeave(screen.getByRole('button', { name: '有回应 2 条，上一层的 50%' }));
+    expect(screen.getByRole('dialog', { name: '有回应详情' })).toHaveTextContent('已钉住');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: '有回应详情' })).not.toBeInTheDocument();
+  });
+
+  it('甘特：每件事带状态文字，点一行跳到对应投递；每日投出可点；时间待定的另列', async () => {
+    mockGet();
+    render(<CareerReview isActive onOpenChat={vi.fn()} />);
+    const late = await screen.findByRole('button', { name: '甲公司笔试，笔试，截止 10/20 周二 14:00，已错过' });
+    expect(late).toHaveTextContent('已错过');
+    expect(screen.getByRole('group', { name: '无主测评，测评，截止 10/29 周四 14:00，待完成' })).toHaveTextContent('→ 10/29');
+    expect(screen.getByText('另有 1 件时间待定：丙公司 测评')).toBeInTheDocument();
+    const seen: unknown[] = [];
+    const off = onEvent('career:focus', p => { seen.push(p); });
+    fireEvent.click(late);
+    fireEvent.click(screen.getByRole('button', { name: '周一 投出 2 条：Boss 直聘 1、校招官网 1' }));
+    expect(seen).toEqual([
+      { surface: 'dossier', origin: 'user', application_id: 'a' },
+      { surface: 'dossier', origin: 'user', filter: { label: '10/19 周一投出的', application_ids: ['d', 'e'] } },
+    ]);
+    off();
+  });
+
+  it('切到上一周带 week 参数重新取数', async () => {
+    mockGet();
+    render(<CareerReview isActive onOpenChat={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: '上一周' }));
+    await waitFor(() => expect(apiGetJson).toHaveBeenCalledWith('/api/career/review?week=2026-10-12'));
   });
 
   it('生成本周复盘调用 review/weekly，带上补充说明', async () => {

@@ -65,7 +65,7 @@ function relativeDue(iso: string | null): string {
   return days === 1 ? '明天' : `${days} 天后`;
 }
 
-interface FocusRequest { application_id: string | null; job_id: string | null }
+interface FocusRequest { application_id: string | null; job_id: string | null; filter: CareerFocusEvent['filter'] | null }
 
 export default function CareerDossier({ embedded = false }: CareerPageProps) {
   const [storedView, setView] = useCareerSubView<View>('career-dossier', DEFAULT_SUB_VIEWS['career-dossier']);
@@ -73,13 +73,13 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
   // 从别的面（小芽面板、今日）跳进来时，事件可能在本页挂载前就发了
   const [focus, setFocus] = useState<FocusRequest | null>(() => {
     const pending = takeCareerFocus('dossier');
-    return pending ? { application_id: pending.application_id ?? pending.id ?? null, job_id: pending.job_id ?? null } : null;
+    return pending ? toFocusRequest(pending) : null;
   });
 
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
     if (payload?.surface !== 'dossier') return;
     setView('line');
-    setFocus({ application_id: payload.application_id ?? payload.id ?? null, job_id: payload.job_id ?? null });
+    setFocus(toFocusRequest(payload));
   }), [setView]);
 
   const heading = VIEW_HEADINGS[view] ?? VIEW_HEADINGS.line;
@@ -89,7 +89,7 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
       title={heading.title}
       subtitle={heading.subtitle}
     >
-      {view === 'line' && <DossierLine focus={focus} />}
+      {view === 'line' && <DossierLine focus={focus} onClearFilter={() => setFocus(f => (f ? { ...f, filter: null } : f))} />}
       {view === 'assist' && <AssistRecords />}
       {view === 'assist' && <PageAskBar target={{ kind: 'career-dossier', view }} placeholder="问问笔试面试安排，比如「下周有哪些笔试和面试」" />}
       {view !== 'line' && view !== 'assist' && (
@@ -105,24 +105,31 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
 
 // ─── 投递线 ───
 
+function toFocusRequest(e: CareerFocusEvent): FocusRequest {
+  return { application_id: e.application_id ?? e.id ?? null, job_id: e.job_id ?? null, filter: e.filter ?? null };
+}
+
 function resolveFocus(focus: FocusRequest, summaries: DossierSummary[] | null): string | null {
   if (focus.application_id) return focus.application_id;
   if (focus.job_id && summaries) return summaries.find(s => s.job_id === focus.job_id)?.application_id ?? null;
   return null;
 }
 
-function DossierLine({ focus }: { focus: FocusRequest | null }) {
+function DossierLine({ focus, onClearFilter }: { focus: FocusRequest | null; onClearFilter: () => void }) {
   const query = useCareerQuery(careerApi.dossiers, DOSSIER_TABLES);
   const summaries = query.data;
   const [search, setSearch] = useState('');
   const [jdFor, setJdFor] = useState<DossierSummary | null>(null);
 
+  // 从漏斗 / 甘特跳过来时只看那一组投递
+  const filter = focus?.filter ?? null;
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = summaries ?? [];
-    return (q ? list.filter(s => `${s.company_name ?? ''} ${s.title}`.toLowerCase().includes(q)) : [...list])
+    const only = filter ? new Set(filter.application_ids) : null;
+    const list = (summaries ?? []).filter(s => !only || only.has(s.application_id));
+    return (q ? list.filter(s => `${s.company_name ?? ''} ${s.title}`.toLowerCase().includes(q)) : list)
       .sort((x, y) => submittedAt(y).localeCompare(submittedAt(x)));
-  }, [summaries, search]);
+  }, [summaries, search, filter]);
 
   // 别处跳过来（小芽面板、消息、今日）：不再摊开档案，只在列表里高亮那一条并滚过去
   const focusedId = focus ? resolveFocus(focus, summaries) : null;
@@ -135,6 +142,14 @@ function DossierLine({ focus }: { focus: FocusRequest | null }) {
           <TextInput aria-label="搜索投递线" placeholder="搜公司或岗位" value={search} onChange={e => setSearch(e.target.value)} className="!h-8 !w-56 pl-8" />
         </label>
         {summaries && <span className="text-xs tabular-nums text-[var(--muted)]">{rows.length} 条投递</span>}
+        {filter && (
+          <span className="flex items-center gap-1 rounded-full bg-[var(--inset)] py-0.5 pl-3 pr-1 text-xs text-[var(--ink-2)]">
+            只看：{filter.label}
+            <button type="button" aria-label="清除筛选" className="flex h-6 w-6 items-center justify-center rounded-full text-[var(--muted)] hover:bg-[var(--hover)]" onClick={onClearFilter}>
+              <X className="h-3.5 w-3.5" strokeWidth={1.75} />
+            </button>
+          </span>
+        )}
       </div>
       <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
@@ -157,7 +172,7 @@ function DossierLine({ focus }: { focus: FocusRequest | null }) {
             </tbody>
           </table>
         )}
-        {summaries && summaries.length > 0 && rows.length === 0 && <div className="py-8 text-center text-xs text-[var(--subtle)]">没有匹配「{search.trim()}」的投递</div>}
+        {summaries && summaries.length > 0 && rows.length === 0 && <div className="py-8 text-center text-xs text-[var(--subtle)]">{search.trim() ? `没有匹配「${search.trim()}」的投递` : '这一组里没有投递'}</div>}
       </div>
       {jdFor && <JdDialog summary={jdFor} onClose={() => setJdFor(null)} />}
       <PageAskBar target={{ kind: 'career-dossier', view: 'line' }} placeholder="问问投递情况，比如「这个月投了多少、几个进了面试」" />

@@ -109,24 +109,41 @@ export function stageLabel(stage: ApplicationStage): string {
 
 // ---------- 漏斗 / 代理反馈 ----------
 export interface FunnelRow { key: string; total: number; applied: number; responded: number; interview: number; offer: number; rejected: number; silent: number }
-const AFTER_APPLY: ApplicationStage[] = ['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired']
-const AFTER_RESPOND: ApplicationStage[] = ['responded', 'interview', 'offer', 'hired']
-const AFTER_INTERVIEW: ApplicationStage[] = ['interview', 'offer', 'hired']
+
+/** 投出之后的漏斗层（Offer 层含已入职）。 */
+export const FUNNEL_LAYERS = ['applied', 'responded', 'interview', 'offer'] as const
+export type FunnelLayer = typeof FUNNEL_LAYERS[number]
+const LAYER_OF: Partial<Record<ApplicationStage, number>> = { applied: 0, responded: 1, interview: 2, offer: 3, hired: 3 }
+
+/**
+ * 投递最远走到第几层（-1 = 还没投出）。按「走到过」算而不是按当前阶段：面试后被拒的投递当前是 rejected，
+ * 但它确实过了回应和面试两层。reached 是阶段历史里出现过的阶段；没有历史时，被拒只可能发生在投出之后，
+ * 算作投出；放弃可能发生在评估阶段，不算。
+ */
+export function furthestLayer(stage: ApplicationStage, reached: readonly string[] = []): number {
+  let best = LAYER_OF[stage] ?? -1
+  for (const s of reached) best = Math.max(best, LAYER_OF[s as ApplicationStage] ?? -1)
+  if (best < 0 && stage === 'rejected') best = 0
+  return best
+}
+
+export type FunnelInputRow = Application & { job: Pick<Job, 'title' | 'company_name' | 'source_platform'>; reached_stages?: readonly string[] }
 
 export function funnelBy(
-  rows: Array<Application & { job: Pick<Job, 'title' | 'company_name' | 'source_platform'> }>,
-  keyOf: (r: Application & { job: Pick<Job, 'title' | 'company_name' | 'source_platform'> }) => string,
+  rows: FunnelInputRow[],
+  keyOf: (r: FunnelInputRow) => string,
   nowIso: string,
 ): FunnelRow[] {
   const map = new Map<string, FunnelRow>()
   for (const r of rows) {
     const key = keyOf(r)
     const f = map.get(key) ?? { key, total: 0, applied: 0, responded: 0, interview: 0, offer: 0, rejected: 0, silent: 0 }
+    const layer = furthestLayer(r.stage, r.reached_stages)
     f.total++
-    if (AFTER_APPLY.includes(r.stage)) f.applied++
-    if (AFTER_RESPOND.includes(r.stage)) f.responded++
-    if (AFTER_INTERVIEW.includes(r.stage)) f.interview++
-    if (r.stage === 'offer' || r.stage === 'hired') f.offer++
+    if (layer >= 0) f.applied++
+    if (layer >= 1) f.responded++
+    if (layer >= 2) f.interview++
+    if (layer >= 3) f.offer++
     if (r.stage === 'rejected') f.rejected++
     if (silenceOf(r.stage, r.updated_at, nowIso).silent) f.silent++
     map.set(key, f)

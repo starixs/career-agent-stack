@@ -6,8 +6,9 @@ import { inferEmploymentType, mergeBoardMeta, normalizeCohort, parseBoardJson } 
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
-import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage } from './types.js'
+import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage, Interview } from './types.js'
 import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
+import { buildReviewBoard, type ReviewBoard, type StageHistoryRow } from './review-board.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
 export interface AnswerRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: AnswerSensitivity; source: string; use_count: number; last_used_at: string | null; updated_at: string }
@@ -589,12 +590,30 @@ export class Repos {
   }
 
   // ---------- 漏斗 / 复盘 ----------
+  /** 全部阶段流转，按时间先后。 */
+  stageHistory(): StageHistoryRow[] {
+    return this.db.all<StageHistoryRow>('SELECT application_id, from_stage, to_stage, created_at FROM application_history ORDER BY created_at, rowid')
+  }
   funnel(nowIso = now()): { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null } {
-    const rows = this.applicationsWithJob()
+    const reached = new Map<string, string[]>()
+    for (const h of this.stageHistory()) reached.set(h.application_id, [...(reached.get(h.application_id) ?? []), h.to_stage])
+    const rows = this.applicationsWithJob().map(a => ({ ...a, reached_stages: reached.get(a.id) ?? [] }))
     const byCategory = funnelBy(rows, r => classifyJobTitle(r.job.title), nowIso)
     const byPlatform = funnelBy(rows, r => r.job.source_platform, nowIso)
     const overall = funnelBy(rows, () => 'all', nowIso)[0] ?? null
     return { by_category: byCategory, by_platform: byPlatform, overall }
+  }
+  /** 漏斗与周复盘页的看板：累计漏斗（投出之后）+ 本周甘特（有截止时间的事）+ 每日投出。 */
+  reviewBoard(opts: { nowIso?: string; weekStart?: string; tzOffsetMinutes?: number } = {}): ReviewBoard {
+    return buildReviewBoard({
+      apps: this.applicationsWithJob(),
+      history: this.stageHistory(),
+      deadlines: this.listDeadlines(),
+      interviews: this.db.all<Interview>('SELECT * FROM interview'),
+      nowIso: opts.nowIso ?? now(),
+      weekStart: opts.weekStart,
+      tzOffsetMinutes: opts.tzOffsetMinutes ?? 0,
+    })
   }
   saveWeeklyReview(r: { week_start: string; funnel: unknown; insights?: unknown; suggestions?: unknown; small_action?: string | null }): WeeklyReview {
     const id = newId('wrv')
