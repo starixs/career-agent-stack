@@ -454,8 +454,20 @@ export class BrowserContextRegistry {
     this.scheduleContextRelease(productSessionId, owner);
   }
 
+  /** 常驻只在持久 profile 下生效：隔离模式没有跨任务可保留的登录态，维持旧的空闲回收。 */
+  private isResidentPolicy(): boolean {
+    return this.runtimePolicy.residentContext === true && this.runtimePolicy.persistentProfile;
+  }
+
   private scheduleContextRelease(productSessionId: string, owner: ConnectionOwner): void {
     if (owner.count > 0 || owner.releaseTimer) return;
+    if (this.isResidentPolicy()) {
+      // 常驻模式（缺省，仅持久 profile）：空闲不拆 Context——15 秒宽限回收会让下一个任务
+      // 重新启动 Chrome（Dock 弹跳、窗口在桌面闪现、焦点被抢）。浏览器只随显式关闭退出：
+      // browser_close 工具 / 会话退休 / 进程 shutdown / 用户自己关掉 Chrome（context close 事件）。
+      this.connectionOwners.delete(productSessionId);
+      return;
+    }
     owner.releaseTimer = setTimeout(() => {
       const current = this.connectionOwners.get(productSessionId);
       if (current !== owner || current.count > 0) return;
@@ -663,7 +675,7 @@ export class BrowserContextRegistry {
       mkdirSync(compiled.userDataDir, { recursive: true });
       // 上次被强杀留下的"崩溃"标记会让 Chrome 弹恢复提示，用户看到的就是"浏览器崩溃了"
       const repaired = markProfileExitedCleanly(compiled.userDataDir);
-      console.log(`[browser-host] context=launch mode=persistent channel=${compiled.channel} crash-mark=${repaired ? 'cleared' : 'clean'}`);
+      console.log(`[browser-host] context=launch mode=persistent channel=${compiled.channel} crash-mark=${repaired ? 'cleared' : 'clean'} resident=${this.isResidentPolicy() ? 'on' : 'off'}`);
       const browserType = await this.dependencies.loadBrowserType();
       context = await browserType.launchPersistentContext(compiled.userDataDir, {
         ...launchOptions,

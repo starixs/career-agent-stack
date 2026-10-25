@@ -9,10 +9,12 @@ import { parseVirtualDisplayLine, setVirtualParkTarget, VIRTUAL_DISPLAY_SOURCE }
 describe('虚拟屏', () => {
   afterEach(() => setVirtualParkTarget(null));
 
-  it('开关：只在 macOS + CAREER_BROWSER_WINDOW=virtual-display 时开', () => {
+  it('开关：macOS 缺省开（corner 关闭），其余平台永远没有', () => {
+    expect(resolveBrowserRuntimePolicy({}, '/h', 'darwin').virtualDisplay).toBe(true);
     expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'virtual-display' }, '/h', 'darwin').virtualDisplay).toBe(true);
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'corner' }, '/h', 'darwin').virtualDisplay).toBe(false);
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'window' }, '/h', 'darwin').virtualDisplay).toBe(false);
     expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'virtual-display' }, '/h', 'win32').virtualDisplay).toBe(false);
-    expect(resolveBrowserRuntimePolicy({}, '/h', 'darwin').virtualDisplay).toBe(false);
   });
 
   it('解析助手输出；报错 / 尺寸无效时抛出（宿主退回角落）', () => {
