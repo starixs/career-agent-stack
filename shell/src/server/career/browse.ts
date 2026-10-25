@@ -186,8 +186,8 @@ export interface Receipt {
   /** 操作后要看的那一页（新开标签时会切过去）。 */
   page: Page;
   retryable: boolean;
-  required_next: 'observe' | 'none' | 'handoff' | 'apply_flow';
-  code?: 'stale_observation' | 'element_gone' | 'submit_guarded' | 'password_needs_placeholder' | 'disabled' | 'bad_request' | 'navigation_timeout' | 'dispatch_failed';
+  required_next: 'observe' | 'none' | 'handoff' | 'apply_flow' | 'retry_or_observe';
+  code?: 'stale_observation' | 'element_gone' | 'submit_guarded' | 'password_needs_placeholder' | 'disabled' | 'bad_request' | 'navigation_timeout' | 'navigation_failed' | 'dispatch_failed';
   note: string;
 }
 
@@ -247,7 +247,7 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
       case 'scroll': await inPage(page, scrollInPage, req.direction ?? 'down'); break;
       case 'back': await page.goBack({ timeout: 10_000 }).catch(() => null); break;
       case 'forward': await page.goForward({ timeout: 10_000 }).catch(() => null); break;
-      case 'navigate': await page.goto(req.url!, { timeout: 20_000, waitUntil: 'domcontentloaded' }); break;
+      case 'navigate': await navigateWithRetry(page, req.url!); break;
       case 'switch_tab': case 'close_tab': {
         const pages = context.pages().filter(p => !p.isClosed());
         const p = pages[req.tab ?? -1];
@@ -277,6 +277,16 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
   if (dispatchError) {
     const msg = dispatchError instanceof Error ? dispatchError.message : String(dispatchError);
     const changedAnyway = urlAfter !== urlBefore || (sigAfter && sigAfter !== sigBefore);
+    if (req.action === 'navigate') {
+      // 导航无副作用：失败就该重试，而不是让模型放弃转告用户"打不开"
+      return {
+        ok: false, action: req.action, observed_effect: changedAnyway ? 'changed' : 'unknown', url_before: urlBefore, url_after: urlAfter, new_tabs: newTabs, page: target,
+        retryable: true, required_next: changedAnyway ? 'observe' : 'retry_or_observe', code: /timeout/i.test(msg) ? 'navigation_timeout' : 'navigation_failed',
+        note: changedAnyway
+          ? `导航报错但地址栏已变化，页面可能其实打开了：先 browser_observe 确认再决定是否重试。${msg.slice(0, 120)}`
+          : `${msg.slice(0, 200)} 导航可以再试一次；两次都失败先用 browser_observe 看当前页，再按错误指引处理，不要直接跟用户说打不开。`,
+      };
+    }
     // 发出去但没确认（超时等）：效果不明，禁止重放
     return {
       ok: false, action: req.action, observed_effect: changedAnyway ? 'changed' : 'unknown', url_before: urlBefore, url_after: urlAfter, new_tabs: newTabs, page: target,
@@ -293,6 +303,48 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
       ? (req.action === 'scroll' ? '已滚动。' : '页面没有明显变化：可能需要等加载，或者点到的不是你想要的元素。先 browser_observe 确认，不要连点。')
       : fresh.length ? `打开了新标签页「${newTabs[newTabs.length - 1].title}」，已切过去。` : effect === 'navigated' ? '已跳转。' : '页面有变化。',
   };
+}
+
+const plainSleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+/**
+ * 导航一次超时不判死：慢站（北森 / 海外 ATS）首次加载超 20 秒很常见，超时也常常发生在
+ * domcontentloaded 之后的 load 阶段（页面其实已经到了）。策略：
+ * 1) 第一次 20s domcontentloaded；失败先看地址栏是否已到达目标（忽略 hash / 末尾斜杠）；
+ * 2) 未到达 → 稍等后第二次 45s；
+ * 3) 两次都失败才抛错，错误按类型带上给模型的行动指引（导航无副作用，鼓励重试）。
+ */
+export async function navigateWithRetry(page: Page, url: string): Promise<void> {
+  try {
+    await page.goto(url, { timeout: 20_000, waitUntil: 'domcontentloaded' });
+    return;
+  } catch {
+    if (sameNavigationTarget(page.url(), url)) return; // 已到达：超时只是发生在 load 阶段
+    await plainSleep(1_500);
+  }
+  try {
+    await page.goto(url, { timeout: 45_000, waitUntil: 'domcontentloaded' });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (/timeout/i.test(msg)) {
+      throw new Error(`导航两次尝试均超时（站点加载很慢）：先用 browser_observe 看当前页——可能已部分打开可直接继续；否则稍后再 navigate 一次；多次失败应询问用户该站是否可访问或需要网络/代理。原文错误：${msg.slice(0, 160)}`);
+    }
+    if (/ERR_NAME_NOT_RESOLVED|ERR_INTERNET_DISCONNECTED|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_TIMED_OUT|ERR_NAME_RESOLUTION_FAILED/i.test(msg)) {
+      throw new Error(`导航失败（网络层错误，多为链接本身或网络问题）：${msg.slice(0, 160)}。核对链接拼写；确认用户网络可访问该站（部分内网 / 校园网站需要对应网络）；可稍后再试一次。`);
+    }
+    throw new Error(`导航失败：${msg.slice(0, 160)}。导航本身无副作用，可以再试一次；连续失败用 browser_observe 看当前页，并把这个错误原样告诉用户。`);
+  }
+}
+
+/** 比较地址栏与目标是否同一页面（忽略 hash、末尾斜杠、协议大小写；目标片段视为已到达）。 */
+function sameNavigationTarget(current: string, target: string): boolean {
+  try {
+    const c = new URL(current), t = new URL(target);
+    const norm = (u: URL) => `${u.protocol.toLowerCase()}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, '')}`;
+    return norm(c) === norm(t) || current.startsWith(target.split('#')[0]);
+  } catch {
+    return current === target;
+  }
 }
 
 export async function read(page: Page, offset = 0, length = 4000): Promise<{ text: string; offset: number; total: number; next_offset: number | null; url: string; title: string }> {

@@ -27,8 +27,14 @@ export interface Diagnosis {
 export async function diagnosePage(page: PageLike, opts: { url?: string; adapter?: SiteAdapter } = {}): Promise<Diagnosis> {
   const notes: string[] = []
   if (opts.url) {
-    try { await page.goto(opts.url) } catch (e) {
-      return { reachable: false, url: opts.url, title: '', adapterId: (opts.adapter ?? pickAdapter(opts.url)).id, needsLogin: false, fieldCount: 0, requiredCount: 0, hasFileUpload: false, hasSubmitButton: false, hasNextButton: false, looksLikeForm: false, notes: [`页面不可达：${e instanceof Error ? e.message : String(e)}`] }
+    // 慢站首次加载超时很常见：失败先稍等重试一次，两次都失败才算不可达
+    let failed = false
+    try { await page.goto(opts.url) } catch { failed = true }
+    if (failed) {
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      try { await page.goto(opts.url) } catch (e) {
+        return { reachable: false, url: opts.url, title: '', adapterId: (opts.adapter ?? pickAdapter(opts.url)).id, needsLogin: false, fieldCount: 0, requiredCount: 0, hasFileUpload: false, hasSubmitButton: false, hasNextButton: false, looksLikeForm: false, notes: [`页面不可达（已重试一次）：${e instanceof Error ? e.message : String(e)}。多为站点慢、网络问题或链接需特定网络（内网 / 校园网）；先确认用户能否手动打开，不要因此直接放弃。`] }
+      }
     }
   }
   const adapter = opts.adapter ?? pickAdapter(page.url())

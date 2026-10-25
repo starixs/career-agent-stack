@@ -352,6 +352,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       if (Array.isArray(rc.new_tabs) && rc.new_tabs.length) lines.push(`新标签页：${(rc.new_tabs as Array<{ title: string }>).map(t => t.title).join('、')}`);
       if (rc.required_next === 'apply_flow') lines.push('下一步：browser_capture_job 收录岗位 → apply_prepare（用户批准后由投递流程处理）。');
       if (rc.required_next === 'handoff') lines.push('下一步：请用户在现场处理（ui_open live），处理完再继续。');
+      if (rc.required_next === 'retry_or_observe') lines.push('下一步：导航失败但无副作用——先重试一次 browser_act navigate；仍失败用 browser_observe 看当前页再决定，不要直接告诉用户打不开。');
     }
     const ob = out.observation as import('../career/browse').Observation | undefined;
     if (ob) {

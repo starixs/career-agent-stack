@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { detectHints, inPage, type ElementInfo } from './browse';
 
@@ -24,5 +24,85 @@ describe('detectHints', () => {
     expect(detectHints({ hasPassword: false, bodySample: '您访问过于频繁', url: 'https://a.com' }, [])).toEqual(['risk']);
     expect(detectHints({ hasPassword: false, bodySample: '岗位详情', url: 'https://a.com' }, [el({ text: '立即投递', submitLike: true })])).toEqual(['submit_page']);
     expect(detectHints({ hasPassword: false, bodySample: '岗位详情', url: 'https://a.com' }, [el()])).toEqual([]);
+  });
+});
+
+describe('navigateWithRetry', () => {
+  type GotoMock = (url: string, opts?: Record<string, unknown>) => Promise<void>;
+  const fakePage = (impl: GotoMock, currentUrl: string) => {
+    let url = currentUrl;
+    const setUrl = (u: string) => { url = u; };
+    const page = {
+      url: () => url,
+      goto: async (u: string, o?: Record<string, unknown>) => { await impl(u, o); url = u; },
+    };
+    return { page: page as never as import('playwright').Page, setUrl };
+  };
+  const timeoutError = () => new Error('Timeout 20000ms exceeded.');
+
+  it('第一次成功：只调一次 goto', async () => {
+    const calls: string[] = [];
+    const { page } = fakePage(async u => { calls.push(u); }, 'about:blank');
+    const { navigateWithRetry } = await import('./browse');
+    await navigateWithRetry(page, 'https://job.example.com/apply');
+    expect(calls).toEqual(['https://job.example.com/apply']);
+  });
+
+  it('第一次超时但地址栏已到达目标：不重试，视为成功', async () => {
+    const calls: string[] = [];
+    // 模拟"超时发生在 load 阶段、页面其实到了"：goto 抛超时，但地址栏已在目标上
+    const { page, setUrl } = fakePage(async u => { calls.push(u); setUrl(u); throw timeoutError(); }, 'about:blank');
+    const { navigateWithRetry } = await import('./browse');
+    await expect(navigateWithRetry(page, 'https://job.example.com/apply')).resolves.toBeUndefined();
+    expect(calls).toHaveLength(1);
+  });
+
+  it('第一次超时且未到达：等 1.5s 后用 45s 重试，第二次成功', async () => {
+    vi.useFakeTimers();
+    try {
+      let attempt = 0;
+      const { page } = fakePage(async (_u, o) => {
+        attempt += 1;
+        if (attempt === 1) throw timeoutError();
+        expect(o).toMatchObject({ timeout: 45_000, waitUntil: 'domcontentloaded' });
+      }, 'about:blank');
+      const { navigateWithRetry } = await import('./browse');
+      const settled = navigateWithRetry(page, 'https://job.example.com/apply').then(() => 'done', () => 'failed');
+      await vi.advanceTimersByTimeAsync(1_500);
+      await expect(settled).resolves.toBe('done');
+      expect(attempt).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('两次都失败：抛带行动指引的错误（不要直接放弃）', async () => {
+    vi.useFakeTimers();
+    try {
+      const { page } = fakePage(async () => { throw timeoutError(); }, 'about:blank');
+      const { navigateWithRetry } = await import('./browse');
+      const settled = navigateWithRetry(page, 'https://slow.example.com/apply').then(() => 'done', (e: Error) => e.message);
+      await vi.advanceTimersByTimeAsync(1_500);
+      const message = await settled;
+      expect(message).toContain('两次尝试均超时');
+      expect(message).toContain('browser_observe');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('DNS / 网络层错误：指引核对链接与用户网络', async () => {
+    vi.useFakeTimers();
+    try {
+      const { page } = fakePage(async () => { throw new Error('net::ERR_NAME_NOT_RESOLVED at https://x.com'); }, 'about:blank');
+      const { navigateWithRetry } = await import('./browse');
+      const settled = navigateWithRetry(page, 'https://x.com').then(() => 'done', (e: Error) => e.message);
+      await vi.advanceTimersByTimeAsync(1_500);
+      const message = await settled;
+      expect(message).toContain('ERR_NAME_NOT_RESOLVED');
+      expect(message).toContain('核对链接');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
