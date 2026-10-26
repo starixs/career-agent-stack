@@ -106,6 +106,18 @@ function parseJson<T = unknown>(raw: string | null | undefined): T | undefined {
   try { return JSON.parse(raw) as T; } catch { return undefined; }
 }
 
+/** 填表动作不在可执行状态时，给模型一句真实可做的下一步（而不是让它就此放弃）。 */
+function applyStatusHint(status: string): string {
+  switch (status) {
+    case 'needs_user': case 'executing': return '；要从接管处继续请用 apply_continue';
+    case 'pending_review': return '；等用户在审核卡片里批准后即可执行';
+    case 'rejected': return '；用户已拒绝这份，如需重投请重新 apply_prepare（会新建一条投递记录）';
+    case 'failed': return '；这份失败且原批准已失效（内容被改过），重新开始请用 apply_prepare';
+    case 'done': return '；这份已填完，等它的提交卡被批准后自动提交';
+    default: return '';
+  }
+}
+
 export { applyJsonPatch } from '../career/tailor';
 
 /**
@@ -526,22 +538,24 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       // 续跑：上次 needs_user 的标签交给引擎，用户在接管期间自己填好的值会被学进答案库
       const prevSummary = mode === 'continue' ? parseJson<{ needsUser?: Array<{ label?: string }> }>(action.result_json) : undefined;
       const learnFrom = (prevSummary?.needsUser ?? []).map(p => p.label).filter((l): l is string => typeof l === 'string' && !!l);
-      await browserRun({ op: 'drive', runId, actionId: action.id, applicationId: action.application_id, payload, ...(mode === 'start' && typeof payload.url === 'string' ? { url: payload.url } : {}), ...(mode === 'continue' && typeof payload.url === 'string' ? { siteUrl: payload.url } : {}), ...(resumePath ? { resumePath } : {}), ...(learnFrom.length ? { learnFrom } : {}) }, (ev) => {
+      await browserRun({ op: 'drive', caller: 'chat', runId, actionId: action.id, applicationId: action.application_id, payload, ...(mode === 'start' && typeof payload.url === 'string' ? { url: payload.url } : {}), ...(mode === 'continue' && typeof payload.url === 'string' ? { siteUrl: payload.url } : {}), ...(resumePath ? { resumePath } : {}), ...(learnFrom.length ? { learnFrom } : {}) }, (ev) => {
         events.push(ev);
         if (ev.type === 'progress') progress('fill_form', String(ev.message ?? ''), { runId, taskId, progress: ev.progress });
       });
     } catch (error) {
       return failRun(error instanceof Error ? error.message : String(error));
     }
-    if (events.some(e => e.type === 'error' && e.code === 'BROWSER_BUSY')) {
-      // 后台批量正在用浏览器：动作放回 approved（批准仍有效），不记失败
-      if (mode === 'start') r.requeueAction(action.id); else r.setActionStatus(action.id, 'needs_user');
-      r.updateTask(taskId, { status: 'queued' });
+    const outcome = persistDriveOutcome({ repos: r, action, taskId, events, changed, review, mode });
+    if (outcome.kind === 'transient') {
+      // 不是这份网申的失败：放回队列（start）或保持 needs_user（continue），给模型可执行的下一步，绝不判死
       registry.finish(runId);
-      changed('task', 'action_queue');
-      return err(`后台批量投递正在使用浏览器填另一份网申。这份已放回队列：可以等批量顺带处理，或让用户先暂停批量后用 apply_run(${action.id}) 再执行。`);
+      const hint = outcome.code === 'BROWSER_CONTROL_HUMAN'
+        ? `用户正在接管浏览器，这次调用没有执行（这份网申没有损坏，也不用重新批准）。等用户在产品里点「交回」后调用 apply_continue(${action.id}) 从当前页继续。`
+        : outcome.code === 'BROWSER_BUSY'
+          ? `浏览器正在被另一处使用（如后台批量投递）。这份已放回队列：可以等批量顺带处理，或让用户暂停批量后用 apply_run(${action.id}) 再执行。`
+          : `这次没跑成是暂时性问题（${outcome.message}），这份已放回队列：可直接用 apply_run(${action.id}) 重试，或等后台批量顺带处理；不要把这份判为失败。`;
+      return err(hint);
     }
-    const outcome = persistDriveOutcome({ repos: r, action, taskId, events, changed, review });
     const jobName = jobLabel(typeof payload.job_id === 'string' ? r.getJob(payload.job_id) : undefined);
     if (outcome.kind !== 'failed') emitDriveCards(action.id, outcome.summary, outcome.gate, jobName);
     // 卡在登录页且私密库里没有这个站的账号：对话里给一张「保存登录账号」卡，存好后产品在登录页代填（点登录仍由用户）
@@ -1187,10 +1201,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ results, queued: queued.length });
       })()),
 
-      tool('apply_run', '在托管浏览器上执行一份已经排进队列的填表动作（不提交）。新开一份网申用 apply_prepare（准备好会直接开始填）；apply_run 只用于队列里已批准、还没开始的那份（如待投清单里用户选好的、或浏览器忙时放回队列的）。遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
-        const action = repos().getAction(args.action_id);
+      tool('apply_run', '在托管浏览器上执行一份已经排进队列的填表动作（不提交）。新开一份网申用 apply_prepare（准备好会直接开始填）；apply_run 用于队列里已批准的（如待投清单里用户选好的、浏览器忙时放回队列的），也可以直接重试之前因暂时性问题失败的那份。遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
+        const r = repos();
+        let action = r.getAction(args.action_id);
         if (!action) return err(`动作不存在：${args.action_id}`);
-        if (action.status !== 'approved') return err(`动作状态为 ${action.status}，只能执行已批准（approved）的动作${action.status === 'needs_user' || action.status === 'executing' ? '；要从接管处继续请用 apply_continue' : ''}`);
+        if (action.kind !== 'fill_form') return err('apply_run 只执行填表动作；提交由用户在提交卡批准后自动执行');
+        if (action.status === 'failed' && r.retryFailedFill(action.id)) {
+          action = r.getAction(args.action_id)!; // 瞬时失败复活：原批准仍有效，直接重跑
+        }
+        if (action.status !== 'approved') return err(`动作状态为 ${action.status}，只能执行已批准（approved）的动作${applyStatusHint(action.status)}`);
         return runDrive(action, 'start');
       })()),
 
@@ -1214,7 +1233,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       tool('apply_continue', '从当前页面继续填表并重新检查（不重新打开链接，不提交）：用户在浏览器里处理完登录 / 验证码 / 测评并交还后，或在卡片里补齐了缺项后调用。', { action_id: z.string().describe('之前 apply_prepare / apply_run 返回的 action_id') }, async (args) => wrap(async () => {
         const action = repos().getAction(args.action_id);
         if (!action) return err(`动作不存在：${args.action_id}`);
-        if (action.status !== 'needs_user' && action.status !== 'executing') return err(`动作状态为 ${action.status}，只有接管中（needs_user / executing）的填表动作可以继续`);
+        if (action.status !== 'needs_user' && action.status !== 'executing') return err(`动作状态为 ${action.status}，只有接管中（needs_user / executing）的填表动作可以继续${applyStatusHint(action.status)}`);
         return runDrive(action, 'continue');
       })()),
 

@@ -106,13 +106,25 @@ describe('apply_run / apply_continue', () => {
     expect(repos.listTasks().filter(t => t.kind === 'apply')).toHaveLength(1); // 复用同一个任务
   });
 
-  it('路由报错行（如 501 引擎未就绪）→ 动作 failed、投递 blocked，不再记成已填好', async () => {
+  it('路由报错行（如 501 引擎未就绪）是瞬时问题 → 放回队列等重试，不判 failed、不 blocked', async () => {
     script = [{ type: 'error', status: 501, error: '表单引擎 @career/apply 尚未构建' }];
     const res = await call('apply_run', { action_id: actionId });
-    expect(res.isError).toBe(true); expect(res.text).toContain('501');
-    expect(repos.getAction(actionId)!.status).toBe('failed');
-    expect(repos.getApplication(applicationId)!.stage).toBe('blocked');
+    expect(res.isError).toBe(true); expect(res.text).toContain('apply_run'); expect(res.text).toContain('重试');
+    expect(repos.getAction(actionId)!.status).toBe('approved'); // 放回队列：原批准仍有效
+    expect(repos.getApplication(applicationId)!.stage).not.toBe('blocked');
     expect(repos.listActions('pending_review')).toHaveLength(0);
+  });
+
+  it('用户接管期间提前调 apply_continue（409 BROWSER_CONTROL_HUMAN）→ 不是失败，等交回后可继续', async () => {
+    // 第一步：正常跑到验证码接管（动作 needs_user）
+    script = [{ type: 'result', op: 'drive', result: { status: 'handoff', reason: 'captcha', userAction: '请完成验证码', message: '验证码', finalUrl: 'https://x.com/apply', adapterId: 'x', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], escalations: [], layersUsed: ['dom'] } }];
+    await call('apply_run', { action_id: actionId });
+    expect(repos.getAction(actionId)!.status).toBe('needs_user');
+    // 第二步：用户还没点"交回"，助理就被催着继续 → 路由 409 BROWSER_CONTROL_HUMAN
+    script = [{ type: 'error', status: 409, code: 'BROWSER_CONTROL_HUMAN', error: '用户正在接管浏览器' }];
+    const cont = await call('apply_continue', { action_id: actionId });
+    expect(cont.isError).toBe(true); expect(cont.text).toContain('交回');
+    expect(repos.getAction(actionId)!.status).toBe('needs_user'); // 没被打死：交回后 apply_continue 仍可用
   });
 
   it('blocked 结果（风控锁）→ 投递 blocked 并带原因', async () => {

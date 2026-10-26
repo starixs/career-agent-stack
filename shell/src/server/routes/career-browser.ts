@@ -524,7 +524,10 @@ export async function runOperation(
   }
 
   // op === 'drive'：同一个页面同时只允许一处在操作（对话 apply_run 与后台批量可能指向同一份网申）
-  const owner = typeof body.actionId === 'string' && body.actionId ? body.actionId : typeof body.runId === 'string' ? body.runId : 'anonymous';
+  // owner 带执行者前缀（chat: / batch:）：此前两边都用裸 actionId，锁对同一 owner 可重入，
+  // 对话与批量撞同一份时会双引擎同时填一张表、各自入队一个提交。
+  const callerPrefix = typeof body.caller === 'string' && body.caller ? `${body.caller}:` : '';
+  const owner = typeof body.actionId === 'string' && body.actionId ? `${callerPrefix}${body.actionId}` : typeof body.runId === 'string' ? `${callerPrefix}${body.runId}` : 'anonymous';
   const holder = lockPage(page, owner);
   if (holder) {
     out.emit({ type: 'error', status: 409, code: 'BROWSER_BUSY', error: `这份网申的页面正在被另一处操作（${holder}），等它结束或先暂停后台批量投递` });

@@ -194,6 +194,23 @@ export class Repos {
   requeueAction(id: string): boolean {
     return this.db.run(`UPDATE action_queue SET status='approved', updated_at=? WHERE id=? AND status IN ('executing','needs_user') AND approved_hash IS NOT NULL`, [now(), id]).changes > 0
   }
+  /**
+   * 瞬时失败复活：引擎未就绪 / 接管冲突 / 宿主重启这类不是这份网申的问题——failed 的填表动作放回
+   * approved（原批准仍有效，不重新审核），apply_run / 批量都能重跑。内容被改过（approved_hash 没了）的不复活。
+   */
+  retryFailedFill(id: string): boolean {
+    return this.db.run(`UPDATE action_queue SET status='approved', updated_at=? WHERE id=? AND status='failed' AND kind='fill_form' AND approved_hash IS NOT NULL`, [now(), id]).changes > 0
+  }
+  /**
+   * 提交时填好的页面已丢失（浏览器被关 / 重启过）：重新批准也提交不了（页面不存在），退回待审只会死循环。
+   * 把这份投递最近一次已填完的 fill_form 放回 approved 重新填写，填好后会再出一张新的提交卡。
+   */
+  refillAfterPageLoss(applicationId: string): string | null {
+    const row = this.db.get<{ id: string }>(`SELECT id FROM action_queue WHERE kind='fill_form' AND application_id=? AND status='done' ORDER BY updated_at DESC LIMIT 1`, [applicationId])
+    if (!row) return null
+    this.db.run(`UPDATE action_queue SET status='approved', updated_at=? WHERE id=? AND status='done'`, [now(), row.id])
+    return row.id
+  }
 
   // ---------- 投递材料包（冻结批准时的简历与 JD） ----------
   createPacket(p: { application_id?: string | null; job_id?: string | null; resume_id?: string | null; resume_kind?: string | null; resume_schema_json?: string | null; resume_pdf_path?: string | null; resume_pdf_sha256?: string | null; answers?: unknown }): ApplicationPacket {

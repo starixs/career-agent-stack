@@ -34,10 +34,47 @@ export { liveHub };
 /** 产品内选文件（内嵌窗口模式下拦截的系统选文件框）。 */
 export const fileChooserBroker = new FileChooserBroker(liveHub);
 
+let orphanSweepDone = false;
+/**
+ * 启动清扫：侧车进程死在半路时留下的 executing 动作，对话和批量都不会再认领（apply_run 只收 approved、
+ * 批量队列只看 approved / 带 resumed_at 的 needs_user）——不扫就永远卡死。
+ *  - fill_form：放回 approved 重跑（原批准仍有效，填写不提交，重跑安全）；
+ *  - submit：不能自动重跑（可能已经投出去了），转 needs_user 开接管，让用户到页面确认后收尾。
+ * 幂等（状态翻转后不再命中）；5 分钟新鲜度保护 lazy 初始化时可能正在跑的合法动作。
+ */
+export async function sweepOrphanedActions(repos: Awaited<ReturnType<typeof getRepos>>): Promise<void> {
+  if (orphanSweepDone) return;
+  orphanSweepDone = true;
+  try {
+    const staleBefore = new Date(Date.now() - 5 * 60_000).toISOString();
+    const stale = repos.db.all<{ id: string; kind: string; application_id: string | null }>(
+      `SELECT id, kind, application_id FROM action_queue WHERE status='executing' AND updated_at < ?`, [staleBefore],
+    );
+    if (!stale.length) return;
+    const withHandoff = new Set(repos.openHandoffs().map(h => h.action_id));
+    for (const a of stale) {
+      if (withHandoff.has(a.id)) continue;
+      if (a.kind === 'fill_form') {
+        if (repos.requeueAction(a.id)) console.log(`[career] sweep: 中断的填表 ${a.id} 已放回队列`);
+      } else if (a.kind === 'submit') {
+        try {
+          repos.setActionStatus(a.id, 'needs_user', { status: 'uncertain', message: '提交时进程中断，请到页面确认是否已投出' });
+          repos.openHandoff('user_request' as never, { actionId: a.id, message: '提交时进程中断：请到页面确认是否已经投出，再用确认按钮收尾' });
+          console.log(`[career] sweep: 中断的提交 ${a.id} 已转为等用户确认（不自动重试，避免重复投递）`);
+        } catch { /* ignore */ }
+      }
+    }
+  } catch (error) {
+    orphanSweepDone = false; // 清扫失败不挡启动，下次初始化再试
+    console.warn('[career] sweep: 孤儿动作清扫失败：', error instanceof Error ? error.message : error);
+  }
+}
+
 export async function getBatchRunner(): Promise<BatchRunner> {
   if (!runnerPromise) {
     runnerPromise = (async () => {
       const repos = await getRepos();
+      await sweepOrphanedActions(repos);
       const sessionId = () => careerProductSessionId() ?? 'global';
       const riskLocked = (platform: string) => {
         const lock = repos.kvGet<{ until: string }>(`apply:risk_lock:${platform}`);
@@ -75,7 +112,11 @@ export async function getBatchRunner(): Promise<BatchRunner> {
           const events: Record<string, unknown>[] = [];
           const out: RunEmitter = { emit: line => { events.push(line); onEvent(line); }, aborted: () => false };
           const body: Record<string, unknown> = {
-            op: 'drive', actionId: req.action.id, applicationId: req.action.application_id, payload: req.payload,
+            op: 'drive',
+            // 执行者标记：页面锁 owner 的前缀。对话（chat:）和批量（batch:）撞上同一份时，后到的一方
+            // 会收到 BROWSER_BUSY——此前两边 owner 相同、锁可重入，会出现双引擎同时填一份表、各排一个提交。
+            caller: 'batch',
+            actionId: req.action.id, applicationId: req.action.application_id, payload: req.payload,
             ...(req.mode === 'start' && typeof req.payload.url === 'string' ? { url: req.payload.url } : {}),
             // 续跑不重开链接，但要带上网申所在网站：交还后页面不在这个网站上就停下问用户（app-pages 核对）
             ...(req.mode === 'continue' && typeof req.payload.url === 'string' ? { siteUrl: req.payload.url } : {}),
@@ -157,6 +198,7 @@ export async function getSubmitExecutor(): Promise<SubmitExecutor> {
   if (!submitExecutorPromise) {
     submitExecutorPromise = (async () => {
       const repos = await getRepos();
+      await sweepOrphanedActions(repos);
       return new SubmitExecutor({
         repos,
         run: runOnProductBrowser,
