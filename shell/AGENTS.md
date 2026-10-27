@@ -104,6 +104,7 @@ Builtin SDK 与 Claude Code / Codex / Gemini 等外部 Runtime 的 session 操�
 | 本地文档转换 / AnyDoc / OCR / Document Worker | `specs/tech_docs/document_processing.md` |
 | Record / 桌面录音 / 本地 Speech / 语音模型包 / Media Worker | `specs/tech_docs/recording_and_speech_recognition.md` |
 | 前端 UI、布局、交互、字号 | `specs/DESIGN.md` 的相关章节；只在主题工作时追加 `specs/tech_docs/theme_system.md` |
+| 求职产品功能的 UX、UI 或业务逻辑（先于其他文档） | `specs/CAREER_WORLD.md`（人群、时间、对象、立场等共同前提） |
 | React state / effect 稳定性 | `specs/tech_docs/react_stability_rules.md` |
 | Tool Attachment / 富媒体 / 外部 URL | `specs/tech_docs/tool_attachment_pipeline.md` |
 | 工作区文件、Markdown 编辑、预览与保存 | `specs/tech_docs/workspace_markdown_editor.md`；通用 IO / 路径安全查 `specs/tech_docs/pit_of_success.md` 对应章节 |
