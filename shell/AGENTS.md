@@ -2,6 +2,8 @@
 
 基于 Claude Agent SDK 的桌面端通用 Agent 产品。公司内部资产，仅限内部使用与二次开发；使用 Conventional Commits；不得提交密钥、令牌或用户隐私数据。
 
+Avoid unnecessary secondary labels and descriptions. Let the layout do the explaining.
+
 ## 这份自动加载文档的职责
 
 本文件只保留每类任务都值得占用注意力的项目心智模型、决策顺序和文档路由，不收录可由代码、lint、测试、`package.json` 或局部文档直接发现的完整规则表。
