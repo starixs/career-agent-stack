@@ -1,31 +1,32 @@
 /**
- * 手写一句话：每个汉字按笔顺，用一道粗墨线沿笔画中轴线画过去，墨线被笔画轮廓裁成字形——
- * 看起来就是一笔一笔写出来的。标点等没有笔画数据的字按时间点淡入。
+ * 手写一句话：一支钢笔沿每一笔的笔迹曲线走过去，字带一点歪斜和大小起伏；逗号句号也是画出来的。
+ * 写的时候墨是湿的（满色），整句写完后墨色收一点，像墨水干了。颜色用 --hw-ink（蓝黑墨水），
+ * 和界面的正文色、钢笔蓝都拉开，一眼看出是「写给你的」而不是界面文字。
  *
- * 笔画数据是 strokes.json（scripts/build-handwriting-strokes.mjs 从 hanzi-writer-data 抽取，懒加载）。
+ * 笔迹数据是 strokes.json（scripts/build-handwriting-strokes.mjs 从 hanzi-writer-data 抽取，懒加载）。
  * 同一个 playKey 每次打开应用只写一遍，之后直接显示写好的样子；prefers-reduced-motion 下也直接显示终态。
  */
-import { useEffect, useEffectEvent, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { planWriting, splitClauses } from './handwritingPlan';
 import type { CharStrokes, PlannedGlyph, StrokeData } from './handwritingPlan';
 
-// 墨线宽度（1024 方格单位）：比最粗的笔画还宽，被轮廓裁剪后正好填满字形。
-const INK_WIDTH = 220;
-// 笔画中轴的落笔前偏移：整条线连同圆头都藏在起点之前，避免开写前露出一个墨点。
-const HIDDEN_OFFSET_PAD = INK_WIDTH / 2 + 4;
-const STROKE_EASING = 'cubic-bezier(.45, 0, .3, 1)';
+// 笔宽（1024 方格单位）：20px 的字约 1.4px 粗，像一支细钢笔。
+const PEN_WIDTH = 72;
+// strokes.json 里的长度是采样估算的，虚线段多留 3% 余量，保证收笔处写满。
+const DASH_SLACK = 1.03;
+const STROKE_EASING = 'cubic-bezier(.35, 0, .25, 1)';
 const TEXT_FADE_MS = 280;
+// 写完后墨色从满色收到 .hw-line 的终态透明度，用时 1.2 秒。
+const INK_SETTLE_MS = 1200;
+const WET_INK_OPACITY = 1;
 
 const writtenThisSession = new Set<string>();
 let strokeDataPromise: Promise<StrokeData> | null = null;
 
 function isCharStrokes(v: unknown): v is CharStrokes {
-  if (typeof v !== 'object' || v === null || !('s' in v) || !('m' in v)) return false;
-  const { s, m } = v;
-  return Array.isArray(s) && Array.isArray(m) && s.length === m.length
-    && s.every(p => typeof p === 'string')
-    && m.every(e => Array.isArray(e) && typeof e[0] === 'string' && typeof e[1] === 'number');
+  if (typeof v !== 'object' || v === null || !('m' in v)) return false;
+  return Array.isArray(v.m) && v.m.every(e => Array.isArray(e) && typeof e[0] === 'string' && typeof e[1] === 'number');
 }
 
 function parseStrokeData(raw: unknown): StrokeData {
@@ -64,37 +65,43 @@ function useStrokeData(): StrokeData | null | 'failed' {
   return data;
 }
 
-function HanziGlyph({ glyph, uid }: { glyph: Extract<PlannedGlyph, { kind: 'hanzi' }>; uid: string }) {
+function PenGlyph({ glyph }: { glyph: Extract<PlannedGlyph, { kind: 'pen' }> }) {
+  const { rotate, dy, scale } = glyph.wobble;
   return (
-    <svg viewBox="0 0 1024 1024" className="hw-glyph" aria-hidden focusable="false">
-      <defs>
-        {glyph.strokes.map((s, i) => <clipPath key={i} id={`${uid}-${i}`}><path d={s.outline} /></clipPath>)}
-      </defs>
+    <svg
+      viewBox={glyph.narrow ? '0 0 560 1024' : '0 0 1024 1024'}
+      className={`hw-glyph ${glyph.narrow ? 'hw-glyph-narrow' : ''}`}
+      style={{ transform: `translateY(${dy}em) rotate(${rotate}deg) scale(${scale})` }}
+      aria-hidden
+      focusable="false"
+    >
       <g transform="translate(0 900) scale(1 -1)">
-        {glyph.strokes.map((s, i) => (
-          <path
-            key={i}
-            d={s.median}
-            clipPath={`url(#${uid}-${i})`}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={INK_WIDTH}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray={`${s.length} ${s.length + INK_WIDTH}`}
-            strokeDashoffset={0}
-            data-hw-from={s.length + HIDDEN_OFFSET_PAD}
-            data-hw-delay={s.delayMs}
-            data-hw-duration={s.durationMs}
-          />
-        ))}
+        {glyph.strokes.map((s, i) => {
+          const dash = Math.ceil(s.length * DASH_SLACK);
+          return (
+            <path
+              key={i}
+              d={s.path}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={PEN_WIDTH}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray={`${dash} ${dash + PEN_WIDTH}`}
+              strokeDashoffset={0}
+              data-hw-from={dash + PEN_WIDTH}
+              data-hw-delay={s.delayMs}
+              data-hw-duration={s.durationMs}
+            />
+          );
+        })}
       </g>
     </svg>
   );
 }
 
-/** 按计划里的 data-hw-* 给每一笔、每个标点排动画；返回最后一个动画结束的 Promise。 */
-function animateWriting(root: HTMLElement): Promise<unknown> {
+/** 按计划里的 data-hw-* 给每一笔、每个标点排动画，再让整句墨色收干；返回全部结束的 Promise。 */
+function animateWriting(root: HTMLElement, totalMs: number): Promise<unknown> {
   const runs: Animation[] = [];
   root.querySelectorAll<SVGPathElement>('[data-hw-from]').forEach(el => {
     runs.push(el.animate(
@@ -105,6 +112,11 @@ function animateWriting(root: HTMLElement): Promise<unknown> {
   root.querySelectorAll<HTMLElement>('[data-hw-fade]').forEach(el => {
     runs.push(el.animate([{ opacity: 0 }, { opacity: 1 }], { delay: Number(el.dataset.hwFade), duration: TEXT_FADE_MS, fill: 'backwards' }));
   });
+  const settleAt = totalMs / (totalMs + INK_SETTLE_MS);
+  runs.push(root.animate(
+    [{ opacity: WET_INK_OPACITY }, { opacity: WET_INK_OPACITY, offset: settleAt }, { opacity: getComputedStyle(root).opacity }],
+    { duration: totalMs + INK_SETTLE_MS, easing: 'ease-out' },
+  ));
   return Promise.all(runs.map(a => a.finished));
 }
 
@@ -117,7 +129,6 @@ export function HandwrittenLine({ text, playKey = text, className = '', onWritte
   onWritten?: () => void;
 }) {
   const data = useStrokeData();
-  const uid = useId().replace(/:/g, '');
   const rootRef = useRef<HTMLSpanElement>(null);
   const plan = useMemo(() => (data && data !== 'failed' ? planWriting(text, data) : null), [text, data]);
   const reportWritten = useEffectEvent(() => onWritten?.());
@@ -129,7 +140,7 @@ export function HandwrittenLine({ text, playKey = text, className = '', onWritte
     writtenThisSession.add(playKey);
     if (!animate) { reportWritten(); return; }
     let alive = true;
-    animateWriting(root).then(
+    animateWriting(root, plan.totalMs).then(
       () => { if (alive) reportWritten(); },
       (err: unknown) => {
         // 卸载或换句时动画被 cancel()，finished 以 AbortError 结束，属正常；其余照实上报。
@@ -146,8 +157,8 @@ export function HandwrittenLine({ text, playKey = text, className = '', onWritte
       {plan
         ? splitClauses(plan.glyphs).map((clause, ci) => (
           <span key={ci} className="hw-clause">
-            {clause.map((g, gi) => (g.kind === 'hanzi'
-              ? <HanziGlyph key={gi} glyph={g} uid={`${uid}-${ci}-${gi}`} />
+            {clause.map((g, gi) => (g.kind === 'pen'
+              ? <PenGlyph key={gi} glyph={g} />
               : <span key={gi} aria-hidden className="hw-glyph hw-text font-human" data-hw-fade={g.delayMs}>{g.ch}</span>))}
           </span>
         ))

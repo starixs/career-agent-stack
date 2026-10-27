@@ -5,11 +5,11 @@ import type { QuoteScene, StrokeData } from './handwritingPlan';
 import strokes from './strokes.json';
 
 const SCENES: QuoteScene[] = ['daily', 'done', 'quiet', 'setback', 'start'];
-const CJK = /[㐀-鿿]/u;
+const CJK = /[\u3400-\u9fff]/u;
 
 const fakeData: StrokeData = {
-  一: { s: ['M0 0Z'], m: [['M0 0L100 0', 100]] },
-  二: { s: ['M0 0Z', 'M0 0Z'], m: [['M0 0L100 0', 100], ['M0 0L300 0', 300]] },
+  一: { m: [['M0 0L100 0', 100]] },
+  二: { m: [['M0 0L100 0', 100], ['M0 0L900 0', 900]] },
 };
 
 describe('quotes', () => {
@@ -36,18 +36,35 @@ describe('quotes', () => {
 describe('planWriting', () => {
   it('writes strokes one after another, longer strokes taking longer', () => {
     const glyph = planWriting('二', fakeData).glyphs[0];
-    if (glyph.kind !== 'hanzi') throw new Error('expected a hanzi glyph');
+    if (glyph.kind !== 'pen') throw new Error('expected a pen glyph');
     const [first, second] = glyph.strokes;
     expect(second.delayMs).toBeGreaterThanOrEqual(first.delayMs + first.durationMs);
     expect(second.durationMs).toBeGreaterThan(first.durationMs);
   });
 
-  it('pauses at punctuation longer than between characters', () => {
+  it('draws commas as narrow pen strokes and pauses after them like taking a breath', () => {
     const plain = planWriting('一一', fakeData).glyphs;
     const paused = planWriting('一，一', fakeData).glyphs;
-    const startOf = (g: (typeof plain)[number]) => (g.kind === 'hanzi' ? g.strokes[0].delayMs : g.delayMs);
+    const startOf = (g: (typeof plain)[number]) => (g.kind === 'pen' ? g.strokes[0].delayMs : g.delayMs);
+    expect(paused[1]).toMatchObject({ kind: 'pen', ch: '，', narrow: true });
     expect(startOf(paused[2])).toBeGreaterThan(startOf(plain[1]) + 150);
-    expect(paused[1]).toMatchObject({ kind: 'text', ch: '，' });
+  });
+
+  it('fades in punctuation it cannot draw', () => {
+    expect(planWriting('一！', fakeData).glyphs[1]).toMatchObject({ kind: 'text', ch: '！' });
+  });
+
+  it('gives each character a small, repeatable hand-written wobble', () => {
+    const a = planWriting('一二一二', fakeData).glyphs;
+    const b = planWriting('一二一二', fakeData).glyphs;
+    expect(a).toEqual(b);
+    const wobbles = a.flatMap(g => (g.kind === 'pen' ? [g.wobble] : []));
+    expect(new Set(wobbles.map(w => w.rotate)).size).toBeGreaterThan(1);
+    for (const w of wobbles) {
+      expect(Math.abs(w.rotate)).toBeLessThanOrEqual(4);
+      expect(w.scale).toBeGreaterThanOrEqual(0.93);
+      expect(w.scale).toBeLessThanOrEqual(1.05);
+    }
   });
 
   it('only breaks lines after clause punctuation', () => {

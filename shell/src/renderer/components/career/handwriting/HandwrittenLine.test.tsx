@@ -5,14 +5,15 @@ import { HandwrittenLine } from './HandwrittenLine';
 import { QuoteNote } from './QuoteNote';
 
 describe('HandwrittenLine', () => {
-  it('draws each character as clipped strokes and reads as the plain sentence', async () => {
+  it('writes every character and the full stop with a pen and reads as the plain sentence', async () => {
     const onWritten = vi.fn();
     render(<HandwrittenLine text="歇一歇也算数。" playKey="test-1" onWritten={onWritten} />);
     const line = screen.getByRole('img', { name: '歇一歇也算数。' });
-    await waitFor(() => expect(line.querySelectorAll('svg.hw-glyph')).toHaveLength(6));
-    // 每一笔都被自己的轮廓裁剪，墨线才会长成字形
-    expect(line.querySelector('path[data-hw-from]')?.getAttribute('clip-path')).toMatch(/^url\(#/);
-    expect(line.querySelector('[data-hw-fade]')?.textContent).toBe('。');
+    await waitFor(() => expect(line.querySelectorAll('svg.hw-glyph')).toHaveLength(7));
+    // 句号是画出来的窄格；每个字带一点手写的歪斜
+    expect(line.querySelectorAll('svg.hw-glyph-narrow')).toHaveLength(1);
+    expect(line.querySelector<SVGElement>('svg.hw-glyph')?.style.transform).toMatch(/rotate\(/);
+    expect(line.querySelector('[data-hw-fade]')).toBeNull();
     // jsdom 没有 Web Animations：直接显示终态并报告写完
     await waitFor(() => expect(onWritten).toHaveBeenCalledTimes(1));
   });

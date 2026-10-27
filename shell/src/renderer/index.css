@@ -991,10 +991,14 @@ code {
 }
 
 /* ─── 手写句子（components/career/handwriting/HandwrittenLine.tsx） ───
-   每个字一格 1.05em 的方格，标点只占大半格；只在逗号、句号后换行，诗句自然断成上下两句。 */
+   手写字距比排版紧（0.94em 一格），字自己带歪斜，overflow 放开免得旋转后被裁；
+   逗号句号是画出来的窄格。只在逗号、句号后换行，诗句自然断成上下两句。
+   终态透明度 0.9 是「墨干」后的颜色，写的时候由动画拉到满色。 */
 .hw-line {
   display: inline;
-  line-height: 1.5;
+  line-height: 1.55;
+  color: var(--hw-ink);
+  opacity: 0.9;
 }
 
 .hw-clause {
@@ -1004,13 +1008,18 @@ code {
 
 .hw-glyph {
   display: inline-block;
-  width: 1.05em;
-  height: 1.05em;
-  vertical-align: -0.22em;
+  width: 0.94em;
+  height: 1em;
+  overflow: visible;
+  vertical-align: -0.2em;
+}
+
+.hw-glyph-narrow {
+  width: 0.52em;
 }
 
 .hw-text {
-  width: 0.75em;
-  line-height: 1.05em;
+  width: 0.7em;
+  line-height: 1em;
   text-align: left;
 }
