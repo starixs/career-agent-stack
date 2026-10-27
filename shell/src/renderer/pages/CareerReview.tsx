@@ -12,6 +12,7 @@ import {
   Badge, Button, CareerPage, Card, ChatActionButton, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, formatDate,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
+import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import type { CareerFocusEvent, Funnel, FunnelRow, WeeklyReview } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
@@ -88,6 +89,7 @@ function FunnelSection({ funnel }: { funnel: Funnel }) {
       <section>
         <SectionTitle>漏斗</SectionTitle>
         <EmptyState title="还没有投递数据。先在收件箱丢几个 JD，投出去之后这里会出现漏斗。" />
+        <QuoteNote scene="start" seed="funnel" className="mb-4 text-center text-xl" />
         <div className="flex justify-center">
           <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'review' }} />
         </div>
@@ -121,6 +123,8 @@ function FunnelSection({ funnel }: { funnel: Funnel }) {
           ))}
         </div>
         <p className="mt-2 text-xs text-[var(--subtle)]">经验上网申过简历率通常只有一到两成，沉默比被拒常见；这不是能力结论。</p>
+        {/* 有被拒或沉默时，在「这不是能力结论」之后手写一句宽慰的话。 */}
+        {overall.rejected + overall.silent > 0 && <QuoteNote scene="setback" className="mt-4 text-xl" />}
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <FunnelTable title="按岗位类别" rows={funnel.by_category ?? []} />

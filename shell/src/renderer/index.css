@@ -989,3 +989,28 @@ code {
     transform: scale(1.04);
   }
 }
+
+/* ─── 手写句子（components/career/handwriting/HandwrittenLine.tsx） ───
+   每个字一格 1.05em 的方格，标点只占大半格；只在逗号、句号后换行，诗句自然断成上下两句。 */
+.hw-line {
+  display: inline;
+  line-height: 1.5;
+}
+
+.hw-clause {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.hw-glyph {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  vertical-align: -0.22em;
+}
+
+.hw-text {
+  width: 0.75em;
+  line-height: 1.05em;
+  text-align: left;
+}

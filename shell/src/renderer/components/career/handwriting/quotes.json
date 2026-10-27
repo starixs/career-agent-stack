@@ -1,0 +1,27 @@
+[
+  { "text": "慢一点没关系，方向对就好。", "tone": "encourage", "scenes": ["daily"] },
+  { "text": "先做完一件小事，就已经很好了。", "tone": "encourage", "scenes": ["daily"] },
+  { "text": "今天投出去的每一份，都在替你敲门。", "tone": "encourage", "scenes": ["daily"] },
+  { "text": "长风破浪会有时，直挂云帆济沧海。", "by": "李白《行路难》", "tone": "humanist", "scenes": ["daily"] },
+  { "text": "千淘万漉虽辛苦，吹尽狂沙始到金。", "by": "刘禹锡《浪淘沙》", "tone": "humanist", "scenes": ["daily"] },
+  { "text": "路漫漫其修远兮，吾将上下而求索。", "by": "屈原《离骚》", "tone": "humanist", "scenes": ["daily"] },
+  { "text": "莫听穿林打叶声，何妨吟啸且徐行。", "by": "苏轼《定风波》", "tone": "humanist", "scenes": ["daily", "quiet"] },
+
+  { "text": "今天的事都划掉了，去吃顿好的吧。", "tone": "encourage", "scenes": ["done"] },
+  { "text": "做完了，就把今天还给自己。", "tone": "encourage", "scenes": ["done"] },
+  { "text": "采菊东篱下，悠然见南山。", "by": "陶渊明《饮酒》", "tone": "humanist", "scenes": ["done", "quiet"] },
+
+  { "text": "歇一歇也算数。", "tone": "encourage", "scenes": ["quiet"] },
+  { "text": "行到水穷处，坐看云起时。", "by": "王维《终南别业》", "tone": "humanist", "scenes": ["quiet"] },
+  { "text": "人生如逆旅，我亦是行人。", "by": "苏轼《临江仙》", "tone": "humanist", "scenes": ["quiet"] },
+
+  { "text": "被拒绝的是这一次，不是你。", "tone": "encourage", "scenes": ["setback"] },
+  { "text": "沉默不是答案，只是还没轮到你。", "tone": "encourage", "scenes": ["setback"] },
+  { "text": "回首向来萧瑟处，也无风雨也无晴。", "by": "苏轼《定风波》", "tone": "humanist", "scenes": ["setback"] },
+  { "text": "沉舟侧畔千帆过，病树前头万木春。", "by": "刘禹锡《酬乐天扬州初逢席上见赠》", "tone": "humanist", "scenes": ["setback"] },
+  { "text": "山重水复疑无路，柳暗花明又一村。", "by": "陆游《游山西村》", "tone": "humanist", "scenes": ["setback"] },
+
+  { "text": "第一步最难，你已经站在门口了。", "tone": "encourage", "scenes": ["start"] },
+  { "text": "莫愁前路无知己，天下谁人不识君。", "by": "高适《别董大》", "tone": "humanist", "scenes": ["start"] },
+  { "text": "走的人多了，也便成了路。", "by": "鲁迅《故乡》", "tone": "humanist", "scenes": ["start"] }
+]

@@ -553,6 +553,12 @@ submit / send_greeting / answer_open_q 统一使用这张卡：
 - 弹窗：`--radius-2xl`、`--shadow-lg`、宽 480 / 640 两档，Esc 关闭，关闭后焦点回到触发入口。
 - Toast：右下角，最多同时 3 条，4 秒消失；有动作的 Toast 停留 8 秒。
 
+### 7.7 手写语句（暂定，2026-10-27）
+
+- 内置鸡汤与诗文两类短句（`components/career/handwriting/quotes.json`），按场景出现：招聘概览「今天」栏底部（还有事 / 都划掉了 / 没有待办）、求职漏斗有被拒或沉默时、投递记录与漏斗为空时。同一天同一场景固定一句。
+- 钢笔蓝、`--text-xl`；每个汉字按真实笔顺逐笔写出（hanzi-writer-data 楷体笔画，构建时只抽用到的字），标点淡入，写完出处淡入。只在逗号句号后换行。
+- 每次打开应用每句只写一遍，不循环；`prefers-reduced-motion` 下直接显示终态。改了语句后跑 `node scripts/build-handwriting-strokes.mjs`。
+
 ---
 
 ## 8. 同行参考与吸收
