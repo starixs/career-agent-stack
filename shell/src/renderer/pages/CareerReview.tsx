@@ -14,9 +14,11 @@ import {
   Badge, Button, CareerPage, Card, ChatActionButton, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, formatDate,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
+import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { LayerPanel } from '@/components/career/review/LayerPanel';
 import { MonthDays } from '@/components/career/review/MonthDays';
 import { MonthFunnel } from '@/components/career/review/MonthFunnel';
+import { monthQuoteScene } from '@/components/career/review/monthQuoteScene';
 import { LAYER_COLORS, LAYER_NAMES } from '@/components/career/review/monthFunnelGeometry';
 import type { CareerFocusEvent, MonthBoard, WeeklyReview } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
@@ -93,6 +95,7 @@ function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (
     return (
       <section>
         <EmptyState title="还没有投递。投出去之后，这里会长出这个月的漏斗。" />
+        <QuoteNote scene="funnel-start" pick="random" className="mb-4 text-center text-xl" />
         <div className="flex justify-center">
           <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'review' }} />
         </div>
@@ -108,6 +111,8 @@ function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (
         <span className="font-semibold tabular-nums text-[var(--ink)]" aria-live="polite">{board.month.year} 年 {board.month.month} 月</span>
         <Button size="sm" variant="ghost" aria-label="下个月" disabled={!board.month.next_key} onClick={() => onMonth(board.month.next_key)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
       </div>
+      {/* 按这个月走到哪一步，手写一句（每次打开随机，不与上次重复）。 */}
+      <QuoteNote scene={monthQuoteScene(board)} pick="random" className="text-xl" />
 
       <dl className="flex flex-wrap items-end gap-x-20 gap-y-6" aria-label="本月关键数字">
         {LAYER_NAMES.map((name, k) => (

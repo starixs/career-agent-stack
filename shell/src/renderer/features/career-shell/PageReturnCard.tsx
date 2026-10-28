@@ -58,7 +58,6 @@ const WRITE_TOOLS: Record<string, string> = {
   greeting_compose: '写了一条招呼语，等你批准',
   resume_master_create: '创建了主简历',
   resume_save: '改了简历',
-  resume_confirm: '应用了定制简历的改动',
   question_add: '加了一道题进题库',
   question_attempt: '记了一次作答',
 };

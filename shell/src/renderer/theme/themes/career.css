@@ -61,6 +61,8 @@ html[data-theme-id='keystone-default'][data-color-scheme='light'] {
   --note: #fff1a8;
   --note-a0: rgb(255 241 168 / 0);
   --mark: #ffe066;
+  /* 手写语句的墨绿：和界面文字、钢笔蓝都拉开（2026-10-28 定版，志莽行书） */
+  --hw-ink: #2d4a3f;
   --mint: #ddf1e3;
 
   --success: #2e7a4f;
@@ -148,6 +150,7 @@ html[data-theme-id='keystone-default'][data-color-scheme='dark'] {
   --note: #4a4220;
   --note-a0: rgb(74 66 32 / 0);
   --mark: #6b5a12;
+  --hw-ink: #a8c9b9;
   --mint: #22382b;
 
   --success: #6cc596;

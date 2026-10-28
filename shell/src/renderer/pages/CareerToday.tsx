@@ -6,6 +6,7 @@
  */
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { careerApi, safeJson } from '@/components/career/careerApi';
@@ -16,6 +17,7 @@ import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
 import { ManualSendText } from '@/components/career/ManualSendText';
 import { OnboardingIntro, buildSteps, markIntroSeen, readIntroSeen } from '@/components/career/OnboardingIntro';
+import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { StrikeText } from '@/components/career/StrikeText';
 import {
   CATEGORY_COLORS, CATEGORY_LABELS, TODO_CATEGORIES, buildTodos, groupByDate, localDateKey, mergeCompleted, monthGrid, summarizeDay,
@@ -152,15 +154,22 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
             <section aria-label="月历" className="min-w-0 flex-1">
               {loadError && <ErrorRow message={loadError} onRetry={reloadAll} />}
               {today.loading && !today.data && <LoadingRow />}
-              <div className="mb-3 flex items-center gap-2">
-                <h2 className="font-human text-lg font-semibold tabular-nums text-[var(--ink)]">{`${cursor.year} 年 ${cursor.month + 1} 月`}</h2>
-                <div className="ml-auto flex items-center gap-1">
-                  <Button variant="ghost" size="sm" aria-label="上个月" onClick={() => shiftMonth(-1)}><ChevronLeft className="h-4 w-4" strokeWidth={1.75} /></Button>
-                  <Button variant="secondary" size="sm" onClick={goToday}>今天</Button>
-                  <Button variant="ghost" size="sm" aria-label="下个月" onClick={() => shiftMonth(1)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
-                </div>
-              </div>
-              <MonthGrid grid={grid} month={cursor.month} todayKey={todayKey} selected={selected} byDate={byDate} onSelect={selectDay} />
+              <MonthGrid
+                title={`${cursor.year} 年 ${cursor.month + 1} 月`}
+                nav={(
+                  <>
+                    <Button variant="ghost" size="sm" aria-label="上个月" onClick={() => shiftMonth(-1)}><ChevronLeft className="h-4 w-4" strokeWidth={1.75} /></Button>
+                    <Button variant="secondary" size="sm" onClick={goToday}>今天</Button>
+                    <Button variant="ghost" size="sm" aria-label="下个月" onClick={() => shiftMonth(1)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
+                  </>
+                )}
+                grid={grid}
+                month={cursor.month}
+                todayKey={todayKey}
+                selected={selected}
+                byDate={byDate}
+                onSelect={selectDay}
+              />
               <Legend />
             </section>
             <DaySidebar
@@ -182,40 +191,65 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
   );
 }
 
-function MonthGrid({ grid, month, todayKey, selected, byDate, onSelect }: {
+// 一本挂在墙上的月历：顶上一排装订环，底下错开两张墨线纸露出厚度（硬边层次，跟按钮同一套语言），最底一张带柔阴影。
+function MonthGrid({ title, nav, grid, month, todayKey, selected, byDate, onSelect }: {
+  title: string; nav: ReactNode;
   grid: Date[]; month: number; todayKey: string; selected: string; byDate: Map<string, CalendarTodo[]>; onSelect: (date: Date) => void;
 }) {
+  const sheet = 'rounded-[var(--radius-lg)] border-[1.5px] border-[var(--ink)]';
   return (
-    <div className="overflow-hidden rounded-[var(--radius-lg)] border-[1.5px] border-[var(--line-2)] bg-[var(--paper)]">
-      <div className="grid grid-cols-7 border-b border-[var(--line-2)]">
-        {WEEKDAYS.map(w => (
-          <div key={w} className="py-1.5 text-center font-human text-xs text-[var(--muted)]">{`周${w}`}</div>
-        ))}
+    <div className="relative pb-2 pr-2 pt-2.5">
+      <div aria-hidden className={`absolute bottom-0 left-2 right-0 top-[18px] bg-[var(--inset)] shadow-[var(--shadow-md)] ${sheet}`} />
+      <div aria-hidden className={`absolute bottom-1 left-1 right-1 top-[14px] bg-[var(--paper)] ${sheet}`} />
+      <div className={`relative overflow-hidden bg-[var(--paper)] shadow-[var(--shadow-sm)] ${sheet}`}>
+        <div className="relative flex items-center gap-2 border-b-[1.5px] border-[var(--ink)] px-4 pb-2.5 pt-6">
+          <BindingRow className="inset-x-0 top-1.5">{() => <span className="h-2.5 w-2.5 rounded-full bg-[var(--bg)] shadow-[inset_0_1px_2px_rgb(0_0_0/0.35)]" />}</BindingRow>
+          <h2 className="font-human text-xl font-semibold tabular-nums text-[var(--ink)]">{title}</h2>
+          <div className="ml-auto flex items-center gap-1">{nav}</div>
+        </div>
+        <div className="grid grid-cols-7 border-b border-[var(--line-2)] bg-[var(--inset)]">
+          {WEEKDAYS.map((w, i) => (
+            <div key={w} className={`py-1.5 text-center font-human text-xs ${i >= 5 ? 'text-[var(--seal)]' : 'text-[var(--muted)]'}`}>{`周${w}`}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {grid.map((date, i) => {
+            const key = localDateKey(date);
+            return (
+              <DayCell
+                key={key}
+                date={date}
+                inMonth={date.getMonth() === month}
+                isToday={key === todayKey}
+                isSelected={key === selected}
+                weekend={i % 7 >= 5}
+                lastCol={i % 7 === 6}
+                lastRow={i >= 35}
+                todos={byDate.get(key) ?? []}
+                onSelect={onSelect}
+              />
+            );
+          })}
+        </div>
       </div>
-      <div className="grid grid-cols-7">
-        {grid.map((date, i) => {
-          const key = localDateKey(date);
-          return (
-            <DayCell
-              key={key}
-              date={date}
-              inMonth={date.getMonth() === month}
-              isToday={key === todayKey}
-              isSelected={key === selected}
-              lastCol={i % 7 === 6}
-              lastRow={i >= 35}
-              todos={byDate.get(key) ?? []}
-              onSelect={onSelect}
-            />
-          );
-        })}
-      </div>
+      <BindingRow className="left-0 right-2 top-0">{() => <span className="h-5 w-2 rounded-full border-[1.5px] border-[var(--ink)] bg-[var(--line-2)]" />}</BindingRow>
     </div>
   );
 }
 
-function DayCell({ date, inMonth, isToday, isSelected, lastCol, lastRow, todos, onSelect }: {
-  date: Date; inMonth: boolean; isToday: boolean; isSelected: boolean; lastCol: boolean; lastRow: boolean; todos: CalendarTodo[]; onSelect: (date: Date) => void;
+const BINDING_RINGS = 12;
+
+// 装订环和纸上的孔共用一套排布，环正好压在孔上。
+function BindingRow({ className, children }: { className: string; children: () => ReactNode }) {
+  return (
+    <div aria-hidden className={`pointer-events-none absolute flex justify-around px-10 ${className}`}>
+      {Array.from({ length: BINDING_RINGS }, (_, i) => <span key={i} className="flex w-2 justify-center">{children()}</span>)}
+    </div>
+  );
+}
+
+function DayCell({ date, inMonth, isToday, isSelected, weekend, lastCol, lastRow, todos, onSelect }: {
+  date: Date; inMonth: boolean; isToday: boolean; isSelected: boolean; weekend: boolean; lastCol: boolean; lastRow: boolean; todos: CalendarTodo[]; onSelect: (date: Date) => void;
 }) {
   const summary = summarizeDay(todos);
   const open = todos.filter(t => !t.done).length;
@@ -227,10 +261,10 @@ function DayCell({ date, inMonth, isToday, isSelected, lastCol, lastRow, todos, 
       aria-pressed={isSelected}
       data-date={localDateKey(date)}
       onClick={() => onSelect(date)}
-      className={`flex min-h-[104px] min-w-0 flex-col gap-1 p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)] ${lastCol ? '' : 'border-r'} ${lastRow ? '' : 'border-b'} border-[var(--line)] ${isSelected ? 'bg-[var(--selected)]' : 'hover:bg-[var(--hover)]'}`}
+      className={`flex min-h-[104px] min-w-0 flex-col gap-1 p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)] ${lastCol ? '' : 'border-r'} ${lastRow ? '' : 'border-b'} border-[var(--line)] ${isSelected ? 'bg-[var(--selected)] shadow-[inset_0_0_0_1.5px_var(--ink)]' : 'hover:bg-[var(--hover)]'}`}
     >
       <span
-        className={`inline-flex h-6 min-w-6 items-center justify-center self-start rounded-full px-1 text-xs tabular-nums ${isToday ? 'bg-[var(--primary)] font-semibold text-[var(--on-primary)]' : inMonth ? 'font-medium text-[var(--ink)]' : 'text-[var(--subtle)]'}`}
+        className={`inline-flex h-6 min-w-6 items-center justify-center self-start rounded-full px-1 text-xs tabular-nums ${isToday ? 'bg-[var(--primary)] font-semibold text-[var(--on-primary)]' : inMonth ? `font-medium ${weekend ? 'text-[var(--seal)]' : 'text-[var(--ink)]'}` : 'text-[var(--subtle)]'}`}
       >
         {date.getDate()}
       </span>
@@ -298,6 +332,13 @@ function DaySidebar({ dateKey, isToday, todos, justDone, onDone, onSnooze, onCha
           </section>
         ))}
       </div>
+      {/* 今天这一栏的末尾手写一句：有事时打气，都划掉了道一声辛苦，没有待办时就说点闲话。 */}
+      {isToday && (
+        <QuoteNote
+          scene={todos.length === 0 ? 'quiet' : open === 0 ? 'done' : 'daily'}
+          className="mt-5 border-t border-dashed border-[var(--line-2)] pt-4 text-xl"
+        />
+      )}
     </aside>
   );
 }

@@ -17,6 +17,7 @@ import { careerApi } from '@/components/career/careerApi';
 import { STAGE_LABELS, STAGE_TONES } from '@/components/career/careerConstants';
 import { Badge, CareerPage, EmptyState, ErrorRow, LoadingRow, TextInput, formatDate } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
+import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import type { ApplicationStage, CareerFocusEvent, DossierSummary } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
@@ -155,7 +156,10 @@ function DossierLine({ focus, onClearFilter }: { focus: FocusRequest | null; onC
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !summaries && <LoadingRow />}
         {summaries && summaries.length === 0 && (
-          <EmptyState title="还没有投递" hint="投出去之后每条投递都会列在这里：投到哪一步、有没有面试和截止。" example="这个月投了多少、几个进了面试" />
+          <>
+            <EmptyState title="还没有投递" hint="投出去之后每条投递都会列在这里：投到哪一步、有没有面试和截止。" example="这个月投了多少、几个进了面试" />
+            <QuoteNote scene="start" seed="dossier" className="mt-2 text-center text-xl" />
+          </>
         )}
         {rows.length > 0 && (
           <table className="w-full min-w-[720px] table-fixed border-collapse text-sm">

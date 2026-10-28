@@ -1,10 +1,7 @@
 /**
- * 简历定制提案（resume_tailor 产出的 JSON Patch）的应用：模型工具 resume_confirm 与
- * 对话内「简历改动」卡片的 POST /api/career/resumes/:id/confirm 共用同一条路径。
+ * 简历定制（resume_tailor 产出的 JSON Patch）：解析模型输出并应用到简历 schema。
+ * 改写只用已确认主张，生成后直接落库，不经过用户审核。
  */
-import type { Repos } from '@career/core';
-
-import type { CareerStore } from './store';
 
 /** 最小 JSON Patch（add / replace / remove），够用即可；复杂情况交给 @career/resume。 */
 export function applyJsonPatch(doc: unknown, ops: Array<{ op: string; path: string; value?: unknown }>): unknown {
@@ -42,23 +39,11 @@ export function applyJsonPatch(doc: unknown, ops: Array<{ op: string; path: stri
 export interface TailorOp { op: string; path: string; value?: unknown; from?: string }
 export interface TailorReason { path: string; reason?: string; claim_ids?: string[]; jd_keywords?: string[] }
 
-/** 读取 kv 里的提案：兼容 patch / changes / operations 三种键名。 */
-export function readTailorProposal(repos: Repos, tailoredId: string): { ops: TailorOp[]; reasons: TailorReason[]; unresolved: unknown[]; raw: Record<string, unknown> | undefined } {
-  const raw = repos.kvGet<Record<string, unknown>>(`tailor_proposal:${tailoredId}`);
+/** 解析模型输出：兼容 patch / changes / operations 三种键名。 */
+export function parseTailorProposal(raw: Record<string, unknown> | undefined): { ops: TailorOp[]; reasons: TailorReason[]; unresolved: unknown[] } {
   const rawOps = (raw?.patch ?? raw?.changes ?? raw?.operations) as unknown;
   const ops = Array.isArray(rawOps) ? (rawOps as TailorOp[]).filter(o => o && typeof o.path === 'string' && typeof o.op === 'string') : [];
   const reasons = Array.isArray(raw?.reasons) ? (raw!.reasons as TailorReason[]).filter(r => r && typeof r.path === 'string') : [];
   const unresolved = Array.isArray(raw?.unresolved) ? raw!.unresolved as unknown[] : [];
-  return { ops, reasons, unresolved, raw };
-}
-
-/** 把提案（可只取部分路径）应用到定制简历并确认落库；简历不存在返回 null。 */
-export function confirmTailorProposal(store: CareerStore, repos: Repos, tailoredId: string, acceptedPaths?: string[]): { tailored: unknown; applied: number } | null {
-  const cur = store.getResume(tailoredId);
-  if (!cur || cur.kind !== 'tailored') return null;
-  const { ops } = readTailorProposal(repos, tailoredId);
-  const accepted = ops.filter(o => !acceptedPaths || acceptedPaths.includes(o.path));
-  const schema = applyJsonPatch(JSON.parse(cur.row.schema_json), accepted);
-  const tailored = store.confirmTailored(tailoredId, schema);
-  return { tailored, applied: accepted.length };
+  return { ops, reasons, unresolved };
 }

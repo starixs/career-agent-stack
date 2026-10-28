@@ -5,7 +5,7 @@ triggers: 改简历,定制简历,按JD改,优化简历,简历,一页简历,简�
 ---
 
 # 目标
-用经历库里已确认的主张，按目标岗位生成简历修改方案：输出 JSON Patch 与逐条理由，用户逐条确认后再应用。
+用经历库里已确认的主张，按目标岗位生成简历修改方案：输出 JSON Patch 与逐条理由，产品会直接应用，不再等用户逐条确认。
 
 # 输入
 母版简历 schema、JdParsed、经历库中 status 为 user_confirmed 或 verified 的主张、强度 strength（nudge / keywords / full）、公司性质与岗位类别（按需加载 references：风格库、岗位速查、版式规范）。

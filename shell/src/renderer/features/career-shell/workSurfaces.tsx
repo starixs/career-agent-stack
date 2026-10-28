@@ -10,9 +10,8 @@ import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 're
 
 import { careerApi } from '@/components/career/careerApi';
 import { Button, LoadingRow } from '@/components/career/CareerPrimitives';
-import type { CareerCard, ExamPractice, MockInterview } from '@/components/career/types';
+import type { ExamPractice, MockInterview } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
-import { useTabStateOptional } from '@/context/TabContext';
 import type { ToolUseSimple } from '@/types/chat';
 
 import { BreakoutCard, ProgressAnchor, type BreakoutTone } from './BreakoutCard';
@@ -90,12 +89,11 @@ export { pendingQuestion } from './cardContent';
 
 type CardState = { tone: BreakoutTone; text: string };
 
-function cardState(surface: WorkSurface, tool: ToolUseSimple, extra: { pendingDiff: boolean }): CardState {
+function cardState(surface: WorkSurface, tool: ToolUseSimple): CardState {
   if (tool.isLoading) return { tone: 'running', text: '正在做…' };
   if (tool.isError || tool.isFailed) return { tone: 'error', text: '出错了，可以让小芽重试' };
   if (tool.isStopped) return { tone: 'idle', text: '已停止' };
   const result = parseToolResult(tool) ?? {};
-  if (surface === 'resume' && extra.pendingDiff) return { tone: 'waiting', text: '这几处修改等你采纳' };
   if (surface === 'mock-interview' && pendingQuestion(tool)) return { tone: 'waiting', text: '轮到你回答' };
   if (surface === 'exam' && result.status === 'answering') {
     const total = Number(result.questions ?? 0);
@@ -117,9 +115,9 @@ function useResumeReveal(resumeId: string | null): Reveal {
   return useMemo(() => makeReveal(preview), [preview]);
 }
 
-function ResumeCardContent({ tool, diffCard, refId, children }: { tool: ToolUseSimple; diffCard: CareerCard | undefined; refId: string | null; children: (content: CardContent) => ReactNode }) {
+function ResumeCardContent({ tool, refId, children }: { tool: ToolUseSimple; refId: string | null; children: (content: CardContent) => ReactNode }) {
   const reveal = useResumeReveal(refId);
-  return children(resumeContent(tool, diffCard, reveal));
+  return children(resumeContent(tool, reveal));
 }
 
 function ExamCardContent({ tool, children }: { tool: ToolUseSimple; children: (content: CardContent) => ReactNode }) {
@@ -132,15 +130,10 @@ function ExamCardContent({ tool, children }: { tool: ToolUseSimple; children: (c
 }
 
 export function WorkSurfaceCard({ surface, tool }: { surface: Exclude<WorkSurface, 'browser'>; tool: ToolUseSimple }) {
-  const tab = useTabStateOptional();
   const { expanded, refId: openRef } = useWorkSurfaces();
   const meta = SURFACE_META[surface];
   const refId = refIdForTool(surface, tool);
-  const diffCard = surface === 'resume'
-    ? (tab?.careerCards ?? []).find(card => card.kind === 'resume_diff' && ((refId && card.id.endsWith(`:${refId}`)) || card.toolUseId === tool.id))
-    : undefined;
-  const pendingDiff = Boolean(diffCard) && (diffCard?.state ?? 'pending') === 'pending';
-  const state = cardState(surface, tool, { pendingDiff });
+  const state = cardState(surface, tool);
   const open = expanded === surface && (openRef ?? null) === (refId ?? null);
   const question = surface === 'mock-interview' ? pendingQuestion(tool) : null;
 
@@ -168,7 +161,7 @@ export function WorkSurfaceCard({ surface, tool }: { surface: Exclude<WorkSurfac
   );
 
   if (surface === 'exam') return <ExamCardContent tool={tool}>{render}</ExamCardContent>;
-  if (surface === 'resume') return <ResumeCardContent tool={tool} diffCard={diffCard} refId={refId}>{render}</ResumeCardContent>;
+  if (surface === 'resume') return <ResumeCardContent tool={tool} refId={refId}>{render}</ResumeCardContent>;
   return render(mockInterviewContent(tool));
 }
 
@@ -222,13 +215,10 @@ export function SurfaceShell({ surface, status, primary, handoff, children }: {
 
 export function ResumeSurfacePanel() {
   const { refId, nonce } = useWorkSurfaces();
-  const tab = useTabStateOptional();
-  const pendingDiff = (tab?.careerCards ?? []).some(card => card.kind === 'resume_diff' && (card.state ?? 'pending') === 'pending' && (!refId || card.id.endsWith(`:${refId}`)));
   return (
     <SurfaceShell
       surface="resume"
-      status={pendingDiff ? { tone: 'waiting', text: '有修改等你采纳' } : { tone: 'idle', text: '自动保存，小芽会读到最新内容' }}
-      handoff={pendingDiff ? { title: '这几处修改等你采纳', detail: '在对话里的「简历改动」卡片上勾选要采纳的几处，再点应用；没勾的不会改。' } : null}
+      status={{ tone: 'idle', text: '自动保存，小芽会读到最新内容' }}
     >
       <Suspense fallback={<div className="px-5"><LoadingRow /></div>}>
         <div className="h-full">
