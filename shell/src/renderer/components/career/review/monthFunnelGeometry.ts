@@ -4,7 +4,11 @@
  */
 import type { LayerCounts } from '@/components/career/types';
 
-export const GEO = { FULL: 500, MINW: 30, H: 86, GAP: 14, CX: 280, Y0: 22, WIDTH: 560, HEIGHT: 440 } as const;
+// 尺寸按 24 寸屏一屏放下整月（数字、漏斗、每一天的投递）来定
+export const GEO = { FULL: 420, MINW: 24, H: 64, GAP: 10, CX: 240, Y0: 16, WIDTH: 480, HEIGHT: 330 } as const;
+
+/** 这个月还没有投出时摆的标准漏斗：只是一个初始形状（画得很淡），开始投出之后才按真实数量塑形。 */
+export const TEMPLATE_COUNTS: LayerCounts = [100, 42, 18, 7];
 
 /** 四层的颜色：投出蓝、笔试/测评青、面试珊瑚、Offer 芥黄。整页的图都沿用这一套，漏斗本身就是图例。 */
 export const LAYER_COLORS = ['#3456C4', '#2B9384', '#DB5A78', '#D49A2A'] as const;
@@ -74,8 +78,8 @@ export function scaleBase(counts: LayerCounts): number {
 
 /** 数为 0 的层画一个虚线小轮廓：空着的层也如实占位。 */
 export function emptySlot(k: number): string {
-  const y = layerTop(k) + 12; const x = GEO.CX;
-  return `M ${x - 16} ${y} L ${x + 16} ${y} L ${x + 10} ${y + GEO.H - 30} Q ${x} ${y + GEO.H - 20} ${x - 10} ${y + GEO.H - 30} Z`;
+  const y = layerTop(k) + 8; const x = GEO.CX;
+  return `M ${x - 14} ${y} L ${x + 14} ${y} L ${x + 9} ${y + GEO.H - 22} Q ${x} ${y + GEO.H - 14} ${x - 9} ${y + GEO.H - 22} Z`;
 }
 
 export function rings(history: Array<{ key: string; month: number; counts: LayerCounts }>, base: number): Ring[] {
@@ -84,7 +88,7 @@ export function rings(history: Array<{ key: string; month: number; counts: Layer
     const v = vase(h.counts, base);
     if (!v) return [];
     const ex = Math.min(GEO.WIDTH - 8, GEO.CX + v.halfWidthAt(ly));
-    const lx = 576; const y = 92 + i * 26;
+    const lx = GEO.WIDTH + 16; const y = layerTop(1) - 30 + i * 24;
     return [{
       key: h.key, label: `${h.month} 月`, d: v.d, style: RING_STYLE[i],
       leader: `M ${ex.toFixed(1)} ${ly} C ${(ex + 30).toFixed(1)} ${ly}, ${lx - 36} ${y}, ${lx - 6} ${y}`,
@@ -97,7 +101,7 @@ export function rings(history: Array<{ key: string; month: number; counts: Layer
 export function bandClip(k: number): { y: number; height: number } {
   const top = layerTop(k); const seam = GEO.GAP / 2 - 1.5;
   const y = k === 0 ? top - 2 : top - seam;
-  const bottom = top + GEO.H + (k === 3 ? 30 : seam);
+  const bottom = top + GEO.H + (k === 3 ? 24 : seam);
   return { y, height: bottom - y };
 }
 

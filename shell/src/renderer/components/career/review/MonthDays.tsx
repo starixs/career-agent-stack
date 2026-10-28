@@ -17,13 +17,13 @@ export function MonthDays({ board, layer }: { board: MonthBoard; layer: number |
   const [day, setDay] = useState<number | null>(null);
   const { month, days } = board;
   const max = Math.max(1, ...days.map((d) => d.sent));
-  const unit = 150 / max;
+  const unit = 100 / max;
   const lit = (k: number) => (layer === null || layer === k ? 1 : 0.22);
   return (
     <section aria-label="每一天的投递，后来怎么样了" className="flex flex-col gap-2.5">
-      <h2 className="m-0 font-human text-2xl font-normal text-[var(--ink)]">每一天的投递，后来怎么样了</h2>
+      <h2 className="m-0 font-human text-xl font-normal text-[var(--ink)]">每一天的投递，后来怎么样了</h2>
       <div className="relative" onMouseLeave={() => setDay(null)}>
-        <div className="flex h-[190px] items-end">
+        <div className="flex h-[124px] items-end">
           {days.map((d, i) => {
             const label = `${month.month}/${d.day} ${WD[(month.dow1 + i) % 7]}`;
             const future = month.today !== null && d.day > month.today;
@@ -41,12 +41,12 @@ export function MonthDays({ board, layer }: { board: MonthBoard; layer: number |
                 style={on ? { background: 'rgba(47,75,160,0.07)' } : undefined}
                 onMouseEnter={() => setDay(i)} onFocus={() => setDay(i)}
               >
-                <span className="flex h-[186px] flex-col-reverse items-center gap-[2px]">
+                <span className="flex h-[120px] flex-col-reverse items-center gap-[2px]">
                   {d.split.map((c, k) => {
                     if (c <= 0) return null;
                     const top = d.split.slice(k + 1).every((x) => x <= 0);
                     const fill = k === 0
-                      ? (d.pending ? { background: 'rgba(52,86,196,0.05)', boxShadow: 'inset 0 0 0 1.5px rgba(52,86,196,0.5)' } : { background: BASE_LIGHT })
+                      ? (d.pending ? { background: 'rgba(110,134,218,0.08)', boxShadow: 'inset 0 0 0 1.5px rgba(110,134,218,0.75)' } : { background: BASE_LIGHT })
                       : { background: LAYER_COLORS[k], boxShadow: k === 3 ? '0 0 12px rgba(212,154,42,0.75)' : undefined };
                     return (
                       <span

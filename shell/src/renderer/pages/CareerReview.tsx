@@ -8,7 +8,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { onEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
-import { Button, CareerPage, ChatActionButton, EmptyState, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
+import { Button, CareerPage, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
 import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { LayerPanel } from '@/components/career/review/LayerPanel';
 import { MonthDays } from '@/components/career/review/MonthDays';
@@ -51,7 +51,7 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
       subtitle={VIEW_HEADINGS[view].subtitle}
     >
       {view === 'funnel' && (
-        <div className="space-y-8 px-6 py-4">
+        <div className="space-y-6 px-6 py-4">
           {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
           {query.loading && !data && <LoadingRow />}
           {data && <MonthSection board={data.board} onMonth={changeMonth} />}
@@ -72,18 +72,8 @@ function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (
   // 面板平时留白：悬停某一层才出现，点击钉住；离开漏斗和面板所在的区域回到钉住的那层（没钉就留白）
   const [hovered, setHovered] = useState<number | null>(null);
   const [pinned, setPinned] = useState<number | null>(null);
+  // 还没投出时漏斗摆标准初始形状（见 MonthFunnel），不再单独做空状态页
   if (!board) return null;
-  if (board.month.is_current && !board.month.prev_key && board.counts.every((c) => c === 0)) {
-    return (
-      <section>
-        <EmptyState title="还没有投递。投出去之后，这里会长出这个月的漏斗。" />
-        <QuoteNote scene="funnel-start" pick="random" className="mb-4 text-center text-xl" />
-        <div className="flex justify-center">
-          <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'review' }} />
-        </div>
-      </section>
-    );
-  }
   const layer = hovered ?? pinned;
   const { counts, prev } = board;
   return (
@@ -94,27 +84,28 @@ function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (
         <Button size="sm" variant="ghost" aria-label="下个月" disabled={!board.month.next_key} onClick={() => onMonth(board.month.next_key)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
       </div>
 
-      <dl className="flex flex-wrap items-end gap-x-20 gap-y-6" aria-label="本月关键数字">
+      <dl className="flex items-end gap-x-14" aria-label="本月关键数字">
         {LAYER_NAMES.map((name, k) => (
           <BigNumber key={name} label={name} value={counts[k]} dot={LAYER_COLORS[k]} foot={prev ? `上月 ${prev[k]}` : '\u00a0'} />
         ))}
-        <div className="ml-auto border-l-[1.5px] border-dashed border-[var(--line-2)] pl-11">
+        {/* 这个月的手写一句，放在四个数和「替你投出」之间的留白里（按走到哪一步选句，每次打开随机、不与上次重复）。 */}
+        <div className="flex min-w-0 flex-1 items-center justify-end self-center">
+          {/* eslint-disable-next-line no-restricted-syntax -- 展示型字号 30px 已在 specs/CAREER_DESIGN.md 7.7 立档：和 56px 的大数字同一行，要压得住又不抢 */}
+          <QuoteNote scene={monthQuoteScene(board)} pick="random" className="text-right text-[30px]" />
+        </div>
+        <div className="border-l-[1.5px] border-dashed border-[var(--line-2)] pl-10">
           <BigNumber label="用我们以来 · 替你投出" value={board.since_total} accent foot={'\u00a0'} />
         </div>
       </dl>
 
-      <section aria-label="本月漏斗" className="flex items-stretch gap-12" onMouseLeave={() => setHovered(null)}>
+      <section aria-label="本月漏斗" className="flex items-stretch gap-10" onMouseLeave={() => setHovered(null)}>
         <MonthFunnel board={board} layer={layer} onHover={setHovered} onPin={(k) => setPinned((p) => (p === k ? null : k))} />
-        <div className="min-h-[440px] min-w-0 flex-1 pl-11">
+        <div className="min-h-[330px] min-w-0 flex-1 pl-8">
           {layer !== null && <LayerPanel board={board} layer={layer} />}
         </div>
       </section>
 
       <MonthDays board={board} layer={layer} />
-
-      {/* 整月的落款：按这个月走到哪一步手写一句，靠右收尾（每次打开随机，不与上次重复）。 */}
-      {/* eslint-disable-next-line no-restricted-syntax -- 展示型字号 36px 已在 specs/CAREER_DESIGN.md 7.7 立档：落款要压得住上面 76px 的大数字 */}
-      <QuoteNote scene={monthQuoteScene(board)} pick="random" className="pt-6 text-right text-[36px]" />
     </>
   );
 }
@@ -126,7 +117,7 @@ function BigNumber({ label, value, dot, foot, accent = false }: { label: string;
         {dot && <span className="h-2 w-2 rounded-full" style={{ background: dot }} aria-hidden />}
         {label}
       </dt>
-      <dd className="m-0 font-black" style={{ fontSize: 76, lineHeight: '80px', color: accent ? 'var(--primary)' : 'var(--ink)' }} aria-label={`${label} ${value}`}>{value}</dd>
+      <dd className="m-0 font-black" style={{ fontSize: 56, lineHeight: '60px', color: accent ? 'var(--primary)' : 'var(--ink)' }} aria-label={`${label} ${value}`}>{value}</dd>
       <dd className="m-0 text-xs text-[var(--subtle)]">{foot}</dd>
     </div>
   );

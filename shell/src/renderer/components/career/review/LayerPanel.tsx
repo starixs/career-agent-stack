@@ -31,7 +31,7 @@ export function LayerPanel({ board, layer }: { board: MonthBoard; layer: number 
       </div>
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline gap-3">
-          <span className="font-human font-semibold text-[var(--ink)]" style={{ fontSize: 84, lineHeight: '88px' }}>{counts[layer]}</span>
+          <span className="font-human font-semibold text-[var(--ink)]" style={{ fontSize: 60, lineHeight: '64px' }}>{counts[layer]}</span>
           <span className="font-human text-xl font-semibold">{UNITS[layer]}</span>
           {prev && <span className="text-xs text-[var(--subtle)]">上月 {prev[layer]}</span>}
         </div>
@@ -53,7 +53,7 @@ function SentDetail({ board }: { board: MonthBoard }) {
   const max = Math.max(1, ...board.days.map((d) => d.sent));
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="flex h-[120px] items-end gap-1 border-b-[1.5px] border-[var(--ink)] pb-[3px]" aria-label="本月每天投出">
+      <div className="flex h-[88px] items-end gap-1 border-b-[1.5px] border-[var(--ink)] pb-[3px]" aria-label="本月每天投出">
         {board.days.map((d) => (
           <span
             key={d.day}
@@ -61,7 +61,7 @@ function SentDetail({ board }: { board: MonthBoard }) {
             className="flex-1 rounded-t-[4px] rounded-b-[1px]"
             style={d.sent === 0
               ? { height: 2, background: 'var(--line)' }
-              : { height: Math.max(4, Math.round((d.sent / max) * 112)), ...(d.pending ? { background: 'rgba(52,86,196,0.12)', boxShadow: `inset 0 0 0 1.5px ${LAYER_COLORS[0]}` } : { background: LAYER_COLORS[0] }) }}
+              : { height: Math.max(4, Math.round((d.sent / max) * 80)), ...(d.pending ? { background: 'rgba(52,86,196,0.12)', boxShadow: `inset 0 0 0 1.5px ${LAYER_COLORS[0]}` } : { background: LAYER_COLORS[0] }) }}
           />
         ))}
       </div>

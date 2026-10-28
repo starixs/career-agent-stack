@@ -24,7 +24,7 @@ const board = {
   offers: [{ company: '阿里', title: '后端开发', location: '杭州', reply_by: '2099-11-05T09:00:00Z' }],
   rhythm: { reply_days: 5, first_interview_after: 23 },
 };
-const emptyBoard = { ...board, month: { ...board.month, prev_key: null }, counts: [0, 0, 0, 0], prev: null, history: [], since_total: 0, days: days.map((d) => ({ ...d, sent: 0, split: [0, 0, 0, 0] })) };
+const emptyBoard = { ...board, month: { ...board.month, prev_key: null }, counts: [0, 0, 0, 0], prev: null, since_total: 0, days: days.map((d) => ({ ...d, sent: 0, split: [0, 0, 0, 0] })) };
 
 function mockGet(opts: { empty?: boolean } = {}) {
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
@@ -42,12 +42,14 @@ describe('CareerReview', () => {
     vi.mocked(apiPostJson).mockReset();
   });
 
-  it('没有投递数据时显示空态与让助理建议的按钮', async () => {
+  it('还没投出时不出空状态页：照样摆漏斗（标准初始形状），数字写真实的 0，不画过往月份', async () => {
     mockGet({ empty: true });
     render(<CareerReview isActive onOpenChat={vi.fn()} />);
-    expect(await screen.findByText('还没有投递。投出去之后，这里会长出这个月的漏斗。')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '帮我看看接下来该投什么' })).toBeInTheDocument();
-    expect(screen.queryByLabelText('本月漏斗')).not.toBeInTheDocument();
+    const section = await screen.findByLabelText('本月漏斗');
+    expect(screen.getByRole('button', { name: '投出 0' })).toBeInTheDocument();
+    expect(within(section).queryByText('9 月')).not.toBeInTheDocument();
+    expect(section.querySelectorAll('path[clip-path]')).toHaveLength(4);
+    expect(within(screen.getByLabelText('本月关键数字')).getByLabelText('投出 0')).toBeInTheDocument();
   });
 
   it('顶部五个大数：本月四层带上月，另有用我们以来替你投出', async () => {

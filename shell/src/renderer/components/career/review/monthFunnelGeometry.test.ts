@@ -30,7 +30,7 @@ describe('月度漏斗几何', () => {
     expect(v).not.toBeNull();
     expect(v.d.startsWith(`M ${(GEO.CX - GEO.FULL / 2).toFixed(1)} ${layerTop(1)}`)).toBe(true);
     expect(v.halfWidthAt(layerTop(1) + GEO.H / 2)).toBeCloseTo(GEO.FULL / 2, 5);
-    expect(emptySlot(0)).toContain(`${layerTop(0) + 12}`);
+    expect(emptySlot(0)).toContain(`${layerTop(0) + 8}`);
   });
 
   it('色带之间留纸缝，最后一层多留出收口', () => {
