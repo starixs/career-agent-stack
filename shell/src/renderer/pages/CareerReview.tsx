@@ -1,27 +1,22 @@
 /**
  * 我的求职月：复盘页，只回看已经发生的事（推进任务归通知中心和日历页）。
- * 顶部五个数（本月四层 + 用我们以来替你投出）→ 花瓶漏斗与过往月份年轮（悬停才出面板）→ 每一天的投递后来怎么样了 → 周复盘。
+ * 顶部五个数（本月四层 + 用我们以来替你投出）→ 花瓶漏斗与过往月份年轮（悬停才出面板）→ 每一天的投递后来怎么样了 → 页底手写一句。
  * 口径见 packages/core/src/review-board.ts。视图：我的求职月 / 调研与方向（嵌入 CareerResearch）。
  */
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { onEvent } from '@/api/eventBus';
-import { careerApi, safeJson } from '@/components/career/careerApi';
-import { STRENGTH_LABELS } from '@/components/career/careerConstants';
-import {
-  Badge, Button, CareerPage, Card, ChatActionButton, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, formatDate,
-} from '@/components/career/CareerPrimitives';
-import type { BadgeTone } from '@/components/career/CareerPrimitives';
+import { careerApi } from '@/components/career/careerApi';
+import { Button, CareerPage, ChatActionButton, EmptyState, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
 import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { LayerPanel } from '@/components/career/review/LayerPanel';
 import { MonthDays } from '@/components/career/review/MonthDays';
 import { MonthFunnel } from '@/components/career/review/MonthFunnel';
 import { monthQuoteScene } from '@/components/career/review/monthQuoteScene';
 import { LAYER_COLORS, LAYER_NAMES } from '@/components/career/review/monthFunnelGeometry';
-import type { CareerFocusEvent, MonthBoard, WeeklyReview } from '@/components/career/types';
-import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
+import type { CareerFocusEvent, MonthBoard } from '@/components/career/types';
+import { useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
 import { useCareerSubView } from '@/features/career-shell/subViewStore';
@@ -37,10 +32,9 @@ const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
 
 export default function CareerReview({ embedded = false }: CareerPageProps) {
   const [view, setView] = useCareerSubView<View>('career-review', DEFAULT_SUB_VIEWS['career-review']);
-  const [focusId, setFocusId] = useState<string | null>(null);
   // 看哪个月（YYYY-MM）；null = 本月。
   const [month, setMonth] = useState<string | null>(null);
-  const query = useCareerQuery(() => careerApi.review(month ?? undefined), ['application', 'application_history', 'weekly_review', 'job', 'deadline', 'interview', 'offer', 'action_queue']);
+  const query = useCareerQuery(() => careerApi.review(month ?? undefined), ['application', 'application_history', 'job', 'deadline', 'interview', 'offer', 'action_queue']);
   const reload = query.reload;
   const changeMonth = (next: string | null) => { setMonth(next); reload(); };
   const data = query.data;
@@ -48,18 +42,7 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
     if (payload?.surface !== 'review') return;
     setView('funnel');
-    if (payload.id) setFocusId(payload.id);
   }), [setView]);
-
-  // 只对同一个焦点滚动一次；用户手动切视图即清除高亮。
-  const scrolledFor = useRef<string | null>(null);
-  useEffect(() => {
-    if (!focusId || !data || scrolledFor.current === focusId) return;
-    const el = document.getElementById(`weekly-review-${focusId}`);
-    if (!el) return;
-    scrolledFor.current = focusId;
-    el.scrollIntoView?.({ block: 'start' });
-  }, [focusId, data]);
 
   return (
     <CareerPage
@@ -72,7 +55,6 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
           {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
           {query.loading && !data && <LoadingRow />}
           {data && <MonthSection board={data.board} onMonth={changeMonth} />}
-          {data && <WeeklySection reviews={data.reviews} highlightId={focusId} onChanged={query.reload} />}
         </div>
       )}
       {view === 'research' && (
@@ -148,128 +130,4 @@ function BigNumber({ label, value, dot, foot, accent = false }: { label: string;
       <dd className="m-0 text-xs text-[var(--subtle)]">{foot}</dd>
     </div>
   );
-}
-
-// ─── 周复盘 ───
-
-interface Insight { finding: string; strength: string | null }
-interface Suggestion { action: string; why: string | null; priority: number | null }
-
-function parseInsights(raw: string | null | undefined): Insight[] {
-  const v = safeJson<unknown>(raw, []);
-  const list = Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v as Record<string, unknown>) : [];
-  return list.flatMap(item => {
-    if (typeof item === 'string') return [{ finding: item, strength: null }];
-    if (item && typeof item === 'object') {
-      const o = item as Record<string, unknown>;
-      const finding = [o.finding, o.insight, o.text, o.summary].find(x => typeof x === 'string') as string | undefined;
-      return finding ? [{ finding, strength: typeof o.strength === 'string' ? o.strength : null }] : [];
-    }
-    return [];
-  });
-}
-
-function parseSuggestions(raw: string | null | undefined): Suggestion[] {
-  const v = safeJson<unknown>(raw, []);
-  const list = Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v as Record<string, unknown>) : [];
-  const out = list.flatMap((item, i) => {
-    if (typeof item === 'string') return [{ action: item, why: null, priority: i + 1 }];
-    if (item && typeof item === 'object') {
-      const o = item as Record<string, unknown>;
-      const action = [o.action, o.suggestion, o.text, o.title].find(x => typeof x === 'string') as string | undefined;
-      if (!action) return [];
-      const why = [o.why, o.reason].find(x => typeof x === 'string') as string | undefined;
-      const p = typeof o.priority === 'number' ? o.priority : typeof o.priority === 'string' && Number.isFinite(Number(o.priority)) ? Number(o.priority) : null;
-      return [{ action, why: why ?? null, priority: p }];
-    }
-    return [];
-  });
-  return out.sort((a, b) => (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER));
-}
-
-const STRENGTH_TONE: Record<string, BadgeTone> = { strong: 'success', mid: 'warning', weak: 'neutral' };
-
-function WeeklySection({ reviews, highlightId, onChanged }: { reviews: WeeklyReview[]; highlightId: string | null; onChanged: () => void }) {
-  const [note, setNote] = useState('');
-  const gen = useCareerAction();
-  const generate = () => gen.run(async () => {
-    const user_note = note.trim();
-    await careerApi.generateWeeklyReview(user_note ? { user_note } : {});
-    setNote('');
-    onChanged();
-  });
-  const sorted = [...reviews].sort((a, b) => (b.week_start ?? '').localeCompare(a.week_start ?? '') || (b.created_at ?? '').localeCompare(a.created_at ?? ''));
-  return (
-    <section className="space-y-3">
-      <SectionTitle extra={<Button variant="primary" busy={gen.busy} onClick={() => void generate()}>生成本周复盘</Button>}>周复盘</SectionTitle>
-      {gen.error && <ErrorRow message={gen.error} />}
-      <Field label="想补充的情况或情绪（可选）" hint="比如这周为什么没投、哪场面试感觉不对；复盘会把它一起考虑进去">
-        <TextArea aria-label="补充说明" placeholder="随便写，不用整理" value={note} onChange={e => setNote(e.target.value)} />
-      </Field>
-      {sorted.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有周复盘。点「生成本周复盘」，助理会按漏斗给出一件今天就能做的小事。</div>}
-      <div className="space-y-3">
-        {sorted.map(r => <ReviewCard key={r.id} review={r} highlighted={r.id === highlightId} />)}
-      </div>
-    </section>
-  );
-}
-
-function ReviewCard({ review: r, highlighted }: { review: WeeklyReview; highlighted: boolean }) {
-  const insights = parseInsights(r.insights_json);
-  const suggestions = parseSuggestions(r.suggestions_json);
-  return (
-    <div id={`weekly-review-${r.id}`}>
-      <Card className={highlighted ? 'ring-2 ring-[var(--primary)]' : ''} title={`${formatDate(r.week_start)} 这周`} extra={<span className="text-xs text-[var(--subtle)]">生成于 {formatDate(r.created_at)}</span>}>
-        {r.small_action && (
-          <div className="mb-3 rounded-lg border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-2">
-            <div className="text-xs font-medium text-[var(--primary)]">今天就能做的一件小事</div>
-            <div className="mt-0.5 text-base font-semibold text-[var(--ink)]">{r.small_action}</div>
-            <div className="mt-2">
-              <ChatActionButton text={`帮我做这件事：${r.small_action}`} context={{ surface: 'review', refs: { review_id: r.id } }} />
-            </div>
-          </div>
-        )}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Block title="发现">
-            {insights.length === 0 && <Muted>没有新的发现。</Muted>}
-            <ul className="space-y-1">
-              {insights.map((it, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-[var(--ink)]">
-                  {it.strength && <Badge tone={STRENGTH_TONE[it.strength] ?? 'neutral'}>{STRENGTH_LABELS[it.strength as keyof typeof STRENGTH_LABELS] ?? it.strength}</Badge>}
-                  <span>{it.finding}</span>
-                </li>
-              ))}
-            </ul>
-          </Block>
-          <Block title="建议">
-            {suggestions.length === 0 && <Muted>没有额外建议。</Muted>}
-            <ol className="space-y-1">
-              {suggestions.map((s, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <span className="w-4 shrink-0 tabular-nums text-[var(--subtle)]">{i + 1}.</span>
-                  <div className="min-w-0">
-                    <div className="text-[var(--ink)]">{s.action}</div>
-                    {s.why && <div className="text-xs text-[var(--muted)]">{s.why}</div>}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </Block>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function Block({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <div className="mb-1 text-xs font-medium text-[var(--muted)]">{title}</div>
-      {children}
-    </div>
-  );
-}
-
-function Muted({ children }: { children: ReactNode }) {
-  return <div className="text-xs text-[var(--subtle)]">{children}</div>;
 }
