@@ -132,3 +132,34 @@ describe('ScreencastHub', () => {
     unsub();
   });
 });
+
+describe('ScreencastHub 隐藏兜底', () => {
+  it('Chrome 被隐藏：不等 screencast 帧，按间隔轮询 fromSurface:false 截图；恢复后回到原来的节奏', async () => {
+    const sent: Array<{ method: string; params?: Record<string, unknown> }> = [];
+    const session: CdpSessionLike = {
+      send: async (method, params) => {
+        sent.push({ method, params });
+        if (method === 'Page.getLayoutMetrics') return { cssVisualViewport: { clientWidth: 1366, clientHeight: 768, pageX: 0, pageY: 0 } };
+        if (method === 'Page.captureScreenshot') return { data: params?.fromSurface === false ? 'HIDDEN' : 'SURFACE' };
+        return {};
+      },
+      on: () => {},
+      detach: async () => {},
+    };
+    const page: ScreencastPageLike = { url: () => 'https://x.com', title: async () => '', isClosed: () => false, newCDPSession: async () => session };
+    let hidden = true;
+    const hub = new ScreencastHub(async () => page, { idleSnapshotMs: 2000, surfaceless: () => hidden, surfacelessIntervalMs: 40 });
+    const frames: string[] = [];
+    const unsub = hub.subscribe(f => frames.push(f.data));
+    await new Promise(r => setTimeout(r, 200));
+    const hiddenShots = frames.filter(f => f === 'HIDDEN').length;
+    expect(hiddenShots).toBeGreaterThanOrEqual(3);
+    expect(frames).not.toContain('SURFACE');
+    hidden = false;
+    await new Promise(r => setTimeout(r, 200));
+    // 页面静止：2 秒内不再补帧
+    expect(frames.filter(f => f === 'HIDDEN').length).toBeLessThanOrEqual(hiddenShots + 1);
+    expect(frames).not.toContain('SURFACE');
+    unsub();
+  });
+});

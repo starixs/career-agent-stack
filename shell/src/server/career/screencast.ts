@@ -3,6 +3,8 @@
  * 一个页面只开一路 screencast，多个订阅者共享；最后一个订阅者离开就停，不白耗 CPU。
  * 只读：看不等于控；接管 / 交回仍走控制权接口。
  */
+import { captureSurfaceless } from '../browser-host/page-control';
+
 /** source：screencast = 页面在动的实时帧；snapshot = 页面静止时的补截图（渲染层据此显示"实时 / 静止画面"）。 */
 export interface ScreencastFrame { data: string; width: number; height: number; ts: number; url?: string; title?: string; source?: 'screencast' | 'snapshot' }
 export interface CdpSessionLike {
@@ -28,6 +30,12 @@ export interface ScreencastOptions {
   quality?: number; maxWidth?: number; maxHeight?: number; everyNthFrame?: number; log?: (msg: string) => void;
   /** 多久没有 screencast 帧就补一张截图（毫秒）。缺省 2000；0 = 不补。 */
   idleSnapshotMs?: number;
+  /**
+   * 托管 Chrome 此刻是否被隐藏（隐藏兜底）：隐藏后 screencast 一帧都不出、普通截图挂住，
+   * 改为每 surfacelessIntervalMs（缺省 300）轮询一张 fromSurface:false 截图。每次补帧前都问一次，中途切换也跟得上。
+   */
+  surfaceless?: () => boolean;
+  surfacelessIntervalMs?: number;
 }
 
 type Subscriber = (frame: ScreencastFrame) => void;
@@ -95,8 +103,14 @@ export class ScreencastHub {
       // 所以接上就先补一张截图，之后一段时间没有新帧也补一张。
       void this.snapshot(session, page);
       const idleMs = this.opts.idleSnapshotMs ?? 2000;
-      if (idleMs > 0) {
-        this.idleTimer = setInterval(() => { if (Date.now() - this.lastFrameAt >= idleMs) void this.snapshot(session, page); }, Math.max(20, Math.floor(idleMs / 2)));
+      const pollMs = this.opts.surfacelessIntervalMs ?? 300;
+      if (idleMs > 0 || this.opts.surfaceless) {
+        // 有隐藏兜底时要能按 pollMs 轮询，检查得更勤；否则保持原来的节奏
+        const tickMs = Math.max(20, this.opts.surfaceless ? Math.min(150, Math.floor(pollMs / 2)) : Math.floor(idleMs / 2));
+        this.idleTimer = setInterval(() => {
+          const threshold = this.opts.surfaceless?.() ? pollMs : idleMs;
+          if (threshold > 0 && Date.now() - this.lastFrameAt >= threshold) void this.snapshot(session, page);
+        }, tickMs);
         this.idleTimer.unref?.();
       }
     })().catch(e => { this.opts.log?.(`screencast 启动失败：${e instanceof Error ? e.message : String(e)}`); throw e; }).finally(() => { this.starting = null; });
@@ -130,9 +144,12 @@ export class ScreencastHub {
       const vp = await this.readViewport(session);
       const maxW = this.opts.maxWidth ?? 1280, maxH = this.opts.maxHeight ?? 900;
       const clip = vp ? { x: vp.pageX, y: vp.pageY, width: vp.width, height: vp.height, scale: Math.min(1, maxW / vp.width, maxH / vp.height) } : undefined;
-      const shot = await session.send('Page.captureScreenshot', { format: 'jpeg', quality: this.opts.quality ?? 55, optimizeForSpeed: true, ...(clip ? { clip } : {}) }) as { data?: string };
-      if (!shot?.data || this.session !== session) return;
-      this.emit({ data: shot.data, width: this.viewport?.width ?? this.last?.width ?? 0, height: this.viewport?.height ?? this.last?.height ?? 0, ts: Date.now(), url: page.url(), source: 'snapshot' });
+      const params = { format: 'jpeg' as const, quality: this.opts.quality ?? 55, ...(clip ? { clip } : {}) };
+      const data = this.opts.surfaceless?.()
+        ? await captureSurfaceless(session, params)
+        : (await session.send('Page.captureScreenshot', { ...params, optimizeForSpeed: true }) as { data?: string })?.data;
+      if (!data || this.session !== session) return;
+      this.emit({ data, width: this.viewport?.width ?? this.last?.width ?? 0, height: this.viewport?.height ?? this.last?.height ?? 0, ts: Date.now(), url: page.url(), source: 'snapshot' });
     } catch (e) {
       this.opts.log?.(`补截图没拿到（下次再补）：${e instanceof Error ? e.message : String(e)}`);
     } finally {

@@ -1,4 +1,5 @@
 import { execFile } from 'child_process';
+import { writeFile } from 'fs/promises';
 
 import type { BrowserContext, Page } from 'playwright';
 
@@ -206,6 +207,73 @@ export async function fitPageViewport(context: BrowserContext, page: Page, viewp
   }
   if (options.park && process.platform === 'win32' && options.profileDir) await parkWindow(context, page, { viewport, profileDir: options.profileDir });
   return changed;
+}
+
+export interface SurfacelessScreenshotOptions {
+  type?: 'png' | 'jpeg';
+  quality?: number;
+  clip?: { x: number; y: number; width: number; height: number };
+  scale?: 'css' | 'device';
+  path?: string;
+  fullPage?: boolean;
+  timeout?: number;
+}
+
+interface CdpLike { send(method: string, params?: Record<string, unknown>): Promise<unknown> }
+
+/**
+ * 隐藏兜底下截一帧：Chrome 隐藏后不合成画面，普通截图（fromSurface）和画面流都拿不到帧；
+ * fromSurface:false 让页面重新绘制一帧（实测 1366×768@2x 约 250ms）。
+ * 2026-10-26 实测两个坑：隐藏期间新加载的文档（跳转后、启动即隐藏）以及后台标签页，fromSurface:false 会一直挂住 /
+ * 报 "Unable to capture"——给页面一次 Page.bringToFront 就恢复，Chrome 仍保持隐藏。bringToFront 会让 Chrome
+ * 被系统激活一下（守卫立刻把焦点还回去），所以只在截不到时才做，不每帧都做。
+ */
+export async function captureSurfaceless(
+  session: CdpLike,
+  params: { format?: 'png' | 'jpeg'; quality?: number; clip?: Record<string, number> } = {},
+  timing: { firstTimeoutMs?: number; timeoutMs?: number } = {},
+): Promise<string> {
+  const shoot = (timeoutMs: number) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    return Promise.race([
+      session.send('Page.captureScreenshot', { ...params, fromSurface: false }).then(result => (result as { data: string }).data),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('SURFACELESS_CAPTURE_STALLED')), timeoutMs); }),
+    ]).finally(() => clearTimeout(timer));
+  };
+  try {
+    return await shoot(timing.firstTimeoutMs ?? 1500);
+  } catch (error) {
+    if (!/Unable to capture|SURFACELESS_CAPTURE_STALLED/i.test(error instanceof Error ? error.message : String(error))) throw error;
+    await session.send('Page.bringToFront');
+    return shoot(timing.timeoutMs ?? 10_000);
+  }
+}
+
+/** 隐藏兜底下 `page.screenshot()` 的替身（借用代理用它接管截图）。整页截图退化成可见视口。 */
+export async function surfacelessScreenshot(context: BrowserContext, page: Page, options: SurfacelessScreenshotOptions = {}): Promise<Buffer> {
+  const format = options.type ?? (/\.jpe?g$/i.test(options.path ?? '') ? 'jpeg' : 'png');
+  const session = await context.newCDPSession(page);
+  try {
+    // 和 Playwright 一样换算：clip 是相对视口的 CSS 像素，CDP 要文档坐标；scale:'css' 再除以设备像素比
+    const metrics = await session.send('Page.getLayoutMetrics') as {
+      cssVisualViewport: { pageX: number; pageY: number; clientWidth: number; clientHeight: number };
+      contentSize?: { width: number }; cssContentSize?: { width: number };
+    };
+    const vp = metrics.cssVisualViewport;
+    const rect = options.clip ?? { x: 0, y: 0, width: vp.clientWidth, height: vp.clientHeight };
+    const dpr = metrics.contentSize?.width && metrics.cssContentSize?.width ? metrics.contentSize.width / metrics.cssContentSize.width : 1;
+    const clip = { x: vp.pageX + rect.x, y: vp.pageY + rect.y, width: rect.width, height: rect.height, scale: options.scale === 'css' ? 1 / (dpr || 1) : 1 };
+    const data = await captureSurfaceless(
+      session,
+      { format, ...(format === 'jpeg' && options.quality !== undefined ? { quality: options.quality } : {}), clip },
+      { timeoutMs: options.timeout && options.timeout > 0 ? options.timeout : 30_000 },
+    );
+    const buffer = Buffer.from(data, 'base64');
+    if (options.path) await writeFile(options.path, buffer);
+    return buffer;
+  } finally {
+    await session.detach().catch(() => {});
+  }
 }
 
 /** 临时把真实窗口放出来并前置（文件框、插件弹窗等现场画面处理不了的情况）。 */

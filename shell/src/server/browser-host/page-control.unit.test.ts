@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BrowserContext, Page } from 'playwright';
 
-import { activePage, bringToFront, findBrowserMainPid, fitPageViewport, maxParkedViewportHeight, PARK_DISPLAY_SIZE, parkedBoundsFor, parkWindow, PARKED_WINDOW_BOUNDS, restoreIfMinimized, viewportForFrame } from './page-control';
+import { activePage, bringToFront, captureSurfaceless, findBrowserMainPid, fitPageViewport, maxParkedViewportHeight, PARK_DISPLAY_SIZE, parkedBoundsFor, parkWindow, PARKED_WINDOW_BOUNDS, restoreIfMinimized, viewportForFrame } from './page-control';
 import { setVirtualParkTarget } from './virtual-display';
 
 function fakePage(closed = false): Page {
@@ -188,5 +188,47 @@ describe('parked viewport fits its screen', () => {
     expect(maxParkedViewportHeight()).toBe(1500);
     // 现在建的虚拟屏能装下最高的视口
     expect(PARK_DISPLAY_SIZE.height - 160).toBeGreaterThanOrEqual(viewportForFrame({ width: 100, height: 1000 })!.height);
+  });
+});
+
+describe('captureSurfaceless', () => {
+  it('先直接截；截不到（不是当前标签页 / 隐藏期间的新文档挂住）才 bringToFront 再截一次', async () => {
+    const calls: string[] = [];
+    let awake = false;
+    const session = {
+      send: vi.fn((method: string, params?: Record<string, unknown>) => {
+        calls.push(method);
+        if (method === 'Page.captureScreenshot') {
+          expect(params?.fromSurface).toBe(false);
+          return awake ? Promise.resolve({ data: 'OK' }) : new Promise(() => {}); // 挂住
+        }
+        if (method === 'Page.bringToFront') awake = true;
+        return Promise.resolve({});
+      }),
+    };
+    expect(await captureSurfaceless(session, { format: 'jpeg' }, { firstTimeoutMs: 20 })).toBe('OK');
+    expect(calls).toEqual(['Page.captureScreenshot', 'Page.bringToFront', 'Page.captureScreenshot']);
+    // 已经能截：不再 bringToFront（它会让 Chrome 被系统激活一下）
+    calls.length = 0;
+    await captureSurfaceless(session);
+    expect(calls).toEqual(['Page.captureScreenshot']);
+  });
+
+  it('"Unable to capture" 立即恢复，不等超时', async () => {
+    let awake = false;
+    const session = {
+      send: vi.fn(async (method: string) => {
+        if (method === 'Page.bringToFront') { awake = true; return {}; }
+        if (!awake) throw new Error('Protocol error (Page.captureScreenshot): Unable to capture screenshot');
+        return { data: 'OK' };
+      }),
+    };
+    expect(await captureSurfaceless(session, {}, { firstTimeoutMs: 60_000 })).toBe('OK');
+  });
+
+  it('其它错误原样抛出', async () => {
+    const session = { send: vi.fn(async () => { throw new Error('Target closed'); }) };
+    await expect(captureSurfaceless(session)).rejects.toThrow('Target closed');
+    expect(session.send).toHaveBeenCalledOnce();
   });
 });
