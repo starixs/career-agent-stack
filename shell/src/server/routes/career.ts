@@ -821,7 +821,11 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 复盘 ----------
-  route('GET', '/api/career/review', ({ repos }) => ok({ funnel: repos.funnel(), reviews: repos.listWeeklyReviews(12) })),
+  route('GET', '/api/career/review', ({ repos, url }) => {
+    // 周边界按本机时区算：侧车跑在用户自己的机器上
+    const board = repos.monthBoard({ month: url.searchParams.get('month') ?? undefined, tzOffsetMinutes: -new Date().getTimezoneOffset() });
+    return ok({ funnel: repos.funnel(), board, reviews: repos.listWeeklyReviews(12) });
+  }),
   route('POST', '/api/career/review/weekly', async (ctx) => {
     try {
       const out = await generateWeeklyReview(intakeDeps(ctx), { week_start: str(ctx.body.week_start), user_note: str(ctx.body.user_note) });

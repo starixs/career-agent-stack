@@ -1,19 +1,22 @@
 /**
- * 复盘：每周一次，用数字代替猜测。漏斗 + 基准线说明 + 周复盘（一件今天就能做的小事）。
- * 视图：漏斗与周复盘（新）/ 调研与方向（嵌入 CareerResearch）。
+ * 我的求职月：复盘页，只回看已经发生的事（推进任务归通知中心和日历页）。
+ * 顶部五个数（本月四层 + 用我们以来替你投出）→ 花瓶漏斗与过往月份年轮（悬停才出面板）→ 每一天的投递后来怎么样了 → 页底手写一句。
+ * 口径见 packages/core/src/review-board.ts。视图：我的求职月 / 调研与方向（嵌入 CareerResearch）。
  */
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { onEvent } from '@/api/eventBus';
-import { careerApi, safeJson } from '@/components/career/careerApi';
-import { STRENGTH_LABELS } from '@/components/career/careerConstants';
-import {
-  Badge, Button, CareerPage, Card, ChatActionButton, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, formatDate,
-} from '@/components/career/CareerPrimitives';
-import type { BadgeTone } from '@/components/career/CareerPrimitives';
-import type { CareerFocusEvent, Funnel, FunnelRow, WeeklyReview } from '@/components/career/types';
-import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
+import { careerApi } from '@/components/career/careerApi';
+import { Button, CareerPage, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
+import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
+import { LayerPanel } from '@/components/career/review/LayerPanel';
+import { MonthDays } from '@/components/career/review/MonthDays';
+import { MonthFunnel } from '@/components/career/review/MonthFunnel';
+import { monthQuoteScene } from '@/components/career/review/monthQuoteScene';
+import { LAYER_COLORS, LAYER_NAMES } from '@/components/career/review/monthFunnelGeometry';
+import type { CareerFocusEvent, MonthBoard } from '@/components/career/types';
+import { useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
 import { useCareerSubView } from '@/features/career-shell/subViewStore';
@@ -23,38 +26,23 @@ const CareerResearch = lazy(() => import('@/pages/CareerResearch'));
 // 子视图由功能市场的入口选择（features/career-shell），页面本身不再放切换控件。
 type View = 'funnel' | 'research';
 const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
-  funnel: { title: '求职漏斗与周复盘', subtitle: '每周一次，用数字代替猜测' },
+  funnel: { title: '我的求职月', subtitle: '这个月走了多远' },
   research: { title: '公司调研与方向', subtitle: '投之前先看一眼，也看看还有哪些方向适合你' },
 };
 
-const EMPTY_ROW: FunnelRow = { key: 'overall', total: 0, applied: 0, responded: 0, interview: 0, offer: 0, rejected: 0, silent: 0 };
-
-function rate(num: number, den: number): string {
-  return den > 0 ? `${Math.round((num / den) * 100)}%` : '—';
-}
-
-
 export default function CareerReview({ embedded = false }: CareerPageProps) {
   const [view, setView] = useCareerSubView<View>('career-review', DEFAULT_SUB_VIEWS['career-review']);
-  const [focusId, setFocusId] = useState<string | null>(null);
-  const query = useCareerQuery(careerApi.review, ['application', 'application_history', 'weekly_review', 'job']);
+  // 看哪个月（YYYY-MM）；null = 本月。
+  const [month, setMonth] = useState<string | null>(null);
+  const query = useCareerQuery(() => careerApi.review(month ?? undefined), ['application', 'application_history', 'job', 'deadline', 'interview', 'offer', 'action_queue']);
+  const reload = query.reload;
+  const changeMonth = (next: string | null) => { setMonth(next); reload(); };
   const data = query.data;
 
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
     if (payload?.surface !== 'review') return;
     setView('funnel');
-    if (payload.id) setFocusId(payload.id);
   }), [setView]);
-
-  // 只对同一个焦点滚动一次；用户手动切视图即清除高亮。
-  const scrolledFor = useRef<string | null>(null);
-  useEffect(() => {
-    if (!focusId || !data || scrolledFor.current === focusId) return;
-    const el = document.getElementById(`weekly-review-${focusId}`);
-    if (!el) return;
-    scrolledFor.current = focusId;
-    el.scrollIntoView?.({ block: 'start' });
-  }, [focusId, data]);
 
   return (
     <CareerPage
@@ -63,11 +51,10 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
       subtitle={VIEW_HEADINGS[view].subtitle}
     >
       {view === 'funnel' && (
-        <div className="space-y-6 px-4 py-3">
+        <div className="space-y-6 px-6 py-4">
           {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
           {query.loading && !data && <LoadingRow />}
-          {data && <FunnelSection funnel={data.funnel} />}
-          {data && <WeeklySection reviews={data.reviews} highlightId={focusId} onChanged={query.reload} />}
+          {data && <MonthSection board={data.board} onMonth={changeMonth} />}
         </div>
       )}
       {view === 'research' && (
@@ -79,231 +66,59 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
   );
 }
 
-// ─── 漏斗 ───
+// ─── 我的求职月 ───
 
-function FunnelSection({ funnel }: { funnel: Funnel }) {
-  const overall = funnel.overall ?? EMPTY_ROW;
-  if (overall.total === 0) {
-    return (
-      <section>
-        <SectionTitle>漏斗</SectionTitle>
-        <EmptyState title="还没有投递数据。先在收件箱丢几个 JD，投出去之后这里会出现漏斗。" />
-        <div className="flex justify-center">
-          <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'review' }} />
+function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (month: string | null) => void }) {
+  // 面板平时留白：悬停某一层才出现，点击钉住；离开漏斗和面板所在的区域回到钉住的那层（没钉就留白）
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [pinned, setPinned] = useState<number | null>(null);
+  // 还没投出时漏斗摆标准初始形状（见 MonthFunnel），不再单独做空状态页
+  if (!board) return null;
+  const layer = hovered ?? pinned;
+  const { counts, prev } = board;
+  return (
+    <>
+      <div className="flex items-center gap-1 text-sm">
+        <Button size="sm" variant="ghost" aria-label="上个月" disabled={!board.month.prev_key} onClick={() => onMonth(board.month.prev_key)}><ChevronLeft className="h-4 w-4" strokeWidth={1.75} /></Button>
+        <span className="font-semibold tabular-nums text-[var(--ink)]" aria-live="polite">{board.month.year} 年 {board.month.month} 月</span>
+        <Button size="sm" variant="ghost" aria-label="下个月" disabled={!board.month.next_key} onClick={() => onMonth(board.month.next_key)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
+      </div>
+
+      <dl className="flex items-end gap-x-14" aria-label="本月关键数字">
+        {LAYER_NAMES.map((name, k) => (
+          <BigNumber key={name} label={name} value={counts[k]} dot={LAYER_COLORS[k]} foot={prev ? `上月 ${prev[k]}` : '\u00a0'} />
+        ))}
+        {/* 这个月的手写一句，放在四个数和「替你投出」之间的留白里（按走到哪一步选句，每次打开随机、不与上次重复）。 */}
+        <div className="flex min-w-0 flex-1 items-center justify-end self-center">
+          {/* eslint-disable-next-line no-restricted-syntax -- 展示型字号 30px 已在 specs/CAREER_DESIGN.md 7.7 立档：和 56px 的大数字同一行，要压得住又不抢 */}
+          <QuoteNote scene={monthQuoteScene(board)} pick="random" className="text-right text-[30px]" />
+        </div>
+        <div className="border-l-[1.5px] border-dashed border-[var(--line-2)] pl-10">
+          <BigNumber label="用我们以来 · 替你投出" value={board.since_total} accent foot={'\u00a0'} />
+        </div>
+      </dl>
+
+      <section aria-label="本月漏斗" className="flex items-stretch gap-10" onMouseLeave={() => setHovered(null)}>
+        <MonthFunnel board={board} layer={layer} onHover={setHovered} onPin={(k) => setPinned((p) => (p === k ? null : k))} />
+        <div className="min-h-[330px] min-w-0 flex-1 pl-8">
+          {layer !== null && <LayerPanel board={board} layer={layer} />}
         </div>
       </section>
-    );
-  }
-  const tiles: Array<{ label: string; value: number }> = [
-    { label: '总计', value: overall.total }, { label: '已投递', value: overall.applied }, { label: '有回应', value: overall.responded },
-    { label: '面试', value: overall.interview }, { label: 'Offer', value: overall.offer }, { label: '被拒', value: overall.rejected }, { label: '沉默', value: overall.silent },
-  ];
-  const rates: Array<{ label: string; value: string }> = [
-    { label: '过简历率', value: rate(overall.responded, overall.applied) },
-    { label: '面试推进率', value: rate(overall.interview, overall.responded) },
-    { label: 'Offer 率', value: rate(overall.offer, overall.interview) },
-  ];
-  return (
-    <section className="space-y-4">
-      <div>
-        <SectionTitle>总体</SectionTitle>
-        <div className="grid grid-cols-4 gap-2 md:grid-cols-7" aria-label="总体数字">
-          {tiles.map(t => (
-            <div key={t.label} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
-              <div className="text-xs text-[var(--muted)]">{t.label}</div>
-              <div className="text-xl font-semibold tabular-nums text-[var(--ink)]" aria-label={`${t.label} ${t.value}`}>{t.value}</div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm" aria-label="转化率">
-          {rates.map(r => (
-            <span key={r.label} className="text-[var(--muted)]">{r.label} <span className="font-semibold tabular-nums text-[var(--ink)]">{r.value}</span></span>
-          ))}
-        </div>
-        <p className="mt-2 text-xs text-[var(--subtle)]">经验上网申过简历率通常只有一到两成，沉默比被拒常见；这不是能力结论。</p>
-      </div>
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <FunnelTable title="按岗位类别" rows={funnel.by_category ?? []} />
-        <FunnelTable title="按平台" rows={funnel.by_platform ?? []} />
-      </div>
-    </section>
+
+      <MonthDays board={board} layer={layer} />
+    </>
   );
 }
 
-const COLS: Array<{ key: keyof FunnelRow; label: string }> = [
-  { key: 'total', label: '总计' }, { key: 'applied', label: '投递' }, { key: 'responded', label: '回应' },
-  { key: 'interview', label: '面试' }, { key: 'offer', label: 'Offer' }, { key: 'silent', label: '沉默' },
-];
-
-/** 推进率 = 面试 / 投递；只对有投递的行比较。 */
-function advanceRate(r: FunnelRow): number | null {
-  return r.applied > 0 ? r.interview / r.applied : null;
-}
-
-function FunnelTable({ title, rows }: { title: string; rows: FunnelRow[] }) {
-  const maxTotal = Math.max(1, ...rows.map(r => r.total));
-  let best: string | null = null;
-  let worst: string | null = null;
-  let bestRate = -1;
-  let worstRate = Number.POSITIVE_INFINITY;
-  for (const r of rows) {
-    const a = advanceRate(r);
-    if (a == null) continue;
-    if (a > bestRate) { bestRate = a; best = r.key; }
-    if (r.applied >= 3 && a < worstRate) { worstRate = a; worst = r.key; }
-  }
-  if (best === worst) worst = null;
+function BigNumber({ label, value, dot, foot, accent = false }: { label: string; value: number; dot?: string; foot: string; accent?: boolean }) {
   return (
-    <Card title={title}>
-      {rows.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有可以分组的数据。</div>}
-      {rows.length > 0 && (
-        <div className="grid grid-cols-[minmax(96px,1.4fr)_repeat(6,minmax(40px,1fr))_minmax(60px,2fr)] gap-x-2 gap-y-1 text-xs" role="table" aria-label={title}>
-          <div className="contents text-[var(--muted)]" role="row">
-            <div role="columnheader">分组</div>
-            {COLS.map(c => <div key={c.key} role="columnheader" className="text-right">{c.label}</div>)}
-            <div role="columnheader" />
-          </div>
-          {rows.map(r => (
-            <div key={r.key} className="contents" role="row">
-              <div role="cell" className="flex min-w-0 flex-wrap items-center gap-1 text-[var(--ink)]">
-                <span className="truncate font-medium">{r.key || '未分类'}</span>
-                {r.key === best && <Badge tone="success">走得最远</Badge>}
-                {r.key === worst && <Badge tone="warning">挂得最多</Badge>}
-              </div>
-              {COLS.map(c => <div key={c.key} role="cell" className="text-right tabular-nums text-[var(--ink)]">{r[c.key]}</div>)}
-              <div role="cell" className="flex items-center">
-                <span className="h-2 w-full overflow-hidden rounded-full bg-[var(--inset)]">
-                  <span className="block h-full rounded-full bg-[var(--primary)]" style={{ width: `${Math.round((r.total / maxTotal) * 100)}%` }} />
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-// ─── 周复盘 ───
-
-interface Insight { finding: string; strength: string | null }
-interface Suggestion { action: string; why: string | null; priority: number | null }
-
-function parseInsights(raw: string | null | undefined): Insight[] {
-  const v = safeJson<unknown>(raw, []);
-  const list = Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v as Record<string, unknown>) : [];
-  return list.flatMap(item => {
-    if (typeof item === 'string') return [{ finding: item, strength: null }];
-    if (item && typeof item === 'object') {
-      const o = item as Record<string, unknown>;
-      const finding = [o.finding, o.insight, o.text, o.summary].find(x => typeof x === 'string') as string | undefined;
-      return finding ? [{ finding, strength: typeof o.strength === 'string' ? o.strength : null }] : [];
-    }
-    return [];
-  });
-}
-
-function parseSuggestions(raw: string | null | undefined): Suggestion[] {
-  const v = safeJson<unknown>(raw, []);
-  const list = Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v as Record<string, unknown>) : [];
-  const out = list.flatMap((item, i) => {
-    if (typeof item === 'string') return [{ action: item, why: null, priority: i + 1 }];
-    if (item && typeof item === 'object') {
-      const o = item as Record<string, unknown>;
-      const action = [o.action, o.suggestion, o.text, o.title].find(x => typeof x === 'string') as string | undefined;
-      if (!action) return [];
-      const why = [o.why, o.reason].find(x => typeof x === 'string') as string | undefined;
-      const p = typeof o.priority === 'number' ? o.priority : typeof o.priority === 'string' && Number.isFinite(Number(o.priority)) ? Number(o.priority) : null;
-      return [{ action, why: why ?? null, priority: p }];
-    }
-    return [];
-  });
-  return out.sort((a, b) => (a.priority ?? Number.MAX_SAFE_INTEGER) - (b.priority ?? Number.MAX_SAFE_INTEGER));
-}
-
-const STRENGTH_TONE: Record<string, BadgeTone> = { strong: 'success', mid: 'warning', weak: 'neutral' };
-
-function WeeklySection({ reviews, highlightId, onChanged }: { reviews: WeeklyReview[]; highlightId: string | null; onChanged: () => void }) {
-  const [note, setNote] = useState('');
-  const gen = useCareerAction();
-  const generate = () => gen.run(async () => {
-    const user_note = note.trim();
-    await careerApi.generateWeeklyReview(user_note ? { user_note } : {});
-    setNote('');
-    onChanged();
-  });
-  const sorted = [...reviews].sort((a, b) => (b.week_start ?? '').localeCompare(a.week_start ?? '') || (b.created_at ?? '').localeCompare(a.created_at ?? ''));
-  return (
-    <section className="space-y-3">
-      <SectionTitle extra={<Button variant="primary" busy={gen.busy} onClick={() => void generate()}>生成本周复盘</Button>}>周复盘</SectionTitle>
-      {gen.error && <ErrorRow message={gen.error} />}
-      <Field label="想补充的情况或情绪（可选）" hint="比如这周为什么没投、哪场面试感觉不对；复盘会把它一起考虑进去">
-        <TextArea aria-label="补充说明" placeholder="随便写，不用整理" value={note} onChange={e => setNote(e.target.value)} />
-      </Field>
-      {sorted.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有周复盘。点「生成本周复盘」，助理会按漏斗给出一件今天就能做的小事。</div>}
-      <div className="space-y-3">
-        {sorted.map(r => <ReviewCard key={r.id} review={r} highlighted={r.id === highlightId} />)}
-      </div>
-    </section>
-  );
-}
-
-function ReviewCard({ review: r, highlighted }: { review: WeeklyReview; highlighted: boolean }) {
-  const insights = parseInsights(r.insights_json);
-  const suggestions = parseSuggestions(r.suggestions_json);
-  return (
-    <div id={`weekly-review-${r.id}`}>
-      <Card className={highlighted ? 'ring-2 ring-[var(--primary)]' : ''} title={`${formatDate(r.week_start)} 这周`} extra={<span className="text-xs text-[var(--subtle)]">生成于 {formatDate(r.created_at)}</span>}>
-        {r.small_action && (
-          <div className="mb-3 rounded-lg border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-2">
-            <div className="text-xs font-medium text-[var(--primary)]">今天就能做的一件小事</div>
-            <div className="mt-0.5 text-base font-semibold text-[var(--ink)]">{r.small_action}</div>
-            <div className="mt-2">
-              <ChatActionButton text={`帮我做这件事：${r.small_action}`} context={{ surface: 'review', refs: { review_id: r.id } }} />
-            </div>
-          </div>
-        )}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Block title="发现">
-            {insights.length === 0 && <Muted>没有新的发现。</Muted>}
-            <ul className="space-y-1">
-              {insights.map((it, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-[var(--ink)]">
-                  {it.strength && <Badge tone={STRENGTH_TONE[it.strength] ?? 'neutral'}>{STRENGTH_LABELS[it.strength as keyof typeof STRENGTH_LABELS] ?? it.strength}</Badge>}
-                  <span>{it.finding}</span>
-                </li>
-              ))}
-            </ul>
-          </Block>
-          <Block title="建议">
-            {suggestions.length === 0 && <Muted>没有额外建议。</Muted>}
-            <ol className="space-y-1">
-              {suggestions.map((s, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm">
-                  <span className="w-4 shrink-0 tabular-nums text-[var(--subtle)]">{i + 1}.</span>
-                  <div className="min-w-0">
-                    <div className="text-[var(--ink)]">{s.action}</div>
-                    {s.why && <div className="text-xs text-[var(--muted)]">{s.why}</div>}
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </Block>
-        </div>
-      </Card>
+    <div className="flex flex-col gap-0.5">
+      <dt className="flex items-center gap-1.5 text-xs text-[var(--subtle)]">
+        {dot && <span className="h-2 w-2 rounded-full" style={{ background: dot }} aria-hidden />}
+        {label}
+      </dt>
+      <dd className="m-0 font-black" style={{ fontSize: 56, lineHeight: '60px', color: accent ? 'var(--primary)' : 'var(--ink)' }} aria-label={`${label} ${value}`}>{value}</dd>
+      <dd className="m-0 text-xs text-[var(--subtle)]">{foot}</dd>
     </div>
   );
-}
-
-function Block({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <div className="mb-1 text-xs font-medium text-[var(--muted)]">{title}</div>
-      {children}
-    </div>
-  );
-}
-
-function Muted({ children }: { children: ReactNode }) {
-  return <div className="text-xs text-[var(--subtle)]">{children}</div>;
 }

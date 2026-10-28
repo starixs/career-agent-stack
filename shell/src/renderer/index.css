@@ -989,3 +989,43 @@ code {
     transform: scale(1.04);
   }
 }
+
+/* ─── 手写句子（components/career/handwriting/HandwrittenLine.tsx） ───
+   每个字一块画布：格子 0.9em 宽（书法字距比排版紧），画布按 1em 居中、溢出可见，保留原字大小错落；
+   逗号句号是窄格。只在逗号、句号后换行，诗句自然断成上下两句。 */
+.hw-line {
+  display: inline;
+  line-height: 1.3;
+  color: var(--hw-ink);
+}
+
+.hw-clause {
+  display: inline-flex;
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.hw-glyph {
+  position: relative;
+  display: inline-block;
+  width: 0.9em;
+  height: 1em;
+}
+
+.hw-glyph-narrow {
+  width: 0.5em;
+}
+
+.hw-glyph canvas {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1em;
+  height: 1em;
+  transform: translateX(-50%);
+}
+
+.hw-glyph-narrow canvas {
+  left: 0;
+  transform: translateX(-22%);
+}

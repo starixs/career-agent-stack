@@ -4,7 +4,7 @@
  *   1. 不绕过 Repos 的状态机（投递阶段、动作队列、接管仍走 Repos）；
  *   2. 简历保存前写快照（resume_snapshot）。
  */
-import type { Repos, Company, Interview, Offer, ResumeMaster, ResumeTailored, Application, Task, Job, Deadline, DossierNote, MaterialUse, MailMessage, ActionQueueItem } from '@career/core';
+import { isSendNote, type Repos, type Company, type Interview, type Offer, type ResumeMaster, type ResumeTailored, type Application, type Task, type Job, type Deadline, type DossierNote, type MaterialUse, type MailMessage, type ActionQueueItem } from '@career/core';
 import type { CoreModule } from './core-module';
 
 /** CareerStore 只需要 core 的两个纯函数；由调用方在 `await loadCore()` 后注入，避免静态 import。 */
@@ -250,14 +250,15 @@ export class CareerStore {
     const deadlines = allDeadlines.filter(d => d.status === 'open');
     const interviews = this.listInterviews();
     // 状态步骤条要知道"走到过哪一步"：阶段历史（被拒前停在哪）+ 有没有测评 / 笔试安排（阶段里不区分这两步）
-    const history = this.db.all<{ application_id: string; to_stage: string; created_at: string }>('SELECT application_id, to_stage, created_at FROM application_history ORDER BY created_at');
+    const history = this.db.all<{ application_id: string; to_stage: string; note: string | null; created_at: string }>('SELECT application_id, to_stage, note, created_at FROM application_history ORDER BY created_at');
     const reachedBy = new Map<string, string[]>();
     const appliedAt = new Map<string, string>();
     for (const h of history) {
       const list = reachedBy.get(h.application_id) ?? [];
       if (!list.includes(h.to_stage)) list.push(h.to_stage);
       reachedBy.set(h.application_id, list);
-      if (h.to_stage === 'applied' && !appliedAt.has(h.application_id)) appliedAt.set(h.application_id, h.created_at);
+      // 邮件补建 / 手动记录路过的 applied 不是真正的投递时刻（不知道哪天投的）
+      if (h.to_stage === 'applied' && !appliedAt.has(h.application_id) && isSendNote(h.note)) appliedAt.set(h.application_id, h.created_at);
     }
     return this.repos.applicationsWithJob().map(a => {
       // 下一个截止只看有时间的；时间未知（due_at 为 null）的笔试 / 测评仍计入 exam_kinds 点亮进度条

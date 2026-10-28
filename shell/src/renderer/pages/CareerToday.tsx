@@ -17,6 +17,7 @@ import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
 import { ManualSendText } from '@/components/career/ManualSendText';
 import { OnboardingIntro, buildSteps, markIntroSeen, readIntroSeen } from '@/components/career/OnboardingIntro';
+import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { StrikeText } from '@/components/career/StrikeText';
 import {
   CATEGORY_COLORS, CATEGORY_LABELS, TODO_CATEGORIES, buildTodos, groupByDate, localDateKey, mergeCompleted, monthGrid, summarizeDay,
@@ -331,6 +332,13 @@ function DaySidebar({ dateKey, isToday, todos, justDone, onDone, onSnooze, onCha
           </section>
         ))}
       </div>
+      {/* 今天这一栏的末尾手写一句：有事时打气，都划掉了道一声辛苦，没有待办时就说点闲话。 */}
+      {isToday && (
+        <QuoteNote
+          scene={todos.length === 0 ? 'quiet' : open === 0 ? 'done' : 'daily'}
+          className="mt-5 border-t border-dashed border-[var(--line-2)] pt-4 text-xl"
+        />
+      )}
     </aside>
   );
 }

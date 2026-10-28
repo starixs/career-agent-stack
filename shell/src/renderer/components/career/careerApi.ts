@@ -12,7 +12,7 @@ import type {
   CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
   InboxItem, IntakeResult, Interview, Job, MailAccount, MailConnectSession, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
-  ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
+  ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
   AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
 } from './types';
@@ -258,9 +258,9 @@ export const careerApi = {
   recordMaterialUse: (body: { material_id?: string | null; application_id?: string | null; job_id?: string | null; company_name?: string | null; context: string; content_snapshot: string }) => apiPostJson<unknown>(careerPath('/materials/uses'), body).then(r => pickObject<MaterialUse>(r, 'use')),
 
   // ----- 复盘 -----
-  review: () => apiGetJson<unknown>(careerPath('/review')).then(r => {
+  review: (month?: string) => apiGetJson<unknown>(careerPath(month ? `/review?month=${encodeURIComponent(month)}` : '/review')).then(r => {
     const d = asDict(r);
-    return { funnel: (d.funnel as Funnel) ?? { by_category: [], by_platform: [], overall: null }, reviews: pickList<WeeklyReview>(d.reviews) };
+    return { funnel: (d.funnel as Funnel) ?? { by_category: [], by_platform: [], overall: null }, board: (d.board as MonthBoard | undefined) ?? null, reviews: pickList<WeeklyReview>(d.reviews) };
   }),
   generateWeeklyReview: (body: { week_start?: string; user_note?: string } = {}) => apiPostJson<unknown>(careerPath('/review/weekly'), body).then(r => asDict(r) as { review?: WeeklyReview; output?: Record<string, unknown> }),
 

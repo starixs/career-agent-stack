@@ -266,6 +266,23 @@ export interface Dossier {
 }
 export interface FunnelRow { key: string; total: number; applied: number; responded: number; interview: number; offer: number; rejected: number; silent: number }
 export interface Funnel { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null }
+/** 「我的求职月」看板，结构同 @career/core 的 MonthBoard。四层：投出 → 笔试/测评 → 面试 → Offer。 */
+export type LayerCounts = [number, number, number, number];
+export interface MonthDay { day: number; sent: number; split: LayerCounts; pending: boolean; companies: { exam: string[]; interview: string[]; offer: string[] } }
+export interface MonthBoard {
+  month: { key: string; year: number; month: number; days: number; dow1: number; today: number | null; is_current: boolean; prev_key: string | null; next_key: string | null };
+  counts: LayerCounts;
+  prev: LayerCounts | null;
+  history: Array<{ key: string; month: number; counts: LayerCounts }>;
+  in_transit: number;
+  since_total: number;
+  days: MonthDay[];
+  exams: Array<{ company: string; kind: 'assessment' | 'written_test'; status: string; due_at: string | null }>;
+  interviews: Array<{ company: string; rounds: Array<{ round: string; done: boolean; date: string | null }> }>;
+  next_interview: { company: string; round: string; date: string } | null;
+  offers: Array<{ company: string; title: string | null; location: string | null; reply_by: string | null }>;
+  rhythm: { reply_days: number | null; first_interview_after: number | null };
+}
 export interface IntakeResult {
   item: InboxItem; triage: { kind?: string; summary?: string; urgency?: string } | null;
   created: { job_id?: string; application_id?: string; interview_id?: string; offer_id?: string; deadline_ids: string[]; closed_application_id?: string };
@@ -274,6 +291,8 @@ export interface IntakeResult {
 /** 工具 / 路由完成后让面板跳到对应对象。 */
 export interface CareerFocusEvent {
   sessionId?: string | null; surface: 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
+  /** 投递记录按一组投递筛选（从漏斗、甘特跳过去）；label 说明这组是什么。 */
+  filter?: { label: string; application_ids: string[] };
   /** assistant = 小芽在对话里做完事推来的提示：只记下定位，不把用户从对话里带走。 */
   origin?: 'user' | 'assistant';
 }

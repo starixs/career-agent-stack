@@ -158,6 +158,19 @@ describe('CareerDossier · 投递记录', () => {
     fireEvent.change(screen.getByLabelText('搜索投递线'), { target: { value: '丙' } });
     expect(bodyRows().map(r => r.getAttribute('aria-label'))).toEqual(['丙公司 · 后端工程师']);
   });
+  it('从漏斗 / 甘特跳过来只看那一组投递，可清除；之后按单条定位会解除筛选', async () => {
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    act(() => { emitEvent('career:focus', { surface: 'dossier', filter: { label: '漏斗 · 走到面试', application_ids: ['a1', 'a3'] } }); });
+    await waitFor(() => expect(bodyRows().map(r => r.getAttribute('aria-label'))).toEqual(['丙公司 · 后端工程师', '戊公司 · 数据工程师']));
+    expect(screen.getByText('只看：漏斗 · 走到面试')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '清除筛选' }));
+    expect(bodyRows()).toHaveLength(4);
+    act(() => { emitEvent('career:focus', { surface: 'dossier', filter: { label: '空的一组', application_ids: [] } }); });
+    expect(await screen.findByText('这一组里没有投递')).toBeInTheDocument();
+    act(() => { emitEvent('career:focus', { surface: 'dossier', application_id: 'a2' }); });
+    await waitFor(() => expect(bodyRows()).toHaveLength(4));
+  });
   it('二级导航选的子视图决定页标题与嵌入页', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');
