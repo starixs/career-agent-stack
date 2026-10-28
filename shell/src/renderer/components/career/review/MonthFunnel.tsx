@@ -4,7 +4,7 @@
  */
 import type { MonthBoard } from '@/components/career/types';
 
-import { GEO, LAYER_COLORS, LAYER_LIGHT, LAYER_NAMES, bandClip, layerTop, rings, vase, widthOf } from './monthFunnelGeometry';
+import { GEO, LAYER_COLORS, LAYER_LIGHT, LAYER_NAMES, bandClip, emptySlot, layerTop, rings, scaleBase, vase, widthOf } from './monthFunnelGeometry';
 
 // 比上月多的层带一圈很轻的同色光晕：只是提示，不能把形状糊掉
 const GLOW = ['rgba(52,86,196,0.32)', 'rgba(43,147,132,0.32)', 'rgba(219,90,120,0.32)', 'rgba(212,154,42,0.4)'];
@@ -16,11 +16,10 @@ export function MonthFunnel({ board, layer, onHover, onPin }: {
   onPin: (k: number) => void;
 }) {
   const { counts, prev } = board;
-  const base = counts[0] > 0 ? counts[0] : Math.max(1, ...board.history.map((h) => h.counts[0]));
+  const base = scaleBase(counts);
   const shape = vase(counts, base);
   const past = rings(board.history, base);
   const { CX, H } = GEO;
-  const emptyY = layerTop(3);
   return (
     <div className="relative" style={{ width: 620, height: GEO.HEIGHT }}>
       <svg width={620} height={GEO.HEIGHT} viewBox={`0 0 620 ${GEO.HEIGHT}`} aria-hidden className="absolute left-0 top-0 overflow-visible">
@@ -59,12 +58,12 @@ export function MonthFunnel({ board, layer, onHover, onPin }: {
             />
           );
         })}
-        {counts[3] <= 0 && (
+        {LAYER_COLORS.map((c, k) => counts[k] > 0 ? null : (
           <path
-            d={`M ${CX - 16} ${emptyY} L ${CX + 16} ${emptyY} L ${CX + 10} ${emptyY + 60} Q ${CX} ${emptyY + 70} ${CX - 10} ${emptyY + 60} Z`}
-            fill="none" stroke="#B8AD9A" strokeWidth={1.5} strokeDasharray="4 5" style={{ opacity: layer !== null && layer !== 3 ? 0.42 : 1 }}
+            key={`empty-${c}`} d={emptySlot(k)}
+            fill="none" stroke="#B8AD9A" strokeWidth={1.5} strokeDasharray="4 5" style={{ opacity: layer !== null && layer !== k ? 0.42 : 1 }}
           />
-        )}
+        ))}
         <g mask="url(#mf-fx)" fill="none" stroke="#fff">
           {past.slice().reverse().map((r) => <path key={r.key} d={r.d} strokeOpacity={r.style.white} strokeWidth={r.style.width} />)}
         </g>

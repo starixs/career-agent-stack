@@ -22,13 +22,17 @@ export function widthOf(x: number, base: number): number {
 
 export interface Vase { d: string; halfWidthAt: (y: number) => number }
 
-/** 花瓶轮廓：顶边、每层正中、末层底部收口，PCHIP 插值后按 3px 采样。counts[0] 为 0 时返回 null。 */
+/**
+ * 花瓶轮廓：从第一个有数的层的顶边开始，经过每层正中，到末层底部收口；PCHIP 插值后按 3px 采样。
+ * 投出可能是 0（这个月只有邮件补建、不知道哪天投的投递），这时从笔试层起画。四层全 0 返回 null。
+ */
 export function vase(counts: LayerCounts, base: number): Vase | null {
   const ks = [0, 1, 2, 3].filter((k) => counts[k] > 0);
-  if (!ks.length || counts[0] <= 0) return null;
-  const { CX, Y0, H } = GEO;
+  if (!ks.length) return null;
+  const { CX, H } = GEO;
+  const first = ks[0];
   const last = ks[ks.length - 1];
-  const pts: Array<[number, number]> = [[Y0, widthOf(counts[0], base) / 2]];
+  const pts: Array<[number, number]> = [[layerTop(first), widthOf(counts[first], base) / 2]];
   ks.forEach((k) => pts.push([layerTop(k) + H / 2, widthOf(counts[k], base) / 2]));
   pts.push([layerTop(last) + H, Math.max(6, (widthOf(counts[last], base) / 2) * 0.62)]);
   const xs = pts.map((p) => p[0]); const ys = pts.map((p) => p[1]); const m = xs.length;
@@ -63,6 +67,17 @@ export const RING_STYLE = [
 export interface Ring { key: string; label: string; d: string; style: (typeof RING_STYLE)[number]; leader: string; dot: [number, number]; text: [number, number] }
 
 /** 过往月份的年轮和右侧标签列（细引线连到第二层中线处的轮廓边）。 */
+/** 比例尺：四层里最大的那个数画满宽度（通常就是投出；投出为 0 时退到下面有数的层）。 */
+export function scaleBase(counts: LayerCounts): number {
+  return Math.max(1, ...counts);
+}
+
+/** 数为 0 的层画一个虚线小轮廓：空着的层也如实占位。 */
+export function emptySlot(k: number): string {
+  const y = layerTop(k) + 12; const x = GEO.CX;
+  return `M ${x - 16} ${y} L ${x + 16} ${y} L ${x + 10} ${y + GEO.H - 30} Q ${x} ${y + GEO.H - 20} ${x - 10} ${y + GEO.H - 30} Z`;
+}
+
 export function rings(history: Array<{ key: string; month: number; counts: LayerCounts }>, base: number): Ring[] {
   const ly = layerTop(1) + GEO.H / 2;
   return history.slice(0, 3).flatMap((h, i) => {

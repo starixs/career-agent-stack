@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { GEO, bandClip, improvedRate, layerTop, rings, vase, widthOf } from './monthFunnelGeometry';
+import { GEO, bandClip, emptySlot, improvedRate, layerTop, rings, scaleBase, vase, widthOf } from './monthFunnelGeometry';
 
 describe('月度漏斗几何', () => {
   it('宽度按本月投出折算，再小也看得见，太宽封顶', () => {
@@ -20,7 +20,17 @@ describe('月度漏斗几何', () => {
     }
     expect(v.halfWidthAt(GEO.Y0)).toBeCloseTo(GEO.FULL / 2, 5);
     expect(v.halfWidthAt(layerTop(1) + GEO.H / 2)).toBeCloseTo(widthOf(31, 156) / 2, 5);
-    expect(vase([0, 3, 1, 0], 10)).toBeNull();
+    expect(vase([0, 0, 0, 0], 10)).toBeNull();
+  });
+
+  it('投出为 0 时从第一个有数的层起画；比例尺取四层最大值', () => {
+    // 这个月只有一份邮件补建的投递：投出 0、笔试 1
+    expect(scaleBase([0, 1, 0, 0])).toBe(1);
+    const v = vase([0, 1, 0, 0], scaleBase([0, 1, 0, 0]))!;
+    expect(v).not.toBeNull();
+    expect(v.d.startsWith(`M ${(GEO.CX - GEO.FULL / 2).toFixed(1)} ${layerTop(1)}`)).toBe(true);
+    expect(v.halfWidthAt(layerTop(1) + GEO.H / 2)).toBeCloseTo(GEO.FULL / 2, 5);
+    expect(emptySlot(0)).toContain(`${layerTop(0) + 12}`);
   });
 
   it('色带之间留纸缝，最后一层多留出收口', () => {
