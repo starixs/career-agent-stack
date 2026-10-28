@@ -2,13 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import glyphs from './glyphs.json';
 import {
-  ALL_QUOTES, LINE_SLOW_MS, LINE_TOTAL_MS, PUNCTUATION_STROKES, lineOffsets, makeWarp, parseQuotes, pickQuote, sampleMedian,
-  scheduleGlyph, splitClauses, strokeEase,
+  ALL_QUOTES, LINE_SLOW_MS, LINE_TOTAL_MS, PUNCTUATION_STROKES, QUOTE_SCENES, lineOffsets, makeWarp, parseQuotes, pickQuote,
+  pickRandomQuote, sampleMedian, scheduleGlyph, splitClauses, strokeEase,
 } from './handwritingPlan';
-import type { InkPixel, Point, QuoteScene } from './handwritingPlan';
+import type { InkPixel, Point } from './handwritingPlan';
 import strokes from './strokes.json';
 
-const SCENES: QuoteScene[] = ['daily', 'done', 'quiet', 'setback', 'start'];
 const CJK = /[㐀-鿿]/u;
 
 describe('quotes', () => {
@@ -21,7 +20,21 @@ describe('quotes', () => {
   });
 
   it('gives every scene at least two lines to rotate through', () => {
-    for (const scene of SCENES) expect(ALL_QUOTES.filter(q => q.scenes.includes(scene)).length).toBeGreaterThanOrEqual(2);
+    for (const scene of QUOTE_SCENES) expect(ALL_QUOTES.filter(q => q.scenes.includes(scene)).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps every funnel line short enough for one line in the app (14 glyphs incl. punctuation)', () => {
+    const long = ALL_QUOTES.filter(q => q.scenes.some(s => s.startsWith('funnel-')) && [...q.text].length > 14).map(q => q.text);
+    expect(long).toEqual([]);
+  });
+
+  it('picks a random funnel line that is never the one shown last time', () => {
+    const pool = ALL_QUOTES.filter(q => q.scenes.includes('funnel-setback'));
+    for (let i = 0; i < pool.length; i++) {
+      const previous = pool[i].text;
+      for (const r of [0, 0.5, 0.999]) expect(pickRandomQuote('funnel-setback', previous, () => r).text).not.toBe(previous);
+    }
+    expect(new Set([0, 0.3, 0.6, 0.9].map(r => pickRandomQuote('funnel-setback', null, () => r).text)).size).toBeGreaterThan(1);
   });
 
   it('rejects a quote with an unknown scene and names it', () => {

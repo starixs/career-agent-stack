@@ -72,6 +72,27 @@ describe('HandwrittenLine', () => {
 });
 
 describe('QuoteNote', () => {
+  it('plays a random funnel line and does not repeat the last one on the next visit', async () => {
+    // Node 26 自带的 localStorage 会遮住 jsdom 的，这里换一个内存版
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => { store.set(k, v); } });
+    const { QuoteNote } = await load();
+    const first = render(<QuoteNote scene="funnel-waiting" pick="random" />);
+    const firstText = first.container.querySelector('[role="img"]')?.getAttribute('aria-label');
+    expect(firstText).toBeTruthy();
+    await waitFor(() => expect(window.localStorage.getItem('career:quote-last:funnel-waiting')).toBe(firstText));
+    first.unmount();
+    // 连着打开 5 次：每次都不和上一次显示的那句相同
+    for (let i = 0; i < 5; i++) {
+      const previous = window.localStorage.getItem('career:quote-last:funnel-waiting');
+      const again = render(<QuoteNote scene="funnel-waiting" pick="random" />);
+      const text = again.container.querySelector('[role="img"]')?.getAttribute('aria-label');
+      expect(text).not.toBe(previous);
+      await waitFor(() => expect(window.localStorage.getItem('career:quote-last:funnel-waiting')).toBe(text));
+      again.unmount();
+    }
+  });
+
   it('writes the scene line and reveals its source afterwards', async () => {
     const { QuoteNote } = await load();
     const { container } = render(<QuoteNote scene="quiet" seed="test" />);

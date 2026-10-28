@@ -5,10 +5,13 @@
  * 字形墨迹外框，每个墨点归到离它最近的那一笔，按它在这一笔里的位置排出墨时刻。每笔起收慢、中间快，
  * 离中轴越远的墨点出得越晚（墨往两边晕开）。整句先按原速慢写 2 秒，再平滑加速，6 秒写完；
  * 字间停 70 毫秒、标点停 600 毫秒（按原速计，随变速一起压缩）。参数均为 2026-10-28 用户逐组比较后定版。
+ * 选句：今天栏等场景同一天固定一句（pickQuote）；漏斗页按状态随机、不与上次重复（pickRandomQuote）。
  */
 import quotes from './quotes.json';
 
-export type QuoteScene = 'daily' | 'done' | 'quiet' | 'setback' | 'start';
+/** 今天栏与通用场景，加上漏斗页按求职状态分的五组（funnel-*，随机播放）。 */
+export type QuoteScene = 'daily' | 'done' | 'quiet' | 'setback' | 'start'
+  | 'funnel-start' | 'funnel-waiting' | 'funnel-setback' | 'funnel-interview' | 'funnel-offer';
 export interface Quote { text: string; by?: string; tone: 'encourage' | 'humanist'; scenes: QuoteScene[] }
 
 /** strokes.json 的单字结构：m 为 [笔画中轴路径, 路径长度]，坐标是 1024 方格、y 轴朝上。 */
@@ -52,10 +55,13 @@ export const PUNCTUATION_STROKES: StrokeData = {
   '，': { m: [['M210 110C250 80 240 10 160 -60', 200]] },
   '。': { m: [['M210 95C180 95 155 70 155 40C155 10 180 -15 210 -15C240 -15 265 10 265 40C265 70 240 95 214 95', 346]] },
   '、': { m: [['M170 110C200 80 230 40 250 -10', 140]] },
+  '！': { m: [['M200 760C200 560 200 360 200 230', 530], ['M200 70C202 55 202 40 200 25', 45]] },
 };
 
-const SCENES: readonly QuoteScene[] = ['daily', 'done', 'quiet', 'setback', 'start'];
-const isScene = (v: unknown): v is QuoteScene => SCENES.some(s => s === v);
+export const QUOTE_SCENES: readonly QuoteScene[] = [
+  'daily', 'done', 'quiet', 'setback', 'start', 'funnel-start', 'funnel-waiting', 'funnel-setback', 'funnel-interview', 'funnel-offer',
+];
+const isScene = (v: unknown): v is QuoteScene => QUOTE_SCENES.some(s => s === v);
 
 /** quotes.json 是手写的数据文件，加载时校验一遍，写错场景名直接报出是哪一句。 */
 export function parseQuotes(raw: readonly unknown[]): Quote[] {
@@ -74,13 +80,25 @@ export function parseQuotes(raw: readonly unknown[]): Quote[] {
 
 export const ALL_QUOTES: readonly Quote[] = parseQuotes(quotes);
 
-/** 同一天同一场景总是同一句，换一天换一句；seed 用来让同一天不同位置错开。 */
-export function pickQuote(scene: QuoteScene, dateKey: string, seed = ''): Quote {
+function scenePool(scene: QuoteScene): Quote[] {
   const pool = ALL_QUOTES.filter(q => q.scenes.includes(scene));
   if (pool.length === 0) throw new Error(`[handwriting] no quote for scene "${scene}"`);
+  return pool;
+}
+
+/** 同一天同一场景总是同一句，换一天换一句；seed 用来让同一天不同位置错开。 */
+export function pickQuote(scene: QuoteScene, dateKey: string, seed = ''): Quote {
+  const pool = scenePool(scene);
   let hash = 0;
   for (const ch of `${scene}|${dateKey}|${seed}`) hash = (hash * 31 + (ch.codePointAt(0) ?? 0)) >>> 0;
   return pool[hash % pool.length];
+}
+
+/** 每次随机挑一句，但不和上一次显示的（previousText）重复；random 可注入以便测试。 */
+export function pickRandomQuote(scene: QuoteScene, previousText: string | null, random: () => number = Math.random): Quote {
+  const pool = scenePool(scene);
+  const candidates = pool.length > 1 ? pool.filter(q => q.text !== previousText) : pool;
+  return candidates[Math.min(candidates.length - 1, Math.floor(random() * candidates.length))];
 }
 
 export const isPause = (ch: string) => PAUSE_CHARS.has(ch);
