@@ -1,32 +1,30 @@
 /**
- * 手写一句话：一支钢笔沿每一笔的笔迹曲线走过去，字带一点歪斜和大小起伏；逗号句号也是画出来的。
- * 写的时候墨是湿的（满色），整句写完后墨色收一点，像墨水干了。颜色用 --hw-ink（蓝黑墨水），
- * 和界面的正文色、钢笔蓝都拉开，一眼看出是「写给你的」而不是界面文字。
+ * 手写一句话：字形是书法手迹（志莽行书），运笔按楷体笔顺从字形反推——每个字一块画布，墨点按时间表逐个出现。
+ * 整句先按原速慢写 2 秒，再平滑加速，6 秒写完；逗号句号处停一下，像换气。墨色用 --hw-ink。
  *
- * 笔迹数据是 strokes.json（scripts/build-handwriting-strokes.mjs 从 hanzi-writer-data 抽取，懒加载）。
- * 同一个 playKey 每次打开应用只写一遍，之后直接显示写好的样子；prefers-reduced-motion 下也直接显示终态。
+ * 数据（懒加载）：glyphs.json 字形轮廓（scripts/build-handwriting-glyphs.py），strokes.json 楷体笔顺中轴
+ * （scripts/build-handwriting-strokes.mjs）。同一个 playKey 每次打开应用只写一遍，之后直接显示写好的样子；
+ * prefers-reduced-motion 下也直接显示终态；环境不支持 canvas 时退回文楷文字。
  */
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { planWriting, splitClauses } from './handwritingPlan';
-import type { CharStrokes, PlannedGlyph, StrokeData } from './handwritingPlan';
+import { RASTER_CELL, canvas2dAvailable, glyphSchedule } from './glyphRaster';
+import { PUNCTUATION_STROKES, isPause, lineOffsets, makeWarp, splitClauses } from './handwritingPlan';
+import type { CharStrokes, GlyphData, GlyphOutline, InkEvent, StrokeData } from './handwritingPlan';
 
-// 笔宽（1024 方格单位）：20px 的字约 1.4px 粗，像一支细钢笔。
-const PEN_WIDTH = 72;
-// strokes.json 里的长度是采样估算的，虚线段多留 3% 余量，保证收笔处写满。
-const DASH_SLACK = 1.03;
-const STROKE_EASING = 'cubic-bezier(.35, 0, .25, 1)';
-const TEXT_FADE_MS = 280;
-// 写完后墨色从满色收到 .hw-line 的终态透明度，用时 1.2 秒。
-const INK_SETTLE_MS = 1200;
-const WET_INK_OPACITY = 1;
+interface HandwritingData { glyphs: GlyphData; strokes: StrokeData }
+interface Painter { ctx: CanvasRenderingContext2D; img: ImageData; events: InkEvent[]; offset: number; next: number }
 
 const writtenThisSession = new Set<string>();
-let strokeDataPromise: Promise<StrokeData> | null = null;
+let dataPromise: Promise<HandwritingData> | null = null;
 
 function isCharStrokes(v: unknown): v is CharStrokes {
   if (typeof v !== 'object' || v === null || !('m' in v)) return false;
   return Array.isArray(v.m) && v.m.every(e => Array.isArray(e) && typeof e[0] === 'string' && typeof e[1] === 'number');
+}
+
+function isGlyphOutline(v: unknown): v is GlyphOutline {
+  return typeof v === 'object' && v !== null && 'd' in v && 'adv' in v && typeof v.d === 'string' && typeof v.adv === 'number';
 }
 
 function parseStrokeData(raw: unknown): StrokeData {
@@ -39,9 +37,22 @@ function parseStrokeData(raw: unknown): StrokeData {
   return out;
 }
 
-export function loadStrokeData(): Promise<StrokeData> {
-  strokeDataPromise ??= import('./strokes.json').then(m => parseStrokeData(m.default));
-  return strokeDataPromise;
+function parseGlyphData(raw: unknown): GlyphData {
+  if (typeof raw !== 'object' || raw === null || !('upm' in raw) || !('ascent' in raw) || !('glyphs' in raw)) throw new Error('[handwriting] glyphs.json is missing upm / ascent / glyphs');
+  const { upm, ascent, glyphs } = raw;
+  if (typeof upm !== 'number' || typeof ascent !== 'number' || typeof glyphs !== 'object' || glyphs === null) throw new Error('[handwriting] glyphs.json has malformed header');
+  const out: GlyphData['glyphs'] = {};
+  for (const [ch, value] of Object.entries(glyphs)) {
+    if (!isGlyphOutline(value)) throw new Error(`[handwriting] glyphs.json has malformed outline for "${ch}"`);
+    out[ch] = value;
+  }
+  return { upm, ascent, glyphs: out };
+}
+
+export function loadHandwritingData(): Promise<HandwritingData> {
+  dataPromise ??= Promise.all([import('./glyphs.json'), import('./strokes.json')])
+    .then(([g, s]) => ({ glyphs: parseGlyphData(g.default), strokes: parseStrokeData(s.default) }));
+  return dataPromise;
 }
 
 function prefersReducedMotion(): boolean {
@@ -49,14 +60,14 @@ function prefersReducedMotion(): boolean {
 }
 
 /** null = 还在加载；'failed' = 加载失败，退回用文楷直接显示文字。 */
-function useStrokeData(): StrokeData | null | 'failed' {
-  const [data, setData] = useState<StrokeData | null | 'failed'>(null);
+function useHandwritingData(): HandwritingData | null | 'failed' {
+  const [data, setData] = useState<HandwritingData | null | 'failed'>(null);
   useEffect(() => {
     let alive = true;
-    loadStrokeData().then(
+    loadHandwritingData().then(
       d => { if (alive) setData(d); },
       (err: unknown) => {
-        console.error('[handwriting] FAILED to load stroke data', err);
+        console.error('[handwriting] FAILED to load handwriting data', err);
         if (alive) setData('failed');
       },
     );
@@ -65,59 +76,40 @@ function useStrokeData(): StrokeData | null | 'failed' {
   return data;
 }
 
-function PenGlyph({ glyph }: { glyph: Extract<PlannedGlyph, { kind: 'pen' }> }) {
-  const { rotate, dy, scale } = glyph.wobble;
-  return (
-    <svg
-      viewBox={glyph.narrow ? '0 0 560 1024' : '0 0 1024 1024'}
-      className={`hw-glyph ${glyph.narrow ? 'hw-glyph-narrow' : ''}`}
-      style={{ transform: `translateY(${dy}em) rotate(${rotate}deg) scale(${scale})` }}
-      aria-hidden
-      focusable="false"
-    >
-      <g transform="translate(0 900) scale(1 -1)">
-        {glyph.strokes.map((s, i) => {
-          const dash = Math.ceil(s.length * DASH_SLACK);
-          return (
-            <path
-              key={i}
-              d={s.path}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={PEN_WIDTH}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeDasharray={`${dash} ${dash + PEN_WIDTH}`}
-              strokeDashoffset={0}
-              data-hw-from={dash + PEN_WIDTH}
-              data-hw-delay={s.delayMs}
-              data-hw-duration={s.durationMs}
-            />
-          );
-        })}
-      </g>
-    </svg>
-  );
+/** 这句能不能手写：环境有 2D canvas，且每个字都有字形和笔顺（quotes 覆盖由单测保证）。只查表，可在渲染时调用。 */
+function canWrite(chars: readonly string[], data: HandwritingData): boolean {
+  return canvas2dAvailable() && chars.every(ch => ch in data.glyphs.glyphs && (ch in data.strokes || ch in PUNCTUATION_STROKES));
 }
 
-/** 按计划里的 data-hw-* 给每一笔、每个标点排动画，再让整句墨色收干；返回全部结束的 Promise。 */
-function animateWriting(root: HTMLElement, totalMs: number): Promise<unknown> {
-  const runs: Animation[] = [];
-  root.querySelectorAll<SVGPathElement>('[data-hw-from]').forEach(el => {
-    runs.push(el.animate(
-      [{ strokeDashoffset: Number(el.dataset.hwFrom) }, { strokeDashoffset: 0 }],
-      { delay: Number(el.dataset.hwDelay), duration: Number(el.dataset.hwDuration), easing: STROKE_EASING, fill: 'backwards' },
-    ));
-  });
-  root.querySelectorAll<HTMLElement>('[data-hw-fade]').forEach(el => {
-    runs.push(el.animate([{ opacity: 0 }, { opacity: 1 }], { delay: Number(el.dataset.hwFade), duration: TEXT_FADE_MS, fill: 'backwards' }));
-  });
-  const settleAt = totalMs / (totalMs + INK_SETTLE_MS);
-  runs.push(root.animate(
-    [{ opacity: WET_INK_OPACITY }, { opacity: WET_INK_OPACITY, offset: settleAt }, { opacity: getComputedStyle(root).opacity }],
-    { duration: totalMs + INK_SETTLE_MS, easing: 'ease-out' },
-  ));
-  return Promise.all(runs.map(a => a.finished));
+/** 给每块画布配好时间表；拿不到 2D context 或算不出时间表时返回 null。 */
+function buildPainters(canvases: HTMLCanvasElement[], chars: string[], data: HandwritingData): { painters: Painter[]; inkEndMs: number } | null {
+  const schedules = chars.map(ch => glyphSchedule(ch, data.glyphs, data.strokes));
+  const contexts = canvases.map(c => c.getContext('2d'));
+  if (schedules.some(s => !s) || contexts.some(c => !c)) return null;
+  const { offsets, inkEndMs } = lineOffsets(chars, schedules.map(s => s?.durationMs ?? 0));
+  const painters = contexts.flatMap((ctx, i) => (ctx ? [{ ctx, img: ctx.createImageData(RASTER_CELL, RASTER_CELL), events: schedules[i]?.events ?? [], offset: offsets[i], next: 0 }] : []));
+  return { painters, inkEndMs };
+}
+
+function inkColor(el: HTMLElement): [number, number, number] {
+  const [r = 0, g = 0, b = 0] = (getComputedStyle(el).color.match(/\d+/g) ?? []).map(Number);
+  return [r, g, b];
+}
+
+/** 把每块画布里时间不晚于 upTo（原速毫秒）的墨点画上去；返回是否还有没画完的。 */
+function paintUpTo(painters: Painter[], upTo: number, rgb: [number, number, number]): boolean {
+  let pending = false;
+  for (const p of painters) {
+    let changed = false;
+    while (p.next < p.events.length && p.events[p.next].t <= upTo - p.offset) {
+      const e = p.events[p.next++]; const px = p.img.data;
+      px[e.i] = rgb[0]; px[e.i + 1] = rgb[1]; px[e.i + 2] = rgb[2]; px[e.i + 3] = e.a;
+      changed = true;
+    }
+    if (changed) p.ctx.putImageData(p.img, 0, 0);
+    if (p.next < p.events.length) pending = true;
+  }
+  return pending;
 }
 
 export function HandwrittenLine({ text, playKey = text, className = '', onWritten }: {
@@ -128,38 +120,50 @@ export function HandwrittenLine({ text, playKey = text, className = '', onWritte
   /** 写完（或不需要写、直接显示终态）时调用一次。 */
   onWritten?: () => void;
 }) {
-  const data = useStrokeData();
+  const data = useHandwritingData();
   const rootRef = useRef<HTMLSpanElement>(null);
-  const plan = useMemo(() => (data && data !== 'failed' ? planWriting(text, data) : null), [text, data]);
+  const chars = useMemo(() => [...text], [text]);
+  const ready = data !== null && data !== 'failed' && canWrite(chars, data);
   const reportWritten = useEffectEvent(() => onWritten?.());
 
   useLayoutEffect(() => {
     const root = rootRef.current;
-    if (!plan || !root) return;
-    const animate = !writtenThisSession.has(playKey) && !prefersReducedMotion() && typeof root.animate === 'function';
+    if (!data) return;
+    // 退回文字（加载失败、不支持 canvas）也算写完，让出处正常出现。
+    if (data === 'failed' || !ready || !root) { reportWritten(); return; }
+    const built = buildPainters([...root.querySelectorAll('canvas')], chars, data);
+    if (!built) {
+      console.error('[handwriting] FAILED to prepare glyph canvases', { text });
+      reportWritten();
+      return;
+    }
+    const rgb = inkColor(root);
+    const animate = !writtenThisSession.has(playKey) && !prefersReducedMotion() && typeof requestAnimationFrame === 'function';
     writtenThisSession.add(playKey);
-    if (!animate) { reportWritten(); return; }
-    let alive = true;
-    animateWriting(root, plan.totalMs).then(
-      () => { if (alive) reportWritten(); },
-      (err: unknown) => {
-        // 卸载或换句时动画被 cancel()，finished 以 AbortError 结束，属正常；其余照实上报。
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        console.error('[handwriting] FAILED while animating', { text }, err);
-      },
-    );
-    return () => { alive = false; root.getAnimations?.({ subtree: true }).forEach(a => a.cancel()); };
-  }, [plan, playKey, text]);
+    if (!animate) { paintUpTo(built.painters, Infinity, rgb); reportWritten(); return; }
+    const warp = makeWarp(built.inkEndMs);
+    const start = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      if (paintUpTo(built.painters, warp(now - start), rgb)) frame = requestAnimationFrame(tick);
+      else reportWritten();
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [data, ready, chars, playKey, text]);
 
-  if (data === 'failed') return <span className={`font-human ${className}`}>{text}</span>;
+  if (data === 'failed' || (data && !ready)) return <span className={`font-human ${className}`}>{text}</span>;
+  const glyphs = chars.map((ch, i) => ({ ch, i }));
   return (
-    <span ref={rootRef} role="img" aria-label={text} className={`hw-line ${plan ? '' : 'invisible'} ${className}`}>
-      {plan
-        ? splitClauses(plan.glyphs).map((clause, ci) => (
-          <span key={ci} className="hw-clause">
-            {clause.map((g, gi) => (g.kind === 'pen'
-              ? <PenGlyph key={gi} glyph={g} />
-              : <span key={gi} aria-hidden className="hw-glyph hw-text font-human" data-hw-fade={g.delayMs}>{g.ch}</span>))}
+    <span ref={rootRef} role="img" aria-label={text} className={`hw-line ${data ? '' : 'invisible'} ${className}`}>
+      {data
+        ? splitClauses(glyphs).map(clause => (
+          <span key={clause[0].i} className="hw-clause">
+            {clause.map(g => (
+              <span key={g.i} aria-hidden className={`hw-glyph ${isPause(g.ch) ? 'hw-glyph-narrow' : ''}`}>
+                <canvas width={RASTER_CELL} height={RASTER_CELL} />
+              </span>
+            ))}
           </span>
         ))
         : <span className="font-human">{text}</span>}

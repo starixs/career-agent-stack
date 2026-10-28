@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 从 hanzi-writer-data（Make Me a Hanzi 的笔画中轴线，Arphic Public License）里
- * 只抽出内置语句用到的汉字，把中轴折线平滑成钢笔笔迹曲线并算好长度，生成 renderer 用的 strokes.json。
- * 不带笔画轮廓：笔迹不按楷体字形裁剪，看起来是手写而不是字体。
+ * 从 hanzi-writer-data（Make Me a Hanzi 的楷体笔画中轴线，Arphic Public License）里
+ * 只抽出内置语句用到的汉字，把中轴折线平滑成曲线并算好长度，生成 renderer 用的 strokes.json。
+ * 只用来定笔顺：字形是志莽行书（scripts/build-handwriting-glyphs.py），运行时把这些中轴对齐到字形上反推出墨。
  *
  * 用法：node scripts/build-handwriting-strokes.mjs [hanzi-writer-data 的 data 目录]
  * 不给目录时 npm pack 固定版本到临时目录再读。改了 quotes.json 后重跑一次。
