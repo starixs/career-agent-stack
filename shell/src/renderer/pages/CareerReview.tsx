@@ -111,8 +111,6 @@ function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (
         <span className="font-semibold tabular-nums text-[var(--ink)]" aria-live="polite">{board.month.year} 年 {board.month.month} 月</span>
         <Button size="sm" variant="ghost" aria-label="下个月" disabled={!board.month.next_key} onClick={() => onMonth(board.month.next_key)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
       </div>
-      {/* 按这个月走到哪一步，手写一句（每次打开随机，不与上次重复）。 */}
-      <QuoteNote scene={monthQuoteScene(board)} pick="random" className="text-xl" />
 
       <dl className="flex flex-wrap items-end gap-x-20 gap-y-6" aria-label="本月关键数字">
         {LAYER_NAMES.map((name, k) => (
@@ -131,6 +129,10 @@ function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (
       </section>
 
       <MonthDays board={board} layer={layer} />
+
+      {/* 整月的落款：按这个月走到哪一步手写一句，靠右收尾（每次打开随机，不与上次重复）。 */}
+      {/* eslint-disable-next-line no-restricted-syntax -- 展示型字号 36px 已在 specs/CAREER_DESIGN.md 7.7 立档：落款要压得住上面 76px 的大数字 */}
+      <QuoteNote scene={monthQuoteScene(board)} pick="random" className="pt-6 text-right text-[36px]" />
     </>
   );
 }
