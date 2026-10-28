@@ -19,6 +19,10 @@ export type BrowserChannel = "chrome" | "managed-chromium";
  * - `CAREER_BROWSER_PERSISTENT=0`：回退到旧的"共享 Chromium + 隔离 Context + identity-store 保存 Cookie"。
  * - `CAREER_BROWSER_CHANNEL=chrome|chromium`：强制使用本机 Chrome / 托管 Chromium；缺省自动探测。
  * - `CAREER_BROWSER_IDENTITY_MIRROR=1`：持久 profile 模式下仍把 Cookie 旁路镜像到 identity-store（失败只记日志）。
+ * - `CAREER_BROWSER_WINDOW=window`：独立窗口（不内嵌）；`corner`：内嵌但停主屏角落（不用虚拟屏）；
+ *   缺省 / `virtual-display`：macOS 内嵌到虚拟屏（推荐，桌面完全不可见），其余平台等同 `corner`。
+ * - `CAREER_BROWSER_RESIDENT=0`：关闭浏览器常驻（恢复旧的"空闲 15 秒拆除 Context"回收）。
+ * - `CAREER_BROWSER_FOCUS_GUARD=0`：关闭 macOS 焦点守卫（也就没有虚拟屏不可用时的隐藏兜底）。
  */
 export interface BrowserRuntimePolicy {
   persistentProfile: boolean;
@@ -32,10 +36,23 @@ export interface BrowserRuntimePolicy {
    */
   embeddedWindow?: boolean;
   /**
-   * macOS 虚拟屏（可选，`CAREER_BROWSER_WINDOW=virtual-display`）：内嵌窗口停到一块看不见的虚拟屏上，
-   * 不占用户桌面角落（browser-host/virtual-display.ts）。创建失败退回角落停靠。
+   * macOS 虚拟屏（macOS 缺省开启）：内嵌窗口停到一块看不见的虚拟屏上，
+   * 不占用户桌面角落（browser-host/virtual-display.ts）。`CAREER_BROWSER_WINDOW=corner` 关闭；
+   * 创建失败 / 中途消失时改用隐藏兜底（需要焦点守卫），不影响浏览器本身。
    */
   virtualDisplay?: boolean;
+  /**
+   * 浏览器常驻（缺省开启，仅对持久 profile 生效）：空闲不再拆除 Context——
+   * 15 秒宽限回收会让下一个任务重新启动 Chrome（Dock 弹跳、窗口在桌面闪现、焦点被抢）。
+   * 浏览器只随显式关闭（browser_close / 会话退休 / 进程退出 / 用户自己关掉 Chrome）退出。
+   */
+  residentContext?: boolean;
+  /**
+   * macOS 焦点守卫（macOS 内嵌缺省开启，`CAREER_BROWSER_FOCUS_GUARD=0` 关闭）：托管 Chrome 启动 / 开新页 /
+   * 网页弹窗时会被系统激活、抢走用户正在用的应用的焦点，守卫立刻还回去；虚拟屏不可用时的隐藏兜底也靠它
+   * （browser-host/window-guard.ts）。
+   */
+  windowGuard?: boolean;
 }
 
 export interface CompiledBrowserRuntimeSettings {
@@ -182,17 +199,22 @@ export function resolveBrowserRuntimePolicy(
   platform: NodeJS.Platform = process.platform,
 ): BrowserRuntimePolicy {
   const channel = env.CAREER_BROWSER_CHANNEL?.trim().toLowerCase();
+  // `window` = 独立窗口（不内嵌）；`corner` = 内嵌但停主屏角落（禁用虚拟屏）；
+  // 缺省 / `virtual-display` = macOS 内嵌到虚拟屏（桌面完全不可见），其余平台等同 `corner`。
+  const windowMode = env.CAREER_BROWSER_WINDOW?.trim().toLowerCase() ?? '';
   return {
-    persistentProfile: env.CAREER_BROWSER_PERSISTENT?.trim() !== "0",
-    systemChrome: channel === "chrome"
+    persistentProfile: env.CAREER_BROWSER_PERSISTENT?.trim() !== '0',
+    systemChrome: channel === 'chrome'
       ? true
-      : channel === "chromium"
+      : channel === 'chromium'
         ? false
         : detectSystemChrome(platform, env, home),
-    mirrorIdentity: env.CAREER_BROWSER_IDENTITY_MIRROR?.trim() === "1",
-    profileRoot: join(home, ".keystone", "browser-profile"),
-    embeddedWindow: env.CAREER_BROWSER_WINDOW?.trim().toLowerCase() !== "window",
-    virtualDisplay: platform === "darwin" && env.CAREER_BROWSER_WINDOW?.trim().toLowerCase() === "virtual-display",
+    mirrorIdentity: env.CAREER_BROWSER_IDENTITY_MIRROR?.trim() === '1',
+    profileRoot: join(home, '.keystone', 'browser-profile'),
+    embeddedWindow: windowMode !== 'window',
+    virtualDisplay: platform === 'darwin' && windowMode !== 'window' && windowMode !== 'corner',
+    residentContext: env.CAREER_BROWSER_RESIDENT?.trim() !== '0',
+    windowGuard: platform === 'darwin' && windowMode !== 'window' && env.CAREER_BROWSER_FOCUS_GUARD?.trim() !== '0',
   };
 }
 

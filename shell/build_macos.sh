@@ -602,6 +602,9 @@ for TARGET in "${BUILD_TARGETS[@]}"; do
     node "${PROJECT_DIR}/scripts/prepare-native-inference.mjs" "$TARGET"
     node "${PROJECT_DIR}/scripts/prepare-cuse-bundle.mjs" "$TARGET"
     codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "${PROJECT_DIR}/bundled-skills/cuse/scripts/cuse"
+    # 托管浏览器的原生窗口助手（虚拟屏 + 焦点守卫）：双架构一份，打包前签名
+    node "${PROJECT_DIR}/scripts/prepare-window-helper.mjs"
+    codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "${PROJECT_DIR}/src-tauri/resources/window-helper/career-window-helper"
 
     npm run tauri:build -- --target "$TARGET" --config "$BUILD_ASSETS_CONFIG"
 

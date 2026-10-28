@@ -108,13 +108,38 @@ export type DriveEvent = Record<string, unknown>;
 export type DriveOutcome =
   | { kind: 'handoff'; handoffId: string; reason: string; userAction?: string; message: string; finalUrl?: string; summary: Record<string, unknown>; /** 停在提交前但没过提交门槛时的缺项 */ gate?: SubmitGate }
   | { kind: 'done'; submitActionId: string; pending: number; summary: Record<string, unknown>; submitButton?: string; gate: SubmitGate; headline: string; /** auto 模式 / 自学习免审时已直接批准 */ autoApproved?: 'auto' | 'learned'; decision?: string }
-  | { kind: 'failed'; blocked: boolean; message: string; summary?: Record<string, unknown> };
+  | { kind: 'failed'; blocked: boolean; message: string; summary?: Record<string, unknown> }
+  /** 瞬时 / 可抢占：不是这份网申的失败。动作放回 approved（start）或 needs_user（continue），条件恢复后重跑。 */
+  | { kind: 'transient'; code?: string; message: string };
+
+/**
+ * 瞬时 / 可抢占错误分诊：用户正在接管、宿主停机、浏览器会话消失、被另一处占用、导航失败（站点慢）、
+ * 引擎未就绪（501）/ 启动失败（503）都不算这份网申的失败——此前一律判 failed 会把动作打进
+ * 没有任何工具能救活的死状态（apply_run 只收 approved、apply_continue 只收 needs_user/executing）。
+ */
+export function isTransientDriveError(line: { code?: unknown; status?: unknown } | undefined): boolean {
+  if (!line) return false;
+  const code = typeof line.code === 'string' ? line.code : '';
+  if ([
+    'BROWSER_BUSY',
+    'BROWSER_CONTROL_HUMAN',
+    'BROWSER_HOST_STOPPING',
+    'BROWSER_CONTEXT_MISSING',
+    'BROWSER_CONTEXT_CANCELLED',
+    'BROWSER_CONNECTION_FAILED',
+    'NAVIGATION_FAILED',
+  ].includes(code)) return true;
+  const status = typeof line.status === 'number' ? line.status : 0;
+  return status === 501 || status === 503;
+}
 
 export interface PersistDeps {
   repos: Repos;
   action: ActionQueueItem;
   taskId: string;
   events: DriveEvent[];
+  /** start：重跑要放回 approved；continue：保持 needs_user（接管标记还在，交回后自动续跑）。 */
+  mode: 'start' | 'continue';
   /** 数据变更广播（表名）。 */
   changed: (...tables: string[]) => void;
   /** 有 submit 进待审时通知对话内审核卡片（data：卡片里的审阅清单等）。 */
@@ -158,6 +183,15 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     if (action.application_id) { try { r.transition(action.application_id, 'needs_user', message, { blocker_reason: `page_identity: ${message}`, next_action: '回到网申页面后交还' }); } catch { /* 已在等用户 */ } }
     deps.changed('handoff', 'task', 'action_queue', 'application');
     return { kind: 'handoff', handoffId: h.id, reason: 'user_request', userAction: message, message, summary: { status: 'handoff', reason: 'page_identity', message } };
+  }
+  // 瞬时 / 可抢占（接管冲突 / 宿主停机 / 会话消失 / 被占用 / 导航失败 / 501/503）：不算失败，放回队列等条件恢复
+  if (!result && isTransientDriveError(errorLine)) {
+    const message = errorLine?.error ?? '浏览器暂时不可用，稍后自动重试';
+    if (deps.mode === 'start') r.requeueAction(action.id);
+    else r.setActionStatus(action.id, 'needs_user');
+    r.updateTask(taskId, { status: 'queued' });
+    deps.changed('task', 'action_queue');
+    return { kind: 'transient', code, message };
   }
   if (!result) return fail(errorLine ? `${errorLine.error ?? '浏览器路由报错'}（HTTP ${errorLine.status ?? '?'}）` : '浏览器没有返回填表结果');
   const summary = summarizeDriveResult(result);

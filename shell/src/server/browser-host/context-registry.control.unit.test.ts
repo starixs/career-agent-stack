@@ -226,6 +226,67 @@ describe('BrowserContextRegistry persistent profile', () => {
   });
 });
 
+describe('BrowserContextRegistry resident retention', () => {
+  let profileRoot: string;
+  afterEach(() => { if (profileRoot) rmSync(profileRoot, { recursive: true, force: true }); });
+
+  it('keeps a persistent Context alive across idle gaps instead of relaunching Chrome', async () => {
+    vi.useFakeTimers();
+    let h!: ReturnType<typeof harness>;
+    try {
+      profileRoot = mkdtempSync(join(tmpdir(), 'keystone-browser-profile-'));
+      h = harness({ profileRoot, residentContext: true });
+      h.registry.retainConnection('session-a');
+      await registryContext(h.registry, 'session-a');
+      expect(h.launchPersistentContext).toHaveBeenCalledOnce();
+
+      h.registry.releaseConnection('session-a');
+      await vi.advanceTimersByTimeAsync(60_000);
+      // 常驻：空闲宽限不再拆除——Chrome 不重启、Context 不关闭
+      expect(h.context.close).not.toHaveBeenCalled();
+      expect(h.registry.hasContext('session-a')).toBe(true);
+
+      // 下一个任务复用同一个 Context，不触发第二次 launch（消除"每个任务闪一次"的根）
+      h.registry.retainConnection('session-a');
+      await registryContext(h.registry, 'session-a');
+      expect(h.launchPersistentContext).toHaveBeenCalledOnce();
+      h.registry.releaseConnection('session-a');
+    } finally {
+      vi.useRealTimers();
+    }
+    await h.registry.shutdown();
+    expect(h.context.close).toHaveBeenCalledOnce();
+    expect(h.registry.hasContext('session-a')).toBe(false);
+  });
+
+  it('still closes promptly on explicit retirement while resident', async () => {
+    profileRoot = mkdtempSync(join(tmpdir(), 'keystone-browser-profile-'));
+    const h = harness({ profileRoot, residentContext: true });
+    h.registry.retainConnection('session-a');
+    await registryContext(h.registry, 'session-a');
+    h.registry.releaseConnection('session-a');
+    await h.registry.closeSessionContext('session-a');
+    expect(h.context.close).toHaveBeenCalledOnce();
+    expect(h.registry.hasContext('session-a')).toBe(false);
+  });
+
+  it('restores the idle teardown when residency is disabled', async () => {
+    vi.useFakeTimers();
+    try {
+      profileRoot = mkdtempSync(join(tmpdir(), 'keystone-browser-profile-'));
+      const h = harness({ profileRoot, residentContext: false });
+      h.registry.retainConnection('session-a');
+      await registryContext(h.registry, 'session-a');
+      h.registry.releaseConnection('session-a');
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(h.context.close).toHaveBeenCalledOnce();
+      expect(h.registry.hasContext('session-a')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 async function registryContext(registry: BrowserContextRegistry, session: string) {
   return registry.getContext(binding(session));
 }

@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 
-import { VirtualDisplay, setVirtualParkTarget } from './virtual-display';
+import { VirtualDisplay, setVirtualParkTarget, type VirtualDisplayOptions } from './virtual-display';
+import { WindowGuard } from './window-guard';
 import { markProfileExitedCleanly } from './profile-hygiene';
 import type {
   Browser,
@@ -24,7 +25,7 @@ import {
   type BrowserRuntimePolicy,
   type CompiledBrowserRuntimeSettings,
 } from './runtime-settings';
-import { fitPageViewport, PARK_DISPLAY_SIZE, parkWindow, type ViewportSize } from './page-control';
+import { fitPageViewport, PARK_DISPLAY_SIZE, parkWindow, surfacelessScreenshot, type SurfacelessScreenshotOptions, type ViewportSize } from './page-control';
 import { waitForBrowserResource, type BrowserResourceResolution } from './resource-client';
 
 /** 页面弹出系统选文件框时的回调（内嵌模式下原生框挂在看不见的窗口上，改由产品内选文件）。 */
@@ -101,6 +102,8 @@ function borrowBrowserContext(
   context: BrowserContext,
   selectedPage: () => Page | null,
   observePageOrder: (pages: Page[]) => void,
+  /** 隐藏兜底下 Chrome 不合成画面：借出去的 Page 截图改走 fromSurface:false。 */
+  surfaceless: () => boolean = () => false,
 ): BrowserContext {
   const listeners: Array<{
     emitter: Emitter;
@@ -130,8 +133,11 @@ function borrowBrowserContext(
   const wrapEmitter = <T extends Emitter>(
     emitter: T,
     transformArgs?: (event: string | symbol, args: unknown[]) => unknown[],
+    override?: (property: string | symbol) => unknown,
   ): T => new Proxy(emitter, {
     get(target, property, receiver) {
+      const replaced = override?.(property);
+      if (replaced !== undefined) return replaced;
       if (property === 'on' || property === 'once' || property === 'addListener') {
         return (event: string | symbol, listener: Listener) => {
           const installed: Listener = (...args) => {
@@ -162,7 +168,11 @@ function borrowBrowserContext(
   const wrapPage = (page: Page): Page => {
     const existing = pageProxies.get(page);
     if (existing) return existing;
-    const proxy = wrapEmitter(page as unknown as Emitter) as unknown as Page;
+    const proxy = wrapEmitter(page as unknown as Emitter, undefined, property => (
+      property === 'screenshot' && surfaceless()
+        ? (options?: SurfacelessScreenshotOptions) => surfacelessScreenshot(context, page, options)
+        : undefined
+    )) as unknown as Page;
     pageProxies.set(page, proxy);
     proxy.once('close', () => {
       // Allow every upstream close listener to observe the event before
@@ -260,6 +270,9 @@ export interface BrowserContextRegistryDependencies {
   onContextClosed(productSessionId: string): void;
   /** 缺省按环境变量与本机 Chrome 探测结果解析；测试注入固定值。 */
   runtimePolicy?: BrowserRuntimePolicy;
+  /** 测试注入焦点守卫 / 虚拟屏（缺省启动原生助手）。 */
+  createWindowGuard?: () => WindowGuard;
+  createVirtualDisplay?: (options: VirtualDisplayOptions) => Pick<VirtualDisplay, 'ensure' | 'stop'>;
 }
 
 const DEFAULT_DEPENDENCIES: BrowserContextRegistryDependencies = {
@@ -294,6 +307,13 @@ export class BrowserContextRegistry {
   /** 现场画面框比例对应的页面视口（渲染层上报）：已开和之后新开的页面都按它，停靠窗口也按它放大。 */
   private readonly liveViewports = new Map<string, ViewportSize>();
   private fileChooserListener: FileChooserListener | null = null;
+  /** macOS 焦点守卫（policy.windowGuard）：托管 Chrome 抢焦点就还回去；隐藏兜底也靠它。见 window-guard.ts。 */
+  private windowGuard: WindowGuard | null = null;
+  /**
+   * 隐藏兜底：虚拟屏建不出来 / 中途消失 / 重排后挪不开时，把托管 Chrome 整个隐藏（不露角落、不弹窗），
+   * 画面改用 fromSurface:false 截图。进入后保持到运行时重置。
+   */
+  private hiddenFallback = false;
 
   constructor(dependencies: Partial<BrowserContextRegistryDependencies> = {}) {
     this.dependencies = { ...DEFAULT_DEPENDENCIES, ...dependencies };
@@ -314,26 +334,81 @@ export class BrowserContextRegistry {
 
   private windowListener: BrowserWindowListener | null = null;
   /** macOS 虚拟屏（policy.virtualDisplay）：和托管 Chrome 同生共死，见 virtual-display.ts。 */
-  private virtualDisplay: VirtualDisplay | null = null;
+  private virtualDisplay: Pick<VirtualDisplay, 'ensure' | 'stop'> | null = null;
 
-  /** 启动 Chrome 前确保虚拟屏就绪；失败退回角落停靠（不挡启动）。 */
+  private helperBinDir(): string {
+    return join(this.runtimePolicy.profileRoot, '..', 'bin');
+  }
+
+  /** 启动 Chrome 前确保虚拟屏就绪；失败改用隐藏兜底（不挡启动）。 */
   private async ensureVirtualDisplay(): Promise<void> {
-    if (!this.runtimePolicy.embeddedWindow || !this.runtimePolicy.virtualDisplay) return;
+    if (!this.runtimePolicy.embeddedWindow || !this.runtimePolicy.virtualDisplay || this.hiddenFallback) return;
     if (!this.virtualDisplay) {
-      this.virtualDisplay = new VirtualDisplay({
-        binDir: join(this.runtimePolicy.profileRoot, '..', 'bin'),
+      const options: VirtualDisplayOptions = {
+        binDir: this.helperBinDir(),
         width: PARK_DISPLAY_SIZE.width, height: PARK_DISPLAY_SIZE.height,
         log: msg => console.log(`[browser-host] ${msg}`),
-        // 助手意外退出：macOS 会把窗口搬到主屏正中——立刻停回角落
-        onLost: () => { setVirtualParkTarget(null); void this.reparkAll(); },
-      });
+        // 助手意外退出：macOS 会把窗口搬到主屏正中——立刻藏起来
+        onLost: () => this.enterHiddenFallback('lost'),
+        onMoved: bounds => { setVirtualParkTarget(bounds); void this.reparkAll(); },
+        // 屏幕重排后贴边且挪不开：先藏好再放屏
+        onUnsafe: () => {
+          this.enterHiddenFallback('unsafe');
+          const display = this.virtualDisplay;
+          setTimeout(() => display?.stop(), 500).unref?.();
+        },
+      };
+      this.virtualDisplay = this.dependencies.createVirtualDisplay?.(options) ?? new VirtualDisplay(options);
     }
     try {
       setVirtualParkTarget(await this.virtualDisplay.ensure());
     } catch (error) {
-      setVirtualParkTarget(null);
-      console.warn(`[browser-host] virtual-display=unavailable fallback=corner error=${error instanceof Error ? error.message : 'unknown'}`);
+      console.warn(`[browser-host] virtual-display=unavailable error=${error instanceof Error ? error.message : 'unknown'}`);
+      this.enterHiddenFallback('unavailable');
     }
+  }
+
+  private ensureWindowGuard(): WindowGuard | null {
+    if (!this.runtimePolicy.windowGuard || !this.runtimePolicy.embeddedWindow) return null;
+    this.windowGuard ??= this.dependencies.createWindowGuard?.() ?? new WindowGuard({
+      binDir: this.helperBinDir(),
+      log: msg => console.log(`[browser-host] ${msg}`),
+    });
+    return this.windowGuard;
+  }
+
+  /** 启动托管 Chrome 之前：让焦点守卫按 profile 认领它（隐藏兜底下同时藏起来）。失败只记日志。 */
+  private async expectManagedWindow(productSessionId: string, userDataDir: string): Promise<void> {
+    const guard = this.ensureWindowGuard();
+    if (!guard) return;
+    try {
+      await guard.expect(userDataDir, { hidden: this.hiddenFallback, paused: this.revealedWindows.has(productSessionId) });
+    } catch (error) {
+      console.warn(`[browser-host] window-guard=unavailable error=${error instanceof Error ? error.message : 'unknown'}`);
+    }
+  }
+
+  /**
+   * 虚拟屏不可用 → 隐藏兜底：没被用户放出来的托管 Chrome 全部隐藏；窗口停回角落，
+   * 万一被短暂取消隐藏也只露那一小条。没有守卫（助手起不来）时只能退回角落停靠。
+   */
+  private enterHiddenFallback(reason: 'unavailable' | 'lost' | 'unsafe'): void {
+    setVirtualParkTarget(null);
+    if (!this.hiddenFallback) {
+      this.hiddenFallback = true;
+      console.warn(`[browser-host] window-mode=hidden-fallback reason=${reason}`);
+      for (const [sessionId, entry] of this.entries) {
+        if (entry.userDataDir && !this.revealedWindows.has(sessionId)) this.windowGuard?.setHidden(entry.userDataDir, true);
+      }
+    }
+    void this.reparkAll();
+  }
+
+  /** 这个会话的截图是否要走 fromSurface:false（托管 Chrome 此刻确实被藏着）。 */
+  surfacelessCapture(productSessionId: string): boolean {
+    if (!this.hiddenFallback || this.revealedWindows.has(productSessionId)) return false;
+    const dir = this.entries.get(productSessionId)?.userDataDir;
+    return Boolean(dir && this.windowGuard?.running() && this.windowGuard.state(dir)?.hidden);
   }
 
   /** 把所有没被用户放出来的托管窗口重新停靠（停靠目标变了时）。 */
@@ -358,6 +433,9 @@ export class BrowserContextRegistry {
 
   /** 记录真实窗口是否被临时放出；收回时把当前所有页面重新停到角落。 */
   async setWindowRevealed(productSessionId: string, revealed: boolean): Promise<void> {
+    const dir = this.entries.get(productSessionId)?.userDataDir;
+    // 放出来的真实窗口由用户操作：不守卫、不隐藏；收回时恢复
+    if (dir) this.windowGuard?.setPaused(dir, revealed);
     if (revealed) { this.revealedWindows.add(productSessionId); return; }
     this.revealedWindows.delete(productSessionId);
     const entry = this.entries.get(productSessionId);
@@ -454,8 +532,20 @@ export class BrowserContextRegistry {
     this.scheduleContextRelease(productSessionId, owner);
   }
 
+  /** 常驻只在持久 profile 下生效：隔离模式没有跨任务可保留的登录态，维持旧的空闲回收。 */
+  private isResidentPolicy(): boolean {
+    return this.runtimePolicy.residentContext === true && this.runtimePolicy.persistentProfile;
+  }
+
   private scheduleContextRelease(productSessionId: string, owner: ConnectionOwner): void {
     if (owner.count > 0 || owner.releaseTimer) return;
+    if (this.isResidentPolicy()) {
+      // 常驻模式（缺省，仅持久 profile）：空闲不拆 Context——15 秒宽限回收会让下一个任务
+      // 重新启动 Chrome（Dock 弹跳、窗口在桌面闪现、焦点被抢）。浏览器只随显式关闭退出：
+      // browser_close 工具 / 会话退休 / 进程 shutdown / 用户自己关掉 Chrome（context close 事件）。
+      this.connectionOwners.delete(productSessionId);
+      return;
+    }
     owner.releaseTimer = setTimeout(() => {
       const current = this.connectionOwners.get(productSessionId);
       if (current !== owner || current.count > 0) return;
@@ -624,10 +714,12 @@ export class BrowserContextRegistry {
   }
 
   private borrowContext(entry: ContextEntry): BrowserContext {
+    const owner = [...this.entries].find(([, candidate]) => candidate === entry)?.[0];
     return borrowBrowserContext(
       entry.context,
       () => entry.selection.page,
       pages => { entry.backendPageOrder = pages; },
+      () => owner !== undefined && this.surfacelessCapture(owner),
     );
   }
 
@@ -663,7 +755,8 @@ export class BrowserContextRegistry {
       mkdirSync(compiled.userDataDir, { recursive: true });
       // 上次被强杀留下的"崩溃"标记会让 Chrome 弹恢复提示，用户看到的就是"浏览器崩溃了"
       const repaired = markProfileExitedCleanly(compiled.userDataDir);
-      console.log(`[browser-host] context=launch mode=persistent channel=${compiled.channel} crash-mark=${repaired ? 'cleared' : 'clean'}`);
+      console.log(`[browser-host] context=launch mode=persistent channel=${compiled.channel} crash-mark=${repaired ? 'cleared' : 'clean'} resident=${this.isResidentPolicy() ? 'on' : 'off'}`);
+      await this.expectManagedWindow(binding.productSessionId, compiled.userDataDir);
       const browserType = await this.dependencies.loadBrowserType();
       context = await browserType.launchPersistentContext(compiled.userDataDir, {
         ...launchOptions,
@@ -740,6 +833,7 @@ export class BrowserContextRegistry {
     context.pages().forEach(observePage);
     context.once('close', () => {
       context.off('page', observePage);
+      if (compiled.userDataDir) this.windowGuard?.forget(compiled.userDataDir);
       const owner = [...this.entries].find(([, candidate]) => candidate.context === context)?.[0]
         ?? binding.productSessionId;
       void this.finalizeClosedEntry(owner, entry).catch(error => {
@@ -989,6 +1083,11 @@ export class BrowserContextRegistry {
     if (!options.preserveConnectionOwners && this.virtualDisplay) {
       this.virtualDisplay.stop();
       setVirtualParkTarget(null);
+    }
+    if (!options.preserveConnectionOwners) {
+      this.windowGuard?.stop();
+      this.windowGuard = null;
+      this.hiddenFallback = false;
     }
   }
 

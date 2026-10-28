@@ -524,7 +524,10 @@ export async function runOperation(
   }
 
   // op === 'drive'：同一个页面同时只允许一处在操作（对话 apply_run 与后台批量可能指向同一份网申）
-  const owner = typeof body.actionId === 'string' && body.actionId ? body.actionId : typeof body.runId === 'string' ? body.runId : 'anonymous';
+  // owner 带执行者前缀（chat: / batch:）：此前两边都用裸 actionId，锁对同一 owner 可重入，
+  // 对话与批量撞同一份时会双引擎同时填一张表、各自入队一个提交。
+  const callerPrefix = typeof body.caller === 'string' && body.caller ? `${body.caller}:` : '';
+  const owner = typeof body.actionId === 'string' && body.actionId ? `${callerPrefix}${body.actionId}` : typeof body.runId === 'string' ? `${callerPrefix}${body.runId}` : 'anonymous';
   const holder = lockPage(page, owner);
   if (holder) {
     out.emit({ type: 'error', status: 409, code: 'BROWSER_BUSY', error: `这份网申的页面正在被另一处操作（${holder}），等它结束或先暂停后台批量投递` });
@@ -555,7 +558,16 @@ export async function runOperation(
     const redact = bundle.redact ?? (<T,>(v: T) => v);
     if (url) {
       out.emit({ type: 'progress', phase: 'navigate', message: `打开 ${url}` });
-      await engineLikePage.goto(url);
+      // 慢站首次加载超时很常见：单次 goto 失败不判死（详见 browse.ts navigateWithRetry）。
+      // 这里失败给模型的是"可恢复"指引而不是裸错误，避免它直接跟用户说打不开。
+      try {
+        const { navigateWithRetry } = await import('../career/browse');
+        await navigateWithRetry(page, url);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        out.emit({ type: 'error', status: 504, code: 'NAVIGATION_FAILED', error: `打开 ${url} 失败：${msg}。可让用户确认链接与网络后用 apply_run / apply_prepare 重试；若用户能手动打开而助理不能，多半是站点对自动访问有限制，交用户在现场打开（ui_open live）处理到表单页再继续。` });
+        return;
+      }
     }
     let perceiver: PerceiverLike | undefined;
     if (body.vision !== false) {

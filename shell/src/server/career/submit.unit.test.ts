@@ -34,7 +34,7 @@ function driveResult(review: Record<string, unknown> | null, extra: Record<strin
 function persist(repos: Repos, events: Ev[], packet?: { resumeSha: string }) {
   const { app, fill } = seedFill(repos, packet);
   const task = repos.createTask({ title: 't', kind: 'apply' });
-  const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, events, changed: () => {} });
+  const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, events, changed: () => {}, mode: 'start' });
   if (out.kind !== 'done') throw new Error(`unexpected ${out.kind}`);
   return { app, submit: repos.getAction(out.submitActionId)!, out };
 }
@@ -100,7 +100,7 @@ describe('提交门槛：全部过关才入队提交，否则交给用户补', (
     const task = repos.createTask({ title: 't', kind: 'apply' });
     const reviews: Array<{ ids: string[]; summary: string; data?: Record<string, unknown> }> = [];
     const events = driveResult(null, { ...(review ? { review: { attention: 0, formSignature: SIG, openAnswersHash: 'h', ...review } } : {}), ...extra });
-    const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, events, changed: () => {}, review: (ids, _k, summary, data) => reviews.push({ ids, summary, data }) });
+    const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, events, changed: () => {}, mode: 'start', review: (ids, _k, summary, data) => reviews.push({ ids, summary, data }) });
     return { repos, app, fill, out, reviews };
   };
 
@@ -148,7 +148,7 @@ describe('提交门槛：全部过关才入队提交，否则交给用户补', (
     setAutoMode(repos, true);
     const { fill } = seedFill(repos);
     const task = repos.createTask({ title: 't', kind: 'apply' });
-    const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, changed: () => {}, events: driveResult({ rows: [ok('a'), { label: 'b', required: true, status: 'empty' }], requiredTotal: 2, requiredFilled: 1 }) });
+    const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, changed: () => {}, mode: 'start', events: driveResult({ rows: [ok('a'), { label: 'b', required: true, status: 'empty' }], requiredTotal: 2, requiredFilled: 1 }) });
     expect(out.kind).toBe('handoff');
     expect(repos.listActions().filter(a => a.kind === 'submit')).toHaveLength(0);
   });
@@ -214,13 +214,26 @@ describe('提交执行器', () => {
     expect(repos.getApplication(b.app.id)!.stage).toBe('applied');
   });
 
-  it('页面已经不在（浏览器关过）：回到待审并说明原因', async () => {
+  it('页面已经不在（浏览器关过）：不退回待审死循环——填表动作放回 approved 重新填写，submit 终结', async () => {
+    const repos = createMemoryRepos();
+    const { app, submit } = persist(repos, driveResult({}));
+    const fillId = JSON.parse(submit.payload_json).fill_action_id as string;
+    repos.reviewActions([submit.id], 'approved', 'user');
+    const out = await executeSubmitAction({ repos, broadcast: () => {}, run: async (_b, on) => { const ev = { type: 'error', status: 410, code: 'APPLICATION_PAGE_GONE', error: '这份网申填好的页面已经关闭' }; on(ev); return [ev]; } }, submit.id);
+    expect(out.status).toBe('refilled');
+    expect(repos.getAction(submit.id)!.status).toBe('failed'); // 这张提交卡终结，不再退回待审等一个不可能的重新批准
+    expect(repos.getAction(fillId)!.status).toBe('approved'); // 填表复活：重填后会再出一张新的提交卡
+    expect(repos.getApplication(app.id)!.stage).not.toBe('applied');
+  });
+
+  it('页面不在但没有可复活的填表动作（如旧数据）：退回待审并说明原因', async () => {
     const repos = createMemoryRepos();
     const { submit } = persist(repos, driveResult({}));
+    const payload = JSON.parse(submit.payload_json) as { fill_action_id: string };
+    repos.db.run(`UPDATE action_queue SET status='rejected' WHERE id=?`, [payload.fill_action_id]); // 填表动作没了
     repos.reviewActions([submit.id], 'approved', 'user');
     const out = await executeSubmitAction({ repos, broadcast: () => {}, run: async (_b, on) => { const ev = { type: 'error', status: 410, code: 'APPLICATION_PAGE_GONE', error: '这份网申填好的页面已经关闭' }; on(ev); return [ev]; } }, submit.id);
     expect(out.status).toBe('failed');
-    expect(out.message).toMatch(/页面已经关闭/);
     expect(repos.getAction(submit.id)!.status).toBe('pending_review');
   });
 });

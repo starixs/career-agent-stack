@@ -45,15 +45,31 @@ export async function executeSubmitAction(deps: SubmitExecutorDeps, actionId: st
   try {
     await deps.run({ op: 'submit', actionId, applicationId: appId, submitButton: payload.submitButton, filled: payload.filled }, ev => { events.push(ev); });
   } catch (error) {
-    events.push({ type: 'error', status: 500, error: error instanceof Error ? error.message : String(error) });
+    // 保留错误名（code）：APPLICATION_PAGE_GONE 等要靠它分诊（页面丢了重新批准也没用，会无限循环）
+    events.push({
+      type: 'error', status: 500,
+      error: error instanceof Error ? error.message : String(error),
+      ...(error instanceof Error && error.name !== 'Error' ? { code: error.name } : {}),
+    });
   }
-  const errorLine = events.find(e => e.type === 'error');
+  const errorLine = events.find(e => e.type === 'error') as { status?: number; error?: string; code?: string } | undefined;
   const result = [...events].reverse().find(e => e.type === 'result' && e.op === 'submit')?.result as Record<string, unknown> | undefined;
   const fingerprint = { formSignature: str(payload.formSignature), openAnswersHash: str(payload.openAnswersHash), resumeSha: str(payload.resumeSha) };
 
   if (!result) {
     const message = `${String(errorLine?.error ?? '浏览器没有返回提交结果')}`;
     if (errorLine?.code === 'BROWSER_BUSY') { r.requeueAction(actionId); changed('action_queue'); return { actionId, status: 'busy', message }; }
+    // 填好的页面已经没了（浏览器被关 / 重启过）：退回待审让用户"重新批准"只会无限循环——页面不存在。
+    // 把这份投递最近一次填完的 fill_form 放回 approved 重新填写，填好后自然再出一张新的提交卡。
+    if (errorLine?.code === 'APPLICATION_PAGE_GONE' && appId && r.refillAfterPageLoss(appId)) {
+      r.setActionStatus(actionId, 'failed', { status: 'page_gone', message: '提交页已丢失，已重排重新填写' });
+      for (const h of r.openHandoffs()) if (h.action_id === actionId) { try { r.closeHandoff(h.id, 'page_gone_refill'); } catch { /* ignore */ } }
+      try { r.jumpTo(appId, 'approved', '提交页丢失，重新填写后再提交'); } catch { /* 阶段已在终态 */ }
+      note(r, appId, `提交页已丢失：网申将重新填写，填好后会再出一张提交卡（${message}）`);
+      changed('action_queue', 'application');
+      deps.broadcast('career:review', { sessionId: sid, actionIds: [actionId], kind: 'submit', summary: '提交页已丢失：已把这份网申放回重填队列，填好后会再出提交卡' });
+      return { actionId, status: 'refilled', message };
+    }
     r.reopenAction(actionId, { error: message });
     recordSubmitOutcome(r, { ...fingerprint, approvedBy: action.approved_by, status: 'failed', edits: 0 });
     note(r, appId, `提交没有执行：${message}`);

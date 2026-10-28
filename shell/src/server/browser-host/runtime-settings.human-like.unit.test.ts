@@ -88,6 +88,8 @@ describe('resolveBrowserRuntimePolicy', () => {
       profileRoot: '/home/tester/.keystone/browser-profile',
       embeddedWindow: true,
       virtualDisplay: false,
+      residentContext: true,
+      windowGuard: false,
     });
 
     expect(resolveBrowserRuntimePolicy({
@@ -95,6 +97,7 @@ describe('resolveBrowserRuntimePolicy', () => {
       CAREER_BROWSER_CHANNEL: 'chromium',
       CAREER_BROWSER_IDENTITY_MIRROR: '1',
       CAREER_BROWSER_WINDOW: 'window',
+      CAREER_BROWSER_RESIDENT: '0',
     }, '/home/tester', 'linux')).toEqual({
       persistentProfile: false,
       systemChrome: false,
@@ -102,7 +105,30 @@ describe('resolveBrowserRuntimePolicy', () => {
       profileRoot: '/home/tester/.keystone/browser-profile',
       embeddedWindow: false,
       virtualDisplay: false,
+      residentContext: false,
+      windowGuard: false,
     });
+  });
+
+  it('parks on the macOS virtual display by default and honours the corner escape hatch', () => {
+    // macOS 缺省：内嵌 + 虚拟屏（桌面完全不可见，闪烁从根上不可能）
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_CHANNEL: 'chrome' }, '/home/tester', 'darwin'))
+      .toMatchObject({ embeddedWindow: true, virtualDisplay: true });
+    // 显式写 virtual-display 与缺省一致
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'virtual-display' }, '/home/tester', 'darwin'))
+      .toMatchObject({ embeddedWindow: true, virtualDisplay: true });
+    // 焦点守卫：macOS 内嵌缺省开（corner 也开，只抢焦点不藏），独立窗口 / 显式关闭 / 其余平台没有
+    expect(resolveBrowserRuntimePolicy({}, '/home/tester', 'darwin').windowGuard).toBe(true);
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'corner' }, '/home/tester', 'darwin').windowGuard).toBe(true);
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'window' }, '/home/tester', 'darwin').windowGuard).toBe(false);
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_FOCUS_GUARD: '0' }, '/home/tester', 'darwin').windowGuard).toBe(false);
+    expect(resolveBrowserRuntimePolicy({}, '/home/tester', 'win32').windowGuard).toBe(false);
+    // corner：退回主屏角落停靠（虚拟屏不可用时的手动逃生口）
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'corner' }, '/home/tester', 'darwin'))
+      .toMatchObject({ embeddedWindow: true, virtualDisplay: false });
+    // 非 macOS 永远没有虚拟屏
+    expect(resolveBrowserRuntimePolicy({}, '/home/tester', 'win32'))
+      .toMatchObject({ embeddedWindow: true, virtualDisplay: false });
   });
 
   it('embedded window keeps Chrome headed but parks it and disables occlusion throttling', () => {

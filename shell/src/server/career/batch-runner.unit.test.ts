@@ -98,7 +98,7 @@ describe('BatchRunner', () => {
   it('风控锁住的平台先跳过；失败 → 投递 blocked；每日上限到了就等', async () => {
     const repos = createMemoryRepos();
     seed(repos, 1, 'locked.com'); const [free] = seed(repos, 1, 'free.com');
-    const { runner, calls } = makeRunner(repos, () => [{ type: 'error', status: 501, error: '引擎未就绪' }], { riskLocked: p => p === 'locked.com', dailyCap: 1 });
+    const { runner, calls } = makeRunner(repos, () => [{ type: 'error', status: 500, error: '渲染进程崩了' }], { riskLocked: p => p === 'locked.com', dailyCap: 1 });
     runner.start();
     for (let i = 0; i < 50 && calls.length === 0; i++) await settle();
     await settle();

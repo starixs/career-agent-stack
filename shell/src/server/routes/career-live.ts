@@ -33,6 +33,8 @@ export interface CareerLiveHost {
   /** 内嵌窗口模式（真实 Chrome 停在屏幕角落）；缺省视为 false。 */
   embeddedWindow?(): boolean;
   isWindowRevealed?(productSessionId: string): boolean;
+  /** 托管 Chrome 此刻被隐藏（虚拟屏不可用时的兜底）：画面改为轮询 fromSurface:false 截图。 */
+  surfacelessCapture?(productSessionId: string): boolean;
   setWindowVisible?(productSessionId: string, visible: boolean): Promise<{ revealed: boolean }>;
   /** 现场画面框尺寸（CSS 像素）→ 页面视口按比例跟随；浏览器还没开时记下来，打开后生效。 */
   fitLiveViewport?(productSessionId: string, box: { width: number; height: number }): Promise<{ viewport: { width: number; height: number } | null; changed: number }>;
@@ -290,7 +292,7 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
           void deps.host.withProductSession(id, async context => {
             // 跟随新开的标签页（网申弹出的登录 / 扫码页）：直到它关掉，或者选中页被引擎 / 用户换掉
             const follower = createPageFollower<Page>(() => activePage(context));
-            const hub = new ScreencastHub(async () => fromPlaywrightPage(await follower.pick()), { quality: 55, maxWidth: 1280, maxHeight: 900, everyNthFrame: 2, log: msg => { console.warn(`[career-live] ${msg}`); if (/失败/.test(msg)) write({ type: 'frame-error', error: msg }); } });
+            const hub = new ScreencastHub(async () => fromPlaywrightPage(await follower.pick()), { quality: 55, maxWidth: 1280, maxHeight: 900, everyNthFrame: 2, surfaceless: () => deps.host.surfacelessCapture?.(id) ?? false, log: msg => { console.warn(`[career-live] ${msg}`); if (/失败/.test(msg)) write({ type: 'frame-error', error: msg }); } });
             unsubFrames = hub.subscribe(frame => write({ type: 'frame', ...frame }));
             const onPage = (page: Page) => { void follower.follow(page).then(() => hub.refresh()).catch(() => {}); };
             context.on('page', onPage);

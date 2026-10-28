@@ -11,7 +11,7 @@
  */
 import PQueue from 'p-queue';
 import type { ActionQueueItem, Repos, Task } from '@career/core';
-import { applyTaskTitle, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
+import { applyTaskTitle, isTransientDriveError, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
 export interface BatchState {
@@ -80,6 +80,8 @@ export class BatchRunner {
   private stopRequested = false;
   private pauseRequested = false;
   private wake: (() => void) | null = null;
+  /** 每个网站因"暂时不可用 / 被占用"退避到的最早重试时间（毫秒时间戳）。 */
+  private transientCooldown = new Map<string, number>();
   constructor(private readonly deps: BatchRunnerDeps) {}
 
   private get repos() { return this.deps.repos; }
@@ -225,7 +227,7 @@ export class BatchRunner {
       if (this.deps.control() === 'human') { this.setState({ phase: 'waiting_control', running: running(), message: '你正在接管浏览器，等待交回' }); await this.idle(poll); continue; }
       const nowMs = this.now().getTime();
       const blocked = busyHosts();
-      const ready = (a: ActionQueueItem) => { const h = this.platformOf(a, this.payloadOf(a)); return !inFlight.has(a.id) && !blocked.has(h) && (nextAt.get(h) ?? 0) <= nowMs; };
+      const ready = (a: ActionQueueItem) => { const h = this.platformOf(a, this.payloadOf(a)); return !inFlight.has(a.id) && !blocked.has(h) && (nextAt.get(h) ?? 0) <= nowMs && (this.transientCooldown.get(h) ?? 0) <= nowMs; };
       const only = this.only();
       // 先处理等用户处理完的接管（handoff 已 resumed 但动作还在 needs_user）
       // Repos.closeHandoff 会把动作置回 executing，所以 needs_user / executing 都算"等续跑"；只看该动作最近一次接管
@@ -236,7 +238,9 @@ export class BatchRunner {
       const q = this.queue();
       for (const a of resumable) {
         if (inFlight.size >= concurrency) break;
-        if (!busyHosts().has(this.platformOf(a, this.payloadOf(a)))) launch(a, 'continue');
+        const host = this.platformOf(a, this.payloadOf(a));
+        if (busyHosts().has(host) || (this.transientCooldown.get(host) ?? 0) > nowMs) continue;
+        launch(a, 'continue');
       }
       const capped = this.todayCount() + startedInFlight() >= cap;
       if (!capped) {
@@ -355,19 +359,23 @@ export class BatchRunner {
         if (ev.type === 'progress') this.deps.broadcast('career:progress', { sessionId: this.deps.sessionId?.() ?? 'global', runId, taskId: task.id, phase: 'apply_batch', message: String(ev.message ?? '') });
       });
     } catch (e) {
-      events.push({ type: 'error', status: 500, error: e instanceof Error ? e.message : String(e) });
+      // 保留错误名（code）：接管冲突 / 宿主停机 / 会话消失要靠它分诊成"暂时不可用"，而不是判死这份网申
+      events.push({ type: 'error', status: 500, error: e instanceof Error ? e.message : String(e), ...(e instanceof Error && e.name !== 'Error' ? { code: e.name } : {}) });
     }
-    // 浏览器正被对话里的 apply_run 占用：这份放回队列，不算失败、不占当天名额
-    if (events.some(e => e.type === 'error' && e.code === 'BROWSER_BUSY')) {
+    // 瞬时 / 可抢占（浏览器被对话占用、用户接管、宿主停机、会话消失、501/503）：放回队列，不算失败、不占当天名额
+    const transientLine = events.find(e => e.type === 'error') as { code?: unknown; status?: unknown } | undefined;
+    if (events.some(e => e.type === 'error') && isTransientDriveError(transientLine)) {
       if (mode === 'start') r.requeueAction(action.id); else r.setActionStatus(action.id, 'needs_user');
       r.updateTask(task.id, { status: 'queued' });
       takeover('idle');
       changed('task', 'action_queue');
-      this.setState({ phase: 'waiting_control', message: '浏览器正在填对话里的另一份网申，稍后继续' });
-      return { kind: 'failed', blocked: false, message: '浏览器被占用，已放回队列' };
+      // 同站冷却：被占用 / 暂不可用时立刻重试只会每 3 秒空转一轮（resumable 队列不看 nextAt），压一压再试
+      this.transientCooldown.set(this.platformOf(action, payload), this.now().getTime() + 15_000);
+      this.setState({ phase: 'waiting_control', message: '浏览器暂时不可用 / 被占用，稍后自动继续' });
+      return { kind: 'transient', code: typeof transientLine?.code === 'string' ? transientLine.code : undefined, message: String((transientLine as { error?: unknown } | undefined)?.error ?? '暂时不可用') };
     }
     const outcome = persistDriveOutcome({
-      repos: r, action, taskId: task.id, events, changed,
+      repos: r, action, taskId: task.id, events, changed, mode,
       review: (ids, kind, summary, data) => this.deps.broadcast('career:review', { sessionId: this.deps.sessionId?.() ?? 'global', actionIds: ids, kind, summary, ...(data ? { data } : {}) }),
     });
     if (mode === 'start') this.bumpToday();
@@ -379,7 +387,7 @@ export class BatchRunner {
     } else if (outcome.kind === 'done') {
       takeover('idle');
       this.setState({ done: s.done + 1, message: `「${title}」${outcome.headline}，${outcome.autoApproved ? '正在提交' : '等你批准提交'}` });
-    } else {
+    } else if (outcome.kind === 'failed') {
       takeover('idle');
       this.setState({ failed: s.failed + 1, lastError: outcome.message, message: `「${title}」${outcome.blocked ? '被阻塞' : '失败'}：${outcome.message}` });
     }
