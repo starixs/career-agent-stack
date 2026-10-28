@@ -30,6 +30,10 @@ const LOCK_MS = 500;
 const MAX_LOCK_RESETS = 15;
 const CLEAR_MS = 220;
 const POPUP_MS = 1000;
+/** 棋盘在屏幕上的位置，绘制和反馈坐标共用。 */
+const CELL_PX = 7;
+const BOARD_X = Math.floor((ARCADE_WIDTH - COLS * CELL_PX) / 2); // 85
+const BOARD_Y = Math.floor((ARCADE_HEIGHT - VISIBLE_ROWS * CELL_PX) / 2); // 10
 
 const SHAPES: Record<PieceKind, string[]> = {
   I: ['....', '####', '....', '....'],
@@ -279,6 +283,8 @@ export class TetrisGame extends EventfulGame implements ArcadeGame {
     if (rows > 0) this.lastMoveRotate = false;
     this.score += rows * 2;
     this.active = { ...this.active, y: target };
+    // 硬降砸下去要有分量
+    if (rows >= 3) this.fx({ kind: 'shake', power: 0.25 });
     this.lock();
   }
 
@@ -365,6 +371,18 @@ export class TetrisGame extends EventfulGame implements ArcadeGame {
     this.holdUsed = false;
     if (full.length > 0) {
       this.clearing = { rows: full, ms: CLEAR_MS };
+      // 消掉的每一行沿整排炸开
+      for (const y of full) {
+        for (let x = 0; x < COLS; x++) {
+          this.fx({
+            kind: 'burst',
+            x: BOARD_X + x * CELL_PX + CELL_PX / 2,
+            y: BOARD_Y + (y - HIDDEN_ROWS) * CELL_PX + CELL_PX / 2,
+            color: x % 2 ? 'primary' : 'ink',
+            power: 0.12 + full.length * 0.05,
+          });
+        }
+      }
     } else {
       this.spawn();
     }
@@ -391,6 +409,12 @@ export class TetrisGame extends EventfulGame implements ArcadeGame {
     const extra = this.combo > 0 ? `COMBO ×${this.combo}` : '';
     const text = [label, extra].filter(Boolean).join('  ');
     if (text) this.popup = { text, ms: POPUP_MS };
+    if (this.combo > 0) this.fx({ kind: 'combo', n: this.combo + 1 });
+    if (difficult) {
+      this.fx({ kind: 'shake', power: 0.6 }, { kind: 'hitstop', ms: 80 }, { kind: 'flash', color: '#ffffff', alpha: 0.4 });
+    } else if (lines >= 2) {
+      this.fx({ kind: 'shake', power: 0.2 + lines * 0.1 });
+    }
     this.emit(difficult ? 'big' : lines > 0 ? 'clear' : 'bonus');
   }
 
@@ -404,6 +428,7 @@ export class TetrisGame extends EventfulGame implements ArcadeGame {
     if (level > this.level) {
       this.level = level;
       this.emit('levelup');
+      this.fx({ kind: 'banner', text: 'LEVEL UP', sub: `LV ${level} · FASTER` });
     }
     this.spawn();
   }
@@ -411,9 +436,9 @@ export class TetrisGame extends EventfulGame implements ArcadeGame {
   // ─── 绘制 ───
 
   draw(ctx: CanvasRenderingContext2D, c: ArcadePalette): void {
-    const cell = 7;
-    const bx = Math.floor((ARCADE_WIDTH - COLS * cell) / 2); // 85
-    const by = Math.floor((ARCADE_HEIGHT - VISIBLE_ROWS * cell) / 2); // 10
+    const cell = CELL_PX;
+    const bx = BOARD_X;
+    const by = BOARD_Y;
     ctx.fillStyle = c.bg;
     ctx.fillRect(0, 0, ARCADE_WIDTH, ARCADE_HEIGHT);
 

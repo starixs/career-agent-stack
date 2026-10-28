@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { BreakoutGame } from '../games/breakout';
+import type { ArcadeGameId } from '../games/types';
 import { keyToButton } from './keys';
-import { BOOT_MS, HandheldScreen, type ScreenText } from './screen';
+import { BOOT_MS, HandheldScreen, OVER_DELAY_MS, type ScreenText } from './screen';
 
 const TEXT: ScreenText = {
   wordmark: 'POCKET',
@@ -14,10 +15,10 @@ const TEXT: ScreenText = {
   gameOver: '游戏结束',
   newRecord: '新纪录！',
   overHint: '',
-  games: { tetris: '俄罗斯方块', snake: '贪吃蛇', breakout: '打砖块', runner: '跳跳小人' },
+  games: { tetris: '俄罗斯方块', snake: '贪吃蛇', breakout: '打砖块', runner: '跳跳小人', tank: '坦克大战', survivor: '幸存者', shooter: '星际射击', shredder: '拒信粉碎机' },
 };
 
-function makeScreen(initialGame: 'tetris' | 'snake' | 'breakout' | 'runner' = 'snake') {
+function makeScreen(initialGame: ArcadeGameId = 'snake') {
   const store = new Map<string, number>();
   const sounds: string[] = [];
   const onGameChange = vi.fn();
@@ -47,11 +48,9 @@ describe('HandheldScreen', () => {
   it('wraps the menu cursor and starts the chosen game', () => {
     const { screen, onGameChange } = makeScreen('tetris');
     screen.press('start');
-    screen.press('up');
-    expect(screen.gameId).toBe('runner');
     screen.press('down');
-    screen.press('down');
-    screen.press('down');
+    expect(screen.gameId).toBe('shredder');
+    for (let i = 0; i < 4; i++) screen.press('up');
     expect(screen.gameId).toBe('breakout');
     screen.press('a');
     expect(screen.mode).toBe('playing');
@@ -115,6 +114,10 @@ describe('HandheldScreen', () => {
     expect(screen.best('breakout')).toBe(120);
     expect(screen.newRecord).toBe(true);
     expect(sounds).toContain('over');
+    // 结束面板出来前按 A 不会误触重开
+    screen.press('a');
+    expect(screen.mode).toBe('over');
+    screen.step(OVER_DELAY_MS);
     screen.press('a');
     expect(screen.mode).toBe('playing');
     expect(screen.score).toBe(0);

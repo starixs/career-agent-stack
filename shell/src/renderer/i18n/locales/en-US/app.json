@@ -202,7 +202,11 @@
       "tetris": "Tetris",
       "snake": "Snake",
       "breakout": "Breakout",
-      "runner": "Jumper"
+      "runner": "Jumper",
+      "tank": "Tank Battle",
+      "survivor": "Survivor",
+      "shooter": "Star Shooter",
+      "shredder": "Rejection Shredder"
     },
     "lcd": {
       "menuTitle": "SELECT GAME",

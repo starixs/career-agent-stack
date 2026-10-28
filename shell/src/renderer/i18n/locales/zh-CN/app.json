@@ -202,7 +202,11 @@
       "tetris": "俄罗斯方块",
       "snake": "贪吃蛇",
       "breakout": "打砖块",
-      "runner": "跳跳小人"
+      "runner": "跳跳小人",
+      "tank": "坦克大战",
+      "survivor": "幸存者",
+      "shooter": "星际射击",
+      "shredder": "拒信粉碎机"
     },
     "lcd": {
       "menuTitle": "选择游戏",

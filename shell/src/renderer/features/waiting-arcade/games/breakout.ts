@@ -174,6 +174,11 @@ export class BreakoutGame extends EventfulGame implements ArcadeGame {
   private applyPower(kind: PowerKind): void {
     this.emit('bonus');
     this.score += 50;
+    const labels: Record<PowerKind, string> = { wide: 'WIDE!', multi: 'MULTI!', slow: 'SLOW', life: '1UP!' };
+    this.fx(
+      { kind: 'popup', x: this.paddleX + this.paddleW / 2, y: PADDLE_Y - 6, text: labels[kind], color: kind === 'life' ? 'danger' : 'primary' },
+      { kind: 'flash', color: '#ffffff', alpha: 0.25 },
+    );
     if (kind === 'wide') this.wideMs = WIDE_MS;
     if (kind === 'slow') this.slowMs = SLOW_MS;
     if (kind === 'life') this.lives = Math.min(MAX_LIVES, this.lives + 1);
@@ -195,6 +200,11 @@ export class BreakoutGame extends EventfulGame implements ArcadeGame {
       this.score += 100 * this.level;
       this.level += 1;
       this.emit('levelup');
+      this.fx(
+        { kind: 'banner', text: 'STAGE CLEAR', sub: `+${100 * (this.level - 1)}  ·  LV ${this.level}` },
+        { kind: 'shake', power: 0.4 },
+        { kind: 'hitstop', ms: 90 },
+      );
       this.buildBricks();
       this.dock();
       return;
@@ -251,8 +261,10 @@ export class BreakoutGame extends EventfulGame implements ArcadeGame {
   }
 
   private hitBrick(brick: Brick, ball: Ball): void {
+    const cx = brick.x + BRICK_W / 2, cy = brick.y + BRICK_H / 2;
     if (brick.steel) {
       this.emit('tick');
+      this.fx({ kind: 'burst', x: ball.x, y: ball.y, color: 'muted', power: 0.1 });
       return;
     }
     brick.hp -= 1;
@@ -261,14 +273,25 @@ export class BreakoutGame extends EventfulGame implements ArcadeGame {
     const target = Math.min(speed * 1.012, this.baseSpeed * 1.5);
     ball.vx *= target / speed;
     ball.vy *= target / speed;
+    const colors = ['primary', 'accent', 'danger'] as const;
     if (brick.hp > 0) {
       this.score += 5;
       this.emit('hit');
+      this.fx({ kind: 'burst', x: ball.x, y: ball.y, color: colors[brick.hp - 1], power: 0.15 });
       return;
     }
     this.combo = Math.min(MAX_COMBO, this.combo + 1);
-    this.score += 10 * brick.maxHp * this.combo;
+    const gain = 10 * brick.maxHp * this.combo;
+    this.score += gain;
     this.emit('score');
+    // 硬砖炸得更大；连击越高震得越明显
+    this.fx(
+      { kind: 'burst', x: cx, y: cy, color: colors[brick.maxHp - 1], power: 0.3 + brick.maxHp * 0.15 },
+      { kind: 'combo', n: this.combo },
+    );
+    if (this.combo >= 2) this.fx({ kind: 'popup', x: cx, y: cy, text: `+${gain}` });
+    if (this.combo >= 4) this.fx({ kind: 'shake', power: 0.1 * this.combo });
+    if (brick.maxHp >= 3) this.fx({ kind: 'hitstop', ms: 35 });
     if (this.score >= this.nextLifeAt) {
       this.nextLifeAt += 2000;
       this.lives = Math.min(MAX_LIVES, this.lives + 1);

@@ -96,6 +96,7 @@ export class RunnerGame extends EventfulGame implements ArcadeGame {
         this.heroY = GROUND_Y - HERO_H;
         this.vy = JUMP_V;
         this.emit('tick');
+        this.fx({ kind: 'burst', x: HERO_X + HERO_W / 2, y: GROUND_Y, color: 'muted', power: 0.12 });
       }
     }
     if (action === 'down') {
@@ -116,8 +117,14 @@ export class RunnerGame extends EventfulGame implements ArcadeGame {
     const rising = this.vy < 0;
     let g = rising && this.jumpHeld ? GRAVITY_HOLD : GRAVITY;
     if (this.downHeld && !this.onGround) g *= 3; // 空中按 ↓ 快速下落
+    const airborne = !this.onGround;
+    const fallSpeed = this.vy;
     this.vy += g * dtMs;
     this.heroY = Math.min(GROUND_Y - this.heroH, this.heroY + this.vy * dtMs);
+    // 落地扬一点土，下砸落地扬得更多
+    if (airborne && this.onGround && fallSpeed > 0.15) {
+      this.fx({ kind: 'burst', x: HERO_X + HERO_W / 2, y: GROUND_Y, color: 'muted', power: Math.min(0.5, fallSpeed) });
+    }
     if (this.onGround) {
       this.vy = 0;
       this.setDuck(this.downHeld);
@@ -133,6 +140,7 @@ export class RunnerGame extends EventfulGame implements ArcadeGame {
     if (level > this.level) {
       this.level = level;
       this.emit('levelup');
+      this.fx({ kind: 'banner', text: 'SPEED UP', sub: `LV ${level}` });
     }
     this.speed = Math.min(MAX_SPEED, START_SPEED + (this.level - 1) * 0.022 + (this.distance % LEVEL_DISTANCE) / 200000);
 
@@ -150,6 +158,7 @@ export class RunnerGame extends EventfulGame implements ArcadeGame {
     if (this.collides()) {
       this.over = true;
       this.emit('lose');
+      this.fx({ kind: 'burst', x: HERO_X + HERO_W / 2, y: this.heroY + this.heroH / 2, color: 'ink', power: 1 });
     }
   }
 
@@ -188,9 +197,14 @@ export class RunnerGame extends EventfulGame implements ArcadeGame {
   private collectCoins(): void {
     const h = this.heroBox();
     const before = this.coins.length;
-    this.coins = this.coins.filter(coin =>
-      !(coin.x + 3 > h.x && coin.x - 3 < h.x + h.w && coin.y + 3 > h.y && coin.y - 3 < h.y + h.h));
+    const touching = (coin: Coin) => coin.x + 3 > h.x && coin.x - 3 < h.x + h.w && coin.y + 3 > h.y && coin.y - 3 < h.y + h.h;
+    const taken = this.coins.filter(touching);
+    this.coins = this.coins.filter(coin => !touching(coin));
     const got = before - this.coins.length;
+    for (const coin of taken) {
+      this.fx({ kind: 'burst', x: coin.x, y: coin.y, color: '#e0a21b', power: 0.25 });
+    }
+    if (got > 0) this.fx({ kind: 'popup', x: HERO_X + HERO_W / 2, y: this.heroY - 2, text: `+${got * COIN_SCORE}`, color: 'accent' });
     if (got > 0) {
       this.coinScore += got * COIN_SCORE;
       this.score += got * COIN_SCORE;
