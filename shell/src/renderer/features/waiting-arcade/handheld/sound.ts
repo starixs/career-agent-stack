@@ -70,15 +70,17 @@ export class HandheldSound {
     src.stop(t + 0.03);
   }
 
-  play(sound: ScreenSound): void {
+  /** semitones 把整段音符平移，连击时一级比一级高。 */
+  play(sound: ScreenSound, semitones = 0): void {
     const ctx = this.ensure();
     if (!ctx) return;
     const spec = SOUNDS[sound];
+    const shift = 2 ** (semitones / 12);
     const t0 = ctx.currentTime;
     for (const [freq, startMs, durMs] of spec.notes) {
       const osc = ctx.createOscillator();
       osc.type = spec.wave;
-      osc.frequency.value = freq;
+      osc.frequency.value = freq * shift;
       const gain = ctx.createGain();
       const start = t0 + startMs / 1000;
       const end = start + durMs / 1000;

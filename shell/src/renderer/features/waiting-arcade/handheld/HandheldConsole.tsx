@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
-import { ARCADE_GAME_IDS, ARCADE_HEIGHT, ARCADE_WIDTH, type ArcadeGameId } from '../games';
+import { ARCADE_GAME_IDS, ARCADE_HEIGHT, DEFAULT_GAME, ARCADE_WIDTH, type ArcadeGameId } from '../games';
 import './handheld.css';
 import { isDpad, keyToButton } from './keys';
 import { HandheldScreen, type HandheldButton, type ScreenText } from './screen';
@@ -50,7 +50,7 @@ const bestStore = {
 
 function readLastGame(): ArcadeGameId {
   const saved = readStorage(LAST_GAME_KEY);
-  return (ARCADE_GAME_IDS as readonly string[]).includes(saved ?? '') ? saved as ArcadeGameId : 'snake';
+  return (ARCADE_GAME_IDS as readonly string[]).includes(saved ?? '') ? saved as ArcadeGameId : DEFAULT_GAME;
 }
 
 function subscribeViewport(onChange: () => void) {
@@ -91,13 +91,17 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
         snake: t('waitingArcade.games.snake'),
         breakout: t('waitingArcade.games.breakout'),
         runner: t('waitingArcade.games.runner'),
+        tank: t('waitingArcade.games.tank'),
+        survivor: t('waitingArcade.games.survivor'),
+        shooter: t('waitingArcade.games.shooter'),
+        shredder: t('waitingArcade.games.shredder'),
       },
     };
     return new HandheldScreen({
       text,
       best: bestStore,
       initialGame: readLastGame(),
-      onSound: s => sound.play(s),
+      onSound: (s, semitones) => sound.play(s, semitones),
       onGameChange: id => writeStorage(LAST_GAME_KEY, id),
     });
   });

@@ -3,6 +3,7 @@
 
 import {
   ARCADE_GAME_IDS,
+  DEFAULT_GAME,
   ARCADE_HEIGHT as H,
   ARCADE_WIDTH as W,
   createArcadeGame,
@@ -12,6 +13,7 @@ import {
   type ArcadePalette,
   type GameEvent,
 } from '../games';
+import { FxLayer } from './fx';
 
 export type HandheldButton = 'up' | 'down' | 'left' | 'right' | 'a' | 'b' | 'start' | 'select' | 'l' | 'r';
 export type ScreenMode = 'boot' | 'menu' | 'playing' | 'paused' | 'over';
@@ -31,6 +33,9 @@ export const LCD_PALETTE: ArcadePalette = {
 };
 
 export const BOOT_MS = 1900;
+const MENU_ROWS = 5;
+/** 输了以后先让画面播完爆炸、震屏，再盖结束面板；这段时间按 A 不会误触重开。 */
+export const OVER_DELAY_MS = 650;
 
 export interface ScreenText {
   wordmark: string;
@@ -54,7 +59,8 @@ interface ScreenOptions {
   text: ScreenText;
   best: BestScoreStore;
   initialGame?: ArcadeGameId;
-  onSound?: (sound: ScreenSound) => void;
+  /** semitones：连击时得分音逐级升高。 */
+  onSound?: (sound: ScreenSound, semitones?: number) => void;
   onGameChange?: (id: ArcadeGameId) => void;
 }
 
@@ -85,9 +91,14 @@ export class HandheldScreen {
   /** 本局开始时的最高分，用来判断结束时是不是破了纪录。 */
   private bestAtStart = 0;
   private readonly bests = new Map<ArcadeGameId, number>();
+  readonly fx = new FxLayer(LCD_PALETTE);
+  /** 进入结束状态后过了多久。 */
+  overMs = 0;
+  /** 本局是否已经提示过破纪录。 */
+  private recordShown = false;
 
   constructor(private readonly opts: ScreenOptions) {
-    this.menuIndex = Math.max(0, ARCADE_GAME_IDS.indexOf(opts.initialGame ?? 'snake'));
+    this.menuIndex = Math.max(0, ARCADE_GAME_IDS.indexOf(opts.initialGame ?? DEFAULT_GAME));
     for (const id of ARCADE_GAME_IDS) this.bests.set(id, opts.best.read(id));
   }
 
@@ -105,7 +116,13 @@ export class HandheldScreen {
 
   /** 需要逐帧推进（开机动画 / 游戏中）时宿主才跑 rAF。 */
   get animating(): boolean {
+    if (this.mode === 'over') return this.overMs < OVER_DELAY_MS || this.fx.active;
     return this.mode === 'boot' || this.mode === 'playing';
+  }
+
+  /** 结束面板是否已经出现（可以按 A 重开）。 */
+  get overReady(): boolean {
+    return this.mode === 'over' && this.overMs >= OVER_DELAY_MS;
   }
 
   press(button: HandheldButton): void {
@@ -140,6 +157,7 @@ export class HandheldScreen {
         else if (button === 'select') this.toMenu('move');
         return;
       case 'over':
+        if (!this.overReady) return;
         if (button === 'a' || button === 'start') this.startGame();
         else if (button === 'select') this.toMenu('move');
         return;
@@ -174,13 +192,24 @@ export class HandheldScreen {
       if (this.bootMs >= BOOT_MS) this.toMenu(null);
       return;
     }
+    if (this.mode === 'over') {
+      this.overMs += dtMs;
+      this.fx.step(dtMs);
+      return;
+    }
     if (this.mode !== 'playing' || !this.game) return;
+    this.fx.step(dtMs);
+    // 命中定格：逻辑停住，粒子照常飞
+    if (this.fx.hitstopMs > 0) return;
     this.game.step(dtMs);
     this.trackBest();
     if (this.game.over) {
       this.game.drainEvents(); // 结束时只放结束音效
+      this.fx.push(this.game.drainFx());
+      this.fx.push([{ kind: 'shake', power: 0.8 }, { kind: 'flash', color: 'accent', alpha: 0.35 }]);
       this.releaseAll();
       this.mode = 'over';
+      this.overMs = 0;
       this.opts.onSound?.('over');
       return;
     }
@@ -190,11 +219,28 @@ export class HandheldScreen {
   /** 一帧里同类事件只响一次，避免多球同时撞砖时叠成噪音。 */
   private flushEvents(): void {
     const events = new Set(this.game?.drainEvents() ?? []);
+    const effects = this.game?.drainFx() ?? [];
+    this.fx.push(effects);
+    // 连击用升调的得分音代替普通得分音
+    const combo = effects.reduce((n, f) => (f.kind === 'combo' ? Math.max(n, f.n) : n), 0);
+    if (combo > 0) {
+      events.delete('score');
+      this.opts.onSound?.('score', Math.min(14, (combo - 1) * 2));
+    }
+    // 每个游戏都自带的底线反馈：升级闪一下，丢命震一下
+    if (events.has('levelup')) this.fx.push([{ kind: 'flash', color: '#ffffff', alpha: 0.45 }]);
+    if (events.has('lose')) this.fx.push([{ kind: 'shake', power: 0.7 }, { kind: 'flash', color: 'accent', alpha: 0.3 }]);
     for (const event of events) this.opts.onSound?.(EVENT_SOUNDS[event]);
   }
 
   private trackBest(): void {
     const score = this.score;
+    // 局中超过上次最高分的那一刻就告诉玩家，不等到结束
+    if (!this.recordShown && this.bestAtStart > 0 && score > this.bestAtStart) {
+      this.recordShown = true;
+      this.fx.push([{ kind: 'popup', x: W / 2, y: 30, text: this.opts.text.newRecord, color: 'accent' }]);
+      this.opts.onSound?.('bonus');
+    }
     if (score > this.best()) {
       this.bests.set(this.gameId, score);
       this.opts.best.write(this.gameId, score);
@@ -214,6 +260,7 @@ export class HandheldScreen {
 
   private toMenu(sound: ScreenSound | null): void {
     this.releaseAll();
+    this.fx.clear();
     this.game = null;
     this.notice = null;
     this.mode = 'menu';
@@ -223,6 +270,10 @@ export class HandheldScreen {
   private startGame(): void {
     this.releaseAll();
     this.game = createArcadeGame(this.gameId);
+    this.fx.clear();
+    this.fx.palette = this.game.palette ?? LCD_PALETTE;
+    this.recordShown = false;
+    this.overMs = 0;
     this.bestAtStart = this.best();
     this.notice = null;
     this.mode = 'playing';
@@ -241,16 +292,27 @@ export class HandheldScreen {
   // ─── 绘制 ───────────────────────────────────────────────
 
   draw(ctx: CanvasRenderingContext2D): void {
-    const c = LCD_PALETTE;
+    const c = this.game?.palette ?? LCD_PALETTE;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
     if (this.mode === 'boot') return this.drawBoot(ctx);
     if (this.mode === 'menu') return this.drawMenu(ctx);
+    // 震屏时边缘会露出上一帧，先整屏铺底
+    ctx.fillStyle = c.bg;
+    ctx.fillRect(0, 0, W, H);
+    const [ox, oy] = this.fx.offset();
+    ctx.save();
+    ctx.translate(ox, oy);
     this.game?.draw(ctx, c);
+    this.fx.drawWorld(ctx);
+    ctx.restore();
     this.drawHud(ctx);
+    this.fx.drawOverlay(ctx);
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
     if (this.mode === 'paused') {
       this.drawPanel(ctx, this.notice ?? this.opts.text.paused, this.opts.text.pausedHint);
-    } else if (this.mode === 'over') {
+    } else if (this.overReady) {
       const title = this.newRecord ? this.opts.text.newRecord : this.opts.text.gameOver;
       this.drawPanel(ctx, title, `${this.score}  ·  ${this.opts.text.overHint}`);
     }
@@ -302,8 +364,12 @@ export class HandheldScreen {
     ctx.fillStyle = c.bg;
     ctx.font = '700 11px "PingFang SC", "Helvetica Neue", sans-serif';
     ctx.fillText(text.menuTitle, W / 2, 11);
-    ARCADE_GAME_IDS.forEach((id, i) => {
-      const y = 40 + i * 25;
+    // 一屏放 5 行，光标尽量停在中间那行，列表跟着滚
+    const n = ARCADE_GAME_IDS.length;
+    const first = Math.max(0, Math.min(n - MENU_ROWS, this.menuIndex - Math.floor(MENU_ROWS / 2)));
+    ARCADE_GAME_IDS.slice(first, first + MENU_ROWS).forEach((id, row) => {
+      const i = first + row;
+      const y = 37 + row * 22;
       const active = i === this.menuIndex;
       if (active) {
         ctx.fillStyle = c.line;
@@ -324,6 +390,9 @@ export class HandheldScreen {
     });
     ctx.textAlign = 'center';
     ctx.fillStyle = c.muted;
+    ctx.font = '700 7px ui-monospace, monospace';
+    if (first > 0) ctx.fillText('▲', W / 2, 28);
+    if (first + MENU_ROWS < n) ctx.fillText('▼', W / 2, 137);
     ctx.font = '500 9px "PingFang SC", "Helvetica Neue", sans-serif';
     ctx.fillText(text.menuHint, W / 2, H - 12);
   }
@@ -332,7 +401,7 @@ export class HandheldScreen {
   private drawHud(ctx: CanvasRenderingContext2D): void {
     const game = this.game;
     if (!game || game.ownHud) return;
-    const c = LCD_PALETTE;
+    const c = game.palette ?? LCD_PALETTE;
     ctx.font = '700 9px ui-monospace, monospace';
     const level = `LV${game.level}`;
     const lives = game.lives !== undefined ? ' ' + '♥'.repeat(Math.max(0, game.lives)) : '';
@@ -340,9 +409,11 @@ export class HandheldScreen {
     const score = String(this.score).padStart(5, '0');
     const lw = ctx.measureText(leftText).width + 8;
     const rw = ctx.measureText(score).width + 8;
-    ctx.fillStyle = 'rgba(205,211,191,0.85)';
+    ctx.fillStyle = c.bg;
+    ctx.globalAlpha = 0.85;
     ctx.fillRect(2, 2, lw, 12);
     ctx.fillRect(W - rw - 2, 2, rw, 12);
+    ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
     ctx.fillStyle = c.ink;
     ctx.fillText(level, 6, 8.5);

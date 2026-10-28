@@ -18,6 +18,11 @@ export const SNAKE_ROWS = ARCADE_HEIGHT / CELL; // 16
 const APPLES_PER_LEVEL = 5;
 const GOLDEN_EVERY = 4;
 export const GOLDEN_MS = 6000;
+/**
+ * 跟手：按下转向键时，只要离上一步过去了这么久就立刻走下一步，不必等满一整格的时间。
+ * 不设下限的话连续折返能让蛇变快，所以留一个很短的冷却。
+ */
+export const TURN_EARLY_MS = 40;
 const OBSTACLES_FROM_LEVEL = 3;
 const OBSTACLES_PER_LEVEL = 3;
 const MAX_OBSTACLES = 24;
@@ -79,7 +84,12 @@ export class SnakeGame extends EventfulGame implements ArcadeGame {
     // 不能原地掉头，也不重复入队同一方向
     if (last.x + next.x === 0 && last.y + next.y === 0) return;
     if (same(last, next)) return;
-    if (this.pending.length < 2) this.pending.push(next);
+    if (this.pending.length >= 2) return;
+    this.pending.push(next);
+    if (this.pending.length === 1 && this.acc >= TURN_EARLY_MS) {
+      this.acc = 0;
+      this.tick();
+    }
   }
 
   step(dtMs: number): void {
@@ -89,6 +99,11 @@ export class SnakeGame extends EventfulGame implements ArcadeGame {
       if (this.golden.msLeft <= 0) this.golden = null;
     }
     this.acc += dtMs;
+    // 第二个排队的转向也不必等满一格
+    if (this.pending.length > 0 && this.acc >= TURN_EARLY_MS && this.acc < this.tickMs) {
+      this.acc = 0;
+      this.tick();
+    }
     while (this.acc >= this.tickMs && !this.over) {
       this.acc -= this.tickMs;
       this.tick();
@@ -110,14 +125,23 @@ export class SnakeGame extends EventfulGame implements ArcadeGame {
     ) {
       this.over = true;
       this.emit('lose');
+      this.fx({ kind: 'burst', x: head.x * CELL + CELL / 2, y: head.y * CELL + CELL / 2, color: 'primary', power: 1 });
       return;
     }
     this.body.unshift(next);
+    const cx = next.x * CELL + CELL / 2, cy = next.y * CELL + CELL / 2;
     if (golden && same(next, golden.at)) {
       // 金苹果不加长，只加分；剩余时间越多分越高
-      this.score += Math.round(50 * this.level * (0.5 + golden.msLeft / GOLDEN_MS / 2));
+      const gain = Math.round(50 * this.level * (0.5 + golden.msLeft / GOLDEN_MS / 2));
+      this.score += gain;
       this.golden = null;
       this.emit('bonus');
+      this.fx(
+        { kind: 'burst', x: cx, y: cy, color: '#e0a21b', power: 0.9 },
+        { kind: 'popup', x: cx, y: cy - 4, text: `+${gain}`, color: 'accent' },
+        { kind: 'shake', power: 0.35 },
+        { kind: 'hitstop', ms: 50 },
+      );
     }
     if (!eating) {
       this.body.pop();
@@ -126,6 +150,10 @@ export class SnakeGame extends EventfulGame implements ArcadeGame {
     this.eaten += 1;
     this.score += 10 * this.level;
     this.emit('score');
+    this.fx(
+      { kind: 'burst', x: cx, y: cy, color: 'accent', power: 0.35 },
+      { kind: 'popup', x: cx, y: cy - 4, text: `+${10 * this.level}` },
+    );
     if (this.eaten % APPLES_PER_LEVEL === 0) this.levelUp();
     if (this.eaten % GOLDEN_EVERY === 0 && !this.golden) {
       const at = this.freeCell();
@@ -142,6 +170,7 @@ export class SnakeGame extends EventfulGame implements ArcadeGame {
   private levelUp(): void {
     this.level += 1;
     this.emit('levelup');
+    this.fx({ kind: 'banner', text: 'LEVEL UP', sub: this.level >= OBSTACLES_FROM_LEVEL ? `LV ${this.level} · SPEED + WALLS` : `LV ${this.level} · SPEED +` });
     if (this.level < OBSTACLES_FROM_LEVEL) return;
     for (let i = 0; i < OBSTACLES_PER_LEVEL && this.obstacles.length < MAX_OBSTACLES; i++) {
       const cell = this.freeCell(true);
