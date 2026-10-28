@@ -296,9 +296,10 @@ describe('五个面的路由', () => {
     expect((await call(deps, 'GET', '/api/career/materials')).json.materials).toEqual([]);
     const review = await call(deps, 'GET', '/api/career/review');
     expect((review.json.funnel as { overall: unknown }).overall).toBeNull();
-    expect((review.json.board as { funnel: Array<{ layer: string }> }).funnel.map(l => l.layer)).toEqual(['applied', 'responded', 'interview', 'offer']);
-    const past = await call(deps, 'GET', '/api/career/review?week=2026-10-14');
-    expect((past.json.board as { week: { start: string } }).week.start).toBe('2026-10-12');
+    expect((review.json.board as { counts: number[] }).counts).toEqual([0, 0, 0, 0]);
+    // 未来的月份退回本月
+    const future = await call(deps, 'GET', '/api/career/review?month=2999-01');
+    expect((future.json.board as { month: { is_current: boolean } }).month.is_current).toBe(true);
     // 无模型时周复盘仍落一条只含漏斗的记录
     const weekly = await call(deps, 'POST', '/api/career/review/weekly', {});
     expect(weekly.status).toBe(200);

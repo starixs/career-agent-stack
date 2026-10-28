@@ -6,9 +6,9 @@ import { inferEmploymentType, mergeBoardMeta, normalizeCohort, parseBoardJson } 
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
-import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage, Interview } from './types.js'
+import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage, Interview, Offer } from './types.js'
 import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
-import { buildReviewBoard, type ReviewBoard, type StageHistoryRow } from './review-board.js'
+import { buildMonthBoard, type MonthBoard, type StageHistoryRow } from './review-board.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
 export interface AnswerRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: AnswerSensitivity; source: string; use_count: number; last_used_at: string | null; updated_at: string }
@@ -592,7 +592,7 @@ export class Repos {
   // ---------- 漏斗 / 复盘 ----------
   /** 全部阶段流转，按时间先后。 */
   stageHistory(): StageHistoryRow[] {
-    return this.db.all<StageHistoryRow>('SELECT application_id, from_stage, to_stage, created_at FROM application_history ORDER BY created_at, rowid')
+    return this.db.all<StageHistoryRow>('SELECT application_id, from_stage, to_stage, note, created_at FROM application_history ORDER BY created_at, rowid')
   }
   funnel(nowIso = now()): { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null } {
     const reached = new Map<string, string[]>()
@@ -603,15 +603,21 @@ export class Repos {
     const overall = funnelBy(rows, () => 'all', nowIso)[0] ?? null
     return { by_category: byCategory, by_platform: byPlatform, overall }
   }
-  /** 漏斗与周复盘页的看板：累计漏斗（投出之后）+ 本周甘特（有截止时间的事）+ 每日投出。 */
-  reviewBoard(opts: { nowIso?: string; weekStart?: string; tzOffsetMinutes?: number } = {}): ReviewBoard {
-    return buildReviewBoard({
+  /** 产品亲手完成提交的投递数（网申提交成功或投递邮件已发出），从开始用起累计。 */
+  agentSubmittedCount(): number {
+    return this.db.get<{ n: number }>(`SELECT COUNT(DISTINCT application_id) AS n FROM action_queue WHERE kind IN ('submit','send_mail') AND status='done' AND application_id IS NOT NULL`)?.n ?? 0
+  }
+  /** 「我的求职月」看板：自然月四层漏斗 + 过往月份 + 每一天的投递后来怎么样了。month 为 YYYY-MM，缺省为本月。 */
+  monthBoard(opts: { nowIso?: string; month?: string; tzOffsetMinutes?: number } = {}): MonthBoard {
+    return buildMonthBoard({
       apps: this.applicationsWithJob(),
       history: this.stageHistory(),
       deadlines: this.listDeadlines(),
       interviews: this.db.all<Interview>('SELECT * FROM interview'),
+      offers: this.db.all<Offer>('SELECT * FROM offer'),
+      agentSubmitted: this.agentSubmittedCount(),
       nowIso: opts.nowIso ?? now(),
-      weekStart: opts.weekStart,
+      month: opts.month,
       tzOffsetMinutes: opts.tzOffsetMinutes ?? 0,
     })
   }

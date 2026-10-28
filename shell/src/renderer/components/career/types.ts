@@ -266,25 +266,22 @@ export interface Dossier {
 }
 export interface FunnelRow { key: string; total: number; applied: number; responded: number; interview: number; offer: number; rejected: number; silent: number }
 export interface Funnel { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null }
-/** 漏斗与周复盘页的看板，结构同 @career/core 的 ReviewBoard。 */
-export type FunnelLayerKey = 'applied' | 'responded' | 'interview' | 'offer';
-export interface ReviewFunnelLayer {
-  layer: FunnelLayerKey; n: number; rate: number | null; new_this_week: number;
-  stopped: { waiting: number; silent: number; rejected: number; discarded: number; hired: number };
-  median_days_to_next: number | null; application_ids: string[]; silent_ids: string[]; summary: string;
-}
-export type GanttStatus = 'done' | 'open' | 'missed' | 'cancelled';
-export interface GanttItem {
-  id: string; source: 'deadline' | 'interview'; kind: DeadlineKind; title: string; company_name: string | null; application_id: string | null;
-  start: string; end: string; status: GanttStatus;
-}
-export interface ReviewBoard {
-  week: { start: string; days: string[]; is_current: boolean; tz_offset_minutes: number };
-  kpis: { applied: number; applied_prev: number; responded: number; interviews: number; due: number; done: number; missed: number; response_rate: number | null };
-  funnel: ReviewFunnelLayer[];
-  gantt: GanttItem[];
-  undated: Array<Pick<GanttItem, 'id' | 'kind' | 'title' | 'company_name' | 'application_id'>>;
-  daily: Array<{ date: string; n: number; by_platform: Array<{ key: string; n: number }>; application_ids: string[] }>;
+/** 「我的求职月」看板，结构同 @career/core 的 MonthBoard。四层：投出 → 笔试/测评 → 面试 → Offer。 */
+export type LayerCounts = [number, number, number, number];
+export interface MonthDay { day: number; sent: number; split: LayerCounts; pending: boolean; companies: { exam: string[]; interview: string[]; offer: string[] } }
+export interface MonthBoard {
+  month: { key: string; year: number; month: number; days: number; dow1: number; today: number | null; is_current: boolean; prev_key: string | null; next_key: string | null };
+  counts: LayerCounts;
+  prev: LayerCounts | null;
+  history: Array<{ key: string; month: number; counts: LayerCounts }>;
+  in_transit: number;
+  since_total: number;
+  days: MonthDay[];
+  exams: Array<{ company: string; kind: 'assessment' | 'written_test'; status: string; due_at: string | null }>;
+  interviews: Array<{ company: string; rounds: Array<{ round: string; done: boolean; date: string | null }> }>;
+  next_interview: { company: string; round: string; date: string } | null;
+  offers: Array<{ company: string; title: string | null; location: string | null; reply_by: string | null }>;
+  rhythm: { reply_days: number | null; first_interview_after: number | null };
 }
 export interface IntakeResult {
   item: InboxItem; triage: { kind?: string; summary?: string; urgency?: string } | null;

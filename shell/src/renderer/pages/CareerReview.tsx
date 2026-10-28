@@ -1,7 +1,7 @@
 /**
- * 复盘：每周一次，用数字代替猜测。顶部关键数字 + 累计漏斗（投出之后，对方的反馈）+ 本周甘特（有截止的事，自己的完成情况）
- * + 周复盘（一件今天就能做的小事）。漏斗与甘特分工见 packages/core/src/review-board.ts。
- * 视图：漏斗与周复盘（新）/ 调研与方向（嵌入 CareerResearch）。
+ * 我的求职月：复盘页，只回看已经发生的事（推进任务归通知中心和日历页）。
+ * 顶部五个数（本月四层 + 用我们以来替你投出）→ 花瓶漏斗与过往月份年轮（悬停才出面板）→ 每一天的投递后来怎么样了 → 周复盘。
+ * 口径见 packages/core/src/review-board.ts。视图：我的求职月 / 调研与方向（嵌入 CareerResearch）。
  */
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
@@ -14,10 +14,11 @@ import {
   Badge, Button, CareerPage, Card, ChatActionButton, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, formatDate,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
-import { ReviewFunnelChart } from '@/components/career/review/ReviewFunnelChart';
-import { ReviewWeekGantt } from '@/components/career/review/ReviewWeekGantt';
-import { addDays, percent, shortDate } from '@/components/career/review/reviewLinks';
-import type { CareerFocusEvent, ReviewBoard, WeeklyReview } from '@/components/career/types';
+import { LayerPanel } from '@/components/career/review/LayerPanel';
+import { MonthDays } from '@/components/career/review/MonthDays';
+import { MonthFunnel } from '@/components/career/review/MonthFunnel';
+import { LAYER_COLORS, LAYER_NAMES } from '@/components/career/review/monthFunnelGeometry';
+import type { CareerFocusEvent, MonthBoard, WeeklyReview } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
@@ -28,18 +29,18 @@ const CareerResearch = lazy(() => import('@/pages/CareerResearch'));
 // 子视图由功能市场的入口选择（features/career-shell），页面本身不再放切换控件。
 type View = 'funnel' | 'research';
 const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
-  funnel: { title: '求职漏斗与周复盘', subtitle: '每周一次，用数字代替猜测' },
+  funnel: { title: '我的求职月', subtitle: '这个月走了多远' },
   research: { title: '公司调研与方向', subtitle: '投之前先看一眼，也看看还有哪些方向适合你' },
 };
 
 export default function CareerReview({ embedded = false }: CareerPageProps) {
   const [view, setView] = useCareerSubView<View>('career-review', DEFAULT_SUB_VIEWS['career-review']);
   const [focusId, setFocusId] = useState<string | null>(null);
-  // 看哪一周（周一日期）；null = 本周。看板的周数字和甘特跟着变，漏斗始终是累计。
-  const [week, setWeek] = useState<string | null>(null);
-  const query = useCareerQuery(() => careerApi.review(week ?? undefined), ['application', 'application_history', 'weekly_review', 'job', 'deadline', 'interview']);
+  // 看哪个月（YYYY-MM）；null = 本月。
+  const [month, setMonth] = useState<string | null>(null);
+  const query = useCareerQuery(() => careerApi.review(month ?? undefined), ['application', 'application_history', 'weekly_review', 'job', 'deadline', 'interview', 'offer', 'action_queue']);
   const reload = query.reload;
-  const changeWeek = (next: string | null) => { setWeek(next); reload(); };
+  const changeMonth = (next: string | null) => { setMonth(next); reload(); };
   const data = query.data;
 
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
@@ -68,7 +69,7 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
         <div className="space-y-8 px-6 py-4">
           {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
           {query.loading && !data && <LoadingRow />}
-          {data && <BoardSection board={data.board} week={week} onWeek={changeWeek} />}
+          {data && <MonthSection board={data.board} onMonth={changeMonth} />}
           {data && <WeeklySection reviews={data.reviews} highlightId={focusId} onChanged={query.reload} />}
         </div>
       )}
@@ -81,72 +82,63 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
   );
 }
 
-// ─── 本周看板：顶部数字 + 累计漏斗 + 本周甘特 ───
+// ─── 我的求职月 ───
 
-function BoardSection({ board, week, onWeek }: { board: ReviewBoard | null; week: string | null; onWeek: (week: string | null) => void }) {
+function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (month: string | null) => void }) {
+  // 面板平时留白：悬停某一层才出现，点击钉住；离开漏斗和面板所在的区域回到钉住的那层（没钉就留白）
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [pinned, setPinned] = useState<number | null>(null);
   if (!board) return null;
-  const empty = board.funnel[0].n === 0 && board.gantt.length === 0 && board.undated.length === 0;
-  if (empty && board.week.is_current) {
+  if (board.month.is_current && !board.month.prev_key && board.counts.every((c) => c === 0)) {
     return (
       <section>
-        <EmptyState title="还没有投递数据。先在收件箱丢几个 JD，投出去之后这里会出现漏斗。" />
+        <EmptyState title="还没有投递。投出去之后，这里会长出这个月的漏斗。" />
         <div className="flex justify-center">
           <ChatActionButton text="帮我看看接下来该投什么" context={{ surface: 'review' }} />
         </div>
       </section>
     );
   }
-  const k = board.kpis;
-  const delta = k.applied - k.applied_prev;
-  const prevLabel = board.week.is_current ? '上周' : '前一周';
-  const lastDay = board.week.days[6];
+  const layer = hovered ?? pinned;
+  const { counts, prev } = board;
   return (
     <>
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="ghost" aria-label="上一周" onClick={() => onWeek(addDays(board.week.start, -7))}><ChevronLeft className="h-4 w-4" strokeWidth={1.75} /></Button>
-          <span className="text-sm font-medium tabular-nums text-[var(--ink)]" aria-live="polite">
-            {shortDate(board.week.start)} – {shortDate(lastDay)}{board.week.is_current ? ' · 本周' : ''}
-          </span>
-          <Button size="sm" variant="ghost" aria-label="下一周" disabled={board.week.is_current} onClick={() => onWeek(addDays(board.week.start, 7))}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
-          {week && !board.week.is_current && <Button size="sm" variant="ghost" onClick={() => onWeek(null)}>回到本周</Button>}
+      <div className="flex items-center gap-1 text-sm">
+        <Button size="sm" variant="ghost" aria-label="上个月" disabled={!board.month.prev_key} onClick={() => onMonth(board.month.prev_key)}><ChevronLeft className="h-4 w-4" strokeWidth={1.75} /></Button>
+        <span className="font-semibold tabular-nums text-[var(--ink)]" aria-live="polite">{board.month.year} 年 {board.month.month} 月</span>
+        <Button size="sm" variant="ghost" aria-label="下个月" disabled={!board.month.next_key} onClick={() => onMonth(board.month.next_key)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
+      </div>
+
+      <dl className="flex flex-wrap items-end gap-x-20 gap-y-6" aria-label="本月关键数字">
+        {LAYER_NAMES.map((name, k) => (
+          <BigNumber key={name} label={name} value={counts[k]} dot={LAYER_COLORS[k]} foot={prev ? `上月 ${prev[k]}` : '\u00a0'} />
+        ))}
+        <div className="ml-auto border-l-[1.5px] border-dashed border-[var(--line-2)] pl-11">
+          <BigNumber label="用我们以来 · 替你投出" value={board.since_total} accent foot={'\u00a0'} />
         </div>
-        <dl className="flex flex-wrap gap-x-10 gap-y-4" aria-label="关键数字">
-          <Stat label="投出" value={k.applied} note={delta === 0 ? `和${prevLabel}一样` : `比${prevLabel}${delta > 0 ? '多' : '少'} ${Math.abs(delta)}`} />
-          <Stat label="新回应" value={k.responded} note="第一次有回音的投递" />
-          <Stat label="面试" value={k.interviews} note="这周排上的面试" />
-          <Stat
-            label="到期事项完成"
-            value={k.due > 0 ? `${k.done}/${k.due}` : '—'}
-            note={k.missed > 0 ? `错过 ${k.missed} 件` : k.due > 0 ? '没有错过' : '还没有到期的事'}
-            noteTone={k.missed > 0 ? 'danger' : undefined}
-          />
-          <Stat label="累计回应率" value={percent(k.response_rate)} note="有回应 / 已投递" />
-        </dl>
-      </section>
+      </dl>
 
-      <section className="space-y-2">
-        <SectionTitle extra={<span className="text-xs text-[var(--muted)]">累计 · 悬停看每一层的去向，点击钉住</span>}>投出之后走到了哪</SectionTitle>
-        <ReviewFunnelChart layers={board.funnel} />
-        <p className="text-xs text-[var(--subtle)]">经验上网申过简历率通常只有一到两成，沉默比被拒常见；这不是能力结论。</p>
-      </section>
-
-      <section className="space-y-2">
-        <SectionTitle extra={<span className="text-xs text-[var(--muted)]">{board.week.is_current ? '本周' : '所选这周'} · 点一行看对应投递</span>}>这周的事做完了没</SectionTitle>
-        <div className="overflow-x-auto">
-          <ReviewWeekGantt board={board} />
+      <section aria-label="本月漏斗" className="flex items-stretch gap-12" onMouseLeave={() => setHovered(null)}>
+        <MonthFunnel board={board} layer={layer} onHover={setHovered} onPin={(k) => setPinned((p) => (p === k ? null : k))} />
+        <div className="min-h-[440px] min-w-0 flex-1 pl-11">
+          {layer !== null && <LayerPanel board={board} layer={layer} />}
         </div>
       </section>
+
+      <MonthDays board={board} layer={layer} />
     </>
   );
 }
 
-function Stat({ label, value, note, noteTone }: { label: string; value: number | string; note: string; noteTone?: 'danger' }) {
+function BigNumber({ label, value, dot, foot, accent = false }: { label: string; value: number; dot?: string; foot: string; accent?: boolean }) {
   return (
-    <div className="min-w-[88px]">
-      <dt className="text-xs text-[var(--muted)]">{label}</dt>
-      <dd className="text-3xl font-semibold text-[var(--ink)]" aria-label={`${label} ${value}`}>{value}</dd>
-      <dd className={`text-xs ${noteTone === 'danger' ? 'text-[var(--danger)]' : 'text-[var(--subtle)]'}`}>{note}</dd>
+    <div className="flex flex-col gap-0.5">
+      <dt className="flex items-center gap-1.5 text-xs text-[var(--subtle)]">
+        {dot && <span className="h-2 w-2 rounded-full" style={{ background: dot }} aria-hidden />}
+        {label}
+      </dt>
+      <dd className="m-0 font-black" style={{ fontSize: 76, lineHeight: '80px', color: accent ? 'var(--primary)' : 'var(--ink)' }} aria-label={`${label} ${value}`}>{value}</dd>
+      <dd className="m-0 text-xs text-[var(--subtle)]">{foot}</dd>
     </div>
   );
 }
