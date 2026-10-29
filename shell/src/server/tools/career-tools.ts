@@ -8,12 +8,12 @@ import { AsyncLocalStorage } from 'async_hooks';
 //
 // SDK + zod 只在 createCareerServer() 内动态 import（builtin-mcp-registry 的 lazy 约束）。
 import { existsSync } from 'fs';
-import { basename } from 'path';
+import { basename, isAbsolute, resolve } from 'path';
 import type { Repos, LLM, Job, JdParsed, Claim, Vault, ActionQueueItem, Task, Deadline } from '@career/core';
 
 import { loadCore } from '../career/core-module';
 import type { BoardRow } from '../career/job-board';
-import { getRepos, careerExportsDir } from '../career/db';
+import { getRepos, careerDataDir, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
@@ -56,13 +56,27 @@ export interface CareerToolDeps {
   resumeModule?: () => Promise<Pick<typeof import('@career/resume'), 'parseResume'>>;
   /** false：导出 PDF 不用简历工作台模板（测试用）。 */
   studioExport?: boolean;
+  /** 把本地文档读成文字；缺省走对话附件同一套读取（AnyDoc → 内置解析 → 系统 OCR）。 */
+  readDocument?: (absPath: string, workspace: string) => Promise<{ ok: boolean; text: string; attempts: string[] }>;
 }
 
-const sessionCtx = { sessionId: 'default' };
+const sessionCtx: { sessionId: string; workspace: string } = { sessionId: 'default', workspace: '' };
 
-/** builtin-mcp-registry 的 configure 钩子：冻结当前 Session id 供事件携带。 */
-export function configureCareerTools(_env: Record<string, string>, ctx: { sessionId: string }): void {
+/** builtin-mcp-registry 的 configure 钩子：冻结当前 Session id 供事件携带，记下工作区供相对路径解析。 */
+export function configureCareerTools(_env: Record<string, string>, ctx: { sessionId: string; workspace?: string }): void {
   sessionCtx.sessionId = ctx.sessionId || 'default';
+  sessionCtx.workspace = ctx.workspace || '';
+}
+
+/** 对话里附件给模型的是工作区相对路径；绝对路径原样用。 */
+function workspacePath(path: string): string {
+  return isAbsolute(path) || !sessionCtx.workspace ? path : resolve(sessionCtx.workspace, path);
+}
+
+async function readDocumentDefault(absPath: string, workspace: string): Promise<{ ok: boolean; text: string; attempts: string[] }> {
+  const { convertAttachment, defaultConvertDeps } = await import('../career/attachment-reader');
+  const cwd = workspace || careerDataDir();
+  return convertAttachment(absPath, cwd, defaultConvertDeps(cwd));
 }
 
 // ============= 小工具 =============
@@ -874,21 +888,22 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ ok: true, claim_id: args.claim_id, status: 'user_confirmed' });
       })()),
 
-      tool('ingest_document', '用 docparse 解析本地文档（简历 / 实习证明 / 项目报告），抽取主张写入经历库（pending）并附 doc_fragment 证据。', {
-        path: z.string().describe('本地文件绝对路径'), experience_id: z.string().optional().describe('归属的经历；缺省新建一条以文件名命名的经历'),
+      tool('ingest_document', '读取本地文档（简历 PDF / Word / 截图、实习证明、项目报告），抽取主张写入经历库（pending）并附 doc_fragment 证据。用户拖进简历时用它把内容收进经历库。', {
+        path: z.string().describe('本地文件路径：绝对路径，或对话附件给出的工作区相对路径'), experience_id: z.string().optional().describe('归属的经历；缺省新建一条以文件名命名的经历'),
       }, async (args) => wrap(async () => {
-        const bridges = await loadBridges();
-        progress('ingest_document', `正在解析文档 ${basename(args.path)}`);
-        const doc = await bridges.parseDocument(args.path, { to: ['md'] });
-        const markdown = doc.markdown ?? '';
-        if (!markdown.trim()) return err('docparse 没有产出文本（文件可能是图片扫描件，需开启 OCR）');
+        const abs = workspacePath(args.path);
+        if (!existsSync(abs)) return err(`找不到文件：${args.path}`);
+        progress('ingest_document', `正在读取文档 ${basename(abs)}`);
+        const doc = await (deps.readDocument ?? readDocumentDefault)(abs, sessionCtx.workspace);
+        const markdown = doc.ok ? doc.text : '';
+        if (!markdown.trim()) return err(`没读出文字。依次尝试过：${doc.attempts.join('；') || '无'}。请让用户换成可复制文字的 PDF / Word，或直接截图发过来。`);
         const out = await askSkill<{ claims?: Array<{ text: string; attribution?: 'self' | 'team' | 'unknown'; result_metric?: string; excerpt?: string }> }>(
-          'experience-interview', `以下是用户上传的文档《${basename(args.path)}》解析出的 Markdown。请只抽取可核验的事实主张，输出 JSON：{"claims":[{"text":"","attribution":"self|team|unknown","result_metric":"","excerpt":"原文片段"}]}。\n\n${markdown.slice(0, 30_000)}`, { temperature: 0.1 });
+          'experience-interview', `以下是用户上传的文档《${basename(abs)}》读出的文字。请只抽取可核验的事实主张，输出 JSON：{"claims":[{"text":"","attribution":"self|team|unknown","result_metric":"","excerpt":"原文片段"}]}。\n\n${markdown.slice(0, 30_000)}`, { temperature: 0.1 });
         const r = repos();
-        const experienceId = args.experience_id ?? r.createExperience({ title: basename(args.path), type: 'other', summary: '由文档导入' }).id;
+        const experienceId = args.experience_id ?? r.createExperience({ title: basename(abs), type: 'other', summary: '由文档导入' }).id;
         const claims = (out.claims ?? []).map(c => {
           const claim = r.addClaim({ experience_id: experienceId, text: c.text, attribution: c.attribution, result_metric: c.result_metric || null, created_from: 'doc' });
-          r.addEvidence({ claim_id: claim.id, kind: 'doc_fragment', locator: args.path, excerpt: c.excerpt ?? null, strength: 'mid' });
+          r.addEvidence({ claim_id: claim.id, kind: 'doc_fragment', locator: abs, excerpt: c.excerpt ?? null, strength: 'mid' });
           return claim;
         });
         changed('experience', 'claim', 'evidence');
