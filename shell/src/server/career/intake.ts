@@ -172,10 +172,17 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
     if (moved) tables.add('application').add('application_history');
     return app;
   };
-  /** allowUnknownTime：笔试 / 测评通知没写时间也建一条（due_at 为 null = 时间未知），笔试记录和投递进度才看得到。 */
+  /** 邮件里没写年份的日期按收件时间补年份：九月的旧邮件写「9月10日」就是今年九月，不是明年。 */
+  const refIso = input.mail?.received_at ?? nowIso;
+  /**
+   * allowUnknownTime：笔试 / 测评通知没写时间也建一条（due_at 为 null = 时间未知），笔试记录和投递进度才看得到。
+   * 导入时就已经过去的事（第一次连邮箱拉到的历史邮件）不建截止事件：它已经发生了，只留在卷宗和面试记录里，
+   * 否则会以「已过期」顶到首屏最上面，盖住真正要你的事。
+   */
   const addDeadline = (dk: DeadlineKind, label: string, when: string | undefined, extra: { interview_id?: string; offer_id?: string } = {}, allowUnknownTime = false) => {
-    const due = normalizeIso(when, nowIso);
+    const due = normalizeIso(when, refIso);
     if (!due && !allowUnknownTime) return;
+    if (due && Date.parse(due) < Date.parse(nowIso)) return;
     const d = r.createDeadline({ kind: dk, title: label, due_at: due, application_id: app?.id ?? null, job_id: app?.job_id ?? null, source: input.source === 'mail' ? 'mail' : 'inbox', url: f.location_or_link?.startsWith('http') ? f.location_or_link : null, note: f.notes ?? null, ...extra });
     created.deadline_ids.push(d.id);
     tables.add('deadline');
@@ -192,7 +199,7 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       }
       case 'interview_invite': {
         const a = ensureApplication('interview', `收到面试邀请${f.round ? `（${f.round}）` : ''}`);
-        const itv = store.createInterview({ application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRound(f.round), date: normalizeIso(f.when, nowIso) ?? null });
+        const itv = store.createInterview({ application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRound(f.round), date: normalizeIso(f.when, refIso) ?? null });
         created.interview_id = itv.id; tables.add('interview');
         addDeadline('interview', `${label} 面试${f.round ? `（${f.round}）` : ''}`, f.when, { interview_id: itv.id });
         r.addDossierNote({ application_id: a.id, kind: 'heard', round: f.round ?? null, content: `面试邀请：${f.when ?? '时间待定'}${f.location_or_link ? `，${f.location_or_link}` : ''}${f.contact ? `，联系人 ${f.contact}` : ''}` });
@@ -218,7 +225,7 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       }
       case 'offer': {
         const a = ensureApplication('offer', '收到 Offer');
-        const offer = store.createOffer({ application_id: a.id, company_name: company, title, deadline: normalizeIso(f.due_at, nowIso) ?? null, risk_notes: f.notes ?? null });
+        const offer = store.createOffer({ application_id: a.id, company_name: company, title, deadline: normalizeIso(f.due_at, refIso) ?? null, risk_notes: f.notes ?? null });
         created.offer_id = offer.id; tables.add('offer');
         addDeadline('offer_reply', `${label} Offer 回复截止`, f.due_at, { offer_id: offer.id });
         break;
@@ -326,8 +333,22 @@ function normalizeRound(round?: string): string {
   return 'other';
 }
 
-/** 把模型给的时间（ISO / "2026-10-05 14:00" / "10月5日 14:00"）规整成 ISO；解析不了返回 null。 */
-export function normalizeIso(value: string | undefined | null, nowIso: string): string | null {
+/** 没写年份的日期早于参照时间这么多天，就认为说的是下一年（十月的邮件写「1月3日」指明年一月）。 */
+const YEARLESS_ROLLOVER_DAYS = 30;
+
+/** 没写年份时补参照时间的年份；早于参照时间太多就顺延到下一年。 */
+function yearlessDate(refIso: string, month: number, day: number, hour: number | null, minute: number | null): string {
+  const year = Number(refIso.slice(0, 4));
+  const d = new Date(Date.UTC(year, month - 1, day, hour !== null ? hour - 8 : 15, minute ?? 59));
+  if (d.getTime() < Date.parse(refIso) - 86_400_000 * YEARLESS_ROLLOVER_DAYS) d.setUTCFullYear(year + 1);
+  return d.toISOString();
+}
+
+/**
+ * 把模型给的时间（ISO / "2026-10-05 14:00" / "10月5日 14:00" / "10/5"）规整成 ISO；解析不了返回 null。
+ * refIso 是补年份的参照：邮件用收件时间，粘贴用当前时间。
+ */
+export function normalizeIso(value: string | undefined | null, refIso: string): string | null {
   if (!value) return null;
   const v = value.trim();
   if (!v) return null;
@@ -335,16 +356,12 @@ export function normalizeIso(value: string | undefined | null, nowIso: string): 
   if (!Number.isNaN(direct) && /\d{4}-\d{2}-\d{2}/.test(v)) return new Date(direct).toISOString();
   const cn = v.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日?(?:\s*(\d{1,2})[:：点](\d{2})?)?/);
   if (cn) {
-    const year = cn[1] ? Number(cn[1]) : Number(nowIso.slice(0, 4));
-    const d = new Date(Date.UTC(year, Number(cn[2]) - 1, Number(cn[3]), cn[4] ? Number(cn[4]) - 8 : 15, cn[5] ? Number(cn[5]) : 59));
-    if (!cn[1] && d.getTime() < Date.parse(nowIso) - 86_400_000 * 30) d.setUTCFullYear(year + 1);
-    return d.toISOString();
+    const hour = cn[4] ? Number(cn[4]) : null;
+    const minute = cn[5] ? Number(cn[5]) : null;
+    if (!cn[1]) return yearlessDate(refIso, Number(cn[2]), Number(cn[3]), hour, minute);
+    return new Date(Date.UTC(Number(cn[1]), Number(cn[2]) - 1, Number(cn[3]), hour !== null ? hour - 8 : 15, minute ?? 59)).toISOString();
   }
   const dash = v.match(/(\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
-  if (dash) {
-    const year = Number(nowIso.slice(0, 4));
-    const d = new Date(Date.UTC(year, Number(dash[1]) - 1, Number(dash[2]), dash[3] ? Number(dash[3]) - 8 : 15, dash[4] ? Number(dash[4]) : 59));
-    return d.toISOString();
-  }
+  if (dash) return yearlessDate(refIso, Number(dash[1]), Number(dash[2]), dash[3] ? Number(dash[3]) : null, dash[4] ? Number(dash[4]) : null);
   return null;
 }
