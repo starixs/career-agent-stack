@@ -325,6 +325,26 @@ describe('五个面的路由', () => {
     } finally { setMailCredentialsPath(null); }
   });
 
+  it('mail accounts：试登录通过就返回，首次同步在后台跑不卡绑定；授权码错了当场报出并记到账号上', async () => {
+    const { setMailCredentialsPath } = await import('../career/mail/credentials');
+    const dir = mkdtempSync(join(tmpdir(), 'career-mail-bg-')); tempDirs.push(dir);
+    setMailCredentialsPath(join(dir, 'c.json'));
+    const synced: string[] = [];
+    deps.mailSync = (_d, account) => { synced.push(account.address); return new Promise(() => undefined); };
+    try {
+      deps.mailVerify = async () => undefined;
+      const ok = await call(deps, 'POST', '/api/career/mail/accounts', { address: 'me@stu.pku.edu.cn', password: 'code', imap_host: 'mail.pku.edu.cn', smtp_host: 'mail.pku.edu.cn' });
+      expect(ok.json.verify).toEqual({ syncing: true });
+      expect(synced).toEqual(['me@stu.pku.edu.cn']);
+
+      deps.mailVerify = async () => { throw new Error('Invalid credentials (Failure)'); };
+      const bad = await call(deps, 'POST', '/api/career/mail/accounts', { address: 'me@163.com', password: 'wrong' });
+      expect(bad.json.verify).toEqual({ error: 'Invalid credentials (Failure)' });
+      expect((bad.json.account as { status: string }).status).toBe('auth_failed');
+      expect(synced).toHaveLength(1);
+    } finally { setMailCredentialsPath(null); delete deps.mailVerify; delete deps.mailSync; }
+  });
+
   it('mail connect：只开放有配方的邮箱；连接可查可取消；打不开浏览器时如实报错', async () => {
     expect((await call(deps, 'POST', '/api/career/mail/connect', { provider: 'outlook' })).status).toBe(400);
     expect((await call(deps, 'GET', '/api/career/mail/connect/nope')).status).toBe(404);

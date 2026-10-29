@@ -8,7 +8,7 @@
  */
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import type { Repos, ApplicationStage, JobPrefs, LLM, Vault, VaultScope } from '@career/core';
+import type { Repos, ApplicationStage, JobPrefs, LLM, MailAccount, Vault, VaultScope } from '@career/core';
 
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { StudioResumeNotFoundError, loadStudio, previewPlaceholders, saveStudio } from '../career/resume-studio';
@@ -20,10 +20,10 @@ import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isA
 import { runAtsCheck } from '../career/ats-check';
 import { getShellLLM } from '../career/llm';
 import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../career/intake';
-import { deleteMailPassword, setMailPassword } from '../career/mail/credentials';
+import { deleteMailPassword, getMailPassword, setMailPassword } from '../career/mail/credentials';
 import { MAIL_PRESETS, detectProvider, presetFor } from '../career/mail/providers';
 import { executeApprovedSendMails } from '../career/mail/send';
-import { syncAllMailAccounts, syncMailAccount, verifyImapLogin } from '../career/mail/sync';
+import { recordMailFailure, syncAllMailAccounts, syncMailAccount, verifyImapLogin } from '../career/mail/sync';
 import { RECIPES, cancelMailConnect, fromPlaywrightPage, getMailConnect, isConnectProvider, provideConnectAddress, startMailConnect, type ConnectDeps } from '../career/mail/connect';
 import { draftMaterial } from '../career/materials';
 import { generateWeeklyReview } from '../career/review';
@@ -50,6 +50,10 @@ export interface CareerRouteDeps {
   resumeModule?: () => Promise<typeof import('@career/resume')>;
   /** 邮箱一键连接借页面 / 试登录（测试注入；缺省走产品浏览器与真实 IMAP）。 */
   mailConnect?: Partial<Pick<ConnectDeps, 'withPage' | 'verifyLogin' | 'tickMs' | 'sleep'>>;
+  /** 手动绑定邮箱时试登录（测试注入；缺省走真实 IMAP）。 */
+  mailVerify?: typeof verifyImapLogin;
+  /** 绑定后的后台首次同步（测试注入；缺省走真实 IMAP）。 */
+  mailSync?: typeof syncMailAccount;
   /** false：导出不用简历工作台模板（测试里没有 react-pdf 字体网络时用）。 */
   studioExport?: boolean;
 }
@@ -116,6 +120,17 @@ function intakeDeps(ctx: Ctx): IntakeDeps {
   if (ctx.deps.llm === undefined) { try { llm = getShellLLM(); } catch { llm = null; } } else llm = ctx.deps.llm;
   return { repos: ctx.repos, core: ctx.core, llm, broadcast: ctx.deps.broadcast, sessionId: ctx.deps.sessionId };
 }
+/**
+ * 绑定后的首次同步放到后台：最多几十封、每封一次模型调用，不能让绑定框一直转圈。
+ * 读完的结果经 dataChanged 推给通知中心；失败已写回账号状态，这里只留日志。
+ */
+function syncInBackground(ctx: Ctx, account: MailAccount): void {
+  void (ctx.deps.mailSync ?? syncMailAccount)(intakeDeps(ctx), account).then(
+    r => { if (r.error) console.warn(`[career-mail] first sync failed account=${account.id}: ${r.error}`); },
+    error => console.error(`[career-mail] first sync crashed account=${account.id}:`, error),
+  );
+}
+const MAIL_SYNCING_SUMMARY = '已连接，正在后台读取最近的求职邮件，读完会出现在通知中心';
 const isoOrUndefined = (v: unknown): string | undefined => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : undefined);
 
 function exportResume(ctx: Ctx, id: string, format: ExportFormat): Promise<string> {
@@ -848,8 +863,17 @@ const ROUTES: Route[] = [
     const account = ctx.repos.upsertMailAccount({ provider, address, display_name: strOrNull(ctx.body.display_name), imap_host, imap_port: typeof ctx.body.imap_port === 'number' ? ctx.body.imap_port : preset?.imap_port, smtp_host, smtp_port: typeof ctx.body.smtp_port === 'number' ? ctx.body.smtp_port : preset?.smtp_port });
     if (password) setMailPassword(account.id, password);
     dataChanged(ctx, ['mail_account']);
-    // 立即验证一次（拉最近邮件），把状态写回账号
-    const verify = ctx.body.verify === false ? null : await syncMailAccount(intakeDeps(ctx), account);
+    // 先试登录（快，授权码错了马上知道），通过后首次同步转到后台
+    let verify: { error?: string; syncing?: boolean } | null = null;
+    if (ctx.body.verify !== false) {
+      try {
+        await (ctx.deps.mailVerify ?? verifyImapLogin)(account.imap_host, account.imap_port, account.address, password ?? getMailPassword(account.id) ?? '');
+        syncInBackground(ctx, account);
+        verify = { syncing: true };
+      } catch (error) {
+        verify = { error: recordMailFailure(intakeDeps(ctx), account.id, error) };
+      }
+    }
     return ok({ account: ctx.repos.getMailAccount(account.id), verify });
   }),
   // 一键连接：产品浏览器打开官方页面，扫码登录后自动读授权码、验证、绑定（mail/connect.ts）
@@ -868,8 +892,8 @@ const ROUTES: Route[] = [
         const account = ctx.repos.upsertMailAccount({ provider: p, address, imap_host: preset.imap_host, imap_port: preset.imap_port, smtp_host: preset.smtp_host, smtp_port: preset.smtp_port });
         setMailPassword(account.id, code);
         dataChanged(ctx, ['mail_account']);
-        const verify = await syncMailAccount(intakeDeps(ctx), account);
-        return { account_id: account.id, summary: verify.error ? `已连接，首次同步失败：${verify.error}` : `拉到 ${verify.fetched} 封，其中 ${verify.job_related} 封与求职相关` };
+        syncInBackground(ctx, account);
+        return { account_id: account.id, summary: MAIL_SYNCING_SUMMARY };
       },
       ...(injected.tickMs ? { tickMs: injected.tickMs } : {}),
       ...(injected.sleep ? { sleep: injected.sleep } : {}),

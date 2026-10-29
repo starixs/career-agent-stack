@@ -265,7 +265,7 @@ export function MailBindCard({ card, onDone, onDismiss }: CardProps) {
   const bind = () => run(async () => {
     const out = await careerApi.bindMailAccount({ address: address.trim(), password });
     if (out.verify?.error) throw new Error(`已保存，但连接失败：${out.verify.error}`);
-    setResult(`已绑定，拉到 ${out.verify?.fetched ?? 0} 封，其中 ${out.verify?.job_related ?? 0} 封与求职有关`);
+    setResult(out.verify?.syncing ? '已绑定，正在后台读取最近的求职邮件' : '已绑定');
   }).then(ok => {
     if (!ok) return;
     onDone();

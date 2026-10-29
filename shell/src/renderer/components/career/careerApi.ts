@@ -270,7 +270,7 @@ export const careerApi = {
     return { accounts: pickList<MailAccount>(d.accounts), presets: (d.presets as Record<string, MailPreset>) ?? {} };
   }),
   bindMailAccount: (body: { address: string; password?: string; provider?: string; display_name?: string; imap_host?: string; imap_port?: number; smtp_host?: string; smtp_port?: number; verify?: boolean }) =>
-    apiPostJson<unknown>(careerPath('/mail/accounts'), body).then(r => asDict(r) as { account?: MailAccount; verify?: { error?: string; fetched?: number; job_related?: number } | null }),
+    apiPostJson<unknown>(careerPath('/mail/accounts'), body).then(r => asDict(r) as { account?: MailAccount; verify?: { error?: string; syncing?: boolean } | null }),
   startMailConnect: (provider: MailConnectSession['provider'], address?: string) =>
     apiPostJson<unknown>(careerPath('/mail/connect'), { provider, address }).then(r => asDict(r).session as MailConnectSession),
   mailConnect: (id: string) => apiGetJson<unknown>(careerPath(`/mail/connect/${encodeURIComponent(id)}`)).then(r => asDict(r).session as MailConnectSession),

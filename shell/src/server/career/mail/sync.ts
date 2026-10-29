@@ -79,6 +79,15 @@ export async function verifyImapLogin(host: string, port: number, user: string, 
 
 function stripHtml(html: string): string { return html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(); }
 
+/** 登录 / 拉信失败写回账号状态：认证类错误标 auth_failed（要重新填授权码），其余标 error。返回错误文字。 */
+export function recordMailFailure(deps: Pick<IntakeDeps, 'repos' | 'broadcast' | 'sessionId'>, accountId: string, error: unknown): string {
+  const msg = error instanceof Error ? error.message : String(error);
+  const auth = /auth|login|credential|密码|授权/i.test(msg);
+  deps.repos.updateMailAccount(accountId, { status: auth ? 'auth_failed' : 'error', last_error: msg.slice(0, 300) });
+  dataChanged(deps, ['mail_account']);
+  return msg;
+}
+
 export async function syncMailAccount(deps: MailSyncDeps, account: MailAccount): Promise<MailSyncResult> {
   const r: Repos = deps.repos;
   const result: MailSyncResult = { account_id: account.id, fetched: 0, stored: 0, job_related: 0, ignored: 0, archived: [] };
@@ -92,11 +101,7 @@ export async function syncMailAccount(deps: MailSyncDeps, account: MailAccount):
   try {
     mails = deps.fetchNew ? await deps.fetchNew(account, password) : await fetchViaImap(account, password, deps.lookbackDays ?? 14, deps.maxPerSync ?? 50);
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    const auth = /auth|login|credential|密码|授权/i.test(msg);
-    r.updateMailAccount(account.id, { status: auth ? 'auth_failed' : 'error', last_error: msg.slice(0, 300) });
-    dataChanged(deps, ['mail_account']);
-    return { ...result, error: msg };
+    return { ...result, error: recordMailFailure(deps, account.id, error) };
   }
   result.fetched = mails.length;
   let maxUid = account.last_uid;

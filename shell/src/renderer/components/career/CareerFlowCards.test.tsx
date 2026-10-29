@@ -144,7 +144,7 @@ describe('对话内流程卡片', () => {
   });
 
   it('绑定邮箱：按域名给授权码说明，绑定成功后请助理归档，消息里不带地址和授权码', async () => {
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { id: 'm1' }, verify: { fetched: 12, job_related: 3 } });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { id: 'm1' }, verify: { syncing: true } });
     const { seen, off } = captureSuggest();
     renderCards([card('mail_bind', { presets: [{ provider: 'qq', label: 'QQ 邮箱', help: '设置 → 账户 → 开启 IMAP 并生成授权码' }] }, '绑定求职邮箱')]);
     fireEvent.change(screen.getByLabelText('邮箱地址'), { target: { value: 'me@qq.com' } });

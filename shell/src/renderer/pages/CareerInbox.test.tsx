@@ -141,7 +141,7 @@ describe('CareerInbox', () => {
 
   it('绑定邮箱 → POST /api/career/mail/accounts，显示验证结果；授权码不发给对话', async () => {
     mockGet();
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { ...accounts[0], id: 'm2', address: 'new@163.com' }, verify: { fetched: 12, job_related: 3 } });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { ...accounts[0], id: 'm2', address: 'new@163.com' }, verify: { syncing: true } });
     render(<CareerInbox isActive onOpenChat={vi.fn()} />);
     expect(await screen.findByText('me@qq.com')).toBeInTheDocument();
     expect(screen.getByText('QQ 邮箱')).toBeInTheDocument();
@@ -154,7 +154,7 @@ describe('CareerInbox', () => {
     expect(screen.getByText(/只保存在本机，不会发给对话/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '绑定并验证' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/accounts', { address: 'new@163.com', password: 'secret-code', display_name: undefined }));
-    expect(await screen.findByText('已连接，拉到 12 封，其中 3 封与求职相关')).toBeInTheDocument();
+    expect(await screen.findByText('已连接，正在后台读取最近的求职邮件，读完会出现在通知中心')).toBeInTheDocument();
   });
 
   it('立即同步 → POST mail/sync；解绑需确认后 DELETE', async () => {

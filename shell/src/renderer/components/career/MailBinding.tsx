@@ -108,7 +108,7 @@ export function ManualMailForm({ presets, onBound, initialAddress = '' }: { pres
       return;
     }
     setVerifyError(null);
-    onBound(`已连接，拉到 ${r.verify?.fetched ?? 0} 封，其中 ${r.verify?.job_related ?? 0} 封与求职相关`);
+    onBound(r.verify?.syncing ? '已连接，正在后台读取最近的求职邮件，读完会出现在通知中心' : '已连接');
   });
 
   return (
