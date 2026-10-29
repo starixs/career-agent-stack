@@ -1,0 +1,74 @@
+/* v5：图主导。卡片本身没有底色、描边、投影；图有分量，字少；钢笔蓝只用在动作和「要你补」上。 */
+:root { --c5-blue: #2f4ba0; --c5-tone: #ebe6dc; --c5-serif: 'Songti SC', 'Noto Serif SC', serif; }
+:root[data-color-scheme='dark'] { --c5-blue: #8ea6ec; --c5-tone: #2c2722; }
+
+.c5 { position: relative; display: grid; grid-template-columns: 232px minmax(0, 1fr); column-gap: 56px; align-items: start; margin: 28px 0 36px; }
+
+/* 图：固定画框、小圆角，真实内容完整放进去 */
+.c5-img { position: relative; margin: 0; overflow: hidden; border-radius: 6px; background: var(--c5-tone); transition: transform 180ms ease; }
+.c5:hover .c5-img, .c5:focus-within .c5-img { transform: translateY(-2px); }
+.c5-img img { display: block; width: 100%; height: 100%; }
+.c5-img-page { aspect-ratio: 1819 / 2573; box-shadow: 0 0 0 1px var(--line-2); background: #fff; }
+.c5-img-page img { object-fit: cover; }
+.c5-img-photo { aspect-ratio: 4 / 5; }
+.c5-img-photo img { object-fit: cover; object-position: 50% 30%; }
+
+/* 页边改动标记：右缘一道钢笔蓝细条 + 数字 */
+.c5-imgwrap { position: relative; transition: transform 180ms ease; }
+.c5:hover .c5-imgwrap, .c5:focus-within .c5-imgwrap { transform: translateY(-2px); }
+.c5-imgwrap .c5-img { transform: none !important; }
+.c5-mark { position: absolute; right: -10px; width: 3px; border-radius: 2px; background: var(--c5-blue); }
+.c5-mark b { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); min-width: 22px; padding: 1px 6px; border-radius: 999px; background: var(--c5-blue); color: #fff; font-size: 11px; font-weight: 700; text-align: center; white-space: nowrap; }
+
+/* 引文图：真实简历原句完整排版 */
+.c5-img-quote { display: flex; flex-direction: column; justify-content: space-between; aspect-ratio: 4 / 5; padding: 18px 18px 16px; }
+.c5-q-mark { font-size: 64px; line-height: 0.7; height: 34px; color: var(--ink); }
+.c5-q-text { font-family: var(--c5-serif); font-size: 16px; line-height: 1.7; color: var(--ink); }
+.c5-q-text u { text-decoration-thickness: 2px; text-underline-offset: 5px; text-decoration-color: var(--ink); }
+.c5-q-src { font-size: 11px; letter-spacing: 0.1em; color: var(--subtle); }
+
+/* 文字：参考人物卡的节奏 */
+.c5-text { min-width: 0; padding-top: 2px; }
+.c5-title { display: flex; align-items: baseline; gap: 10px; margin: 0; font-weight: 400; }
+.c5-title .font-human { font-size: 34px; line-height: 1.1; color: var(--ink); }
+.c5-aside { font-size: 18px; color: var(--subtle); }
+.c5-over { margin: 8px 0 0; font-size: 13px; letter-spacing: 0.12em; color: var(--muted); }
+.c5-lede { margin: 14px 0 0; max-width: 44ch; font-size: 15px; line-height: 1.7; color: var(--ink-2); }
+.c5-question { margin: 10px 0 0; font-size: 26px; line-height: 1.45; font-weight: 400; color: var(--ink); text-wrap: pretty; }
+.c5-rows { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line); }
+.c5-rows div { display: grid; grid-template-columns: 3.4em minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.c5-rows dt { font-size: 12px; letter-spacing: 0.14em; color: var(--subtle); }
+.c5-rows dd { margin: 0; font-size: 15px; color: var(--ink); }
+.c5-need { color: var(--c5-blue) !important; font-weight: 600; }
+
+.c5-stat { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 0; }
+.c5-stat b { font-size: 56px; line-height: 0.9; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.c5-stat span { font-size: 14px; color: var(--muted); }
+.c5-meter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 14px; }
+.c5-meter-cells { display: flex; gap: 3px; }
+.c5-meter-cells i { width: 10px; height: 10px; border-radius: 2px; box-shadow: inset 0 0 0 1.5px var(--ink); }
+.c5-meter-cells i.on { background: var(--ink); }
+.c5-meter-label { font-size: 12px; letter-spacing: 0.1em; color: var(--subtle); }
+
+/* 动作：平时不占视觉，悬停 / 聚焦时浮出 */
+.c5-acts { display: flex; gap: 20px; align-items: baseline; margin-top: 16px; opacity: 0; transform: translateY(4px); transition: opacity 160ms, transform 160ms; }
+.c5:hover .c5-acts, .c5:focus-within .c5-acts, .c5-show-acts .c5-acts { opacity: 1; transform: none; }
+@media (hover: none) { .c5-acts { opacity: 1; transform: none; } }
+.c5-act-main { font-size: 15px; font-weight: 600; color: var(--c5-blue); cursor: pointer; }
+.c5-act { font-size: 14px; color: var(--muted); cursor: pointer; }
+.c5-act-main:hover, .c5-act:hover { text-decoration: underline; text-underline-offset: 4px; }
+.c5-act-main:focus-visible, .c5-act:focus-visible { outline: 2px solid var(--c5-blue); outline-offset: 3px; border-radius: 3px; }
+@media (prefers-reduced-motion: reduce) { .c5-img, .c5-acts { transition: none; } }
+
+@container chat (max-width: 520px) {
+  .c5 { grid-template-columns: 120px minmax(0, 1fr); column-gap: 18px; }
+  .c5-title .font-human { font-size: 26px; }
+  .c5-lede { display: none; }
+  .c5-question { font-size: 20px; }
+  .c5-stat b { font-size: 40px; }
+  .c5-img-quote { aspect-ratio: auto; padding: 10px; }
+  .c5-q-text { font-size: 11px; }
+  .c5-q-mark { font-size: 40px; height: 22px; }
+  .c5-mark b { display: none; }
+  .c5-q-src { display: none; }
+}

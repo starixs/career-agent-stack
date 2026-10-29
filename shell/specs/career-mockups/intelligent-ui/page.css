@@ -1,0 +1,14 @@
+html, body { overflow: visible; overscroll-behavior: auto; height: auto; }
+body { overflow-x: hidden; background: var(--bg); color: var(--ink); }
+.pv-page { padding: 20px 16px 60px; }
+.pv-controls { display: flex; flex-wrap: wrap; gap: 10px 16px; max-width: 1000px; margin: 0 auto 18px; }
+.pv-seg { display: inline-flex; border: 1.5px solid var(--hard); border-radius: 8px; overflow: hidden; }
+.pv-seg button { padding: 5px 12px; font-size: 13px; color: var(--ink-2); background: var(--paper); cursor: pointer; }
+.pv-seg button + button { border-left: 1.5px solid var(--hard); }
+.pv-seg button[aria-pressed='true'] { background: var(--ink); color: var(--bg); }
+.pv-chat { container: chat / inline-size; max-width: 1000px; margin: 0 auto; padding: 16px 0; background: var(--bg); }
+.pv-chat[data-width='narrow'] { max-width: 460px; border-inline: 1px dashed var(--line-2); }
+.pv-chat .ai-message-content > p { margin: 0; font-size: 15px; line-height: 1.75; }
+.pv-acts .c5-acts { opacity: 1; transform: none; }
+.pv-reset { padding: 5px 12px; font-size: 13px; border: 1.5px solid var(--hard); border-radius: 8px; background: var(--paper); color: var(--ink); cursor: pointer; }
+.pv-composer { display: flex; align-items: center; justify-content: space-between; max-width: 790px; margin: 8px auto 0; padding: 12px 12px 12px 18px; border: 1.5px solid var(--hard); border-radius: 12px; background: var(--paper); color: var(--subtle); font-size: 14px; }
