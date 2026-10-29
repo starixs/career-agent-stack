@@ -38,6 +38,8 @@ export interface IntakeInput {
   mail?: { subject?: string | null; from?: string | null; received_at?: string | null };
   /** 用户在面板里已指定归属的投递。 */
   application_id?: string | null;
+  /** 第一次连邮箱时导入的历史邮件：不推面板、不进通知中心，只把申请和卷宗建好。 */
+  history?: boolean;
 }
 
 export interface TriageResult {
@@ -60,7 +62,7 @@ export interface IntakeResult {
   summary: string;
 }
 
-const INBOX_KIND_SET = new Set<string>(['jd', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other']);
+const INBOX_KIND_SET = new Set<string>(['jd', 'application_received', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other']);
 
 /** 技能提示词 + 模型 → JSON（与 career-tools.askSkill 同形，这里不依赖工具层）。 */
 async function askSkill<T>(deps: IntakeDeps, skill: string, user: string, temperature = 0.2): Promise<T> {
@@ -138,6 +140,16 @@ export async function captureIntake(deps: IntakeDeps, input: IntakeInput): Promi
   return applied;
 }
 
+/**
+ * 已经分好类的内容直接落库，不调模型（历史邮件的规则分类用）。
+ * history 时静默：调用方整批结束后自己推一次 dataChanged。
+ */
+export async function captureTriaged(deps: IntakeDeps, input: IntakeInput, triage: TriageResult): Promise<IntakeResult> {
+  const quiet: IntakeDeps = input.history ? { ...deps, broadcast: () => undefined } : deps;
+  const item = deps.repos.createInboxItem({ source: input.source ?? 'paste', raw_text: input.text.trim(), mail_message_id: input.mail_message_id ?? null });
+  return applyTriage(quiet, item, triage, input, deps.now?.() ?? new Date().toISOString());
+}
+
 async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResult, input: IntakeInput, nowIso: string): Promise<IntakeResult> {
   const r = deps.repos;
   const store = new CareerStore(r, deps.core);
@@ -162,11 +174,11 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       // 邮件 / 粘贴里只有公司与岗位名；批次只在原文字面出现时才记（不猜行业）
       const board = deps.core.serializeBoardMeta({ batch: deps.core.batchFromText(title, input.mail?.subject, item.raw_text) });
       const job = r.upsertJob({ source_platform: 'manual', title: title ?? '未命名岗位', company_name: company, board_json: board });
-      app = r.createApplication(job.id);
+      app = r.createApplication(job.id, null, at);
       created.job_id = job.id;
       tables.add('job').add('application');
     }
-    const { app: next, moved } = r.advanceTo(app.id, stage, note);
+    const { app: next, moved } = r.advanceTo(app.id, stage, note, at);
     app = next;
     created.application_id = app.id;
     if (moved) tables.add('application').add('application_history');
@@ -174,6 +186,8 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
   };
   /** 邮件里没写年份的日期按收件时间补年份：九月的旧邮件写「9月10日」就是今年九月，不是明年。 */
   const refIso = input.mail?.received_at ?? nowIso;
+  /** 阶段流转记在邮件到达的时刻，「我的求职月」才按真实月份统计。 */
+  const at = input.mail?.received_at ?? undefined;
   /**
    * allowUnknownTime：笔试 / 测评通知没写时间也建一条（due_at 为 null = 时间未知），笔试记录和投递进度才看得到。
    * 导入时就已经过去的事（第一次连邮箱拉到的历史邮件）不建截止事件：它已经发生了，只留在卷宗和面试记录里，
@@ -197,6 +211,10 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
         created.job_id = job.id; tables.add('job');
         break;
       }
+      case 'application_received': {
+        ensureApplication('applied', '收到投递确认');
+        break;
+      }
       case 'interview_invite': {
         const a = ensureApplication('interview', `收到面试邀请${f.round ? `（${f.round}）` : ''}`);
         const itv = store.createInterview({ application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRound(f.round), date: normalizeIso(f.when, refIso) ?? null });
@@ -215,8 +233,10 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
         break;
       }
       case 'rejection': {
+        // 没见过的公司来了拒信，说明投过：先补建这份投递再关掉，漏斗才完整
+        if (!app && company) ensureApplication('applied', '收到拒信（之前的投递）');
         if (app) {
-          app = r.jumpTo(app.id, 'rejected', '收到拒信');
+          app = r.jumpTo(app.id, 'rejected', '收到拒信', {}, at);
           created.closed_application_id = app.id; tables.add('application').add('application_history');
           r.addDossierNote({ application_id: app.id, kind: 'heard', content: `拒信：${triage.summary ?? ''}` });
           tables.add('dossier_note');
@@ -253,7 +273,8 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
         : created.job_id ? { linked_type: 'job', linked_id: created.job_id }
           : created.deadline_ids[0] ? { linked_type: 'deadline', linked_id: created.deadline_ids[0] } : {};
   const needsUser = kind === 'other' || (triage.relevance === 'job' && !linked.linked_id && kind !== 'rejection');
-  const done = r.resolveInboxItem(item.id, { kind, parsed: triage, ...linked, note: noteText, status: needsUser ? 'new' : 'processed' });
+  const status = input.history ? 'dismissed' : needsUser ? 'new' : 'processed';
+  const done = r.resolveInboxItem(item.id, { kind, parsed: triage, ...linked, note: noteText, status });
   dataChanged(deps, [...tables]);
   const appId = created.application_id ?? created.closed_application_id ?? app?.id ?? null;
   const hint: FocusHint = appId ? { surface: 'dossier', application_id: appId } : created.job_id ? { surface: 'dossier', job_id: created.job_id } : { surface: 'inbox', id: item.id };

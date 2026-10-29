@@ -74,18 +74,19 @@ export class Repos {
   }
 
   // ---------- 投递台 ----------
-  createApplication(jobId: string, resumeTailoredId?: string | null): Application {
-    const t = now(); const id = newId('app')
+  /** at：这件事真实发生的时间（导入历史邮件时用收件时间），缺省为现在；「我的求职月」按它分月。 */
+  createApplication(jobId: string, resumeTailoredId?: string | null, at?: string): Application {
+    const t = at ?? now(); const id = newId('app')
     this.db.insert('application', { id, job_id: jobId, resume_tailored_id: resumeTailoredId ?? null, stage: 'evaluated', created_at: t, updated_at: t })
     this.db.insert('application_history', { id: newId('hist'), application_id: id, from_stage: null, to_stage: 'evaluated', note: null, created_at: t })
     return this.getApplication(id)!
   }
   getApplication(id: string): Application | undefined { return this.db.get<Application>('SELECT * FROM application WHERE id=?', [id]) }
   listApplications(): Application[] { return this.db.all<Application>('SELECT * FROM application ORDER BY updated_at DESC') }
-  transition(appId: string, to: ApplicationStage, note?: string, extra: Partial<Application> = {}): Application {
+  transition(appId: string, to: ApplicationStage, note?: string, extra: Partial<Application> = {}, at?: string): Application {
     const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
     if (!canTransition(app.stage, to)) throw new Error(`不允许的阶段流转: ${app.stage} → ${to}`)
-    const t = now()
+    const t = at ?? now()
     this.db.transaction(() => {
       this.db.update('application', appId, { ...stripUndefined(extra), stage: to, updated_at: t })
       this.db.insert('application_history', { id: newId('hist'), application_id: appId, from_stage: app.stage, to_stage: to, note: note ?? null, created_at: t })
@@ -96,24 +97,24 @@ export class Repos {
    * 沿状态机最短合法路径把投递推进到目标阶段（收件箱 / 邮件归档用：收到面试邀请时投递可能还停在 evaluated）。
    * 每一步都写 application_history；到不了目标阶段抛错。
    */
-  jumpTo(appId: string, to: ApplicationStage, note?: string, extra: Partial<Application> = {}): Application {
+  jumpTo(appId: string, to: ApplicationStage, note?: string, extra: Partial<Application> = {}, at?: string): Application {
     const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
     if (app.stage === to) return app
     const path = shortestStagePath(app.stage, to)
     if (!path) throw new Error(`无法从 ${app.stage} 推进到 ${to}`)
     // transition 自带事务（SQLite 不支持嵌套），这里顺序执行即可。
     let cur = app
-    path.forEach((stage, i) => { cur = this.transition(appId, stage, i === path.length - 1 ? note : `自动推进（${note ?? ''}）`, i === path.length - 1 ? extra : {}) })
+    path.forEach((stage, i) => { cur = this.transition(appId, stage, i === path.length - 1 ? note : `自动推进（${note ?? ''}）`, i === path.length - 1 ? extra : {}, at) })
     return cur
   }
   /**
    * 只往前推进（收件箱 / 邮件归档用）：目标阶段在当前阶段前方才 jumpTo；已经在目标阶段、或已走得更远 / 已关闭
    * （例如已在面试又收到一封笔试通知），原样返回、不抛错——一封迟到的邮件不能让整条归档失败。
    */
-  advanceTo(appId: string, to: ApplicationStage, note?: string): { app: Application; moved: boolean } {
+  advanceTo(appId: string, to: ApplicationStage, note?: string, at?: string): { app: Application; moved: boolean } {
     const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
     if (!canReachStage(app.stage, to)) return { app, moved: false }
-    return { app: this.jumpTo(appId, to, note), moved: true }
+    return { app: this.jumpTo(appId, to, note, {}, at), moved: true }
   }
   /** 看板三问题：今天必须做什么 / 哪里卡住 / 漏斗分布。 */
   board(today = now().slice(0, 10)) {

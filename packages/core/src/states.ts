@@ -80,7 +80,7 @@ export const INTERVIEW_RESULT_SOURCES = ['none', 'official', 'inferred'] as cons
 // ===== 五个面（收件箱 / 今日 / 卷宗 / 素材 / 复盘）用到的枚举 =====
 export const INBOX_SOURCES = ['paste', 'mail', 'file', 'url', 'chat'] as const
 export type InboxSource = typeof INBOX_SOURCES[number]
-export const INBOX_KINDS = ['jd', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other'] as const
+export const INBOX_KINDS = ['jd', 'application_received', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other'] as const
 export type InboxKind = typeof INBOX_KINDS[number]
 export const INBOX_STATUSES = ['new', 'processed', 'dismissed'] as const
 export type InboxStatus = typeof INBOX_STATUSES[number]

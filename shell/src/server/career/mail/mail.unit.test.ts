@@ -47,12 +47,14 @@ describe('providers / credentials', () => {
 });
 
 describe('syncMailAccount', () => {
-  it('新邮件落库、求职邮件归档到卷宗、无关邮件忽略、last_uid 前进、重复 uid 跳过', async () => {
+  it('增量同步：新邮件落库、求职邮件归档到卷宗、无关邮件忽略、last_uid 前进、重复 uid 跳过', async () => {
     const llm = new FakeLLM();
     const d = await deps(llm);
     const job = d.repos.upsertJob({ source_platform: 'manual', title: '运营', company_name: '甲公司' });
     const app = d.repos.createApplication(job.id);
-    const account = d.repos.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' });
+    const created = d.repos.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' });
+    d.repos.updateMailAccount(created.id, { last_uid: 4 });
+    const account = d.repos.getMailAccount(created.id)!;
     setMailPassword(account.id, 'code');
     llm.push(JSON.stringify({ kind: 'interview_invite', relevance: 'job', fields: { company: '甲公司', when: '2026-10-06T02:00:00Z', round: 'hr' }, match: { application_id: app.id }, summary: '甲公司 HR 面' }));
     const fetched = [mail({ uid: 5 }), mail({ uid: 6, from: 'news@shop.com', subject: '双十一优惠', text: '买买买' })];

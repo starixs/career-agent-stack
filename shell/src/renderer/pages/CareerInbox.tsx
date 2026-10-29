@@ -41,7 +41,7 @@ const FILTERS: Filter[] = ['all', 'mail', 'review', 'batch', 'remind'];
 
 const SOURCE_LABELS: Record<InboxItem['source'], string> = { paste: '粘贴', mail: '邮件', file: '文件', url: '链接', chat: '对话' };
 const KIND_LABELS: Record<string, string> = {
-  jd: '岗位 JD', interview_invite: '面试邀请', assessment: '测评', written_test: '笔试', rejection: '拒信', offer: 'Offer', referral: '内推', deadline: '截止提醒', other: '未识别',
+  jd: '岗位 JD', application_received: '投递确认', interview_invite: '面试邀请', assessment: '测评', written_test: '笔试', rejection: '拒信', offer: 'Offer', referral: '内推', deadline: '截止提醒', other: '未识别',
 };
 const LINKED_TYPE_LABELS: Record<string, string> = { application: '投递', interview: '面试', offer: 'Offer', job: '岗位', deadline: '截止', inbox_item: '收件' };
 const PREVIEW_LIMIT = 160;
