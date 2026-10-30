@@ -6,7 +6,7 @@
  *  - 每个动作：drive → persistDriveOutcome 落库；遇接管（登录 / 验证码 / 测评）就等用户在浏览器里处理并点"交回"
  *    （handoff.resumed_at 被写上）再从当前页继续，不需要模型再调工具。
  *  - 并行（p-queue）：不同网站同时填（默认 2 份，每份网申在自己的页面上），同一网站严格串行；
- *    同一网站两份之间拟人停顿；平台有风险锁就先跳过该平台；用户正在接管浏览器时不再开新的；每日上限。
+ *    同一网站两份之间拟人停顿；平台有风险锁就先跳过该平台；用户正在接管浏览器时不再开新的。没有每日上限（用户 2026-10-30「不要做上限」）。
  *  - 每次状态变化 broadcast `career:batch`；接管状态同时广播 `career:takeover`，前端接管条 / 现场窗复用。
  */
 import PQueue from 'p-queue';
@@ -23,7 +23,7 @@ export interface BatchState {
   /** 正在并行填写的网申（每个网站至多一份）。 */
   running?: Array<{ actionId: string; title: string; host: string }>;
   concurrency?: number;
-  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked' | 'daily_cap';
+  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked';
   message?: string;
   done: number;
   failed: number;
@@ -64,7 +64,6 @@ export interface BatchRunnerDeps {
   /** 这份投递要上传的简历文件：优先材料包（核对哈希），旧动作按 resume_id 现导。 */
   resumeFileFor?: (payload: Record<string, unknown>) => Promise<{ path?: string; error?: string }>;
   pacingMs?: [number, number];
-  dailyCap?: number;
   /** 同时填几份（不同网站）；同一网站永远串行。缺省 2。 */
   concurrency?: number;
   pollMs?: number;
@@ -194,7 +193,6 @@ export class BatchRunner {
 
   private async loopBody(): Promise<void> {
     const poll = this.deps.pollMs ?? 3000;
-    const cap = this.deps.dailyCap ?? 30;
     const [pLo, pHi] = this.deps.pacingMs ?? [20_000, 60_000];
     const concurrency = Math.max(1, this.deps.concurrency ?? 2);
     const queue = new PQueue({ concurrency });
@@ -203,8 +201,6 @@ export class BatchRunner {
     /** 每个网站下一份最早什么时候开始（同站拟人停顿）。 */
     const nextAt = new Map<string, number>();
     const running = () => [...inFlight].map(([actionId, v]) => ({ actionId, title: v.title, host: v.host }));
-    /** 今天已开始但还没计数的（runOne 结束时才计入当天名额）。 */
-    const startedInFlight = () => [...inFlight.values()].filter(v => v.mode === 'start').length;
     const busyHosts = () => new Set([...inFlight.values()].map(v => v.host));
     const launch = (action: ActionQueueItem, mode: 'start' | 'continue') => {
       const host = this.platformOf(action, this.payloadOf(action));
@@ -245,14 +241,11 @@ export class BatchRunner {
         if (busyHosts().has(host) || (this.transientCooldown.get(host) ?? 0) > nowMs) continue;
         launch(a, 'continue');
       }
-      const capped = this.todayCount() + startedInFlight() >= cap;
-      if (!capped) {
-        for (const a of q) {
-          if (inFlight.size >= concurrency || this.todayCount() + startedInFlight() >= cap) break;
-          if (this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a)))) continue;
-          if (!ready(a) || busyHosts().has(this.platformOf(a, this.payloadOf(a)))) continue;
-          launch(a, 'start');
-        }
+      for (const a of q) {
+        if (inFlight.size >= concurrency) break;
+        if (this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a)))) continue;
+        if (!ready(a) || busyHosts().has(this.platformOf(a, this.payloadOf(a)))) continue;
+        launch(a, 'start');
       }
       if (inFlight.size) {
         this.setState({ status: 'running', phase: 'driving', running: running(), concurrency, currentActionId: running()[0]?.actionId, currentTitle: running()[0]?.title, message: `正在填写 ${inFlight.size} 份：${running().map(r => r.title).join('、')}` });
@@ -260,7 +253,6 @@ export class BatchRunner {
         continue;
       }
       // 没有在填的
-      if (this.todayCount() >= cap && q.length) { this.setState({ phase: 'daily_cap', running: [], message: `今日已投 ${this.todayCount()} 份，达到上限 ${cap}，明天继续` }); await this.idle(60_000); continue; }
       if (q.length) {
         const lockedAll = q.every(a => this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a))));
         if (lockedAll) { this.setState({ phase: 'rate_locked', running: [], message: `队列里 ${q.length} 份所在平台都在风险锁中，稍后再试` }); await this.idle(60_000); continue; }

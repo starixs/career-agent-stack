@@ -12,10 +12,11 @@ describe('RiskGuard', () => {
     expect(repos.kvGet('apply:risk_lock:beisen')).toMatchObject({ reason: 'captcha' })
     now = new Date('2026-10-02T10:31:00Z'); expect(g.shouldStop().stop).toBe(false)
   })
-  it('每日页数上限', () => {
-    const g = new RiskGuard(mem(), { platform: 'x', dailyPageCap: 2 })
-    expect(g.reservePage()).toBe(true); expect(g.reservePage()).toBe(true); expect(g.reservePage()).toBe(false)
-    expect(g.shouldStop()).toMatchObject({ stop: true, reason: 'daily_page_cap' })
+  it('没有每日页数上限：打开多少页都只计数，不叫停（用户 2026-10-30「不要做上限」）', () => {
+    const g = new RiskGuard(mem(), { platform: 'x' })
+    for (let i = 0; i < 500; i++) g.countPage()
+    expect(g.pagesToday()).toBe(500)
+    expect(g.shouldStop().stop).toBe(false)
   })
   it('inspect：验证码 / 登录墙 / 限流即 trip', () => {
     const g = new RiskGuard(mem(), { platform: 'x' })

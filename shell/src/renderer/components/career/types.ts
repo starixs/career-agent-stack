@@ -165,7 +165,7 @@ export interface VaultAccessLogRow { id: string; item_id: string | null; actor: 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
 export interface BatchState {
   status: BatchStatus; startedAt?: string; updatedAt: string; currentActionId?: string; currentTitle?: string;
-  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked' | 'daily_cap';
+  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked';
   message?: string; done: number; failed: number; handoffs: number; queued: number; todayCount: number; lastError?: string;
   /** 正在并行填写的网申（不同网站各一份）。 */
   running?: Array<{ actionId: string; title: string; host: string }>; concurrency?: number;
