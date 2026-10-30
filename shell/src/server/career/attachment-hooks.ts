@@ -1,6 +1,6 @@
 /**
- * SDK hook 入口（agent-session 只挂这里的函数）：UserPromptSubmit 注入附件文字。
- * 依赖惰性加载；任何失败都只记日志并放行，附件不能挡住对话。
+ * SDK hook 入口（agent-session 只挂这里的函数）：UserPromptSubmit 注入附件文字、低谷开场。
+ * 依赖惰性加载；任何失败都只记日志并放行，附件和开场都不能挡住对话。
  */
 import type { HookInput, HookJSONOutput, UserPromptSubmitHookInput } from '@anthropic-ai/claude-agent-sdk';
 
@@ -15,6 +15,20 @@ export async function careerAttachmentPromptHook(input: HookInput): Promise<Hook
     return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } };
   } catch (error) {
     console.warn('[career-attach] 读取附件失败（放行）：', error instanceof Error ? error.message : error);
+    return {};
+  }
+}
+
+/** 低谷开场：连收拒信后他第一次说话时，让助理开头说一句带基数的话（见 low-point.ts）。 */
+export async function careerLowPointPromptHook(_input: HookInput): Promise<HookJSONOutput> {
+  try {
+    const [{ getRepos }, { lowPointOpener }] = await Promise.all([import('./db'), import('./low-point')]);
+    const context = lowPointOpener(await getRepos(), new Date().toISOString());
+    if (!context) return {};
+    console.log('[career-low-point] opener injected');
+    return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } };
+  } catch (error) {
+    console.warn('[career-low-point] 开场判断失败（放行）：', error instanceof Error ? error.message : error);
     return {};
   }
 }

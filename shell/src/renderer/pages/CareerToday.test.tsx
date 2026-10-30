@@ -178,6 +178,14 @@ describe('CareerToday · 招聘概览', () => {
     expect(apiPostJson).not.toHaveBeenCalled();
   });
 
+  it('AI 收起的没回音的线只报一个数：没有「关闭这条线 / 再等等」', async () => {
+    mockGet({ items: [{ kind: 'stale', priority: 6, title: '这周有 51 家一直没回音，已替你收起', detail: '来信会自动接回', ref: { type: 'silent_collected', id: '2026-10-19' } }] });
+    render(<CareerToday isActive onOpenChat={vi.fn()} />);
+    expect(await within(sidebar()).findByText('这周有 51 家一直没回音，已替你收起')).toBeInTheDocument();
+    expect(within(sidebar()).queryByRole('button', { name: '关闭这条线' })).not.toBeInTheDocument();
+    expect(within(sidebar()).queryByRole('button', { name: '再等等' })).not.toBeInTheDocument();
+  });
+
   it('data-changed 后重新拉取', async () => {
     mockGet();
     render(<CareerToday isActive onOpenChat={vi.fn()} />);

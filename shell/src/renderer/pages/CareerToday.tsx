@@ -417,7 +417,8 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
           {item.kind === 'interview_today' && (
             <ChatActionButton size="sm" variant="ghost" text="帮我准备这场面试" context={{ surface: 'today', refs: applicationId ? { application_id: applicationId } : refs }} />
           )}
-          {item.kind === 'stale' && (
+          {/* 逐条的静默只剩「投递中」卡住的；AI 收起的那条汇总（ref.type=silent_collected）只报数，没有按钮 */}
+          {item.kind === 'stale' && item.ref.type === 'application' && (
             <>
               <Button size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.closeSilent(item.ref.id), '已关闭')}>关闭这条线</Button>
               <Button variant="ghost" size="sm" onClick={() => onSnooze(todo)}>再等等</Button>

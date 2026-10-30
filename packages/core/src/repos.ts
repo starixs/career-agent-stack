@@ -7,8 +7,8 @@ import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKi
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canReachStage, canTransition, CLOSED_STAGES, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailAudit, MailMessage, Interview, Offer } from './types.js'
-import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, stageLabel, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
-import { buildMonthBoard, type MonthBoard, type StageHistoryRow } from './review-board.js'
+import { classifyJobTitle, collectedToToday, COLLECTABLE_STAGES, deadlineToToday, funnelBy, latestIso, silenceOf, SILENT_COLLECT_NOTE, sortToday, stageLabel, staleToToday, weekStartOf, type TodayItem, type FunnelRow } from './surfaces.js'
+import { buildMonthBoard, REOPEN_NOTE_PREFIX, type MonthBoard, type StageHistoryRow } from './review-board.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
 export interface AnswerRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: AnswerSensitivity; source: string; use_count: number; last_used_at: string | null; updated_at: string }
@@ -581,12 +581,34 @@ export class Repos {
    * alsoStages：额外算作「还在进行」的终态，如 Offer 来信要算上已接受（hired）的那份——接了之后还会来三方、入职通知。
    */
   findOpenApplicationsByCompany(companyName: string, alsoStages: readonly ApplicationStage[] = []): Array<Application & { job: Job }> {
+    const closed = CLOSED_STAGES.filter(s => !alsoStages.includes(s))
+    return this.applicationsOfCompany(companyName).filter(a => !closed.includes(a.stage))
+  }
+  /** 按公司名找投出过、后来被关掉的投递（静默超时关闭或用户放弃）：迟到的回信要接回它们。 */
+  findClosedSentApplicationsByCompany(companyName: string): Array<Application & { job: Job }> {
+    const sent = new Set(this.db.all<{ application_id: string }>(`SELECT DISTINCT application_id FROM application_history WHERE to_stage='applied'`).map(r => r.application_id))
+    return this.applicationsOfCompany(companyName).filter(a => a.stage === 'discarded' && sent.has(a.id))
+  }
+  /**
+   * 关掉的投递来了迟到的回信：重新打开回到已投递，后续由归档照常推进。
+   * 这不是状态机里的前进边（放进 STAGE_TRANSITIONS 会让 jumpTo 经 discarded 绕路回退），所以单独一个入口、只认 discarded。
+   */
+  reopenClosed(appId: string, note: string): Application {
+    const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
+    if (app.stage !== 'discarded') throw new Error(`只有已关闭的投递能重新打开: ${appId} 现在是 ${app.stage}`)
+    const t = now()
+    this.db.transaction(() => {
+      this.db.update('application', appId, { stage: 'applied', updated_at: t })
+      this.db.insert('application_history', { id: newId('hist'), application_id: appId, from_stage: 'discarded', to_stage: 'applied', note: `${REOPEN_NOTE_PREFIX}${note}`, created_at: t })
+    })
+    return this.getApplication(appId)!
+  }
+  private applicationsOfCompany(companyName: string): Array<Application & { job: Job }> {
     const key = companyName.trim().toLowerCase()
     if (!key) return []
-    const closed = CLOSED_STAGES.filter(s => !alsoStages.includes(s))
     return this.applicationsWithJob().filter(a => {
       const name = (a.job.company_name ?? '').toLowerCase()
-      return name && (name.includes(key) || key.includes(name)) && !closed.includes(a.stage)
+      return name && (name.includes(key) || key.includes(name))
     })
   }
 
@@ -633,6 +655,7 @@ export class Repos {
   /** 今天必须做的事（已排序）：今天到期 → 待审 → 接管 → 今日面试 → 新收件 → 静默可关 → 近三天到期 → 已过期（OVERDUE_PRIORITY）。 */
   today(nowIso = now()): { items: TodayItem[]; waiting: { count: number; by_stage: Array<{ stage: string; n: number }> }; inbox_new: number; pending_review: number } {
     this.markMissedDeadlines(nowIso)
+    this.collectSilent(nowIso)
     const items: TodayItem[] = []
     for (const d of this.listDeadlines({ status: 'open_or_missed' })) {
       if (!d.due_at) {
@@ -653,7 +676,10 @@ export class Repos {
     }
     for (const h of this.openHandoffs()) items.push({ kind: 'handoff', priority: 3, title: `需要你本人处理：${handoffReasonLabel(h.reason)}`, detail: h.message ?? undefined, ref: { type: 'handoff', id: h.id } })
     const apps = this.applicationsWithJob()
-    for (const a of apps) { const it = staleToToday({ ...a, title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }
+    const activity = this.lastActivityByApp()
+    for (const a of apps) { const it = staleToToday({ ...a, updated_at: latestIso(a.updated_at, activity.get(a.id)), title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }
+    const weekStart = weekStartOf(nowIso)
+    const collected = collectedToToday(this.collectedIds(weekStart + 'T00:00:00Z').size, weekStart); if (collected) items.push(collected)
     const inboxNew = this.listInbox('new')
     if (inboxNew.length) items.push({ kind: 'inbox', priority: 5, title: `收件箱有 ${inboxNew.length} 条新内容待归档`, ref: { type: 'inbox_item', id: inboxNew[0].id }, suggest: '帮我把收件箱里的新内容归档' })
     const waitingStages: ApplicationStage[] = ['applied', 'responded', 'interview', 'pending']
@@ -687,6 +713,34 @@ export class Repos {
     return entries.sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0)).slice(0, limit)
   }
 
+  /** 等回音的线到了静默阈值就收起（discarded，备注 SILENT_COLLECT_NOTE）；来信时 reopenClosed 接回。返回收起几条。 */
+  collectSilent(nowIso = now()): number {
+    const activity = this.lastActivityByApp()
+    const quiet = this.listApplications().filter(a => COLLECTABLE_STAGES.includes(a.stage) && silenceOf(a.stage, latestIso(a.updated_at, activity.get(a.id)), nowIso).silent)
+    for (const a of quiet) this.jumpTo(a.id, 'discarded', SILENT_COLLECT_NOTE)
+    return quiet.length
+  }
+  /** 因静默被收起、现在仍收着的投递；since 给定时只算那之后收起的。 */
+  collectedIds(since = ''): Set<string> {
+    return new Set(this.db.all<{ id: string }>(
+      `SELECT DISTINCT a.id FROM application a JOIN application_history h ON h.application_id=a.id
+       WHERE a.stage='discarded' AND h.to_stage='discarded' AND h.note=? AND h.created_at >= ?`, [SILENT_COLLECT_NOTE, since]).map(r => r.id))
+  }
+  /**
+   * 每份投递除阶段变化以外最近的一次动静：挂上的截止事件（建立时刻；还没到的取到期时刻）、卷宗记录、关联邮件。
+   * 静默判定按它和 updated_at 取晚的——收到笔试通知时阶段不变（仍是已投递），只看 updated_at 会把后天要考的线叫成静默。
+   */
+  lastActivityByApp(): Map<string, string> {
+    const rows = this.db.all<{ application_id: string; at: string | null }>(
+      `SELECT application_id, MAX(at) AS at FROM (
+         SELECT application_id, created_at AS at FROM deadline WHERE application_id IS NOT NULL
+         UNION ALL SELECT application_id, due_at FROM deadline WHERE application_id IS NOT NULL AND status='open' AND due_at IS NOT NULL
+         UNION ALL SELECT application_id, created_at FROM dossier_note WHERE application_id IS NOT NULL
+         UNION ALL SELECT application_id, received_at FROM mail_message WHERE application_id IS NOT NULL AND received_at IS NOT NULL
+       ) GROUP BY application_id`)
+    return new Map(rows.flatMap(r => (r.at ? [[r.application_id, r.at] as [string, string]] : [])))
+  }
+
   // ---------- 漏斗 / 复盘 ----------
   /** 全部阶段流转，按时间先后。 */
   stageHistory(): StageHistoryRow[] {
@@ -695,7 +749,9 @@ export class Repos {
   funnel(nowIso = now()): { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null } {
     const reached = new Map<string, string[]>()
     for (const h of this.stageHistory()) reached.set(h.application_id, [...(reached.get(h.application_id) ?? []), h.to_stage])
-    const rows = this.applicationsWithJob().map(a => ({ ...a, reached_stages: reached.get(a.id) ?? [] }))
+    const activity = this.lastActivityByApp()
+    const collected = this.collectedIds()
+    const rows = this.applicationsWithJob().map(a => ({ ...a, updated_at: latestIso(a.updated_at, activity.get(a.id)), reached_stages: reached.get(a.id) ?? [], collected: collected.has(a.id) }))
     const byCategory = funnelBy(rows, r => classifyJobTitle(r.job.title), nowIso)
     const byPlatform = funnelBy(rows, r => r.job.source_platform, nowIso)
     const overall = funnelBy(rows, () => 'all', nowIso)[0] ?? null

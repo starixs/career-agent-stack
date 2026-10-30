@@ -102,5 +102,8 @@ export type MaterialKind = typeof MATERIAL_KINDS[number]
 export const MAIL_PROVIDERS = ['qq', '163', '126', 'gmail', 'outlook', 'imap'] as const
 export type MailProvider = typeof MAIL_PROVIDERS[number]
 
-/** 投递静默判定：某阶段停留超过 N 天且没有任何新事件，视为"可关闭的静默"。 */
-export const SILENCE_DAYS: Partial<Record<ApplicationStage, number>> = { applied: 21, responded: 14, interview: 14, pending: 7 }
+/**
+ * 投递静默判定：某阶段停留超过 N 天且没有任何新事件，视为"可关闭的静默"。
+ * 投出后 30 天、面试后 21 天（2026-10-30 定，低谷面）：回音多半 7 天内，大厂约一个月；秋招面试后等两三周很常见。
+ */
+export const SILENCE_DAYS: Partial<Record<ApplicationStage, number>> = { applied: 30, responded: 14, interview: 21, pending: 7 }
