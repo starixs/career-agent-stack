@@ -467,7 +467,9 @@ export const pageSignalsScript: PageScript<void, PageSignals> = {
     }
     // 很多站的"添加一段经历"是带点击事件的 div / span（美团「添加教育经历」就是），不是 button：
     // 按行为补收——可点（手形光标 / onclick / tabindex）、文字是"添加 / 新增 …"的最内层元素。只补这类入口，不碰提交按钮识别。
-    const ADD_RX = /^(\+|＋)?\s*(添加|新增|增加|继续添加|再添加)/
+    // 北森 zhiye 岗位行就地展开后的「立即投递」也是可点 div（2026-10-31 联发科技）：申请入口同样按行为补收，
+    // 点不点由 drive 的入口守卫决定（只在页面还没有网申表时点）
+    const ADD_RX = /^(\+|＋)?\s*(添加|新增|增加|继续添加|再添加)|^(立即投递|投递|投递简历|申请职位|立即申请|我要投递|我要申请)$/
     const addCands = Array.from(document.querySelectorAll('div, span, p, li, i, label, em, strong')).filter(el => {
       // 只排除本次已当按钮收下的元素（上一次扫描留下的标记不算，否则第二次扫描就把它漏了）
       if (tagged.some(b => b.contains(el)) || !vis(el)) return false
