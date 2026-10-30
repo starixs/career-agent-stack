@@ -1,10 +1,10 @@
 # 浏览器面切面（2026-10-30）：用户一句话，第一步工具选得对不对。
-# 网址一律先打开看（不能只存一个空链接）；搜索与查公司在面页定之前放宽到几种合理入口。
+# 网址一律先打开看（不能只存一个空链接）：静态页 web_fetch 或浏览器都行，单页应用 / 要登录的站直接开浏览器也对。
 - description: ① 丢来岗位详情链接——先打开看，不是只存链接
   vars:
     task: chat_first_step
     message: https://jobs.bytedance.com/campus/position/7701285444265445637/detail 这个岗位帮我看看适不适合我
-    expect_tool: browser_open
+    expect_tool: [web_fetch, browser_open]
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk
@@ -12,7 +12,7 @@
   vars:
     task: chat_first_step
     message: https://join.qq.com/post.html
-    expect_tool: browser_open
+    expect_tool: [web_fetch, browser_open]
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk
@@ -20,7 +20,7 @@
   vars:
     task: chat_first_step
     message: https://mp.weixin.qq.com/s/Xk3mWq0demo 美团宣讲会的推文，帮我看下我们学校是哪天
-    expect_tool: browser_open
+    expect_tool: [web_fetch, browser_open]
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk
@@ -53,6 +53,22 @@
     task: chat_first_step
     message: 美团现在校招还有哪些北京的后端岗位？
     expect_tool: [browser_open, web_search]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 丢一个 PDF 链接——直取读文字，不开浏览器
+  vars:
+    task: chat_first_step
+    message: https://example.edu.cn/files/2027-campus-recruit.pdf 学校发的校招简章，帮我挑出和计算机相关的单位
+    expect_tool: web_fetch
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 「登某某网站看看」——直接开浏览器（要登录的平台）
+  vars:
+    task: chat_first_step
+    message: 登上牛客帮我看看我投的那几家现在什么进度
+    expect_tool: browser_open
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk

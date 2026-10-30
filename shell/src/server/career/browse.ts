@@ -12,6 +12,8 @@
  */
 import type { BrowserContext, Page } from 'playwright';
 
+import { VERIFICATION_URL_RX, humanDrag, pointTargetInPage } from './browse-pointer';
+
 // ---------- 页面内脚本（序列化后在浏览器里执行，不能引用外部变量） ----------
 export interface RawElement { ref: number; kind: string; text: string; href?: string; inputType?: string; value?: string; checked?: boolean; disabled?: boolean; options?: string[]; inViewport: boolean; isPassword?: boolean }
 export interface RawObservation { url: string; title: string; scrollY: number; scrollMax: number; viewportH: number; elements: RawElement[]; total: number; hasPassword: boolean; bodySample: string }
@@ -134,7 +136,7 @@ export function detectHints(raw: Pick<RawObservation, 'hasPassword' | 'bodySampl
   const t = raw.bodySample;
   if (raw.hasPassword || /扫码登录|微信登录|请先登录|登录后查看|手机号登录|验证码登录/.test(t)) hints.add('login');
   if (/滑块|拖动滑块|安全验证|人机验证|请完成验证|协助验证|不是自动程序|captcha|geetest|验证码已发送/i.test(t)) hints.add('captcha');
-  if (/访问过于频繁|操作频繁|异常访问|风险提示|账号存在异常/.test(t) || /verify|captcha|security-check|antispider/i.test(raw.url)) hints.add('risk');
+  if (/访问过于频繁|操作频繁|异常访问|风险提示|账号存在异常|请求存在异常|限制本次访问|操作存在异常|暂停您的访问|访问被阻断|访问受限/.test(t) || VERIFICATION_URL_RX.test(raw.url)) hints.add('risk');
   if (elements.some(e => e.submitLike)) hints.add('submit_page');
   return [...hints];
 }
@@ -197,8 +199,10 @@ export async function observe(context: BrowserContext, page: Page, deps: BrowseD
   };
 }
 
-export type ActAction = 'click' | 'type' | 'select' | 'check' | 'press' | 'scroll' | 'back' | 'forward' | 'navigate' | 'switch_tab' | 'close_tab' | 'wait';
-export interface ActRequest { observation_id?: string; ref?: number; action: ActAction; text?: string; option?: string; key?: string; direction?: 'up' | 'down'; url?: string; tab?: number; ms?: number; submit?: boolean }
+export type ActAction = 'click' | 'type' | 'select' | 'check' | 'press' | 'scroll' | 'back' | 'forward' | 'navigate' | 'switch_tab' | 'close_tab' | 'wait' | 'click_at' | 'drag';
+export interface ActRequest { observation_id?: string; ref?: number; action: ActAction; text?: string; option?: string; key?: string; direction?: 'up' | 'down'; url?: string; tab?: number; ms?: number; submit?: boolean;
+  /** click_at / drag 的视口坐标（像素）；drag 拖到 to_x / to_y。 */
+  x?: number; y?: number; to_x?: number; to_y?: number }
 export interface Receipt {
   ok: boolean; action: ActAction;
   observed_effect: 'navigated' | 'changed' | 'no_change' | 'unknown';
@@ -216,6 +220,19 @@ const refuse = (page: Page, action: ActAction, code: Receipt['code'], note: stri
   ok: false, action, observed_effect: 'no_change', url_before: page.url(), url_after: page.url(), new_tabs: [], page, retryable: required_next === 'observe', required_next, code, note,
 });
 
+/** 坐标操作的参数和闸：坐标下面是提交类按钮就不点（专门的验证页除外）。 */
+async function checkPointer(page: Page, req: ActRequest, deps: BrowseDeps): Promise<Receipt | null> {
+  if (req.action !== 'click_at' && req.action !== 'drag') return null;
+  const nums = req.action === 'drag' ? [req.x, req.y, req.to_x, req.to_y] : [req.x, req.y];
+  if (!nums.every(n => typeof n === 'number' && Number.isFinite(n))) return refuse(page, req.action, 'bad_request', `${req.action} 需要坐标 x / y${req.action === 'drag' ? ' / to_x / to_y' : ''}（视口像素）`);
+  if (req.action === 'drag') return null;
+  const target = await inPage(page, pointTargetInPage, { x: req.x!, y: req.y! });
+  if (target && deps.isSubmitText(target.text) && !VERIFICATION_URL_RX.test(page.url())) {
+    return refuse(page, req.action, 'submit_guarded', `坐标 (${req.x}, ${req.y}) 下面是「${target.text}」，是提交 / 投递类按钮，助理不能点。`, 'apply_flow');
+  }
+  return null;
+}
+
 export async function act(context: BrowserContext, page: Page, req: ActRequest, deps: BrowseDeps): Promise<Receipt> {
   const sleep = deps.sleep ?? (ms => new Promise<void>(r => setTimeout(r, ms)));
   const now = deps.now ?? Date.now;
@@ -228,7 +245,7 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
     info = record.elements.get(req.ref);
     if (!info) return refuse(page, req.action, 'element_gone', `这次观察里没有编号 ${req.ref} 的元素，先 browser_observe 重新看。`);
     if (info.disabled) return refuse(page, req.action, 'disabled', `「${info.text}」当前不可点击。`, 'observe');
-    if (req.action === 'click' && info.submitLike) {
+    if (req.action === 'click' && info.submitLike && !VERIFICATION_URL_RX.test(page.url())) {
       return refuse(page, req.action, 'submit_guarded', `「${info.text}」是提交 / 投递类按钮，助理不能直接点。要投递：先 browser_capture_job 收录这个岗位，再 apply_prepare 让用户批准，由投递流程处理（入口页会交给用户点进去）。`, 'apply_flow');
     }
     if (req.action === 'type' && info.isPassword && !(deps.hasPlaceholder?.(req.text ?? '') ?? false)) {
@@ -236,6 +253,8 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
     }
   }
   if (req.action === 'type' && typeof req.text !== 'string') return refuse(page, req.action, 'bad_request', 'type 需要 text');
+  const pointerRefusal = await checkPointer(page, req, deps);
+  if (pointerRefusal) return pointerRefusal;
   if (req.action === 'navigate' && !/^https?:\/\//i.test(req.url ?? '')) return refuse(page, req.action, 'bad_request', 'navigate 需要 http(s) 网址');
 
   // 同站拟人停顿
@@ -281,6 +300,8 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
         break;
       }
       case 'wait': await sleep(Math.min(Math.max(req.ms ?? 1000, 0), 5000)); break;
+      case 'click_at': await page.mouse.click(req.x!, req.y!, { delay: 40 + Math.random() * 80 }); break;
+      case 'drag': await humanDrag(page, { x: req.x!, y: req.y! }, { x: req.to_x!, y: req.to_y! }, sleep); break;
     }
   } catch (error) {
     dispatchError = error;

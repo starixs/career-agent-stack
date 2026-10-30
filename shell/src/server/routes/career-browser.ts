@@ -432,6 +432,14 @@ async function runBrowse(body: Record<string, unknown>, context: BrowserContext,
       out.emit({ type: 'result', op: 'browse', action, receipt: rest, ...(observation ? { observation } : {}) });
       return;
     }
+    if (action === 'solve_captcha') {
+      await runSolveCaptcha(page, out, deps);
+      return;
+    }
+    if (action === 'wait_user') {
+      await runWaitUser(body, page, out, deps);
+      return;
+    }
     if (action === 'read') {
       const r = await browse.read(page, typeof body.offset === 'number' ? body.offset : 0, typeof body.length === 'number' ? Math.min(body.length, 8000) : 4000);
       out.emit({ type: 'result', op: 'browse', action, read: r });
@@ -441,6 +449,79 @@ async function runBrowse(body: Record<string, unknown>, context: BrowserContext,
   } catch (error) {
     out.emit({ type: 'error', status: 500, code: 'BROWSE_FAILED', error: error instanceof Error ? error.message : String(error) });
   }
+}
+
+/** LlmLike 的返回是 unknown：在边界上确认有 text 再交给解题器。 */
+function visionLlm(llm: LlmLike): import('../career/captcha-solver').VisionLlm {
+  return {
+    async complete(request) {
+      const res = await llm.complete(request);
+      const text = res && typeof res === 'object' && 'text' in res && typeof res.text === 'string' ? res.text : null;
+      if (text === null) throw new Error('视觉模型返回里没有 text');
+      return { text };
+    },
+  };
+}
+
+/** 浏览器环境检查（Cloudflare 一类）不用解，等它自己放行。 */
+const BROWSER_CHECK_WAIT_MS = 6000;
+
+/**
+ * 简单验证码 AI 自己过：图形字 / 点选 / 滑块（captcha-solver.ts）。短信码、认不出的类型回 needs_user，
+ * 由模型转 browser_wait_user 请用户帮一下。
+ */
+async function runSolveCaptcha(page: Page, out: RunEmitter, deps: CareerBrowserRouteDependencies): Promise<void> {
+  const browse = await import('../career/browse');
+  const { hintSampleInPage } = await import('../career/browse-handoff');
+  const solver = await import('../career/captcha-solver');
+  const apply = await (deps.loadApply ?? loadApplyModule)();
+  const blocked = async () => { const h = browse.detectHints(await browse.inPage(page, hintSampleInPage, null), []); return h.includes('captcha') || h.includes('risk'); };
+  const sample = await browse.inPage(page, hintSampleInPage, null);
+  const classify = (apply as unknown as { classifyCaptcha?: (s: { title: string; text: string }) => string } | null)?.classifyCaptcha;
+  const kind = classify ? classify({ title: await page.title().catch(() => ''), text: sample.bodySample }) : 'unknown';
+  const finish = async (captcha: Record<string, unknown>) => {
+    console.log(`[career-browser] solve-captcha kind=${kind} status=${String(captcha.status)} attempts=${String(captcha.attempts ?? 0)}`);
+    const observation = await browse.observe(page.context(), page, { isSubmitText: () => false }).catch(() => null);
+    out.emit({ type: 'result', op: 'browse', action: 'solve_captcha', captcha: { kind, ...captcha }, ...(observation ? { observation } : {}) });
+  };
+  if (kind === 'browser_check') {
+    await page.waitForTimeout(BROWSER_CHECK_WAIT_MS);
+    return finish({ status: (await blocked()) ? 'needs_user' : 'solved', attempts: 1, steps: ['等环境检查自己放行'] });
+  }
+  if (kind !== 'image_text' && kind !== 'image_click' && kind !== 'slider') return finish({ status: 'needs_user', attempts: 0, steps: [`${kind} 类验证要本人处理`] });
+  const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
+  if (!llm || (llm.supportsImages && !llm.supportsImages())) return finish({ status: 'needs_user', attempts: 0, steps: ['当前模型看不了图'] });
+  out.emit({ type: 'progress', phase: 'solve_captcha', message: '正在自己过验证码' });
+  const { overlayMarks } = await import('../career/captcha-overlay');
+  const result = await solver.solveCaptcha(page, kind, { llm: visionLlm(llm), overlay: overlayMarks }, blocked);
+  return finish(result.status === 'solved' ? result : { ...result, status: 'needs_user' });
+}
+
+/**
+ * 请用户帮一下（扫码登录、短信码……），做完接着办：现场画面切到这一页，盯着挡路的东西消失或用户交还。
+ * 用户此时多半在接管（control=human），所以这一个操作在接管期间也放行（见 handleCareerBrowserRoute）。
+ */
+async function runWaitUser(body: Record<string, unknown>, page: Page, out: RunEmitter, deps: CareerBrowserRouteDependencies): Promise<void> {
+  const { waitForUser, WAIT_USER_DEFAULT_MS, WAIT_USER_MAX_MS } = await import('../career/browse-handoff');
+  const browse = await import('../career/browse');
+  deps.focusPage?.(page, true);
+  const what = typeof body.what === 'string' ? body.what : '请在浏览器里处理一下';
+  out.emit({ type: 'progress', phase: 'wait_user', message: what });
+  const sessionKey = deps.productSessionId ?? 'default';
+  let sawHuman = deps.host.getControl(sessionKey).control === 'human';
+  const blocking = Array.isArray(body.blocking) ? body.blocking.filter((h): h is import('../career/browse').Hint => ['login', 'captcha', 'risk'].includes(String(h))) : [];
+  const outcome = await waitForUser(page, {
+    blocking,
+    timeoutMs: clampNumber(body.timeoutMs, WAIT_USER_DEFAULT_MS, 5_000, WAIT_USER_MAX_MS),
+    handedBack: () => {
+      const human = deps.host.getControl(sessionKey).control === 'human';
+      if (human) sawHuman = true;
+      return sawHuman && !human;
+    },
+  });
+  console.log(`[career-browser] wait-user status=${outcome.status} waited_ms=${outcome.waited_ms} blocking=${blocking.join('|') || 'url'}`);
+  const observation = outcome.status === 'page_closed' ? null : await browse.observe(page.context(), page, { isSubmitText: () => false }).catch(() => null);
+  out.emit({ type: 'result', op: 'browse', action: 'wait_user', wait: outcome, ...(observation ? { observation } : {}) });
 }
 
 export async function runOperation(
@@ -776,13 +857,15 @@ export async function handleCareerBrowserRoute(
   } catch (error) {
     return errorResponse(error, '浏览器凭据校验失败');
   }
+  // 「等用户帮一下」本来就是在用户接管期间等，不能被接管挡掉
+  const waitsForUser = op === 'browse' && body.action === 'wait_user';
   const control = host.getControl(binding.productSessionId);
-  if (control.control === 'human') {
+  if (control.control === 'human' && !waitsForUser) {
     return failure(409, '用户正在接管浏览器，等待交回', 'BROWSER_CONTROL_HUMAN');
   }
   return ndjsonStream(request, (out, signal) => host.withContext(
     token,
     (context, b) => runOperation(op, body, context, out, signal, { ...deps, productSessionId: b.productSessionId, focusPage: page => host.focusPage?.(b.productSessionId, page) }),
-    { signal },
+    { signal, ...(waitsForUser ? { allowHumanControl: true } : {}) },
   ));
 }

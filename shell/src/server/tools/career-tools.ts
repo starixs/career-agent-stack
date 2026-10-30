@@ -32,7 +32,7 @@ import { getVault, vaultForRepos } from '../career/vault';
 import { ACCOUNT_FIELDS, reportAccountFetch } from '../career/accounts';
 import { applyTaskTitle, gapsHeadline, jobLabel, persistDriveOutcome, type SubmitGate } from '../career/drive-outcome';
 import { freezePacket, packetResumeFile, pickResumeForJob } from '../career/packets';
-import { formatBrowse } from '../career/browse-format';
+import { formatBrowse, formatSolveCaptcha, formatWaitUser } from '../career/browse-format';
 import { acquireBrowserCapability } from '../browser-host/capability-client';
 import { broadcast as sseBroadcast } from '../sse';
 import { cancellableFetch } from '../utils/cancellation';
@@ -1059,7 +1059,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实；搜索没配置时对话里会出现「配置搜索 Key」卡片。' }) });
       })()),
 
-      tool('web_search', 'Web 搜索（博查 / Tavily / Serper）：查公司、行情、面经。要打开具体网页（招聘网站、岗位详情）用 browser_open。', {
+      tool('web_search', 'Web 搜索（博查 / Tavily / Serper）：查公司、行情、面经、笔试时间。要读结果里的某一页先 web_fetch，拿不到再 browser_open。', {
         query: z.string(), count: z.number().int().min(1).max(20).optional(),
       }, async (args) => wrap(async () => {
         const provider = await search();
@@ -1238,8 +1238,19 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ auto_mode: cur.enabled, learn_threshold: LEARN_THRESHOLD });
       })()),
 
+      // ---------- 浏览第一层：直取（不开浏览器） ----------
+      tool('web_fetch', '直接取网页文字，不开浏览器（快，不占浏览器）：文章、公告、公众号推文、帖子、百科、PDF 这类页面先用它。返回 verdict：ok 就用 text；needs_browser / login / blocked 按 note 改用 browser_open（单页应用、要登录、被反爬），不要当成失败告诉用户。', {
+        url: z.string().describe('http(s) 网址'),
+      }, async (args) => wrap(async () => {
+        if (!/^https?:\/\//i.test(args.url)) return err('web_fetch 需要 http(s) 网址');
+        const { fetchPage } = await import('../career/web-fetch');
+        const page = await fetchPage(args.url);
+        console.log(`[career] web_fetch verdict=${page.verdict} status=${page.status ?? '-'} chars=${page.text_total} host=${new URL(args.url).hostname}`);
+        return text(page);
+      })()),
+
       // ---------- 模型逐步浏览（Global career/browse.ts；和填表引擎、现场画面同一个托管 Chrome） ----------
-      tool('browser_open', '在托管浏览器的浏览页打开网址（招聘网站、岗位列表、详情页），返回页面观察（带编号的可操作元素 + 正文摘要）。找岗位、翻列表、进详情都从这里开始。', {
+      tool('browser_open', '在托管浏览器的浏览页打开网址（任何网页：招聘站、岗位列表、公司官网、要登录的平台……），返回页面观察（带编号的可操作元素 + 正文摘要）。只读一篇文章 / PDF 先用 web_fetch；单页应用、要登录、要在页面上操作的用它。', {
         url: z.string().describe('http(s) 网址'),
       }, async (args) => wrap(async () => {
         const out = await browseCall({ action: 'act', act: { action: 'navigate', url: args.url } });
@@ -1253,13 +1264,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text(formatBrowse(out));
       })()),
 
-      tool('browser_act', '操作浏览页。click / type / select / check 必须带最近一次观察的 observation_id 和元素编号 ref；press / scroll / back / forward / navigate / switch_tab / close_tab / wait 不需要。回执说明有没有效果；observed_effect=unknown 或 retryable=false 时不要重复同一个操作，先 browser_observe。提交 / 投递类按钮会被拒绝（走 browser_capture_job → apply_prepare）。输入个人信息用 {{vault:...}} 占位符。', {
-        action: z.enum(['click', 'type', 'select', 'check', 'press', 'scroll', 'back', 'forward', 'navigate', 'switch_tab', 'close_tab', 'wait']),
+      tool('browser_act', '操作浏览页。click / type / select / check 必须带最近一次观察的 observation_id 和元素编号 ref；press / scroll / back / forward / navigate / switch_tab / close_tab / wait 不需要；click_at（x, y）/ drag（x, y → to_x, to_y）按视口坐标操作，只在 DOM 编不了号时用（画布、图片）。回执说明有没有效果；observed_effect=unknown 或 retryable=false 时不要重复同一个操作，先 browser_observe。提交 / 投递类按钮会被拒绝（走 browser_capture_job → apply_prepare）。输入个人信息用 {{vault:...}} 占位符。', {
+        action: z.enum(['click', 'type', 'select', 'check', 'press', 'scroll', 'back', 'forward', 'navigate', 'switch_tab', 'close_tab', 'wait', 'click_at', 'drag']),
         observation_id: z.string().optional(), ref: z.number().int().optional(),
         text: z.string().optional().describe('type 的内容；个人信息写 {{vault:profile.phone}} 这类占位符'),
         submit: z.boolean().optional().describe('type 后按回车（搜索框）'),
         option: z.string().optional().describe('select 的选项文字'), key: z.string().optional().describe('press 的按键，如 Enter / PageDown'),
         direction: z.enum(['up', 'down']).optional(), url: z.string().optional(), tab: z.number().int().optional().describe('标签页序号'), ms: z.number().int().optional(),
+        x: z.number().optional(), y: z.number().optional(), to_x: z.number().optional(), to_y: z.number().optional(),
       }, async (args) => wrap(async () => {
         const out = await browseCall({ action: 'act', act: args });
         return text(formatBrowse(out));
@@ -1270,6 +1282,22 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       }, async (args) => wrap(async () => {
         const out = await browseCall({ action: 'read', offset: args.offset ?? 0 });
         return text(out.read ?? out);
+      })()),
+
+      tool('browser_solve_captcha', '浏览页上出现验证码 / 人机验证时，先用它自己过（图形字、点选、滑块拼图 / 旋转），不要一看到验证码就去找用户。返回 solved 就接着做原来的事；needs_user（短信码、认不出的、试了两次没过）再用 browser_wait_user 请用户帮一下。同一页不要连着调用超过一次。', {}, async () => wrap(async () => {
+        const out = await browseCall({ action: 'solve_captcha' });
+        return text(formatSolveCaptcha(out));
+      })()),
+
+      tool('browser_wait_user', '请用户帮一下只有他能做的事（扫码登录、短信验证码、二次验证、browser_solve_captcha 过不了的验证码），他做完就接着办——这不是失败，不要因此放弃任务。会把浏览器现场切到这一页，然后等：登录框 / 验证码消失或他点了「交还」，就返回新观察，你接着做原来的事。调用前先用一句话告诉他要做什么（例如「打开右边的浏览器，用牛客 App 扫一下二维码」）。', {
+        what: z.string().describe('给用户看的一句话：要他做什么'),
+        waiting_for: z.enum(['login', 'captcha', 'other']).optional().describe('等什么消失：login = 登录框，captcha = 验证码 / 风控页，other = 等页面跳走'),
+        timeout_s: z.number().int().min(5).max(600).optional().describe('最多等多少秒，缺省 180'),
+      }, async (args) => wrap(async () => {
+        const waitingFor = args.waiting_for ?? 'login';
+        const blocking = waitingFor === 'login' ? ['login'] : waitingFor === 'captcha' ? ['captcha', 'risk'] : [];
+        const out = await browseCall({ action: 'wait_user', what: args.what, blocking, timeoutMs: (args.timeout_s ?? 180) * 1000 });
+        return text(formatWaitUser(out));
       })()),
 
       tool('browser_capture_job', '把当前浏览页（岗位详情页）收录成岗位：读取正文作为 JD 原文并解析，写入岗位池。之后可以 job_evaluate 评估，用户要投就 apply_prepare。', {
