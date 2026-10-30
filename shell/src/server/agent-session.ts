@@ -11851,6 +11851,8 @@ async function startStreamingSession(preWarm = false): Promise<void> {
         // 聊天附件（PDF / Word / 表格 / 图片）本地转文字后注入；扫描件 OCR 可能要一两分钟，给足时间。
         UserPromptSubmit: [
           { hooks: [async (input: HookInput) => (await import('./career/attachment-hooks')).careerAttachmentPromptHook(input)], timeout: 300 },
+          // 连收拒信后他第一次说话：开头一句带他自己的基数（低谷面）
+          { hooks: [async (input: HookInput) => (await import('./career/attachment-hooks')).careerLowPointPromptHook(input)], timeout: 10 },
         ],
         // Product plan/read-only and MCP boundaries apply in every SDK mode.
         // SDK 0.3.269 fixed the old plan+bypass callback omission; the hook still

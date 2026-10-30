@@ -7,6 +7,9 @@
  * - 有笔试的线不能被叫成「静默，建议关闭」；
  * - 关掉的线来了迟到的回信，要接回原来那份申请，不另起一份。
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Handler = (args: Record<string, unknown>) => Promise<{ content: Array<{ text: string }>; isError?: boolean }>;
@@ -24,6 +27,7 @@ import { FakeLLM, StaticKeyProvider, Vault, type Repos } from '@career/core';
 
 import { loadCore } from '../career/core-module';
 import { captureIntake } from '../career/intake';
+import { lowPointOpener } from '../career/low-point';
 import { RunRegistry } from '../career/runs';
 import { createMemoryRepos } from '../career/test-db';
 import { createCareerServer } from './career-tools';
@@ -204,6 +208,17 @@ describe('低谷 · 秋招第六周的周五', () => {
     expect(repos.funnel(NOW).overall!.rejected).toBe(rejected + 1);
   });
 
-  it.todo('〔面〕一周连收多封拒信时要不要主动开口（现在完全沉默，只有他来问才复盘）；开口的话在哪、说什么');
-  it.todo('〔面〕基数参考区间的来源：技能让模型「按常见校招经验」给区间，和「不虚构行业统计」冲突——只用他自己的 / 内置核过的区间 / 不给');
+  it('连收拒信：不推送；他下一次说话时，助理开头只说一句，带他自己的基数，只说一次', () => {
+    const ctx = lowPointOpener(repos, NOW)!;
+    expect(ctx).toContain('「这 7 天收到 6 封拒信。你之前投出 60 份才第一次进面试，现在一共 2 个面试。」');
+    expect(ctx).toContain('不提换方向');
+    expect(lowPointOpener(repos, NOW)).toBeNull();
+  });
+  it('基数只来自他自己的历史：复盘技能（源和随包副本）不再让模型给行业区间', () => {
+    for (const p of ['../../../../skills/weekly-review/SKILL.md', '../../../bundled-workspaces/career/.claude/skills/weekly-review/SKILL.md']) {
+      const skill = readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
+      expect(skill).not.toContain('常见校招经验');
+      expect(skill).toContain('他自己的基数');
+    }
+  });
 });
