@@ -232,6 +232,18 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
     expect(repos.db.get<{ schema_json: string }>('SELECT schema_json FROM resume_tailored WHERE id=?', [baidu.tailoredId])?.schema_json).toBe(before);
     expect(llm.calls.at(-1)?.messages[0].content).toContain(`[${exp.id}] 推荐召回实习`);
   });
-  it.todo('〔面〕面试前一晚的连续练习放在哪：对话里一问一答，还是一个专门的「模拟面试」工作面（计时、可中断续练）');
+  it('练到一半去吃饭，回来「接着练」只给 mock_interview_id：从上次的问答接着问，还是同一场', async () => {
+    vi.setSystemTime(new Date(TUE_NIGHT));
+    llm.push(JSON.stringify({ question: '先介绍一下美团的召回项目' }));
+    const open = await call('interview_probe', { job_id: baidu.jobId, round: 'second' });
+    llm.push(JSON.stringify({ question: 'AUC 怎么算' }));
+    await call('interview_probe', { mock_interview_id: open.mock_interview_id, transcript: 'Q：介绍召回项目\nA：做了双塔召回' });
+    llm.push(JSON.stringify({ question: '线上收益呢？' }));
+    const back = await call('interview_probe', { mock_interview_id: open.mock_interview_id });
+    expect(back.mock_interview_id).toBe(open.mock_interview_id);
+    const prompt = llm.calls.at(-1)?.messages[0].content ?? '';
+    expect(prompt).toContain('A：做了双塔召回');
+    expect(prompt).toContain('机器学习算法工程师');
+  });
   it.todo('〔面〕「帮我准备」的终态是什么：一张百度二面准备卡（卷宗 + 深挖点 + 题 + 上一轮复盘）还是在对话里逐项给');
 });

@@ -64,3 +64,16 @@ export function carryoverPrompt(c: Carryover): string {
   const weak = c.weak_questions.map(q => `- ${q}`);
   return ['上一场同类面试复盘出的卡点（务必覆盖，优先追问这些）：', ...lines, ...(weak.length ? ['当时答得不好、还没练好的原题：', ...weak] : [])].join('\n');
 }
+
+/** 一场模拟面试存下的最新问答全文（turns_json 里最后一条 transcript）；没有返回 undefined。 */
+export function lastTranscript(mock: { id: string; turns_json: string }): string | undefined {
+  try {
+    const turns: unknown = JSON.parse(mock.turns_json);
+    if (!Array.isArray(turns)) return undefined;
+    const texts = turns.map((t: unknown) => (t && typeof t === 'object' ? Reflect.get(t, 'transcript') : null)).filter((t): t is string => typeof t === 'string' && !!t);
+    return texts.at(-1);
+  } catch (error) {
+    console.warn(`[career] mock turns_json 不是 JSON mock=${mock.id}:`, error instanceof Error ? error.message : error);
+    return undefined;
+  }
+}

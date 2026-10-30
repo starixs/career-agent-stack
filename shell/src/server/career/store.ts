@@ -146,6 +146,7 @@ export class CareerStore {
     return this.getInterview(id)!;
   }
   listMockInterviews(): MockInterview[] { return this.db.all<MockInterview>('SELECT * FROM mock_interview ORDER BY updated_at DESC'); }
+  getMockInterview(id: string): MockInterview | undefined { return this.db.get<MockInterview>('SELECT * FROM mock_interview WHERE id=?', [id]); }
   createMockInterview(input: { job_id?: string | null; resume_tailored_id?: string | null; mode: string; company_type?: string | null; round?: string | null; turns?: unknown; report?: unknown }): MockInterview {
     const t = this.now(); const id = this.newId('mok');
     this.db.insert('mock_interview', { id, job_id: input.job_id ?? null, resume_tailored_id: input.resume_tailored_id ?? null, mode: input.mode, company_type: input.company_type ?? null, round: input.round ?? null, turns_json: jsonOrEmpty(input.turns, '[]'), report_json: input.report !== undefined ? jsonOrEmpty(input.report) : null, created_at: t, updated_at: t });

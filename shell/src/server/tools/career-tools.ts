@@ -17,7 +17,7 @@ import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
-import { carryoverFor, carryoverPrompt } from '../career/interview-carry';
+import { carryoverFor, carryoverPrompt, lastTranscript } from '../career/interview-carry';
 import { applyRetroFollowups } from '../career/retro-followups';
 import { bookInterview, closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
 import { getShellLLM } from '../career/llm';
@@ -1350,6 +1350,10 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         transcript: z.string().optional().describe('到目前为止的问答记录'), finish: z.boolean().optional().describe('结束并产出复盘'),
         mock_interview_id: z.string().optional().describe('接着练同一场时传上一轮返回的 mock_interview_id；不传就开新的一场'),
       }, async (args) => wrap(async () => {
+        // 隔了一会儿「接着练」只给了 mock_interview_id：从上次存下的问答接着问，岗位和轮次也沿用
+        const prior = args.mock_interview_id ? store().getMockInterview(args.mock_interview_id) : undefined;
+        if (args.mock_interview_id && !prior) return err(`模拟面试不存在：${args.mock_interview_id}`);
+        if (prior) args = { ...args, job_id: args.job_id ?? prior.job_id ?? undefined, round: args.round ?? prior.round ?? undefined, transcript: args.transcript ?? lastTranscript(prior) };
         const job = args.job_id ? requireJob(args.job_id) : undefined;
         const resume = interviewResume(store(), repos(), args);
         const carried = job ? carryoverPrompt(carryoverFor(store(), repos(), job, args.round)) : '';
