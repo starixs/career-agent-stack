@@ -18,33 +18,45 @@ vi.mock('../sse', () => ({ broadcast: vi.fn() }));
 
 import { FakeLLM, StaticKeyProvider, Vault } from '@career/core';
 
+import { loadCore } from '../career/core-module';
 import { RunRegistry } from '../career/runs';
 import { CareerStore } from '../career/store';
 import { createMemoryRepos } from '../career/test-db';
 import { createCareerServer } from './career-tools';
 
-// 工具返回的 JSON 结构随工具而变，测试里按路径取值。
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Json = any;
+/** 这条链路上用到的工具返回字段（只列测试读的）。 */
+interface ToolResults {
+  inbox_capture: { created: { application_id?: string } };
+  today_queue: { items: Array<{ ref?: { id: string }; detail?: string; priority: number }> };
+  dossier_get: { interviews: Array<{ id: string; round: string; retro_json: string | null }>; predictions: Array<{ statement: string }> };
+  interview_predict: unknown;
+  interview_probe: { mock_interview_id: string };
+  interview_questions: { questions: Array<{ question_id: string }> };
+  question_attempt: unknown;
+  question_bank: { questions: Array<{ id: string; content: string; source: string; company: string | null; last_score: number | null }> };
+  interview_retro: { interview_id: string };
+}
 
-const call = async (name: string, args: Record<string, unknown> = {}) => {
+async function call<K extends keyof ToolResults>(name: K, args: Record<string, unknown> = {}): Promise<ToolResults[K]> {
   const h = mocks.handlers.get(name);
   if (!h) throw new Error(`工具未注册：${name}`);
   const res = await h(args);
   if (res.isError) throw new Error(`${name} 报错：${res.content[0].text}`);
-  return JSON.parse(res.content[0].text) as Json;
-};
+  const parsed: ToolResults[K] = JSON.parse(res.content[0].text);
+  return parsed;
+}
 
 const TUE_MORNING = '2026-11-03T02:00:00.000Z'; // 周二 10:00（北京时间）
 const TUE_NIGHT = '2026-11-03T13:00:00.000Z'; // 周二 21:00
 const INTERVIEW_AT = '2026-11-05T14:00:00+08:00'; // 周四 14:00
 const FRI_MORNING = '2026-11-06T01:30:00.000Z'; // 周五 09:30
 
-const invite = (round = '二面') => JSON.stringify({
+const inviteTriage = (round = '二面', when = INTERVIEW_AT) => ({
   kind: 'interview_invite', relevance: 'job',
-  fields: { company: '百度', title: '机器学习算法工程师', round, when: INTERVIEW_AT, location_or_link: 'https://meeting.baidu.com/x' },
-  summary: `百度 ${round}邀请：11 月 5 日 14:00 视频面`,
+  fields: { company: '百度', title: '机器学习算法工程师', round, when, location_or_link: 'https://meeting.baidu.com/x' },
+  summary: `百度 ${round}邀请`,
 });
+const invite = (round?: string, when?: string) => JSON.stringify(inviteTriage(round, when));
 
 describe('面试 · 百度二面前一晚到下一场同类面试', () => {
   let repos: ReturnType<typeof createMemoryRepos>;
@@ -64,7 +76,7 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
       browserRun: async () => undefined,
     });
     // 两周前投的百度，用的是定制版；一面已过
-    const store = new CareerStore(repos, (await import('@career/core')) as never);
+    const store = new CareerStore(repos, await loadCore());
     const master = store.createResumeMaster({ name: '主简历' });
     const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'bd-1', title: '机器学习算法工程师', company_name: '百度' });
     const tailored = store.createTailored({ master_id: master.id, job_id: job.id, schema_json: { basics: { name: '{{vault:name}}' }, work: [{ name: '美团', highlights: ['召回模型离线 AUC +1.8%'] }] } });
@@ -86,7 +98,7 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
   it('邀请落在百度那份申请上：一场面试、一个时间点，重复的提醒不再多建一场', async () => {
     const first = await invitesArrive();
     expect(first.created.application_id).toBe(baidu.appId);
-    const s = new CareerStore(repos, (await import('@career/core')) as never);
+    const s = new CareerStore(repos, await loadCore());
     const itvs = s.listInterviews().filter(i => i.application_id === baidu.appId);
     expect(itvs).toHaveLength(1);
     expect(itvs[0]).toMatchObject({ round: 'second', date: new Date(INTERVIEW_AT).toISOString() });
@@ -95,7 +107,7 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
 
   it('改期邮件把原来那个时间点挪过去，不留一个旧时间', async () => {
     await invitesArrive();
-    llm.push(JSON.stringify({ ...JSON.parse(invite()), fields: { ...JSON.parse(invite()).fields, when: '2026-11-06T10:00:00+08:00' } }));
+    llm.push(invite('二面', '2026-11-06T10:00:00+08:00'));
     await call('inbox_capture', { text: '【百度】二面时间调整为11月6日10:00', source: 'paste' });
     const ds = repos.listDeadlines({ application_id: baidu.appId }).filter(d => d.kind === 'interview');
     expect(ds.map(d => d.due_at)).toEqual([new Date('2026-11-06T10:00:00+08:00').toISOString()]);
@@ -104,7 +116,7 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
   it('周二今日队列里有这场面试，说的是「2 天后」而不是「截止」', async () => {
     await invitesArrive();
     const today = await call('today_queue');
-    const item = today.items.find((i: Json) => i.ref?.id === baidu.appId);
+    const item = today.items.find((i) => i.ref?.id === baidu.appId);
     expect(item?.detail).toContain('2 天后');
     expect(item?.detail).not.toContain('截止');
   });
@@ -118,7 +130,7 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
     // 用户只说了「百度的面试」，助理拿得到的是 job_id，不一定知道定制版的 id
     await call('interview_predict', { job_id: baidu.jobId, round: 'second' });
     const after = await call('dossier_get', { company_name: '百度' });
-    expect(after.predictions.map((p: Json) => p.statement)).toContain('召回模型离线 AUC +1.8%');
+    expect(after.predictions.map((p) => p.statement)).toContain('召回模型离线 AUC +1.8%');
     // 预测要基于面试官手里那一版，而不是经历库的通用摘要
     expect(llm.calls.at(-1)?.messages[0].content).toContain('召回模型离线 AUC +1.8%');
   });
@@ -133,7 +145,7 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
     llm.push(JSON.stringify({ verdict: 'borderline', diagnosis: [{ claim: 'AUC +1.8%', broke_at_layer: 2, issue: '说不清线上收益' }] }));
     const end = await call('interview_probe', { mock_interview_id: open.mock_interview_id, job_id: baidu.jobId, transcript: 'Q：介绍召回项目\nA：……\nQ：AUC 怎么算\nA：……', finish: true });
     expect(end.mock_interview_id).toBe(open.mock_interview_id);
-    const s = new CareerStore(repos, (await import('@career/core')) as never);
+    const s = new CareerStore(repos, await loadCore());
     const mocks = s.listMockInterviews();
     expect(mocks).toHaveLength(1);
     expect(mocks[0].report_json).toContain('borderline');
@@ -159,7 +171,7 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
 
   it('复盘写回邀请建的那场面试，挂在百度申请上，不另起一条孤儿记录', async () => {
     const out = await retroFriday();
-    const s = new CareerStore(repos, (await import('@career/core')) as never);
+    const s = new CareerStore(repos, await loadCore());
     expect(s.listInterviews()).toHaveLength(1);
     const dossier = await call('dossier_get', { company_name: '百度' });
     expect(dossier.interviews[0].id).toBe(out.interview_id);
@@ -169,7 +181,7 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
   it('复盘过的面试不在周五的今日队列里顶成「已过期」', async () => {
     await retroFriday();
     const today = await call('today_queue');
-    expect(today.items.filter((i: Json) => i.ref?.id === baidu.appId && i.priority === 0)).toEqual([]);
+    expect(today.items.filter((i) => i.ref?.id === baidu.appId && i.priority === 0)).toEqual([]);
     expect(repos.listDeadlines({ application_id: baidu.appId }).find(d => d.kind === 'interview')?.status).toBe('done');
   });
 
