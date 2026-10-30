@@ -9,8 +9,6 @@
  */
 import type { ActionQueueItem, Repos } from '@career/core';
 
-import { siteOf } from './app-pages';
-import { applyabilityOf, siteUsesLogin } from './applyability';
 import { BatchRunner } from './batch-runner';
 import { prepareJobs } from './job-board';
 import { pickResumeForJob, type PacketDeps } from './packets';
@@ -33,8 +31,6 @@ export interface JobPlan {
   /** ready 里没有定制版、主简历又不止一份的：确认时选一份统一用。 */
   needs_resume: string[];
   resumes: Array<{ id: string; name: string }>;
-  /** 这批要用到的网站（按家数排）；login = 上次在这个站投要过登录，开始后等你条里一次带你登完。 */
-  sites: Array<{ site: string; n: number; login: boolean }>;
 }
 
 function skipReason(repos: Repos, store: CareerStore, jobId: string, busyApps: ReadonlySet<string>): string | null {
@@ -44,7 +40,6 @@ function skipReason(repos: Repos, store: CareerStore, jobId: string, busyApps: R
   if (apps.some(a => SENT.has(a.stage))) return '已经投过';
   if (apps.some(a => busyApps.has(a.id))) return '已在投';
   if (!job.url) return '没有网申链接';
-  if (applyabilityOf(repos, jobId) === 'no_form') return '不是网申表（合集 / 宣传页），先点开选具体岗位';
   if (!store.listResumeMasters().length && !pickResumeForJob(store, jobId)) return '还没有简历';
   return null;
 }
@@ -52,7 +47,7 @@ function skipReason(repos: Repos, store: CareerStore, jobId: string, busyApps: R
 export function planJobs(repos: Repos, store: CareerStore, jobIds: readonly string[]): JobPlan {
   const busyApps = new Set(repos.listActions().filter(a => ACTIVE_ACTION.has(a.status) && a.application_id).map(a => a.application_id!));
   const marked = markedTargetJobs(repos);
-  const plan: JobPlan = { ready: [], targets: 0, skipped: [], needs_resume: [], resumes: [], sites: [] };
+  const plan: JobPlan = { ready: [], targets: 0, skipped: [], needs_resume: [], resumes: [] };
   for (const id of new Set(jobIds)) {
     const reason = skipReason(repos, store, id, busyApps);
     if (reason) { plan.skipped.push({ job_id: id, reason }); continue; }
@@ -61,17 +56,7 @@ export function planJobs(repos: Repos, store: CareerStore, jobIds: readonly stri
     if (!pickResumeForJob(store, id)) plan.needs_resume.push(id);
   }
   if (plan.needs_resume.length) plan.resumes = store.listResumeMasters().map(r => ({ id: r.id, name: r.name }));
-  plan.sites = sitesOf(repos, plan.ready);
   return plan;
-}
-
-function sitesOf(repos: Repos, jobIds: readonly string[]): JobPlan['sites'] {
-  const counts = new Map<string, number>();
-  for (const id of jobIds) {
-    const site = siteOf(repos.getJob(id)?.url ?? '');
-    if (site) counts.set(site, (counts.get(site) ?? 0) + 1);
-  }
-  return [...counts].sort((a, b) => b[1] - a[1]).map(([site, n]) => ({ site, n, login: siteUsesLogin(repos, site) }));
 }
 
 /** 批准了的填表交给后台批量运行器（命令写 kv，Global 侧车几秒内接走）；返回交出去的动作 id。 */

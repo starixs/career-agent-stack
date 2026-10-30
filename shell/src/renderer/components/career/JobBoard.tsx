@@ -26,7 +26,7 @@ import { WaitingDock } from './delivery/WaitingDock';
 import { ApplyConfirm } from './JobBoardApply';
 import { TargetStar } from './TargetStar';
 import { useRangeSelect } from './useRangeSelect';
-import type { Applyability, EmploymentType, JobBoardRow, JobPrefs } from './types';
+import type { EmploymentType, JobBoardRow, JobPrefs } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
 const FACETS: Array<{ key: FacetKey; label: string }> = [
@@ -283,9 +283,6 @@ function Pill({ children }: { children: ReactNode }) {
 
 const CELL = 'truncate px-2 py-2';
 
-/** 打开过才知道的可投性：只标要你先做点什么的；能直接投的和没打开过的不标（不猜）。 */
-const APPLYABILITY_TAG: Record<Applyability, string> = { no_form: '· 合集，先选具体岗位', entry: '· 要登录', login: '· 要登录', form: '', unknown: '' };
-
 function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked: boolean; pick: ReturnType<typeof useRangeSelect>; onChanged: () => void }) {
   const { job, match, application } = row;
   const [open, setOpen] = useState(false);
@@ -307,7 +304,6 @@ function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked
         </td>
         <td className={`${CELL} text-[var(--ink-2)]`} title={job.title}>
           {job.title}{job.source_status === 'closed' && <span className="ml-1 text-[var(--subtle)]">（已下架）</span>}
-          {APPLYABILITY_TAG[row.applyability ?? 'unknown'] && <span className="ml-1.5 text-xs text-[var(--muted)]" title="上次打开这个岗位时看到的">{APPLYABILITY_TAG[row.applyability ?? 'unknown']}</span>}
         </td>
         <td className={`${CELL} text-[var(--muted)]`} title={batch}>{batch || <Dash />}</td>
         <td className={`${CELL} text-[var(--muted)]`} title={row.meta?.industry ?? undefined}>{row.meta?.industry ?? <Dash />}</td>

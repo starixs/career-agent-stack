@@ -14,13 +14,12 @@ import type { Repos } from '@career/core';
 
 import { handleCareerRoute } from '../routes/career';
 import { handleCareerSessionRoute } from '../routes/career-session';
-import { siteOf } from './app-pages';
-import { recordApplyability } from './applyability';
+import { applyabilityOf, recordApplyability } from './applyability';
 import { applyJobs, planJobs } from './batch-apply';
 import { BATCH_COMMAND_KEY } from './batch-runner';
 import { loadCore } from './core-module';
 import { asksFor } from './delivery';
-import { jobBoard, prepareJobs } from './job-board';
+import { prepareJobs } from './job-board';
 import { CareerStore } from './store';
 import { setTargetJob } from './targets';
 import { createMemoryRepos } from './test-db';
@@ -107,7 +106,7 @@ describe('链路 · 框选一批、确认投出', () => {
     expect(asksFor(repos).flatMap(a => a.application_ids)).not.toContain(appOf('美团').id);
   });
 
-  it('可投性：打开过一次就记住——合集页下次框选直接跳过并说原因，要登录的站在确认条里列出来；岗位表上同样标', () => {
+  it('岗位库里的岗位一律能选能投：引擎上次没找到表单的也不跳过、不打标给你看，只记下来给工程排查（用户 10-30：投不了是我们的问题）', () => {
     store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } });
     const fill = (c: string) => ({ payload_json: JSON.stringify({ job_id: jobOf(c).id, url: jobOf(c).url }) });
     recordApplyability(repos, fill('DeepSeek'), { status: 'blocked', message: '页面上没有可填写的表单字段' });
@@ -115,12 +114,8 @@ describe('链路 · 框选一批、确认投出', () => {
     recordApplyability(repos, fill('大疆'), { status: 'stopped_before_submit', message: '已填完' });
     recordApplyability(repos, fill('京东'), { status: 'handoff', reason: 'captcha', message: '验证码' }); // 判断不了：不记
     const plan = planJobs(repos, store, ['DeepSeek', '美团', '大疆', '京东'].map(c => jobOf(c).id));
-    expect(plan.skipped).toEqual([{ job_id: jobOf('DeepSeek').id, reason: '不是网申表（合集 / 宣传页），先点开选具体岗位' }]);
-    const site = (c: string) => plan.sites.find(x => x.site === siteOf(jobOf(c).url!));
-    expect(site('美团')).toMatchObject({ n: 1, login: true });
-    expect(site('大疆')).toMatchObject({ n: 1, login: false });
-    const board = jobBoard(repos, {});
-    const tag = (c: string) => board.find(r => r.job.id === jobOf(c).id)!.applyability;
-    expect([tag('DeepSeek'), tag('美团'), tag('大疆'), tag('京东')]).toEqual(['no_form', 'login', 'form', 'unknown']);
+    expect(plan.ready).toHaveLength(4);
+    expect(plan.skipped).toEqual([]);
+    expect(['DeepSeek', '美团', '大疆', '京东'].map(c => applyabilityOf(repos, jobOf(c).id))).toEqual(['no_form', 'login', 'form', 'unknown']);
   });
 });

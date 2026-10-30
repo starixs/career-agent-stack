@@ -17,7 +17,6 @@
  */
 import { JOB_PREFS_KEY, matchJob, normalizeBoardMeta, parseBoardJson, type Job, type JobBoardMeta, type JobMatch, type JobPrefs, type MatchEvidence, type Repos } from '@career/core';
 
-import { applyabilityOf, type Applyability } from './applyability';
 import { freezePacket, pickResumeForJob, type PacketDeps } from './packets';
 import type { CareerStore } from './store';
 import { markedTargetJobs, targetSourceOf, type TargetSource } from './targets';
@@ -89,8 +88,6 @@ export interface BoardRow {
   meta: BoardMeta;
   /** 目标岗位：进过面试（interview）或用户亲手标的（user）；其余为 null，系统不替用户认定。 */
   target: TargetSource | null;
-  /** 能不能直接投（填表引擎打开过才知道；没打开过是 unknown）。见 applyability.ts。 */
-  applyability: Applyability;
 }
 export type BoardMeta = JobBoardMeta;
 
@@ -143,7 +140,7 @@ export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().t
   const reached = new Map<string, string[]>();
   for (const h of repos.stageHistory()) reached.set(h.application_id, [...(reached.get(h.application_id) ?? []), h.to_stage]);
   const targetOf = (job: Job, app: BoardRow['application']) => targetSourceOf({ job_id: job.id, stage: app?.stage ?? '' }, app ? reached.get(app.id) ?? [] : [], marked);
-  let rows: BoardRow[] = repos.listJobs().filter(j => j.source_status !== 'merged').map(job => ({ job, match: parseMatch(job.match_json), application: apps.get(job.id) ?? null, meta: boardMeta(job), target: targetOf(job, apps.get(job.id) ?? null), applyability: applyabilityOf(repos, job.id) }));
+  let rows: BoardRow[] = repos.listJobs().filter(j => j.source_status !== 'merged').map(job => ({ job, match: parseMatch(job.match_json), application: apps.get(job.id) ?? null, meta: boardMeta(job), target: targetOf(job, apps.get(job.id) ?? null) }));
   rows = rows.filter(({ job, match, application }) => {
     if (q && !`${job.company_name ?? ''} ${job.title} ${job.location ?? ''}`.toLowerCase().includes(q)) return false;
     if (f.employment_type && job.employment_type !== f.employment_type) return false;
