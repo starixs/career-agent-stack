@@ -44,6 +44,7 @@ import { broadcast as sseBroadcast } from '../sse';
 import { cancellableFetch } from '../utils/cancellation';
 import { getCurrentTurnSignal } from '../utils/turn-abort';
 import { REVIEW_CARD_KIND, reviewCardId } from '../../shared/careerReviewCard';
+import { jobMatchesQuery } from '../../shared/jobSearch';
 
 import { createOfferTools } from './offer-tools';
 import { createResumeChainTools } from './resume-chain-tools';
@@ -187,11 +188,11 @@ export function boardCities(row: Pick<BoardRow, 'job'>): string[] {
 }
 /** 多选维度：同一维度内任一命中即可，维度之间取交集；空数组 = 不限。type 也接受 campus / intern / social。 */
 export function filterBoardFacets<R extends Pick<BoardRow, 'job' | 'meta' | 'application'>>(rows: readonly R[], f: BoardFacetFilter): R[] {
-  const q = f.q?.trim().toLowerCase();
+  const q = f.q?.trim();
   const types = (f.type ?? []).map(t => EMPLOYMENT_LABELS[t] ?? t);
   const hit = (selected: readonly string[] | undefined, values: string[]) => !selected?.length || selected.some(v => values.includes(v));
   return rows.filter(row => {
-    if (q && !`${row.job.company_name ?? ''} ${row.job.title}`.toLowerCase().includes(q)) return false;
+    if (q && !jobMatchesQuery(row.job.company_name, row.job.title, q)) return false;
     return hit(f.batch, row.meta?.batch ? [row.meta.batch] : [])
       && hit(f.industry, row.meta?.industry ? [row.meta.industry] : [])
       && hit(types, boardTypeTags(row))

@@ -2,6 +2,8 @@
  * 岗位库多维表格的筛选：选项全部来自已有数据里出现过的取值（批次 / 行业 / 类型标签 / 地点 / 进度），
  * 再加一个全局搜索（公司 / 岗位）。不做「等于 / 包含」条件编辑器。全部在前端算：一次取回全部岗位，筛选即时生效。
  */
+import { jobMatchesQuery } from '../../../shared/jobSearch';
+
 import type { JobBoardRow } from './types';
 
 export type BoardSort = 'match' | 'deadline' | 'updated';
@@ -77,10 +79,10 @@ function matchesFacet(row: JobBoardRow, key: FacetKey, selected: readonly string
 }
 
 export function filterBoardRows(rows: readonly JobBoardRow[], f: BoardFilterState, today = new Date().toISOString().slice(0, 10)): JobBoardRow[] {
-  const q = f.q.trim().toLowerCase();
+  const q = f.q.trim();
   const out = rows.filter(row => {
     const { job, match } = row;
-    if (q && !`${job.company_name ?? ''} ${job.title}`.toLowerCase().includes(q)) return false;
+    if (q && !jobMatchesQuery(job.company_name, job.title, q)) return false;
     if (f.openOnly && ((job.deadline && job.deadline.slice(0, 10) < today) || job.source_status === 'closed')) return false;
     if (f.fitsOnly && match && !match.hard_ok) return false;
     return matchesFacet(row, 'batch', f.batch) && matchesFacet(row, 'industry', f.industry) && matchesFacet(row, 'tag', f.tag)
