@@ -236,8 +236,13 @@ async function viaSheet(abs: string): Promise<{ text: string; pages: number }> {
 
 /** pdf.js 文本层，按 hasEOL 还原换行，保留页边界。 */
 async function viaPdfText(abs: string): Promise<{ text: string; pages: number; pageTexts: string[] }> {
+  return pdfBytesToText(new Uint8Array(readFileSync(abs)));
+}
+
+/** 同上，直接吃字节（网页直取到的 PDF 用这个，不落盘）。 */
+export async function pdfBytesToText(data: Uint8Array): Promise<{ text: string; pages: number; pageTexts: string[] }> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(readFileSync(abs)), useWorkerFetch: false, disableFontFace: true, useSystemFonts: false, verbosity: 0 } as Parameters<typeof pdfjs.getDocument>[0]).promise;
+  const doc = await pdfjs.getDocument({ data, useWorkerFetch: false, disableFontFace: true, useSystemFonts: false, verbosity: 0 } as Parameters<typeof pdfjs.getDocument>[0]).promise;
   const pageTexts: string[] = [];
   try {
     for (let i = 1; i <= doc.numPages; i++) {
