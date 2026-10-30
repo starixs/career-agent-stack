@@ -12,7 +12,7 @@ import type {
   CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
   InboxItem, IntakeResult, Interview, InterviewRecording, Job, MailAccount, MailAccountDetail, MailConnectResult, MailConnector, MailConnectorId, MailMessage, MailOauthStart, SeasonId, TakeoverBriefing, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
-  ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue, WeeklyReview, RetroCheckItem, CorrectKind,
+  ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
   AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
 } from './types';
@@ -168,8 +168,6 @@ export const careerApi = {
   interviewRecordings: (id: string) => apiGetJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/recordings`)).then(r => pickList<InterviewRecording>(r, 'recordings')),
   uploadInterviewRecording: (id: string, file: { name: string; mime?: string; data: string }) =>
     apiPostJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/recordings`), file).then(r => pickObject<InterviewRecording>(r, 'recording')),
-  /** 复盘的「勾一勾」：这场准备过的深挖点和题。 */
-  interviewChecklist: (id: string) => apiGetJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/checklist`)).then(r => pickList<RetroCheckItem>(r, 'items')),
   /** 把岗位标成 / 取消目标；进过面试的申请自动算目标，不用标。 */
   setJobTarget: (jobId: string, target: boolean) => apiPostJson<unknown>(careerPath('/targets'), { job_id: jobId, target }),
   examPractices: () => apiGetJson<unknown>(careerPath('/exam-practices')).then(r => pickList<ExamPractice>(r, 'examPractices')),
@@ -240,10 +238,6 @@ export const careerApi = {
   /** 分享链接（Boss / 猎聘转发的笔试、面试通知）→ 抓分享页文字后归档；fetched=false 表示页面没抓到，只用了链接和文案。 */
   captureLink: (body: { url: string; text?: string | null; application_id?: string | null }) => apiPostJson<unknown>(careerPath('/inbox/link'), body).then(r => pickObject<IntakeResult & { fetched?: boolean }>(r, 'result')),
   dismissInbox: (id: string) => apiPostJson<unknown>(careerPath(`/inbox/${encodeURIComponent(id)}/dismiss`), {}).then(r => pickObject<InboxItem>(r, 'item')),
-  /** 同一家几份在投：点一下归到其中一份（用已抽好的字段落库，不再调模型）。 */
-  assignInbox: (id: string, application_id: string) => apiPostJson<unknown>(careerPath(`/inbox/${encodeURIComponent(id)}/assign`), { application_id }).then(r => pickObject<IntakeResult>(r, 'result')),
-  /** 读错了：点「不对」选正确的类型，撤掉这封信带来的推进和时间点再按正确类型落库。 */
-  correctInbox: (id: string, kind: CorrectKind) => apiPostJson<unknown>(careerPath(`/inbox/${encodeURIComponent(id)}/correct`), { kind }).then(r => pickObject<IntakeResult>(r, 'result')),
   retryInbox: (id: string, application_id?: string | null) => apiPostJson<unknown>(careerPath(`/inbox/${encodeURIComponent(id)}/retry`), { application_id }).then(r => pickObject<IntakeResult>(r, 'result')),
 
   // ----- 截止事件 -----

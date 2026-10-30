@@ -2,13 +2,11 @@
  * 面试与目标岗位的接口（挂在 `/api/career/*` 下，由 career.ts 的路由表展开）：
  * - POST /api/career/interviews/book：电话 / 短信约的面试，用户自己记一场；
  * - GET/POST /api/career/interviews/:id/recordings：上传自己录的面试录音，等语音识别转写后复盘；
- * - GET /api/career/interviews/:id/checklist：复盘时可以勾的深挖点和题（勾被问到 / 卡住的，代替打字）；
  * - POST /api/career/targets：把岗位标成 / 取消目标（只有用户亲手标的才算，系统不替用户认定）。
  */
 import type { Repos } from '@career/core';
 
 import { bookInterview } from '../career/interview-link';
-import { retroChecklist } from '../career/interview-prep';
 import { listRecordings, saveRecording } from '../career/recordings';
 import type { CareerStore } from '../career/store';
 import { setTargetJob } from '../career/targets';
@@ -40,9 +38,6 @@ export function interviewRoutes(): Array<[string, string, Handler]> {
       } catch (error) {
         return fail(errorText(error, '记面试失败'));
       }
-    }],
-    ['GET', '/api/career/interviews/:id/checklist', (ctx) => {
-      try { return ok({ items: retroChecklist(ctx.store, ctx.repos, ctx.params.id) }); } catch (error) { return fail(errorText(error, '读取失败'), 404); }
     }],
     ['GET', '/api/career/interviews/:id/recordings', (ctx) => ok({ recordings: listRecordings(ctx.repos, ctx.params.id).map(({ path: _path, ...rest }) => rest) })],
     ['POST', '/api/career/interviews/:id/recordings', async (ctx) => {

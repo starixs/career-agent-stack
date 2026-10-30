@@ -24,7 +24,6 @@ import type {
   ActionQueueItem, CareerFocusEvent, Deadline, DossierSummary, InboxItem, IntakeResult, SubmitReviewSummary,
 } from '@/components/career/types';
 import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
-import { NotRight, PickApplication } from '@/components/career/inbox/InboxFixButtons';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 
@@ -299,15 +298,14 @@ function RemindRow({ deadline, past, label, resolved, onResolved }: { deadline: 
       {act.error && <ErrorRow message={act.error} />}
       {!resolved && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
+          {/* 面试是要去参加的时间，不是要「完成」的待办：没到时间是准备，过了时间是复盘（同一个位置，不加按钮） */}
           {question
             ? <AttendanceButtons deadlineId={deadline.id} kind={deadline.kind} onAnswered={onResolved} />
             : deadline.kind === 'interview' && past
-              // 面试时间过了：多半面完了，去复盘（说几句 / 勾一勾 / 传录音），不当待办「完成」
-              ? <Button size="sm" variant="primary" onClick={() => requestNavigation({ kind: 'career-dossier', view: 'interview' })}>面完了？去复盘</Button>
+              ? <Button size="sm" variant="secondary" onClick={() => requestNavigation({ kind: 'career-dossier', view: 'interview' })}>面完了？去复盘</Button>
               : deadline.kind === 'interview'
-              // 面试是要去参加的时间，不是要「完成」的待办：点一下开始准备
-              ? <ChatActionButton size="sm" variant="primary" text="帮我准备这场面试" context={{ surface: 'inbox', refs: deadline.application_id ? { application_id: deadline.application_id } : { deadline_id: deadline.id } }} />
-              : <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>}
+                ? <ChatActionButton size="sm" variant="secondary" text="帮我准备这场面试" context={{ surface: 'inbox', refs: deadline.application_id ? { application_id: deadline.application_id } : { deadline_id: deadline.id } }} />
+                : <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>}
           {deadline.application_id && (
             <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: deadline.application_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
           )}
@@ -404,11 +402,6 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
   const preview = expanded || raw.length <= PREVIEW_LIMIT ? raw : `${raw.slice(0, PREVIEW_LIMIT)}…`;
   const run = (fn: () => Promise<unknown>) => act.run(async () => { await fn(); onChanged(); });
   const dossierOptions = dossiers.map(d => ({ value: d.application_id, label: `${d.company_name ?? '未知公司'} · ${d.title}` }));
-  // 同一家几份在投、对不上是哪一份：候选列成按钮，点一下归档
-  const candidateIds = safeJson<{ match?: { candidates?: unknown } }>(item.parsed_json, {}).match?.candidates;
-  const choices = Array.isArray(candidateIds) ? dossierOptions.filter(o => candidateIds.includes(o.value)).map(o => ({ application_id: o.value, label: o.label })) : [];
-  const [fixed, setFixed] = useState<string | null>(null);
-  const fixedThen = (label: string) => { setFixed(label); onChanged(); };
 
   return (
     <div ref={ref} data-inbox-id={item.id} className={highlighted ? '-mx-3 -my-1 rounded-md bg-[var(--primary-soft)] px-3 py-1' : ''}>
@@ -428,9 +421,7 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
         </div>
       )}
       {act.error && <ErrorRow message={act.error} />}
-      {fixed && <div role="status" className="mt-1.5 text-xs font-medium text-[var(--success)]">{fixed}</div>}
-      {!fixed && item.status === 'new' && choices.length > 1 && <div className="mt-2"><PickApplication inboxId={item.id} choices={choices} onDone={fixedThen} /></div>}
-      {!fixed && item.status === 'new' && choices.length <= 1 && (
+      {item.status === 'new' && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <ChatActionButton size="sm" text="帮我处理这条" context={{ surface: 'inbox', refs: { inbox_id: item.id } }} />
           {dossierOptions.length > 0 && (
@@ -442,12 +433,9 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
           <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void run(() => careerApi.dismissInbox(item.id))}>忽略</Button>
         </div>
       )}
-      {!fixed && item.status === 'processed' && (
+      {item.status === 'processed' && (
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
           <span>已归入{item.linked_type ? `：${LINKED_TYPE_LABELS[item.linked_type] ?? item.linked_type}` : ''}</span>
-          {/* 面试邀请进来，看一眼、点一下就开始准备 */}
-          {item.kind === 'interview_invite' && <ChatActionButton size="sm" variant="primary" text="帮我准备这场面试" context={{ surface: 'inbox', refs: { inbox_id: item.id, ...(item.linked_type === 'interview' && item.linked_id ? { interview_id: item.linked_id } : {}) } }} />}
-          <NotRight inboxId={item.id} current={item.kind} onDone={fixedThen} />
           {item.linked_type === 'application' && item.linked_id && (
             <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: item.linked_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
           )}

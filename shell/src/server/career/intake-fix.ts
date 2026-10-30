@@ -1,15 +1,13 @@
 /**
- * 归档之后用户点一下就能改：
- *  - assignIntake：同一家几份在投、对不上是哪一份时，用户在候选里点一份（不用打字说明）。
- *  - correctIntake：读错了（把面试读成拒信、把广告当笔试），用户点「不对」再选正确的类型。
- *    撤掉这封信带来的推进和时间点，按正确类型重新落库；漏斗不留误判，卷宗记一笔更正（undoLastStage）。
- * 两者都复用 intake.applyTriage，落库规则只有一份。
+ * 一封信读错了（把面试读成拒信、把广告当笔试），用户在对话里说一句「那封是面试」，助理调 inbox_correct：
+ * 撤掉这封信带来的推进和时间点，带着正确类型重抽字段（如面试时间）再落库；漏斗不留误判，卷宗记一笔更正（undoLastStage）。
+ * 不在界面上加「不对」按钮：误判是边角，界面保持克制（10-30 用户定）。落库复用 intake.applyTriage，规则只有一份。
  */
 import type { InboxItem, InboxKind } from '@career/core';
 
 import { applyTriage, dataChanged, triageText, type IntakeDeps, type IntakeResult, type TriageResult } from './intake';
 
-/** 用户点「不对」时能选的正确类型；ignored = 和求职无关。 */
+/** 能更正成的类型；ignored = 和求职无关。 */
 export const CORRECTABLE_KINDS = ['interview_invite', 'written_test', 'assessment', 'rejection', 'offer', 'ignored'] as const;
 export type CorrectKind = typeof CORRECTABLE_KINDS[number];
 
@@ -32,16 +30,6 @@ function requireItem(deps: IntakeDeps, itemId: string): InboxItem {
   const item = deps.repos.getInboxItem(itemId);
   if (!item) throw new Error(`收件箱条目不存在：${itemId}`);
   return item;
-}
-
-/** 用户在候选里点了一份：用已经抽好的字段直接落库，不再调模型。 */
-export async function assignIntake(deps: IntakeDeps, itemId: string, applicationId: string): Promise<IntakeResult> {
-  const item = requireItem(deps, itemId);
-  if (!deps.repos.getApplication(applicationId)) throw new Error(`投递不存在：${applicationId}`);
-  const nowIso = deps.now?.() ?? new Date().toISOString();
-  const input = { text: item.raw_text, source: item.source, mail_message_id: item.mail_message_id, application_id: applicationId };
-  const triage = parsedOf(item) ?? await triageText(deps, item.raw_text, input, nowIso);
-  return applyTriage(deps, item, { ...triage, match: { application_id: applicationId } }, input, nowIso);
 }
 
 /** 这封信关联到的那份申请（面试、Offer 挂在申请上）。 */
@@ -69,7 +57,7 @@ function undoEffects(deps: IntakeDeps, item: InboxItem, appId: string, reason: s
 }
 
 /**
- * 用户点「不对」、选了正确的类型。有模型时带着正确类型重新抽一次字段（比如面试时间），拿不到就沿用原来的字段。
+ * 更正成正确的类型。有模型时带着正确类型重新抽一次字段（比如面试时间），拿不到就沿用原来的字段。
  * 选「无关」就撤掉带来的东西、把信放进已忽略。
  */
 export async function correctIntake(deps: IntakeDeps, itemId: string, kind: CorrectKind): Promise<IntakeResult> {

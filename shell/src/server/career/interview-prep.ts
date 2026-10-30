@@ -65,20 +65,3 @@ export function buildInterviewPrep(store: CareerStore, repos: Repos, application
   };
 }
 
-/** 复盘时可以勾的一条：准备卡上的深挖点或题。 */
-export interface RetroCheckItem { key: string; text: string; source: 'prediction' | 'question' }
-
-/**
- * 面完复盘的「勾一勾」：把这场准备过的深挖点和题列出来，用户勾被问到的、卡住的，不用从头打字讲一遍。
- * 没挂在申请上的面试（手动补记的）没有可勾的，返回空，前端退回说几句。
- */
-export function retroChecklist(store: CareerStore, repos: Repos, interviewId: string, nowIso = new Date().toISOString()): RetroCheckItem[] {
-  const itv = store.getInterview(interviewId);
-  if (!itv) throw new Error(`面试记录不存在：${interviewId}`);
-  if (!itv.application_id || !repos.getApplication(itv.application_id)) return [];
-  const prep = buildInterviewPrep(store, repos, itv.application_id, nowIso);
-  return [
-    ...prep.predictions.map((p, i) => ({ key: `p${i}`, text: p.statement, source: 'prediction' as const })),
-    ...prep.questions.map(q => ({ key: q.id, text: q.content, source: 'question' as const })),
-  ];
-}

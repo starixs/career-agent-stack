@@ -1,12 +1,12 @@
 /**
  * 投出之后切面（立场 9：和 AI 协作本身不能成为新的劳动）。
  * 关键期的一周：美团投了两个岗位（后端开发、算法），百度投了一个。
- *  - 周一 美团来信「面试邀请」没写岗位 → 不能另建一份「未命名岗位」，也不能让用户打字说是哪份：列两份给他点。
+ *  - 周一 美团来信「面试邀请」没写岗位 → 不能另建一份「未命名岗位」；先不归档，助理自己对、对不上再一句话问。
  *  - 今日队列里这场面试带「帮我准备」，点一下就开始；按公司准备时自动挑排着面试的那份。
- *  - 百度的面试邀请被读成了拒信 → 通知中心点「不对」选「面试邀请」：漏斗不留那封拒信，面试和时间点建上。
- *  - 一封培训广告被读成笔试 → 点「不对」选「和求职无关」：时间点撤掉，信进已忽略。
- *  - 面完复盘：准备过的深挖点和题能勾，不用从头讲；过了时间的面试不问「去了吗」，走复盘。
- * 每一步数「用户要打字 / 说话的次数」，目标 0（复盘可以开口说，但也能勾选代替）。
+ *  - 百度的面试邀请被读成了拒信 → 他说一句「那封是面试」（inbox_correct）：漏斗不留那封拒信，面试时间重抽、时间点建上，不追问。
+ *  - 一封培训广告被读成笔试 → 说一句「那是广告」：时间点撤掉，信进已忽略。
+ *  - 过了时间的面试不问「去了吗」，走复盘。
+ * 边角情况不加按钮（10-30 用户定：界面保持克制），只保证一句话就办完、不追问。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,9 +23,8 @@ vi.mock('../sse', () => ({ broadcast: vi.fn() }));
 import { FakeLLM, StaticKeyProvider, Vault } from '@career/core';
 
 import { loadCore } from '../career/core-module';
-import { assignIntake, correctIntake } from '../career/intake-fix';
+import { correctIntake } from '../career/intake-fix';
 import type { IntakeDeps } from '../career/intake';
-import { retroChecklist } from '../career/interview-prep';
 import { RunRegistry } from '../career/runs';
 import { CareerStore } from '../career/store';
 import { createMemoryRepos } from '../career/test-db';
@@ -86,7 +85,7 @@ describe('投出之后 · 回音进来到复盘，用户不用打字解释', () 
   });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('同一家两份在投、信里没写岗位：不另建一份，列两份给用户点；点一下就落到那份上', async () => {
+  it('同一家两份在投、信里没写岗位：不另建一份「未命名岗位」，先不归档；定下是哪份后带 application_id 落到那份上', async () => {
     llm.push(triage('interview_invite', { company: '美团', round: '一面', when: INTERVIEW_AT }, '美团一面邀请'));
     const before = repos.listApplications().length;
     const out = await call('inbox_capture', { text: '【美团】诚邀您参加一面，11月4日14:00，腾讯会议', source: 'mail' });
@@ -94,15 +93,13 @@ describe('投出之后 · 回音进来到复盘，用户不用打字解释', () 
     expect(repos.listApplications()).toHaveLength(before);
     expect(out.status).toBe('new');
     expect(out.candidates.map(c => c.application_id).sort()).toEqual([mt.backend, mt.algo].sort());
-    expect(cards.find(c => c.kind === 'pick_application')?.data).toMatchObject({ inbox_id: out.item_id });
-    expect(out.note).toContain('点一下');
-    expect(out.note).not.toMatch(/请问用户/);
+    expect(cards.some(c => c.kind === 'pick_application')).toBe(false); // 边角情况不往对话里插卡
+    expect(out.note).not.toMatch(/请问用户|解释/);
 
-    await assignIntake(deps, out.item_id, mt.algo);
+    llm.push(triage('interview_invite', { company: '美团', round: '一面', when: INTERVIEW_AT }));
+    await call('inbox_capture', { text: '【美团】诚邀您参加一面，11月4日14:00，腾讯会议', source: 'mail', application_id: mt.algo });
     expect(repos.getApplication(mt.algo)?.stage).toBe('interview');
     expect(repos.getApplication(mt.backend)?.stage).toBe('applied');
-    expect(repos.listDeadlines({ application_id: mt.algo }).filter(d => d.kind === 'interview')).toHaveLength(1);
-    expect(llm.calls).toHaveLength(1); // 点选不再调模型
   });
 
   it('信里写了岗位就自己对上，不问', async () => {
@@ -122,7 +119,7 @@ describe('投出之后 · 回音进来到复盘，用户不用打字解释', () 
     expect(prep.application_id).toBe(mt.algo);
   });
 
-  it('面试读成了拒信：点「不对」选面试邀请，漏斗不留拒信，面试和时间点建上，不用解释', async () => {
+  it('面试读成了拒信：说一句「那封是面试」，漏斗不留拒信，面试和时间点建上，不追问', async () => {
     llm.push(triage('rejection', { company: '百度' }, '百度感谢信'));
     const wrong = await call('inbox_capture', { text: '【百度】感谢您的投递……诚邀您参加11月4日14:00的二面', source: 'mail' });
     expect(repos.getApplication(baidu)?.stage).toBe('rejected');
@@ -137,7 +134,7 @@ describe('投出之后 · 回音进来到复盘，用户不用打字解释', () 
     expect(repos.getInboxItem(wrong.item_id)).toMatchObject({ kind: 'interview_invite', status: 'processed' });
   });
 
-  it('广告读成了笔试：点「不对」选和求职无关，时间点撤掉、信进已忽略、投递阶段不动', async () => {
+  it('广告读成了笔试：说一句「那是广告」，时间点撤掉、信进已忽略、投递阶段不动', async () => {
     llm.push(triage('written_test', { company: '百度', due_at: '2026-11-05T19:00:00+08:00' }));
     const wrong = await call('inbox_capture', { text: '【某培训】百度笔试押题班 11月5日开课', source: 'mail' });
     expect(repos.listDeadlines({ status: 'open', application_id: baidu })).toHaveLength(1);
@@ -148,14 +145,9 @@ describe('投出之后 · 回音进来到复盘，用户不用打字解释', () 
     expect(repos.getApplication(baidu)?.stage).toBe('applied');
   });
 
-  it('面完复盘：准备过的深挖点和题能勾；过了时间的面试不问「去了吗」，问「面完了？」', async () => {
+  it('过了时间的面试不问「去了吗」，问「面完了？」', async () => {
     llm.push(triage('interview_invite', { company: '百度', round: '二面', when: INTERVIEW_AT }));
     await call('inbox_capture', { text: '【百度】二面邀请', source: 'mail' });
-    const job = repos.getApplication(baidu)!.job_id;
-    repos.upsertQuestion({ content: '召回模型的负样本怎么采？', kind: 'interview', job_id: job, source: 'generated', source_ref: `generated:${job}` });
-    const store = new CareerStore(repos, deps.core);
-    const itv = store.listInterviews().find(i => i.application_id === baidu)!;
-    expect(retroChecklist(store, repos, itv.id).map(i => i.text)).toContain('召回模型的负样本怎么采？');
 
     vi.setSystemTime(new Date('2026-11-04T10:00:00.000Z')); // 周三 18:00，面完四小时
     const items = (await call('today_queue')).items.filter(i => i.ref.id === baidu);
@@ -175,7 +167,7 @@ describe('投出之后 · 回音进来到复盘，用户不用打字解释', () 
   });
 
   it('投出之后这几样工具，回给助理的话里没有让用户「发给我 / 告诉我 / 自己选好再说」', () => {
-    const names = ['inbox_capture', 'interview_prep', 'interview_retro', 'interview_book', 'application_correct', 'deadline_done', 'offer_save', 'offer_compare', 'today_queue', 'weekly_review'];
+    const names = ['inbox_capture', 'inbox_correct', 'interview_prep', 'interview_retro', 'interview_book', 'application_correct', 'deadline_done', 'offer_save', 'offer_compare', 'today_queue', 'weekly_review'];
     for (const name of names) expect(mocks.descriptions.get(name) ?? '', name).not.toMatch(/发给我|告诉我|请问用户|请让用户选|粘给我|贴给我/);
     expect(mocks.descriptions.get('interview_retro')).toContain('不要追问');
   });

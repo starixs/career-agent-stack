@@ -16,6 +16,7 @@ import type { BoardRow } from '../career/job-board';
 import { getRepos, careerDataDir, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
+import { CORRECTABLE_KINDS, correctIntake } from '../career/intake-fix';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps, type IntakeResult } from '../career/intake';
 import { carryoverFor, carryoverPrompt, lastTranscript } from '../career/interview-carry';
 import { buildInterviewPrep } from '../career/interview-prep';
@@ -131,9 +132,9 @@ function parseJson<T = unknown>(raw: string | null | undefined): T | undefined {
 /** 填表动作不在可执行状态时，给模型一句真实可做的下一步（而不是让它就此放弃）。 */
 /** inbox_capture 回给模型的一句收尾：落到哪了就说哪；对不上的让卡片承接，不让用户打字说明。 */
 function intakeNote(result: IntakeResult): string {
-  if (result.candidates?.length) return '对话里已出现「归到哪一份」卡片，用户点一下就归档好；回复一句说明即可，不要让用户打字说明是哪一份。';
-  if (result.item.status === 'new') return '没能自动归档：通知中心这条下面有「归到某条投递 / 忽略」按钮。先用 dossier_list 自己对一下能不能确定；确定不了就告诉用户去点那几个按钮，不要让用户打字解释这封信。';
-  return '已归档，告诉用户落到了哪里即可；读错了的话通知中心这条旁边有「不对」，点一下选正确的类型。';
+  if (result.candidates?.length) return '这家有几份在投、信里没写是哪一份，先没归档（没有另建一份）。用 dossier_list 看最近动静能定就带 application_id 再调一次 inbox_capture；定不了就在回复里一句话问他是哪一份，列出岗位名。';
+  if (result.item.status === 'new') return '没能自动归档，信留在通知中心。先用 dossier_list 自己对一下能不能确定；确定不了再一句话问他，不要让他解释信的内容。';
+  return '已归档，告诉用户落到了哪里即可。';
 }
 
 function applyStatusHint(status: string): string {
@@ -656,9 +657,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       }, async (args) => wrap(async () => {
         progress('inbox_capture', '正在归档收件箱内容');
         const result = await captureIntake(intakeDeps(), { text: args.text, source: args.source ?? 'chat', application_id: args.application_id ?? null });
-        // 同一家几份在投：出一张「归到哪一份」卡，用户点一下，不用打字说明
-        if (result.candidates?.length) card(`pick-application:${result.item.id}`, 'pick_application', result.summary, { inbox_id: result.item.id, candidates: result.candidates });
         return text({ item_id: result.item.id, kind: result.item.kind, status: result.item.status, created: result.created, summary: result.summary, urgency: result.triage?.urgency ?? null, candidates: result.candidates ?? [], note: intakeNote(result) });
+      })()),
+
+      tool('inbox_correct', '一封信读错了时更正：用户说「那封是面试 / 那不是笔试 / 那是广告」就用它（inbox_id 从 inbox_list 找）。撤掉这封信推的阶段和它建的时间点，带着正确类型重抽字段（如面试时间）再落库；ignored = 和求职无关，放进已忽略。用户只说了正确类型就够，不要追问细节。', {
+        inbox_id: z.string(), kind: z.enum(CORRECTABLE_KINDS),
+      }, async (args) => wrap(async () => {
+        const result = await correctIntake(intakeDeps(), args.inbox_id, args.kind);
+        changed('inbox_item', 'application', 'application_history', 'deadline', 'dossier_note', 'interview');
+        return text({ item_id: result.item.id, kind: args.kind, created: result.created, summary: result.summary });
       })()),
 
       tool('inbox_list', '列出收件箱条目（缺省只列待处理的 new）。', { status: z.enum(['new', 'processed', 'dismissed']).optional() }, async (args) => wrap(() => text({ items: repos().listInbox(args.status ?? 'new').map(i => ({ id: i.id, source: i.source, kind: i.kind, status: i.status, note: i.note, preview: i.raw_text.slice(0, 160), created_at: i.created_at })) }))()),
@@ -761,7 +768,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ note });
       })()),
 
-      tool('application_correct', '更正一次误判：邮件读错了（如把面试邀请当成拒信）、或用户说之前告诉错了。撤掉这份投递最近一次推进（连同自动补的中间步骤），再推进到用户说的正确阶段；漏斗里不留误判，卷宗记一笔更正。只在用户明确指出错了时用；正常推进用 application_set_stage。', {
+      tool('application_correct', '更正一次误判：用户说之前告诉错了阶段（读错的是某封信时优先用 inbox_correct，它连时间点一起改）。撤掉这份投递最近一次推进（连同自动补的中间步骤），再推进到用户说的正确阶段；漏斗里不留误判，卷宗记一笔更正。只在用户明确指出错了时用；正常推进用 application_set_stage。', {
         application_id: z.string(), stage: z.enum(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded']).describe('用户说的正确阶段'), note: z.string().optional().describe('谁说错了、正确情况是什么；用户只说了「不对，是面试」就不用填，不要为这个追问'),
       }, async (args) => wrap(() => {
         const r = repos();
