@@ -30,6 +30,8 @@ export interface Evidence {
 }
 export type ClaimNode = Claim & { evidence: Evidence[] };
 export type ExperienceNode = Experience & { claims: ClaimNode[] };
+/** 说法全部来自口述访谈的经历（和服务端 resume-intake.ts oralExperienceIds 同一判断）。 */
+export const isOralExperience = (e: ExperienceNode): boolean => Array.isArray(e.claims) && e.claims.length > 0 && e.claims.every(c => c.created_from === 'interview');
 
 export interface ResumeMaster {
   id: string; name: string; direction: string | null; schema_json: string; created_at: string; updated_at: string;

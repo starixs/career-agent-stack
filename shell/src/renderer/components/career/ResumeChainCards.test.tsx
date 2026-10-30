@@ -51,6 +51,16 @@ describe('交简历 → 定制 · 对话里的两张卡', () => {
     offDrawer(); offSuggest();
   });
 
+  it('生成后：口述建的旧经历留着、给一键清掉，点了才删', async () => {
+    vi.mocked(apiPostJson).mockResolvedValueOnce({ ok: true, master_id: 'rsm_1', oral: 2 }).mockResolvedValueOnce({ ok: true, cleared: 2 });
+    render(<ResumeIntakeCard card={INTAKE} onDone={vi.fn()} onDismiss={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: '全部通过，生成主简历' }));
+    await waitFor(() => expect(screen.getByTestId('intake-oral')).toHaveTextContent('还有 2 段之前口述的经历'));
+    fireEvent.click(screen.getByRole('button', { name: '清掉这些' }));
+    await waitFor(() => expect(screen.queryByTestId('intake-oral')).toBeNull());
+    expect(apiPostJson).toHaveBeenLastCalledWith(expect.stringContaining('/resume-intake/rin_1/clear-oral'), {});
+  });
+
   it('读到的简历：不挑的话表头「全部通过」一下就生成', async () => {
     render(<ResumeIntakeCard card={INTAKE} onDone={vi.fn()} onDismiss={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /只用所选/ })).toBeNull();

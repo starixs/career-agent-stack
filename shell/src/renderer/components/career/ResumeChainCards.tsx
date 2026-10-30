@@ -32,7 +32,21 @@ function parseIntake(data: Record<string, unknown>) {
   };
 }
 
-function IntakeDone({ masterId, onDone }: { masterId: string | null; onDone: () => void }) {
+/** 口述建的旧经历：不进主简历，留在经历库标「来自口述」；这里给一键清掉（10-30 用户定，不自动删）。 */
+function OralLeftover({ intakeId, count }: { intakeId: string | null; count: number }) {
+  const [left, setLeft] = useState(count);
+  const { busy, error, run } = useSubmit();
+  if (!intakeId || left <= 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]" data-testid="intake-oral">
+      <span>经历库里还有 {left} 段之前口述的经历（标着「来自口述」），没进主简历。</span>
+      <Button variant="ghost" busy={busy} onClick={() => void run(async () => { await careerApi.clearOralExperiences(intakeId); setLeft(0); })}>清掉这些</Button>
+      <ErrorLine error={error} />
+    </div>
+  );
+}
+
+function IntakeDone({ masterId, intakeId, oral, onDone }: { masterId: string | null; intakeId: string | null; oral: number; onDone: () => void }) {
   return (
     <div className="grid gap-2" data-testid="career-card-resume_intake-done">
       <p className="text-sm text-[var(--ink)]">主简历好了。下一步：给一个岗位，按它定制一份。</p>
@@ -40,6 +54,7 @@ function IntakeDone({ masterId, onDone }: { masterId: string | null; onDone: () 
         <Button variant="primary" onClick={() => { requestNavigation({ kind: 'career-dossier', view: 'apply' }); onDone(); }}>去岗位库挑一个</Button>
         <Button variant="secondary" onClick={() => openResumeDrawer(masterId)}>看看主简历</Button>
       </div>
+      <OralLeftover intakeId={intakeId} count={oral} />
       <p className="text-xs text-[var(--subtle)]">也可以直接把岗位链接或 JD 拖进下面的输入框。</p>
     </div>
   );
@@ -105,6 +120,7 @@ export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [choice, setChoice] = useState<Choice>({});
   const [masterId, setMasterId] = useState<string | null | undefined>(undefined);
+  const [oral, setOral] = useState(0);
   const { busy, error, run } = useSubmit();
   const chosen = pickedIds(picked);
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
@@ -115,6 +131,7 @@ export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
       if (v) await careerApi.vaultSet({ scope: 'profile', field: m.field, value: v });
     }
     const out = await careerApi.confirmResumeIntake(d.intakeId, claimIds, Object.fromEntries(d.conflicts.map(c => [c.field, choice[c.field] ?? 'resume'])));
+    setOral(out.oral);
     setMasterId(out.masterId);
     openResumeDrawer(out.masterId);
   });
@@ -127,7 +144,7 @@ export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
   );
   return (
     <CardShell testId="career-card-resume_intake" icon={<FileCheck2 className="size-4" />} title={card.title} badge={masterId === undefined ? <Badge tone="accent">点一下生成主简历</Badge> : <Badge tone="success">已生成</Badge>} onDismiss={onDismiss}>
-      {masterId !== undefined ? <IntakeDone masterId={masterId} onDone={onDone} /> : (
+      {masterId !== undefined ? <IntakeDone masterId={masterId} intakeId={d.intakeId} oral={oral} onDone={onDone} /> : (
         <div className="grid gap-3">
           {d.profile.length > 0 && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--ink-2)]">

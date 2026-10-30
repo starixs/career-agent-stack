@@ -261,7 +261,7 @@ function applyProfileChoice(vault: Vault, draft: IntakeDraft, choice: ProfileCho
  * 卡片里点「全部通过 / 只用所选」：确认勾选的说法，冲突字段按选择写回，按导入草稿直接组装主简历（不调模型）。
  * 同一份导入再点一次只更新它生成的那份主简历；新拖进的简历替换现有主简历。
  */
-export async function confirmIntake(deps: ConfirmDeps, id: string, claimIds: string[], choice: ProfileChoice = {}): Promise<{ master_id: string; confirmed: number; created: boolean }> {
+export async function confirmIntake(deps: ConfirmDeps, id: string, claimIds: string[], choice: ProfileChoice = {}): Promise<{ master_id: string; confirmed: number; created: boolean; oral: number }> {
   const { repos, store } = deps;
   const draft = getIntakeDraft(repos, id);
   if (!draft) throw new Error(`导入记录不存在：${id}`);
@@ -277,5 +277,31 @@ export async function confirmIntake(deps: ConfirmDeps, id: string, claimIds: str
   const { pending_profile: _drop, ...rest } = draft;
   repos.kvSet(`${INTAKE_KV_PREFIX}${id}`, { ...rest, master_id: masterId, conflicts: [] });
   console.log(`[resume-intake] confirmed intake=${id} master=${masterId} claims=${confirmed} kept_vault=${kept.size}`);
-  return { master_id: masterId, confirmed, created: !reuse };
+  return { master_id: masterId, confirmed, created: !reuse, oral: oralExperienceIds(repos, draft).length };
+}
+
+// ---------- 口述建的旧经历（10-30 用户定：保留、标「来自口述」、给一键清掉，不自动删） ----------
+
+/** 这份简历之外、说法全部来自口述访谈的经历：不进主简历，但留在经历库里，等用户一键清掉。 */
+export function oralExperienceIds(repos: Repos, draft: IntakeDraft): string[] {
+  const own = new Set(draft.entries.map(e => e.experience_id));
+  return repos.experienceTree()
+    .filter(e => !own.has(e.id) && e.claims.length > 0 && e.claims.every(c => c.created_from === 'interview'))
+    .map(e => e.id);
+}
+
+/** 一键清掉口述旧经历（连同说法和证据）；返回清掉了几段。 */
+export function clearOralExperiences(repos: Repos, id: string): number {
+  const draft = getIntakeDraft(repos, id);
+  if (!draft) throw new Error(`导入记录不存在：${id}`);
+  const ids = oralExperienceIds(repos, draft);
+  repos.db.transaction(() => {
+    for (const expId of ids) {
+      repos.db.run('DELETE FROM evidence WHERE claim_id IN (SELECT id FROM claim WHERE experience_id=?)', [expId]);
+      repos.db.run('DELETE FROM claim WHERE experience_id=?', [expId]);
+      repos.db.run('DELETE FROM experience WHERE id=?', [expId]);
+    }
+  });
+  console.log(`[resume-intake] cleared ${ids.length} oral experiences after intake=${id}`);
+  return ids.length;
 }

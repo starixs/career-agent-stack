@@ -243,6 +243,24 @@ describe('主链路切面 · 交简历 → 按岗位定制', () => {
     expect(JSON.parse(master.row.schema_json).education[0].school).toBe('{{vault:profile.school}}');
   });
 
+  it('口述建的旧经历：不进主简历、留在库里标出来；点「清掉这些」才删，简历导入的经历不动', async () => {
+    await mocks.handlers.get('experience_add')!({ title: '口述的实习', claims: [{ text: '口述里说过的一件事' }] });
+    llm.push(JSON.stringify(PARSED));
+    const imported = await call('resume_import', { path: '张小明-简历.pdf' });
+    const intakeId = imported.json.intake_id as string;
+    const out = await confirmRoute(intakeId, repos.listClaims().filter(c => c.created_from === 'doc').map(c => c.id));
+    expect(out.oral).toBe(1);
+    const master = new CareerStore(repos, await loadCore()).getResume(out.master_id as string)!;
+    expect(master.row.schema_json).not.toContain('口述里说过的一件事');
+    expect(repos.listExperiences().map(e => e.title)).toContain('口述的实习');
+
+    const res = await handleCareerRoute(`/api/career/resume-intake/${intakeId}/clear-oral`, new Request('http://x', { method: 'POST', body: '{}' }),
+      { repos, vault, llm: null, broadcast: () => undefined, sessionId: () => 'sess-1' });
+    expect(await res!.json()).toMatchObject({ cleared: 1 });
+    expect(repos.listExperiences().map(e => e.title).sort()).toEqual(['校园二手交易小程序', '美团 · 数据分析实习生']);
+    expect(repos.listClaims().some(c => c.text === '口述里说过的一件事')).toBe(false);
+  });
+
   it('定制的防编造闸门在工具里：改事实、串位、加料的改动拦下，不进简历，列在卡上', async () => {
     llm.push(JSON.stringify(PARSED));
     const imported = await call('resume_import', { path: '张小明-简历.pdf' });

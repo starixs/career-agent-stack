@@ -58,7 +58,9 @@ export const careerApi = {
   addExperience: (body: Partial<ExperienceNode>) => apiPostJson<unknown>(careerPath('/experiences'), body).then(r => pickObject<ExperienceNode>(r, 'experience')),
   confirmClaim: (id: string) => apiPostJson<unknown>(careerPath(`/claims/${encodeURIComponent(id)}/confirm`), {}),
   /** 交简历卡片：确认勾选的说法并按导入草稿生成主简历。 */
-  confirmResumeIntake: (id: string, claimIds: string[], profileChoice: Record<string, 'resume' | 'vault'> = {}) => apiPostJson<unknown>(careerPath(`/resume-intake/${encodeURIComponent(id)}/confirm`), { claim_ids: claimIds, profile_choice: profileChoice }).then(r => { const m = asDict(r).master_id; return { masterId: typeof m === 'string' ? m : null }; }),
+  confirmResumeIntake: (id: string, claimIds: string[], profileChoice: Record<string, 'resume' | 'vault'> = {}) => apiPostJson<unknown>(careerPath(`/resume-intake/${encodeURIComponent(id)}/confirm`), { claim_ids: claimIds, profile_choice: profileChoice }).then(r => { const d = asDict(r); return { masterId: typeof d.master_id === 'string' ? d.master_id : null, oral: typeof d.oral === 'number' ? d.oral : 0 }; }),
+  /** 交简历后一键清掉口述建的旧经历（不进主简历的那些）。 */
+  clearOralExperiences: (id: string) => apiPostJson<unknown>(careerPath(`/resume-intake/${encodeURIComponent(id)}/clear-oral`), {}),
   /** 简历工作台文档（resume-studio ResumeData）；preview 是占位符 → 明文，只给预览用。 */
   getStudio: (id: string) => apiGetJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/studio`)).then(r => {
     const d = asDict(r);

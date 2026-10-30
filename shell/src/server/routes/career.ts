@@ -16,7 +16,7 @@ import { careerSetupStatus } from '../career/setup';
 import { loadCore, type CoreModule } from '../career/core-module';
 import { getRepos, careerExportsDir, careerRecordingsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
-import { confirmIntake } from '../career/resume-intake';
+import { clearOralExperiences, confirmIntake } from '../career/resume-intake';
 import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isAtsMode, setAtsMode, type ExportFormat } from '../career/export';
 import { runAtsCheck } from '../career/ats-check';
 import { getShellLLM } from '../career/llm';
@@ -237,6 +237,15 @@ const ROUTES: Route[] = [
     } catch (error) {
       console.error(`[resume-intake] confirm ${ctx.params.id} failed:`, error instanceof Error ? error.message : error);
       return fail(error instanceof Error ? error.message : '生成主简历失败', error instanceof DomainUnavailableError ? 501 : 400);
+    }
+  }),
+  route('POST', '/api/career/resume-intake/:id/clear-oral', (ctx) => {
+    try {
+      const cleared = clearOralExperiences(ctx.repos, ctx.params.id);
+      dataChanged(ctx, ['experience', 'claim', 'evidence']);
+      return ok({ cleared });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '清理失败', 404);
     }
   }),
   // ---------- 简历工作台（resume-studio 文档：内容 + 模板 / 布局 / 字体 / 配色） ----------
