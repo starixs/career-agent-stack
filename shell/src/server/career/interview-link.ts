@@ -42,3 +42,22 @@ export function interviewResume(store: CareerStore, repos: Repos, input: { resum
   const sent = repos.listApplications().find(a => a.job_id === input.job_id && a.resume_tailored_id)?.resume_tailored_id;
   return sent ? store.getResume(sent) : undefined;
 }
+
+/**
+ * 复盘写到哪一场：给了 interview_id 就用它；否则按公司找进行中的申请（唯一，或岗位名对得上），
+ * 再取这份申请里这一轮（没说轮次就取最近一场）还没复盘的面试。找到申请但没有面试记录时，只返回申请，由调用方新建并挂上。
+ */
+export function retroTarget(
+  store: CareerStore, repos: Repos,
+  input: { interview_id?: string; company_name?: string; title?: string; round?: string },
+): { interview_id?: string; application_id?: string } {
+  if (input.interview_id) return { interview_id: input.interview_id };
+  if (!input.company_name) return {};
+  const hits = repos.findOpenApplicationsByCompany(input.company_name);
+  const app = hits.length === 1 ? hits[0] : hits.find(a => input.title && a.job.title === input.title);
+  if (!app) return {};
+  const itv = input.round
+    ? findOpenInterview(store, app.id, input.round)
+    : store.listInterviews().find(i => i.application_id === app.id && !i.retro_json);
+  return { interview_id: itv?.id, application_id: app.id };
+}
