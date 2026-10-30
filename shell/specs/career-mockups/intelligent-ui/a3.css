@@ -1,0 +1,170 @@
+/* 方案三：回执胶片。墨色是「做完了」，钢笔蓝只给「等你」（关口、先问我、已撤回）。 */
+
+/* ── 回执行 ── */
+.a3-film { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.a3-rc { border-radius: 8px; }
+.a3-rc-row { position: relative; display: grid; grid-template-columns: 18px 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 56px; padding: 8px 10px; border-radius: 8px; cursor: pointer; outline: none; }
+.a3-rc-row:hover, .a3-force-hover .a3-rc-row { background: var(--inset); }
+.a3-rc-row:focus-visible { box-shadow: inset 0 0 0 2px var(--c5-blue); }
+.a3-mark { font-size: 13px; font-weight: 700; text-align: center; color: var(--ink); }
+.a3-rc-text { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.a3-rc-title { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.a3-rc-sub { overflow: hidden; font-size: 13px; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.a3-rc-acts { display: flex; gap: 4px; opacity: 0; transition: opacity 120ms; }
+.a3-rc-row:hover .a3-rc-acts, .a3-rc-row:focus-within .a3-rc-acts, .a3-force-hover .a3-rc-acts { opacity: 1; }
+.a3-pin-tag { padding: 0 6px; border-radius: 4px; background: var(--c5-blue); color: #fff; font-size: 11px; font-style: normal; font-weight: 600; }
+:root[data-color-scheme='dark'] .a3-pin-tag { color: #14120f; }
+
+.a3-running .a3-rc-title, .a3-running .a3-mark { color: var(--subtle); }
+.a3-redo .a3-mark, .a3-redo .a3-rc-sub { color: var(--ink-2); }
+.a3-undone .a3-mark, .a3-undone .a3-rc-sub, .a3-ask .a3-mark, .a3-ask .a3-rc-sub { color: var(--c5-blue); font-weight: 600; }
+
+/* 缩略图 */
+.a3-th { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 6px; background: var(--c5-tone); color: var(--ink); font-size: 11px; font-weight: 700; overflow: hidden; }
+.a3-th-job { font-size: 15px; font-weight: 400; }
+.a3-th-cmp { grid-template-columns: 1fr 1fr; gap: 3px 4px; padding: 8px 7px; place-items: stretch; }
+.a3-th-cmp i, .a3-th-form i { display: block; height: 3px; border-radius: 1px; background: var(--line-2); }
+.a3-th-cmp i.on { background: var(--ink); }
+.a3-th-form { grid-template-rows: repeat(4, 3px); gap: 4px; padding: 9px 8px; place-items: stretch; align-content: center; }
+.a3-th-form i.on { background: var(--ink); }
+.a3-th-skip { color: var(--subtle); text-decoration: line-through; }
+.a3-th-gate { background: var(--c5-blue); color: #fff; }
+
+/* 展开 */
+.a3-rc.is-open { background: transparent; }
+.a3-rc-body { margin: 2px 0 10px 40px; padding: 12px 0 6px 20px; border-left: 2px solid var(--line-2); }
+.a3-undone .a3-rc-body, .a3-ask .a3-rc-body { border-left-color: var(--c5-blue); }
+.a3-body { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.a3-body-q { margin: 0; max-width: 56ch; font-size: 14px; line-height: 1.7; color: var(--ink-2); }
+.a3-pair { display: flex; align-items: center; gap: 22px; }
+.a3-poster { display: flex; flex-direction: column; justify-content: flex-start; width: 120px; height: 140px; padding: 12px; border-radius: 6px; background: var(--c5-tone); font-size: 34px; line-height: 1; color: var(--ink); }
+.a3-poster small { margin-top: 8px; font-family: var(--font-sans); font-size: 11px; color: var(--ink-2); }
+.a3-pair-mid { display: flex; flex-direction: column; align-items: center; font-size: 13px; color: var(--muted); }
+.a3-pair-mid b { font-size: 44px; line-height: 1; color: var(--ink); }
+.a3-pair-mid small { margin-top: 4px; font-size: 11px; letter-spacing: 0.1em; color: var(--subtle); }
+.a3-face { width: 112px; height: 140px; border-radius: 6px; object-fit: cover; object-position: 50% 30%; }
+.a3-seg { display: inline-flex; padding: 2px; border-radius: 8px; background: var(--inset); }
+.a3-seg button { padding: 6px 14px; border-radius: 6px; font-size: 13.5px; color: var(--muted); cursor: pointer; }
+.a3-seg button[aria-pressed='true'] { background: var(--paper); color: var(--ink); font-weight: 600; box-shadow: 0 0 0 1px var(--line-2); }
+.a3-cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; width: 100%; max-width: 640px; font-size: 13.5px; line-height: 1.6; }
+.a3-cmp span { padding: 8px 0; border-top: 1px solid var(--line); color: var(--muted); }
+.a3-cmp .h { border-top: 0; font-size: 11.5px; letter-spacing: 0.14em; color: var(--subtle); }
+.a3-cmp .after { color: var(--ink); font-family: var(--c5-serif); text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 5px; }
+.a3-cmp .same { color: var(--subtle); }
+.a3-filled { margin: 0; padding: 0; list-style: none; font-size: 14px; color: var(--ink); }
+.a3-filled li { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.a3-filled li span { width: 5em; font-size: 12px; letter-spacing: 0.1em; color: var(--subtle); }
+.a3-filled img { width: 22px; height: 22px; border-radius: 4px; object-fit: cover; }
+
+/* 按钮 */
+.a3-ghost { padding: 4px 10px; border-radius: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.a3-ghost:hover { background: var(--paper); color: var(--ink); }
+.a3-undo { color: var(--ink); font-weight: 600; }
+.a3-strong { color: var(--c5-blue); font-weight: 600; }
+.a3-link { font-size: 13.5px; font-weight: 600; color: var(--c5-blue); cursor: pointer; }
+.a3-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.a3-go { padding: 7px 16px; border-radius: 8px; background: var(--c5-blue); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+:root[data-color-scheme='dark'] .a3-go { color: #14120f; }
+.a3-go:disabled { opacity: 0.35; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--c5-blue); outline-offset: 2px; }
+
+/* ── 关口 ── */
+.a3-gate { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'tag tag tag' 'label input go'; gap: 6px 14px; align-items: center; margin: 8px 0 4px; padding: 14px 16px 16px 18px; border-left: 4px solid var(--c5-blue); }
+.a3-gate-tag { grid-area: tag; font-size: 11.5px; letter-spacing: 0.14em; color: var(--c5-blue); font-weight: 600; }
+.a3-gate-label { grid-area: label; font-size: 16px; font-weight: 600; color: var(--ink); }
+.a3-input { grid-area: input; max-width: 280px; padding: 8px 12px; border: 1.5px solid var(--c5-blue); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 15px; }
+.a3-gate .a3-go { grid-area: go; }
+.a3-gate-hold { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'tag tag' 'label go'; }
+.a3-gate-hold .a3-gate-label { font-size: 15px; font-weight: 400; color: var(--ink-2); }
+.a3-hold { grid-area: go; position: relative; overflow: hidden; min-width: 168px; padding: 10px 20px; border: 2px solid var(--c5-blue); border-radius: 10px; color: var(--c5-blue); font-size: 15px; font-weight: 700; cursor: pointer; user-select: none; touch-action: none; }
+.a3-hold-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--p, 0)); background: var(--c5-blue); }
+.a3-hold-text { position: relative; }
+.a3-hold.is-pressing .a3-hold-text { color: #fff; }
+:root[data-color-scheme='dark'] .a3-hold.is-pressing .a3-hold-text { color: #14120f; }
+
+/* ── 进度条 / 提示条 / 提议 ── */
+.a3-run { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 14px; margin-top: 12px; padding: 10px 4px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.a3-run-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+.a3-run-dots { display: flex; gap: 4px; }
+.a3-run-dots i { width: 22px; height: 4px; border-radius: 2px; background: var(--line-2); }
+.a3-run-dots i.on { background: var(--ink); }
+.a3-run-n { font-size: 12.5px; color: var(--subtle); font-variant-numeric: tabular-nums; }
+.a3-run .a3-ghost { margin-left: auto; border: 1px solid var(--line-2); }
+.a3-run.is-paused .a3-run-title { color: var(--c5-blue); }
+.a3-run.is-finished .a3-run-dots i { background: var(--ink); }
+.a3-snack { position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 14px; width: max-content; padding: 9px 12px 9px 16px; border-radius: 10px; background: var(--ink); color: var(--bg); font-size: 13.5px; }
+.a3-snack button { font-weight: 700; color: var(--bg); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.a3-snack kbd { padding: 1px 6px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--bg) 40%, transparent); font-size: 11px; }
+.a3-suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 2px 0 8px 70px; padding: 8px 12px; border-radius: 8px; background: var(--inset); font-size: 13.5px; color: var(--ink-2); }
+
+/* ── 结尾 ── */
+.a3-done-line { margin: 14px 0 0; font-size: 14px; color: var(--ink-2); }
+.a3-wrap { margin-top: 12px; padding-top: 12px; border-top: 2px solid var(--ink); }
+.a3-wrap-cols { display: flex; gap: 40px; font-size: 14.5px; color: var(--ink); }
+.a3-wrap-cols span { display: block; font-size: 11.5px; letter-spacing: 0.14em; color: var(--subtle); }
+.a3-wrap-next { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.a3-next { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px; border-radius: 6px; background: var(--c5-tone); text-align: left; cursor: pointer; }
+.a3-next .font-human { font-size: 28px; color: var(--ink); }
+.a3-next small { font-size: 12px; color: var(--ink-2); }
+.a3-next em { margin-top: 10px; font-size: 13px; font-style: normal; font-weight: 600; color: var(--c5-blue); }
+
+/* ── 侧栏 ── */
+.a3-side { display: flex; flex-direction: column; width: 380px; border-left: 1px solid var(--line); background: var(--paper); }
+.a3-side header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); font-size: 18px; color: var(--ink); }
+.a3-ops { margin: 0; padding: 4px 16px; list-style: none; overflow: auto; }
+.a3-ops li { display: grid; grid-template-columns: 3em minmax(0, 1fr) auto; grid-template-areas: 'op w x' 'op y x'; gap: 0 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.a3-ops b { grid-area: op; font-size: 12px; color: var(--subtle); font-weight: 600; }
+.a3-ops .w { grid-area: w; font-size: 14px; color: var(--ink); }
+.a3-ops .y { grid-area: y; font-size: 12.5px; color: var(--muted); }
+.a3-ops .a3-ghost { grid-area: x; }
+.a3-ops .more { display: block; color: var(--subtle); font-size: 13px; }
+.a3-browser { margin: 16px; border: 1px solid var(--line-2); border-radius: 8px; overflow: hidden; font-size: 12px; color: var(--subtle); }
+.a3-browser > span { display: block; padding: 6px 10px; background: var(--inset); }
+.a3-browser-page { display: flex; flex-direction: column; gap: 10px; padding: 16px; background: #fff; }
+.a3-browser-page i { display: block; height: 22px; border-radius: 4px; background: #eee; }
+.a3-browser-page i.need { box-shadow: inset 0 0 0 2px var(--c5-blue); background: #fff; }
+.a3-side-demo { display: flex; height: 380px; }
+.a3-side-demo .a3-side { width: 100%; border: 1px solid var(--line); border-radius: 8px; }
+
+/* ── UX 页面布局（电脑） ── */
+.a3-ux-bar { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; max-width: 1240px; margin: 0 auto 10px; }
+.a3-ux-label { align-self: center; font-size: 13px; color: var(--subtle); }
+.a3-persona { display: flex; flex-direction: column; align-items: flex-start; padding: 7px 14px; border: 1.5px solid var(--hard); border-radius: 8px; background: var(--paper); font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.a3-persona small { font-size: 12px; font-weight: 400; color: var(--muted); }
+.a3-persona.is-on { background: var(--ink); color: var(--bg); }
+.a3-persona.is-on small { color: color-mix(in srgb, var(--bg) 70%, transparent); }
+.a3-taps { align-self: center; margin-left: auto; font-size: 14px; color: var(--muted); }
+.a3-taps b { font-size: 30px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.a3-script { display: flex; flex-wrap: wrap; gap: 6px 18px; max-width: 1240px; margin: 0 auto 12px; padding: 0; list-style: none; counter-reset: s; font-size: 13.5px; color: var(--subtle); }
+.a3-script li::before { counter-increment: s; content: counter(s) ' '; font-weight: 700; }
+.a3-script li.done { color: var(--ink-2); text-decoration: line-through; }
+.a3-script li.now { color: var(--c5-blue); font-weight: 600; }
+.a3-desk { display: flex; max-width: 1240px; height: 760px; margin: 0 auto; border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; background: var(--bg); }
+.a3-chat { position: relative; display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.a3-chat-col { flex: 1; overflow: auto; padding: 24px max(24px, calc((100% - 760px) / 2)) 24px; }
+.a3-user { width: fit-content; max-width: 80%; margin-left: auto; padding: 12px 16px; border-radius: 16px; background: var(--note); color: var(--ink); font-size: 15px; }
+.a3-say { margin: 14px 0 0; font-size: 15px; line-height: 1.75; color: var(--ink); }
+.a3-composer { display: flex; align-items: center; justify-content: space-between; margin: 0 max(24px, calc((100% - 760px) / 2)) 18px; padding: 12px 12px 12px 18px; border: 1.5px solid var(--hard); border-radius: 12px; background: var(--paper); color: var(--subtle); font-size: 14px; }
+.a3-composer span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--ink); color: var(--bg); }
+.a3-ux-notes { max-width: 1240px; margin: 28px auto 0; }
+.a3-ux-notes h3 { margin: 22px 0 10px; font-size: 22px; color: var(--ink); }
+.a3-rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 28px; }
+.a3-rules div { font-size: 14px; line-height: 1.7; color: var(--ink-2); }
+.a3-rules b { display: block; margin-bottom: 2px; font-size: 15px; color: var(--ink); }
+.a3-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.a3-table th, .a3-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; color: var(--ink-2); }
+.a3-table thead th { font-size: 12px; letter-spacing: 0.12em; color: var(--subtle); font-weight: 400; }
+.a3-table tbody th { color: var(--ink); white-space: nowrap; }
+.a3-table b { font-size: 22px; color: var(--ink); }
+
+/* ── UI 页面 ── */
+.a3-ui { max-width: 1240px; margin: 0 auto; }
+.a3-ui section { margin-bottom: 40px; }
+.a3-ui h3 { margin: 0 0 6px; font-size: 22px; color: var(--ink); }
+.a3-ui-lead { margin: 0 0 16px; max-width: 80ch; font-size: 14px; line-height: 1.7; color: var(--ink-2); }
+.a3-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+.a3-grid.two { grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); }
+.a3-spec { margin: 0; display: flex; flex-direction: column; border: 1px dashed var(--line-2); border-radius: 10px; overflow: hidden; }
+.a3-spec-stage { flex: 1; padding: 14px; background: var(--bg); }
+.a3-spec figcaption { padding: 8px 14px; border-top: 1px dashed var(--line-2); font-size: 12.5px; color: var(--muted); background: var(--paper); }
+.a3-spec figcaption b { margin-right: 8px; color: var(--ink); }
