@@ -509,7 +509,8 @@ const ROUTES: Route[] = [
   route('PUT', '/api/career/interviews/:id', (ctx) => {
     try {
       const interview = ctx.store.updateInterview(ctx.params.id, ctx.body as never);
-      dataChanged(ctx, ['interview']);
+      // 改了时间的话，月历上那个时间点也跟着改了（Repos.rescheduleInterview）
+      dataChanged(ctx, ['interview', 'deadline']);
       return ok({ interview });
     } catch (error) {
       return fail(error instanceof Error ? error.message : '更新失败', 404);

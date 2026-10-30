@@ -708,7 +708,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (!Object.keys(patch).length) return err('没有要改的字段：due_at / title / note / kind 至少给一个');
         if (typeof patch.due_at === 'string' && current.status === 'missed' && Date.parse(patch.due_at) > Date.now()) patch.status = 'open';
         r.db.update('deadline', current.id, { ...patch, updated_at: new Date().toISOString() });
-        changed('deadline');
+        if (current.interview_id && typeof patch.due_at === 'string') r.rescheduleInterview(current.interview_id, patch.due_at);
+        changed('deadline', ...(current.interview_id ? ['interview'] : []));
         return text({ deadline: r.getDeadline(current.id) });
       })()),
 
@@ -1446,7 +1447,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         // 真实面试里被问到的题进题库（"我见过的"），同一题跨场次累计
         const asked = Array.isArray((out as { questions?: unknown }).questions) ? (out as { questions: Array<{ quote?: string; type?: string; content_tags?: string[] }> }).questions : [];
         const seen = asked.filter(q => q?.quote && q.quote.trim().length >= 4).map(q => repos().upsertQuestion({ content: q.quote!, kind: 'interview', category: q.type ?? null, company_name: args.company_name ?? null, title: args.title ?? null, source: 'seen', source_ref: `interview:${interview.id}`, tags: q.content_tags ?? [] }).id);
-        changed('interview', ...(seen.length ? ['question'] : []));
+        changed('interview', ...(args.date ? ['deadline'] : []), ...(seen.length ? ['question'] : []));
         return text({ interview_id: interview.id, retro: out, questions_saved: seen.length });
       })()),
 

@@ -76,6 +76,23 @@ describe('收件箱 / 截止 / 今日队列', () => {
   })
 })
 
+describe('面试改期', () => {
+  it('rescheduleInterview：面试记录和它的时间点一起改；已过期改到将来变回未完成，做完的不动', () => {
+    const r = mem()
+    r.db.insert('interview', { id: 'itv1', round: 'first', date: '2026-10-01T06:00:00.000Z', tags_json: '[]', result: 'none', result_source: 'none', created_at: NOW, updated_at: NOW })
+    const missed = r.createDeadline({ kind: 'interview', title: '一面', due_at: '2026-10-01T06:00:00.000Z', interview_id: 'itv1' })
+    r.setDeadlineStatus(missed.id, 'missed')
+    const done = r.createDeadline({ kind: 'interview', title: '一面（旧）', due_at: '2026-09-20T06:00:00.000Z', interview_id: 'itv1' })
+    r.setDeadlineStatus(done.id, 'done')
+
+    r.rescheduleInterview('itv1', '2026-10-05T02:00:00.000Z', NOW)
+
+    expect(r.db.get<{ date: string }>('SELECT date FROM interview WHERE id=?', ['itv1'])?.date).toBe('2026-10-05T02:00:00.000Z')
+    expect(r.getDeadline(missed.id)).toMatchObject({ due_at: '2026-10-05T02:00:00.000Z', status: 'open' })
+    expect(r.getDeadline(done.id)).toMatchObject({ due_at: '2026-09-20T06:00:00.000Z', status: 'done' })
+  })
+})
+
 describe('状态机跳转', () => {
   it('jumpTo 沿最短合法路径推进并写历史；不可达时抛错', () => {
     expect(shortestStagePath('evaluated', 'interview')).toEqual(['ready', 'approved', 'applied', 'interview'])

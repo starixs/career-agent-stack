@@ -482,6 +482,18 @@ export class Repos {
     if (!this.db.update('deadline', id, { status, updated_at: now() })) throw new Error(`截止事件不存在：${id}`)
     return this.getDeadline(id)!
   }
+  /**
+   * 面试时间存了两份：interview.date（助力记录、卷宗读）和它的 deadline.due_at（月历、今日队列、通知中心读）。
+   * 从任一处改期都走这里，两份一起改；已过期的改到将来重新变回未完成。做完 / 取消的时间点不动。
+   */
+  rescheduleInterview(interviewId: string, dueIso: string, nowIso = now()): void {
+    this.db.transaction(() => {
+      this.db.run('UPDATE interview SET date=?, updated_at=? WHERE id=?', [dueIso, nowIso, interviewId])
+      this.db.run(
+        `UPDATE deadline SET due_at=?, status=CASE WHEN status='missed' AND ?>? THEN 'open' ELSE status END, updated_at=? WHERE interview_id=? AND status IN ('open','missed')`,
+        [dueIso, dueIso, nowIso, nowIso, interviewId])
+    })
+  }
   /** 把已过期仍 open 的事件标为 missed（今日队列读取前调用）。 */
   markMissedDeadlines(nowIso = now()): number {
     return this.db.run(`UPDATE deadline SET status='missed', updated_at=? WHERE status='open' AND due_at < ?`, [nowIso, nowIso]).changes
