@@ -36,7 +36,7 @@ import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
 import { confirmSubmitResult } from '../career/submit-executor';
 import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
-import { BatchRunner } from '../career/batch-runner';
+import { applyJobs, planJobs, startApprovedFills } from '../career/batch-apply';
 import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
@@ -393,6 +393,25 @@ const ROUTES: Route[] = [
       throw error;
     }
   }),
+  // 框选一批、确认投出：先算清楚（几家开始 / 跳过原因 / 要不要选简历），确认后一次开始，交给后台批量运行器
+  route('POST', '/api/career/jobs/plan', (ctx) => {
+    const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : [];
+    if (!ids.length) return fail('job_ids 不能为空');
+    return ok({ plan: planJobs(ctx.repos, ctx.store, ids) });
+  }),
+  route('POST', '/api/career/jobs/apply', async (ctx) => {
+    const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : [];
+    if (!ids.length) return fail('job_ids 不能为空');
+    try {
+      const res = await applyJobs({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir }, ids, str(ctx.body.resume_id) ?? null);
+      console.log(`[career] jobs/apply started=${res.started.length} skipped=${res.skipped.length}`);
+      dataChanged(ctx, ['application', 'action_queue']);
+      return ok(res);
+    } catch (error) {
+      if (error instanceof DomainUnavailableError) return fail(error.message, 501);
+      throw error;
+    }
+  }),
   route('POST', '/api/career/export/workbook', async (ctx) => {
     const res = await exportCareerWorkbook(ctx.repos, ctx.deps.exportsDir);
     return ok(res);
@@ -476,8 +495,7 @@ const ROUTES: Route[] = [
     const sent = decision === 'approved' ? await executeApprovedSendMails(intakeDeps(ctx), ids) : [];
     if (decision === 'approved' && submits.length) void kickSubmit();
     // 批准填表同样即执行：交给后台批量运行器（命令轮询几秒内接走）
-    const filling = decision === 'approved' ? actions.filter(a => a.kind === 'fill_form').map(a => a.id) : [];
-    if (filling.length) BatchRunner.command(ctx.repos, 'run', 'approval', filling);
+    const filling = decision === 'approved' ? startApprovedFills(ctx.repos, actions, 'approval') : [];
     // 招呼语 / 开放题答案没有执行器（平台私信、网申开放题都只能本人操作）：批准 = 内容定稿，
     // 交给用户本人去发，动作停在 needs_user 并带上要发的文字，不能显示成「已完成」。
     const handedToUser = decision === 'approved' ? handOverUserSentActions(ctx.repos, actions) : [];

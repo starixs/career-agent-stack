@@ -72,8 +72,10 @@ export async function handleCareerSessionRoute(pathname: string, request: Reques
     if (decision === 'rejected') {
       for (const a of reviewed.filter(x => x.kind === 'submit')) { try { const p = JSON.parse(a.payload_json) as { formSignature?: string }; resetPageTrust(repos, p.formSignature); } catch { /* ignore */ } }
     }
+    // 批准开始填：交给后台批量运行器（和 Global 的审批同一条路），助理不再逐份 apply_run、过程不进对话
+    const filling = decision === 'approved' ? (await import('../career/batch-apply')).startApprovedFills(repos, reviewed, 'approval') : [];
     broadcast('career:data-changed', { sessionId: sessionId(), tables: ['action_queue'] });
-    return ok({ n });
+    return ok({ n, filling });
   }
 
   if (pathname === '/api/career-session/takeover') {

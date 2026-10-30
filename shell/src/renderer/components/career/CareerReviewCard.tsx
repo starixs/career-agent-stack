@@ -39,18 +39,19 @@ export function upsertReviewCard(prev: CareerCard[], ev: CareerReviewEvent): Car
   return [...prev.filter(c => c.id !== id), next];
 }
 
-/** 卡片上做了决定后发给助理的话：看得见的是人话，动作 id 和该调的工具放在隐藏上下文里。 */
-export function reviewDecisionMessage(review: Pick<CareerReviewEvent, 'actionIds' | 'kind' | 'summary'>, decision: 'approved' | 'rejected'): { text: string; context: ChatContext } {
+/** 批准后由后台执行、不用助理接手的动作：填表交批量运行器，提交交提交执行器（进度在等你条右边的「投出 x / y」）。 */
+const BACKGROUND_KINDS = new Set(['fill_form', 'submit']);
+
+/**
+ * 卡片上做了决定后发给助理的话：看得见的是人话，动作 id 放在隐藏上下文里。
+ * 批准填表 / 提交返回 null：后台已经接手，再叫助理只会把过程拉进对话、和后台抢同一份（立场 9、规范 §5.1）。
+ */
+export function reviewDecisionMessage(review: Pick<CareerReviewEvent, 'actionIds' | 'kind' | 'summary'>, decision: 'approved' | 'rejected'): { text: string; context: ChatContext } | null {
   const refs = { action_id: review.actionIds.join(',') };
   if (decision === 'rejected') {
     return { text: `这一步先不做了：${review.summary}。先别执行，问问我接下来怎么办。`, context: { surface: 'apply', refs, note: '用户在卡片上拒绝了这些动作（已作废）。不要执行，问用户下一步。' } };
   }
-  if (review.kind === 'fill_form') {
-    return { text: `可以开始填了：${review.summary}。填的时候告诉我进展。`, context: { surface: 'apply', refs, note: '用户在卡片上同意开始填写：对 action_id 里的每一份依次调用 apply_run(action_id)。' } };
-  }
-  if (review.kind === 'submit') {
-    return { text: `我批准提交了：${review.summary}。请跟进提交结果并告诉我。`, context: { surface: 'apply', refs, note: '用户批准了提交，产品会在几秒内替用户点提交；跟进这份投递的提交结果后告诉用户。' } };
-  }
+  if (BACKGROUND_KINDS.has(review.kind)) return null;
   return { text: `我批准了：${review.summary}。请继续，并告诉我结果。`, context: { surface: 'apply', refs } };
 }
 
@@ -82,7 +83,7 @@ export function ReviewCard({ card, onDone }: CardProps) {
     onDone();
     // 交接：卡片上的决定要让助理知道，它才会接着执行或跟进结果，而不是停在上一轮
     const msg = reviewDecisionMessage({ actionIds, kind, summary: str(card.data.summary) ?? card.title }, decision);
-    suggestToChat(msg.text, msg.context);
+    if (msg) suggestToChat(msg.text, msg.context);
   };
   const kindLabel = ACTION_KIND_LABELS[kind as ActionKind] ?? '这一步';
   return (

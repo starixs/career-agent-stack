@@ -65,7 +65,7 @@ export function actionLabels(ask: AskView): { go: string; later: string } {
     case 'login': return { go: '去登录', later: '晚点' };
     case 'start': return { go: '都开始投', later: '晚点' };
     case 'review': return ask.application_ids.length > 1 ? { go: '一键投出', later: '晚点' } : { go: '就这样投出', later: '我要改' };
-    case 'confirm': return { go: '去页面看看', later: '晚点' };
+    case 'confirm': return { go: '投出了', later: '没投出去' };
     case 'attendance': return ask.deadline_kind === 'assessment' ? { go: '做了', later: '没做' } : { go: '考了', later: '没去' };
     case 'retro': return { go: '说几句复盘', later: '不复盘了' };
     default: return { go: GO[ask.deadline_kind ?? ''] ?? '去处理', later: ask.deadline_kind === 'interview' ? '晚点' : '做完了' };

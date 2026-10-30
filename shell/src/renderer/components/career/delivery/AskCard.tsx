@@ -49,7 +49,8 @@ export function AskCard({ ask, busy, error, onGo, onLater }: {
   const sub = subText(ask);
   const fillable = (ask.fields ?? []).filter(f => f.fillable);
   const blocked = ask.kind === 'info' && fillable.length > 0 && !fillable.some(f => values[f.label]?.trim());
-  const pageOnly = ask.kind === 'info' && (ask.fields ?? []).some(f => !f.fillable);
+  // 缺的项只能在页面上弄（上传、核对）/ 投出了没要到页面上看一眼：多一个直达现场的按钮
+  const pageOnly = (ask.kind === 'info' && (ask.fields ?? []).some(f => !f.fillable)) || ask.kind === 'confirm';
   return (
     <article className={`cd-ask cd-ask-${ask.kind}`} data-testid={`ask-card-${ask.kind}`}>
       <div className="cd-ask-img"><AskImage ask={ask} /></div>

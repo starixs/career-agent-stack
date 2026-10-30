@@ -1,0 +1,95 @@
+/**
+ * 链路切面「定制好 → 批量投出」（世界模型 §6 立场 9；用户 2026-10-30「你这个框选一堆，然后你就直接确认」）。
+ *
+ * 从用户视角走一遍：岗位表上框选 7 行（2 家标星、1 家投过、1 家没链接）→ 一条确认（几家开始、跳过原因、用哪份简历一次问完）
+ * →「开始投」后不用再去别处点「开始」，后台运行器接走 → 等你条里只有要他做的：登录一件、缺信息一件、填好的合成「一键投出」。
+ * 每一步只按按钮，不在对话里打字。
+ */
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import type { Repos } from '@career/core';
+
+import { handleCareerSessionRoute } from '../routes/career-session';
+import { applyJobs, planJobs } from './batch-apply';
+import { BATCH_COMMAND_KEY } from './batch-runner';
+import { loadCore } from './core-module';
+import { asksFor } from './delivery';
+import { prepareJobs } from './job-board';
+import { CareerStore } from './store';
+import { setTargetJob } from './targets';
+import { createMemoryRepos } from './test-db';
+
+const core = await loadCore();
+const STARS = ['美团', '京东'];
+const WIDE = ['DeepSeek', '中兴通讯', '大疆'];
+
+describe('链路 · 框选一批、确认投出', () => {
+  let dir: string;
+  let repos: Repos;
+  let store: CareerStore;
+  let deps: Parameters<typeof applyJobs>[0];
+  const jobOf = (c: string) => repos.listJobs().find(j => j.company_name === c)!;
+  const appOf = (c: string) => repos.listApplications().find(a => a.job_id === jobOf(c).id)!;
+  const actionOf = (c: string) => repos.listActions().find(a => a.application_id === appOf(c).id && a.kind === 'fill_form')!;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'career-chain-'));
+    repos = createMemoryRepos();
+    store = new CareerStore(repos, core);
+    deps = { repos, store, exportsDir: dir, exportPdf: async id => { const p = join(dir, `${id}.pdf`); writeFileSync(p, `%PDF ${id}`); return p; } };
+    for (const c of [...STARS, ...WIDE, '拼多多', '小公司']) {
+      const job = repos.upsertJob({ source_platform: 'campus', source_job_id: `j-${c}`, title: 'AI应用开发', company_name: c, url: c === '小公司' ? null : `https://jobs.${c}.test/apply` });
+      if (STARS.includes(c)) setTargetJob(repos, job.id, true);
+    }
+    repos.jumpTo(repos.createApplication(jobOf('拼多多').id).id, 'applied', '上周投过');
+  });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  it('确认前一条说清：5 家开始（2 家标星），投过的和没链接的跳过并说原因；两份主简历时只问一次用哪份', () => {
+    store.createResumeMaster({ name: 'AI 方向', schema_json: { basics: {} } });
+    store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } });
+    const plan = planJobs(repos, store, repos.listJobs().map(j => j.id));
+    expect(plan.ready).toHaveLength(5);
+    expect(plan.targets).toBe(2);
+    expect(plan.skipped.map(s => s.reason).sort()).toEqual(['已经投过', '没有网申链接']);
+    expect(plan.needs_resume).toHaveLength(5);
+    expect(plan.resumes.map(r => r.name).sort()).toEqual(['AI 方向', '通用版']);
+  });
+
+  it('「开始投」一次：5 家直接批准并交后台运行器，等你条里没有「等你说开始」；投过的那家不会再投一次', async () => {
+    const [ai] = [store.createResumeMaster({ name: 'AI 方向', schema_json: { basics: {} } }), store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } })];
+    const res = await applyJobs(deps, repos.listJobs().map(j => j.id), ai.id);
+    expect(res.started).toHaveLength(5);
+    expect(res.skipped.map(s => s.reason).sort()).toEqual(['已经投过', '没有网申链接']);
+    expect(repos.listActions('approved').filter(a => a.kind === 'fill_form')).toHaveLength(5);
+    expect(repos.kvGet<{ cmd: string; ids: string[] }>(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run', ids: res.started });
+    expect(asksFor(repos).map(a => a.kind)).not.toContain('start');
+    expect(repos.listApplications().filter(a => a.job_id === jobOf('拼多多').id)).toHaveLength(1);
+    expect(JSON.parse(actionOf('大疆').payload_json)).toMatchObject({ resume_id: ai.id });
+  });
+
+  it('后台填到一半：两家要登录合成一件；海投三家填好过检查合成「一键投出」，标星的仍一家一件', async () => {
+    store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } });
+    await applyJobs(deps, repos.listJobs().map(j => j.id));
+    for (const c of ['美团', '京东']) repos.openHandoff('login', { actionId: actionOf(c).id });
+    const review = { requiredFilled: 8, requiredTotal: 8, rows: [] };
+    for (const c of WIDE) repos.enqueueAction('submit', { review }, appOf(c).id);
+    const kinds = asksFor(repos).map(a => [a.kind, a.title]);
+    expect(kinds).toContainEqual(['login', '2 个网站要你登录']);
+    expect(kinds).toContainEqual(['review', '3 家填好了']);
+    expect(kinds.filter(([k]) => k === 'start')).toEqual([]);
+  });
+
+  it('对话 / 等你条里点「都开始投」：同样交后台运行器，前端不用再叫助理逐份 apply_run', async () => {
+    store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } });
+    const results = await prepareJobs(deps, [jobOf('大疆').id]);
+    const start = asksFor(repos).find(a => a.kind === 'start')!;
+    expect(start.title).toBe('1 家等你说开始');
+    const req = new Request('http://local/api/career-session/review', { method: 'POST', body: JSON.stringify({ actionIds: start.sources.map(s => s.id), decision: 'approved' }), headers: { 'Content-Type': 'application/json' } });
+    await handleCareerSessionRoute('/api/career-session/review', req, { repos, broadcast: () => undefined, sessionId: () => 's1' });
+    expect(repos.kvGet<{ cmd: string; ids: string[] }>(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run', ids: [results[0].action_id] });
+  });
+});

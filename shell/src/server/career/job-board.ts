@@ -129,6 +129,8 @@ export function seedCampusJobsIfEmpty(repos: Repos, store: CareerStore, bridges:
 }
 
 const DONE = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired', 'skip']);
+/** 投出去过的阶段（放弃 / 跳过的不算）。 */
+const SENT = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'hired']);
 
 export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().toISOString().slice(0, 10)): BoardRow[] {
   const apps = new Map<string, BoardRow['application']>();
@@ -160,16 +162,20 @@ export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().t
 
 function parseMatch(raw: string | null | undefined): JobMatch | null { try { return raw ? JSON.parse(raw) as JobMatch : null; } catch { return null; } }
 
-/** 勾选的岗位加入待投清单：逐个创建投递 + 冻结材料包 + fill_form 待审。已在进行中的跳过。 */
-export async function prepareJobs(deps: PacketDeps & { store: CareerStore }, jobIds: string[], resumeId?: string | null): Promise<Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }>> {
+/** 勾选的岗位加入待投清单：逐个创建投递 + 冻结材料包 + fill_form 待审。已在进行中的跳过。框选确认投出见 batch-apply.ts。 */
+export async function prepareJobs(deps: PacketDeps & { store: CareerStore }, jobIds: string[], resumeId?: string | null, opts: { fallbackResumeId?: string | null } = {}): Promise<Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }>> {
   const out: Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }> = [];
   for (const jobId of jobIds) {
     const job = deps.repos.getJob(jobId);
     if (!job) { out.push({ job_id: jobId, ok: false, reason: '岗位不存在' }); continue; }
-    const existing = deps.repos.listApplications().find(a => a.job_id === jobId && !DONE.has(a.stage));
+    const apps = deps.repos.listApplications().filter(a => a.job_id === jobId);
+    // 已经投出去的岗位不再投第二次（框选时常会连带勾上已投的那几行）
+    if (apps.some(a => SENT.has(a.stage))) { out.push({ job_id: jobId, ok: false, reason: '已经投过' }); continue; }
+    const existing = apps.find(a => !DONE.has(a.stage));
     if (existing && deps.repos.listActions().some(a => a.application_id === existing.id && ['pending_review', 'approved', 'executing', 'needs_user'].includes(a.status))) { out.push({ job_id: jobId, ok: false, reason: '已在待投清单或正在投' }); continue; }
     if (!job.url) { out.push({ job_id: jobId, ok: false, reason: '没有网申链接' }); continue; }
-    const picked = pickResumeForJob(deps.store, jobId, resumeId);
+    // 定制版优先；没有定制版又有好几份主简历时，用确认时选好的那份（fallbackResumeId），不再逐个问
+    const picked = pickResumeForJob(deps.store, jobId, resumeId) ?? (opts.fallbackResumeId ? pickResumeForJob(deps.store, null, opts.fallbackResumeId) : undefined);
     if (!picked) { out.push({ job_id: jobId, ok: false, reason: '有多份主简历，请先选这次投哪一份' }); continue; }
     const app = existing ?? deps.repos.createApplication(jobId, picked.kind === 'tailored' ? picked.id : null);
     const { packet, warning } = await freezePacket(deps, { applicationId: app.id, jobId, resumeId: picked.id });

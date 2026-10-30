@@ -11,15 +11,15 @@ async function review(deps: Parameters<typeof handleCareerSessionRoute>[2], acti
 }
 
 describe('career-session review', () => {
-  it('对话里批准填表：只落审批，执行交给助理（apply_run），不再让后台运行器抢同一份', async () => {
+  it('对话 / 等你条里批准填表：落审批并交给后台批量运行器（过程不进对话；前端不再叫助理 apply_run，两边不抢）', async () => {
     const repos = createMemoryRepos();
     const events: string[] = [];
     const fill = repos.enqueueAction('fill_form', { job_id: 'job_1', url: 'https://zhaopin.meituan.com/x' });
     const res = await review({ repos, broadcast: e => { events.push(e); }, sessionId: () => 's1' }, [fill.id], 'approved');
     expect(res.status).toBe(200);
-    expect(res.json).toMatchObject({ n: 1 });
+    expect(res.json).toMatchObject({ n: 1, filling: [fill.id] });
     expect(repos.getAction(fill.id)?.status).toBe('approved');
-    expect(repos.kvGet(BATCH_COMMAND_KEY)).toBeFalsy();
+    expect(repos.kvGet(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run', ids: [fill.id] });
     expect(events).toContain('career:data-changed');
   });
 

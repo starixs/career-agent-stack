@@ -14,7 +14,7 @@ import type {
   InboxItem, IntakeResult, Interview, InterviewRecording, Job, MailAccount, MailAccountDetail, MailConnectResult, MailConnector, MailConnectorId, MailMessage, MailOauthStart, SeasonId, TakeoverBriefing, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
-  AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
+  AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPlan, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
 } from './types';
 
 type Dict = Record<string, unknown>;
@@ -46,6 +46,17 @@ export function pickObject<T>(res: unknown, ...keys: string[]): T {
   }
   const { ok: _ok, ...rest } = dict;
   return rest as T;
+}
+
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+function parseSkipped(v: unknown): JobPlan['skipped'] {
+  return (Array.isArray(v) ? v : []).map(asDict).filter(x => typeof x.job_id === 'string').map(x => ({ job_id: String(x.job_id), reason: typeof x.reason === 'string' ? x.reason : '没能开始' }));
+}
+/** 跨边界：/jobs/plan 的形状，字段缺了按空处理，不猜。 */
+function parseJobPlan(v: unknown): JobPlan {
+  const d = asDict(v);
+  const resumes = (Array.isArray(d.resumes) ? d.resumes : []).map(asDict).filter(r => typeof r.id === 'string').map(r => ({ id: String(r.id), name: typeof r.name === 'string' ? r.name : '未命名简历' }));
+  return { ready: strings(d.ready), targets: typeof d.targets === 'number' ? d.targets : 0, skipped: parseSkipped(d.skipped), needs_resume: strings(d.needs_resume), resumes };
 }
 
 export function careerPath(p: string): string {
@@ -110,8 +121,11 @@ export const careerApi = {
   setJobPrefs: (prefs: JobPrefs) => apiPutJson<unknown>(careerPath('/job-prefs'), prefs).then(r => pickObject<JobPrefs>(r, 'prefs')),
   matchJobs: (jobIds?: string[]) => apiPostJson<unknown>(careerPath('/jobs/match'), jobIds ? { job_ids: jobIds } : {}).then(r => pickObject<{ n?: number }>(r)),
   syncJobs: (source: 'campus' | 'server') => apiPostJson<unknown>(careerPath('/jobs/sync'), { source }).then(r => pickObject<{ fetched?: number; stored?: number; matched?: number }>(r)),
-  prepareJobs: (jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/prepare'), { job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
-    .then(r => pickObject<{ queued?: number; results?: Array<{ job_id: string; ok: boolean; reason?: string }> }>(r)),
+  /** 框选确认前：几家能开始、几家标星、哪几家跳过（带原因）、要不要选一份简历。 */
+  planJobs: (jobIds: string[]) => apiPostJson<unknown>(careerPath('/jobs/plan'), { job_ids: jobIds }).then(r => parseJobPlan(asDict(r).plan)),
+  /** 一次确认就开始：加入待投清单 + 批准 + 交后台批量运行器。 */
+  applyJobs: (jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/apply'), { job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
+    .then(r => ({ started: strings(asDict(r).started), skipped: parseSkipped(asDict(r).skipped) })),
   questions: (f: { kind?: string; source?: string; company?: string; q?: string; weak_only?: boolean } = {}) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== '' && v !== false) p.set(k, v === true ? '1' : String(v));

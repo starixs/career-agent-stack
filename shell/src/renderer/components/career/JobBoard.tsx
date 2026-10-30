@@ -1,9 +1,10 @@
 /**
- * 岗位收藏：多维表格（R01 校招 / 实习网申汇总，R02 匹配，R06 勾选加入待投清单，R08 导出表格）。
+ * 岗位收藏：多维表格（R01 校招 / 实习网申汇总，R02 匹配，R06 框选一批确认投出，R08 导出表格）。
  *
  * 一行一个岗位：公司 / 岗位 / 批次 / 行业 / 类型标签 / 地点 / 截止 / 匹配 / 我的进度 / 链接。点匹配分展开"哪条要求对应你哪段经历"。
  * 筛选只用已有取值做成的选项（批次 / 行业 / 类型 / 地点 / 进度）加一个公司 / 岗位搜索，全部在前端即时算（jobBoardFilters.ts）。
- * 同步 / 导入 / 导出是次要动作，收在工具栏右侧。底部是页面输入框（PageAskBar），旁边是「AI 找工作」入口（功能未上线，先禁用）。
+ * 同步 / 导入 / 导出是次要动作，收在工具栏右侧。勾选后「投这 N 家」一次确认就开始（JobBoardApply.tsx），
+ * 底部输入框上沿是和对话同一条等你条；输入框旁边是「AI 找工作」入口（功能未上线，先禁用）。
  */
 import { ChevronDown, Download, ExternalLink as ExternalLinkIcon, Link2, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
@@ -21,6 +22,8 @@ import {
   DEFAULT_BOARD_FILTER, activeFilterCount, batchLabel, boardAskRefs, facetOptions, filterBoardRows, typeTagsOf,
   type BoardFilterState, type BoardSort, type FacetKey,
 } from './jobBoardFilters';
+import { WaitingDock } from './delivery/WaitingDock';
+import { ApplyConfirm } from './JobBoardApply';
 import { TargetStar } from './TargetStar';
 import type { EmploymentType, JobBoardRow, JobPrefs } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
@@ -50,7 +53,7 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
   const [filter, setFilter] = useState<BoardFilterState>(DEFAULT_BOARD_FILTER);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
-  const [panel, setPanel] = useState<'import' | 'prefs' | null>(null);
+  const [panel, setPanel] = useState<'import' | 'prefs' | 'apply' | null>(null);
   // 一次取回全部岗位，筛选在前端算（选项要从全部取值里来）
   const query = useCareerQuery(() => careerApi.jobBoard({}), ['job', 'application', 'action_queue']);
   const allRows = useMemo(() => query.data?.rows ?? [], [query.data]);
@@ -63,12 +66,7 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
   const run = (fn: () => Promise<string | null>) => act.run(async () => { setNotice(await fn()); refresh(); });
   const patch = (p: Partial<BoardFilterState>) => setFilter(f => ({ ...f, ...p }));
 
-  const prepare = () => run(async () => {
-    const res = await careerApi.prepareJobs([...live]);
-    setSelected(new Set());
-    const skipped = (res.results ?? []).filter(r => !r.ok);
-    return `已加入待投清单 ${res.queued ?? 0} 个${skipped.length ? `；跳过 ${skipped.length} 个（${[...new Set(skipped.map(s => s.reason))].join('、')}）` : ''}。到通知中心批准后开始填写。`;
-  });
+  const started = (msg: string) => { setNotice(msg); setSelected(new Set()); setPanel(null); refresh(); };
   const toggleRow = (id: string) => setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (
@@ -104,10 +102,11 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-6 pb-2 text-xs text-[var(--muted)]">
         <span className="tabular-nums">{query.data ? `${rows.length} 个岗位${rows.length !== allRows.length ? `（共 ${allRows.length}）` : ''}` : ''}</span>
         {live.size > 0 && <span className="tabular-nums">已选 {live.size}</span>}
-        <Button size="sm" variant={live.size > 0 ? 'primary' : 'ghost'} busy={act.busy} disabled={live.size === 0} onClick={() => void prepare()}>加入待投清单（{live.size}）</Button>
+        <Button size="sm" variant={live.size > 0 ? 'primary' : 'ghost'} disabled={live.size === 0} aria-pressed={panel === 'apply'} onClick={() => setPanel(p => (p === 'apply' ? null : 'apply'))}>{live.size > 0 ? `投这 ${live.size} 家` : '勾选岗位后一键投'}</Button>
         {bulkExtra}
         {query.data && <PrefsSummary prefs={query.data.prefs} editing={panel === 'prefs'} onEdit={() => setPanel(p => (p === 'prefs' ? null : 'prefs'))} />}
       </div>
+      {panel === 'apply' && live.size > 0 && <ApplyConfirm jobIds={[...live]} onStarted={started} onCancel={() => setPanel(null)} />}
       {panel === 'prefs' && query.data && <PrefsEditor prefs={query.data.prefs} onDone={() => setPanel(null)} onSaved={() => { setPanel(null); refresh(); }} />}
 
       <div className="px-6">
@@ -136,6 +135,9 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
         </div>
       )}
       {rows.length === 0 && <div className="flex-1" />}
+
+      {/* 和对话里同一条等你条（同一批事，处理一处处处生效）：投出去以后要你登录、补信息、一键投出都在这里，不用翻页去找 */}
+      <div className="flex justify-center px-6 pt-2"><WaitingDock /></div>
 
       <PageAskBar
         target={{ kind: 'career-dossier', view: 'apply' }}

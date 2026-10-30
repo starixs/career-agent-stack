@@ -111,7 +111,7 @@ describe('CareerApply · 岗位收藏', () => {
     });
   });
 
-  it('auto 模式开关跟加入待投清单放在一起；结果不确定的提交仍要你确认', async () => {
+  it('auto 模式开关跟「投这 N 家」放在一起；结果不确定的提交仍要你确认', async () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true });
     render(<CareerApply />);
@@ -136,14 +136,20 @@ describe('CareerApply · 岗位收藏', () => {
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/applications/a1/stage', { to: 'applied', note: undefined }));
   });
 
-  it('全选当前筛选结果后加入待投清单', async () => {
+  it('全选当前筛选结果 →「投这 2 家」→ 一条确认 →「开始投」：一次就开始，下一步指向等你条（不再去通知中心批准）', async () => {
     mockGet();
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, queued: 2, results: [{ job_id: 'j1', ok: true }, { job_id: 'j2', ok: true }] });
+    vi.mocked(apiPostJson).mockImplementation(async (url: string) => (url.endsWith('/jobs/plan')
+      ? { ok: true, plan: { ready: ['j1', 'j2'], targets: 0, skipped: [], needs_resume: [], resumes: [] } }
+      : { ok: true, started: ['act1', 'act2'], skipped: [] }));
     render(<CareerApply />);
     fireEvent.click(await screen.findByLabelText('全选岗位'));
-    fireEvent.click(screen.getByRole('button', { name: '加入待投清单（2）' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/jobs/prepare', { job_ids: ['j1', 'j2'] }));
-    expect(await screen.findByText(/已加入待投清单 2 个/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '投这 2 家' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/jobs/plan', { job_ids: ['j1', 'j2'] }));
+    fireEvent.click(await screen.findByRole('button', { name: '开始投 2 家' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/jobs/apply', { job_ids: ['j1', 'j2'] }));
+    expect(await screen.findByText(/已开始投 2 家/)).toBeInTheDocument();
+    expect(screen.queryByText(/通知中心/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('apply-confirm')).not.toBeInTheDocument();
   });
 
   it('同步 / 导出是次要的图标按钮；导入岗位收在按钮后面', async () => {
