@@ -13,7 +13,8 @@ import { fillLoginForm, type LoginCredential } from './login.js'
 import { looksLikeFormVisually, pairVisualFields, type Perceiver, type UiKind } from './perception.js'
 import { visionScan, visionFill, visionClickText, visionFindButton, type VisionOptions } from './vision.js'
 import { describeObstacle, looksLikeRiskUrl, type CaptchaKind } from './obstacles.js'
-import { fillRepeatingSections, matchRowField, SECTIONS, type SectionSummary } from './sections.js'
+import { fillRepeatingSections, matchRowField, rangeFieldIds, SECTIONS, type SectionSummary } from './sections.js'
+import { resolveRangeValues } from './range-fallback.js'
 import { normalizeHost, type SiteMemory, type WidgetMemory } from './memory.js'
 import { matchOption } from './normalize.js'
 import type { FieldType } from './scripts.js'
@@ -22,6 +23,7 @@ import { clearBlockers, type HandledBlocker } from './blockers.js'
 import { displayMatches, fillAndVerify, type FieldAttempt } from './fill.js'
 import { classifyError, reasonText, withWatchdog, type FieldReasonCode } from './codes.js'
 import { isSensitiveLabel, noopRecorder, RunRecorder, type Recorder, type TelemetryOptions } from './telemetry.js'
+import { snapshotNeedsUser } from './diag.js'
 import { clearHighlightScript, libraryFingerprintScript, maskSensitiveScript, prepareEntryClickScript, readDisplayScript, uploadAreaScript, type UploadAreaResult } from './widgets.js'
 
 /**
@@ -178,7 +180,7 @@ export interface DriveOptions extends PacingOptions {
   siteMemory?: SiteMemory
   /** 站点控件记忆；不传时用 siteMemory 同一存储上的控件记忆。 */
   widgetMemory?: WidgetMemory
-  /** 关掉语义兜底层（启发式失败时让模型走一步）。 */
+  /** 关掉模型接手（field-agent.ts：结构树没办成时交模型接着办）。 */
   semanticFallback?: boolean
   /** 续跑时：这些标签上次是 needs_user，若现在页面上已有值（用户自己填的），回传给调用方存进答案库。 */
   learnFrom?: string[]
@@ -284,6 +286,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     if (status === 'stopped_before_submit') { try { review = await buildSubmitReview(page, all) } catch { /* 检查失败时调用方按"需要人看"处理 */ } }
     if (status === 'stopped_before_submit') progress(message, 'stop')
     const result: DriveResult = { status, message, pages, ...all, layersUsed: [...layersUsed], fields: allFields, blockers: allBlockers, entryClicked, libraries, ...(telemetryRef ? { telemetry: telemetryRef } : {}), screenshot, finalUrl: page.url(), adapterId: adapter.id, ...(review ? { review } : {}), ...extra }
+    if (all.needsUser.length) await snapshotNeedsUser(page, recorder, all.needsUser)
     recorder.trace({ stage: 'finish', result: status === 'failed' ? 'fail' : 'info', detail: `${status}：${message}` })
     summarize(status, result)
     return result
@@ -529,10 +532,13 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       if (uploaded) { fields = await step('抽取字段', () => extractFields(page)); for (const f of fields) byId.set(f.id, f) }
 
       const deferred: FieldPlan[] = []
+      const ranges = layer === 'dom' ? rangeFieldIds(fields) : new Set<string>()
       // 5. 逐字段：填写 + 核验 + 失败回滚（只填与当前值不同的；高影响缺答案 / 草稿不填）
       for (const p of plans) {
         const f = byId.get(p.fieldId)
         if (!f) continue
+        // 起止范围控件（一个标签管两格）：逐格解释分不清开始 / 结束，交给 5.5 分区按行填
+        if (ranges.has(f.id) && p.status !== 'skip') { deferred.push(p); continue }
         if (p.status === 'needs_user') {
           // 资料里找不到、但标签是分区行字段（如「在校时间」=入学）：先留给重复分区按行填，分区也没填上再记"要你补"
           if (p.source === 'none' && layer === 'dom' && !f.labelUncertain && SECTIONS.some(spec => matchRowField(f.label, spec))) { deferred.push(p); continue }
@@ -597,6 +603,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           const fresh = now.filter(f => !f.isFile && !known.has(slotOf(f)) && !written.has(slotOf(f)))
           if (!fresh.length) break
           for (const f of fresh) { known.add(slotOf(f)); planFields.set(f.id, f); byId.set(f.id, f) }
+          // 新出现的起止格子同样交给 5.5 分区按行认开始 / 结束（2026-10-31 小鹏整表重渲染后两格又都成了毕业时间）
+          for (const id of rangeFieldIds(now)) ranges.add(id)
           recorder.trace({ stage: 'revealed', result: 'info', detail: `新出现 ${fresh.length} 格：${fresh.map(f => f.label || '?').join(' | ')}` })
           log(`前面的选择让页面新出现了 ${fresh.length} 格：${fresh.map(f => f.label || '?').join('、')}`)
           const more = await interpretForm(llm, fresh, profile, { adapter, recallKey, ...opts.interpret })
@@ -606,6 +614,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
             if (!f) continue
             if (f.labelUncertain && p.status === 'fill') { rec.needsUser.push({ ...p, status: 'needs_user', value: undefined, code: 'label_uncertain', note: `${reasonText('label_uncertain')}（${f.labelUncertain}）` }); continue }
             plans.push(p)
+            if (ranges.has(f.id) && p.status !== 'skip') { deferred.push(p); continue }
             if (p.status === 'needs_user') { rec.needsUser.push(p); continue }
             if (p.status === 'draft_needs_confirm') { rec.drafts.push(p); continue }
             if (p.status !== 'fill' || p.value === undefined) continue
@@ -644,7 +653,23 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         } catch (e) { log(`重复分区填写异常：${e instanceof Error ? e.message : String(e)}`); recorder.bump('section_error') }
       }
       await retryDisabled() // 分区里新加的行同样有联动（第二段学历选了，专业才解锁）
-      for (const p of deferred) { const f = planFields.get(p.fieldId); if (!f || !written.has(slotOf(f))) rec.needsUser.push(p) }
+      // 起止格子分区没填上：按所在经历 / 模型认出是哪一段再填，不交给人（range-fallback.ts）
+      const rangeLeft = new Set(deferred.filter(p => { const f = planFields.get(p.fieldId); return ranges.has(p.fieldId) && !!f && !written.has(slotOf(f)) }).map(p => p.fieldId))
+      if (rangeLeft.size) {
+        const planned = [...planFields.values()]
+        for (const r of await resolveRangeValues(planned, rangeLeft, ranges, profile, widgetLlm, log)) {
+          const old = planFields.get(r.fieldId)
+          const f = old && (fields.find(x => slotOf(x) === slotOf(old)) ?? old)
+          if (!f) continue
+          record(f, r.value, 'profile', await fillAndVerify(fillDeps, f, r.value, 'range'), 'range')
+        }
+      }
+      for (const p of deferred) {
+        const f = planFields.get(p.fieldId)
+        if (f && written.has(slotOf(f))) continue
+        if (ranges.has(p.fieldId)) log(`[apply-gap] 起止格子「${p.label}」认不出属于哪段经历`)
+        rec.needsUser.push(p.status === 'needs_user' ? p : { ...p, status: 'needs_user', value: undefined, confidence: 0, note: reasonText('fill_error') })
+      }
 
       // 6. 整页复核（只对 DOM 层）：核验通过的值有没有被页面后来的动作冲掉（如上传解析回填、联动清空）；冲掉的重填一次，再不行就清空留给用户
       if (layer === 'dom') {

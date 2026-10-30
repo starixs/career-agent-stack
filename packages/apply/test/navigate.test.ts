@@ -200,3 +200,16 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     expect(r.status).toBe('blocked')
   })
 })
+
+describe('选岗避开不是给他的岗位', () => {
+  it('方向对但写着「海外留学生专项」：不选，选普通的那个', async () => {
+    const { scorePositionLink, pickPosition } = await import('../src/navigate.js')
+    const { pickAdapter } = await import('../src/adapters/index.js')
+    const adapter = pickAdapter('https://xiaopeng.jobs.feishu.cn/campus/position')
+    const target = { terms: ['后端开发', 'java'], search: ['后端开发'], avoid: ['海外留学生'] }
+    const overseas = { selector: 'a1', href: 'https://xiaopeng.jobs.feishu.cn/campus/position/1/detail', text: '【2027届校招】Java 全栈开发方向-海外留学生专项 广州' }
+    const normal = { selector: 'a2', href: 'https://xiaopeng.jobs.feishu.cn/campus/position/2/detail', text: '【2027届校招】Java 后端开发 上海' }
+    expect(scorePositionLink(overseas, target, adapter)).toBe(0)
+    expect(pickPosition([overseas, normal], target, adapter)?.selector).toBe('a2')
+  })
+})

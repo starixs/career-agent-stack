@@ -16,6 +16,12 @@ describe('重复分区（表格）', () => {
     const rows = groupRows([f('a', '姓名'), f('b', '学校名称'), f('c', '专业'), f('d', '学历'), f('e', '学校名称'), f('f', '专业')], edu)
     expect(rows.map(r => r.map(x => x.key))).toEqual([['school', 'major', 'degree'], ['school', 'major']])
   })
+  it('起止范围控件：同一个标签的两个输入框，先出现的是开始、后出现的是结束（2026-10-31 小鹏两格都填成了毕业时间）', () => {
+    const rows = groupRows([f('a', '学校名称'), f('b', '学历'), f('c', '起止时间'), f('d', '起止时间'), f('e', '学校名称'), f('f', '起止时间'), f('g', '起止时间')], edu)
+    expect(rows.map(r => r.map(x => `${x.field.id}:${x.key}`))).toEqual([['a:school', 'b:degree', 'c:start', 'd:end'], ['e:school', 'f:start', 'g:end']])
+    const work = groupRows([f('a', '公司名称'), f('b', '实习时间'), f('c', '实习时间')], exp)
+    expect(work[0].map(x => x.key)).toEqual(['org', 'start', 'end'])
+  })
   it('条目来源：education 优先，否则由基本信息拼一段；实习与项目按 org 区分', () => {
     const p: Profile = { ...profile, education: [{ school: 'A 大学', major: '计算机', degree: '本科', start: '2021.09', end: '2025.06' }, { school: 'B 大学', major: '软件工程', degree: '硕士' }] }
     expect(entriesFor('education', p).map(e => e.school)).toEqual(['A 大学', 'B 大学'])

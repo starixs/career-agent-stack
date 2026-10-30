@@ -22,6 +22,8 @@ export interface PositionTarget {
   strong?: number
   /** 详情页上出现这些说法就是要求高于他的学历（本科生看到「博士研究生及以上」），不点投递。 */
   tooHigh?: string[]
+  /** 不是给他的岗位（「海外留学生专项」、只找校招时的「社招」、不找实习时的「实习」）：岗位名沾上就不选。 */
+  avoid?: string[]
 }
 
 export interface PositionLink { selector: string; href: string; text: string }
@@ -131,6 +133,8 @@ export function scorePositionLink(link: PositionLink, target: PositionTarget, ad
     if (i < (target.strong ?? target.terms.length)) strong = true
   })
   if (!score || (strongOnly && !strong)) return 0
+  // 方向对、但不是给他的（2026-10-31 小鹏挑中「Java 全栈开发方向-海外留学生专项」）
+  if ((target.avoid ?? []).some(a => a && mentions(text, a))) return 0
   for (const p of target.prefer ?? []) if (p && mentions(text, p)) score += 2
   if (CAMPUS_BONUS.test(link.text)) score += 1
   return score

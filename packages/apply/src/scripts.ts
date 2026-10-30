@@ -201,12 +201,13 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       return hit ? stripStar(hit.text) : ''
     }
     /** 最近的"表单项"祖先（ant-form-item / mtd-form-item / el-form-item / form-group / li / tr / fieldset）。 */
-    const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem)(\s|$)/i
+    // 飞书 formily：表单项是 ud-formily-item，或带 data-form-field-id（2026-10-31 小鹏网申表：认不出表单项，标签和必填星号全找错）
+    const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem|formily-item)(\s|$)/i
     const itemOf = (n: Element): Element | null => {
       let c: Element | null = n.parentElement
       for (let i = 0; c && c !== document.body && i < 8; i++, c = c.parentElement) {
         const cls = typeof c.className === 'string' ? c.className : ''
-        if (ITEM_RX.test(cls) || c.tagName === 'FIELDSET' || c.tagName === 'LI' || c.tagName === 'TR') return c
+        if (ITEM_RX.test(cls) || c.hasAttribute('data-form-field-id') || c.tagName === 'FIELDSET' || c.tagName === 'LI' || c.tagName === 'TR') return c
       }
       return null
     }
@@ -268,6 +269,14 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const aria = el.getAttribute('aria-label'); if (ok(aria)) return stripStar(aria!)
       const lb = el.getAttribute('aria-labelledby')
       if (lb) { const t = lb.split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' '); if (ok(t)) return stripStar(clean(t)) }
+      // 网站自己标在控件上的字段名（飞书 data-form-field-i18n-name）：比按位置猜的标签可靠。
+      // 单选 / 勾选框例外：它们的标签是选项自己的文字，整组的字段名由 groupLabel 用（2026-10-31 小鹏：三个选项都成了「推荐方式」）
+      const choiceType = ((el as HTMLInputElement).type || '').toLowerCase()
+      if (choiceType !== 'radio' && choiceType !== 'checkbox') {
+        labelVia = 'semantic'
+        const sem = el.getAttribute('data-form-field-i18n-name') || el.closest('[data-form-field-i18n-name]')?.getAttribute('data-form-field-i18n-name') || ''
+        if (ok(sem)) return stripStar(clean(sem))
+      }
       labelVia = 'for'
       const id = (el as HTMLElement).id
       if (id) { const l = document.querySelector(`label[for="${CSS.escape(id)}"]`); if (l && ok(pure(l))) return pure(l) }
@@ -297,6 +306,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       return ''
     }
     function groupLabel(first: Element, options: string[]): string {
+      const sem = first.closest('[data-form-field-i18n-name]')?.getAttribute('data-form-field-i18n-name') || ''
+      if (sem.trim()) return stripStar(clean(sem))
       const rg = first.closest('[role=radiogroup], fieldset, [class*="radio-group" i]')
       if (rg) {
         const al = rg.getAttribute('aria-label'); if (al) return stripStar(al)
@@ -309,7 +320,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       }
       return ''
     }
-    const REQ_CLASS_RX = /(^|\s)([\w-]*-)?(is-)?required(\s|$)|(^|\s)[\w-]*-required[\w-]*(\s|$)|(^|\s)(star|asterisk)(\s|$)/i
+    const REQ_CLASS_RX = /(^|\s)([\w-]*-)?(is-)?required(\s|$)|(^|\s)[\w-]*-required[\w-]*(\s|$)|(^|\s)([\w-]*-)?(star|asterisk)(\s|$)/i
     const starIn = (n: Element | null): boolean => {
       if (!n) return false
       for (const s of Array.from(n.querySelectorAll('i, em, span, b, sup, [class*="required" i], [class*="star" i], [class*="asterisk" i]')).slice(0, 12)) {
@@ -340,9 +351,17 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       }
       return { required: false }
     }
+    const PICKER_SEL = '[data-career-popup], [class*="dropdown" i], [class*="popper" i], [class*="popover" i], [role=listbox], [role=tree], [class*="treeselect" i], [class*="cascader-menu" i]'
+    /** 控件在浮起来的下拉层里（祖先是 absolute / fixed 定位的弹层）。 */
+    const inFloatingPicker = (n: Element): boolean => {
+      const layer = n.closest(PICKER_SEL)
+      if (!layer) return false
+      for (let a: Element | null = layer; a && a !== document.body; a = a.parentElement) { const pos = getComputedStyle(a).position; if (pos === 'absolute' || pos === 'fixed') return true }
+      return false
+    }
     const out: RawField[] = []
     const meta: Record<string, { xpath: string; framework: string }> = {}
-    const seenRadio = new Set<string>()
+    const seenRadio = new Set<Element>()
     let n = 0
     const els = Array.from(document.querySelectorAll('input, textarea, select, [contenteditable="true"], [role="combobox"]'))
     for (const el of els) {
@@ -355,19 +374,23 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const isFile = itype === 'file'
       if (!isFile && itype !== 'radio' && itype !== 'checkbox' && !vis(el)) continue
       if (el.closest('[class*="search" i][class*="box" i], [role="search"]')) continue
+      // 下拉 / 树选择弹层里的勾选框、搜索框是选项，不是表单字段（2026-10-31 小鹏：期望工作地点弹层没收起，9 个树节点勾选框被当成「?」字段）
+      if (inFloatingPicker(el)) continue
       const name = (el as HTMLInputElement).name || (el as HTMLElement).id || undefined
       const req = requiredOf(el)
       const required = req.required
       if (itype === 'radio') {
+        if (seenRadio.has(el)) continue
         const rn = (el as HTMLInputElement).name
-        if (rn && seenRadio.has(rn)) continue
-        if (rn) seenRadio.add(rn)
-        const group = rn ? Array.from(document.querySelectorAll(`input[type=radio][name="${CSS.escape(rn)}"]`)) : [el]
+        // 没有 name 的单选（飞书 UD）：按共同容器成组（radiogroup / fieldset / *radio-group* / 网站标的字段项），不然一组被拆成几个字段
+        const box = rn ? null : el.closest('[role=radiogroup], fieldset, [class*="radio-group" i], [data-form-field-id]')
+        const group = rn ? Array.from(document.querySelectorAll(`input[type=radio][name="${CSS.escape(rn)}"]`)) : box ? Array.from(box.querySelectorAll('input[type=radio]')).filter(r => !(r as HTMLInputElement).name) : [el]
+        group.forEach(r => seenRadio.add(r))
         const id = `f${n++}`
         meta[id] = { xpath: xpathOf(el), framework: frameworkOf(el) }
         const options = group.map(r => clean(labelFor(r) || (r as HTMLInputElement).value)).filter(Boolean)
         let value: string | undefined
-        group.forEach((r, i) => { r.setAttribute('data-career-field', id); r.setAttribute('data-career-option', options[i] ?? String(i)); if ((r as HTMLInputElement).checked) value = options[i] })
+        group.forEach((r, i) => { r.setAttribute('data-career-field', id); r.setAttribute('data-career-option', options[i] ?? String(i)); if ((r as HTMLInputElement).checked || r.getAttribute('aria-checked') === 'true') value = options[i] })
         out.push({ id, label: clean(groupLabel(el, options)) || rn || '', name: rn, type: 'radio', options, required, value, requiredVia: req.via })
         continue
       }

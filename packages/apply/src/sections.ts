@@ -17,17 +17,30 @@ export type SectionEntry = Record<string, string | undefined>
 // 时间类标签分区各自一套：教育用"入学 / 毕业"，工作用"入职 / 离职"，通用的"开始 / 结束"都收，但靠锚字段切行，不会串到别的分区
 const GENERIC_TIME = { start: ['开始时间', '起始时间', '开始年月', '开始日期', 'start date', 'start'], end: ['结束时间', '结束年月', '结束日期', 'end date', 'end'] }
 // 「在校时间」「就读时间」是起止两格共用的标签：第一格（拿到这个标签的那格）是入学，第二格一般只剩占位符「毕业时间」
+// 起止范围控件（「起止时间」「时间段」）：一个标签管两个输入框，groupRows 按出现顺序分成开始 / 结束（2026-10-31 小鹏两格都填成了毕业时间）
+const RANGE_TIME = ['起止时间', '起止年月', '起止日期', '起止', '时间段', '时间范围', '在职时间', '实习时间', '项目时间']
 const EDU_TIME = { start: ['入学时间', '入学年月', '在校时间', '就读时间', ...GENERIC_TIME.start], end: ['毕业时间', '毕业年月', ...GENERIC_TIME.end] }
 const WORK_TIME = { start: ['入职时间', '入职年月', ...GENERIC_TIME.start], end: ['离职时间', '离职年月', ...GENERIC_TIME.end] }
 export const SECTIONS: readonly SectionSpec[] = [
   { key: 'education', title: '教育经历', titleRx: /(教育经历|教育背景|学历信息|教育信息|学习经历|education)/i, anchorKeys: ['school'],
-    rowAliases: { school: ['学校名称', '毕业院校', '院校名称', '学校', '院校', 'university', 'school'], major: ['专业名称', '所学专业', '专业', 'major'], degree: ['最高学历', '学历', '学位', 'degree'], start: EDU_TIME.start, end: EDU_TIME.end } },
+    rowAliases: { school: ['学校名称', '毕业院校', '院校名称', '学校', '院校', 'university', 'school'], major: ['专业名称', '所学专业', '专业', 'major'], degree: ['最高学历', '学历', '学位', 'degree'], start: EDU_TIME.start, end: EDU_TIME.end, range: RANGE_TIME } },
   { key: 'experience', title: '实习/工作经历', titleRx: /(实习经历|工作经历|工作经验|实习\/工作|实践经历|experience|internship)/i, anchorKeys: ['org'],
-    rowAliases: { org: ['公司名称', '单位名称', '机构名称', '企业名称', '公司', '单位', '机构', '企业', 'company', 'employer', 'organization'], role: ['职位名称', '岗位名称', '职位', '岗位', '职务', 'position', 'job title', 'title', 'role'], start: WORK_TIME.start, end: WORK_TIME.end, description: ['工作内容', '工作描述', '实习内容', '主要工作', '职责描述', '工作职责', '描述', 'description', 'responsibilities'] } },
+    rowAliases: { org: ['公司名称', '单位名称', '机构名称', '企业名称', '公司', '单位', '机构', '企业', 'company', 'employer', 'organization'], role: ['职位名称', '岗位名称', '职位', '岗位', '职务', 'position', 'job title', 'title', 'role'], start: WORK_TIME.start, end: WORK_TIME.end, range: RANGE_TIME, description: ['工作内容', '工作描述', '实习内容', '主要工作', '职责描述', '工作职责', '描述', 'description', 'responsibilities'] } },
   { key: 'project', title: '项目经历', titleRx: /(项目经历|项目经验|projects?)/i, anchorKeys: ['name'],
-    rowAliases: { name: ['项目名称', '项目', 'project name', 'project'], role: ['项目角色', '担任角色', '角色', 'role'], start: GENERIC_TIME.start, end: GENERIC_TIME.end, description: ['项目描述', '项目内容', '项目职责', '描述', 'description'] } },
+    rowAliases: { name: ['项目名称', '项目', 'project name', 'project'], role: ['项目角色', '担任角色', '角色', 'role'], start: GENERIC_TIME.start, end: GENERIC_TIME.end, range: RANGE_TIME, description: ['项目描述', '项目内容', '项目职责', '描述', 'description'] } },
 ]
 export const ADD_BUTTON_RX = /^(\+|＋)?\s*(添加|新增|增加|继续添加|再添加|添加一条|添加一段|add( another| more| new| row| entry)?|new)/i
+
+/**
+ * 起止范围控件的格子：标签是「起止时间」这类、且页面上同一个标签不止一格（一个标签管开始 / 结束两个输入框）。
+ * 逐格解释分不清哪格是开始（2026-10-31 小鹏两格都成了毕业时间），这些格子交给分区按行认开始 / 结束。
+ */
+export function rangeFieldIds(fields: readonly FormField[]): Set<string> {
+  const isRange = (f: FormField) => SECTIONS.some(spec => matchRowField(f.label, spec) === 'range')
+  const count = new Map<string, number>()
+  for (const f of fields) if (isRange(f)) count.set(normKey(f.label), (count.get(normKey(f.label)) ?? 0) + 1)
+  return new Set(fields.filter(f => isRange(f) && (count.get(normKey(f.label)) ?? 0) >= 2).map(f => f.id))
+}
 
 /** label → 行内字段键（最长别名优先）。 */
 export function matchRowField(label: string, spec: SectionSpec): string | null {
@@ -50,7 +63,9 @@ export function groupRows(fields: FormField[], spec: SectionSpec): Array<Array<{
   let cur: Array<{ field: FormField; key: string }> | null = null
   for (const f of fields) {
     if (f.isFile) continue
-    const key = matchRowField(f.label, spec)
+    const matched = matchRowField(f.label, spec)
+    // 起止范围控件：同一个标签的两个输入框，先出现的是开始、后出现的是结束
+    const key = matched === 'range' ? (cur?.some(x => x.key === 'start') ? 'end' : 'start') : matched
     if (!key) continue
     if (spec.anchorKeys.includes(key)) { cur = []; rows.push(cur) }
     else if (!cur) continue

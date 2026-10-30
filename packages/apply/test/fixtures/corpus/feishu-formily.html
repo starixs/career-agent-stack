@@ -1,0 +1,41 @@
+<!doctype html>
+<!--
+  飞书招聘 formily 表单结构（取自 2026-10-31 小鹏校招网申页，删去样式与无关节点）：
+  - 表单项是 div.ud-formily-item（带 data-form-field-id），标签在 .ud-formily-item-label 里，必填星号是 span.ud-formily-item-asterisk；
+  - 手机号由登录账号带出，是只读文字，后面紧跟的才是邮箱输入框（按位置猜标签会把邮箱框认成「手机号码」）；
+  - 控件上有 data-form-field-i18n-name（网站自己标的字段名）；
+  - 「推荐方式」是 UD 单选组：radio 没有 name，选中态只在 aria-checked 上，默认选「无」；
+  - 别的字段的树形下拉弹层（挂在 body、absolute 定位）没收起时，里面有带 checkbox 的树节点——那是选项，不是表单字段。
+-->
+<html><head><meta charset="utf-8"><title>飞书 formily</title></head><body>
+<div data-form-field-id="mobile" id="formily-item-mobile" class="ud-formily-item ud-formily-item-layout-vertical">
+  <div class="ud-formily-item-label"><div class="ud-formily-item-label-content"><span><label>手机号码</label><span class="ud-formily-item-asterisk">*</span></span></div></div>
+  <div class="ud-formily-item-control"><div class="ud-formily-item-control-content">+86 138-0000-0000</div></div>
+</div>
+<div data-form-field-id="email" id="formily-item-email" class="ud-formily-item ud-formily-item-layout-vertical">
+  <div class="ud-formily-item-label"><div class="ud-formily-item-label-content"><span><label>邮箱</label><span class="ud-formily-item-asterisk">*</span></span></div></div>
+  <div class="ud-formily-item-control"><div class="ud-formily-item-control-content"><label class="ud__input-input-wrap"><input class="ud__native-input" data-form-field-id="email" data-form-field-i18n-name="邮箱" value=""></label></div></div>
+</div>
+<div data-form-field-id="age" id="formily-item-age" class="ud-formily-item ud-formily-item-layout-vertical">
+  <div class="ud-formily-item-label"><div class="ud-formily-item-label-content"><span><label>年龄</label><span class="ud-formily-item-asterisk">*</span></span></div></div>
+  <div class="ud-formily-item-control"><div class="ud-formily-item-control-content"><input class="ud__native-input" type="number" data-form-field-id="age" value=""></div></div>
+</div>
+<div data-form-field-id="expect_city" id="formily-item-expect_city" class="ud-formily-item ud-formily-item-layout-vertical">
+  <div class="ud-formily-item-label"><div class="ud-formily-item-label-content"><span><label>期望工作地点</label></span></div></div>
+  <div class="ud-formily-item-control"><div class="ud-formily-item-control-content"><input class="ud__native-input" data-form-field-id="expect_city" value=""></div></div>
+</div>
+<div data-form-field-id="code_type" data-form-field-i18n-name="推荐方式" id="formily-item-code_type" class="ud-formily-item ud-formily-item-layout-vertical">
+  <div class="ud-formily-item-label"><div class="ud-formily-item-label-content"><span><label>推荐方式</label><span class="ud-formily-item-asterisk">*</span></span></div></div>
+  <div class="ud-formily-item-control"><div class="ud-formily-item-control-content"><div class="ud-formily-item-control-content-component"><div class="ud__radio-group ud__radio-group--mode-solid">
+    <label class="ud__radio__wrapper ud__radio__wrapper--checked"><span class="ud__radio"><input class="ud__radio__input" type="radio" role="radio" aria-checked="true"></span><span class="ud__radio__label-content">无</span></label>
+    <label class="ud__radio__wrapper"><span class="ud__radio"><input class="ud__radio__input" type="radio" role="radio" aria-checked="false"></span><span class="ud__radio__label-content">内推</span></label>
+    <label class="ud__radio__wrapper"><span class="ud__radio"><input class="ud__radio__input" type="radio" role="radio" aria-checked="false"></span><span class="ud__radio__label-content">大使推荐</span></label>
+  </div></div></div></div>
+</div>
+<div class="ud__select__dropdown citySelectWrapper__e24a20" style="position:absolute;left:20px;top:600px;width:400px;background:#fff">
+  <div class="ud__select__list ud__treeSelect__overlay"><div class="ud__tree"><div class="ud__tree__list">
+    <div class="ud__tree__node"><label class="ud__checkbox__wrapper"><span class="ud__checkbox"><input type="checkbox" class="ud__checkbox__input" role="checkbox" aria-checked="mixed"></span></label><div class="ud__tree__node__label">中国大陆</div></div>
+    <div class="ud__tree__node"><label class="ud__checkbox__wrapper"><span class="ud__checkbox"><input type="checkbox" class="ud__checkbox__input" role="checkbox" aria-checked="false"></span></label><div class="ud__tree__node__label">中国香港</div></div>
+  </div></div></div>
+</div>
+</body></html>
