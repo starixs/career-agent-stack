@@ -40,18 +40,45 @@ export const positionLinksScript: PageScript<null, PositionLink[]> = {
   id: 'career.positionLinks',
   fn: () => {
     const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim().slice(0, 160)
+    const visible = (el: Element) => { const r = el.getBoundingClientRect(); return r.width >= 1 && r.height >= 1 }
     const out: Array<{ selector: string; href: string; text: string }> = []
-    document.querySelectorAll('a[href]').forEach((el, i) => {
-      const r = el.getBoundingClientRect()
-      if (r.width < 1 || r.height < 1) return
+    let n = 0
+    const push = (el: Element, href: string) => {
       const text = clean((el as HTMLElement).innerText)
       if (!text) return
-      el.setAttribute('data-career-pos', String(i))
+      const id = String(n++)
+      el.setAttribute('data-career-pos', id)
+      out.push({ selector: `[data-career-pos="${id}"]`, href, text })
+    }
+    document.querySelectorAll('a[href]').forEach(el => {
+      if (!visible(el)) return
       // 新标签页打开会脱离引擎手里的这一页
       if (el.getAttribute('target') === '_blank') el.removeAttribute('target')
-      out.push({ selector: `[data-career-pos="${i}"]`, href: el.getAttribute('href') || '', text })
+      push(el, el.getAttribute('href') || '')
     })
+    // 北森 / hotjob 的岗位行是可点的 div / li / tr，不是链接：只收最里层、自己不含链接的那一层
+    const rows = Array.from(document.querySelectorAll('li, tr, [class*="job"], [class*="position"], [class*="item"]'))
+      .filter(el => visible(el) && !el.closest('a[href]') && !el.querySelector('a[href]') && getComputedStyle(el).cursor === 'pointer')
+    for (const el of rows) if (!rows.some(o => o !== el && el.contains(o))) push(el, '')
     return out
+  },
+}
+
+/** 「校园招聘」这类栏目入口：首页上没有岗位时先进这个栏目（hotjob、北森 zhiye 首页只有导航）。 */
+export const positionSectionScript: PageScript<null, string | null> = {
+  id: 'career.positionSection',
+  fn: () => {
+    const re = /^(校园招聘职位列表|校园招聘|校招职位|校招岗位|校园招聘岗位|应届生招聘|campus recruitment|campus|graduate)$/i
+    const hits = Array.from(document.querySelectorAll('a, button, li, span, div')).filter(el => {
+      const r = el.getBoundingClientRect()
+      return r.width > 0 && r.height > 0 && re.test(((el as HTMLElement).innerText || '').trim()) && !el.querySelector('a, button')
+    })
+    // 「校园招聘职位列表」比「校园招聘」更接近岗位列表
+    const best = hits.sort((a, b) => ((b as HTMLElement).innerText || '').length - ((a as HTMLElement).innerText || '').length)[0]
+    if (!best) return null
+    best.setAttribute('data-career-section', '1')
+    if (best.getAttribute('target') === '_blank') best.removeAttribute('target')
+    return '[data-career-section="1"]'
   },
 }
 
@@ -76,8 +103,9 @@ export const positionSearchBoxScript: PageScript<null, string | null> = {
 export function scorePositionLink(link: PositionLink, target: PositionTarget, adapter: SiteAdapter): number {
   const text = link.text.toLowerCase()
   if (text.length < MIN_LINK_TEXT) return 0
+  // 有链接样式的站只认这种链接；可点的岗位行（没有 href）按文字像不像岗位判断
   const pattern = adapter.hints.positionLink
-  if (pattern ? !pattern.test(link.href) : !JOBISH.test(link.text)) return 0
+  if (pattern && link.href ? !pattern.test(link.href) : !JOBISH.test(link.text)) return 0
   let score = 0
   target.terms.forEach((term, i) => { if (term && text.includes(term.toLowerCase())) score += Math.max(1, 10 - i) })
   if (!score) return 0
@@ -111,10 +139,18 @@ export async function navigateToPosition(page: PageLike, adapter: SiteAdapter, t
   }
   const direct = await tryPick('link')
   if (direct) return direct
+  const section = await page.evaluate(positionSectionScript, null).catch(() => null)
+  if (section) {
+    await page.click(section)
+    await page.waitForTimeout(settle)
+    tried.push('校园招聘栏目')
+    const inSection = await tryPick('link')
+    if (inSection) return inSection
+  }
   for (const term of target.search.slice(0, MAX_SEARCH_TERMS)) {
     tried.push(term)
     const url = adapter.positionSearchUrl?.(page.url(), term)
-    if (url) {
+    if (url && url !== page.url()) {
       await page.goto(url)
       await page.waitForTimeout(settle)
       const r = await tryPick('search_url')

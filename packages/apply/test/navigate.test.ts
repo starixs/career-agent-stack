@@ -68,6 +68,33 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     expect(page.fieldValues()).toMatchObject({ 姓名: '张三' })
   })
 
+  it('Moka 首页只有「输入职位关键字」搜索框：不当网申表，去站内搜岗位', async () => {
+    const home = 'https://app.mokahr.com/campus-recruitment/acme/100#/'
+    const page = new FakePage([
+      { url: home, fields: [{ label: '输入职位关键字', placeholder: '输入职位关键字' }] },
+      { url: `${home}jobs?keyword=%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91`, links: [{ text: 'Shanghai_Software Developer Intern', href: '#/job/b', goto: 'https://app.mokahr.com/x/b' }] },
+      { url: 'https://app.mokahr.com/x/b', text: 'JD', buttons: [{ text: '申请职位', goto: 'https://app.mokahr.com/x/b/apply' }] },
+      { url: 'https://app.mokahr.com/x/b/apply', fields: basics, buttons: [{ text: '提交', submit: true }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend })
+    expect(r.status).toBe('stopped_before_submit')
+    expect(page.fieldValues()).not.toHaveProperty('输入职位关键字', expect.stringContaining('张'))
+  })
+
+  it('hotjob 首页只有导航：先进「校园招聘」栏目，再点可点的岗位行（没有链接）', async () => {
+    const base = 'https://wecruit.hotjob.cn/SU1/pb'
+    const page = new FakePage([
+      { url: `${base}/index.html#/`, text: '关于我们', section: { text: '校园招聘', goto: `${base}/school.html` } },
+      { url: `${base}/school.html`, links: [{ text: '【2027校招】研发工程师 技术 上海', href: '', goto: `${base}/detail` }] },
+      { url: `${base}/detail`, text: '岗位职责', buttons: [{ text: '申请职位', goto: `${base}/apply` }] },
+      { url: `${base}/apply`, fields: basics, buttons: [{ text: '提交申请', submit: true }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: { ...backend, terms: [...backend.terms, '研发'] } })
+    expect(page.actions.map(a => a.target).filter(t => t?.startsWith('section:') || t?.startsWith('link:'))).toEqual(['section:校园招聘', 'link:【2027校招】研发工程师 技术 上海'])
+    expect(r.status).toBe('stopped_before_submit')
+    expect(page.submitted).toBe(false)
+  })
+
   it('不给 target 时行为不变：首页没表单就如实报没有表单', async () => {
     const r = await driveApplication(new FakePage({ url: 'https://app.mokahr.com/campus-recruitment/acme/100#/', text: '欢迎加入' }), noLLM(), profile, quiet)
     expect(r.status).toBe('blocked')

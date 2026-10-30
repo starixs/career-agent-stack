@@ -14,7 +14,7 @@ describe('position target', () => {
     expect(t.terms.slice(0, 3)).toEqual(['后端开发', '后端', '服务端']);
     expect(t.terms).toContain('软件类');
     expect(t.terms).toContain('software');
-    expect(t.search[0]).toBe('后端开发');
+    expect(t.search.slice(0, 2)).toEqual(['后端开发', '软件类']);
     expect(t.prefer).toEqual(['上海', 'shanghai']);
   });
 

@@ -30,7 +30,8 @@ export function positionTargetFor(prefs: JobPrefs, job: Pick<Job, 'title'> | nul
   const tech = directions.some(d => TECH_HINT.test(d)) || relevant.length > 0;
   const terms = [...new Set([...expanded, ...relevant, ...(tech ? TECH_FALLBACK : [])])];
   if (!terms.length) return null;
-  const search = [...new Set([...directions, ...expanded.slice(0, 3), ...relevant])].slice(0, 4);
+  // 站内搜索：先用户自己的说法，再用这家公司自己的分类名（「软件类」），再同义词，最后通用的「开发」
+  const search = [...new Set([...directions, ...relevant, ...expanded.slice(1, 3), ...(tech ? ['开发'] : [])])].slice(0, 4);
   const prefer = (prefs.cities ?? []).flatMap(c => [c, CITY_EN[c]].filter((x): x is string => !!x));
   return { terms, search, prefer };
 }

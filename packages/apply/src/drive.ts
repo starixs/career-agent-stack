@@ -351,6 +351,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       let fields = await step('抽取字段', () => extractFields(page))
       let layer: DriveLayer = 'dom'
       rec.fieldCount = fields.length
+      // 2.05 第一页只有搜索框 / 筛选框（Moka 首页的「输入职位关键字」、列表页的城市筛选）：不是网申表，先去找岗位
+      if (index === 1 && fields.length && fields.every(isSearchOrFilterField) && await seek('只有搜索 / 筛选框')) { index--; continue }
       // 2.1 岗位详情页：页面上没有任何表单字段、这次也没填过东西 → 允许点申请入口按钮进入网申表（最终提交仍永不点）
       if (!fields.length && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
         const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text, adapter))
@@ -740,6 +742,12 @@ function outcomesFor(index: number, fields: FormField[], rec: PageRecord): Field
     }
   }
   return out
+}
+
+const SEARCH_FILTER_RX = /(搜索|关键字|关键词|keyword|search|筛选|职位类别|职位类型|工作地点|城市|地点|所属部门|职能类型)/i
+/** 列表页 / 首页上的搜索框和筛选项，不是网申表的格子。 */
+function isSearchOrFilterField(f: FormField): boolean {
+  return SEARCH_FILTER_RX.test(`${f.label} ${f.placeholder ?? ''}`)
 }
 
 /** 点击前最后一道防线：文案像提交就拒绝。 */

@@ -148,6 +148,8 @@ export interface FakePageSpec {
   libraries?: string[]
   /** 页面上的链接（首页 / 岗位列表上的岗位卡片）；点击跳到 goto。 */
   links?: Array<{ text: string; href: string; goto?: string }>
+  /** 「校园招聘」栏目入口；点击跳到 goto。 */
+  section?: { text: string; goto: string }
 }
 
 interface LiveField extends Required<Pick<FakeFieldSpec, 'label' | 'type' | 'required'>> { id: string; name?: string; options?: string[]; value?: string; maxLength?: number; placeholder?: string; files?: string[]; box?: [number, number, number, number]; domHidden?: boolean; rejectFill?: boolean; actuatorFails?: boolean; framework?: string; readonly?: boolean; neverSelects?: boolean; labelUncertain?: string }
@@ -330,6 +332,7 @@ export class FakePage {
       case WIDGET_SCRIPT_IDS.domSnippet: return '<div class="fake">…</div>' as unknown as R
       case 'career.positionLinks': return (this.current.spec.links ?? []).map((l, i) => ({ selector: `poslink:${i}`, href: l.href, text: l.text })) as unknown as R
       case 'career.positionSearchBox': return null as unknown as R
+      case 'career.positionSection': return (this.current.spec.section ? 'section:0' : null) as unknown as R
       default: throw new Error(`FakePage 不支持脚本 ${script.id}`)
     }
   }
@@ -354,6 +357,11 @@ export class FakePage {
       this.actions.push({ kind: 'dialog', target: d.spec.text, value: text })
       this.dialogChoices.push(text)
       if (!d.spec.dismissBy || d.spec.dismissBy.includes(text)) d.visible = false
+      return
+    }
+    if (selector === 'section:0' && this.current.spec.section) {
+      this.actions.push({ kind: 'click', target: `section:${this.current.spec.section.text}` })
+      await this.goto(this.current.spec.section.goto)
       return
     }
     const lm = /^poslink:(\d+)$/.exec(selector)

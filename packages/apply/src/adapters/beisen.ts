@@ -8,13 +8,14 @@ import { hostOf } from './types.js'
  */
 export const beisen: SiteAdapter = {
   id: 'beisen',
-  match: url => /beisen|hotjob|italent/.test(hostOf(url)),
+  match: url => /beisen|hotjob|italent|zhiye\.com/.test(hostOf(url)),
   hints: {
     nextButton: ['下一步', '保存并下一步', '下一页', '继续填写'],
     submitWords: ['提交申请', '确认提交', '提交简历', '提交'],
     loginIndicators: ['请先登录', '登录后继续申请', '账号登录', '手机号登录'],
     captchaIndicators: ['拖动滑块', '滑动验证', '安全验证', '请完成验证'],
     detailEntryWords: ['申请职位', '立即申请', '投递简历', '立即投递'],
+    positionLink: /\/(campus|social|jobs?)\/[^?#]*detail|jobAdId=|positionId=|\/job\/\d+/i,
     fieldAliases: {
       name: ['姓名', '真实姓名'],
       phone: ['手机号码', '手机号', '联系电话'],
@@ -27,5 +28,13 @@ export const beisen: SiteAdapter = {
       politics: ['政治面貌'],
       idNumber: ['证件号码', '身份证号'],
     },
+  },
+  // 北森自建页（<公司>.zhiye.com）的校招列表固定在 /campus/jobs；hotjob（wecruit.hotjob.cn/<租户>/pb/）在 school.html。
+  // 两种都不带关键词参数：进列表后按方向词挑。
+  positionSearchUrl: (url) => {
+    const zhiye = /^(https?:\/\/[^/]+\.zhiye\.com)/.exec(url)
+    if (zhiye) return `${zhiye[1]}/campus/jobs`
+    const hotjob = /^(https?:\/\/[^/]*hotjob\.cn\/[^/]+\/pb)\//.exec(url)
+    return hotjob ? `${hotjob[1]}/school.html` : null
   },
 }
