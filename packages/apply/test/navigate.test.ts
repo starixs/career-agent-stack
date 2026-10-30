@@ -180,6 +180,21 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     expect(requiredAbove('硕士及以上优先；博士及以上', ['硕士及以上', '博士及以上'])).toBe('博士及以上')
   })
 
+  it('认定是校招首页 / 列表页又走不出去：如实报没找到，绝不把筛选和分页当表单、把岗位卡上的「立即投递」当提交', async () => {
+    const home = 'https://app.mokahr.com/campus-recruitment/acme/100#/'
+    const page = new FakePage([
+      { url: home, fields: [{ label: '所属部门' }, { label: '30 行/页', type: 'select', options: ['30 行/页'] }], buttons: [{ text: '立即投递', submit: true }, { text: '立即投递', submit: true }] },
+      { url: `${home}jobs?keyword=%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91`, text: '暂无匹配职位' },
+      { url: `${home}jobs?keyword=%E5%90%8E%E7%AB%AF`, text: '暂无匹配职位' },
+      { url: `${home}jobs?keyword=%E6%9C%8D%E5%8A%A1%E7%AB%AF`, text: '暂无匹配职位' },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend, pathfinder: async () => ({ moved: false, note: '自己在网站上找了 14 步，还没走到网申表：只看到实习岗位' }) })
+    expect(r.status).toBe('blocked')
+    expect(r.message).toBe('自己在网站上找了 14 步，还没走到网申表：只看到实习岗位')
+    expect(r.filled).toEqual([])
+    expect(page.submitted).toBe(false)
+  })
+
   it('不给 target 时行为不变：首页没表单就如实报没有表单', async () => {
     const r = await driveApplication(new FakePage({ url: 'https://app.mokahr.com/campus-recruitment/acme/100#/', text: '欢迎加入' }), noLLM(), profile, quiet)
     expect(r.status).toBe('blocked')

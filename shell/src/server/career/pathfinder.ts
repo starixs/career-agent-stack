@@ -40,6 +40,8 @@ export interface PathfinderDeps {
 export const PATHFINDER_MAX_TURNS = 14;
 /** 连续几步页面没变化就提醒换策略（GA：停止无效重试，换路子）。 */
 const STALL_LIMIT = 3;
+/** 提醒了还在原地打转就直接停：再走只是花时间和钱（2026-10-31 大众：同一个链接连点 8 次）。 */
+const STALL_STOP = 6;
 /** 每回合给模型看的元素 / 正文上限：控制上下文（GA 主张小上下文，噪声少、幻觉少）。 */
 const MAX_ELEMENTS = 60;
 const MAX_TEXT = 1200;
@@ -112,6 +114,12 @@ function targetText(obs: Observation, req: ActRequest): string {
   return req.url ?? req.text ?? req.key ?? req.direction ?? '';
 }
 
+/** 没走到时给学生的说明：用模型最后一次看到的情况（比「走了 N 步」有用）。 */
+function lastFinding(d: Decision | null, mem: Memory): string {
+  const said = str(d?.summary) || (mem.history.at(-1) ?? '').replace(/^\d+\.\s*/, '').replace(/\s*→.*$/, '');
+  return clip(said || '网站上没找到入口', 160);
+}
+
 /** 走一趟。永不抛错：读页面失败、模型失败都折算成 stuck，让调用方按「没找到」处理。 */
 export async function findApplicationPage(deps: PathfinderDeps, goal: PathfinderGoal): Promise<PathfinderResult> {
   const maxTurns = deps.maxTurns ?? PATHFINDER_MAX_TURNS;
@@ -133,8 +141,9 @@ export async function findApplicationPage(deps: PathfinderDeps, goal: Pathfinder
     const effect = receipt.ok ? receipt.observed_effect : `没成：${clip(receipt.note, 60)}`;
     mem.history.push(`${turn}. ${clip(str(d.summary), 80)} → ${req.action} ${clip(targetText(obs, req), 40)}（${effect}）`);
     mem.stall = receipt.ok && receipt.observed_effect !== 'no_change' ? 0 : mem.stall + 1;
+    if (mem.stall >= STALL_STOP) return { state: 'stuck', note: lastFinding(d, mem), turns: turn, steps };
     if (receipt.ok && receipt.observed_effect !== 'no_change') steps.push({ action: req.action, target: clip(targetText(obs, req), 60), url: receipt.url_after });
     deps.log?.(`找路 ${turn}：${mem.history[mem.history.length - 1]}`);
   }
-  return { state: 'stuck', note: `走了 ${maxTurns} 步还没到网申表`, turns: maxTurns, steps };
+  return { state: 'stuck', note: lastFinding(null, mem), turns: maxTurns, steps };
 }

@@ -364,12 +364,20 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       // 适配器认得出这是校招首页 / 列表页（能拼出站内搜索网址、自己又不是岗位详情）也一样：Moka 首页的搜索框标签常被认成标语
       // 只在一开始（还没点过申请入口、还没找过岗位）判断；点进网申表以后同一站的网址也拼得出搜索网址，不能再跳走
       // 列表页例外：飞书首页的「立即投递」点进去是招聘项目的岗位列表，还得再挑岗位
-      if (index === 1 && navHops === 0 && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
+      // 详情页 = 只有一个申请入口，或网址本身就是岗位详情；列表页每张岗位卡上都有「立即投递」（Moka），不能当详情页
+      const entries = sig.buttons.filter(b => !b.disabled && isEntryText(b.text, adapter))
+      const looksDetail = entries.length === 1 || !!adapter.hints.positionLink?.test(page.url())
+      if (index === 1 && navHops === 0 && !looksDetail) {
         const here = page.url()
         const atHome = !entryClicked && !!adapter.positionSearchUrl?.(here, '') && !adapter.hints.positionLink?.test(here)
         const links = adapter.hints.positionLink ? await page.evaluate(positionLinksScript, null).catch(() => [] as PositionLink[]) : []
-        const onList = links.some(l => adapter.hints.positionLink!.test(l.href))
-        if ((atHome || onList) && await seek(atHome ? '校招首页' : '列表页')) { index--; continue }
+        const onList = entries.length >= 2 || links.some(l => adapter.hints.positionLink!.test(l.href))
+        if (atHome || onList) {
+          if (await seek(atHome ? '校招首页' : '列表页')) { index--; continue }
+          // 已经认定这是首页 / 列表页、又走不出去：这里没有网申表。绝不把列表上的筛选、分页当表单填，
+          // 也不把岗位卡上的「立即投递」当成提交按钮（2026-10-31：大众校招列表页又被报成「已填完，停在立即投递前」）
+          if (opts.target) { pages.push(rec); return finish('blocked', lastSeekNote ?? `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
+        }
       }
       // 2. 抽取（L1）；抽不到且有感知器 → L2 视觉伪字段
       let fields = await step('抽取字段', () => extractFields(page))
@@ -800,7 +808,7 @@ async function readSignalsSettled(page: PageLike, settleMs: number): Promise<Pag
   }
 }
 
-const SEARCH_FILTER_RX = /(搜索|关键字|关键词|keyword|search|筛选|职位类别|职位类型|工作地点|城市|地点|所属部门|职能类型)/i
+const SEARCH_FILTER_RX = /(搜索|关键字|关键词|keyword|search|筛选|职位类别|职位类型|工作地点|城市|地点|所属部门|职能类型|行\/页|条\/页|每页|排序)/i
 /** 列表页 / 首页上的搜索框和筛选项，不是网申表的格子。 */
 function isSearchOrFilterField(f: FormField): boolean {
   return SEARCH_FILTER_RX.test(`${f.label} ${f.placeholder ?? ''}`)

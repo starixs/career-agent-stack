@@ -57,11 +57,16 @@ describe('自主找路（GA 式循环）', () => {
   it('连续点不动：提示里出现「换一条路」；走满回合如实报 stuck，不抛错', async () => {
     const pages = { home: page('o1', 'https://x.com/', [{ ref: 1, kind: 'button', text: '更多' }]) };
     const s = site(pages, {}, 'home');
-    const llm = new FakeLLM([() => JSON.stringify({ summary: '点更多', action: { type: 'click', ref: 1 } })]);
+    const llm = says(...Array.from({ length: 5 }, () => ({ summary: '点更多', action: { type: 'click', ref: 1 } })));
     const r = await findApplicationPage({ llm, observe: s.observe, act: s.act, maxTurns: 5 }, goal);
     expect(r.state).toBe('stuck');
     expect(llm.calls[4].messages[0].content).toContain('换一条路');
     expect(r.steps).toEqual([]);
+    expect(r.note).toBe('点更多'); // 说明用模型最后看到的，不是「走了 N 步」
+    // 提醒了还原地打转：第 6 步就停，不走满
+    const stubborn = says(...Array.from({ length: 14 }, () => ({ summary: '只有实习栏目，再点全部职位', action: { type: 'click', ref: 1 } })));
+    const r2 = await findApplicationPage({ llm: stubborn, observe: s.observe, act: s.act, maxTurns: 14 }, goal);
+    expect(r2).toMatchObject({ state: 'stuck', turns: 6, note: '只有实习栏目，再点全部职位' });
   });
 
   it('不合法的动作不执行；模型说没有对口岗位就带着说明停下', async () => {
