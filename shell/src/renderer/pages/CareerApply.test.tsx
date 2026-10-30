@@ -152,6 +152,27 @@ describe('CareerApply · 岗位收藏', () => {
     expect(screen.queryByTestId('apply-confirm')).not.toBeInTheDocument();
   });
 
+  it('框选：Shift + 点选一段，按住勾选列拖过几行一起勾；拖回来能缩回去', async () => {
+    mockGet();
+    render(<CareerApply />);
+    await screen.findByText('后端工程师');
+    fireEvent.click(screen.getByRole('button', { name: '只看没截止' }));
+    const box = (title: string) => screen.getByRole('checkbox', { name: `选择岗位 ${title}` });
+    // 顺序：按匹配，再按截止 → 后端工程师、数据分析、算法工程师
+    fireEvent.click(box('后端工程师'));
+    fireEvent.click(box('算法工程师'), { shiftKey: true });
+    expect(screen.getByRole('button', { name: '投这 3 家' })).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('全选岗位'));
+    const cell = (title: string) => box(title).closest('td')!;
+    fireEvent.mouseDown(cell('后端工程师'));
+    fireEvent.mouseEnter(cell('数据分析'));
+    fireEvent.mouseEnter(cell('算法工程师'));
+    expect(screen.getByRole('button', { name: '投这 3 家' })).toBeInTheDocument();
+    fireEvent.mouseEnter(cell('数据分析'));
+    fireEvent.mouseUp(window);
+    expect(screen.getByRole('button', { name: '投这 2 家' })).toBeInTheDocument();
+  });
+
   it('同步 / 导出是次要的图标按钮；导入岗位收在按钮后面', async () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, job: { id: 'j3' }, stored: 3 });

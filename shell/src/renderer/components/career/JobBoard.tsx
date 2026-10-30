@@ -25,6 +25,7 @@ import {
 import { WaitingDock } from './delivery/WaitingDock';
 import { ApplyConfirm } from './JobBoardApply';
 import { TargetStar } from './TargetStar';
+import { useRangeSelect } from './useRangeSelect';
 import type { EmploymentType, JobBoardRow, JobPrefs } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
@@ -67,7 +68,7 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
   const patch = (p: Partial<BoardFilterState>) => setFilter(f => ({ ...f, ...p }));
 
   const started = (msg: string) => { setNotice(msg); setSelected(new Set()); setPanel(null); refresh(); };
-  const toggleRow = (id: string) => setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const pick = useRangeSelect(ids, live, setSelected);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -129,7 +130,7 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
               </tr>
             </thead>
             <tbody>
-              {rows.map(row => <BoardRow key={row.job.id} row={row} checked={live.has(row.job.id)} onToggle={() => toggleRow(row.job.id)} onChanged={refresh} />)}
+              {rows.map(row => <BoardRow key={row.job.id} row={row} checked={live.has(row.job.id)} pick={pick} onChanged={refresh} />)}
             </tbody>
           </table>
         </div>
@@ -282,7 +283,7 @@ function Pill({ children }: { children: ReactNode }) {
 
 const CELL = 'truncate px-2 py-2';
 
-function BoardRow({ row, checked, onToggle, onChanged }: { row: JobBoardRow; checked: boolean; onToggle: () => void; onChanged: () => void }) {
+function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked: boolean; pick: ReturnType<typeof useRangeSelect>; onChanged: () => void }) {
   const { job, match, application } = row;
   const [open, setOpen] = useState(false);
   const stageAction = useCareerAction();
@@ -294,7 +295,10 @@ function BoardRow({ row, checked, onToggle, onChanged }: { row: JobBoardRow; che
   return (
     <>
       <tr className={`group border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${checked ? 'bg-[var(--selected)]' : ''} ${job.source_status === 'closed' ? 'text-[var(--subtle)]' : ''}`}>
-        <td className="px-2 py-2"><input type="checkbox" aria-label={`选择岗位 ${job.title}`} checked={checked} onChange={onToggle} /></td>
+        {/* 勾选列可框选：Shift + 点选一段，按住拖过几行一起勾 */}
+        <td className="cursor-pointer select-none px-2 py-2" onMouseDown={() => pick.pressStart(job.id)} onMouseEnter={() => pick.dragOver(job.id)}>
+          <input type="checkbox" aria-label={`选择岗位 ${job.title}`} checked={checked} readOnly onClick={e => pick.click(job.id, e.shiftKey)} />
+        </td>
         <td className={`${CELL} font-medium text-[var(--ink)]`} title={company}>
           <span className="flex min-w-0 items-center gap-1"><TargetStar jobId={job.id} source={row.target} label={`${company} ${job.title}`} onChanged={onChanged} /><span className="truncate">{company}</span></span>
         </td>
