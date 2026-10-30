@@ -27,6 +27,12 @@ export class Repos {
     this.db.insert('experience', { id, title: e.title, role: e.role ?? null, org: e.org ?? null, start_date: e.start_date ?? null, end_date: e.end_date ?? null, type: e.type ?? 'other', summary: e.summary ?? null, redacted: e.redacted ?? 0, created_at: t, updated_at: t })
     return this.db.get<Experience>('SELECT * FROM experience WHERE id=?', [id])!
   }
+  getExperience(id: string): Experience | undefined { return this.db.get<Experience>('SELECT * FROM experience WHERE id=?', [id]) }
+  /** 补一段经历时只写这次明确给出的字段，不把没提到的抹成空。 */
+  updateExperience(id: string, patch: Partial<Omit<Experience, 'id' | 'created_at'>>): void {
+    const fields = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
+    this.db.update('experience', id, { ...fields, updated_at: now() })
+  }
   addClaim(c: Partial<Claim> & { experience_id: string; text: string }): Claim {
     const t = now(); const id = newId('clm')
     this.db.insert('claim', { id, experience_id: c.experience_id, text: c.text, attribution: c.attribution ?? 'unknown', result_metric: c.result_metric ?? null, status: c.status ?? 'pending', created_from: c.created_from ?? 'interview', created_at: t, updated_at: t })
