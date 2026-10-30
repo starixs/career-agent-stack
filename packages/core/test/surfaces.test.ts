@@ -15,8 +15,10 @@ describe('纯函数', () => {
   it('周起点是周一；静默按阶段阈值判定', () => {
     expect(weekStartOf('2026-10-03')).toBe('2026-09-28')
     expect(weekStartOf('2026-09-28T10:00:00Z')).toBe('2026-09-28')
-    expect(silenceOf('applied', '2026-09-01T00:00:00Z', NOW)).toMatchObject({ silent: true, days: 32, threshold: 21 })
-    expect(silenceOf('applied', '2026-09-20T00:00:00Z', NOW).silent).toBe(false)
+    expect(silenceOf('applied', '2026-09-01T00:00:00Z', NOW)).toMatchObject({ silent: true, days: 32, threshold: 30 })
+    // 投出 25 天：大厂常要一个月左右，还不算静默
+    expect(silenceOf('applied', '2026-09-08T00:00:00Z', NOW).silent).toBe(false)
+    expect(silenceOf('interview', '2026-09-17T00:00:00Z', NOW)).toMatchObject({ silent: false, days: 16, threshold: 21 })
     expect(silenceOf('evaluated', '2026-01-01T00:00:00Z', NOW)).toMatchObject({ silent: false, threshold: null })
   })
   it('漏斗按 key 聚合各环节人数与静默数', () => {
