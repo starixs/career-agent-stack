@@ -56,10 +56,13 @@ export const positionLinksScript: PageScript<null, PositionLink[]> = {
       if (el.getAttribute('target') === '_blank') el.removeAttribute('target')
       push(el, el.getAttribute('href') || '')
     })
-    // 北森 / hotjob 的岗位行是可点的 div / li / tr，不是链接：只收最里层、自己不含链接的那一层
-    const rows = Array.from(document.querySelectorAll('li, tr, [class*="job"], [class*="position"], [class*="item"]'))
-      .filter(el => visible(el) && !el.closest('a[href]') && !el.querySelector('a[href]') && getComputedStyle(el).cursor === 'pointer')
-    for (const el of rows) if (!rows.some(o => o !== el && el.contains(o))) push(el, '')
+    // 北森 / hotjob 的岗位行是可点的 div / li / tr，不是链接。手形光标会被子元素继承，
+    // 所以取「从这层开始变成手形」的那一层（父元素不是手形）= 整行，而不是行里的标签小字
+    const pointer = (el: Element | null) => !!el && getComputedStyle(el).cursor === 'pointer'
+    document.querySelectorAll('div, li, tr, section, article').forEach(el => {
+      if (!visible(el) || !pointer(el) || pointer(el.parentElement) || el.closest('a[href]') || el.querySelector('a[href]')) return
+      push(el, '')
+    })
     return out
   },
 }
@@ -99,6 +102,14 @@ export const positionSearchBoxScript: PageScript<null, string | null> = {
   },
 }
 
+/** 英文词按整词比（「engineer」不能命中「engineering」，2026-10-31 实例测试挑错了 Quality engineering intern）。 */
+function mentions(text: string, term: string): boolean {
+  const t = term.toLowerCase()
+  if (!/^[\x20-\x7e]+$/.test(t)) return text.includes(t)
+  const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`).test(text)
+}
+
 /** 一条链接像不像对口岗位：不像岗位的给 0；像岗位但一个方向词都不沾也给 0（不乱点别的岗位）。 */
 export function scorePositionLink(link: PositionLink, target: PositionTarget, adapter: SiteAdapter): number {
   const text = link.text.toLowerCase()
@@ -107,9 +118,9 @@ export function scorePositionLink(link: PositionLink, target: PositionTarget, ad
   const pattern = adapter.hints.positionLink
   if (pattern && link.href ? !pattern.test(link.href) : !JOBISH.test(link.text)) return 0
   let score = 0
-  target.terms.forEach((term, i) => { if (term && text.includes(term.toLowerCase())) score += Math.max(1, 10 - i) })
+  target.terms.forEach((term, i) => { if (term && mentions(text, term)) score += Math.max(1, 10 - i) })
   if (!score) return 0
-  for (const p of target.prefer ?? []) if (p && text.includes(p.toLowerCase())) score += 2
+  for (const p of target.prefer ?? []) if (p && mentions(text, p)) score += 2
   if (CAMPUS_BONUS.test(link.text)) score += 1
   return score
 }

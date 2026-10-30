@@ -17,6 +17,8 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     ]
     expect(pickPosition(links, backend, moka)?.selector).toBe('c')
     expect(pickPosition(links.slice(0, 1), backend, moka)).toBeUndefined()
+    // 英文按整词：engineer 不命中 engineering
+    expect(pickPosition([{ selector: 'q', href: '#/job/9', text: 'Hefei_Quality engineering intern' }], { ...backend, terms: ['engineer'] }, moka)).toBeUndefined()
     // 没有链接样式的站：岗位样的文字才算
     expect(pickPosition([{ selector: 'x', href: '/about', text: '关于我们 后端' }, { selector: 'y', href: '/p/9', text: '后端开发工程师（2027 校招）' }], backend, generic)?.selector).toBe('y')
   })
