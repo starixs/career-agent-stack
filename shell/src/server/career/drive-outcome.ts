@@ -231,7 +231,7 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
       r.setActionStatus(action.id, 'needs_user', { ...summary, gate });
       if (action.application_id) { try { r.transition(action.application_id, 'needs_user', gapText, { page_url: finalUrl, blocker_reason: gapText, next_action: '补齐缺项后继续检查' }); } catch { /* ignore */ } }
       deps.changed('handoff', 'task', 'action_queue', 'application');
-      return { kind: 'handoff', handoffId: h.id, reason: 'missing_info', userAction: `${gapText}。补好后告诉我，我从当前页接着检查`, message: gapText, finalUrl, summary, gate };
+      return { kind: 'handoff', handoffId: h.id, reason: 'missing_info', userAction: `${gapText}。在输入框上沿的「等你」里填一次，我从当前页接着填`, message: gapText, finalUrl, summary, gate };
     }
     r.setActionStatus(action.id, 'done', summary);
     const review = result.review as SubmitReviewLike;

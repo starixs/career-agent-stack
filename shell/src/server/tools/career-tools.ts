@@ -1216,7 +1216,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ prefs, rematched: n });
       })()),
 
-      tool('jobs_prepare', '把多个岗位一次加入待投清单（每个都冻结材料包 + fill_form 待审）；已在投的跳过。用户在待投清单勾选 / 全选批准后由后台批量投递执行。', {
+      tool('jobs_prepare', '把多个岗位一次加入待投清单（每个都冻结材料包 + fill_form 待审）；已在投、已投过的跳过。之后用户在输入框上沿的等你条里点一次「都开始投」，由后台批量运行器填写，不用你逐份 apply_run；回复里告诉他点那一下即可，不要让他回话确认。', {
         job_ids: z.array(z.string()).min(1).max(50), resume_id: z.string().optional().describe('统一用这份简历；不传则每个岗位用它的定制版或唯一主简历'),
       }, async (args) => wrap(async () => {
         const { prepareJobs } = await import('../career/job-board');
@@ -1224,7 +1224,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const results = await prepareJobs({ ...packetDeps(), store: store() }, args.job_ids, args.resume_id ?? null);
         changed('application', 'action_queue');
         const queued = results.filter(x => x.ok).map(x => x.action_id!).filter(Boolean);
-        if (queued.length) review(queued, 'fill_form', `${queued.length} 个岗位已加入待投清单，选好后就开始批量填写（填到提交前会停下等你确认）`);
+        if (queued.length) review(queued, 'fill_form', `${queued.length} 个岗位已加入待投清单，点「都开始投」就开始批量填写（填到提交前会停下等你确认）`);
         return text({ results, queued: queued.length });
       })()),
 

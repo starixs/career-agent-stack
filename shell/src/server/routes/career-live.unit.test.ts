@@ -4,7 +4,7 @@ import type { Repos } from '@career/core';
 
 import { FileChooserBroker, type FileChooserLike } from '../career/file-chooser';
 import { LiveHub } from '../career/live-hub';
-import { setLivePin } from '../career/live-pin';
+import { beginUserWait, setLivePin } from '../career/live-pin';
 import { createMemoryRepos } from '../career/test-db';
 import { handleCareerLiveRoute, type CareerLiveDeps, type CareerLiveHost } from './career-live';
 
@@ -83,6 +83,19 @@ describe('career live route', () => {
     expect(events.map(e => (e as { type: string }).type)).toEqual(['career:takeover', 'career:takeover', 'career:data-changed']);
     const bad = await handleCareerLiveRoute('/api/career/live/control', req('/api/career/live/control', { control: 'x' }), d);
     expect(bad!.status).toBe(400);
+  });
+
+  it('state：登录之旅带上「第几家 / 共几家」；助理在等你处理时 waitingUser=true（交还时抽屉不再往对话里补一句）', async () => {
+    const repos = createMemoryRepos();
+    const d = deps(repos);
+    const state = async () => (await (await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), d))!.json()) as { journey: unknown; waitingUser: boolean };
+    expect(await state()).toMatchObject({ journey: null, waitingUser: false });
+    setLivePin({ sessionKey: 's', appKey: 'app', askId: 'h1', handoffId: 'h1', index: 1, total: 3 });
+    const end = beginUserWait();
+    try {
+      expect(await state()).toMatchObject({ journey: { index: 1, total: 3 }, waitingUser: true });
+    } finally { end(); end(); setLivePin(null); }
+    expect((await state()).waitingUser).toBe(false);
   });
 
   it('登录之旅里交还：只关当前带你过的这一家，别家还没登录的和缺信息的那批不被一起当成处理完', async () => {

@@ -40,7 +40,7 @@ export function formatBrowse(out: Record<string, unknown>): string {
 const WAIT_NOTES: Record<string, string> = {
   done: '他处理好了，挡路的东西已经没了：接着做原来的事。',
   handed_back: '他点了「交还」：先看下面的观察确认处理好了，再接着做原来的事。',
-  timeout: '还没处理完——这不是失败。回复里告诉他做完说一声（或点「交还」），收到后 browser_observe 接着办；不要反复调用等待。',
+  timeout: '还没处理完——这不是失败。回复一句告诉他：做完点浏览器现场的「交还给小芽」就行，不用回来打字；他交还后你会收到消息，再 browser_observe 接着办。不要反复调用等待。',
   page_closed: '页面被关掉了：browser_open 重新打开原来的网址再继续。',
 };
 
