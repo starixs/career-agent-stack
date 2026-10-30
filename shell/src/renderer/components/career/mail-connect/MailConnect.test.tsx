@@ -81,14 +81,20 @@ describe('邮箱连接中心', () => {
     fireEvent.change(within(dialog()).getByLabelText('邮箱地址'), { target: { value: 'me@qq.com' } });
     fireEvent.change(within(dialog()).getByLabelText('授权码'), { target: { value: 'abcd' } });
     fireEvent.click(within(dialog()).getByRole('button', { name: '验证并连接' }));
-    expect(within(dialog()).getByText(/授权码是 16 位字母，现在 4 位/)).toBeInTheDocument();
+    expect(within(dialog()).getByText(/授权码是 16 位，现在 4 位/)).toBeInTheDocument();
     expect(apiPostJson).not.toHaveBeenCalled();
 
-    fireEvent.change(within(dialog()).getByLabelText('授权码'), { target: { value: 'abcd efgh ijkl mnop' } });
+    // 163 新版授权码字母数字混排，16 位就该放行（2026-10-31 实例测试：真实授权码被「只收字母」挡住）
+    fireEvent.change(within(dialog()).getByLabelText('授权码'), { target: { value: 'Ab3dEf7hIj9kLm1!' } });
+    fireEvent.click(within(dialog()).getByRole('button', { name: '验证并连接' }));
+    expect(within(dialog()).getByText(/授权码只有字母和数字/)).toBeInTheDocument();
+    expect(apiPostJson).not.toHaveBeenCalled();
+
+    fireEvent.change(within(dialog()).getByLabelText('授权码'), { target: { value: 'Ab3d Ef7h Ij9k Lm1n' } });
     fireEvent.click(within(dialog()).getByRole('button', { name: '验证并连接' }));
     expect(await within(dialog()).findByText('验证授权码')).toBeInTheDocument();
     expect(await within(dialog()).findByText('QQ 邮箱已连接', {}, { timeout: 3000 })).toBeInTheDocument();
-    expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/connectors/qq/verify', { email: 'me@qq.com', authCode: 'abcdefghijklmnop', reauthorize: false });
+    expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/connectors/qq/verify', { email: 'me@qq.com', authCode: 'Ab3dEf7hIj9kLm1n', reauthorize: false });
     expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({ address: 'me@qq.com' }));
   });
 

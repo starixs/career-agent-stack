@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 
 import { copyPlainText } from '@/utils/clipboard';
 
+import { authCodeProblem, cleanAuthCode } from '../../../../shared/mailAuthCode';
+
 import { careerApi } from '../careerApi';
 import { Button, suggestToChat } from '../CareerPrimitives';
 import type { MailAccount, MailConnectErrorCode, MailConnector, MailConnectResult } from '../types';
@@ -39,14 +41,14 @@ export function CredentialStep({ connector, from, reauthorize, prefill, onGoto, 
   const attempt = useRef(0);
   const emailField = connector.fields.find(f => f.key === 'email');
   const codeField = connector.fields.find(f => f.key === 'authCode');
-  const codeLength = codeField?.length ?? 16;
-  const cleanCode = code.replace(/\s+/g, '');
+  const cleanCode = cleanAuthCode(code);
+  const codeProblem = authCodeProblem(code);
   const emailError = touched.email && !EMAIL_RE.test(email.trim()) ? '邮箱地址格式不对' : null;
-  const codeError = touched.code && !new RegExp(`^[A-Za-z]{${codeLength}}$`).test(cleanCode) ? `授权码是 ${codeLength} 位字母，现在 ${cleanCode.length} 位` : null;
+  const codeError = touched.code ? codeProblem : null;
 
   const submit = async () => {
     setTouched({ email: true, code: true });
-    if (!EMAIL_RE.test(email.trim()) || !new RegExp(`^[A-Za-z]{${codeLength}}$`).test(cleanCode)) return;
+    if (!EMAIL_RE.test(email.trim()) || codeProblem) return;
     const mine = ++attempt.current;
     setPhase({ kind: 'verifying' });
     const minWait = new Promise(r => setTimeout(r, STAGE_MS * STAGES.length));

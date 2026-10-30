@@ -7,6 +7,8 @@
  */
 import type { MailAccount, MailProvider } from '@career/core';
 
+import { AUTH_CODE_LENGTH, authCodeProblem, cleanAuthCode } from '../../../shared/mailAuthCode';
+
 import { MAIL_PRESETS } from './providers';
 
 export type ConnectorId = Extract<MailProvider, 'qq' | '163' | '126' | 'gmail'>;
@@ -32,10 +34,8 @@ export interface MailConnector {
   oauth?: { enabled: boolean };
 }
 
-const AUTH_CODE_LENGTH = 16;
-
 const emailField = (placeholder: string): CredentialField => ({ key: 'email', type: 'email', label: '邮箱地址', placeholder });
-const codeField = (helper: string): CredentialField => ({ key: 'authCode', type: 'secret', label: '授权码', placeholder: `${AUTH_CODE_LENGTH} 位字母`, helper, length: AUTH_CODE_LENGTH });
+const codeField = (helper: string): CredentialField => ({ key: 'authCode', type: 'secret', label: '授权码', placeholder: `${AUTH_CODE_LENGTH} 位字母或数字`, helper, length: AUTH_CODE_LENGTH });
 
 const NETEASE_GUIDE = (site: string): ConnectorGuideStep[] => [
   { title: `打开 ${site} 网页版`, text: '在你常用的浏览器里打开；没登录就按页面提示登录。' },
@@ -50,24 +50,24 @@ export const MAIL_CONNECTORS: Record<ConnectorId, MailConnector> = {
     guide: [
       { title: '打开 QQ 邮箱网页版', text: '在你常用的浏览器里打开；没登录就按页面提示扫码。' },
       { title: '开启服务并生成授权码', text: '按这个路径找到「POP3/IMAP/SMTP 服务」，开启后点「生成授权码」。', path: ['设置', '账号与安全', '安全设置', 'POP3/IMAP/SMTP 服务', '生成授权码'] },
-      { title: '复制授权码', text: '生成后复制那 16 位字母。' },
+      { title: '复制授权码', text: '生成后复制那 16 位字母或数字。' },
     ],
     verify_note: '生成授权码时，QQ 邮箱会要你用微信扫码或发一条短信验证。',
-    fields: [emailField('you@qq.com'), codeField('16 位字母，不是 QQ 密码')],
+    fields: [emailField('you@qq.com'), codeField('16 位字母或数字，不是 QQ 密码')],
   },
   '163': {
     id: '163', name: '163 邮箱', auth_type: 'credential_form', capabilities: ['receive', 'send'],
     open_url: 'https://mail.163.com/', open_label: '打开 163 邮箱', help_url: null,
     guide: NETEASE_GUIDE('163 邮箱'),
     verify_note: '开启服务时，网易会要你发一条短信验证。',
-    fields: [emailField('you@163.com'), codeField('16 位字母，不是邮箱密码')],
+    fields: [emailField('you@163.com'), codeField('16 位字母或数字，不是邮箱密码')],
   },
   '126': {
     id: '126', name: '126 邮箱', auth_type: 'credential_form', capabilities: ['receive', 'send'],
     open_url: 'https://mail.126.com/', open_label: '打开 126 邮箱', help_url: null,
     guide: NETEASE_GUIDE('126 邮箱'),
     verify_note: '开启服务时，网易会要你发一条短信验证。',
-    fields: [emailField('you@126.com'), codeField('16 位字母，不是邮箱密码')],
+    fields: [emailField('you@126.com'), codeField('16 位字母或数字，不是邮箱密码')],
   },
   gmail: {
     // OAuth 读信属于谷歌「受限范围」，要过审才能对外开放；过审前用应用专用密码，和其他几家同一套流程。
@@ -79,7 +79,7 @@ export const MAIL_CONNECTORS: Record<ConnectorId, MailConnector> = {
       { title: '复制 16 位密码', text: '中间的空格可以一起复制，填回来时会自动去掉。' },
     ],
     verify_note: '需要先开两步验证；工作或学校的 Google 账号可能用不了应用专用密码。',
-    fields: [emailField('you@gmail.com'), codeField('16 位字母，空格可以一起粘')],
+    fields: [emailField('you@gmail.com'), codeField('16 位，空格可以一起粘')],
     oauth: { enabled: false },
   },
 };
@@ -93,8 +93,7 @@ export function isConnectorId(value: unknown): value is ConnectorId {
 
 /** 授权码去掉空格；格式不对返回 null（16 位字母，大小写各家不同，不强求）。 */
 export function normalizeAuthCode(raw: string): string | null {
-  const code = raw.replace(/\s+/g, '');
-  return new RegExp(`^[A-Za-z]{${AUTH_CODE_LENGTH}}$`).test(code) ? code : null;
+  return authCodeProblem(raw) ? null : cleanAuthCode(raw);
 }
 
 export function connectorServers(id: ConnectorId): Pick<MailAccount, 'imap_host' | 'imap_port' | 'smtp_host' | 'smtp_port'> {
