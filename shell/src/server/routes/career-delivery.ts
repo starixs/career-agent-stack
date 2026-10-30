@@ -6,10 +6,10 @@
  * - POST /api/career/asks/:id/fill：缺信息填一次，存进私密库 / 答案库后整批交给后台接着填（career/ask-fill.ts）。
  * 时区由客户端给，服务端不猜。其余要你的事走各源已有的接口（截止、审批、接管）。
  */
-import { buildAsks, type Repos, type Vault } from '@career/core';
+import type { Repos, Vault } from '@career/core';
 
 import { AskFillError, fillAsk } from '../career/ask-fill';
-import { buildAway, buildRun } from '../career/delivery';
+import { asksFor, buildAway, buildRun } from '../career/delivery';
 
 import { fail, ok, type Json } from './career-http';
 
@@ -26,7 +26,7 @@ const MAX_RUN_IDS = 50;
 export function deliveryRoutes(): Array<[string, string, Handler]> {
   return [
     ['GET', '/api/career/asks', ({ repos, url }) => {
-      const asks = buildAsks(repos, new Date().toISOString());
+      const asks = asksFor(repos);
       const since = isoParam(url, 'since');
       return ok({ asks, run: since ? buildRun(repos, { since }, asks) : null });
     }],

@@ -75,6 +75,23 @@ describe('AskView：一个动作能解决的才合并', () => {
     expect(start.sources.map(s => s.id)).toEqual(ids);
   });
 
+  it('海投填好、检查全过的提交：合成一件「N 家填好了」一键投出；标星的目标岗位和有项要看的仍一家一件', () => {
+    const repos = createMemoryRepos();
+    const submit = (company: string, gaps = 0) => {
+      const a = app(repos, company);
+      const rows = [{ label: '姓名', status: 'ok' }, ...Array.from({ length: gaps }, () => ({ label: '作品集', status: 'upload_unconfirmed' }))];
+      return { app: a, action: repos.enqueueAction('submit', { review: { rows, requiredFilled: 12, requiredTotal: 12 } }, a.id) };
+    };
+    const clean = ['DeepSeek', '中兴', '大疆'].map(c => submit(c));
+    const target = submit('美团');
+    const messy = submit('荣耀', 1);
+    const asks = buildAsks(repos, NOW, { isTarget: id => id === target.app.id });
+    const all = asks.find(a => a.title === '3 家填好了')!;
+    expect(all).toMatchObject({ kind: 'review', id: clean[0].action.id });
+    expect(all.sources.map(x => x.id)).toEqual(clean.map(c => c.action.id));
+    expect(asks.filter(a => a.kind === 'review').map(a => a.title).sort()).toEqual(['3 家填好了', '美团 · 投前过目', '荣耀 · 投前过目']);
+  });
+
   it('网申卡在测评、同一份申请又记了测评截止：是同一件事，并进截止那件', () => {
     const repos = createMemoryRepos();
     const a = app(repos, '九方云');

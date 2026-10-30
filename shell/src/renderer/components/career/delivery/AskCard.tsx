@@ -16,7 +16,7 @@ const PAIR_MAX = 4;
 function AskImage({ ask }: { ask: AskView }) {
   const cs = ask.companies;
   if (!cs.length) return null;
-  if (ask.kind === 'info' || ask.kind === 'start' || (ask.kind === 'login' && cs.length > PAIR_MAX)) {
+  if (ask.kind === 'info' || ask.kind === 'start' || (ask.kind === 'review' && cs.length > 1) || (ask.kind === 'login' && cs.length > PAIR_MAX)) {
     return <div className="cd-mosaic">{cs.slice(0, MOSAIC_MAX).map(c => <CompanyPoster key={c.name} company={c} size="xs" state="ask" />)}</div>;
   }
   if (ask.kind === 'login') return <div className="cd-pair">{cs.map(c => <CompanyPoster key={c.name} company={c} size="md" state="ask" />)}</div>;

@@ -45,6 +45,7 @@ export function subText(ask: AskView): string | null {
     case 'start': return `开始后填到提交前停下${n > 1 ? `，${n} 家一起` : ''}`;
     case 'review': {
       const r = ask.review;
+      if (n > 1) return ask.detail ?? null; // 一键投出：好几家合成一件
       if (!r || r.required_total === null) return ask.detail ?? null;
       return `必填 ${r.required_filled ?? 0} / ${r.required_total}${r.gaps ? ` · ${r.gaps} 处要看` : ' · 都核对过'}`;
     }
@@ -62,7 +63,7 @@ export function actionLabels(ask: AskView): { go: string; later: string } {
     case 'info': return { go: '填好', later: '这批先跳过' };
     case 'login': return { go: '去登录', later: '晚点' };
     case 'start': return { go: '都开始投', later: '晚点' };
-    case 'review': return { go: '就这样投出', later: '我要改' };
+    case 'review': return ask.application_ids.length > 1 ? { go: '一键投出', later: '晚点' } : { go: '就这样投出', later: '我要改' };
     case 'confirm': return { go: '去页面看看', later: '晚点' };
     case 'attendance': return ask.deadline_kind === 'assessment' ? { go: '做了', later: '没做' } : { go: '考了', later: '没去' };
     case 'retro': return { go: '说几句复盘', later: '不复盘了' };

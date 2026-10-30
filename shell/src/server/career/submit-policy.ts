@@ -14,7 +14,7 @@
  */
 import { normalizeHost, type Repos } from '@career/core';
 
-import { markedTargetJobs, targetSourceOf } from './targets';
+import { isTargetApplication } from './targets';
 
 export const AUTO_MODE_KEY = 'apply:auto_mode';
 export const LEARN_THRESHOLD = 3;
@@ -51,13 +51,6 @@ export function decideSubmit(repos: Repos, fp: SubmitFingerprint): SubmitDecisio
   if ((trust.resumeSha ?? null) !== (fp.resumeSha ?? null)) return { approve: false, reason: '这次用的简历和你上次批准的不是同一份，需要你确认' };
   if ((trust.answersHash ?? null) !== (fp.openAnswersHash ?? null)) return { approve: false, reason: '开放题答案和你上次批准的不一样，需要你确认' };
   return { approve: true, by: 'learned', reason: `这张表你已连续 ${trust.streak} 次直接通过，简历与开放题答案都没变，免确认提交` };
-}
-
-function isTargetApplication(repos: Repos, applicationId: string | null | undefined): boolean {
-  const app = applicationId ? repos.getApplication(applicationId) : undefined;
-  if (!app) return false;
-  const reached = repos.db.all<{ to_stage: string }>('SELECT to_stage FROM application_history WHERE application_id=?', [app.id]).map(r => r.to_stage);
-  return targetSourceOf(app, reached, markedTargetJobs(repos)) !== null;
 }
 
 /** 提交执行完：按结果更新这张表的信任计数。只有用户本人批准、页面没改、提交成功才 +1。 */

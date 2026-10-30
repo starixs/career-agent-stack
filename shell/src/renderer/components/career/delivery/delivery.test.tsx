@@ -100,6 +100,18 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     off();
   });
 
+  it('海投填好的几家合成一件：点「一键投出」一次批准全部提交', async () => {
+    const all: AskView = { id: 'act_s1', kind: 'review', title: '3 家填好了', detail: '必填都填好并核对过，没有要你看的项', application_ids: ['a1', 'a2', 'a3'],
+      companies: [mark('DeepSeek'), mark('中兴通讯'), mark('大疆')], sources: ['act_s1', 'act_s2', 'act_s3'].map(id => ({ type: 'action' as const, id })),
+      due_at: null, overdue: false, review: { required_filled: null, required_total: null, gaps: 0 } };
+    serve([all], null);
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    expect(screen.getByText('投出后撤不回')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '一键投出' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', expect.objectContaining({ ids: ['act_s1', 'act_s2', 'act_s3'], decision: 'approved' })));
+  });
+
   it('「晚点」只是挪到最后，不落库', async () => {
     serve([ASK_LOGIN, ASK_INFO], null);
     render(<WaitingDock />);

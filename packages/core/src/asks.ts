@@ -5,7 +5,8 @@
  * 合并只在「一个动作能同时解决」时发生（规范 §5.2.3）：
  *  - 缺信息：缺的是同一组字段的网申合成一件（证件号码填一次，20 家都放行）；
  *  - 要登录：登录 / 验证码 / 二次验证一次去浏览器就能处理，合成一件；
- *  - 待投清单：还没开始填的那几份，一句「开始」就全部放行，合成一件。
+ *  - 待投清单：还没开始填的那几份，一句「开始」就全部放行，合成一件；
+ *  - 海投填好、检查全部通过的提交：一键全部投出，合成一件（目标岗位和有项要看的仍一家一件）。
  * 不按类型合并：两场笔试是两件事。
  *
  * 「一个对象」（2026-10-30 定）：AskView 不另造 id。单源的用源 id（deadline.id / action.id / handoff.id），
@@ -64,7 +65,12 @@ export interface AskView {
 }
 
 interface AppCtx { company: CompanyMark; jobDeadline: string | null; label: string; role: string }
-type Ctx = { apps: Map<string, AppCtx>; nowIso: string }
+type Ctx = { apps: Map<string, AppCtx>; nowIso: string; isTarget: (applicationId: string) => boolean }
+
+export interface AskOptions {
+  /** 目标岗位（进过面试 / 用户标的）：投前一家一家给你看，不并进「一键投出」。由壳层按目标星判断。 */
+  isTarget?: (applicationId: string) => boolean
+}
 
 const LOGIN_REASONS = new Set(['login', 'captcha', '2fa', 'user_request'])
 const NAME_MAX = 6
@@ -188,10 +194,26 @@ function startAsk(ctx: Ctx, actions: readonly ActionQueueItem[]): AskView | null
   }
 }
 
+/** 海投里填后检查全部通过、没有要你看的项的提交：一键全部投出，合成一件（用户 2026-10-30「要一个一键按钮」）。 */
+const isCleanSubmit = (ctx: Ctx, r: AskView) => !!r.review && r.review.gaps === 0 && r.review.required_total !== null && !r.application_ids.some(ctx.isTarget)
+
+function sendAllAsk(ctx: Ctx, reviews: readonly AskView[]): AskView {
+  const appIds = uniq(reviews.flatMap(r => r.application_ids))
+  return {
+    id: reviews[0].id, kind: 'review', title: `${appIds.length} 家填好了`, detail: '必填都填好并核对过，没有要你看的项',
+    application_ids: appIds, companies: companiesOf(ctx, appIds), sources: reviews.flatMap(r => r.sources),
+    due_at: earliestJobDeadline(ctx, appIds), overdue: false, review: { required_filled: null, required_total: null, gaps: 0 },
+  }
+}
+
 function actionAsks(repos: Repos, ctx: Ctx): AskView[] {
   const pending = repos.listActions('pending_review')
   const start = startAsk(ctx, pending.filter(a => a.kind === 'fill_form'))
-  return [...(start ? [start] : []), ...pending.filter(a => a.kind !== 'fill_form').map(a => reviewAsk(ctx, a))]
+  const reviews = pending.filter(a => a.kind !== 'fill_form').map(a => reviewAsk(ctx, a))
+  const clean = reviews.filter(r => pending.find(a => a.id === r.id)?.kind === 'submit' && isCleanSubmit(ctx, r))
+  const merged = clean.length > 1 ? [sendAllAsk(ctx, clean)] : []
+  const rest = merged.length ? reviews.filter(r => !clean.includes(r)) : reviews
+  return [...(start ? [start] : []), ...merged, ...rest]
 }
 
 // ---------- 接管 ----------
@@ -303,8 +325,8 @@ export function compareAsks(a: AskView, b: AskView): number {
 }
 
 /** 现在要你的事（已合并、已排序）。 */
-export function buildAsks(repos: Repos, nowIso: string): AskView[] {
-  const ctx: Ctx = { apps: appContext(repos), nowIso }
+export function buildAsks(repos: Repos, nowIso: string, opts: AskOptions = {}): AskView[] {
+  const ctx: Ctx = { apps: appContext(repos), nowIso, isTarget: opts.isTarget ?? (() => false) }
   const asks = foldAssessmentHandoffs([...deadlineAsks(repos, ctx), ...actionAsks(repos, ctx), ...handoffAsks(repos, ctx)])
   for (const a of asks) if (a.application_ids.length === 1) a.role = ctx.apps.get(a.application_ids[0])?.role
   return asks.sort(compareAsks)

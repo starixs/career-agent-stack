@@ -5,16 +5,17 @@
  * 运行器从各自的当前页接着填（和登录「交回」走同一条路：handoff.resumed_at + BatchRunner run）。
  * 不发话给助理，不要用户再点。只有页面上才能看的项（上传、读回不一致）还在时，那几份不放行，接管留着。
  */
-import { buildAsks, type Repos, type Vault } from '@career/core';
+import type { Repos, Vault } from '@career/core';
 
 import { BatchRunner } from './batch-runner';
+import { asksFor } from './delivery';
 
 export interface AskFillResult { saved: string[]; resumed: string[]; still_waiting: number }
 
 export class AskFillError extends Error {}
 
 export function fillAsk(repos: Repos, vault: Vault, askId: string, values: Record<string, string>, nowIso = new Date().toISOString()): AskFillResult {
-  const ask = buildAsks(repos, nowIso).find(a => a.id === askId && a.kind === 'info');
+  const ask = asksFor(repos, nowIso).find(a => a.id === askId && a.kind === 'info');
   if (!ask) throw new AskFillError(`这件事已经不在了：${askId}`);
   const fields = ask.fields ?? [];
   const filled = fields.filter(f => f.fillable && values[f.label]?.trim());

@@ -10,7 +10,13 @@
  */
 import { buildAsks, companyMarkOf, type ActionQueueItem, type AskView, type CompanyMark, type InboxItem, type Repos } from '@career/core';
 
-import { markedTargetJobs } from './targets';
+import { isTargetApplication, markedTargetJobs } from './targets';
+
+/** 现在要你的事：core 的合并规则 + 目标星（目标岗位的提交不并进「一键投出」）。壳层一律用它，不直接调 buildAsks。 */
+export function asksFor(repos: Repos, nowIso = new Date().toISOString()): AskView[] {
+  const marked = markedTargetJobs(repos);
+  return buildAsks(repos, nowIso, { isTarget: id => isTargetApplication(repos, id, marked) });
+}
 
 /** 规范 §6.2 的底条状态；failed 只在出错时（红）。 */
 export type PosterState = 'wait' | 'run' | 'done' | 'ask' | 'failed';
@@ -39,7 +45,7 @@ function posterState(stage: string, actions: readonly ActionQueueItem[], asking:
 }
 
 /** 一批申请的海报墙。目标岗位（进过面试、或用户亲手标的）排在前面，用大一档的海报。 */
-export function buildRun(repos: Repos, by: { since?: string; actionIds?: readonly string[] }, asks: readonly AskView[] = buildAsks(repos, new Date().toISOString())): RunView | null {
+export function buildRun(repos: Repos, by: { since?: string; actionIds?: readonly string[] }, asks: readonly AskView[] = asksFor(repos)): RunView | null {
   const appIds = [...new Set(fillActions(repos, by).map(a => a.application_id).filter((x): x is string => !!x))];
   if (!appIds.length) return null;
   const asking = new Set(asks.flatMap(a => a.application_ids));
@@ -120,5 +126,5 @@ export function buildAway(repos: Repos, since: string, nowIso = new Date().toISO
   // 没回音：投出后停在「已投递」、也没有任何来信或期限挂在它身上（笔试邀请不一定推进阶段）
   const heard = new Set([...repos.listInbox().map(i => inboxApplication(repos, i)), ...repos.listDeadlines().map(d => d.application_id)]);
   const quiet = repos.db.all<{ id: string }>(`SELECT id FROM application WHERE stage = 'applied'`).filter(a => !heard.has(a.id)).length;
-  return { since, asks: buildAsks(repos, nowIso), sent: sent.map(s => companyMarkOf(s.company_name, s.company_id)), replies: replyFacts(repos, since), quiet };
+  return { since, asks: asksFor(repos, nowIso), sent: sent.map(s => companyMarkOf(s.company_name, s.company_id)), replies: replyFacts(repos, since), quiet };
 }
