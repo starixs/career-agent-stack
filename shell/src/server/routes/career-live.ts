@@ -180,6 +180,7 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
         switch (type) {
           case 'click': { const x = Math.round(num(body.x) * sx), y = Math.round(num(body.y) * sy); await page.mouse.click(x, y, { clickCount: body.double === true ? 2 : 1 }); return { x, y }; }
           case 'move': { await page.mouse.move(Math.round(num(body.x) * sx), Math.round(num(body.y) * sy)); return {}; }
+          case 'drag': return replayDrag(page, body.path, sx, sy);
           case 'wheel': { await page.mouse.wheel(Math.round(num(body.dx) * sx), Math.round(num(body.dy) * sy)); return {}; }
           case 'type': { const text = typeof body.text === 'string' ? body.text.slice(0, 2000) : ''; if (text) await page.keyboard.type(text); return { typed: text.length }; }
           case 'press': { const key = typeof body.key === 'string' ? body.key.slice(0, 40) : ''; if (!key) throw new Error('key 不能为空'); await page.keyboard.press(key); return { key }; }
@@ -363,4 +364,33 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
     cancel() { if (!abort.signal.aborted) abort.abort(); },
   });
   return new Response(stream, { status: 200, headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', ...CORS } });
+}
+
+/** 拖动路径最多收多少个点、整段最多回放多久：防止一次请求把页面占住太久。 */
+const DRAG_MAX_POINTS = 120;
+const DRAG_MAX_MS = 6000;
+
+/**
+ * 按用户在现场窗里的拖动轨迹（帧坐标 + 相对毫秒）在托管 Chrome 里按下 → 沿路径移动 → 松开。
+ * 滑块验证码看的是轨迹和节奏，所以照原样的时间间隔回放（整段封顶 DRAG_MAX_MS）。
+ */
+async function replayDrag(page: Page, raw: unknown, sx: number, sy: number): Promise<{ points: number }> {
+  if (!Array.isArray(raw)) throw new Error('拖动缺少路径');
+  const path = raw.slice(0, DRAG_MAX_POINTS).flatMap(p => {
+    const o = p && typeof p === 'object' ? p as { x?: unknown; y?: unknown; t?: unknown } : {};
+    return typeof o.x === 'number' && typeof o.y === 'number' && Number.isFinite(o.x) && Number.isFinite(o.y)
+      ? [{ x: Math.round(o.x * sx), y: Math.round(o.y * sy), t: typeof o.t === 'number' && Number.isFinite(o.t) ? Math.min(Math.max(o.t, 0), DRAG_MAX_MS) : 0 }]
+      : [];
+  });
+  if (path.length < 2) throw new Error('拖动路径太短');
+  await page.mouse.move(path[0].x, path[0].y);
+  await page.mouse.down();
+  let prev = path[0].t;
+  for (const p of path.slice(1)) {
+    const wait = p.t - prev; prev = p.t;
+    if (wait > 0) await page.waitForTimeout(wait);
+    await page.mouse.move(p.x, p.y);
+  }
+  await page.mouse.up();
+  return { points: path.length };
 }

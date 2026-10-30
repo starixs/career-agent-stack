@@ -148,8 +148,9 @@ describe('career live route', () => {
     const page = {
       url: () => 'https://x.com/apply', title: async () => '网申', isClosed: () => false,
       viewportSize: () => ({ width: 1280, height: 900 }),
-      mouse: { click: async (...a: unknown[]) => { calls.push(['click', a]); }, move: async (...a: unknown[]) => { calls.push(['move', a]); }, wheel: async (...a: unknown[]) => { calls.push(['wheel', a]); } },
+      mouse: { click: async (...a: unknown[]) => { calls.push(['click', a]); }, move: async (...a: unknown[]) => { calls.push(['move', a]); }, wheel: async (...a: unknown[]) => { calls.push(['wheel', a]); }, down: async () => { calls.push(['down', []]); }, up: async () => { calls.push(['up', []]); } },
       keyboard: { type: async (...a: unknown[]) => { calls.push(['type', a]); }, press: async (...a: unknown[]) => { calls.push(['press', a]); } },
+      waitForTimeout: async () => {},
     };
     host.withProductSession = async <T,>(_id: string, fn: (ctx: never) => Promise<T>) => fn({ pages: () => [page], newPage: async () => page, on: () => {} } as never);
     const d = deps(repos, host);
@@ -167,6 +168,15 @@ describe('career live route', () => {
     expect(calls[3][1]).toEqual([0, 200]);
     const bad = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'nope' }), d);
     expect(bad!.status).toBe(400);
+    // 拖动（滑块验证码）：按下 → 沿路径移动 → 松开，坐标同样按帧换算
+    calls.length = 0;
+    const dragged = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'drag', path: [{ x: 10, y: 20, t: 0 }, { x: 60, y: 22, t: 120 }, { x: 110, y: 21, t: 240 }], frame: { width: 640, height: 450 } }), d);
+    expect(dragged!.status).toBe(200);
+    expect(calls.map(c => c[0])).toEqual(['move', 'down', 'move', 'move', 'up']);
+    expect(calls[0][1]).toEqual([20, 40]);
+    expect(calls[3][1]).toEqual([220, 42]);
+    const tooShort = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'drag', path: [{ x: 1, y: 1, t: 0 }] }), d);
+    expect(tooShort!.status).toBe(400);
   });
 
   it('内嵌窗口：接管不前置真实 Chrome；放出窗口后才前置；/live/window 切换并广播', async () => {

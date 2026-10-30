@@ -11,6 +11,13 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Keyb
 import { careerApi } from './careerApi';
 import type { LiveFrame } from './types';
 
+/** 按下后移动超过这么多帧像素才算拖动（再少是手抖，按点击处理）。 */
+const DRAG_MIN_PX = 4;
+/** 拖动路径最多记多少个点（滑块验证要的是轨迹形状，不是每一个像素）。 */
+const DRAG_MAX_POINTS = 80;
+/** 两个路径点之间至少隔多久才记（毫秒）。 */
+const DRAG_SAMPLE_MS = 16;
+
 const SPECIAL_KEYS = new Set(['Enter', 'Backspace', 'Tab', 'Escape', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
 
 /** 把 React 键盘事件翻译成 Playwright 的 type / press。返回 null 表示忽略。 */
@@ -95,6 +102,9 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
   const [focused, setFocused] = useState(false);
   const [lastAction, setLastAction] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
+  /** 按住拖动中：滑块验证码要拖（2026-10-31 实例测试：飞书登录的旋转滑块在现场窗里拖不动）。 */
+  const drag = useRef<{ start: number; path: Array<{ x: number; y: number; t: number }>; moved: boolean } | null>(null);
+  const suppressClick = useRef(false);
   const [aspect, setAspect] = useState<number | null>(() => stableAspect(null, frame?.width, frame?.height));
   // 渲染时按新帧尺寸校正比例（React 的"根据上一次渲染调整状态"写法），差得不多就不动
   const nextAspect = stableAspect(aspect, frame?.width, frame?.height);
@@ -117,8 +127,31 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
     return { x: Math.round(x), y: Math.round(y) };
   };
 
+  const onMouseDown = (ev: MouseEvent<HTMLDivElement>) => {
+    if (!interactive || ev.button !== 0) return;
+    const c = frameCoords(ev);
+    drag.current = c ? { start: Date.now(), path: [{ ...c, t: 0 }], moved: false } : null;
+  };
+  const onMouseMove = (ev: MouseEvent<HTMLDivElement>) => {
+    const d = drag.current; const c = d && frameCoords(ev);
+    if (!d || !c) return;
+    const t = Date.now() - d.start;
+    const first = d.path[0], last = d.path[d.path.length - 1];
+    if (Math.hypot(c.x - first.x, c.y - first.y) >= DRAG_MIN_PX) d.moved = true;
+    if (t - last.t >= DRAG_SAMPLE_MS && d.path.length < DRAG_MAX_POINTS) d.path.push({ ...c, t });
+  };
+  const onMouseUp = (ev: MouseEvent<HTMLDivElement>) => {
+    const d = drag.current; drag.current = null;
+    if (!d || !d.moved || !frame) return;
+    const c = frameCoords(ev);
+    if (c) d.path.push({ ...c, t: Date.now() - d.start });
+    suppressClick.current = true; // 松手后浏览器还会补一个 click，拖动已经转发过了
+    void send({ type: 'drag', path: d.path, frame: { width: frame.width, height: frame.height } }, `拖动 ${d.path.length} 点`);
+  };
+
   const onClick = (ev: MouseEvent<HTMLDivElement>) => {
     boxRef.current?.focus();
+    if (suppressClick.current) { suppressClick.current = false; return; }
     const c = frameCoords(ev);
     if (!interactive) {
       if (!onRequestControl || !frame || claiming) return;
@@ -159,6 +192,9 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
       aria-label={interactive ? '浏览器实时画面（可直接操作）' : onRequestControl ? '浏览器实时画面（点击即接管）' : '浏览器实时画面（只读）'}
       tabIndex={0}
       data-testid="live-viewport"
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
       onClick={onClick}
       onWheel={onWheel}
       onKeyDown={onKeyDown}
