@@ -132,6 +132,23 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     off();
   });
 
+  it('单家投前过目点「先不投」：展开「在页面上改 / 这家不投了 / 晚点再说」，不预填对话让你打字', async () => {
+    const one: AskView = { id: 'act_mt', kind: 'review', title: '美团 · 投前过目', application_ids: ['a1'], companies: [mark('美团')],
+      sources: [{ type: 'action', id: 'act_mt' }], due_at: null, overdue: false, review: { required_filled: 12, required_total: 12, gaps: 0 } };
+    serve([one], null);
+    const sent: unknown[] = [];
+    const off = onEvent('career:chat-suggest', p => { sent.push(p); });
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    fireEvent.click(screen.getByRole('button', { name: '先不投' }));
+    const options = screen.getByRole('group', { name: '先不投，那就' });
+    serve([], null);
+    fireEvent.click(within(options).getByRole('button', { name: '这家不投了' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', { ids: ['act_mt'], decision: 'rejected', drop: true }));
+    expect(sent).toEqual([]);
+    off();
+  });
+
   it('「投出了吗」：看过页面一键回答，不用在对话里说；没投出去的回到待审', async () => {
     const confirm: AskView = { id: 'hnd_c', kind: 'confirm', title: '大疆 · 投出了吗', application_ids: ['a1'], companies: [mark('大疆')],
       sources: [{ type: 'handoff', id: 'hnd_c' }], action_ids: ['act_sub'], due_at: null, overdue: false };

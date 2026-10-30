@@ -52,26 +52,25 @@ describe('情景 B · 关键期的一个周二，投 20 家', () => {
     llm = new FakeLLM();
     // 九方云是前几天投的，不在这一批
     repos.jumpTo(repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: 'j-九方云', title: 'AI应用开发', company_name: '九方云' }).id).id, 'applied', '已投递');
-    // 09:10「这 20 个都投了」：每家一份待投的填表动作（jobs_prepare 的结果）
+    // 09:10「这 20 个都投了」：jobs_apply 一次就开始——每家一份已批准的填表动作，交给后台（没有待投清单）
     for (const c of [...TARGETS, ...WIDE]) {
       const job = repos.upsertJob({ source_platform: 'campus', source_job_id: `j-${c}`, title: 'AI应用开发', company_name: c });
       if (TARGETS.includes(c)) setTargetJob(repos, job.id, true);
-      repos.enqueueAction('fill_form', { job_id: job.id }, repos.createApplication(job.id).id);
+      const fill = repos.enqueueAction('fill_form', { job_id: job.id }, repos.createApplication(job.id).id);
+      repos.reviewActions([fill.id], 'approved');
     }
   });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('一句话开的 20 家：等你条只有一件「20 家等你说开始」；批次卡标星的 3 家在前，美团用色块标志', async () => {
+  it('一句话开的 20 家：直接开始，等你条里没有要你的事（不用再说「开始」）；批次卡标星的 3 家在前，美团用色块标志', async () => {
     const { asks: list, run } = await asks();
-    expect(list.map(a => a.title)).toEqual(['20 家等你说开始']);
-    expect(list[0].sources).toHaveLength(20);
+    expect(list).toEqual([]);
     expect(run).toMatchObject({ total: 20, done: 0 });
     expect(run.items.slice(0, 3).map(i => [i.company.name, i.star])).toEqual(TARGETS.map(c => [c, true]));
     expect(run.items[0].company.logo).toBe('mt');
   });
 
   it('09:16 20 家都缺证件号码：一件事，填一次全部放行；09:48 两个网站要登录合成一件；10:30 九方云测评排到第一', async () => {
-    repos.reviewActions(repos.listActions('pending_review').map(a => a.id), 'approved');
     const fills = repos.listActions('approved');
     for (const a of fills) {
       const h = repos.openHandoff(['摩尔线程', '智元'].some(c => appOf(c).id === a.application_id) ? 'login' : 'missing_info', { actionId: a.id });
@@ -96,7 +95,6 @@ describe('情景 B · 关键期的一个周二，投 20 家', () => {
   });
 
   it('18:30 海投跑完：投出 17 / 20；拼多多的拒信只计数，不进等你条', async () => {
-    repos.reviewActions(repos.listActions('pending_review').map(a => a.id), 'approved');
     for (const c of [...TARGETS, ...WIDE].filter(c => !['华为', '摩尔线程', '智元'].includes(c))) repos.jumpTo(appOf(c).id, 'applied', '已投递');
     await mail(repos, llm, '2026-10-28T06:10:00.000Z', { kind: 'rejection', relevance: 'job', fields: { company: '拼多多' }, summary: '拼多多：很遗憾' });
     const { asks: list, run } = await asks();

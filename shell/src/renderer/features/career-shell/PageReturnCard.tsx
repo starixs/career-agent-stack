@@ -50,7 +50,7 @@ const WRITE_TOOLS: Record<string, string> = {
   ingest_repo: '从代码仓库里抽取了经历',
   job_import: '加入了一个岗位',
   jobs_sync: '同步了岗位库',
-  jobs_prepare: '把岗位加进了待投清单',
+  jobs_apply: '开始投这批岗位',
   apply_prepare: '开始填了网申',
   apply_run: '在浏览器里填了表',
   apply_batch: '开始了批量投递',

@@ -82,7 +82,7 @@ function buildSeason(repos: Repos): Season {
   // 字节：第一周投的，10 月 12 日按静默关掉
   const bytedance = byWeek[0][23];
   at(Date.parse('2026-10-12T12:00:00.000Z')); repos.jumpTo(bytedance, 'discarded', '静默超时，主动关闭');
-  // 这周还有 10 个只评估过、没投出去的岗位（推荐进待投清单，没批准）
+  // 这周还有 10 个只评估过、没投出去的岗位（只评估过，还没开始投）
   at(WEEK1 + 35 * DAY + 10_800_000);
   for (let i = 0; i < 10; i++) repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: `pick-${i}`, title: '后端开发', company_name: `待投${i}` }).id);
   at(Date.parse(NOW));

@@ -158,7 +158,7 @@ export function CareerTakeoverCard({ takeover, onAction }: {
  * 没登记的内部名字不显示，免得露出 apply_run 这类技术名。已经是中文的原样显示。
  */
 const PHASE_LABELS: Record<string, string> = {
-  fill_form: '填表', apply_run: '填表', apply_continue: '填表', apply_batch: '批量投递', apply_prepare: '准备材料', jobs_prepare: '准备材料',
+  fill_form: '填表', apply_run: '填表', apply_continue: '填表', apply_batch: '批量投递', apply_prepare: '准备材料', jobs_apply: '开始投',
   web_search: '搜索', resume_export: '导出简历', submit: '提交',
 };
 export function phaseLabel(phase: string | undefined): string | null {

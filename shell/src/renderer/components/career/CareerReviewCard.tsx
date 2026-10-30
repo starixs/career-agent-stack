@@ -18,6 +18,7 @@ import { reviewCardId, REVIEW_CARD_KIND } from '../../../shared/careerReviewCard
 import { careerApi } from './careerApi';
 import { ACTION_KIND_LABELS } from './careerConstants';
 import { openLiveDrawer } from './CareerLiveDrawer';
+import { HOLD_OPTIONS, holdSubmit, type HoldChoice } from './delivery/holdSubmit';
 import { Badge, Button, suggestToChat, TextInput, type ChatContext } from './CareerPrimitives';
 import { SubmitReviewList } from './SubmitReviewList';
 import type { ActionKind, CareerCard, CareerReviewEvent, SubmitReviewSummary } from './types';
@@ -66,7 +67,7 @@ export function useRespondReview(): (ids: string[], decision: 'approved' | 'reje
   });
 }
 
-export function ReviewCard({ card, onDone }: CardProps) {
+export function ReviewCard({ card, onDone, onDismiss }: CardProps) {
   const respond = useRespondReview();
   const [busy, setBusy] = useState<'approved' | 'rejected' | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +85,15 @@ export function ReviewCard({ card, onDone }: CardProps) {
     // 交接：卡片上的决定要让助理知道，它才会接着执行或跟进结果，而不是停在上一轮
     const msg = reviewDecisionMessage({ actionIds, kind, summary: str(card.data.summary) ?? card.title }, decision);
     if (msg) suggestToChat(msg.text, msg.context);
+  };
+  // 提交卡「先不提交」：展开三个选项，不再叫助理问「接下来怎么办」
+  const [holding, setHolding] = useState(false);
+  const hold = async (choice: HoldChoice) => {
+    setError(null);
+    try {
+      const outcome = await holdSubmit(actionIds, choice);
+      if (outcome === 'resolved') onDone(); else if (outcome === 'snoozed') onDismiss();
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
   const kindLabel = ACTION_KIND_LABELS[kind as ActionKind] ?? '这一步';
   return (
@@ -106,9 +116,14 @@ export function ReviewCard({ card, onDone }: CardProps) {
       {error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button variant="primary" busy={busy === 'approved'} disabled={busy !== null} onClick={() => void decide('approved')}>{isSubmit ? '批准提交' : kind === 'fill_form' ? '开始填写' : '批准'}</Button>
-        <Button variant="danger" busy={busy === 'rejected'} disabled={busy !== null} onClick={() => void decide('rejected')}>{isSubmit ? '先不提交' : '不要了'}</Button>
+        <Button variant="danger" busy={busy === 'rejected'} disabled={busy !== null} aria-expanded={isSubmit ? holding : undefined} onClick={() => (isSubmit ? setHolding(h => !h) : void decide('rejected'))}>{isSubmit ? '先不提交' : '不要了'}</Button>
         {isSubmit && <Button variant="ghost" disabled={busy !== null} onClick={() => openLiveDrawer()}>在旁边看页面</Button>}
       </div>
+      {isSubmit && holding && (
+        <div role="group" aria-label="先不提交，那就" className="mt-2 flex flex-wrap items-center gap-2">
+          {HOLD_OPTIONS.map(o => <Button key={o.choice} variant="ghost" disabled={busy !== null} onClick={() => void hold(o.choice)}>{o.label}</Button>)}
+        </div>
+      )}
     </div>
   );
 }

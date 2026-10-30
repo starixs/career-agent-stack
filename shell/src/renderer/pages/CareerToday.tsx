@@ -379,7 +379,7 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
   const payload = action ? safeJson<Record<string, unknown>>(action.payload_json, {}) : {};
   const isSendMail = action?.kind === 'send_mail';
   const isReview = item.kind === 'review' && !todo.confirmSubmit;
-  // 待投清单里没开始的填表：不是「批准」，而是「开始填写」（填到提交前会停下等你确认）
+  // 还没开始的填表（批准后材料变了退回待审）：不是「批准」，而是「开始填写」（填到提交前会停下等你确认）
   const isFill = action?.kind === 'fill_form';
   // 招呼语 / 开放题回答批准后不由产品发送，而是变成「等你发出去」的一行（manualSend）。
   const approvedNote = action && isManualSendKind(action.kind) ? '已批准，待你发送' : '已批准';

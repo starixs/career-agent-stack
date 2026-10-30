@@ -37,7 +37,7 @@ import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../ca
 import { confirmSubmitResult } from '../career/submit-executor';
 import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
 import { applyJobs, planJobs, startApprovedFills } from '../career/batch-apply';
-import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
+import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
 import { scheduleRefresh } from '../career/correction';
@@ -77,6 +77,13 @@ function parseJsonObj(raw: string | null | undefined): Json {
   try { const v = JSON.parse(raw ?? '{}'); return v && typeof v === 'object' ? v as Json : {}; } catch { return {}; }
 }
 /** 提交执行器与页面释放只在 Global 侧车（浏览器宿主所在进程）可用；动态加载避免路由模块拉起浏览器依赖。 */
+/** 「这家不投了」：申请标成跳过（提交前的各阶段都能到 skip）；已经不在能跳过的阶段就只记日志，不挡拒绝本身。 */
+function dropApplication(repos: Repos, applicationId: string): void {
+  try { repos.transition(applicationId, 'skip', '你说这家不投了'); } catch (error) {
+    console.warn(`[career] drop application ${applicationId} FAILED`, error instanceof Error ? error.message : error);
+  }
+}
+
 async function kickSubmit(): Promise<void> {
   try { const { kickSubmitExecutor } = await import('../career/batch-service'); await kickSubmitExecutor(); } catch { /* 轮询会兜底 */ }
 }
@@ -381,18 +388,6 @@ const ROUTES: Route[] = [
       return fail(error instanceof Error ? error.message : '同步失败', 502);
     }
   }),
-  route('POST', '/api/career/jobs/prepare', async (ctx) => {
-    const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : [];
-    if (!ids.length) return fail('job_ids 不能为空');
-    try {
-      const results = await prepareJobs({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir }, ids, str(ctx.body.resume_id) ?? null);
-      dataChanged(ctx, ['application', 'action_queue']);
-      return ok({ results, queued: results.filter(r => r.ok).length });
-    } catch (error) {
-      if (error instanceof DomainUnavailableError) return fail(error.message, 501);
-      throw error;
-    }
-  }),
   // 框选一批、确认投出：先算清楚（几家开始 / 跳过原因 / 要不要选简历），确认后一次开始，交给后台批量运行器
   route('POST', '/api/career/jobs/plan', (ctx) => {
     const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : [];
@@ -484,12 +479,14 @@ const ROUTES: Route[] = [
     dataChanged(ctx, ['action_queue']);
     const submits = actions.filter(a => a.kind === 'submit');
     if (decision === 'rejected') {
-      // 拒绝提交：这张表的自学习计数清零，关掉这份网申的页面
+      // 拒绝提交：这张表的自学习计数清零，关掉这份网申的页面；drop = 「这家不投了」，申请一并标成跳过
       for (const a of submits) {
         const p = parseJsonObj(a.payload_json);
         resetPageTrust(ctx.repos, typeof p.formSignature === 'string' ? p.formSignature : null);
         if (a.application_id) void releasePage(a.application_id);
+        if (a.application_id && ctx.body.drop === true) dropApplication(ctx.repos, a.application_id);
       }
+      if (ctx.body.drop === true) dataChanged(ctx, ['application']);
     }
     // 批准即执行：发送投递邮件；提交交给提交执行器（立即踢一轮，不等轮询）；填表交给批量运行器
     const sent = decision === 'approved' ? await executeApprovedSendMails(intakeDeps(ctx), ids) : [];

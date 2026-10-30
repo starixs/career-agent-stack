@@ -123,7 +123,7 @@ export const careerApi = {
   syncJobs: (source: 'campus' | 'server') => apiPostJson<unknown>(careerPath('/jobs/sync'), { source }).then(r => pickObject<{ fetched?: number; stored?: number; matched?: number }>(r)),
   /** 框选确认前：几家能开始、几家标星、哪几家跳过（带原因）、要不要选一份简历。 */
   planJobs: (jobIds: string[]) => apiPostJson<unknown>(careerPath('/jobs/plan'), { job_ids: jobIds }).then(r => parseJobPlan(asDict(r).plan)),
-  /** 一次确认就开始：加入待投清单 + 批准 + 交后台批量运行器。 */
+  /** 一次确认就开始：建投递冻结材料 + 批准 + 交后台批量运行器。 */
   applyJobs: (jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/apply'), { job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
     .then(r => ({ started: strings(asDict(r).started), skipped: parseSkipped(asDict(r).skipped) })),
   questions: (f: { kind?: string; source?: string; company?: string; q?: string; weak_only?: boolean } = {}) => {
@@ -143,8 +143,9 @@ export const careerApi = {
   setStage: (id: string, to: string, note?: string) =>
     apiPostJson<unknown>(careerPath(`/applications/${encodeURIComponent(id)}/stage`), { to, note }).then(r => pickObject<Application>(r, 'application')),
   pendingActions: () => apiGetJson<unknown>(careerPath('/actions?status=pending_review')).then(r => pickList<ActionQueueItem>(r, 'actions', 'items')),
-  reviewActions: (ids: string[], decision: 'approved' | 'rejected') =>
-    apiPostJson<unknown>(careerPath('/actions/review'), { ids, decision }).then(r => pickObject<{ n?: number; submitting?: string[] }>(r)),
+  /** drop：拒绝提交时顺带把这份申请标成「不投了」（跳过）。 */
+  reviewActions: (ids: string[], decision: 'approved' | 'rejected', opts: { drop?: boolean } = {}) =>
+    apiPostJson<unknown>(careerPath('/actions/review'), { ids, decision, ...(opts.drop ? { drop: true } : {}) }).then(r => pickObject<{ n?: number; submitting?: string[] }>(r)),
   /** 提交结果不确定 / 接管后：用户确认是否已经投递成功。 */
   confirmSubmit: (id: string, submitted: boolean) =>
     apiPostJson<unknown>(careerPath(`/actions/${encodeURIComponent(id)}/confirm-submit`), { submitted }).then(r => pickObject<ActionQueueItem>(r, 'action')),

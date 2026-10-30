@@ -22,7 +22,7 @@ const isoParam = (url: URL, key: string): string | null => {
   const v = url.searchParams.get(key);
   return v && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null;
 };
-/** 一张批次卡最多几份：jobs_prepare 一次最多 50 个岗位。 */
+/** 一张批次卡最多几份：jobs_apply 一次最多 50 个岗位。 */
 const MAX_RUN_IDS = 50;
 
 export function deliveryRoutes(): Array<[string, string, Handler]> {

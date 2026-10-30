@@ -61,7 +61,7 @@ describe('岗位汇总表与匹配', () => {
     const action = repos.getAction(first[0].action_id!)!;
     expect(action.status).toBe('pending_review');
     expect(action.packet_id).toBeTruthy();
-    expect((await prepareJobs(deps, [a.id]))[0]).toMatchObject({ ok: false, reason: '已在待投清单或正在投' });
+    expect((await prepareJobs(deps, [a.id]))[0]).toMatchObject({ ok: false, reason: '已在投' });
     // 投出去以后再勾上同一行：不再投第二次
     repos.setActionStatus(action.id, 'done', {});
     repos.jumpTo(action.application_id!, 'applied', '已投递');

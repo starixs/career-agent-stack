@@ -1,10 +1,10 @@
 /**
- * 岗位汇总表（R01 校招与实习网申汇总 / R02 依据简历找匹配岗位 / R06 勾选加入待投清单）。
+ * 岗位汇总表（R01 校招与实习网申汇总 / R02 依据简历找匹配岗位 / R06 框选一批确认就开始投，见 batch-apply.ts）。
  *
  *  - 求职条件 kv `profile.job_prefs`（届别 / 学历 / 城市 / 类型 / 方向词），推荐不得违反。
  *  - 匹配证据：已确认的经历主张 + 主简历（及定制版）里的条目文字；`matchJob` 逐条要求对证据，结果存 job.match_json / match_score。
  *  - 汇总表：岗位 + 我的进度（投递阶段）+ 匹配，按筛选条件与排序给出。
- *  - 加入待投清单：对勾选的岗位逐个 apply_prepare（冻结材料包 + fill_form 待审）。
+ *  - prepareJobs：给一批岗位逐个建投递、冻结材料包、排 fill_form（只由 batch-apply.applyJobs 调，排完立刻批准开始；没有「待投清单」这一步）。
  *
  * 汇总表维度（批次 / 行业 / 类型标签）的存放约定——所有导入路径与读取方都按这个来：
  *  - 权威位置是 job.board_json（迁移 v7），形如 `{"batch":"正式批"|null,"industry":"互联网"|null,"type_tags":["央国企"]}`，
@@ -162,7 +162,7 @@ export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().t
 
 function parseMatch(raw: string | null | undefined): JobMatch | null { try { return raw ? JSON.parse(raw) as JobMatch : null; } catch { return null; } }
 
-/** 勾选的岗位加入待投清单：逐个创建投递 + 冻结材料包 + fill_form 待审。已在进行中的跳过。框选确认投出见 batch-apply.ts。 */
+/** 逐个创建投递 + 冻结材料包 + 排 fill_form（待审，由 applyJobs 当场批准）。已在投、已投过的跳过。 */
 export async function prepareJobs(deps: PacketDeps & { store: CareerStore }, jobIds: string[], resumeId?: string | null, opts: { fallbackResumeId?: string | null } = {}): Promise<Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }>> {
   const out: Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }> = [];
   for (const jobId of jobIds) {
@@ -172,7 +172,7 @@ export async function prepareJobs(deps: PacketDeps & { store: CareerStore }, job
     // 已经投出去的岗位不再投第二次（框选时常会连带勾上已投的那几行）
     if (apps.some(a => SENT.has(a.stage))) { out.push({ job_id: jobId, ok: false, reason: '已经投过' }); continue; }
     const existing = apps.find(a => !DONE.has(a.stage));
-    if (existing && deps.repos.listActions().some(a => a.application_id === existing.id && ['pending_review', 'approved', 'executing', 'needs_user'].includes(a.status))) { out.push({ job_id: jobId, ok: false, reason: '已在待投清单或正在投' }); continue; }
+    if (existing && deps.repos.listActions().some(a => a.application_id === existing.id && ['pending_review', 'approved', 'executing', 'needs_user'].includes(a.status))) { out.push({ job_id: jobId, ok: false, reason: '已在投' }); continue; }
     if (!job.url) { out.push({ job_id: jobId, ok: false, reason: '没有网申链接' }); continue; }
     // 定制版优先；没有定制版又有好几份主简历时，用确认时选好的那份（fallbackResumeId），不再逐个问
     const picked = pickResumeForJob(deps.store, jobId, resumeId) ?? (opts.fallbackResumeId ? pickResumeForJob(deps.store, null, opts.fallbackResumeId) : undefined);

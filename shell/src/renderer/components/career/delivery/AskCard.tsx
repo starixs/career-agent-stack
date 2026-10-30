@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { actionLabels, dueText, sourceText, subText } from './askText';
 import { CompanyPoster } from './CompanyPoster';
 import type { AskView } from './deliveryApi';
+import { HOLD_OPTIONS, type HoldChoice } from './holdSubmit';
 import { openLiveDrawer } from '../CareerLiveDrawer';
 
 /** 缺信息那一片最多铺几张小签：再多就看不清了，数字在原因行里。 */
@@ -38,11 +39,15 @@ function FieldInputs({ ask, values, onChange }: { ask: AskView; values: Record<s
   );
 }
 
-export function AskCard({ ask, busy, error, onGo, onLater }: {
+export function AskCard({ ask, busy, error, onGo, onLater, onHold }: {
   ask: AskView; busy: boolean; error: string | null;
   onGo: (values: Record<string, string>) => Promise<unknown> | void; onLater: () => Promise<unknown> | void;
+  /** 单家投前过目点「先不投」后的选项；不给就照旧走 onLater。 */
+  onHold?: (choice: HoldChoice) => Promise<unknown> | void;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
+  const [holding, setHolding] = useState(false);
+  const holdable = ask.kind === 'review' && ask.application_ids.length <= 1 && !!onHold;
   const labels = actionLabels(ask);
   const due = dueText(ask);
   const src = sourceText(ask);
@@ -62,9 +67,14 @@ export function AskCard({ ask, busy, error, onGo, onLater }: {
         {ask.kind === 'info' && <FieldInputs ask={ask} values={values} onChange={(l, v) => setValues(s => ({ ...s, [l]: v }))} />}
         <div className="cd-acts">
           <button type="button" className="cd-go" disabled={busy || blocked} onClick={() => void onGo(values)}>{labels.go}</button>
-          <button type="button" className="cd-later" disabled={busy} onClick={() => void onLater()}>{labels.later}</button>
+          <button type="button" className="cd-later" disabled={busy} aria-expanded={holdable ? holding : undefined} onClick={() => (holdable ? setHolding(h => !h) : void onLater())}>{labels.later}</button>
           {pageOnly && <button type="button" className="cd-later" onClick={() => openLiveDrawer()}>去页面上看</button>}
         </div>
+        {holdable && holding && (
+          <div className="cd-acts" role="group" aria-label="先不投，那就">
+            {HOLD_OPTIONS.map(o => <button key={o.choice} type="button" className="cd-later" disabled={busy} onClick={() => void onHold?.(o.choice)}>{o.label}</button>)}
+          </div>
+        )}
         {ask.kind === 'review' && <p className="cd-warn">投出后撤不回</p>}
         {ask.kind === 'info' && fillable.some(f => f.vault_field) && <p className="cd-warn">只存在本机私密库，填表时在本地替换，助理看不到原文</p>}
         {error && <p role="alert" className="cd-err">{error}</p>}

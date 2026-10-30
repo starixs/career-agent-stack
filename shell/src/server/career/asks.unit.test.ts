@@ -67,7 +67,7 @@ describe('AskView：一个动作能解决的才合并', () => {
     expect(buildAsks(repos, NOW).filter(a => a.kind === 'deadline')).toHaveLength(2);
   });
 
-  it('待投清单里还没开始的几份：一句「开始」全部放行，合成一件', () => {
+  it('还没开始填的几份（批准后材料变了退回待审）：一句「开始」全部放行，合成一件', () => {
     const repos = createMemoryRepos();
     const ids = ['美团', '京东', '华为'].map(c => repos.enqueueAction('fill_form', {}, app(repos, c).id).id);
     const [start] = buildAsks(repos, NOW);

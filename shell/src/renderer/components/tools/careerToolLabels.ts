@@ -57,7 +57,7 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   job_prefs: '看求职条件',
   job_target: '标为目标岗位',
   jobs_board: '查岗位库',
-  jobs_prepare: '加入待投并备好材料',
+  jobs_apply: '开始批量投',
   jobs_sync: '同步岗位库',
   mail_accounts: '看绑定的邮箱',
   mail_compose: '写投递邮件',

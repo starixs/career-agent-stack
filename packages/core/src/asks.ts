@@ -5,7 +5,7 @@
  * 合并只在「一个动作能同时解决」时发生（规范 §5.2.3）：
  *  - 缺信息：缺的是同一组字段的网申合成一件（证件号码填一次，20 家都放行）；
  *  - 要登录：登录 / 验证码 / 二次验证一次去浏览器就能处理，合成一件；
- *  - 待投清单：还没开始填的那几份，一句「开始」就全部放行，合成一件；
+ *  - 还没开始填的那几份（批准后材料变了退回待审的）：一句「开始」就全部放行，合成一件；
  *  - 海投填好、检查全部通过的提交：一键全部投出，合成一件（目标岗位和有项要看的仍一家一件）。
  * 不按类型合并：两场笔试是两件事。
  *
@@ -23,7 +23,7 @@ import type { ActionQueueItem, Deadline, Handoff, InboxItem } from './types.js'
 import { PROFILE_FIELDS } from './vault.js'
 
 /**
- * 规范五类 + 已经在今日队列里的四类（过了时间问「考了吗」、面完复盘、不确定是否投出、待投清单开始）。
+ * 规范五类 + 已经在今日队列里的四类（过了时间问「考了吗」、面完复盘、不确定是否投出、还没开始填的）。
  * 出错面预留（2026-10-30，等用户定，现在不派生）：failed「N 家没投成」、unsure「这几封我不太确定」。
  */
 export type AskKind = 'info' | 'login' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure'
@@ -183,7 +183,7 @@ function reviewAsk(ctx: Ctx, a: ActionQueueItem): AskView {
   }
 }
 
-/** 待投清单里还没开始填的几份：一句「开始」全部放行，合成一件。 */
+/** 还没开始填的几份（批准后材料变了退回待审）：一句「开始」全部放行，合成一件。没有「待投清单」：框选确认就开始。 */
 function startAsk(ctx: Ctx, actions: readonly ActionQueueItem[]): AskView | null {
   if (!actions.length) return null
   const appIds = uniq(actions.map(a => a.application_id))

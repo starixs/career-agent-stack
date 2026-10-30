@@ -60,7 +60,7 @@ describe('动作队列与接管', () => {
     r.enqueueAction('fill_form', { job_id: job.id }, app.id)
     r.enqueueAction('submit', { job_id: job.id }, app.id)
     const titles = r.today().items.filter(i => i.kind === 'review').map(i => i.title)
-    expect(titles).toContain('待投清单：还没开始填 · 美团 后端开发')
+    expect(titles).toContain('还没开始填 · 美团 后端开发')
     expect(titles).toContain('待你批准：提交网申 · 美团 后端开发')
     expect(titles.some(t => t.includes('待你批准：网申填表'))).toBe(false)
   })

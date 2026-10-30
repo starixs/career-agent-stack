@@ -11,6 +11,7 @@ import { openLiveDrawer } from '../CareerLiveDrawer';
 import { suggestToChat } from '../CareerPrimitives';
 import { useRespondReview } from '../CareerReviewCard';
 import { deliveryApi, type AskView } from './deliveryApi';
+import { holdSubmit, type HoldChoice } from './holdSubmit';
 
 export type AskOutcome = 'resolved' | 'snoozed' | 'kept';
 type Respond = ReturnType<typeof useRespondReview>;
@@ -65,7 +66,6 @@ async function later(ask: AskView): Promise<AskOutcome> {
   switch (ask.kind) {
     case 'attendance': await careerApi.answerAttendance(firstDeadline(ask), false); return 'resolved';
     case 'retro': await careerApi.setDeadlineStatus(firstDeadline(ask), 'done'); return 'resolved';
-    case 'review': suggestToChat(`${ask.title.split(' · ')[0]}这份我要改一下：`, { surface: 'apply', refs: { action_id: sourceIds(ask, 'action').join(',') } }, 'prefill'); return 'kept';
     case 'deadline':
       if (ask.deadline_kind === 'interview' || !firstDeadline(ask)) return 'snoozed';
       await careerApi.setDeadlineStatus(firstDeadline(ask), 'done'); return 'resolved';
@@ -92,5 +92,6 @@ export function useAskActions() {
     busy, error,
     go: (ask: AskView, values: Record<string, string> = {}) => run(() => go(ask, respond, values)),
     later: (ask: AskView) => run(() => later(ask)),
+    hold: (ask: AskView, choice: HoldChoice) => run(() => holdSubmit(sourceIds(ask, 'action'), choice)),
   };
 }
