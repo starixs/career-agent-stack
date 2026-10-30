@@ -1,4 +1,4 @@
-# 服务端接口契约（共享岗位库 + 答案改动回传）
+# 服务端接口契约（共享岗位库 + 答案改动回传 + 邮箱连接器）
 
 客户端（桌面产品）只通过下面的 HTTP 接口访问服务端，**不直连数据库**。服务端用 PostgreSQL 实现，存储方案由后端团队决定；本文只约定接口与身份规则。客户端实现见 `shell/src/server/career/server-api.ts`，岗位契约类型见 `packages/core/src/jobs.ts`。
 
@@ -103,6 +103,158 @@
   - 不上传本地投递 id；`answer` 里的私密信息仍是占位符（`{{vault:profile.phone}}`），不是明文。
 - 幂等：按 `id` 去重，重复提交返回 2xx。
 - 响应：任意 2xx（建议 `{ "accepted": n }`）。
+
+## 邮箱连接器（/v1/connectors、/v1/connections、/v1/mail）
+
+用户在桌面端连接自己的个人邮箱（QQ / 163 / 126 / Gmail），服务端是连接的**唯一事实源**：保存加密后的授权码，负责 IMAP 收信、保活与健康探测，把新邮件以事件流交给客户端；客户端只存投影，邮件的识别与接管（规则 + 模型）在客户端做。产品决策 2026-10-30：凭证上云。
+
+客户端实现：`shell/src/server/career/mail/remote.ts`（客户端无服务端配置时退回本机实现，见 `mail/backend.ts`）。
+
+### 身份与鉴权
+
+- 连接归属于 `Authorization` 里的用户。所有 `/v1/connections/*` 只能看到、操作自己的连接，越权返回 404。
+- `connection_id` 由服务端生成，一经发出不变、不复用。客户端拿它当本地邮件记录的外键。
+
+### 数据（服务端自定，下面是参考结构）
+
+```sql
+connections (
+  id uuid PK, user_id uuid,
+  provider text,                -- qq | 163 | 126 | gmail
+  auth_type text,               -- credential_form | oauth（oauth 轨预留）
+  email_address text,           -- 小写；同一用户下唯一
+  status text,                  -- active | expired | revoked
+  credential_ciphertext bytea,  -- 信封加密（见下）
+  imap_host, imap_port, smtp_host, smtp_port,
+  uidvalidity bigint, sync_cursor_uid bigint,
+  consecutive_fails int, last_check_at, last_ok_at, last_used_at,
+  created_at, updated_at
+)
+connection_audit (id, connection_id, actor /* agent|user|system */, operation, status /* ok|failed */, detail jsonb, latency_ms, created_at)
+mail_events (id bigserial, connection_id, uid, message_id, in_reply_to, from_addr, to_addr, subject, received_at, backfill bool, body text, created_at)
+oauth_sessions (state PK, user_id, provider, code_verifier, expires_at)   -- 预留
+```
+
+- **凭证加密**：信封加密。每次写入随机生成数据密钥加密授权码，数据密钥由主密钥包裹，与密文同存 `{kid, wrapped_dek, nonce, ciphertext}`。主密钥双槽轮换：写入用当前槽；读到旧槽的记录后台惰性重加密。授权码明文只在服务端内存里用于登录，不进日志、不回传客户端。
+- 解绑即删凭证（`credential_ciphertext` 置空、`status=revoked`）；事件与留痕按保留期清理。
+
+### 连接状态机
+
+```
+(无) ──verify ok──> active ──连续 3 次认证失败──> expired ──reauthorize ok──> active
+                      └── DELETE ──> revoked
+```
+
+- 判定 `expired`：IMAP 认证类失败（授权码错 / IMAP 被关）**连续 3 次**；网络错误只累加 `consecutive_fails`，不改状态。
+- `expired` 后**停止自动登录**（防止服务商因反复错误登录锁号），等用户重新授权。
+
+### GET /v1/connectors
+
+连接器目录。引导、字段、官方页面都由服务端下发，新增邮箱服务商不用发客户端版本。客户端拿不到时用内置的同一份数据（`mail/connectors.ts`）。
+
+```json
+{ "connectors": [
+  { "id": "qq", "name": "QQ 邮箱", "auth_type": "credential_form", "capabilities": ["receive", "send"],
+    "open_url": "https://wx.mail.qq.com/", "open_label": "打开 QQ 邮箱", "help_url": "https://service.mail.qq.com/detail/0/75",
+    "guide": [{ "title": "开启服务并生成授权码", "text": "…", "path": ["设置", "账号与安全", "安全设置", "POP3/IMAP/SMTP 服务", "生成授权码"] }],
+    "verify_note": "生成授权码时，QQ 邮箱会要你用微信扫码或发一条短信验证。",
+    "fields": [{ "key": "email", "type": "email", "label": "邮箱地址", "placeholder": "you@qq.com" },
+               { "key": "authCode", "type": "secret", "label": "授权码", "placeholder": "16 位字母", "helper": "…", "length": 16 }],
+    "oauth": { "enabled": false } }
+] }
+```
+
+`oauth.enabled` 为 `true` 时客户端走 OAuth 轨（见下）。Gmail 在谷歌受限范围审核通过前保持 `false`。
+
+### POST /v1/connectors/{id}/credentials/verify
+
+请求：`{ "email": "me@qq.com", "authCode": "abcdefghijklmnop", "reauthorize": false }`（`authCode` 已去空格）。
+
+服务端真连校验：IMAP LOGIN → SELECT INBOX（记下 UIDVALIDITY）→ SMTP AUTH，总时限 15 秒。只有收信通过才保存；发信失败也算连上，`smtp_ok: false`。
+
+成功：`{ "ok": true, "smtp_ok": true, "connection": Connection }`，并开始历史回填（见事件流）。
+
+失败（HTTP 200，失败是业务结果）：`{ "ok": false, "error_code": "...", "message": "给用户看的一句话", "connection_id": "..."? }`
+
+| error_code | 何时 | 客户端怎么引导 |
+|---|---|---|
+| `imap_auth_failed` | 授权码错或已失效 | 重新填写 / 查看教程 |
+| `imap_disabled` | 邮箱没开 IMAP | 打开设置教程 |
+| `provider_blocked` | 服务商风控（如网易 Unsafe Login） | 稍后重试 / 查看教程 |
+| `unreachable` | 网络或超时 | 重试 |
+| `duplicate` | 该地址已有 active 连接且 `reauthorize=false`；带 `connection_id` | 查看连接 |
+| `invalid_input` | 地址或授权码格式不对 | 重新填写 |
+
+`reauthorize=true` 时覆盖凭证、清零 `consecutive_fails`、状态回 `active`，保留同步游标。
+
+### GET /v1/connections · GET /v1/connections/{id} · DELETE /v1/connections/{id}
+
+```json
+{ "connections": [ {
+  "id": "conn_…", "provider": "qq", "auth_type": "credential_form", "email_address": "me@qq.com",
+  "status": "active", "health": { "status": "healthy|degraded|expired", "last_check_at": "…", "last_ok_at": "…", "consecutive_fails": 0, "last_error": null },
+  "created_at": "…", "last_used_at": "…", "last_sync_at": "…"
+} ] }
+```
+
+`DELETE` 幂等，删凭证并停止同步。
+
+### GET /v1/connections/{id}/usage?days=7 · GET /v1/connections/{id}/audit?limit=20
+
+- `usage`：`{ "days": 7, "by_op": { "import": { "ok": 1, "failed": 0 }, "sync": {…}, "send": {…} } }`
+- `audit`：`{ "entries": [{ "id", "actor": "agent|user|system", "operation": "connect|reauthorize|import|sync|send|health_check", "status": "ok|failed", "detail": {…}, "latency_ms", "created_at" }] }`
+- 代发必须留痕：`detail` 至少有 `to`、`subject_preview`（前 20 字）、`trigger`（客户端动作 id）。空同步（没拉到信）不留痕。
+
+### POST /v1/connections/{id}/sync
+
+用户点「立即同步」。服务端立刻跑一次增量，返回 `{ "fetched": n }`；新邮件照常进事件流。`expired` 返回 `{ "error_code": "expired" }`。
+
+### 收信与保活（服务端内部行为）
+
+- **历史回填**：连接成功后回看 180 天。先只拉信头，用求职粗筛（主题 / 发件人命中招聘关键词或招聘系统域名，规则与客户端 `isLikelyJobMail` 一致）只保留命中的，最多 1000 封，拉正文后以 `backfill: true` 进事件流。无关邮件不入库。
+- **新邮件**：IMAP IDLE 优先，每 9 分钟 DONE 重挂；不可用时每 15 分钟按 `sync_cursor_uid` 增量拉。新邮件同样过求职粗筛，命中的进事件流（`backfill: false`）。
+- **UIDVALIDITY** 变了：游标作废，按历史回填重来（客户端按 `message_id` 去重）。
+- **健康**：每次登录即一次探测，更新 `last_check_at / last_ok_at / consecutive_fails`；另每 30 分钟对无 IDLE 的连接做 LOGIN + SELECT 探测。
+- 单连接串行（IMAP 不适合并发），发信用独立的 SMTP 短连接。
+
+### GET /v1/mail/events?since=<cursor>&limit=200
+
+客户端每分钟拉一次，按 `cursor` 增量。
+
+```json
+{ "events": [ {
+  "id": "evt_…", "connection_id": "conn_…", "uid": 1234, "message_id": "<…>", "in_reply_to": null,
+  "from": "美团校园招聘 <noreply@mokahr.com>", "to": "me@qq.com", "subject": "【美团】已收到您的简历",
+  "received_at": "2026-08-20T02:00:00Z", "backfill": true, "text": "正文纯文本（最多 20000 字）"
+} ], "next_cursor": "…" }
+```
+
+- 只放求职粗筛命中的邮件，所以正文直接带上（`text`）；客户端不再单独取正文。
+- 至少一次投递：客户端按 `(connection_id, message_id)` 去重。`next_cursor` 为空表示暂时拉完。
+- 客户端处理：`backfill: true` 走历史模式（规则先认，认得出的直接接管成申请、不进通知中心；只有近两周可能还没发生的事才调模型）；`false` 走正常归档。
+
+### POST /v1/mail/send
+
+代发经用户批准的投递邮件。请求：
+
+```json
+{ "connection_id": "conn_…", "to": "hr@x.com", "cc": null, "subject": "应聘产品经理 - 张三", "body": "纯文本",
+  "attachments": [{ "filename": "张三-简历.pdf", "content_base64": "…", "sha256": "…" }], "trigger": "act_…" }
+```
+
+- 附件总大小上限 10 MB；`sha256` 与内容不符返回 400。
+- 幂等：按 `trigger` 去重（同一个客户端动作只发一次），重复请求返回第一次的结果。
+- 成功：`{ "message_id": "<…>" }`。失败：`{ "error_code": "expired|smtp_failed|rate_limited", "message": "…" }`（HTTP 200）。
+- 风控：单连接默认 10 封/分钟、200 封/天；连续触发服务商限流熔断 30 分钟。
+
+### OAuth 轨（预留，Gmail 过审后启用）
+
+- `POST /v1/connectors/{id}/oauth/start` → `{ "authorize_url": "https://accounts.google.com/…", "state": "…" }`。客户端在用户浏览器打开 `authorize_url`。
+- 服务端回调 `/v1/oauth/callback?state=&code=`：PKCE 换 token，refresh_token 按凭证同样信封加密，建连接（`auth_type: "oauth"`），之后与授权码连接走同一套收信、事件、发信。
+- 客户端轮询 `GET /v1/connectors/{id}/oauth/status?state=` → `{ "status": "pending|done|failed", "connection": Connection? }`。
+- 未启用时 `start` 返回 `{ "error_code": "oauth_not_enabled" }`（HTTP 200），客户端显示「审核后开放」。
+- 读信 scope 用 `gmail.readonly`（发信加 `gmail.send`），都属谷歌受限范围：需品牌验证、受限范围审核，按谷歌要求做年度安全评估。
+
 
 ## 后续（尚未使用）
 
