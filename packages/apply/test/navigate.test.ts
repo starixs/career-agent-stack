@@ -149,6 +149,26 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     expect(r.status).toBe('stopped_before_submit')
   })
 
+  it('内置找路走不通就交给注入的自主找路；它走到网申表，引擎接着填；只走一趟', async () => {
+    const page = new FakePage([
+      { url: 'https://careers.acme.com/', text: '欢迎加入我们' },
+      { url: 'https://careers.acme.com/apply/9', fields: basics, buttons: [{ text: '提交', submit: true }] },
+    ])
+    const calls: string[] = []
+    const pathfinder = async (why: string) => { calls.push(why); await page.goto('https://careers.acme.com/apply/9'); return { moved: true } }
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend, pathfinder })
+    expect(calls).toHaveLength(1)
+    expect(r.status).toBe('stopped_before_submit')
+    expect(page.submitted).toBe(false)
+  })
+
+  it('自主找路说没有对口岗位：如实报它看到的情况', async () => {
+    const page = new FakePage({ url: 'https://careers.acme.com/', text: '欢迎加入我们' })
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend, pathfinder: async () => ({ moved: false, note: '只有财务和销售岗' }) })
+    expect(r.status).toBe('blocked')
+    expect(r.message).toContain('只有财务和销售岗')
+  })
+
   it('不给 target 时行为不变：首页没表单就如实报没有表单', async () => {
     const r = await driveApplication(new FakePage({ url: 'https://app.mokahr.com/campus-recruitment/acme/100#/', text: '欢迎加入' }), noLLM(), profile, quiet)
     expect(r.status).toBe('blocked')

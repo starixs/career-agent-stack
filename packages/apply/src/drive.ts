@@ -197,6 +197,11 @@ export interface DriveOptions extends PacingOptions {
   allowEntryClick?: boolean
   /** 打开的是校招首页 / 合集页时去找哪种岗位（navigate.ts）；不给就不找，按原样报「没有表单」。 */
   target?: PositionTarget
+  /**
+   * 内置找路（navigate.ts 的规则）走不通时，交给模型自主找路（GA 式循环，由调用方注入，face-ga-port 已定）。
+   * moved=true：页面已经到了网申表或登录页，引擎接着按原流程判断；note：没找到时的说明（这家有哪些岗位）。
+   */
+  pathfinder?: (why: string) => Promise<{ moved: boolean; note?: string }>
   /** 障碍层 / 下拉候选不确定时用的模型（缺省用 driveApplication 的 llm）。 */
   widgetLlm?: LLM | null
 }
@@ -229,6 +234,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   let entryClicks = 0
   let navHops = 0
   let lastSeekTried: string[] = []
+  let lastSeekNote: string | undefined
+  let pathfinderUsed = false
   const recallKey = opts.siteMemory ? opts.siteMemory.recaller(host) : undefined
   const layersUsed = new Set<DriveLayer>()
   const visionOpts: VisionOptions | null = opts.perceiver && page.mouse
@@ -300,9 +307,16 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     navHops++
     const nav = await navigateToPosition(page, adapter, opts.target, { settleMs: Math.max(opts.settleMs ?? 800, 0) * 2, log })
     recorder.trace({ stage: 'entry', action: 'navigate', result: nav.moved ? 'info' : 'fail', detail: `${why}｜${nav.moved ? `${nav.via}：${nav.picked}` : `没找到对口岗位（试了 ${nav.tried.join('、') || '页面链接'}）`}` })
-    if (nav.moved) progress(`找到岗位「${nav.picked}」`, 'entry', nav.picked)
-    else lastSeekTried = nav.tried
-    return nav.moved
+    if (nav.moved) { progress(`找到岗位「${nav.picked}」`, 'entry', nav.picked); return true }
+    lastSeekTried = nav.tried
+    // 自主找路一份网申只走一趟：模型回合要花时间和钱，一趟没到就如实报
+    if (!opts.pathfinder || pathfinderUsed) return false
+    pathfinderUsed = true
+    progress('换个方式找：一步一步在网站上找对口岗位', 'entry')
+    const auto = await opts.pathfinder(why).catch(e => { log(`自主找路出错：${e instanceof Error ? e.message : String(e)}`); return { moved: false, note: undefined } })
+    recorder.trace({ stage: 'entry', action: 'pathfinder', result: auto.moved ? 'info' : 'fail', detail: auto.note ?? (auto.moved ? '到了' : '没到') })
+    if (!auto.moved && auto.note) lastSeekNote = auto.note
+    return auto.moved
   }
 
   try {
@@ -365,7 +379,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       if (index === 1 && fields.length && onlySearchOrFilter(fields) && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
         if (await seek('只有搜索 / 筛选框')) { index--; continue }
         // 找过了还是只有筛选框：这不是网申表，绝不当成「填好了」交去提交（2026-10-31：大众校招搜索页的筛选被报成表单已填完）
-        if (opts.target) { pages.push(rec); return finish('blocked', `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
+        if (opts.target) { pages.push(rec); return finish('blocked', lastSeekNote ? `这家现在没有和你方向对口的岗位：${lastSeekNote}` : `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
       }
       // 2.1 岗位详情页：页面上没有任何表单字段、这次也没填过东西 → 允许点申请入口按钮进入网申表（最终提交仍永不点）
       // 北森 zhiye 的岗位行点开是就地展开、行里出「投递」：页面上只有搜索框 / 没标签的格子时也算「还没有表单」
@@ -415,7 +429,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           if (await seek('没有表单')) { index--; continue }
           pages.push(rec); all.escalations.push(...rec.escalations)
           const entry = sig.buttons.find(b => isEntryText(b.text, adapter)) ?? findFinalSubmit(sig.buttons, adapter)
-          return entry ? entryHandoff(entry.text) : finish('blocked', '页面上没有可填写的表单字段')
+          return entry ? entryHandoff(entry.text) : finish('blocked', lastSeekNote ? `这家现在没有和你方向对口的岗位：${lastSeekNote}` : '页面上没有可填写的表单字段')
         }
         break // 后续页没字段：可能到了确认页
       }

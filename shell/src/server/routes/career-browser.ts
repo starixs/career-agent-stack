@@ -59,6 +59,10 @@ export interface ApplyEngineModule {
   composePerceivers?: (perceivers: PerceiverLike[], id?: string) => PerceiverLike;
   synthesizeInputsFromLabels?: (p: unknown) => unknown;
   VlmPerceiver?: new (llm: LlmLike, base?: PerceiverLike) => PerceiverLike;
+  /** 提交词 / 入口词判断与站点适配器（自主找路的点击闸用）。 */
+  isSubmitText?: (text: string) => boolean;
+  isEntryText?: (text: string, adapter?: unknown) => boolean;
+  pickAdapter?: (url: string) => unknown;
   /** 提交执行器（只在 submit 动作被批准后调用）。 */
   submitApplication?: (page: ApplyPageLike, options?: Record<string, unknown>) => Promise<Record<string, unknown> & { screenshot?: Uint8Array }>;
 }
@@ -466,6 +470,20 @@ async function positionTargetForBody(body: Record<string, unknown>) {
   }
 }
 
+/** 内置找路走不通时的自主找路（GA 式循环，face-ga-port 已定）。引擎缺判断函数时不开。 */
+async function pathfinderForBody(applicationId: string, context: BrowserContext, page: Page, apply: ApplyEngineModule, llm: LlmLike, deps: CareerBrowserRouteDependencies) {
+  const { isSubmitText, isEntryText, pickAdapter } = apply;
+  if (!isSubmitText || !isEntryText || !pickAdapter) return null;
+  const [{ pathfinderFor }, vault] = await Promise.all([import('../career/pathfinder-host'), import('../career/vault').then(m => m.getVault()).catch(() => null)]);
+  return pathfinderFor({
+    context, page, applicationId, llm, isSubmitText,
+    isEntryText: (text, url) => isEntryText(text, pickAdapter(url)),
+    resolveVault: vault ? (t: string) => vault.resolve(t, { actor: 'form_fill', purpose: `自主找路 ${applicationId}` }) : undefined,
+    focusPage: p => deps.focusPage?.(p, false),
+    log: msg => console.log(`[career] ${msg}`),
+  });
+}
+
 function visionLlm(llm: LlmLike): import('../career/captcha-solver').VisionLlm {
   return {
     async complete(request) {
@@ -690,6 +708,7 @@ export async function runOperation(
     out.emit({ type: 'progress', phase: 'drive', message: '开始填写（不会提交）' });
     const telemetry = await (deps.resolveTelemetry ?? defaultTelemetry)(body);
     const target = body.profile ? null : await positionTargetForBody(body);
+    const pathfinder = target && typeof body.applicationId === 'string' ? await pathfinderForBody(body.applicationId, context, page, apply, llm, deps) : null;
     const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
       maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
       humanTyping: body.humanTyping !== false,
@@ -699,6 +718,7 @@ export async function runOperation(
       ...(perceiver ? { perceiver } : {}),
       ...(siteMemory ? { siteMemory } : {}),
       ...(target ? { target } : {}),
+      ...(pathfinder ? { pathfinder } : {}),
       ...(Array.isArray(body.learnFrom) ? { learnFrom: (body.learnFrom as unknown[]).filter((x): x is string => typeof x === 'string') } : {}),
       // 内部调试日志只进运行记录（引擎写 trace.jsonl），不广播给界面；界面只收人话进度
       onProgress: (p: { message: string; kind?: string; label?: string }) => out.emit({ type: 'progress', phase: 'drive', message: redact(p.message), ...(p.kind ? { kind: p.kind } : {}) }),
