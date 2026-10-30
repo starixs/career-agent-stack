@@ -113,10 +113,18 @@ describe('对话内流程卡片', () => {
     off();
   });
 
-  it('经历说法：只确认勾选的', async () => {
+  it('经历说法：表头一下「全部通过」', async () => {
+    renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '字节实习', claims: [{ id: 'c1', text: '主导推荐召回重构' }, { id: 'c2', text: '带 3 人小组' }] })]);
+    expect(screen.queryByRole('button', { name: /确定所选/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '全部通过' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/claims/c2/confirm', {}));
+    expect(apiPostJson).toHaveBeenCalledWith('/api/career/claims/c1/confirm', {});
+  });
+
+  it('经历说法：去掉一条后「确定所选」只确认勾着的', async () => {
     renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '字节实习', claims: [{ id: 'c1', text: '主导推荐召回重构', result_metric: 'CTR +3%' }, { id: 'c2', text: '带 3 人小组', attribution: 'team' }] })]);
-    fireEvent.click(screen.getByLabelText('带 3 人小组'));
-    fireEvent.click(screen.getByRole('button', { name: '确认所选 1 条' }));
+    fireEvent.pointerDown(screen.getByRole('checkbox', { name: '带 3 人小组' }));
+    fireEvent.click(screen.getByRole('button', { name: '确定所选 1 条' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/claims/c1/confirm', {}));
     expect(apiPostJson).not.toHaveBeenCalledWith('/api/career/claims/c2/confirm', {});
   });
@@ -133,7 +141,7 @@ describe('对话内流程卡片', () => {
 
   it('只有要补的事实、没有新说法时，不出确认按钮', () => {
     renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '美团实习', source: 'interview_retro', claims: [], gaps: ['线上收益'] })]);
-    expect(screen.queryByRole('button', { name: /确认所选/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /全部通过|确定所选/ })).toBeNull();
     expect(screen.getByRole('button', { name: '去补这几处' })).toBeInTheDocument();
   });
 

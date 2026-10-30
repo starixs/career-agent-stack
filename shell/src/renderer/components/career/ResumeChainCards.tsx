@@ -1,7 +1,8 @@
 /**
  * 主链路「交简历 → 按岗位定制」在对话里的两张卡（立场 9：要用户做的，以预填好的卡片出现，下一步一眼可见）。
  *  - resume_intake：拖进来的简历读到了什么。基本信息已从简历补进私密库（只给脱敏预览），缺的项带输入框；
- *    每段经历的说法默认全勾。点一下生成主简历，卡片原地换成「下一步」，不再回对话里来回确认。
+ *    说法在一张整批勾选表里（PickTable）：「全部通过」一下做完，或拖选 / Shift 连选后「只用所选」。
+ *    生成后卡片原地换成「下一步」，不再回对话里来回确认。
  *  - tailor_diff：按岗位定制好了。逐处原文 → 新文和理由；经历里还没有的 JD 要求列在下面。
  */
 import { FileCheck2, Sparkles } from 'lucide-react';
@@ -13,6 +14,7 @@ import { careerApi } from './careerApi';
 import { Badge, Button, TextInput, suggestToChat } from './CareerPrimitives';
 import { openResumeDrawer } from './CareerResumeDrawer';
 import { CardShell, ErrorLine, PrivacyNote, list, str, useSubmit, type CardProps } from './FlowCardShell';
+import { PickTable, allPicked, pickedIds, type PickGroup, type Picked } from './PickTable';
 
 const span = (start: string | null, end: string | null) => [start, end].filter(Boolean).join(' – ');
 
@@ -34,7 +36,7 @@ function IntakeDone({ masterId, onDone }: { masterId: string | null; onDone: () 
     <div className="grid gap-2" data-testid="career-card-resume_intake-done">
       <p className="text-sm text-[var(--ink)]">主简历好了。下一步：给一个岗位，按它定制一份。</p>
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="primary" onClick={() => { requestNavigation({ kind: 'career-dossier', view: 'apply' }); onDone(); }}>去岗位收藏挑一个</Button>
+        <Button variant="primary" onClick={() => { requestNavigation({ kind: 'career-dossier', view: 'apply' }); onDone(); }}>去岗位库挑一个</Button>
         <Button variant="secondary" onClick={() => openResumeDrawer(masterId)}>看看主简历</Button>
       </div>
       <p className="text-xs text-[var(--subtle)]">也可以直接把岗位链接或 JD 拖进下面的输入框。</p>
@@ -42,23 +44,50 @@ function IntakeDone({ masterId, onDone }: { masterId: string | null; onDone: () 
   );
 }
 
+function MissingInputs({ missing, values, onChange }: { missing: ReturnType<typeof parseIntake>['missing']; values: Record<string, string>; onChange: (field: string, v: string) => void }) {
+  if (!missing.length) return null;
+  return (
+    <div>
+      <div className="text-xs text-[var(--muted)]">简历上没写的，补一下（不填也能先生成）</div>
+      <div className="mt-1 grid gap-2 sm:grid-cols-2">
+        {missing.map(m => (
+          <label key={m.field} className="flex flex-col gap-1 text-xs text-[var(--muted)]">
+            <span>{m.label}{m.sensitive ? ' · 私密' : ''}</span>
+            <TextInput aria-label={m.label} autoComplete="off" placeholder={m.hint ?? ''} value={values[m.field] ?? ''} onChange={e => onChange(m.field, e.target.value)} />
+          </label>
+        ))}
+      </div>
+      <PrivacyNote />
+    </div>
+  );
+}
+
 export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
   const d = parseIntake(card.data);
-  const [picked, setPicked] = useState<Record<string, boolean>>(() => Object.fromEntries(d.experiences.flatMap(e => e.claims.map(c => [c.id, true]))));
+  const groups: PickGroup[] = d.experiences.map(e => ({ id: e.id, title: e.title, meta: e.when, rows: e.claims }));
+  const [picked, setPicked] = useState<Picked>(() => allPicked(groups));
   const [values, setValues] = useState<Record<string, string>>({});
   const [masterId, setMasterId] = useState<string | null | undefined>(undefined);
   const { busy, error, run } = useSubmit();
-  const chosen = Object.keys(picked).filter(id => picked[id]);
-  const generate = () => run(async () => {
+  const chosen = pickedIds(picked);
+  const total = groups.reduce((n, g) => n + g.rows.length, 0);
+  const generate = (claimIds: string[]) => run(async () => {
     if (!d.intakeId) throw new Error('这张卡缺少导入记录，请重新拖一次简历');
     for (const m of d.missing) {
       const v = (values[m.field] ?? '').trim();
       if (v) await careerApi.vaultSet({ scope: 'profile', field: m.field, value: v });
     }
-    const out = await careerApi.confirmResumeIntake(d.intakeId, chosen);
+    const out = await careerApi.confirmResumeIntake(d.intakeId, claimIds);
     setMasterId(out.masterId);
     openResumeDrawer(out.masterId);
   });
+  const allIds = groups.flatMap(g => g.rows.map(r => r.id));
+  const actions = (
+    <>
+      {chosen.length < total && <Button variant="secondary" busy={busy} disabled={!chosen.length} onClick={() => void generate(chosen)}>只用所选 {chosen.length} 条</Button>}
+      <Button variant="primary" busy={busy} onClick={() => void generate(allIds)}>全部通过，生成主简历</Button>
+    </>
+  );
   return (
     <CardShell testId="career-card-resume_intake" icon={<FileCheck2 className="size-4" />} title={card.title} badge={masterId === undefined ? <Badge tone="accent">点一下生成主简历</Badge> : <Badge tone="success">已生成</Badge>} onDismiss={onDismiss}>
       {masterId !== undefined ? <IntakeDone masterId={masterId} onDone={onDone} /> : (
@@ -68,39 +97,13 @@ export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
               {d.profile.map(p => <span key={p.field}><span className="text-[var(--muted)]">{p.label}</span> {p.preview}</span>)}
             </div>
           )}
-          {d.missing.length > 0 && (
-            <div>
-              <div className="text-xs text-[var(--muted)]">简历上没写的，补一下（不填也能先生成）</div>
-              <div className="mt-1 grid gap-2 sm:grid-cols-2">
-                {d.missing.map(m => (
-                  <label key={m.field} className="flex flex-col gap-1 text-xs text-[var(--muted)]">
-                    <span>{m.label}{m.sensitive ? ' · 私密' : ''}</span>
-                    <TextInput aria-label={m.label} autoComplete="off" placeholder={m.hint ?? ''} value={values[m.field] ?? ''} onChange={e => setValues(v => ({ ...v, [m.field]: e.target.value }))} />
-                  </label>
-                ))}
-              </div>
-              <PrivacyNote />
-            </div>
-          )}
+          <MissingInputs missing={d.missing} values={values} onChange={(field, v) => setValues(x => ({ ...x, [field]: v }))} />
           {d.education.length > 0 && <ul className="text-sm text-[var(--ink)]">{d.education.map(e => <li key={e}>{e}</li>)}</ul>}
-          {d.experiences.map(e => (
-            <div key={e.id}>
-              <div className="text-sm font-medium text-[var(--ink)]">{e.title}{e.when && <span className="ml-2 text-xs font-normal text-[var(--muted)]">{e.when}</span>}</div>
-              <ul className="mt-1 space-y-1">
-                {e.claims.map(c => (
-                  <li key={c.id}>
-                    <label className="flex items-start gap-2 text-sm text-[var(--ink-2)]">
-                      <input type="checkbox" className="mt-1" checked={!!picked[c.id]} onChange={ev => setPicked(p => ({ ...p, [c.id]: ev.target.checked }))} aria-label={c.text} />
-                      <span>{c.text}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {groups.length > 0
+            ? <PickTable groups={groups} picked={picked} onChange={setPicked} actions={actions} />
+            : <div className="flex justify-end">{actions}</div>}
           <p className="text-xs text-[var(--subtle)]">只有勾上的说法会写进简历；不对的去掉勾就行。</p>
           <ErrorLine error={error} />
-          <div><Button variant="primary" busy={busy} onClick={() => void generate()}>就用这些，生成主简历</Button></div>
         </div>
       )}
     </CardShell>

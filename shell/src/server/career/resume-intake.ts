@@ -205,21 +205,18 @@ export interface ConfirmDeps {
   normalize: (input: unknown) => Promise<unknown>;
 }
 
-/** 已有的主简历是不是空壳（没有任何经历 / 项目）：空壳直接覆盖，不另建第二份让定制时还要选。 */
-function emptyMasterId(store: CareerStore): string | null {
-  const masters = store.listResumeMasters();
-  if (masters.length !== 1) return null;
-  let schema: Record<string, unknown> = {};
-  try { schema = JSON.parse(masters[0].schema_json) as Record<string, unknown>; } catch (error) {
-    console.warn(`[resume-intake] master ${masters[0].id} schema_json 解析失败，按空壳处理:`, error instanceof Error ? error.message : error);
-  }
-  const filled = ['experience', 'projects', 'custom_sections'].some(k => Array.isArray(schema[k]) && (schema[k] as unknown[]).length > 0);
-  return filled ? null : masters[0].id;
+/**
+ * 只保留一份主简历（2026-10-30 用户定）：已有主简历就覆盖最近改过的那份（覆盖前存快照，可回退），
+ * 不另建第二份让定制时还要选。
+ */
+function currentMasterId(store: CareerStore): string | null {
+  const masters = [...store.listResumeMasters()].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  return masters[0]?.id ?? null;
 }
 
 /**
- * 卡片里点「就用这些，生成主简历」：确认勾选的说法，按导入草稿直接组装主简历（不调模型）。
- * 同一份导入再点一次只更新它生成的那份主简历。
+ * 卡片里点「全部通过 / 只用所选」：确认勾选的说法，按导入草稿直接组装主简历（不调模型）。
+ * 同一份导入再点一次只更新它生成的那份主简历；新拖进的简历替换现有主简历。
  */
 export async function confirmIntake(deps: ConfirmDeps, id: string, claimIds: string[]): Promise<{ master_id: string; confirmed: number; created: boolean }> {
   const { repos, store } = deps;
@@ -232,7 +229,7 @@ export async function confirmIntake(deps: ConfirmDeps, id: string, claimIds: str
   for (const c of claims) if (pick.has(c.id) && c.status === 'pending') { repos.confirmClaim(c.id); confirmed++; }
   const filled = new Set(deps.vault.status().profile.filled.map(f => f.field));
   const schema = await deps.normalize(buildMasterSchema(draft, repos.listClaims().filter(c => own.has(c.experience_id)), filled, deps.placeholder));
-  const reuse = draft.master_id && store.getResume(draft.master_id)?.kind === 'master' ? draft.master_id : emptyMasterId(store);
+  const reuse = draft.master_id && store.getResume(draft.master_id)?.kind === 'master' ? draft.master_id : currentMasterId(store);
   const masterId = reuse ? store.saveResume(reuse, schema, `从简历《${draft.source}》导入前快照`).id : store.createResumeMaster({ name: '主简历', direction: draft.direction || null, schema_json: schema }).id;
   repos.kvSet(`${INTAKE_KV_PREFIX}${id}`, { ...draft, master_id: masterId });
   console.log(`[resume-intake] confirmed intake=${id} master=${masterId} claims=${confirmed}`);

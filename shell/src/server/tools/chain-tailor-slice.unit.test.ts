@@ -165,6 +165,19 @@ describe('主链路切面 · 交简历 → 按岗位定制', () => {
     expect(new CareerStore(repos, await loadCore()).listResumeMasters()).toHaveLength(1);
   });
 
+  it('已有一份有内容的主简历，又拖进简历：替换那一份（留快照），始终只有一份主简历', async () => {
+    const store = new CareerStore(repos, await loadCore());
+    const old = store.createResumeMaster({ name: '访谈版', schema_json: { version: 1, experience: [{ org: '旧公司', bullets: ['旧的一条'] }] } });
+    llm.push(JSON.stringify(PARSED));
+    const imported = await call('resume_import', { path: '张小明-简历.pdf' });
+    const out = await confirmRoute(imported.json.intake_id as string, repos.listClaims().map(c => c.id));
+    expect(out.master_id).toBe(old.id);
+    expect(store.listResumeMasters()).toHaveLength(1);
+    expect(JSON.parse(store.getResume(old.id)!.row.schema_json).experience[0].org).toBe('美团');
+    const snaps = repos.db.all<{ schema_json: string }>('SELECT schema_json FROM resume_snapshot WHERE resume_id=?', [old.id]);
+    expect(snaps.some(s => s.schema_json.includes('旧公司'))).toBe(true);
+  });
+
   it('给岗位一键定制：JD 没解析就自动解析；模型写错的顶层键也落到简历上；出「改了什么」卡', async () => {
     llm.push(JSON.stringify(PARSED));
     const imported = await call('resume_import', { path: '张小明-简历.pdf' });

@@ -38,6 +38,7 @@ import { BatchWallCard } from './delivery/BatchWall';
 import { isCompanyMark } from './delivery/deliveryApi';
 import { FixCard } from './delivery/FixCard';
 import { InterviewPrepCard } from './InterviewPrepCard';
+import { PickTable, allPicked, pickedIds, type PickGroup, type Picked } from './PickTable';
 import type { BatchState, CareerCard, CareerCardState } from './types';
 
 
@@ -156,33 +157,28 @@ export function ClaimsConfirmCard({ card, onDone, onDismiss }: CardProps) {
   // 面试复盘回流：答不上来的事实，等用户去补（不是主张，不能勾选确认）
   const gaps = Array.isArray(card.data.gaps) ? card.data.gaps.filter((g): g is string => typeof g === 'string' && !!g.trim()) : [];
   const fromRetro = card.data.source === 'interview_retro';
-  const [picked, setPicked] = useState<Record<string, boolean>>(() => Object.fromEntries(claims.map(c => [c.id, true])));
+  const group: PickGroup = { id: str(card.data.experience_id) ?? title, title, rows: claims.map(c => ({ id: c.id, text: c.text, note: [c.metric ? `（${c.metric}）` : '', c.attribution === 'team' ? '团队成果' : ''].filter(Boolean).join(' ') || null })) };
+  const [picked, setPicked] = useState<Picked>(() => allPicked([group]));
   const { busy, error, run } = useSubmit();
-  const chosen = claims.filter(c => picked[c.id]);
-  const save = () => run(async () => {
-    for (const c of chosen) await careerApi.confirmClaim(c.id);
+  const chosen = pickedIds(picked);
+  const save = (ids: string[]) => run(async () => {
+    for (const id of ids) await careerApi.confirmClaim(id);
   }).then(ok => {
     if (!ok) return;
     onDone();
-    const left = claims.length - chosen.length;
-    suggestToChat(`我确认了「${title}」里的 ${chosen.length} 条说法${left ? `，另外 ${left} 条先不用` : ''}`);
+    const left = claims.length - ids.length;
+    suggestToChat(`我确认了「${title}」里的 ${ids.length} 条说法${left ? `，另外 ${left} 条先不用` : ''}`);
   });
   return (
     <CardShell testId="career-card-claims_confirm" icon={<ClipboardCheck className="size-4" />} title={card.title} badge={<Badge tone="accent">待确认</Badge>} onDismiss={onDismiss}>
-      <ul className="space-y-1.5">
-        {claims.map(c => (
-          <li key={c.id}>
-            <label className="flex items-start gap-2 text-sm text-[var(--ink)]">
-              <input type="checkbox" className="mt-1" checked={!!picked[c.id]} onChange={e => setPicked(p => ({ ...p, [c.id]: e.target.checked }))} aria-label={c.text} />
-              <span>
-                {c.text}
-                {c.metric && <span className="ml-1 text-xs text-[var(--muted)]">（{c.metric}）</span>}
-                {c.attribution === 'team' && <Badge tone="neutral">团队成果</Badge>}
-              </span>
-            </label>
-          </li>
-        ))}
-      </ul>
+      {claims.length > 0 && (
+        <PickTable groups={[group]} picked={picked} onChange={setPicked} actions={(
+          <>
+            {chosen.length < claims.length && <Button variant="secondary" busy={busy} disabled={!chosen.length} onClick={() => void save(chosen)}>确定所选 {chosen.length} 条</Button>}
+            <Button variant="primary" busy={busy} onClick={() => void save(claims.map(c => c.id))}>全部通过</Button>
+          </>
+        )} />
+      )}
       {gaps.length > 0 && (
         <div className="mt-2">
           <div className="text-xs text-[var(--muted)]">{fromRetro ? '这场面试里没答上来、还要补的事实' : '还要补的事实'}</div>
@@ -192,7 +188,6 @@ export function ClaimsConfirmCard({ card, onDone, onDismiss }: CardProps) {
       {claims.length > 0 && <p className="mt-2 text-xs text-[var(--subtle)]">只有确认过的说法才会写进简历和网申回答{fromRetro ? '；已经投出去的那版不会变，下次定制时才会用上' : ''}。</p>}
       <ErrorLine error={error} />
       <div className="mt-3 flex items-center gap-2">
-        {claims.length > 0 && <Button variant="primary" busy={busy} disabled={!chosen.length} onClick={() => void save()}>确认所选 {chosen.length} 条</Button>}
         {gaps.length > 0 && <Button variant={claims.length ? 'ghost' : 'primary'} onClick={() => { suggestToChat(`帮我把「${title}」补上：${gaps.join('；')}`); if (!claims.length) onDone(); }}>去补这几处</Button>}
       </div>
     </CardShell>
