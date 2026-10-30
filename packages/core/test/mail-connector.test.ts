@@ -46,3 +46,18 @@ describe('云端连接的本机镜像', () => {
     expect(r.listMailAccounts()).toHaveLength(1)
   })
 })
+
+describe('今日队列 · 邮箱连接失效', () => {
+  it('失效的邮箱排在最前，其他事都在它后面；正常的邮箱不进队列', () => {
+    const r = mem()
+    const ok = r.upsertMailAccount({ provider: '163', address: 'ok@163.com', imap_host: 'imap.163.com', smtp_host: 'smtp.163.com' })
+    r.updateMailAccount(ok.id, { status: 'ok' })
+    const bad = r.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' })
+    r.updateMailAccount(bad.id, { status: 'auth_failed', consecutive_fails: 3 })
+    r.createDeadline({ kind: 'assessment', title: '甲公司测评', due_at: '2026-10-01T00:00:00Z', source: 'manual' })
+    const items = r.today('2026-10-30T08:00:00Z').items
+    expect(items[0]).toMatchObject({ kind: 'mail_auth', priority: 0, ref: { type: 'mail_account', id: bad.id } })
+    expect(items.slice(1).map(i => i.kind)).toContain('deadline')
+    expect(items.filter(i => i.kind === 'mail_auth')).toHaveLength(1)
+  })
+})

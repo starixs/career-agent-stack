@@ -22,8 +22,10 @@ import { getShellLLM } from '../career/llm';
 import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../career/intake';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { isConnectorId } from '../career/mail/connectors';
+import { SEASON_KEY, guessSeason, isSeasonId, markTakeoverViewed, takeoverBriefing } from '../career/mail/takeover';
 import { withConnection } from '../career/mail/connect-service';
 import { mailBackend } from '../career/mail/backend';
+import { productChatCardPoster, type PostChatCard } from '../career/chat-card-push';
 import type { VerifyDeps } from '../career/mail/verify';
 import { executeApprovedSendMails } from '../career/mail/send';
 import type { syncMailAccount } from '../career/mail/sync';
@@ -59,6 +61,8 @@ export interface CareerRouteDeps {
   mailSync?: typeof syncMailAccount;
   /** 云端邮箱连接器的 HTTP（测试注入；缺省 fetch）。 */
   mailFetch?: FetchLike;
+  /** 后台往对话里放卡（测试注入；缺省经现场通道推给个人助理对话）。 */
+  postChatCard?: PostChatCard;
   /** false：导出不用简历工作台模板（测试里没有 react-pdf 字体网络时用）。 */
   studioExport?: boolean;
   /** 面试录音落盘目录（测试注入临时目录；缺省在求职数据目录下）。 */
@@ -121,7 +125,7 @@ function intakeDeps(ctx: Ctx): IntakeDeps {
 }
 /** 邮箱连接器的分流入口（云端 / 本机），测试可注入校验、同步和云端请求。 */
 function mailBackendOf(ctx: Ctx) {
-  return mailBackend(intakeDeps(ctx), { verify: ctx.deps.mailVerify, sync: ctx.deps.mailSync, fetchImpl: ctx.deps.mailFetch });
+  return mailBackend({ ...intakeDeps(ctx), postChatCard: ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos) }, { verify: ctx.deps.mailVerify, sync: ctx.deps.mailSync, fetchImpl: ctx.deps.mailFetch });
 }
 const isoOrUndefined = (v: unknown): string | undefined => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : undefined);
 
@@ -889,6 +893,18 @@ const ROUTES: Route[] = [
     const r = await mailBackendOf(ctx).oauthStatus(ctx.params.id, state);
     if (r.account) dataChanged(ctx, ['mail_account']);
     return ok({ status: r.status, account: r.account ? withConnection(r.account) : null });
+  }),
+  // 接管简报：第一次连邮箱、历史邮件收完后看替你接管了什么（mail/takeover.ts）
+  route('GET', '/api/career/mail/takeover', ({ repos, url }) => ok({ briefing: takeoverBriefing(repos, url.searchParams.get('account_id'), new Date().toISOString()) })),
+  route('POST', '/api/career/mail/takeover/:id/viewed', (ctx) => { markTakeoverViewed(ctx.repos, ctx.params.id); dataChanged(ctx, ['mail_account']); return ok({}); }),
+  // 求职阶段：用户纠正 AI 的判断
+  route('POST', '/api/career/season', (ctx) => {
+    const id = ctx.body.id;
+    if (id === null) ctx.repos.kvSet(SEASON_KEY, null);
+    else if (isSeasonId(id)) ctx.repos.kvSet(SEASON_KEY, { id, at: new Date().toISOString() });
+    else return fail('id 需要是 prep / autumn_early / autumn / spring / offer 之一');
+    dataChanged(ctx, ['mail_account']);
+    return ok({ season: guessSeason(ctx.repos, new Date().toISOString()) });
   }),
   route('GET', '/api/career/mail/accounts/:id/detail', async (ctx) => {
     const account = ctx.repos.getMailAccount(ctx.params.id);

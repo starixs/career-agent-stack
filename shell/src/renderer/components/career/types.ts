@@ -191,7 +191,7 @@ export function liveStatusText(ev: LiveFrameStatus): string {
 export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
 
 // ---------- 对话内流程卡片（SSE career:card；对话是主场，卡片把"要用户动手的一步"就地解决） ----------
-export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps' | 'interview_prep';
+export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps' | 'interview_prep' | 'takeover';
 /** 模型 Key（必需）/ 搜索 Key（建议）的配置状态；source=build 表示来自启动环境变量或打包常量。 */
 export interface CareerSetupStatus {
   llm: { configured: boolean; source: 'settings' | 'build' | 'none' };
@@ -256,6 +256,17 @@ export interface MailConnector {
   /** OAuth 轨（预留）：审核通过、云端开启后为 true。 */
   oauth?: { enabled: boolean };
 }
+/** 接管简报（服务端 mail/takeover.ts）。 */
+export type SeasonId = 'prep' | 'autumn_early' | 'autumn' | 'spring' | 'offer';
+export interface TakeoverBriefing {
+  report: { account_id: string; address: string; started_at: string; updated_at: string; viewed_at: string | null; mails: number; by_rules: number; by_model: number; unclassified: number; application_ids: string[]; span: { from: string | null; to: string | null } };
+  applications: number;
+  buckets: Array<{ id: 'applied' | 'interview' | 'offer' | 'closed'; label: string; items: Array<{ application_id: string; company: string | null; title: string; stage: string }> }>;
+  needs: Array<{ deadline_id: string; application_id: string | null; kind: string; title: string; due_at: string | null; url: string | null }>;
+  season: { id: SeasonId; label: string; basis: string; source: 'user' | 'guess' };
+  seasons: Array<{ id: SeasonId; label: string }>;
+  unclassified: Array<{ mail_id: string; subject: string | null; from: string | null; received_at: string | null }>;
+}
 export type MailOauthStart = { ok: true; authorize_url: string; state: string } | { ok: false; error_code: string; message: string };
 export type MailConnectErrorCode = 'imap_auth_failed' | 'imap_disabled' | 'provider_blocked' | 'unreachable' | 'duplicate' | 'invalid_input';
 export type MailConnectResult =
@@ -269,7 +280,7 @@ export interface MailMessage {
   from_addr: string | null; to_addr: string | null; subject: string | null; snippet: string | null; body_text: string | null; received_at: string | null;
   relevance: 'unknown' | 'job' | 'ignored'; kind: InboxKind | null; inbox_item_id: string | null; application_id: string | null; action_id: string | null; created_at: string;
 }
-export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'interview_retro' | 'followup';
+export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'interview_retro' | 'followup' | 'mail_auth';
 export interface TodayItem { kind: TodayItemKind; priority: number; title: string; detail?: string; due_at?: string | null; ref: { type: string; id: string }; deadline_id?: string; suggest?: string; ask?: 'attendance' }
 /** 「今天做过」一条：任务进展 / 投递阶段变化 / 动作执行。 */
 export interface ActivityEntry { id: string; at: string; kind: 'task' | 'stage' | 'action'; status: string; title: string; detail: string | null }
@@ -316,7 +327,7 @@ export interface IntakeResult {
 }
 /** 工具 / 路由完成后让面板跳到对应对象。 */
 export interface CareerFocusEvent {
-  sessionId?: string | null; surface: 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
+  sessionId?: string | null; surface: 'today' | 'takeover' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
   /** 投递记录按一组投递筛选（从漏斗、甘特跳过去）；label 说明这组是什么。 */
   filter?: { label: string; application_ids: string[] };
   /** assistant = 小芽在对话里做完事推来的提示：只记下定位，不把用户从对话里带走。 */

@@ -17,7 +17,7 @@ export const RETRO_PROMPT_MS = 24 * 3_600_000;
 
 export function categoryOf(kind: TodayItemKind): TodoCategory {
   if (kind === 'review') return 'review';
-  if (kind === 'handoff') return 'handoff';
+  if (kind === 'handoff' || kind === 'mail_auth') return 'handoff';
   return 'remind';
 }
 

@@ -23,6 +23,7 @@ import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
+import { TakeoverCard } from './ColdStartCards';
 import { MailConnectCenter } from './mail-connect/MailConnectCenter';
 import { CardShell, list, str, type CardProps } from './FlowCardShell';
 import { InterviewPrepCard } from './InterviewPrepCard';
@@ -304,6 +305,7 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   review: props => <ReviewCard {...props} />,
   apply_gaps: props => <ApplyGapsCard {...props} />,
   interview_prep: props => <InterviewPrepCard {...props} />,
+  takeover: props => <TakeoverCard {...props} />,
 };
 
 export const isRenderableCard = (c: CareerCard): boolean => !!RENDERERS[c.kind];

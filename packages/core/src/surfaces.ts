@@ -56,10 +56,10 @@ export function silenceOf(stage: ApplicationStage, updatedAt: string, nowIso: st
 }
 
 // ---------- 今日队列 ----------
-export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'interview_retro' | 'followup'
+export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'interview_retro' | 'followup' | 'mail_auth'
 export interface TodayItem {
   kind: TodayItemKind
-  /** 越小越靠前：1 今天到期 / 2 待审 / 3 接管 / 4 面试 / 5 收件箱 / 6 静默 / 7 近三天到期、时间未知 / 8 已过期 */
+  /** 越小越靠前：0 邮箱连接失效（没有期限也排最前，挡住之后所有邮件）/ 1 今天到期 / 2 待审 / 3 接管 / 4 面试 / 5 收件箱 / 6 静默 / 7 近三天到期、时间未知 / 8 已过期 */
   priority: number
   title: string
   detail?: string

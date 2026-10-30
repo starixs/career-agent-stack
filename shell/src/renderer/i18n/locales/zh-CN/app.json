@@ -23,7 +23,8 @@
     "careerReview": "复盘",
     "careerGuide": "指南",
     "careerLive": "浏览器现场",
-    "careerVault": "私密信息"
+    "careerVault": "私密信息",
+    "careerTakeover": "接管简报"
   },
   "globalSidebar": {
     "navigation": "全局导航",
@@ -58,7 +59,8 @@
     "careerReview": "复盘",
     "careerGuide": "指南",
     "careerLive": "浏览器现场",
-    "careerVault": "私密信息"
+    "careerVault": "私密信息",
+    "careerTakeover": "接管简报"
   },
   "titlebar": {
     "helper": "小助理",
