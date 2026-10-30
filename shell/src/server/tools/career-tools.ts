@@ -18,6 +18,7 @@ import { DomainUnavailableError, loadBridges, loadResume } from '../career/domai
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
 import { carryoverFor, carryoverPrompt, lastTranscript } from '../career/interview-carry';
+import { buildInterviewPrep } from '../career/interview-prep';
 import { applyRetroFollowups } from '../career/retro-followups';
 import { bookInterview, closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
 import { getShellLLM } from '../career/llm';
@@ -1323,6 +1324,21 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const questions = (out.questions ?? []).filter(q => q?.question).map(q => ({ ...q, question_id: r.upsertQuestion({ content: q.question!, kind: 'interview', category: q.type ?? null, probe_points: q.probe_points ?? [], jd_requirement: q.jd_requirement ?? null, company_name: job.company_name, title: job.title, job_id: job.id, source: 'generated', source_ref: `generated:${job.id}`, tags: q.difficulty ? [q.difficulty] : [] }).id }));
         if (questions.length) changed('question');
         return text({ ...out, questions, carried_from: carried.retros.map(r => ({ interview_id: r.interview_id, company: r.company, round: r.round })), note: '题目已存进题库（question_id）。用户练习作答后用 question_attempt 打分记录，便于比较进步。carried_from 是这次带上的往场复盘，告诉用户「按上次卡住的地方出了题」。' });
+      })()),
+
+      tool('interview_prep', '「帮我准备 X 的面试」的收尾：在对话里出一张面试准备卡（时间、上一轮 / 同类面试卡在哪、三个高风险深挖点、几道题、开始模拟按钮）。先用 interview_predict 和 interview_questions 补上预测和题（返回的 missing 会说缺哪样），再调它出卡；卡片已经把要点摆出来，回复里不要再逐条重复。', {
+        application_id: z.string().optional(), company_name: z.string().optional(),
+      }, async (args) => wrap(() => {
+        let appId = args.application_id;
+        if (!appId && args.company_name) {
+          const hits = repos().findOpenApplicationsByCompany(args.company_name);
+          if (hits.length > 1) return err(`${args.company_name} 有 ${hits.length} 条投递，请让用户选：${hits.map(h => `${h.job.title}（${h.id}）`).join('、')}`);
+          appId = hits[0]?.id;
+        }
+        if (!appId) return err('需要 application_id 或公司名；可以先用 dossier_list 找');
+        const prep = buildInterviewPrep(store(), repos(), appId);
+        card(`interview-prep:${prep.interview_id ?? appId}`, 'interview_prep', `准备 ${prep.company ?? ''} ${prep.title}`.trim(), { ...prep });
+        return text({ ...prep, note: prep.missing.length ? `还缺：${prep.missing.join('、')}；补上后再调一次 interview_prep 更新卡片。` : '准备卡已出现在对话里。' });
       })()),
 
       tool('interview_book', '记一场邮箱里没有的面试（HR 电话 / 短信 / 微信约的）：用户说「我约了周四下午百度二面」就用它。找到或建好这份申请、推进到面试、记面试和时间点；同一场再记一次只改时间。邮件来的面试邀请走 inbox_capture。', {

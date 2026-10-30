@@ -128,6 +128,24 @@ describe('对话内流程卡片', () => {
     expect(screen.getByRole('button', { name: '去补这几处' })).toBeInTheDocument();
   });
 
+  it('面试准备卡：时间、上次卡点、高风险深挖点、题，点「开始模拟」交给助理', () => {
+    const { seen, off } = captureSuggest();
+    renderCards([card('interview_prep', {
+      company: '百度', title: '算法', job_id: 'j1', round: 'second', at: '2026-11-05T06:00:00.000Z',
+      carried: [{ company: '百度', round: 'first', same_application: true, points: ['线上 A/B 收益'] }],
+      predictions: [{ statement: '召回 AUC +1.8%', risk: 'high', chain: ['口径？', '线上？'] }],
+      questions: [{ id: 'q1', content: '负样本怎么采？' }],
+    }, '准备 百度 算法')]);
+    const el = screen.getByTestId('career-card-interview_prep');
+    expect(el).toHaveTextContent('上一轮：线上 A/B 收益');
+    expect(el).toHaveTextContent('高风险 · 召回 AUC +1.8%');
+    expect(el).toHaveTextContent('口径？ → 线上？');
+    expect(el).toHaveTextContent('负样本怎么采？');
+    fireEvent.click(screen.getByRole('button', { name: '开始模拟' }));
+    off();
+    expect(seen[0]).toBe('开始模拟 百度 二面（job_id=j1，round=second），先从高风险的深挖点问起');
+  });
+
   it('批量投递进行中：对话里出现进度卡，可暂停', async () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, batch: { status: 'paused', updatedAt: '', done: 2, failed: 0, handoffs: 0, queued: 3, todayCount: 2 } });
     renderCards([]);

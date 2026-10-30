@@ -7,6 +7,7 @@
  *  - claims_confirm 经历里的说法 → 勾选确认（进简历前必须确认）
  *  - site_login     卡在登录页 → 保存该站账号密码进私密库（产品在登录页代填，点登录仍由用户）
  *  - mail_bind      绑定求职邮箱（地址 + 授权码，不经过模型）
+ *  - interview_prep 面试准备卡：时间、上一轮卡点、高风险深挖点、题、开始模拟
  *  - 批量投递进度   → 暂停 / 停止 / 在旁边看现场
  *
  * 卡片由 SSE `career:card` 推来（TabProvider.careerCards），按 id 去重；完成或忽略后从对话里移除。
@@ -22,30 +23,10 @@ import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
+import { CardShell, list, str, type CardProps } from './FlowCardShell';
+import { InterviewPrepCard } from './InterviewPrepCard';
 import { MAIL_OPTIONS, MailConnectDialog, MailOptionGrid, type MailOption } from './MailBinding';
 import type { BatchState, CareerCard, CareerCardState } from './types';
-
-// ---------- 数据解析（card.data 来自服务端，逐项校验） ----------
-const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
-const list = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object') : []);
-
-function CardShell({ testId, icon, title, badge, children, onDismiss }: { testId: string; icon: ReactNode; title: string; badge?: ReactNode; children: ReactNode; onDismiss?: () => void }) {
-  return (
-    <div data-testid={testId} className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
-      <div className="flex items-center gap-2.5">
-        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[var(--primary)]/10 text-[var(--primary)]">{icon}</div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-[var(--ink)]">{title}</span>
-            {badge}
-          </div>
-        </div>
-        {onDismiss && <Button variant="ghost" onClick={onDismiss} aria-label="稍后再说">稍后</Button>}
-      </div>
-      <div className="mt-3">{children}</div>
-    </div>
-  );
-}
 
 function useSubmit() {
   const [busy, setBusy] = useState(false);
@@ -60,8 +41,6 @@ function useSubmit() {
 const ErrorLine = ({ error }: { error: string | null }) => (error ? <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div> : null);
 const PrivacyNote = () => <p className="mt-2 text-xs text-[var(--subtle)]">只存进本机私密库，填表时在本地替换，助理看不到原文。</p>;
 
-/** onDone：用户在卡片里做完了（completed）；onDismiss：稍后再说（dismissed，可重新打开）。 */
-interface CardProps { card: CareerCard; onDone: () => void; onDismiss: () => void }
 
 // ---------- 补齐基本信息 ----------
 export function VaultMissingCard({ card, onDone, onDismiss }: CardProps) {
@@ -367,6 +346,7 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   search_setup: props => <SearchSetupCard {...props} />,
   review: props => <ReviewCard {...props} />,
   apply_gaps: props => <ApplyGapsCard {...props} />,
+  interview_prep: props => <InterviewPrepCard {...props} />,
 };
 
 export const isRenderableCard = (c: CareerCard): boolean => !!RENDERERS[c.kind];

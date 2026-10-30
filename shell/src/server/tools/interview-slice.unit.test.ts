@@ -35,6 +35,7 @@ interface ToolResults {
   question_attempt: unknown;
   question_bank: { questions: Array<{ id: string; content: string; source: string; company: string | null; last_score: number | null }> };
   interview_retro: { interview_id: string };
+  interview_prep: { round: string | null; at: string | null; missing: string[]; predictions: Array<{ statement: string }>; questions: Array<{ content: string }> };
 }
 
 async function call<K extends keyof ToolResults>(name: K, args: Record<string, unknown> = {}): Promise<ToolResults[K]> {
@@ -245,5 +246,22 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
     expect(prompt).toContain('A：做了双塔召回');
     expect(prompt).toContain('机器学习算法工程师');
   });
-  it.todo('〔面〕「帮我准备」的终态是什么：一张百度二面准备卡（卷宗 + 深挖点 + 题 + 上一轮复盘）还是在对话里逐项给');
+  it('「帮我准备」的终态是一张准备卡：时间、高风险深挖点在前、没练过的题在前', async () => {
+    await invitesArrive();
+    vi.setSystemTime(new Date(TUE_NIGHT));
+    llm.push(JSON.stringify({ predictions: [
+      { statement: '带 3 人小组', target_type: 'project', risk: 'low' },
+      { statement: '召回模型离线 AUC +1.8%', target_type: 'data', expected_chain: ['口径？', '线上？'], risk: 'high' },
+    ] }));
+    await call('interview_predict', { job_id: baidu.jobId });
+    llm.push(JSON.stringify({ questions: [{ type: 'project', question: '负样本怎么采？' }, { type: 'case', question: '冷启动怎么办？' }] }));
+    const qs = await call('interview_questions', { job_id: baidu.jobId, round: 'second' });
+    await call('question_attempt', { question_id: qs.questions[0].question_id, answer_text: '……', score: 80 });
+    const prep = await call('interview_prep', { company_name: '百度' });
+    expect(prep).toMatchObject({ round: 'second', at: new Date(INTERVIEW_AT).toISOString(), missing: [] });
+    expect(prep.predictions.map(p => p.statement)).toEqual(['召回模型离线 AUC +1.8%', '带 3 人小组']);
+    expect(prep.questions.map(q => q.content)).toEqual(['冷启动怎么办？', '负样本怎么采？']);
+    const card = events.filter(e => e.event === 'career:card').map(e => e.data.card).at(-1);
+    expect(card).toMatchObject({ kind: 'interview_prep', data: { company: '百度', round: 'second' } });
+  });
 });
