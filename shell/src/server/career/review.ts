@@ -1,7 +1,7 @@
 /**
  * 每周复盘：漏斗（Repos.funnel）→ weekly-review 技能 → 落 weekly_review。路由与工具共用。
  */
-import type { WeeklyReview } from '@career/core';
+import type { StageHistoryRow, WeeklyReview } from '@career/core';
 
 import { dataChanged, focus, type IntakeDeps } from './intake';
 import { loadSkillPrompt } from './skills';
@@ -15,22 +15,45 @@ export interface WeeklyReviewOutput {
   tone_flag?: 'normal' | 'low_mood';
 }
 
+export interface WeekFacts { applied: number; advanced: number; rejected: number; silent: number; interviews: number }
+
+/**
+ * 本周事实从阶段历史里数，不交给模型报：投出按第一次真正投出的时刻（isSendNote，不含只评估、邮件补建的），
+ * 推进 = 本周第一次走到面试或 Offer，拒信 = 本周进入 rejected。静默是此刻的快照（漏斗里的 silent）。
+ */
+export function weekFacts(history: StageHistoryRow[], weekStartMs: number, isSendNote: (note: string | null | undefined) => boolean, silent: number, interviews: number): WeekFacts {
+  const firstSend = new Map<string, number>();
+  const advanced = new Set<string>();
+  const seenAdvance = new Set<string>();
+  let rejected = 0;
+  for (const h of history) {
+    const t = Date.parse(h.created_at);
+    if (h.to_stage === 'applied' && !firstSend.has(h.application_id) && isSendNote(h.note)) firstSend.set(h.application_id, t);
+    if ((h.to_stage === 'interview' || h.to_stage === 'offer') && !seenAdvance.has(h.application_id)) {
+      seenAdvance.add(h.application_id);
+      if (t >= weekStartMs) advanced.add(h.application_id);
+    }
+    if (h.to_stage === 'rejected' && t >= weekStartMs) rejected++;
+  }
+  const applied = [...firstSend.values()].filter(t => t >= weekStartMs).length;
+  return { applied, advanced: advanced.size, rejected, silent, interviews };
+}
+
 export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?: string; user_note?: string } = {}): Promise<{ review: WeeklyReview; output: WeeklyReviewOutput; funnel: ReturnType<IntakeDeps['repos']['funnel']> }> {
   const r = deps.repos;
   const nowIso = deps.now?.() ?? new Date().toISOString();
   const weekStart = opts.week_start ?? deps.core.weekStartOf(nowIso);
   const funnel = r.funnel(nowIso);
-  const apps = r.applicationsWithJob();
   const weekMs = Date.parse(weekStart + 'T00:00:00Z');
-  const thisWeek = apps.filter(a => Date.parse(a.created_at) >= weekMs);
   const interviews = r.db.all<{ n: number }>('SELECT COUNT(*) AS n FROM interview WHERE created_at >= ?', [weekStart])[0]?.n ?? 0;
+  const facts = weekFacts(r.stageHistory(), weekMs, deps.core.isSendNote, funnel.overall?.silent ?? 0, interviews);
   const previous = r.listWeeklyReviews(1)[0];
   let output: WeeklyReviewOutput = {};
   if (deps.llm) {
     const system = await loadSkillPrompt('weekly-review');
     const user = [
       `周起点：${weekStart}，今天：${nowIso.slice(0, 10)}`,
-      `本周新增投递：${thisWeek.length}；本周新增面试记录：${interviews}`,
+      `本周投出：${facts.applied}；本周拒信：${facts.rejected}；本周新进面试或 Offer：${facts.advanced}；本周新增面试记录：${interviews}；此刻静默：${facts.silent}`,
       `累计漏斗（整体）：${JSON.stringify(funnel.overall)}`,
       `按岗位类别：${JSON.stringify(funnel.by_category)}`,
       `按平台：${JSON.stringify(funnel.by_platform)}`,
@@ -41,7 +64,9 @@ export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?
     const res = await deps.llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: 0.3 });
     output = deps.core.extractJson<WeeklyReviewOutput>(res.text);
   }
-  const review = r.saveWeeklyReview({ week_start: weekStart, funnel: { ...funnel, this_week: { applied: thisWeek.length, interviews } }, insights: output.insights ?? [], suggestions: output.suggestions ?? [], small_action: output.small_action ?? null });
+  // 事实一栏永远是我们数出来的那份：模型报的数可能把累计当本周，比例必须真实
+  output = { ...output, facts: { ...facts } };
+  const review = r.saveWeeklyReview({ week_start: weekStart, funnel: { ...funnel, this_week: facts }, insights: output.insights ?? [], suggestions: output.suggestions ?? [], small_action: output.small_action ?? null });
   dataChanged(deps, ['weekly_review']);
   focus(deps, { surface: 'review', id: review.id });
   return { review, output, funnel };
