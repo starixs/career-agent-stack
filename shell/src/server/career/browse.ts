@@ -14,10 +14,10 @@ import type { BrowserContext, Page } from 'playwright';
 
 // ---------- 页面内脚本（序列化后在浏览器里执行，不能引用外部变量） ----------
 export interface RawElement { ref: number; kind: string; text: string; href?: string; inputType?: string; value?: string; checked?: boolean; disabled?: boolean; options?: string[]; inViewport: boolean; isPassword?: boolean }
-export interface RawObservation { url: string; title: string; scrollY: number; scrollMax: number; viewportH: number; text: string; textLength: number; elements: RawElement[]; total: number; hasPassword: boolean; bodySample: string }
+export interface RawObservation { url: string; title: string; scrollY: number; scrollMax: number; viewportH: number; elements: RawElement[]; total: number; hasPassword: boolean; bodySample: string }
 
-export function observeInPage(arg: { obsId: string; max: number; textMax: number }): RawObservation {
-  const { obsId, max, textMax } = arg;
+export function observeInPage(arg: { obsId: string; max: number }): RawObservation {
+  const { obsId, max } = arg;
   document.querySelectorAll('[data-ks-ref]').forEach(el => el.removeAttribute('data-ks-ref'));
   const vh = window.innerHeight; const vw = window.innerWidth;
   const visible = (el: Element): boolean => {
@@ -64,19 +64,25 @@ export function observeInPage(arg: { obsId: string; max: number; textMax: number
     if ((el as HTMLButtonElement).disabled || el.getAttribute('aria-disabled') === 'true') item.disabled = true;
     elements.push(item);
   }
-  const main = (document.querySelector('main, article, [role=main], #main, .main, .content') as HTMLElement | null) ?? document.body;
-  const fullText = (main?.innerText || document.body?.innerText || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   return {
     url: location.href, title: document.title, scrollY: Math.round(window.scrollY), scrollMax: Math.max(0, Math.round(document.documentElement.scrollHeight - vh)), viewportH: vh,
-    text: fullText.slice(0, textMax), textLength: fullText.length, elements, total: all.length,
+    elements, total: all.length,
     hasPassword: !!document.querySelector('input[type=password]'),
     bodySample: (document.body?.innerText || '').slice(0, 3000),
   };
 }
 
+/**
+ * 页面正文（观察摘要和分页读取共用）。正文容器取候选里字数最多的那个，且至少占全页一半，否则用整页：
+ * 只取第一个匹配会命中导航条——美团、腾讯校招页的头部就叫 `.content` / `.main`，岗位列表全被漏掉。
+ */
 export function readInPage(arg: { offset: number; length: number }): { text: string; total: number } {
-  const main = (document.querySelector('main, article, [role=main], #main, .main, .content') as HTMLElement | null) ?? document.body;
-  const fullText = (main?.innerText || document.body?.innerText || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  const MAIN_MIN_SHARE = 0.5;
+  const bodyText = document.body?.innerText || '';
+  const candidates = Array.from(document.querySelectorAll('main, article, [role=main], #main, .main, .content')) as HTMLElement[];
+  const best = candidates.reduce<HTMLElement | null>((a, c) => ((c.innerText || '').length > (a?.innerText || '').length ? c : a), null);
+  const raw = best && best.innerText.length >= bodyText.length * MAIN_MIN_SHARE ? best.innerText : bodyText;
+  const fullText = raw.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
   return { text: fullText.slice(arg.offset, arg.offset + arg.length), total: fullText.length };
 }
 
@@ -90,9 +96,21 @@ export function signatureInPage(): string {
  * 把页面内函数送进浏览器执行。tsx / esbuild 为保留函数名会在函数体里插 `__name(...)`，
  * 序列化后浏览器里没有这个 helper 会直接 ReferenceError——所以先垫一个空实现。
  */
-export function inPage<A, R>(page: Pick<Page, 'evaluate'>, fn: (arg: A) => R, arg: A): Promise<R> {
-  return page.evaluate(`(() => { const __name = (f) => f; return (${fn.toString()})(${JSON.stringify(arg ?? null)}); })()`) as Promise<R>;
+export async function inPage<A, R>(page: Pick<Page, 'evaluate'> & Partial<Pick<Page, 'waitForLoadState'>>, fn: (arg: A) => R, arg: A): Promise<R> {
+  const src = `(() => { const __name = (f) => f; return (${fn.toString()})(${JSON.stringify(arg ?? null)}); })()`;
+  try {
+    return await (page.evaluate(src) as Promise<R>);
+  } catch (error) {
+    // 页面正在跳转（重定向、站内跳登录 / 首页）时上下文会被销毁：等新文档到了再执行一次，还不行就抛给调用方
+    if (!CONTEXT_GONE_RX.test(String(error)) || !page.waitForLoadState) throw error;
+    await page.waitForLoadState('domcontentloaded', { timeout: NAV_SETTLE_TIMEOUT_MS });
+    return page.evaluate(src) as Promise<R>;
+  }
 }
+
+const CONTEXT_GONE_RX = /Execution context was destroyed|Cannot find context with specified id/;
+/** 跳转中途等新文档的上限；和 act 里操作后等 domcontentloaded 用同一个值。 */
+const NAV_SETTLE_TIMEOUT_MS = 5000;
 
 export function scrollInPage(direction: 'up' | 'down'): void {
   window.scrollBy(0, (direction === 'up' ? -1 : 1) * Math.round(window.innerHeight * 0.8));
@@ -113,8 +131,8 @@ export function detectHints(raw: Pick<RawObservation, 'hasPassword' | 'bodySampl
   const hints = new Set<Hint>();
   const t = raw.bodySample;
   if (raw.hasPassword || /扫码登录|微信登录|请先登录|登录后查看|手机号登录|验证码登录/.test(t)) hints.add('login');
-  if (/滑块|拖动滑块|安全验证|人机验证|请完成验证|captcha|geetest|验证码已发送/i.test(t)) hints.add('captcha');
-  if (/访问过于频繁|操作频繁|异常访问|风险提示|账号存在异常/.test(t) || /verify|captcha|security-check/i.test(raw.url)) hints.add('risk');
+  if (/滑块|拖动滑块|安全验证|人机验证|请完成验证|协助验证|不是自动程序|captcha|geetest|验证码已发送/i.test(t)) hints.add('captcha');
+  if (/访问过于频繁|操作频繁|异常访问|风险提示|账号存在异常/.test(t) || /verify|captcha|security-check|antispider/i.test(raw.url)) hints.add('risk');
   if (elements.some(e => e.submitLike)) hints.add('submit_page');
   return [...hints];
 }
@@ -152,7 +170,8 @@ async function tabsOf(context: BrowserContext, current: Page): Promise<Observati
 
 export async function observe(context: BrowserContext, page: Page, deps: BrowseDeps, opts: { max?: number; textMax?: number } = {}): Promise<Observation> {
   const obsId = newObsId();
-  const raw = await inPage(page, observeInPage, { obsId, max: opts.max ?? 80, textMax: opts.textMax ?? 1500 });
+  const raw = await inPage(page, observeInPage, { obsId, max: opts.max ?? 80 });
+  const body = await inPage(page, readInPage, { offset: 0, length: opts.textMax ?? 1500 });
   const infos = new Map<number, ElementInfo>();
   const elements: Observation['elements'] = raw.elements.map(e => {
     const clickable = e.kind === 'button' || e.kind === 'link' || e.kind === 'clickable' || e.kind === 'menuitem' || e.kind === 'tab';
@@ -170,7 +189,7 @@ export async function observe(context: BrowserContext, page: Page, deps: BrowseD
     observation_id: obsId, url: raw.url, title: raw.title,
     scroll: { y: raw.scrollY, max: raw.scrollMax, viewport: raw.viewportH },
     elements, more_elements: Math.max(0, raw.total - raw.elements.length),
-    text: raw.text, text_total: raw.textLength,
+    text: body.text, text_total: body.total,
     hints: detectHints(raw, [...infos.values()]),
     tabs: await tabsOf(context, page),
   };
@@ -187,7 +206,7 @@ export interface Receipt {
   page: Page;
   retryable: boolean;
   required_next: 'observe' | 'none' | 'handoff' | 'apply_flow' | 'retry_or_observe';
-  code?: 'stale_observation' | 'element_gone' | 'submit_guarded' | 'password_needs_placeholder' | 'disabled' | 'bad_request' | 'navigation_timeout' | 'navigation_failed' | 'dispatch_failed';
+  code?: 'stale_observation' | 'element_gone' | 'blocked_by_overlay' | 'submit_guarded' | 'password_needs_placeholder' | 'disabled' | 'bad_request' | 'navigation_timeout' | 'navigation_failed' | 'dispatch_failed';
   note: string;
 }
 
@@ -265,12 +284,15 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
     dispatchError = error;
   }
   // 等页面稳定（跳转 / 渲染），再判效果
-  await target.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+  await target.waitForLoadState('domcontentloaded', { timeout: NAV_SETTLE_TIMEOUT_MS }).catch(() => {});
   await sleep(deps.settleMs ?? 600);
   context.off('page', onPage);
   lastActionAt.set(host, now());
   const fresh = opened.filter(p => !p.isClosed());
   if (fresh.length && req.action !== 'switch_tab' && req.action !== 'close_tab') target = fresh[fresh.length - 1];
+  if (!dispatchError && (req.action === 'navigate' || target !== page || target.url() !== urlBefore)) {
+    await waitForRender(target, sleep).catch(error => console.warn(`[browse] render-wait failed url=${target.url().slice(0, 120)}: ${String(error).slice(0, 160)}`));
+  }
   const newTabs = await Promise.all(fresh.map(async p => ({ title: (await p.title().catch(() => '')).slice(0, 60), url: p.url().slice(0, 200) })));
   const urlAfter = target.url();
   const sigAfter = await inPage(target, signatureInPage, null).catch(() => '');
@@ -285,6 +307,15 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
         note: changedAnyway
           ? `导航报错但地址栏已变化，页面可能其实打开了：先 browser_observe 确认再决定是否重试。${msg.slice(0, 120)}`
           : `${msg.slice(0, 200)} 导航可以再试一次；两次都失败先用 browser_observe 看当前页，再按错误指引处理，不要直接跟用户说打不开。`,
+      };
+    }
+    // 点击根本没发出去：被弹层挡住（引导遮罩、登录弹窗、Cookie 横幅）。实测字节校招的「AI 助手引导」遮罩挡住全部岗位链接
+    const overlay = changedAnyway ? undefined : msg.split('\n').find(l => l.includes('intercepts pointer events'));
+    if (overlay) {
+      return {
+        ok: false, action: req.action, observed_effect: 'no_change', url_before: urlBefore, url_after: urlAfter, new_tabs: newTabs, page: target,
+        retryable: true, required_next: 'observe', code: 'blocked_by_overlay',
+        note: `点击没有发出去：被页面上的弹层挡住了（${overlay.replace(/\u001b\[\d+m/g, '').trim().slice(0, 120)}）。先 browser_observe，在元素里找「关闭 / 我知道了 / 跳过 / ×」之类关掉弹层，或按 Escape，再点原来的元素。`,
       };
     }
     // 发出去但没确认（超时等）：效果不明，禁止重放
@@ -306,6 +337,28 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
 }
 
 const plainSleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
+/** 网络空闲最多等这么久：长连接 / 轮询的站点永远等不到空闲。 */
+const RENDER_IDLE_MAX_MS = 3000;
+const RENDER_POLL_MS = 400;
+const RENDER_STABLE_MAX_POLLS = 5;
+
+function bodyLengthInPage(): number { return document.body ? document.body.innerText.length : 0; }
+
+/**
+ * 新文档到了以后，等单页应用把接口数据渲染出来再观察：列表常在 domcontentloaded 后 1～3 秒才出现
+ * （实测字节校招列表，无头 +0.6s 正文 187 字、+2.5s 5669 字）。先等网络空闲（有上限），再等正文字数连续两次不变。
+ */
+async function waitForRender(page: Page, sleep: (ms: number) => Promise<void>): Promise<void> {
+  await page.waitForLoadState('networkidle', { timeout: RENDER_IDLE_MAX_MS }).catch(() => { /* 等不到空闲按上限放行，下面还会看正文是否稳定 */ });
+  let last = -1;
+  for (let i = 0; i < RENDER_STABLE_MAX_POLLS; i++) {
+    const len = await inPage(page, bodyLengthInPage, null);
+    if (len === last) return;
+    last = len;
+    await sleep(RENDER_POLL_MS);
+  }
+}
 
 /**
  * 导航一次超时不判死：慢站（北森 / 海外 ATS）首次加载超 20 秒很常见，超时也常常发生在

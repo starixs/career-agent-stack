@@ -928,7 +928,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         jd_raw: z.string().optional(), url: z.string().optional(), job_id: z.string().optional(), company_name: z.string().optional(), title: z.string().optional(),
       }, async (args) => wrap(async () => text(await parseAndStoreJd(args)))()),
 
-      tool('job_import', '把岗位加入岗位池（url 或 jd_raw），有 JD 文本时顺带解析。', {
+      tool('job_import', '把岗位加入岗位池（url 或 jd_raw），有 JD 文本时顺带解析。只有链接、没有 JD 文本时不要用它（只会存一个空链接）：先 browser_open 打开链接，再 browser_capture_job 收录。', {
         url: z.string().optional(), jd_raw: z.string().optional(), title: z.string().optional(), company_name: z.string().optional(),
         source_platform: z.enum(['boss', 'liepin', 'zhilian', '51job', 'campus', 'ats', 'manual']).optional(),
       }, async (args) => wrap(async () => {
@@ -936,7 +936,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (args.jd_raw) return text(await parseAndStoreJd(args));
         const job = repos().upsertJob({ source_platform: args.source_platform ?? 'manual', title: args.title ?? '未命名岗位', url: args.url ?? null, company_name: args.company_name ?? null });
         changed('job');
-        return text({ job, note: '只记录了链接；需要 JD 文本才能解析与评分。' });
+        return text({ job, note: '只记录了链接，没有 JD 文本，不能解析与评分。要收录完整岗位：browser_open 打开这个链接，再 browser_capture_job。' });
       })()),
 
       tool('job_evaluate', '岗位硬约束预筛 + 五维评分 + 投递建议（投不投由用户决定），预筛写入 job.prefilter_json.evaluate（保留来源数据），完整评估写入 score_json。', { job_id: z.string() }, async (args) => wrap(async () => {

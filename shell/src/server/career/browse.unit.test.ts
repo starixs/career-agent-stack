@@ -13,6 +13,20 @@ describe('inPage', () => {
     await expect(inPage(page as never, fn, { n: 21 })).resolves.toBe(42);
     expect(sent).toContain('const __name = (f) => f;');
   });
+
+  it('页面跳转途中上下文被销毁：等新文档到了再执行一次（Bing 重定向时实测会抛）', async () => {
+    let calls = 0;
+    const waitForLoadState = vi.fn(async () => {});
+    const page = { evaluate: async () => { calls += 1; if (calls === 1) throw new Error('page.evaluate: Execution context was destroyed, most likely because of a navigation'); return 7; }, waitForLoadState };
+    await expect(inPage(page as never, () => 0, null)).resolves.toBe(7);
+    expect(waitForLoadState).toHaveBeenCalledWith('domcontentloaded', expect.anything());
+  });
+
+  it('别的错误照常抛出，不重试', async () => {
+    const page = { evaluate: async () => { throw new Error('ReferenceError: x is not defined'); }, waitForLoadState: vi.fn() };
+    await expect(inPage(page as never, () => 0, null)).rejects.toThrow('ReferenceError');
+    expect(page.waitForLoadState).not.toHaveBeenCalled();
+  });
 });
 
 describe('detectHints', () => {
@@ -24,6 +38,11 @@ describe('detectHints', () => {
     expect(detectHints({ hasPassword: false, bodySample: '您访问过于频繁', url: 'https://a.com' }, [])).toEqual(['risk']);
     expect(detectHints({ hasPassword: false, bodySample: '岗位详情', url: 'https://a.com' }, [el({ text: '立即投递', submitLike: true })])).toEqual(['submit_page']);
     expect(detectHints({ hasPassword: false, bodySample: '岗位详情', url: 'https://a.com' }, [el()])).toEqual([]);
+  });
+
+  it('搜狗这类反爬页（「需要您协助验证」+ antispider 地址）→ captcha + risk，不再只报 submit_page', () => {
+    const raw = { hasPassword: false, bodySample: '此验证码用于确认这些请求是您的正常行为而不是自动程序发出的，需要您协助验证。', url: 'https://weixin.sogou.com/antispider/?from=x' };
+    expect(detectHints(raw, [el({ text: '提交', submitLike: true })])).toEqual(['captcha', 'risk', 'submit_page']);
   });
 });
 
