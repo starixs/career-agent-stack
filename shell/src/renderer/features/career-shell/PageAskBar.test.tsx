@@ -25,7 +25,7 @@ describe('page surface ids', () => {
     const reminder = buildCareerContextReminder({ surface: id });
     expect(careerContextSurface(`${reminder}\n\n帮我筛一下`)).toBe(id);
     expect(parsePageSurface(id)).toEqual({ kind: 'career-dossier', view: 'apply' });
-    expect(pageLabel({ kind: 'career-dossier', view: 'apply' })).toBe('岗位收藏');
+    expect(pageLabel({ kind: 'career-dossier', view: 'apply' })).toBe('岗位库');
   });
 
   it('ignores surfaces that are not pages', () => {

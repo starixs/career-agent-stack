@@ -38,7 +38,7 @@ function mockGet(empty = false) {
 
 const tableRows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1);
 
-describe('CareerApply · 岗位收藏', () => {
+describe('CareerApply · 岗位库', () => {
   beforeEach(() => {
     vi.mocked(apiGetJson).mockReset();
     vi.mocked(apiPostJson).mockReset();

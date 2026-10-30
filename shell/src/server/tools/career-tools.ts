@@ -33,8 +33,9 @@ import { setTargetJob } from '../career/targets';
 import { loadSkillPrompt } from '../career/skills';
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { SEARCH_NOT_CONFIGURED_MESSAGE } from '../career/setup';
-import { applyJsonPatch, parseTailorProposal } from '../career/tailor';
+import { applyJsonPatch } from '../career/tailor';
 import { getVault, vaultForRepos } from '../career/vault';
+import { INTAKE_CORE_FIELDS } from '../career/resume-intake';
 import { ACCOUNT_FIELDS, reportAccountFetch } from '../career/accounts';
 import { applyTaskTitle, gapsHeadline, jobLabel, persistDriveOutcome, type SubmitGate } from '../career/drive-outcome';
 import { freezePacket, packetResumeFile, pickResumeForJob } from '../career/packets';
@@ -46,6 +47,7 @@ import { getCurrentTurnSignal } from '../utils/turn-abort';
 import { REVIEW_CARD_KIND, reviewCardId } from '../../shared/careerReviewCard';
 
 import { createOfferTools } from './offer-tools';
+import { createResumeChainTools } from './resume-chain-tools';
 
 type CallToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
@@ -108,6 +110,7 @@ const SKILL_PROGRESS: Record<string, string> = {
   'probe-predict': '正在预测面试追问',
   'project-story': '正在理项目故事',
   'resume-draft': '正在起草简历',
+  'resume-import': '正在读你的简历',
   'resume-tailor': '正在改简历',
 };
 
@@ -151,7 +154,7 @@ function applyStatusHint(status: string): string {
 export { applyJsonPatch } from '../career/tailor';
 
 /**
- * job.prefilter_json 是多方共用的对象：`campus` 是校招来源数据（批次 / 行业 / 企业性质，岗位收藏表格按它筛选，
+ * job.prefilter_json 是多方共用的对象：`campus` 是校招来源数据（批次 / 行业 / 企业性质，岗位库表格按它筛选，
  * 见 job-board.ts boardMeta），`evaluate` 是 job_evaluate 的硬约束预筛。只替换 evaluate，其余键原样保留。
  */
 export function mergeEvaluatePrefilter(existing: string | null | undefined, prefilter: unknown): string | null {
@@ -161,7 +164,7 @@ export function mergeEvaluatePrefilter(existing: string | null | undefined, pref
   return Object.keys(next).length ? JSON.stringify(next) : null;
 }
 
-// ============= 岗位收藏表格的筛选维度（与渲染端 jobBoardFilters.ts 同义） =============
+// ============= 岗位库表格的筛选维度（与渲染端 jobBoardFilters.ts 同义） =============
 // 页面上的「批次 / 行业 / 类型 / 地点 / 进度」多选 + 搜索：jobs_board 用同一套语义，保证助理看到的就是页面那一批。
 const EMPLOYMENT_LABELS: Record<string, string> = { campus: '校招', intern: '实习', social: '社招' };
 /** 与 job-board.ts 的 DONE 一致：投出去之后的阶段。 */
@@ -365,6 +368,23 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       claims: claims.map(c => ({ id: c.id, text: c.text, result_metric: c.result_metric ?? null, attribution: c.attribution ?? null })),
     });
   };
+  /** 网申核心基本信息还缺哪些：缺就在对话里出一张「补齐基本信息」卡（同 id 覆盖），返回缺的字段。 */
+  const vaultMissingCard = (): string[] => {
+    const have = new Set(vault().status().profile.filled.map(f => f.field));
+    const missing = INTAKE_CORE_FIELDS.filter(f => !have.has(f));
+    if (missing.length) {
+      card('vault_missing', 'vault_missing', '补齐网申基本信息', {
+        fields: missing.map(field => { const def = core.PROFILE_FIELDS.find(f => f.field === field); return { field, label: def?.label ?? field, hint: def?.hint ?? null, sensitive: def?.sensitive ?? false }; }),
+      });
+    }
+    return missing;
+  };
+  /** 用户没说教育背景时，用私密库里的学校 / 专业 / 学历 / 毕业时间（写占位符，导出时才解成明文）。 */
+  const vaultEducation = (filled: ReadonlySet<string>): Array<Record<string, string>> => {
+    if (!filled.has('school')) return [];
+    const ph = (field: string) => (filled.has(field) ? core.vaultPlaceholder('profile', '', field) : '');
+    return [{ school: ph('school'), major: ph('major'), degree: ph('degree'), end: ph('graduation') }];
+  };
   const jobDigest = (job: Job): string => `公司：${job.company_name ?? '未知'}\n岗位：${job.title}\n地点：${job.location ?? '未知'}\n${job.jd_parsed_json ? `JdParsed：${job.jd_parsed_json}` : `JD 原文：${job.jd_raw ?? '（无）'}`}`;
   const prefs = (): unknown => repos().kvGet('preferences') ?? {};
 
@@ -454,7 +474,6 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
 
   const packetDeps = () => ({ repos: repos(), store: store(), exportPdf: (id: string) => exportWithVault(id, 'pdf'), exportsDir: exportsDir() });
 
-  const strengthEnum = z.enum(['nudge', 'keywords', 'full']);
 
   /** 简历 JSON 过一遍 schema（补默认值、拒绝不合法结构）；领域库未就绪时原样返回，避免阻塞起草。 */
   const normalizeResume = async (input: unknown): Promise<unknown> => {
@@ -627,13 +646,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
 
       tool('vault_status', '私密信息库概览：哪些基本信息（姓名 / 手机 / 邮箱 / 证件号…）已填、哪些缺；哪些投递网站存了账号；哪些经历有保密补充字段。只返回字段名、脱敏预览和占位符，永远不返回明文。缺项时对话里会自动出现「补齐基本信息」卡片，用户直接在卡片里填（值不经过你）；不要让用户把这些值打在对话里。', {}, wrap(() => {
         const status = vault().status();
-        const core3 = new Set(['name', 'phone', 'email', 'school', 'major', 'degree', 'graduation']);
-        const missing = status.profile.missing.filter(m => core3.has(m.field));
-        if (missing.length) {
-          card('vault_missing', 'vault_missing', '补齐网申基本信息', {
-            fields: missing.map(m => { const def = core.PROFILE_FIELDS.find(f => f.field === m.field); return { field: m.field, label: m.label, hint: def?.hint ?? null, sensitive: def?.sensitive ?? false }; }),
-          });
-        }
+        vaultMissingCard();
         return text({
           ...status,
           placeholders: { name: '{{vault:profile.name}}', phone: '{{vault:profile.phone}}', email: '{{vault:profile.email}}' },
@@ -919,7 +932,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ ok: true, claim_id: args.claim_id, status: 'user_confirmed' });
       })()),
 
-      tool('ingest_document', '读取本地文档（简历 PDF / Word / 截图、实习证明、项目报告），抽取主张写入经历库（pending）并附 doc_fragment 证据。用户拖进简历时用它把内容收进经历库。', {
+      tool('ingest_document', '读取本地文档（实习证明、项目报告、作品说明等），抽取主张写入经历库（pending）并附 doc_fragment 证据，对话里出确认卡。用户自己的简历不要用它，用 resume_import（会一并补基本信息、按段落建经历、一键生成主简历）。', {
         path: z.string().describe('本地文件路径：绝对路径，或对话附件给出的工作区相对路径'), experience_id: z.string().optional().describe('归属的经历；缺省新建一条以文件名命名的经历'),
       }, async (args) => wrap(async () => {
         const abs = workspacePath(args.path);
@@ -938,7 +951,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
           return claim;
         });
         changed('experience', 'claim', 'evidence');
-        return text({ experience_id: experienceId, claims, note: '主张均为 pending，需用户确认。' });
+        claimsCard(r.getExperience(experienceId)!, claims);
+        return text({ experience_id: experienceId, claims, note: '主张均为 pending；对话里已出确认卡，用户勾一下即可，不要在对话里逐条问。' });
       })()),
 
       tool('ingest_repo', '用 repoMiner 挖掘本地 git 仓库里的个人贡献，生成主张 + commit 证据（pending）。', {
@@ -992,11 +1006,11 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         });
       })),
 
-      tool('resume_master_create', '创建主简历（母版）：默认从经历库已确认主张起草一份完整简历；basics / education 只填用户亲口给的信息，不编造。经历库为空时也能先建空壳，用户之后在「简历」页或通过 resume_save 补内容。', {
+      tool('resume_master_create', '创建主简历（母版）：默认从经历库已确认主张起草一份完整简历。基本信息和教育背景缺省从私密库取（姓名、联系方式、学校、专业、学历、毕业时间），不编造，也不要在对话里向用户要：私密库缺的核心项会自动出一张补齐卡。用户拖进过简历时走 resume_import 的卡片，点一下就生成，不必再调它。经历库为空时也能先建空壳。', {
         name: z.string().optional().describe('主简历名称，如"通用版"、"数据分析方向"；缺省按方向或"主简历"'),
         direction: z.string().optional().describe('求职方向'),
         basics: basicsSchema.optional().describe('用户明确给出的基本信息'),
-        education: z.array(educationSchema).optional().describe('用户明确说过的教育背景'),
+        education: z.array(educationSchema).optional().describe('用户明确说过的教育背景；缺省用私密库里的学校 / 专业 / 学历 / 毕业时间'),
         draft: z.boolean().optional().describe('是否用模型从经历库起草内容；缺省 true（有已确认主张才会真正起草）'),
         notes: z.string().optional().describe('用户对简历的额外要求'),
       }, async (args) => wrap(async () => {
@@ -1011,17 +1025,18 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
           if (filled.has(field)) vaultBasics[key] = core.vaultPlaceholder('profile', '', field);
         }
         const basics = { ...(args.basics ?? {}), ...vaultBasics };
-        const base = { version: 1, basics, education: args.education ?? [] };
+        const education = args.education?.length ? args.education : vaultEducation(filled);
+        const base = { version: 1, basics, education };
         let draft: Record<string, unknown> | undefined;
         let missing: unknown = [];
         let usedClaimIds: unknown = [];
         let draftNotes = '';
         if ((args.draft ?? true) && claims.length > 0) {
           progress('resume_master_create', '正在从经历库起草主简历');
-          const out = await askSkill<{ resume?: Record<string, unknown>; missing?: unknown; used_claim_ids?: unknown; notes?: string }>('resume-draft', `用户基本信息：\n${JSON.stringify(basics)}\n\n用户口述的教育背景：\n${JSON.stringify(args.education ?? [])}\n\n求职方向：${args.direction ?? '未指定'}\n用户额外要求：${args.notes ?? '无'}\n\n经历库（只用 user_confirmed / verified 主张）：\n${experienceDigest()}`, { temperature: 0.2 });
+          const out = await askSkill<{ resume?: Record<string, unknown>; missing?: unknown; used_claim_ids?: unknown; notes?: string }>('resume-draft', `用户基本信息：\n${JSON.stringify(basics)}\n\n教育背景：\n${JSON.stringify(education)}\n\n求职方向：${args.direction ?? '未指定'}\n用户额外要求：${args.notes ?? '无'}\n\n经历库（只用 user_confirmed / verified 主张）：\n${experienceDigest()}`, { temperature: 0.2 });
           if (out.resume && typeof out.resume === 'object') {
             // 基本信息与教育以用户亲口给的为准，模型不得覆盖；私密库占位符优先级最高。
-            draft = { ...out.resume, version: 1, basics: { ...(out.resume.basics as Record<string, unknown> | undefined ?? {}), ...basics }, ...(args.education?.length ? { education: args.education } : {}) };
+            draft = { ...out.resume, version: 1, basics: { ...(out.resume.basics as Record<string, unknown> | undefined ?? {}), ...basics }, ...(education.length ? { education } : {}) };
           }
           missing = out.missing ?? [];
           usedClaimIds = out.used_claim_ids ?? [];
@@ -1030,12 +1045,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const schema = await normalizeResume(draft ?? base);
         const master = s.createResumeMaster({ name, direction: args.direction ?? null, schema_json: schema });
         changed('resume_master');
-        focus({ surface: 'material', id: master.id, note: '主简历已创建' });
+        focus({ surface: 'resume_editor', id: master.id });
+        const stillMissing = vaultMissingCard();
+        const missingNote = stillMissing.length ? '私密库还缺几项基本信息，对话里已出补齐卡，不要在对话里问。' : '';
         const note = draft
-          ? '主简历已起草并保存，请把各分区内容简要复述给用户确认；用户想改哪里就用 resume_save 改，之后可用 resume_tailor 按岗位定制。'
+          ? `主简历已起草并在旁边打开。${missingNote}一句话告诉用户好了、可以直接在旁边改；不要逐区复述，不要请他在对话里确认。下一步是按岗位定制。`
           : claims.length === 0
-            ? `经历库里还没有已确认的主张（${pendingCount > 0 ? `有 ${pendingCount} 条待确认` : '经历库为空'}），已先创建只含基本信息的主简历。请引导用户先补充经历并逐条确认主张，再调用 resume_save 或重新起草。`
-            : '已按 draft=false 创建只含基本信息的主简历。';
+            ? `经历库里还没有已确认的主张（${pendingCount > 0 ? `有 ${pendingCount} 条待确认，确认卡已在对话里` : '经历库为空'}），已先创建只含基本信息的主简历。${missingNote}有简历文件就请他拖进来（resume_import）；没有就从最近做过的一件事开始访谈。`
+            : `已按 draft=false 创建只含基本信息的主简历。${missingNote}`;
         return text({ master: resumeSummary(master), master_id: master.id, drafted: !!draft, confirmed_claims: claims.length, used_claim_ids: usedClaimIds, missing, notes: draftNotes, note });
       })()),
 
@@ -1069,29 +1086,6 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         }
         return text({ id: row.id, kind: found.kind, applied_ops: args.resume ? null : (args.patch?.length ?? 0), resume: schema,
           ...(fix ? { correction: { switched_to_new: fix.swapped.length, already_started_or_sent: fix.locked.length, note: '对话里已出更正卡，回复不必复述这两组数字' } } : {}) });
-      })()),
-
-      tool('resume_tailor', '按 JD 定制简历：只用已确认主张生成改动并直接写进一份新的定制简历（不需要用户审核），返回改了哪几处与理由。', {
-        master_id: z.string().optional().describe('缺省取唯一的主简历；没有主简历时先调用 resume_master_create'), job_id: z.string(), strength: strengthEnum.optional(),
-      }, async (args) => wrap(async () => {
-        const s = store();
-        const masterRow = resolveMaster(args.master_id);
-        const master = { row: masterRow };
-        const job = requireJob(args.job_id);
-        const jd = jdOf(job);
-        if (!jd) return err('该岗位还没有解析 JD，请先调用 jd_parse');
-        const strength = args.strength ?? 'keywords';
-        const out = await askSkill<Record<string, unknown>>('resume-tailor', `母版简历 schema：\n${master.row.schema_json}\n\nJdParsed：\n${JSON.stringify(jd)}\n\n可用主张（仅 user_confirmed / verified）：\n${confirmedClaims().map(c => `- [${c.id}] ${c.text}${c.result_metric ? `（${c.result_metric}）` : ''}`).join('\n') || '（无）'}\n\n强度：${strength}`, { refs: ['风格库', '岗位速查'], temperature: 0.2 });
-        const { ops, reasons, unresolved } = parseTailorProposal(out);
-        const tailored = s.createTailored({ master_id: masterRow.id, job_id: args.job_id, schema_json: master.row.schema_json, strength });
-        s.confirmTailored(tailored.id, applyJsonPatch(JSON.parse(master.row.schema_json), ops));
-        changed('resume_tailored', 'resume_snapshot');
-        return text({
-          tailored_id: tailored.id, job_title: job.title ?? null, company: job.company_name ?? null, applied_ops: ops.length,
-          ops: ops.slice(0, 30).map(o => ({ op: o.op, path: o.path, value: typeof o.value === 'string' ? o.value : o.value === undefined ? null : JSON.stringify(o.value), reason: reasons.find(r => r.path === o.path)?.reason ?? null })),
-          unresolved,
-          note: '改动已直接写进定制简历。用一两句话告诉用户改了哪几处、为什么；unresolved 里有内容时提示用户去经历库补充。用户想改回某处时用 resume_save 改。',
-        });
       })()),
 
       tool('resume_export', '导出简历为 pdf / docx / png，返回文件路径。', { resume_id: z.string(), format: z.enum(EXPORT_FORMATS) }, async (args) => wrap(async () => {
@@ -1167,7 +1161,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ application_id: application.id, action_id: claimed.action.id, packet: { id: packet.id, resume_id: packet.resume_id, resume_kind: packet.resume_kind, resume_pick_reason: picked?.reason ?? null, has_pdf: !!packet.resume_pdf_path }, ...(warning ? { warning } : {}), ...body });
       })()),
 
-      tool('jobs_board', '岗位汇总表 = 「岗位收藏」页那张表（校招 / 实习网申汇总 + 我的进度 + 可解释匹配）。筛选维度与页面一致：批次 batch / 行业 industry / 类型 type（校招、实习、社招、央国企、外企…）/ 地点 location / 进度 stage 均可多选，q 搜公司或岗位名；页面默认只看没截止的（open_only=true）。用户在岗位收藏页问"这些 / 当前筛选"时，把 refs.filters 换成这些参数（tag→type、city→location、progress→stage，其余同名），refs.job_ids 拆成数组传 job_ids。返回 total（符合条件的总数）+ 前 limit 条（按匹配分排序）；每条带批次 / 行业 / 类型标签和"哪条要求对应用户哪段经历"。推荐时只推荐 fits=true 的（不违反用户明确条件）。', {
+      tool('jobs_board', '岗位汇总表 = 「岗位库」页那张表（校招 / 实习网申汇总 + 我的进度 + 可解释匹配）。筛选维度与页面一致：批次 batch / 行业 industry / 类型 type（校招、实习、社招、央国企、外企…）/ 地点 location / 进度 stage 均可多选，q 搜公司或岗位名；页面默认只看没截止的（open_only=true）。用户在岗位库页问"这些 / 当前筛选"时，把 refs.filters 换成这些参数（tag→type、city→location、progress→stage，其余同名），refs.job_ids 拆成数组传 job_ids。返回 total（符合条件的总数）+ 前 limit 条（按匹配分排序）；每条带批次 / 行业 / 类型标签和"哪条要求对应用户哪段经历"。推荐时只推荐 fits=true 的（不违反用户明确条件）。', {
         q: z.string().optional().describe('搜公司 / 岗位名'),
         batch: z.array(z.string()).optional().describe('批次，如 ["正式批","提前批"]'), industry: z.array(z.string()).optional().describe('行业，如 ["互联网"]'),
         type: z.array(z.string()).optional().describe('类型标签：校招 / 实习 / 社招（也可写 campus / intern / social）或企业性质，如 央国企、外企'),
@@ -1626,6 +1620,13 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ gap_plan: plan, result: out });
       })()),
 
+      ...createResumeChainTools({
+        tool, z, repos, vault, store, profileFields: core.PROFILE_FIELDS, mask: core.maskValue, wrap, text, err, changed, card, progress,
+        askSkill: (skill, user, opts) => askSkill(skill, user, opts),
+        readDocument: abs => (deps.readDocument ?? readDocumentDefault)(abs, sessionCtx.workspace),
+        workspacePath, fileExists: existsSync, resolveMaster, requireJob, jdOf,
+        parseJd: async jobId => (await parseAndStoreJd({ job_id: jobId })).parsed, confirmedClaims,
+      }),
       ...createOfferTools({ tool, z, repos, store, wrap, text, err, changed, askSkill: (skill, user, opts) => askSkill(skill, user, opts), userContext: () => `用户经历与偏好：\n${experienceDigest()}\n${JSON.stringify(prefs())}` }),
     ],
   });

@@ -17,7 +17,7 @@ import {
   Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextInput, formatDate, relativeTime, useSuggestToChat,
 } from '@/components/career/CareerPrimitives';
 import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
-import type { AccountFetchState, ExperienceNode, VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultProfileFieldDef } from '@/components/career/types';
+import { isOralExperience, type AccountFetchState, type ExperienceNode, type VaultAccessLogRow, type VaultItemMeta, type VaultOverview, type VaultProfileFieldDef } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { VaultExperienceFields } from '@/components/career/VaultExperienceFields';
 
@@ -426,6 +426,7 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
             <li key={e.id} ref={e.id === focusExperienceId ? focusRef : undefined} className="py-2">
               <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setOpenId(open ? null : e.id)} aria-expanded={open}>
                 <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]">{e.title}</span>
+                {isOralExperience(e) && <Badge tone="neutral">来自口述</Badge>}
                 <span className="text-xs text-[var(--muted)]">{[e.org, e.role].filter(Boolean).join(' · ')}{e.start_date ? ` · ${formatDate(e.start_date)}` : ''}</span>
                 <Badge tone={items.length ? 'accent' : 'neutral'}>{items.length ? `${items.length} 项保密` : '无'}</Badge>
               </button>

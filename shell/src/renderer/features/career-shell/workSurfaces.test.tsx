@@ -186,14 +186,14 @@ describe('expanded panels', () => {
 });
 
 describe('info cards for results without a work surface', () => {
-  it('a job list shows the count, the first three rows and opens 岗位收藏', () => {
+  it('a job list shows the count, the first three rows and opens 岗位库', () => {
     const rows = ['甲', '乙', '丙', '丁'].map((c, i) => ({ job_id: `j${i}`, company: `${c}公司`, title: '后端', location: '北京', deadline: '2026-10-20' }));
     render(<MessageSurfaceCards tools={[tool('mcp__career__jobs_board', { result: JSON.stringify({ rows }) })]} />);
     const card = screen.getByTestId('career-info-card-jobs_board');
     expect(card).toHaveTextContent('4个岗位');
     expect(card).toHaveTextContent('丙公司 · 后端');
     expect(card).not.toHaveTextContent('丁公司');
-    expect(card).toHaveTextContent('1 个，在岗位收藏里看全部');
+    expect(card).toHaveTextContent('1 个，在岗位库里看全部');
   });
 
   it('a deadline shows a date block and skips fields the tool did not return', () => {

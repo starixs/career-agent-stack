@@ -26,7 +26,7 @@ export interface NavItem {
 
 export type NavIconName =
   | 'dashboard' | 'chat' | 'briefcase' | 'grid' | 'folder' | 'settings'
-  | 'sun' | 'list' | 'inbox' | 'star' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote' | 'award'
+  | 'sun' | 'list' | 'inbox' | 'star' | 'library' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote' | 'award'
   | 'sliders' | 'pet' | 'keyboard' | 'wrench' | 'help' | 'info';
 
 export interface NavAreaDefinition {
@@ -49,7 +49,7 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
   { id: 'chat', label: '对话', icon: 'chat', items: [] },
   {
     id: 'career', label: '我的求职', icon: 'briefcase', items: [
-      { id: 'saved', label: '岗位收藏', icon: 'star', target: { kind: 'career-dossier', view: 'apply' } },
+      { id: 'saved', label: '岗位库', icon: 'library', target: { kind: 'career-dossier', view: 'apply' } },
       { id: 'applications', label: '投递记录', icon: 'send', target: { kind: 'career-dossier', view: 'line' } },
       // 笔试 / 面试 / 模拟面试合成一张「助力记录」，Offer 对比放进功能市场（2026-10-13 会议定）。
       { id: 'assists', label: '助力记录', icon: 'pencil', target: { kind: 'career-dossier', view: 'assist' } },
@@ -98,7 +98,7 @@ export function areaDefinition(area: NavArea): NavAreaDefinition {
 
 /**
  * Locate the area and L2 item for the active tab. `subViews` holds the view each
- * multi-view page currently shows, so 岗位收藏 and 投递记录 can share one tab.
+ * multi-view page currently shows, so 岗位库 and 投递记录 can share one tab.
  */
 export function locateNav(
   activeView: string | undefined,

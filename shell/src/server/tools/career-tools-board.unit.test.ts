@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// 岗位收藏表格 / 日历相关工具：job_evaluate 不覆盖校招来源维度、deadline_list / deadline_update、jobs_board 与页面同义筛选。
+// 岗位库表格 / 日历相关工具：job_evaluate 不覆盖校招来源维度、deadline_list / deadline_update、jobs_board 与页面同义筛选。
 // SDK 的 tool() 被替换成注册表，直接调用 handler；模型用 FakeLLM；数据层用内存 SQLite。
 
 type Handler = (args: Record<string, unknown>) => Promise<{ content: Array<{ text: string }>; isError?: boolean }>;

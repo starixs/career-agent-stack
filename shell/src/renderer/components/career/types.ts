@@ -30,6 +30,8 @@ export interface Evidence {
 }
 export type ClaimNode = Claim & { evidence: Evidence[] };
 export type ExperienceNode = Experience & { claims: ClaimNode[] };
+/** 说法全部来自口述访谈的经历（和服务端 resume-intake.ts oralExperienceIds 同一判断）。 */
+export const isOralExperience = (e: ExperienceNode): boolean => Array.isArray(e.claims) && e.claims.length > 0 && e.claims.every(c => c.created_from === 'interview');
 
 export interface ResumeMaster {
   id: string; name: string; direction: string | null; schema_json: string; created_at: string; updated_at: string;
@@ -191,7 +193,7 @@ export function liveStatusText(ev: LiveFrameStatus): string {
 export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
 
 // ---------- 对话内流程卡片（SSE career:card；对话是主场，卡片把"要用户动手的一步"就地解决） ----------
-export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps' | 'interview_prep' | 'takeover' | 'application' | 'fix';
+export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'resume_intake' | 'tailor_diff' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps' | 'interview_prep' | 'takeover' | 'application' | 'fix';
 /** 模型 Key（必需）/ 搜索 Key（建议）的配置状态；source=build 表示来自启动环境变量或打包常量。 */
 export interface CareerSetupStatus {
   llm: { configured: boolean; source: 'settings' | 'build' | 'none' };

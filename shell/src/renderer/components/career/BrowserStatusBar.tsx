@@ -47,7 +47,7 @@ const STATE_TONES: Record<string, BadgeTone> = {
   idle: 'neutral', running: 'success', paused: 'warning', human_active: 'info', resuming: 'accent',
 };
 
-/** hideWhenIdle：没有浏览器任务时整条不占位（岗位收藏页用，表格是主体）；一旦运行 / 停下等你接管就出现。 */
+/** hideWhenIdle：没有浏览器任务时整条不占位（岗位库页用，表格是主体）；一旦运行 / 停下等你接管就出现。 */
 export function BrowserStatusBar({ hideWhenIdle = false }: { hideWhenIdle?: boolean } = {}) {
   const [takeover, setTakeover] = useState<CareerTakeoverEvent | null>(null);
   const [busy, setBusy] = useState<'take' | 'handback' | null>(null);

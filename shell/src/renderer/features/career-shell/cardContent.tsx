@@ -318,7 +318,7 @@ function listContent(result: Dict, unit: string): CardContent {
         ))}
       </ul>
     ) : undefined,
-    rows: [{ label: '还有', value: rows.length > 3 ? `${rows.length - 3} 个，在岗位收藏里看全部` : null }],
+    rows: [{ label: '还有', value: rows.length > 3 ? `${rows.length - 3} 个，在岗位库里看全部` : null }],
   };
 }
 
@@ -367,12 +367,12 @@ export function infoCardFor(tool: ToolUseSimple): InfoCardSpec | null {
   switch (bare) {
     case 'company_research': case 'jd_parse': case 'job_import': case 'job_evaluate': {
       const content = entityContent(result, input);
-      return content && { content, status: bare === 'company_research' ? '已查完' : bare === 'job_evaluate' ? '已评估' : '已记下', openLabel: '在岗位收藏里看', target: JOB_BOARD };
+      return content && { content, status: bare === 'company_research' ? '已查完' : bare === 'job_evaluate' ? '已评估' : '已记下', openLabel: '在岗位库里看', target: JOB_BOARD };
     }
     case 'jobs_board':
-      return { content: listContent(result, '个岗位'), status: '已筛好', openLabel: '打开岗位收藏', target: JOB_BOARD };
+      return { content: listContent(result, '个岗位'), status: '已筛好', openLabel: '打开岗位库', target: JOB_BOARD };
     case 'jobs_sync':
-      return { content: listContent(result, '个新岗位'), status: '已同步', openLabel: '打开岗位收藏', target: JOB_BOARD };
+      return { content: listContent(result, '个新岗位'), status: '已同步', openLabel: '打开岗位库', target: JOB_BOARD };
     case 'deadline_add': case 'deadline_done': {
       const content = deadlineContent(result);
       return content && { content, status: bare === 'deadline_done' ? '已完成' : '已记下', openLabel: '在招聘概览中查看', target: OVERVIEW };
