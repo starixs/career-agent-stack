@@ -8,13 +8,22 @@ import type { Job, JobPrefs } from '@career/core';
 
 import { expandJobQuery } from '../../shared/jobSearch';
 
-export interface PositionTarget { terms: string[]; search: string[]; prefer: string[]; strong: number }
+export interface PositionTarget { terms: string[]; search: string[]; prefer: string[]; strong: number; tooHigh: string[] }
 
 /** 英文岗位名常见的城市写法（外企校招页多是「Shanghai_xxx Intern」）。 */
 const CITY_EN: Record<string, string> = { 上海: 'shanghai', 北京: 'beijing', 深圳: 'shenzhen', 广州: 'guangzhou', 杭州: 'hangzhou', 南京: 'nanjing', 成都: 'chengdu', 武汉: 'wuhan', 苏州: 'suzhou', 合肥: 'hefei' };
 /** 技术方向搜不到时退一步的通用词：总比空手报「没表单」强。 */
 const TECH_FALLBACK = ['开发', '研发', '软件', 'software', 'developer', 'engineer'];
 const TECH_HINT = /(开发|研发|后端|前端|算法|测试|数据|运维|软件|java|python|go|c\+\+|engineer|developer)/i;
+
+/** 招聘页上写学历门槛的常见说法：本科生看到前两组不投，硕士看到博士组不投。 */
+const DOCTOR_ONLY = ['博士研究生及以上', '博士及以上', '博士学历', '仅限博士'];
+const MASTER_UP = ['硕士研究生及以上', '硕士及以上', '研究生及以上', '硕士学历及以上'];
+
+export function tooHighFor(degree: string | null | undefined): string[] {
+  if (!degree || /博士/.test(degree)) return [];
+  return /硕士|研究生/.test(degree) ? DOCTOR_ONLY : [...DOCTOR_ONLY, ...MASTER_UP];
+}
 
 /** 「软件类 / 通信类 / IC类 等7个岗位」→ ['软件类', '通信类', 'IC类']。 */
 export function titleParts(title: string): string[] {
@@ -34,5 +43,5 @@ export function positionTargetFor(prefs: JobPrefs, job: Pick<Job, 'title'> | nul
   const search = [...new Set([...directions, ...relevant, ...expanded.slice(1, 3), ...(tech ? ['开发'] : [])])].slice(0, 4);
   const prefer = (prefs.cities ?? []).flatMap(c => [c, CITY_EN[c]].filter((x): x is string => !!x));
   // 用户方向本身的说法（排在 terms 最前）算强匹配；通用的「开发 / 研发」只在搜过站内还没有时才用
-  return { terms, search, prefer, strong: new Set(expanded).size };
+  return { terms, search, prefer, strong: new Set(expanded).size, tooHigh: tooHighFor(prefs.degree) };
 }

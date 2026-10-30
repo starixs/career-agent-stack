@@ -385,6 +385,19 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       // 北森 zhiye 的岗位行点开是就地展开、行里出「投递」：页面上只有搜索框 / 没标签的格子时也算「还没有表单」
       if ((!fields.length || onlySearchOrUnlabeled(fields)) && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
         const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text, adapter))
+        // 学历要求高于他：不点投递，交给自主找路换一个岗位（2026-10-31：天翼云「超级优才」要博士，本科生差点投出去）
+        const over = entry ? requiredAbove(sig.text, opts.target?.tooHigh ?? []) : undefined
+        if (over) {
+          log(`岗位要求「${over}」，高于你的学历，不投这个`)
+          if (opts.pathfinder && !pathfinderUsed) {
+            pathfinderUsed = true
+            const auto = await opts.pathfinder(`这个岗位要求${over}，换一个`).catch(() => ({ moved: false, note: undefined }))
+            if (auto.moved) { index--; continue }
+            if (auto.note) lastSeekNote = auto.note
+          }
+          pages.push(rec)
+          return finish('blocked', lastSeekNote ? `这家现在没有和你方向对口的岗位：${lastSeekNote}` : `这个岗位要求${over}，高于你的学历，没有投`)
+        }
         if (entry) {
           entryClicks++
           progress(`点击「${entry.text}」进入申请表`, 'entry', entry.text)
@@ -795,6 +808,17 @@ function isSearchOrFilterField(f: FormField): boolean {
 /** 这一页只有搜索 / 筛选（没标签的格子不算反证，但至少要有一个认得出是筛选的）。 */
 function onlySearchOrFilter(fields: FormField[]): boolean {
   return fields.some(isSearchOrFilterField) && fields.every(f => isSearchOrFilterField(f) || !`${f.label}${f.placeholder ?? ''}`.trim())
+}
+/** 页面上写着高于他的学历门槛（「博士研究生及以上」）；后面跟「优先」的只是偏好，不算门槛。 */
+export function requiredAbove(text: string, words: readonly string[]): string | undefined {
+  for (const w of words) {
+    let at = text.indexOf(w)
+    while (at >= 0) {
+      if (!text.slice(at + w.length, at + w.length + 4).includes('优先')) return w
+      at = text.indexOf(w, at + w.length)
+    }
+  }
+  return undefined
 }
 /** 只有搜索 / 筛选 / 没标签的格子（没有一个像网申表的格子）。 */
 function onlySearchOrUnlabeled(fields: FormField[]): boolean {

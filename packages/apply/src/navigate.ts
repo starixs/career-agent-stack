@@ -20,6 +20,8 @@ export interface PositionTarget {
   prefer?: string[]
   /** terms 里前几个是用户方向本身的说法；只沾后面通用词（「研发」「开发」）的岗位先不点，搜过站内再退而求其次。 */
   strong?: number
+  /** 详情页上出现这些说法就是要求高于他的学历（本科生看到「博士研究生及以上」），不点投递。 */
+  tooHigh?: string[]
 }
 
 export interface PositionLink { selector: string; href: string; text: string }

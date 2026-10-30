@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { FakePage, beisen, driveApplication, feishu, generic, isEntryText, moka, pickPosition, type PositionTarget } from '../src/index.js'
+import { FakePage, beisen, driveApplication, feishu, generic, isEntryText, moka, pickPosition, requiredAbove, type PositionTarget } from '../src/index.js'
 import { noLLM, profile } from './helpers.js'
 
 const quiet = { pause: [0, 0] as [number, number], settleMs: 0, humanTyping: false }
@@ -167,6 +167,17 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend, pathfinder: async () => ({ moved: false, note: '只有财务和销售岗' }) })
     expect(r.status).toBe('blocked')
     expect(r.message).toContain('只有财务和销售岗')
+  })
+
+  it('详情页要求学历高于他：不点投递；交给自主找路换岗位，找不到就如实报', async () => {
+    const detail = { url: 'https://wecruit.hotjob.cn/SU1/pb/posDetail.html', text: '学历：博士研究生及以上', buttons: [{ text: '申请职位', goto: 'https://wecruit.hotjob.cn/SU1/pb/apply' }] }
+    const page = new FakePage([detail, { url: 'https://wecruit.hotjob.cn/SU1/pb/apply', fields: basics }])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: { ...backend, tooHigh: ['博士研究生及以上'] }, pathfinder: async () => ({ moved: false, note: '只有一个博士岗' }) })
+    expect(r.entryClicked).toBeUndefined()
+    expect(r.status).toBe('blocked')
+    expect(r.message).toContain('只有一个博士岗')
+    expect(requiredAbove('学历：硕士及以上优先', ['硕士及以上'])).toBeUndefined()
+    expect(requiredAbove('硕士及以上优先；博士及以上', ['硕士及以上', '博士及以上'])).toBe('博士及以上')
   })
 
   it('不给 target 时行为不变：首页没表单就如实报没有表单', async () => {
