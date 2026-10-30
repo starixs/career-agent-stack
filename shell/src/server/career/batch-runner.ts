@@ -42,6 +42,8 @@ export interface BatchCommand { cmd: 'start' | 'pause' | 'stop' | 'run'; at: str
 export const BATCH_STATE_KEY = 'apply:batch:state';
 export const BATCH_COMMAND_KEY = 'apply:batch:command';
 const DAILY_KEY = (day: string) => `apply:batch:count:${day}`;
+/** 同一份网申页面连着打不开几次就判失败：站点慢偶尔一两次常见，三次多半是链接失效或站点挂了。 */
+const MAX_SITE_RETRIES = 3;
 
 export interface DriveRequest { action: ActionQueueItem; payload: Record<string, unknown>; mode: 'start' | 'continue'; resumePath?: string; /** 续跑时上次 needs_user 的标签：用户自己填好的值学进答案库 */ learnFrom?: string[] }
 export interface BatchRunnerDeps {
@@ -82,6 +84,7 @@ export class BatchRunner {
   private wake: (() => void) | null = null;
   /** 每个网站因"暂时不可用 / 被占用"退避到的最早重试时间（毫秒时间戳）。 */
   private transientCooldown = new Map<string, number>();
+  private siteFailures = new Map<string, number>();
   constructor(private readonly deps: BatchRunnerDeps) {}
 
   private get repos() { return this.deps.repos; }
@@ -314,6 +317,19 @@ export class BatchRunner {
     return actions.size;
   }
 
+  /**
+   * 站点侧的瞬时错误（导航失败、引擎启动失败）按动作计次；浏览器被占用、用户接管这类不是站点的问题，不计。
+   * 达到上限返回 true；成功跑过一次（没有这两类错误）就清零。只记在内存里：重启后重新给几次机会。
+   */
+  private siteKeepsFailing(actionId: string, line: { code?: unknown; status?: unknown }): boolean {
+    const siteSide = line.code === 'NAVIGATION_FAILED' || line.status === 503;
+    if (!siteSide) { this.siteFailures.delete(actionId); return false; }
+    const n = (this.siteFailures.get(actionId) ?? 0) + 1;
+    if (n >= MAX_SITE_RETRIES) { this.siteFailures.delete(actionId); return true; }
+    this.siteFailures.set(actionId, n);
+    return false;
+  }
+
   private payloadOf(a: ActionQueueItem): Record<string, unknown> { try { return JSON.parse(a.payload_json) as Record<string, unknown>; } catch { return {}; } }
 
   private taskFor(action: ActionQueueItem, payload: Record<string, unknown>, mode: 'start' | 'continue'): Task {
@@ -363,7 +379,13 @@ export class BatchRunner {
       events.push({ type: 'error', status: 500, error: e instanceof Error ? e.message : String(e), ...(e instanceof Error && e.name !== 'Error' ? { code: e.name } : {}) });
     }
     // 瞬时 / 可抢占（浏览器被对话占用、用户接管、宿主停机、会话消失、501/503）：放回队列，不算失败、不占当天名额
-    const transientLine = events.find(e => e.type === 'error') as { code?: unknown; status?: unknown } | undefined;
+    const transientLine = events.find(e => e.type === 'error') as { code?: unknown; status?: unknown; error?: unknown } | undefined;
+    if (transientLine && this.siteKeepsFailing(action.id, transientLine)) {
+      // 站点这边连着打不开：不再当瞬时重排，交给下面按失败落库（如实告诉用户这一家打不开）
+      transientLine.code = undefined;
+      transientLine.status = 502;
+      transientLine.error = `连续 ${MAX_SITE_RETRIES} 次打不开这家网申页面：${String(transientLine.error ?? '')}`;
+    }
     if (events.some(e => e.type === 'error') && isTransientDriveError(transientLine)) {
       if (mode === 'start') r.requeueAction(action.id); else r.setActionStatus(action.id, 'needs_user');
       r.updateTask(task.id, { status: 'queued' });
