@@ -57,7 +57,7 @@ export function reviewDecisionMessage(review: Pick<CareerReviewEvent, 'actionIds
 interface CardProps { card: CareerCard; onDone: () => void; onDismiss: () => void }
 
 /** 批准 / 拒绝：优先走本会话的 Session 路由；不在对话里（没有 TabProvider）时退回 Global 路由。 */
-function useRespondReview(): (ids: string[], decision: 'approved' | 'rejected') => Promise<boolean> {
+export function useRespondReview(): (ids: string[], decision: 'approved' | 'rejected') => Promise<boolean> {
   const cards = useCareerCards();
   const tab = useTabStateOptional();
   return cards.respondReview ?? tab?.respondCareerReview ?? (async (ids, decision) => {

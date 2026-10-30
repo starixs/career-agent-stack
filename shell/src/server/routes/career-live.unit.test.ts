@@ -4,6 +4,7 @@ import type { Repos } from '@career/core';
 
 import { FileChooserBroker, type FileChooserLike } from '../career/file-chooser';
 import { LiveHub } from '../career/live-hub';
+import { setLivePin } from '../career/live-pin';
 import { createMemoryRepos } from '../career/test-db';
 import { handleCareerLiveRoute, type CareerLiveDeps, type CareerLiveHost } from './career-live';
 
@@ -82,6 +83,23 @@ describe('career live route', () => {
     expect(events.map(e => (e as { type: string }).type)).toEqual(['career:takeover', 'career:takeover', 'career:data-changed']);
     const bad = await handleCareerLiveRoute('/api/career/live/control', req('/api/career/live/control', { control: 'x' }), d);
     expect(bad!.status).toBe(400);
+  });
+
+  it('登录之旅里交还：只关当前带你过的这一家，别家还没登录的和缺信息的那批不被一起当成处理完', async () => {
+    const repos = createMemoryRepos();
+    const host = fakeHost();
+    const d = deps(repos, host);
+    const open = (site: string, reason: 'login' | 'missing_info') => {
+      const app = repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: site, title: 'x', url: `https://${site}/a` }).id);
+      return { app, h: repos.openHandoff(reason, { actionId: repos.enqueueAction('fill_form', {}, app.id).id }) };
+    };
+    const a = open('a.com', 'login'); const b = open('b.com', 'login'); const c = open('c.com', 'missing_info');
+    setLivePin({ sessionKey: 's', appKey: a.app.id, askId: a.h.id, handoffId: a.h.id, index: 0, total: 2 });
+    try {
+      await handleCareerLiveRoute('/api/career/live/control', req('/api/career/live/control', { control: 'human' }), d);
+      await handleCareerLiveRoute('/api/career/live/control', req('/api/career/live/control', { control: 'agent' }), d);
+      expect(repos.openHandoffs().map(h => h.id).sort()).toEqual([b.h.id, c.h.id].sort());
+    } finally { setLivePin(null); }
   });
 
   it('没有浏览器时 control 409；batch 命令无运行器时写 kv', async () => {

@@ -6,10 +6,15 @@
  *    之后这张表免人工确认（approved_by='learned'）——前提是简历版本（resume_sha256）与开放题答案
  *    （openAnswersHash）都和上一次用户批准时完全一致；有任何新内容就停下给人看。
  *
+ * 目标岗位（进过面试、或用户亲手标的，含批次卡上的「这家我要看」）一律投前过目，auto 和自学习都不免（规范
+ * CAREER_INTELLIGENT_UI.md §5.4，2026-10-27 确认）。
+ *
  * 任何一种免审都要求填后检查 attention === 0（必填为空 / 值没生效 / 站点报错 / 附件没回显 / 草稿 / 待补 都不行）。
  * 页面上被用户改过、提交失败、用户拒绝，都把这张表的计数清零。
  */
 import { normalizeHost, type Repos } from '@career/core';
+
+import { isTargetApplication } from './targets';
 
 export const AUTO_MODE_KEY = 'apply:auto_mode';
 export const LEARN_THRESHOLD = 3;
@@ -21,7 +26,7 @@ export interface AutoModeSetting { enabled: boolean; updatedAt?: string }
  * （formSignature 是哈希，看不出是哪个网站）。applicationIds = 本轮连续人工直接通过的那几份投递，清零时一起清。
  */
 export interface PageTrust { streak: number; resumeSha: string | null; answersHash: string | null; host?: string; applicationIds?: string[]; updatedAt: string }
-export interface SubmitFingerprint { formSignature?: string | null; openAnswersHash?: string | null; resumeSha?: string | null; attention: number }
+export interface SubmitFingerprint { formSignature?: string | null; openAnswersHash?: string | null; resumeSha?: string | null; attention: number; /** 这份投递；是目标岗位时一律给人看 */ applicationId?: string | null }
 export type SubmitDecision = { approve: true; by: 'auto' | 'learned'; reason: string } | { approve: false; reason: string };
 
 export function getAutoMode(repos: Repos): AutoModeSetting {
@@ -38,6 +43,7 @@ export function getPageTrust(repos: Repos, signature: string): PageTrust | undef
 
 export function decideSubmit(repos: Repos, fp: SubmitFingerprint): SubmitDecision {
   if (fp.attention > 0) return { approve: false, reason: `填后检查有 ${fp.attention} 项需要你看` };
+  if (isTargetApplication(repos, fp.applicationId)) return { approve: false, reason: '目标岗位：投之前先给你看' };
   if (getAutoMode(repos).enabled) return { approve: true, by: 'auto', reason: 'auto 模式：检查全部通过，直接提交' };
   if (!fp.formSignature) return { approve: false, reason: '没有界面指纹，按默认需要你确认' };
   const trust = getPageTrust(repos, fp.formSignature);

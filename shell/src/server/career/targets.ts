@@ -31,3 +31,11 @@ export function targetSourceOf(app: { job_id: string; stage: string }, reachedSt
   if (marked.has(app.job_id)) return 'user';
   return null;
 }
+
+/** 这份申请算不算目标（阶段历史里进过面试也算）。提交策略和等你条的「一键投出」共用这一个判断。 */
+export function isTargetApplication(repos: Repos, applicationId: string | null | undefined, marked: ReadonlySet<string> = markedTargetJobs(repos)): boolean {
+  const app = applicationId ? repos.getApplication(applicationId) : undefined;
+  if (!app) return false;
+  const reached = repos.db.all<{ to_stage: string }>('SELECT to_stage FROM application_history WHERE application_id=?', [app.id]).map(r => r.to_stage);
+  return targetSourceOf(app, reached, marked) !== null;
+}

@@ -510,8 +510,11 @@ async function runWaitUser(body: Record<string, unknown>, page: Page, out: RunEm
   const sessionKey = deps.productSessionId ?? 'default';
   let sawHuman = deps.host.getControl(sessionKey).control === 'human';
   const blocking = Array.isArray(body.blocking) ? body.blocking.filter((h): h is import('../career/browse').Hint => ['login', 'captcha', 'risk'].includes(String(h))) : [];
+  // 等登录：数据层（新会话凭证 + 登录接口返回）和画面两路一起看（用户 2026-10-30：要看数据层，不止看画面）
+  const watch = blocking.includes('login') ? await (await import('../career/login-watch')).watchLogin(page) : null;
   const outcome = await waitForUser(page, {
     blocking,
+    ...(watch ? { login: () => watch.check() } : {}),
     timeoutMs: clampNumber(body.timeoutMs, WAIT_USER_DEFAULT_MS, 5_000, WAIT_USER_MAX_MS),
     handedBack: () => {
       const human = deps.host.getControl(sessionKey).control === 'human';
@@ -519,7 +522,13 @@ async function runWaitUser(body: Record<string, unknown>, page: Page, out: RunEm
       return sawHuman && !human;
     },
   });
-  console.log(`[career-browser] wait-user status=${outcome.status} waited_ms=${outcome.waited_ms} blocking=${blocking.join('|') || 'url'}`);
+  watch?.stop();
+  // 记下这个站的凭证名：下次登录之旅切到它之前先查，还有效就不用你再登
+  if (watch?.site && outcome.credentials?.length) {
+    const [{ learnLoginMarks }, { getRepos }] = await Promise.all([import('../career/login-signal'), import('../career/db')]);
+    learnLoginMarks(await getRepos(), watch.site, outcome.credentials);
+  }
+  console.log(`[career-browser] wait-user status=${outcome.status} signal=${outcome.signal ?? '-'} waited_ms=${outcome.waited_ms} blocking=${blocking.join('|') || 'url'}`);
   const observation = outcome.status === 'page_closed' ? null : await browse.observe(page.context(), page, { isSubmitText: () => false }).catch(() => null);
   out.emit({ type: 'result', op: 'browse', action: 'wait_user', wait: outcome, ...(observation ? { observation } : {}) });
 }

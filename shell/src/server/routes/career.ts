@@ -40,9 +40,11 @@ import { BatchRunner } from '../career/batch-runner';
 import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
+import { scheduleRefresh } from '../career/correction';
 import { broadcast as sseBroadcast } from '../sse';
 
 import { careerJson, fail, ok, str, strOrNull, type Json } from './career-http';
+import { deliveryRoutes } from './career-delivery';
 import { interviewRoutes } from './career-interview';
 
 export interface CareerRouteDeps {
@@ -129,6 +131,12 @@ function mailBackendOf(ctx: Ctx) {
 }
 const isoOrUndefined = (v: unknown): string | undefined => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : undefined);
 
+/** 页面上改了简历：停手后把没点开始的申请换成新版（career/correction.ts）。 */
+function refreshAfterEdit(ctx: Ctx, resumeId: string): void {
+  scheduleRefresh(() => ({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir }), resumeId,
+    r => { if (r) dataChanged(ctx, ['action_queue', 'application_packet']); });
+}
+
 function exportResume(ctx: Ctx, id: string, format: ExportFormat): Promise<string> {
   // 占位符 → 明文只在渲染这一刻发生；落库 JSON 与模型看到的仍是 {{vault:...}}
   return exportResumeFile(ctx.store, id, format, ctx.deps.exportsDir, ctx.deps.resumeModule, schema => ctx.vault.resolveDeep(schema, { actor: 'resume_export', purpose: `导出简历 ${id} ${format}` }), ctx.deps.studioExport === false ? null : { repos: ctx.repos });
@@ -143,6 +151,8 @@ const ROUTES: Route[] = [
     params: ctx.params, body: ctx.body, repos: ctx.repos, store: ctx.store,
     recordingsDir: ctx.deps.recordingsDir ?? careerRecordingsDir(), dataChanged: tables => dataChanged(ctx, tables),
   }))),
+
+  ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url, params: ctx.params, body: ctx.body, vault: ctx.vault, dataChanged: tables => dataChanged(ctx, tables) }))),
 
   // ---------- 经历库 ----------
   route('GET', '/api/career/experiences', ({ repos }) => ok({ experiences: repos.experienceTree() })),
@@ -207,6 +217,7 @@ const ROUTES: Route[] = [
     try {
       const resume = ctx.store.saveResume(ctx.params.id, ctx.body.schema_json);
       dataChanged(ctx, ['resume_master', 'resume_tailored', 'resume_snapshot']);
+      refreshAfterEdit(ctx, ctx.params.id);
       return ok({ resume });
     } catch (error) {
       return fail(error instanceof Error ? error.message : '保存失败', 404);
@@ -227,6 +238,7 @@ const ROUTES: Route[] = [
     try {
       const out = await saveStudio({ repos: ctx.repos, store: ctx.store }, ctx.params.id, ctx.body.data);
       dataChanged(ctx, ['resume_master', 'resume_tailored', ...(out.snapshot ? ['resume_snapshot'] : [])]);
+      refreshAfterEdit(ctx, ctx.params.id);
       return ok({ content_updated_at: out.contentUpdatedAt, snapshot: out.snapshot, preview: previewPlaceholders({ vault: ctx.vault }, out.data, ctx.params.id) });
     } catch (error) {
       if (error instanceof StudioResumeNotFoundError) return fail(error.message, 404);

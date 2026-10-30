@@ -724,7 +724,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       // ---------- 卷宗 ----------
       tool('dossier_list', '所有投递的档案摘要（公司、岗位、阶段、静默天数、下一个截止、面试次数）。', {}, wrap(() => text({ dossiers: store().dossierSummaries() }))),
 
-      tool('dossier_get', '面试前一键摊开：这条投递用的哪版简历、开放题填了什么、说过什么、公司调研、预测追问、所有邮件与时间点。按 application_id / job_id / 公司名任一查找。', {
+      tool('dossier_get', '用户问「某家怎样了」或面试前一键摊开（对话里会自动出一张这份申请的对象卡，回复不必复述进度）：这条投递用的哪版简历、开放题填了什么、说过什么、公司调研、预测追问、所有邮件与时间点。按 application_id / job_id / 公司名任一查找。', {
         application_id: z.string().optional(), job_id: z.string().optional(), company_name: z.string().optional(),
       }, async (args) => wrap(() => {
         let appId = args.application_id;
@@ -738,6 +738,9 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const dossier = store().dossier(appId);
         if (!dossier) return err(`投递不存在：${appId}`);
         focus({ surface: 'dossier', application_id: appId });
+        // 问「某家怎样了」：对话里出一张申请对象卡（规范 §5.8），同一家再问会覆盖同一张
+        const job = dossier.job as { company_name?: string | null; company_id?: string | null; title?: string } | undefined;
+        card(`application:${appId}`, 'application', `${job?.company_name ?? ''} ${job?.title ?? ''}`.trim() || '这份申请', { application_id: appId, company: core.companyMarkOf(job?.company_name, job?.company_id ?? null) });
         return text(dossier);
       })()),
 
@@ -1040,7 +1043,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const schema = await normalizeResume(next);
         const row = s.saveResume(found.row.id, schema, args.note ?? '助理修改前快照');
         changed(found.kind === 'master' ? 'resume_master' : 'resume_tailored', 'resume_snapshot');
-        return text({ id: row.id, kind: found.kind, applied_ops: args.resume ? null : (args.patch?.length ?? 0), resume: schema });
+        // 共用简历改了：没点开始的换成新版，其余如实列为改不了，对话里出一张更正卡（规范 §5.7）
+        const { refreshQueuedPackets } = await import('../career/correction');
+        const fix = await refreshQueuedPackets(packetDeps(), row.id);
+        if (fix) {
+          changed('action_queue', 'application_packet');
+          card(`fix:${row.id}:${Date.now()}`, 'fix', '改了共用的简历', { swapped: fix.swapped_marks, locked: fix.locked_marks });
+        }
+        return text({ id: row.id, kind: found.kind, applied_ops: args.resume ? null : (args.patch?.length ?? 0), resume: schema,
+          ...(fix ? { correction: { switched_to_new: fix.swapped.length, already_started_or_sent: fix.locked.length, note: '对话里已出更正卡，回复不必复述这两组数字' } } : {}) });
       })()),
 
       tool('resume_tailor', '按 JD 定制简历：只用已确认主张生成改动并直接写进一份新的定制简历（不需要用户审核），返回改了哪几处与理由。', {
