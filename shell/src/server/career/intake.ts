@@ -8,7 +8,7 @@
 import type { Repos, LLM, Job, JdParsed, InboxItem, InboxKind, InboxSource, DeadlineKind } from '@career/core';
 
 import { htmlToText } from './attachment-reader';
-import { openInterviewDeadline, rescheduleDeadline, upsertInvitedInterview } from './interview-link';
+import { normalizeRoundLabel, openInterviewDeadline, rescheduleDeadline, upsertInvitedInterview } from './interview-link';
 import type { CoreModule } from './core-module';
 import { loadSkillPrompt } from './skills';
 import { CareerStore } from './store';
@@ -194,7 +194,7 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       case 'interview_invite': {
         const a = ensureApplication('interview', `收到面试邀请${f.round ? `（${f.round}）` : ''}`);
         // 同一场的提醒 / 改期邮件落回原来那场：只更新时间，不多建面试和时间点
-        const { interview: itv } = upsertInvitedInterview(store, { application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRound(f.round), date: normalizeIso(f.when, nowIso) ?? null });
+        const { interview: itv } = upsertInvitedInterview(store, { application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRoundLabel(f.round), date: normalizeIso(f.when, nowIso) ?? null });
         created.interview_id = itv.id; tables.add('interview');
         const known = openInterviewDeadline(r, itv.id);
         if (!known) addDeadline('interview', `${label} 面试${f.round ? `（${f.round}）` : ''}`, f.when, { interview_id: itv.id });
@@ -319,16 +319,6 @@ export function recordExam(deps: Pick<IntakeDeps, 'repos' | 'broadcast' | 'sessi
 }
 
 // ---------- 小工具 ----------
-function normalizeRound(round?: string): string {
-  const r = (round ?? '').toLowerCase();
-  if (['hr', 'first', 'second', 'final', 'group'].includes(r)) return r;
-  if (/hr|人事/.test(r)) return 'hr';
-  if (/一面|初面|first|1/.test(r)) return 'first';
-  if (/二面|second|2/.test(r)) return 'second';
-  if (/终面|final|三面/.test(r)) return 'final';
-  if (/群面|group/.test(r)) return 'group';
-  return 'other';
-}
 
 /** 把模型给的时间（ISO / "2026-10-05 14:00" / "10月5日 14:00"）规整成 ISO；解析不了返回 null。 */
 export function normalizeIso(value: string | undefined | null, nowIso: string): string | null {

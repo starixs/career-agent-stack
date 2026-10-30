@@ -17,7 +17,7 @@ import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
-import { closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
+import { bookInterview, closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
 import { getShellLLM } from '../career/llm';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
@@ -25,6 +25,7 @@ import { draftMaterial } from '../career/materials';
 import { generateWeeklyReview } from '../career/review';
 import { getRunRegistry, type RunRegistry } from '../career/runs';
 import { getSearchProvider, type CareerSearchProvider } from '../career/search';
+import { setTargetJob } from '../career/targets';
 import { loadSkillPrompt } from '../career/skills';
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { SEARCH_NOT_CONFIGURED_MESSAGE } from '../career/setup';
@@ -1319,6 +1320,26 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const questions = (out.questions ?? []).filter(q => q?.question).map(q => ({ ...q, question_id: r.upsertQuestion({ content: q.question!, kind: 'interview', category: q.type ?? null, probe_points: q.probe_points ?? [], jd_requirement: q.jd_requirement ?? null, company_name: job.company_name, title: job.title, job_id: job.id, source: 'generated', source_ref: `generated:${job.id}`, tags: q.difficulty ? [q.difficulty] : [] }).id }));
         if (questions.length) changed('question');
         return text({ ...out, questions, note: '题目已存进题库（question_id）。用户练习作答后用 question_attempt 打分记录，便于比较进步。' });
+      })()),
+
+      tool('interview_book', '记一场邮箱里没有的面试（HR 电话 / 短信 / 微信约的）：用户说「我约了周四下午百度二面」就用它。找到或建好这份申请、推进到面试、记面试和时间点；同一场再记一次只改时间。邮件来的面试邀请走 inbox_capture。', {
+        company_name: z.string(), title: z.string().optional(), round: z.string().optional().describe('如 一面 / 二面 / HR 面 / 终面'),
+        when: z.string().describe('ISO 时间，如 2026-11-05T14:00:00+08:00'), location: z.string().optional().describe('会议链接或地点'), note: z.string().optional(), application_id: z.string().optional(),
+      }, async (args) => wrap(() => {
+        const out = bookInterview(store(), repos(), args);
+        changed('application', 'application_history', 'interview', 'deadline');
+        focus({ surface: 'dossier', application_id: out.application_id });
+        return text(out);
+      })()),
+
+      tool('job_target', '把岗位标成 / 取消目标岗位（重点打磨的那几个）。只在用户亲口说「这几个是我的目标 / 重点准备」时用，不要替用户判断哪些是目标；进过面试的申请自动算目标，不用标。', {
+        job_id: z.string().optional(), application_id: z.string().optional(), target: z.boolean(),
+      }, async (args) => wrap(() => {
+        const jobId = args.job_id ?? (args.application_id ? repos().getApplication(args.application_id)?.job_id : undefined);
+        if (!jobId) return err('需要 job_id 或 application_id');
+        setTargetJob(repos(), jobId, args.target);
+        changed('kv');
+        return text({ job_id: jobId, target: args.target, note: args.target ? '已标成目标岗位。' : '已取消你的标记；进过面试的申请仍算目标。' });
       })()),
 
       tool('interview_probe', '模拟面试 / 简历深挖：漏斗追问。首轮不传 transcript 时给开场问题；传 transcript 时给追问或结束复盘。一场模拟记一条 mock_interview：接着练时带上首轮返回的 mock_interview_id。', {

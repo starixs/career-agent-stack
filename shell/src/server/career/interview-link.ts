@@ -69,3 +69,41 @@ export function closeInterviewDeadline(repos: Repos, interviewId: string): boole
   repos.setDeadlineStatus(open.id, 'done');
   return true;
 }
+
+/** 电话 / 短信 / 微信约的面试：邮箱里没有，由用户自己记一场。 */
+export interface BookedInterviewInput { company_name: string; title?: string | null; round?: string | null; when: string; location?: string | null; note?: string | null; application_id?: string | null }
+
+/**
+ * 手动记一场面试：找到（或建好）这份申请，推进到面试，记面试与时间点；同一场再记一次只改时间。
+ * 返回申请、面试与时间点的 id。
+ */
+export function bookInterview(store: CareerStore, repos: Repos, input: BookedInterviewInput): { application_id: string; interview_id: string; deadline_id: string } {
+  const company = input.company_name.trim();
+  if (!company) throw new Error('请填写公司');
+  const due = new Date(input.when);
+  if (Number.isNaN(due.getTime())) throw new Error(`面试时间不是可解析的时间：${input.when}`);
+  const title = input.title?.trim() || null;
+  const hits = repos.findOpenApplicationsByCompany(company);
+  const found = input.application_id ? repos.getApplication(input.application_id) : hits.length === 1 ? hits[0] : hits.find(a => title && a.job.title === title);
+  const base = found ?? repos.createApplication(repos.upsertJob({ source_platform: 'manual', title: title ?? '未命名岗位', company_name: company }).id);
+  const app = repos.advanceTo(base.id, 'interview', '手动记了一场面试').app;
+  const round = normalizeRoundLabel(input.round);
+  const { interview } = upsertInvitedInterview(store, { application_id: app.id, company_name: company, title, round, date: due.toISOString() });
+  const known = openInterviewDeadline(repos, interview.id);
+  if (known) { rescheduleDeadline(repos, known.id, due.toISOString()); return { application_id: app.id, interview_id: interview.id, deadline_id: known.id }; }
+  const roundLabel = input.round?.trim() ? `（${input.round.trim()}）` : '';
+  const deadline = repos.createDeadline({ kind: 'interview', title: `${company}${title ? ` · ${title}` : ''} 面试${roundLabel}`, due_at: due.toISOString(), application_id: app.id, job_id: app.job_id, interview_id: interview.id, source: 'manual', url: input.location?.startsWith('http') ? input.location : null, note: [input.location && !input.location.startsWith('http') ? input.location : null, input.note].filter(Boolean).join('；') || null });
+  return { application_id: app.id, interview_id: interview.id, deadline_id: deadline.id };
+}
+
+/** 「二面 / HR 面 / 终面」→ interview.round 的取值；和邮件归档同一套规则。 */
+export function normalizeRoundLabel(round?: string | null): string {
+  const r = (round ?? '').toLowerCase();
+  if (['hr', 'first', 'second', 'final', 'group'].includes(r)) return r;
+  if (/hr|人事/.test(r)) return 'hr';
+  if (/一面|初面|first|1/.test(r)) return 'first';
+  if (/二面|second|2/.test(r)) return 'second';
+  if (/终面|final|三面/.test(r)) return 'final';
+  if (/群面|group/.test(r)) return 'group';
+  return 'other';
+}

@@ -14,7 +14,7 @@ import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { StudioResumeNotFoundError, loadStudio, previewPlaceholders, saveStudio } from '../career/resume-studio';
 import { careerSetupStatus } from '../career/setup';
 import { loadCore, type CoreModule } from '../career/core-module';
-import { getRepos, careerExportsDir } from '../career/db';
+import { getRepos, careerExportsDir, careerRecordingsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges } from '../career/domain';
 import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isAtsMode, setAtsMode, type ExportFormat } from '../career/export';
 import { runAtsCheck } from '../career/ats-check';
@@ -38,6 +38,9 @@ import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource } from 
 import { exportCareerWorkbook } from '../career/xlsx-export';
 import { broadcast as sseBroadcast } from '../sse';
 
+import { careerJson, fail, ok, str, strOrNull, type Json } from './career-http';
+import { interviewRoutes } from './career-interview';
+
 export interface CareerRouteDeps {
   repos?: Repos;
   /** 私密信息库；缺省按 repos 的连接构造（测试注入 StaticKeyProvider 的实例）。 */
@@ -52,15 +55,11 @@ export interface CareerRouteDeps {
   mailConnect?: Partial<Pick<ConnectDeps, 'withPage' | 'verifyLogin' | 'tickMs' | 'sleep'>>;
   /** false：导出不用简历工作台模板（测试里没有 react-pdf 字体网络时用）。 */
   studioExport?: boolean;
+  /** 面试录音落盘目录（测试注入临时目录；缺省在求职数据目录下）。 */
+  recordingsDir?: string;
 }
 
-type Json = Record<string, unknown>;
-
-export function careerJson(body: Json, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-}
-export const ok = (data: Json = {}, status = 200) => careerJson({ ok: true, ...data }, status);
-export const fail = (error: string, status = 400) => careerJson({ ok: false, error }, status);
+export { careerJson, fail, ok };
 
 function parseJsonObj(raw: string | null | undefined): Json {
   try { const v = JSON.parse(raw ?? '{}'); return v && typeof v === 'object' ? v as Json : {}; } catch { return {}; }
@@ -82,8 +81,6 @@ async function readBody(request: Request): Promise<Json> {
   }
 }
 
-const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
-const strOrNull = (v: unknown): string | null | undefined => (v === null ? null : str(v));
 
 interface Ctx {
   request: Request;
@@ -128,6 +125,10 @@ const isVaultScope = (v: unknown): v is VaultScope => typeof v === 'string' && (
 
 const ROUTES: Route[] = [
   route('GET', '/api/career/overview', ({ store }) => ok(store.overview())),
+  ...interviewRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({
+    params: ctx.params, body: ctx.body, repos: ctx.repos, store: ctx.store,
+    recordingsDir: ctx.deps.recordingsDir ?? careerRecordingsDir(), dataChanged: tables => dataChanged(ctx, tables),
+  }))),
 
   // ---------- 经历库 ----------
   route('GET', '/api/career/experiences', ({ repos }) => ok({ experiences: repos.experienceTree() })),
