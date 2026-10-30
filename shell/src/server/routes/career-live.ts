@@ -98,7 +98,8 @@ export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> 
   let url: string | undefined; let title: string | undefined;
   if (id && hasBrowser) {
     try {
-      await deps.host.withProductSession(id, async context => { const page = await activePage(context); url = page.url(); title = await page.title().catch(() => ''); }, { allowHumanControl: true });
+      // 和画面、输入同一页：登录之旅钉住的那一家（否则状态行写的是后台正在填的另一家）
+      await deps.host.withProductSession(id, async context => { const page = await pinnedOrActive(context, id); url = page.url(); title = await page.title().catch(() => ''); }, { allowHumanControl: true });
     } catch { /* 浏览器正在关闭等，忽略 */ }
   }
   const control = id && hasBrowser ? deps.host.getControl(id) : null;
