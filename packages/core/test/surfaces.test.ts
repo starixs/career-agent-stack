@@ -32,6 +32,15 @@ describe('纯函数', () => {
 })
 
 describe('收件箱 / 截止 / 今日队列', () => {
+  it('面试时间过了不算错过：一天内提示复盘、不标红，之后只留在卷宗', () => {
+    const r = mem()
+    const d = r.createDeadline({ kind: 'interview', title: '百度 · 算法 面试（二面）', due_at: '2026-10-03T06:00:00.000Z', application_id: null })
+    expect(r.markMissedDeadlines(NOW)).toBe(0)
+    const item = r.today(NOW).items.find(i => i.deadline_id === d.id)
+    expect(item).toMatchObject({ kind: 'interview_retro', priority: 4, title: '百度 · 算法（二面） 面完了？' })
+    expect(r.today('2026-10-04T07:00:00.000Z').items.find(i => i.deadline_id === d.id)).toBeUndefined()
+    expect(r.getDeadline(d.id)!.status).toBe('open')
+  })
   it('面试在今日队列里说「几天后」，不说「截止」；测评仍说截止', () => {
     const r = mem()
     r.createDeadline({ kind: 'interview', title: '百度二面', due_at: '2026-10-05T06:00:00.000Z' })

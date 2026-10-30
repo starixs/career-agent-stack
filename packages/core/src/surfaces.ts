@@ -52,7 +52,7 @@ export function silenceOf(stage: ApplicationStage, updatedAt: string, nowIso: st
 }
 
 // ---------- 今日队列 ----------
-export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'followup'
+export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'interview_retro' | 'followup'
 export interface TodayItem {
   kind: TodayItemKind
   /** 越小越靠前：0 已过期 / 1 今天到期 / 2 待审 / 3 接管 / 4 面试 / 5 收件箱 / 6 静默 / 7 跟进 */
@@ -72,8 +72,27 @@ export function sortToday(items: TodayItem[]): TodayItem[] {
 }
 
 /** 只处理有时间的事件；时间未知（due_at 为 null）的由调用方（Repos.today）单独处理。 */
+/** 面试时间过后多久内提示「面完了？说几句就能复盘」；过了就只留在卷宗里，不再催。 */
+export const RETRO_PROMPT_HOURS = 24
+
+/**
+ * 面试时间过了 ≠ 错过：多半是已经面完、还没复盘。复盘会把时间点记为完成，所以这里还 open 的就是没复盘的。
+ * 一天内给一条不标红的复盘提示，之后不再出现在今日队列。
+ */
+function pastInterviewToToday(d: Deadline & { due_at: string }, nowIso: string): TodayItem | null {
+  const hours = (Date.parse(nowIso) - Date.parse(d.due_at)) / 3_600_000
+  if (hours > RETRO_PROMPT_HOURS) return null
+  const name = d.title.replace(/\s*面试/, '')
+  return {
+    kind: 'interview_retro', priority: 4, title: `${name} 面完了？`, detail: '说几句或传一段录音就能复盘', due_at: d.due_at,
+    ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id }, deadline_id: d.id,
+    suggest: `复盘一下 ${d.title}${d.application_id ? `（application_id=${d.application_id}）` : ''}`,
+  }
+}
+
 export function deadlineToToday(d: Deadline & { due_at: string }, nowIso: string): TodayItem | null {
   if (d.status !== 'open') return null
+  if (d.kind === 'interview' && Date.parse(d.due_at) < Date.parse(nowIso)) return pastInterviewToToday(d, nowIso)
   const days = daysBetween(nowIso, d.due_at)
   if (days > 3) return null
   const overdue = Date.parse(d.due_at) < Date.parse(nowIso)

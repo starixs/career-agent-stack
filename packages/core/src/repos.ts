@@ -482,9 +482,9 @@ export class Repos {
     if (!this.db.update('deadline', id, { status, updated_at: now() })) throw new Error(`截止事件不存在：${id}`)
     return this.getDeadline(id)!
   }
-  /** 把已过期仍 open 的事件标为 missed（今日队列读取前调用）。 */
+  /** 把已过期仍 open 的事件标为 missed（今日队列读取前调用）。面试不算：时间过了多半是面完了，不是错过了。 */
   markMissedDeadlines(nowIso = now()): number {
-    return this.db.run(`UPDATE deadline SET status='missed', updated_at=? WHERE status='open' AND due_at < ?`, [nowIso, nowIso]).changes
+    return this.db.run(`UPDATE deadline SET status='missed', updated_at=? WHERE status='open' AND due_at < ? AND kind <> 'interview'`, [nowIso, nowIso]).changes
   }
 
   // ---------- 卷宗 ----------
