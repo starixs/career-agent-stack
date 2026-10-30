@@ -4,7 +4,8 @@
  *
  *  1. 切到一家之前，先看这个站学过的登录凭证还在不在（login-signal.knownLoggedIn），在就直接放行这家，不让你看；
  *  2. 否则把画面和你的操作钉在这一家（live-pin），记下这个站此刻的凭证；
- *  3. 等：这个站发下了新的会话凭证、而且登录类请求没有返回失败（数据层，不看画面）——或者你点了「交还」；
+ *  3. 等：数据层（新的会话凭证、登录请求的返回）和画面（登录提示还在不在、有没有报错）两路一起看（LoginJudge）——
+ *     任一路说失败就继续等，任一路说登上了就算登上；或者你点了「交还」；
  *  4. 登上了：关掉这家的接管、记下凭证名、交给后台从原页接着填，切下一家；
  *  5. 一家等太久（默认 3 分钟）或你点「晚点」：停在这里，剩下的留在等你条里。
  * 后台其余几家照样并行填（不抢画面）。浏览器对象由 JourneyBrowser 给，便于测试。
@@ -14,9 +15,9 @@ import type { Handoff, Repos } from '@career/core';
 import { siteOf } from './app-pages';
 import { BatchRunner } from './batch-runner';
 import { setLivePin } from './live-pin';
-import { authCookies, knownLoggedIn, learnLoginMarks, loggedIn, newCredentials, type CookieLike, type ResponseVerdict } from './login-signal';
+import { authCookies, knownLoggedIn, learnLoginMarks, LoginJudge, type CookieLike, type LoginSignal, type ResponseVerdict, type ScreenSample } from './login-signal';
 
-export interface JourneyPage { url(): string; onLoginResponse(cb: (verdict: ResponseVerdict) => void): () => void }
+export interface JourneyPage { url(): string; onLoginResponse(cb: (verdict: ResponseVerdict) => void): () => void; /** 画面这一路；读不到给 null */ screen(): Promise<ScreenSample | null> }
 export interface JourneyBrowser {
   cookies(): Promise<CookieLike[]>;
   pageFor(appKey: string): JourneyPage | undefined;
@@ -33,7 +34,7 @@ export interface JourneyDeps {
   pollMs?: number; timeoutMs?: number; sleep?: (ms: number) => Promise<void>; now?: () => number;
 }
 export type StepOutcome = 'known' | 'logged_in' | 'handed_back' | 'timeout' | 'cancelled' | 'no_page';
-export interface JourneyResult { steps: Array<{ handoff_id: string; outcome: StepOutcome; credentials?: string[] }> }
+export interface JourneyResult { steps: Array<{ handoff_id: string; outcome: StepOutcome; credentials?: string[]; signal?: LoginSignal }> }
 
 /** 一家最多等多久：扫码 + 手机确认、等短信码，三分钟够了；再长就停下，剩下的留在等你条里。 */
 export const JOURNEY_STEP_TIMEOUT_MS = 180_000;
@@ -65,20 +66,20 @@ function release(deps: JourneyDeps, step: Step, credentials: string[]): void {
   deps.changed(['handoff', 'action_queue', 'task']);
 }
 
-async function waitForLogin(deps: JourneyDeps, step: Step, page: JourneyPage): Promise<{ outcome: StepOutcome; credentials: string[] }> {
+async function waitForLogin(deps: JourneyDeps, step: Step, page: JourneyPage): Promise<{ outcome: StepOutcome; credentials: string[]; signal?: LoginSignal }> {
   const sleep = deps.sleep ?? (ms => new Promise<void>(r => setTimeout(r, ms)));
   const now = deps.now ?? Date.now;
   const site = step.site ?? siteOf(page.url());
-  const before = site ? authCookies(await deps.browser.cookies(), site) : new Map<string, string>();
-  let last: ResponseVerdict = null;
-  const off = page.onLoginResponse(v => { if (v) last = v; });
+  const read = async () => (site ? authCookies(await deps.browser.cookies(), site) : new Map<string, string>());
+  const judge = new LoginJudge(await read());
+  const off = page.onLoginResponse(v => judge.response(v));
   const until = now() + (deps.timeoutMs ?? JOURNEY_STEP_TIMEOUT_MS);
   try {
     while (now() < until) {
       if (cancelled) return { outcome: 'cancelled', credentials: [] };
-      const fresh = site ? newCredentials(before, authCookies(await deps.browser.cookies(), site)) : [];
-      if (loggedIn(fresh, last)) return { outcome: 'logged_in', credentials: fresh };
-      if (deps.repos.db.get<Handoff>('SELECT * FROM handoff WHERE id=?', [step.h.id])?.resumed_at) return { outcome: 'handed_back', credentials: fresh };
+      const j = judge.observe(await read(), await page.screen());
+      if (j.state === 'logged_in') return { outcome: 'logged_in', credentials: j.credentials, signal: j.signal };
+      if (deps.repos.db.get<Handoff>('SELECT * FROM handoff WHERE id=?', [step.h.id])?.resumed_at) return { outcome: 'handed_back', credentials: j.credentials };
       await sleep(deps.pollMs ?? POLL_MS);
     }
     return { outcome: 'timeout', credentials: [] };
@@ -98,8 +99,9 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
     setLivePin({ sessionKey: deps.sessionKey, appKey: step.appKey, askId, handoffId: id, index, total: handoffIds.length });
     deps.browser.focus(page);
     deps.changed(['handoff']);
-    const { outcome, credentials } = await waitForLogin(deps, step, page);
-    result.steps.push({ handoff_id: id, outcome, credentials });
+    const { outcome, credentials, signal } = await waitForLogin(deps, step, page);
+    result.steps.push({ handoff_id: id, outcome, credentials, ...(signal ? { signal } : {}) });
+    console.log(`[career] login-journey step ${id} outcome=${outcome} signal=${signal ?? '-'}`);
     if (outcome === 'logged_in' || outcome === 'handed_back') release(deps, step, credentials);
     else break;
   }

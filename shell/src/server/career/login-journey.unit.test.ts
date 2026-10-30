@@ -1,5 +1,5 @@
 /**
- * 登录之旅（用户 2026-10-30 定）：一家一家带你登录，登上没有看数据层（新会话凭证 + 登录接口返回），不看画面。
+ * 登录之旅（用户 2026-10-30 定）：一家一家带你登录，登上没有数据层（新会话凭证 + 登录接口返回）和画面两路一起看。
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Repos } from '@career/core';
@@ -7,7 +7,7 @@ import type { Repos } from '@career/core';
 import { BATCH_COMMAND_KEY } from './batch-runner';
 import { livePin, setLivePin } from './live-pin';
 import { startJourney, type JourneyBrowser, type JourneyPage } from './login-journey';
-import { authCookies, knownLoggedIn, learnLoginMarks, newCredentials, responseVerdict, type CookieLike, type ResponseVerdict } from './login-signal';
+import { authCookies, knownLoggedIn, learnLoginMarks, LoginJudge, newCredentials, responseVerdict, type CookieLike, type ResponseVerdict, type ScreenSample } from './login-signal';
 import { createMemoryRepos } from './test-db';
 
 describe('登录信号（数据层）', () => {
@@ -43,8 +43,12 @@ describe('登录信号（数据层）', () => {
   });
 });
 
-/** 假浏览器：每家一个页面；cookies 按「第几次读」由脚本决定，登录接口返回由脚本推。 */
-function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; responses?: Record<string, ResponseVerdict[]> }) {
+/** 还在登录页的画面（默认）。 */
+const ON_LOGIN: ScreenSample = { loginShown: true, errorShown: false };
+
+/** 假浏览器：每家一个页面；cookies、画面按「第几次读」由脚本决定，登录接口返回由脚本推。 */
+function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; responses?: Record<string, ResponseVerdict[]>; screen?: (key: string, call: number) => ScreenSample | null }) {
+  let screenCall = 0;
   let call = 0;
   const focused: string[] = [];
   const pages = new Map<string, JourneyPage & { key: string }>();
@@ -52,7 +56,7 @@ function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; response
     cookies: async () => script.cookies(call++),
     pageFor: key => {
       if (!pages.has(key)) {
-        pages.set(key, { key, url: () => `https://${key}/apply`, onLoginResponse: cb => { for (const v of script.responses?.[key] ?? []) cb(v); return () => undefined; } });
+        pages.set(key, { key, url: () => `https://${key}/apply`, onLoginResponse: cb => { for (const v of script.responses?.[key] ?? []) cb(v); return () => undefined; }, screen: async () => script.screen?.(key, screenCall++) ?? ON_LOGIN });
       }
       return pages.get(key);
     },
@@ -71,6 +75,30 @@ function waitingLogin(repos: Repos, site: string) {
 }
 
 const fast = { pollMs: 1, sleep: async () => undefined };
+
+describe('两路合起来（LoginJudge）', () => {
+  const C = (v: string) => new Map([['.a.com|sid', v]]);
+  const clear: ScreenSample = { loginShown: false, errorShown: false };
+
+  it('数据层有新凭证、画面也不见登录提示：both；只有一路成立也算登上', () => {
+    const both = new LoginJudge(C('guest'));
+    both.observe(C('guest'), clear);
+    expect(both.observe(C('user'), clear)).toMatchObject({ state: 'logged_in', signal: 'both' });
+    expect(new LoginJudge(C('guest')).observe(C('user'), ON_LOGIN)).toMatchObject({ state: 'logged_in', signal: 'credentials' }); // 页面角落一直留着「扫码登录」的站
+    const screenOnly = new LoginJudge(C('guest'));
+    expect(screenOnly.observe(C('guest'), clear).state).toBe('waiting'); // 闪一下不算
+    expect(screenOnly.observe(C('guest'), clear)).toMatchObject({ state: 'logged_in', signal: 'screen' }); // 凭证名认不出的站
+  });
+
+  it('任何一路说失败就继续等：画面写着密码错误、或登录接口返回失败；之后重试登上（凭证又变了）就不再否决', () => {
+    expect(new LoginJudge(C('guest')).observe(C('rotated'), { loginShown: true, errorShown: true }).state).toBe('failed');
+    const j = new LoginJudge(C('guest'));
+    j.response('fail');
+    expect(j.observe(C('rotated'), ON_LOGIN).state).toBe('failed');
+    expect(j.observe(C('rotated'), ON_LOGIN).state).toBe('failed');
+    expect(j.observe(C('user'), ON_LOGIN)).toMatchObject({ state: 'logged_in', signal: 'credentials' });
+  });
+});
 
 describe('登录之旅', () => {
   afterEach(() => setLivePin(null));
@@ -120,6 +148,14 @@ describe('登录之旅', () => {
     const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, timeoutMs: 100, sleep, now: () => t }, a.handoff.id, [a.handoff.id, b.handoff.id]);
     expect(out?.steps.map(s => s.outcome)).toEqual(['handed_back', 'timeout']);
     expect(repos.openHandoffs().map(h => h.id)).toEqual([b.handoff.id]);
+  });
+
+  it('凭证名认不出、但画面上登录提示稳定消失：也算登上（signal=screen）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const { browser } = fakeBrowser({ cookies: () => [{ domain: '.a.com', name: 'XYZ_K', value: 'opaque' }], screen: (_k, n) => (n >= 2 ? { loginShown: false, errorShown: false } : ON_LOGIN) });
+    const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, ...fast }, a.handoff.id, [a.handoff.id]);
+    expect(out?.steps[0]).toMatchObject({ outcome: 'logged_in', signal: 'screen' });
   });
 
   it('同一时间只走一趟', async () => {

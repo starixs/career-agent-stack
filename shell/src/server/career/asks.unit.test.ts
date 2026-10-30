@@ -84,7 +84,7 @@ describe('AskView：一个动作能解决的才合并', () => {
     };
     const clean = ['DeepSeek', '中兴', '大疆'].map(c => submit(c));
     const target = submit('美团');
-    const messy = submit('荣耀', 1);
+    submit('荣耀', 1);
     const asks = buildAsks(repos, NOW, { isTarget: id => id === target.app.id });
     const all = asks.find(a => a.title === '3 家填好了')!;
     expect(all).toMatchObject({ kind: 'review', id: clean[0].action.id });

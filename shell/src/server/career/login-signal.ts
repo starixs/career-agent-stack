@@ -1,10 +1,13 @@
 /**
- * 登录成功没有，从数据层看（用户 2026-10-30：不要看登录框消失这种画面表象，托管浏览器拿得到网络和 Cookie）。
+ * 登录成功没有：数据层和画面两路一起看（用户 2026-10-30：要看数据层，不止看画面；画面也是很重要的一方面）。
  *
- *  - 主信号：这个网站（含同公司的单点登录域名，按 siteOf 归到同一站）发下了新的、或换掉了原有的会话凭证 Cookie。
- *    登录成功一定会写凭证；只要出现新凭证就算登上了。
- *  - 佐证：这一页发出的登录类请求（地址带 login / auth / passport / sso …）的返回。返回明确失败（4xx、success:false、
- *    非 0 的业务码）时，即使凭证变了也不算，继续等——密码错、验证码错时有的站也会刷新会话 Cookie。
+ *  - 数据层：这个网站发下了新的 / 换掉了会话凭证 Cookie；登录类请求的返回。
+ *  - 画面：登录框 / 「扫码登录」这类提示连续两次都不在了；页面上出现「密码错误」「验证码错误」这类字。
+ *  - 合起来（LoginJudge）：任何一路说失败（接口返回失败、画面报错）就继续等；否则数据层有新凭证、或画面上登录提示
+ *    稳定消失，任一成立就算登上。凭证名起得偏、数据层认不出的站，靠画面也能过；画面一直留着登录字样的站，靠数据层过。
+ *
+ *  细节：凭证按站（含同公司的单点登录域名，按 siteOf 归到同一站）算；登录类请求（地址带 login / auth / passport / sso …）
+ *  返回 4xx、success:false、非 0 业务码算失败——密码错时有的站也会刷新会话 Cookie，所以失败要能否决。
  *  - 学习：登上以后记下这个站的凭证名（kv `browser:login_marks:<站>`）。下次切到这个站之前先查这些凭证还在、
  *    没过期，就直接算已登录，不让人再看一眼。
  * 都是纯函数 + kv，浏览器对象由调用方给（login-journey.ts），这里不碰 Playwright。
@@ -57,9 +60,38 @@ export function responseVerdict(url: string, status: number, body: string | null
   return null;
 }
 
-/** 合起来：有新凭证、而且最近一次登录类返回不是失败，就算登上了。 */
-export function loggedIn(fresh: readonly string[], lastResponse: ResponseVerdict): boolean {
-  return fresh.length > 0 && lastResponse !== 'fail';
+/** 画面上看到的：还有没有登录框 / 登录提示，有没有登录报错。 */
+export interface ScreenSample { loginShown: boolean; errorShown: boolean }
+/** 画面上的登录报错。 */
+export const LOGIN_ERROR_TEXT = /(密码错误|密码不正确|验证码错误|验证码不正确|账号或密码|用户名或密码|登录失败|账号不存在)/;
+/** 登录提示连续这么多次不在才算消失（登录跳转途中会闪一下）。 */
+const SCREEN_CLEAR_STREAK = 2;
+
+export type LoginSignal = 'credentials' | 'screen' | 'both';
+export interface LoginJudgement { state: 'logged_in' | 'failed' | 'waiting'; signal?: LoginSignal; credentials: string[] }
+
+/** 两路合起来判断：一次登录过程一个实例，开始时给登录前的凭证。 */
+export class LoginJudge {
+  private last: ResponseVerdict = null;
+  /** 失败那一刻的凭证（指纹）：之后凭证又变了，说明用户重试登上了，失败不再否决。 */
+  private failedAt: string | null = null;
+  private streak = 0;
+  constructor(private readonly before: ReadonlyMap<string, string>) {}
+  /** 听到一个登录类请求的返回。 */
+  response(v: ResponseVerdict): void { if (v) { this.last = v; if (v === 'ok') this.failedAt = null; } }
+  /** 看一次：此刻的凭证 + 画面（拿不到画面时给 null，只靠数据层）。 */
+  observe(after: ReadonlyMap<string, string>, screen: ScreenSample | null): LoginJudgement {
+    const fresh = newCredentials(this.before, after);
+    const print = [...after].map(([k, v]) => `${k}=${v}`).sort().join(';');
+    if (this.last === 'fail' && this.failedAt === null) this.failedAt = print;
+    if (this.last === 'fail' && this.failedAt !== print) { this.last = null; this.failedAt = null; }
+    this.streak = screen && !screen.loginShown && !screen.errorShown ? this.streak + 1 : 0;
+    if (this.last === 'fail' || screen?.errorShown) return { state: 'failed', credentials: fresh };
+    const data = fresh.length > 0;
+    const seen = this.streak >= SCREEN_CLEAR_STREAK;
+    if (!data && !seen) return { state: 'waiting', credentials: fresh };
+    return { state: 'logged_in', signal: data && seen ? 'both' : data ? 'credentials' : 'screen', credentials: fresh };
+  }
 }
 
 // ---------- 按站点学 ----------

@@ -510,11 +510,11 @@ async function runWaitUser(body: Record<string, unknown>, page: Page, out: RunEm
   const sessionKey = deps.productSessionId ?? 'default';
   let sawHuman = deps.host.getControl(sessionKey).control === 'human';
   const blocking = Array.isArray(body.blocking) ? body.blocking.filter((h): h is import('../career/browse').Hint => ['login', 'captcha', 'risk'].includes(String(h))) : [];
-  // 等登录：先看数据层（新会话凭证 + 登录接口返回），画面提示只作辅助（用户 2026-10-30）
+  // 等登录：数据层（新会话凭证 + 登录接口返回）和画面两路一起看（用户 2026-10-30：要看数据层，不止看画面）
   const watch = blocking.includes('login') ? await (await import('../career/login-watch')).watchLogin(page) : null;
   const outcome = await waitForUser(page, {
     blocking,
-    ...(watch ? { credentials: () => watch.check() } : {}),
+    ...(watch ? { login: () => watch.check() } : {}),
     timeoutMs: clampNumber(body.timeoutMs, WAIT_USER_DEFAULT_MS, 5_000, WAIT_USER_MAX_MS),
     handedBack: () => {
       const human = deps.host.getControl(sessionKey).control === 'human';

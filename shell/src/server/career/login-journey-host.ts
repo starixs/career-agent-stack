@@ -1,5 +1,5 @@
 /**
- * 登录之旅接到真实托管浏览器（Global 侧车）：Cookie 从浏览器上下文读，登录类请求的返回从那一页的网络响应听，
+ * 登录之旅接到真实托管浏览器（Global 侧车）：Cookie 从浏览器上下文读，登录类请求的返回从那一页的网络响应听，画面从那一页读，
  * 画面切换走宿主的 focusPage。整趟持有一个会话租约，免得中途上下文被回收。
  */
 import type { Repos } from '@career/core';
@@ -8,10 +8,10 @@ import type { BrowserContext, Page } from 'playwright';
 import { findApplicationPage } from './app-pages';
 import { careerBrowserHost } from './batch-service';
 import { journeyRunning, startJourney, type JourneyBrowser, type JourneyPage } from './login-journey';
-import { onLoginResponse } from './login-watch';
+import { onLoginResponse, screenSample } from './login-watch';
 
 function journeyPage(page: Page): JourneyPage {
-  return { url: () => page.url(), onLoginResponse: cb => onLoginResponse(page, cb) };
+  return { url: () => page.url(), onLoginResponse: cb => onLoginResponse(page, cb), screen: () => screenSample(page) };
 }
 
 function browserOf(context: BrowserContext, host: Awaited<ReturnType<typeof careerBrowserHost>>['host'], id: string): JourneyBrowser {

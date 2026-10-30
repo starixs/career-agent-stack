@@ -9,8 +9,8 @@ import type { Page } from 'playwright';
 import { detectHints, inPage, type Hint, type RawObservation } from './browse';
 
 export type WaitStatus = 'done' | 'handed_back' | 'timeout' | 'page_closed';
-/** done 是凭什么判的：credentials = 网站发下了新的会话凭证（数据层，优先）；screen = 挡路的提示没了；url = 地址变了。 */
-export interface WaitOutcome { status: WaitStatus; waited_ms: number; url: string; hints: Hint[]; signal?: 'credentials' | 'screen' | 'url'; credentials?: string[] }
+/** done 是凭什么判的：credentials / screen / both = 登录的两路（login-signal.LoginJudge）；url = 地址变了。 */
+export interface WaitOutcome { status: WaitStatus; waited_ms: number; url: string; hints: Hint[]; signal?: 'credentials' | 'screen' | 'both' | 'url'; credentials?: string[] }
 export interface WaitOptions {
   /** 等哪些提示消失；空 = 等地址变化（比如登录完跳回原页）。 */
   blocking: Hint[];
@@ -20,8 +20,8 @@ export interface WaitOptions {
   now?: () => number;
   /** 用户点了「交还」（接管后又交回给助理）。 */
   handedBack?: () => boolean;
-  /** 等登录时的数据层判断（login-watch.watchLogin）：返回新凭证名，空 = 还没登上。比看画面优先。 */
-  credentials?: () => Promise<string[]>;
+  /** 等登录时两路合起来的判断（login-watch.watchLogin().check）：数据层 + 画面。给了就由它判登录，失败时不算挡路的东西消失。 */
+  login?: () => Promise<{ state: 'logged_in' | 'failed' | 'waiting'; signal?: 'credentials' | 'screen' | 'both'; credentials: string[] }>;
 }
 
 /** 默认等多久：扫码 + 手机确认一般一分钟内，短信码要等短信，给足三分钟。 */
@@ -46,11 +46,13 @@ export async function waitForUser(page: Page, opts: WaitOptions): Promise<WaitOu
   let last: WaitOutcome = { status: 'timeout', waited_ms: 0, url: startUrl, hints: [] };
   for (;;) {
     if (page.isClosed()) return { ...last, status: 'page_closed', waited_ms: now() - start };
-    const fresh = opts.credentials ? await opts.credentials() : [];
-    if (fresh.length) return { status: 'done', waited_ms: now() - start, url: page.url(), hints: [], signal: 'credentials', credentials: fresh };
+    const login = opts.login ? await opts.login() : null;
+    const onlyLogin = opts.blocking.length > 0 && opts.blocking.every(h => h === 'login');
+    if (login?.state === 'logged_in' && onlyLogin) return { status: 'done', waited_ms: now() - start, url: page.url(), hints: [], signal: login.signal, credentials: login.credentials };
     const sample = await inPage(page, hintSampleInPage, null);
     const hints = detectHints(sample, []);
-    const cleared = opts.blocking.length ? opts.blocking.every(h => !hints.includes(h)) : sample.url !== startUrl;
+    // 登录那一路说失败（接口报错 / 画面报错）时，挡路的提示看起来没了也不算
+    const cleared = login?.state !== 'failed' && (opts.blocking.length ? opts.blocking.every(h => !hints.includes(h)) : sample.url !== startUrl);
     streak = cleared ? streak + 1 : 0;
     last = { status: 'timeout', waited_ms: now() - start, url: sample.url, hints };
     if (streak >= CLEAR_STREAK) return { ...last, status: 'done', signal: opts.blocking.length ? 'screen' : 'url' };
