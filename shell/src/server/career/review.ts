@@ -1,7 +1,7 @@
 /**
  * 每周复盘：漏斗（Repos.funnel）→ weekly-review 技能 → 落 weekly_review。路由与工具共用。
  */
-import type { StageHistoryRow, WeeklyReview } from '@career/core';
+import type { FunnelRow, MonthBoard, StageHistoryRow, WeeklyReview } from '@career/core';
 
 import { dataChanged, focus, type IntakeDeps } from './intake';
 import { loadSkillPrompt } from './skills';
@@ -39,6 +39,17 @@ export function weekFacts(history: StageHistoryRow[], weekStartMs: number, isSen
   return { applied, advanced: advanced.size, rejected, silent, interviews };
 }
 
+/**
+ * 他自己的基数（全部历史，不按周）：「投出多少份才第一次进面试」比任何行业区间都真，低谷时拿它说话。
+ * 数据不够时不编，只说还没有。
+ */
+export function ownBaseline(overall: FunnelRow | null, rhythm: MonthBoard['rhythm']): string {
+  const parts = [`累计投出 ${overall?.applied ?? 0} 份，走到面试 ${overall?.interview ?? 0} 份`];
+  parts.push(rhythm.first_interview_after ? `第一次进面试前投出了 ${rhythm.first_interview_after} 份` : '还没有进过面试，没有自己的「几份换一个面试」可比');
+  if (rhythm.reply_days !== null) parts.push(`投出到第一次有进展的中位数 ${rhythm.reply_days} 天`);
+  return `他自己的基数（全部历史）：${parts.join('；')}`;
+}
+
 export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?: string; user_note?: string } = {}): Promise<{ review: WeeklyReview; output: WeeklyReviewOutput; funnel: ReturnType<IntakeDeps['repos']['funnel']> }> {
   const r = deps.repos;
   const nowIso = deps.now?.() ?? new Date().toISOString();
@@ -55,6 +66,7 @@ export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?
       `周起点：${weekStart}，今天：${nowIso.slice(0, 10)}`,
       `本周投出：${facts.applied}；本周拒信：${facts.rejected}；本周新进面试或 Offer：${facts.advanced}；本周新增面试记录：${interviews}；此刻静默：${facts.silent}`,
       `累计漏斗（整体）：${JSON.stringify(funnel.overall)}`,
+      ownBaseline(funnel.overall, r.monthBoard({ nowIso }).rhythm),
       `按岗位类别：${JSON.stringify(funnel.by_category)}`,
       `按平台：${JSON.stringify(funnel.by_platform)}`,
       previous ? `上次复盘建议：${previous.suggestions_json}` : '上次复盘：无',
