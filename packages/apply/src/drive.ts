@@ -302,6 +302,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   })
   /** 一路下来没碰到任何表单项。 */
   const untouched = () => !all.filled.length && !all.needsUser.length && !all.drafts.length && !all.uploads.length && !all.mismatches.length
+  /** 什么都没填成，只有截图识字层点不进去的「格子」。 */
+  const visionOnlyMisses = () => !all.filled.length && !all.uploads.length && !all.drafts.length && !all.mismatches.length && all.needsUser.length > 0 && all.needsUser.every(p => p.code === 'vision_failed')
   const entryHandoff = (button: string) => finish('handoff', `这是岗位详情页，不是网申表：页面上没有可填写的字段，「${button}」是申请入口。`, {
     reason: 'login', userAction: `请在浏览器里点「${button}」进入网申（通常要先登录），看到申请表后点"交还"，我从那一页接着填`,
   })
@@ -757,7 +759,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       if (!next) {
         pushPage()
-        if (untouched()) return submit ? entryHandoff(submit.text) : finish('blocked', '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
+        if (untouched()) return submit ? entryHandoff(submit.text) : finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
+        // 一格都没填成、要补的全是截图识字层点不进去的「格子」、也没有提交按钮：这不是网申表（多是岗位列表），
+        // 如实报找路的结论，不说「表单已填完」（2026-10-31 阿斯麦：岗位卡片上的字被当成输入框）
+        if (!submit && visionOnlyMisses()) return finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
         const msg = submit ? `已填完，停在「${submit.text}」前，等你确认后再提交` : '表单已填完，页面上没有找到下一步或提交按钮，请人工检查'
         return finish('stopped_before_submit', msg, { submitButton: submit?.text, reason: submit ? 'submit_confirm' : undefined })
       }
