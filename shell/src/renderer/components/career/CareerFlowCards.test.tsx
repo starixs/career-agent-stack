@@ -168,6 +168,13 @@ describe('对话内流程卡片', () => {
     expect(await screen.findByRole('button', { name: '继续' })).toBeInTheDocument();
   });
 
+  it('改了共用的简历：对话里一张更正卡，换成新版的一堆、已经在投或投出改不了的一堆', () => {
+    render(<CareerFlowCards cards={[card('fix', { swapped: [{ company_id: null, name: '美团', logo: 'mt' }], locked: [{ company_id: null, name: '京东' }, { company_id: null, name: '拼多多' }] }, '改了共用的简历')]} onStateChange={vi.fn()} />);
+    const el = screen.getByTestId('fix-card');
+    expect(el).toHaveTextContent('1 家换成新版');
+    expect(el).toHaveTextContent('2 家已经在投或投出，改不了');
+  });
+
   it('稍后再说：只是从对话里移除', () => {
     const dismiss = renderCards([card('vault_missing', { fields: [{ field: 'email', label: '邮箱' }] })]);
     fireEvent.click(screen.getByRole('button', { name: '稍后再说' }));

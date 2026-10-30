@@ -32,6 +32,7 @@ import { CardShell, list, str, type CardProps } from './FlowCardShell';
 import { ApplicationCard } from './delivery/ApplicationCard';
 import { BatchWallCard } from './delivery/BatchWall';
 import { isCompanyMark } from './delivery/deliveryApi';
+import { FixCard } from './delivery/FixCard';
 import { InterviewPrepCard } from './InterviewPrepCard';
 import type { BatchState, CareerCard, CareerCardState } from './types';
 
@@ -313,11 +314,14 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
     : <ReviewCard {...props} />),
   apply_gaps: props => <ApplyGapsCard {...props} />,
   interview_prep: props => <InterviewPrepCard {...props} />,
+  fix: props => <FixCard swapped={marks(props.card.data.swapped)} sent={marks(props.card.data.locked)} />,
   application: props => {
     const id = str(props.card.data.application_id);
     return id ? <ApplicationCard applicationId={id} company={isCompanyMark(props.card.data.company) ? props.card.data.company : null} /> : null;
   },
 };
+
+const marks = (v: unknown) => (Array.isArray(v) ? v.filter(isCompanyMark) : []);
 
 const strIds = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : []);
 
