@@ -8,6 +8,8 @@ import { careerApi, safeJson } from '@/components/career/careerApi';
 import {
   INTERVIEW_RESULT_LABELS, INTERVIEW_RESULT_SOURCE_LABELS, INTERVIEW_ROUND_LABELS, MOCK_MODE_LABELS,
 } from '@/components/career/careerConstants';
+import { BookInterviewForm } from '@/components/career/BookInterviewForm';
+import { InterviewRetroBox } from '@/components/career/InterviewRetroBox';
 import { QuestionBankPanel } from '@/components/career/QuestionBankPanel';
 import {
   Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, Select, StructuredJson, TextArea, TextInput,
@@ -37,6 +39,7 @@ export default function CareerInterview({ embedded = false }: { embedded?: boole
   const interviews = useMemo(() => [...(query.data?.interviews ?? [])].sort((a, b) => ((b.date ?? b.created_at) > (a.date ?? a.created_at) ? 1 : -1)), [query.data]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showBook, setShowBook] = useState(false);
 
   const selected = interviews.find(i => i.id === selectedId) ?? interviews[0] ?? null;
   const activeId = selected?.id ?? null;
@@ -45,10 +48,16 @@ export default function CareerInterview({ embedded = false }: { embedded?: boole
     <CareerPage
       embedded={embedded}
       title="面试"
-      actions={<Button onClick={() => setShowForm(v => !v)}><Plus className="h-3.5 w-3.5" />新建记录</Button>}
+      actions={(
+        <>
+          <Button variant="primary" onClick={() => { setShowBook(v => !v); setShowForm(false); }}><Plus className="h-3.5 w-3.5" />我约了一场面试</Button>
+          <Button variant="ghost" onClick={() => { setShowForm(v => !v); setShowBook(false); }}>补记一场</Button>
+        </>
+      )}
     >
       <div className="space-y-10 px-6 py-6">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
+        {showBook && <BookInterviewForm onDone={() => { setShowBook(false); query.reload(); }} onCancel={() => setShowBook(false)} />}
         {showForm && <InterviewForm onDone={() => { setShowForm(false); query.reload(); }} onCancel={() => setShowForm(false)} />}
         {query.loading && !query.data && <LoadingRow />}
         {query.data && (
@@ -117,7 +126,9 @@ function InterviewDetail({ interview }: { interview: Interview }) {
           : <div className="text-xs text-[var(--subtle)]">暂无记录。在对话里说「帮我记录这场面试的过程」。</div>}
       </Card>
       <Card title="复盘">
-        {retro ? <StructuredJson value={retro} /> : <div className="text-xs text-[var(--subtle)]">还没有复盘。在对话里说「帮我复盘这场面试」。</div>}
+        {retro !== null && <div className="mb-4"><StructuredJson value={retro} /></div>}
+        {retro === null && <p className="mb-2 text-xs text-[var(--muted)]">面完了？说几句，或者传一段自己录的录音。</p>}
+        <InterviewRetroBox interview={interview} />
       </Card>
     </div>
   );
@@ -137,7 +148,7 @@ function InterviewForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
     onDone();
   });
   return (
-    <Card title="新建面试记录">
+    <Card title="补记一场面试">
       <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
         <Field label="公司"><TextInput value={form.company_name} onChange={set('company_name')} /></Field>
         <Field label="岗位"><TextInput value={form.title} onChange={set('title')} /></Field>

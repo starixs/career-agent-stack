@@ -91,6 +91,11 @@ export interface Interview {
   tags_json: string; retro_json: string | null; result: string; result_source: string;
   created_at: string; updated_at: string;
 }
+/** 用户自己录的面试录音：上传后等语音识别转写，转好了再复盘。 */
+export interface InterviewRecording {
+  id: string; interview_id: string; name: string; mime: string | null; size: number;
+  status: 'awaiting_asr' | 'transcribed' | 'failed'; uploaded_at: string; error?: string;
+}
 export interface MockInterview {
   id: string; job_id: string | null; resume_tailored_id: string | null; mode: string;
   company_type: string | null; round: string | null; turns_json: string; report_json: string | null;
@@ -245,7 +250,7 @@ export interface MailMessage {
   from_addr: string | null; to_addr: string | null; subject: string | null; snippet: string | null; body_text: string | null; received_at: string | null;
   relevance: 'unknown' | 'job' | 'ignored'; kind: InboxKind | null; inbox_item_id: string | null; application_id: string | null; action_id: string | null; created_at: string;
 }
-export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'followup';
+export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'interview_retro' | 'followup';
 export interface TodayItem { kind: TodayItemKind; priority: number; title: string; detail?: string; due_at?: string | null; ref: { type: string; id: string }; suggest?: string }
 /** 「今天做过」一条：任务进展 / 投递阶段变化 / 动作执行。 */
 export interface ActivityEntry { id: string; at: string; kind: 'task' | 'stage' | 'action'; status: string; title: string; detail: string | null }
@@ -256,6 +261,8 @@ export interface DossierSummary {
   days_since_update: number; next_deadline: Deadline | null; interview_count: number; resume_tailored_id: string | null; closed: boolean;
   /** 以下由服务端 dossierSummaries 给出；旧数据可能缺，按缺省处理。 */
   created_at?: string; applied_at?: string | null; reached_stages?: string[]; exam_kinds?: Array<'assessment' | 'written_test'>; job_url?: string | null;
+  /** 目标申请：interview = 进过面试（自动）；user = 用户亲手标的；null = 不算。系统不替用户认定。 */
+  target?: 'interview' | 'user' | null;
 }
 export interface Dossier {
   application: Application; job: Job; company: Company | null;

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn() }));
 
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
+import { onEvent } from '@/api/eventBus';
 import CareerInterview from './CareerInterview';
 
 const interviews = [
@@ -68,7 +69,7 @@ describe('CareerInterview', () => {
     mockGet(true);
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, interview: { id: 'i9' } });
     render(<CareerInterview />);
-    fireEvent.click(await screen.findByRole('button', { name: '新建记录' }));
+    fireEvent.click(await screen.findByRole('button', { name: '补记一场' }));
     fireEvent.change(screen.getByLabelText('公司'), { target: { value: '戊公司' } });
     fireEvent.click(screen.getByLabelText('轮次'));
     fireEvent.click(screen.getByRole('button', { name: '终面' }));
@@ -79,5 +80,44 @@ describe('CareerInterview', () => {
     expect(path).toBe('/api/career/interviews');
     expect(body).toMatchObject({ company_name: '戊公司', round: 'final', result: 'none', result_source: 'none' });
     expect(JSON.parse(body.tags_json as string)).toEqual(['系统设计', '项目']);
+  });
+
+  it('我约了一场面试：电话约的也能记，时间按本地时间转成 ISO 发给 /interviews/book', async () => {
+    mockGet(true);
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, application_id: 'a1', interview_id: 'i9', deadline_id: 'd1' });
+    render(<CareerInterview />);
+    fireEvent.click(await screen.findByRole('button', { name: /我约了一场面试/ }));
+    fireEvent.change(screen.getByPlaceholderText('如 百度'), { target: { value: '小红书' } });
+    fireEvent.change(screen.getByLabelText('面试时间'), { target: { value: '2026-11-04T15:00' } });
+    fireEvent.click(screen.getByRole('button', { name: '记下来' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledTimes(1));
+    const [path, body] = vi.mocked(apiPostJson).mock.calls[0] as [string, Record<string, unknown>];
+    expect(path).toBe('/api/career/interviews/book');
+    expect(body).toMatchObject({ company_name: '小红书', round: '一面', when: new Date('2026-11-04T15:00').toISOString() });
+  });
+
+  it('复盘：说几句就交给对话，带上这场面试的 id', async () => {
+    mockGet();
+    const said: Array<{ text: string }> = [];
+    const off = onEvent('career:chat-suggest', (e: { text: string }) => { said.push(e); });
+    render(<CareerInterview />);
+    fireEvent.click(await screen.findByText('丁公司 · 算法工程师'));
+    fireEvent.change(screen.getByLabelText('说几句复盘'), { target: { value: '被问了为什么转算法，答得有点虚' } });
+    fireEvent.click(screen.getByRole('button', { name: '开始复盘' }));
+    off();
+    expect(said[0]?.text).toBe('复盘一下 丁公司 HR 面（interview_id=i2）：被问了为什么转算法，答得有点虚');
+  });
+
+  it('复盘：传一段录音，base64 发到这场面试的 recordings，显示等转写', async () => {
+    mockGet();
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, recording: { id: 'r1', interview_id: 'i1', name: '一面.m4a', mime: 'audio/mp4', size: 5, status: 'awaiting_asr', uploaded_at: '2026-11-06' } });
+    render(<CareerInterview />);
+    fireEvent.click(await screen.findByRole('button', { name: '传录音' }));
+    const file = new File(['audio'], '一面.m4a', { type: 'audio/mp4' });
+    fireEvent.change(screen.getByLabelText('选择录音文件'), { target: { files: [file] } });
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledTimes(1));
+    const [path, body] = vi.mocked(apiPostJson).mock.calls[0] as [string, Record<string, unknown>];
+    expect(path).toBe('/api/career/interviews/i1/recordings');
+    expect(body).toMatchObject({ name: '一面.m4a', mime: 'audio/mp4', data: Buffer.from('audio').toString('base64') });
   });
 });
