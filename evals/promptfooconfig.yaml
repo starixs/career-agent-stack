@@ -13,4 +13,5 @@ tests:
   - file://cases/interview-questions.yaml
   - file://cases/exam-grade.yaml
   - file://cases/browse-step.yaml
+  - file://cases/chat-first-step.yaml
 outputPath: ./results/latest.json

@@ -108,6 +108,8 @@ export async function inPage<A, R>(page: Pick<Page, 'evaluate'> & Partial<Pick<P
   }
 }
 
+/** Playwright 调用日志里带终端颜色码，写进给模型的话之前去掉。 */
+const ANSI_ESC = String.fromCharCode(27);
 const CONTEXT_GONE_RX = /Execution context was destroyed|Cannot find context with specified id/;
 /** 跳转中途等新文档的上限；和 act 里操作后等 domcontentloaded 用同一个值。 */
 const NAV_SETTLE_TIMEOUT_MS = 5000;
@@ -315,7 +317,7 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
       return {
         ok: false, action: req.action, observed_effect: 'no_change', url_before: urlBefore, url_after: urlAfter, new_tabs: newTabs, page: target,
         retryable: true, required_next: 'observe', code: 'blocked_by_overlay',
-        note: `点击没有发出去：被页面上的弹层挡住了（${overlay.replace(/\u001b\[\d+m/g, '').trim().slice(0, 120)}）。先 browser_observe，在元素里找「关闭 / 我知道了 / 跳过 / ×」之类关掉弹层，或按 Escape，再点原来的元素。`,
+        note: `点击没有发出去：被页面上的弹层挡住了（${overlay.replaceAll(ANSI_ESC, '').replace(/\[\d+m/g, '').trim().slice(0, 120)}）。先 browser_observe，在元素里找「关闭 / 我知道了 / 跳过 / ×」之类关掉弹层，或按 Escape，再点原来的元素。`,
       };
     }
     // 发出去但没确认（超时等）：效果不明，禁止重放

@@ -10,9 +10,11 @@
  *   interview_questions → skills/interview-questions，输出模型 JSON
  *   exam_grade        → 笔试批改（与 exam_practice 工具同一套要求），输出 { review:[{index, verdict, comment}] }
  *   browse_next_step  → assistant-core + 浏览工具约定：给页面观察（与 career-tools formatBrowse 同格式）和目标，输出下一步工具调用 JSON
+ *   chat_first_step   → assistant-core + 系统提示 <career-tools> 段 + 产品里这些工具的原文描述：给用户一句话，输出第一步工具调用 JSON
  */
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
+import { readFileSync } from 'node:fs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const core = await import(join(root, 'packages/core/dist/index.js'))
@@ -62,8 +64,30 @@ export async function runTask(vars, llm) {
       const res = await llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: 0 })
       return core.extractJson(res.text)
     }
+    case 'chat_first_step': {
+      const system = `${skill('assistant-core')}\n\n${careerToolsBlock()}\n\n# 可用工具（产品原文描述）\n${toolCatalog(FIRST_STEP_TOOLS)}\n\n只输出第一步的一个工具调用：{"tool":"...","args":{...},"reason":"一句话"}；不需要工具就输出 {"tool":"none","args":{},"reason":"..."}`
+      const res = await llm.complete({ system, messages: [{ role: 'user', content: vars.message }], json: true, temperature: 0 })
+      return core.extractJson(res.text)
+    }
     default: throw new Error(`未知 task：${vars.task}`)
   }
+}
+
+// chat_first_step 用产品源码里的原文（系统提示段 + 工具描述），不另抄一份，免得和产品漂移
+export const FIRST_STEP_TOOLS = ['web_search', 'company_research', 'job_import', 'jd_parse', 'inbox_capture', 'browser_open', 'browser_observe', 'browser_act', 'browser_read', 'browser_capture_job', 'ui_open']
+const shellSrc = rel => readFileSync(join(root, 'shell/src/server', rel), 'utf8')
+export function careerToolsBlock() {
+  const m = /<career-tools>[\s\S]*?<\/career-tools>/.exec(shellSrc('system-prompt.ts'))
+  if (!m) throw new Error('system-prompt.ts 里找不到 <career-tools> 段')
+  return m[0]
+}
+export function toolCatalog(names) {
+  const src = shellSrc('tools/career-tools.ts')
+  return names.map(name => {
+    const m = new RegExp(`tool\\('${name}', '([^']+)'`).exec(src)
+    if (!m) throw new Error(`career-tools.ts 里找不到工具 ${name}`)
+    return `- ${name}：${m[1]}`
+  }).join('\n')
 }
 
 export default class CareerProvider {
