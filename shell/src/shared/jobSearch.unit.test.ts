@@ -14,4 +14,9 @@ describe('job search', () => {
     expect(jobMatchesQuery('字节跳动', '2027 校招', '字节')).toBe(true);
     expect(jobMatchesQuery('字节跳动', '2027 校招', '')).toBe(true);
   });
+
+  it('expands compound direction words such as 后端开发 through the 后端 group', () => {
+    expect(expandJobQuery('后端开发')).toEqual(expect.arrayContaining(['后端开发', '后端', '服务端', 'java']));
+    expect(expandJobQuery('后端开发')[0]).toBe('后端开发');
+  });
 });

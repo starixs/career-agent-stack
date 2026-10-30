@@ -1,0 +1,57 @@
+import { describe, expect, it } from 'vitest'
+
+import { FakePage, driveApplication, feishu, generic, isEntryText, moka, pickPosition, type PositionTarget } from '../src/index.js'
+import { noLLM, profile } from './helpers.js'
+
+const quiet = { pause: [0, 0] as [number, number], settleMs: 0, humanTyping: false }
+const backend: PositionTarget = { terms: ['后端开发', '后端', '服务端', 'java', 'software'], search: ['后端开发', '后端'], prefer: ['上海', 'shanghai'] }
+const basics = [{ label: '姓名', required: true }, { label: '手机号', required: true }]
+
+describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位一定能投）', () => {
+  it('挑最对口的岗位链接：方向词优先、期望城市加分；只沾导航不沾方向的链接不点', () => {
+    const links = [
+      { selector: 'a', href: '#/job/1', text: 'Hefei_Structure Durability Intern' },
+      { selector: 'b', href: '#/job/2', text: 'Beijing_Software Developer Intern' },
+      { selector: 'c', href: '#/job/3', text: 'Shanghai_Software Developer Intern' },
+      { selector: 'd', href: '#/jobs', text: '职位列表 software' },
+    ]
+    expect(pickPosition(links, backend, moka)?.selector).toBe('c')
+    expect(pickPosition(links.slice(0, 1), backend, moka)).toBeUndefined()
+    // 没有链接样式的站：岗位样的文字才算
+    expect(pickPosition([{ selector: 'x', href: '/about', text: '关于我们 后端' }, { selector: 'y', href: '/p/9', text: '后端开发工程师（2027 校招）' }], backend, generic)?.selector).toBe('y')
+  })
+
+  it('站内搜索网址：Moka 首页 → #/jobs?keyword=，飞书 /campus → /campus/position/list?keywords=', () => {
+    expect(moka.positionSearchUrl?.('https://app.mokahr.com/campus-recruitment/vwa/142785#/', '后端')).toBe('https://app.mokahr.com/campus-recruitment/vwa/142785#/jobs?keyword=%E5%90%8E%E7%AB%AF')
+    expect(feishu.positionSearchUrl?.('https://xiaopeng.jobs.feishu.cn/campus/m/', '后端')).toBe('https://xiaopeng.jobs.feishu.cn/campus/position/list?keywords=%E5%90%8E%E7%AB%AF')
+    expect(moka.positionSearchUrl?.('https://example.com/jobs', '后端')).toBeNull()
+  })
+
+  it('飞书详情页的「投递」只打开网申表，算入口；别的站仍不算', () => {
+    expect(isEntryText('投递', feishu)).toBe(true)
+    expect(isEntryText('投递', generic)).toBe(false)
+  })
+
+  it('Moka 首页 → 站内搜方向词 → 点进对口岗位 → 「申请职位」进表单 → 停在提交前，绝不点提交', async () => {
+    const home = 'https://app.mokahr.com/campus-recruitment/acme/100#/'
+    const page = new FakePage([
+      { url: home, text: '欢迎加入' },
+      { url: `${home}jobs?keyword=%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91`, links: [
+        { text: '财务管培生（北京）', href: '#/job/a', goto: 'https://app.mokahr.com/x/a' },
+        { text: '后端开发工程师（上海）2027 校招', href: '#/job/b', goto: 'https://app.mokahr.com/x/b' },
+      ] },
+      { url: 'https://app.mokahr.com/x/b', text: '岗位职责', buttons: [{ text: '申请职位', goto: 'https://app.mokahr.com/x/b/apply' }] },
+      { url: 'https://app.mokahr.com/x/b/apply', fields: basics, buttons: [{ text: '提交', submit: true }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend })
+    expect(page.actions.filter(a => a.target?.startsWith('link:')).map(a => a.target)).toEqual(['link:后端开发工程师（上海）2027 校招'])
+    expect(r.entryClicked).toBe('申请职位')
+    expect(r.status).toBe('stopped_before_submit')
+    expect(page.submitted).toBe(false)
+  })
+
+  it('不给 target 时行为不变：首页没表单就如实报没有表单', async () => {
+    const r = await driveApplication(new FakePage({ url: 'https://app.mokahr.com/campus-recruitment/acme/100#/', text: '欢迎加入' }), noLLM(), profile, quiet)
+    expect(r.status).toBe('blocked')
+  })
+})

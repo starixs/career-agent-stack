@@ -22,8 +22,9 @@ const DIRECTION_SYNONYMS: ReadonlyArray<readonly string[]> = [
 export function expandJobQuery(raw: string): string[] {
   const q = raw.trim().toLowerCase();
   if (!q) return [];
-  const group = DIRECTION_SYNONYMS.find(g => g.includes(q));
-  return group ? [...group] : [q];
+  // 「后端开发」「java后端」这类组合词：包含某组的组头就按那组展开，同时保留原词
+  const group = DIRECTION_SYNONYMS.find(g => g.includes(q)) ?? DIRECTION_SYNONYMS.find(g => q.includes(g[0]));
+  return group ? [...new Set([q, ...group])] : [q];
 }
 
 /** 公司名 + 岗位名里是否出现搜索词或它的同义说法。 */

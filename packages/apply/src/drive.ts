@@ -5,6 +5,7 @@ import { extractFields, formFingerprint, type FormField } from './extract.js'
 import { interpretForm, normKey, type FieldPlan, type Profile, type InterpretOptions } from './interpret.js'
 import { pageSignalsScript, type PageSignals, type ButtonInfo } from './scripts.js'
 import { detectObstacle, findFinalSubmit, isEntryText, isNextText, isSubmitText } from './guards.js'
+import { navigateToPosition, type PositionTarget } from './navigate.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import type { RiskGuard } from './safety.js'
 import { humanDelay, type PacingOptions } from './pacing.js'
@@ -194,6 +195,8 @@ export interface DriveOptions extends PacingOptions {
   highlight?: boolean
   /** 详情页上允许点申请入口按钮进入网申表（缺省开）。 */
   allowEntryClick?: boolean
+  /** 打开的是校招首页 / 合集页时去找哪种岗位（navigate.ts）；不给就不找，按原样报「没有表单」。 */
+  target?: PositionTarget
   /** 障碍层 / 下拉候选不确定时用的模型（缺省用 driveApplication 的 llm）。 */
   widgetLlm?: LLM | null
 }
@@ -202,6 +205,8 @@ const SUBMIT_WORDS = ['提交', '确认提交', '提交申请', '投递', '立�
 const NEXT_WORDS = ['下一步', '下一页', '继续', '保存并继续', '保存并下一步', 'Next', 'Continue'] as const
 const KIND_TO_TYPE: Partial<Record<UiKind, FieldType>> = { input: 'text', select: 'select', checkbox: 'checkbox', radio: 'radio' }
 const PAGE_STEP_MS = 25_000
+/** 从首页走到岗位详情最多跳几次：首页 → 列表 → 详情，再多就是在乱逛。 */
+const MAX_NAV_HOPS = 2
 const TEXTLIKE = new Set<FieldType>(['text', 'email', 'tel', 'number', 'textarea'])
 
 const isRecorder = (t: DriveOptions['telemetry']): t is Recorder => !!t && typeof (t as Recorder).trace === 'function'
@@ -222,6 +227,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   let libraries: string[] = []
   let entryClicked: string | undefined
   let entryClicks = 0
+  let navHops = 0
   const recallKey = opts.siteMemory ? opts.siteMemory.recaller(host) : undefined
   const layersUsed = new Set<DriveLayer>()
   const visionOpts: VisionOptions | null = opts.perceiver && page.mouse
@@ -332,7 +338,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       rec.fieldCount = fields.length
       // 2.1 岗位详情页：页面上没有任何表单字段、这次也没填过东西 → 允许点申请入口按钮进入网申表（最终提交仍永不点）
       if (!fields.length && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
-        const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text))
+        const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text, adapter))
         if (entry) {
           entryClicks++
           progress(`点击「${entry.text}」进入申请表`, 'entry', entry.text)
@@ -371,8 +377,15 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       lastFingerprint = fp
       if (!fields.length) {
         if (index === 1 || untouched()) {
+          // 首页 / 合集页：先去找对口的具体岗位，进了详情页再走上面的申请入口
+          if (opts.target && untouched() && navHops < MAX_NAV_HOPS) {
+            navHops++
+            const nav = await navigateToPosition(page, adapter, opts.target, { settleMs: Math.max(opts.settleMs ?? 800, 0) * 2, log })
+            recorder.trace({ stage: 'entry', action: 'navigate', result: nav.moved ? 'info' : 'fail', detail: nav.moved ? `${nav.via}：${nav.picked}` : `没找到对口岗位（试了 ${nav.tried.join('、') || '页面链接'}）` })
+            if (nav.moved) { progress(`找到岗位「${nav.picked}」`, 'entry', nav.picked); index--; continue }
+          }
           pages.push(rec); all.escalations.push(...rec.escalations)
-          const entry = sig.buttons.find(b => isEntryText(b.text)) ?? findFinalSubmit(sig.buttons, adapter)
+          const entry = sig.buttons.find(b => isEntryText(b.text, adapter)) ?? findFinalSubmit(sig.buttons, adapter)
           return entry ? entryHandoff(entry.text) : finish('blocked', '页面上没有可填写的表单字段')
         }
         break // 后续页没字段：可能到了确认页
@@ -726,8 +739,9 @@ async function clickButton(page: PageLike, b: ButtonInfo, adapter: SiteAdapter):
 }
 /** 申请入口：只认入口文案（立即申请 / 申请职位 / 我要投递 / Apply…），且调用方已确认页面上没有表单字段。 */
 async function clickEntry(page: PageLike, b: ButtonInfo, adapter: SiteAdapter): Promise<void> {
-  if (!isEntryText(b.text)) throw new Error(`「${b.text}」不是申请入口按钮`)
-  if ((adapter.hints.submitWords ?? []).some(w => normKey(w) === normKey(b.text)) && !/申请|apply/i.test(b.text)) throw new Error(`「${b.text}」是该站的提交按钮`)
+  if (!isEntryText(b.text, adapter)) throw new Error(`「${b.text}」不是申请入口按钮`)
+  const detailEntry = (adapter.hints.detailEntryWords ?? []).some(w => normKey(w) === normKey(b.text))
+  if (!detailEntry && (adapter.hints.submitWords ?? []).some(w => normKey(w) === normKey(b.text)) && !/申请|apply/i.test(b.text)) throw new Error(`「${b.text}」是该站的提交按钮`)
   await page.click(b.selector)
 }
 

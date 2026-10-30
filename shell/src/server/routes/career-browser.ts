@@ -452,6 +452,20 @@ async function runBrowse(body: Record<string, unknown>, context: BrowserContext,
 }
 
 /** LlmLike 的返回是 unknown：在边界上确认有 text 再交给解题器。 */
+/** 首页 / 合集页上去找哪种岗位：按这份申请的岗位和用户的求职方向（position-target.ts）。取不到就不找。 */
+async function positionTargetForBody(body: Record<string, unknown>) {
+  if (typeof body.applicationId !== 'string' || !body.applicationId) return null;
+  try {
+    const [{ getRepos }, { getJobPrefs }, { positionTargetFor }] = await Promise.all([import('../career/db'), import('../career/job-board'), import('../career/position-target')]);
+    const repos = await getRepos();
+    const app = repos.getApplication(body.applicationId);
+    return positionTargetFor(getJobPrefs(repos), (app && repos.getJob(app.job_id)) ?? null);
+  } catch (error) {
+    console.warn(`[career-browser] position target unavailable application=${body.applicationId}: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
+
 function visionLlm(llm: LlmLike): import('../career/captcha-solver').VisionLlm {
   return {
     async complete(request) {
@@ -673,6 +687,7 @@ export async function runOperation(
     }
     out.emit({ type: 'progress', phase: 'drive', message: '开始填写（不会提交）' });
     const telemetry = await (deps.resolveTelemetry ?? defaultTelemetry)(body);
+    const target = body.profile ? null : await positionTargetForBody(body);
     const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
       maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
       humanTyping: body.humanTyping !== false,
@@ -681,6 +696,7 @@ export async function runOperation(
       ...(bundle.loginFill ? { loginFill: bundle.loginFill } : {}),
       ...(perceiver ? { perceiver } : {}),
       ...(siteMemory ? { siteMemory } : {}),
+      ...(target ? { target } : {}),
       ...(Array.isArray(body.learnFrom) ? { learnFrom: (body.learnFrom as unknown[]).filter((x): x is string => typeof x === 'string') } : {}),
       // 内部调试日志只进运行记录（引擎写 trace.jsonl），不广播给界面；界面只收人话进度
       onProgress: (p: { message: string; kind?: string; label?: string }) => out.emit({ type: 'progress', phase: 'drive', message: redact(p.message), ...(p.kind ? { kind: p.kind } : {}) }),

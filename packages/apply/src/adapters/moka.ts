@@ -14,6 +14,9 @@ export const moka: SiteAdapter = {
     submitWords: ['提交', '提交申请', '立即申请', '确认提交'],
     loginIndicators: ['请先登录', '验证码登录', '手机号登录', '登录 / 注册'],
     captchaIndicators: ['拖动滑块', '滑动验证', '安全验证', '图形验证码'],
+    // 详情页「申请职位」只打开网申表（2026-10-31 在大众中国校招页上看过）
+    detailEntryWords: ['申请职位', '投递简历', '立即投递'],
+    positionLink: /#\/job\/[\w-]+|\/job\/[\w-]+/,
     fieldAliases: {
       name: ['姓名', '中文姓名'],
       phone: ['手机号', '手机号码', '电话'],
@@ -25,5 +28,10 @@ export const moka: SiteAdapter = {
       city: ['期望城市', '工作城市', '意向城市'],
       wechat: ['微信号', '微信'],
     },
+  },
+  // app.mokahr.com/(campus|social)-recruitment/<公司>/<项目号>#/ → #/jobs?keyword=…
+  positionSearchUrl: (url, keyword) => {
+    const m = /^(https?:\/\/[^#?]*\/(?:campus|social)[-_]recruitment\/[^/#?]+\/\d+)/.exec(url)
+    return m ? `${m[1]}#/jobs?keyword=${encodeURIComponent(keyword)}` : null
   },
 }
