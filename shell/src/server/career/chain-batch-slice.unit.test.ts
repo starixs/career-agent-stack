@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Repos } from '@career/core';
 
+import { handleCareerRoute } from '../routes/career';
 import { handleCareerSessionRoute } from '../routes/career-session';
 import { applyJobs, planJobs } from './batch-apply';
 import { BATCH_COMMAND_KEY } from './batch-runner';
@@ -91,5 +92,16 @@ describe('链路 · 框选一批、确认投出', () => {
     const req = new Request('http://local/api/career-session/review', { method: 'POST', body: JSON.stringify({ actionIds: start.sources.map(s => s.id), decision: 'approved' }), headers: { 'Content-Type': 'application/json' } });
     await handleCareerSessionRoute('/api/career-session/review', req, { repos, broadcast: () => undefined, sessionId: () => 's1' });
     expect(repos.kvGet<{ cmd: string; ids: string[] }>(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run', ids: [results[0].action_id] });
+  });
+
+  it('投前过目「先不投 → 这家不投了」：拒绝这次提交、申请标成跳过，等你条里这件消失，不叫助理问下一步', async () => {
+    store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } });
+    await applyJobs(deps, [jobOf('美团').id]);
+    const submit = repos.enqueueAction('submit', { review: { requiredFilled: 8, requiredTotal: 8, rows: [] } }, appOf('美团').id);
+    const req = new Request('http://local/api/career/actions/review', { method: 'POST', body: JSON.stringify({ ids: [submit.id], decision: 'rejected', drop: true }), headers: { 'Content-Type': 'application/json' } });
+    await handleCareerRoute('/api/career/actions/review', req, { repos, broadcast: () => undefined, sessionId: () => 'global', llm: null });
+    expect(repos.getAction(submit.id)!.status).toBe('rejected');
+    expect(repos.getApplication(appOf('美团').id)!.stage).toBe('skip');
+    expect(asksFor(repos).flatMap(a => a.application_ids)).not.toContain(appOf('美团').id);
   });
 });
