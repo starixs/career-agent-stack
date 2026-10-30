@@ -168,14 +168,61 @@ describe('WaitingArcade', () => {
     expect(screen.queryByTestId('waiting-arcade-handheld')).toBeNull();
   });
 
-  it('puts the handheld away with Escape after the slide-down', () => {
+  it('asks before putting the handheld away, then is gone for the rest of the turn', () => {
     const device = pullOut();
+    fireEvent.keyDown(device, { code: 'Escape', key: 'Escape' });
+    fireEvent.keyUp(device, { code: 'Escape', key: 'Escape' });
+    expect(device).toHaveAttribute('data-mode', 'confirm');
+    expect(device.closest('.hh-stage')).toHaveAttribute('data-stage', 'open');
     fireEvent.keyDown(device, { code: 'Escape', key: 'Escape' });
     expect(device.closest('.hh-stage')).toHaveAttribute('data-stage', 'closing');
     act(() => { vi.advanceTimersByTime(600); });
     expect(screen.queryByTestId('waiting-arcade-handheld')).toBeNull();
-    // 收起即算本轮不玩：提示不会马上又冒出来
+    // 收起即算本轮不玩：要等下一次 AI 忙够久才再提示
     expect(screen.queryByTestId('waiting-arcade-hint')).toBeNull();
+  });
+
+  it('asks before the power switch puts it away too', () => {
+    const device = pullOut();
+    const power = screen.getByRole('button', { name: '收起' });
+    fireEvent.click(power);
+    expect(device).toHaveAttribute('data-mode', 'confirm');
+    fireEvent.keyDown(device, { code: 'KeyX', key: 'x' });
+    expect(device).toHaveAttribute('data-mode', 'menu');
+    fireEvent.click(power);
+    fireEvent.click(power);
+    expect(device.closest('.hh-stage')).toHaveAttribute('data-stage', 'closing');
+  });
+
+  it('backs out of a game layer by layer before putting the handheld away', () => {
+    const device = pullOut();
+    fireEvent.keyDown(device, { code: 'KeyX', key: 'x' });
+    fireEvent.keyUp(device, { code: 'KeyX', key: 'x' });
+    fireEvent.keyDown(device, { code: 'KeyX', key: 'x' });
+    fireEvent.keyUp(device, { code: 'KeyX', key: 'x' });
+    expect(device).toHaveAttribute('data-mode', 'playing');
+    fireEvent.keyDown(device, { code: 'Escape', key: 'Escape' });
+    fireEvent.keyUp(device, { code: 'Escape', key: 'Escape' });
+    expect(device).toHaveAttribute('data-mode', 'paused');
+    fireEvent.keyDown(device, { code: 'Escape', key: 'Escape' });
+    fireEvent.keyUp(device, { code: 'Escape', key: 'Escape' });
+    expect(device).toHaveAttribute('data-mode', 'menu');
+    fireEvent.keyDown(device, { code: 'Escape', key: 'Escape' });
+    fireEvent.keyUp(device, { code: 'Escape', key: 'Escape' });
+    expect(device).toHaveAttribute('data-mode', 'confirm');
+    expect(device.closest('.hh-stage')).toHaveAttribute('data-stage', 'open');
+  });
+
+  it('labels the key hints in words that match what each key does right now', () => {
+    const device = pullOut();
+    const hints = () => device.parentElement!.querySelector('.hh-hints')!.textContent;
+    fireEvent.keyDown(device, { code: 'KeyX', key: 'x' });
+    fireEvent.keyUp(device, { code: 'KeyX', key: 'x' });
+    expect(hints()).toContain('收起');
+    expect(hints()).not.toMatch(/START|SELECT/);
+    fireEvent.keyDown(device, { code: 'KeyX', key: 'x' });
+    expect(hints()).toContain('暂停');
+    expect(hints()).toContain('返回');
   });
 
   it('pauses when focus leaves the handheld', () => {

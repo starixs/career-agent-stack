@@ -49,6 +49,8 @@ export interface ArcadeGame {
   readonly score: number;
   readonly over: boolean;
   readonly level: number;
+  /** 第几个场景；每变一次屏幕换一套配色和环境。不给就跟 level 走（幸存者的 level 是经验等级，场景跟波次）。 */
+  readonly stage?: number;
   /** 有命数的游戏才提供，屏幕 HUD 画成小心形。 */
   readonly lives?: number;
   /** 自带屏幕配色（如坦克的暗色屏）；不给就用掌机默认的 LCD 配色。HUD 与反馈层跟着换。 */

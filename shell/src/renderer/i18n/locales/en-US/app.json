@@ -210,17 +210,66 @@
     },
     "lcd": {
       "menuTitle": "SELECT GAME",
-      "menuHint": "↑↓ choose   A start",
+      "menuHint": "↑↓ choose   X start",
       "best": "BEST",
       "paused": "PAUSED",
-      "pausedHint": "START resume · SELECT menu",
+      "pausedHint": "X resume · Esc menu",
       "gameOver": "GAME OVER",
       "newRecord": "NEW RECORD!",
-      "overHint": "A retry · SELECT menu"
+      "overHint": "X retry · Esc menu",
+      "confirmClose": "Put the handheld away?",
+      "confirmHint": "You can play again next time the AI is busy"
     },
     "keys": {
       "move": "Move",
-      "putAway": "Put away"
+      "putAway": "Put away",
+      "choose": "Choose",
+      "start": "Start",
+      "resume": "Resume",
+      "retry": "Retry",
+      "pause": "Pause",
+      "menu": "Games",
+      "back": "Back",
+      "backToMenu": "Menu",
+      "space": "Space",
+      "confirmPutAway": "Put away",
+      "stay": "Keep playing"
+    },
+    "controls": {
+      "tetris": {
+        "a": "Rotate",
+        "b": "Rotate back",
+        "up": "Drop"
+      },
+      "snake": {},
+      "breakout": {
+        "a": "Serve"
+      },
+      "runner": {
+        "a": "Jump"
+      },
+      "tank": {
+        "a": "Fire"
+      },
+      "survivor": {
+        "a": "Pick upgrade"
+      },
+      "shooter": {
+        "b": "Bomb"
+      },
+      "shredder": {
+        "a": "Fire"
+      }
+    },
+    "themes": {
+      "lcd": "Classic",
+      "dusk": "Dusk",
+      "mint": "Mint",
+      "night": "Night",
+      "sakura": "Sakura",
+      "neon": "Neon Rain",
+      "snow": "Snowfield",
+      "desert": "Desert"
     }
   },
   "workspaceTree": {

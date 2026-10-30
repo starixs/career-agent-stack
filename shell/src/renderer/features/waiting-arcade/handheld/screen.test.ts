@@ -15,7 +15,10 @@ const TEXT: ScreenText = {
   gameOver: '游戏结束',
   newRecord: '新纪录！',
   overHint: '',
+  confirmClose: '收起掌机？',
+  confirmHint: '',
   games: { tetris: '俄罗斯方块', snake: '贪吃蛇', breakout: '打砖块', runner: '跳跳小人', tank: '坦克大战', survivor: '幸存者', shooter: '星际射击', shredder: '拒信粉碎机' },
+  themes: { lcd: '原色', dusk: '黄昏', mint: '薄荷', night: '夜晚', sakura: '樱花', neon: '霓虹雨夜', snow: '雪原', desert: '沙漠' },
 };
 
 function makeScreen(initialGame: ArcadeGameId = 'snake') {
@@ -70,6 +73,59 @@ describe('HandheldScreen', () => {
     screen.press('select');
     expect(screen.mode).toBe('menu');
     expect(screen.game).toBeNull();
+  });
+
+  it('backs out one layer per Esc and confirms before putting the handheld away', () => {
+    const { screen } = makeScreen();
+    screen.press('a');
+    screen.press('a');
+    expect(screen.back()).toBe(true);
+    expect(screen.mode).toBe('paused');
+    expect(screen.back()).toBe(true);
+    expect(screen.mode).toBe('menu');
+    expect(screen.back()).toBe(true);
+    expect(screen.mode).toBe('confirm');
+    screen.press('a'); // 再玩会
+    expect(screen.mode).toBe('menu');
+    screen.back();
+    expect(screen.back()).toBe(false); // 确认面板上再按：交给宿主收起
+  });
+
+  it('pauses a running game when asked to close and returns to the pause screen on cancel', () => {
+    const { screen } = makeScreen();
+    screen.press('a');
+    screen.press('a');
+    screen.askClose();
+    expect(screen.mode).toBe('confirm');
+    screen.press('b');
+    expect(screen.mode).toBe('paused');
+    expect(screen.game).not.toBeNull();
+  });
+
+  it('changes the scene but not the characters when the game moves to a new stage', () => {
+    const { screen } = makeScreen('snake');
+    screen.press('a');
+    screen.press('a');
+    const before = screen.theme;
+    expect(before.id).toBe('lcd');
+    (screen.game as unknown as { level: number }).level = 2;
+    screen.step(16);
+    expect(screen.theme.id).toBe('dusk');
+    expect(screen.theme.palette.bg).not.toBe(before.palette.bg);
+    expect(screen.theme.palette.primary).toBe(before.palette.primary);
+    expect(screen.fx.palette).toBe(screen.theme.palette);
+  });
+
+  it('gives a dark-screen game its own scenes on top of its palette', () => {
+    const { screen } = makeScreen('tank');
+    screen.press('a');
+    screen.press('a');
+    const own = screen.game!.palette!;
+    expect(screen.theme.palette).toEqual(own);
+    (screen.game as unknown as { level: number }).level = 2;
+    screen.step(16);
+    expect(screen.theme.palette.bg).not.toBe(own.bg);
+    expect(screen.theme.palette.primary).toBe(own.primary);
   });
 
   it('shows an outside notice while paused and clears it on resume', () => {

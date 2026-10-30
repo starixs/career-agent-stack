@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { ARCADE_GAME_IDS, ARCADE_HEIGHT, DEFAULT_GAME, ARCADE_WIDTH, type ArcadeGameId } from '../games';
 import './handheld.css';
 import { isDpad, keyToButton } from './keys';
-import { HandheldScreen, type HandheldButton, type ScreenText } from './screen';
+import { HandheldScreen, type HandheldButton, type ScreenMode, type ScreenText } from './screen';
 import { HandheldSound } from './sound';
 
 /** 外壳的设计尺寸；舞台按窗口大小整体缩放。 */
@@ -73,6 +73,7 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [closing, setClosing] = useState(false);
   const [pressed, setPressed] = useState<ReadonlySet<HandheldButton>>(() => new Set());
+  const controls = t('waitingArcade.controls', { returnObjects: true }) as Partial<Record<ArcadeGameId, GameControls>>;
   const [muted, setMuted] = useState(() => readStorage(MUTED_KEY) === '1');
   const [sound] = useState(() => new HandheldSound(readStorage(MUTED_KEY) === '1'));
   const [screen] = useState(() => {
@@ -86,6 +87,8 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
       gameOver: t('waitingArcade.lcd.gameOver'),
       newRecord: t('waitingArcade.lcd.newRecord'),
       overHint: t('waitingArcade.lcd.overHint'),
+      confirmClose: t('waitingArcade.lcd.confirmClose'),
+      confirmHint: t('waitingArcade.lcd.confirmHint'),
       games: {
         tetris: t('waitingArcade.games.tetris'),
         snake: t('waitingArcade.games.snake'),
@@ -95,6 +98,16 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
         survivor: t('waitingArcade.games.survivor'),
         shooter: t('waitingArcade.games.shooter'),
         shredder: t('waitingArcade.games.shredder'),
+      },
+      themes: {
+        lcd: t('waitingArcade.themes.lcd'),
+        dusk: t('waitingArcade.themes.dusk'),
+        mint: t('waitingArcade.themes.mint'),
+        night: t('waitingArcade.themes.night'),
+        sakura: t('waitingArcade.themes.sakura'),
+        neon: t('waitingArcade.themes.neon'),
+        snow: t('waitingArcade.themes.snow'),
+        desert: t('waitingArcade.themes.desert'),
       },
     };
     return new HandheldScreen({
@@ -106,11 +119,26 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
     });
   });
 
+  // 底部按键提示跟着屏幕状态和当前游戏变；状态在 React 之外（rAF）推进，每次绘制后通知订阅者
+  const [viewStore] = useState(() => {
+    const listeners = new Set<() => void>();
+    return {
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => { listeners.delete(listener); };
+      },
+      snapshot: () => `${screen.mode}|${screen.gameId}`,
+      notify: () => listeners.forEach(listener => listener()),
+    };
+  });
+  const [viewMode, viewGame] = useSyncExternalStore(viewStore.subscribe, viewStore.snapshot).split('|') as [ScreenMode, ArcadeGameId];
+
   // ─── 渲染循环：只在开机动画 / 游戏中逐帧推进，其余时间按需重绘 ───
   const rafRef = useRef(0);
   const draw = useCallback(() => {
     // 屏幕状态在 React 之外推进（rAF），直接写到 DOM 上供样式与测试读取
     if (deviceRef.current) deviceRef.current.dataset.mode = screen.mode;
+    viewStore.notify();
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
@@ -121,7 +149,7 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     screen.draw(ctx);
-  }, [screen]);
+  }, [screen, viewStore]);
 
   const kick = useCallback(() => {
     draw();
@@ -177,6 +205,16 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
     screen.pause();
   }, [screen]);
 
+  /** 电源开关：先确认，确认面板上再拨一下才收起。 */
+  const askClose = () => {
+    if (screen.mode === 'confirm') {
+      close();
+      return;
+    }
+    screen.askClose();
+    kick();
+  };
+
   useEffect(() => {
     if (!closing) return;
     const timer = setTimeout(onClosed, PUT_AWAY_MS + 80);
@@ -189,7 +227,10 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
     if (e.code === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      close();
+      if (e.repeat) return;
+      // 一层层往回退，退到「收起掌机？」再按才真的收起
+      if (screen.back()) kick();
+      else close();
       return;
     }
     const button = keyToButton(e.code);
@@ -247,14 +288,7 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
     ? 'left'
     : pressed.size > 0 ? 'right' : undefined;
 
-  const keyHints: [string, string][] = [
-    ['↑↓←→', t('waitingArcade.keys.move')],
-    ['X', 'A'],
-    ['Z', 'B'],
-    ['Enter', 'START'],
-    ['Shift', 'SELECT'],
-    ['Esc', t('waitingArcade.keys.putAway')],
-  ];
+  const keyHints = hintsFor(viewMode, controls[viewGame] ?? {}, t);
 
   return createPortal(
     <div
@@ -385,7 +419,7 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
             aria-label={t('waitingArcade.keys.putAway')}
             title={t('waitingArcade.keys.putAway')}
             onPointerDown={e => e.preventDefault()}
-            onClick={close}
+            onClick={askClose}
           >
             <span>OFF</span><i /><span>ON</span>
           </button>
@@ -405,13 +439,42 @@ export function HandheldConsole({ anchorX, notice, onClosed }: HandheldConsolePr
 
         <div className="hh-hints" aria-hidden>
           {keyHints.map(([keys, label]) => (
-            <span key={label}><kbd>{keys}</kbd>{label}</span>
+            <span key={keys}><kbd>{keys}</kbd>{label}</span>
           ))}
         </div>
       </div>
     </div>,
     document.body,
   );
+}
+
+/** 各游戏 A / B / ↑ 键在玩法里的意思；没有的键不提示。 */
+interface GameControls { a?: string; b?: string; up?: string }
+
+/** 底部提示只列此刻按了有用的键，标签说按了会怎样，而不是键在掌机上的名字。 */
+function hintsFor(mode: ScreenMode, controls: GameControls, t: (key: string) => string): [string, string][] {
+  const k = (key: string) => t(`waitingArcade.keys.${key}`);
+  switch (mode) {
+    case 'boot':
+    case 'menu':
+      return [['↑↓', k('choose')], [`X / ${k('space')}`, k('start')], ['Esc', k('putAway')]];
+    case 'playing':
+      return [
+        ['↑↓←→', k('move')],
+        ...(controls.up ? [['↑', controls.up] as [string, string]] : []),
+        ...(controls.a ? [[`X / ${k('space')}`, controls.a] as [string, string]] : []),
+        ...(controls.b ? [['Z', controls.b] as [string, string]] : []),
+        ['Enter', k('pause')],
+        ['Shift', k('menu')],
+        ['Esc', k('back')],
+      ];
+    case 'paused':
+      return [['X / Enter', k('resume')], ['Shift', k('menu')], ['Esc', k('backToMenu')]];
+    case 'over':
+      return [['X / Enter', k('retry')], ['Esc', k('backToMenu')]];
+    case 'confirm':
+      return [['Esc', k('confirmPutAway')], ['X / Enter', k('stay')]];
+  }
 }
 
 /** 方向键是一整块十字，按哪边就朝哪边倾斜下沉，和实体十字键一样。 */
