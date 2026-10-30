@@ -24,6 +24,7 @@ import { displayMatches, fillAndVerify, type FieldAttempt } from './fill.js'
 import { classifyError, reasonText, withWatchdog, type FieldReasonCode } from './codes.js'
 import { isSensitiveLabel, noopRecorder, RunRecorder, type Recorder, type TelemetryOptions } from './telemetry.js'
 import { snapshotNeedsUser } from './diag.js'
+import { settleNeedsUser } from './needs.js'
 import { clearHighlightScript, libraryFingerprintScript, maskSensitiveScript, prepareEntryClickScript, readDisplayScript, uploadAreaScript, type UploadAreaResult } from './widgets.js'
 
 /**
@@ -278,6 +279,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   }
   const telemetryRef = recorder.dir && recorder.runId ? { dir: recorder.dir, runId: recorder.runId } : undefined
   const finish = async (status: DriveStatus, message: string, extra: Partial<DriveResult> = {}): Promise<DriveResult> => {
+    all.needsUser = settleNeedsUser(all.needsUser, all.filled)
     let screenshot: Uint8Array | undefined
     try { await page.evaluate(clearHighlightScript) } catch { /* ignore */ }
     try { screenshot = await page.screenshot() } catch { /* 截图失败不影响结果 */ }
