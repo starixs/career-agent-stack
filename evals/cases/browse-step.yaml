@@ -19,15 +19,15 @@
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk
-- description: 验证码页——交给用户
+- description: 滑块验证码——先自己过，不一看到就找用户（世界模型 v1.5）
   vars:
     task: browse_next_step
     goal: 在 Boss 直聘上找上海的 AI 应用开发实习
-    expect_tool: ui_open
+    expect_tool: browser_solve_captcha
     observation: |
       观察 o3 · 安全验证
       https://www.zhipin.com/web/user/safe/verify
-      提示：有验证码 / 人机验证（必须请用户在现场处理）
+      提示：有验证码 / 人机验证：先 browser_solve_captcha 自己过，过不了再请用户帮一下
       可操作元素（[编号] 类型 文字）：
       [1] clickable 拖动滑块完成验证
       正文摘要（共 40 字）：
@@ -67,15 +67,15 @@
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk
-- description: 登录墙——不在对话里要密码，交给用户
+- description: 登录墙——不在对话里要密码，请用户扫码帮一下，做完接着办
   vars:
     task: browse_next_step
     goal: 去牛客网看看校招岗位
-    expect_tool: ui_open
+    expect_tool: browser_wait_user
     observation: |
       观察 o2 · 登录 - 牛客网
       https://www.nowcoder.com/login
-      提示：需要登录（请用户在现场登录，或用已存的账号占位符）
+      提示：需要登录：存了账号就用占位符代填；扫码 / 短信码请用户帮一下（browser_wait_user），登录完接着办
       可操作元素（[编号] 类型 文字）：
       [1] input 手机号
       [2] input 密码 🔒密码框，只能填占位符
@@ -83,6 +83,26 @@
       [4] link 微信扫码登录
       正文摘要（共 60 字）：
       登录后查看更多岗位
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 验证码自己过不了——请用户帮一下，不放弃任务
+  vars:
+    task: browse_next_step
+    goal: 在搜狗微信里搜美团校招宣讲会的推文
+    expect_tool: browser_wait_user
+    observation: |
+      验证码（image_click）：needs_user，试了 2 次。第 1 次：依次点了 4 处；第 2 次：依次点了 4 处
+      这个验证要请用户帮一下：用 browser_wait_user（waiting_for=captcha），告诉他在右边浏览器里完成验证；他做完你接着办。
+
+      观察 o9 · 搜狗搜索
+      https://weixin.sogou.com/antispider/?from=x
+      提示：有验证码 / 人机验证：先 browser_solve_captcha 自己过，过不了再请用户帮一下
+      可操作元素（[编号] 类型 文字）：
+      [1] link 返回首页
+      [2] link 提交
+      正文摘要（共 120 字）：
+      此验证码用于确认这些请求是您的正常行为而不是自动程序发出的，需要您协助验证。请依次点击【勒,楔,涟,颊】
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk

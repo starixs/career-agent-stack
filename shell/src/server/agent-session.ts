@@ -11306,7 +11306,7 @@ async function startStreamingSession(preWarm = false): Promise<void> {
     // Build disallowed tools list: group deny + channel-incompatible UI tools
     const disallowedToolsList = [...currentGroupToolsDeny];
     disallowedToolsList.push(...getChannelInteractionDisallowedTools(currentScenario));
-    // 求职助理：所有功能在产品内完成，模型唯一的外部动作是 career 工具集里的 web_search。
+    // 求职助理：所有功能在产品内完成，对外只走 career 工具集里的 web_search 和 browser_*（托管浏览器），不开 SDK 自带的 WebSearch / WebFetch。
     // SDK 自带的 WebSearch/WebFetch 只在 Anthropic 官方 API 上可用（DeepSeek 端点会报错），
     // Bash/文件写入/子代理等通用编码工具也不属于本产品，一律禁用；保留只读文件工具与提问卡片。
     disallowedToolsList.push(...CAREER_PRODUCT_DISALLOWED_SDK_TOOLS);

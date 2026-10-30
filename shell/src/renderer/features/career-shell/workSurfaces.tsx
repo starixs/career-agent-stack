@@ -32,6 +32,8 @@ const TOOL_SURFACES: Record<string, WorkSurface> = {
   browser_observe: 'browser',
   browser_act: 'browser',
   browser_read: 'browser',
+  browser_wait_user: 'browser',
+  browser_solve_captcha: 'browser',
   browser_capture_job: 'browser',
   resume_master_create: 'resume',
   resume_save: 'resume',

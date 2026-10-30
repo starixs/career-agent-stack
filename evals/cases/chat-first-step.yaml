@@ -1,0 +1,74 @@
+# 浏览器面切面（2026-10-30）：用户一句话，第一步工具选得对不对。
+# 网址一律先打开看（不能只存一个空链接）：静态页 web_fetch 或浏览器都行，单页应用 / 要登录的站直接开浏览器也对。
+- description: ① 丢来岗位详情链接——先打开看，不是只存链接
+  vars:
+    task: chat_first_step
+    message: https://jobs.bytedance.com/campus/position/7701285444265445637/detail 这个岗位帮我看看适不适合我
+    expect_tool: [web_fetch, browser_open]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: ① 只丢一个网址，什么都不说——打开看懂再说
+  vars:
+    task: chat_first_step
+    message: https://join.qq.com/post.html
+    expect_tool: [web_fetch, browser_open]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: ① 宣讲会推文链接，问时间——打开读
+  vars:
+    task: chat_first_step
+    message: https://mp.weixin.qq.com/s/Xk3mWq0demo 美团宣讲会的推文，帮我看下我们学校是哪天
+    expect_tool: [web_fetch, browser_open]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: ② 让它去搜笔试时间——搜索或直接开浏览器都行
+  vars:
+    task: chat_first_step
+    message: 帮我搜一下拼多多 2027 秋招笔试大概什么时候
+    expect_tool: [web_search, browser_open]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: ② 指定站点去搜——搜索或直接开浏览器都行
+  vars:
+    task: chat_first_step
+    message: 去牛客上搜搜字节后端开发的面经，挑几篇最近的给我总结一下
+    expect_tool: [browser_open, web_search]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: ③ 一家公司各方面情况
+  vars:
+    task: chat_first_step
+    message: 帮我看看米哈游这家公司怎么样，值不值得去
+    expect_tool: [company_research, web_search, browser_open]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: ③ 一家公司现在的招聘信息——官网最准
+  vars:
+    task: chat_first_step
+    message: 美团现在校招还有哪些北京的后端岗位？
+    expect_tool: [browser_open, web_search]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 丢一个 PDF 链接——直取读文字，不开浏览器
+  vars:
+    task: chat_first_step
+    message: https://example.edu.cn/files/2027-campus-recruit.pdf 学校发的校招简章，帮我挑出和计算机相关的单位
+    expect_tool: web_fetch
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 「登某某网站看看」——直接开浏览器（要登录的平台）
+  vars:
+    task: chat_first_step
+    message: 登上牛客帮我看看我投的那几家现在什么进度
+    expect_tool: browser_open
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk

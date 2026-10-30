@@ -7,7 +7,7 @@
  */
 import type { Repos, LLM, Job, JdParsed, InboxItem, InboxKind, InboxSource, DeadlineKind } from '@career/core';
 
-import { htmlToText } from './attachment-reader';
+import { fetchPage } from './web-fetch';
 import type { CoreModule } from './core-module';
 import { loadSkillPrompt } from './skills';
 import { CareerStore } from './store';
@@ -282,29 +282,10 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
 }
 
 // ---------- 分享链接（Boss / 猎聘等转发出来的笔试 / 面试通知） ----------
-const LINK_FETCH_TIMEOUT_MS = 10_000;
-const LINK_TEXT_LIMIT = 12_000;
-
-/** 取分享页的标题、描述和正文文字；拿不到（要登录、超时、非 HTML）返回 null，由调用方退回只用粘贴的文字。 */
+/** 取分享页的标题和正文文字；拿不到（要登录、超时、非 HTML、只有空壳）返回 null，由调用方退回只用粘贴的文字。 */
 export async function fetchSharePage(url: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
-  try {
-    const res = await fetchImpl(url, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(LINK_FETCH_TIMEOUT_MS),
-      headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', accept: 'text/html,*/*' },
-    });
-    if (!res.ok) return null;
-    const type = res.headers.get('content-type') ?? '';
-    if (type && !/html|text/i.test(type)) return null;
-    const html = await res.text();
-    const meta = (name: string) => html.match(new RegExp(`<meta[^>]+(?:name|property)=["']${name}["'][^>]*content=["']([^"']*)["']`, 'i'))?.[1]?.trim();
-    const title = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim();
-    const parts = [title, meta('og:title'), meta('description'), meta('og:description'), htmlToText(html)].filter((p): p is string => !!p);
-    const text = [...new Set(parts)].join('\n').trim();
-    return text ? text.slice(0, LINK_TEXT_LIMIT) : null;
-  } catch {
-    return null;
-  }
+  const page = await fetchPage(url, fetchImpl);
+  return page.verdict === 'ok' && page.text ? [page.title, page.text].filter(Boolean).join('\n') : null;
 }
 
 /**
