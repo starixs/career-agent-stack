@@ -17,9 +17,13 @@ type AppRow = Application & { job: Pick<Job, 'title' | 'company_name' | 'source_
 
 export const MONTH_LAYERS = ['投出', '笔试/测评', '面试', 'Offer'] as const
 
-/** 进入 applied 的这一步是不是真的投递。邮件补建（自动推进 / 收到测评 / 收到笔试通知）和手动记录都不是。 */
+/** 关掉的投递被迟到的回信重新打开时，回到 applied 那一步的备注前缀（Repos.reopenClosed）。 */
+export const REOPEN_NOTE_PREFIX = '重新打开：'
+
+/** 进入 applied 的这一步是不是真的投递。邮件补建（自动推进 / 收到测评 / 收到笔试通知）、手动记录和重新打开都不是。 */
+const NOT_SEND_NOTE = new RegExp(`^(自动推进（|收到测评|收到笔试通知|收到面试邀请|收到 Offer|手动记录|${REOPEN_NOTE_PREFIX})`)
 export function isSendNote(note: string | null | undefined): boolean {
-  return !/^(自动推进（|收到测评|收到笔试通知|收到面试邀请|收到 Offer|手动记录)/.test(note ?? '')
+  return !NOT_SEND_NOTE.test(note ?? '')
 }
 
 export interface MonthCounts { counts: [number, number, number, number] }

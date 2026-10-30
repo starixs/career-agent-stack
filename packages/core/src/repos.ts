@@ -8,7 +8,7 @@ import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, 
 import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage, Interview, Offer } from './types.js'
 import { classifyJobTitle, deadlineToToday, funnelBy, latestIso, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
-import { buildMonthBoard, type MonthBoard, type StageHistoryRow } from './review-board.js'
+import { buildMonthBoard, REOPEN_NOTE_PREFIX, type MonthBoard, type StageHistoryRow } from './review-board.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
 export interface AnswerRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: AnswerSensitivity; source: string; use_count: number; last_used_at: string | null; updated_at: string }
@@ -501,11 +501,33 @@ export class Repos {
   }
   /** 按公司名（含品牌别名）找仍在进行中的投递；邮件 / 收件箱归档用。 */
   findOpenApplicationsByCompany(companyName: string): Array<Application & { job: Job }> {
+    return this.applicationsOfCompany(companyName).filter(a => !['rejected', 'discarded', 'skip', 'hired'].includes(a.stage))
+  }
+  /** 按公司名找投出过、后来被关掉的投递（静默超时关闭或用户放弃）：迟到的回信要接回它们。 */
+  findClosedSentApplicationsByCompany(companyName: string): Array<Application & { job: Job }> {
+    const sent = new Set(this.db.all<{ application_id: string }>(`SELECT DISTINCT application_id FROM application_history WHERE to_stage='applied'`).map(r => r.application_id))
+    return this.applicationsOfCompany(companyName).filter(a => a.stage === 'discarded' && sent.has(a.id))
+  }
+  /**
+   * 关掉的投递来了迟到的回信：重新打开回到已投递，后续由归档照常推进。
+   * 这不是状态机里的前进边（放进 STAGE_TRANSITIONS 会让 jumpTo 经 discarded 绕路回退），所以单独一个入口、只认 discarded。
+   */
+  reopenClosed(appId: string, note: string): Application {
+    const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
+    if (app.stage !== 'discarded') throw new Error(`只有已关闭的投递能重新打开: ${appId} 现在是 ${app.stage}`)
+    const t = now()
+    this.db.transaction(() => {
+      this.db.update('application', appId, { stage: 'applied', updated_at: t })
+      this.db.insert('application_history', { id: newId('hist'), application_id: appId, from_stage: 'discarded', to_stage: 'applied', note: `${REOPEN_NOTE_PREFIX}${note}`, created_at: t })
+    })
+    return this.getApplication(appId)!
+  }
+  private applicationsOfCompany(companyName: string): Array<Application & { job: Job }> {
     const key = companyName.trim().toLowerCase()
     if (!key) return []
     return this.applicationsWithJob().filter(a => {
       const name = (a.job.company_name ?? '').toLowerCase()
-      return name && (name.includes(key) || key.includes(name)) && !['rejected', 'discarded', 'skip', 'hired'].includes(a.stage)
+      return name && (name.includes(key) || key.includes(name))
     })
   }
 

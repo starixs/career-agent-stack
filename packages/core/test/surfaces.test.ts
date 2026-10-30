@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { Db, Repos, classifyJobTitle, weekStartOf, silenceOf, funnelBy, shortestStagePath, ACTIONS_REQUIRING_REVIEW } from '../src/index.js'
+import { Db, Repos, classifyJobTitle, weekStartOf, silenceOf, funnelBy, shortestStagePath, isSendNote, ACTIONS_REQUIRING_REVIEW } from '../src/index.js'
 
 function mem() { const db = new Db(':memory:'); db.migrate(); return new Repos(db) }
 const NOW = '2026-10-03T08:00:00.000Z'
@@ -145,5 +145,21 @@ describe('静默看投递上最后一次动静', () => {
     r.db.run('UPDATE deadline SET created_at=? WHERE id=?', ['2026-09-02T00:00:00Z', far.id])
     expect(r.today(NOW).items.filter(i => i.kind === 'stale').map(i => i.ref.id)).toEqual([quiet])
     expect(r.funnel(NOW).overall!.silent).toBe(1)
+  })
+})
+
+describe('关掉的投递重新打开', () => {
+  it('只找投出过又被关掉的；重新打开回到已投递、写历史，不算一次新的投出；没关的不能重开', () => {
+    const r = mem()
+    const sent = r.createApplication(r.upsertJob({ source_platform: 'boss', source_job_id: 'b1', title: '后端开发', company_name: '字节跳动' }).id)
+    r.jumpTo(sent.id, 'applied', '已投递'); r.jumpTo(sent.id, 'discarded', '静默超时，主动关闭')
+    const never = r.createApplication(r.upsertJob({ source_platform: 'boss', source_job_id: 'b2', title: '算法', company_name: '字节跳动' }).id)
+    r.jumpTo(never.id, 'discarded', '不投了')
+    expect(r.findClosedSentApplicationsByCompany('字节跳动').map(a => a.id)).toEqual([sent.id])
+    expect(r.reopenClosed(sent.id, '收到面试邀请').stage).toBe('applied')
+    const last = r.stageHistory().filter(h => h.application_id === sent.id).at(-1)!
+    expect(last.from_stage).toBe('discarded')
+    expect(isSendNote(last.note)).toBe(false)
+    expect(() => r.reopenClosed(sent.id, 'again')).toThrow()
   })
 })

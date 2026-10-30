@@ -116,6 +116,20 @@ describe('captureIntake', () => {
     expect(d.repos.listDeadlines({ application_id: app.id })).toEqual([expect.objectContaining({ kind: 'assessment', due_at: '2026-10-06T10:00:00.000Z' })]);
   });
 
+  it('按静默关掉的投递来了迟到的面试邀请：重新打开接回原来那份，不另起一份；从没投出的不接', async () => {
+    const llm = new FakeLLM();
+    const d = await deps(llm);
+    const app = d.repos.createApplication(d.repos.upsertJob({ source_platform: 'campus', source_job_id: 'zj', title: '后端开发', company_name: '己公司' }).id);
+    d.repos.jumpTo(app.id, 'applied', '已投递'); d.repos.jumpTo(app.id, 'discarded', '静默超时，主动关闭');
+    const before = d.repos.listApplications().length;
+    llm.push(JSON.stringify({ kind: 'interview_invite', relevance: 'job', fields: { company: '己公司', round: '一面', when: '2026-10-08T07:00:00Z' }, summary: '己公司一面' }));
+    const res = await captureIntake(d, { text: '诚邀你参加一面', source: 'mail' });
+    expect(res.created.application_id).toBe(app.id);
+    expect(d.repos.listApplications()).toHaveLength(before);
+    expect(d.repos.getApplication(app.id)!.stage).toBe('interview');
+    expect(d.repos.stageHistory().filter(h => h.application_id === app.id).map(h => h.to_stage)).toContain('discarded');
+  });
+
   it('JD 入库与邮件建岗写汇总表维度：只记原文字面出现的批次 / 企业性质，拿不到就空', async () => {
     const llm = new FakeLLM();
     const d = await deps(llm);

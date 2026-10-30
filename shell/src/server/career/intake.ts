@@ -61,6 +61,8 @@ export interface IntakeResult {
 }
 
 const INBOX_KIND_SET = new Set<string>(['jd', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other']);
+/** 招聘方对一份已投申请的回音：能把一份关掉的申请重新打开的那几类。 */
+const REPLY_KINDS = new Set<InboxKind>(['interview_invite', 'assessment', 'written_test', 'rejection', 'offer']);
 
 /** 技能提示词 + 模型 → JSON（与 career-tools.askSkill 同形，这里不依赖工具层）。 */
 async function askSkill<T>(deps: IntakeDeps, skill: string, user: string, temperature = 0.2): Promise<T> {
@@ -152,6 +154,9 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
   let app = input.application_id ? r.getApplication(input.application_id) : undefined;
   if (!app && triage.match?.application_id) app = r.getApplication(triage.match.application_id);
   if (!app && company) { const hits = r.findOpenApplicationsByCompany(company); if (hits.length === 1) app = hits[0]; }
+  // 都没有：这家投出过、后来被关掉（多半是静默超时）的那份，迟到的回信接回它，不另起一份；重新打开放进下面的 try
+  const closed = !app && company && REPLY_KINDS.has(kind) ? r.findClosedSentApplicationsByCompany(company) : [];
+  if (closed.length === 1) app = closed[0];
 
   /**
    * 找不到投递就建岗位 + 投递；然后只往前推进到目标阶段（Repos.advanceTo）：已经在面试的投递又收到一封笔试通知，
@@ -184,6 +189,7 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
   const label = `${company ?? '未知公司'}${title ? ` · ${title}` : ''}`;
 
   try {
+    if (closed.length === 1 && app) { app = r.reopenClosed(app.id, noteText); tables.add('application').add('application_history'); }
     switch (kind) {
       case 'jd': {
         const { job } = await parseAndStoreJd(deps, { jd_raw: item.raw_text, company_name: company ?? undefined, title: title ?? undefined });
