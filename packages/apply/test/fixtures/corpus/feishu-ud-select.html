@@ -4,7 +4,7 @@
   飞书招聘网申表（Universe Design）下拉的 DOM 形态（2026-10-31 小鹏真机失败快照里抄下的结构，数据虚构）：
   外壳 .ud__select > .ud__select__selector > __content > [__placeholder] [__search > input readonly role=combobox type=search] + __arrow；
   在 selector 上 mousedown 开 / 关；弹层挂到 body：.ud__select__dropdown > … > .rc-virtual-list-holder（max-height 240，内容 320）>
-  .rc-virtual-list-holder-inner > 每个选项包 5 层：div > div.ud__select__list__item > div.__content > span > span > 文本（另有空的 div.__check）；
+  .rc-virtual-list-holder-inner > 每个选项包 5 层（「学历」按 data-total 模拟虚拟列表只渲染了一部分）：div > div.ud__select__list__item > div.__content > span > span > 文本（另有空的 div.__check）；
   点击处理只挂在 .ud__select__list__item 上（点叶子要冒泡上来才收得到）；禁用项带 .ud__select__list__item-disabled；
   选中后外壳里出现 .ud__select__selector__item 显示选中文字（真机还没抓到选中态，这里按同一命名风格放一个）。
 -->
@@ -27,8 +27,9 @@ body{font:14px -apple-system,"PingFang SC",sans-serif;margin:24px}
 </style></head><body>
 <form>
   <div class="register-form-group-wrapper">
-    <div data-mount="degree" data-label="学历" data-required="1" data-opts="博士,MBA,硕士,本科,大专,高中,专职!,初中,小学"></div>
+    <div data-mount="degree" data-label="学历" data-required="1" data-total="30" data-opts="博士,MBA,硕士,本科,大专,高中,专职!,初中,小学"></div>
     <div data-mount="education_type" data-label="学历类型" data-required="1" data-opts="海外及港澳台,统招全日制,统招非全日制,自考,其他"></div>
+    <div data-mount="politics" data-label="政治面貌" data-opts="中共党员,中共预备党员,共青团员,民革党员,民盟盟员,民建会员,无党派人士,群众,其他"></div>
   </div>
 </form>
 <script>
@@ -59,7 +60,8 @@ body{font:14px -apple-system,"PingFang SC",sans-serif;margin:24px}
     inner.style.cssText = 'display:flex;flex-direction:column;position:absolute;left:0;right:0;top:0'
     const holder = el('div', 'rc-virtual-list-holder', [el('div', '', [inner])])
     holder.style.cssText = 'max-height:240px;overflow-y:hidden'
-    holder.firstChild.style.cssText = `height:${opts.length * 36}px;position:relative;overflow:hidden`
+    // data-total：虚拟列表一共有多少项（只渲染了 opts 这几项）；不写就是全渲染了
+    holder.firstChild.style.cssText = `height:${(Number(host.dataset.total) || opts.length) * 36}px;position:relative;overflow:hidden`
     const hidden = `${P}__select__dropdown-hidden`
     const drop = el('div', `~select__dropdown ~select__dropdown-hidden`, [el('div', '', [el('div', '~select__list', [el('div', '~select__list__menu', [el('div', 'rc-virtual-list', [holder])])])])])
     document.body.append(drop)

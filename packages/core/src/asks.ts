@@ -29,7 +29,11 @@ import { PROFILE_FIELDS } from './vault.js'
 export type AskKind = 'info' | 'login' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure'
 export type AskSourceType = 'deadline' | 'action' | 'handoff'
 export interface AskSource { type: AskSourceType; id: string }
-export interface AskField { label: string; /** 能在卡片里填时写进私密库的字段；null = 写答案库 */ vault_field: string | null; sensitive: boolean; /** 上传类、读回不一致等只能去页面上看的项 */ fillable: boolean }
+export interface AskField {
+  label: string; /** 能在卡片里填时写进私密库的字段；null = 写答案库 */ vault_field: string | null; sensitive: boolean; /** 上传类、读回不一致等只能去页面上看的项 */ fillable: boolean
+  /** 网页上这一格的可选项（下拉 / 单选）：卡片里让他点选，不用猜网站的写法 */
+  options?: string[]
+}
 
 export interface AskView {
   id: string
@@ -226,13 +230,15 @@ function missingFields(action: ActionQueueItem | undefined): AskField[] {
   const result = parseObj(action?.result_json ?? null)
   const gate = records([result.gate])[0]
   const keyOf = new Map(records(result.needsUser).map(p => [strOf(p.label), strOf(p.key)]))
+  const optionsOf = new Map(records(result.needsUser).map(p => [strOf(p.label), Array.isArray(p.options) ? p.options.filter((o): o is string => typeof o === 'string' && !!o.trim()) : []]))
   const files = new Set(records(result.fields).filter(f => f.type === 'file').map(f => strOf(f.label)))
   const fields: AskField[] = []
   for (const g of records(gate?.gaps)) {
     const label = strOf(g.label)
     if (!label || g.required === false || fields.some(f => f.label === label)) continue
     const def = PROFILE_BY_KEY.get(keyOf.get(label) ?? '')
-    fields.push({ label, vault_field: def?.field ?? null, sensitive: def?.sensitive ?? false, fillable: !files.has(label) && !UNFILLABLE.has(String(g.status)) })
+    const options = optionsOf.get(label) ?? []
+    fields.push({ label, vault_field: def?.field ?? null, sensitive: def?.sensitive ?? false, fillable: !files.has(label) && !UNFILLABLE.has(String(g.status)), ...(options.length && !def?.sensitive ? { options } : {}) })
   }
   return fields
 }

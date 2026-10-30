@@ -270,6 +270,9 @@ describe('飞书 formily 表单结构（真实 Chrome）', () => {
     expect(byLabel['年龄'].required).toBe(true)
     expect(byLabel['期望工作地点'].required).toBe(false)
     expect(byLabel['推荐方式']).toMatchObject({ type: 'radio', options: ['无', '内推', '大使推荐'], value: '无', required: true })
+    // 投递次数说明是信息横幅，不是校验错误；邮箱下面的红字才是
+    const sig = await engine!.fromPlaywright(page).evaluate(engine!.pageSignalsScript)
+    expect(sig.errors).toEqual(['请输入正确的邮箱'])
     await page.context().close()
   })
 })
@@ -285,12 +288,18 @@ describe('飞书 UD 下拉（真实 Chrome）', () => {
     const open1 = await P.evaluate(e.openOptionsScript, { selector: f.selector })
     expect(open1.options.map(o => o.text)).toEqual(['博士', 'MBA', '硕士', '本科', '大专', '高中', '专职', '初中', '小学'])
     expect(open1.options.find(o => o.text === '专职')?.disabled).toBe(true)
-    expect(open1.partial).toBe(true) // 内容 324px、可视 240px：列表没露全
+    expect(open1.partial).toBe(true) // 虚拟列表 30 项只渲染了 9 项：列表没露全
     await P.evaluate(e.closePopupScript, { selector: f.selector })
+    // 9 项全渲染了、只是框不够高要滚动：列表是完整的
+    const politics = (await e.extractFields(P)).find(x => x.label === '政治面貌')!
+    expect((await P.evaluate(e.openOptionsScript, { selector: politics.selector })).partial).toBe(false)
+    await P.evaluate(e.closePopupScript, { selector: politics.selector })
     let r = await fill(page, '学历', '本科')
     expect(r.att).toMatchObject({ verified: true })
     expect(r.model.degree).toBe('本科')
     expect(r.display).toBe('本科')
+    // 填后检查重新抽取时也读得出选中值（不能把选好的「学历」报成必填还空着）
+    expect((await e.extractFields(P)).find(x => x.label === '学历')?.value).toBe('本科')
     r = await fill(page, '学历类型', '统招全日制')
     expect(r.att).toMatchObject({ verified: true })
     expect(r.model.education_type).toBe('统招全日制')
@@ -299,6 +308,15 @@ describe('飞书 UD 下拉（真实 Chrome）', () => {
     r = await fill(page, '学历类型', '定向委培')
     left(r.att)
     expect(r.model.education_type).toBeUndefined()
+    await page.context().close()
+    // 要学生补的下拉：问之前点开读出选项再收起，跟着问题带过去（学历类型 5 项；禁用项不带）
+    page = await open('corpus/feishu-ud-select.html')
+    const P2 = e.fromPlaywright(page)
+    const kind = (await e.extractFields(P2)).find(x => x.label === '学历类型')!
+    const degree = (await e.extractFields(P2)).find(x => x.label === '学历')!
+    const asked = await e.attachOptions(P2, [{ fieldId: kind.id, label: '学历类型', status: 'needs_user', source: 'none', confidence: 0 }, { fieldId: degree.id, label: '学历', status: 'needs_user', source: 'none', confidence: 0 }])
+    expect(asked[0].options).toEqual(['海外及港澳台', '统招全日制', '统招非全日制', '自考', '其他'])
+    expect(asked[1].options).toBeUndefined() // 学历虚拟列表只渲染了一部分：带一半会误导，不带
     await page.context().close()
     // 同一结构换一套不在组件库名单里的类名：外壳按结构往上找到最外层同类节点，选中值照样读得回来
     page = await open('corpus/feishu-ud-select.html?lib=zz')

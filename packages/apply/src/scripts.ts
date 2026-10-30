@@ -234,11 +234,31 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       }
       return true
     }
-    const KNOWN_SELECT = '.ant-select, .el-select, .ivu-select, .mtd-select, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const KNOWN_SELECT = '.ant-select, .el-select, .ivu-select, .mtd-select, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, .ud__select'
     /** 控件所在的自定义下拉外壳：先认已知组件库的根，再退到泛 [class*=select]（MTD 输入框外还套着 mtd-select-filter-input）。 */
+    /**
+     * 下拉外壳：先认已知组件库；否则按结构往上取最外层带 select 的节点，遇到装着别的控件或标签的那层就停
+     * （最近的那层可能只是包着搜索框的 __search，选中值渲染在它外面——2026-10-31 小鹏「学历」被读成空）。
+     */
     function selectShellOf(n: Element): Element | null {
       const p = n.parentElement
-      return p ? (p.closest(KNOWN_SELECT) ?? p.closest('[class*="select" i]')) : null
+      if (!p) return null
+      const known = p.closest(KNOWN_SELECT)
+      if (known) return known
+      let shell = p.closest('[class*="select" i]')
+      for (let a = shell?.parentElement ?? null; shell && a && a !== document.body && /select/i.test(typeof a.className === 'string' ? a.className : ''); a = a.parentElement) {
+        const inner: Element = shell
+        if (a.querySelector('label') || Array.from(a.querySelectorAll('input, select, textarea')).some(c => c !== n && !inner.contains(c))) break
+        shell = a
+      }
+      return shell
+    }
+    /** 外壳里用户看得到的选中文字：去掉占位 / 提示节点和图标字符；只剩提示语（请选择…）算空。 */
+    function shownText(shell: Element): string {
+      let t = clean((shell as HTMLElement).innerText)
+      for (const h of Array.from(shell.querySelectorAll('[class*="placeholder" i]:not(input), [class*="hint" i]'))) { const x = clean((h as HTMLElement).innerText); if (x) t = t.replace(x, '') }
+      t = clean(t.replace(/[\p{So}\p{Co}×✕✖⨯⌄∨˅]/gu, ''))
+      return /^(请选择|请输入|选择|搜索|please select|select|--)?$/i.test(t) ? '' : t
     }
     function isPlainText(n: Element): boolean {
       const t = ((n as HTMLInputElement).type || '').toLowerCase()
@@ -412,7 +432,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         // 选中值的展示节点；MTD 是 .mtd-select-filter-label（没选时带 -hint 类、写"请选择"，不算值）
         const shownEl = shell === el ? null : shell.querySelector('[class*="selection-item" i], [class*="single-value" i], [class*="selected-value" i], [class*="filter-label" i]:not([class*="hint" i]), .el-input__inner, .layui-input') as HTMLElement | null
         const hasLabelNode = shell !== el && !!shell.querySelector('[class*="filter-label" i], [class*="selection-item" i], [class*="placeholder" i]:not(input)')
-        const shown = clean((shownEl && shownEl !== el ? ((shownEl as HTMLInputElement).value || shownEl.textContent) : '') || (hasLabelNode ? '' : (el as HTMLInputElement).value))
+        // 认不出展示节点时，按外壳里看得到的文字读选中值（飞书 UD 等没见过的组件库）
+        const shown = clean((shownEl && shownEl !== el ? ((shownEl as HTMLInputElement).value || shownEl.textContent) : '') || (hasLabelNode ? '' : (el as HTMLInputElement).value) || (shell !== el && !shownEl ? shownText(shell) : ''))
         let label = clean(labelFor(el))
         let uncertain = suspicious(label, labelVia)
         // 组合控件的前缀下拉（区号 / 证件类型）：和后面的输入框共用一个标签。标签归输入框，前缀下拉按提示文字另起名，
@@ -509,9 +530,20 @@ export const pageSignalsScript: PageScript<void, PageSignals> = {
       if (n >= 100) break
     }
     const errors: string[] = []
+    // 校验错误要像错误：信息 / 提醒类横幅（「还可以投递 3 次」「截止说明」）不算——2026-10-31 小鹏的投递次数说明被当成了要学生处理的校验错误
+    const NOTICE_CLASS_RX = /(info|notice|tips?|warn|success|hint)/i
+    const ERROR_CLASS_RX = /(error|danger|invalid)/i
+    const ERROR_WORD_RX = /(请|必填|不能为空|不得为空|格式|有误|错误|不正确|不合法|无效|已存在|invalid|required|error)/i
+    const clsOf = (n: Element) => (typeof n.className === 'string' ? n.className : '')
+    const isNotice = (e: Element): boolean => {
+      for (let a: Element | null = e, i = 0; a && i < 4; a = a.parentElement, i++) { const c = clsOf(a); if (ERROR_CLASS_RX.test(c)) return false; if (NOTICE_CLASS_RX.test(c)) return true }
+      return false
+    }
     for (const e of Array.from(document.querySelectorAll('[aria-invalid="true"] ~ *, [role="alert"], [class*="error" i]:not([class*="clear" i]), [class*="form-item__error" i], [class*="explain-error" i]'))) {
-      if (!vis(e)) continue
-      const t = clean(e.textContent); if (t && t.length > 1 && t.length < 160) errors.push(t)
+      if (!vis(e) || isNotice(e)) continue
+      const t = clean(e.textContent)
+      if (e.getAttribute('role') === 'alert' && !ERROR_CLASS_RX.test(clsOf(e)) && !ERROR_WORD_RX.test(t)) continue
+      if (t && t.length > 1 && t.length < 160) errors.push(t)
     }
     const fieldCount = Array.from(document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select, [contenteditable="true"]')).filter(vis).length
     return {

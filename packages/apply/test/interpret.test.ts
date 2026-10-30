@@ -32,6 +32,19 @@ describe('interpret', () => {
     expect(p).toMatchObject({ status: 'fill', source: 'answer_bank', value: '15k-18k' })
     expect(findBankAnswer('期望薪资', profile.answerBank)?.answer).toBe('15k-18k')
   })
+  it('答案库只认同一个问题：括号补充、虚词不影响；多出「类型 / 联系人」这种改变意思的词不算（2026-10-31 小鹏「学历」被填成学历类型的答案）', () => {
+    const bank = [
+      { question_key: '学历类型', answer: '统招全日制', high_impact: false, confirmed: true },
+      { question_key: '姓名', answer: '林知远', high_impact: false, confirmed: true },
+      { question_key: '国籍（地区）', answer: '中国', high_impact: false, confirmed: true },
+    ]
+    expect(findBankAnswer('学历', bank)).toBeNull()
+    expect(findBankAnswer('紧急联系人姓名', bank)).toBeNull()
+    expect(findBankAnswer('学历类型', bank)?.answer).toBe('统招全日制')
+    expect(findBankAnswer('请选择学历类型', bank)?.answer).toBe('统招全日制')
+    expect(findBankAnswer('国籍', bank)?.answer).toBe('中国')
+    expect(findBankAnswer('你的期望薪资是多少', profile.answerBank)?.answer).toBe('15k-18k')
+  })
   it('开放题 → 起草并标 draft_needs_confirm，带用到的经历', async () => {
     const llm = draftLLM({ '为什么选择我们': '我在 A 公司做过推荐系统重构……' })
     const fields = await fieldsOf({ url: 'u', fields: [{ label: '为什么选择我们', type: 'textarea', maxLength: 500 }] })

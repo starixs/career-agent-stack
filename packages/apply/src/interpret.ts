@@ -43,6 +43,8 @@ export interface FieldPlan {
   experiencesUsed?: string[]
   /** needs_user 时的原因码（填写引擎核验不过 / 标签可疑等），见 codes.ts。 */
   code?: import('./codes.js').FieldReasonCode
+  /** needs_user 的下拉 / 单选：网页上的可选项（问学生时让他点选，不用猜网站的写法），见 needs.ts attachOptions。 */
+  options?: string[]
 }
 
 export interface InterpretOptions {
@@ -104,13 +106,24 @@ export function idDocumentKind(id: string): string | undefined {
   return /^\d{17}[\dXx]$/.test(id.trim()) ? '身份证' : undefined
 }
 
-/** 答案库匹配：question_key / question_text 与 label 互相包含即命中；confirmed 与更长的 key 优先。 */
+/** 问句里不改变意思的虚词：请 / 您的 / 是多少… */
+const QUESTION_FILLER_RX = /(请输入|请选择|请填写|请上传|请问|请|您的|你的|您|你|填写|选择|一下|是多少|是什么|多少|吗|呢|的)/g
+/** 一个问题的核心说法：去掉括号里的补充说明（「期望薪资（月薪）」）和虚词。 */
+export function questionCore(s: string): string {
+  return normKey(s.replace(/[（(][^）)]*[）)]/g, '')).replace(QUESTION_FILLER_RX, '')
+}
+
+/**
+ * 答案库匹配：核心说法相同才算同一个问题；confirmed 与更长的 key 优先。
+ * 不再按「互相包含」命中：「学历」⊂「学历类型」会把学历类型的答案填进学历（2026-10-31 小鹏），
+ * 「姓名」⊂「紧急联系人姓名」会把本人姓名填成紧急联系人。
+ */
 export function findBankAnswer(label: string, bank: AnswerBankEntry[]): AnswerBankEntry | null {
-  const l = normKey(label)
+  const l = questionCore(label)
   if (!l) return null
   const hits = bank.filter(e => {
-    const k = normKey(e.question_key); const t = normKey(e.question_text ?? '')
-    return (k && (l === k || l.includes(k) || k.includes(l))) || (t && (l === t || l.includes(t) || t.includes(l)))
+    const k = questionCore(e.question_key); const t = questionCore(e.question_text ?? '')
+    return (!!k && l === k) || (!!t && l === t)
   })
   if (!hits.length) return null
   hits.sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned) || Number(!!b.confirmed) - Number(!!a.confirmed) || normKey(b.question_key).length - normKey(a.question_key).length)

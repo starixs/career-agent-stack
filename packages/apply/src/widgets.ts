@@ -276,6 +276,8 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
     const EMPTY_RX = /^(无匹配|无数据|暂无|没有|加载中|搜索中|请输入|输入关键字|no (data|match|result)|loading|searching)/i
     /** 内容高度超过可视高度这么多倍才算"还有没露出来的选项"（排除一两像素的边框 / 阴影误差）。 */
     const PARTIAL_RATIO = 1.15
+    /** 已渲染的行高加起来达到内容高度的这个比例，就算选项都渲染了（留出分组标题 / 内边距的余量）。 */
+    const COVER_RATIO = 0.9
     const fire = (n: Element) => {
       if (typeof PointerEvent === 'function') n.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }))
       n.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }))
@@ -328,8 +330,18 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
       }
       return false
     }
-    /** 列表只渲染了一部分（虚拟滚动 / 有滚动条）：弹层里有内容高度明显超过可视高度的容器。 */
-    const scrollsMore = (layer: Element | null): boolean => !!layer && [layer, ...Array.from(layer.querySelectorAll('*'))].some(n => n.clientHeight > 0 && n.scrollHeight > n.clientHeight * PARTIAL_RATIO)
+    /**
+     * 列表只渲染了一部分（虚拟滚动）：弹层里有内容高度明显超过可视高度的容器，且已渲染的选项行加起来盖不住那段内容。
+     * 选项都渲染了、只是框不够高要滚动才看得见（小鹏「学历」9 项）不算——那时列表是完整的。
+     */
+    const scrollsMore = (layer: Element | null, opts: Element[]): boolean => {
+      if (!layer) return false
+      const boxes = [layer, ...Array.from(layer.querySelectorAll('*'))].filter(n => n.clientHeight > 0 && n.scrollHeight > n.clientHeight * PARTIAL_RATIO)
+      if (!boxes.length) return false
+      const rows = new Set(opts.map(n => rowOf(n, layer)))
+      const covered = Array.from(rows).reduce((sum, r) => sum + r.getBoundingClientRect().height, 0)
+      return boxes.some(b => covered < b.scrollHeight * COVER_RATIO)
+    }
     const owned = (): Element | null => {
       for (const n of [el, shell, ...Array.from(shell.querySelectorAll('[aria-controls], [aria-owns]'))]) {
         for (const attr of ['aria-controls', 'aria-owns']) for (const id of (n.getAttribute(attr) || '').split(/\s+/).filter(Boolean)) { const t = document.getElementById(id); if (t && !t.contains(shell)) return t }
@@ -432,7 +444,7 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
       return { id, text: clean(n.textContent), disabled: disabledOpt(n, popup) || undefined }
     })
     const cascade = nodes.some(n => /cascader/i.test(`${(n.closest(POP) as HTMLElement | null)?.className ?? ''} ${typeof n.className === 'string' ? n.className : ''}`))
-    return { opened: true, options, searchable, cascade, via, popupText: popup ? clean((popup as HTMLElement).innerText).slice(0, 300) : '', partial: scrollsMore(popup) }
+    return { opened: true, options, searchable, cascade, via, popupText: popup ? clean((popup as HTMLElement).innerText).slice(0, 300) : '', partial: scrollsMore(popup, nodes) }
   },
 }
 
