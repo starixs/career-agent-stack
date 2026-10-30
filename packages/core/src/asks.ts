@@ -42,6 +42,8 @@ export interface AskView {
   companies: CompanyMark[]
   /** 合并前的每个源；处理时逐个落库 */
   sources: AskSource[]
+  /** 接管类：停下来的那些填表动作，补完后助理按它们从当前页接着填（apply_continue） */
+  action_ids?: string[]
   /** 外部期限；null = 没有 */
   due_at: string | null
   /** 已经过了时间（只问考了没有） */
@@ -230,7 +232,7 @@ function infoAsks(ctx: Ctx, rows: readonly HandoffRow[]): AskView[] {
       title: names.length ? (names.length > 1 ? `${names[0]}等 ${names.length} 项` : names[0]) : '还差几项要你补',
       detail: names.length ? undefined : rs[0].h.message ?? undefined,
       application_ids: appIds, companies: companiesOf(ctx, appIds), sources: rs.map(r => ({ type: 'handoff' as const, id: r.h.id })),
-      due_at: earliestJobDeadline(ctx, appIds), overdue: false, fields,
+      action_ids: uniq(rs.map(r => r.h.action_id)), due_at: earliestJobDeadline(ctx, appIds), overdue: false, fields,
     }
   })
 }
@@ -244,7 +246,7 @@ function loginAsk(ctx: Ctx, rows: readonly HandoffRow[]): AskView | null {
   return {
     id: rows[0].h.id, kind: 'login', title, detail: allLogin ? '登录一次，之后自动投' : '登录、验证码一次去浏览器处理完',
     application_ids: appIds, companies: companiesOf(ctx, appIds), sources: rows.map(r => ({ type: 'handoff' as const, id: r.h.id })),
-    due_at: earliestJobDeadline(ctx, appIds), overdue: false,
+    action_ids: uniq(rows.map(r => r.h.action_id)), due_at: earliestJobDeadline(ctx, appIds), overdue: false,
   }
 }
 
@@ -254,7 +256,7 @@ function singleHandoffAsk(ctx: Ctx, r: HandoffRow, kind: 'deadline' | 'confirm')
   const what = kind === 'confirm' ? '投出了吗' : '在线测评'
   return {
     id: r.h.id, kind, title: company ? `${shortName(company)} · ${what}` : what, detail: r.h.message ?? undefined,
-    application_ids: appIds, companies: companiesOf(ctx, appIds), sources: [{ type: 'handoff', id: r.h.id }],
+    application_ids: appIds, companies: companiesOf(ctx, appIds), sources: [{ type: 'handoff', id: r.h.id }], action_ids: uniq([r.h.action_id]),
     due_at: earliestJobDeadline(ctx, appIds), overdue: false, ...(kind === 'deadline' ? { deadline_kind: 'assessment' } : {}),
   }
 }
