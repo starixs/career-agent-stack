@@ -17,6 +17,7 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   browser_capture_job: '收录这个岗位',
   apply_prepare: '准备材料并开始填网申',
   apply_run: '打开网申页填表',
+  learned_rules: '看我替你记下的规则',
   career_overview: '看求职全局',
   claim_confirm: '记下你确认的经历',
   company_research: '查公司信息',
