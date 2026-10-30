@@ -68,10 +68,15 @@ export async function executeSendMailAction(deps: MailSendDeps, action: ActionQu
     }
   }
   let messageId: string | null;
+  // 助理代发必须留痕：连接管理页能看到「它替我发了什么」
+  const audit = { to: payload.to.split(/[,;\s]+/).filter(Boolean), subject_preview: payload.subject.slice(0, 20), trigger: action.id };
+  const started = Date.now();
   try {
     ({ messageId } = await (deps.transport ?? sendViaSmtp)(account, password, payload));
+    r.addMailAudit({ account_id: account.id, actor: 'agent', operation: 'send', status: 'ok', detail: audit, latency_ms: Date.now() - started });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    r.addMailAudit({ account_id: account.id, actor: 'agent', operation: 'send', status: 'failed', detail: { ...audit, error: msg.slice(0, 200) }, latency_ms: Date.now() - started });
     r.setActionStatus(action.id, 'failed', { error: msg });
     dataChanged(deps, ['action_queue']);
     throw new Error(`发送失败：${msg}`);

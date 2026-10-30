@@ -8,6 +8,7 @@ import type { Repos, MailAccount, MailMessage } from '@career/core';
 
 import { captureIntake, captureTriaged, dataChanged, type IntakeDeps, type IntakeInput, type IntakeResult } from '../intake';
 import { getMailPassword } from './credentials';
+import { isExpired, recordMailFailure, recordMailSuccess } from './health';
 import { classifyByRules } from './rules';
 
 export interface MailSyncDeps extends IntakeDeps {
@@ -77,52 +78,48 @@ async function fetchBodies(client: ImapClient, uids: number[]): Promise<FetchedM
   return out;
 }
 
-interface Fetched { mails: FetchedMail[]; maxUid: number }
+/** reset：UIDVALIDITY 变了（邮箱重建过），旧游标作废，这次按历史导入重来。 */
+interface Fetched { mails: FetchedMail[]; maxUid: number; uidvalidity: number | null; reset?: boolean }
 
-/** 增量：上次之后的新邮件。 */
+function uidValidityOf(client: ImapClient): number | null {
+  const box = client.mailbox;
+  return box && box.uidValidity !== undefined ? Number(box.uidValidity) : null;
+}
+
+/** 增量：上次之后的新邮件。UIDVALIDITY 变了就当第一次连，重新做历史导入（不然游标对不上，永远拉不到新信）。 */
 function fetchIncremental(account: MailAccount, password: string): Promise<Fetched> {
   return withInbox(account, password, async client => {
+    const uidvalidity = uidValidityOf(client);
+    if (account.uidvalidity && uidvalidity && uidvalidity !== account.uidvalidity) {
+      console.warn(`[career-mail] uidvalidity changed account=${account.id} ${account.uidvalidity} -> ${uidvalidity}, reimporting history`);
+      return { ...(await historyIn(client, account)), reset: true };
+    }
     const uids = ((await client.search({ uid: `${account.last_uid + 1}:*` }, { uid: true })) || []).filter(u => u > account.last_uid).sort((a, b) => a - b);
-    return { mails: await fetchBodies(client, uids.slice(-INCREMENTAL_MAX)), maxUid: uids.at(-1) ?? account.last_uid };
+    return { mails: await fetchBodies(client, uids.slice(-INCREMENTAL_MAX)), maxUid: uids.at(-1) ?? account.last_uid, uidvalidity };
   });
+}
+
+function fetchHistory(account: MailAccount, password: string): Promise<Fetched> {
+  return withInbox(account, password, client => historyIn(client, account));
 }
 
 /** 历史：几个月内的信头全拉（很便宜），粗筛命中的才拉正文。 */
-function fetchHistory(account: MailAccount, password: string): Promise<Fetched> {
-  return withInbox(account, password, async client => {
-    const since = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * 86_400_000);
-    const uids = ((await client.search({ since }, { uid: true })) || []).sort((a, b) => a - b);
-    const candidates: number[] = [];
-    if (uids.length) {
-      for await (const msg of client.fetch(uids, { uid: true, envelope: true }, { uid: true })) {
-        const from = msg.envelope?.from?.map(a => `${a.name ?? ''} <${a.address ?? ''}>`).join(', ') ?? null;
-        if (isLikelyJobMail({ from, subject: msg.envelope?.subject ?? null, text: '' })) candidates.push(msg.uid);
-      }
+async function historyIn(client: ImapClient, account: MailAccount): Promise<Fetched> {
+  const since = new Date(Date.now() - HISTORY_LOOKBACK_DAYS * 86_400_000);
+  const uids = ((await client.search({ since }, { uid: true })) || []).sort((a, b) => a - b);
+  const candidates: number[] = [];
+  if (uids.length) {
+    for await (const msg of client.fetch(uids, { uid: true, envelope: true }, { uid: true })) {
+      const from = msg.envelope?.from?.map(a => `${a.name ?? ''} <${a.address ?? ''}>`).join(', ') ?? null;
+      if (isLikelyJobMail({ from, subject: msg.envelope?.subject ?? null, text: '' })) candidates.push(msg.uid);
     }
-    const picked = candidates.sort((a, b) => a - b).slice(-HISTORY_MAX_CANDIDATES);
-    console.log(`[career-mail] history scan account=${account.id} scanned=${uids.length} candidates=${candidates.length} picked=${picked.length}`);
-    return { mails: await fetchBodies(client, picked), maxUid: uids.at(-1) ?? 0 };
-  });
-}
-
-/** 只试登录、不拉信：一键连接读到授权码后先验一遍，错的授权码不落库。 */
-export async function verifyImapLogin(host: string, port: number, user: string, pass: string): Promise<void> {
-  const { ImapFlow } = await import('imapflow');
-  const client = new ImapFlow({ host, port, secure: true, auth: { user, pass }, logger: false });
-  await client.connect();
-  await client.logout().catch(() => undefined);
+  }
+  const picked = candidates.sort((a, b) => a - b).slice(-HISTORY_MAX_CANDIDATES);
+  console.log(`[career-mail] history scan account=${account.id} scanned=${uids.length} candidates=${candidates.length} picked=${picked.length}`);
+  return { mails: await fetchBodies(client, picked), maxUid: uids.at(-1) ?? 0, uidvalidity: uidValidityOf(client) };
 }
 
 function stripHtml(html: string): string { return html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(); }
-
-/** 登录 / 拉信失败写回账号状态：认证类错误标 auth_failed（要重新填授权码），其余标 error。返回错误文字。 */
-export function recordMailFailure(deps: Pick<IntakeDeps, 'repos' | 'broadcast' | 'sessionId'>, accountId: string, error: unknown): string {
-  const msg = error instanceof Error ? error.message : String(error);
-  const auth = /auth|login|credential|密码|授权/i.test(msg);
-  deps.repos.updateMailAccount(accountId, { status: auth ? 'auth_failed' : 'error', last_error: msg.slice(0, 300) });
-  dataChanged(deps, ['mail_account']);
-  return msg;
-}
 
 const inflight = new Map<string, Promise<MailSyncResult>>();
 
@@ -138,32 +135,42 @@ export function syncMailAccount(deps: MailSyncDeps, account: MailAccount): Promi
 async function fetchMails(deps: MailSyncDeps, account: MailAccount, password: string, history: boolean): Promise<Fetched> {
   if (deps.fetchNew) {
     const mails = await deps.fetchNew(account, password);
-    return { mails, maxUid: mails.reduce((n, m) => Math.max(n, m.uid), account.last_uid) };
+    return { mails, maxUid: mails.reduce((n, m) => Math.max(n, m.uid), account.last_uid), uidvalidity: null };
   }
   return history ? fetchHistory(account, password) : fetchIncremental(account, password);
 }
 
+/** 已失效的连接不再自动登录，提示重新授权。 */
+export const EXPIRED_MESSAGE = '邮箱连接已失效，需要重新授权';
+
 async function runSync(deps: MailSyncDeps, account: MailAccount): Promise<MailSyncResult> {
   const r: Repos = deps.repos;
-  const history = account.last_uid === 0;
-  const result: MailSyncResult = { account_id: account.id, fetched: 0, stored: 0, job_related: 0, ignored: 0, archived: [], ...(history ? { history: { by_rules: 0, by_model: 0, unclassified: 0 } } : {}) };
+  const result: MailSyncResult = { account_id: account.id, fetched: 0, stored: 0, job_related: 0, ignored: 0, archived: [] };
+  if (isExpired(account)) return { ...result, error: EXPIRED_MESSAGE };
   const password = getMailPassword(account.id);
   if (!password) {
-    r.updateMailAccount(account.id, { status: 'auth_failed', last_error: '没有保存授权码，请重新绑定邮箱' });
+    r.updateMailAccount(account.id, { status: 'auth_failed', last_error: '没有保存授权码，请重新授权' });
     dataChanged(deps, ['mail_account']);
     return { ...result, error: '没有保存授权码' };
   }
+  const started = Date.now();
   let fetched: Fetched;
   try {
-    fetched = await fetchMails(deps, account, password, history);
+    fetched = await fetchMails(deps, account, password, account.last_uid === 0);
   } catch (error) {
-    return { ...result, error: recordMailFailure(deps, account.id, error) };
+    const message = recordMailFailure(deps, account, error);
+    r.addMailAudit({ account_id: account.id, actor: 'system', operation: 'sync', status: 'failed', detail: { error: message }, latency_ms: Date.now() - started });
+    return { ...result, error: message };
   }
+  const history = account.last_uid === 0 || !!fetched.reset;
+  if (history) result.history = { by_rules: 0, by_model: 0, unclassified: 0 };
   result.fetched = fetched.mails.length;
   // 历史按时间从旧到新：先投递确认、再笔试面试、最后拒信 / Offer，阶段才推得对
   const mails = history ? [...fetched.mails].sort((a, b) => (a.received_at ?? '').localeCompare(b.received_at ?? '')) : fetched.mails;
   for (const m of mails) await archiveMail(deps, account, m, result);
-  r.updateMailAccount(account.id, { status: 'ok', last_error: null, last_sync_at: new Date().toISOString(), last_uid: Math.max(account.last_uid, fetched.maxUid) });
+  recordMailSuccess(deps, account, { last_uid: fetched.reset ? fetched.maxUid : Math.max(account.last_uid, fetched.maxUid), uidvalidity: fetched.uidvalidity });
+  // 每 5 分钟一次的空同步不留痕，只记真拉到信的（连接管理页的用量）
+  if (result.fetched) r.addMailAudit({ account_id: account.id, actor: 'system', operation: history ? 'import' : 'sync', status: 'ok', detail: { fetched: result.fetched, job_related: result.job_related, ...(result.history ?? {}) }, latency_ms: Date.now() - started });
   dataChanged(deps, ['mail_account', 'mail_message', 'inbox_item', 'dossier_note', 'job', 'application', 'application_history', 'interview', 'offer', 'deadline']);
   if (result.history) console.log(`[career-mail] history import account=${account.id} fetched=${result.fetched} rules=${result.history.by_rules} model=${result.history.by_model} unclassified=${result.history.unclassified}`);
   return result;
@@ -227,6 +234,7 @@ async function triageMail(deps: MailSyncDeps, m: FetchedMail, input: IntakeInput
 
 export async function syncAllMailAccounts(deps: MailSyncDeps): Promise<MailSyncResult[]> {
   const out: MailSyncResult[] = [];
-  for (const account of deps.repos.listMailAccounts()) out.push(await syncMailAccount(deps, account));
+  // 失效的连接跳过：不拿错的授权码反复登录
+  for (const account of deps.repos.listMailAccounts()) if (!isExpired(account)) out.push(await syncMailAccount(deps, account));
   return out;
 }
