@@ -95,6 +95,21 @@ describe('Offer · 十一月中两个 Offer 期限交错', () => {
     expect(items.filter(t => t.includes('小米') && t.includes('回复'))).toEqual([]);
   });
 
+  it('三方通知落在已接的那份小米申请上：不另建申请、不另建 Offer', async () => {
+    const { xm } = await untilNov14();
+    expect(appsOf('小米').map(a => a.id)).toEqual([xm.id]);
+    expect(xm.stage).toBe('hired');
+    expect(offersOf('小米')).toHaveLength(1);
+  });
+
+  it('14 号打开：三方三天后截止在队列里；字节 Offer 落在原来的面试申请上', async () => {
+    const { bd } = await untilNov14();
+    const titles = repos.today('2026-11-14T02:00:00.000Z').items.map(i => i.title);
+    expect(titles).toContain('小米 · 算法工程师 三方签约截止');
+    expect(repos.getApplication(bd.id)?.stage).toBe('offer');
+    expect(appsOf('字节跳动')).toHaveLength(1);
+  });
+
   it.todo('〔面〕两个撤不回的期限交错（小米三方 17 号早于字节答复 21 号）：要不要主动点出、给什么建议（向字节要提前答复 / 向小米申请延期），还是只在比较里列出');
   it.todo('〔面〕接了又反悔（意向毁约、三方违约）怎么记：现在 hired 是终点，记不下「接了又放弃」；放在 Offer 自己的状态还是投递阶段');
   it.todo('〔面〕接下一个 Offer 后在途申请怎么收：美团二面、百度测评、待投清单、auto 模式——逐个问 / 一张收尾卡 / 照旧');

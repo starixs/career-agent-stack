@@ -151,7 +151,8 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
   // 找归属投递：用户指定 > 模型匹配 > 公司名匹配（唯一时才用）
   let app = input.application_id ? r.getApplication(input.application_id) : undefined;
   if (!app && triage.match?.application_id) app = r.getApplication(triage.match.application_id);
-  if (!app && company) { const hits = r.findOpenApplicationsByCompany(company); if (hits.length === 1) app = hits[0]; }
+  // Offer 来信还要算上已接受的那份：接了意向之后还会来三方、入职通知
+  if (!app && company) { const hits = r.findOpenApplicationsByCompany(company, kind === 'offer' ? ['hired'] : []); if (hits.length === 1) app = hits[0]; }
 
   /**
    * 找不到投递就建岗位 + 投递；然后只往前推进到目标阶段（Repos.advanceTo）：已经在面试的投递又收到一封笔试通知，
@@ -218,9 +219,12 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       }
       case 'offer': {
         const a = ensureApplication('offer', '收到 Offer');
-        const offer = store.createOffer({ application_id: a.id, company_name: company, title, deadline: normalizeIso(f.due_at, nowIso) ?? null, risk_notes: f.notes ?? null });
+        // 同一份申请只有一个 Offer：意向书之后的正式 offer、三方通知都落在它上面
+        const existing = store.listOffers().find(o => o.application_id === a.id);
+        const offer = existing ?? store.createOffer({ application_id: a.id, company_name: company, title, deadline: normalizeIso(f.due_at, nowIso) ?? null, risk_notes: f.notes ?? null });
         created.offer_id = offer.id; tables.add('offer');
-        addDeadline('offer_reply', `${label} Offer 回复截止`, f.due_at, { offer_id: offer.id });
+        if (isSigningNotice(f.notes, input.mail?.subject)) addDeadline('other', `${label} 三方签约截止`, f.due_at, { offer_id: offer.id });
+        else if (!existing) addDeadline('offer_reply', `${label} Offer 回复截止`, f.due_at, { offer_id: offer.id });
         break;
       }
       case 'referral': {
@@ -327,6 +331,12 @@ function normalizeRound(round?: string): string {
 }
 
 /** 把模型给的时间（ISO / "2026-10-05 14:00" / "10月5日 14:00"）规整成 ISO；解析不了返回 null。 */
+/** 三方 / 签约通知：和 offer 回复是两个期限（先答复、再签三方），单独记一条，不和回复截止混在一起。 */
+const SIGNING_RE = /三方|签约/;
+function isSigningNotice(...texts: Array<string | null | undefined>): boolean {
+  return texts.some(t => !!t && SIGNING_RE.test(t));
+}
+
 export function normalizeIso(value: string | undefined | null, nowIso: string): string | null {
   if (!value) return null;
   const v = value.trim();

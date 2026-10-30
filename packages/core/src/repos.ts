@@ -5,7 +5,7 @@ import { canonicalJson, jobKey, sha256 } from './keys.js'
 import { inferEmploymentType, mergeBoardMeta, normalizeCohort, parseBoardJson } from './jobs.js'
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
-import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
+import { canReachStage, canTransition, CLOSED_STAGES, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage, Interview, Offer } from './types.js'
 import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
 import { buildMonthBoard, type MonthBoard, type StageHistoryRow } from './review-board.js'
@@ -501,13 +501,17 @@ export class Repos {
     const jobs = new Map(this.listJobs().map(j => [j.id, j]))
     return this.listApplications().flatMap(a => { const job = jobs.get(a.job_id); return job ? [{ ...a, job }] : [] })
   }
-  /** 按公司名（含品牌别名）找仍在进行中的投递；邮件 / 收件箱归档用。 */
-  findOpenApplicationsByCompany(companyName: string): Array<Application & { job: Job }> {
+  /**
+   * 按公司名（含品牌别名）找仍在进行中的投递；邮件 / 收件箱归档用。
+   * alsoStages：额外算作「还在进行」的终态，如 Offer 来信要算上已接受（hired）的那份——接了之后还会来三方、入职通知。
+   */
+  findOpenApplicationsByCompany(companyName: string, alsoStages: readonly ApplicationStage[] = []): Array<Application & { job: Job }> {
     const key = companyName.trim().toLowerCase()
     if (!key) return []
+    const closed = CLOSED_STAGES.filter(s => !alsoStages.includes(s))
     return this.applicationsWithJob().filter(a => {
       const name = (a.job.company_name ?? '').toLowerCase()
-      return name && (name.includes(key) || key.includes(name)) && !['rejected', 'discarded', 'skip', 'hired'].includes(a.stage)
+      return name && (name.includes(key) || key.includes(name)) && !closed.includes(a.stage)
     })
   }
 
