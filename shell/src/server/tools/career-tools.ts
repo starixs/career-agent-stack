@@ -1321,14 +1321,18 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ ...out, questions, note: '题目已存进题库（question_id）。用户练习作答后用 question_attempt 打分记录，便于比较进步。' });
       })()),
 
-      tool('interview_probe', '模拟面试 / 简历深挖：漏斗追问。首轮不传 transcript 时给开场问题；传 transcript 时给追问或结束复盘。结果记录到 mock_interview。', {
+      tool('interview_probe', '模拟面试 / 简历深挖：漏斗追问。首轮不传 transcript 时给开场问题；传 transcript 时给追问或结束复盘。一场模拟记一条 mock_interview：接着练时带上首轮返回的 mock_interview_id。', {
         job_id: z.string().optional(), resume_id: z.string().optional(), company_type: z.enum(['大厂', '创业公司', '国企央企', '外企']).optional(), round: z.string().optional(),
         transcript: z.string().optional().describe('到目前为止的问答记录'), finish: z.boolean().optional().describe('结束并产出复盘'),
+        mock_interview_id: z.string().optional().describe('接着练同一场时传上一轮返回的 mock_interview_id；不传就开新的一场'),
       }, async (args) => wrap(async () => {
         const job = args.job_id ? requireJob(args.job_id) : undefined;
         const resume = interviewResume(store(), repos(), args);
         const out = await askSkill<Record<string, unknown>>('interview-probe', `${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n已进行的问答：\n${args.transcript ?? '（尚未开始，请给出开场问题）'}\n\n${args.finish ? '请结束并给出面试官视角复盘。' : '请给出下一步追问（JSON）。'}`, { refs: args.company_type ? [args.company_type] : [], temperature: 0.6 });
-        const mock = store().createMockInterview({ job_id: args.job_id ?? null, resume_tailored_id: resume?.kind === 'tailored' ? resume.row.id : null, mode: 'probe', company_type: args.company_type ?? null, round: args.round ?? null, turns: args.transcript ? [{ transcript: args.transcript }] : [], report: args.finish ? out : undefined });
+        const turns = args.transcript ? [{ transcript: args.transcript }] : undefined;
+        const mock = args.mock_interview_id
+          ? store().updateMockInterview(args.mock_interview_id, { turns, report: args.finish ? out : undefined })
+          : store().createMockInterview({ job_id: args.job_id ?? null, resume_tailored_id: resume?.kind === 'tailored' ? resume.row.id : null, mode: 'probe', company_type: args.company_type ?? null, round: args.round ?? null, turns: turns ?? [], report: args.finish ? out : undefined });
         changed('mock_interview');
         return text({ mock_interview_id: mock.id, result: out });
       })()),

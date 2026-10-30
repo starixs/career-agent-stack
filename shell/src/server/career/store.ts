@@ -150,6 +150,13 @@ export class CareerStore {
     this.db.insert('mock_interview', { id, job_id: input.job_id ?? null, resume_tailored_id: input.resume_tailored_id ?? null, mode: input.mode, company_type: input.company_type ?? null, round: input.round ?? null, turns_json: jsonOrEmpty(input.turns, '[]'), report_json: input.report !== undefined ? jsonOrEmpty(input.report) : null, created_at: t, updated_at: t });
     return this.db.get<MockInterview>('SELECT * FROM mock_interview WHERE id=?', [id])!;
   }
+  /** 同一场模拟面试接着练：问答记录换成最新的全文，结束时写复盘。 */
+  updateMockInterview(id: string, patch: { turns?: unknown; report?: unknown }): MockInterview {
+    const cur = this.db.get<MockInterview>('SELECT * FROM mock_interview WHERE id=?', [id]);
+    if (!cur) throw new Error(`模拟面试不存在：${id}`);
+    this.db.update('mock_interview', id, { ...(patch.turns !== undefined ? { turns_json: jsonOrEmpty(patch.turns, '[]') } : {}), ...(patch.report !== undefined ? { report_json: jsonOrEmpty(patch.report) } : {}), updated_at: this.now() });
+    return this.db.get<MockInterview>('SELECT * FROM mock_interview WHERE id=?', [id])!;
+  }
   // ---------- 笔试练习 ----------
   listExamPractices(): ExamPractice[] { return this.db.all<ExamPractice>('SELECT * FROM exam_practice ORDER BY updated_at DESC'); }
   getExamPractice(id: string): ExamPractice | undefined { return this.db.get<ExamPractice>('SELECT * FROM exam_practice WHERE id=?', [id]); }
