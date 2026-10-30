@@ -6,6 +6,8 @@
  */
 import { isSendNote, type Repos, type Company, type Interview, type Offer, type ResumeMaster, type ResumeTailored, type Application, type Task, type Job, type Deadline, type DossierNote, type MaterialUse, type MailMessage, type ActionQueueItem } from '@career/core';
 import type { CoreModule } from './core-module';
+import { normalizeIso } from './dates';
+import { syncOfferReplyDeadline } from './offer-deadline';
 
 /** CareerStore 只需要 core 的两个纯函数；由调用方在 `await loadCore()` 后注入，避免静态 import。 */
 export type CoreIds = Pick<CoreModule, 'newId' | 'now'>;
@@ -225,9 +227,11 @@ export class CareerStore {
   }
   listOffers(): Offer[] { return this.db.all<Offer>('SELECT * FROM offer ORDER BY updated_at DESC'); }
   getOffer(id: string): Offer | undefined { return this.db.get<Offer>('SELECT * FROM offer WHERE id=?', [id]); }
-  createOffer(input: Partial<Offer> & { comp_json?: unknown }): Offer {
+  /** 答复期限规整成 ISO 后同步到截止事件（source 记来源：mail / inbox / offer 页）。 */
+  createOffer(input: Partial<Offer> & { comp_json?: unknown }, source = 'offer'): Offer {
     const t = this.now(); const id = this.newId('ofr');
-    this.db.insert('offer', { id, application_id: input.application_id ?? null, company_name: input.company_name ?? null, title: input.title ?? null, comp_json: jsonOrEmpty(input.comp_json), location: input.location ?? null, content_match: input.content_match ?? null, risk_notes: input.risk_notes ?? null, deadline: input.deadline ?? null, created_at: t, updated_at: t });
+    this.db.insert('offer', { id, application_id: input.application_id ?? null, company_name: input.company_name ?? null, title: input.title ?? null, comp_json: jsonOrEmpty(input.comp_json), location: input.location ?? null, content_match: input.content_match ?? null, risk_notes: input.risk_notes ?? null, deadline: normalizeIso(input.deadline, t), created_at: t, updated_at: t });
+    syncOfferReplyDeadline(this.repos, this.getOffer(id)!, source);
     return this.getOffer(id)!;
   }
   updateOffer(id: string, patch: Partial<Offer> & { comp_json?: unknown }): Offer {
@@ -236,7 +240,9 @@ export class CareerStore {
     const row: Record<string, unknown> = {};
     for (const k of allowed) if (patch[k] !== undefined) row[k] = patch[k];
     if (patch.comp_json !== undefined) row.comp_json = jsonOrEmpty(patch.comp_json);
+    if (patch.deadline !== undefined) row.deadline = normalizeIso(patch.deadline, this.now());
     this.db.update('offer', id, { ...row, updated_at: this.now() });
+    if (patch.deadline !== undefined) syncOfferReplyDeadline(this.repos, this.getOffer(id)!);
     return this.getOffer(id)!;
   }
 

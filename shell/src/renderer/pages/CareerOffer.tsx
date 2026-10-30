@@ -17,6 +17,14 @@ const COMP_FIELDS: Array<{ key: string; label: string }> = [
 
 type Comp = Record<string, unknown>;
 
+/** 库里的答复期限是 ISO（某一刻）；日期框只认 YYYY-MM-DD，按北京时间的日期显示。 */
+const BEIJING_OFFSET_MS = 8 * 3600_000;
+export function deadlineInputValue(deadline: string | null | undefined): string {
+  if (!deadline) return '';
+  const t = Date.parse(deadline);
+  return Number.isNaN(t) ? deadline : new Date(t + BEIJING_OFFSET_MS).toISOString().slice(0, 10);
+}
+
 export function compOf(offer: Offer): Comp {
   return safeJson<Comp>(offer.comp_json, {});
 }
@@ -134,7 +142,7 @@ function OfferForm({ offer, onDone, onCancel }: { offer: Offer | null; onDone: (
   const initialComp = offer ? compOf(offer) : {};
   const [form, setForm] = useState({
     company_name: offer?.company_name ?? '', title: offer?.title ?? '', location: offer?.location ?? '',
-    content_match: offer?.content_match ?? '', risk_notes: offer?.risk_notes ?? '', deadline: offer?.deadline ?? '',
+    content_match: offer?.content_match ?? '', risk_notes: offer?.risk_notes ?? '', deadline: deadlineInputValue(offer?.deadline),
   });
   const [comp, setComp] = useState<Record<string, string>>(Object.fromEntries(COMP_FIELDS.map(f => [f.key, initialComp[f.key] == null ? '' : String(initialComp[f.key])])));
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -149,7 +157,9 @@ function OfferForm({ offer, onDone, onCancel }: { offer: Offer | null; onDone: (
     }
     const body = {
       company_name: form.company_name.trim(), title: form.title || null, location: form.location || null,
-      content_match: form.content_match || null, risk_notes: form.risk_notes || null, deadline: form.deadline || null,
+      content_match: form.content_match || null, risk_notes: form.risk_notes || null,
+      // 没动日期就不回写：否则来信里带具体时刻的期限会被改成当天结束
+      deadline: offer && form.deadline === deadlineInputValue(offer.deadline) ? undefined : form.deadline || null,
       comp_json: JSON.stringify(compOut),
     };
     if (offer) await careerApi.updateOffer(offer.id, body); else await careerApi.createOffer(body);

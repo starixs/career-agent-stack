@@ -66,6 +66,19 @@ describe('CareerOffer', () => {
     expect(body).toMatchObject({ location: '杭州' });
   });
 
+  it('来信建的 Offer（期限是 ISO 时刻）：编辑框按北京日期显示；没改日期就不回写，保住原来的时刻', async () => {
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers: [{ ...offers[0], deadline: '2026-11-21T02:00:00.000Z' }] });
+    vi.mocked(apiPutJson).mockResolvedValue({ ok: true });
+    render(<CareerOffer />);
+    fireEvent.click((await screen.findAllByRole('button', { name: '编辑' }))[0]);
+    expect((screen.getByLabelText('截止日期') as HTMLInputElement).value).toBe('2026-11-21');
+    fireEvent.change(screen.getByLabelText('地点'), { target: { value: '杭州' } });
+    fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await waitFor(() => expect(apiPutJson).toHaveBeenCalledTimes(1));
+    const body = vi.mocked(apiPutJson).mock.calls[0][1] as Record<string, unknown>;
+    expect(body.deadline).toBeUndefined();
+  });
+
   it('decisionItems：多个 Offer 时提醒取舍由你决定', () => {
     const items = decisionItems(offers);
     expect(items.some(i => i.includes('取舍只能由你决定'))).toBe(true);

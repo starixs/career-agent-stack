@@ -8,6 +8,7 @@
 import type { Repos, LLM, Job, JdParsed, InboxItem, InboxKind, InboxSource, DeadlineKind } from '@career/core';
 
 import { htmlToText } from './attachment-reader';
+import { normalizeIso } from './dates';
 import type { CoreModule } from './core-module';
 import { loadSkillPrompt } from './skills';
 import { CareerStore } from './store';
@@ -59,6 +60,8 @@ export interface IntakeResult {
   /** 面板 / 对话要告诉用户的一句话。 */
   summary: string;
 }
+
+export { normalizeIso } from './dates';
 
 const INBOX_KIND_SET = new Set<string>(['jd', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other']);
 
@@ -221,10 +224,15 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
         const a = ensureApplication('offer', '收到 Offer');
         // 同一份申请只有一个 Offer：意向书之后的正式 offer、三方通知都落在它上面
         const existing = store.listOffers().find(o => o.application_id === a.id);
-        const offer = existing ?? store.createOffer({ application_id: a.id, company_name: company, title, deadline: normalizeIso(f.due_at, nowIso) ?? null, risk_notes: f.notes ?? null });
-        created.offer_id = offer.id; tables.add('offer');
-        if (isSigningNotice(f.notes, input.mail?.subject)) addDeadline('other', `${label} 三方签约截止`, f.due_at, { offer_id: offer.id });
-        else if (!existing) addDeadline('offer_reply', `${label} Offer 回复截止`, f.due_at, { offer_id: offer.id });
+        const signing = isSigningNotice(f.notes, input.mail?.subject);
+        const due = signing ? null : normalizeIso(f.due_at, nowIso);
+        // 答复期限由 Offer 自己同步到截止事件（只有一处真相）；三方是另一件事，单独记
+        const offer = existing
+          ? (due ? store.updateOffer(existing.id, { deadline: due }) : existing)
+          : store.createOffer({ application_id: a.id, company_name: company, title, deadline: due, risk_notes: f.notes ?? null }, input.source === 'mail' ? 'mail' : 'inbox');
+        created.offer_id = offer.id; tables.add('offer').add('deadline');
+        if (signing) addDeadline('other', `${label} 三方签约截止`, f.due_at, { offer_id: offer.id });
+        else created.deadline_ids.push(...r.listDeadlines({ status: 'open' }).filter(d => d.offer_id === offer.id && d.kind === 'offer_reply').map(d => d.id));
         break;
       }
       case 'referral': {
@@ -330,34 +338,8 @@ function normalizeRound(round?: string): string {
   return 'other';
 }
 
-/** 把模型给的时间（ISO / "2026-10-05 14:00" / "10月5日 14:00"）规整成 ISO；解析不了返回 null。 */
 /** 三方 / 签约通知：和 offer 回复是两个期限（先答复、再签三方），单独记一条，不和回复截止混在一起。 */
 const SIGNING_RE = /三方|签约/;
 function isSigningNotice(...texts: Array<string | null | undefined>): boolean {
   return texts.some(t => !!t && SIGNING_RE.test(t));
-}
-
-export function normalizeIso(value: string | undefined | null, nowIso: string): string | null {
-  if (!value) return null;
-  const v = value.trim();
-  if (!v) return null;
-  // 只有日期（「请于 2026-11-17 前」、日期选择框）= 那天北京时间结束前，不是 UTC 零点（北京 8 点）
-  const dateOnly = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (dateOnly) return new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), 15, 59)).toISOString();
-  const direct = Date.parse(v);
-  if (!Number.isNaN(direct) && /\d{4}-\d{2}-\d{2}/.test(v)) return new Date(direct).toISOString();
-  const cn = v.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日?(?:\s*(\d{1,2})[:：点](\d{2})?)?/);
-  if (cn) {
-    const year = cn[1] ? Number(cn[1]) : Number(nowIso.slice(0, 4));
-    const d = new Date(Date.UTC(year, Number(cn[2]) - 1, Number(cn[3]), cn[4] ? Number(cn[4]) - 8 : 15, cn[5] ? Number(cn[5]) : 59));
-    if (!cn[1] && d.getTime() < Date.parse(nowIso) - 86_400_000 * 30) d.setUTCFullYear(year + 1);
-    return d.toISOString();
-  }
-  const dash = v.match(/(\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
-  if (dash) {
-    const year = Number(nowIso.slice(0, 4));
-    const d = new Date(Date.UTC(year, Number(dash[1]) - 1, Number(dash[2]), dash[3] ? Number(dash[3]) - 8 : 15, dash[4] ? Number(dash[4]) : 59));
-    return d.toISOString();
-  }
-  return null;
 }

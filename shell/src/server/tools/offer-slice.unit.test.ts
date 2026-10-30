@@ -116,6 +116,12 @@ describe('Offer · 十一月中两个 Offer 期限交错', () => {
     expect(appsOf('字节跳动')).toHaveLength(1);
   });
 
+  it('在 Offer 页手动新建、带答复日期：也进截止事件，月历和队列看得到', async () => {
+    const offer = new CareerStore(repos, core).createOffer({ company_name: '快手', title: '算法工程师', deadline: '2026-11-20' });
+    const open = repos.listDeadlines({ status: 'open' }).filter(d => d.offer_id === offer.id);
+    expect(open.map(d => [d.kind, d.due_at])).toEqual([['offer_reply', '2026-11-20T15:59:00.000Z']]);
+  });
+
   it.todo('〔面〕两个撤不回的期限交错（小米三方 17 号早于字节答复 21 号）：要不要主动点出、给什么建议（向字节要提前答复 / 向小米申请延期），还是只在比较里列出');
   it.todo('〔面〕接了又反悔（意向毁约、三方违约）怎么记：现在 hired 是终点，记不下「接了又放弃」；放在 Offer 自己的状态还是投递阶段');
   it.todo('〔面〕接下一个 Offer 后在途申请怎么收：美团二面、百度测评、待投清单、auto 模式——逐个问 / 一张收尾卡 / 照旧');
