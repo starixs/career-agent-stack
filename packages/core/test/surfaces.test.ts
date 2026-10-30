@@ -45,7 +45,7 @@ describe('收件箱 / 截止 / 今日队列', () => {
     expect(r.dismissInboxItem(r.createInboxItem({ raw_text: '广告' }).id).status).toBe('dismissed')
   })
 
-  it('今日队列：过期在前，其次今天到期、待审、静默；过期事件被标 missed', () => {
+  it('今日队列：今天到期在前，其次待审、收件、静默，已过期排在队尾；过期事件被标 missed', () => {
     const r = mem()
     const job = r.upsertJob({ source_platform: 'boss', source_job_id: 'j1', title: '数据分析实习生', company_name: '甲公司' })
     const app = r.createApplication(job.id)
@@ -59,14 +59,14 @@ describe('收件箱 / 截止 / 今日队列', () => {
     r.createInboxItem({ raw_text: '新邮件' })
 
     const today = r.today(NOW)
-    expect(today.items.map(i => i.kind)).toEqual(['deadline', 'deadline', 'review', 'inbox', 'stale'])
-    expect(today.items[0].title).toBe('乙公司测评')
-    expect(today.items[0].detail).toContain('已过期')
-    expect(today.items[1].detail).toContain('今天')
+    expect(today.items.map(i => i.kind)).toEqual(['deadline', 'review', 'inbox', 'stale', 'deadline'])
+    expect(today.items[4].title).toBe('乙公司测评')
+    expect(today.items[4].detail).toContain('已过期')
+    expect(today.items[0].detail).toContain('今天')
     // 挂在投递上的截止：ref 指向投递，deadline_id 仍给出截止事件本身，便于改期 / 完成
-    expect(today.items[1].ref).toEqual({ type: 'application', id: app.id })
-    expect(today.items[1].deadline_id).toBe(written.id)
-    expect(today.items[4].suggest).toContain(app.id)
+    expect(today.items[0].ref).toEqual({ type: 'application', id: app.id })
+    expect(today.items[0].deadline_id).toBe(written.id)
+    expect(today.items[3].suggest).toContain(app.id)
     expect(today.waiting).toEqual({ count: 1, by_stage: [{ stage: 'applied', n: 1 }] })
     expect(today.pending_review).toBe(1)
     expect(today.inbox_new).toBe(1)

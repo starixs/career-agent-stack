@@ -549,7 +549,7 @@ export class Repos {
   }
 
   // ---------- 今日队列 ----------
-  /** 今天必须做的事（已排序）：过期 / 今天到期 → 待审 → 接管 → 今日面试 → 新收件 → 静默可关 → 近三天到期。 */
+  /** 今天必须做的事（已排序）：今天到期 → 待审 → 接管 → 今日面试 → 新收件 → 静默可关 → 近三天到期 → 已过期（OVERDUE_PRIORITY）。 */
   today(nowIso = now()): { items: TodayItem[]; waiting: { count: number; by_stage: Array<{ stage: string; n: number }> }; inbox_new: number; pending_review: number } {
     this.markMissedDeadlines(nowIso)
     const items: TodayItem[] = []
