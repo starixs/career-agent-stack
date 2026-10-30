@@ -341,6 +341,9 @@ export function normalizeIso(value: string | undefined | null, nowIso: string): 
   if (!value) return null;
   const v = value.trim();
   if (!v) return null;
+  // 只有日期（「请于 2026-11-17 前」、日期选择框）= 那天北京时间结束前，不是 UTC 零点（北京 8 点）
+  const dateOnly = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnly) return new Date(Date.UTC(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]), 15, 59)).toISOString();
   const direct = Date.parse(v);
   if (!Number.isNaN(direct) && /\d{4}-\d{2}-\d{2}/.test(v)) return new Date(direct).toISOString();
   const cn = v.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日?(?:\s*(\d{1,2})[:：点](\d{2})?)?/);

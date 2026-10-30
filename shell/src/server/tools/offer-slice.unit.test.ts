@@ -102,6 +102,12 @@ describe('Offer · 十一月中两个 Offer 期限交错', () => {
     expect(offersOf('小米')).toHaveLength(1);
   });
 
+  it('三方截止记在 17 号当天结束前，标明是三方而不是 Offer 回复', async () => {
+    const { xm } = await untilNov14();
+    const open = repos.listDeadlines({ status: 'open', application_id: xm.id });
+    expect(open.map(d => [d.title, d.due_at])).toEqual([['小米 · 算法工程师 三方签约截止', '2026-11-17T15:59:00.000Z']]);
+  });
+
   it('14 号打开：三方三天后截止在队列里；字节 Offer 落在原来的面试申请上', async () => {
     const { bd } = await untilNov14();
     const titles = repos.today('2026-11-14T02:00:00.000Z').items.map(i => i.title);
