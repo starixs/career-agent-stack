@@ -119,13 +119,16 @@ describe('低谷 · 秋招第六周的周五', () => {
 
   it('「是不是我不行」：复盘里的本周数字按真实投出时刻和拒信算，不由模型自己报', async () => {
     // 模型把累计数当成本周数报回来——事实一栏不能照抄它
-    llm.push(JSON.stringify({ facts: { applied: 150, advanced: 0, rejected: 31, silent: 0, interviews: 0 }, insights: [], suggestions: [], small_action: '把公司5-1 的卷宗补一条复盘', tone_flag: 'low_mood' }));
+    llm.push(JSON.stringify({ facts: { applied: 150, advanced: 0, rejected: 31, silent: 0, interviews: 0 }, insights: [], suggestions: [{ action: '多投', priority: 2 }, { action: '补关键词', priority: 1 }], small_action: '把公司5-1 的卷宗补一条复盘', tone_flag: 'low_mood' }));
     const res = await call('weekly_review', { user_note: '这周连着被拒，是不是我不行' });
     expect(res.isError).toBe(false);
     const facts = res.json().facts as Record<string, number>;
     expect(facts.applied).toBe(23);
     expect(facts.rejected).toBe(6);
     expect(facts.interviews).toBe(0);
+    // 判出低落：建议只留一条，小动作照给
+    expect(res.json().suggestions).toEqual([{ action: '补关键词', priority: 1 }]);
+    expect(res.json().small_action).toBeTruthy();
     const prompt = String(llm.calls[0].messages[0].content);
     expect(prompt).toContain('本周投出：23');
     expect(prompt).toContain('本周拒信：6');
@@ -196,6 +199,5 @@ describe('低谷 · 秋招第六周的周五', () => {
 
   it.todo('〔面〕一周连收多封拒信时要不要主动开口（现在完全沉默，只有他来问才复盘）；开口的话在哪、说什么');
   it.todo('〔面〕什么时候主动提「换方向 / 补短板」（direction_explore、gap_plan 现在只在他开口时调）：触发条件与语气');
-  it.todo('〔面〕复盘的 tone_flag=low_mood 现在没人用：低落时对话和复盘页要不要变');
   it.todo('〔面〕基数参考区间的来源：技能让模型「按常见校招经验」给区间，和「不虚构行业统计」冲突——只用他自己的 / 内置核过的区间 / 不给');
 });

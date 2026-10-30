@@ -50,6 +50,14 @@ export function ownBaseline(overall: FunnelRow | null, rhythm: MonthBoard['rhyth
   return `他自己的基数（全部历史）：${parts.join('；')}`;
 }
 
+/** 判出低落时只收紧输出（2026-10-30 定，低谷面）：建议只留优先级最高的 1 条，加一个小动作；不改别的。 */
+export const LOW_MOOD_MAX_SUGGESTIONS = 1;
+export function shapeForMood(output: WeeklyReviewOutput): WeeklyReviewOutput {
+  if (output.tone_flag !== 'low_mood' || !output.suggestions) return output;
+  const top = [...output.suggestions].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99)).slice(0, LOW_MOOD_MAX_SUGGESTIONS);
+  return { ...output, suggestions: top };
+}
+
 export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?: string; user_note?: string } = {}): Promise<{ review: WeeklyReview; output: WeeklyReviewOutput; funnel: ReturnType<IntakeDeps['repos']['funnel']> }> {
   const r = deps.repos;
   const nowIso = deps.now?.() ?? new Date().toISOString();
@@ -77,7 +85,7 @@ export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?
     output = deps.core.extractJson<WeeklyReviewOutput>(res.text);
   }
   // 事实一栏永远是我们数出来的那份：模型报的数可能把累计当本周，比例必须真实
-  output = { ...output, facts: { ...facts } };
+  output = shapeForMood({ ...output, facts: { ...facts } });
   const review = r.saveWeeklyReview({ week_start: weekStart, funnel: { ...funnel, this_week: facts }, insights: output.insights ?? [], suggestions: output.suggestions ?? [], small_action: output.small_action ?? null });
   dataChanged(deps, ['weekly_review']);
   focus(deps, { surface: 'review', id: review.id });

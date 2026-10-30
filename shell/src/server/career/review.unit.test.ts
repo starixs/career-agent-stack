@@ -1,7 +1,7 @@
 import { isSendNote } from '@career/core';
 import { describe, expect, it } from 'vitest';
 
-import { ownBaseline, weekFacts } from './review';
+import { ownBaseline, shapeForMood, weekFacts } from './review';
 
 const WEEK = Date.parse('2026-10-19T00:00:00Z');
 const h = (application_id: string, to_stage: string, created_at: string, note: string | null = null) => ({ application_id, from_stage: null, to_stage, note, created_at });
@@ -26,5 +26,17 @@ describe('ownBaseline', () => {
   });
   it('还没进过面试：不编一个比例', () => {
     expect(ownBaseline({ ...overall, interview: 0 }, { first_interview_after: null, reply_days: null })).toContain('还没有进过面试');
+  });
+});
+
+describe('shapeForMood', () => {
+  const suggestions = [{ action: '加投算法岗', priority: 2 }, { action: '补两条关键词', priority: 1 }, { action: '降低运营岗比重', priority: 3 }];
+  it('低落时建议只留优先级最高的一条，小动作照留', () => {
+    const out = shapeForMood({ tone_flag: 'low_mood', suggestions, small_action: '补一条复盘' });
+    expect(out.suggestions).toEqual([{ action: '补两条关键词', priority: 1 }]);
+    expect(out.small_action).toBe('补一条复盘');
+  });
+  it('平常不动', () => {
+    expect(shapeForMood({ tone_flag: 'normal', suggestions }).suggestions).toHaveLength(3);
   });
 });
