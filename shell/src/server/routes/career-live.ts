@@ -263,7 +263,9 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
       const onAbort = () => { if (!abort.signal.aborted) abort.abort(); };
       if (request.signal.aborted) onAbort(); else request.signal.addEventListener('abort', onAbort, { once: true });
 
-      void liveSnapshot(deps).then(snapshot => write({ type: 'snapshot', ts: Date.now(), ...snapshot })).catch(e => write({ type: 'error', error: e instanceof Error ? e.message : String(e) }));
+      // 浏览器开 / 关会改变「能不能接管」：连上时推一次，画面接上或断开时再推，渲染层的接管入口才不会停在旧状态
+      const pushSnapshot = () => { void liveSnapshot(deps).then(snapshot => write({ type: 'snapshot', ts: Date.now(), ...snapshot })).catch(e => write({ type: 'error', error: e instanceof Error ? e.message : String(e) })); };
+      pushSnapshot();
       const unsub = deps.hub.subscribe(ev => write(ev));
       const heartbeat = setInterval(() => write({ type: 'heartbeat', ts: Date.now() }), deps.heartbeatMs ?? 10_000);
 
@@ -288,6 +290,7 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
           attached = true;
           if (framesTimer) { clearInterval(framesTimer); framesTimer = null; }
           status('connecting');
+          pushSnapshot();
           // 持有一个租约直到连接断开：没有租约的话 15 秒后 Context 会被回收
           void deps.host.withProductSession(id, async context => {
             // 跟随新开的标签页（网申弹出的登录 / 扫码页）：直到它关掉，或者选中页被引擎 / 用户换掉
@@ -312,6 +315,7 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
               // 浏览器被关了：回到等待，下次打开自动接上（不需要用户重开现场）
               notified = true;
               status('closed', '浏览器已关闭；助理再次打开浏览器时画面会自动接上');
+              pushSnapshot();
               rearm();
             }
           }, { allowHumanControl: true, signal: abort.signal }).catch(e => {

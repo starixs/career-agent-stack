@@ -239,6 +239,27 @@ describe('career live route', () => {
     controller.abort();
   });
 
+  it('画面流：浏览器在连上之后才打开，接上画面时补推一份 snapshot（否则「控制浏览器」一直灰着）', async () => {
+    const repos = createMemoryRepos();
+    const host = fakeHost(false);
+    let open = false;
+    host.hasContext = () => open;
+    const d = { ...deps(repos, host), framesPollMs: 10, heartbeatMs: 60_000 };
+    const controller = new AbortController();
+    const res = await handleCareerLiveRoute('/api/career/live/stream', new Request('http://local/api/career/live/stream?frames=1', { signal: controller.signal }), d);
+    const reader = res!.body!.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    const snapshots = () => buf.split('\n').filter(Boolean).map(l => JSON.parse(l) as { type: string; browser?: { hasBrowser: boolean } }).filter(l => l.type === 'snapshot');
+    const until = async (pred: () => boolean) => { for (let i = 0; i < 100 && !pred(); i++) { const r = await Promise.race([reader.read(), new Promise<{ value?: Uint8Array; done: boolean }>(ok => setTimeout(() => ok({ done: false }), 20))]); if (r.value) buf += decoder.decode(r.value); } };
+    await until(() => snapshots().length > 0 && buf.includes('"state":"waiting"'));
+    expect(snapshots()[0].browser?.hasBrowser).toBe(false);
+    open = true;
+    await until(() => snapshots().some(s => s.browser?.hasBrowser));
+    expect(snapshots().at(-1)?.browser?.hasBrowser).toBe(true);
+    controller.abort();
+  });
+
   it('画面状态：接上时推 connecting；浏览器被关掉推 closed，重新打开后自动接上', async () => {
     const repos = createMemoryRepos();
     const host = fakeHost(true);
