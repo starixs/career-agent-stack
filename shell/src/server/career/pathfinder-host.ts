@@ -26,6 +26,8 @@ export interface PathfinderHostInput {
   log?(msg: string): void;
 }
 
+const KIND_LABELS: Record<string, string> = { campus: '校招', intern: '实习', social: '社招' };
+
 function hasText(v: unknown): v is { text: string } {
   return typeof v === 'object' && v !== null && 'text' in v && typeof v.text === 'string';
 }
@@ -50,7 +52,7 @@ async function goalFor(applicationId: string, url: string): Promise<{ goal: Path
   const site = siteOf(url);
   return {
     site,
-    goal: { company: job.company_name ?? '', jobTitle: job.title, direction: prefs.keywords ?? [], cities: prefs.cities ?? [], degree: prefs.degree ?? null, sop: sopText(readSiteSop(repos, site)) },
+    goal: { company: job.company_name ?? '', jobTitle: job.title, kinds: (prefs.employment_types ?? []).map(t => KIND_LABELS[t] ?? t), direction: prefs.keywords ?? [], cities: prefs.cities ?? [], degree: prefs.degree ?? null, sop: sopText(readSiteSop(repos, site)) },
   };
 }
 
@@ -84,6 +86,7 @@ export function pathfinderFor(input: PathfinderHostInput): (why: string) => Prom
       rememberSiteSop(await getRepos(), siteOf(page.url()) ?? found.site, result.steps, result.state);
       return { moved: true };
     }
-    return { moved: false, note: result.note };
+    // 没走到：给学生看的一句话，区分「这家确实没有」和「我没找到入口」
+    return { moved: false, note: result.state === 'no_position' ? `这家现在没有和你方向对口的岗位：${result.note}` : `自己在网站上找了 ${result.turns} 步，还没走到网申表：${result.note}` };
   };
 }

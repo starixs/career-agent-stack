@@ -6,7 +6,7 @@ import { describePage, findApplicationPage, type PathfinderGoal } from './pathfi
 import { readSiteSop, rememberSiteSop, sopText } from './site-sop';
 import { createMemoryRepos } from './test-db';
 
-const goal: PathfinderGoal = { company: '联发科技', jobTitle: '软件类 / 通信类 / IC类', direction: ['后端开发'], cities: ['上海'], degree: '本科' };
+const goal: PathfinderGoal = { company: '联发科技', jobTitle: '软件类 / 通信类 / IC类', kinds: ['校招'], direction: ['后端开发'], cities: ['上海'], degree: '本科' };
 
 function page(id: string, url: string, elements: Observation['elements'], text = ''): Observation {
   return { observation_id: id, url, title: id, scroll: { y: 0, max: 0, viewport: 800 }, elements, more_elements: 0, text, text_total: text.length, hints: [], tabs: [] };
@@ -50,6 +50,8 @@ describe('自主找路（GA 式循环）', () => {
     // 第二回合的提示里带着工作记忆（上一步摘要），第三回合带着 key_info
     expect(llm.calls[1].messages[0].content).toContain('首页，先进校园招聘');
     expect(llm.calls[2].messages[0].content).toContain('他学软件开发、本科');
+    // 只找校招：类型进了每一回合的提示（2026-10-31：天翼云那趟跑去了实习栏目）
+    expect(llm.calls[0].messages[0].content).toContain('他要找：校招');
   });
 
   it('连续点不动：提示里出现「换一条路」；走满回合如实报 stuck，不抛错', async () => {

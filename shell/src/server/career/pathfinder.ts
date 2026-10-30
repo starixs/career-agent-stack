@@ -20,6 +20,8 @@ export interface PathfinderGoal {
   jobTitle: string;
   /** 他的方向、期望城市、学历。 */
   direction: string[]; cities: string[]; degree?: string | null;
+  /** 他要找的类型（校招 / 实习 / 社招），空 = 不限。 */
+  kinds?: string[];
   /** 这个站上次走通的做法（site-sop.ts），没有就空。 */
   sop?: string;
 }
@@ -48,7 +50,7 @@ const SYSTEM = [
   '规则：',
   '1. 只找路，不填表、不提交。岗位详情页上的「投递 / 申请职位 / 立即申请」入口可以点（工具会拦住真正的提交按钮）。',
   '2. 一次只做一步，看清页面再动；点不动或页面没变就换别的路（搜索框、「校园招聘」栏目、岗位列表、翻页、返回）。',
-  '3. 选岗：方向对口最重要；其次城市；学历要求高于他的（他本科而岗位写「硕士及以上 / 博士」）不选；「海外留学生专项」「社招 / 有工作经验」不选；校招、应届优先。',
+  '3. 选岗：只看他要找的类型（只找校招就不进实习、社招栏目）；方向对口最重要；其次城市；学历要求高于他的（他本科而岗位写「硕士及以上 / 博士」）不选；「海外留学生专项」「社招 / 有工作经验」不选；校招、应届优先。',
   '4. 判断停下：页面上出现姓名、手机、教育经历之类要填的格子 → done:form；出现登录框、扫码登录、手机验证码登录 → done:login；翻遍了也没有对口岗位 → done:no_position（note 里写这家有哪些岗位）。',
   '只输出 JSON：{"summary":"这一步看到了什么、做了什么（一句话）","key_info":"可选：要一直记住的事","action":{…}}。',
   'action 只能是其一：{"type":"click","ref":元素编号} | {"type":"type","ref":元素编号,"text":"…"} | {"type":"press","key":"Enter"} | {"type":"scroll","direction":"down"} | {"type":"back"} | {"type":"navigate","url":"https://…"} | {"type":"done","state":"form|login|no_position|stuck","note":"…"}',
@@ -73,7 +75,7 @@ export function describePage(obs: Observation): string {
 }
 
 function turnPrompt(goal: PathfinderGoal, obs: Observation, mem: Memory, turn: number, maxTurns: number): string {
-  const who = `公司：${goal.company}\n岗位库里的岗位：${goal.jobTitle}\n他的方向：${goal.direction.join('、') || '（没写）'}；期望城市：${goal.cities.join('、') || '不限'}；学历：${goal.degree ?? '本科'}`;
+  const who = `公司：${goal.company}\n岗位库里的岗位：${goal.jobTitle}\n他要找：${goal.kinds?.join('、') || '不限'}；方向：${goal.direction.join('、') || '（没写）'}；期望城市：${goal.cities.join('、') || '不限'}；学历：${goal.degree ?? '本科'}`;
   const sop = goal.sop ? `\n这个网站上次走通的做法（先照着走，对不上再自己找）：\n${goal.sop}` : '';
   const recent = mem.history.length ? `\n已经走过的步骤：\n${mem.history.slice(-RECENT_STEPS).join('\n')}` : '';
   const key = mem.keyInfo ? `\n要记住的：${mem.keyInfo}` : '';

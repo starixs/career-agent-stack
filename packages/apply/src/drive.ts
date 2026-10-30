@@ -199,7 +199,7 @@ export interface DriveOptions extends PacingOptions {
   target?: PositionTarget
   /**
    * 内置找路（navigate.ts 的规则）走不通时，交给模型自主找路（GA 式循环，由调用方注入，face-ga-port 已定）。
-   * moved=true：页面已经到了网申表或登录页，引擎接着按原流程判断；note：没找到时的说明（这家有哪些岗位）。
+   * moved=true：页面已经到了网申表或登录页，引擎接着按原流程判断；note：没找到时给学生看的一句话（原样作为结果说明）。
    */
   pathfinder?: (why: string) => Promise<{ moved: boolean; note?: string }>
   /** 障碍层 / 下拉候选不确定时用的模型（缺省用 driveApplication 的 llm）。 */
@@ -379,7 +379,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       if (index === 1 && fields.length && onlySearchOrFilter(fields) && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
         if (await seek('只有搜索 / 筛选框')) { index--; continue }
         // 找过了还是只有筛选框：这不是网申表，绝不当成「填好了」交去提交（2026-10-31：大众校招搜索页的筛选被报成表单已填完）
-        if (opts.target) { pages.push(rec); return finish('blocked', lastSeekNote ? `这家现在没有和你方向对口的岗位：${lastSeekNote}` : `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
+        if (opts.target) { pages.push(rec); return finish('blocked', lastSeekNote ?? `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
       }
       // 2.1 岗位详情页：页面上没有任何表单字段、这次也没填过东西 → 允许点申请入口按钮进入网申表（最终提交仍永不点）
       // 北森 zhiye 的岗位行点开是就地展开、行里出「投递」：页面上只有搜索框 / 没标签的格子时也算「还没有表单」
@@ -396,7 +396,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
             if (auto.note) lastSeekNote = auto.note
           }
           pages.push(rec)
-          return finish('blocked', lastSeekNote ? `这家现在没有和你方向对口的岗位：${lastSeekNote}` : `这个岗位要求${over}，高于你的学历，没有投`)
+          return finish('blocked', lastSeekNote ?? `这个岗位要求${over}，高于你的学历，没有投`)
         }
         if (entry) {
           entryClicks++
@@ -442,7 +442,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           if (await seek('没有表单')) { index--; continue }
           pages.push(rec); all.escalations.push(...rec.escalations)
           const entry = sig.buttons.find(b => isEntryText(b.text, adapter)) ?? findFinalSubmit(sig.buttons, adapter)
-          return entry ? entryHandoff(entry.text) : finish('blocked', lastSeekNote ? `这家现在没有和你方向对口的岗位：${lastSeekNote}` : '页面上没有可填写的表单字段')
+          return entry ? entryHandoff(entry.text) : finish('blocked', lastSeekNote ?? '页面上没有可填写的表单字段')
         }
         break // 后续页没字段：可能到了确认页
       }

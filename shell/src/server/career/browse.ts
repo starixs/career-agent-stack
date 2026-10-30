@@ -39,7 +39,14 @@ export function observeInPage(arg: { obsId: string; max: number }): RawObservati
     return (aria || inner || lbl || val || alt || ph).replace(/\s+/g, ' ').trim().slice(0, 80);
   };
   const selector = 'a[href], button, input:not([type=hidden]), select, textarea, [role=button], [role=link], [role=tab], [role=checkbox], [role=menuitem], [role=option], [onclick], [contenteditable=true]';
-  const all = Array.from(document.querySelectorAll(selector)).filter(visible);
+  // 北森 / hotjob 的岗位行是可点的 div（手形光标），不是链接：取「从这层开始变手形」的那一层（整行），
+  // 自己不在、也不含标准可操作元素（2026-10-31：自主找路看不见岗位行，点不进去）
+  const pointer = (el: Element | null): boolean => !!el && getComputedStyle(el).cursor === 'pointer';
+  const rows = Array.from(document.querySelectorAll('div, li, tr, span, section, article')).filter(el => {
+    const t = ((el as HTMLElement).innerText || '').trim();
+    return t.length >= 2 && t.length <= 200 && visible(el) && pointer(el) && !pointer(el.parentElement) && !el.closest(selector) && !el.querySelector(selector);
+  });
+  const all = [...Array.from(document.querySelectorAll(selector)).filter(visible), ...rows];
   const scored = all.map(el => { const r = (el as HTMLElement).getBoundingClientRect(); return { el, inViewport: r.bottom > 0 && r.top < vh && r.right > 0 && r.left < vw, top: r.top }; });
   scored.sort((a, b) => Number(b.inViewport) - Number(a.inViewport) || a.top - b.top);
   const elements: RawElement[] = [];
