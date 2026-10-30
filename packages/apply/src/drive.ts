@@ -315,7 +315,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         opts.riskGuard.countPage()
       }
       // 1. 阻碍检测
-      let sig = await step('读取页面信号', () => page.evaluate(pageSignalsScript))
+      let sig = await step('读取页面信号', () => readSignalsSettled(page, Math.max(opts.settleMs ?? 800, 0)))
       const risk = opts.riskGuard?.inspect(sig, adapter) ?? null
       const ob = detectObstacle(sig, adapter)
       if (risk && risk.reason === 'rate_limit') return finish('blocked', `平台限流提示：${risk.evidence}，已上风险锁`)
@@ -343,9 +343,14 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
 
       // 1.8 列表页 / 首页：页面上有这个站的岗位详情链接、却没有申请入口 → 先去找岗位。
       // 列表页左边的「职位类别 / 城市」筛选框不是网申表（2026-10-31 实例测试：小鹏列表页的筛选被当成表单填了）
-      if (index === 1 && adapter.hints.positionLink && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
-        const links = await page.evaluate(positionLinksScript, null).catch(() => [] as PositionLink[])
-        if (links.some(l => adapter.hints.positionLink!.test(l.href)) && await seek('列表页')) { index--; continue }
+      // 适配器认得出这是校招首页 / 列表页（能拼出站内搜索网址、自己又不是岗位详情）也一样：Moka 首页的搜索框标签常被认成标语
+      // 只在一开始（还没点过申请入口、还没找过岗位）判断；点进网申表以后同一站的网址也拼得出搜索网址，不能再跳走
+      if (index === 1 && !entryClicked && navHops === 0 && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
+        const here = page.url()
+        const atHome = !!adapter.positionSearchUrl?.(here, '') && !adapter.hints.positionLink?.test(here)
+        const links = adapter.hints.positionLink ? await page.evaluate(positionLinksScript, null).catch(() => [] as PositionLink[]) : []
+        const onList = links.some(l => adapter.hints.positionLink!.test(l.href))
+        if ((atHome || onList) && await seek(atHome ? '校招首页' : '列表页')) { index--; continue }
       }
       // 2. 抽取（L1）；抽不到且有感知器 → L2 视觉伪字段
       let fields = await step('抽取字段', () => extractFields(page))
@@ -374,6 +379,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           }
         }
       }
+      // DOM 里没有表单：先看是不是首页 / 合集页（去找岗位），再交给视觉层——首页的轮播、登录框会被视觉当成输入框
+      if (!fields.length && index === 1 && await seek('DOM 没有表单')) { index--; continue }
       if (!fields.length && visionOpts) {
         const p = await visionScan(page, visionOpts, '寻找表单输入框')
         if (looksLikeFormVisually(p)) {
@@ -742,6 +749,18 @@ function outcomesFor(index: number, fields: FormField[], rec: PageRecord): Field
     }
   }
   return out
+}
+
+/** 页面刚打开就自己跳转（北森 zhiye 首页会跳到栏目页）时，第一次读页面会撞上「执行上下文被销毁」：等一下再读。 */
+const NAV_RACE_RX = /Execution context was destroyed|navigat/i
+const SIGNAL_RETRIES = 2
+async function readSignalsSettled(page: PageLike, settleMs: number): Promise<PageSignals> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await page.evaluate(pageSignalsScript) } catch (error) {
+      if (attempt >= SIGNAL_RETRIES || !NAV_RACE_RX.test(error instanceof Error ? error.message : String(error))) throw error
+      await page.waitForTimeout(Math.max(settleMs, 500) * 2)
+    }
+  }
 }
 
 const SEARCH_FILTER_RX = /(搜索|关键字|关键词|keyword|search|筛选|职位类别|职位类型|工作地点|城市|地点|所属部门|职能类型)/i
