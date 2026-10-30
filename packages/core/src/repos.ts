@@ -7,7 +7,7 @@ import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKi
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage, Interview, Offer } from './types.js'
-import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
+import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, stageLabel, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
 import { buildMonthBoard, type MonthBoard, type StageHistoryRow } from './review-board.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
@@ -120,6 +120,30 @@ export class Repos {
     const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
     if (!canReachStage(app.stage, to)) return { app, moved: false }
     return { app: this.jumpTo(appId, to, note), moved: true }
+  }
+  /**
+   * 更正误判（邮件读错、用户说错）：撤掉最近一次推进，连同那次自动补的中间步骤，阶段回到推进之前。
+   * 历史行直接删掉而不是再记一条回退：漏斗和「我的求职月」读历史，误判留着就会多算一封不存在的拒信。
+   * 卷宗里另记一笔更正，事情经过仍查得到。
+   */
+  undoLastStage(appId: string, reason: string): Application {
+    const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
+    const rows = this.db.all<{ id: string; from_stage: ApplicationStage | null; to_stage: ApplicationStage; note: string | null }>(
+      'SELECT id, from_stage, to_stage, note FROM application_history WHERE application_id=? ORDER BY created_at DESC, rowid DESC', [appId])
+    const last = rows[0]
+    if (!last?.from_stage || last.to_stage !== app.stage) throw new Error(`投递 ${appId} 没有可撤回的推进（当前 ${app.stage}）`)
+    const undo = [last]
+    for (const row of rows.slice(1)) {
+      if (!row.from_stage || !row.note?.startsWith('自动推进（') || row.to_stage !== undo.at(-1)!.from_stage) break
+      undo.push(row)
+    }
+    const back = undo.at(-1)!.from_stage!
+    this.db.transaction(() => {
+      for (const row of undo) this.db.run('DELETE FROM application_history WHERE id=?', [row.id])
+      this.db.update('application', appId, { stage: back, updated_at: now() })
+      this.addDossierNote({ application_id: appId, kind: 'note', content: `更正：撤回「${stageLabel(app.stage)}」，回到「${stageLabel(back)}」。${reason}` })
+    })
+    return this.getApplication(appId)!
   }
   /** 看板三问题：今天必须做什么 / 哪里卡住 / 漏斗分布。 */
   board(today = now().slice(0, 10)) {

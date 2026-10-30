@@ -551,7 +551,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (ev.type === 'progress') progress('fill_form', String(ev.message ?? ''), { runId, taskId, progress: ev.progress });
       });
     } catch (error) {
-      return failRun(error instanceof Error ? error.message : String(error));
+      // 和批量执行器同一套分诊：保留错误名（code），浏览器被占用 / 接管 / 宿主停机不算这份网申失败
+      events.push({ type: 'error', status: 500, error: error instanceof Error ? error.message : String(error), ...(error instanceof Error && error.name !== 'Error' ? { code: error.name } : {}) });
     }
     const outcome = persistDriveOutcome({ repos: r, action, taskId, events, changed, review, mode });
     if (outcome.kind === 'transient') {
@@ -746,6 +747,17 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const note = repos().addDossierNote({ application_id: args.application_id, kind: args.kind ?? 'note', round: args.round ?? null, content: args.content });
         changed('dossier_note');
         return text({ note });
+      })()),
+
+      tool('application_correct', '更正一次误判：邮件读错了（如把面试邀请当成拒信）、或用户说之前告诉错了。撤掉这份投递最近一次推进（连同自动补的中间步骤），再推进到用户说的正确阶段；漏斗里不留误判，卷宗记一笔更正。只在用户明确指出错了时用；正常推进用 application_set_stage。', {
+        application_id: z.string(), stage: z.enum(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded']).describe('用户说的正确阶段'), note: z.string().describe('谁说错了、正确情况是什么'),
+      }, async (args) => wrap(() => {
+        const r = repos();
+        const back = r.undoLastStage(args.application_id, args.note);
+        const application = back.stage === args.stage ? back : r.jumpTo(args.application_id, args.stage, `更正：${args.note}`);
+        changed('application', 'application_history', 'dossier_note');
+        focus({ surface: 'dossier', application_id: application.id });
+        return text({ application, note: application.stage === 'interview' ? '已改回面试。若那封邮件里有面试时间，用 inbox_capture 带上 application_id 重新归档，面试和期限会建上。' : '已更正。' });
       })()),
 
       tool('application_set_stage', '按用户告知推进或关闭一条投递（收到回复 / 进面 / 拿到 Offer / 被拒 / 静默关闭）。沿状态机合法路径自动补中间步骤。', {
