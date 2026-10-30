@@ -1281,6 +1281,17 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text(page);
       })()),
 
+      tool('learned_rules', 'AI 学到的「以后不用问我」：哪些网站的网申表已自学习免审（依据是哪几家）、auto 模式开没开、提交前在页面上改过并写回答案库的值（在哪家改的；私密类只给问题不给值）。用户问「为什么这家没让我审就提交了 / 你替我记了什么」时用；用户说「撤回某网站的免审」时传 revoke_host（如 app.mokahr.com）：计数清零，靠它批准、还没提交的退回待审，已投出的撤不回、如实告诉用户。', {
+        revoke_host: z.string().optional().describe('要撤回免审的网站域名，取自 page_trusts[].host'),
+      }, async (args) => wrap(async () => {
+        const { listLearnedRules, revokePageTrust } = await import('../career/learned-rules');
+        if (!args.revoke_host) return text(listLearnedRules(repos()));
+        const out = revokePageTrust(repos(), { host: core.normalizeHost(args.revoke_host) });
+        if (!out.revoked) return err(`${args.revoke_host} 上没有免审中的表；先不传参数看看有哪些`);
+        changed('kv', 'action_queue');
+        return text(out);
+      })()),
+
       // ---------- 模型逐步浏览（Global career/browse.ts；和填表引擎、现场画面同一个托管 Chrome） ----------
       tool('browser_open', '在托管浏览器的浏览页打开网址（任何网页：招聘站、岗位列表、公司官网、要登录的平台……），返回页面观察（带编号的可操作元素 + 正文摘要）。只读一篇文章 / PDF 先用 web_fetch；单页应用、要登录、要在页面上操作的用它。', {
         url: z.string().describe('http(s) 网址'),
