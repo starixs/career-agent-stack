@@ -249,7 +249,7 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
       formSignature: review.formSignature ?? null, openAnswersHash: review.openAnswersHash ?? null, resumeSha,
     }, action.application_id);
     r.updateTask(taskId, { status: 'done', progress: 1 });
-    const decision = decideSubmit(r, { attention: review.attention, formSignature: review.formSignature, openAnswersHash: review.openAnswersHash, resumeSha });
+    const decision = decideSubmit(r, { attention: review.attention, formSignature: review.formSignature, openAnswersHash: review.openAnswersHash, resumeSha, applicationId: action.application_id });
     if (decision.approve) {
       r.reviewActions([submitAction.id], 'approved', decision.by);
       // 免审在用户没看的时候发生：把凭哪条规则、依据哪几家写进卷宗，用户事后问「为什么没让我审」有据可查

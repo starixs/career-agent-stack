@@ -4,6 +4,7 @@ import type { Repos } from '@career/core';
 import { evaluateSubmitGate, persistDriveOutcome } from './drive-outcome';
 import { SubmitExecutor, confirmSubmitResult, executeSubmitAction } from './submit-executor';
 import { LEARN_THRESHOLD, decideSubmit, getPageTrust, recordSubmitOutcome, setAutoMode } from './submit-policy';
+import { setTargetJob } from './targets';
 import { createMemoryRepos } from './test-db';
 
 // 阶段 1：填后检查 → 提交策略（默认人审 / auto 模式 / 自学习免审）→ 提交执行器。
@@ -60,6 +61,16 @@ describe('提交策略', () => {
     expect(b.submit.status).toBe('pending_review');
     // 没有填后检查结果：不知道填没填完，提交不入队（交给用户补 / 核对）
     expect(() => persist(repos, driveResult(null))).toThrow('unexpected handoff');
+  });
+
+  it('目标岗位（批次卡上点了「这家我要看」）：auto 模式和自学习都不免审，投前先给你看', () => {
+    const repos = createMemoryRepos();
+    setAutoMode(repos, true);
+    const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j-mt', title: 'AI应用开发', company_name: '美团' });
+    const app = repos.createApplication(job.id);
+    expect(decideSubmit(repos, { attention: 0, applicationId: app.id }).approve).toBe(true);
+    setTargetJob(repos, job.id, true);
+    expect(decideSubmit(repos, { attention: 0, applicationId: app.id })).toMatchObject({ approve: false, reason: expect.stringMatching(/目标岗位/) });
   });
 
   it(`自学习：同一张表连续 ${LEARN_THRESHOLD} 次人工直接通过后免确认；简历或开放题变了就停`, () => {
