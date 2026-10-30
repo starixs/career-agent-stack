@@ -136,12 +136,16 @@ const identity = (page: Page): object => (typeof page.mainFrame === 'function' ?
 let seq = 0;
 const newObsId = () => `o${Date.now().toString(36)}${(seq++).toString(36)}`;
 
+/** 网址本身还在登录 / 绑定 / 注册流程里（/login/bindMobile、/passport/…）。 */
+const LOGIN_PATH_RX = /\/(login|signin|sign-in|passport|register|signup|bind[a-z]*)(\/|$|\?|#)/i;
+
 export type Hint = 'login' | 'captcha' | 'risk' | 'submit_page';
 /** 页面上需要本人处理的迹象（纯函数）。 */
 export function detectHints(raw: Pick<RawObservation, 'hasPassword' | 'bodySample' | 'url'>, elements: ElementInfo[]): Hint[] {
   const hints = new Set<Hint>();
   const t = raw.bodySample;
-  if (raw.hasPassword || /扫码登录|微信登录|请先登录|登录后查看|手机号登录|验证码登录/.test(t)) hints.add('login');
+  // 扫完码跳到「绑定手机号 / 邮箱」「完善信息」这类中间页也还没登完（2026-10-31：联发科技扫码后停在 /login/bindMobile，被判成已登上）
+  if (raw.hasPassword || /扫码登录|微信登录|请先登录|登录后查看|手机号登录|验证码登录|绑定手机|手机号绑定|绑定邮箱|请绑定|完善(个人|账号)?信息后|验证手机号/.test(t) || LOGIN_PATH_RX.test(raw.url)) hints.add('login');
   if (/滑块|拖动滑块|安全验证|人机验证|请完成验证|协助验证|不是自动程序|captcha|geetest|验证码已发送/i.test(t)) hints.add('captcha');
   if (/访问过于频繁|操作频繁|异常访问|风险提示|账号存在异常|请求存在异常|限制本次访问|操作存在异常|暂停您的访问|访问被阻断|访问受限/.test(t) || VERIFICATION_URL_RX.test(raw.url)) hints.add('risk');
   if (elements.some(e => e.submitLike)) hints.add('submit_page');
