@@ -174,6 +174,9 @@ export function DraftsCard({ card, onDone, onDismiss }: CardProps) {
 export function ClaimsConfirmCard({ card, onDone, onDismiss }: CardProps) {
   const title = str(card.data.experience_title) ?? '这段经历';
   const claims = list(card.data.claims).map(c => ({ id: str(c.id) ?? '', text: str(c.text) ?? '', metric: str(c.result_metric), attribution: str(c.attribution) })).filter(c => c.id && c.text);
+  // 面试复盘回流：答不上来的事实，等用户去补（不是主张，不能勾选确认）
+  const gaps = Array.isArray(card.data.gaps) ? card.data.gaps.filter((g): g is string => typeof g === 'string' && !!g.trim()) : [];
+  const fromRetro = card.data.source === 'interview_retro';
   const [picked, setPicked] = useState<Record<string, boolean>>(() => Object.fromEntries(claims.map(c => [c.id, true])));
   const { busy, error, run } = useSubmit();
   const chosen = claims.filter(c => picked[c.id]);
@@ -201,10 +204,17 @@ export function ClaimsConfirmCard({ card, onDone, onDismiss }: CardProps) {
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-xs text-[var(--subtle)]">只有确认过的说法才会写进简历和网申回答。</p>
+      {gaps.length > 0 && (
+        <div className="mt-2">
+          <div className="text-xs text-[var(--muted)]">{fromRetro ? '这场面试里没答上来、还要补的事实' : '还要补的事实'}</div>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-[var(--ink-2)]">{gaps.map(g => <li key={g}>{g}</li>)}</ul>
+        </div>
+      )}
+      {claims.length > 0 && <p className="mt-2 text-xs text-[var(--subtle)]">只有确认过的说法才会写进简历和网申回答{fromRetro ? '；已经投出去的那版不会变，下次定制时才会用上' : ''}。</p>}
       <ErrorLine error={error} />
       <div className="mt-3 flex items-center gap-2">
-        <Button variant="primary" busy={busy} disabled={!chosen.length} onClick={() => void save()}>确认所选 {chosen.length} 条</Button>
+        {claims.length > 0 && <Button variant="primary" busy={busy} disabled={!chosen.length} onClick={() => void save()}>确认所选 {chosen.length} 条</Button>}
+        {gaps.length > 0 && <Button variant={claims.length ? 'ghost' : 'primary'} onClick={() => { suggestToChat(`帮我把「${title}」补上：${gaps.join('；')}`); if (!claims.length) onDone(); }}>去补这几处</Button>}
       </div>
     </CardShell>
   );

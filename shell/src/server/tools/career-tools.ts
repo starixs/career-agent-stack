@@ -18,6 +18,7 @@ import { DomainUnavailableError, loadBridges, loadResume } from '../career/domai
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
 import { carryoverFor, carryoverPrompt } from '../career/interview-carry';
+import { applyRetroFollowups } from '../career/retro-followups';
 import { bookInterview, closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
 import { getShellLLM } from '../career/llm';
 import { MAIL_PRESETS } from '../career/mail/providers';
@@ -1468,7 +1469,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         round: z.enum(['hr', 'first', 'second', 'final', 'group', 'other']).optional(), company_type: z.string().optional(), date: z.string().optional(),
         result: z.enum(['none', 'rejected', 'advanced', 'no_feedback_inferred']).optional(), result_source: z.enum(['none', 'official', 'inferred']).optional(),
       }, async (args) => wrap(async () => {
-        const out = await askSkill<Record<string, unknown>>('interview-retro', `本场信息：公司 ${args.company_name ?? '未知'}，岗位 ${args.title ?? '未知'}，轮次 ${args.round ?? '未知'}，企业性质 ${args.company_type ?? '未知'}，结果 ${args.result ?? 'none'}（来源 ${args.result_source ?? 'none'}）\n\n面试记录：\n${args.transcript}\n\n历史面试（最近 5 场）：\n${JSON.stringify(store().listInterviews().slice(0, 5).map(i => ({ company: i.company_name, round: i.round, tags: i.tags_json, result: i.result })))}`, { refs: ['题型诊断', '标签词表'], temperature: 0.2 });
+        const library = repos().experienceTree().map(e => `## [${e.id}] ${e.title}${e.org ? ` @ ${e.org}` : ''}\n${e.claims.map(c => `- [${c.id}][${c.status}] ${c.text}`).join('\n') || '- （无主张）'}`).join('\n\n') || '（经历库为空）';
+        const out = await askSkill<Record<string, unknown>>('interview-retro', `本场信息：公司 ${args.company_name ?? '未知'}，岗位 ${args.title ?? '未知'}，轮次 ${args.round ?? '未知'}，企业性质 ${args.company_type ?? '未知'}，结果 ${args.result ?? 'none'}（来源 ${args.result_source ?? 'none'}）\n\n面试记录：\n${args.transcript}\n\n用户经历库：\n${library}\n\n历史面试（最近 5 场）：\n${JSON.stringify(store().listInterviews().slice(0, 5).map(i => ({ company: i.company_name, round: i.round, tags: i.tags_json, result: i.result })))}`, { refs: ['题型诊断', '标签词表'], temperature: 0.2 });
         const s = store();
         const patch = { transcript: args.transcript, retro_json: out, tags_json: out.tags ?? [], result: args.result, result_source: args.result_source, company_name: args.company_name, title: args.title, round: args.round, date: args.date };
         // 没给 interview_id 时落回邀请建的那一场，挂在对应申请上，不另起一条孤儿记录
@@ -1478,8 +1480,16 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const asked = Array.isArray((out as { questions?: unknown }).questions) ? (out as { questions: Array<{ quote?: string; type?: string; content_tags?: string[] }> }).questions : [];
         const seen = asked.filter(q => q?.quote && q.quote.trim().length >= 4).map(q => repos().upsertQuestion({ content: q.quote!, kind: 'interview', category: q.type ?? null, company_name: args.company_name ?? null, title: args.title ?? null, source: 'seen', source_ref: `interview:${interview.id}`, tags: q.content_tags ?? [] }).id);
         const closed = closeInterviewDeadline(repos(), interview.id);
-        changed('interview', ...(seen.length ? ['question'] : []), ...(closed ? ['deadline'] : []));
-        return text({ interview_id: interview.id, retro: out, questions_saved: seen.length });
+        // 复盘冒出的新事实进经历库待确认、答不上来的列成「还要补」：只出卡，不改简历
+        const followups = applyRetroFollowups(repos(), out);
+        for (const f of followups) {
+          card(`retro-claims:${interview.id}:${f.experience_id}`, 'claims_confirm', f.claims.length ? `面试里说到「${f.experience_title}」的 ${f.claims.length} 条新说法` : `「${f.experience_title}」还有 ${f.gaps.length} 处要补`, {
+            experience_id: f.experience_id, experience_title: f.experience_title, source: 'interview_retro', interview_id: interview.id, gaps: f.gaps,
+            claims: f.claims.map(c => ({ id: c.id, text: c.text, result_metric: c.result_metric ?? null, attribution: c.attribution ?? null })),
+          });
+        }
+        changed('interview', ...(seen.length ? ['question'] : []), ...(closed ? ['deadline'] : []), ...(followups.some(f => f.claims.length) ? ['claim'] : []));
+        return text({ interview_id: interview.id, retro: out, questions_saved: seen.length, followups: followups.map(f => ({ experience: f.experience_title, new_claims: f.claims.length, gaps: f.gaps })) });
       })()),
 
       tool('interview_predict', '从简历 / 主张预测面试深挖点：靶子类型、预期追问链、露馅风险，写入 probe_prediction。', {

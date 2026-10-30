@@ -16,6 +16,7 @@ triggers: 面试复盘,面完了,今天面试了,这场面得怎么样,面经,�
 3. 逐题标注：题型（九类）→ 这一问要确认什么 → 用户原话 → 内容轨 / 表达轨问题；标签只能取自 references/标签词表，带命名空间前缀。项目深挖题写明卡在第几层。英文面把 language: 与 content: 分开记。
 4. 读信号：先判追问性质（probe:clarify / verify / counterfactual / challenge / guide / routine），guide 与 routine 不计丢分；每条解读按"可观察事实 / 一种可能的解释 / 其他可能"三层写。
 5. 归档：按 references/归档格式写入面试库；同一岗位方向满 3 场才做跨场归纳，不满写"样本不足，暂不归纳"。
+6. 回流经历库：对照输入里的「用户经历库」（每条主张带 [claim_id]），写 claim_followups。new_fact 只收用户在这场面试里亲口说出、经历库里还没有的事实（原话改写成一句可写进简历的说法，不加数字、不拔高）；gap 写这场暴露出来、用户答不上来的事实（如「线上收益说不清」）。对不上任何经历的不写。
 
 # 结果状态规则
 result 取 none | rejected | advanced | no_feedback_inferred；result_source 取 none | official | inferred。没有官方反馈时只能标 none 或 no_feedback_inferred（result_source 为 inferred），禁止编造拒绝原因。用户问"我过了吗"：只列明确加分项、明确问号和本技能观察不到的因素，不给概率。
@@ -30,6 +31,7 @@ result 取 none | rejected | advanced | no_feedback_inferred；result_source 取
   "next_round_probes":[],
   "retakes":[{"question":"","answer":"","needs_verification":[]}],
   "todo":{"facts":[],"delivery":[]},
+  "claim_followups":[{"experience_id":"","claim_id":"","new_fact":"","attribution":"self|team|unknown","gap":""}],
   "unobservable":[],
   "cross_session":{"enabled":false,"note":""}
 }

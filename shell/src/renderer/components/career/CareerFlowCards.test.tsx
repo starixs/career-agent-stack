@@ -112,6 +112,22 @@ describe('对话内流程卡片', () => {
     expect(apiPostJson).not.toHaveBeenCalledWith('/api/career/claims/c2/confirm', {});
   });
 
+  it('面试复盘回流：新说法可确认，答不上来的事实列出来、点「去补这几处」交给助理', async () => {
+    const { seen, off } = captureSuggest();
+    renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '美团实习', source: 'interview_retro', interview_id: 'itv1', claims: [{ id: 'c9', text: '召回负样本按曝光未点击采样' }], gaps: ['线上 A/B 收益说不清'] })]);
+    expect(screen.getByTestId('career-card-claims_confirm')).toHaveTextContent('这场面试里没答上来、还要补的事实');
+    expect(screen.getByTestId('career-card-claims_confirm')).toHaveTextContent('下次定制时才会用上');
+    fireEvent.click(screen.getByRole('button', { name: '去补这几处' }));
+    off();
+    expect(seen).toEqual(['帮我把「美团实习」补上：线上 A/B 收益说不清']);
+  });
+
+  it('只有要补的事实、没有新说法时，不出确认按钮', () => {
+    renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '美团实习', source: 'interview_retro', claims: [], gaps: ['线上收益'] })]);
+    expect(screen.queryByRole('button', { name: /确认所选/ })).toBeNull();
+    expect(screen.getByRole('button', { name: '去补这几处' })).toBeInTheDocument();
+  });
+
   it('批量投递进行中：对话里出现进度卡，可暂停', async () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, batch: { status: 'paused', updatedAt: '', done: 2, failed: 0, handoffs: 0, queued: 3, todayCount: 2 } });
     renderCards([]);

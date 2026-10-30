@@ -62,6 +62,7 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
   let repos: ReturnType<typeof createMemoryRepos>;
   let llm: FakeLLM;
   let baidu: { appId: string; jobId: string; tailoredId: string };
+  let events: Array<{ event: string; data: { card?: unknown } }>;
 
   beforeEach(async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -69,7 +70,8 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
     mocks.handlers.clear();
     repos = createMemoryRepos();
     llm = new FakeLLM();
-    const broadcast = () => undefined;
+    events = [];
+    const broadcast = (event: string, data: unknown) => { events.push({ event, data: data as { card?: unknown } }); };
     await createCareerServer({
       repos, vault: new Vault(repos.db, new StaticKeyProvider(Buffer.alloc(32, 5))), llm, broadcast, sessionId: () => 'sess-1',
       runs: new RunRegistry(broadcast, () => 'sess-1'), resumeModule: async () => ({ parseResume: (x: unknown) => x as never }),
@@ -214,7 +216,22 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
     await call('interview_questions', { job_id: other.id, round: '二面' });
     expect(llm.calls.at(-1)?.messages[0].content).not.toContain('线上 A/B 收益');
   });
-  it.todo('〔面〕复盘暴露的经历问题（说不清线上收益）回流到哪：给主张补事实的待确认卡、还是改简历措辞、还是只记在复盘里');
+  it('复盘里说出的新事实进经历库待确认、答不上来的列成「还要补」，出一张确认卡，不动投出去的简历', async () => {
+    const exp = repos.createExperience({ title: '推荐召回实习', org: '美团' });
+    await invitesArrive();
+    vi.setSystemTime(new Date(FRI_MORNING));
+    const before = repos.db.get<{ schema_json: string }>('SELECT schema_json FROM resume_tailored WHERE id=?', [baidu.tailoredId])?.schema_json;
+    llm.push(JSON.stringify({ questions: [], claim_followups: [
+      { experience_id: exp.id, new_fact: '召回负样本按曝光未点击采样', attribution: 'self', gap: '线上 A/B 收益说不清' },
+      { experience_id: 'exp_不存在', new_fact: '编出来的', gap: '' },
+    ] }));
+    await call('interview_retro', { company_name: '百度', round: 'second', transcript: '……' });
+    expect(repos.listClaims(exp.id).map(c => [c.text, c.status])).toEqual([['召回负样本按曝光未点击采样', 'pending']]);
+    const card = events.filter(e => e.event === 'career:card').map(e => e.data.card).at(-1);
+    expect(card).toMatchObject({ kind: 'claims_confirm', data: { experience_id: exp.id, source: 'interview_retro', gaps: ['线上 A/B 收益说不清'] } });
+    expect(repos.db.get<{ schema_json: string }>('SELECT schema_json FROM resume_tailored WHERE id=?', [baidu.tailoredId])?.schema_json).toBe(before);
+    expect(llm.calls.at(-1)?.messages[0].content).toContain(`[${exp.id}] 推荐召回实习`);
+  });
   it.todo('〔面〕面试前一晚的连续练习放在哪：对话里一问一答，还是一个专门的「模拟面试」工作面（计时、可中断续练）');
   it.todo('〔面〕「帮我准备」的终态是什么：一张百度二面准备卡（卷宗 + 深挖点 + 题 + 上一轮复盘）还是在对话里逐项给');
 });
