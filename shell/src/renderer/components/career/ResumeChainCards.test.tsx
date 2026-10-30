@@ -43,7 +43,7 @@ describe('交简历 → 定制 · 对话里的两张卡', () => {
 
     await waitFor(() => expect(screen.getByTestId('career-card-resume_intake-done')).toBeInTheDocument());
     expect(apiPutJson).toHaveBeenCalledWith(expect.stringContaining('/vault/items'), expect.objectContaining({ scope: 'profile', field: 'graduation', value: '2027-06' }));
-    expect(apiPostJson).toHaveBeenCalledWith(expect.stringContaining('/resume-intake/rin_1/confirm'), { claim_ids: ['c1'] });
+    expect(apiPostJson).toHaveBeenCalledWith(expect.stringContaining('/resume-intake/rin_1/confirm'), { claim_ids: ['c1'], profile_choice: {} });
     expect(drawer).toEqual([expect.objectContaining({ open: true, resumeId: 'rsm_1' })]);
     expect(suggested).toEqual([]);
     expect(onDone).not.toHaveBeenCalled();
@@ -55,7 +55,21 @@ describe('交简历 → 定制 · 对话里的两张卡', () => {
     render(<ResumeIntakeCard card={INTAKE} onDone={vi.fn()} onDismiss={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /只用所选/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '全部通过，生成主简历' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith(expect.stringContaining('/resume-intake/rin_1/confirm'), { claim_ids: ['c1', 'c2'] }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith(expect.stringContaining('/resume-intake/rin_1/confirm'), { claim_ids: ['c1', 'c2'], profile_choice: {} }));
+  });
+
+  it('简历和资料对不上：并排一张表，整列一键「保留资料里的」，个别行再改回简历', async () => {
+    const c = card('resume_intake', { ...INTAKE.data, conflicts: [
+      { field: 'name', label: '真实姓名', resume_preview: '闫**', vault_preview: '林**' },
+      { field: 'school', label: '毕业院校', resume_preview: '河南大学', vault_preview: '华东某大学' },
+    ] }, '从你的简历里读到这些');
+    render(<ResumeIntakeCard card={c} onDone={vi.fn()} onDismiss={vi.fn()} />);
+    expect(screen.getByTestId('intake-conflicts')).toHaveTextContent('有 2 项不一样');
+    expect(screen.getByLabelText('真实姓名：用简历上的')).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: '全部保留资料里的' }));
+    fireEvent.click(screen.getByLabelText('毕业院校：用简历上的'));
+    fireEvent.click(screen.getByRole('button', { name: '全部通过，生成主简历' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith(expect.stringContaining('/confirm'), { claim_ids: ['c1', 'c2'], profile_choice: { name: 'vault', school: 'resume' } }));
   });
 
   it('改了什么：逐处原文划掉、新文在下，岗位要但经历里没有的单列，打开整份', () => {
@@ -63,12 +77,15 @@ describe('交简历 → 定制 · 对话里的两张卡', () => {
     const off = onEvent(RESUME_DRAWER_EVENT, p => { drawer.push(p); });
     render(<TailorDiffCard card={card('tailor_diff', {
       tailored_id: 'rst_1', total: 1, needs: ['JD 要 Tableau，经历里没提到'],
-      changes: [{ op: 'replace', place: '实习 / 工作 · 美团 · 第 2 条', before: '负责 AB 实验分析', after: '主导 12 个策略的 AB 实验分析', reason: 'JD 强调 AB 实验' }],
+      changes: [{ op: 'replace', place: '实习 / 工作 · 美团 · 第 2 条', before: '负责 AB 实验分析', after: '主导 12 个策略的 AB 实验分析', reason: '贴近职责第 2 条', jd: ['AB 实验'] }],
+      blocked: [{ place: '实习 / 工作 · 美团', after: '用 Kafka 搭建看板', why: '出现了没有依据的内容：Kafka' }],
     }, '为「京东 · 数据分析师」定制好了')} onDone={vi.fn()} onDismiss={vi.fn()} />);
     expect(screen.getByText('改了 1 处')).toBeInTheDocument();
     expect(screen.getByText('负责 AB 实验分析')).toHaveClass('line-through');
     expect(screen.getByText('主导 12 个策略的 AB 实验分析')).toBeInTheDocument();
     expect(screen.getByText('JD 要 Tableau，经历里没提到')).toBeInTheDocument();
+    expect(screen.getByText(/对上 JD：AB 实验/)).toBeInTheDocument();
+    expect(screen.getByTestId('tailor-blocked')).toHaveTextContent('拦下了 1 处没依据的改动');
     fireEvent.click(screen.getByRole('button', { name: '打开整份' }));
     expect(drawer).toEqual([expect.objectContaining({ resumeId: 'rst_1' })]);
     off();

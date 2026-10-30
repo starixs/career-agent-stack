@@ -44,6 +44,13 @@ export interface IntakeDraft {
   certifications: ResumeParse['certifications'];
   master_id: string | null;
   created_at: string;
+  /** 简历和资料（私密库）对不上的字段；卡片里选「以哪份为准」，确认后清空。 */
+  conflicts?: string[];
+  /**
+   * 冲突字段在简历上的值，确认时若选「以简历为准」写进私密库，随即删掉。
+   * 只在本机库里、不进模型和卡片（卡片只给打码预览）；简历原文本身已在本机工作区。
+   */
+  pending_profile?: Record<string, string>;
 }
 
 // ---------- 模型输出校验（跨边界数据） ----------
@@ -111,20 +118,29 @@ export interface IntakeResult {
   experiences: Array<{ experience: Experience; claims: Claim[] }>;
   /** 这次从简历补进私密库的字段（只有字段名，不含值）。 */
   filled: string[];
+  /** 简历和资料对不上的字段（只有字段名）。 */
+  conflicts: string[];
   /** 卡片里还要用户补的核心字段（简历上也没有）。 */
   missing: string[];
 }
 
-/** 把简历上有、私密库里还空着的基本信息补进去；用户填过的不覆盖。 */
-function fillProfile(vault: Vault, values: Record<string, string>): string[] {
-  const have = new Set(vault.status().profile.filled.map(f => f.field));
+const norm = (field: string, v: string) => (field === 'graduation' ? toYearMonth(v) : v).replace(/\s+/g, '').toLowerCase();
+
+/**
+ * 简历上的基本信息对照私密库：空着的直接补；已有且一致的不动；已有但不一样的记成冲突，交给卡片选（不在对话里对账）。
+ */
+function reconcileProfile(vault: Vault, values: Record<string, string>): { filled: string[]; conflicts: Record<string, string> } {
+  const existing = new Map(vault.list().filter(i => i.scope === 'profile').map(i => [i.field, i.id]));
   const filled: string[] = [];
+  const conflicts: Record<string, string> = {};
   for (const [field, value] of Object.entries(values)) {
-    if (!value || have.has(field)) continue;
-    vault.set({ scope: 'profile', field, value });
-    filled.push(field);
+    if (!value) continue;
+    const id = existing.get(field);
+    if (!id) { vault.set({ scope: 'profile', field, value }); filled.push(field); continue; }
+    const current = vault.reveal(id, { actor: 'resolve', purpose: '交简历：比对上传的简历和基本资料是否一致' }) ?? '';
+    if (norm(field, current) !== norm(field, value)) conflicts[field] = value;
   }
-  return filled;
+  return { filled, conflicts };
 }
 
 function profileValues(text: string, parsed: ResumeParse): Record<string, string> {
@@ -145,7 +161,7 @@ export function importResume(deps: IntakeDeps, input: { text: string; source: st
   const { repos, vault } = deps;
   const now = deps.now?.() ?? new Date().toISOString();
   const id = deps.newId?.() ?? `rin_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  const filled = fillProfile(vault, profileValues(input.text, input.parsed));
+  const { filled, conflicts } = reconcileProfile(vault, profileValues(input.text, input.parsed));
   const experiences = input.parsed.entries.map(e => {
     const experience = repos.createExperience({ title: e.title, org: e.org || null, role: e.role || null, start_date: toYearMonth(e.start) || null, end_date: toYearMonth(e.end) || null, type: 'other', summary: `由简历《${input.source}》导入` });
     const claims = e.claims.map(c => {
@@ -160,10 +176,11 @@ export function importResume(deps: IntakeDeps, input: { text: string; source: st
     entries: input.parsed.entries.map((e, i) => ({ experience_id: experiences[i].experience.id, section: e.section, title: e.title, org: e.org, role: e.role, start: e.start, end: e.end })),
     skills: input.parsed.skills, awards: input.parsed.awards, certifications: input.parsed.certifications,
     master_id: null, created_at: now,
+    ...(Object.keys(conflicts).length ? { conflicts: Object.keys(conflicts), pending_profile: conflicts } : {}),
   };
   repos.kvSet(`${INTAKE_KV_PREFIX}${id}`, draft);
   const have = new Set(vault.status().profile.filled.map(f => f.field));
-  return { draft, experiences, filled, missing: INTAKE_CORE_FIELDS.filter(f => !have.has(f)) };
+  return { draft, experiences, filled, conflicts: Object.keys(conflicts), missing: INTAKE_CORE_FIELDS.filter(f => !have.has(f)) };
 }
 
 export function getIntakeDraft(repos: Repos, id: string): IntakeDraft | undefined {
@@ -173,8 +190,13 @@ export function getIntakeDraft(repos: Repos, id: string): IntakeDraft | undefine
 // ---------- 组装主简历 ----------
 const dot = (v: string) => v.replace(/-/g, '.');
 
-/** 只用确认过的说法：一段经历一条，说法一条一句；没有确认说法的段落不进简历。 */
-export function buildMasterSchema(draft: IntakeDraft, claims: Claim[], vaultFilled: ReadonlySet<string>, placeholder: (field: string) => string): Record<string, unknown> {
+const EDUCATION_FROM_VAULT: ReadonlyArray<[string, keyof IntakeEducation]> = [['school', 'school'], ['major', 'major'], ['degree', 'degree'], ['graduation', 'end']];
+
+/**
+ * 只用确认过的说法：一段经历一条，说法一条一句；没有确认说法的段落不进简历。
+ * keptVault：冲突里用户选了「以资料为准」的字段，教育背景对应项写私密库占位符，不用简历上的值。
+ */
+export function buildMasterSchema(draft: IntakeDraft, claims: Claim[], vaultFilled: ReadonlySet<string>, placeholder: (field: string) => string, keptVault: ReadonlySet<string> = new Set()): Record<string, unknown> {
   const confirmed = claims.filter(c => c.status !== 'pending');
   const byExp = (experienceId: string) => confirmed.filter(c => c.experience_id === experienceId);
   const basics: Record<string, string> = {};
@@ -186,7 +208,11 @@ export function buildMasterSchema(draft: IntakeDraft, claims: Claim[], vaultFill
   const bullets = (cs: Claim[]) => ({ bullets: cs.map(c => c.text), claim_ids: cs.map(c => c.id) });
   return {
     version: 1, basics,
-    education: draft.education.map(ed => ({ ...ed, start: dot(ed.start), end: dot(ed.end) })),
+    education: draft.education.map((ed, i) => {
+      const row: Record<string, unknown> = { ...ed, start: dot(ed.start), end: dot(ed.end) };
+      if (i === 0) for (const [field, key] of EDUCATION_FROM_VAULT) if (keptVault.has(field)) row[key] = placeholder(field);
+      return row;
+    }),
     experience: rows.filter(x => x.e.section === 'experience').map(({ e, cs }) => ({ org: e.org || e.title, position: e.role, start: dot(e.start), end: dot(e.end), ...bullets(cs) })),
     projects: rows.filter(x => x.e.section === 'project').map(({ e, cs }) => ({ name: e.title, role: e.role, org: e.org, start: dot(e.start), end: dot(e.end), ...bullets(cs) })),
     custom_sections: rows.some(x => x.e.section === 'campus')
@@ -218,20 +244,38 @@ function currentMasterId(store: CareerStore): string | null {
  * 卡片里点「全部通过 / 只用所选」：确认勾选的说法，按导入草稿直接组装主简历（不调模型）。
  * 同一份导入再点一次只更新它生成的那份主简历；新拖进的简历替换现有主简历。
  */
-export async function confirmIntake(deps: ConfirmDeps, id: string, claimIds: string[]): Promise<{ master_id: string; confirmed: number; created: boolean }> {
+export type ProfileChoice = Record<string, 'resume' | 'vault'>;
+
+/** 冲突字段按用户选的写回：缺省以刚上传的简历为准（选一下全部同步）；返回选了「以资料为准」的字段。 */
+function applyProfileChoice(vault: Vault, draft: IntakeDraft, choice: ProfileChoice): Set<string> {
+  const kept = new Set<string>();
+  for (const field of draft.conflicts ?? []) {
+    const value = draft.pending_profile?.[field];
+    if (choice[field] === 'vault' || !value) { kept.add(field); continue; }
+    vault.set({ scope: 'profile', field, value });
+  }
+  return kept;
+}
+
+/**
+ * 卡片里点「全部通过 / 只用所选」：确认勾选的说法，冲突字段按选择写回，按导入草稿直接组装主简历（不调模型）。
+ * 同一份导入再点一次只更新它生成的那份主简历；新拖进的简历替换现有主简历。
+ */
+export async function confirmIntake(deps: ConfirmDeps, id: string, claimIds: string[], choice: ProfileChoice = {}): Promise<{ master_id: string; confirmed: number; created: boolean }> {
   const { repos, store } = deps;
   const draft = getIntakeDraft(repos, id);
   if (!draft) throw new Error(`导入记录不存在：${id}`);
   const own = new Set(draft.entries.map(e => e.experience_id));
-  const claims = repos.listClaims().filter(c => own.has(c.experience_id));
   const pick = new Set(claimIds);
   let confirmed = 0;
-  for (const c of claims) if (pick.has(c.id) && c.status === 'pending') { repos.confirmClaim(c.id); confirmed++; }
+  for (const c of repos.listClaims()) if (own.has(c.experience_id) && pick.has(c.id) && c.status === 'pending') { repos.confirmClaim(c.id); confirmed++; }
+  const kept = applyProfileChoice(deps.vault, draft, choice);
   const filled = new Set(deps.vault.status().profile.filled.map(f => f.field));
-  const schema = await deps.normalize(buildMasterSchema(draft, repos.listClaims().filter(c => own.has(c.experience_id)), filled, deps.placeholder));
+  const schema = await deps.normalize(buildMasterSchema(draft, repos.listClaims().filter(c => own.has(c.experience_id)), filled, deps.placeholder, kept));
   const reuse = draft.master_id && store.getResume(draft.master_id)?.kind === 'master' ? draft.master_id : currentMasterId(store);
   const masterId = reuse ? store.saveResume(reuse, schema, `从简历《${draft.source}》导入前快照`).id : store.createResumeMaster({ name: '主简历', direction: draft.direction || null, schema_json: schema }).id;
-  repos.kvSet(`${INTAKE_KV_PREFIX}${id}`, { ...draft, master_id: masterId });
-  console.log(`[resume-intake] confirmed intake=${id} master=${masterId} claims=${confirmed}`);
+  const { pending_profile: _drop, ...rest } = draft;
+  repos.kvSet(`${INTAKE_KV_PREFIX}${id}`, { ...rest, master_id: masterId, conflicts: [] });
+  console.log(`[resume-intake] confirmed intake=${id} master=${masterId} claims=${confirmed} kept_vault=${kept.size}`);
   return { master_id: masterId, confirmed, created: !reuse };
 }

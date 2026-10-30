@@ -227,10 +227,12 @@ const ROUTES: Route[] = [
   // 交简历卡片里点「生成主简历」：确认勾选的说法，按导入草稿直接组装主简历（不调模型）
   route('POST', '/api/career/resume-intake/:id/confirm', async (ctx) => {
     const claimIds = Array.isArray(ctx.body.claim_ids) ? ctx.body.claim_ids.filter((x): x is string => typeof x === 'string') : [];
+    const rawChoice = ctx.body.profile_choice && typeof ctx.body.profile_choice === 'object' ? ctx.body.profile_choice as Record<string, unknown> : {};
+    const choice = Object.fromEntries(Object.entries(rawChoice).filter((e): e is [string, 'resume' | 'vault'] => e[1] === 'resume' || e[1] === 'vault'));
     try {
       const mod = await (ctx.deps.resumeModule ?? loadResume)();
-      const out = await confirmIntake({ repos: ctx.repos, vault: ctx.vault, store: ctx.store, placeholder: field => ctx.core.vaultPlaceholder('profile', '', field), normalize: async input => mod.parseResume(input) }, ctx.params.id, claimIds);
-      dataChanged(ctx, ['claim', 'resume_master', 'resume_snapshot']);
+      const out = await confirmIntake({ repos: ctx.repos, vault: ctx.vault, store: ctx.store, placeholder: field => ctx.core.vaultPlaceholder('profile', '', field), normalize: async input => mod.parseResume(input) }, ctx.params.id, claimIds, choice);
+      dataChanged(ctx, ['claim', 'resume_master', 'resume_snapshot', 'vault']);
       return ok(out);
     } catch (error) {
       console.error(`[resume-intake] confirm ${ctx.params.id} failed:`, error instanceof Error ? error.message : error);

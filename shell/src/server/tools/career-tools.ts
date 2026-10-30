@@ -1622,7 +1622,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       })()),
 
       ...createResumeChainTools({
-        tool, z, repos, vault, store, profileFields: core.PROFILE_FIELDS, wrap, text, err, changed, card, progress,
+        tool, z, repos, vault, store, profileFields: core.PROFILE_FIELDS, mask: core.maskValue, wrap, text, err, changed, card, progress,
         askSkill: (skill, user, opts) => askSkill(skill, user, opts),
         readDocument: abs => (deps.readDocument ?? readDocumentDefault)(abs, sessionCtx.workspace),
         workspacePath, fileExists: existsSync, resolveMaster, requireJob, jdOf,

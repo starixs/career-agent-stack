@@ -3,7 +3,7 @@
  *  - resume_intake：拖进来的简历读到了什么。基本信息已从简历补进私密库（只给脱敏预览），缺的项带输入框；
  *    说法在一张整批勾选表里（PickTable）：「全部通过」一下做完，或拖选 / Shift 连选后「只用所选」。
  *    生成后卡片原地换成「下一步」，不再回对话里来回确认。
- *  - tailor_diff：按岗位定制好了。逐处原文 → 新文和理由；经历里还没有的 JD 要求列在下面。
+ *  - tailor_diff：按岗位定制好了。逐处原文 → 新文、对上哪条 JD；被防编造闸门拦下的改动和经历里还没有的 JD 要求列在下面。
  */
 import { FileCheck2, Sparkles } from 'lucide-react';
 import { useState } from 'react';
@@ -22,6 +22,7 @@ function parseIntake(data: Record<string, unknown>) {
   return {
     intakeId: str(data.intake_id),
     profile: list(data.profile).map(p => ({ field: str(p.field) ?? '', label: str(p.label) ?? '', preview: str(p.preview) ?? '' })).filter(p => p.field),
+    conflicts: list(data.conflicts).map(c => ({ field: str(c.field) ?? '', label: str(c.label) ?? '', resume: str(c.resume_preview) ?? '', vault: str(c.vault_preview) ?? '' })).filter(c => c.field),
     missing: list(data.missing).map(m => ({ field: str(m.field) ?? '', label: str(m.label) ?? '', hint: str(m.hint), sensitive: m.sensitive === true })).filter(m => m.field),
     education: list(data.education).map(e => [str(e.school), str(e.degree), str(e.major), span(str(e.start), str(e.end))].filter(Boolean).join(' · ')).filter(Boolean),
     experiences: list(data.experiences).map(e => ({
@@ -62,11 +63,47 @@ function MissingInputs({ missing, values, onChange }: { missing: ReturnType<type
   );
 }
 
+type Choice = Record<string, 'resume' | 'vault'>;
+
+/** 简历和资料对不上：并排一张表，整列一键选，个别行再改；默认以刚上传的简历为准。 */
+function ConflictTable({ rows, choice, onChange }: { rows: ReturnType<typeof parseIntake>['conflicts']; choice: Choice; onChange: (next: Choice) => void }) {
+  if (!rows.length) return null;
+  const all = (v: 'resume' | 'vault') => onChange(Object.fromEntries(rows.map(r => [r.field, v])));
+  const col = (v: 'resume' | 'vault', text: string) => (
+    <button type="button" onClick={() => all(v)} className="text-left text-xs text-[var(--primary)] underline-offset-2 hover:underline">{text}</button>
+  );
+  return (
+    <div data-testid="intake-conflicts" className="overflow-hidden rounded-lg border border-[var(--line)]">
+      <div className="px-2 py-1.5 text-xs text-[var(--muted)]">这份简历和基本资料有 {rows.length} 项不一样，以哪份为准？选完一处改，处处同步。</div>
+      <table className="w-full text-sm">
+        <thead><tr className="border-t border-[var(--line)] text-left"><th className="px-2 py-1 font-normal text-[var(--muted)]" />
+          <th className="px-2 py-1">{col('resume', '全部以简历为准')}</th><th className="px-2 py-1">{col('vault', '全部保留资料里的')}</th></tr></thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.field} className="border-t border-[var(--line)]">
+              <td className="px-2 py-1 text-xs text-[var(--muted)]">{r.label}</td>
+              {(['resume', 'vault'] as const).map(v => (
+                <td key={v} className="px-2 py-1">
+                  <label className="flex items-center gap-1.5">
+                    <input type="radio" name={`conflict-${r.field}`} aria-label={`${r.label}：${v === 'resume' ? '用简历上的' : '用资料里的'}`} checked={(choice[r.field] ?? 'resume') === v} onChange={() => onChange({ ...choice, [r.field]: v })} />
+                    <span className={(choice[r.field] ?? 'resume') === v ? 'text-[var(--ink)]' : 'text-[var(--subtle)]'}>{v === 'resume' ? r.resume : r.vault}</span>
+                  </label>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
   const d = parseIntake(card.data);
   const groups: PickGroup[] = d.experiences.map(e => ({ id: e.id, title: e.title, meta: e.when, rows: e.claims }));
   const [picked, setPicked] = useState<Picked>(() => allPicked(groups));
   const [values, setValues] = useState<Record<string, string>>({});
+  const [choice, setChoice] = useState<Choice>({});
   const [masterId, setMasterId] = useState<string | null | undefined>(undefined);
   const { busy, error, run } = useSubmit();
   const chosen = pickedIds(picked);
@@ -77,7 +114,7 @@ export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
       const v = (values[m.field] ?? '').trim();
       if (v) await careerApi.vaultSet({ scope: 'profile', field: m.field, value: v });
     }
-    const out = await careerApi.confirmResumeIntake(d.intakeId, claimIds);
+    const out = await careerApi.confirmResumeIntake(d.intakeId, claimIds, Object.fromEntries(d.conflicts.map(c => [c.field, choice[c.field] ?? 'resume'])));
     setMasterId(out.masterId);
     openResumeDrawer(out.masterId);
   });
@@ -97,6 +134,7 @@ export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
               {d.profile.map(p => <span key={p.field}><span className="text-[var(--muted)]">{p.label}</span> {p.preview}</span>)}
             </div>
           )}
+          <ConflictTable rows={d.conflicts} choice={choice} onChange={setChoice} />
           <MissingInputs missing={d.missing} values={values} onChange={(field, v) => setValues(x => ({ ...x, [field]: v }))} />
           {d.education.length > 0 && <ul className="text-sm text-[var(--ink)]">{d.education.map(e => <li key={e}>{e}</li>)}</ul>}
           {groups.length > 0
@@ -110,20 +148,21 @@ export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
   );
 }
 
-function ChangeRow({ c }: { c: { op: string; place: string; before: string | null; after: string | null; reason: string | null } }) {
+function ChangeRow({ c }: { c: { op: string; place: string; before: string | null; after: string | null; reason: string | null; jd: string[] } }) {
   return (
     <li className="grid gap-0.5">
       <span className="text-xs text-[var(--muted)]">{c.place}{c.op === 'add' ? ' · 新加' : c.op === 'remove' ? ' · 删掉' : ''}</span>
       {c.before && <span className="text-sm text-[var(--subtle)] line-through">{c.before}</span>}
       {c.after && <span className="text-sm text-[var(--ink)]">{c.after}</span>}
-      {c.reason && <span className="text-xs text-[var(--subtle)]">{c.reason}</span>}
+      {(c.reason || c.jd.length > 0) && <span className="text-xs text-[var(--subtle)]">{c.jd.length > 0 && <>对上 JD：{c.jd.join('、')}{c.reason ? '；' : ''}</>}{c.reason}</span>}
     </li>
   );
 }
 
 export function TailorDiffCard({ card, onDismiss }: CardProps) {
   const tailoredId = str(card.data.tailored_id);
-  const changes = list(card.data.changes).map(c => ({ op: str(c.op) ?? 'replace', place: str(c.place) ?? '', before: str(c.before), after: str(c.after), reason: str(c.reason) }));
+  const changes = list(card.data.changes).map(c => ({ op: str(c.op) ?? 'replace', place: str(c.place) ?? '', before: str(c.before), after: str(c.after), reason: str(c.reason), jd: Array.isArray(c.jd) ? c.jd.filter((k): k is string => typeof k === 'string') : [] }));
+  const blocked = list(card.data.blocked).map(b => ({ place: str(b.place) ?? '', after: str(b.after), why: str(b.why) ?? '' }));
   const total = typeof card.data.total === 'number' ? card.data.total : changes.length;
   const needs = Array.isArray(card.data.needs) ? card.data.needs.filter((n): n is string => typeof n === 'string' && !!n) : [];
   return (
@@ -132,6 +171,12 @@ export function TailorDiffCard({ card, onDismiss }: CardProps) {
         ? <ul className="space-y-2.5">{changes.map((c, i) => <ChangeRow key={`${c.place}-${i}`} c={c} />)}</ul>
         : <p className="text-sm text-[var(--ink-2)]">主简历已经贴合这个岗位，定制版和主简历一样。</p>}
       {total > changes.length && <p className="mt-2 text-xs text-[var(--subtle)]">其余 {total - changes.length} 处在整份里看。</p>}
+      {blocked.length > 0 && (
+        <div className="mt-3" data-testid="tailor-blocked">
+          <div className="text-xs text-[var(--muted)]">拦下了 {blocked.length} 处没依据的改动（没写进简历）</div>
+          <ul className="mt-1 space-y-1">{blocked.map((b, i) => <li key={`${b.place}-${i}`} className="text-xs text-[var(--subtle)]">{b.place}：{b.why}{b.after ? `（「${b.after.slice(0, 40)}」）` : ''}</li>)}</ul>
+        </div>
+      )}
       {needs.length > 0 && (
         <div className="mt-3">
           <div className="text-xs text-[var(--muted)]">岗位要、你的经历里还没写到的（没写进简历，不编）</div>

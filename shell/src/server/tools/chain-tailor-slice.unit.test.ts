@@ -204,8 +204,78 @@ describe('主链路切面 · 交简历 → 按岗位定制', () => {
 
     const diff = cards().find(c => c.kind === 'tailor_diff')!;
     expect(diff.data).toMatchObject({ tailored_id: tailored.row.id, total: 1, needs: ['JD 要 Tableau，经历里没提到'] });
-    expect((diff.data.changes as unknown[])[0]).toEqual({ op: 'replace', place: '实习 / 工作 · 美团 · 第 2 条', before: '负责 AB 实验分析，覆盖 12 个策略', after: '主导 12 个策略的 AB 实验分析，产出上线结论', reason: 'JD 强调 AB 实验' });
+    expect((diff.data.changes as unknown[])[0]).toEqual({ op: 'replace', place: '实习 / 工作 · 美团 · 第 2 条', before: '负责 AB 实验分析，覆盖 12 个策略', after: '主导 12 个策略的 AB 实验分析，产出上线结论', reason: 'JD 强调 AB 实验', jd: [] });
     expect(res.json.note).not.toMatch(LABOR_RX);
+  });
+
+  it('简历和资料对不上：同一张卡里并排列出、默认以简历为准，点一下全部同步；不在对话里对账', async () => {
+    vault.set({ scope: 'profile', field: 'name', value: '林小舟' });
+    vault.set({ scope: 'profile', field: 'school', value: '华东某大学' });
+    vault.set({ scope: 'profile', field: 'major', value: '计算机科学与技术' });
+    llm.push(JSON.stringify(PARSED));
+    const res = await call('resume_import', { path: '张小明-简历.pdf' });
+    const reveal = (field: string) => vault.reveal(vault.list().find(i => i.field === field)!.id, { actor: 'test', purpose: 'test' });
+    expect(reveal('name')).toBe('林小舟');
+
+    const intake = cards().find(c => c.kind === 'resume_intake')!;
+    expect(intake.data.conflicts).toEqual([
+      { field: 'name', label: '真实姓名', resume_preview: '张**', vault_preview: '林**' },
+      { field: 'school', label: '毕业院校', resume_preview: '北京大学', vault_preview: '华东某大学' },
+    ]);
+    expect(String(res.json.note)).toContain('默认以这份简历为准');
+    expect(res.raw).not.toContain('张小明');
+
+    await confirmRoute(res.json.intake_id as string, repos.listClaims().map(c => c.id));
+    expect(reveal('name')).toBe('张小明');
+    expect(reveal('school')).toBe('北京大学');
+    expect(repos.kvGet<Record<string, unknown>>(`resume_intake:${res.json.intake_id as string}`)!.pending_profile).toBeUndefined();
+  });
+
+  it('冲突里选「保留资料里的」：资料不动，主简历的教育用资料占位', async () => {
+    vault.set({ scope: 'profile', field: 'school', value: '华东某大学' });
+    llm.push(JSON.stringify(PARSED));
+    const res = await call('resume_import', { path: '张小明-简历.pdf' });
+    const res2 = await handleCareerRoute(`/api/career/resume-intake/${res.json.intake_id as string}/confirm`, new Request('http://x', { method: 'POST', body: JSON.stringify({ claim_ids: [], profile_choice: { school: 'vault' } }) }),
+      { repos, vault, llm: null, broadcast: () => undefined, sessionId: () => 'sess-1', resumeModule: async () => ({ parseResume: (x: unknown) => x }) as never });
+    const out = await res2!.json() as { master_id: string };
+    expect(vault.reveal(vault.list().find(i => i.field === 'school')!.id, { actor: 'test', purpose: 'test' })).toBe('华东某大学');
+    const master = new CareerStore(repos, await loadCore()).getResume(out.master_id)!;
+    expect(JSON.parse(master.row.schema_json).education[0].school).toBe('{{vault:profile.school}}');
+  });
+
+  it('定制的防编造闸门在工具里：改事实、串位、加料的改动拦下，不进简历，列在卡上', async () => {
+    llm.push(JSON.stringify(PARSED));
+    const imported = await call('resume_import', { path: '张小明-简历.pdf' });
+    await confirmRoute(imported.json.intake_id as string, repos.listClaims().map(c => c.id));
+    const projectClaim = repos.listClaims().find(c => c.text.startsWith('独立开发后端'))!;
+    const job = repos.upsertJob({ source_platform: 'manual', title: '后端', company_name: '京东', jd_raw: '后端开发，熟悉 Kafka', jd_parsed_json: JSON.stringify({ title: '后端' }) });
+    llm.push(JSON.stringify({
+      patch: [
+        { op: 'replace', path: '/experience/0/org', value: '阿里巴巴' },
+        { op: 'add', path: '/experience/0/bullets/-', value: '独立开发后端，上线后 2000 名用户' },
+        { op: 'replace', path: '/experience/0/bullets/0', value: '用 Kafka 搭建日报看板，周会准备时间从 3 小时降到 30 分钟' },
+        { op: 'replace', path: '/experience/0/bullets/1', value: '负责 12 个策略的 AB 实验分析' },
+      ],
+      reasons: [
+        { path: '/experience/0/bullets/-', reason: '补充交付', claim_ids: [projectClaim.id] },
+        { path: '/experience/0/bullets/1', reason: '对齐数据驱动', jd_keywords: ['AB 实验'] },
+      ],
+      unresolved: [],
+    }));
+    const res = await call('resume_tailor', { job_id: job.id });
+    const tailored = new CareerStore(repos, await loadCore()).getResume(res.json.tailored_id as string)!;
+    const exp = JSON.parse(tailored.row.schema_json).experience[0] as { org: string; bullets: string[] };
+    expect(exp.org).toBe('美团');
+    expect(exp.bullets).toEqual(['搭建日报看板，周会准备时间从 3 小时降到 30 分钟', '负责 12 个策略的 AB 实验分析', '参与用户分层模型']);
+    const diff = cards().find(c => c.kind === 'tailor_diff')!;
+    expect(diff.data.total).toBe(1);
+    expect((diff.data.changes as Array<{ jd: string[] }>)[0].jd).toEqual(['AB 实验']);
+    expect((diff.data.blocked as Array<{ why: string }>).map(b => b.why)).toEqual([
+      '改了事实字段（机构 / 职位 / 时间 / 学校这类不改）',
+      '用了另一段经历的主张（串位）',
+      '出现了没有依据的内容：Kafka',
+    ]);
+    expect(res.json.blocked).toBe(3);
   });
 
   it('岗位只有链接、读不到正文：指向浏览器和请用户登录，不让用户复制粘贴，也不空调模型', async () => {

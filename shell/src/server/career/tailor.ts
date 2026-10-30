@@ -101,7 +101,7 @@ const show = (v: unknown): string | null => {
 };
 
 /** 「实习 / 工作 · 美团 · 第 2 条」：用户认得出的位置，不露 JSON 路径。 */
-function placeOf(doc: unknown, parts: string[]): string {
+export function placeOf(doc: unknown, parts: string[]): string {
   const [section, idx, field, sub] = parts;
   const out = [SECTION_LABEL[section] ?? section];
   if (idx !== undefined && /^\d+$/.test(idx)) {
@@ -114,9 +114,9 @@ function placeOf(doc: unknown, parts: string[]): string {
   return out.join(' · ');
 }
 
-export interface TailorChange { op: string; place: string; before: string | null; after: string | null; reason: string | null }
+export interface TailorChange { op: string; place: string; before: string | null; after: string | null; reason: string | null; jd: string[] }
 
-/** 每处改动：位置、原文（相对母版）、新文、理由。order 不改内容的重排也列出来，让人知道顺序动过。 */
+/** 每处改动：位置、原文（相对母版）、新文、理由、对上的 JD 要求。order 不改内容的重排也列出来，让人知道顺序动过。 */
 export function describeTailorChanges(before: unknown, ops: TailorOp[], reasons: TailorReason[]): TailorChange[] {
   return ops.map(o => {
     const parts = o.path.split('/').slice(1);
@@ -126,6 +126,7 @@ export function describeTailorChanges(before: unknown, ops: TailorOp[], reasons:
       before: o.op === 'add' ? null : show(at(before, parts)),
       after: o.op === 'remove' ? null : show(o.value),
       reason: reasons.find(r => r.path === o.path)?.reason ?? null,
+      jd: (reasons.find(r => r.path === o.path)?.jd_keywords ?? []).filter((k): k is string => typeof k === 'string' && !!k),
     };
   });
 }
