@@ -256,3 +256,18 @@ describe('没回音的线由 AI 收起', () => {
     expect(r.collectSilent(NOW)).toBe(0)
   })
 })
+
+describe('收起和更正碰在一起', () => {
+  it('AI 收起的线，用户说「我还在等」时 undoLastStage 撤回收起：回到原阶段、不再算收起，也不算一次新的投出', () => {
+    const r = mem()
+    const a = r.createApplication(r.upsertJob({ source_platform: 'boss', source_job_id: 'c1', title: '后端开发', company_name: '快手' }).id)
+    r.jumpTo(a.id, 'applied', '已投递'); r.db.update('application', a.id, { updated_at: '2026-08-30T00:00:00Z' })
+    r.today(NOW)
+    expect(r.getApplication(a.id)!.stage).toBe('discarded')
+    expect(r.collectedIds().has(a.id)).toBe(true)
+    expect(r.undoLastStage(a.id, '用户说还在等').stage).toBe('applied')
+    expect(r.collectedIds().has(a.id)).toBe(false)
+    const sends = r.stageHistory().filter(h => h.application_id === a.id && h.to_stage === 'applied' && isSendNote(h.note))
+    expect(sends).toHaveLength(1)
+  })
+})
