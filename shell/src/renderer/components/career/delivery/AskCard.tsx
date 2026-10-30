@@ -6,13 +6,20 @@ import { useState } from 'react';
 
 import { actionLabels, dueText, sourceText, subText } from './askText';
 import { CompanyPoster } from './CompanyPoster';
-import type { AskView } from './deliveryApi';
+import type { AskField, AskView } from './deliveryApi';
 import { HOLD_OPTIONS, type HoldChoice } from './holdSubmit';
 import { openLiveDrawer } from '../CareerLiveDrawer';
 
 /** 缺信息那一片最多铺几张小签：再多就看不清了，数字在原因行里。 */
 const MOSAIC_MAX = 20;
 const PAIR_MAX = 4;
+/** 可选项不超过这么多就直接摆出来点选；再多（省份、国家）改成打字时提示可选项。 */
+const CHOICE_CHIPS_MAX = 8;
+
+/** 跨边界来的选项：只认非空字符串。 */
+function optionsOf(f: AskField): string[] {
+  return Array.isArray(f.options) ? f.options.filter((o): o is string => typeof o === 'string' && o.trim().length > 0) : [];
+}
 
 function AskImage({ ask }: { ask: AskView }) {
   const cs = ask.companies;
@@ -24,17 +31,40 @@ function AskImage({ ask }: { ask: AskView }) {
   return <CompanyPoster company={cs[0]} size="lg" state="ask" role={ask.role} />;
 }
 
+const isChoice = (f: AskField) => { const n = optionsOf(f).length; return n > 0 && n <= CHOICE_CHIPS_MAX; };
+
+/** 一格的作答：网页给了少量可选项就摆出来点选；选项多就打字时提示；没有选项才是空白输入框（2026-10-31 小鹏：性别、学历类型都让学生猜写法）。 */
+function FieldInput({ f, value, onChange }: { f: AskField; value: string; onChange: (v: string) => void }) {
+  const options = optionsOf(f);
+  if (isChoice(f)) {
+    return (
+      <div className="cd-choices" role="radiogroup" aria-label={f.label}>
+        {options.map(o => <button key={o} type="button" role="radio" aria-checked={value === o} className={`cd-choice${value === o ? ' cd-choice-on' : ''}`} onClick={() => onChange(o)}>{o}</button>)}
+      </div>
+    );
+  }
+  const listId = options.length ? `cd-opts-${f.label}` : undefined;
+  return (
+    <>
+      <input className="cd-input" aria-label={f.label} type={f.sensitive ? 'password' : 'text'} autoComplete="off" placeholder={options.length ? `输入几个字选，如「${options[0]}」` : f.label} list={listId} value={value} onChange={e => onChange(e.target.value)} />
+      {listId && <datalist id={listId}>{options.map(o => <option key={o} value={o} />)}</datalist>}
+    </>
+  );
+}
+
 function FieldInputs({ ask, values, onChange }: { ask: AskView; values: Record<string, string>; onChange: (label: string, v: string) => void }) {
   const fields = (ask.fields ?? []).filter(f => f.fillable);
   if (!fields.length) return null;
+  // 点选组不能包在 <label> 里：WebKit 会把点第一个选项的点击再转给 label 关联的控件，第一个选项点不上（2026-10-31 实测「男」点不上）
   return (
     <div className="cd-fields">
-      {fields.map(f => (
-        <label key={f.label}>
-          {fields.length > 1 && <span>{f.label}</span>}
-          <input className="cd-input" aria-label={f.label} type={f.sensitive ? 'password' : 'text'} autoComplete="off" placeholder={f.label} value={values[f.label] ?? ''} onChange={e => onChange(f.label, e.target.value)} />
-        </label>
-      ))}
+      {fields.map(f => {
+        const input = <FieldInput f={f} value={values[f.label] ?? ''} onChange={v => onChange(f.label, v)} />;
+        const title = fields.length > 1 && <span>{f.label}</span>;
+        return isChoice(f)
+          ? <div key={f.label} className="cd-field">{title}{input}</div>
+          : <label key={f.label} className="cd-field">{title}{input}</label>;
+      })}
     </div>
   );
 }

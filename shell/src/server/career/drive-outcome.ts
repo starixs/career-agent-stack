@@ -80,6 +80,15 @@ export function evaluateSubmitGate(result: Record<string, unknown>): SubmitGate 
   return { ready: trusted && filled === total && gaps.length === 0, requiredFilled: filled, requiredTotal: total, gaps };
 }
 
+/**
+ * 学生能答的缺口：资料里确实没有的值、必填还空着、开放题草稿。其余（读不回、星号数对不上、网站提示、附件回显、填进去没生效）
+ * 是我们自己的识别 / 核验问题：不推给学生补（face-ga-port 2b，2026-10-31 你定），只是不许免审直接投出，并记 [apply-gap] 日志迭代。
+ */
+const STUDENT_GAP_STATUSES: ReadonlySet<string> = new Set(['needs_user', 'empty', 'draft']);
+export function studentGaps(gaps: readonly SubmitGap[]): SubmitGap[] {
+  return gaps.filter(g => STUDENT_GAP_STATUSES.has(g.status));
+}
+
 /** 岗位在文案里的叫法：没有公司和岗位名时说"这个岗位"。 */
 export function jobLabel(job: { company_name?: string | null; title?: string | null } | undefined | null): string {
   const title = job?.title && job.title.trim() !== '未命名岗位' ? job.title.trim() : '';
@@ -235,11 +244,17 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     const job = typeof fillPayload.job_id === 'string' ? r.getJob(fillPayload.job_id) : undefined;
     const submitButton = typeof result.submitButton === 'string' ? result.submitButton : undefined;
     const gate = evaluateSubmitGate(result);
-    if (!gate.ready) {
-      // 没过门槛：不入队提交。填表动作停在 needs_user + missing_info 接管，用户补完后从当前页继续、重新检查
-      const gapText = gapsHeadline(gate.gaps);
+    const asks = studentGaps(gate.gaps);
+    if (!gate.ready && gate.gaps.length > asks.length) {
+      console.log(`[apply-gap] action=${action.id} internal: ${gate.gaps.filter(g => !asks.includes(g)).map(g => `${g.label.slice(0, 40)}(${g.status})`).join('; ')}`);
+    }
+    // 没拿到填后检查（页面读不了）是例外：没有清单可过目，只能照旧停下
+    if (!gate.ready && (asks.length || !result.review)) {
+      // 有学生能答的缺口：不入队提交。填表动作停在 needs_user + missing_info 接管，补完后从当前页继续、重新检查；等你卡只列这些
+      const shown = asks.length ? asks : gate.gaps;
+      const gapText = gapsHeadline(shown);
       const h = r.openHandoff('missing_info', { actionId: action.id, taskId, message: gapText });
-      r.setActionStatus(action.id, 'needs_user', { ...summary, gate });
+      r.setActionStatus(action.id, 'needs_user', { ...summary, gate: { ...gate, gaps: shown } });
       if (action.application_id) { try { r.transition(action.application_id, 'needs_user', gapText, { page_url: finalUrl, blocker_reason: gapText, next_action: '补齐缺项后继续检查' }); } catch { /* ignore */ } }
       deps.changed('handoff', 'task', 'action_queue', 'application');
       return { kind: 'handoff', handoffId: h.id, reason: 'missing_info', userAction: `${gapText}。在输入框上沿的「等你」里填一次，我从当前页接着填`, message: gapText, finalUrl, summary, gate };
@@ -260,7 +275,8 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
       formSignature: review.formSignature ?? null, openAnswersHash: review.openAnswersHash ?? null, resumeSha,
     }, action.application_id);
     r.updateTask(taskId, { status: 'done', progress: 1 });
-    const decision = decideSubmit(r, { attention: review.attention, formSignature: review.formSignature, openAnswersHash: review.openAnswersHash, resumeSha, applicationId: action.application_id });
+    // 只剩我们内部的核验缺口：照常进投前过目，但至少算一项要看，绝不免审直接投出
+    const decision = decideSubmit(r, { attention: gate.ready ? review.attention : Math.max(review.attention, 1), formSignature: review.formSignature, openAnswersHash: review.openAnswersHash, resumeSha, applicationId: action.application_id });
     if (decision.approve) {
       r.reviewActions([submitAction.id], 'approved', decision.by);
       // 免审在用户没看的时候发生：把凭哪条规则、依据哪几家写进卷宗，用户事后问「为什么没让我审」有据可查

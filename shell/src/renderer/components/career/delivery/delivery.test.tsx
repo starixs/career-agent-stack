@@ -100,6 +100,31 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     off();
   });
 
+  it('要补的下拉带着网页上的选项：少的直接点选，多的打字时提示；点选的值原样交给服务端（2026-10-31 小鹏）', async () => {
+    const ask: AskView = {
+      ...ASK_INFO, id: 'hnd_xp', title: '学历类型等 2 项', application_ids: ['x1'], companies: [mark('小鹏')], sources: [{ type: 'handoff', id: 'hnd_xp' }], action_ids: ['act_xp'],
+      fields: [
+        { label: '学历类型', vault_field: null, sensitive: false, fillable: true, options: ['海外及港澳台', '统招全日制', '统招非全日制', '自考', '其他'] },
+        { label: '国籍（地区）', vault_field: null, sensitive: false, fillable: true, options: Array.from({ length: 20 }, (_, i) => (i === 0 ? '中国大陆' : `国家${i}`)) },
+      ],
+    };
+    serve([ask], run(0));
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    const group = screen.getByRole('radiogroup', { name: '学历类型' });
+    // 点选组不包在 <label> 里（WebKit 会让第一个选项点不上）
+    expect(group.closest('label')).toBeNull();
+    fireEvent.click(within(group).getByRole('radio', { name: '海外及港澳台' }));
+    expect(within(group).getByRole('radio', { name: '海外及港澳台' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(within(group).getByRole('radio', { name: '统招全日制' }));
+    expect(within(group).getByRole('radio', { name: '统招全日制' })).toHaveAttribute('aria-checked', 'true');
+    const nation = screen.getByLabelText('国籍（地区）');
+    expect(nation).toHaveAttribute('placeholder', '输入几个字选，如「中国大陆」');
+    fireEvent.change(nation, { target: { value: '中国大陆' } });
+    fireEvent.click(screen.getByRole('button', { name: '填好' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/asks/hnd_xp/fill', { values: { 学历类型: '统招全日制', '国籍（地区）': '中国大陆' } }));
+  });
+
   it('海投填好的几家合成一件：点「一键投出」一次批准全部提交', async () => {
     const all: AskView = { id: 'act_s1', kind: 'review', title: '3 家填好了', detail: '必填都填好并核对过，没有要你看的项', application_ids: ['a1', 'a2', 'a3'],
       companies: [mark('DeepSeek'), mark('中兴通讯'), mark('大疆')], sources: ['act_s1', 'act_s2', 'act_s3'].map(id => ({ type: 'action' as const, id })),

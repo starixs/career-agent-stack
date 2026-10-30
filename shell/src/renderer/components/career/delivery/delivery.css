@@ -186,7 +186,10 @@
 .cd-dock-none { padding: 0 10px; }
 .cd-fields { display: grid; gap: 8px; margin-top: 14px; }
 .cd-fields .cd-input { margin-top: 0; }
-.cd-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.cd-fields .cd-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.cd-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.cd-choice { padding: 6px 12px; border: 1.5px solid var(--line, var(--primary)); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 14px; cursor: pointer; }
+.cd-choice-on { border-color: var(--primary); background: var(--primary); color: var(--on-primary); }
 .cd-err { margin: 8px 0 0; font-size: 12.5px; color: var(--danger); }
 .cd-review-n { margin: 6px 0 0; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cd-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

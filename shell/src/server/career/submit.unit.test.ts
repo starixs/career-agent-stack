@@ -136,15 +136,10 @@ describe('提交门槛：全部过关才入队提交，否则交给用户补', (
     expect((reviews[0].data?.review as { requiredFilled: number }).requiredFilled).toBe(12);
   });
 
+  // 学生能答的缺口（资料里没有的值、必填空着）→ 等你补；拿不到填后检查是例外，也停下
   const notReady: Array<[string, Record<string, unknown> | null, Record<string, unknown>, RegExp]> = [
     ['必填没填满', { rows: [ok('姓名'), { label: '毕业时间', required: true, status: 'empty', reason: '必填项还是空的' }], requiredTotal: 2, requiredFilled: 1 }, {}, /毕业时间/],
     ['有需要你填的项', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { needsUser: [{ label: '期望薪资', note: '答案库里没有' }] }, /期望薪资/],
-    ['值没生效', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { mismatches: [{ fieldId: 'x', label: '学历', expected: '本科', actual: '' }] }, /学历/],
-    ['网站报错', { rows: [ok('姓名'), { label: '手机号格式不正确', required: true, status: 'site_error' }], requiredTotal: 1, requiredFilled: 1 }, {}, /手机号格式不正确/],
-    ['附件没回显', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { uploads: [{ fieldId: 'f', file: '/x/张三.pdf', echoed: false }] }, /简历附件/],
-    ['读不到任何行（必填数不可信）', { rows: [], requiredTotal: 0, requiredFilled: 0 }, {}, /必填项核对/],
-    ['引擎说读回核验没通过', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1, verified: false }, {}, /必填项核对/],
-    ['行级读回核验没通过', { rows: [{ ...ok('姓名'), verified: false, reason: '页面上读回来是空的' }], requiredTotal: 1, requiredFilled: 1 }, {}, /姓名/],
     ['没有填后检查', null, {}, /填后检查/],
   ];
   for (const [name, review, extra, label] of notReady) {
@@ -161,6 +156,30 @@ describe('提交门槛：全部过关才入队提交，否则交给用户补', (
       expect(repos.getAction(fill.id)!.status).toBe('needs_user');
       expect(repos.openHandoffs().map(h => h.reason)).toEqual(['missing_info']);
       expect(repos.getApplication(app.id)!.stage).toBe('needs_user');
+    });
+  }
+
+  // 我们自己的识别 / 核验缺口（2026-10-31 你定：识别不到不交给人补）→ 不进等你补，照常投前过目，但绝不免审
+  const internalOnly: Array<[string, Record<string, unknown>, Record<string, unknown>]> = [
+    ['值没生效', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { mismatches: [{ fieldId: 'x', label: '学历', expected: '本科', actual: '' }] }],
+    ['网站报错', { rows: [ok('姓名'), { label: '手机号格式不正确', required: true, status: 'site_error' }], requiredTotal: 1, requiredFilled: 1 }, {}],
+    ['附件没回显', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { uploads: [{ fieldId: 'f', file: '/x/张三.pdf', echoed: false }] }],
+    ['读不到任何行（必填数不可信）', { rows: [], requiredTotal: 0, requiredFilled: 0 }, {}],
+    ['星号数对不上', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1, requiredTrusted: false, requiredNote: '页面上有 16 个必填星号，只认出 12 个必填项' }, {}],
+    ['行级读回核验没通过', { rows: [{ ...ok('姓名'), verified: false, reason: '页面上读回来是空的' }], requiredTotal: 1, requiredFilled: 1 }, {}],
+  ];
+  for (const [name, review, extra] of internalOnly) {
+    it(`${name}：不推给学生补，进投前过目且不免审`, () => {
+      const repos = createMemoryRepos();
+      setAutoMode(repos, true);
+      const { fill } = seedFill(repos);
+      const task = repos.createTask({ title: 't', kind: 'apply' });
+      const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, changed: () => {}, mode: 'start', events: driveResult(review, extra) });
+      expect(out.kind).toBe('done');
+      if (out.kind !== 'done') return;
+      expect(out.autoApproved).toBeUndefined();
+      expect(repos.getAction(out.submitActionId)!.status).toBe('pending_review');
+      expect(repos.openHandoffs()).toEqual([]);
     });
   }
 
