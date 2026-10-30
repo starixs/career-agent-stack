@@ -8,7 +8,7 @@
 import { Mail, Plus, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { emitEvent, onEvent } from '@/api/eventBus';
+import { emitEvent } from '@/api/eventBus';
 import OverlayBackdrop from '@/components/OverlayBackdrop';
 import { requestNavigation } from '@/features/career-shell/navModel';
 import { expandWorkSurface } from '@/features/career-shell/workSurfaceStore';
@@ -19,6 +19,7 @@ import { careerApi } from './careerApi';
 import { INTERVIEW_ROUND_LABELS } from './careerConstants';
 import { Badge, Button, EmptyState, ErrorRow, Field, LoadingRow, Select, TextArea, TextInput, formatDate, textOrUnknown, useSuggestToChat } from './CareerPrimitives';
 import type { CareerFocusEvent, IntakeResult, MailAccount, MailPreset } from './types';
+import { openExamSearch } from './exam-search/searchContext';
 import { MailConnectCenter } from './mail-connect/MailConnectCenter';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
@@ -26,23 +27,6 @@ const ASSIST_TABLES = ['deadline', 'application', 'job', 'interview', 'mock_inte
 const FILTERS: Array<{ id: AssistFilter; label: string }> = [
   { id: 'all', label: '全部' }, { id: 'exam', label: '笔试' }, { id: 'interview', label: '面试' }, { id: 'mock', label: '模拟面试' },
 ];
-
-// ─── 从别的页面（功能市场的「笔试助力」）带筛选跳进来 ───
-
-const ASSIST_FILTER_EVENT = 'career:assist-filter';
-let pendingFilter: AssistFilter | null = null;
-
-/** 打开助力记录前调用：页面已挂载时立刻切换，没挂载时挂载后取用。 */
-export function requestAssistFilter(filter: AssistFilter): void {
-  pendingFilter = filter;
-  emitEvent(ASSIST_FILTER_EVENT, filter);
-}
-
-function takePendingFilter(): AssistFilter | null {
-  const f = pendingFilter;
-  pendingFilter = null;
-  return f;
-}
 
 async function loadAssists() {
   const [deadlines, dossiers, interviews, mocks, practices, mail] = await Promise.all([
@@ -67,13 +51,12 @@ function formatLocalDateTime(iso: string | null): string {
 
 export function AssistRecords() {
   const query = useCareerQuery(loadAssists, ASSIST_TABLES);
-  const [filter, setFilter] = useState<AssistFilter>(() => takePendingFilter() ?? 'all');
+  const [filter, setFilter] = useState<AssistFilter>('all');
   const [dialog, setDialog] = useState<NewMethod | null>(null);
   const sync = useCareerAction();
   const [syncNote, setSyncNote] = useState<string | null>(null);
   const suggest = useSuggestToChat();
 
-  useEffect(() => onEvent<AssistFilter>(ASSIST_FILTER_EVENT, f => { takePendingFilter(); setFilter(f); }), []);
 
   const allRows = useMemo(() => query.data?.rows ?? [], [query.data]);
   const rows = useMemo(() => filterAssists(allRows, filter), [allRows, filter]);
@@ -95,7 +78,8 @@ export function AssistRecords() {
     switch (row.type) {
       case 'written_test':
       case 'assessment':
-        suggest(`帮我准备${company}的${ASSIST_TYPE_LABELS[row.type]}`, { surface: 'dossier', refs: { ...refs, deadline_id: row.id } });
+        // 笔试助力 = 搜题（2026-10-30）：带上这场的公司和岗位，搜题时先查它们的往年题
+        openExamSearch({ company: row.company_name ?? '', role: row.title ?? '' });
         return;
       case 'interview':
         suggest(`帮我准备${company}的这场面试`, { surface: 'dossier', refs: { ...refs, interview_id: row.id } });

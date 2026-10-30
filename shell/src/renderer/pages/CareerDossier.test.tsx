@@ -8,6 +8,7 @@ vi.mock('@/pages/CareerOffer', () => ({ default: () => <div data-testid="embedde
 
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
+import { CAREER_NAVIGATE_EVENT } from '@/features/career-shell/navModel';
 import { resetCareerSubViews, setCareerSubView } from '@/features/career-shell/subViewStore';
 import CareerDossier from './CareerDossier';
 
@@ -229,15 +230,17 @@ describe('CareerDossier · 助力记录', () => {
     await waitFor(() => expect(screen.getByRole('row', { name: '丙公司 · 后端工程师' }).className).toContain('shadow-[inset_3px_0_0_var(--primary)]'));
   });
 
-  it('助力：笔试把带投递和截止 id 的话发进对话，不打开档案', async () => {
-    const suggested: unknown[] = [];
-    const off = onEvent('career:chat-suggest', p => suggested.push(p));
+  it('助力：笔试带着公司和岗位打开搜题页，不发进对话', async () => {
+    const seen: unknown[] = [];
+    const offs = ['career:chat-suggest', 'career:exam-search-context', CAREER_NAVIGATE_EVENT].map(event => onEvent(event, p => seen.push([event, p])));
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');
     fireEvent.click(within(bodyRows()[0]).getByRole('button', { name: '助力' }));
-    expect(suggested[0]).toMatchObject({ text: '帮我准备丙公司的笔试', context: { surface: 'dossier', refs: { application_id: 'a1', deadline_id: 'w1' } }, mode: 'send' });
-    expect(screen.getByRole('heading', { name: '助力记录' })).toBeInTheDocument();
-    off();
+    expect(seen).toEqual([
+      ['career:exam-search-context', expect.objectContaining({ company: '丙公司' })],
+      [CAREER_NAVIGATE_EVENT, { kind: 'career-dossier', view: 'exam-search' }],
+    ]);
+    offs.forEach(off => off());
   });
 
   it('新建 › 手动填写笔试：调用 /exams；面试走 /interviews', async () => {
