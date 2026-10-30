@@ -60,15 +60,25 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
   const allRows = useMemo(() => query.data?.rows ?? [], [query.data]);
   const rows = useMemo(() => filterBoardRows(allRows, filter), [allRows, filter]);
   const ids = useMemo(() => rows.map(r => r.job.id), [rows]);
-  const live = new Set([...selected].filter(id => ids.includes(id)));
-  const allChecked = ids.length > 0 && live.size === ids.length;
+  // 勾选跨搜索保留：学生常常搜一家勾一家，凑成一批再投（2026-10-31 实例测试：换个搜索词前面勾的就没了）。
+  // 只丢掉库里已经不存在的岗位；当前列表里看得见几个单独算，表头全选只管看得见的这些。
+  const allIds = useMemo(() => new Set(allRows.map(r => r.job.id)), [allRows]);
+  const picked = [...selected].filter(id => allIds.has(id));
+  const visiblePicked = ids.filter(id => selected.has(id)).length;
+  const hiddenPicked = picked.length - visiblePicked;
+  const allChecked = ids.length > 0 && visiblePicked === ids.length;
+  const toggleAllVisible = () => {
+    const next = new Set(selected);
+    for (const id of ids) { if (allChecked) next.delete(id); else next.add(id); }
+    setSelected(next);
+  };
   const act = useCareerAction();
   const refresh = () => { query.reload(); onChanged?.(); };
   const run = (fn: () => Promise<string | null>) => act.run(async () => { setNotice(await fn()); refresh(); });
   const patch = (p: Partial<BoardFilterState>) => setFilter(f => ({ ...f, ...p }));
 
   const started = (msg: string) => { setNotice(msg); setSelected(new Set()); setPanel(null); refresh(); };
-  const pick = useRangeSelect(ids, live, setSelected);
+  const pick = useRangeSelect(ids, selected, setSelected);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -102,12 +112,12 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
       {/* 状态行：勾选与批量动作在左，我的条件在右 */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-6 pb-2 text-xs text-[var(--muted)]">
         <span className="tabular-nums">{query.data ? `${rows.length} 个岗位${rows.length !== allRows.length ? `（共 ${allRows.length}）` : ''}` : ''}</span>
-        {live.size > 0 && <span className="tabular-nums">已选 {live.size}</span>}
-        <Button size="sm" variant={live.size > 0 ? 'primary' : 'ghost'} disabled={live.size === 0} aria-pressed={panel === 'apply'} onClick={() => setPanel(p => (p === 'apply' ? null : 'apply'))}>{live.size > 0 ? `投这 ${live.size} 家` : '勾选岗位后一键投'}</Button>
+        {picked.length > 0 && <span className="tabular-nums">已选 {picked.length}{hiddenPicked > 0 ? `（${hiddenPicked} 个在别的搜索里）` : ''}</span>}
+        <Button size="sm" variant={picked.length > 0 ? 'primary' : 'ghost'} disabled={picked.length === 0} aria-pressed={panel === 'apply'} onClick={() => setPanel(p => (p === 'apply' ? null : 'apply'))}>{picked.length > 0 ? `投这 ${picked.length} 家` : '勾选岗位后一键投'}</Button>
         {bulkExtra}
         {query.data && <PrefsSummary prefs={query.data.prefs} editing={panel === 'prefs'} onEdit={() => setPanel(p => (p === 'prefs' ? null : 'prefs'))} />}
       </div>
-      {panel === 'apply' && live.size > 0 && <ApplyConfirm jobIds={[...live]} onStarted={started} onCancel={() => setPanel(null)} />}
+      {panel === 'apply' && picked.length > 0 && <ApplyConfirm jobIds={picked} onStarted={started} onCancel={() => setPanel(null)} />}
       {panel === 'prefs' && query.data && <PrefsEditor prefs={query.data.prefs} onDone={() => setPanel(null)} onSaved={() => { setPanel(null); refresh(); }} />}
 
       <div className="px-6">
@@ -124,13 +134,13 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
             <thead className="text-left text-xs text-[var(--muted)] [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-[var(--bg)] [&_th]:shadow-[inset_0_-1px_0_var(--line-2)]">
               <tr>
                 <th className="w-9 px-2 py-2 font-medium">
-                  <input type="checkbox" aria-label="全选岗位" checked={allChecked} ref={el => { if (el) el.indeterminate = live.size > 0 && !allChecked; }} onChange={() => setSelected(allChecked ? new Set() : new Set(ids))} />
+                  <input type="checkbox" aria-label="全选岗位" checked={allChecked} ref={el => { if (el) el.indeterminate = visiblePicked > 0 && !allChecked; }} onChange={toggleAllVisible} />
                 </th>
                 {COLUMNS.map(c => <th key={c.key} className={`whitespace-nowrap px-2 py-2 font-medium ${c.className ?? ''}`}>{c.label}</th>)}
               </tr>
             </thead>
             <tbody>
-              {rows.map(row => <BoardRow key={row.job.id} row={row} checked={live.has(row.job.id)} pick={pick} onChanged={refresh} />)}
+              {rows.map(row => <BoardRow key={row.job.id} row={row} checked={selected.has(row.job.id)} pick={pick} onChanged={refresh} />)}
             </tbody>
           </table>
         </div>
@@ -142,7 +152,7 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
 
       <PageAskBar
         target={{ kind: 'career-dossier', view: 'apply' }}
-        refs={boardAskRefs(filter, ids, [...live])}
+        refs={boardAskRefs(filter, ids, picked)}
         placeholder="问问这些岗位，比如「哪些下周截止、适合我」"
         actions={(
           <button

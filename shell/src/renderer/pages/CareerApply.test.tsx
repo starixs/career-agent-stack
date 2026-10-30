@@ -152,6 +152,21 @@ describe('CareerApply · 岗位库', () => {
     expect(screen.queryByTestId('apply-confirm')).not.toBeInTheDocument();
   });
 
+  it('勾选跨搜索保留：搜一家勾一家，凑成一批一起投；表头全选只管当前看得见的', async () => {
+    mockGet();
+    render(<CareerApply />);
+    await screen.findByText('后端工程师');
+    const search = screen.getByLabelText('搜索岗位');
+    fireEvent.change(search, { target: { value: '丙' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择岗位 后端工程师' }));
+    fireEvent.change(search, { target: { value: '丁' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择岗位 算法工程师' }));
+    expect(screen.getByRole('button', { name: '投这 2 家' })).toBeInTheDocument();
+    expect(screen.getByText('已选 2（1 个在别的搜索里）')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('全选岗位'));
+    expect(screen.getByRole('button', { name: '投这 1 家' })).toBeInTheDocument();
+  });
+
   it('框选：Shift + 点选一段，按住勾选列拖过几行一起勾；拖回来能缩回去', async () => {
     mockGet();
     render(<CareerApply />);
