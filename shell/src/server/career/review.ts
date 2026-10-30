@@ -3,13 +3,14 @@
  */
 import type { FunnelRow, MonthBoard, StageHistoryRow, WeeklyReview } from '@career/core';
 
+import { changeSignals, type ChangeSignal } from './change-signals';
 import { dataChanged, focus, type IntakeDeps } from './intake';
 import { loadSkillPrompt } from './skills';
 
 export interface WeeklyReviewOutput {
   facts?: Record<string, number>;
   insights?: Array<{ finding: string; evidence?: string; strength?: string }>;
-  suggestions?: Array<{ action: string; why?: string; category?: string; priority?: number }>;
+  suggestions?: Array<{ action: string; why?: string; category?: string; priority?: number; tool?: ChangeSignal['tool'] }>;
   baseline_note?: string;
   small_action?: string;
   tone_flag?: 'normal' | 'low_mood';
@@ -58,6 +59,13 @@ export function shapeForMood(output: WeeklyReviewOutput): WeeklyReviewOutput {
   return { ...output, suggestions: top };
 }
 
+/** 没有对应信号的「换方向 / 补短板」建议不给（模型可能自己起意）。 */
+export function keepSignaledChanges(output: WeeklyReviewOutput, signals: ChangeSignal[]): WeeklyReviewOutput {
+  if (!output.suggestions) return output;
+  const allowed = new Set(signals.map(s => s.tool));
+  return { ...output, suggestions: output.suggestions.filter(x => !x.tool || allowed.has(x.tool)) };
+}
+
 export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?: string; user_note?: string } = {}): Promise<{ review: WeeklyReview; output: WeeklyReviewOutput; funnel: ReturnType<IntakeDeps['repos']['funnel']> }> {
   const r = deps.repos;
   const nowIso = deps.now?.() ?? new Date().toISOString();
@@ -66,6 +74,7 @@ export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?
   const weekMs = Date.parse(weekStart + 'T00:00:00Z');
   const interviews = r.db.all<{ n: number }>('SELECT COUNT(*) AS n FROM interview WHERE created_at >= ?', [weekStart])[0]?.n ?? 0;
   const facts = weekFacts(r.stageHistory(), weekMs, deps.core.isSendNote, funnel.overall?.silent ?? 0, interviews);
+  const signals = changeSignals({ apps: r.applicationsWithJob(), history: r.stageHistory(), deadlines: r.listDeadlines(), nowIso });
   const previous = r.listWeeklyReviews(1)[0];
   let output: WeeklyReviewOutput = {};
   if (deps.llm) {
@@ -77,6 +86,7 @@ export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?
       ownBaseline(funnel.overall, r.monthBoard({ nowIso }).rhythm),
       `按岗位类别：${JSON.stringify(funnel.by_category)}`,
       `按平台：${JSON.stringify(funnel.by_platform)}`,
+      `换方向 / 补短板信号：${signals.length ? signals.map(x => `${x.text}（可建议 ${x.tool}）`).join('；') : '无——这次不提换方向或补短板'}`,
       previous ? `上次复盘建议：${previous.suggestions_json}` : '上次复盘：无',
       opts.user_note ? `用户补充：${opts.user_note}` : '',
       `用户偏好：${JSON.stringify(r.kvGet('preferences') ?? {})}`,
@@ -85,7 +95,7 @@ export async function generateWeeklyReview(deps: IntakeDeps, opts: { week_start?
     output = deps.core.extractJson<WeeklyReviewOutput>(res.text);
   }
   // 事实一栏永远是我们数出来的那份：模型报的数可能把累计当本周，比例必须真实
-  output = shapeForMood({ ...output, facts: { ...facts } });
+  output = shapeForMood(keepSignaledChanges({ ...output, facts: { ...facts } }, signals));
   const review = r.saveWeeklyReview({ week_start: weekStart, funnel: { ...funnel, this_week: facts }, insights: output.insights ?? [], suggestions: output.suggestions ?? [], small_action: output.small_action ?? null });
   dataChanged(deps, ['weekly_review']);
   focus(deps, { surface: 'review', id: review.id });

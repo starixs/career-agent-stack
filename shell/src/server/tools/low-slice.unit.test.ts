@@ -142,6 +142,13 @@ describe('低谷 · 秋招第六周的周五', () => {
     expect(prompt).toMatch(/第一次进面试前投出了 \d+ 份/);
   });
 
+  it('换方向 / 补短板：今天刚收到拒信，拒信也都在简历关、开发类有进笔试和面试——不提，模型自己提的也拿掉', async () => {
+    llm.push(JSON.stringify({ facts: {}, suggestions: [{ action: '考虑转产品方向', tool: 'direction_explore', priority: 1 }, { action: '给开发类简历加两条关键词', priority: 2 }] }));
+    const res = await call('weekly_review', {});
+    expect(String(llm.calls[0].messages[0].content)).toContain('换方向 / 补短板信号：无');
+    expect(res.json().suggestions).toEqual([{ action: '给开发类简历加两条关键词', priority: 2 }]);
+  });
+
   it('有笔试的线不算静默：美团后天考笔试，不会被收起', () => {
     repos.today(NOW);
     expect(repos.getApplication(season.meituan)!.stage).toBe('applied');
@@ -198,6 +205,5 @@ describe('低谷 · 秋招第六周的周五', () => {
   });
 
   it.todo('〔面〕一周连收多封拒信时要不要主动开口（现在完全沉默，只有他来问才复盘）；开口的话在哪、说什么');
-  it.todo('〔面〕什么时候主动提「换方向 / 补短板」（direction_explore、gap_plan 现在只在他开口时调）：触发条件与语气');
   it.todo('〔面〕基数参考区间的来源：技能让模型「按常见校招经验」给区间，和「不虚构行业统计」冲突——只用他自己的 / 内置核过的区间 / 不给');
 });

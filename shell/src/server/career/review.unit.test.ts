@@ -1,7 +1,7 @@
 import { isSendNote } from '@career/core';
 import { describe, expect, it } from 'vitest';
 
-import { ownBaseline, shapeForMood, weekFacts } from './review';
+import { keepSignaledChanges, ownBaseline, shapeForMood, weekFacts } from './review';
 
 const WEEK = Date.parse('2026-10-19T00:00:00Z');
 const h = (application_id: string, to_stage: string, created_at: string, note: string | null = null) => ({ application_id, from_stage: null, to_stage, note, created_at });
@@ -38,5 +38,15 @@ describe('shapeForMood', () => {
   });
   it('平常不动', () => {
     expect(shapeForMood({ tone_flag: 'normal', suggestions }).suggestions).toHaveLength(3);
+  });
+});
+
+describe('keepSignaledChanges', () => {
+  const suggestions = [{ action: '看看产品方向', tool: 'direction_explore' as const }, { action: '补两条关键词' }];
+  it('没有信号：模型自己起意的换方向建议去掉，别的留着', () => {
+    expect(keepSignaledChanges({ suggestions }, []).suggestions).toEqual([{ action: '补两条关键词' }]);
+  });
+  it('有对应信号才留', () => {
+    expect(keepSignaledChanges({ suggestions }, [{ tool: 'direction_explore', text: 'x' }]).suggestions).toHaveLength(2);
   });
 });

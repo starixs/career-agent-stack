@@ -16,14 +16,15 @@ triggers: 复盘,周复盘,本周总结,投了这么多没回音,是不是我不
 3. 找方向：哪类岗位或平台转化明显更好，建议下周加码；哪类连续静默，建议降低比重而不是停投。
 4. 基数校准：只用输入里「他自己的基数」，说明这周放在他自己的节奏里是什么位置（例如他之前投出多少份才第一次进面试、现在一共几个面试）。不给行业参考区间，不用「通常」「经验上」引入外部数字。还没进过面试时，明说「数据还不够下结论」。不保证结果，不预测通过概率。
 5. 情绪规则：如果本周新增投递数明显下降、本周拒信多，或用户表达自我怀疑，tone_flag 记 low_mood：先给事实和他自己的基数，用数字说明这不是能力结论；建议只给 1 条，再给一个三十分钟内能完成的小动作；不加安慰话。
-6. 小动作必须具体到对象：比如"把 X 公司的卷宗补上面试复盘""给 Y 类岗位的简历加两条关键词"，不说"多投一些"。
+6. 换方向 / 补短板：只有输入里的「换方向 / 补短板信号」不是「无」时才提，作为 suggestions 里的一条，写上 tool（direction_explore 或 gap_plan），why 引用那条信号；它只是建议，用户点头后才调用那个工具。没有信号时不提换方向，也不把它当安慰。
+7. 小动作必须具体到对象：比如"把 X 公司的卷宗补上面试复盘""给 Y 类岗位的简历加两条关键词"，不说"多投一些"。
 
 # 输出
 ```json
 {
   "facts":{"applied":0,"advanced":0,"rejected":0,"silent":0,"interviews":0},
   "insights":[{"finding":"","evidence":"","strength":"strong|mid|weak"}],
-  "suggestions":[{"action":"","why":"","category":"","priority":1}],
+  "suggestions":[{"action":"","why":"","category":"","priority":1,"tool":"direction_explore|gap_plan（只在有信号时写）"}],
   "baseline_note":"",
   "small_action":"",
   "tone_flag":"normal|low_mood"
