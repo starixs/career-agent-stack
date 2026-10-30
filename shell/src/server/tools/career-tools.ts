@@ -26,7 +26,6 @@ import { getShellLLM } from '../career/llm';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
 import { draftMaterial } from '../career/materials';
-import { generateWeeklyReview } from '../career/review';
 import { getRunRegistry, type RunRegistry } from '../career/runs';
 import { getSearchProvider, type CareerSearchProvider } from '../career/search';
 import { setTargetJob } from '../career/targets';
@@ -820,13 +819,11 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       })()),
 
       // ---------- 复盘 ----------
-      tool('weekly_review', '生成本周复盘：漏斗 + 代理反馈（哪类岗位走得远、挂在哪一环、静默比例）+ 下周策略 + 一个今天就能做的小动作。用户表达自我怀疑时也用它拿数字说话。回复两三句：一个事实数字、他自己的基数、那个小动作；不贴表格、不列 1-2-3。', {
-        week_start: z.string().optional().describe('YYYY-MM-DD，缺省本周一'), user_note: z.string().optional().describe('用户想补充的情况或情绪'),
-      }, async (args) => wrap(async () => {
-        progress('weekly_review', '正在统计漏斗并生成复盘');
-        const out = await generateWeeklyReview(intakeDeps(), { week_start: args.week_start, user_note: args.user_note });
-        return text({ review_id: out.review.id, ...out.output, funnel: out.funnel });
-      })()),
+      tool('month_review', '用户想复盘、问投递效果、说「投了这么多没回音 / 是不是我不行」时用：在对话里放一张「我的求职月」卡（本月投出、回音、面试、Offer 四个数），点一下就到漏斗那页看全。回复一两句即可，不在对话里展开分析。面试复盘不是它，用 interview_retro。', {}, wrap(() => {
+        const board = repos().monthBoard({ tzOffsetMinutes: -new Date().getTimezoneOffset() });
+        card(`month-review:${board.month.key}`, 'month_review', `${board.month.month} 月的求职`, { month: board.month.key, counts: board.counts, prev: board.prev, since_total: board.since_total });
+        return text({ month: board.month.key, counts: board.counts, note: '卡片已在对话里，点开就是「我的求职月」；回复一两句。' });
+      })),
 
       // ---------- 邮箱 ----------
       tool('mail_accounts', '已绑定的邮箱与各家邮箱的绑定说明。还没绑定时对话里会出现「绑定邮箱」卡片，用户在卡片里填地址和授权码（不经过你），不要让用户把授权码发到对话里。', {}, wrap(() => {

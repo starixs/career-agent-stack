@@ -30,7 +30,6 @@ import type { VerifyDeps } from '../career/mail/verify';
 import { executeApprovedSendMails } from '../career/mail/send';
 import type { syncMailAccount } from '../career/mail/sync';
 import { draftMaterial } from '../career/materials';
-import { generateWeeklyReview } from '../career/review';
 import { loadSkillPrompt } from '../career/skills';
 import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
@@ -882,15 +881,8 @@ const ROUTES: Route[] = [
   route('GET', '/api/career/review', ({ repos, url }) => {
     // 周边界按本机时区算：侧车跑在用户自己的机器上
     const board = repos.monthBoard({ month: url.searchParams.get('month') ?? undefined, tzOffsetMinutes: -new Date().getTimezoneOffset() });
-    return ok({ funnel: repos.funnel(), board, reviews: repos.listWeeklyReviews(12) });
+    return ok({ funnel: repos.funnel(), board });
   }),
-  route('POST', '/api/career/review/weekly', async (ctx) => {
-    try {
-      const out = await generateWeeklyReview(intakeDeps(ctx), { week_start: str(ctx.body.week_start), user_note: str(ctx.body.user_note) });
-      return ok({ review: out.review, output: out.output });
-    } catch (error) { return fail(error instanceof Error ? error.message : '复盘失败', 503); }
-  }),
-
   // ---------- 邮箱 ----------
   route('GET', '/api/career/mail/accounts', async (ctx) => {
     await mailBackendOf(ctx).refresh().catch(error => console.warn('[career-mail] refresh connections failed:', error instanceof Error ? error.message : error));

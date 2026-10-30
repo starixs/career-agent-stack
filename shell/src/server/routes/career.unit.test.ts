@@ -300,10 +300,8 @@ describe('五个面的路由', () => {
     // 未来的月份退回本月
     const future = await call(deps, 'GET', '/api/career/review?month=2999-01');
     expect((future.json.board as { month: { is_current: boolean } }).month.is_current).toBe(true);
-    // 无模型时周复盘仍落一条只含漏斗的记录
-    const weekly = await call(deps, 'POST', '/api/career/review/weekly', {});
-    expect(weekly.status).toBe(200);
-    expect((weekly.json.review as { week_start: string }).week_start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    // 周复盘已删掉（2026-10-30），复盘只看「我的求职月」
+    expect((await call(deps, 'POST', '/api/career/review/weekly', {})).status).toBe(404);
   });
 
   it('mail connectors：目录只有个人邮箱，每家带引导和字段；格式不对、授权码错都不存', async () => {

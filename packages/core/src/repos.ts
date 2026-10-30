@@ -6,7 +6,7 @@ import { inferEmploymentType, mergeBoardMeta, normalizeCohort, parseBoardJson } 
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canReachStage, canTransition, CLOSED_STAGES, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
-import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailAudit, MailMessage, Interview, Offer } from './types.js'
+import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, MailAccount, MailAudit, MailMessage, Interview, Offer } from './types.js'
 import { classifyJobTitle, collectedToToday, COLLECTABLE_STAGES, deadlineToToday, funnelBy, latestIso, silenceOf, SILENT_COLLECT_NOTE, sortToday, stageLabel, staleToToday, weekStartOf, type TodayItem, type FunnelRow } from './surfaces.js'
 import { buildMonthBoard, REOPEN_NOTE_PREFIX, type MonthBoard, type StageHistoryRow } from './review-board.js'
 
@@ -780,12 +780,6 @@ export class Repos {
       tzOffsetMinutes: opts.tzOffsetMinutes ?? 0,
     })
   }
-  saveWeeklyReview(r: { week_start: string; funnel: unknown; insights?: unknown; suggestions?: unknown; small_action?: string | null }): WeeklyReview {
-    const id = newId('wrv')
-    this.db.insert('weekly_review', { id, week_start: r.week_start, funnel_json: JSON.stringify(r.funnel ?? {}), insights_json: JSON.stringify(r.insights ?? []), suggestions_json: JSON.stringify(r.suggestions ?? []), small_action: r.small_action ?? null, created_at: now() })
-    return this.db.get<WeeklyReview>('SELECT * FROM weekly_review WHERE id=?', [id])!
-  }
-  listWeeklyReviews(limit = 12): WeeklyReview[] { return this.db.all<WeeklyReview>('SELECT * FROM weekly_review ORDER BY created_at DESC LIMIT ?', [limit]) }
 
   // ---------- 邮箱 ----------
   upsertMailAccount(a: { provider: MailAccount['provider']; address: string; display_name?: string | null; imap_host: string; imap_port?: number; smtp_host: string; smtp_port?: number }): MailAccount {

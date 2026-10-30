@@ -195,8 +195,6 @@ describe('卷宗 / 素材 / 复盘 / 邮箱', () => {
     const f = r.funnel(NOW)
     expect(f.overall?.total).toBe(2)
     expect(f.by_category.map(x => x.key).sort()).toEqual(['产品', '开发'])
-    const w = r.saveWeeklyReview({ week_start: '2026-09-28', funnel: f, insights: ['投得少'], small_action: '今天投 2 个' })
-    expect(r.listWeeklyReviews()[0].id).toBe(w.id)
   })
   it('邮件账号唯一按地址 upsert；同 uid 邮件只存一次；发邮件必须过审', () => {
     const r = mem()

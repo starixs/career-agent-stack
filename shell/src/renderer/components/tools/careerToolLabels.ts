@@ -85,7 +85,7 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   ui_open: '打开页面',
   vault_status: '看私密信息库',
   web_search: '上网搜一下',
-  weekly_review: '做周复盘',
+  month_review: '打开我的求职月',
 };
 
 /** career 工具返回中文动作短语；不是 career 工具返回 null。没登记的工具去掉前缀、下划线换空格。 */

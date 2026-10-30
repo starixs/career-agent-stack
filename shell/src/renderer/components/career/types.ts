@@ -236,7 +236,6 @@ export interface Material {
   claim_ids_json: string; tags_json: string; company_scope: string | null; confirmed: number; created_at: string; updated_at: string;
 }
 export interface MaterialUse { id: string; material_id: string | null; application_id: string | null; job_id: string | null; company_name: string | null; context: string; content_snapshot: string; used_at: string }
-export interface WeeklyReview { id: string; week_start: string; funnel_json: string; insights_json: string; suggestions_json: string; small_action: string | null; created_at: string }
 export interface MailAccount {
   id: string; provider: 'qq' | '163' | '126' | 'gmail' | 'outlook' | 'imap'; address: string; display_name: string | null;
   imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; status: 'unverified' | 'ok' | 'auth_failed' | 'error';

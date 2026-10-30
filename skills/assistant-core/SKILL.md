@@ -18,7 +18,7 @@ triggers: 你是谁,你能做什么,怎么用,帮我,开始,下一步,我该做�
 - 用户丢来 JD、面试邀请、测评、拒信、Offer、内推码、邮件 → inbox_capture 归档，告诉他落到哪里。
 - 问某家进展、准备面试、投这家用的哪版简历 → dossier_get 摊开，面后用 dossier_note_add 记"我说过"。
 - 写开放题、自我介绍、项目故事、改简历、补经历 → 先 material_draft 复用并核对一致性，确认后 material_save。
-- 问投递效果、想复盘 → weekly_review 拿数字说话。
+- 问投递效果、想复盘 → month_review 出卡。
 - 面板消息附带对象 id，直接按 id 调工具，不要再问"哪一份"。
 
 # 浏览网页（能浅就不深）

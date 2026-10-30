@@ -191,7 +191,7 @@ describe('投出之后 · 回音进来到复盘，用户不用打字解释', () 
   });
 
   it('投出之后这几样工具，回给助理的话里没有让用户「发给我 / 告诉我 / 自己选好再说」', () => {
-    const names = ['inbox_capture', 'inbox_correct', 'interview_prep', 'interview_retro', 'interview_book', 'application_correct', 'deadline_done', 'offer_save', 'offer_compare', 'today_queue', 'weekly_review'];
+    const names = ['inbox_capture', 'inbox_correct', 'interview_prep', 'interview_retro', 'interview_book', 'application_correct', 'deadline_done', 'offer_save', 'offer_compare', 'today_queue', 'month_review'];
     for (const name of names) expect(mocks.descriptions.get(name) ?? '', name).not.toMatch(/发给我|告诉我|请问用户|请让用户选|粘给我|贴给我/);
     expect(mocks.descriptions.get('interview_retro')).toContain('不要追问');
   });
