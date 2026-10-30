@@ -103,10 +103,6 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
     setHighlightId(payload.id);
     setFilter('all');
   }), []);
-  // 要定位的那条已被忽略：展开「已忽略的」才看得到
-  useEffect(() => {
-    if (highlightId && inbox.data?.find(it => it.id === highlightId)?.status === 'dismissed') setShowDismissed(true);
-  }, [highlightId, inbox.data]);
 
   const appLabel = useMemo(() => {
     const map = new Map((dossiers.data ?? []).map(d => [d.application_id, `${d.company_name ?? '未知公司'} · ${d.title}`]));
@@ -135,6 +131,11 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   }, [entries, showBatch]);
   const visible = filter === 'all' ? entries : entries.filter(e => e.type === filter);
   const dismissed = useMemo(() => (inbox.data ?? []).filter(it => it.status === 'dismissed'), [inbox.data]);
+  // 要定位的那条已被忽略：展开「已忽略的」才看得到；用户点「收起」时连定位一起放下
+  const dismissedOpen = showDismissed || (!!highlightId && dismissed.some(it => it.id === highlightId));
+  const toggleDismissed = () => {
+    if (dismissedOpen) { setShowDismissed(false); setHighlightId(null); } else setShowDismissed(true);
+  };
 
   const resolve = (entry: FeedEntry, label: string) => {
     setResolved(prev => new Map(prev).set(entry.key, { label, at: new Date().toISOString() }));
@@ -191,10 +192,10 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
           </ul>
           {dismissed.length > 0 && (filter === 'all' || filter === 'mail') && (
             <div className="mt-3">
-              <button type="button" onClick={() => setShowDismissed(s => !s)} className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--ink)] hover:underline">
-                {showDismissed ? '收起已忽略的' : `看已忽略的 ${dismissed.length} 条`}
+              <button type="button" onClick={toggleDismissed} className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--ink)] hover:underline">
+                {dismissedOpen ? '收起已忽略的' : `看已忽略的 ${dismissed.length} 条`}
               </button>
-              {showDismissed && (
+              {dismissedOpen && (
                 <ul className="mt-2 divide-y divide-[var(--line)]">
                   {dismissed.map(item => (
                     <li key={item.id} className="py-3">
