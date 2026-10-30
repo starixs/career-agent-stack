@@ -97,9 +97,25 @@ export function staleToToday(app: Application & { title?: string; company_name?:
   const name = `${app.company_name ?? '未知公司'} · ${app.title ?? ''}`.trim()
   return {
     kind: 'stale', priority: 6, title: `${name} 已静默 ${v.days} 天`,
-    detail: `${stageLabel(app.stage)}后无任何动静，超过 ${v.threshold} 天可视为挂了，建议关闭这条线别再想它`,
+    detail: `${stageLabel(app.stage)}后 ${v.days} 天没有动静；可以先收起来，来信会自动接回`,
     ref: { type: 'application', id: app.id },
-    suggest: `把 ${name} 这条投递按静默超时关闭（application_id=${app.id}）`,
+    suggest: `把 ${name} 这条投递先收起来（application_id=${app.id}）`,
+  }
+}
+
+// ---------- 没回音的线由 AI 收起（2026-10-30 定，低谷面） ----------
+/** 等招聘方回音的阶段：到静默阈值由 AI 自己收起，不逐条要用户点。投递中（pending）卡住是我们这边的事，仍逐条提醒。 */
+export const COLLECTABLE_STAGES: readonly ApplicationStage[] = ['applied', 'responded', 'interview']
+/** AI 收起一条没回音的线时，进入 discarded 那一步的备注；漏斗按它把收起的线仍算作「静默」。 */
+export const SILENT_COLLECT_NOTE = '没回音，已收起'
+
+/** 今日队列里只放一条数字：这周收起了几家。没有就不出。 */
+export function collectedToToday(count: number, weekStart: string): TodayItem | null {
+  if (count <= 0) return null
+  return {
+    kind: 'stale', priority: 6, title: `这周有 ${count} 家一直没回音，已替你收起`,
+    detail: `投出 ${SILENCE_DAYS.applied} 天、面试后 ${SILENCE_DAYS.interview} 天没有任何动静就先收起；来信会自动接回`,
+    ref: { type: 'silent_collected', id: weekStart },
   }
 }
 
@@ -131,7 +147,7 @@ export function furthestLayer(stage: ApplicationStage, reached: readonly string[
   return best
 }
 
-export type FunnelInputRow = Application & { job: Pick<Job, 'title' | 'company_name' | 'source_platform'>; reached_stages?: readonly string[] }
+export type FunnelInputRow = Application & { job: Pick<Job, 'title' | 'company_name' | 'source_platform'>; reached_stages?: readonly string[]; /** AI 因静默收起的（stage 已是 discarded，仍算静默） */ collected?: boolean }
 
 export function funnelBy(
   rows: FunnelInputRow[],
@@ -149,7 +165,7 @@ export function funnelBy(
     if (layer >= 2) f.interview++
     if (layer >= 3) f.offer++
     if (r.stage === 'rejected') f.rejected++
-    if (silenceOf(r.stage, r.updated_at, nowIso).silent) f.silent++
+    if (r.collected || silenceOf(r.stage, r.updated_at, nowIso).silent) f.silent++
     map.set(key, f)
   }
   return [...map.values()].sort((a, b) => b.total - a.total)

@@ -139,10 +139,34 @@ describe('低谷 · 秋招第六周的周五', () => {
     expect(prompt).toMatch(/第一次进面试前投出了 \d+ 份/);
   });
 
-  it('有笔试的线不算静默：美团后天考笔试，今天不能叫他「关闭这条线」', () => {
+  it('有笔试的线不算静默：美团后天考笔试，不会被收起', () => {
+    repos.today(NOW);
+    expect(repos.getApplication(season.meituan)!.stage).toBe('applied');
+  });
+
+  it('没回音的线 AI 自己收起：今日队列只有一条数字，不要他逐条点，也不说「挂了」', () => {
     const stale = repos.today(NOW).items.filter(i => i.kind === 'stale');
-    expect(stale.map(i => i.ref.id)).not.toContain(season.meituan);
-    expect(stale.length).toBeGreaterThan(0);
+    expect(stale).toHaveLength(1);
+    expect(stale[0].ref.type).toBe('silent_collected');
+    expect(stale[0].title).toMatch(/^这周有 \d+ 家一直没回音，已替你收起$/);
+    expect(`${stale[0].title}${stale[0].detail}`).not.toMatch(/挂了|别再想/);
+  });
+
+  it('静默阈值：投出 30 天、面试后 21 天才收起', () => {
+    repos.today(NOW);
+    const stage = (i: number) => repos.getApplication(season.sent[i])!.stage;
+    // 第三周 9 月 28 日投出的（25 天）还在等；第一周 9 月 14 日投出的（39 天）收起了
+    expect(stage(60)).toBe('applied');
+    expect(stage(10)).toBe('discarded');
+    // 10 月 7 日面试的（16 天）还在面试中；9 月 30 日面试的（23 天）收起了
+    expect(stage(21)).toBe('interview');
+    expect(stage(20)).toBe('discarded');
+  });
+
+  it('收起的线仍算进漏斗的「静默」，比例照实', () => {
+    const before = repos.funnel(NOW).overall!.silent;
+    repos.today(NOW);
+    expect(repos.funnel(NOW).overall!.silent).toBe(before);
   });
 
   it('有笔试的线不算进漏斗的「静默」', () => {
@@ -170,11 +194,8 @@ describe('低谷 · 秋招第六周的周五', () => {
     expect(repos.funnel(NOW).overall!.rejected).toBe(rejected + 1);
   });
 
-  it.todo('〔面〕静默线在今日队列里逐条出现（这个情景下几十条「可视为挂了」）：合并成一条 / AI 到期自动收尾只报数 / 不进今日');
-  it.todo('〔面〕静默阈值：已投递 21 天就判静默，而大厂常要一个月左右；按公司规模分 / 统一放宽 / 不变');
   it.todo('〔面〕一周连收多封拒信时要不要主动开口（现在完全沉默，只有他来问才复盘）；开口的话在哪、说什么');
   it.todo('〔面〕什么时候主动提「换方向 / 补短板」（direction_explore、gap_plan 现在只在他开口时调）：触发条件与语气');
   it.todo('〔面〕复盘的 tone_flag=low_mood 现在没人用：低落时对话和复盘页要不要变');
   it.todo('〔面〕基数参考区间的来源：技能让模型「按常见校招经验」给区间，和「不虚构行业统计」冲突——只用他自己的 / 内置核过的区间 / 不给');
-  it.todo('〔面〕静默收尾的文案「可视为挂了，建议关闭这条线别再想它」：低谷期的语气');
 });

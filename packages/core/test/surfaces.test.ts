@@ -72,8 +72,10 @@ describe('收件箱 / 截止 / 今日队列', () => {
     // 挂在投递上的截止：ref 指向投递，deadline_id 仍给出截止事件本身，便于改期 / 完成
     expect(today.items[1].ref).toEqual({ type: 'application', id: app.id })
     expect(today.items[1].deadline_id).toBe(written.id)
-    expect(today.items[4].suggest).toContain(quiet.id)
-    expect(today.waiting).toEqual({ count: 2, by_stage: [{ stage: 'applied', n: 2 }] })
+    // 没回音的那份由 AI 收起，今日只留一条数字
+    expect(r.getApplication(quiet.id)!.stage).toBe('discarded')
+    expect(today.items[4]).toMatchObject({ ref: { type: 'silent_collected' }, title: '这周有 1 家一直没回音，已替你收起' })
+    expect(today.waiting).toEqual({ count: 1, by_stage: [{ stage: 'applied', n: 1 }] })
     expect(today.pending_review).toBe(1)
     expect(today.inbox_new).toBe(1)
     expect(r.listDeadlines({ status: 'missed' }).map(d => d.title)).toEqual(['乙公司测评'])
@@ -145,7 +147,9 @@ describe('静默看投递上最后一次动静', () => {
     r.createDeadline({ kind: 'written_test', title: '笔试', due_at: '2026-10-05T06:00:00Z', application_id: exam })
     const far = r.createDeadline({ kind: 'interview', title: '面试', due_at: '2026-10-30T06:00:00Z', application_id: later })
     r.db.run('UPDATE deadline SET created_at=? WHERE id=?', ['2026-09-02T00:00:00Z', far.id])
-    expect(r.today(NOW).items.filter(i => i.kind === 'stale').map(i => i.ref.id)).toEqual([quiet])
+    r.today(NOW)
+    expect([exam, later, quiet].map(id => r.getApplication(id)!.stage)).toEqual(['applied', 'applied', 'discarded'])
+    // 收起的仍算静默，比例照实
     expect(r.funnel(NOW).overall!.silent).toBe(1)
   })
 })
@@ -163,5 +167,26 @@ describe('关掉的投递重新打开', () => {
     expect(last.from_stage).toBe('discarded')
     expect(isSendNote(last.note)).toBe(false)
     expect(() => r.reopenClosed(sent.id, 'again')).toThrow()
+  })
+})
+
+describe('没回音的线由 AI 收起', () => {
+  it('等回音的阶段到阈值就收起，只报一个数；投递中卡住的仍逐条提醒；来信能接回', () => {
+    const r = mem()
+    const mk = (id: string, stage: 'applied' | 'interview' | 'pending', at: string) => {
+      const a = r.createApplication(r.upsertJob({ source_platform: 'boss', source_job_id: id, title: '后端开发', company_name: id }).id)
+      r.jumpTo(a.id, stage); r.db.update('application', a.id, { updated_at: at }); return a.id
+    }
+    const sent = mk('投出', 'applied', '2026-08-30T00:00:00Z'); const iv = mk('面试', 'interview', '2026-09-10T00:00:00Z')
+    const young = mk('刚投', 'applied', '2026-09-20T00:00:00Z'); const stuck = mk('卡住', 'pending', '2026-09-20T00:00:00Z')
+    const items = r.today(NOW).items.filter(i => i.kind === 'stale')
+    expect(items.map(i => i.ref.type).sort()).toEqual(['application', 'silent_collected'])
+    expect(items.find(i => i.ref.type === 'application')!.ref.id).toBe(stuck)
+    expect(items.find(i => i.ref.type === 'silent_collected')!.title).toContain('2 家')
+    expect(items.map(i => `${i.title}${i.detail}`).join()).not.toMatch(/挂了|别再想/)
+    expect([sent, iv, young].map(id => r.getApplication(id)!.stage)).toEqual(['discarded', 'discarded', 'applied'])
+    expect(r.findClosedSentApplicationsByCompany('投出').map(a => a.id)).toEqual([sent])
+    // 再开一次今日：不重复收起
+    expect(r.collectSilent(NOW)).toBe(0)
   })
 })
