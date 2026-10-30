@@ -1,5 +1,6 @@
 /**
- * 对话内求职卡片（对话底部）：没有锚点的流程卡片（含待审核动作）/ 浏览器需要你 / 可折叠进度行。
+ * 对话内求职卡片（对话底部）：没有锚点的流程卡片 / 浏览器需要你 / 可折叠进度行 / 回来卡（离开超过半天）。
+ * 要你的事（待审核、缺项）不在这里，在输入框上沿的等你条。
  * 状态来自 TabContext（TabProvider 处理 career:* SSE），回传走 Session 路由。
  * 待审核动作是 kind=review 的流程卡片（CareerReviewCard.tsx），有锚点时挂在那次工具调用下面。
  * 在 TabProvider 之外渲染时返回 null，MessageList 的既有测试不受影响。
@@ -13,6 +14,7 @@ import { surfaceForTool } from '@/features/career-shell/workSurfaces';
 
 import { BrowserWorkCard, shouldShowBrowserCard } from './BrowserWorkCard';
 import { CareerFlowCards, useBatchState } from './CareerFlowCards';
+import { ReturnBriefing } from './delivery/ReturnCard';
 import { CareerKeysPanel, useCareerSetupStatus } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 
@@ -44,7 +46,8 @@ function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useT
       {shouldShowBrowserCard(careerTakeover, careerProgress, batch) && (batch?.status === 'running' || !hasBrowserToolCall) && (
         <BrowserWorkCard takeover={careerTakeover} progress={careerProgress} />
       )}
-      <CareerFlowCards cards={cards} batch={batch} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
+      <CareerFlowCards cards={cards} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
+      <ReturnBriefing messageCount={tab.messages?.length ?? 0} />
     </div>
   );
 }

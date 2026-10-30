@@ -8,7 +8,8 @@ import { emitEvent, onEvent } from '@/api/eventBus';
 import { TabContext, type TabContextValue } from '@/context/TabContext';
 
 import { CareerChatCards, collectToolUseIds } from './CareerChatCards';
-import { CareerFlowCards } from './CareerFlowCards';
+import { BatchProgressCard, CareerFlowCards, NeedsUserCard } from './CareerFlowCards';
+import { ApplyGapsCard } from './CareerReviewCard';
 import type { CareerCard } from './types';
 
 const card = (kind: CareerCard['kind'], data: Record<string, unknown>, title = '卡片'): CareerCard => ({ id: `${kind}:1`, kind, title, data, createdAt: '2026-10-03T00:00:00Z' });
@@ -16,6 +17,12 @@ const card = (kind: CareerCard['kind'], data: Record<string, unknown>, title = '
 function renderCards(cards: CareerCard[], dismiss = vi.fn(), messages: unknown[] = []) {
   const value = { tabId: 't', agentDir: '/tmp', careerTakeover: null, careerProgress: null, careerCards: cards, setCareerCardState: dismiss, messages } as unknown as TabContextValue;
   render(<TabContext.Provider value={value}><CareerChatCards /></TabContext.Provider>);
+  return dismiss;
+}
+
+/** 缺项卡归等你条、不在对话里渲染（规范 §5.1）；卡片组件本身仍在，直接渲染来测。 */
+function renderCard(Comp: typeof NeedsUserCard, c: CareerCard, dismiss = vi.fn()) {
+  render(<Comp card={c} onDone={() => dismiss(c.id, 'completed')} onDismiss={() => dismiss(c.id, 'dismissed')} />);
   return dismiss;
 }
 
@@ -47,7 +54,7 @@ describe('对话内流程卡片', () => {
 
   it('网申缺项：资料字段进私密库、其余进答案库，然后请助理从当前页继续', async () => {
     const { seen, refs, off } = captureSuggest();
-    renderCards([card('needs_user', { action_id: 'act1', items: [{ label: '身份证号', vault_field: 'idNumber', sensitive: true }, { label: '期望薪资', note: '月薪' }] })]);
+    renderCard(NeedsUserCard, card('needs_user', { action_id: 'act1', items: [{ label: '身份证号', vault_field: 'idNumber', sensitive: true }, { label: '期望薪资', note: '月薪' }] }));
     fireEvent.change(screen.getByLabelText('身份证号'), { target: { value: '110101200001011234' } });
     fireEvent.change(screen.getByLabelText('期望薪资'), { target: { value: '面议' } });
     fireEvent.click(screen.getByRole('button', { name: '保存并继续填表' }));
@@ -63,10 +70,10 @@ describe('对话内流程卡片', () => {
 
   it('还差几项（合并后的唯一缺项卡）：能填的项带输入框，填了就保存并继续检查；上传类只列不填', async () => {
     const { seen, refs, off } = captureSuggest();
-    renderCards([card('apply_gaps', { action_id: 'act1', required_filled: 18, required_total: 20, items: [
+    renderCard(ApplyGapsCard, card('apply_gaps', { action_id: 'act1', required_filled: 18, required_total: 20, items: [
       { label: '证件号码', reason: '高影响问题', status: 'needs_user', required: true, input: { vault_field: 'idNumber', sensitive: true } },
       { label: '作品集', reason: '不确定该上传什么文件', status: 'needs_user', required: true, input: null },
-    ] }, '「美团」还差 2 项要你补')]);
+    ] }, '「美团」还差 2 项要你补'));
     const box = screen.getByTestId('career-card-apply_gaps');
     expect(box).toHaveTextContent('作品集');
     expect(screen.queryByLabelText('作品集')).toBeNull();
@@ -91,7 +98,7 @@ describe('对话内流程卡片', () => {
 
   it('还差几项：逐项列出字段与原因，「补好了」请助理从当前页继续检查（id 在隐藏上下文）', async () => {
     const { seen, refs, off } = captureSuggest();
-    const dismiss = renderCards([card('apply_gaps', { action_id: 'act9', required_filled: 10, required_total: 12, items: [{ label: '毕业时间', reason: '必填项还是空的', status: 'empty' }, { label: '简历附件', reason: '页面没有出现上传成功提示', status: 'upload_unconfirmed' }] }, '「美团 后端」还差 2 项要你补：毕业时间、简历附件')]);
+    const dismiss = renderCard(ApplyGapsCard, card('apply_gaps', { action_id: 'act9', required_filled: 10, required_total: 12, items: [{ label: '毕业时间', reason: '必填项还是空的', status: 'empty' }, { label: '简历附件', reason: '页面没有出现上传成功提示', status: 'upload_unconfirmed' }] }, '「美团 后端」还差 2 项要你补：毕业时间、简历附件'));
     const el = screen.getByTestId('career-card-apply_gaps');
     expect(el).toHaveTextContent('必填 10/12');
     expect(el).toHaveTextContent('毕业时间');
@@ -146,11 +153,16 @@ describe('对话内流程卡片', () => {
     expect(seen[0]).toBe('开始模拟 百度 二面（job_id=j1，round=second），先从高风险的深挖点问起');
   });
 
-  it('批量投递进行中：对话里出现进度卡，可暂停', async () => {
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, batch: { status: 'paused', updatedAt: '', done: 2, failed: 0, handoffs: 0, queued: 3, todayCount: 2 } });
+  it('批量投递进行中：对话里不再单独出进度卡（数字在等你条「投出 x / y」）', () => {
     renderCards([]);
     act(() => emitEvent('career:batch', { status: 'running', updatedAt: '', done: 2, failed: 0, handoffs: 1, queued: 3, todayCount: 2, message: '正在填写：B 公司' }));
-    expect(await screen.findByTestId('career-card-batch')).toHaveTextContent('正在填写：B 公司');
+    expect(screen.queryByTestId('career-card-batch')).toBeNull();
+  });
+
+  it('批量进度卡（通知中心仍在用）：可暂停', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, batch: { status: 'paused', updatedAt: '', done: 2, failed: 0, handoffs: 0, queued: 3, todayCount: 2 } });
+    render(<BatchProgressCard batch={{ status: 'running', updatedAt: '', done: 2, failed: 0, handoffs: 1, queued: 3, todayCount: 2, message: '正在填写：B 公司' }} />);
+    expect(screen.getByTestId('career-card-batch')).toHaveTextContent('正在填写：B 公司');
     fireEvent.click(screen.getByRole('button', { name: '暂停' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/batch/command', { cmd: 'pause' }));
     expect(await screen.findByRole('button', { name: '继续' })).toBeInTheDocument();

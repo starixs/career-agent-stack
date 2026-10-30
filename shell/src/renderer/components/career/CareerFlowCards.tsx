@@ -8,7 +8,11 @@
  *  - site_login     卡在登录页 → 保存该站账号密码进私密库（产品在登录页代填，点登录仍由用户）
  *  - mail_bind      绑定求职邮箱（地址 + 授权码，不经过模型）
  *  - interview_prep 面试准备卡：时间、上一轮卡点、高风险深挖点、题、开始模拟
- *  - 批量投递进度   → 暂停 / 停止 / 在旁边看现场
+ *
+ * 投递切面（CAREER_INTELLIGENT_UI.md §3、§5.1，2026-10-27 确认）：要你的事只进等你条，不在对话流里插卡——
+ * 提交前过目、填表缺项（needs_user / apply_gaps）的卡由等你条承接，对话里不再出现；一批待投（review·fill_form）
+ * 在对话里留一张批次卡（公司海报墙），只反映状态；问到某一家时出申请对象卡（application）。
+ * 批量进度不再单独出卡：数字在等你条右边「投出 x / y」，暂停 / 停止跟助理说或在浏览器现场页。
  *
  * 卡片由 SSE `career:card` 推来（TabProvider.careerCards），按 id 去重；完成或忽略后从对话里移除。
  * 写入走产品自己的接口；完成后用 suggestToChat 告诉助理"做完了，继续"，助理据此接着干。
@@ -25,6 +29,9 @@ import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
 import { MailConnectCenter } from './mail-connect/MailConnectCenter';
 import { CardShell, list, str, type CardProps } from './FlowCardShell';
+import { ApplicationCard } from './delivery/ApplicationCard';
+import { BatchWallCard } from './delivery/BatchWall';
+import { isCompanyMark } from './delivery/deliveryApi';
 import { InterviewPrepCard } from './InterviewPrepCard';
 import type { BatchState, CareerCard, CareerCardState } from './types';
 
@@ -301,12 +308,30 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   site_login: props => <SiteLoginCard {...props} />,
   mail_bind: props => <MailBindCard {...props} />,
   search_setup: props => <SearchSetupCard {...props} />,
-  review: props => <ReviewCard {...props} />,
+  review: props => (str(props.card.data.kind) === 'fill_form'
+    ? <BatchWallCard actionIds={strIds(props.card.data.action_ids)} />
+    : <ReviewCard {...props} />),
   apply_gaps: props => <ApplyGapsCard {...props} />,
   interview_prep: props => <InterviewPrepCard {...props} />,
+  application: props => {
+    const id = str(props.card.data.application_id);
+    return id ? <ApplicationCard applicationId={id} company={isCompanyMark(props.card.data.company) ? props.card.data.company : null} /> : null;
+  },
 };
 
-export const isRenderableCard = (c: CareerCard): boolean => !!RENDERERS[c.kind];
+const strIds = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x) : []);
+
+/**
+ * 归等你条的卡：提交前过目、填表缺项。对话里不再出现（处理完的也不留「已完成」行——过程不进对话）。
+ * 一批待投（review·fill_form）是批次卡，状态都在海报上，同样不折成一行。
+ */
+export function isDockOwnedCard(c: CareerCard): boolean {
+  if (c.kind === 'needs_user' || c.kind === 'apply_gaps') return true;
+  return c.kind === 'review' && str(c.data.kind) !== 'fill_form';
+}
+const isBatchWallCard = (c: CareerCard) => c.kind === 'review' && str(c.data.kind) === 'fill_form';
+
+export const isRenderableCard = (c: CareerCard): boolean => !!RENDERERS[c.kind] && !isDockOwnedCard(c);
 
 /** 已处理的卡片折叠成一行：完成显示"已完成"，忽略的可以重新打开。 */
 function CollapsedCardRow({ card, onReopen }: { card: CareerCard; onReopen: () => void }) {
@@ -324,20 +349,17 @@ function CollapsedCardRow({ card, onReopen }: { card: CareerCard; onReopen: () =
  * 渲染一组卡片：pending 显示完整卡片，completed / dismissed 折叠成一行。
  * 既用于回复下面的锚定卡片（Message.tsx），也用于对话底部的无锚点卡片（CareerChatCards）。
  */
-export function CareerFlowCards({ cards, batch, onStateChange }: {
+export function CareerFlowCards({ cards, onStateChange }: {
   cards: CareerCard[];
-  batch?: BatchState | null;
   onStateChange: (id: string, state: CareerCardState) => void;
 }) {
   const known = useMemo(() => cards.filter(isRenderableCard), [cards]);
-  const showBatch = !!batch && (batch.status === 'running' || batch.status === 'paused');
-  if (!known.length && !showBatch) return null;
+  if (!known.length) return null;
   return (
     <>
-      {showBatch && <BatchProgressCard batch={batch!} />}
       {known.map(c => (
         <div key={c.id}>
-          {(c.state ?? 'pending') === 'pending'
+          {(c.state ?? 'pending') === 'pending' || isBatchWallCard(c)
             ? RENDERERS[c.kind]({ card: c, onDone: () => onStateChange(c.id, 'completed'), onDismiss: () => onStateChange(c.id, 'dismissed') })
             : <CollapsedCardRow card={c} onReopen={() => onStateChange(c.id, 'pending')} />}
         </div>
