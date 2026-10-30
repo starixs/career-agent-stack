@@ -215,7 +215,7 @@ export class TankGame extends EventfulGame implements ArcadeGame {
   }
 
   /** 第几张地图（0 起），以及已经循环了几轮。 */
-  private get stage() {
+  private get stageDef() {
     const idx = (this.level - 1) % LEVELS.length;
     return { idx, cycle: Math.floor((this.level - 1) / LEVELS.length), def: LEVELS[idx] };
   }
@@ -233,7 +233,7 @@ export class TankGame extends EventfulGame implements ArcadeGame {
   }
 
   private startLevel(): void {
-    const { def, cycle } = this.stage;
+    const { def, cycle } = this.stageDef;
     this.map = buildMap(def.rows);
     this.tanks = [];
     this.bullets = [];
@@ -398,7 +398,7 @@ export class TankGame extends EventfulGame implements ArcadeGame {
 
   private trySpawnEnemy(dtMs: number): void {
     if (this.enemiesLeft <= 0) return;
-    const { def, cycle, idx } = this.stage;
+    const { def, cycle, idx } = this.stageDef;
     const alive = this.tanks.filter(t => t.side === 'enemy' && !t.dead).length;
     if (alive >= def.maxAlive + Math.min(1, cycle)) return;
     this.spawnMs -= dtMs;

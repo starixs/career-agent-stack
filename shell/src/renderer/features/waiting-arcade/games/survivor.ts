@@ -62,6 +62,11 @@ export class SurvivorGame extends EventfulGame implements ArcadeGame {
   /** 已经活了多久，决定刷怪强度。 */
   timeMs = 0;
   enemies: Enemy[] = [];
+
+  /** 场景跟包围圈波次走（每 30 秒一波），不跟经验等级走，免得几秒换一次景。 */
+  get stage(): number {
+    return 1 + Math.floor(this.timeMs / 30000);
+  }
   shots: Shot[] = [];
   gems: Gem[] = [];
   ups: Record<UpgradeId, number> = { rate: 0, multi: 0, pierce: 0, damage: 0, orbit: 0, nova: 0, speed: 0, magnet: 0, heal: 0 };

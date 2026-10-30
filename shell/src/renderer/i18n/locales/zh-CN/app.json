@@ -210,17 +210,66 @@
     },
     "lcd": {
       "menuTitle": "选择游戏",
-      "menuHint": "↑↓ 选择   A 开始",
+      "menuHint": "↑↓ 选择   X 开始",
       "best": "最高",
       "paused": "暂停",
-      "pausedHint": "START 继续 · SELECT 菜单",
+      "pausedHint": "X 继续 · Esc 回菜单",
       "gameOver": "游戏结束",
       "newRecord": "新纪录！",
-      "overHint": "A 重来 · SELECT 菜单"
+      "overHint": "X 再来 · Esc 回菜单",
+      "confirmClose": "收起掌机？",
+      "confirmHint": "收起后要等下次 AI 忙一阵才能再玩"
     },
     "keys": {
       "move": "移动",
-      "putAway": "收起"
+      "putAway": "收起",
+      "choose": "选择",
+      "start": "开始",
+      "resume": "继续",
+      "retry": "再来",
+      "pause": "暂停",
+      "menu": "选游戏",
+      "back": "返回",
+      "backToMenu": "回菜单",
+      "space": "空格",
+      "confirmPutAway": "确认收起",
+      "stay": "再玩会"
+    },
+    "controls": {
+      "tetris": {
+        "a": "旋转",
+        "b": "反转",
+        "up": "直落"
+      },
+      "snake": {},
+      "breakout": {
+        "a": "发球"
+      },
+      "runner": {
+        "a": "跳"
+      },
+      "tank": {
+        "a": "开炮"
+      },
+      "survivor": {
+        "a": "选升级"
+      },
+      "shooter": {
+        "b": "炸弹"
+      },
+      "shredder": {
+        "a": "发射"
+      }
+    },
+    "themes": {
+      "lcd": "原色",
+      "dusk": "黄昏",
+      "mint": "薄荷",
+      "night": "夜晚",
+      "sakura": "樱花",
+      "neon": "霓虹雨夜",
+      "snow": "雪原",
+      "desert": "沙漠"
     }
   },
   "workspaceTree": {

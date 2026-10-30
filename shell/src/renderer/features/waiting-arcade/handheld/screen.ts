@@ -10,32 +10,25 @@ import {
   type ArcadeAction,
   type ArcadeGame,
   type ArcadeGameId,
-  type ArcadePalette,
   type GameEvent,
 } from '../games';
 import { FxLayer } from './fx';
+import { LCD_PALETTE, themeForStage, type StageTheme, type ThemeId } from './themes';
 
 export type HandheldButton = 'up' | 'down' | 'left' | 'right' | 'a' | 'b' | 'start' | 'select' | 'l' | 'r';
-export type ScreenMode = 'boot' | 'menu' | 'playing' | 'paused' | 'over';
+export type ScreenMode = 'boot' | 'menu' | 'playing' | 'paused' | 'over' | 'confirm';
 export type ScreenSound =
   | 'boot' | 'move' | 'confirm' | 'pause' | 'over'
   | 'score' | 'bonus' | 'levelup' | 'hit' | 'clear' | 'big' | 'tick' | 'lose';
 
-/** 反射式彩色 LCD 的偏灰配色：掌机是实体物件，不跟随 App 主题。 */
-export const LCD_PALETTE: ArcadePalette = {
-  bg: '#cdd3bf',
-  ink: '#1c2230',
-  muted: '#5f6857',
-  line: '#a4ad94',
-  primary: '#2c5aa8',
-  accent: '#c63f36',
-  danger: '#b8501c',
-};
+export { LCD_PALETTE } from './themes';
 
 export const BOOT_MS = 1900;
 const MENU_ROWS = 5;
 /** 输了以后先让画面播完爆炸、震屏，再盖结束面板；这段时间按 A 不会误触重开。 */
 export const OVER_DELAY_MS = 650;
+/** 换景时新场景从左往右扫过去的时长；期间游戏照常进行。 */
+export const WIPE_MS = 650;
 
 export interface ScreenText {
   wordmark: string;
@@ -47,7 +40,12 @@ export interface ScreenText {
   gameOver: string;
   newRecord: string;
   overHint: string;
+  /** 收起前的确认面板。 */
+  confirmClose: string;
+  confirmHint: string;
   games: Record<ArcadeGameId, string>;
+  /** 场景名，换景时在屏幕顶部亮一下。 */
+  themes: Record<ThemeId, string>;
 }
 
 export interface BestScoreStore {
@@ -96,6 +94,12 @@ export class HandheldScreen {
   overMs = 0;
   /** 本局是否已经提示过破纪录。 */
   private recordShown = false;
+  /** 当前场景，以及换景过场里旧场景还剩多少没被扫掉。 */
+  theme: StageTheme = themeForStage(1);
+  private stage = 1;
+  private wipe: { from: StageTheme; ms: number } | null = null;
+  /** 确认收起时底下是哪个画面；取消后回到这里（游戏中会先变成暂停）。 */
+  private beforeConfirm: Exclude<ScreenMode, 'confirm' | 'playing' | 'boot'> = 'menu';
 
   constructor(private readonly opts: ScreenOptions) {
     this.menuIndex = Math.max(0, ARCADE_GAME_IDS.indexOf(opts.initialGame ?? DEFAULT_GAME));
@@ -161,7 +165,48 @@ export class HandheldScreen {
         if (button === 'a' || button === 'start') this.startGame();
         else if (button === 'select') this.toMenu('move');
         return;
+      case 'confirm':
+        if (button === 'a' || button === 'b' || button === 'start' || button === 'select') this.cancelClose();
+        return;
     }
+  }
+
+  /**
+   * Esc 一层层往回退：游戏中 → 暂停 → 菜单 → 确认收起；只有在确认面板上再按才返回 false，
+   * 由宿主把掌机收起来。收起后本轮就不能再玩，所以一定要确认这一下。
+   */
+  back(): boolean {
+    switch (this.mode) {
+      case 'playing':
+        this.pause();
+        return true;
+      case 'paused':
+      case 'over':
+        this.toMenu('move');
+        return true;
+      case 'boot':
+      case 'menu':
+        this.askClose();
+        return true;
+      case 'confirm':
+        return false;
+    }
+  }
+
+  /** 弹出「收起掌机？」；电源开关也走这里。游戏中先暂停，取消后停在暂停画面。 */
+  askClose(): void {
+    if (this.mode === 'confirm') return;
+    if (this.mode === 'playing') this.pause();
+    if (this.mode === 'boot') this.toMenu(null);
+    this.beforeConfirm = this.mode as typeof this.beforeConfirm;
+    this.mode = 'confirm';
+    this.opts.onSound?.('pause');
+  }
+
+  cancelClose(): void {
+    if (this.mode !== 'confirm') return;
+    this.mode = this.beforeConfirm;
+    this.opts.onSound?.('move');
   }
 
   release(button: HandheldButton): void {
@@ -199,9 +244,14 @@ export class HandheldScreen {
     }
     if (this.mode !== 'playing' || !this.game) return;
     this.fx.step(dtMs);
+    if (this.wipe) {
+      this.wipe.ms += dtMs;
+      if (this.wipe.ms >= WIPE_MS) this.wipe = null;
+    }
     // 命中定格：逻辑停住，粒子照常飞
     if (this.fx.hitstopMs > 0) return;
     this.game.step(dtMs);
+    this.trackStage();
     this.trackBest();
     if (this.game.over) {
       this.game.drainEvents(); // 结束时只放结束音效
@@ -231,6 +281,26 @@ export class HandheldScreen {
     if (events.has('levelup')) this.fx.push([{ kind: 'flash', color: '#ffffff', alpha: 0.45 }]);
     if (events.has('lose')) this.fx.push([{ kind: 'shake', power: 0.7 }, { kind: 'flash', color: 'accent', alpha: 0.3 }]);
     for (const event of events) this.opts.onSound?.(EVENT_SOUNDS[event]);
+  }
+
+  /** 游戏进了新的一关：换一套场景，新场景从左往右扫进来，顶部亮出场景名。 */
+  private trackStage(): void {
+    const game = this.game;
+    if (!game) return;
+    const stage = game.stage ?? game.level;
+    if (stage === this.stage) return;
+    this.stage = stage;
+    const next = themeForStage(stage, game.palette);
+    if (next.id === this.theme.id && next.palette.bg === this.theme.palette.bg) return;
+    this.wipe = { from: this.theme, ms: 0 };
+    this.applyTheme(next);
+    this.fx.showTag(this.opts.text.themes[next.id]);
+  }
+
+  private applyTheme(theme: StageTheme): void {
+    this.theme = theme;
+    this.fx.palette = theme.palette;
+    this.fx.setAmbient(theme.ambient);
   }
 
   private trackBest(): void {
@@ -271,7 +341,9 @@ export class HandheldScreen {
     this.releaseAll();
     this.game = createArcadeGame(this.gameId);
     this.fx.clear();
-    this.fx.palette = this.game.palette ?? LCD_PALETTE;
+    this.stage = this.game.stage ?? this.game.level;
+    this.wipe = null;
+    this.applyTheme(themeForStage(this.stage, this.game.palette));
     this.recordShown = false;
     this.overMs = 0;
     this.bestAtStart = this.best();
@@ -292,30 +364,73 @@ export class HandheldScreen {
   // ─── 绘制 ───────────────────────────────────────────────
 
   draw(ctx: CanvasRenderingContext2D): void {
-    const c = this.game?.palette ?? LCD_PALETTE;
+    const c = this.theme.palette;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
     if (this.mode === 'boot') return this.drawBoot(ctx);
-    if (this.mode === 'menu') return this.drawMenu(ctx);
+    // 确认面板盖在原来的画面上
+    const shown = this.mode === 'confirm' ? this.beforeConfirm : this.mode;
+    if (shown === 'menu') {
+      this.drawMenu(ctx);
+      if (this.mode === 'confirm') this.drawPanel(ctx, this.opts.text.confirmClose, this.opts.text.confirmHint);
+      return;
+    }
     // 震屏时边缘会露出上一帧，先整屏铺底
     ctx.fillStyle = c.bg;
     ctx.fillRect(0, 0, W, H);
     const [ox, oy] = this.fx.offset();
     ctx.save();
     ctx.translate(ox, oy);
-    this.game?.draw(ctx, c);
+    this.drawGame(ctx);
     this.fx.drawWorld(ctx);
     ctx.restore();
     this.drawHud(ctx);
     this.fx.drawOverlay(ctx);
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
-    if (this.mode === 'paused') {
+    if (this.mode === 'confirm') {
+      this.drawPanel(ctx, this.opts.text.confirmClose, this.opts.text.confirmHint);
+    } else if (this.mode === 'paused') {
       this.drawPanel(ctx, this.notice ?? this.opts.text.paused, this.opts.text.pausedHint);
     } else if (this.overReady) {
       const title = this.newRecord ? this.opts.text.newRecord : this.opts.text.gameOver;
       this.drawPanel(ctx, title, `${this.score}  ·  ${this.opts.text.overHint}`);
     }
+  }
+
+  /** 换景过场：先按旧场景画一遍，再把扫过的区域按新场景重画，接缝处一道亮边。 */
+  private drawGame(ctx: CanvasRenderingContext2D): void {
+    const game = this.game;
+    if (!game) return;
+    const c = this.theme.palette;
+    if (!this.wipe) {
+      game.draw(ctx, c);
+      return;
+    }
+    const t = this.wipe.ms / WIPE_MS;
+    const eased = 1 - (1 - t) ** 3;
+    const slant = 40;
+    const edge = -slant + eased * (W + slant * 2);
+    game.draw(ctx, this.wipe.from.palette);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-10, -10);
+    ctx.lineTo(edge + slant / 2, -10);
+    ctx.lineTo(edge - slant / 2, H + 10);
+    ctx.lineTo(-10, H + 10);
+    ctx.closePath();
+    ctx.clip();
+    game.draw(ctx, c);
+    ctx.restore();
+    ctx.save();
+    ctx.strokeStyle = c.accent;
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(edge + slant / 2, -10);
+    ctx.lineTo(edge - slant / 2, H + 10);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawBoot(ctx: CanvasRenderingContext2D): void {
@@ -401,7 +516,7 @@ export class HandheldScreen {
   private drawHud(ctx: CanvasRenderingContext2D): void {
     const game = this.game;
     if (!game || game.ownHud) return;
-    const c = game.palette ?? LCD_PALETTE;
+    const c = this.theme.palette;
     ctx.font = '700 9px ui-monospace, monospace';
     const level = `LV${game.level}`;
     const lives = game.lives !== undefined ? ' ' + '♥'.repeat(Math.max(0, game.lives)) : '';
