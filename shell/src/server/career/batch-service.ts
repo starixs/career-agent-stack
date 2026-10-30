@@ -12,6 +12,7 @@ import { BatchRunner } from './batch-runner';
 import { careerExportsDir, getRepos } from './db';
 import { FileChooserBroker } from './file-chooser';
 import { liveHub } from './live-hub';
+import { loginJourneyActive } from './live-pin';
 import { packetResumeFile } from './packets';
 import { SubmitExecutor } from './submit-executor';
 import type { CareerBrowserHost, RunEmitter } from '../routes/career-browser';
@@ -87,6 +88,8 @@ export async function getBatchRunner(): Promise<BatchRunner> {
         // 同时填几份（不同网站）；同一网站永远串行。CAREER_BATCH_CONCURRENCY=1 退回逐份执行。
         concurrency: Math.min(4, Math.max(1, Number(process.env.CAREER_BATCH_CONCURRENCY) || 2)),
         control: () => {
+          // 登录之旅里你只在钉住的那一页上操作，后台其余几家照样填（用户 2026-10-30 定：后台照样并行）
+          if (loginJourneyActive()) return 'agent';
           const id = careerProductSessionId();
           if (!id || !hostCache) return 'agent';
           try { return hostCache.hasContext(id) ? hostCache.getControl(id).control : 'agent'; } catch { return 'agent'; }
@@ -123,7 +126,8 @@ export async function getBatchRunner(): Promise<BatchRunner> {
             ...(req.learnFrom?.length ? { learnFrom: req.learnFrom } : {}),
           };
           // 并行时：有等用户处理的接管就不把画面切到新开的网申上（接管那一页由 force 切过去）
-          const focusPage = (page: Parameters<typeof host.focusPage>[1], force?: boolean) => { if (force || repos.openHandoffs().length === 0) host.focusPage(id, page); };
+          // 登录之旅进行中：画面钉在带你过的那一家，后台新开的网申一律不切过去
+          const focusPage = (page: Parameters<typeof host.focusPage>[1], force?: boolean) => { if (!loginJourneyActive() && (force || repos.openHandoffs().length === 0)) host.focusPage(id, page); };
           await host.withProductSession(id, context => runOperation('drive', body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost, productSessionId: id, focusPage }), { create: { workspacePath: careerWorkspacePath() } });
           return events;
         },
@@ -134,6 +138,16 @@ export async function getBatchRunner(): Promise<BatchRunner> {
   return runnerPromise;
 }
 let hostCache: PlaywrightBrowserHost | null = null;
+
+/** 产品会话的浏览器宿主（Global 侧车）：登录之旅用。没就绪时显式报错。 */
+export async function careerBrowserHost(): Promise<{ host: PlaywrightBrowserHost; productSessionId: string }> {
+  if (!hostResolver) throw new Error('浏览器宿主尚未就绪（只能在 Global 侧车执行）');
+  const host = await hostResolver();
+  hostCache = host;
+  const productSessionId = careerProductSessionId();
+  if (!productSessionId) throw new Error('还没有个人助理会话');
+  return { host, productSessionId };
+}
 
 /** 没有材料包的旧动作：按 resume_id 现导（主简历与定制简历都导，渲染前解私密库占位符）。 */
 async function legacyResumeFile(resumeId: unknown): Promise<string | undefined> {

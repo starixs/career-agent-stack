@@ -112,13 +112,23 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', expect.objectContaining({ ids: ['act_s1', 'act_s2', 'act_s3'], decision: 'approved' })));
   });
 
-  it('「晚点」只是挪到最后，不落库', async () => {
+  it('「N 个网站要你登录」点「去登录」：开始登录之旅（服务端一家一家带你过）并打开旁边的浏览器现场', async () => {
+    serve([ASK_LOGIN], null);
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    expect(screen.getByText('一家一家带你过，登上了自动切下一家')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '去登录' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/asks/hnd_login/login-journey', {}));
+  });
+
+  it('「晚点」只是挪到最后（登录的顺带停下登录之旅），不落库', async () => {
     serve([ASK_LOGIN, ASK_INFO], null);
     render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*2/ }));
     fireEvent.click(screen.getByRole('button', { name: '晚点' }));
     await waitFor(() => expect(within(screen.getByTestId('waiting-deck')).getByText('证件号码')).toBeInTheDocument());
-    expect(apiPostJson).not.toHaveBeenCalled();
+    expect(apiPostJson).toHaveBeenCalledWith('/api/career/asks/hnd_login/login-journey', { cancel: true });
+    expect(apiPutJson).not.toHaveBeenCalled();
   });
 
   it('批次卡：标星的 3 家中海报在前，其余小海报成格；美团铺品牌色；悬停排队的可以说「这家我要看」', () => {

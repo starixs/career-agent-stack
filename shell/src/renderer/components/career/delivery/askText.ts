@@ -42,6 +42,7 @@ export function subText(ask: AskView): string | null {
   const n = ask.application_ids.length;
   switch (ask.kind) {
     case 'info': return `用于这批 ${n} 家，只存在本机`;
+    case 'login': return n > 1 ? `一家一家带你过，登上了自动切下一家` : (ask.detail ?? null);
     case 'start': return `开始后填到提交前停下${n > 1 ? `，${n} 家一起` : ''}`;
     case 'review': {
       const r = ask.review;

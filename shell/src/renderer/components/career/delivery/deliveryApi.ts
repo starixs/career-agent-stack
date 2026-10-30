@@ -64,6 +64,8 @@ export const deliveryApi = {
   /** 缺信息填一次：服务端存进本机（不经过模型），整批交给后台接着填。still_waiting > 0 = 还有只能在页面上看的项。 */
   fill: (askId: string, values: Record<string, string>) => apiPostJson<unknown>(`/api/career/asks/${encodeURIComponent(askId)}/fill`, { values })
     .then(r => ({ stillWaiting: typeof field(r, 'still_waiting') === 'number' ? field(r, 'still_waiting') as number : 0 })),
+  /** 一家一家带你登录（服务端按 Cookie / 登录接口返回判断登上没有）；cancel 停下，剩下的留在等你条里。 */
+  loginJourney: (askId: string, cancel = false) => apiPostJson<unknown>(`/api/career/asks/${encodeURIComponent(askId)}/login-journey`, cancel ? { cancel: true } : {}),
   away: (since: string) => apiGetJson<unknown>(`/api/career/away?since=${encodeURIComponent(since)}`).then(r => parseAway(field(r, 'away'))),
 };
 

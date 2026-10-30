@@ -1,5 +1,5 @@
 /**
- * 卡组里两个按钮真正做的事。每件事按它的源落库（截止 → 截止接口；待批准 → 审批；登录 / 确认 → 打开旁边的浏览器现场）；
+ * 卡组里两个按钮真正做的事。每件事按它的源落库（截止 → 截止接口；待批准 → 审批；登录 → 登录之旅；确认 → 打开旁边的浏览器现场）；
  * 缺信息走 /asks/:id/fill，填一次整批由后台接着填，不经过对话。落库成功的事返回 'resolved'（卡组把它拿走，服务端下次派生也不会再有）；只是挪后的返回 'snoozed'。
  */
 import { useState } from 'react';
@@ -46,7 +46,9 @@ async function go(ask: AskView, respond: Respond, values: Record<string, string>
   switch (ask.kind) {
     case 'start': case 'review': return decideReview(respond, ask, 'approved');
     case 'info': return fillFields(ask, values);
-    case 'login': case 'confirm': openLiveDrawer(); return 'kept';
+    // 登录之旅：服务端把画面钉在第一家，登上了（数据层判断）或你点交还就切下一家
+    case 'login': await deliveryApi.loginJourney(ask.id); openLiveDrawer(); return 'kept';
+    case 'confirm': openLiveDrawer(); return 'kept';
     case 'attendance': await careerApi.answerAttendance(firstDeadline(ask), true); return 'resolved';
     case 'retro': suggestToChat(ask.suggest ?? `复盘一下${ask.title}`); return 'kept';
     default: return goDeadline(ask);
@@ -61,6 +63,7 @@ async function later(ask: AskView): Promise<AskOutcome> {
     case 'deadline':
       if (ask.deadline_kind === 'interview' || !firstDeadline(ask)) return 'snoozed';
       await careerApi.setDeadlineStatus(firstDeadline(ask), 'done'); return 'resolved';
+    case 'login': await deliveryApi.loginJourney(ask.id, true); return 'snoozed';
     default: return 'snoozed';
   }
 }
