@@ -16,11 +16,11 @@ import type { BoardRow } from '../career/job-board';
 import { getRepos, careerDataDir, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
-import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
+import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps, type IntakeResult } from '../career/intake';
 import { carryoverFor, carryoverPrompt, lastTranscript } from '../career/interview-carry';
 import { buildInterviewPrep } from '../career/interview-prep';
 import { applyRetroFollowups } from '../career/retro-followups';
-import { bookInterview, closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
+import { applicationForInterview, bookInterview, closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
 import { getShellLLM } from '../career/llm';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
@@ -129,6 +129,13 @@ function parseJson<T = unknown>(raw: string | null | undefined): T | undefined {
 }
 
 /** 填表动作不在可执行状态时，给模型一句真实可做的下一步（而不是让它就此放弃）。 */
+/** inbox_capture 回给模型的一句收尾：落到哪了就说哪；对不上的让卡片承接，不让用户打字说明。 */
+function intakeNote(result: IntakeResult): string {
+  if (result.candidates?.length) return '对话里已出现「归到哪一份」卡片，用户点一下就归档好；回复一句说明即可，不要让用户打字说明是哪一份。';
+  if (result.item.status === 'new') return '没能自动归档：通知中心这条下面有「归到某条投递 / 忽略」按钮。先用 dossier_list 自己对一下能不能确定；确定不了就告诉用户去点那几个按钮，不要让用户打字解释这封信。';
+  return '已归档，告诉用户落到了哪里即可；读错了的话通知中心这条旁边有「不对」，点一下选正确的类型。';
+}
+
 function applyStatusHint(status: string): string {
   switch (status) {
     case 'needs_user': case 'executing': return '；要从接管处继续请用 apply_continue';
@@ -649,7 +656,9 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       }, async (args) => wrap(async () => {
         progress('inbox_capture', '正在归档收件箱内容');
         const result = await captureIntake(intakeDeps(), { text: args.text, source: args.source ?? 'chat', application_id: args.application_id ?? null });
-        return text({ item_id: result.item.id, kind: result.item.kind, status: result.item.status, created: result.created, summary: result.summary, urgency: result.triage?.urgency ?? null, note: result.item.status === 'new' ? '没能自动归档完，请问用户这属于哪条投递或该怎么处理。' : '已归档，告诉用户落到了哪里即可。' });
+        // 同一家几份在投：出一张「归到哪一份」卡，用户点一下，不用打字说明
+        if (result.candidates?.length) card(`pick-application:${result.item.id}`, 'pick_application', result.summary, { inbox_id: result.item.id, candidates: result.candidates });
+        return text({ item_id: result.item.id, kind: result.item.kind, status: result.item.status, created: result.created, summary: result.summary, urgency: result.triage?.urgency ?? null, candidates: result.candidates ?? [], note: intakeNote(result) });
       })()),
 
       tool('inbox_list', '列出收件箱条目（缺省只列待处理的 new）。', { status: z.enum(['new', 'processed', 'dismissed']).optional() }, async (args) => wrap(() => text({ items: repos().listInbox(args.status ?? 'new').map(i => ({ id: i.id, source: i.source, kind: i.kind, status: i.status, note: i.note, preview: i.raw_text.slice(0, 160), created_at: i.created_at })) }))()),
@@ -672,7 +681,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ deadline });
       })()),
 
-      tool('deadline_done', '把一个时间点标记为已完成 / 取消。过了时间的笔试 / 测评 / 面试（today_queue 条目带 ask=attendance）：用户说考了 / 去了用 done，说没去 / 没做用 skipped，会记进卷宗。', { deadline_id: z.string(), status: z.enum(['done', 'cancelled', 'missed', 'skipped']).optional() }, async (args) => wrap(() => {
+      tool('deadline_done', '把一个时间点标记为已完成 / 取消。过了时间的笔试 / 测评（today_queue 条目带 ask=attendance）：用户说考了 / 做了用 done，说没去 / 没做用 skipped，会记进卷宗。过了时间的面试不问「去了吗」，走复盘（interview_retro）。', { deadline_id: z.string(), status: z.enum(['done', 'cancelled', 'missed', 'skipped']).optional() }, async (args) => wrap(() => {
         const r = repos();
         const status = args.status ?? 'done';
         const current = r.getDeadline(args.deadline_id);
@@ -731,7 +740,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (!appId && args.job_id) appId = repos().listApplications().find(a => a.job_id === args.job_id)?.id;
         if (!appId && args.company_name) {
           const hits = repos().findOpenApplicationsByCompany(args.company_name);
-          if (hits.length > 1) return err(`${args.company_name} 有 ${hits.length} 条投递，请让用户选：${hits.map(h => `${h.job.title}（${h.id}）`).join('、')}`);
+          if (hits.length > 1) return err(`${args.company_name} 有 ${hits.length} 条投递：${hits.map(h => `${h.job.title}（${h.id}）`).join('、')}。用户问的是整家公司就逐条 dossier_get 一起答；只有确实要分开时才把这几份列成选项一次问完`);
           appId = hits[0]?.id;
         }
         if (!appId) return err('没有找到对应的投递；可以先用 dossier_list 看看');
@@ -753,11 +762,12 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       })()),
 
       tool('application_correct', '更正一次误判：邮件读错了（如把面试邀请当成拒信）、或用户说之前告诉错了。撤掉这份投递最近一次推进（连同自动补的中间步骤），再推进到用户说的正确阶段；漏斗里不留误判，卷宗记一笔更正。只在用户明确指出错了时用；正常推进用 application_set_stage。', {
-        application_id: z.string(), stage: z.enum(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded']).describe('用户说的正确阶段'), note: z.string().describe('谁说错了、正确情况是什么'),
+        application_id: z.string(), stage: z.enum(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded']).describe('用户说的正确阶段'), note: z.string().optional().describe('谁说错了、正确情况是什么；用户只说了「不对，是面试」就不用填，不要为这个追问'),
       }, async (args) => wrap(() => {
         const r = repos();
-        const back = r.undoLastStage(args.application_id, args.note);
-        const application = back.stage === args.stage ? back : r.jumpTo(args.application_id, args.stage, `更正：${args.note}`);
+        const note = args.note?.trim() || `用户说应为「${args.stage}」`;
+        const back = r.undoLastStage(args.application_id, note);
+        const application = back.stage === args.stage ? back : r.jumpTo(args.application_id, args.stage, `更正：${note}`);
         changed('application', 'application_history', 'dossier_note');
         focus({ surface: 'dossier', application_id: application.id });
         return text({ application, note: application.stage === 'interview' ? '已改回面试。若那封邮件里有面试时间，用 inbox_capture 带上 application_id 重新归档，面试和期限会建上。' : '已更正。' });
@@ -1399,15 +1409,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       })()),
 
       tool('interview_prep', '「帮我准备 X 的面试」的收尾：在对话里出一张面试准备卡（时间、上一轮 / 同类面试卡在哪、三个高风险深挖点、几道题、开始模拟按钮）。先用 interview_predict 和 interview_questions 补上预测和题（返回的 missing 会说缺哪样），再调它出卡；卡片已经把要点摆出来，回复里不要再逐条重复。', {
-        application_id: z.string().optional(), company_name: z.string().optional(),
+        application_id: z.string().optional(), company_name: z.string().optional(), interview_id: z.string().optional().describe('从通知中心 / 面试页点进来时带的那场面试'),
       }, async (args) => wrap(() => {
-        let appId = args.application_id;
+        let appId = args.application_id ?? (args.interview_id ? store().getInterview(args.interview_id)?.application_id ?? undefined : undefined);
         if (!appId && args.company_name) {
-          const hits = repos().findOpenApplicationsByCompany(args.company_name);
-          if (hits.length > 1) return err(`${args.company_name} 有 ${hits.length} 条投递，请让用户选：${hits.map(h => `${h.job.title}（${h.id}）`).join('、')}`);
-          appId = hits[0]?.id;
+          const found = applicationForInterview(repos(), args.company_name);
+          if (found.candidates.length) return err(`${args.company_name} 有 ${found.candidates.length} 份在投、都没有排着的面试，分不出要准备哪一份：${found.candidates.map(c => `${c.label}（${c.application_id}）`).join('、')}。用 dossier_list 看看最近的动静能不能定；定不了就把这几份列成选项一次问完`);
+          appId = found.application_id;
         }
-        if (!appId) return err('需要 application_id 或公司名；可以先用 dossier_list 找');
+        if (!appId) return err('需要 application_id、interview_id 或公司名；可以先用 dossier_list 找');
         const prep = buildInterviewPrep(store(), repos(), appId);
         card(`interview-prep:${prep.interview_id ?? appId}`, 'interview_prep', `准备 ${prep.company ?? ''} ${prep.title}`.trim(), { ...prep });
         return text({ ...prep, note: prep.missing.length ? `还缺：${prep.missing.join('、')}；补上后再调一次 interview_prep 更新卡片。` : '准备卡已出现在对话里。' });
@@ -1560,7 +1570,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ ...out, saved_claim_ids: added.map(c => c.id) });
       })()),
 
-      tool('interview_retro', '真实面试复盘：逐题诊断、信号判读、受控标签，归档到面试库（证据与推断分开，不预测结果）。', {
+      tool('interview_retro', '真实面试复盘：逐题诊断、信号判读、受控标签，归档到面试库（证据与推断分开，不预测结果）。用户说了几句、传了录音转写或在面试页勾了被问到的题，就直接调它：材料少也复盘，记不清的标材料不足、列进「还要补」，不要追问原话、不要让他再讲一遍；公司、轮次从邀请那场补（传 interview_id 或公司名即可）。', {
         transcript: z.string(), interview_id: z.string().optional(), company_name: z.string().optional(), title: z.string().optional(),
         round: z.enum(['hr', 'first', 'second', 'final', 'group', 'other']).optional(), company_type: z.string().optional(), date: z.string().optional(),
         result: z.enum(['none', 'rejected', 'advanced', 'no_feedback_inferred']).optional(), result_source: z.enum(['none', 'official', 'inferred']).optional(),

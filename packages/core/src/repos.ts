@@ -547,7 +547,7 @@ export class Repos {
     })
   }
   /**
-   * 回答「考了吗 / 做了吗 / 去了吗」：考了 → done，没去 → skipped（邀请是真的来过，漏斗照样算回应）。
+   * 回答「考了吗 / 做了吗」（只问笔试、测评）：考了 → done，没去 → skipped（邀请是真的来过，漏斗照样算回应）。
    * 挂在投递上的记一笔进卷宗，之后这件事只在卷宗里，不再出现在队列、月历和通知中心。
    */
   answerAttendance(id: string, attended: boolean): Deadline {

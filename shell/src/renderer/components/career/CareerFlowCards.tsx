@@ -8,6 +8,7 @@
  *  - site_login     卡在登录页 → 保存该站账号密码进私密库（产品在登录页代填，点登录仍由用户）
  *  - mail_bind      绑定求职邮箱（地址 + 授权码，不经过模型）
  *  - interview_prep 面试准备卡：时间、上一轮卡点、高风险深挖点、题、开始模拟
+ *  - pick_application 来信对不上是哪一份申请：候选列成按钮，点一下归档
  *
  * 投递切面（CAREER_INTELLIGENT_UI.md §3、§5.1，2026-10-27 确认）：要你的事只进等你条，不在对话流里插卡——
  * 提交前过目、填表缺项（needs_user / apply_gaps）的卡由等你条承接，对话里不再出现；一批待投（review·fill_form）
@@ -35,6 +36,7 @@ import { BatchWallCard } from './delivery/BatchWall';
 import { isCompanyMark } from './delivery/deliveryApi';
 import { FixCard } from './delivery/FixCard';
 import { InterviewPrepCard } from './InterviewPrepCard';
+import { PickApplicationCard } from './inbox/InboxFixButtons';
 import type { BatchState, CareerCard, CareerCardState } from './types';
 
 function useSubmit() {
@@ -315,6 +317,10 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
     : <ReviewCard {...props} />),
   apply_gaps: props => <ApplyGapsCard {...props} />,
   interview_prep: props => <InterviewPrepCard {...props} />,
+  pick_application: props => (
+    <PickApplicationCard inboxId={str(props.card.data.inbox_id) ?? ''} title={props.card.title} onDone={props.onDone}
+      choices={list(props.card.data.candidates).flatMap(c => (str(c.application_id) && str(c.label) ? [{ application_id: str(c.application_id)!, label: str(c.label)! }] : []))} />
+  ),
   takeover: props => <TakeoverCard {...props} />,
   fix: props => <FixCard swapped={marks(props.card.data.swapped)} sent={marks(props.card.data.locked)} />,
   application: props => {

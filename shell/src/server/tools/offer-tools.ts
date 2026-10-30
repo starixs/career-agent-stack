@@ -59,7 +59,7 @@ export function createOfferTools(d: OfferToolDeps) {
     tool('offer_list', '列出所有 Offer 及各自处境：投递阶段（offer = 待答复，hired = 已接受）、还没关的期限（回复截止、三方签约截止）、已知薪酬。比较或讨论 Offer 前先调它拿 offer_id。', {}, d.wrap(() =>
       d.text({ offers: offerSituations(d.repos(), d.store().listOffers()) }))),
 
-    tool('offer_save', '录入或修改一个 Offer（用户在对话里说的薪酬、地点、答复期限等）。传 offer_id 是修改，不传是新建（需要 company_name）。comp 只写用户说过的数，和已有的合并；没说的不要猜。', {
+    tool('offer_save', '录入或修改一个 Offer（用户在对话里说的薪酬、地点、答复期限等）。传 offer_id 是修改，不传是新建（需要 company_name）。comp 只写用户说过或 offer 原文里写的数，和已有的合并；没说的不要猜。来信里的薪酬归档时已经记下了，先 offer_list 看，已有的不再问；缺的项在比较里标「未知」，不追着用户补。', {
       offer_id: z.string().optional(), application_id: z.string().optional(),
       company_name: z.string().optional(), title: z.string().optional(), location: z.string().optional(),
       comp: z.record(z.string(), z.union([z.number(), z.string()])).optional().describe('如 {"base":32000,"months":15,"signing":30000,"stock":"4 年归属"}'),

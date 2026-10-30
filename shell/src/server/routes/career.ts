@@ -20,6 +20,7 @@ import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isA
 import { runAtsCheck } from '../career/ats-check';
 import { getShellLLM } from '../career/llm';
 import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../career/intake';
+import { CORRECTABLE_KINDS, assignIntake, correctIntake, type CorrectKind } from '../career/intake-fix';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { isConnectorId } from '../career/mail/connectors';
 import { SEASON_KEY, guessSeason, isSeasonId, markTakeoverViewed, takeoverBriefing } from '../career/mail/takeover';
@@ -738,12 +739,29 @@ const ROUTES: Route[] = [
     return ok({ result });
   }),
 
+  // 同一家几份在投、对不上是哪一份：用户在候选里点一份
+  route('POST', '/api/career/inbox/:id/assign', async (ctx) => {
+    const applicationId = str(ctx.body.application_id);
+    if (!applicationId) return fail('application_id 不能为空');
+    try { return ok({ result: await assignIntake(intakeDeps(ctx), ctx.params.id, applicationId) }); } catch (error) {
+      return fail(error instanceof Error ? error.message : '归档失败');
+    }
+  }),
+  // 读错了：用户点「不对」再选正确的类型
+  route('POST', '/api/career/inbox/:id/correct', async (ctx) => {
+    const kind = CORRECTABLE_KINDS.find(k => k === ctx.body.kind);
+    if (!kind) return fail(`kind 必须是 ${CORRECTABLE_KINDS.join(' / ')}`);
+    try { return ok({ result: await correctIntake(intakeDeps(ctx), ctx.params.id, kind satisfies CorrectKind) }); } catch (error) {
+      return fail(error instanceof Error ? error.message : '更正失败');
+    }
+  }),
+
   // ---------- 截止事件 ----------
   route('GET', '/api/career/deadlines', ({ repos, core, url }) => {
     const status = url.searchParams.get('status');
     const filter = status === 'open_or_missed' ? status : core.DEADLINE_STATUSES.find(known => known === status);
     const nowIso = new Date().toISOString();
-    // 过了时间的笔试 / 测评 / 面试：月历和通知中心问「考了吗」，不当「已过期」去催（规则在 core.asksAttendance，只有一份）
+    // 过了时间的笔试 / 测评（面试过了时间走复盘，不问）：月历和通知中心问「考了吗」，不当「已过期」去催（规则在 core.asksAttendance，只有一份）
     const deadlines = repos.listDeadlines({ status: filter })
       .map(d => ({ ...d, attendance_question: core.asksAttendance(d, nowIso) ? core.ATTENDANCE_QUESTION[d.kind] ?? null : null }));
     return ok({ deadlines });

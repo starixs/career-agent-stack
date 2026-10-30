@@ -69,7 +69,7 @@ export interface TodayItem {
   deadline_id?: string
   /** 面板一键动作对应的对话意图（带对象 id），为空则该项只能在面板处理。 */
   suggest?: string
-  /** attendance：过了时间的笔试 / 测评 / 面试，问一句「考了吗」，答完收进卷宗（见 asksAttendance）。 */
+  /** attendance：过了时间的笔试 / 测评（面试过了时间走复盘，不问），问一句「考了吗」，答完收进卷宗（见 asksAttendance）。 */
   ask?: 'attendance'
 }
 
@@ -126,13 +126,15 @@ export function deadlineToToday(d: Deadline & { due_at: string }, nowIso: string
     }
   }
   const label = overdue ? '已过期' : days === 0 ? '今天' : days === 1 ? '明天' : `${days} 天后`
+  // 面试邀请进来：看一眼、点一下就开始准备（立场 9），不用自己开口说「帮我准备」
+  const prep = d.kind === 'interview' && !overdue ? { suggest: `帮我准备${d.title.replace(/\s*面试.*$/, '')}的面试` } : {}
   return {
     kind: d.kind === 'interview' && days === 0 ? 'interview_today' : 'deadline',
     priority: overdue ? OVERDUE_PRIORITY : days === 0 ? (d.kind === 'interview' ? 4 : 1) : 7,
     // 面试是要去参加的一个时间，不是截止
     title: d.title, detail: d.kind === 'interview' ? label : `${label}截止`, due_at: d.due_at,
     ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id },
-    deadline_id: d.id,
+    deadline_id: d.id, ...prep,
   }
 }
 

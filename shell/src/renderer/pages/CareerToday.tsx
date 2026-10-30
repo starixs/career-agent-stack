@@ -447,8 +447,9 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
           {item.kind === 'handoff' && !todo.confirmSubmit && !todo.manualSend && (
             <Button variant="primary" size="sm" onClick={onOpenChat}>打开对话接手</Button>
           )}
-          {item.suggest && item.kind !== 'interview_today' && (
-            <ChatActionButton size="sm" variant="ghost" text={item.suggest} context={{ surface: 'today', refs }} />
+          {/* 今天的面试、面完复盘各有自己的按钮，不再重复出一个对话按钮 */}
+          {item.suggest && item.kind !== 'interview_today' && item.kind !== 'interview_retro' && (
+            <ChatActionButton size="sm" variant={item.deadline_id && item.suggest.startsWith('帮我准备') ? 'primary' : 'ghost'} text={item.suggest} context={{ surface: 'today', refs }} />
           )}
           {applicationId && item.kind !== 'review' && (
             <Button variant="ghost" size="sm" onClick={openDossier}>在投递记录里看</Button>

@@ -96,6 +96,8 @@ export interface InterviewRecording {
   id: string; interview_id: string; name: string; mime: string | null; size: number;
   status: 'awaiting_asr' | 'transcribed' | 'failed'; uploaded_at: string; error?: string;
 }
+/** 复盘时可以勾的一条：准备卡上的深挖点或题（GET /interviews/:id/checklist）。 */
+export interface RetroCheckItem { key: string; text: string; source: 'prediction' | 'question' }
 export interface MockInterview {
   id: string; job_id: string | null; resume_tailored_id: string | null; mode: string;
   company_type: string | null; round: string | null; turns_json: string; report_json: string | null;
@@ -226,7 +228,7 @@ export interface Deadline {
   id: string; kind: DeadlineKind; title: string; due_at: string | null; application_id: string | null; job_id: string | null;
   interview_id: string | null; offer_id: string | null; source: string; status: 'open' | 'done' | 'missed' | 'cancelled' | 'skipped';
   url: string | null; note: string | null; created_at: string; updated_at: string;
-  /** 过了时间的笔试 / 测评 / 面试：服务端给出要问的那句（「考了吗？」），答完收进卷宗；不用问时为 null / 缺省。 */
+  /** 过了时间的笔试 / 测评（面试过了时间走复盘，不问）：服务端给出要问的那句（「考了吗？」），答完收进卷宗；不用问时为 null / 缺省。 */
   attendance_question?: string | null;
 }
 export interface DossierNote { id: string; application_id: string; kind: 'note' | 'said' | 'heard' | 'contact' | 'referral' | 'mail'; round: string | null; content: string; created_at: string }
@@ -324,7 +326,11 @@ export interface IntakeResult {
   item: InboxItem; triage: { kind?: string; summary?: string; urgency?: string } | null;
   created: { job_id?: string; application_id?: string; interview_id?: string; offer_id?: string; deadline_ids: string[]; closed_application_id?: string };
   focus: CareerFocusEvent; summary: string;
+  /** 同一家几份在投、对不上是哪一份：点一下归到其中一份。 */
+  candidates?: Array<{ application_id: string; label: string }>;
 }
+/** 读错了，用户点「不对」时能选的正确类型（与服务端 CORRECTABLE_KINDS 一致）。 */
+export type CorrectKind = 'interview_invite' | 'written_test' | 'assessment' | 'rejection' | 'offer' | 'ignored';
 /** 工具 / 路由完成后让面板跳到对应对象。 */
 export interface CareerFocusEvent {
   sessionId?: string | null; surface: 'today' | 'takeover' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;

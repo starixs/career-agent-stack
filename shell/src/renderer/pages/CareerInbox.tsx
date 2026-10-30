@@ -14,6 +14,7 @@ import {
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
+import { requestNavigation } from '@/features/career-shell/navModel';
 import { takeCareerFocus } from '@/features/career-shell/pendingFocus';
 import { isManualSend, isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
 import { ManualSendText } from '@/components/career/ManualSendText';
@@ -23,6 +24,7 @@ import type {
   ActionQueueItem, CareerFocusEvent, Deadline, DossierSummary, InboxItem, IntakeResult, SubmitReviewSummary,
 } from '@/components/career/types';
 import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
+import { NotRight, PickApplication } from '@/components/career/inbox/InboxFixButtons';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 
@@ -72,7 +74,7 @@ export function isDueSoon(d: Deadline, now: Date = new Date()): boolean {
 type FeedEntry =
   | { type: 'mail'; key: string; at: string; item: InboxItem }
   | { type: 'review'; key: string; at: string; action: ActionQueueItem; confirm?: boolean; manual?: boolean }
-  | { type: 'remind'; key: string; at: string; deadline: Deadline };
+  | { type: 'remind'; key: string; at: string; deadline: Deadline; past: boolean };
 
 /** 本地处理过的条目：批准后原地变成「已发送 · 10:42」，不跳走（7.2）。 */
 interface Resolved { label: string; at: string }
@@ -117,7 +119,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
       if (action.kind === 'submit') list.push({ type: 'review', key: `confirm:${action.id}`, at: action.updated_at, action, confirm: true });
       else if (isManualSend(action)) list.push({ type: 'review', key: `manual:${action.id}`, at: action.updated_at, action, manual: true });
     }
-    for (const d of deadlines.data ?? []) if (isDueSoon(d, now)) list.push({ type: 'remind', key: `remind:${d.id}`, at: d.created_at, deadline: d });
+    for (const d of deadlines.data ?? []) if (isDueSoon(d, now)) list.push({ type: 'remind', key: `remind:${d.id}`, at: d.created_at, deadline: d, past: !!d.due_at && Date.parse(d.due_at) < now.getTime() });
     const seen = new Set(list.map(e => e.key));
     for (const [key, entry] of kept) if (!seen.has(key)) list.push(entry);
     return list.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
@@ -180,7 +182,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
                   <ReviewRow entry={entry} label={appLabel(entry.action.application_id)} resolved={resolved.get(entry.key)} onResolved={label => { resolve(entry, label); reloadFeed(); }} />
                 )}
                 {entry.type === 'remind' && (
-                  <RemindRow deadline={entry.deadline} label={entry.deadline.application_id ? appLabel(entry.deadline.application_id) : null} resolved={resolved.get(entry.key)} onResolved={label => { resolve(entry, label); reloadFeed(); }} />
+                  <RemindRow deadline={entry.deadline} past={entry.past} label={entry.deadline.application_id ? appLabel(entry.deadline.application_id) : null} resolved={resolved.get(entry.key)} onResolved={label => { resolve(entry, label); reloadFeed(); }} />
                 )}
               </li>
             ))}
@@ -282,9 +284,9 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
   );
 }
 
-function RemindRow({ deadline, label, resolved, onResolved }: { deadline: Deadline; label: string | null; resolved?: Resolved; onResolved: (label: string) => void }) {
+function RemindRow({ deadline, past, label, resolved, onResolved }: { deadline: Deadline; past: boolean; label: string | null; resolved?: Resolved; onResolved: (label: string) => void }) {
   const act = useCareerAction();
-  // 过了时间的笔试 / 测评 / 面试：问「考了吗」，不标红「已过期」
+  // 过了时间的笔试 / 测评：问「考了吗」，不标红「已过期」（面试过了时间走复盘，不问）
   const question = deadline.attendance_question ?? null;
   return (
     <div>
@@ -299,7 +301,13 @@ function RemindRow({ deadline, label, resolved, onResolved }: { deadline: Deadli
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {question
             ? <AttendanceButtons deadlineId={deadline.id} kind={deadline.kind} onAnswered={onResolved} />
-            : <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>}
+            : deadline.kind === 'interview' && past
+              // 面试时间过了：多半面完了，去复盘（说几句 / 勾一勾 / 传录音），不当待办「完成」
+              ? <Button size="sm" variant="primary" onClick={() => requestNavigation({ kind: 'career-dossier', view: 'interview' })}>面完了？去复盘</Button>
+              : deadline.kind === 'interview'
+              // 面试是要去参加的时间，不是要「完成」的待办：点一下开始准备
+              ? <ChatActionButton size="sm" variant="primary" text="帮我准备这场面试" context={{ surface: 'inbox', refs: deadline.application_id ? { application_id: deadline.application_id } : { deadline_id: deadline.id } }} />
+              : <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>}
           {deadline.application_id && (
             <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: deadline.application_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
           )}
@@ -396,6 +404,11 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
   const preview = expanded || raw.length <= PREVIEW_LIMIT ? raw : `${raw.slice(0, PREVIEW_LIMIT)}…`;
   const run = (fn: () => Promise<unknown>) => act.run(async () => { await fn(); onChanged(); });
   const dossierOptions = dossiers.map(d => ({ value: d.application_id, label: `${d.company_name ?? '未知公司'} · ${d.title}` }));
+  // 同一家几份在投、对不上是哪一份：候选列成按钮，点一下归档
+  const candidateIds = safeJson<{ match?: { candidates?: unknown } }>(item.parsed_json, {}).match?.candidates;
+  const choices = Array.isArray(candidateIds) ? dossierOptions.filter(o => candidateIds.includes(o.value)).map(o => ({ application_id: o.value, label: o.label })) : [];
+  const [fixed, setFixed] = useState<string | null>(null);
+  const fixedThen = (label: string) => { setFixed(label); onChanged(); };
 
   return (
     <div ref={ref} data-inbox-id={item.id} className={highlighted ? '-mx-3 -my-1 rounded-md bg-[var(--primary-soft)] px-3 py-1' : ''}>
@@ -415,7 +428,9 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
         </div>
       )}
       {act.error && <ErrorRow message={act.error} />}
-      {item.status === 'new' && (
+      {fixed && <div role="status" className="mt-1.5 text-xs font-medium text-[var(--success)]">{fixed}</div>}
+      {!fixed && item.status === 'new' && choices.length > 1 && <div className="mt-2"><PickApplication inboxId={item.id} choices={choices} onDone={fixedThen} /></div>}
+      {!fixed && item.status === 'new' && choices.length <= 1 && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <ChatActionButton size="sm" text="帮我处理这条" context={{ surface: 'inbox', refs: { inbox_id: item.id } }} />
           {dossierOptions.length > 0 && (
@@ -427,9 +442,12 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
           <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void run(() => careerApi.dismissInbox(item.id))}>忽略</Button>
         </div>
       )}
-      {item.status === 'processed' && (
+      {!fixed && item.status === 'processed' && (
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
           <span>已归入{item.linked_type ? `：${LINKED_TYPE_LABELS[item.linked_type] ?? item.linked_type}` : ''}</span>
+          {/* 面试邀请进来，看一眼、点一下就开始准备 */}
+          {item.kind === 'interview_invite' && <ChatActionButton size="sm" variant="primary" text="帮我准备这场面试" context={{ surface: 'inbox', refs: { inbox_id: item.id, ...(item.linked_type === 'interview' && item.linked_id ? { interview_id: item.linked_id } : {}) } }} />}
+          <NotRight inboxId={item.id} current={item.kind} onDone={fixedThen} />
           {item.linked_type === 'application' && item.linked_id && (
             <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: item.linked_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
           )}

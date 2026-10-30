@@ -1,15 +1,17 @@
 /**
- * 面完复盘的两个入口：传一段自己录的录音，或者说几句。
+ * 面完复盘的三个入口：勾一勾（准备过的深挖点和题，勾被问到 / 卡住的）、说几句、传一段自己录的录音。
+ * 有可勾的就默认勾一勾：立场 9，复盘能用勾选代替打字。
  * - 录音：存到本机、挂在这场面试上，等语音识别转成文字后复盘（识别还没接，先显示「等待转写」）；
- * - 说几句：把用户的话连同这场面试的 id 交给对话里的小芽，由它调 interview_retro 复盘。
+ * - 说几句 / 勾一勾：把内容连同这场面试的 id 交给对话里的小芽，由它调 interview_retro 复盘（不再追问）。
  */
-import { Mic, Upload } from 'lucide-react';
+import { ListChecks, Mic, Upload } from 'lucide-react';
 import { useRef, useState, type ChangeEvent } from 'react';
 
 import { careerApi } from './careerApi';
 import { INTERVIEW_ROUND_LABELS } from './careerConstants';
 import { Button, ErrorRow, TextArea, suggestToChat } from './CareerPrimitives';
 import { readAsBase64 } from './fileBase64';
+import { RetroChecklist } from './RetroChecklist';
 import type { Interview, InterviewRecording } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
@@ -27,7 +29,10 @@ export function retroPrompt(interview: Pick<Interview, 'id' | 'company_name' | '
 }
 
 export function InterviewRetroBox({ interview }: { interview: Interview }) {
-  const [mode, setMode] = useState<'words' | 'recording'>('words');
+  const checklist = useCareerQuery(() => careerApi.interviewChecklist(interview.id), ['interview', 'question', 'probe_prediction']);
+  const canCheck = (checklist.data ?? []).length > 0;
+  const [picked, setMode] = useState<'check' | 'words' | 'recording' | null>(null);
+  const mode = picked ?? (canCheck ? 'check' : 'words');
   const [words, setWords] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const upload = useCareerAction();
@@ -47,9 +52,11 @@ export function InterviewRetroBox({ interview }: { interview: Interview }) {
   return (
     <div className="space-y-3" data-testid="interview-retro-box">
       <div role="tablist" className="flex gap-1.5">
+        {canCheck && <Button size="sm" variant={mode === 'check' ? 'primary' : 'ghost'} onClick={() => setMode('check')} aria-selected={mode === 'check'}><ListChecks className="h-3.5 w-3.5" />勾一勾</Button>}
         <Button size="sm" variant={mode === 'words' ? 'primary' : 'ghost'} onClick={() => setMode('words')} aria-selected={mode === 'words'}><Mic className="h-3.5 w-3.5" />说几句</Button>
         <Button size="sm" variant={mode === 'recording' ? 'primary' : 'ghost'} onClick={() => setMode('recording')} aria-selected={mode === 'recording'}><Upload className="h-3.5 w-3.5" />传录音</Button>
       </div>
+      {mode === 'check' && canCheck && <RetroChecklist items={checklist.data ?? []} onSubmit={text => suggestToChat(retroPrompt(interview, text))} />}
       {mode === 'words' && (
         <div className="space-y-2">
           <TextArea value={words} onChange={e => setWords(e.target.value)} placeholder="被问了什么、哪里卡住了、面试官的反应……想到哪说到哪" aria-label="说几句复盘" />

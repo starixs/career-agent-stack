@@ -43,6 +43,14 @@ describe('收件箱 / 截止 / 今日队列', () => {
     expect(r.today('2026-10-04T07:00:00.000Z').items.find(i => i.deadline_id === d.id)).toBeUndefined()
     expect(r.getDeadline(d.id)!.status).toBe('open')
   })
+  it('两天后的面试带「帮我准备」：邀请进来看一眼、点一下就开始准备；测评不带', () => {
+    const r = mem()
+    r.createDeadline({ kind: 'interview', title: '百度 · 算法 面试（二面）', due_at: '2026-10-05T06:00:00.000Z' })
+    r.createDeadline({ kind: 'assessment', title: '九方云测评', due_at: '2026-10-05T06:00:00.000Z' })
+    const byTitle = Object.fromEntries(r.today(NOW).items.map(i => [i.title, i.suggest]))
+    expect(byTitle['百度 · 算法 面试（二面）']).toBe('帮我准备百度 · 算法的面试')
+    expect(byTitle['九方云测评']).toBeUndefined()
+  })
   it('面试在今日队列里说「几天后」，不说「截止」；测评仍说截止', () => {
     const r = mem()
     r.createDeadline({ kind: 'interview', title: '百度二面', due_at: '2026-10-05T06:00:00.000Z' })

@@ -40,7 +40,7 @@ export interface CalendarTodo {
   manualSend?: boolean;
   /** 本地划掉时记下怎么处理的（已批准 / 不发了 / 已完成…）。 */
   note?: string;
-  /** 过了时间的笔试 / 测评 / 面试：行里不放「完成」，放「考了 / 没去」（AttendanceButtons）。 */
+  /** 过了时间的笔试 / 测评（面试过了时间走复盘，不问）：行里不放「完成」，放「考了 / 没去」（AttendanceButtons）。 */
   askAttendance?: Deadline['kind'];
 }
 

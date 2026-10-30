@@ -107,3 +107,16 @@ export function normalizeRoundLabel(round?: string | null): string {
   if (/群面|group/.test(r)) return 'group';
   return 'other';
 }
+
+/**
+ * 按公司名找「要准备的那份」申请：同一家几份在投时，有面试排着的那份就是它（能从数据补的不问）。
+ * 还是分不出来才返回候选，由调用方列出来让用户点。
+ */
+export function applicationForInterview(repos: Repos, companyName: string): { application_id?: string; candidates: Array<{ application_id: string; label: string }> } {
+  const hits = repos.findOpenApplicationsByCompany(companyName);
+  if (hits.length <= 1) return { application_id: hits[0]?.id, candidates: [] };
+  const withInterview = hits.filter(h => repos.listDeadlines({ status: 'open', application_id: h.id }).some(d => d.kind === 'interview'));
+  if (withInterview.length === 1) return { application_id: withInterview[0].id, candidates: [] };
+  const pool = withInterview.length ? withInterview : hits;
+  return { candidates: pool.map(h => ({ application_id: h.id, label: `${h.job.company_name ?? '未知公司'} · ${h.job.title}` })) };
+}
