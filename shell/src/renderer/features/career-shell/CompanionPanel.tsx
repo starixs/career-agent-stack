@@ -218,7 +218,7 @@ function NowSection({ run, handoff }: { run: ProgressRun | null; handoff: boolea
 }
 
 /**
- * 点一条待办去它该去的地方：投递相关 → 那条投递的档案；待批准 → 岗位收藏里的审批卡；
+ * 点一条待办去它该去的地方：投递相关 → 那条投递的档案；待批准 → 岗位库里的审批卡；
  * 收件箱 → 收件箱；需要你接手 → 展开浏览器侧栏；其余 → 今日。
  */
 export function openTodoItem(item: TodayItem): void {

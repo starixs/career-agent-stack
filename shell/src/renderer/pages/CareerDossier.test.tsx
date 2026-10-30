@@ -182,7 +182,7 @@ describe('CareerDossier · 投递记录', () => {
     expect(screen.getByRole('heading', { name: '面试工作台' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'apply'); });
     expect(await screen.findByTestId('embedded-apply')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '岗位收藏' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '岗位库' })).toBeInTheDocument();
     // 旧的「笔试记录」视图落到助力记录
     act(() => { setCareerSubView('career-dossier', 'exam'); });
     expect(await screen.findByText('还没有助力记录')).toBeInTheDocument();

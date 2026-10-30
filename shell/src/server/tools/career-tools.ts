@@ -146,7 +146,7 @@ function applyStatusHint(status: string): string {
 export { applyJsonPatch } from '../career/tailor';
 
 /**
- * job.prefilter_json 是多方共用的对象：`campus` 是校招来源数据（批次 / 行业 / 企业性质，岗位收藏表格按它筛选，
+ * job.prefilter_json 是多方共用的对象：`campus` 是校招来源数据（批次 / 行业 / 企业性质，岗位库表格按它筛选，
  * 见 job-board.ts boardMeta），`evaluate` 是 job_evaluate 的硬约束预筛。只替换 evaluate，其余键原样保留。
  */
 export function mergeEvaluatePrefilter(existing: string | null | undefined, prefilter: unknown): string | null {
@@ -156,7 +156,7 @@ export function mergeEvaluatePrefilter(existing: string | null | undefined, pref
   return Object.keys(next).length ? JSON.stringify(next) : null;
 }
 
-// ============= 岗位收藏表格的筛选维度（与渲染端 jobBoardFilters.ts 同义） =============
+// ============= 岗位库表格的筛选维度（与渲染端 jobBoardFilters.ts 同义） =============
 // 页面上的「批次 / 行业 / 类型 / 地点 / 进度」多选 + 搜索：jobs_board 用同一套语义，保证助理看到的就是页面那一批。
 const EMPLOYMENT_LABELS: Record<string, string> = { campus: '校招', intern: '实习', social: '社招' };
 /** 与 job-board.ts 的 DONE 一致：投出去之后的阶段。 */
@@ -1144,7 +1144,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ application_id: application.id, action_id: claimed.action.id, packet: { id: packet.id, resume_id: packet.resume_id, resume_kind: packet.resume_kind, resume_pick_reason: picked?.reason ?? null, has_pdf: !!packet.resume_pdf_path }, ...(warning ? { warning } : {}), ...body });
       })()),
 
-      tool('jobs_board', '岗位汇总表 = 「岗位收藏」页那张表（校招 / 实习网申汇总 + 我的进度 + 可解释匹配）。筛选维度与页面一致：批次 batch / 行业 industry / 类型 type（校招、实习、社招、央国企、外企…）/ 地点 location / 进度 stage 均可多选，q 搜公司或岗位名；页面默认只看没截止的（open_only=true）。用户在岗位收藏页问"这些 / 当前筛选"时，把 refs.filters 换成这些参数（tag→type、city→location、progress→stage，其余同名），refs.job_ids 拆成数组传 job_ids。返回 total（符合条件的总数）+ 前 limit 条（按匹配分排序）；每条带批次 / 行业 / 类型标签和"哪条要求对应用户哪段经历"。推荐时只推荐 fits=true 的（不违反用户明确条件）。', {
+      tool('jobs_board', '岗位汇总表 = 「岗位库」页那张表（校招 / 实习网申汇总 + 我的进度 + 可解释匹配）。筛选维度与页面一致：批次 batch / 行业 industry / 类型 type（校招、实习、社招、央国企、外企…）/ 地点 location / 进度 stage 均可多选，q 搜公司或岗位名；页面默认只看没截止的（open_only=true）。用户在岗位库页问"这些 / 当前筛选"时，把 refs.filters 换成这些参数（tag→type、city→location、progress→stage，其余同名），refs.job_ids 拆成数组传 job_ids。返回 total（符合条件的总数）+ 前 limit 条（按匹配分排序）；每条带批次 / 行业 / 类型标签和"哪条要求对应用户哪段经历"。推荐时只推荐 fits=true 的（不违反用户明确条件）。', {
         q: z.string().optional().describe('搜公司 / 岗位名'),
         batch: z.array(z.string()).optional().describe('批次，如 ["正式批","提前批"]'), industry: z.array(z.string()).optional().describe('行业，如 ["互联网"]'),
         type: z.array(z.string()).optional().describe('类型标签：校招 / 实习 / 社招（也可写 campus / intern / social）或企业性质，如 央国企、外企'),

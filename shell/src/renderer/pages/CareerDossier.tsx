@@ -1,7 +1,7 @@
 /**
  * 投递记录：一张表列出每条投递走到哪一步；点一行看岗位（JD 与岗位页面）。不再有单条投递的档案页——
  * 投的哪版简历、说过什么、面试准备都交给助理在对话里摊开。
- * 视图：投递记录 / 岗位收藏 / 助力记录（笔试、面试、模拟面试合一）；面试工作台和 Offer 对比从功能市场打开。
+ * 视图：投递记录 / 岗位库 / 助力记录（笔试、面试、模拟面试合一）；面试工作台和 Offer 对比从功能市场打开。
  */
 import { ExternalLink as ExternalLinkIcon, Search, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -36,7 +36,7 @@ const CareerExamSearch = lazy(() => import('@/pages/CareerExamSearch'));
 // 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
 type View = 'line' | 'apply' | 'assist' | 'interview' | 'offer' | 'exam-search';
 const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
-  apply: { title: '岗位收藏', subtitle: '想投的岗位和准备好的申请' },
+  apply: { title: '岗位库', subtitle: '持续更新的校招 / 实习岗位，挑中就能定制、投递' },
   line: { title: '投递记录', subtitle: '投了哪些，走到了哪一步' },
   assist: { title: '助力记录', subtitle: '笔试、面试、模拟面试，每一次助力都在这里' },
   interview: { title: '面试工作台', subtitle: '面试记录、题库、模拟面试和深挖点预测' },

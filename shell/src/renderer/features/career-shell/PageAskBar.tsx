@@ -14,7 +14,7 @@ import { pageSurfaceId, type PageTarget } from './pageSurface';
 export function PageAskBar({ target, placeholder, actions, refs }: {
   target: PageTarget;
   placeholder: string;
-  /** 输入框旁边的页面专属快捷按钮，比如岗位收藏页的「AI 找工作」。 */
+  /** 输入框旁边的页面专属快捷按钮，比如岗位库页的「AI 找工作」。 */
   actions?: ReactNode;
   /** 用户当前正在看的对象 id，一并带给助理。 */
   refs?: Record<string, string | null | undefined>;

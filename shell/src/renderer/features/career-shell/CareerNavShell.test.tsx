@@ -16,7 +16,7 @@ describe('navModel', () => {
     expect(work.map(item => item.label)).toEqual(['招聘概览', '通知中心']);
     expect(work.map(item => item.target.kind)).toEqual(['career-today', 'career-inbox']);
     expect(NAV_AREAS.find(area => area.id === 'career')!.items.map(item => item.label))
-      .toEqual(['岗位收藏', '投递记录', '助力记录']);
+      .toEqual(['岗位库', '投递记录', '助力记录']);
     expect(NAV_AREAS.find(area => area.id === 'assets')!.items.map(item => item.label))
       .toEqual(['基本资料', '简历']);
     expect(NAV_AREAS.find(area => area.id === 'settings')!.items.map(item => item.id))
@@ -67,7 +67,7 @@ describe('CareerNavShell', () => {
   it('opens the target of an L2 item and of an area without sub-pages', () => {
     const onOpen = vi.fn();
     render(<CareerNavShell activeView="career-dossier" onOpen={onOpen} />);
-    fireEvent.click(screen.getByRole('button', { name: '岗位收藏' }));
+    fireEvent.click(screen.getByRole('button', { name: '岗位库' }));
     expect(onOpen).toHaveBeenLastCalledWith({ kind: 'career-dossier', view: 'apply' });
     fireEvent.click(screen.getByRole('button', { name: /功能市场/ }));
     expect(onOpen).toHaveBeenLastCalledWith({ kind: 'career-guide' });
