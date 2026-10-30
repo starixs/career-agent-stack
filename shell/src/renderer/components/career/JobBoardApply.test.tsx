@@ -9,12 +9,13 @@ vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), ap
 
 import { apiPostJson } from '@/api/apiFetch';
 
-import { ApplyConfirm, skippedText, startedText } from './JobBoardApply';
+import { ApplyConfirm, sitesText, skippedText, startedText } from './JobBoardApply';
 
 const PLAN = {
   ready: ['j1', 'j2', 'j3', 'j4', 'j5'], targets: 2,
   skipped: [{ job_id: 'j6', reason: '已经投过' }, { job_id: 'j7', reason: '没有网申链接' }],
   needs_resume: ['j3', 'j4', 'j5'], resumes: [{ id: 'r_ai', name: 'AI 方向' }, { id: 'r_gen', name: '通用版' }],
+  sites: [{ site: 'beisen.com', n: 3, login: true }, { site: 'moka.cn', n: 2, login: false }],
 };
 
 describe('ApplyConfirm', () => {
@@ -29,6 +30,7 @@ describe('ApplyConfirm', () => {
     expect(await screen.findByText(/投 5 家：填到提交前停下，标星的 2 家填好后先给你看/)).toBeInTheDocument();
     expect(screen.getByText('跳过 已经投过 1 · 没有网申链接 1')).toBeInTheDocument();
     expect(screen.getByText(/3 家没有定制版/)).toBeInTheDocument();
+    expect(screen.getByText('用到 2 个网站：beisen.com 3 家（要登录） · moka.cn 2 家')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '开始投 5 家' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/jobs/apply', { job_ids: PLAN.ready, resume_id: 'r_ai' }));
     await waitFor(() => expect(onStarted).toHaveBeenCalledWith(expect.stringContaining('「等你」')));
@@ -45,6 +47,7 @@ describe('ApplyConfirm', () => {
 
   it('文字：同一原因合在一起数；开始后指向等你条', () => {
     expect(skippedText([{ job_id: 'a', reason: '已在投' }, { job_id: 'b', reason: '已在投' }])).toBe('已在投 2');
+    expect(sitesText([])).toBe('');
     expect(startedText(3, [])).toBe('已开始投 3 家，在后台填到提交前；要你的事会出现在下面的「等你」里。');
   });
 });

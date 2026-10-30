@@ -25,6 +25,12 @@ export function startedText(started: number, skipped: JobPlan['skipped']): strin
   return skipped.length ? `${head}跳过：${skippedText(skipped)}。` : head;
 }
 
+/** 「用到 3 个网站：beisen.com 4 家（要登录）· moka.cn 2 家」：要登录的开始后在等你条里一次带你登完。 */
+export function sitesText(sites: JobPlan['sites']): string {
+  if (!sites.length) return '';
+  return `用到 ${sites.length} 个网站：${sites.map(s => `${s.site} ${s.n} 家${s.login ? '（要登录）' : ''}`).join(' · ')}`;
+}
+
 function planLine(plan: JobPlan): string {
   const n = plan.ready.length;
   if (!n) return '这一批都不能投';
@@ -57,6 +63,7 @@ export function ApplyConfirm({ jobIds, onStarted, onCancel }: { jobIds: string[]
       {!plan && load.busy && <LoadingRow />}
       {plan && <span className="text-[var(--ink)]">{planLine(plan)}</span>}
       {plan && plan.skipped.length > 0 && <span className="text-xs text-[var(--muted)]">跳过 {skippedText(plan.skipped)}</span>}
+      {plan && plan.sites.length > 0 && <span className="text-xs text-[var(--muted)]" title="要登录的网站，开始后在下面的「等你」里一次带你登完，之后自动投">{sitesText(plan.sites)}</span>}
       {askResume && (
         <span className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
           {plan.needs_resume.length} 家没有定制版，用

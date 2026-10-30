@@ -11,6 +11,7 @@
  */
 import type { ActionQueueItem, Repos } from '@career/core';
 
+import { recordApplyability } from './applyability';
 import { explainApproval } from './learned-rules';
 import { decideSubmit } from './submit-policy';
 
@@ -196,6 +197,8 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
   }
   if (!result) return fail(errorLine ? `${errorLine.error ?? '浏览器路由报错'}（HTTP ${errorLine.status ?? '?'}）` : '浏览器没有返回填表结果');
   const summary = summarizeDriveResult(result);
+  // 记下这个岗位能不能直接投（有表 / 合集 / 要登录），下次框选时就知道，不用再撞一次
+  recordApplyability(r, action, result);
   // 用户接管期间自己填好的字段 → 答案库（未确认），下次同类问题直接用原话
   if (Array.isArray(result.learned)) {
     for (const item of result.learned as Array<{ label?: string; value?: string }>) {

@@ -343,7 +343,9 @@ export interface CareerChatSuggestEvent { text: string; context?: { surface?: st
 // ===== 岗位汇总表 =====
 export type EmploymentType = 'campus' | 'intern' | 'social' | 'unknown';
 /** 框选确认前的计划（服务端 career/batch-apply.ts JobPlan）。 */
-export interface JobPlan { ready: string[]; targets: number; skipped: Array<{ job_id: string; reason: string }>; needs_resume: string[]; resumes: Array<{ id: string; name: string }> }
+export interface JobPlan { ready: string[]; targets: number; skipped: Array<{ job_id: string; reason: string }>; needs_resume: string[]; resumes: Array<{ id: string; name: string }>; sites: Array<{ site: string; n: number; login: boolean }> }
+/** 岗位能不能直接投（服务端 career/applyability.ts）：填表引擎打开过才知道。 */
+export type Applyability = 'form' | 'no_form' | 'entry' | 'login' | 'unknown';
 export interface JobPrefs { cohort?: string | null; degree?: string | null; cities?: string[]; employment_types?: EmploymentType[]; keywords?: string[] }
 export interface JobHardCheck { rule: string; label: string; ok: boolean | null; detail: string }
 export interface JobRequirementMatch { requirement: string; weight: number; status: 'covered' | 'missing'; terms: string[]; evidence?: { id: string; kind: 'claim' | 'resume'; text: string; label?: string } }
@@ -356,6 +358,8 @@ export interface JobBoardRow {
   meta?: JobBoardMeta;
   /** 目标岗位：interview = 进过面试；user = 用户亲手标的；null = 不算。 */
   target?: 'interview' | 'user' | null;
+  /** 能不能直接投；老服务端没有这个字段时按 unknown。 */
+  applyability?: Applyability;
 }
 export interface JobBoardMeta { batch: string | null; industry: string | null; type_tags: string[] }
 export interface JobBoardFilter { q?: string; employment_type?: string; city?: string; cohort?: string; open_only?: boolean; fits_only?: boolean; progress?: 'none' | 'active' | 'done'; sort?: 'match' | 'deadline' | 'updated' }

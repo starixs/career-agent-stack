@@ -56,7 +56,8 @@ function parseSkipped(v: unknown): JobPlan['skipped'] {
 function parseJobPlan(v: unknown): JobPlan {
   const d = asDict(v);
   const resumes = (Array.isArray(d.resumes) ? d.resumes : []).map(asDict).filter(r => typeof r.id === 'string').map(r => ({ id: String(r.id), name: typeof r.name === 'string' ? r.name : '未命名简历' }));
-  return { ready: strings(d.ready), targets: typeof d.targets === 'number' ? d.targets : 0, skipped: parseSkipped(d.skipped), needs_resume: strings(d.needs_resume), resumes };
+  const sites = (Array.isArray(d.sites) ? d.sites : []).map(asDict).filter(x => typeof x.site === 'string' && typeof x.n === 'number').map(x => ({ site: String(x.site), n: Number(x.n), login: x.login === true }));
+  return { ready: strings(d.ready), targets: typeof d.targets === 'number' ? d.targets : 0, skipped: parseSkipped(d.skipped), needs_resume: strings(d.needs_resume), resumes, sites };
 }
 
 export function careerPath(p: string): string {
