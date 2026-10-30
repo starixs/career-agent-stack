@@ -81,7 +81,8 @@ export function deadlineToToday(d: Deadline & { due_at: string }, nowIso: string
   return {
     kind: d.kind === 'interview' && days === 0 ? 'interview_today' : 'deadline',
     priority: overdue ? 0 : days === 0 ? (d.kind === 'interview' ? 4 : 1) : 7,
-    title: d.title, detail: `${label}截止`, due_at: d.due_at,
+    // 面试是要去参加的一个时间，不是截止
+    title: d.title, detail: d.kind === 'interview' ? label : `${label}截止`, due_at: d.due_at,
     ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id },
     deadline_id: d.id,
   }
