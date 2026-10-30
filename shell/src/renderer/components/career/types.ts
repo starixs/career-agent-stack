@@ -269,7 +269,7 @@ export interface TakeoverBriefing {
 export type MailOauthStart = { ok: true; authorize_url: string; state: string } | { ok: false; error_code: string; message: string };
 export type MailConnectErrorCode = 'imap_auth_failed' | 'imap_disabled' | 'provider_blocked' | 'unreachable' | 'duplicate' | 'invalid_input';
 export type MailConnectResult =
-  | { ok: true; account: MailAccount; smtp_ok: boolean }
+  | { ok: true; account: MailAccount; smtp_ok: boolean; /** 网申填的是另一个邮箱时给出那个地址：那边的回音这里收不到 */ apply_address_mismatch?: string | null }
   | { ok: false; error_code: MailConnectErrorCode; message: string; account_id?: string };
 export interface MailAuditEntry { id: string; actor: 'agent' | 'user' | 'system'; operation: string; status: 'ok' | 'failed'; detail: Record<string, unknown> | null; latency_ms: number | null; created_at: string }
 export interface MailAccountDetail { account: MailAccount; usage: { days: number; by_op: Record<string, { ok: number; failed: number }> }; audit: MailAuditEntry[] }

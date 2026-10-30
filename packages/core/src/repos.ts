@@ -7,13 +7,16 @@ import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKi
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canReachStage, canTransition, CLOSED_STAGES, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, MailAccount, MailAudit, MailMessage, Interview, Offer } from './types.js'
-import { classifyJobTitle, collectedToToday, COLLECTABLE_STAGES, deadlineToToday, funnelBy, latestIso, silenceOf, SILENT_COLLECT_NOTE, sortToday, stageLabel, staleToToday, weekStartOf, type TodayItem, type FunnelRow } from './surfaces.js'
+import { classifyJobTitle, collectedToToday, COLLECTABLE_STAGES, deadlineToToday, funnelBy, latestIso, OVERDUE_PRIORITY, silenceOf, SILENT_COLLECT_NOTE, sortToday, stageLabel, staleToToday, weekStartOf, type TodayItem, type FunnelRow } from './surfaces.js'
 import { buildMonthBoard, REOPEN_NOTE_PREFIX, type MonthBoard, type StageHistoryRow } from './review-board.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
 export interface AnswerRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: AnswerSensitivity; source: string; use_count: number; last_used_at: string | null; updated_at: string }
 export interface AnswerEventRow { id: string; kind: AnswerEventKind; question_key: string; question_text: string; answer: string | null; previous_value: string | null; source: string | null; sensitivity: AnswerSensitivity; application_id: string | null; job_key: string | null; site_host: string | null; created_at: string; uploaded_at: string | null; upload_error: string | null }
 export interface ChatCardRow { id: string; session_id: string | null; tool_use_id: string | null; kind: string; title: string; data_json: string; state: 'pending' | 'completed' | 'dismissed'; created_at: string; updated_at: string }
+
+/** 已经投出去的阶段：到了这些阶段，招聘方的回音就会往邮箱里来。 */
+const SENT_STAGES: readonly ApplicationStage[] = ['applied', 'responded', 'interview', 'pending', 'offer', 'hired', 'rejected']
 
 export class Repos {
   constructor(public readonly db: Db) {}
@@ -684,6 +687,12 @@ export class Repos {
     for (const a of this.listMailAccounts()) {
       if (a.status !== 'auth_failed') continue
       items.push({ kind: 'mail_auth', priority: 0, title: `${a.address} 连接失效`, detail: '新邮件暂时收不进来，笔试、面试通知可能会漏；重新授权就能恢复', due_at: null, ref: { type: 'mail_account', id: a.id } })
+    }
+    // 投出去了却没连邮箱：回音全在邮箱里，投出之后这一段整个接不上（世界模型 §8 第一条），给一条，连上就消失。
+    // 它没有外部期限，排在队尾，不抢「回来先给最急的一件」（OVERDUE_PRIORITY 那一档）
+    if (!this.listMailAccounts().length) {
+      const sent = apps.filter(a => SENT_STAGES.includes(a.stage)).length
+      if (sent) items.push({ kind: 'mail_auth', priority: OVERDUE_PRIORITY, title: `投出了 ${sent} 份，回音会发到邮箱`, detail: '连上网申填的那个邮箱，面试、笔试、拒信就会自己进来', due_at: null, ref: { type: 'mail_missing', id: 'mail' } })
     }
     const inboxNew = this.listInbox('new')
     if (inboxNew.length) items.push({ kind: 'inbox', priority: 5, title: `收件箱有 ${inboxNew.length} 条新内容待归档`, ref: { type: 'inbox_item', id: inboxNew[0].id }, suggest: '帮我把收件箱里的新内容归档' })

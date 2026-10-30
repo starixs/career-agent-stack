@@ -22,6 +22,7 @@ import { getShellLLM } from '../career/llm';
 import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../career/intake';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { isConnectorId } from '../career/mail/connectors';
+import { applyAddress, reconcileApplyAddress } from '../career/mail/apply-address';
 import { SEASON_KEY, guessSeason, isSeasonId, markTakeoverViewed, takeoverBriefing } from '../career/mail/takeover';
 import { withConnection } from '../career/mail/connect-service';
 import { mailBackend } from '../career/mail/backend';
@@ -892,15 +893,19 @@ const ROUTES: Route[] = [
   route('GET', '/api/career/mail/connectors', async (ctx) => {
     const backend = mailBackendOf(ctx);
     const [connectors] = await Promise.all([backend.catalog(), backend.refresh().catch(error => console.warn('[career-mail] refresh connections failed:', error instanceof Error ? error.message : error))]);
-    return ok({ connectors, accounts: ctx.repos.listMailAccounts().map(withConnection), backend: backend.kind });
+    return ok({ connectors, accounts: ctx.repos.listMailAccounts().map(withConnection), backend: backend.kind, apply_address: applyAddress(ctx.vault) });
   }),
   // 填回授权码 → 真实校验 → 保存（云端或本机）；成功后历史导入转到后台
   route('POST', '/api/career/mail/connectors/:id/verify', async (ctx) => {
     if (!isConnectorId(ctx.params.id)) return fail(`暂不支持这个邮箱：${ctx.params.id}`, 404);
     const backend = mailBackendOf(ctx);
     const result = await backend.connect({ connector: ctx.params.id, email: str(ctx.body.email) ?? '', authCode: str(ctx.body.authCode) ?? '', reauthorize: ctx.body.reauthorize === true });
-    if (result.ok) { backend.startImport(result.account); dataChanged(ctx, ['mail_account']); }
-    return ok({ result: result.ok ? { ...result, account: withConnection(result.account) } : result });
+    if (!result.ok) return ok({ result });
+    backend.startImport(result.account);
+    // 和网申用的邮箱对上：基本资料没填就记成这个；填的是另一个，如实告诉他那边的回音收不到
+    const applyMismatch = reconcileApplyAddress(ctx.vault, result.account.address);
+    dataChanged(ctx, ['mail_account', 'vault']);
+    return ok({ result: { ...result, account: withConnection(result.account), apply_address_mismatch: applyMismatch } });
   }),
   // OAuth 轨（预留）：云端未启用时返回 oauth_not_enabled，界面显示「审核后开放」
   route('POST', '/api/career/mail/connectors/:id/oauth/start', async (ctx) => {

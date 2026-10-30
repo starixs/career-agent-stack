@@ -282,7 +282,10 @@ export const careerApi = {
   }),
   mailConnectors: () => apiGetJson<unknown>(careerPath('/mail/connectors')).then(r => {
     const d = asDict(r);
-    return { connectors: pickList<MailConnector>(d.connectors), accounts: pickList<MailAccount>(d.accounts) };
+    const apply = asDict(d.apply_address);
+    // 网申用的邮箱（基本资料里那个）：连邮箱时预填、默认选对应的服务商
+    const applyAddress = typeof apply.address === 'string' ? { address: apply.address, connector_id: typeof apply.connector_id === 'string' ? apply.connector_id : null } : null;
+    return { connectors: pickList<MailConnector>(d.connectors), accounts: pickList<MailAccount>(d.accounts), applyAddress };
   }),
   verifyMailConnector: (id: MailConnectorId, body: { email: string; authCode: string; reauthorize?: boolean }) =>
     apiPostJson<unknown>(careerPath(`/mail/connectors/${encodeURIComponent(id)}/verify`), body).then(r => asDict(r).result as MailConnectResult),

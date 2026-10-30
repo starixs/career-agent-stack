@@ -439,7 +439,7 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
             </>
           )}
           {item.kind === 'mail_auth' && (
-            <Button variant="primary" size="sm" onClick={() => emitEvent('career:focus', { surface: 'inbox' } satisfies CareerFocusEvent)}>重新授权</Button>
+            <Button variant="primary" size="sm" onClick={() => emitEvent('career:focus', { surface: 'inbox' } satisfies CareerFocusEvent)}>{item.ref.type === 'mail_missing' ? '连上邮箱' : '重新授权'}</Button>
           )}
           {item.kind === 'inbox' && (
             <Button size="sm" onClick={() => emitEvent('career:focus', { surface: 'inbox', id: item.ref.type === 'inbox_item' ? item.ref.id : null } satisfies CareerFocusEvent)}>去通知中心</Button>

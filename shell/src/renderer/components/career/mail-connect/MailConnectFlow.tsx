@@ -18,7 +18,7 @@ import { CredentialStep } from './CredentialStep';
 import { OauthConnect } from './OauthConnect';
 
 export type FlowStep = 'intro' | 'guide' | 'form' | 'manage';
-export interface FlowStart { connector: MailConnector; step: FlowStep; account?: MailAccount; reauthorize?: MailAccount }
+export interface FlowStart { connector: MailConnector; step: FlowStep; account?: MailAccount; reauthorize?: MailAccount; /** 网申用的邮箱，填表时预填 */ prefill?: string }
 
 const BACK: Partial<Record<FlowStep, FlowStep>> = { guide: 'intro', form: 'guide' };
 /** 与 className 里的 z-[70] 一致（Tailwind 只认字面量类名）。 */
@@ -59,6 +59,7 @@ export function MailConnectFlow({ start, from, onClose, onConnected }: {
               connector={connector}
               from={from}
               reauthorize={reauthorize}
+              prefill={start.prefill}
               onGoto={next => setStep(next)}
               onManage={id => { setAccountId(id); setStep('manage'); }}
               onConnected={acc => { setAccountId(acc.id); setReauthorize(undefined); onConnected(acc); }}

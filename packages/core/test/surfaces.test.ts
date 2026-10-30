@@ -51,6 +51,15 @@ describe('收件箱 / 截止 / 今日队列', () => {
     expect(byTitle['百度 · 算法 面试（二面）']).toBe('帮我准备百度 · 算法的面试')
     expect(byTitle['九方云测评']).toBeUndefined()
   })
+  it('投出去了却没连邮箱：今日给一条「回音会发到邮箱」；连上就消失', () => {
+    const r = mem()
+    const j = r.upsertJob({ source_platform: 'campus', source_job_id: 'm1', title: '后端开发', company_name: '美团' })
+    expect(r.today(NOW).items.some(i => i.ref.type === 'mail_missing')).toBe(false)
+    r.jumpTo(r.createApplication(j.id).id, 'applied', '投出')
+    expect(r.today(NOW).items.find(i => i.ref.type === 'mail_missing')).toMatchObject({ kind: 'mail_auth', title: '投出了 1 份，回音会发到邮箱' })
+    r.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', imap_port: 993, smtp_host: 'smtp.qq.com', smtp_port: 465 })
+    expect(r.today(NOW).items.some(i => i.ref.type === 'mail_missing')).toBe(false)
+  })
   it('面试在今日队列里说「几天后」，不说「截止」；测评仍说截止', () => {
     const r = mem()
     r.createDeadline({ kind: 'interview', title: '百度二面', due_at: '2026-10-05T06:00:00.000Z' })
@@ -88,6 +97,7 @@ describe('收件箱 / 截止 / 今日队列', () => {
     r.createDeadline({ kind: 'offer_reply', title: '丁公司 offer 回复', due_at: '2026-10-20T00:00:00Z' })
     r.enqueueAction('submit', { job_id: job.id }, app.id)
     r.createInboxItem({ raw_text: '新邮件' })
+    r.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' })
 
     const today = r.today(NOW)
     expect(today.items.map(i => i.kind)).toEqual(['deadline', 'review', 'inbox', 'stale', 'deadline'])

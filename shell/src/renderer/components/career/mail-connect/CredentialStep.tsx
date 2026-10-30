@@ -21,16 +21,18 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Phase = { kind: 'form' } | { kind: 'verifying' } | { kind: 'result'; result: MailConnectResult };
 
-export function CredentialStep({ connector, from, reauthorize, onGoto, onManage, onConnected, onClose }: {
+export function CredentialStep({ connector, from, reauthorize, prefill, onGoto, onManage, onConnected, onClose }: {
   connector: MailConnector;
   from?: 'chat';
   reauthorize?: MailAccount;
+  /** 网申用的邮箱：回音只会发到那里，默认就连它 */
+  prefill?: string;
   onGoto: (step: FlowStep) => void;
   onManage: (accountId: string) => void;
   onConnected: (account: MailAccount) => void;
   onClose: () => void;
 }) {
-  const [email, setEmail] = useState(reauthorize?.address ?? '');
+  const [email, setEmail] = useState(reauthorize?.address ?? prefill ?? '');
   const [code, setCode] = useState('');
   const [touched, setTouched] = useState<{ email?: boolean; code?: boolean }>({});
   const [phase, setPhase] = useState<Phase>({ kind: 'form' });
@@ -156,6 +158,7 @@ function ConnectSuccess({ connector, result, from, onManage, onClose }: {
       <div className="font-human text-lg font-semibold text-[var(--ink)]">{connector.name}已连接</div>
       <p className="text-sm text-[var(--ink-2)]">{result.account.address} 近半年的求职邮件正在后台收进来，收好后出现在通知中心。可以关掉这里去做别的。</p>
       {!result.smtp_ok && <p className="text-xs text-[var(--warning)]">发信验证没通过，暂时不能代发邮件；收信不受影响。</p>}
+      {result.apply_address_mismatch && <p className="text-xs text-[var(--warning)]">网申填的是 {result.apply_address_mismatch}，招聘方的回音会发到那里，这个邮箱收不到。</p>}
       <div className="flex flex-wrap gap-2">
         {from === 'chat'
           ? <Button variant="primary" onClick={onClose}>回到对话</Button>
