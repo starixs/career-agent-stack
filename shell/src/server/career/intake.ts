@@ -8,6 +8,7 @@
 import type { Repos, LLM, Job, JdParsed, InboxItem, InboxKind, InboxSource, DeadlineKind } from '@career/core';
 
 import { htmlToText } from './attachment-reader';
+import { openInterviewDeadline, rescheduleDeadline, upsertInvitedInterview } from './interview-link';
 import type { CoreModule } from './core-module';
 import { loadSkillPrompt } from './skills';
 import { CareerStore } from './store';
@@ -192,9 +193,12 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       }
       case 'interview_invite': {
         const a = ensureApplication('interview', `收到面试邀请${f.round ? `（${f.round}）` : ''}`);
-        const itv = store.createInterview({ application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRound(f.round), date: normalizeIso(f.when, nowIso) ?? null });
+        // 同一场的提醒 / 改期邮件落回原来那场：只更新时间，不多建面试和时间点
+        const { interview: itv } = upsertInvitedInterview(store, { application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRound(f.round), date: normalizeIso(f.when, nowIso) ?? null });
         created.interview_id = itv.id; tables.add('interview');
-        addDeadline('interview', `${label} 面试${f.round ? `（${f.round}）` : ''}`, f.when, { interview_id: itv.id });
+        const known = openInterviewDeadline(r, itv.id);
+        if (!known) addDeadline('interview', `${label} 面试${f.round ? `（${f.round}）` : ''}`, f.when, { interview_id: itv.id });
+        else if (itv.date && itv.date !== known.due_at) { rescheduleDeadline(r, known.id, itv.date); tables.add('deadline'); }
         r.addDossierNote({ application_id: a.id, kind: 'heard', round: f.round ?? null, content: `面试邀请：${f.when ?? '时间待定'}${f.location_or_link ? `，${f.location_or_link}` : ''}${f.contact ? `，联系人 ${f.contact}` : ''}` });
         tables.add('dossier_note');
         break;
