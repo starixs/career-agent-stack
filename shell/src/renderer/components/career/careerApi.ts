@@ -57,6 +57,8 @@ export const careerApi = {
   experiences: () => apiGetJson<unknown>(careerPath('/experiences')).then(r => pickList<ExperienceNode>(r, 'experiences', 'tree', 'items')),
   addExperience: (body: Partial<ExperienceNode>) => apiPostJson<unknown>(careerPath('/experiences'), body).then(r => pickObject<ExperienceNode>(r, 'experience')),
   confirmClaim: (id: string) => apiPostJson<unknown>(careerPath(`/claims/${encodeURIComponent(id)}/confirm`), {}),
+  /** 交简历卡片：确认勾选的说法并按导入草稿生成主简历。 */
+  confirmResumeIntake: (id: string, claimIds: string[]) => apiPostJson<unknown>(careerPath(`/resume-intake/${encodeURIComponent(id)}/confirm`), { claim_ids: claimIds }).then(r => { const m = asDict(r).master_id; return { masterId: typeof m === 'string' ? m : null }; }),
   /** 简历工作台文档（resume-studio ResumeData）；preview 是占位符 → 明文，只给预览用。 */
   getStudio: (id: string) => apiGetJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/studio`)).then(r => {
     const d = asDict(r);

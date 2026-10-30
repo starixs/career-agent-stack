@@ -15,7 +15,8 @@ import { StudioResumeNotFoundError, loadStudio, previewPlaceholders, saveStudio 
 import { careerSetupStatus } from '../career/setup';
 import { loadCore, type CoreModule } from '../career/core-module';
 import { getRepos, careerExportsDir, careerRecordingsDir } from '../career/db';
-import { DomainUnavailableError, loadBridges } from '../career/domain';
+import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
+import { confirmIntake } from '../career/resume-intake';
 import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isAtsMode, setAtsMode, type ExportFormat } from '../career/export';
 import { runAtsCheck } from '../career/ats-check';
 import { getShellLLM } from '../career/llm';
@@ -221,6 +222,19 @@ const ROUTES: Route[] = [
       return ok({ resume });
     } catch (error) {
       return fail(error instanceof Error ? error.message : '保存失败', 404);
+    }
+  }),
+  // 交简历卡片里点「生成主简历」：确认勾选的说法，按导入草稿直接组装主简历（不调模型）
+  route('POST', '/api/career/resume-intake/:id/confirm', async (ctx) => {
+    const claimIds = Array.isArray(ctx.body.claim_ids) ? ctx.body.claim_ids.filter((x): x is string => typeof x === 'string') : [];
+    try {
+      const mod = await (ctx.deps.resumeModule ?? loadResume)();
+      const out = await confirmIntake({ repos: ctx.repos, vault: ctx.vault, store: ctx.store, placeholder: field => ctx.core.vaultPlaceholder('profile', '', field), normalize: async input => mod.parseResume(input) }, ctx.params.id, claimIds);
+      dataChanged(ctx, ['claim', 'resume_master', 'resume_snapshot']);
+      return ok(out);
+    } catch (error) {
+      console.error(`[resume-intake] confirm ${ctx.params.id} failed:`, error instanceof Error ? error.message : error);
+      return fail(error instanceof Error ? error.message : '生成主简历失败', error instanceof DomainUnavailableError ? 501 : 400);
     }
   }),
   // ---------- 简历工作台（resume-studio 文档：内容 + 模板 / 布局 / 字体 / 配色） ----------

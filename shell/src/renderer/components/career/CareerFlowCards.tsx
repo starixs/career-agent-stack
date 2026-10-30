@@ -5,6 +5,8 @@
  *  - needs_user     网申表里需要你填的项 → 资料类写私密库，其余写答案库；完成后让助理从当前页继续
  *  - drafts         开放题草稿 → 可改，确认后写答案库（下次填表直接用）
  *  - claims_confirm 经历里的说法 → 勾选确认（进简历前必须确认）
+ *  - resume_intake  拖进来的简历读到了什么 → 缺项补齐 + 说法勾选，点一下生成主简历（ResumeChainCards）
+ *  - tailor_diff    按岗位定制好了 → 逐处原文 → 新文（ResumeChainCards）
  *  - site_login     卡在登录页 → 保存该站账号密码进私密库（产品在登录页代填，点登录仍由用户）
  *  - mail_bind      绑定求职邮箱（地址 + 授权码，不经过模型）
  *  - interview_prep 面试准备卡：时间、上一轮卡点、高风险深挖点、题、开始模拟
@@ -29,7 +31,8 @@ import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
 import { TakeoverCard } from './ColdStartCards';
 import { MailConnectCenter } from './mail-connect/MailConnectCenter';
-import { CardShell, list, str, type CardProps } from './FlowCardShell';
+import { CardShell, ErrorLine, PrivacyNote, list, str, useSubmit, type CardProps } from './FlowCardShell';
+import { ResumeIntakeCard, TailorDiffCard } from './ResumeChainCards';
 import { ApplicationCard } from './delivery/ApplicationCard';
 import { BatchWallCard } from './delivery/BatchWall';
 import { isCompanyMark } from './delivery/deliveryApi';
@@ -37,18 +40,6 @@ import { FixCard } from './delivery/FixCard';
 import { InterviewPrepCard } from './InterviewPrepCard';
 import type { BatchState, CareerCard, CareerCardState } from './types';
 
-function useSubmit() {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const run = async (fn: () => Promise<void>): Promise<boolean> => {
-    setBusy(true); setError(null);
-    try { await fn(); return true; } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; } finally { setBusy(false); }
-  };
-  return { busy, error, run };
-}
-
-const ErrorLine = ({ error }: { error: string | null }) => (error ? <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div> : null);
-const PrivacyNote = () => <p className="mt-2 text-xs text-[var(--subtle)]">只存进本机私密库，填表时在本地替换，助理看不到原文。</p>;
 
 
 // ---------- 补齐基本信息 ----------
@@ -307,6 +298,8 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   needs_user: props => <NeedsUserCard {...props} />,
   drafts: props => <DraftsCard {...props} />,
   claims_confirm: props => <ClaimsConfirmCard {...props} />,
+  resume_intake: props => <ResumeIntakeCard {...props} />,
+  tailor_diff: props => <TailorDiffCard {...props} />,
   site_login: props => <SiteLoginCard {...props} />,
   mail_bind: props => <MailBindCard {...props} />,
   search_setup: props => <SearchSetupCard {...props} />,
