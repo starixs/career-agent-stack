@@ -69,11 +69,14 @@
 .cd-root button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ---------- 要你卡 ---------- */
-.cd-ask { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: start; }
+/* 左图右字；栏窄时（右边开着浏览器面板）字掉到图下面，不能被挤成 0 宽——2026-10-31 实例测试：「去登录」整块看不见 */
+.cd-ask { display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-start; }
+.cd-ask-img { flex: 0 1 auto; max-width: 100%; }
+.cd-ask-text { flex: 1 1 260px; min-width: 0; }
 .cd-ask-title { margin: 0; font-size: 28px; line-height: 1.2; font-weight: 400; color: var(--ink); }
 .cd-ask-sub { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 .cd-mosaic { display: grid; grid-template-columns: repeat(4, 64px); gap: 4px; padding: 4px 0; }
-.cd-pair { display: flex; gap: 8px; }
+.cd-pair { display: flex; flex-wrap: wrap; gap: 8px; }
 .cd-page { position: relative; width: 150px; margin: 0; overflow: hidden; border-radius: 6px; box-shadow: 0 0 0 1px var(--line-2); background: #fff; }
 .cd-page img { display: block; width: 100%; }
 .cd-page figcaption { position: absolute; left: 8px; bottom: 8px; padding: 1px 7px; border-radius: 4px; background: var(--ink); color: var(--bg); font-size: 11px; }

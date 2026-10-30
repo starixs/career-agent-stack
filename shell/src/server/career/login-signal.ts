@@ -76,6 +76,9 @@ export class LoginJudge {
   /** 失败那一刻的凭证（指纹）：之后凭证又变了，说明用户重试登上了，失败不再否决。 */
   private failedAt: string | null = null;
   private streak = 0;
+  /** 画面这一路只认「登录框出现过、然后不见了」：一开始就没有登录框的页（岗位详情页、导航栏里一个登录链接）
+   *  不能因为「看不到登录框」就判登上（2026-10-31 实例测试：3 家 1.5 秒内全被判登上，用户根本没登）。 */
+  private loginSeen = false;
   constructor(private readonly before: ReadonlyMap<string, string>) {}
   /** 听到一个登录类请求的返回。 */
   response(v: ResponseVerdict): void { if (v) { this.last = v; if (v === 'ok') this.failedAt = null; } }
@@ -85,7 +88,8 @@ export class LoginJudge {
     const print = [...after].map(([k, v]) => `${k}=${v}`).sort().join(';');
     if (this.last === 'fail' && this.failedAt === null) this.failedAt = print;
     if (this.last === 'fail' && this.failedAt !== print) { this.last = null; this.failedAt = null; }
-    this.streak = screen && !screen.loginShown && !screen.errorShown ? this.streak + 1 : 0;
+    if (screen?.loginShown) this.loginSeen = true;
+    this.streak = this.loginSeen && screen && !screen.loginShown && !screen.errorShown ? this.streak + 1 : 0;
     if (this.last === 'fail' || screen?.errorShown) return { state: 'failed', credentials: fresh };
     const data = fresh.length > 0;
     const seen = this.streak >= SCREEN_CLEAR_STREAK;

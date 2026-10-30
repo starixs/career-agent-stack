@@ -82,12 +82,19 @@ describe('两路合起来（LoginJudge）', () => {
 
   it('数据层有新凭证、画面也不见登录提示：both；只有一路成立也算登上', () => {
     const both = new LoginJudge(C('guest'));
+    both.observe(C('guest'), ON_LOGIN);
     both.observe(C('guest'), clear);
     expect(both.observe(C('user'), clear)).toMatchObject({ state: 'logged_in', signal: 'both' });
     expect(new LoginJudge(C('guest')).observe(C('user'), ON_LOGIN)).toMatchObject({ state: 'logged_in', signal: 'credentials' }); // 页面角落一直留着「扫码登录」的站
     const screenOnly = new LoginJudge(C('guest'));
+    expect(screenOnly.observe(C('guest'), ON_LOGIN).state).toBe('waiting');
     expect(screenOnly.observe(C('guest'), clear).state).toBe('waiting'); // 闪一下不算
-    expect(screenOnly.observe(C('guest'), clear)).toMatchObject({ state: 'logged_in', signal: 'screen' }); // 凭证名认不出的站
+    expect(screenOnly.observe(C('guest'), clear)).toMatchObject({ state: 'logged_in', signal: 'screen' }); // 凭证名认不出的站：登录框出现过又不见了
+  });
+
+  it('画面一开始就没有登录框（岗位详情页、导航栏只有登录链接）：看不到登录框不等于登上，一直等', () => {
+    const j = new LoginJudge(C('guest'));
+    for (let i = 0; i < 5; i++) expect(j.observe(C('guest'), clear).state).toBe('waiting');
   });
 
   it('任何一路说失败就继续等：画面写着密码错误、或登录接口返回失败；之后重试登上（凭证又变了）就不再否决', () => {
