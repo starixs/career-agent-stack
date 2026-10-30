@@ -95,7 +95,7 @@ export async function parseAndStoreJd(
   let job = input.job_id ? r.getJob(input.job_id) : undefined;
   if (input.job_id && !job) throw new Error(`岗位不存在：${input.job_id}`);
   const jdRaw = input.jd_raw ?? job?.jd_raw ?? undefined;
-  if (!jdRaw) throw new Error('需要 jd_raw（链接导入目前只记录 url，不抓取页面；请把 JD 文本一起给我）');
+  if (!jdRaw) throw new Error('这个岗位还没有 JD 正文：有链接就用 browser_open 打开读（要登录就 browser_wait_user 请用户登录一下），读到后 browser_capture_job 收录；不要让用户复制粘贴 JD。');
   const digest = r.experienceTree().map(e => `## ${e.title}\n${e.claims.filter(c => c.status !== 'pending').map(c => `- ${c.text}`).join('\n')}`).join('\n\n') || '（经历库为空）';
   const parsed = await askSkill<JdParsed>(deps, 'jd-parse', `公司：${input.company_name ?? job?.company_name ?? '未知'}\n岗位：${input.title ?? job?.title ?? '未知'}\n\nJD 原文：\n${jdRaw}\n\n经历库摘要：\n${digest}`);
   const title = input.title ?? job?.title ?? parsed.title ?? jdRaw.split('\n').map(l => l.trim()).find(Boolean)?.slice(0, 60) ?? '未命名岗位';
