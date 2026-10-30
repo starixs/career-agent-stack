@@ -328,7 +328,7 @@ CREATE TABLE IF NOT EXISTS deadline (
   interview_id TEXT,
   offer_id TEXT,
   source TEXT NOT NULL DEFAULT 'manual',    -- manual|inbox|mail|agent|job
-  status TEXT NOT NULL DEFAULT 'open',      -- open|done|missed|cancelled
+  status TEXT NOT NULL DEFAULT 'open',      -- open|done|missed|cancelled|skipped（用户说没去）
   url TEXT,
   note TEXT,
   created_at TEXT NOT NULL,

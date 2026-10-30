@@ -87,7 +87,8 @@ export type InboxStatus = typeof INBOX_STATUSES[number]
 
 export const DEADLINE_KINDS = ['assessment', 'written_test', 'interview', 'application_deadline', 'offer_reply', 'referral_expiry', 'other'] as const
 export type DeadlineKind = typeof DEADLINE_KINDS[number]
-export const DEADLINE_STATUSES = ['open', 'done', 'missed', 'cancelled'] as const
+/** skipped：过了时间、用户回来说没去 / 没做（和 cancelled 不同：邀请是真的来过，漏斗照样算回应）。 */
+export const DEADLINE_STATUSES = ['open', 'done', 'missed', 'cancelled', 'skipped'] as const
 export type DeadlineStatus = typeof DEADLINE_STATUSES[number]
 
 export const DOSSIER_NOTE_KINDS = ['note', 'said', 'heard', 'contact', 'referral', 'mail'] as const

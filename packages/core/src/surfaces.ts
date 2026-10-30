@@ -65,6 +65,8 @@ export interface TodayItem {
   deadline_id?: string
   /** 面板一键动作对应的对话意图（带对象 id），为空则该项只能在面板处理。 */
   suggest?: string
+  /** attendance：过了时间的笔试 / 测评 / 面试，问一句「考了吗」，答完收进卷宗（见 asksAttendance）。 */
+  ask?: 'attendance'
 }
 
 export function sortToday(items: TodayItem[]): TodayItem[] {
@@ -77,12 +79,29 @@ export function sortToday(items: TodayItem[]): TodayItem[] {
  */
 export const OVERDUE_PRIORITY = 8
 
+/**
+ * 笔试、测评、面试多在外部平台进行，他去没去我们看不见；没打勾不等于错过。
+ * 过了时间、还没答过的，回来时问一句，不当成「已过期」去催。
+ */
+export const ATTENDANCE_KINDS: ReadonlySet<string> = new Set(['written_test', 'assessment', 'interview'])
+export const ATTENDANCE_QUESTION: Record<string, string> = { written_test: '考了吗？', assessment: '做了吗？', interview: '去了吗？' }
+
+export function asksAttendance(d: Pick<Deadline, 'kind' | 'status' | 'due_at'>, nowIso: string): boolean {
+  return ATTENDANCE_KINDS.has(d.kind) && (d.status === 'open' || d.status === 'missed') && !!d.due_at && Date.parse(d.due_at) < Date.parse(nowIso)
+}
+
 /** 只处理有时间的事件；时间未知（due_at 为 null）的由调用方（Repos.today）单独处理。 */
 export function deadlineToToday(d: Deadline & { due_at: string }, nowIso: string): TodayItem | null {
   if (d.status !== 'open') return null
   const days = daysBetween(nowIso, d.due_at)
   if (days > 3) return null
   const overdue = Date.parse(d.due_at) < Date.parse(nowIso)
+  if (overdue && asksAttendance(d, nowIso)) {
+    return {
+      kind: 'deadline', priority: OVERDUE_PRIORITY, title: `${d.title}：${ATTENDANCE_QUESTION[d.kind]}`, detail: '答一下就收进卷宗', due_at: d.due_at,
+      ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id }, deadline_id: d.id, ask: 'attendance',
+    }
+  }
   const label = overdue ? '已过期' : days === 0 ? '今天' : days === 1 ? '明天' : `${days} 天后`
   return {
     kind: d.kind === 'interview' && days === 0 ? 'interview_today' : 'deadline',

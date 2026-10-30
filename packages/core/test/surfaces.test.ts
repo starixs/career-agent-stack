@@ -60,8 +60,8 @@ describe('收件箱 / 截止 / 今日队列', () => {
 
     const today = r.today(NOW)
     expect(today.items.map(i => i.kind)).toEqual(['deadline', 'review', 'inbox', 'stale', 'deadline'])
-    expect(today.items[4].title).toBe('乙公司测评')
-    expect(today.items[4].detail).toContain('已过期')
+    // 过了时间的测评不当「已过期」催，而是问一句做了没有
+    expect(today.items[4]).toMatchObject({ title: '乙公司测评：做了吗？', ask: 'attendance' })
     expect(today.items[0].detail).toContain('今天')
     // 挂在投递上的截止：ref 指向投递，deadline_id 仍给出截止事件本身，便于改期 / 完成
     expect(today.items[0].ref).toEqual({ type: 'application', id: app.id })
@@ -73,6 +73,24 @@ describe('收件箱 / 截止 / 今日队列', () => {
     expect(r.listDeadlines({ status: 'missed' }).map(d => d.title)).toEqual(['乙公司测评'])
     // 20 天后的事件不进今日
     expect(today.items.some(i => i.title.includes('丁公司'))).toBe(false)
+  })
+})
+
+describe('过了时间的笔试 / 面试：问一句「考了吗」', () => {
+  it('过了时间没打勾的笔试在队尾问「考了吗」；别的已过期事项照旧；答完从队列消失、卷宗记一笔', () => {
+    const r = mem()
+    const job = r.upsertJob({ source_platform: 'campus', source_job_id: 'mt', title: '后端', company_name: '美团' })
+    const app = r.createApplication(job.id)
+    const exam = r.createDeadline({ kind: 'written_test', title: '美团笔试', due_at: '2026-10-02T11:00:00.000Z', application_id: app.id })
+    r.createDeadline({ kind: 'application_deadline', title: '乙公司网申截止', due_at: '2026-10-02T12:00:00.000Z' })
+
+    const asked = r.today(NOW).items.find(i => i.deadline_id === exam.id)!
+    expect(asked).toMatchObject({ title: '美团笔试：考了吗？', ask: 'attendance' })
+    expect(r.today(NOW).items.find(i => i.title === '乙公司网申截止')?.ask).toBeUndefined()
+
+    expect(r.answerAttendance(exam.id, false).status).toBe('skipped')
+    expect(r.today(NOW).items.map(i => i.deadline_id)).not.toContain(exam.id)
+    expect(r.listDossierNotes(app.id).map(n => n.content)).toEqual(['美团笔试：没参加（回来时确认）'])
   })
 })
 

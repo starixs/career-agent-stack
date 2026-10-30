@@ -37,6 +37,8 @@ export interface CalendarTodo {
   manualSend?: boolean;
   /** 本地划掉时记下怎么处理的（已批准 / 不发了 / 已完成…）。 */
   note?: string;
+  /** 过了时间的笔试 / 测评 / 面试：行里不放「完成」，放「考了 / 没去」（AttendanceButtons）。 */
+  askAttendance?: Deadline['kind'];
 }
 
 function pad(n: number): string {
@@ -88,13 +90,18 @@ export function buildTodos(src: TodoSources): CalendarTodo[] {
 
   for (const d of src.deadlines ?? []) {
     if (d.status === 'cancelled') continue;
-    const done = d.status === 'done';
+    // skipped = 回来时答了「没去」：和做完一样收起，留在原来那天
+    const done = d.status === 'done' || d.status === 'skipped';
     const origin = dateKeyOf(d.due_at);
+    const question = done ? null : d.attendance_question ?? null;
     const item: TodayItem = {
       kind: d.kind === 'interview' && origin === todayKey ? 'interview_today' : 'deadline',
-      priority: 1, title: d.title, due_at: d.due_at, ref: { type: 'deadline', id: d.id },
+      priority: 1, title: question ? `${d.title}：${question}` : d.title, due_at: d.due_at, ref: { type: 'deadline', id: d.id },
     };
-    add({ key: `deadline:${d.id}`, category: 'remind', date: place(origin, done), originDate: origin, done, item, applicationId: d.application_id });
+    add({
+      key: `deadline:${d.id}`, category: 'remind', date: place(origin, done), originDate: origin, done, item, applicationId: d.application_id,
+      ...(d.status === 'skipped' ? { note: '没参加' } : {}), ...(question ? { askAttendance: d.kind } : {}),
+    });
   }
 
   for (const item of src.today ?? []) {

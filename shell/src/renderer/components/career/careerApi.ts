@@ -238,6 +238,8 @@ export const careerApi = {
   /** 手动新建笔试 / 测评：挂到同公司进行中的投递上（没有就新建一条），再建截止事件。 */
   createExam: (body: { company_name: string; title?: string | null; kind: 'written_test' | 'assessment'; due_at: string; url?: string | null; note?: string | null }) =>
     apiPostJson<unknown>(careerPath('/exams'), body).then(r => asDict(r) as { deadline_id?: string; application_id?: string }),
+  /** 回答「考了吗」：考了 → done，没去 → skipped，服务端记进卷宗。 */
+  answerAttendance: (id: string, attended: boolean) => apiPostJson<unknown>(careerPath(`/deadlines/${encodeURIComponent(id)}/attendance`), { attended }).then(r => pickObject<Deadline>(r, 'deadline')),
   setDeadlineStatus: (id: string, status: Deadline['status']) => apiPostJson<unknown>(careerPath(`/deadlines/${encodeURIComponent(id)}/status`), { status }).then(r => pickObject<Deadline>(r, 'deadline')),
 
   // ----- 卷宗 -----

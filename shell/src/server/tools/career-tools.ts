@@ -669,8 +669,13 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ deadline });
       })()),
 
-      tool('deadline_done', '把一个时间点标记为已完成 / 取消。', { deadline_id: z.string(), status: z.enum(['done', 'cancelled', 'missed']).optional() }, async (args) => wrap(() => {
-        const deadline = repos().setDeadlineStatus(args.deadline_id, args.status ?? 'done');
+      tool('deadline_done', '把一个时间点标记为已完成 / 取消。过了时间的笔试 / 测评 / 面试（today_queue 条目带 ask=attendance）：用户说考了 / 去了用 done，说没去 / 没做用 skipped，会记进卷宗。', { deadline_id: z.string(), status: z.enum(['done', 'cancelled', 'missed', 'skipped']).optional() }, async (args) => wrap(() => {
+        const r = repos();
+        const status = args.status ?? 'done';
+        const current = r.getDeadline(args.deadline_id);
+        const answering = !!current && (status === 'done' || status === 'skipped') && core.asksAttendance(current, new Date().toISOString());
+        const deadline = answering ? r.answerAttendance(args.deadline_id, status === 'done') : r.setDeadlineStatus(args.deadline_id, status);
+        if (answering) changed('dossier_note');
         changed('deadline');
         return text({ deadline });
       })()),

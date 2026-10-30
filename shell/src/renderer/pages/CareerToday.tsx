@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
 
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { careerApi, safeJson } from '@/components/career/careerApi';
+import { AttendanceButtons } from '@/components/career/AttendanceButtons';
 import { ACTION_KIND_LABELS } from '@/components/career/careerConstants';
 import { Button, CareerPage, ChatActionButton, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
 import { onOnboardingIntroRequest, takeOnboardingIntroRequest } from '@/features/career-shell/onboardingReminder';
@@ -359,7 +360,8 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
 }) {
   const act = useCareerAction();
   const { item, action } = todo;
-  const due = todo.done ? null : formatDue(item.due_at);
+  // 问「考了吗」的不再标红「已过期」：他多半去过，只是没回来打勾
+  const due = todo.done || todo.askAttendance ? null : formatDue(item.due_at);
   const refs = { [`${item.ref.type}_id`]: item.ref.id };
   const complete = (fn: () => Promise<unknown>, note: string) => act.run(async () => { await fn(); onDone(todo, note); });
 
@@ -406,7 +408,10 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
               <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.confirmSubmit(item.ref.id, false), '重新审核')}>没投出去</Button>
             </>
           )}
-          {deadlineDone && (
+          {deadlineDone && todo.askAttendance && (
+            <AttendanceButtons deadlineId={item.ref.id} kind={todo.askAttendance} onAnswered={note => onDone(todo, note)} />
+          )}
+          {deadlineDone && !todo.askAttendance && (
             <Button variant="primary" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.setDeadlineStatus(item.ref.id, 'done'), '已完成')}>完成</Button>
           )}
           {item.kind === 'interview_today' && (

@@ -202,6 +202,23 @@ describe('CareerInbox', () => {
     expect(row?.className).toContain('bg-[var(--primary-soft)]');
   });
 
+  it('过了时间的面试提醒问「去了吗」：点「没去」→ POST attendance，原地划掉', async () => {
+    const past = { ...deadlines[0], id: 'd8', kind: 'interview', title: '百度一面', due_at: new Date(Date.now() - 86_400_000).toISOString(), status: 'missed', attendance_question: '去了吗？' };
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
+      if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines: [past] };
+      if (path.startsWith('/api/career/inbox')) return { ok: true, items: [] };
+      if (path.startsWith('/api/career/mail/accounts')) return { ok: true, accounts: [], presets };
+      return { ok: true, actions: [], dossiers: [] };
+    });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, deadline: { ...past, status: 'skipped' } });
+    render(<CareerInbox isActive onOpenChat={vi.fn()} />);
+    const row = (await screen.findByText('百度一面：去了吗？')).closest('li')!;
+    expect(within(row).queryByRole('button', { name: '完成' })).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: '没去' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/deadlines/d8/attendance', { attended: false }));
+    expect(await within(row).findByText(/^没参加 · /)).toBeInTheDocument();
+  });
+
   it('小芽先说了「那封在通知中心」、用户后来才点进来（本页还没挂载）：照样定位到那一条', async () => {
     mockGet();
     stashCareerFocus({ surface: 'inbox', id: 'i3', origin: 'assistant' });

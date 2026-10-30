@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { careerApi, safeJson } from '@/components/career/careerApi';
 import { ACTION_KIND_LABELS } from '@/components/career/careerConstants';
+import { AttendanceButtons } from '@/components/career/AttendanceButtons';
 import { BatchProgressCard, useBatchState } from '@/components/career/CareerFlowCards';
 import {
   Badge, Button, CareerPage, Card, ChatActionButton, DueLabel, ErrorRow, LoadingRow, Select, TextArea, formatDate,
@@ -299,18 +300,22 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
 
 function RemindRow({ deadline, label, resolved, onResolved }: { deadline: Deadline; label: string | null; resolved?: Resolved; onResolved: (label: string) => void }) {
   const act = useCareerAction();
+  // 过了时间的笔试 / 测评 / 面试：问「考了吗」，不标红「已过期」
+  const question = deadline.attendance_question ?? null;
   return (
     <div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <TypeLabel type="remind" />
         {label && <span className="text-xs text-[var(--muted)]">{label}</span>}
-        <span className="ml-auto text-xs tabular-nums">{resolved ? <span className="text-[var(--success)]">{`${resolved.label} · ${hhmm(resolved.at)}`}</span> : <DueLabel at={deadline.due_at} />}</span>
+        <span className="ml-auto text-xs tabular-nums">{resolved ? <span className="text-[var(--success)]">{`${resolved.label} · ${hhmm(resolved.at)}`}</span> : !question && <DueLabel at={deadline.due_at} />}</span>
       </div>
-      <div className="mt-1 text-sm"><StrikeText done={!!resolved} animate className={resolved ? '' : 'font-medium text-[var(--ink)]'}>{deadline.title}</StrikeText></div>
+      <div className="mt-1 text-sm"><StrikeText done={!!resolved} animate className={resolved ? '' : 'font-medium text-[var(--ink)]'}>{question ? `${deadline.title}：${question}` : deadline.title}</StrikeText></div>
       {act.error && <ErrorRow message={act.error} />}
       {!resolved && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>
+          {question
+            ? <AttendanceButtons deadlineId={deadline.id} kind={deadline.kind} onAnswered={onResolved} />
+            : <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>}
           {deadline.application_id && (
             <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: deadline.application_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
           )}

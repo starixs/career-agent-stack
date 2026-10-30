@@ -494,6 +494,19 @@ export class Repos {
         [dueIso, dueIso, nowIso, nowIso, interviewId])
     })
   }
+  /**
+   * 回答「考了吗 / 做了吗 / 去了吗」：考了 → done，没去 → skipped（邀请是真的来过，漏斗照样算回应）。
+   * 挂在投递上的记一笔进卷宗，之后这件事只在卷宗里，不再出现在队列、月历和通知中心。
+   */
+  answerAttendance(id: string, attended: boolean): Deadline {
+    const d = this.getDeadline(id)
+    if (!d) throw new Error(`截止事件不存在：${id}`)
+    this.db.transaction(() => {
+      this.db.update('deadline', id, { status: attended ? 'done' : 'skipped', updated_at: now() })
+      if (d.application_id) this.db.insert('dossier_note', { id: newId('dnt'), application_id: d.application_id, kind: 'note', round: null, content: `${d.title}：${attended ? '参加了' : '没参加'}（回来时确认）`, created_at: now() })
+    })
+    return this.getDeadline(id)!
+  }
   /** 把已过期仍 open 的事件标为 missed（今日队列读取前调用）。 */
   markMissedDeadlines(nowIso = now()): number {
     return this.db.run(`UPDATE deadline SET status='missed', updated_at=? WHERE status='open' AND due_at < ?`, [nowIso, nowIso]).changes

@@ -105,6 +105,30 @@ describe('对话和页面分工 · 两天没开，回来', () => {
     expect(first.deadline_id).toBe(deadlineOf('九方云', 'assessment').id);
   });
 
+  it('周四考完没打勾的美团笔试：不当「已过期」催，问一句「考了吗」；在月历上答了，各处都收起、卷宗记一笔', async () => {
+    const exam = deadlineOf('美团', 'written_test');
+    expect(repos.today(NOW).items.find(i => i.deadline_id === exam.id)).toMatchObject({ title: '美团 · 后端开发 笔试：考了吗？', ask: 'attendance' });
+    const calendar = (await page(repos, 'GET', '/api/career/deadlines')).deadlines as Array<{ id: string; attendance_question: string | null }>;
+    expect(calendar.find(d => d.id === exam.id)?.attendance_question).toBe('考了吗？');
+
+    await page(repos, 'POST', `/api/career/deadlines/${exam.id}/attendance`, { attended: true });
+
+    expect(repos.today(NOW).items.map(i => i.deadline_id)).not.toContain(exam.id);
+    const reminders = (await page(repos, 'GET', '/api/career/deadlines?status=open_or_missed')).deadlines as Array<{ id: string }>;
+    expect(reminders.map(d => d.id)).not.toContain(exam.id);
+    expect(repos.listDossierNotes(appOf('美团').id).map(n => n.content)).toContain('美团 · 后端开发 笔试：参加了（回来时确认）');
+  });
+
+  it('在对话里说「美团那个没去」：小芽记成没去，漏斗照样把那封笔试邀请算作回应', async () => {
+    const exam = deadlineOf('美团', 'written_test');
+    const responded = () => repos.monthBoard({ nowIso: NOW, month: '2026-10' }).counts[1];
+    const before = responded();
+    const res = await call('deadline_done', { deadline_id: exam.id, status: 'skipped' });
+    expect(res.json.deadline).toMatchObject({ status: 'skipped' });
+    expect(repos.listDossierNotes(appOf('美团').id).map(n => n.content).join()).toContain('没参加');
+    expect(responded()).toBe(before);
+  });
+
   it('拒信只计数、不逐条进队列；其余投递只给等待数', () => {
     const today = repos.today(NOW);
     expect(today.items.map(i => i.title).join()).not.toMatch(/拼多多|京东/);
@@ -154,9 +178,6 @@ describe('对话和页面分工 · 两天没开，回来', () => {
     expect(item.ref).toEqual({ type: 'inbox_item', id: junk.id });
   });
 
-  it.todo('〔面〕已经过去、没打勾的笔试 / 面试放哪：问一句「考了吗」、自动收进卷宗，还是留在队列里');
-  it.todo('〔面〕同一件「要你的事」现在有四个落点（招聘概览月历、通知中心、小芽面板、将来的等你条），留哪一个为主');
   it.todo('〔面〕通知中心里处理完的邮件（已归档、关联的时间点也做完）还要不要留在「全部」的计数里');
-  it.todo('〔面〕回到对话时要不要出回来卡；若出，页面上刚处理掉的事不再进卡');
-  it.todo('〔面〕在月历上取消一场面试，助力记录里的那场面试要不要跟着标「取消」');
+  it.todo('〔组件〕回来卡（等你条之后做）：读同一份今日队列，页面上刚处理掉的不进卡');
 });
