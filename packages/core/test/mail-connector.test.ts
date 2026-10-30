@@ -1,0 +1,35 @@
+import { describe, it, expect } from 'vitest'
+import { Db, Repos } from '../src/index.js'
+
+function mem() { const db = new Db(':memory:'); db.migrate(); return new Repos(db) }
+
+describe('邮箱连接器数据', () => {
+  it('新账号带健康计数，状态字段可写回', () => {
+    const r = mem()
+    const a = r.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' })
+    expect(a).toMatchObject({ consecutive_fails: 0, last_ok_at: null, uidvalidity: null })
+    r.updateMailAccount(a.id, { consecutive_fails: 2, uidvalidity: 1700000000, last_check_at: '2026-10-30T01:00:00Z' })
+    expect(r.getMailAccount(a.id)).toMatchObject({ consecutive_fails: 2, uidvalidity: 1700000000 })
+  })
+
+  it('同账号同 Message-ID 只存一次（邮箱重建后 uid 重新编号）', () => {
+    const r = mem()
+    const a = r.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' })
+    const base = { account_id: a.id, message_id: '<m1@x>', in_reply_to: null, direction: 'in' as const, from_addr: null, to_addr: null, subject: 's', snippet: null, body_text: null, received_at: null, relevance: 'unknown' as const, kind: null, inbox_item_id: null, application_id: null, action_id: null }
+    expect(r.insertMailMessage({ ...base, uid: 5 })).not.toBeNull()
+    expect(r.insertMailMessage({ ...base, uid: 1 })).toBeNull()
+  })
+
+  it('操作留痕：按时间倒序列出，近 N 天按操作计数，删账号连带删除', () => {
+    const r = mem()
+    const a = r.upsertMailAccount({ provider: '163', address: 'me@163.com', imap_host: 'imap.163.com', smtp_host: 'smtp.163.com' })
+    r.addMailAudit({ account_id: a.id, actor: 'system', operation: 'sync', status: 'ok', detail: { fetched: 3 }, latency_ms: 800 })
+    r.addMailAudit({ account_id: a.id, actor: 'agent', operation: 'send', status: 'ok', detail: { to: ['hr@x.com'] } })
+    r.addMailAudit({ account_id: a.id, actor: 'system', operation: 'sync', status: 'failed' })
+    expect(r.listMailAudit(a.id).map(x => x.operation)).toHaveLength(3)
+    const usage = r.mailUsage(a.id, '2000-01-01T00:00:00Z')
+    expect(usage.find(u => u.operation === 'sync' && u.status === 'ok')?.n).toBe(1)
+    r.deleteMailAccount(a.id)
+    expect(r.listMailAudit(a.id)).toEqual([])
+  })
+})

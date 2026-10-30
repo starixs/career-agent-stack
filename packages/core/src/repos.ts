@@ -6,7 +6,7 @@ import { inferEmploymentType, mergeBoardMeta, normalizeCohort, parseBoardJson } 
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
 import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
-import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage, Interview, Offer } from './types.js'
+import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailAudit, MailMessage, Interview, Offer } from './types.js'
 import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
 import { buildMonthBoard, type MonthBoard, type StageHistoryRow } from './review-board.js'
 
@@ -660,11 +660,13 @@ export class Repos {
   }
   getMailAccount(id: string): MailAccount | undefined { return this.db.get<MailAccount>('SELECT * FROM mail_account WHERE id=?', [id]) }
   listMailAccounts(): MailAccount[] { return this.db.all<MailAccount>('SELECT * FROM mail_account ORDER BY created_at') }
-  updateMailAccount(id: string, patch: Partial<Pick<MailAccount, 'status' | 'last_sync_at' | 'last_uid' | 'last_error' | 'display_name'>>): void { this.db.update('mail_account', id, { ...stripUndefined(patch), updated_at: now() }) }
+  updateMailAccount(id: string, patch: Partial<Pick<MailAccount, 'status' | 'last_sync_at' | 'last_uid' | 'last_error' | 'display_name' | 'consecutive_fails' | 'last_ok_at' | 'last_check_at' | 'uidvalidity'>>): void { this.db.update('mail_account', id, { ...stripUndefined(patch), updated_at: now() }) }
   deleteMailAccount(id: string): void { this.db.run('DELETE FROM mail_account WHERE id=?', [id]) }
   /** 同账号同 uid 只存一次；返回 null 表示已存在。 */
+  /** 邮箱重建（UIDVALIDITY 变了）后 uid 会重新编号，所以同账号同 Message-ID 也算已存在。 */
   insertMailMessage(m: Omit<MailMessage, 'id' | 'created_at'>): MailMessage | null {
     if (m.uid !== null && this.db.get('SELECT 1 FROM mail_message WHERE account_id=? AND uid=?', [m.account_id, m.uid])) return null
+    if (m.message_id && this.db.get('SELECT 1 FROM mail_message WHERE account_id=? AND message_id=?', [m.account_id, m.message_id])) return null
     const id = newId('mail')
     this.db.insert('mail_message', { ...m, id, created_at: now() })
     return this.getMailMessage(id)!
@@ -681,6 +683,18 @@ export class Repos {
     return this.db.all<MailMessage>(`SELECT * FROM mail_message ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY COALESCE(received_at, created_at) DESC LIMIT ?`, params)
   }
   findMailByMessageId(messageId: string): MailMessage | undefined { return this.db.get<MailMessage>('SELECT * FROM mail_message WHERE message_id=?', [messageId]) }
+
+  // ---------- 邮箱操作留痕 ----------
+  addMailAudit(a: { account_id: string; actor: MailAudit['actor']; operation: string; status: MailAudit['status']; detail?: unknown; latency_ms?: number | null }): void {
+    this.db.insert('mail_audit', { id: newId('maud'), account_id: a.account_id, actor: a.actor, operation: a.operation, status: a.status, detail_json: a.detail === undefined ? null : JSON.stringify(a.detail), latency_ms: a.latency_ms ?? null, created_at: now() })
+  }
+  listMailAudit(accountId: string, sinceIso?: string, limit = 50): MailAudit[] {
+    return this.db.all<MailAudit>(`SELECT * FROM mail_audit WHERE account_id=? ${sinceIso ? 'AND created_at>=?' : ''} ORDER BY created_at DESC LIMIT ?`, sinceIso ? [accountId, sinceIso, limit] : [accountId, limit])
+  }
+  /** 近 N 天按操作计数（连接管理页的用量）。 */
+  mailUsage(accountId: string, sinceIso: string): Array<{ operation: string; status: string; n: number }> {
+    return this.db.all<{ operation: string; status: string; n: number }>('SELECT operation, status, COUNT(*) AS n FROM mail_audit WHERE account_id=? AND created_at>=? GROUP BY operation, status', [accountId, sinceIso])
+  }
 }
 
 function actionLabel(kind: ActionKind): string {

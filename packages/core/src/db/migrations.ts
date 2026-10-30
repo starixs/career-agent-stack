@@ -224,6 +224,29 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    version: 8,
+    name: 'mail-connector-health-audit',
+    up(db) {
+      // 邮箱连接器：健康计数（连续失败 3 次才判失效，网络抖一下不算）与 UIDVALIDITY（变了说明邮箱重建过，要重新同步）。
+      addColumn(db, 'mail_account', 'consecutive_fails', 'INTEGER NOT NULL DEFAULT 0')
+      addColumn(db, 'mail_account', 'last_ok_at', 'TEXT')
+      addColumn(db, 'mail_account', 'last_check_at', 'TEXT')
+      addColumn(db, 'mail_account', 'uidvalidity', 'INTEGER')
+      // 谁动过这个邮箱：助理代发、系统同步、用户解绑都留一笔，连接管理页直接展示。
+      db.exec(`CREATE TABLE IF NOT EXISTS mail_audit (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL REFERENCES mail_account(id) ON DELETE CASCADE,
+        actor TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        status TEXT NOT NULL,
+        detail_json TEXT,
+        latency_ms INTEGER,
+        created_at TEXT NOT NULL
+      )`)
+      db.exec('CREATE INDEX IF NOT EXISTS idx_mail_audit_account ON mail_audit(account_id, created_at)')
+    },
+  },
 ]
 
 export function currentVersion(db: DatabaseSync): number {
