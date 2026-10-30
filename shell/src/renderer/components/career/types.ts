@@ -244,7 +244,10 @@ export interface MailConnector {
   guide: Array<{ title: string; text: string; path?: string[] }>;
   verify_note: string;
   fields: Array<{ key: 'email' | 'authCode'; type: 'email' | 'secret'; label: string; placeholder: string; helper?: string; length?: number }>;
+  /** OAuth 轨（预留）：审核通过、云端开启后为 true。 */
+  oauth?: { enabled: boolean };
 }
+export type MailOauthStart = { ok: true; authorize_url: string; state: string } | { ok: false; error_code: string; message: string };
 export type MailConnectErrorCode = 'imap_auth_failed' | 'imap_disabled' | 'provider_blocked' | 'unreachable' | 'duplicate' | 'invalid_input';
 export type MailConnectResult =
   | { ok: true; account: MailAccount; smtp_ok: boolean }

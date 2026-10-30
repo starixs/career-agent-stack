@@ -658,6 +658,20 @@ export class Repos {
     this.db.insert('mail_account', { id, provider: a.provider, address: a.address, display_name: a.display_name ?? null, imap_host: a.imap_host, imap_port: a.imap_port ?? 993, smtp_host: a.smtp_host, smtp_port: a.smtp_port ?? 465, status: 'unverified', last_sync_at: null, last_uid: 0, last_error: null, created_at: t, updated_at: t })
     return this.getMailAccount(id)!
   }
+  /**
+   * 云端连接的本机镜像：按 remote_id 找到就更新，找不到按地址认领（本地连过同一邮箱），再没有就新建。
+   * 只写展示和外键需要的字段，不碰授权码。
+   */
+  mirrorMailAccount(m: { remote_id: string; provider: MailAccount['provider']; address: string; imap_host: string; smtp_host: string; status: string; last_error: string | null; consecutive_fails: number; last_ok_at: string | null; last_check_at: string | null; last_sync_at: string | null; created_at: string }): MailAccount {
+    const t = now()
+    const found = this.db.get<MailAccount>('SELECT * FROM mail_account WHERE remote_id=?', [m.remote_id]) ?? this.db.get<MailAccount>('SELECT * FROM mail_account WHERE address=?', [m.address])
+    const fields = { remote_id: m.remote_id, provider: m.provider, address: m.address, status: m.status, last_error: m.last_error, consecutive_fails: m.consecutive_fails, last_ok_at: m.last_ok_at, last_check_at: m.last_check_at, last_sync_at: m.last_sync_at, updated_at: t }
+    if (found) { this.db.update('mail_account', found.id, fields); return this.getMailAccount(found.id)! }
+    const id = newId('mla')
+    this.db.insert('mail_account', { ...fields, id, display_name: null, imap_host: m.imap_host, imap_port: 993, smtp_host: m.smtp_host, smtp_port: 465, last_uid: 0, created_at: m.created_at || t })
+    return this.getMailAccount(id)!
+  }
+  getMailAccountByRemote(remoteId: string): MailAccount | undefined { return this.db.get<MailAccount>('SELECT * FROM mail_account WHERE remote_id=?', [remoteId]) }
   getMailAccount(id: string): MailAccount | undefined { return this.db.get<MailAccount>('SELECT * FROM mail_account WHERE id=?', [id]) }
   listMailAccounts(): MailAccount[] { return this.db.all<MailAccount>('SELECT * FROM mail_account ORDER BY created_at') }
   updateMailAccount(id: string, patch: Partial<Pick<MailAccount, 'status' | 'last_sync_at' | 'last_uid' | 'last_error' | 'display_name' | 'consecutive_fails' | 'last_ok_at' | 'last_check_at' | 'uidvalidity'>>): void { this.db.update('mail_account', id, { ...stripUndefined(patch), updated_at: now() }) }

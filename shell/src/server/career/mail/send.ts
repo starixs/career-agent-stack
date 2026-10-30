@@ -8,7 +8,9 @@ import type { Repos, ActionQueueItem, MailAccount } from '@career/core';
 
 import { dataChanged, focus, type IntakeDeps } from '../intake';
 import { fileSha256 } from '../packets';
+import { serverConfig } from '../server-api';
 import { getMailPassword } from './credentials';
+import { remoteSend } from './remote';
 import { smtpSecure } from './providers';
 
 export interface SendMailPayload {
@@ -49,8 +51,10 @@ export async function executeSendMailAction(deps: MailSendDeps, action: ActionQu
   const payload = JSON.parse(action.payload_json || '{}') as SendMailPayload;
   const account = payload.account_id ? r.getMailAccount(payload.account_id) : r.listMailAccounts()[0];
   if (!account) throw new Error('没有可用的邮箱账号，请先在「收件箱」里绑定邮箱');
-  const password = getMailPassword(account.id);
-  if (!password) throw new Error(`邮箱 ${account.address} 没有保存授权码，请重新绑定`);
+  // 云端连接：授权码在云端，经云端代发、云端留痕；本机连接：本机 SMTP 发、本机留痕
+  const cloud = account.remote_id ? serverConfig(r) : null;
+  const password = cloud ? '' : getMailPassword(account.id);
+  if (!cloud && !password) throw new Error(`邮箱 ${account.address} 没有保存授权码，请重新绑定`);
   if (!payload.to || !payload.subject) throw new Error('收件人与主题不能为空');
   // 认领：同一封只会被发一次；批准之后内容变了会退回待审
   const claim = r.claimAction(action.id);
@@ -71,12 +75,14 @@ export async function executeSendMailAction(deps: MailSendDeps, action: ActionQu
   // 助理代发必须留痕：连接管理页能看到「它替我发了什么」
   const audit = { to: payload.to.split(/[,;\s]+/).filter(Boolean), subject_preview: payload.subject.slice(0, 20), trigger: action.id };
   const started = Date.now();
+  const remoteId = account.remote_id;
+  const transport = deps.transport ?? (cloud && remoteId ? (_a: MailAccount, _p: string, m: SendMailPayload) => remoteSend(cloud, remoteId, m, action.id) : sendViaSmtp);
   try {
-    ({ messageId } = await (deps.transport ?? sendViaSmtp)(account, password, payload));
-    r.addMailAudit({ account_id: account.id, actor: 'agent', operation: 'send', status: 'ok', detail: audit, latency_ms: Date.now() - started });
+    ({ messageId } = await transport(account, password ?? '', payload));
+    if (!cloud) r.addMailAudit({ account_id: account.id, actor: 'agent', operation: 'send', status: 'ok', detail: audit, latency_ms: Date.now() - started });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    r.addMailAudit({ account_id: account.id, actor: 'agent', operation: 'send', status: 'failed', detail: { ...audit, error: msg.slice(0, 200) }, latency_ms: Date.now() - started });
+    if (!cloud) r.addMailAudit({ account_id: account.id, actor: 'agent', operation: 'send', status: 'failed', detail: { ...audit, error: msg.slice(0, 200) }, latency_ms: Date.now() - started });
     r.setActionStatus(action.id, 'failed', { error: msg });
     dataChanged(deps, ['action_queue']);
     throw new Error(`发送失败：${msg}`);

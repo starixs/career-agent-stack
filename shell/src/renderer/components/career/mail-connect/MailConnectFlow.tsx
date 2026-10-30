@@ -15,6 +15,7 @@ import type { MailAccount, MailConnector } from '../types';
 import { ConnectionManage } from './ConnectionManage';
 import { CAPABILITY_LABEL, ConnectorIcon } from './connectorUi';
 import { CredentialStep } from './CredentialStep';
+import { OauthConnect } from './OauthConnect';
 
 export type FlowStep = 'intro' | 'guide' | 'form' | 'manage';
 export interface FlowStart { connector: MailConnector; step: FlowStep; account?: MailAccount; reauthorize?: MailAccount }
@@ -51,7 +52,7 @@ export function MailConnectFlow({ start, from, onClose, onConnected }: {
           <button type="button" aria-label="关闭" onClick={close} className="rounded-md p-1 text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"><X className="h-4 w-4" /></button>
         </header>
         <div className="overflow-y-auto px-6 py-5">
-          {step === 'intro' && <ProviderIntro connector={connector} onStart={() => setStep('guide')} />}
+          {step === 'intro' && <ProviderIntro connector={connector} onStart={() => setStep('guide')} onOauthConnected={acc => { setAccountId(acc.id); onConnected(acc); setStep('manage'); }} />}
           {step === 'guide' && <AuthCodeGuide connector={connector} onNext={() => setStep('form')} />}
           {step === 'form' && (
             <CredentialStep
@@ -79,7 +80,8 @@ export function MailConnectFlow({ start, from, onClose, onConnected }: {
 }
 
 /** P1：这家邮箱能做什么、授权码怎么保存、接下来三步。 */
-function ProviderIntro({ connector, onStart }: { connector: MailConnector; onStart: () => void }) {
+function ProviderIntro({ connector, onStart, onOauthConnected }: { connector: MailConnector; onStart: () => void; onOauthConnected: (account: MailAccount) => void }) {
+  const oauthOn = !!connector.oauth?.enabled;
   return (
     <div className="grid gap-5">
       <section>
@@ -106,7 +108,8 @@ function ProviderIntro({ connector, onStart }: { connector: MailConnector; onSta
           ))}
         </ol>
       </section>
-      <Button variant="primary" onClick={onStart} className="justify-self-start">开始连接</Button>
+      {connector.oauth && <OauthConnect connector={connector} onConnected={onOauthConnected} />}
+      <Button variant={oauthOn ? 'ghost' : 'primary'} onClick={onStart} className="justify-self-start">{oauthOn ? '改用授权码连接' : '开始连接'}</Button>
     </div>
   );
 }

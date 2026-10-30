@@ -8,7 +8,7 @@
  */
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import type { Repos, ApplicationStage, JobPrefs, LLM, MailAccount, Vault, VaultScope } from '@career/core';
+import type { Repos, ApplicationStage, JobPrefs, LLM, Vault, VaultScope } from '@career/core';
 
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { StudioResumeNotFoundError, loadStudio, previewPlaceholders, saveStudio } from '../career/resume-studio';
@@ -20,13 +20,13 @@ import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isA
 import { runAtsCheck } from '../career/ats-check';
 import { getShellLLM } from '../career/llm';
 import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../career/intake';
-import { deleteMailPassword } from '../career/mail/credentials';
 import { MAIL_PRESETS } from '../career/mail/providers';
-import { CONNECTOR_ORDER, MAIL_CONNECTORS, isConnectorId } from '../career/mail/connectors';
-import { connectMailbox, mailAccountDetail, withConnection } from '../career/mail/connect-service';
+import { isConnectorId } from '../career/mail/connectors';
+import { withConnection } from '../career/mail/connect-service';
+import { mailBackend } from '../career/mail/backend';
 import type { VerifyDeps } from '../career/mail/verify';
 import { executeApprovedSendMails } from '../career/mail/send';
-import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
+import type { syncMailAccount } from '../career/mail/sync';
 import { draftMaterial } from '../career/materials';
 import { generateWeeklyReview } from '../career/review';
 import { loadSkillPrompt } from '../career/skills';
@@ -36,7 +36,7 @@ import { confirmSubmitResult } from '../career/submit-executor';
 import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
 import { BatchRunner } from '../career/batch-runner';
 import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
-import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource } from '../career/server-api';
+import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
 import { broadcast as sseBroadcast } from '../sse';
 
@@ -54,6 +54,8 @@ export interface CareerRouteDeps {
   mailVerify?: VerifyDeps;
   /** 绑定后的后台首次同步（测试注入；缺省走真实 IMAP）。 */
   mailSync?: typeof syncMailAccount;
+  /** 云端邮箱连接器的 HTTP（测试注入；缺省 fetch）。 */
+  mailFetch?: FetchLike;
   /** false：导出不用简历工作台模板（测试里没有 react-pdf 字体网络时用）。 */
   studioExport?: boolean;
 }
@@ -120,15 +122,9 @@ function intakeDeps(ctx: Ctx): IntakeDeps {
   if (ctx.deps.llm === undefined) { try { llm = getShellLLM(); } catch { llm = null; } } else llm = ctx.deps.llm;
   return { repos: ctx.repos, core: ctx.core, llm, broadcast: ctx.deps.broadcast, sessionId: ctx.deps.sessionId };
 }
-/**
- * 绑定后的首次同步放到后台：最多几十封、每封一次模型调用，不能让绑定框一直转圈。
- * 读完的结果经 dataChanged 推给通知中心；失败已写回账号状态，这里只留日志。
- */
-function syncInBackground(ctx: Ctx, account: MailAccount): void {
-  void (ctx.deps.mailSync ?? syncMailAccount)(intakeDeps(ctx), account).then(
-    r => { if (r.error) console.warn(`[career-mail] first sync failed account=${account.id}: ${r.error}`); },
-    error => console.error(`[career-mail] first sync crashed account=${account.id}:`, error),
-  );
+/** 邮箱连接器的分流入口（云端 / 本机），测试可注入校验、同步和云端请求。 */
+function mailBackendOf(ctx: Ctx) {
+  return mailBackend(intakeDeps(ctx), { verify: ctx.deps.mailVerify, sync: ctx.deps.mailSync, fetchImpl: ctx.deps.mailFetch });
 }
 const isoOrUndefined = (v: unknown): string | undefined => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : undefined);
 
@@ -848,36 +844,52 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 邮箱 ----------
-  route('GET', '/api/career/mail/accounts', ({ repos }) => ok({ accounts: repos.listMailAccounts().map(withConnection), presets: MAIL_PRESETS })),
-  // 连接器目录：每家怎么连（引导、字段、官方页面）是数据，界面照着渲染
-  route('GET', '/api/career/mail/connectors', ({ repos }) => ok({ connectors: CONNECTOR_ORDER.map(id => MAIL_CONNECTORS[id]), accounts: repos.listMailAccounts().map(withConnection) })),
-  // 填回授权码 → 真实校验 → 保存；成功后首次导入转到后台
+  route('GET', '/api/career/mail/accounts', async (ctx) => {
+    await mailBackendOf(ctx).refresh().catch(error => console.warn('[career-mail] refresh connections failed:', error instanceof Error ? error.message : error));
+    return ok({ accounts: ctx.repos.listMailAccounts().map(withConnection), presets: MAIL_PRESETS });
+  }),
+  // 连接器目录：每家怎么连（引导、字段、官方页面）是数据，云端下发，界面照着渲染
+  route('GET', '/api/career/mail/connectors', async (ctx) => {
+    const backend = mailBackendOf(ctx);
+    const [connectors] = await Promise.all([backend.catalog(), backend.refresh().catch(error => console.warn('[career-mail] refresh connections failed:', error instanceof Error ? error.message : error))]);
+    return ok({ connectors, accounts: ctx.repos.listMailAccounts().map(withConnection), backend: backend.kind });
+  }),
+  // 填回授权码 → 真实校验 → 保存（云端或本机）；成功后历史导入转到后台
   route('POST', '/api/career/mail/connectors/:id/verify', async (ctx) => {
     if (!isConnectorId(ctx.params.id)) return fail(`暂不支持这个邮箱：${ctx.params.id}`, 404);
-    const result = await connectMailbox(intakeDeps(ctx), { connector: ctx.params.id, email: str(ctx.body.email) ?? '', authCode: str(ctx.body.authCode) ?? '', reauthorize: ctx.body.reauthorize === true }, ctx.deps.mailVerify);
-    if (result.ok) syncInBackground(ctx, result.account);
+    const backend = mailBackendOf(ctx);
+    const result = await backend.connect({ connector: ctx.params.id, email: str(ctx.body.email) ?? '', authCode: str(ctx.body.authCode) ?? '', reauthorize: ctx.body.reauthorize === true });
+    if (result.ok) { backend.startImport(result.account); dataChanged(ctx, ['mail_account']); }
     return ok({ result: result.ok ? { ...result, account: withConnection(result.account) } : result });
   }),
-  route('GET', '/api/career/mail/accounts/:id/detail', ({ repos, params }) => {
-    const account = repos.getMailAccount(params.id);
-    return account ? ok(mailAccountDetail(repos, account)) : fail(`邮箱账号不存在：${params.id}`, 404);
+  // OAuth 轨（预留）：云端未启用时返回 oauth_not_enabled，界面显示「审核后开放」
+  route('POST', '/api/career/mail/connectors/:id/oauth/start', async (ctx) => {
+    if (!isConnectorId(ctx.params.id)) return fail(`暂不支持这个邮箱：${ctx.params.id}`, 404);
+    return ok({ result: await mailBackendOf(ctx).oauthStart(ctx.params.id) });
   }),
-  route('DELETE', '/api/career/mail/accounts/:id', (ctx) => {
-    if (!ctx.repos.getMailAccount(ctx.params.id)) return fail(`邮箱账号不存在：${ctx.params.id}`, 404);
-    ctx.repos.deleteMailAccount(ctx.params.id);
-    deleteMailPassword(ctx.params.id);
+  route('GET', '/api/career/mail/connectors/:id/oauth/status', async (ctx) => {
+    if (!isConnectorId(ctx.params.id)) return fail(`暂不支持这个邮箱：${ctx.params.id}`, 404);
+    const state = ctx.url.searchParams.get('state') ?? '';
+    const r = await mailBackendOf(ctx).oauthStatus(ctx.params.id, state);
+    if (r.account) dataChanged(ctx, ['mail_account']);
+    return ok({ status: r.status, account: r.account ? withConnection(r.account) : null });
+  }),
+  route('GET', '/api/career/mail/accounts/:id/detail', async (ctx) => {
+    const account = ctx.repos.getMailAccount(ctx.params.id);
+    return account ? ok(await mailBackendOf(ctx).detail(account)) : fail(`邮箱账号不存在：${ctx.params.id}`, 404);
+  }),
+  route('DELETE', '/api/career/mail/accounts/:id', async (ctx) => {
+    const account = ctx.repos.getMailAccount(ctx.params.id);
+    if (!account) return fail(`邮箱账号不存在：${ctx.params.id}`, 404);
+    await mailBackendOf(ctx).unbind(account);
     dataChanged(ctx, ['mail_account']);
     return ok({});
   }),
   route('POST', '/api/career/mail/sync', async (ctx) => {
     const accountId = str(ctx.body.account_id);
-    const deps = intakeDeps(ctx);
-    if (accountId) {
-      const account = ctx.repos.getMailAccount(accountId);
-      if (!account) return fail(`邮箱账号不存在：${accountId}`, 404);
-      return ok({ results: [await syncMailAccount(deps, account)] });
-    }
-    return ok({ results: await syncAllMailAccounts(deps) });
+    const account = accountId ? ctx.repos.getMailAccount(accountId) : undefined;
+    if (accountId && !account) return fail(`邮箱账号不存在：${accountId}`, 404);
+    return ok({ results: await mailBackendOf(ctx).syncNow(account) });
   }),
   route('GET', '/api/career/mail/messages', ({ repos, url }) => {
     const direction = url.searchParams.get('direction');

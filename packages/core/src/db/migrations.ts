@@ -247,6 +247,15 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec('CREATE INDEX IF NOT EXISTS idx_mail_audit_account ON mail_audit(account_id, created_at)')
     },
   },
+  {
+    version: 9,
+    name: 'mail-account-remote-id',
+    up(db) {
+      // 凭证上云后，云端连接是事实源；本机镜像一行账号（remote_id = 云端 connection_id），邮件记录仍挂在本机账号上。
+      addColumn(db, 'mail_account', 'remote_id', 'TEXT')
+      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_account_remote ON mail_account(remote_id) WHERE remote_id IS NOT NULL')
+    },
+  },
 ]
 
 export function currentVersion(db: DatabaseSync): number {

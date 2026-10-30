@@ -33,3 +33,16 @@ describe('邮箱连接器数据', () => {
     expect(r.listMailAudit(a.id)).toEqual([])
   })
 })
+
+describe('云端连接的本机镜像', () => {
+  const remote = { remote_id: 'conn_1', provider: 'qq' as const, address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com', status: 'ok', last_error: null, consecutive_fails: 0, last_ok_at: null, last_check_at: null, last_sync_at: null, created_at: '2026-10-30T00:00:00Z' }
+  it('按 remote_id 更新同一行；本地连过的同一地址会被认领', () => {
+    const r = mem()
+    const local = r.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' })
+    expect(r.mirrorMailAccount(remote).id).toBe(local.id)
+    const b = r.mirrorMailAccount({ ...remote, status: 'auth_failed', consecutive_fails: 3 })
+    expect(b).toMatchObject({ id: local.id, remote_id: 'conn_1', status: 'auth_failed', consecutive_fails: 3 })
+    expect(r.getMailAccountByRemote('conn_1')?.id).toBe(local.id)
+    expect(r.listMailAccounts()).toHaveLength(1)
+  })
+})

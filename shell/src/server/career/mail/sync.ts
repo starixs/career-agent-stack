@@ -163,16 +163,23 @@ async function runSync(deps: MailSyncDeps, account: MailAccount): Promise<MailSy
     return { ...result, error: message };
   }
   const history = account.last_uid === 0 || !!fetched.reset;
-  if (history) result.history = { by_rules: 0, by_model: 0, unclassified: 0 };
-  result.fetched = fetched.mails.length;
-  // 历史按时间从旧到新：先投递确认、再笔试面试、最后拒信 / Offer，阶段才推得对
-  const mails = history ? [...fetched.mails].sort((a, b) => (a.received_at ?? '').localeCompare(b.received_at ?? '')) : fetched.mails;
-  for (const m of mails) await archiveMail(deps, account, m, result);
+  Object.assign(result, await archiveBatch(deps, account, fetched.mails, history));
   recordMailSuccess(deps, account, { last_uid: fetched.reset ? fetched.maxUid : Math.max(account.last_uid, fetched.maxUid), uidvalidity: fetched.uidvalidity });
   // 每 5 分钟一次的空同步不留痕，只记真拉到信的（连接管理页的用量）
   if (result.fetched) r.addMailAudit({ account_id: account.id, actor: 'system', operation: history ? 'import' : 'sync', status: 'ok', detail: { fetched: result.fetched, job_related: result.job_related, ...(result.history ?? {}) }, latency_ms: Date.now() - started });
   dataChanged(deps, ['mail_account', 'mail_message', 'inbox_item', 'dossier_note', 'job', 'application', 'application_history', 'interview', 'offer', 'deadline']);
   if (result.history) console.log(`[career-mail] history import account=${account.id} fetched=${result.fetched} rules=${result.history.by_rules} model=${result.history.by_model} unclassified=${result.history.unclassified}`);
+  return result;
+}
+
+/**
+ * 一批邮件 → 落库 → 归档 / 接管。本机 IMAP 同步和云端事件流（mail/remote.ts）共用。
+ * history：第一次连接的历史邮件，规则先认、按时间从旧到新处理（先投递确认、再笔试面试、最后拒信 / Offer，阶段才推得对）。
+ */
+export async function archiveBatch(deps: MailSyncDeps, account: MailAccount, mails: FetchedMail[], history: boolean): Promise<MailSyncResult> {
+  const result: MailSyncResult = { account_id: account.id, fetched: mails.length, stored: 0, job_related: 0, ignored: 0, archived: [], ...(history ? { history: { by_rules: 0, by_model: 0, unclassified: 0 } } : {}) };
+  const ordered = history ? [...mails].sort((a, b) => (a.received_at ?? '').localeCompare(b.received_at ?? '')) : mails;
+  for (const m of ordered) await archiveMail(deps, account, m, result);
   return result;
 }
 

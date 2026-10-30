@@ -109,6 +109,30 @@ describe('邮箱连接中心', () => {
     expect(within(dialog()).getByRole('button', { name: '重新授权' })).toBeInTheDocument();
   });
 
+  it('Gmail 的 OAuth 轨：未开放时说明现状、照常走授权码；开放后在浏览器授权，轮询到完成就连上', async () => {
+    const gmail = (enabled: boolean) => ({ ...connector('gmail', 'Gmail'), oauth: { enabled } });
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => path === '/api/career/mail/connectors' ? { ok: true, connectors: [gmail(false)], accounts: [] } : { ok: true });
+    const { unmount } = render(<MailConnectCenter />);
+    fireEvent.click(await screen.findByRole('button', { name: /Gmail/ }));
+    expect(within(dialog()).getByText(/官方一键授权审核通过后开放/)).toBeInTheDocument();
+    expect(within(dialog()).getByRole('button', { name: '开始连接' })).toBeInTheDocument();
+    unmount();
+
+    const onConnected = vi.fn();
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
+      if (path === '/api/career/mail/connectors') return { ok: true, connectors: [gmail(true)], accounts: [] };
+      if (path.includes('/oauth/status')) return { ok: true, status: 'done', account: account({ provider: 'gmail', address: 'me@gmail.com' }) };
+      if (path.endsWith('/detail')) return { ok: true, account: account({ provider: 'gmail', address: 'me@gmail.com' }), usage: { days: 7, by_op: {} }, audit: [] };
+      return { ok: true };
+    });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, result: { ok: true, authorize_url: 'https://accounts.google.com/o/oauth2/auth?x=1', state: 's1' } });
+    render(<MailConnectCenter onConnected={onConnected} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Gmail/ }));
+    fireEvent.click(within(dialog()).getByRole('button', { name: /用 Gmail 账号授权/ }));
+    await waitFor(() => expect(openExternal).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/auth?x=1'));
+    await waitFor(() => expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({ address: 'me@gmail.com' })), { timeout: 4000 });
+  });
+
   it('已连接：进管理页看用量和代发记录；解绑要输对邮箱地址', async () => {
     mockServer([account()]);
     render(<MailConnectCenter />);

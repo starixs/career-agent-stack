@@ -28,6 +28,8 @@ export interface MailConnector {
   /** 拿授权码时官方要求的验证（这一步省不掉）。 */
   verify_note: string;
   fields: CredentialField[];
+  /** OAuth 轨（预留）：enabled 由云端决定，审核通过前为 false，界面照常走授权码。 */
+  oauth?: { enabled: boolean };
 }
 
 const AUTH_CODE_LENGTH = 16;
@@ -78,6 +80,7 @@ export const MAIL_CONNECTORS: Record<ConnectorId, MailConnector> = {
     ],
     verify_note: '需要先开两步验证；工作或学校的 Google 账号可能用不了应用专用密码。',
     fields: [emailField('you@gmail.com'), codeField('16 位字母，空格可以一起粘')],
+    oauth: { enabled: false },
   },
 };
 
