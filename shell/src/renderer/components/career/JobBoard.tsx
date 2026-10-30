@@ -21,6 +21,7 @@ import {
   DEFAULT_BOARD_FILTER, activeFilterCount, batchLabel, boardAskRefs, facetOptions, filterBoardRows, typeTagsOf,
   type BoardFilterState, type BoardSort, type FacetKey,
 } from './jobBoardFilters';
+import { TargetStar } from './TargetStar';
 import type { EmploymentType, JobBoardRow, JobPrefs } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
@@ -292,7 +293,9 @@ function BoardRow({ row, checked, onToggle, onChanged }: { row: JobBoardRow; che
     <>
       <tr className={`group border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${checked ? 'bg-[var(--selected)]' : ''} ${job.source_status === 'closed' ? 'text-[var(--subtle)]' : ''}`}>
         <td className="px-2 py-2"><input type="checkbox" aria-label={`选择岗位 ${job.title}`} checked={checked} onChange={onToggle} /></td>
-        <td className={`${CELL} font-medium text-[var(--ink)]`} title={company}>{company}</td>
+        <td className={`${CELL} font-medium text-[var(--ink)]`} title={company}>
+          <span className="flex min-w-0 items-center gap-1"><TargetStar jobId={job.id} source={row.target} label={`${company} ${job.title}`} onChanged={onChanged} /><span className="truncate">{company}</span></span>
+        </td>
         <td className={`${CELL} text-[var(--ink-2)]`} title={job.title}>
           {job.title}{job.source_status === 'closed' && <span className="ml-1 text-[var(--subtle)]">（已下架）</span>}
         </td>

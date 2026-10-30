@@ -76,4 +76,11 @@ describe('面试接口', () => {
     await call('POST', '/api/career/targets', { job_id: mine.id, target: false });
     expect((await targets()).美团).toBeNull();
   });
+
+  it('岗位收藏表里也带目标标记：海投阶段标的岗位还没建申请也算', async () => {
+    const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j3', title: '算法', company_name: '快手' });
+    await call('POST', '/api/career/targets', { job_id: job.id, target: true });
+    const rows = (await call('GET', '/api/career/jobs/board')).json.rows as Array<{ job: { id: string }; target: string | null }>;
+    expect(rows.find(r => r.job.id === job.id)?.target).toBe('user');
+  });
 });

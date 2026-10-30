@@ -18,6 +18,7 @@ import { STAGE_LABELS, STAGE_TONES } from '@/components/career/careerConstants';
 import { Badge, CareerPage, EmptyState, ErrorRow, LoadingRow, TextInput, formatDate } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
+import { TargetStar } from '@/components/career/TargetStar';
 import type { ApplicationStage, CareerFocusEvent, DossierSummary } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
@@ -172,7 +173,7 @@ function DossierLine({ focus, onClearFilter }: { focus: FocusRequest | null; onC
               </tr>
             </thead>
             <tbody>
-              {rows.map(s => <LineRow key={s.application_id} summary={s} focused={s.application_id === focusedId} onShowJd={() => setJdFor(s)} />)}
+              {rows.map(s => <LineRow key={s.application_id} summary={s} focused={s.application_id === focusedId} onShowJd={() => setJdFor(s)} onChanged={query.reload} />)}
             </tbody>
           </table>
         )}
@@ -190,7 +191,7 @@ function submittedAt(s: DossierSummary): string {
 }
 
 /** 整行可点（Enter 也行）看这个岗位（JD 原文 + 岗位页面）；状态格浮出完整步骤条。行内控件阻止冒泡（7.5）。 */
-function LineRow({ summary, focused, onShowJd }: { summary: DossierSummary; focused: boolean; onShowJd: () => void }) {
+function LineRow({ summary, focused, onShowJd, onChanged }: { summary: DossierSummary; focused: boolean; onShowJd: () => void; onChanged: () => void }) {
   const company = summary.company_name ?? '未知公司';
   const days = summary.days_since_update;
   const quiet = days >= 7 && ACTIVE_STAGES.has(summary.stage);
@@ -204,9 +205,11 @@ function LineRow({ summary, focused, onShowJd }: { summary: DossierSummary; focu
       title={`查看岗位：${summary.title}`}
       onClick={onShowJd}
       onKeyDown={e => { if (e.key === 'Enter' && e.target === e.currentTarget) onShowJd(); }}
-      className={`cursor-pointer border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)] ${focused ? 'bg-[var(--hover)] shadow-[inset_3px_0_0_var(--primary)]' : ''} ${summary.stage === 'discarded' ? 'text-[var(--subtle)]' : ''}`}
+      className={`group cursor-pointer border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)] ${focused ? 'bg-[var(--hover)] shadow-[inset_3px_0_0_var(--primary)]' : ''} ${summary.stage === 'discarded' ? 'text-[var(--subtle)]' : ''}`}
     >
-      <td className="truncate px-2 py-2 font-medium text-[var(--ink)]" title={company}>{company}</td>
+      <td className="truncate px-2 py-2 font-medium text-[var(--ink)]" title={company}>
+        <span className="flex min-w-0 items-center gap-1"><TargetStar jobId={summary.job_id} source={summary.target} label={`${company} ${summary.title}`} onChanged={onChanged} /><span className="truncate">{company}</span></span>
+      </td>
       <td className="truncate px-2 py-2 text-[var(--ink-2)]" title={summary.title}>{summary.title}</td>
       <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-[var(--muted)]" title={summary.applied_at ? undefined : '还没投出去'}>
         {summary.applied_at ? formatDate(summary.applied_at) : <span className="text-[var(--subtle)]">未投出</span>}

@@ -318,6 +318,8 @@ export interface JobBoardRow {
   application: { id: string; stage: ApplicationStage; next_action: string | null; updated_at: string } | null;
   /** 多维表格维度（server job-board.ts boardMeta）：来源数据里有才有。 */
   meta?: JobBoardMeta;
+  /** 目标岗位：interview = 进过面试；user = 用户亲手标的；null = 不算。 */
+  target?: 'interview' | 'user' | null;
 }
 export interface JobBoardMeta { batch: string | null; industry: string | null; type_tags: string[] }
 export interface JobBoardFilter { q?: string; employment_type?: string; city?: string; cohort?: string; open_only?: boolean; fits_only?: boolean; progress?: 'none' | 'active' | 'done'; sort?: 'match' | 'deadline' | 'updated' }

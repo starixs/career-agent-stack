@@ -1133,8 +1133,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         // 条数多时不展开逐条证据，避免结果被截断；要细看某几条再按 job_ids 查
         const detailed = rows.length <= 50;
         const applied = Object.fromEntries(Object.entries(args).filter(([k, v]) => k !== 'limit' && v !== undefined && !(Array.isArray(v) && v.length === 0)));
-        return text({ prefs: getJobPrefs(repos()), total: matched.length, returned: rows.length, filters: applied, rows: rows.map(({ job, match, application, meta }) => ({
-          job_id: job.id, job_key: job.job_key, company: job.company_name, title: job.title, type: job.employment_type, cohort: job.cohort, batch: meta.batch, industry: meta.industry, type_tags: boardTypeTags({ job, meta }),
+        return text({ prefs: getJobPrefs(repos()), total: matched.length, returned: rows.length, filters: applied, rows: rows.map(({ job, match, application, meta, target }) => ({
+          job_id: job.id, target, job_key: job.job_key, company: job.company_name, title: job.title, type: job.employment_type, cohort: job.cohort, batch: meta.batch, industry: meta.industry, type_tags: boardTypeTags({ job, meta }),
           location: job.location, deadline: job.deadline, url: job.url, stage: boardStageOf({ application }), progress: application?.stage ?? null, score: match?.score ?? null, fits: match?.hard_ok ?? null, summary: match?.summary ?? '尚未计算匹配',
           ...(detailed ? {
             hard: match?.hard.filter(h => h.ok !== true).map(h => `${h.label}：${h.detail}`), covered: match?.requirements.filter(r => r.status === 'covered').map(r => `${r.requirement} ← ${r.evidence?.label ?? ''}「${r.evidence?.text.slice(0, 40) ?? ''}」`),
