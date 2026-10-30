@@ -213,12 +213,16 @@ export interface InboxItem {
   id: string; source: 'paste' | 'mail' | 'file' | 'url' | 'chat'; raw_text: string; kind: InboxKind | null;
   status: 'new' | 'processed' | 'dismissed'; parsed_json: string | null; linked_type: string | null; linked_id: string | null;
   mail_message_id: string | null; note: string | null; created_at: string; processed_at: string | null;
+  /** 服务端算的：已归档且它带来的事都处理完了（core.Repos.inboxSettled），通知中心折进「已处理」。 */
+  settled?: boolean;
 }
 export type DeadlineKind = 'assessment' | 'written_test' | 'interview' | 'application_deadline' | 'offer_reply' | 'referral_expiry' | 'other';
 export interface Deadline {
   id: string; kind: DeadlineKind; title: string; due_at: string | null; application_id: string | null; job_id: string | null;
-  interview_id: string | null; offer_id: string | null; source: string; status: 'open' | 'done' | 'missed' | 'cancelled';
+  interview_id: string | null; offer_id: string | null; source: string; status: 'open' | 'done' | 'missed' | 'cancelled' | 'skipped';
   url: string | null; note: string | null; created_at: string; updated_at: string;
+  /** 过了时间的笔试 / 测评 / 面试：服务端给出要问的那句（「考了吗？」），答完收进卷宗；不用问时为 null / 缺省。 */
+  attendance_question?: string | null;
 }
 export interface DossierNote { id: string; application_id: string; kind: 'note' | 'said' | 'heard' | 'contact' | 'referral' | 'mail'; round: string | null; content: string; created_at: string }
 export type MaterialKind = 'open_question' | 'project_story' | 'self_intro' | 'why_company' | 'why_role' | 'strength_weakness' | 'career_plan' | 'other';
@@ -261,7 +265,7 @@ export interface MailMessage {
   relevance: 'unknown' | 'job' | 'ignored'; kind: InboxKind | null; inbox_item_id: string | null; application_id: string | null; action_id: string | null; created_at: string;
 }
 export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'followup';
-export interface TodayItem { kind: TodayItemKind; priority: number; title: string; detail?: string; due_at?: string | null; ref: { type: string; id: string }; suggest?: string }
+export interface TodayItem { kind: TodayItemKind; priority: number; title: string; detail?: string; due_at?: string | null; ref: { type: string; id: string }; deadline_id?: string; suggest?: string; ask?: 'attendance' }
 /** 「今天做过」一条：任务进展 / 投递阶段变化 / 动作执行。 */
 export interface ActivityEntry { id: string; at: string; kind: 'task' | 'stage' | 'action'; status: string; title: string; detail: string | null }
 export interface TodayQueue { items: TodayItem[]; waiting: { count: number; by_stage: Array<{ stage: string; n: number }> }; inbox_new: number; pending_review: number }

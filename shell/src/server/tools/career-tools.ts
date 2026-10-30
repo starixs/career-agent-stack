@@ -653,7 +653,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         changed('account_fetch');
         return text({ state });
       })()),
-      tool('today_queue', '今天必须做的事（已排序：过期 / 今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线）+ 等待中的投递数。给用户最多三件。只含 3 天内的时间点（条目带 deadline_id）；更远的日程用 deadline_list。', {}, wrap(() => text(repos().today()))),
+      tool('today_queue', '今天必须做的事（已排序：今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线 → 近三天到期 → 已过期没打勾的）+ 等待中的投递数。给用户最多三件。只含 3 天内的时间点（条目带 deadline_id）；更远的日程用 deadline_list。', {}, wrap(() => text(repos().today()))),
 
       tool('inbox_capture', '把用户丢进来的任何内容（JD、面试邀请、测评 / 笔试通知、拒信、Offer、内推码、截止提醒）归档成结构化对象：自动建岗位 / 面试 / 截止事件 / 关闭投递 / Offer，并关联到卷宗。', {
         text: z.string().describe('原文'), source: z.enum(['paste', 'file', 'url', 'chat']).optional(), application_id: z.string().optional().describe('用户已明确归属的投递'),
@@ -683,8 +683,13 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ deadline });
       })()),
 
-      tool('deadline_done', '把一个时间点标记为已完成 / 取消。', { deadline_id: z.string(), status: z.enum(['done', 'cancelled', 'missed']).optional() }, async (args) => wrap(() => {
-        const deadline = repos().setDeadlineStatus(args.deadline_id, args.status ?? 'done');
+      tool('deadline_done', '把一个时间点标记为已完成 / 取消。过了时间的笔试 / 测评 / 面试（today_queue 条目带 ask=attendance）：用户说考了 / 去了用 done，说没去 / 没做用 skipped，会记进卷宗。', { deadline_id: z.string(), status: z.enum(['done', 'cancelled', 'missed', 'skipped']).optional() }, async (args) => wrap(() => {
+        const r = repos();
+        const status = args.status ?? 'done';
+        const current = r.getDeadline(args.deadline_id);
+        const answering = !!current && (status === 'done' || status === 'skipped') && core.asksAttendance(current, new Date().toISOString());
+        const deadline = answering ? r.answerAttendance(args.deadline_id, status === 'done') : r.setDeadlineStatus(args.deadline_id, status);
+        if (answering) changed('dossier_note');
         changed('deadline');
         return text({ deadline });
       })()),
@@ -722,7 +727,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (!Object.keys(patch).length) return err('没有要改的字段：due_at / title / note / kind 至少给一个');
         if (typeof patch.due_at === 'string' && current.status === 'missed' && Date.parse(patch.due_at) > Date.now()) patch.status = 'open';
         r.db.update('deadline', current.id, { ...patch, updated_at: new Date().toISOString() });
-        changed('deadline');
+        if (current.interview_id && typeof patch.due_at === 'string') r.rescheduleInterview(current.interview_id, patch.due_at);
+        changed('deadline', ...(current.interview_id ? ['interview'] : []));
         return text({ deadline: r.getDeadline(current.id) });
       })()),
 
@@ -1461,7 +1467,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         // 真实面试里被问到的题进题库（"我见过的"），同一题跨场次累计
         const asked = Array.isArray((out as { questions?: unknown }).questions) ? (out as { questions: Array<{ quote?: string; type?: string; content_tags?: string[] }> }).questions : [];
         const seen = asked.filter(q => q?.quote && q.quote.trim().length >= 4).map(q => repos().upsertQuestion({ content: q.quote!, kind: 'interview', category: q.type ?? null, company_name: args.company_name ?? null, title: args.title ?? null, source: 'seen', source_ref: `interview:${interview.id}`, tags: q.content_tags ?? [] }).id);
-        changed('interview', ...(seen.length ? ['question'] : []));
+        changed('interview', ...(args.date ? ['deadline'] : []), ...(seen.length ? ['question'] : []));
         return text({ interview_id: interview.id, retro: out, questions_saved: seen.length });
       })()),
 

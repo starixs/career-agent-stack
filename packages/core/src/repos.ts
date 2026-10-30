@@ -462,6 +462,25 @@ export class Repos {
     return this.getInboxItem(id)!
   }
   dismissInboxItem(id: string): InboxItem { return this.resolveInboxItem(id, { status: 'dismissed' }) }
+  /**
+   * 一封已归档的信带来的事是不是都处理完了：它关联的时间点、或关联投递（面试、Offer 所在的投递）上没有还开着的时间点。
+   * 通知中心据此把处理完的信折进「已处理」，「全部」的数字只算还没处理的。
+   */
+  inboxSettled(item: InboxItem): boolean {
+    if (item.status !== 'processed') return false
+    if (item.linked_type === 'deadline' && item.linked_id) {
+      const d = this.getDeadline(item.linked_id)
+      return !d || (d.status !== 'open' && d.status !== 'missed')
+    }
+    const appId = this.applicationOfLink(item.linked_type, item.linked_id)
+    return !appId || this.listDeadlines({ status: 'open_or_missed', application_id: appId }).length === 0
+  }
+  private applicationOfLink(type: string | null, id: string | null): string | null {
+    if (!id) return null
+    if (type === 'application') return id
+    if (type === 'interview' || type === 'offer') return this.db.get<{ application_id: string | null }>(`SELECT application_id FROM ${type} WHERE id=?`, [id])?.application_id ?? null
+    return null
+  }
 
   // ---------- 截止与定时事件（不丢球） ----------
   /** due_at 为 null = 时间未知（例如笔试通知里没写时间）：照样建，笔试记录 / 投递进度能看到，今日队列提示去确认时间。 */
@@ -481,6 +500,31 @@ export class Repos {
   }
   setDeadlineStatus(id: string, status: DeadlineStatus): Deadline {
     if (!this.db.update('deadline', id, { status, updated_at: now() })) throw new Error(`截止事件不存在：${id}`)
+    return this.getDeadline(id)!
+  }
+  /**
+   * 面试时间存了两份：interview.date（助力记录、卷宗读）和它的 deadline.due_at（月历、今日队列、通知中心读）。
+   * 从任一处改期都走这里，两份一起改；已过期的改到将来重新变回未完成。做完 / 取消的时间点不动。
+   */
+  rescheduleInterview(interviewId: string, dueIso: string, nowIso = now()): void {
+    this.db.transaction(() => {
+      this.db.run('UPDATE interview SET date=?, updated_at=? WHERE id=?', [dueIso, nowIso, interviewId])
+      this.db.run(
+        `UPDATE deadline SET due_at=?, status=CASE WHEN status='missed' AND ?>? THEN 'open' ELSE status END, updated_at=? WHERE interview_id=? AND status IN ('open','missed')`,
+        [dueIso, dueIso, nowIso, nowIso, interviewId])
+    })
+  }
+  /**
+   * 回答「考了吗 / 做了吗 / 去了吗」：考了 → done，没去 → skipped（邀请是真的来过，漏斗照样算回应）。
+   * 挂在投递上的记一笔进卷宗，之后这件事只在卷宗里，不再出现在队列、月历和通知中心。
+   */
+  answerAttendance(id: string, attended: boolean): Deadline {
+    const d = this.getDeadline(id)
+    if (!d) throw new Error(`截止事件不存在：${id}`)
+    this.db.transaction(() => {
+      this.db.update('deadline', id, { status: attended ? 'done' : 'skipped', updated_at: now() })
+      if (d.application_id) this.db.insert('dossier_note', { id: newId('dnt'), application_id: d.application_id, kind: 'note', round: null, content: `${d.title}：${attended ? '参加了' : '没参加'}（回来时确认）`, created_at: now() })
+    })
     return this.getDeadline(id)!
   }
   /** 把已过期仍 open 的事件标为 missed（今日队列读取前调用）。 */
@@ -550,7 +594,7 @@ export class Repos {
   }
 
   // ---------- 今日队列 ----------
-  /** 今天必须做的事（已排序）：过期 / 今天到期 → 待审 → 接管 → 今日面试 → 新收件 → 静默可关 → 近三天到期。 */
+  /** 今天必须做的事（已排序）：今天到期 → 待审 → 接管 → 今日面试 → 新收件 → 静默可关 → 近三天到期 → 已过期（OVERDUE_PRIORITY）。 */
   today(nowIso = now()): { items: TodayItem[]; waiting: { count: number; by_stage: Array<{ stage: string; n: number }> }; inbox_new: number; pending_review: number } {
     this.markMissedDeadlines(nowIso)
     const items: TodayItem[] = []
@@ -575,7 +619,7 @@ export class Repos {
     const apps = this.applicationsWithJob()
     for (const a of apps) { const it = staleToToday({ ...a, title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }
     const inboxNew = this.listInbox('new')
-    if (inboxNew.length) items.push({ kind: 'inbox', priority: 5, title: `收件箱有 ${inboxNew.length} 条新内容待归档`, ref: { type: 'inbox', id: inboxNew[0].id }, suggest: '帮我把收件箱里的新内容归档' })
+    if (inboxNew.length) items.push({ kind: 'inbox', priority: 5, title: `收件箱有 ${inboxNew.length} 条新内容待归档`, ref: { type: 'inbox_item', id: inboxNew[0].id }, suggest: '帮我把收件箱里的新内容归档' })
     const waitingStages: ApplicationStage[] = ['applied', 'responded', 'interview', 'pending']
     const waiting = apps.filter(a => waitingStages.includes(a.stage))
     const byStage = new Map<string, number>()

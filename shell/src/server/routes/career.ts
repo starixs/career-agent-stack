@@ -519,7 +519,8 @@ const ROUTES: Route[] = [
   route('PUT', '/api/career/interviews/:id', (ctx) => {
     try {
       const interview = ctx.store.updateInterview(ctx.params.id, ctx.body as never);
-      dataChanged(ctx, ['interview']);
+      // 改了时间的话，月历上那个时间点也跟着改了（Repos.rescheduleInterview）
+      dataChanged(ctx, ['interview', 'deadline']);
       return ok({ interview });
     } catch (error) {
       return fail(error instanceof Error ? error.message : '更新失败', 404);
@@ -695,7 +696,8 @@ const ROUTES: Route[] = [
   // ---------- 收件箱 ----------
   route('GET', '/api/career/inbox', ({ repos, url }) => {
     const status = url.searchParams.get('status');
-    return ok({ items: repos.listInbox(status === 'new' || status === 'processed' || status === 'dismissed' ? status : undefined) });
+    const items = repos.listInbox(status === 'new' || status === 'processed' || status === 'dismissed' ? status : undefined);
+    return ok({ items: items.map(item => ({ ...item, settled: repos.inboxSettled(item) })) });
   }),
   route('POST', '/api/career/inbox', async (ctx) => {
     const text = str(ctx.body.text);
@@ -720,9 +722,14 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 截止事件 ----------
-  route('GET', '/api/career/deadlines', ({ repos, url }) => {
+  route('GET', '/api/career/deadlines', ({ repos, core, url }) => {
     const status = url.searchParams.get('status');
-    return ok({ deadlines: repos.listDeadlines({ status: status === 'open' || status === 'done' || status === 'missed' || status === 'cancelled' || status === 'open_or_missed' ? status : undefined }) });
+    const filter = status === 'open_or_missed' ? status : core.DEADLINE_STATUSES.find(known => known === status);
+    const nowIso = new Date().toISOString();
+    // 过了时间的笔试 / 测评 / 面试：月历和通知中心问「考了吗」，不当「已过期」去催（规则在 core.asksAttendance，只有一份）
+    const deadlines = repos.listDeadlines({ status: filter })
+      .map(d => ({ ...d, attendance_question: core.asksAttendance(d, nowIso) ? core.ATTENDANCE_QUESTION[d.kind] ?? null : null }));
+    return ok({ deadlines });
   }),
   route('POST', '/api/career/inbox/link', async (ctx) => {
     const url = str(ctx.body.url);
@@ -752,9 +759,17 @@ const ROUTES: Route[] = [
     dataChanged(ctx, ['deadline']);
     return ok({ deadline });
   }),
+  route('POST', '/api/career/deadlines/:id/attendance', (ctx) => {
+    if (typeof ctx.body.attended !== 'boolean') return fail('attended 必须是 true / false');
+    try {
+      const deadline = ctx.repos.answerAttendance(ctx.params.id, ctx.body.attended);
+      dataChanged(ctx, ['deadline', 'dossier_note']);
+      return ok({ deadline });
+    } catch (error) { return fail(error instanceof Error ? error.message : '更新失败', 404); }
+  }),
   route('POST', '/api/career/deadlines/:id/status', (ctx) => {
     const status = ctx.body.status;
-    if (status !== 'open' && status !== 'done' && status !== 'missed' && status !== 'cancelled') return fail('status 非法');
+    if (status !== 'open' && status !== 'done' && status !== 'missed' && status !== 'cancelled' && status !== 'skipped') return fail('status 非法');
     try {
       const deadline = ctx.repos.setDeadlineStatus(ctx.params.id, status);
       dataChanged(ctx, ['deadline']);

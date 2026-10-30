@@ -45,7 +45,7 @@ describe('收件箱 / 截止 / 今日队列', () => {
     expect(r.dismissInboxItem(r.createInboxItem({ raw_text: '广告' }).id).status).toBe('dismissed')
   })
 
-  it('今日队列：过期在前，其次今天到期、待审、静默；过期事件被标 missed', () => {
+  it('今日队列：今天到期在前，其次待审、收件、静默，已过期排在队尾；过期事件被标 missed', () => {
     const r = mem()
     const job = r.upsertJob({ source_platform: 'boss', source_job_id: 'j1', title: '数据分析实习生', company_name: '甲公司' })
     const app = r.createApplication(job.id)
@@ -59,20 +59,69 @@ describe('收件箱 / 截止 / 今日队列', () => {
     r.createInboxItem({ raw_text: '新邮件' })
 
     const today = r.today(NOW)
-    expect(today.items.map(i => i.kind)).toEqual(['deadline', 'deadline', 'review', 'inbox', 'stale'])
-    expect(today.items[0].title).toBe('乙公司测评')
-    expect(today.items[0].detail).toContain('已过期')
-    expect(today.items[1].detail).toContain('今天')
+    expect(today.items.map(i => i.kind)).toEqual(['deadline', 'review', 'inbox', 'stale', 'deadline'])
+    // 过了时间的测评不当「已过期」催，而是问一句做了没有
+    expect(today.items[4]).toMatchObject({ title: '乙公司测评：做了吗？', ask: 'attendance' })
+    expect(today.items[0].detail).toContain('今天')
     // 挂在投递上的截止：ref 指向投递，deadline_id 仍给出截止事件本身，便于改期 / 完成
-    expect(today.items[1].ref).toEqual({ type: 'application', id: app.id })
-    expect(today.items[1].deadline_id).toBe(written.id)
-    expect(today.items[4].suggest).toContain(app.id)
+    expect(today.items[0].ref).toEqual({ type: 'application', id: app.id })
+    expect(today.items[0].deadline_id).toBe(written.id)
+    expect(today.items[3].suggest).toContain(app.id)
     expect(today.waiting).toEqual({ count: 1, by_stage: [{ stage: 'applied', n: 1 }] })
     expect(today.pending_review).toBe(1)
     expect(today.inbox_new).toBe(1)
     expect(r.listDeadlines({ status: 'missed' }).map(d => d.title)).toEqual(['乙公司测评'])
     // 20 天后的事件不进今日
     expect(today.items.some(i => i.title.includes('丁公司'))).toBe(false)
+  })
+})
+
+describe('过了时间的笔试 / 面试：问一句「考了吗」', () => {
+  it('过了时间没打勾的笔试在队尾问「考了吗」；别的已过期事项照旧；答完从队列消失、卷宗记一笔', () => {
+    const r = mem()
+    const job = r.upsertJob({ source_platform: 'campus', source_job_id: 'mt', title: '后端', company_name: '美团' })
+    const app = r.createApplication(job.id)
+    const exam = r.createDeadline({ kind: 'written_test', title: '美团笔试', due_at: '2026-10-02T11:00:00.000Z', application_id: app.id })
+    r.createDeadline({ kind: 'application_deadline', title: '乙公司网申截止', due_at: '2026-10-02T12:00:00.000Z' })
+
+    const asked = r.today(NOW).items.find(i => i.deadline_id === exam.id)!
+    expect(asked).toMatchObject({ title: '美团笔试：考了吗？', ask: 'attendance' })
+    expect(r.today(NOW).items.find(i => i.title === '乙公司网申截止')?.ask).toBeUndefined()
+
+    expect(r.answerAttendance(exam.id, false).status).toBe('skipped')
+    expect(r.today(NOW).items.map(i => i.deadline_id)).not.toContain(exam.id)
+    expect(r.listDossierNotes(app.id).map(n => n.content)).toEqual(['美团笔试：没参加（回来时确认）'])
+  })
+})
+
+describe('通知中心：处理完的信折起来', () => {
+  it('inboxSettled：已归档且关联投递上没有开着的时间点才算处理完；没归档的永远不算', () => {
+    const r = mem()
+    const job = r.upsertJob({ source_platform: 'campus', source_job_id: 'jf', title: '后端', company_name: '九方云' })
+    const app = r.createApplication(job.id)
+    const mail = r.resolveInboxItem(r.createInboxItem({ raw_text: '在线测评' }).id, { kind: 'assessment', linked_type: 'application', linked_id: app.id })
+    const test = r.createDeadline({ kind: 'assessment', title: '九方云测评', due_at: '2026-10-04T15:59:00.000Z', application_id: app.id })
+    expect(r.inboxSettled(mail)).toBe(false)
+    r.setDeadlineStatus(test.id, 'done')
+    expect(r.inboxSettled(mail)).toBe(true)
+    expect(r.inboxSettled(r.createInboxItem({ raw_text: '认不出来' }))).toBe(false)
+  })
+})
+
+describe('面试改期', () => {
+  it('rescheduleInterview：面试记录和它的时间点一起改；已过期改到将来变回未完成，做完的不动', () => {
+    const r = mem()
+    r.db.insert('interview', { id: 'itv1', round: 'first', date: '2026-10-01T06:00:00.000Z', tags_json: '[]', result: 'none', result_source: 'none', created_at: NOW, updated_at: NOW })
+    const missed = r.createDeadline({ kind: 'interview', title: '一面', due_at: '2026-10-01T06:00:00.000Z', interview_id: 'itv1' })
+    r.setDeadlineStatus(missed.id, 'missed')
+    const done = r.createDeadline({ kind: 'interview', title: '一面（旧）', due_at: '2026-09-20T06:00:00.000Z', interview_id: 'itv1' })
+    r.setDeadlineStatus(done.id, 'done')
+
+    r.rescheduleInterview('itv1', '2026-10-05T02:00:00.000Z', NOW)
+
+    expect(r.db.get<{ date: string }>('SELECT date FROM interview WHERE id=?', ['itv1'])?.date).toBe('2026-10-05T02:00:00.000Z')
+    expect(r.getDeadline(missed.id)).toMatchObject({ due_at: '2026-10-05T02:00:00.000Z', status: 'open' })
+    expect(r.getDeadline(done.id)).toMatchObject({ due_at: '2026-09-20T06:00:00.000Z', status: 'done' })
   })
 })
 

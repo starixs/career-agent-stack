@@ -165,7 +165,7 @@ export function AssistRecords() {
                     tabIndex={clickable ? 0 : undefined}
                     onClick={clickable ? () => openDossier(r) : undefined}
                     onKeyDown={clickable ? e => { if (e.key === 'Enter' && e.target === e.currentTarget) openDossier(r); } : undefined}
-                    className={`border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${clickable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]' : ''} ${r.detail === '已过' ? 'text-[var(--muted)]' : ''}`}
+                    className={`border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${clickable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]' : ''} ${r.detail === '已过' || r.cancelled ? 'text-[var(--muted)]' : ''}`}
                   >
                     <td className="truncate px-2 py-2 font-medium text-[var(--ink)]" title={r.company_name ?? undefined}>{textOrUnknown(r.company_name)}</td>
                     <td className="truncate px-2 py-2 text-[var(--ink-2)]" title={r.title ?? undefined}>{r.title ?? '—'}</td>

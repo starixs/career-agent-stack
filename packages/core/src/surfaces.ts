@@ -55,7 +55,7 @@ export function silenceOf(stage: ApplicationStage, updatedAt: string, nowIso: st
 export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'followup'
 export interface TodayItem {
   kind: TodayItemKind
-  /** 越小越靠前：0 已过期 / 1 今天到期 / 2 待审 / 3 接管 / 4 面试 / 5 收件箱 / 6 静默 / 7 跟进 */
+  /** 越小越靠前：1 今天到期 / 2 待审 / 3 接管 / 4 面试 / 5 收件箱 / 6 静默 / 7 近三天到期、时间未知 / 8 已过期 */
   priority: number
   title: string
   detail?: string
@@ -65,10 +65,29 @@ export interface TodayItem {
   deadline_id?: string
   /** 面板一键动作对应的对话意图（带对象 id），为空则该项只能在面板处理。 */
   suggest?: string
+  /** attendance：过了时间的笔试 / 测评 / 面试，问一句「考了吗」，答完收进卷宗（见 asksAttendance）。 */
+  ask?: 'attendance'
 }
 
 export function sortToday(items: TodayItem[]): TodayItem[] {
   return [...items].sort((a, b) => a.priority - b.priority || (a.due_at ?? '').localeCompare(b.due_at ?? ''))
+}
+
+/**
+ * 已过期的排在队尾：它已经没有外部期限可赶，回来时先给的应该是还赶得上的那件（世界模型 §2「紧急度由外部期限定」、
+ * 方法准则 7「回来先给最急的一件」）。仍然留在队列里、不丢；用户可能已经在平台上考完，只是没回来打勾。
+ */
+export const OVERDUE_PRIORITY = 8
+
+/**
+ * 笔试、测评、面试多在外部平台进行，他去没去我们看不见；没打勾不等于错过。
+ * 过了时间、还没答过的，回来时问一句，不当成「已过期」去催。
+ */
+export const ATTENDANCE_KINDS: ReadonlySet<string> = new Set(['written_test', 'assessment', 'interview'])
+export const ATTENDANCE_QUESTION: Record<string, string> = { written_test: '考了吗？', assessment: '做了吗？', interview: '去了吗？' }
+
+export function asksAttendance(d: Pick<Deadline, 'kind' | 'status' | 'due_at'>, nowIso: string): boolean {
+  return ATTENDANCE_KINDS.has(d.kind) && (d.status === 'open' || d.status === 'missed') && !!d.due_at && Date.parse(d.due_at) < Date.parse(nowIso)
 }
 
 /** 只处理有时间的事件；时间未知（due_at 为 null）的由调用方（Repos.today）单独处理。 */
@@ -77,10 +96,16 @@ export function deadlineToToday(d: Deadline & { due_at: string }, nowIso: string
   const days = daysBetween(nowIso, d.due_at)
   if (days > 3) return null
   const overdue = Date.parse(d.due_at) < Date.parse(nowIso)
+  if (overdue && asksAttendance(d, nowIso)) {
+    return {
+      kind: 'deadline', priority: OVERDUE_PRIORITY, title: `${d.title}：${ATTENDANCE_QUESTION[d.kind]}`, detail: '答一下就收进卷宗', due_at: d.due_at,
+      ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id }, deadline_id: d.id, ask: 'attendance',
+    }
+  }
   const label = overdue ? '已过期' : days === 0 ? '今天' : days === 1 ? '明天' : `${days} 天后`
   return {
     kind: d.kind === 'interview' && days === 0 ? 'interview_today' : 'deadline',
-    priority: overdue ? 0 : days === 0 ? (d.kind === 'interview' ? 4 : 1) : 7,
+    priority: overdue ? OVERDUE_PRIORITY : days === 0 ? (d.kind === 'interview' ? 4 : 1) : 7,
     title: d.title, detail: `${label}截止`, due_at: d.due_at,
     ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id },
     deadline_id: d.id,

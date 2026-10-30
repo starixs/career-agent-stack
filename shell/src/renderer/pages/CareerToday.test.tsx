@@ -155,6 +155,20 @@ describe('CareerToday · 招聘概览', () => {
     expect(screen.getByRole('button', { name: cellName(tomorrow) }).querySelector('[data-category="remind"]')).toHaveAttribute('data-lit', 'false');
   });
 
+  it('前天的笔试没打勾：今天那栏问「考了吗」，不标红已过期；点「考了」→ POST attendance，这一行划掉', async () => {
+    const twoDaysAgo = localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2));
+    const exam = { ...deadlines[0], id: 'd9', kind: 'written_test', title: '美团笔试', due_at: `${twoDaysAgo}T19:00:00`, status: 'missed', attendance_question: '考了吗？' };
+    mockGet({ deadlines: [exam] });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, deadline: { ...exam, status: 'done' } });
+    render(<CareerToday isActive onOpenChat={vi.fn()} />);
+    const row = (await within(sidebar()).findByText('美团笔试：考了吗？')).closest('li')!;
+    expect(within(row).queryByText('已过期')).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: '完成' })).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: '考了' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/deadlines/d9/attendance', { attended: true }));
+    await waitFor(() => expect(document.querySelector('[data-todo="deadline:d9"]')).toHaveAttribute('data-done', 'true'));
+  });
+
   it('关闭这条线 → POST close-silent；再等等只在本地隐藏', async () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, application: { id: 'a1' } });

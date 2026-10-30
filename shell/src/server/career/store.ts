@@ -142,6 +142,7 @@ export class CareerStore {
     if (patch.tags_json !== undefined) row.tags_json = jsonOrEmpty(patch.tags_json, '[]');
     if (patch.retro_json !== undefined) row.retro_json = patch.retro_json === null ? null : jsonOrEmpty(patch.retro_json);
     this.db.update('interview', id, { ...row, updated_at: this.now() });
+    if (typeof row.date === 'string') this.repos.rescheduleInterview(id, row.date, this.now());
     return this.getInterview(id)!;
   }
   listMockInterviews(): MockInterview[] { return this.db.all<MockInterview>('SELECT * FROM mock_interview ORDER BY updated_at DESC'); }
