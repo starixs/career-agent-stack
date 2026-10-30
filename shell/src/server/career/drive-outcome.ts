@@ -175,8 +175,16 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     deps.changed('task', 'action_queue', 'application');
     return { kind: 'failed', blocked, message, summary };
   };
-  // 交还后核对身份没过（页面换了网站 / 找不到网申页面）：不算失败，重新交给用户——回到网申页面后再交还就能接着填
   const code = (errorLine as { code?: string } | undefined)?.code;
+  // 续填时原页面没了（浏览器被关 / 重启）：和「浏览器关了重新打开」同一件事，放回队列从网申网址重新打开，不让用户自己找回去
+  // （2026-10-31 实例测试：登上之后重启了一次，就让学生「回到网申页面后再交还」）
+  if (!result && code === 'APPLICATION_PAGE_GONE' && deps.mode === 'continue') {
+    r.requeueAction(action.id);
+    r.updateTask(taskId, { status: 'queued' });
+    deps.changed('task', 'action_queue');
+    return { kind: 'transient', code, message: '原来的网申页面已经关了，重新打开接着填' };
+  }
+  // 交还后核对身份没过（用户把页面换到了别的网站）：不算失败，重新交给用户——回到网申页面后再交还就能接着填
   if (!result && (code === 'APPLICATION_PAGE_MOVED' || code === 'APPLICATION_PAGE_GONE')) {
     const message = errorLine?.error ?? '这份网申的页面不对，请回到网申页面后再交还';
     const h = r.openHandoff('user_request', { actionId: action.id, taskId, message });
