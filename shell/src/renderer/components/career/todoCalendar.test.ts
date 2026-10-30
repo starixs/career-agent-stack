@@ -62,6 +62,19 @@ describe('todoCalendar', () => {
     expect(byKey.get('action:old')).toMatchObject({ category: 'review', date: '2026-10-11', done: true });
   });
 
+  it('面试时间过了：一天内放今天提示复盘，不算过期；更早的留在原日期，不顺延', () => {
+    const todos = buildTodos({
+      deadlines: [
+        deadline({ id: 'fresh', kind: 'interview', title: '百度二面', due_at: '2026-10-12T14:00:00' }),
+        deadline({ id: 'old', kind: 'interview', title: '京东一面', due_at: '2026-10-08T10:00:00' }),
+      ],
+      now: NOW,
+    });
+    const byKey = new Map(todos.map(t => [t.key, t]));
+    expect(byKey.get('deadline:fresh')).toMatchObject({ date: '2026-10-13', done: false, item: { kind: 'interview_retro', title: '百度二面 面完了？' } });
+    expect(byKey.get('deadline:old')).toMatchObject({ date: '2026-10-08', done: true, note: '没复盘' });
+  });
+
   it('falls back to today-queue deadlines when the deadline list is unavailable', () => {
     const today: TodayItem[] = [{ kind: 'deadline', priority: 1, title: '乙公司测评', due_at: '2026-10-14T18:00:00', ref: { type: 'deadline', id: 'd1' } }];
     expect(buildTodos({ today, deadlines: null, now: NOW })).toMatchObject([{ key: 'deadline:d1', date: '2026-10-14' }]);
