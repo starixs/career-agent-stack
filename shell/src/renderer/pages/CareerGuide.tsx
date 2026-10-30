@@ -47,7 +47,7 @@ export const IDEAS: Idea[] = [
   { text: '绑定邮箱，面试邀请、笔试和拒信自动进来，不用天天刷。', button: '去绑定', action: { open: { kind: 'career-vault' } } },
   { text: '投出去两周没动静？让小芽看看哪些线可以关掉，把精力留给别处。', button: '看看', action: { prefill: '帮我看看哪些投递很久没动静了，哪些可以关掉' } },
   { text: '明天面试？一句话摊开卷宗：投的哪版简历、对这家说过什么。', button: '摊开卷宗', action: { prefill: '我明天面试，把这家公司的卷宗摊开：' } },
-  { text: '每周看一次漏斗就够了：投了多少、卡在哪一环。', button: '做一次复盘', action: { prefill: '给我做一次本周复盘' } },
+  { text: '隔一阵看一次漏斗就够了：投了多少、卡在哪一环。', button: '看我的求职月', action: { open: { kind: 'career-review' } } },
 ];
 
 export function runMarketAction(action: MarketAction, note: string): void {

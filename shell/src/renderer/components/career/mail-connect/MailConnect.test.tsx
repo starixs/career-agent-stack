@@ -24,9 +24,9 @@ const account = (over: Partial<MailAccount> = {}): MailAccount => ({
   connection: { state: 'active', health: 'healthy' }, ...over,
 });
 
-function mockServer(accounts: MailAccount[]) {
+function mockServer(accounts: MailAccount[], applyAddress: { address: string; connector_id: string | null } | null = null) {
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
-    if (path === '/api/career/mail/connectors') return { ok: true, connectors, accounts };
+    if (path === '/api/career/mail/connectors') return { ok: true, connectors, accounts, apply_address: applyAddress };
     if (path.endsWith('/detail')) return { ok: true, account: accounts[0], usage: { days: 7, by_op: { import: { ok: 1, failed: 0 }, send: { ok: 2, failed: 1 } } }, audit: [{ id: 'a1', actor: 'agent', operation: 'send', status: 'ok', detail: { to: ['hr@x.com'], subject_preview: '应聘产品' }, latency_ms: 300, created_at: new Date().toISOString() }] };
     return { ok: true };
   });
@@ -53,6 +53,21 @@ describe('邮箱连接中心', () => {
     expect(openExternal).toHaveBeenCalledWith('https://mail.example/qq');
     fireEvent.click(within(dialog()).getByRole('button', { name: '我已获取授权码，下一步' }));
     expect(within(dialog()).getByLabelText('邮箱地址')).toBeInTheDocument();
+  });
+
+  it('和投递打通：网申填的是 QQ 邮箱，就在 QQ 那一格写出来，填表时预填它；连上的是别的邮箱如实说一句', async () => {
+    mockServer([], { address: 'apply@qq.com', connector_id: 'qq' });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, result: { ok: true, account: account({ address: 'other@qq.com' }), smtp_ok: true, apply_address_mismatch: 'apply@qq.com' } });
+    render(<MailConnectCenter />);
+    fireEvent.click(await screen.findByRole('button', { name: /网申填的是 apply@qq.com/ }));
+    fireEvent.click(within(dialog()).getByRole('button', { name: '开始连接' }));
+    fireEvent.click(within(dialog()).getByRole('button', { name: '我已获取授权码，下一步' }));
+    const email = within(dialog()).getByLabelText('邮箱地址') as HTMLInputElement;
+    expect(email.value).toBe('apply@qq.com');
+    fireEvent.change(email, { target: { value: 'other@qq.com' } });
+    fireEvent.change(within(dialog()).getByLabelText('授权码'), { target: { value: 'abcdefghijklmnop' } });
+    fireEvent.click(within(dialog()).getByRole('button', { name: '验证并连接' }));
+    expect(await within(dialog()).findByText(/网申填的是 apply@qq.com，招聘方的回音会发到那里/, {}, { timeout: 3000 })).toBeInTheDocument();
   });
 
   it('填表：格式不对就地提示、不发请求；对了才校验，授权码去掉空格；成功后回调', async () => {

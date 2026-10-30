@@ -7,8 +7,6 @@
  * - 有笔试的线不能被叫成「静默，建议关闭」；
  * - 关掉的线来了迟到的回信，要接回原来那份申请，不另起一份。
  */
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -121,36 +119,11 @@ describe('低谷 · 秋招第六周的周五', () => {
     expect(titles).not.toMatch(/拒/);
   });
 
-  it('「是不是我不行」：复盘里的本周数字按真实投出时刻和拒信算，不由模型自己报', async () => {
-    // 模型把累计数当成本周数报回来——事实一栏不能照抄它
-    llm.push(JSON.stringify({ facts: { applied: 150, advanced: 0, rejected: 31, silent: 0, interviews: 0 }, insights: [], suggestions: [{ action: '多投', priority: 2 }, { action: '补关键词', priority: 1 }], small_action: '把公司5-1 的卷宗补一条复盘', tone_flag: 'low_mood' }));
-    const res = await call('weekly_review', { user_note: '这周连着被拒，是不是我不行' });
+  it('「是不是我不行」：不在对话里出周复盘，放一张「我的求职月」卡，本月数字照实', async () => {
+    const res = await call('month_review', {});
     expect(res.isError).toBe(false);
-    const facts = res.json().facts as Record<string, number>;
-    expect(facts.applied).toBe(23);
-    expect(facts.rejected).toBe(6);
-    expect(facts.interviews).toBe(0);
-    // 判出低落：建议只留一条，小动作照给
-    expect(res.json().suggestions).toEqual([{ action: '补关键词', priority: 1 }]);
-    expect(res.json().small_action).toBeTruthy();
-    const prompt = String(llm.calls[0].messages[0].content);
-    expect(prompt).toContain('本周投出：23');
-    expect(prompt).toContain('本周拒信：6');
-  });
-
-  it('基数用他自己的：复盘提示里带着「投出多少份才第一次进面试」', async () => {
-    llm.push(JSON.stringify({ facts: {}, insights: [], suggestions: [] }));
-    await call('weekly_review', {});
-    const prompt = String(llm.calls[0].messages[0].content);
-    // 第一次进面试在第三周周二（9 月 30 日），在那之前投出了前两周的 50 份 + 第三周前两天的
-    expect(prompt).toMatch(/第一次进面试前投出了 \d+ 份/);
-  });
-
-  it('换方向 / 补短板：今天刚收到拒信，拒信也都在简历关、开发类有进笔试和面试——不提，模型自己提的也拿掉', async () => {
-    llm.push(JSON.stringify({ facts: {}, suggestions: [{ action: '考虑转产品方向', tool: 'direction_explore', priority: 1 }, { action: '给开发类简历加两条关键词', priority: 2 }] }));
-    const res = await call('weekly_review', {});
-    expect(String(llm.calls[0].messages[0].content)).toContain('换方向 / 补短板信号：无');
-    expect(res.json().suggestions).toEqual([{ action: '给开发类简历加两条关键词', priority: 2 }]);
+    expect(res.json().counts).toEqual(repos.monthBoard({ tzOffsetMinutes: -new Date().getTimezoneOffset() }).counts);
+    expect(llm.calls).toHaveLength(0);
   });
 
   it('有笔试的线不算静默：美团后天考笔试，不会被收起', () => {
@@ -213,12 +186,5 @@ describe('低谷 · 秋招第六周的周五', () => {
     expect(ctx).toContain('「这 7 天收到 6 封拒信。你之前投出 60 份才第一次进面试，现在一共 2 个面试。」');
     expect(ctx).toContain('不提换方向');
     expect(lowPointOpener(repos, NOW)).toBeNull();
-  });
-  it('基数只来自他自己的历史：复盘技能（源和随包副本）不再让模型给行业区间', () => {
-    for (const p of ['../../../../skills/weekly-review/SKILL.md', '../../../bundled-workspaces/career/.claude/skills/weekly-review/SKILL.md']) {
-      const skill = readFileSync(fileURLToPath(new URL(p, import.meta.url)), 'utf8');
-      expect(skill).not.toContain('常见校招经验');
-      expect(skill).toContain('他自己的基数');
-    }
   });
 });

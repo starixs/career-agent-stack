@@ -238,7 +238,6 @@ export interface Material {
   claim_ids_json: string; tags_json: string; company_scope: string | null; confirmed: number; created_at: string; updated_at: string;
 }
 export interface MaterialUse { id: string; material_id: string | null; application_id: string | null; job_id: string | null; company_name: string | null; context: string; content_snapshot: string; used_at: string }
-export interface WeeklyReview { id: string; week_start: string; funnel_json: string; insights_json: string; suggestions_json: string; small_action: string | null; created_at: string }
 export interface MailAccount {
   id: string; provider: 'qq' | '163' | '126' | 'gmail' | 'outlook' | 'imap'; address: string; display_name: string | null;
   imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; status: 'unverified' | 'ok' | 'auth_failed' | 'error';
@@ -272,7 +271,7 @@ export interface TakeoverBriefing {
 export type MailOauthStart = { ok: true; authorize_url: string; state: string } | { ok: false; error_code: string; message: string };
 export type MailConnectErrorCode = 'imap_auth_failed' | 'imap_disabled' | 'provider_blocked' | 'unreachable' | 'duplicate' | 'invalid_input';
 export type MailConnectResult =
-  | { ok: true; account: MailAccount; smtp_ok: boolean }
+  | { ok: true; account: MailAccount; smtp_ok: boolean; /** 网申填的是另一个邮箱时给出那个地址：那边的回音这里收不到 */ apply_address_mismatch?: string | null }
   | { ok: false; error_code: MailConnectErrorCode; message: string; account_id?: string };
 export interface MailAuditEntry { id: string; actor: 'agent' | 'user' | 'system'; operation: string; status: 'ok' | 'failed'; detail: Record<string, unknown> | null; latency_ms: number | null; created_at: string }
 export interface MailAccountDetail { account: MailAccount; usage: { days: number; by_op: Record<string, { ok: number; failed: number }> }; audit: MailAuditEntry[] }

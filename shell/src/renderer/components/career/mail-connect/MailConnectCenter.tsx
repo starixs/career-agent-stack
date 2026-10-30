@@ -26,12 +26,13 @@ export function MailConnectCenter({ from, onConnected }: MailConnectCenterProps)
   const [open, setOpen] = useState<FlowStart | null>(null);
   const connectors = q.data?.connectors ?? [];
   const accounts = q.data?.accounts ?? [];
+  const apply = q.data?.applyAddress ?? null;
   const accountsOf = (c: MailConnector) => accounts.filter(a => a.provider === c.id);
 
   const openCard = (c: MailConnector) => {
     const mine = accountsOf(c);
     const status = connectorStatus(mine);
-    if (status === 'none') setOpen({ connector: c, step: 'intro' });
+    if (status === 'none') setOpen({ connector: c, step: 'intro', prefill: apply?.connector_id === c.id ? apply.address : undefined });
     else if (status === 'expired') {
       const expired = mine.find(a => a.connection?.state === 'expired')!;
       setOpen({ connector: c, step: 'guide', reauthorize: expired });
@@ -63,7 +64,7 @@ export function MailConnectCenter({ from, onConnected }: MailConnectCenterProps)
                     <StatusBadge status={status} />
                   </span>
                   <span className="block truncate text-xs text-[var(--muted)]">
-                    {mine.length ? mine.map(a => a.address).join('、') : '用授权码连接，大约 1 分钟'}
+                    {mine.length ? mine.map(a => a.address).join('、') : apply?.connector_id === c.id ? `网申填的是 ${apply.address}` : '用授权码连接，大约 1 分钟'}
                   </span>
                 </span>
                 <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-[var(--subtle)] group-hover:text-[var(--ink)]" />

@@ -32,13 +32,10 @@ describe('低谷开场', () => {
     expect(lowPointLine(withRejections(5, 8), NOW)).toBeNull();
   });
 
-  it('说过一次就记下，7 天内不再说；这几天做过复盘也不说', () => {
+  it('说过一次就记下，7 天内不再说', () => {
     const repos = withRejections(6);
     expect(lowPointOpener(repos, NOW)).toContain('不提换方向');
     expect(repos.kvGet(LOW_POINT_KV)).toBe(NOW);
     expect(lowPointOpener(repos, NOW)).toBeNull();
-    const reviewed = withRejections(6);
-    reviewed.saveWeeklyReview({ week_start: '2026-10-19', funnel: {}, insights: [], suggestions: [], small_action: null });
-    expect(lowPointLine(reviewed, NOW)).toBeNull();
   });
 });

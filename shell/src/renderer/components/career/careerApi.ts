@@ -12,7 +12,7 @@ import type {
   CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
   InboxItem, IntakeResult, Interview, InterviewRecording, Job, MailAccount, MailAccountDetail, MailConnectResult, MailConnector, MailConnectorId, MailMessage, MailOauthStart, SeasonId, TakeoverBriefing, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
-  ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue, WeeklyReview,
+  ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
   AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
 } from './types';
@@ -276,9 +276,8 @@ export const careerApi = {
   // ----- 复盘 -----
   review: (month?: string) => apiGetJson<unknown>(careerPath(month ? `/review?month=${encodeURIComponent(month)}` : '/review')).then(r => {
     const d = asDict(r);
-    return { funnel: (d.funnel as Funnel) ?? { by_category: [], by_platform: [], overall: null }, board: (d.board as MonthBoard | undefined) ?? null, reviews: pickList<WeeklyReview>(d.reviews) };
+    return { funnel: (d.funnel as Funnel) ?? { by_category: [], by_platform: [], overall: null }, board: (d.board as MonthBoard | undefined) ?? null };
   }),
-  generateWeeklyReview: (body: { week_start?: string; user_note?: string } = {}) => apiPostJson<unknown>(careerPath('/review/weekly'), body).then(r => asDict(r) as { review?: WeeklyReview; output?: Record<string, unknown> }),
 
   // ----- 邮箱 -----
   mailAccounts: () => apiGetJson<unknown>(careerPath('/mail/accounts')).then(r => {
@@ -287,7 +286,10 @@ export const careerApi = {
   }),
   mailConnectors: () => apiGetJson<unknown>(careerPath('/mail/connectors')).then(r => {
     const d = asDict(r);
-    return { connectors: pickList<MailConnector>(d.connectors), accounts: pickList<MailAccount>(d.accounts) };
+    const apply = asDict(d.apply_address);
+    // 网申用的邮箱（基本资料里那个）：连邮箱时预填、默认选对应的服务商
+    const applyAddress = typeof apply.address === 'string' ? { address: apply.address, connector_id: typeof apply.connector_id === 'string' ? apply.connector_id : null } : null;
+    return { connectors: pickList<MailConnector>(d.connectors), accounts: pickList<MailAccount>(d.accounts), applyAddress };
   }),
   verifyMailConnector: (id: MailConnectorId, body: { email: string; authCode: string; reauthorize?: boolean }) =>
     apiPostJson<unknown>(careerPath(`/mail/connectors/${encodeURIComponent(id)}/verify`), body).then(r => asDict(r).result as MailConnectResult),

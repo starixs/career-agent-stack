@@ -16,8 +16,6 @@ export function lowPointLine(repos: Repos, nowIso: string): string | null {
   const since = Date.parse(nowIso) - LOW_POINT_WINDOW_DAYS * DAY_MS;
   const rejections = repos.stageHistory().filter(h => h.to_stage === 'rejected' && Date.parse(h.created_at) >= since).length;
   if (rejections < LOW_POINT_MIN_REJECTIONS) return null;
-  const lastReview = repos.listWeeklyReviews(1)[0];
-  if (lastReview && Date.parse(lastReview.created_at) >= since) return null;
   const said = repos.kvGet<string>(LOW_POINT_KV);
   if (said && Date.parse(said) >= since) return null;
   const overall = repos.funnel(nowIso).overall;
@@ -36,6 +34,6 @@ export function lowPointOpener(repos: Repos, nowIso: string): string | null {
   return [
     '〔低谷开场〕在这次回复的最开头先说这一句（口吻可以自然些，数字一个都不能改）：',
     `「${line}」`,
-    '然后照常回应用户这条消息。不展开复盘、不提换方向或补短板、不加安慰话；用户想复盘时再调 weekly_review。',
+    '然后照常回应用户这条消息。不展开复盘、不提换方向或补短板、不加安慰话；用户想复盘时调 month_review 放一张「我的求职月」卡。',
   ].join('\n');
 }

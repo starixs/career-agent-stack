@@ -78,7 +78,6 @@
 | GET / POST | `/api/career/materials/uses` | 使用记录（`?application_id=&company_name=&material_id=`）/ `{material_id?, application_id?, company_name?, context, content_snapshot}` |
 | POST | `/api/career/materials/draft` | `{kind, question, length?, job_id?, application_id?, company_name?}` → 草稿 + conflicts（需模型） |
 | GET | `/api/career/review` | `{funnel: {overall, by_category, by_platform}, reviews}` |
-| POST | `/api/career/review/weekly` | `{week_start?, user_note?}` → 生成并保存周复盘（无模型时只存漏斗） |
 | GET / POST | `/api/career/mail/accounts` | 账号与预设 / 绑定 `{address, password?, provider?, display_name?, imap_host?, smtp_host?, verify?}`（立即同步一次验证） |
 | DELETE | `/api/career/mail/accounts/:id` | 解绑并删除本机授权码 |
 | POST | `/api/career/mail/connect` | 一键连接 `{provider: qq\|163\|126\|gmail, address?}` → `{session}`：产品浏览器打开官方页面，用户扫码登录后自动读授权码、IMAP 验证、绑定 |
@@ -189,7 +188,7 @@
 | `dossier_note_add` | application_id, kind, round?, content | 说过的 / 听到的 / 联系人 |
 | `application_set_stage` | application_id, stage, note? | 沿状态机合法路径推进或关闭 |
 | `material_list` / `material_draft` / `material_save` / `material_use_record` | … | 素材库：复用优先 + 一致性核对 |
-| `weekly_review` | week_start?, user_note? | 漏斗 + 代理反馈 + 一个小动作 |
+| `month_review` | — | 对话里放一张「我的求职月」卡（本月四个数），点开到漏斗页 |
 | `mail_accounts` / `mail_sync` / `mail_list` | – / account_id? / application_id? | 邮箱（绑定在面板完成，授权码不进对话） |
 | `mail_compose` | to, job_id \| application_id, resume_id?, notes? | 起草投递邮件（可附简历 PDF）并入待审队列 `send_mail` |
 
