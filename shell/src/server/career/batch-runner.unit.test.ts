@@ -216,6 +216,29 @@ describe('BatchRunner', () => {
     expect(runner.state()).toMatchObject({ status: 'idle', done: 1 });
   });
 
+  it('浏览器开着、但这份网申的页面被关了：接管作废、重新排队打开；缺信息的不动（它不靠页面）', async () => {
+    const repos = createMemoryRepos();
+    const [id] = seed(repos, 1);
+    let gone = false;
+    let round = 0;
+    const { runner, calls } = makeRunner(repos, () => {
+      round++;
+      return round === 1
+        ? [result('handoff', { reason: 'login', userAction: '请登录' })]
+        : [result('stopped_before_submit', { submitButton: '提交' })];
+    }, { hasBrowser: () => true, pageGone: () => gone });
+    runner.start();
+    for (let i = 0; i < 50 && runner.state().phase !== 'waiting_user'; i++) await settle();
+    await settle();
+    expect(calls).toHaveLength(1);
+    gone = true; // 学生关掉了窗口
+    for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toMatchObject({ mode: 'start' });
+    expect(calls[1].action.id).toBe(id);
+    expect(repos.openHandoffs()).toHaveLength(0);
+  });
+
   it('并行：不同网站同时填，同一网站严格串行，并发数封顶', async () => {
     const repos = createMemoryRepos();
     seed(repos, 2, 'a.com'); seed(repos, 1, 'b.com'); seed(repos, 1, 'c.com');

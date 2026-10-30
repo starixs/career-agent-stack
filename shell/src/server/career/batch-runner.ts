@@ -57,6 +57,11 @@ export interface BatchRunnerDeps {
    * 浏览器没了（App 重启 / 被回收）就重新排队、从头打开那一份，不再干等。缺省视为开着。
    */
   hasBrowser?: () => boolean;
+  /**
+   * 这份网申的页面还在不在（浏览器开着、但学生把那个窗口 / 标签关了）。缺省视为在。
+   * 2026-10-31 实例测试：学生下意识关掉外面那个「一模一样的浏览器」，产品里没画面、也一直干等。
+   */
+  pageGone?: (action: Pick<ActionQueueItem, 'id' | 'application_id'>) => boolean;
   broadcast: (event: string, data: unknown) => void;
   sessionId?: () => string;
   /** 平台是否有风险锁（RiskGuard 的 kv）。 */
@@ -266,6 +271,10 @@ export class BatchRunner {
         const n = this.requeueStaleHandoffs();
         if (n > 0) { this.setState({ message: `浏览器已关闭，重新打开 ${n} 份等你处理的网申` }); continue; }
       }
+      if (waiting > 0 && this.deps.pageGone) {
+        const n = this.requeueStaleHandoffs(this.deps.pageGone);
+        if (n > 0) { this.setState({ message: `网申页面被关掉了，重新打开 ${n} 份接着办` }); continue; }
+      }
       if (waiting > 0) { this.setState({ phase: 'waiting_user', currentActionId: undefined, running: [], message: `有 ${waiting} 份等你在浏览器里处理后交回` }); await this.idle(poll); continue; }
       const finished = this.state();
       if (finished.only?.length) {
@@ -292,18 +301,20 @@ export class BatchRunner {
    * 浏览器已经不在时，等用户处理的接管页面也没了：关掉这些接管，把动作放回队列（approved），
    * 下一轮按 start 模式从岗位网址重新打开；遇到登录 / 验证码会生成新的、页面还在的接管。
    */
-  requeueStaleHandoffs(): number {
-    const stale = this.repos.db.all<{ action_id: string; handoff_id: string }>(
-      `SELECT a.id AS action_id, h.id AS handoff_id FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status='needs_user' AND h.resumed_at IS NULL`,
+  requeueStaleHandoffs(pageGone?: NonNullable<BatchRunnerDeps['pageGone']>): number {
+    const stale = this.repos.db.all<{ action_id: string; application_id: string | null; handoff_id: string; reason: string }>(
+      `SELECT a.id AS action_id, a.application_id, h.id AS handoff_id, h.reason FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status='needs_user' AND h.resumed_at IS NULL`,
     );
     const actions = new Set<string>();
     for (const row of stale) {
-      try { this.repos.closeHandoff(row.handoff_id, 'browser_closed'); } catch { /* 已关闭 */ }
+      // 只看页面没了的那几份；缺信息的不靠页面（在等你条里填），页面关了也不用重开
+      if (pageGone && (row.reason === 'missing_info' || !pageGone({ id: row.action_id, application_id: row.application_id }))) continue;
+      try { this.repos.closeHandoff(row.handoff_id, pageGone ? 'page_closed' : 'browser_closed'); } catch { /* 已关闭 */ }
       actions.add(row.action_id);
     }
     for (const id of actions) this.repos.requeueAction(id);
     if (actions.size) {
-      this.log(`requeued ${actions.size} stale handoff action(s): browser closed`);
+      this.log(`requeued ${actions.size} stale handoff action(s): ${pageGone ? 'page closed' : 'browser closed'}`);
       this.deps.broadcast('career:data-changed', { sessionId: this.deps.sessionId?.() ?? 'global', tables: ['handoff', 'action_queue'] });
     }
     return actions.size;

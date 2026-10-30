@@ -17,7 +17,11 @@ import { BatchRunner } from './batch-runner';
 import { setLivePin } from './live-pin';
 import { authCookies, knownLoggedIn, learnLoginMarks, LoginJudge, type CookieLike, type LoginSignal, type ResponseVerdict, type ScreenSample } from './login-signal';
 
-export interface JourneyPage { url(): string; onLoginResponse(cb: (verdict: ResponseVerdict) => void): () => void; /** 画面这一路；读不到给 null */ screen(): Promise<ScreenSample | null> }
+export interface JourneyPage {
+  url(): string; onLoginResponse(cb: (verdict: ResponseVerdict) => void): () => void; /** 画面这一路；读不到给 null */ screen(): Promise<ScreenSample | null>;
+  /** 页面被关掉了（学生关了窗口 / 标签）。 */
+  closed(): boolean;
+}
 export interface JourneyBrowser {
   cookies(): Promise<CookieLike[]>;
   pageFor(appKey: string): JourneyPage | undefined;
@@ -27,13 +31,6 @@ export interface JourneyBrowser {
   control(): 'agent' | 'human';
   /** 收尾：控制权还给助理。 */
   releaseControl(): void;
-  /**
-   * 把这一页的真实窗口弹到你面前，直接在窗口里扫码 / 拖滑块 / 输验证码（跟手；现场画面只用来看）。
-   * 2026-10-31 实例测试：现场画面里拖滑块完全不跟手（face-ga-port 已定）。
-   */
-  reveal?(page: JourneyPage): Promise<void>;
-  /** 整趟走完：真实窗口收回角落。 */
-  conceal?(): Promise<void>;
   /** 登上了：记下这个站的会话 Cookie，重启后补回（session-cookies.ts）。 */
   rememberLogin?(site: string): Promise<void>;
 }
@@ -42,7 +39,7 @@ export interface JourneyDeps {
   changed: (tables: string[]) => void;
   pollMs?: number; timeoutMs?: number; sleep?: (ms: number) => Promise<void>; now?: () => number;
 }
-export type StepOutcome = 'known' | 'logged_in' | 'handed_back' | 'timeout' | 'cancelled' | 'no_page';
+export type StepOutcome = 'known' | 'logged_in' | 'handed_back' | 'timeout' | 'cancelled' | 'no_page' | 'page_closed';
 export interface JourneyResult { steps: Array<{ handoff_id: string; outcome: StepOutcome; credentials?: string[]; signal?: LoginSignal }> }
 
 /** 一家最多等多久：扫码 + 手机确认、等短信码，三分钟够了；再长就停下，剩下的留在等你条里。 */
@@ -64,6 +61,17 @@ function stepOf(repos: Repos, handoffId: string): Step | null {
   let url: string | undefined;
   try { url = (JSON.parse(action.payload_json) as { url?: unknown }).url as string | undefined; } catch (e) { console.warn(`[career] login-journey: 动作 ${action.id} payload 解析失败`, e); }
   return { h, actionId: action.id, appKey: action.application_id ?? action.id, site: typeof url === 'string' ? siteOf(url) : null };
+}
+
+/**
+ * 页面没了（学生关掉了窗口 / 标签，或一开始就找不到）：关掉这家的接管，交给后台从岗位网址重新打开；
+ * 重开后撞到登录会生成新的接管，等你条里再出现。不在这里干等（2026-10-31：等满 3 分钟、画面一直是空的）。
+ */
+function reopen(deps: JourneyDeps, step: Step): void {
+  const fresh = deps.repos.db.get<Handoff>('SELECT * FROM handoff WHERE id=?', [step.h.id]);
+  if (fresh && !fresh.resumed_at) deps.repos.closeHandoff(step.h.id, 'page_closed');
+  BatchRunner.command(deps.repos, 'run', 'login-journey', [step.actionId]);
+  deps.changed(['handoff', 'action_queue', 'task']);
 }
 
 /** 放行这一家：关接管（你点交还时已经关了）、记凭证名、交给后台接着填。 */
@@ -89,6 +97,7 @@ async function waitForLogin(deps: JourneyDeps, step: Step, page: JourneyPage): P
   try {
     while (now() < until) {
       if (cancelled) return { outcome: 'cancelled', credentials: [] };
+      if (page.closed()) return { outcome: 'page_closed', credentials: [] };
       const j = judge.observe(await read(), await page.screen());
       if (j.state === 'logged_in') return { outcome: 'logged_in', credentials: j.credentials, signal: j.signal };
       if (deps.repos.db.get<Handoff>('SELECT * FROM handoff WHERE id=?', [step.h.id])?.resumed_at) return { outcome: 'handed_back', credentials: j.credentials };
@@ -104,18 +113,18 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
     const step = stepOf(deps.repos, id);
     if (!step) continue; // 别处已经处理了
     const page = deps.browser.pageFor(step.appKey);
-    if (!page) { result.steps.push({ handoff_id: id, outcome: 'no_page' }); continue; } // 页面没了：留给后台重新打开
+    if (!page) { reopen(deps, step); result.steps.push({ handoff_id: id, outcome: 'no_page' }); continue; } // 页面没了：交给后台重新打开
     if (step.site && knownLoggedIn(deps.repos, await deps.browser.cookies(), step.site)) {
       release(deps, step, []); result.steps.push({ handoff_id: id, outcome: 'known' }); continue;
     }
     setLivePin({ sessionKey: deps.sessionKey, appKey: step.appKey, askId, handoffId: id, index, total: handoffIds.length });
     deps.browser.focus(page);
-    await deps.browser.reveal?.(page).catch(e => console.warn(`[career] login-journey: 弹出真实窗口失败（${step.site ?? '?'}），只能在现场画面里操作`, e instanceof Error ? e.message : e));
     deps.changed(['handoff']);
     const { outcome, credentials, signal } = await waitForLogin(deps, step, page);
     result.steps.push({ handoff_id: id, outcome, credentials, ...(signal ? { signal } : {}) });
     console.log(`[career] login-journey step ${id} outcome=${outcome} signal=${signal ?? '-'}`);
     if (outcome === 'logged_in' || outcome === 'handed_back') release(deps, step, credentials);
+    else if (outcome === 'page_closed') reopen(deps, step); // 这家重开，接着下一家
     else break;
   }
   return result;
@@ -125,9 +134,8 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
 export function startJourney(deps: JourneyDeps, askId: string, handoffIds: readonly string[]): Promise<JourneyResult> | null {
   if (running) return null;
   cancelled = false;
-  running = runSteps(deps, askId, handoffIds).finally(async () => {
+  running = runSteps(deps, askId, handoffIds).finally(() => {
     setLivePin(null);
-    await deps.browser.conceal?.().catch(e => console.warn('[career] login-journey: 收回真实窗口失败', e instanceof Error ? e.message : e));
     if (deps.browser.control() === 'human') deps.browser.releaseControl();
     running = null;
     deps.changed(['handoff']);

@@ -168,15 +168,16 @@ describe('career live route', () => {
     expect(calls[3][1]).toEqual([0, 200]);
     const bad = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'nope' }), d);
     expect(bad!.status).toBe(400);
-    // 拖动（滑块验证码）：按下 → 沿路径移动 → 松开，坐标同样按帧换算
+    // 拖动（滑块验证码）实时转发：按下 → 移动（带按键）→ 松开，坐标同样按帧换算
     calls.length = 0;
-    const dragged = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'drag', path: [{ x: 10, y: 20, t: 0 }, { x: 60, y: 22, t: 120 }, { x: 110, y: 21, t: 240 }], frame: { width: 640, height: 450 } }), d);
-    expect(dragged!.status).toBe(200);
+    const frame = { width: 640, height: 450 };
+    for (const ev of [{ type: 'down', x: 10, y: 20, clickCount: 1 }, { type: 'move', x: 60, y: 22 }, { type: 'up', x: 110, y: 21 }]) {
+      const res = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { ...ev, frame }), d);
+      expect(res!.status).toBe(200);
+    }
     expect(calls.map(c => c[0])).toEqual(['move', 'down', 'move', 'move', 'up']);
     expect(calls[0][1]).toEqual([20, 40]);
     expect(calls[3][1]).toEqual([220, 42]);
-    const tooShort = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'drag', path: [{ x: 1, y: 1, t: 0 }] }), d);
-    expect(tooShort!.status).toBe(400);
   });
 
   it('内嵌窗口：接管不前置真实 Chrome；放出窗口后才前置；/live/window 切换并广播', async () => {

@@ -16,6 +16,7 @@ import { loginJourneyActive } from './live-pin';
 import { packetResumeFile } from './packets';
 import { SubmitExecutor } from './submit-executor';
 import type { CareerBrowserHost, RunEmitter } from '../routes/career-browser';
+import { openApplicationKeys } from './app-pages';
 
 type HostResolver = () => Promise<PlaywrightBrowserHost>;
 let hostResolver: HostResolver | null = null;
@@ -95,6 +96,11 @@ export async function getBatchRunner(): Promise<BatchRunner> {
           const id = careerProductSessionId();
           if (!id || !hostCache) return false;
           try { return hostCache.hasContext(id); } catch { return false; }
+        },
+        // 浏览器开着但这份网申的页面被关了（学生关掉了窗口 / 标签）：交给运行器重新打开
+        pageGone: action => {
+          const id = careerProductSessionId();
+          return !!id && !openApplicationKeys(id).includes(action.application_id ?? action.id);
         },
         // 上传文件名用简历上的姓名（占位符在 Node 侧解开，只进文件名，不回传模型）
         resumeFileFor: async payload => {

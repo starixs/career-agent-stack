@@ -235,7 +235,7 @@ export const careerApi = {
   batchCommand: (cmd: 'start' | 'pause' | 'stop') => apiPostJson<unknown>(careerPath('/batch/command'), { cmd }).then(r => asDict(r).batch as BatchState | undefined),
   batchState: () => apiGetJson<unknown>(careerPath('/batch/state')).then(r => (asDict(r).batch ?? null) as BatchState | null),
   /** 接管期间把现场窗里的鼠标 / 键盘转发到托管 Chrome；坐标按帧尺寸给。 */
-  liveInput: (input: { type: 'click' | 'move' | 'wheel' | 'type' | 'press' | 'drag'; x?: number; y?: number; dx?: number; dy?: number; text?: string; key?: string; double?: boolean; path?: Array<{ x: number; y: number; t: number }>; frame?: { width: number; height: number } }) =>
+  liveInput: (input: { type: 'click' | 'move' | 'down' | 'up' | 'wheel' | 'type' | 'press'; x?: number; y?: number; dx?: number; dy?: number; text?: string; key?: string; double?: boolean; clickCount?: number; frame?: { width: number; height: number } }) =>
     apiPostJson<unknown>(careerPath('/live/input'), input).then(r => asDict(r)),
   /** 临时放出 / 收回真实 Chrome 窗口（默认浏览器只在产品画面里出现）。 */
   liveWindow: (visible: boolean) => apiPostJson<unknown>(careerPath('/live/window'), { visible }).then(r => asDict(r).revealed === true),

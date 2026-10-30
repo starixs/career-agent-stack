@@ -47,27 +47,24 @@ describe('登录信号（数据层）', () => {
 const ON_LOGIN: ScreenSample = { loginShown: true, errorShown: false };
 
 /** 假浏览器：每家一个页面；cookies、画面按「第几次读」由脚本决定，登录接口返回由脚本推。 */
-function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; responses?: Record<string, ResponseVerdict[]>; screen?: (key: string, call: number) => ScreenSample | null }) {
+function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; responses?: Record<string, ResponseVerdict[]>; screen?: (key: string, call: number) => ScreenSample | null; closed?: (key: string) => boolean }) {
   let screenCall = 0;
   let call = 0;
   const focused: string[] = [];
-  const windows: string[] = [];
   const pages = new Map<string, JourneyPage & { key: string }>();
   const browser: JourneyBrowser = {
     cookies: async () => script.cookies(call++),
     pageFor: key => {
       if (!pages.has(key)) {
-        pages.set(key, { key, url: () => `https://${key}/apply`, onLoginResponse: cb => { for (const v of script.responses?.[key] ?? []) cb(v); return () => undefined; }, screen: async () => script.screen?.(key, screenCall++) ?? ON_LOGIN });
+        pages.set(key, { key, url: () => `https://${key}/apply`, onLoginResponse: cb => { for (const v of script.responses?.[key] ?? []) cb(v); return () => undefined; }, screen: async () => script.screen?.(key, screenCall++) ?? ON_LOGIN, closed: () => script.closed?.(key) ?? false });
       }
       return pages.get(key);
     },
     focus: p => { focused.push((p as JourneyPage & { key: string }).key); },
     control: () => 'agent',
     releaseControl: () => undefined,
-    reveal: async p => { windows.push(`show:${(p as JourneyPage & { key: string }).key}`); },
-    conceal: async () => { windows.push('hide'); },
   };
-  return { browser, focused, windows };
+  return { browser, focused };
 }
 
 function waitingLogin(repos: Repos, site: string) {
@@ -121,7 +118,7 @@ describe('登录之旅', () => {
     const b = waitingLogin(repos, 'b.com');
     const pins: Array<string | undefined> = [];
     // a.com：第 3 次读到新 token；b.com：一直是旧 sid，之后换了新值
-    const { browser, focused, windows } = fakeBrowser({ cookies: n => [
+    const { browser, focused } = fakeBrowser({ cookies: n => [
       { domain: '.known.com', name: 'sid', value: 'k' },
       { domain: '.a.com', name: 'token', ...(n >= 2 ? { value: 'user' } : { value: '' }) },
       { domain: '.b.com', name: 'sid', value: n >= 7 ? 'user' : 'guest' },
@@ -136,8 +133,17 @@ describe('登录之旅', () => {
     expect(repos.kvGet<{ ids: string[] }>(BATCH_COMMAND_KEY)?.ids.sort()).toEqual([a.action.id, k.action.id, b.action.id].sort());
     expect(pins).toContain(a.app.id);
     expect(livePin()).toBeNull(); // 走完松开
-    // 要你帮的那几家弹出真实窗口直接操作（跟手），走完收回（2026-10-31：现场画面里拖滑块不跟手）
-    expect(windows).toEqual([`show:${a.app.id}`, `show:${b.app.id}`, 'hide']);
+  });
+
+  it('学生把页面关了：这家不干等，交给后台重新打开，接着下一家', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const b = waitingLogin(repos, 'b.com');
+    const { browser } = fakeBrowser({ cookies: n => [{ domain: '.b.com', name: 'sid', value: n >= 5 ? 'user' : 'guest' }], closed: key => key === a.app.id });
+    const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, ...fast }, a.handoff.id, [a.handoff.id, b.handoff.id]);
+    expect(out?.steps.map(s => s.outcome)).toEqual(['page_closed', 'logged_in']);
+    expect(repos.openHandoffs()).toHaveLength(0);
+    expect(repos.kvGet<{ ids: string[] }>(BATCH_COMMAND_KEY)?.ids).toContain(a.action.id); // a 交给后台重开
   });
 
   it('登录接口返回失败（密码错）时凭证变了也不算，继续等', async () => {
