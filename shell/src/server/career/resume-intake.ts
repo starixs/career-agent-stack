@@ -157,13 +157,42 @@ function profileValues(text: string, parsed: ResumeParse): Record<string, string
   };
 }
 
+/**
+ * 简历分区 → 经历库类别：填网申时实习 / 工作分区只用 work，项目分区只用 project，校园经历两边都不进
+ * （2026-10-31 小鹏把「校 ACM 集训队」填进了实习，因为导入时类别一律记成 other）。
+ */
+export const KIND_OF_SECTION: Record<IntakeSection, 'work' | 'project' | 'campus'> = { experience: 'work', project: 'project', campus: 'campus' };
+
+const isIntakeSection = (v: unknown): v is IntakeSection => v === 'experience' || v === 'project' || v === 'campus';
+const isDict = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** 导入草稿里每段经历的分区（kv 里的 JSON，逐项校验）。 */
+function draftSections(json: string): Array<{ id: string; section: IntakeSection }> {
+  let draft: unknown;
+  try { draft = JSON.parse(json); } catch (error) { console.warn(`[career] intake draft unreadable for kind backfill: ${error instanceof Error ? error.message : String(error)}`); return []; }
+  const entries = isDict(draft) && Array.isArray(draft.entries) ? draft.entries : [];
+  return entries.filter(isDict).flatMap(e => (typeof e.experience_id === 'string' && isIntakeSection(e.section) ? [{ id: e.experience_id, section: e.section }] : []));
+}
+
+/** 老数据补类别：按导入草稿里每段经历的分区，把还是 other 的补上（只改 other，可重复执行）。 */
+export function backfillExperienceKinds(repos: Repos): number {
+  let changed = 0;
+  for (const row of repos.db.all<{ value_json: string }>('SELECT value_json FROM kv WHERE key LIKE ?', [`${INTAKE_KV_PREFIX}%`])) {
+    for (const e of draftSections(row.value_json)) {
+      changed += repos.db.run("UPDATE experience SET type=?, updated_at=? WHERE id=? AND type='other'", [KIND_OF_SECTION[e.section], new Date().toISOString(), e.id]).changes;
+    }
+  }
+  if (changed) console.log(`[career] experience kinds backfilled from intake drafts: ${changed}`);
+  return changed;
+}
+
 export function importResume(deps: IntakeDeps, input: { text: string; source: string; locator: string; parsed: ResumeParse }): IntakeResult {
   const { repos, vault } = deps;
   const now = deps.now?.() ?? new Date().toISOString();
   const id = deps.newId?.() ?? `rin_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const { filled, conflicts } = reconcileProfile(vault, profileValues(input.text, input.parsed));
   const experiences = input.parsed.entries.map(e => {
-    const experience = repos.createExperience({ title: e.title, org: e.org || null, role: e.role || null, start_date: toYearMonth(e.start) || null, end_date: toYearMonth(e.end) || null, type: 'other', summary: `由简历《${input.source}》导入` });
+    const experience = repos.createExperience({ title: e.title, org: e.org || null, role: e.role || null, start_date: toYearMonth(e.start) || null, end_date: toYearMonth(e.end) || null, type: KIND_OF_SECTION[e.section], summary: `由简历《${input.source}》导入` });
     const claims = e.claims.map(c => {
       const claim = repos.addClaim({ experience_id: experience.id, text: c.text, attribution: c.attribution, result_metric: c.result_metric || null, created_from: 'doc' });
       repos.addEvidence({ claim_id: claim.id, kind: 'doc_fragment', locator: input.locator, excerpt: c.excerpt || null, strength: 'mid' });
