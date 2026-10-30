@@ -586,7 +586,7 @@ export class Repos {
     const apps = this.applicationsWithJob()
     for (const a of apps) { const it = staleToToday({ ...a, title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }
     const inboxNew = this.listInbox('new')
-    if (inboxNew.length) items.push({ kind: 'inbox', priority: 5, title: `收件箱有 ${inboxNew.length} 条新内容待归档`, ref: { type: 'inbox', id: inboxNew[0].id }, suggest: '帮我把收件箱里的新内容归档' })
+    if (inboxNew.length) items.push({ kind: 'inbox', priority: 5, title: `收件箱有 ${inboxNew.length} 条新内容待归档`, ref: { type: 'inbox_item', id: inboxNew[0].id }, suggest: '帮我把收件箱里的新内容归档' })
     const waitingStages: ApplicationStage[] = ['applied', 'responded', 'interview', 'pending']
     const waiting = apps.filter(a => waitingStages.includes(a.stage))
     const byStage = new Map<string, number>()

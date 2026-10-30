@@ -147,6 +147,13 @@ describe('对话和页面分工 · 两天没开，回来', () => {
     expect(queue.items[0].title).toContain('百度');
   });
 
+  it('一封没认出来的信进了队列：条目指向那封信本身，月历和小芽面板点「去通知中心」能定位过去', async () => {
+    const junk = repos.createInboxItem({ source: 'mail', raw_text: '您有一条新的通知，请登录查看' });
+    const item = repos.today(NOW).items.find(i => i.kind === 'inbox')!;
+    // 页面只认 inbox_item（CareerToday「去通知中心」、CompanionPanel），和 inbox_item.linked_type 同一套叫法
+    expect(item.ref).toEqual({ type: 'inbox_item', id: junk.id });
+  });
+
   it.todo('〔面〕已经过去、没打勾的笔试 / 面试放哪：问一句「考了吗」、自动收进卷宗，还是留在队列里');
   it.todo('〔面〕同一件「要你的事」现在有四个落点（招聘概览月历、通知中心、小芽面板、将来的等你条），留哪一个为主');
   it.todo('〔面〕通知中心里处理完的邮件（已归档、关联的时间点也做完）还要不要留在「全部」的计数里');
