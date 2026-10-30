@@ -211,6 +211,20 @@ export async function observe(context: BrowserContext, page: Page, deps: BrowseD
 }
 
 export type ActAction = 'click' | 'type' | 'select' | 'check' | 'press' | 'scroll' | 'back' | 'forward' | 'navigate' | 'switch_tab' | 'close_tab' | 'wait' | 'click_at' | 'drag';
+/**
+ * 这次动作期间新开的页面里，只认由这一页打开的（opener 是它）：同一个浏览器里别的网申也在开页面，
+ * 不能把别人的页面当成自己点出来的新标签（2026-10-31 批量：长飞的找路把韶音刚开的页面关掉、自己跳了过去）。
+ */
+export async function openedBy(page: Page, opened: readonly Page[]): Promise<Page[]> {
+  const mine: Page[] = [];
+  for (const p of opened) {
+    if (p.isClosed()) continue;
+    const opener = await p.opener().catch(() => null);
+    if (opener === page) mine.push(p);
+  }
+  return mine;
+}
+
 export interface ActRequest { observation_id?: string; ref?: number; action: ActAction; text?: string; option?: string; key?: string; direction?: 'up' | 'down'; url?: string; tab?: number; ms?: number; submit?: boolean;
   /** click_at / drag 的视口坐标（像素）；drag 拖到 to_x / to_y。 */
   x?: number; y?: number; to_x?: number; to_y?: number }
@@ -322,7 +336,7 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
   await sleep(deps.settleMs ?? 600);
   context.off('page', onPage);
   lastActionAt.set(host, now());
-  const fresh = opened.filter(p => !p.isClosed());
+  const fresh = await openedBy(page, opened);
   if (fresh.length && req.action !== 'switch_tab' && req.action !== 'close_tab') target = fresh[fresh.length - 1];
   if (!dispatchError && (req.action === 'navigate' || target !== page || target.url() !== urlBefore)) {
     await waitForRender(target, sleep).catch(error => console.warn(`[browse] render-wait failed url=${target.url().slice(0, 120)}: ${String(error).slice(0, 160)}`));

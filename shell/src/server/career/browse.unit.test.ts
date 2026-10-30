@@ -131,3 +131,15 @@ describe('navigateWithRetry', () => {
     }
   });
 });
+
+describe('动作期间新开的标签页只认自己打开的', () => {
+  it('别的网申同时开的页面（opener 不是这一页）不算这次点出来的新标签；关掉的也不算', async () => {
+    const { openedBy } = await import('./browse');
+    const me = { tag: 'me' } as unknown as import('playwright').Page;
+    const fake = (opener: unknown, closed = false) => ({ isClosed: () => closed, opener: async () => opener }) as unknown as import('playwright').Page;
+    const popup = fake(me);
+    const otherRun = fake(null);
+    const closedPopup = fake(me, true);
+    expect(await openedBy(me, [otherRun, popup, closedPopup])).toEqual([popup]);
+  });
+});
