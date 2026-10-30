@@ -14,7 +14,8 @@ export const beisen: SiteAdapter = {
     submitWords: ['提交申请', '确认提交', '提交简历', '提交'],
     loginIndicators: ['请先登录', '登录后继续申请', '账号登录', '手机号登录'],
     captchaIndicators: ['拖动滑块', '滑动验证', '安全验证', '请完成验证'],
-    detailEntryWords: ['申请职位', '立即申请', '投递简历', '立即投递'],
+    // zhiye 岗位行就地展开后的按钮就叫「投递」（2026-10-31 联发科技校招页）
+    detailEntryWords: ['申请职位', '立即申请', '投递简历', '立即投递', '投递'],
     positionLink: /\/(campus|social|jobs?)\/[^?#]*detail|jobAdId=|positionId=|\/job\/\d+/i,
     fieldAliases: {
       name: ['姓名', '真实姓名'],

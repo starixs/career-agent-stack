@@ -362,13 +362,14 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       let layer: DriveLayer = 'dom'
       rec.fieldCount = fields.length
       // 2.05 第一页只有搜索框 / 筛选框（Moka 首页的「输入职位关键字」、列表页的城市筛选）：不是网申表，先去找岗位
-      if (index === 1 && fields.length && onlySearchOrFilter(fields)) {
+      if (index === 1 && fields.length && onlySearchOrFilter(fields) && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
         if (await seek('只有搜索 / 筛选框')) { index--; continue }
         // 找过了还是只有筛选框：这不是网申表，绝不当成「填好了」交去提交（2026-10-31：大众校招搜索页的筛选被报成表单已填完）
         if (opts.target) { pages.push(rec); return finish('blocked', `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
       }
       // 2.1 岗位详情页：页面上没有任何表单字段、这次也没填过东西 → 允许点申请入口按钮进入网申表（最终提交仍永不点）
-      if (!fields.length && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
+      // 北森 zhiye 的岗位行点开是就地展开、行里出「投递」：页面上只有搜索框 / 没标签的格子时也算「还没有表单」
+      if ((!fields.length || onlySearchOrUnlabeled(fields)) && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
         const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text, adapter))
         if (entry) {
           entryClicks++
@@ -780,6 +781,10 @@ function isSearchOrFilterField(f: FormField): boolean {
 /** 这一页只有搜索 / 筛选（没标签的格子不算反证，但至少要有一个认得出是筛选的）。 */
 function onlySearchOrFilter(fields: FormField[]): boolean {
   return fields.some(isSearchOrFilterField) && fields.every(f => isSearchOrFilterField(f) || !`${f.label}${f.placeholder ?? ''}`.trim())
+}
+/** 只有搜索 / 筛选 / 没标签的格子（没有一个像网申表的格子）。 */
+function onlySearchOrUnlabeled(fields: FormField[]): boolean {
+  return fields.every(f => isSearchOrFilterField(f) || !`${f.label}${f.placeholder ?? ''}`.trim())
 }
 /** 只因为页面文字里有导航栏那种「登录 / 注册」才判成登录墙（没有密码框、不是登录网址）。 */
 function isNavLoginLink(ob: Obstacle): boolean {

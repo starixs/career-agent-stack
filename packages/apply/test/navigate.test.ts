@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { FakePage, driveApplication, feishu, generic, isEntryText, moka, pickPosition, type PositionTarget } from '../src/index.js'
+import { FakePage, beisen, driveApplication, feishu, generic, isEntryText, moka, pickPosition, type PositionTarget } from '../src/index.js'
 import { noLLM, profile } from './helpers.js'
 
 const quiet = { pause: [0, 0] as [number, number], settleMs: 0, humanTyping: false }
@@ -136,6 +136,16 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     ])
     const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: { ...backend, terms: [...backend.terms, '研发', '开发'], strong: backend.terms.length } })
     expect(r.finalUrl).toBe('https://acme.jobs.feishu.cn/apply/2')
+    expect(r.status).toBe('stopped_before_submit')
+  })
+
+  it('北森岗位行就地展开出「投递」：页面上只有搜索框时也点入口进申请', async () => {
+    const page = new FakePage([
+      { url: 'https://acme.zhiye.com/campus/jobs', fields: [{ label: '', placeholder: '搜索职位' }], buttons: [{ text: '投递', goto: 'https://acme.zhiye.com/apply' }] },
+      { url: 'https://acme.zhiye.com/apply', fields: basics, buttons: [{ text: '提交申请', submit: true }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend, adapter: beisen })
+    expect(r.entryClicked).toBe('投递')
     expect(r.status).toBe('stopped_before_submit')
   })
 
