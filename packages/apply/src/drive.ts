@@ -391,7 +391,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       let layer: DriveLayer = 'dom'
       rec.fieldCount = fields.length
       // 2.05 第一页只有搜索框 / 筛选框（Moka 首页的「输入职位关键字」、列表页的城市筛选）：不是网申表，先去找岗位
-      if (index === 1 && fields.length && onlySearchOrFilter(fields) && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
+      if (index === 1 && fields.length && (onlySearchOrFilter(fields) || filterBarOnly(fields)) && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
         if (await seek('只有搜索 / 筛选框')) { index--; continue }
         // 找过了还是只有筛选框：这不是网申表，绝不当成「填好了」交去提交（2026-10-31：大众校招搜索页的筛选被报成表单已填完）
         if (opts.target) { pages.push(rec); return finish('blocked', lastSeekNote ?? `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
@@ -863,6 +863,18 @@ export function requiredAbove(text: string, words: readonly string[]): string | 
     }
   }
   return undefined
+}
+/** 网申表的痕迹：个人 / 联系 / 教育类格子、简历上传，或者必填星号。 */
+const APPLICATION_FIELD_RX = /(姓名|手机|电话|邮箱|证件|身份证|性别|出生|民族|籍贯|学校|院校|学历|学位|专业|毕业|简历|附件|name|phone|mobile|email|school|degree|major|resume|cv)/i
+function looksLikeApplicationForm(fields: FormField[]): boolean {
+  return fields.some(f => f.isFile || f.required || APPLICATION_FIELD_RX.test(`${f.label} ${f.placeholder ?? ''}`))
+}
+/**
+ * 筛选栏：没有任何网申表的痕迹，格子又全是下拉 / 搜索框 / 没标签的——按结构认，不靠筛选词表
+ * （2026-10-31 韶音 Moka 列表页的「职位性质 / 职能类型」不在词表里，被当成网申表去填）。
+ */
+function filterBarOnly(fields: FormField[]): boolean {
+  return !looksLikeApplicationForm(fields) && fields.every(f => f.type === 'select' || f.custom || isSearchOrFilterField(f) || !`${f.label}${f.placeholder ?? ''}`.trim())
 }
 /** 只有搜索 / 筛选 / 没标签的格子（没有一个像网申表的格子）。 */
 function onlySearchOrUnlabeled(fields: FormField[]): boolean {

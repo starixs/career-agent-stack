@@ -10,7 +10,7 @@ import { siteOf } from './app-pages';
 import { act, observe, type ActRequest, type BrowseDeps } from './browse';
 import { getRepos } from './db';
 import { getJobPrefs } from './job-board';
-import { findApplicationPage, type PathfinderGoal } from './pathfinder';
+import { findApplicationPage, type PathfinderGoal, type PathfinderState } from './pathfinder';
 import { readSiteSop, rememberSiteSop, sopText } from './site-sop';
 
 export interface PathfinderHostInput {
@@ -27,6 +27,13 @@ export interface PathfinderHostInput {
 }
 
 const KIND_LABELS: Record<string, string> = { campus: '校招', intern: '实习', social: '社招' };
+/** 给学生的结论（不带模型的原话）。 */
+export const NO_POSITION_NOTE = '这家现在没有和你方向对口的岗位';
+export const STUCK_NOTE = '这家的网申入口我们暂时没走通，已记下';
+/** 找路没走到时给学生的一句话：只按结论选我们写好的话，模型的原话一个字都不带。 */
+export function studentNote(state: PathfinderState): string {
+  return state === 'no_position' ? NO_POSITION_NOTE : STUCK_NOTE;
+}
 
 function hasText(v: unknown): v is { text: string } {
   return typeof v === 'object' && v !== null && 'text' in v && typeof v.text === 'string';
@@ -86,7 +93,8 @@ export function pathfinderFor(input: PathfinderHostInput): (why: string) => Prom
       rememberSiteSop(await getRepos(), siteOf(page.url()) ?? found.site, result.steps, result.state);
       return { moved: true };
     }
-    // 没走到：给学生看的一句话，区分「这家确实没有」和「我没找到入口」
-    return { moved: false, note: result.state === 'no_position' ? `这家现在没有和你方向对口的岗位：${result.note}` : `自己在网站上找了 ${result.turns} 步，还没走到网申表：${result.note}` };
+    // 没走到：学生只看我们写好的一句话，区分「这家确实没有」和「我们没走通」；模型写的结论只进日志（批量测完统一迭代，2026-10-31 你定）
+    console.log(`[apply-gap] pathfinder ${result.state} application=${input.applicationId} site=${found.site ?? '?'} turns=${result.turns} note=${result.note}`);
+    return { moved: false, note: studentNote(result.state) };
   };
 }

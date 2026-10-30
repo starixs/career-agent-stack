@@ -95,3 +95,12 @@ describe('站点做法（走通的路径记下来，下次先照着走）', () =
     expect(sopText(sop)).toContain('走到登录页');
   });
 });
+
+describe('找路结论给学生的话', () => {
+  it('只按结论选写好的话，不带模型原话（2026-10-31 你定：模型的原因只进日志）', async () => {
+    const { studentNote, NO_POSITION_NOTE, STUCK_NOTE } = await import('./pathfinder-host');
+    expect(studentNote('no_position')).toBe(NO_POSITION_NOTE);
+    expect(studentNote('stuck')).toBe(STUCK_NOTE);
+    expect(`${NO_POSITION_NOTE}${STUCK_NOTE}`).not.toMatch(/步|模型|点击|滚动/);
+  });
+});

@@ -111,6 +111,14 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     expect(r.filled).toEqual([])
   })
 
+  it('认不出模板的列表页：筛选栏（「职位性质 / 职能类型」下拉、没标签的搜索框）按结构认出来，不当网申表填（2026-10-31 韶音）', async () => {
+    const page = new FakePage({ url: 'https://app.mokahr.com/campus_apply/acme/36940#/jobs', fields: [{ label: '' }, { label: '职位性质', type: 'select', options: ['全职', '实习'] }, { label: '职能类型', type: 'select', options: ['研发', '设计'] }] })
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend })
+    expect(r.status).toBe('blocked')
+    expect(r.filled).toEqual([])
+    expect(r.message).not.toContain('表单已填完')
+  })
+
   it('导航栏的「登录/注册」不是登录墙：先去找岗位', async () => {
     const page = new FakePage([
       { url: 'https://acme.zhiye.com/', text: '首页 校园招聘 登录/注册', section: { text: '校园招聘', goto: 'https://acme.zhiye.com/campus/jobs' } },
