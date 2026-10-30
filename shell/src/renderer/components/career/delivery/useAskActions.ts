@@ -1,7 +1,6 @@
 /**
- * 卡组里两个按钮真正做的事。不另造接口：每件事按它的源落库（截止 → 截止接口；待批准 → 审批；
- * 缺信息 → 私密库 / 答案库后让助理接着填；登录 / 确认 → 打开旁边的浏览器现场）。
- * 落库成功的事返回 'resolved'（卡组把它拿走，服务端下次派生也不会再有）；只是挪后的返回 'snoozed'。
+ * 卡组里两个按钮真正做的事。每件事按它的源落库（截止 → 截止接口；待批准 → 审批；登录 / 确认 → 打开旁边的浏览器现场）；
+ * 缺信息走 /asks/:id/fill，填一次整批由后台接着填，不经过对话。落库成功的事返回 'resolved'（卡组把它拿走，服务端下次派生也不会再有）；只是挪后的返回 'snoozed'。
  */
 import { useState } from 'react';
 
@@ -11,7 +10,7 @@ import { careerApi } from '../careerApi';
 import { openLiveDrawer } from '../CareerLiveDrawer';
 import { suggestToChat } from '../CareerPrimitives';
 import { reviewDecisionMessage, useRespondReview } from '../CareerReviewCard';
-import type { AskView } from './deliveryApi';
+import { deliveryApi, type AskView } from './deliveryApi';
 
 export type AskOutcome = 'resolved' | 'snoozed' | 'kept';
 type Respond = ReturnType<typeof useRespondReview>;
@@ -27,20 +26,13 @@ async function decideReview(respond: Respond, ask: AskView, decision: 'approved'
   return 'resolved';
 }
 
-/** 缺信息：资料类写私密库（明文不经过模型），其余写答案库；然后让助理把停下的那几份从当前页接着填。 */
+/**
+ * 缺信息：填一次，挡住的那一批全部放行（一事多申）。服务端存进本机私密库 / 答案库（明文不经过模型），
+ * 关掉这批接管、交给后台从各自的当前页接着填——不发话给助理，也不要你再点。
+ */
 async function fillFields(ask: AskView, values: Record<string, string>): Promise<AskOutcome> {
-  const filled = (ask.fields ?? []).filter(f => f.fillable && values[f.label]?.trim());
-  for (const f of filled) {
-    const value = values[f.label].trim();
-    if (f.vault_field) await careerApi.vaultSet({ scope: 'profile', field: f.vault_field, value });
-    else await careerApi.saveAnswer({ question_key: f.label, question_text: f.label, answer: value, confirmed: true });
-  }
-  const actions = ask.action_ids ?? [];
-  suggestToChat(`${filled.map(f => f.label).join('、')}填好了，${actions.length} 家接着填吧。`, {
-    surface: 'apply', refs: { action_id: actions.join(',') },
-    note: '缺项已补进私密库 / 答案库：对 action_id 里的每一份依次调用 apply_continue(action_id) 从当前页继续并重新检查。',
-  });
-  return 'resolved';
+  const { stillWaiting } = await deliveryApi.fill(ask.id, values);
+  return stillWaiting > 0 ? 'kept' : 'resolved';
 }
 
 async function goDeadline(ask: AskView): Promise<AskOutcome> {

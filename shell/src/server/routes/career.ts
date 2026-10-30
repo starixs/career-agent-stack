@@ -148,7 +148,7 @@ const ROUTES: Route[] = [
     recordingsDir: ctx.deps.recordingsDir ?? careerRecordingsDir(), dataChanged: tables => dataChanged(ctx, tables),
   }))),
 
-  ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url }))),
+  ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url, params: ctx.params, body: ctx.body, vault: ctx.vault, dataChanged: tables => dataChanged(ctx, tables) }))),
 
   // ---------- 经历库 ----------
   route('GET', '/api/career/experiences', ({ repos }) => ok({ experiences: repos.experienceTree() })),

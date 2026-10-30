@@ -13,12 +13,13 @@ import { FakeLLM, type Repos } from '@career/core';
 
 import { handleCareerRoute } from '../routes/career';
 import { loadCore } from './core-module';
+import { BATCH_COMMAND_KEY } from './batch-runner';
 import { captureIntake } from './intake';
 import { setTargetJob } from './targets';
 import { createMemoryRepos } from './test-db';
 
-async function get(repos: Repos, path: string) {
-  const request = new Request(`http://local${path}`);
+async function get(repos: Repos, path: string, body?: unknown) {
+  const request = new Request(`http://local${path}`, body === undefined ? {} : { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
   const res = await handleCareerRoute(new URL(request.url).pathname, request, { repos, broadcast: () => undefined, sessionId: () => 'global', llm: null });
   if (!res) throw new Error(`没有这个接口：${path}`);
   return await res.json() as Record<string, unknown>;
@@ -83,8 +84,14 @@ describe('情景 B · 关键期的一个周二，投 20 家', () => {
     expect(list[1].application_ids).toHaveLength(18);
     expect(run.asking).toBe(20);
 
-    // 证件号码填好：18 个接管一起关掉（卡组对每个源 id 落库），这件事就不在了
-    for (const s of list[1].sources) repos.closeHandoff(s.id);
+    // 证件号码在等你条里填一次：存进本机私密库，18 份一起交给后台从当前页接着填，不经过对话、不用再点
+    const out = await get(repos, `/api/career/asks/${list[1].id}/fill`, { values: { 证件号码: '110101200001011234' } });
+    expect(out).toMatchObject({ ok: true, still_waiting: 0 });
+    expect(out.resumed).toHaveLength(18);
+    expect(repos.openHandoffs().filter(h => h.reason === 'missing_info')).toHaveLength(0);
+    expect(repos.kvGet<{ cmd: string; ids: string[] }>(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run', ids: out.resumed });
+    expect(JSON.stringify(out)).not.toContain('110101');
+    // 刷新后也不会再冒出来：服务端那一批源都已处理
     expect((await asks()).asks.map(a => a.kind)).toEqual(['deadline', 'login']);
   });
 

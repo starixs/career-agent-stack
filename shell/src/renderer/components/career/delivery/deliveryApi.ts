@@ -2,7 +2,7 @@
  * 投递切面的数据（服务端 /api/career/asks · run · away，结构同 @career/core AskView / CompanyMark 与 server/career/delivery.ts）。
  * 合并与排序由服务端裁决，前端只渲染；跨边界数据在这里过一遍形状校验，形状不对的条目丢掉并留日志，不猜字段。
  */
-import { apiGetJson } from '@/api/apiFetch';
+import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 
 export interface CompanyMark { company_id: string | null; name: string; logo?: string; fill?: string }
 export type AskKind = 'info' | 'login' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure';
@@ -61,6 +61,9 @@ export const deliveryApi = {
   asks: (since: string) => apiGetJson<unknown>(`/api/career/asks?since=${encodeURIComponent(since)}`)
     .then(r => ({ asks: parseAsks(field(r, 'asks')), run: parseRun(field(r, 'run')) })),
   run: (actionIds: readonly string[]) => apiGetJson<unknown>(`/api/career/run?action_ids=${encodeURIComponent(actionIds.join(','))}`).then(r => parseRun(field(r, 'run'))),
+  /** 缺信息填一次：服务端存进本机（不经过模型），整批交给后台接着填。still_waiting > 0 = 还有只能在页面上看的项。 */
+  fill: (askId: string, values: Record<string, string>) => apiPostJson<unknown>(`/api/career/asks/${encodeURIComponent(askId)}/fill`, { values })
+    .then(r => ({ stillWaiting: typeof field(r, 'still_waiting') === 'number' ? field(r, 'still_waiting') as number : 0 })),
   away: (since: string) => apiGetJson<unknown>(`/api/career/away?since=${encodeURIComponent(since)}`).then(r => parseAway(field(r, 'away'))),
 };
 

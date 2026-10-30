@@ -81,10 +81,11 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /等你\s*3/ }));
   });
 
-  it('证件号码填一次：写进私密库（不进对话），让助理把 20 家接着填；这件从卡组里拿走', async () => {
+  it('证件号码填一次：服务端存进本机、整批交给后台接着填；不发话给助理，这件从卡组里拿走', async () => {
     serve([ASK_INFO, ASK_LOGIN], run(0));
-    const sent: Array<{ text: string; context?: { refs?: Record<string, string> } }> = [];
-    const off = onEvent<(typeof sent)[number]>('career:chat-suggest', p => { sent.push(p); });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, saved: ['证件号码'], resumed: ASK_INFO.action_ids, still_waiting: 0 });
+    const sent: unknown[] = [];
+    const off = onEvent('career:chat-suggest', p => { sent.push(p); });
     render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*2/ }));
     const go = screen.getByRole('button', { name: '填好' });
@@ -92,11 +93,10 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     fireEvent.change(screen.getByLabelText('证件号码'), { target: { value: '110101200001011234' } });
     serve([ASK_LOGIN], run(0));
     fireEvent.click(go);
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(apiPutJson).toHaveBeenCalledWith('/api/career/vault/items', { scope: 'profile', field: 'idNumber', value: '110101200001011234' });
-    expect(sent[0].text).not.toContain('110101');
-    expect(sent[0].context?.refs?.action_id?.split(',')).toHaveLength(20);
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/asks/hnd_1/fill', { values: { 证件号码: '110101200001011234' } }));
     await waitFor(() => expect(within(screen.getByTestId('waiting-deck')).getByText('2 个网站要你登录')).toBeInTheDocument());
+    expect(sent).toEqual([]);
+    expect(apiPutJson).not.toHaveBeenCalled();
     off();
   });
 

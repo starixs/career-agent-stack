@@ -3,15 +3,17 @@
  * - GET /api/career/asks?since=ISO：等你条——要你的事（服务端合并、排序）+ 今天这批的进度（since = 客户端本地零点）；
  * - GET /api/career/run?action_ids=a,b：一张批次卡的海报墙（这句话开的那几份）；
  * - GET /api/career/away?since=ISO：回来卡（since = 上次离开的时间）。
- * 时区由客户端给，服务端不猜。处理要你的事走各源已有的接口（截止、审批、接管、私密库），这里只读。
+ * - POST /api/career/asks/:id/fill：缺信息填一次，存进私密库 / 答案库后整批交给后台接着填（career/ask-fill.ts）。
+ * 时区由客户端给，服务端不猜。其余要你的事走各源已有的接口（截止、审批、接管）。
  */
-import { buildAsks, type Repos } from '@career/core';
+import { buildAsks, type Repos, type Vault } from '@career/core';
 
+import { AskFillError, fillAsk } from '../career/ask-fill';
 import { buildAway, buildRun } from '../career/delivery';
 
-import { fail, ok } from './career-http';
+import { fail, ok, type Json } from './career-http';
 
-export interface DeliveryRouteCtx { repos: Repos; url: URL }
+export interface DeliveryRouteCtx { repos: Repos; url: URL; params: Record<string, string>; body: Json; vault: Vault; dataChanged: (tables: string[]) => void }
 type Handler = (ctx: DeliveryRouteCtx) => Response;
 
 const isoParam = (url: URL, key: string): string | null => {
@@ -32,6 +34,19 @@ export function deliveryRoutes(): Array<[string, string, Handler]> {
       const ids = (url.searchParams.get('action_ids') ?? '').split(',').map(s => s.trim()).filter(Boolean).slice(0, MAX_RUN_IDS);
       if (!ids.length) return fail('需要 action_ids');
       return ok({ run: buildRun(repos, { actionIds: ids }) });
+    }],
+    ['POST', '/api/career/asks/:id/fill', ({ repos, vault, params, body, dataChanged }) => {
+      const raw = body.values;
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return fail('values 必须是 { 字段名: 值 }');
+      const values = Object.fromEntries(Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === 'string'));
+      try {
+        const out = fillAsk(repos, vault, params.id, values);
+        dataChanged(['vault', 'answer_bank', 'handoff', 'action_queue', 'task']);
+        return ok({ saved: out.saved, resumed: out.resumed, still_waiting: out.still_waiting });
+      } catch (error) {
+        if (error instanceof AskFillError) return fail(error.message, 409);
+        throw error;
+      }
     }],
     ['GET', '/api/career/away', ({ repos, url }) => {
       const since = isoParam(url, 'since');
