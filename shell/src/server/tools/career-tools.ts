@@ -17,7 +17,7 @@ import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
-import { interviewResume, retroTarget } from '../career/interview-link';
+import { closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
 import { getShellLLM } from '../career/llm';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
@@ -1453,7 +1453,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         // 真实面试里被问到的题进题库（"我见过的"），同一题跨场次累计
         const asked = Array.isArray((out as { questions?: unknown }).questions) ? (out as { questions: Array<{ quote?: string; type?: string; content_tags?: string[] }> }).questions : [];
         const seen = asked.filter(q => q?.quote && q.quote.trim().length >= 4).map(q => repos().upsertQuestion({ content: q.quote!, kind: 'interview', category: q.type ?? null, company_name: args.company_name ?? null, title: args.title ?? null, source: 'seen', source_ref: `interview:${interview.id}`, tags: q.content_tags ?? [] }).id);
-        changed('interview', ...(seen.length ? ['question'] : []));
+        const closed = closeInterviewDeadline(repos(), interview.id);
+        changed('interview', ...(seen.length ? ['question'] : []), ...(closed ? ['deadline'] : []));
         return text({ interview_id: interview.id, retro: out, questions_saved: seen.length });
       })()),
 

@@ -61,3 +61,11 @@ export function retroTarget(
     : store.listInterviews().find(i => i.application_id === app.id && !i.retro_json);
   return { interview_id: itv?.id, application_id: app.id };
 }
+
+/** 复盘过 = 这场已经面完：它的时间点记为完成，不再以「已过期」顶到今日队列。返回是否关了一个。 */
+export function closeInterviewDeadline(repos: Repos, interviewId: string): boolean {
+  const open = openInterviewDeadline(repos, interviewId);
+  if (!open) return false;
+  repos.setDeadlineStatus(open.id, 'done');
+  return true;
+}
