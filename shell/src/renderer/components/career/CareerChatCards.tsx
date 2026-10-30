@@ -14,6 +14,7 @@ import { surfaceForTool } from '@/features/career-shell/workSurfaces';
 import { BrowserWorkCard, shouldShowBrowserCard } from './BrowserWorkCard';
 import { CareerFlowCards, useBatchState } from './CareerFlowCards';
 import { CareerKeysPanel, useCareerSetupStatus } from './CareerKeysPanel';
+import { StarterCard } from './ColdStartCards';
 import { openLiveDrawer } from './CareerLiveDrawer';
 
 import { HANDOFF_REASON_LABELS, TAKEOVER_STATE_LABELS } from './careerConstants';
@@ -40,6 +41,7 @@ function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useT
   return (
     <div className="space-y-2 py-2">
       <CareerSetupCards />
+      <StarterCard />
       {careerProgress && <CareerProgressRow progress={careerProgress} onDismiss={tab.dismissCareerProgress} />}
       {shouldShowBrowserCard(careerTakeover, careerProgress, batch) && (batch?.status === 'running' || !hasBrowserToolCall) && (
         <BrowserWorkCard takeover={careerTakeover} progress={careerProgress} />

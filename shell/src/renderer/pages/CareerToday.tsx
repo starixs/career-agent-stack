@@ -27,13 +27,14 @@ import type { CareerFocusEvent, TodayItemKind } from '@/components/career/types'
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 
-const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history'] as const;
+const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history', 'mail_account'] as const;
 const ONBOARDING_TABLES = ['experience', 'claim', 'resume_master', 'mail_account', 'job', 'application', 'material'] as const;
 const ACTION_TABLES = ['action_queue'] as const;
 const DEADLINE_TABLES = ['deadline'] as const;
 const ACTIVITY_TABLES = ['action_queue', 'task', 'application_history'] as const;
 
 const KIND_LABELS: Record<TodayItemKind, string> = {
+  mail_auth: '邮箱',
   deadline: '截止', review: '待批准', handoff: '需要你', interview_today: '今日面试', stale: '静默', inbox: '通知', followup: '跟进',
 };
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'] as const;
@@ -431,6 +432,9 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
               <Button size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.closeSilent(item.ref.id), '已关闭')}>关闭这条线</Button>
               <Button variant="ghost" size="sm" onClick={() => onSnooze(todo)}>再等等</Button>
             </>
+          )}
+          {item.kind === 'mail_auth' && (
+            <Button variant="primary" size="sm" onClick={() => emitEvent('career:focus', { surface: 'inbox' } satisfies CareerFocusEvent)}>重新授权</Button>
           )}
           {item.kind === 'inbox' && (
             <Button size="sm" onClick={() => emitEvent('career:focus', { surface: 'inbox', id: item.ref.type === 'inbox_item' ? item.ref.id : null } satisfies CareerFocusEvent)}>去通知中心</Button>

@@ -28,6 +28,8 @@ function captureSuggest() {
 
 describe('对话内流程卡片', () => {
   beforeEach(() => {
+    // 对话底部的起步卡会读资料完成度：默认返回空（不出起步卡）
+    vi.mocked(apiGetJson).mockReset().mockResolvedValue({ ok: true });
     vi.mocked(apiPostJson).mockReset().mockResolvedValue({ ok: true });
     vi.mocked(apiPutJson).mockReset().mockResolvedValue({ ok: true, item: {} });
   });

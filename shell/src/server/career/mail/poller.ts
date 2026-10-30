@@ -6,6 +6,7 @@ import { loadCore } from '../core-module';
 import { getRepos } from '../db';
 import { getShellLLM } from '../llm';
 import { broadcast as sseBroadcast } from '../../sse';
+import { productChatCardPoster } from '../chat-card-push';
 import { mailBackend } from './backend';
 import type { MailSyncResult } from './sync';
 
@@ -25,7 +26,7 @@ export async function runMailSyncOnce(): Promise<MailSyncResult[]> {
     if (repos.listMailAccounts().length === 0) return [];
     let llm = null;
     try { llm = getShellLLM(); } catch (error) { console.warn('[career-mail] 模型不可用，邮件只落库不归档:', error instanceof Error ? error.message : error); }
-    const backend = mailBackend({ repos, core, llm, broadcast: sseBroadcast, sessionId: () => 'global' });
+    const backend = mailBackend({ repos, core, llm, broadcast: sseBroadcast, sessionId: () => 'global', postChatCard: productChatCardPoster(repos) });
     if (backend.kind === 'local') {
       if (Date.now() - lastLocalSync < LOCAL_SYNC_INTERVAL_MS) return [];
       lastLocalSync = Date.now();

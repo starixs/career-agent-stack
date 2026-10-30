@@ -186,6 +186,17 @@ describe('CareerToday · 招聘概览', () => {
     await waitFor(() => expect(vi.mocked(apiGetJson).mock.calls.filter(c => String(c[0]).startsWith('/api/career/deadlines')).length).toBe(before + 1));
   });
 
+  it('邮箱连接失效排在今天最前，「重新授权」去通知中心的连接中心', async () => {
+    mockGet({ items: [{ kind: 'mail_auth', priority: 0, title: 'me@qq.com 连接失效', detail: '新邮件暂时收不进来', due_at: null, ref: { type: 'mail_account', id: 'm1' } }, ...items] });
+    render(<CareerToday isActive onOpenChat={vi.fn()} />);
+    const row = (await within(sidebar()).findByText('me@qq.com 连接失效')).closest('li') as HTMLElement;
+    const focus: unknown[] = [];
+    const off = onEvent('career:focus', p => focus.push(p));
+    fireEvent.click(within(row).getByRole('button', { name: '重新授权' }));
+    off();
+    expect(focus).toEqual([{ surface: 'inbox' }]);
+  });
+
   it('翻月：下个月 / 今天', async () => {
     mockGet();
     render(<CareerToday isActive onOpenChat={vi.fn()} />);

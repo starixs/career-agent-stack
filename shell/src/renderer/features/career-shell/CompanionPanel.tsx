@@ -21,7 +21,7 @@ import { useWorkSurfaces, type ProgressRun } from './workSurfaceStore';
 /** PetSprite's own box rule lives in floating-ball/fb.css, which must not load in the main window. */
 const PET_SPRITE_BOX = 'h-[82px] w-[76px] bg-no-repeat';
 
-const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history'] as const;
+const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history', 'mail_account'] as const;
 const ACTIVITY_TABLES = ['task', 'application_history', 'action_queue', 'application'] as const;
 
 type CompanionTab = 'now' | 'todo' | 'trail';
@@ -227,6 +227,8 @@ export function openTodoItem(item: TodayItem): void {
   if (item.kind === 'review' || type === 'action') { requestNavigation({ kind: 'career-dossier', view: 'apply' }); return; }
   if (type === 'application') { emitEvent('career:focus', { surface: 'dossier', application_id: id } satisfies CareerFocusEvent); return; }
   if (type === 'job') { emitEvent('career:focus', { surface: 'dossier', job_id: id } satisfies CareerFocusEvent); return; }
+  // 邮箱连接失效：去通知中心，连接中心里点那张卡直接进拿授权码的引导
+  if (item.kind === 'mail_auth') { emitEvent('career:focus', { surface: 'inbox' } satisfies CareerFocusEvent); return; }
   if (item.kind === 'inbox' || type === 'inbox_item') { emitEvent('career:focus', { surface: 'inbox', id: type === 'inbox_item' ? id : null } satisfies CareerFocusEvent); return; }
   requestNavigation({ kind: 'career-today' });
 }

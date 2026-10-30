@@ -14,7 +14,7 @@ export const CATEGORY_COLORS: Record<TodoCategory, string> = { review: 'var(--pr
 
 export function categoryOf(kind: TodayItemKind): TodoCategory {
   if (kind === 'review') return 'review';
-  if (kind === 'handoff') return 'handoff';
+  if (kind === 'handoff' || kind === 'mail_auth') return 'handoff';
   return 'remind';
 }
 

@@ -618,6 +618,11 @@ export class Repos {
     for (const h of this.openHandoffs()) items.push({ kind: 'handoff', priority: 3, title: `需要你本人处理：${handoffReasonLabel(h.reason)}`, detail: h.message ?? undefined, ref: { type: 'handoff', id: h.id } })
     const apps = this.applicationsWithJob()
     for (const a of apps) { const it = staleToToday({ ...a, title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }
+    // 邮箱连接失效（连续认证失败到阈值）：没有外部期限，但挡住之后所有邮件，排最前（规范 5.2 例外）
+    for (const a of this.listMailAccounts()) {
+      if (a.status !== 'auth_failed') continue
+      items.push({ kind: 'mail_auth', priority: 0, title: `${a.address} 连接失效`, detail: '新邮件暂时收不进来，笔试、面试通知可能会漏；重新授权就能恢复', due_at: null, ref: { type: 'mail_account', id: a.id } })
+    }
     const inboxNew = this.listInbox('new')
     if (inboxNew.length) items.push({ kind: 'inbox', priority: 5, title: `收件箱有 ${inboxNew.length} 条新内容待归档`, ref: { type: 'inbox_item', id: inboxNew[0].id }, suggest: '帮我把收件箱里的新内容归档' })
     const waitingStages: ApplicationStage[] = ['applied', 'responded', 'interview', 'pending']

@@ -39,7 +39,11 @@ describe('接管简报', () => {
     expect(within(needs).getByText('阿里巴巴 · 产品经理 面试（二面）')).toBeInTheDocument();
     expect(screen.getByText('依据：近 30 天收到 40 封求职邮件，现在是 10 月')).toBeInTheDocument();
     const apps = screen.getByRole('region', { name: '接管的申请' });
-    expect(within(apps).getByRole('button', { name: '京东' })).toBeInTheDocument();
+    // 已结束只写数字，名单收起来，点开才看
+    expect(within(apps).queryByRole('button', { name: /京东/ })).not.toBeInTheDocument();
+    fireEvent.click(within(apps).getByRole('button', { name: '看名单' }));
+    expect(within(apps).getByRole('button', { name: '京东 · 运营' })).toBeInTheDocument();
+    expect(within(apps).getByRole('button', { name: '美团 · 产品经理' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: '没认出来的 1 封' })).toHaveTextContent('您有一条新的通知');
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/takeover/m1/viewed', {}));
   });
@@ -56,6 +60,21 @@ describe('接管简报', () => {
     fireEvent.click(screen.getByRole('button', { name: /阿里巴巴 · 产品经理 面试/ }));
     off();
     expect(focus).toEqual([{ surface: 'dossier', application_id: 'a2' }]);
+  });
+
+  it('准备期没东西可接管：写阶段与下一步，不写空白，也没有钢笔蓝的要你的事', async () => {
+    const prep: TakeoverBriefing = { ...briefing, applications: 0, buckets: briefing.buckets.map(b => ({ ...b, items: [] })), needs: [], unclassified: [], season: { id: 'prep', label: '准备期', basis: '邮箱里还没有求职邮件，也没有投递记录', source: 'guess' } };
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => path.startsWith('/api/career/onboarding')
+      ? { ok: true, checklist: { has_experience: false, has_mail_account: true, has_application: false } }
+      : { ok: true, briefing: prep });
+    const onOpenChat = vi.fn();
+    render(<CareerTakeover isActive onOpenChat={onOpenChat} />);
+    expect(await screen.findByRole('heading', { name: '你还在准备期，邮箱里还没有求职邮件' })).toBeInTheDocument();
+    expect(screen.getByText('（往年规律，具体以公告为准）')).toBeInTheDocument();
+    expect(await screen.findByText(/经历库还是空的/)).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '现在要你的事' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '去对话里拖简历' }));
+    expect(onOpenChat).toHaveBeenCalled();
   });
 
   it('还没有简报：说明会在什么时候出现，并给出连接中心', async () => {

@@ -7,12 +7,15 @@
 import type { Repos, MailAccount, MailMessage } from '@career/core';
 
 import { captureIntake, captureTriaged, dataChanged, type IntakeDeps, type IntakeInput, type IntakeResult } from '../intake';
+import type { PostChatCard } from '../chat-card-push';
 import { getMailPassword } from './credentials';
 import { isExpired, recordMailFailure, recordMailSuccess } from './health';
 import { classifyByRules } from './rules';
 import { recordTakeover } from './takeover';
 
 export interface MailSyncDeps extends IntakeDeps {
+  /** 后台往个人助理对话里放卡（接管卡）；缺省不放（测试、没有对话的场合）。 */
+  postChatCard?: PostChatCard;
   /** 测试注入：替代真实 IMAP 拉取（历史导入时传回的就是粗筛前的全部邮件）。 */
   fetchNew?: (account: MailAccount, password: string) => Promise<FetchedMail[]>;
 }

@@ -6,8 +6,7 @@
  */
 import type { MailAccount, Repos } from '@career/core';
 
-import { focus, type IntakeDeps } from '../intake';
-import type { FetchedMail, MailSyncResult } from './sync';
+import type { FetchedMail, MailSyncDeps, MailSyncResult } from './sync';
 
 export interface TakeoverReport {
   account_id: string; address: string;
@@ -39,8 +38,11 @@ function spanOf(mails: FetchedMail[], prev: TakeoverReport['span']): TakeoverRep
   return { from: dates[0] ?? null, to: dates.at(-1) ?? null };
 }
 
-/** 历史导入收完一批后调用；第一次生成报告时把简报页推到前面。 */
-export function recordTakeover(deps: IntakeDeps, account: MailAccount, result: MailSyncResult, mails: FetchedMail[]): TakeoverReport | null {
+/**
+ * 历史导入收完一批后调用。第一次生成报告时往对话里放一张接管卡（规范 5.11），不跳页：用户不盯着 AI 干活。
+ * 卡片只带 account_id，内容由前端按同一份简报实时读（一个对象，多处可处理）。
+ */
+export function recordTakeover(deps: MailSyncDeps, account: MailAccount, result: MailSyncResult, mails: FetchedMail[]): TakeoverReport | null {
   const h = result.history;
   if (!h) return null;
   const now = new Date().toISOString();
@@ -54,7 +56,7 @@ export function recordTakeover(deps: IntakeDeps, account: MailAccount, result: M
     span: spanOf(mails, prev?.span ?? { from: null, to: null }),
   };
   deps.repos.kvSet(reportKey(account.id), next);
-  if (!prev) focus(deps, { surface: 'takeover', id: account.id, note: '历史邮件收好了，看看替你接管了什么' });
+  if (!prev) deps.postChatCard?.({ id: `takeover:${account.id}`, kind: 'takeover', title: '替你接管了这些申请', data: { account_id: account.id } });
   return next;
 }
 

@@ -7,11 +7,11 @@ import { join } from 'path';
 
 
 import type { PlaywrightBrowserHost } from '../browser-host';
-import { loadConfig } from '../utils/admin-config';
 import { BatchRunner } from './batch-runner';
 import { careerExportsDir, getRepos } from './db';
 import { FileChooserBroker } from './file-chooser';
 import { liveHub } from './live-hub';
+import { careerProductSessionId } from './product-session';
 import { packetResumeFile } from './packets';
 import { SubmitExecutor } from './submit-executor';
 import type { CareerBrowserHost, RunEmitter } from '../routes/career-browser';
@@ -23,10 +23,7 @@ let runnerPromise: Promise<BatchRunner> | null = null;
 /** index.ts 在创建 ensureBrowserHost 后注册一次。 */
 export function registerBatchBrowserHost(resolver: HostResolver | null): void { hostResolver = resolver; }
 
-/** 唯一的个人助理会话 id（渲染层启动时写进 config）。 */
-export function careerProductSessionId(): string | undefined {
-  try { const id = loadConfig().careerSessionId; return typeof id === 'string' && id.trim() && !id.startsWith('pending-') ? id.trim() : undefined; } catch { return undefined; }
-}
+export { careerProductSessionId };
 export function careerWorkspacePath(): string { return join(homedir(), '.keystone', 'projects', 'career'); }
 
 export { liveHub };

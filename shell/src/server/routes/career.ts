@@ -25,6 +25,7 @@ import { isConnectorId } from '../career/mail/connectors';
 import { SEASON_KEY, guessSeason, isSeasonId, markTakeoverViewed, takeoverBriefing } from '../career/mail/takeover';
 import { withConnection } from '../career/mail/connect-service';
 import { mailBackend } from '../career/mail/backend';
+import { productChatCardPoster, type PostChatCard } from '../career/chat-card-push';
 import type { VerifyDeps } from '../career/mail/verify';
 import { executeApprovedSendMails } from '../career/mail/send';
 import type { syncMailAccount } from '../career/mail/sync';
@@ -57,6 +58,8 @@ export interface CareerRouteDeps {
   mailSync?: typeof syncMailAccount;
   /** 云端邮箱连接器的 HTTP（测试注入；缺省 fetch）。 */
   mailFetch?: FetchLike;
+  /** 后台往对话里放卡（测试注入；缺省经现场通道推给个人助理对话）。 */
+  postChatCard?: PostChatCard;
   /** false：导出不用简历工作台模板（测试里没有 react-pdf 字体网络时用）。 */
   studioExport?: boolean;
 }
@@ -125,7 +128,7 @@ function intakeDeps(ctx: Ctx): IntakeDeps {
 }
 /** 邮箱连接器的分流入口（云端 / 本机），测试可注入校验、同步和云端请求。 */
 function mailBackendOf(ctx: Ctx) {
-  return mailBackend(intakeDeps(ctx), { verify: ctx.deps.mailVerify, sync: ctx.deps.mailSync, fetchImpl: ctx.deps.mailFetch });
+  return mailBackend({ ...intakeDeps(ctx), postChatCard: ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos) }, { verify: ctx.deps.mailVerify, sync: ctx.deps.mailSync, fetchImpl: ctx.deps.mailFetch });
 }
 const isoOrUndefined = (v: unknown): string | undefined => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : undefined);
 

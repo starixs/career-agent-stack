@@ -22,6 +22,7 @@ import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
+import { TakeoverCard } from './ColdStartCards';
 import { MailConnectCenter } from './mail-connect/MailConnectCenter';
 import type { BatchState, CareerCard, CareerCardState } from './types';
 
@@ -314,6 +315,7 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   search_setup: props => <SearchSetupCard {...props} />,
   review: props => <ReviewCard {...props} />,
   apply_gaps: props => <ApplyGapsCard {...props} />,
+  takeover: props => <TakeoverCard {...props} />,
 };
 
 export const isRenderableCard = (c: CareerCard): boolean => !!RENDERERS[c.kind];
