@@ -167,7 +167,7 @@ export interface VaultAccessLogRow { id: string; item_id: string | null; actor: 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
 export interface BatchState {
   status: BatchStatus; startedAt?: string; updatedAt: string; currentActionId?: string; currentTitle?: string;
-  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked' | 'daily_cap';
+  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked';
   message?: string; done: number; failed: number; handoffs: number; queued: number; todayCount: number; lastError?: string;
   /** 正在并行填写的网申（不同网站各一份）。 */
   running?: Array<{ actionId: string; title: string; host: string }>; concurrency?: number;
@@ -178,6 +178,10 @@ export interface LiveSnapshot {
   batch: BatchState | null;
   openHandoffs: number;
   fileChooser?: LiveFileChooser | null;
+  /** 登录之旅：第几家（从 0 数）/ 共几家。 */
+  journey?: { index: number; total: number } | null;
+  /** 助理正在等你处理（browser_wait_user）：交还时它自己会接着办。 */
+  waitingUser?: boolean;
 }
 /** 页面请求选文件（系统选文件框被拦下，改在产品里选）。 */
 export interface LiveFileChooser { id: string; sessionId: string; multiple: boolean; accept: string | null; url: string; ts: number }
@@ -339,6 +343,8 @@ export interface CareerChatSuggestEvent { text: string; context?: { surface?: st
 
 // ===== 岗位汇总表 =====
 export type EmploymentType = 'campus' | 'intern' | 'social' | 'unknown';
+/** 框选确认前的计划（服务端 career/batch-apply.ts JobPlan）。 */
+export interface JobPlan { ready: string[]; targets: number; skipped: Array<{ job_id: string; reason: string }>; needs_resume: string[]; resumes: Array<{ id: string; name: string }> }
 export interface JobPrefs { cohort?: string | null; degree?: string | null; cities?: string[]; employment_types?: EmploymentType[]; keywords?: string[] }
 export interface JobHardCheck { rule: string; label: string; ok: boolean | null; detail: string }
 export interface JobRequirementMatch { requirement: string; weight: number; status: 'covered' | 'missing'; terms: string[]; evidence?: { id: string; kind: 'claim' | 'resume'; text: string; label?: string } }

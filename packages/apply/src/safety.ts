@@ -5,12 +5,12 @@ import { detectObstacle, detectRateLimit } from './guards.js'
 import { riskBackoffMinutes } from './obstacles.js'
 
 /**
- * RiskGuard：验证码 / 登录墙 / 限流提示 → trip(reason) 写入 kv 风险锁，shouldStop() 立刻为真；
- * 另有每日页数上限。锁按平台存（key: apply:risk_lock:<platform>），GreetingScheduler 也读同一把锁。
+ * RiskGuard：验证码 / 登录墙 / 限流提示 → trip(reason) 写入 kv 风险锁，shouldStop() 立刻为真。
+ * 没有每日页数上限（用户 2026-10-30「不要做上限」）：只记当天打开了几页，给状态展示用。锁按平台存（key: apply:risk_lock:<platform>），GreetingScheduler 也读同一把锁。
  */
-export type RiskReason = HandoffReason | 'rate_limit' | 'daily_page_cap' | 'manual'
+export type RiskReason = HandoffReason | 'rate_limit' | 'manual'
 export interface RiskLock { until: string; reason: RiskReason; detail?: string; at: string }
-export interface RiskGuardOptions { platform?: string; dailyPageCap?: number; lockMinutes?: number; clock?: () => Date }
+export interface RiskGuardOptions { platform?: string; lockMinutes?: number; clock?: () => Date }
 
 export const riskLockKey = (platform: string) => `apply:risk_lock:${platform}`
 export const pageCountKey = (platform: string, day: string) => `apply:pages:${platform}:${day}`
@@ -19,12 +19,10 @@ export const dayOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1)
 
 export class RiskGuard {
   readonly platform: string
-  readonly dailyPageCap: number
   readonly lockMinutes: number
   private clock: () => Date
   constructor(private repos: Repos, opts: RiskGuardOptions = {}) {
     this.platform = opts.platform ?? 'generic'
-    this.dailyPageCap = opts.dailyPageCap ?? 300
     this.lockMinutes = opts.lockMinutes ?? 30
     this.clock = opts.clock ?? (() => new Date())
   }
@@ -36,7 +34,6 @@ export class RiskGuard {
   shouldStop(): { stop: boolean; reason?: RiskReason; until?: string; detail?: string } {
     const l = this.lock()
     if (l) return { stop: true, reason: l.reason, until: l.until, detail: l.detail }
-    if (this.pagesToday() >= this.dailyPageCap) return { stop: true, reason: 'daily_page_cap', detail: `今日已打开 ${this.pagesToday()} 页，达到上限 ${this.dailyPageCap}` }
     return { stop: false }
   }
   /**
@@ -57,12 +54,9 @@ export class RiskGuard {
   tripsToday(): number { return this.repos.kvGet<number>(tripCountKey(this.platform, dayOf(this.clock()))) ?? 0 }
   clear(): void { this.repos.kvSet(riskLockKey(this.platform), { until: new Date(0).toISOString(), reason: 'manual', at: this.clock().toISOString() }) }
   pagesToday(): number { return this.repos.kvGet<number>(pageCountKey(this.platform, dayOf(this.clock()))) ?? 0 }
-  /** 打开一页前预留额度；超限返回 false（并不自动上锁，让调用方决定）。 */
-  reservePage(): boolean {
-    const n = this.pagesToday()
-    if (n >= this.dailyPageCap) return false
-    this.repos.kvSet(pageCountKey(this.platform, dayOf(this.clock())), n + 1)
-    return true
+  /** 打开一页记一笔（只计数，不设上限）。 */
+  countPage(): void {
+    this.repos.kvSet(pageCountKey(this.platform, dayOf(this.clock())), this.pagesToday() + 1)
   }
   /** 检查页面信号：验证码 / 登录墙 / 限流 → 自动 trip 并返回命中原因。 */
   inspect(sig: PageSignals, adapter?: SiteAdapter): { reason: RiskReason; evidence: string } | null {

@@ -20,7 +20,14 @@ vi.mock('../career/skills', () => ({ loadSkillPrompt: vi.fn(async (name: string)
 
 import { FakeLLM, type Deadline } from '@career/core';
 
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
+import { BATCH_COMMAND_KEY } from '../career/batch-runner';
+import { loadCore } from '../career/core-module';
 import { boardMeta } from '../career/job-board';
+import { CareerStore } from '../career/store';
 import { createMemoryRepos } from '../career/test-db';
 import { createCareerServer, filterBoardFacets, mergeEvaluatePrefilter, selectDeadlines } from './career-tools';
 
@@ -67,6 +74,26 @@ describe('career 岗位表格 / 日历工具', () => {
     events = [];
     repos = createMemoryRepos();
     await createCareerServer({ repos, llm, broadcast: (event, data) => events.push({ event, data }), sessionId: () => 'sess-1' });
+  });
+
+  it('jobs_apply：一次就开始（批准 + 交后台运行器，没有待投清单）；好几份主简历时默认用最近改过的那份并写明；对话里留一张批次卡', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'career-jobs-apply-'));
+    try {
+      mocks.handlers.clear();
+      await createCareerServer({ repos, llm, broadcast: (event, data) => events.push({ event, data }), sessionId: () => 'sess-1', exportsDir: dir, studioExport: false });
+      const store = new CareerStore(repos, await loadCore());
+      store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } });
+      vi.setSystemTime(Date.now() + 1000);
+      store.createResumeMaster({ name: 'AI 方向', schema_json: { basics: {} } });
+      vi.useRealTimers();
+      const ids = ['美团', '京东'].map(c => repos.upsertJob({ source_platform: 'campus', source_job_id: c, title: 'AI应用开发', company_name: c, url: `https://${c}.test/apply` }).id);
+      const res = await call('jobs_apply', { job_ids: ids });
+      expect(res.json()).toMatchObject({ started: 2, skipped: [], resume: 'AI 方向' });
+      expect(repos.listActions('approved').filter(a => a.kind === 'fill_form')).toHaveLength(2);
+      expect(repos.kvGet<{ cmd: string }>(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run' });
+      const card = events.filter(e => e.event === 'career:card').map(e => (e.data as { card: { title: string; data: Record<string, unknown> } }).card).find(c => c.data.kind === 'fill_form');
+      expect(card).toMatchObject({ title: '投 2 家' });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
   it('job_evaluate 把预筛写到 prefilter_json.evaluate，不抹掉校招来源的批次 / 行业', async () => {

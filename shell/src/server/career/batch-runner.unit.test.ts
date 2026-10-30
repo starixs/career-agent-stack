@@ -95,17 +95,31 @@ describe('BatchRunner', () => {
     expect(calls.length).toBeGreaterThanOrEqual(after);
   });
 
-  it('风控锁住的平台先跳过；失败 → 投递 blocked；每日上限到了就等', async () => {
+  it('风控锁住的平台先跳过；失败 → 投递 blocked；剩下的都在锁着的平台上就等', async () => {
     const repos = createMemoryRepos();
     seed(repos, 1, 'locked.com'); const [free] = seed(repos, 1, 'free.com');
-    const { runner, calls } = makeRunner(repos, () => [{ type: 'error', status: 500, error: '渲染进程崩了' }], { riskLocked: p => p === 'locked.com', dailyCap: 1 });
+    const { runner, calls } = makeRunner(repos, () => [{ type: 'error', status: 500, error: '渲染进程崩了' }], { riskLocked: p => p === 'locked.com' });
     runner.start();
     for (let i = 0; i < 50 && calls.length === 0; i++) await settle();
     await settle();
     expect(calls[0].action.id).toBe(free);
     expect(repos.getAction(free)!.status).toBe('failed');
     expect(runner.state().failed).toBe(1);
-    expect(runner.state().phase).toBe('daily_cap');
+    for (let i = 0; i < 50 && runner.state().phase !== 'rate_locked'; i++) await settle();
+    expect(runner.state().phase).toBe('rate_locked');
+    runner.stop();
+    for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
+  });
+
+  it('没有每日上限：今天已经投了 100 份，队列里的照样开始填（用户 2026-10-30「不要做上限」）', async () => {
+    const repos = createMemoryRepos();
+    const d = new Date();
+    repos.kvSet(`apply:batch:count:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, 100);
+    const [a] = seed(repos, 1, 'next.com');
+    const { runner, calls } = makeRunner(repos, () => [{ type: 'result', status: 'stopped_before_submit', review: { rows: [], attention: 0, requiredTotal: 0, requiredFilled: 0 } }]);
+    runner.start();
+    for (let i = 0; i < 50 && calls.length === 0; i++) await settle();
+    expect(calls[0]?.action.id).toBe(a);
     runner.stop();
     for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
   });

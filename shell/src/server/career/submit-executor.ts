@@ -112,7 +112,7 @@ export async function executeSubmitAction(deps: SubmitExecutorDeps, actionId: st
     // 不能重试：可能已经投出去了。等用户在页面上确认。
     r.setActionStatus(actionId, 'needs_user', result);
     // 开一个交接：落进今日「要你的事」，浏览器也会为它保留；用户确认后 confirmSubmitResult 关掉
-    r.openHandoff('submit_confirm', { actionId, message: `提交后不确定投出去没有：${message}。到页面上看一眼，告诉我投成了没有` });
+    r.openHandoff('submit_confirm', { actionId, message: `提交后不确定投出去没有：${message}。到页面上看一眼，再在「等你」里点「投出了」或「没投出去」` });
     if (appId) { try { r.transition(appId, 'needs_user', message, { next_action: '到页面确认是否已投递成功' }); } catch { /* ignore */ } }
     changed('action_queue', 'application', 'handoff');
     deps.broadcast('career:review', { sessionId: sid, actionIds: [actionId], kind: 'submit', summary: message });

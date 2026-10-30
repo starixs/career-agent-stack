@@ -293,11 +293,11 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     recorder.trace({ stage: 'start', result: 'info', detail: `${page.url()} | 组件库：${libraries.join(',') || '未识别'} | 适配器：${adapter.id}` })
     if (adapter.preprocess) await adapter.preprocess(page).catch(e => log(`预处理失败：${e instanceof Error ? e.message : e}`))
     for (let index = 1; index <= maxPages; index++) {
-      // 0. 风险锁 / 页数上限
+      // 0. 风险锁（网站拦过才有；没有每日上限，用户 2026-10-30「不要做上限」）
       if (opts.riskGuard) {
         const s = opts.riskGuard.shouldStop()
         if (s.stop) return finish('blocked', `风险守卫要求停止：${s.reason}${s.detail ? '（' + s.detail + '）' : ''}`)
-        if (!opts.riskGuard.reservePage()) return finish('blocked', '今日页数上限已到')
+        opts.riskGuard.countPage()
       }
       // 1. 阻碍检测
       let sig = await step('读取页面信号', () => page.evaluate(pageSignalsScript))

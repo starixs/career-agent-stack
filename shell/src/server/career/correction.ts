@@ -1,13 +1,13 @@
 /**
  * 改了一批申请共用的简历以后（规范 CAREER_INTELLIGENT_UI.md §5.7 更正卡，§8.4）：
- *  - 待投清单里还没点开始的（fill_form 仍在 pending_review）：重新冻结材料包，换成新版。它们本来就要等你点开始，
- *    换版不会作废任何已有的批准（2026-10-30 你定）。
- *  - 其余用了旧版的（点了开始、在填、待提交、已投出）：改不了，如实列出来。
+ *  - 还没开始填的（排着队等后台轮到的 approved，或退回待审的 pending_review）：重新冻结材料包，换成新版。
+ *    换版不作废你「开始投」的那次批准（2026-10-30 你定；没有待投清单以后，排队的那几份就是原来「没点开始」的那几份）。
+ *  - 其余用了旧版的（在填、待提交、已投出）：改不了，如实列出来。
  * 只看材料包里冻结的简历内容和现在不一样的申请；同一份简历没改内容就什么都不发生。
  */
 import { createHash } from 'crypto';
 
-import { companyMarkOf, type ActionQueueItem, type ApplicationPacket, type CompanyMark, type Repos } from '@career/core';
+import { companyMarkOf, type ActionQueueItem, type ApplicationPacket, type ApprovalSource, type CompanyMark, type Repos } from '@career/core';
 
 import { freezePacket, type PacketDeps } from './packets';
 
@@ -39,6 +39,21 @@ function parsePayload(action: ActionQueueItem): Record<string, unknown> {
   }
 }
 
+/**
+ * 换材料包：改内容会让批准失效（updateActionPayload），排队中的那几份当场按原批准人再批一次，后台照常轮到它。
+ * 换的这一刻后台已经认领开填了（状态不对）就算改不了，返回 false。
+ */
+const APPROVERS: readonly ApprovalSource[] = ['user', 'auto', 'learned', 'system'];
+function swapPacket(repos: Repos, action: ActionQueueItem, packetId: string): boolean {
+  const wasApproved = action.status === 'approved';
+  try { repos.updateActionPayload(action.id, { ...parsePayload(action), packet_id: packetId }); } catch (e) {
+    console.warn(`[career] correction: ${action.id} 换版时已开始填，改不了：${e instanceof Error ? e.message : String(e)}`);
+    return false;
+  }
+  if (wasApproved) repos.reviewActions([action.id], 'approved', APPROVERS.find(x => x === action.approved_by) ?? 'system');
+  return true;
+}
+
 /** 换版并分堆。没有受影响的申请时返回 null（不出更正卡）。 */
 export async function refreshQueuedPackets(deps: PacketDeps, resumeId: string): Promise<CorrectionResult | null> {
   const found = deps.store.getResume(resumeId);
@@ -47,11 +62,10 @@ export async function refreshQueuedPackets(deps: PacketDeps, resumeId: string): 
   if (!uses.length) return null;
   const swapped: string[] = []; const locked: string[] = [];
   for (const u of uses) {
-    if (u.action.status !== 'pending_review') { locked.push(u.applicationId); continue; }
+    if (u.action.status !== 'pending_review' && u.action.status !== 'approved') { locked.push(u.applicationId); continue; }
     const { packet, warning } = await freezePacket(deps, { applicationId: u.applicationId, jobId: u.packet.job_id, resumeId });
     if (warning) console.warn(`[career] correction: ${u.applicationId} 换版时 ${warning}`);
-    deps.repos.updateActionPayload(u.action.id, { ...parsePayload(u.action), packet_id: packet.id });
-    swapped.push(u.applicationId);
+    if (swapPacket(deps.repos, u.action, packet.id)) swapped.push(u.applicationId); else locked.push(u.applicationId);
   }
   return { resume_id: resumeId, swapped, locked, swapped_marks: swapped.map(id => markOf(deps.repos, id)), locked_marks: locked.map(id => markOf(deps.repos, id)) };
 }

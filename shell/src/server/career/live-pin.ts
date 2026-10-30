@@ -13,3 +13,15 @@ export function setLivePin(next: LivePin | null): void { pin = next; }
 export function livePin(): LivePin | null { return pin; }
 /** 登录之旅进行中：后台不因为你在接管而停下，也不把画面切到新开的网申上。 */
 export const loginJourneyActive = (): boolean => pin !== null;
+
+/**
+ * 助理正在 browser_wait_user 里等你（扫码、短信码……）：这时你点「交还」，等待自己会看到并把新页面交回助理，
+ * 现场抽屉就不要再往对话里补一句，否则助理同一件事会被叫两次。只在 Global 侧车进程内计数。
+ */
+let userWaits = 0;
+export function beginUserWait(): () => void {
+  userWaits++;
+  let ended = false;
+  return () => { if (!ended) { ended = true; userWaits--; } };
+}
+export const userWaitActive = (): boolean => userWaits > 0;

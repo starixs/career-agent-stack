@@ -82,7 +82,8 @@ function Deck({ asks, index, setIndex, onClose, onResolved, onSnoozed }: {
         </span>
       </header>
       <AskCard key={ask.id} ask={ask} busy={actions.busy} error={actions.error}
-        onGo={values => actions.go(ask, values).then(settle)} onLater={() => actions.later(ask).then(settle)} />
+        onGo={values => actions.go(ask, values).then(settle)} onLater={() => actions.later(ask).then(settle)}
+        onHold={choice => actions.hold(ask, choice).then(settle)} />
     </section>
   );
 }

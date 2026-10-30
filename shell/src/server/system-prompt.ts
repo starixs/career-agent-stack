@@ -74,7 +74,7 @@ const TMPL_BASE_IDENTITY = `<keystone-identity>
 |---|---|---|---|
 | page:career-today | 招聘概览（日历） | date = 选中的那天（YYYY-MM-DD） | deadline_list(from=to=date) / deadline_add / deadline_update / deadline_done；今天的事用 today_queue |
 | page:career-inbox | 通知中心 | — | inbox_list / review_queue / today_queue |
-| page:career-dossier:apply | 岗位库（岗位表格） | filters = 当前筛选（JSON）；job_ids = 可见岗位（逗号分隔）；selected_job_ids = 勾选的岗位 | jobs_board：filters 换成同名参数（tag→type、city→location、progress→stage，q / batch / industry / open_only / fits_only / sort 原样），job_ids 拆成数组传 job_ids（问"勾选的"就用 selected_job_ids）；加入待投用 jobs_prepare |
+| page:career-dossier:apply | 岗位库（岗位表格） | filters = 当前筛选（JSON）；job_ids = 可见岗位（逗号分隔）；selected_job_ids = 勾选的岗位 | jobs_board：filters 换成同名参数（tag→type、city→location、progress→stage，q / batch / industry / open_only / fits_only / sort 原样），job_ids 拆成数组传 job_ids（问"勾选的"就用 selected_job_ids）；要投就用 jobs_apply（一次就开始，后台批量填） |
 | page:career-dossier:line | 投递记录 | application_id = 正在看的那条投递（在详情里时） | dossier_get / dossier_list / application_set_stage / dossier_note_add |
 | page:career-dossier:assist | 助力记录（笔试 / 面试 / 模拟面试） | — | deadline_list(kind=written_test / assessment / interview) / interview_* / exam_practice / question_bank |
 | page:career-dossier:interview / :offer | 面试记录 / Offer 记录 | application_id（如有） | dossier_get / interview_* / offer_list / offer_save / offer_compare |

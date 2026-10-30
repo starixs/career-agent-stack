@@ -2,7 +2,7 @@
  * Session 路由 `/api/career-session/*`（docs/API.md）：依赖当前对话会话。
  *
  * - review：对话内审核卡片回传，内部同 Global review，然后 broadcast `career:data-changed`。
- *   填表不需要事前审批（apply_prepare 准备好就直接填）；待投清单 / 旧数据里还在待审的 fill_form 在对话卡片上
+ *   填表不需要事前审批（apply_prepare 准备好就直接填）；批准后材料变了退回待审 / 旧数据里的 fill_form 在对话卡片上
  *   同意后由助理接着调 apply_run（渲染层把决定发进对话），这里不交给后台，避免两个执行者抢同一份网申；
  *   submit 由 Global 提交执行器轮询接走。
  * - takeover：用户在对话里点"我来接管 / 交还"；更新 run 状态机（内存）并通过
@@ -72,8 +72,10 @@ export async function handleCareerSessionRoute(pathname: string, request: Reques
     if (decision === 'rejected') {
       for (const a of reviewed.filter(x => x.kind === 'submit')) { try { const p = JSON.parse(a.payload_json) as { formSignature?: string }; resetPageTrust(repos, p.formSignature); } catch { /* ignore */ } }
     }
+    // 批准开始填：交给后台批量运行器（和 Global 的审批同一条路），助理不再逐份 apply_run、过程不进对话
+    const filling = decision === 'approved' ? (await import('../career/batch-apply')).startApprovedFills(repos, reviewed, 'approval') : [];
     broadcast('career:data-changed', { sessionId: sessionId(), tables: ['action_queue'] });
-    return ok({ n });
+    return ok({ n, filling });
   }
 
   if (pathname === '/api/career-session/takeover') {

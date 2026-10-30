@@ -2,9 +2,10 @@ import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import type { Repos } from '@career/core';
 
+import { adoptApplicationPage, resetApplicationPages } from '../career/app-pages';
 import { FileChooserBroker, type FileChooserLike } from '../career/file-chooser';
 import { LiveHub } from '../career/live-hub';
-import { setLivePin } from '../career/live-pin';
+import { beginUserWait, setLivePin } from '../career/live-pin';
 import { createMemoryRepos } from '../career/test-db';
 import { handleCareerLiveRoute, type CareerLiveDeps, type CareerLiveHost } from './career-live';
 
@@ -83,6 +84,31 @@ describe('career live route', () => {
     expect(events.map(e => (e as { type: string }).type)).toEqual(['career:takeover', 'career:takeover', 'career:data-changed']);
     const bad = await handleCareerLiveRoute('/api/career/live/control', req('/api/career/live/control', { control: 'x' }), d);
     expect(bad!.status).toBe(400);
+  });
+
+  it('state：登录之旅带上「第几家 / 共几家」；助理在等你处理时 waitingUser=true（交还时抽屉不再往对话里补一句）', async () => {
+    const repos = createMemoryRepos();
+    const d = deps(repos);
+    const state = async () => (await (await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), d))!.json()) as { journey: unknown; waitingUser: boolean };
+    expect(await state()).toMatchObject({ journey: null, waitingUser: false });
+    setLivePin({ sessionKey: 's', appKey: 'app', askId: 'h1', handoffId: 'h1', index: 1, total: 3 });
+    const end = beginUserWait();
+    try {
+      expect(await state()).toMatchObject({ journey: { index: 1, total: 3 }, waitingUser: true });
+    } finally { end(); end(); setLivePin(null); }
+    expect((await state()).waitingUser).toBe(false);
+  });
+
+  it('state：登录之旅里状态行的网址是钉住的那一家，不是后台正在填的另一页', async () => {
+    const mk = (url: string) => { const frame = {}; return { url: () => url, title: async () => url, isClosed: () => false, mainFrame: () => frame, once: () => {} }; };
+    const [busy, login] = [mk('https://busy.test/apply'), mk('https://login.test/sso')];
+    const host = { ...fakeHost(), withProductSession: async <T,>(_id: string, fn: (ctx: never) => Promise<T>) => fn({ pages: () => [busy, login] } as never) };
+    adoptApplicationPage('s', 'app-login', login as never);
+    setLivePin({ sessionKey: 's', appKey: 'app-login', askId: 'h1', handoffId: 'h1', index: 0, total: 2 });
+    try {
+      const res = await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), deps(createMemoryRepos(), host as never));
+      expect(((await res!.json()) as { browser: { url: string } }).browser.url).toBe('https://login.test/sso');
+    } finally { setLivePin(null); resetApplicationPages(); }
   });
 
   it('登录之旅里交还：只关当前带你过的这一家，别家还没登录的和缺信息的那批不被一起当成处理完', async () => {

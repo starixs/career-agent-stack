@@ -108,8 +108,62 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
     expect(screen.getByText('投出后撤不回')).toBeInTheDocument();
+    const sent: unknown[] = [];
+    const off = onEvent('career:chat-suggest', p => { sent.push(p); });
     fireEvent.click(screen.getByRole('button', { name: '一键投出' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', expect.objectContaining({ ids: ['act_s1', 'act_s2', 'act_s3'], decision: 'approved' })));
+    // 提交执行器接手，不发话给助理（立场 9：过程不进对话）
+    expect(sent).toEqual([]);
+    off();
+  });
+
+  it('「N 家等你说开始」点「都开始投」：只落审批交后台，不往对话里发「可以开始填了」', async () => {
+    const start: AskView = { id: 'act_f1', kind: 'start', title: '2 家等你说开始', application_ids: ['a1', 'a2'], companies: [mark('DeepSeek'), mark('大疆')],
+      sources: [{ type: 'action', id: 'act_f1' }, { type: 'action', id: 'act_f2' }], due_at: null, overdue: false };
+    serve([start], null);
+    const sent: unknown[] = [];
+    const off = onEvent('career:chat-suggest', p => { sent.push(p); });
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    serve([], null);
+    fireEvent.click(screen.getByRole('button', { name: '都开始投' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', { ids: ['act_f1', 'act_f2'], decision: 'approved' }));
+    expect(sent).toEqual([]);
+    off();
+  });
+
+  it('单家投前过目点「先不投」：展开「在页面上改 / 这家不投了 / 晚点再说」，不预填对话让你打字', async () => {
+    const one: AskView = { id: 'act_mt', kind: 'review', title: '美团 · 投前过目', application_ids: ['a1'], companies: [mark('美团')],
+      sources: [{ type: 'action', id: 'act_mt' }], due_at: null, overdue: false, review: { required_filled: 12, required_total: 12, gaps: 0 } };
+    serve([one], null);
+    const sent: unknown[] = [];
+    const off = onEvent('career:chat-suggest', p => { sent.push(p); });
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    fireEvent.click(screen.getByRole('button', { name: '先不投' }));
+    const options = screen.getByRole('group', { name: '先不投，那就' });
+    serve([], null);
+    fireEvent.click(within(options).getByRole('button', { name: '这家不投了' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', { ids: ['act_mt'], decision: 'rejected', drop: true }));
+    expect(sent).toEqual([]);
+    off();
+  });
+
+  it('「投出了吗」：看过页面一键回答，不用在对话里说；没投出去的回到待审', async () => {
+    const confirm: AskView = { id: 'hnd_c', kind: 'confirm', title: '大疆 · 投出了吗', application_ids: ['a1'], companies: [mark('大疆')],
+      sources: [{ type: 'handoff', id: 'hnd_c' }], action_ids: ['act_sub'], due_at: null, overdue: false };
+    serve([confirm], null);
+    const first = render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    expect(screen.getByRole('button', { name: '去页面上看' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '投出了' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/act_sub/confirm-submit', { submitted: true }));
+    first.unmount();
+    vi.mocked(apiPostJson).mockClear();
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    fireEvent.click(await screen.findByRole('button', { name: '没投出去' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/act_sub/confirm-submit', { submitted: false }));
   });
 
   it('「N 个网站要你登录」点「去登录」：开始登录之旅（服务端一家一家带你过）并打开旁边的浏览器现场', async () => {

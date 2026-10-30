@@ -9,12 +9,12 @@ vi.mock('./useGlobalLive', () => ({
   globalBaseUrl: async () => '',
 }));
 
-import { apiPostJson } from '@/api/apiFetch';
-import { emitEvent } from '@/api/eventBus';
+import { apiGetJson, apiPostJson } from '@/api/apiFetch';
+import { emitEvent, onEvent } from '@/api/eventBus';
 
 import { resetWorkSurfaces, useWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
 
-import { BrowserSessionPanel, CareerLiveDrawer, openLiveDrawer } from './CareerLiveDrawer';
+import { BrowserSessionPanel, CareerLiveDrawer, HANDBACK_TEXT, journeyText, openLiveDrawer } from './CareerLiveDrawer';
 
 /** App mounts the controller; Chat renders the panel while the browser surface is expanded. */
 function Harness() {
@@ -63,6 +63,33 @@ describe('CareerLiveDrawer', () => {
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/control', { control: 'human', reason: 'user_request' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/input', { type: 'click', x: 200, y: 100, frame: { width: 1000, height: 500 } }));
     expect(await screen.findByRole('button', { name: '交还给小芽' })).toBeInTheDocument();
+  });
+
+  it('交还：助理还在等你处理时不再往对话里补话（它自己会接着办）；等待已经结束的，替你说一句，不用回对话打「好了」', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true });
+    const sent: Array<{ text?: string }> = [];
+    const off = onEvent<{ text?: string }>('career:chat-suggest', p => { sent.push(p); });
+    try {
+      render(<Harness />);
+      act(() => openLiveDrawer());
+      await waitFor(() => expect(live.handler).not.toBeNull());
+      for (const waitingUser of [true, false]) {
+        push(snapshot({ browser: { ...snapshot().browser, control: 'human' } }));
+        vi.mocked(apiGetJson).mockResolvedValue({ ok: true, ...snapshot({ waitingUser }) });
+        fireEvent.click(await screen.findByRole('button', { name: '交还给小芽' }));
+        await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/control', { control: 'agent' }));
+        await waitFor(() => expect(apiGetJson).toHaveBeenCalledWith('/api/career/live/state'));
+        await act(async () => { await Promise.resolve(); });
+        expect(sent.map(m => m.text)).toEqual(waitingUser ? [] : [HANDBACK_TEXT]);
+        vi.mocked(apiPostJson).mockClear(); vi.mocked(apiGetJson).mockClear();
+      }
+    } finally { off(); }
+  });
+
+  it('登录之旅：状态行写「登录第几 / 共几家」，只有一家时不写', () => {
+    expect(journeyText({ index: 1, total: 3 })).toBe(' · 登录第 2 / 3 家');
+    expect(journeyText({ index: 0, total: 1 })).toBe('');
+    expect(journeyText(null)).toBe('');
   });
 
   it('页面请求选文件：自动展开浏览器栏，产品内选文件后交回页面', async () => {

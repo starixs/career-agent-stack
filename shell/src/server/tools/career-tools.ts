@@ -1224,19 +1224,21 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ prefs, rematched: n });
       })()),
 
-      tool('jobs_prepare', '把多个岗位一次加入待投清单（每个都冻结材料包 + fill_form 待审）；已在投的跳过。用户在待投清单勾选 / 全选批准后由后台批量投递执行。', {
-        job_ids: z.array(z.string()).min(1).max(50), resume_id: z.string().optional().describe('统一用这份简历；不传则每个岗位用它的定制版或唯一主简历'),
+      tool('jobs_apply', '投这几个岗位（用户说「这些都投了」「投这 20 个」时用）：一次就开始——逐个冻结材料包、交给后台批量运行器填到提交前停下；标星的填好后先给他看，其余检查全过的合成「一键投出」。已在投、已投过、没有网申链接的跳过并给原因。没有定制版又有好几份主简历时，默认用最近改过的那份（结果里 resume 写明用了哪份）。不用你逐份 apply_run；回复一两句：开始了几家、跳过几家，要他做的事会出现在输入框上沿的「等你」里。不要让他回话确认。', {
+        job_ids: z.array(z.string()).min(1).max(50), resume_id: z.string().optional().describe('统一用这份简历（定制版仍优先）；不传则用最近改过的主简历'),
       }, async (args) => wrap(async () => {
-        const { prepareJobs } = await import('../career/job-board');
-        progress('jobs_prepare', `正在为 ${args.job_ids.length} 个岗位准备材料包`);
-        const results = await prepareJobs({ ...packetDeps(), store: store() }, args.job_ids, args.resume_id ?? null);
+        const { applyJobs, planJobs } = await import('../career/batch-apply');
+        progress('jobs_apply', `正在为 ${args.job_ids.length} 个岗位准备材料、开始投`);
+        const masters = planJobs(repos(), store(), args.job_ids).resumes;
+        const resume = args.resume_id ?? masters[0]?.id ?? null;
+        const res = await applyJobs({ ...packetDeps(), store: store() }, args.job_ids, resume);
         changed('application', 'action_queue');
-        const queued = results.filter(x => x.ok).map(x => x.action_id!).filter(Boolean);
-        if (queued.length) review(queued, 'fill_form', `${queued.length} 个岗位已加入待投清单，选好后就开始批量填写（填到提交前会停下等你确认）`);
-        return text({ results, queued: queued.length });
+        // 对话里留一张批次卡（海报墙，只看状态、没有按钮）：这批投到哪了一眼可见
+        if (res.started.length) review(res.started, 'fill_form', `投 ${res.started.length} 家`);
+        return text({ started: res.started.length, skipped: res.skipped, ...(resume ? { resume: masters.find(m => m.id === resume)?.name ?? resume } : {}) });
       })()),
 
-      tool('apply_run', '在托管浏览器上执行一份已经排进队列的填表动作（不提交）。新开一份网申用 apply_prepare（准备好会直接开始填）；apply_run 用于队列里已批准的（如待投清单里用户选好的、浏览器忙时放回队列的），也可以直接重试之前因暂时性问题失败的那份。遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
+      tool('apply_run', '在托管浏览器上执行一份已经排进队列的填表动作（不提交）。新开一份网申用 apply_prepare（准备好会直接开始填）；apply_run 用于队列里已批准的（如浏览器忙时放回队列的），也可以直接重试之前因暂时性问题失败的那份。遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
         const r = repos();
         let action = r.getAction(args.action_id);
         if (!action) return err(`动作不存在：${args.action_id}`);

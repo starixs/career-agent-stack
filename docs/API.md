@@ -27,7 +27,8 @@
 | GET / PUT | `/api/career/job-prefs` | 求职条件（届别 / 学历 / 城市 / 类型 / 方向词）；PUT 后重算全部匹配 |
 | POST | `/api/career/jobs/match` | `{job_ids?}` 重算匹配 |
 | POST | `/api/career/jobs/sync` | `{source:'campus'|'server'}` 同步校招汇总或服务端岗位库（契约见 SERVER-API.md），并重算匹配 |
-| POST | `/api/career/jobs/prepare` | `{job_ids, resume_id?}` 勾选的岗位加入待投清单（逐个冻结材料包 + fill_form 待审） |
+| POST | `/api/career/jobs/plan` | `{job_ids}` 框选确认前的计划：能开始的、标星数、跳过原因、要不要选简历 |
+| POST | `/api/career/jobs/apply` | `{job_ids, resume_id?}` 一次就开始：冻结材料包 + 批准 + 交后台批量运行器（没有待投清单） |
 | POST | `/api/career/export/workbook` | 导出求职表格（岗位汇总 / 投递进度 / 网申答案 / 题库）→ `{path, sheets}` |
 | GET / PUT | `/api/career/server-config` | 服务端地址与令牌（令牌只写不读） |
 | GET | `/api/career/questions?kind&source&company&q&weak_only=1` | 题库（R09） |
@@ -166,7 +167,7 @@
 | `jobs_board` | 筛选条件 | 岗位汇总表 + 可解释匹配（只推荐 fits=true 的） |
 | `jobs_sync` | source: campus / server | 同步岗位并重算匹配 |
 | `job_prefs` | cohort / degree / cities / employment_types / keywords | 查看 / 设置求职条件（硬条件） |
-| `jobs_prepare` | job_ids, resume_id? | 多个岗位一次加入待投清单 |
+| `jobs_apply` | job_ids, resume_id? | 投这几个岗位：一次就开始，后台批量填到提交前 |
 | `question_bank` | kind / source / company / q / weak_only | 查题库（见过次数、最近 / 最好得分） |
 | `question_add` | questions[], company_name?, source? | 补录用户见过的题（原题） |
 | `question_attempt` | question_id, answer_text, score, feedback? | 记一次作答与评分，返回分数趋势 |

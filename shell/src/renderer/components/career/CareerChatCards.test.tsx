@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+
 
 import { onEvent } from '@/api/eventBus';
 import { TabContext, type TabContextValue } from '@/context/TabContext';
 import { resetWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
 
+import { careerApi } from './careerApi';
 import { CareerChatCards, phaseLabel, reviewDecisionMessage } from './CareerChatCards';
 import { ReviewCard, upsertReviewCard } from './CareerReviewCard';
 import type { CareerCard } from './types';
@@ -77,34 +79,35 @@ describe('CareerChatCards', () => {
     expect(screen.getAllByTestId('career-review-card')).toHaveLength(2);
   });
 
-  it('交接：批准后发给助理的是人话，动作 id 与工具名只在隐藏上下文里；回传失败就不发', async () => {
-    const sent: Array<{ text?: string; mode?: string; context?: { refs?: Record<string, string>; note?: string } }> = [];
-    const off = onEvent<(typeof sent)[number]>('career:chat-suggest', p => { sent.push(p); });
+  it('提交卡：批准由后台执行、不发话给助理；「先不提交」展开三个选项，「这家不投了」拒绝并标成跳过，也不叫助理问下一步', async () => {
+    const reject = vi.spyOn(careerApi, 'reviewActions').mockResolvedValue({});
+    const sent: unknown[] = [];
+    const off = onEvent('career:chat-suggest', p => { sent.push(p); });
     try {
       const card = reviewCard({ id: 'review:act_1', title: '「美团 AI应用开发工程师」必填 8/8 已填好并核对过' }, { action_ids: ['act_1'], summary: '「美团 AI应用开发工程师」必填 8/8 已填好并核对过' });
-      const { unmount } = renderReviewCards([card], { respondCareerReview: vi.fn(async () => true), setCareerCardState: vi.fn() });
+      const respond = vi.fn(async () => true);
+      const setState = vi.fn();
+      const { unmount } = renderReviewCards([card], { respondCareerReview: respond, setCareerCardState: setState });
       fireEvent.click(screen.getByRole('button', { name: '批准提交' }));
-      await waitFor(() => expect(sent).toHaveLength(1));
-      expect(sent[0].mode).toBe('send');
-      expect(sent[0].text).toContain('批准提交');
-      expect(sent[0].text).not.toMatch(/act_1|apply_|动作/);
-      expect(sent[0].context?.refs).toEqual({ action_id: 'act_1' });
+      await waitFor(() => expect(respond).toHaveBeenCalledWith(['act_1'], 'approved'));
       unmount();
 
-      renderReviewCards([card], { respondCareerReview: vi.fn(async () => false), setCareerCardState: vi.fn() });
+      renderReviewCards([card], { respondCareerReview: respond, setCareerCardState: setState });
       fireEvent.click(screen.getByRole('button', { name: '先不提交' }));
-      await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('没能保存'));
-      expect(sent).toHaveLength(1);
-    } finally { off(); }
+      const options = screen.getByRole('group', { name: '先不提交，那就' });
+      expect(within(options).getAllByRole('button').map(b => b.textContent)).toEqual(['在页面上改', '这家不投了', '晚点再说']);
+      fireEvent.click(within(options).getByRole('button', { name: '这家不投了' }));
+      await waitFor(() => expect(reject).toHaveBeenCalledWith(['act_1'], 'rejected', { drop: true }));
+      await waitFor(() => expect(setState).toHaveBeenCalledWith('review:act_1', 'completed'));
+      expect(sent).toEqual([]);
+    } finally { off(); reject.mockRestore(); }
   });
 
-  it('reviewDecisionMessage：拒绝让助理先别执行；提交让助理跟进结果；填表的工具名只在隐藏 note 里', () => {
+  it('reviewDecisionMessage：拒绝让助理先别执行；批准填表 / 提交由后台接手，返回 null 不叫助理', () => {
     const base = { actionIds: ['a1'], summary: '提交丙公司网申' };
-    expect(reviewDecisionMessage({ ...base, kind: 'submit' }, 'rejected').text).toContain('先别执行');
-    expect(reviewDecisionMessage({ ...base, kind: 'submit' }, 'approved').text).toContain('跟进提交结果');
-    const fill = reviewDecisionMessage({ ...base, kind: 'fill_form' }, 'approved');
-    expect(fill.text).not.toContain('apply_run');
-    expect(fill.context.note).toContain('apply_run');
+    expect(reviewDecisionMessage({ ...base, kind: 'submit' }, 'rejected')?.text).toContain('先别执行');
+    expect(reviewDecisionMessage({ ...base, kind: 'submit' }, 'approved')).toBeNull();
+    expect(reviewDecisionMessage({ ...base, kind: 'fill_form' }, 'approved')).toBeNull();
   });
 
   it('浏览器交接：工具卡说明停在哪一步，「去处理」展开右侧浏览器栏', async () => {

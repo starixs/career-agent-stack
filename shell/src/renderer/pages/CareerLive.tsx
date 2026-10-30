@@ -17,7 +17,7 @@ import { CareerLiveViewport } from '@/components/career/CareerLiveViewport';
 
 const BATCH_LABELS: Record<BatchState['status'], string> = { idle: '空闲', running: '运行中', paused: '已暂停', stopped: '已停止' };
 const BATCH_TONES: Record<BatchState['status'], BadgeTone> = { idle: 'neutral', running: 'success', paused: 'warning', stopped: 'neutral' };
-const PHASE_LABELS: Record<string, string> = { picking: '挑选下一份', driving: '填写中', waiting_user: '等你处理', waiting_control: '你在接管', pacing: '间歇', rate_locked: '风控冷却', daily_cap: '今日上限' };
+const PHASE_LABELS: Record<string, string> = { picking: '挑选下一份', driving: '填写中', waiting_user: '等你处理', waiting_control: '你在接管', pacing: '间歇', rate_locked: '风控冷却' };
 
 export function batchSummaryLine(b: BatchState | null | undefined): string {
   if (!b) return '还没有批量任务';

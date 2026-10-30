@@ -19,7 +19,7 @@ import type { FileChooserBroker, PendingFileChooser, UploadedFile } from '../car
 import { BatchRunner as BatchRunnerClass } from '../career/batch-runner';
 import type { LiveHub } from '../career/live-hub';
 import { findApplicationPage } from '../career/app-pages';
-import { livePin } from '../career/live-pin';
+import { livePin, userWaitActive } from '../career/live-pin';
 import { createPageFollower } from '../career/page-follower';
 import { ScreencastHub, fromPlaywrightPage } from '../career/screencast';
 
@@ -82,6 +82,14 @@ export interface LiveSnapshot {
   openHandoffs: number;
   /** 等用户在产品里选文件的上传请求。 */
   fileChooser: PendingFileChooser | null;
+  /** 登录之旅：现在带你登第几家 / 共几家（没在登录之旅时为 null）。 */
+  journey: { index: number; total: number } | null;
+  /** 助理正在 browser_wait_user 里等你：交还时等待自己会接着办，不用再往对话里补一句。 */
+  waitingUser: boolean;
+}
+
+function journeyOf(pin: ReturnType<typeof livePin>): LiveSnapshot['journey'] {
+  return pin ? { index: pin.index, total: pin.total } : null;
 }
 
 export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> {
@@ -90,7 +98,8 @@ export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> 
   let url: string | undefined; let title: string | undefined;
   if (id && hasBrowser) {
     try {
-      await deps.host.withProductSession(id, async context => { const page = await activePage(context); url = page.url(); title = await page.title().catch(() => ''); }, { allowHumanControl: true });
+      // 和画面、输入同一页：登录之旅钉住的那一家（否则状态行写的是后台正在填的另一家）
+      await deps.host.withProductSession(id, async context => { const page = await pinnedOrActive(context, id); url = page.url(); title = await page.title().catch(() => ''); }, { allowHumanControl: true });
     } catch { /* 浏览器正在关闭等，忽略 */ }
   }
   const control = id && hasBrowser ? deps.host.getControl(id) : null;
@@ -104,6 +113,8 @@ export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> 
     batch: deps.runner?.state() ?? null,
     openHandoffs: deps.repos.openHandoffs().length,
     fileChooser: deps.files?.current() ?? null,
+    journey: journeyOf(livePin()),
+    waitingUser: userWaitActive(),
   };
 }
 
