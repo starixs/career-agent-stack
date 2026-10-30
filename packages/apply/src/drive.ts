@@ -4,7 +4,7 @@ import type { PageLike } from './page.js'
 import { extractFields, formFingerprint, type FormField } from './extract.js'
 import { interpretForm, normKey, type FieldPlan, type Profile, type InterpretOptions } from './interpret.js'
 import { pageSignalsScript, type PageSignals, type ButtonInfo } from './scripts.js'
-import { detectObstacle, findFinalSubmit, isEntryText, isNextText, isSubmitText } from './guards.js'
+import { detectObstacle, findFinalSubmit, isEntryText, isNextText, isSubmitText, type Obstacle } from './guards.js'
 import { navigateToPosition, positionLinksScript, type PositionLink, type PositionTarget } from './navigate.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import type { RiskGuard } from './safety.js'
@@ -228,6 +228,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   let entryClicked: string | undefined
   let entryClicks = 0
   let navHops = 0
+  let lastSeekTried: string[] = []
   const recallKey = opts.siteMemory ? opts.siteMemory.recaller(host) : undefined
   const layersUsed = new Set<DriveLayer>()
   const visionOpts: VisionOptions | null = opts.perceiver && page.mouse
@@ -300,6 +301,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     const nav = await navigateToPosition(page, adapter, opts.target, { settleMs: Math.max(opts.settleMs ?? 800, 0) * 2, log })
     recorder.trace({ stage: 'entry', action: 'navigate', result: nav.moved ? 'info' : 'fail', detail: `${why}｜${nav.moved ? `${nav.via}：${nav.picked}` : `没找到对口岗位（试了 ${nav.tried.join('、') || '页面链接'}）`}` })
     if (nav.moved) progress(`找到岗位「${nav.picked}」`, 'entry', nav.picked)
+    else lastSeekTried = nav.tried
     return nav.moved
   }
 
@@ -317,7 +319,9 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       // 1. 阻碍检测
       let sig = await step('读取页面信号', () => readSignalsSettled(page, Math.max(opts.settleMs ?? 800, 0)))
       const risk = opts.riskGuard?.inspect(sig, adapter) ?? null
-      const ob = detectObstacle(sig, adapter)
+      // 导航栏的「登录/注册」不是登录墙：还没找岗位之前先去找（2026-10-31：北森 zhiye 首页一打开就被当成要登录）
+      const rawOb = detectObstacle(sig, adapter)
+      const ob = rawOb && opts.target && untouched() && !entryClicked && isNavLoginLink(rawOb) ? null : rawOb
       if (risk && risk.reason === 'rate_limit') return finish('blocked', `平台限流提示：${risk.evidence}，已上风险锁`)
       if (!ob && looksLikeRiskUrl(sig.url)) { opts.riskGuard?.trip('rate_limit', `跳转到风控页 ${sig.url}`); return finish('blocked', `被跳转到风控 / 验证页：${sig.url}，已上风险锁`) }
       if (ob) {
@@ -345,9 +349,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       // 列表页左边的「职位类别 / 城市」筛选框不是网申表（2026-10-31 实例测试：小鹏列表页的筛选被当成表单填了）
       // 适配器认得出这是校招首页 / 列表页（能拼出站内搜索网址、自己又不是岗位详情）也一样：Moka 首页的搜索框标签常被认成标语
       // 只在一开始（还没点过申请入口、还没找过岗位）判断；点进网申表以后同一站的网址也拼得出搜索网址，不能再跳走
-      if (index === 1 && !entryClicked && navHops === 0 && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
+      // 列表页例外：飞书首页的「立即投递」点进去是招聘项目的岗位列表，还得再挑岗位
+      if (index === 1 && navHops === 0 && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
         const here = page.url()
-        const atHome = !!adapter.positionSearchUrl?.(here, '') && !adapter.hints.positionLink?.test(here)
+        const atHome = !entryClicked && !!adapter.positionSearchUrl?.(here, '') && !adapter.hints.positionLink?.test(here)
         const links = adapter.hints.positionLink ? await page.evaluate(positionLinksScript, null).catch(() => [] as PositionLink[]) : []
         const onList = links.some(l => adapter.hints.positionLink!.test(l.href))
         if ((atHome || onList) && await seek(atHome ? '校招首页' : '列表页')) { index--; continue }
@@ -357,7 +362,11 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       let layer: DriveLayer = 'dom'
       rec.fieldCount = fields.length
       // 2.05 第一页只有搜索框 / 筛选框（Moka 首页的「输入职位关键字」、列表页的城市筛选）：不是网申表，先去找岗位
-      if (index === 1 && fields.length && fields.every(isSearchOrFilterField) && await seek('只有搜索 / 筛选框')) { index--; continue }
+      if (index === 1 && fields.length && onlySearchOrFilter(fields)) {
+        if (await seek('只有搜索 / 筛选框')) { index--; continue }
+        // 找过了还是只有筛选框：这不是网申表，绝不当成「填好了」交去提交（2026-10-31：大众校招搜索页的筛选被报成表单已填完）
+        if (opts.target) { pages.push(rec); return finish('blocked', `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
+      }
       // 2.1 岗位详情页：页面上没有任何表单字段、这次也没填过东西 → 允许点申请入口按钮进入网申表（最终提交仍永不点）
       if (!fields.length && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
         const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text, adapter))
@@ -767,6 +776,14 @@ const SEARCH_FILTER_RX = /(搜索|关键字|关键词|keyword|search|筛选|职�
 /** 列表页 / 首页上的搜索框和筛选项，不是网申表的格子。 */
 function isSearchOrFilterField(f: FormField): boolean {
   return SEARCH_FILTER_RX.test(`${f.label} ${f.placeholder ?? ''}`)
+}
+/** 这一页只有搜索 / 筛选（没标签的格子不算反证，但至少要有一个认得出是筛选的）。 */
+function onlySearchOrFilter(fields: FormField[]): boolean {
+  return fields.some(isSearchOrFilterField) && fields.every(f => isSearchOrFilterField(f) || !`${f.label}${f.placeholder ?? ''}`.trim())
+}
+/** 只因为页面文字里有导航栏那种「登录 / 注册」才判成登录墙（没有密码框、不是登录网址）。 */
+function isNavLoginLink(ob: Obstacle): boolean {
+  return ob.reason === 'login' && /^登录\s*\/\s*注册$/.test(ob.evidence.trim())
 }
 
 /** 点击前最后一道防线：文案像提交就拒绝。 */

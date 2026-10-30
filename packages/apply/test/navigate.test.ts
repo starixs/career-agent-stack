@@ -97,6 +97,33 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     expect(page.submitted).toBe(false)
   })
 
+  it('搜了还是只有筛选框：如实报「没有对口岗位」，绝不当成填好的表单去提交', async () => {
+    const home = 'https://app.mokahr.com/campus-recruitment/acme/100#/'
+    const page = new FakePage([
+      { url: home, text: '欢迎' },
+      { url: `${home}jobs?keyword=%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91`, fields: [{ label: '所属部门' }, { label: '职能类型' }, { label: '工作地点' }] },
+      { url: `${home}jobs?keyword=%E5%90%8E%E7%AB%AF`, fields: [{ label: '所属部门' }, { label: '工作地点' }] },
+      { url: `${home}jobs?keyword=%E6%9C%8D%E5%8A%A1%E7%AB%AF`, fields: [{ label: '所属部门' }, { label: '工作地点' }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend })
+    expect(r.status).toBe('blocked')
+    expect(r.message).toContain('没有和你方向对口的岗位')
+    expect(r.filled).toEqual([])
+  })
+
+  it('导航栏的「登录/注册」不是登录墙：先去找岗位', async () => {
+    const page = new FakePage([
+      { url: 'https://acme.zhiye.com/', text: '首页 校园招聘 登录/注册', section: { text: '校园招聘', goto: 'https://acme.zhiye.com/campus/jobs' } },
+      { url: 'https://acme.zhiye.com/campus/jobs', text: '登录/注册', links: [{ text: '软件开发工程师 校园招聘 上海 软件类', href: '', goto: 'https://acme.zhiye.com/campus/detail' }] },
+      { url: 'https://acme.zhiye.com/campus/detail', text: '岗位职责 登录/注册', buttons: [{ text: '申请职位', goto: 'https://acme.zhiye.com/login' }] },
+      { url: 'https://acme.zhiye.com/login', login: true, fields: [{ label: '手机号' }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: { ...backend, terms: [...backend.terms, '软件'] } })
+    expect(r.entryClicked).toBe('申请职位')
+    expect(r.status).toBe('handoff'); expect(r.reason).toBe('login')
+    expect(r.finalUrl).toBe('https://acme.zhiye.com/login')
+  })
+
   it('不给 target 时行为不变：首页没表单就如实报没有表单', async () => {
     const r = await driveApplication(new FakePage({ url: 'https://app.mokahr.com/campus-recruitment/acme/100#/', text: '欢迎加入' }), noLLM(), profile, quiet)
     expect(r.status).toBe('blocked')
