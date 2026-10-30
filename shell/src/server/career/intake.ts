@@ -8,6 +8,7 @@
 import type { Repos, LLM, Job, JdParsed, InboxItem, InboxKind, InboxSource, DeadlineKind } from '@career/core';
 
 import { fetchPage } from './web-fetch';
+import { normalizeIso } from './dates';
 import type { CoreModule } from './core-module';
 import { loadSkillPrompt } from './skills';
 import { CareerStore } from './store';
@@ -61,6 +62,8 @@ export interface IntakeResult {
   /** 面板 / 对话要告诉用户的一句话。 */
   summary: string;
 }
+
+export { normalizeIso } from './dates';
 
 const INBOX_KIND_SET = new Set<string>(['jd', 'application_received', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other']);
 
@@ -163,7 +166,8 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
   // 找归属投递：用户指定 > 模型匹配 > 公司名匹配（唯一时才用）
   let app = input.application_id ? r.getApplication(input.application_id) : undefined;
   if (!app && triage.match?.application_id) app = r.getApplication(triage.match.application_id);
-  if (!app && company) { const hits = r.findOpenApplicationsByCompany(company); if (hits.length === 1) app = hits[0]; }
+  // Offer 来信还要算上已接受的那份：接了意向之后还会来三方、入职通知
+  if (!app && company) { const hits = r.findOpenApplicationsByCompany(company, kind === 'offer' ? ['hired'] : []); if (hits.length === 1) app = hits[0]; }
 
   /**
    * 找不到投递就建岗位 + 投递；然后只往前推进到目标阶段（Repos.advanceTo）：已经在面试的投递又收到一封笔试通知，
@@ -245,9 +249,17 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       }
       case 'offer': {
         const a = ensureApplication('offer', '收到 Offer');
-        const offer = store.createOffer({ application_id: a.id, company_name: company, title, deadline: normalizeIso(f.due_at, refIso) ?? null, risk_notes: f.notes ?? null });
-        created.offer_id = offer.id; tables.add('offer');
-        addDeadline('offer_reply', `${label} Offer 回复截止`, f.due_at, { offer_id: offer.id });
+        // 同一份申请只有一个 Offer：意向书之后的正式 offer、三方通知都落在它上面
+        const existing = store.listOffers().find(o => o.application_id === a.id);
+        const signing = isSigningNotice(f.notes, input.mail?.subject);
+        const due = signing ? null : normalizeIso(f.due_at, refIso);
+        // 答复期限由 Offer 自己同步到截止事件（只有一处真相）；三方是另一件事，单独记
+        const offer = existing
+          ? (due ? store.updateOffer(existing.id, { deadline: due }) : existing)
+          : store.createOffer({ application_id: a.id, company_name: company, title, deadline: due, risk_notes: f.notes ?? null }, input.source === 'mail' ? 'mail' : 'inbox');
+        created.offer_id = offer.id; tables.add('offer').add('deadline');
+        if (signing) addDeadline('other', `${label} 三方签约截止`, f.due_at, { offer_id: offer.id });
+        else created.deadline_ids.push(...r.listDeadlines({ status: 'open' }).filter(d => d.offer_id === offer.id && d.kind === 'offer_reply').map(d => d.id));
         break;
       }
       case 'referral': {
@@ -335,35 +347,8 @@ function normalizeRound(round?: string): string {
   return 'other';
 }
 
-/** 没写年份的日期早于参照时间这么多天，就认为说的是下一年（十月的邮件写「1月3日」指明年一月）。 */
-const YEARLESS_ROLLOVER_DAYS = 30;
-
-/** 没写年份时补参照时间的年份；早于参照时间太多就顺延到下一年。 */
-function yearlessDate(refIso: string, month: number, day: number, hour: number | null, minute: number | null): string {
-  const year = Number(refIso.slice(0, 4));
-  const d = new Date(Date.UTC(year, month - 1, day, hour !== null ? hour - 8 : 15, minute ?? 59));
-  if (d.getTime() < Date.parse(refIso) - 86_400_000 * YEARLESS_ROLLOVER_DAYS) d.setUTCFullYear(year + 1);
-  return d.toISOString();
-}
-
-/**
- * 把模型给的时间（ISO / "2026-10-05 14:00" / "10月5日 14:00" / "10/5"）规整成 ISO；解析不了返回 null。
- * refIso 是补年份的参照：邮件用收件时间，粘贴用当前时间。
- */
-export function normalizeIso(value: string | undefined | null, refIso: string): string | null {
-  if (!value) return null;
-  const v = value.trim();
-  if (!v) return null;
-  const direct = Date.parse(v);
-  if (!Number.isNaN(direct) && /\d{4}-\d{2}-\d{2}/.test(v)) return new Date(direct).toISOString();
-  const cn = v.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日?(?:\s*(\d{1,2})[:：点](\d{2})?)?/);
-  if (cn) {
-    const hour = cn[4] ? Number(cn[4]) : null;
-    const minute = cn[5] ? Number(cn[5]) : null;
-    if (!cn[1]) return yearlessDate(refIso, Number(cn[2]), Number(cn[3]), hour, minute);
-    return new Date(Date.UTC(Number(cn[1]), Number(cn[2]) - 1, Number(cn[3]), hour !== null ? hour - 8 : 15, minute ?? 59)).toISOString();
-  }
-  const dash = v.match(/(\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
-  if (dash) return yearlessDate(refIso, Number(dash[1]), Number(dash[2]), dash[3] ? Number(dash[3]) : null, dash[4] ? Number(dash[4]) : null);
-  return null;
+/** 三方 / 签约通知：和 offer 回复是两个期限（先答复、再签三方），单独记一条，不和回复截止混在一起。 */
+const SIGNING_RE = /三方|签约/;
+function isSigningNotice(...texts: Array<string | null | undefined>): boolean {
+  return texts.some(t => !!t && SIGNING_RE.test(t));
 }

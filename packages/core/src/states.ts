@@ -20,6 +20,8 @@ export const STAGE_TRANSITIONS: Record<ApplicationStage, readonly ApplicationSta
   offer: ['hired', 'rejected', 'discarded'],
   rejected: [], discarded: [], skip: ['evaluated'], hired: [],
 }
+/** 关掉了的投递：不再进归档匹配、不算进行中。 */
+export const CLOSED_STAGES: readonly ApplicationStage[] = ['rejected', 'discarded', 'skip', 'hired']
 export function canTransition(from: ApplicationStage, to: ApplicationStage): boolean {
   return (STAGE_TRANSITIONS[from] ?? []).includes(to)
 }
