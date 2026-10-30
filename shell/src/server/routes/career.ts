@@ -41,6 +41,7 @@ import { exportCareerWorkbook } from '../career/xlsx-export';
 import { broadcast as sseBroadcast } from '../sse';
 
 import { careerJson, fail, ok, str, strOrNull, type Json } from './career-http';
+import { deliveryRoutes } from './career-delivery';
 import { interviewRoutes } from './career-interview';
 
 export interface CareerRouteDeps {
@@ -139,6 +140,8 @@ const ROUTES: Route[] = [
     params: ctx.params, body: ctx.body, repos: ctx.repos, store: ctx.store,
     recordingsDir: ctx.deps.recordingsDir ?? careerRecordingsDir(), dataChanged: tables => dataChanged(ctx, tables),
   }))),
+
+  ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url }))),
 
   // ---------- 经历库 ----------
   route('GET', '/api/career/experiences', ({ repos }) => ok({ experiences: repos.experienceTree() })),

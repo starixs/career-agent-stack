@@ -188,5 +188,11 @@ describe('对话和页面分工 · 两天没开，回来', () => {
     expect(after['拼多多：很遗憾']).toBe(true);
   });
 
-  it.todo('〔组件〕回来卡（等你条之后做）：读同一份今日队列，页面上刚处理掉的不进卡');
+  it('回来卡读的是同一份要你的事：在通知中心刚处理掉的测评不进卡，最急的一件换成后天的面试', async () => {
+    const assessment = deadlineOf('九方云', 'assessment');
+    await page(repos, 'POST', `/api/career/deadlines/${assessment.id}/status`, { status: 'done' });
+    const away = (await page(repos, 'GET', `/api/career/away?since=${LEFT_AT}`)).away as { asks: Array<{ id: string; title: string }> };
+    expect(away.asks.map(a => a.id)).not.toContain(assessment.id);
+    expect(away.asks[0].title).toContain('百度');
+  });
 });
