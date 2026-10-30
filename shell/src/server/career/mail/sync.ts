@@ -10,6 +10,7 @@ import { captureIntake, captureTriaged, dataChanged, type IntakeDeps, type Intak
 import { getMailPassword } from './credentials';
 import { isExpired, recordMailFailure, recordMailSuccess } from './health';
 import { classifyByRules } from './rules';
+import { recordTakeover } from './takeover';
 
 export interface MailSyncDeps extends IntakeDeps {
   /** 测试注入：替代真实 IMAP 拉取（历史导入时传回的就是粗筛前的全部邮件）。 */
@@ -31,7 +32,8 @@ export interface MailSyncResult {
   account_id: string; fetched: number; stored: number; job_related: number; ignored: number;
   archived: Array<{ mail_id: string; inbox_item_id: string; kind: string | null; summary: string }>;
   /** 历史导入：规则直接收下的、调了模型的、认不出留着没动的。 */
-  history?: { by_rules: number; by_model: number; unclassified: number };
+  /** 历史导入：规则直接收下的、调了模型的、认不出留着没动的，以及接管到的申请（接管简报用）。 */
+  history?: { by_rules: number; by_model: number; unclassified: number; application_ids: string[] };
   error?: string;
 }
 
@@ -164,6 +166,7 @@ async function runSync(deps: MailSyncDeps, account: MailAccount): Promise<MailSy
   }
   const history = account.last_uid === 0 || !!fetched.reset;
   Object.assign(result, await archiveBatch(deps, account, fetched.mails, history));
+  if (history) recordTakeover(deps, account, result, fetched.mails);
   recordMailSuccess(deps, account, { last_uid: fetched.reset ? fetched.maxUid : Math.max(account.last_uid, fetched.maxUid), uidvalidity: fetched.uidvalidity });
   // 每 5 分钟一次的空同步不留痕，只记真拉到信的（连接管理页的用量）
   if (result.fetched) r.addMailAudit({ account_id: account.id, actor: 'system', operation: history ? 'import' : 'sync', status: 'ok', detail: { fetched: result.fetched, job_related: result.job_related, ...(result.history ?? {}) }, latency_ms: Date.now() - started });
@@ -177,7 +180,7 @@ async function runSync(deps: MailSyncDeps, account: MailAccount): Promise<MailSy
  * history：第一次连接的历史邮件，规则先认、按时间从旧到新处理（先投递确认、再笔试面试、最后拒信 / Offer，阶段才推得对）。
  */
 export async function archiveBatch(deps: MailSyncDeps, account: MailAccount, mails: FetchedMail[], history: boolean): Promise<MailSyncResult> {
-  const result: MailSyncResult = { account_id: account.id, fetched: mails.length, stored: 0, job_related: 0, ignored: 0, archived: [], ...(history ? { history: { by_rules: 0, by_model: 0, unclassified: 0 } } : {}) };
+  const result: MailSyncResult = { account_id: account.id, fetched: mails.length, stored: 0, job_related: 0, ignored: 0, archived: [], ...(history ? { history: { by_rules: 0, by_model: 0, unclassified: 0, application_ids: [] } } : {}) };
   const ordered = history ? [...mails].sort((a, b) => (a.received_at ?? '').localeCompare(b.received_at ?? '')) : mails;
   for (const m of ordered) await archiveMail(deps, account, m, result);
   return result;
@@ -209,6 +212,7 @@ async function archiveMail(deps: MailSyncDeps, account: MailAccount, m: FetchedM
   const jobRelated = intake.triage?.relevance !== 'ignored';
   const appId = intake.created.application_id ?? intake.created.closed_application_id ?? replied?.application_id ?? null;
   r.updateMailMessage(row.id, { relevance: jobRelated ? 'job' : 'ignored', kind: (intake.item.kind ?? null) as MailMessage['kind'], inbox_item_id: intake.item.id, application_id: appId });
+  if (jobRelated && appId && result.history && !result.history.application_ids.includes(appId)) result.history.application_ids.push(appId);
   if (jobRelated) {
     result.job_related++;
     if (!input.history) result.archived.push({ mail_id: row.id, inbox_item_id: intake.item.id, kind: intake.item.kind, summary: intake.summary });

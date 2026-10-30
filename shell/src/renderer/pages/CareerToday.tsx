@@ -13,11 +13,10 @@ import { careerApi, safeJson } from '@/components/career/careerApi';
 import { AttendanceButtons } from '@/components/career/AttendanceButtons';
 import { ACTION_KIND_LABELS } from '@/components/career/careerConstants';
 import { Button, CareerPage, ChatActionButton, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
-import { onOnboardingIntroRequest, takeOnboardingIntroRequest } from '@/features/career-shell/onboardingReminder';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
 import { ManualSendText } from '@/components/career/ManualSendText';
-import { OnboardingIntro, buildSteps, markIntroSeen, readIntroSeen } from '@/components/career/OnboardingIntro';
+import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
 import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { StrikeText } from '@/components/career/StrikeText';
 import {
@@ -118,15 +117,8 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
   };
   const snooze = (todo: CalendarTodo) => setSnoozed(prev => new Set(prev).add(todo.key));
 
-  // 首次打开自动弹出新手引导（五步都做完就不打扰）；页头「新手引导」随时再开。
-  const steps = useMemo(() => (onboarding.data ? buildSteps(onboarding.data) : null), [onboarding.data]);
-  const [seenAtMount] = useState(readIntroSeen);
-  const [introDismissed, setIntroDismissed] = useState(false);
-  // 从 Mino 面板 / 桌面悬浮球的每日提醒点进来：直接打开引导。
-  const [introRequested, setIntroRequested] = useState(takeOnboardingIntroRequest);
-  const introOpen = !!steps && (introRequested || (!seenAtMount && !introDismissed && steps.some(s => !s.done)));
-  const closeIntro = () => { markIntroSeen(); setIntroDismissed(true); setIntroRequested(false); };
-  useEffect(() => onOnboardingIntroRequest(() => setIntroRequested(true)), []);
+  // 冷启动做法二：还没连邮箱、也没有任何申请时，先请他把手里有的给我（按真实数据出现和消失，不靠「看过了」标记）
+  const startHere = !!onboarding.data && !onboarding.data.has_mail_account && !onboarding.data.has_application;
 
   const shiftMonth = (delta: number) => setCursor(c => {
     const d = new Date(c.year, c.month + delta, 1);
@@ -148,9 +140,9 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
         embedded={embedded}
         title="招聘概览"
         subtitle={subtitle}
-        actions={steps && <Button variant="ghost" size="sm" onClick={() => setIntroRequested(true)}>新手引导</Button>}
       >
         <div ref={topRef} className="flex min-h-full flex-col">
+          {startHere && <StartHere onOpenChat={onOpenChat} />}
           <div className="flex flex-1 flex-col gap-6 px-6 pt-5 lg:flex-row">
             <section aria-label="月历" className="min-w-0 flex-1">
               {loadError && <ErrorRow message={loadError} onRetry={reloadAll} />}
@@ -187,8 +179,25 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
           <PageAskBar target={{ kind: 'career-today' }} refs={{ date: selected }} placeholder="比如「10 月 20 日提醒我交测评」，或者问问今天先做哪件" />
         </div>
       </CareerPage>
-      {introOpen && steps && <OnboardingIntro steps={steps} onClose={closeIntro} />}
     </div>
+  );
+}
+
+/** 从你手里有的开始：连邮箱就把几个月的申请接管进来；有简历就拖进对话；什么都没有就从说一段经历开始。 */
+function StartHere({ onOpenChat }: { onOpenChat?: () => void }) {
+  return (
+    <section aria-labelledby="career-start-here" className="mx-6 mt-5 grid gap-3 rounded-[10px] border border-[var(--line)] bg-[var(--side)] px-5 py-4">
+      <div>
+        <h2 id="career-start-here" className="font-human text-lg font-semibold text-[var(--ink)]">从你手里有的开始</h2>
+        <p className="mt-0.5 text-sm text-[var(--muted)]">连上邮箱，已经投过的申请、笔试面试通知会自动收进来；不用先填问卷。</p>
+      </div>
+      <MailConnectCenter />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--ink-2)]">
+        <span>有简历？</span>
+        <Button variant="secondary" size="sm" onClick={() => onOpenChat?.()}>去对话里拖进来</Button>
+        <span className="text-xs text-[var(--subtle)]">什么都还没有也没关系，在对话里说说你做过的一件事就行。</span>
+      </div>
+    </section>
   );
 }
 

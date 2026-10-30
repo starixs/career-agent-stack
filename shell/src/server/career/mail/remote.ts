@@ -14,6 +14,7 @@ import type { ConnectInput, ConnectResult } from './connect-service';
 import { connectorServers, type ConnectorId, type MailConnector } from './connectors';
 import type { SendMailPayload } from './send';
 import { archiveBatch, type FetchedMail, type MailSyncDeps, type MailSyncResult } from './sync';
+import { recordTakeover } from './takeover';
 import type { MailErrorCode } from './verify';
 
 export interface RemoteConnection {
@@ -117,7 +118,11 @@ export async function pullMailEvents(deps: MailSyncDeps, cfg: ServerConfig, fetc
       g.mails.push(toFetched(e));
       groups.set(key, g);
     }
-    for (const g of groups.values()) out.push(await archiveBatch(deps, g.account, g.mails, g.backfill));
+    for (const g of groups.values()) {
+      const res = await archiveBatch(deps, g.account, g.mails, g.backfill);
+      if (g.backfill) recordTakeover(deps, g.account, res, g.mails);
+      out.push(res);
+    }
     if (res.next_cursor) r.kvSet(EVENTS_CURSOR_KEY, res.next_cursor);
     if (!res.next_cursor) break;
   }

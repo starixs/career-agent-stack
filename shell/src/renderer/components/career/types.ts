@@ -251,6 +251,17 @@ export interface MailConnector {
   /** OAuth 轨（预留）：审核通过、云端开启后为 true。 */
   oauth?: { enabled: boolean };
 }
+/** 接管简报（服务端 mail/takeover.ts）。 */
+export type SeasonId = 'prep' | 'autumn_early' | 'autumn' | 'spring' | 'offer';
+export interface TakeoverBriefing {
+  report: { account_id: string; address: string; started_at: string; updated_at: string; viewed_at: string | null; mails: number; by_rules: number; by_model: number; unclassified: number; application_ids: string[]; span: { from: string | null; to: string | null } };
+  applications: number;
+  buckets: Array<{ id: 'applied' | 'interview' | 'offer' | 'closed'; label: string; items: Array<{ application_id: string; company: string | null; title: string; stage: string }> }>;
+  needs: Array<{ deadline_id: string; application_id: string | null; kind: string; title: string; due_at: string | null; url: string | null }>;
+  season: { id: SeasonId; label: string; basis: string; source: 'user' | 'guess' };
+  seasons: Array<{ id: SeasonId; label: string }>;
+  unclassified: Array<{ mail_id: string; subject: string | null; from: string | null; received_at: string | null }>;
+}
 export type MailOauthStart = { ok: true; authorize_url: string; state: string } | { ok: false; error_code: string; message: string };
 export type MailConnectErrorCode = 'imap_auth_failed' | 'imap_disabled' | 'provider_blocked' | 'unreachable' | 'duplicate' | 'invalid_input';
 export type MailConnectResult =
@@ -309,7 +320,7 @@ export interface IntakeResult {
 }
 /** 工具 / 路由完成后让面板跳到对应对象。 */
 export interface CareerFocusEvent {
-  sessionId?: string | null; surface: 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
+  sessionId?: string | null; surface: 'today' | 'takeover' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
   /** 投递记录按一组投递筛选（从漏斗、甘特跳过去）；label 说明这组是什么。 */
   filter?: { label: string; application_ids: string[] };
   /** assistant = 小芽在对话里做完事推来的提示：只记下定位，不把用户从对话里带走。 */

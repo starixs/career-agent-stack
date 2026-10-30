@@ -23,7 +23,8 @@
     "careerReview": "Review",
     "careerGuide": "Guide",
     "careerLive": "Browser Live",
-    "careerVault": "Private Info"
+    "careerVault": "Private Info",
+    "careerTakeover": "Takeover Briefing"
   },
   "globalSidebar": {
     "navigation": "Global navigation",
@@ -58,7 +59,8 @@
     "careerReview": "Review",
     "careerGuide": "Guide",
     "careerLive": "Browser Live",
-    "careerVault": "Private Info"
+    "careerVault": "Private Info",
+    "careerTakeover": "Takeover Briefing"
   },
   "titlebar": {
     "helper": "AI Helper",

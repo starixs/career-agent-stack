@@ -4,9 +4,11 @@
  */
 import { useState } from 'react';
 
+import { emitEvent } from '@/api/eventBus';
+
 import { careerApi } from '../careerApi';
 import { Button, ErrorRow, LoadingRow, formatDate, relativeTime } from '../CareerPrimitives';
-import type { MailAccount, MailAuditEntry, MailConnector } from '../types';
+import type { CareerFocusEvent, MailAccount, MailAuditEntry, MailConnector } from '../types';
 import { useCareerAction, useCareerQuery } from '../useCareerData';
 import { ConnectorIcon, HealthBadge, StatusBadge, connectorStatus } from './connectorUi';
 
@@ -64,6 +66,7 @@ export function ConnectionManage({ connector, accountId, onReauthorize, onUnboun
       <div className="flex flex-wrap items-center gap-2">
         {!expired && <Button variant="secondary" busy={act.busy} onClick={() => void sync()}>立即同步</Button>}
         {!expired && <Button variant="ghost" onClick={() => onReauthorize(account)}>重新授权</Button>}
+        <Button variant="ghost" onClick={() => openTakeover(account.id)}>查看接管简报</Button>
         {syncNote && <span role="status" className="text-xs text-[var(--muted)]">{syncNote}</span>}
       </div>
       {act.error && <ErrorRow message={act.error} />}
@@ -72,6 +75,12 @@ export function ConnectionManage({ connector, accountId, onReauthorize, onUnboun
       <UnbindConfirm address={account.address} onUnbind={async () => { await careerApi.deleteMailAccount(account.id); onUnbound(); }} />
     </div>
   );
+}
+
+/** 打开这个邮箱的接管简报（App 收到聚焦后跳页，简报页挂载时取走 id）。 */
+function openTakeover(accountId: string) {
+  const event: CareerFocusEvent = { surface: 'takeover', id: accountId };
+  emitEvent('career:focus', event);
 }
 
 function UsageSummary({ days, byOp }: { days: number; byOp: Record<string, { ok: number; failed: number }> }) {

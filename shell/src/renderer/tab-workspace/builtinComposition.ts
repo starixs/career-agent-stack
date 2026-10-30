@@ -17,6 +17,7 @@ import { careerReviewTabModule } from '@/features/career-review/tabModule';
 import { careerGuideTabModule } from '@/features/career-guide/tabModule';
 import { careerLiveTabModule } from '@/features/career-live/tabModule';
 import { careerVaultTabModule } from '@/features/career-vault/tabModule';
+import { careerTakeoverTabModule } from '@/features/career-takeover/tabModule';
 import type { RecordTabCloseReason } from '@/features/record/useRecordTabLifecycle';
 
 /** The single composition root for the builtin keystone edition. */
@@ -36,6 +37,7 @@ export const builtinTabModules = defineTabModules<Tab>()({
   'career-guide': careerGuideTabModule,
   'career-live': careerLiveTabModule,
   'career-vault': careerVaultTabModule,
+  'career-takeover': careerTakeoverTabModule,
 });
 
 export type BuiltinTabModules = typeof builtinTabModules;

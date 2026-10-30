@@ -22,6 +22,7 @@ import { getShellLLM } from '../career/llm';
 import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../career/intake';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { isConnectorId } from '../career/mail/connectors';
+import { SEASON_KEY, guessSeason, isSeasonId, markTakeoverViewed, takeoverBriefing } from '../career/mail/takeover';
 import { withConnection } from '../career/mail/connect-service';
 import { mailBackend } from '../career/mail/backend';
 import type { VerifyDeps } from '../career/mail/verify';
@@ -888,6 +889,18 @@ const ROUTES: Route[] = [
     const r = await mailBackendOf(ctx).oauthStatus(ctx.params.id, state);
     if (r.account) dataChanged(ctx, ['mail_account']);
     return ok({ status: r.status, account: r.account ? withConnection(r.account) : null });
+  }),
+  // 接管简报：第一次连邮箱、历史邮件收完后看替你接管了什么（mail/takeover.ts）
+  route('GET', '/api/career/mail/takeover', ({ repos, url }) => ok({ briefing: takeoverBriefing(repos, url.searchParams.get('account_id'), new Date().toISOString()) })),
+  route('POST', '/api/career/mail/takeover/:id/viewed', (ctx) => { markTakeoverViewed(ctx.repos, ctx.params.id); dataChanged(ctx, ['mail_account']); return ok({}); }),
+  // 求职阶段：用户纠正 AI 的判断
+  route('POST', '/api/career/season', (ctx) => {
+    const id = ctx.body.id;
+    if (id === null) ctx.repos.kvSet(SEASON_KEY, null);
+    else if (isSeasonId(id)) ctx.repos.kvSet(SEASON_KEY, { id, at: new Date().toISOString() });
+    else return fail('id 需要是 prep / autumn_early / autumn / spring / offer 之一');
+    dataChanged(ctx, ['mail_account']);
+    return ok({ season: guessSeason(ctx.repos, new Date().toISOString()) });
   }),
   route('GET', '/api/career/mail/accounts/:id/detail', async (ctx) => {
     const account = ctx.repos.getMailAccount(ctx.params.id);

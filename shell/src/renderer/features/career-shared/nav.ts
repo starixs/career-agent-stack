@@ -12,6 +12,8 @@ export const CAREER_SURFACES = [
   // 两个辅助面：浏览器现场（看助理操作 / 接管 / 批量投递）与私密信息（不进模型上下文的个人资料与账号）
   { kind: 'career-live', surface: 'live', titleKey: 'tabs.careerLive', navKey: 'globalSidebar.careerLive', icon: 'eye' },
   { kind: 'career-vault', surface: 'vault', titleKey: 'tabs.careerVault', navKey: 'globalSidebar.careerVault', icon: 'lock' },
+  // 冷启动：第一次连邮箱、历史邮件收完后打开（不进侧栏，从聚焦事件和连接管理页进入）
+  { kind: 'career-takeover', surface: 'takeover', titleKey: 'tabs.careerTakeover', navKey: 'globalSidebar.careerTakeover', icon: 'inbox' },
 ] as const;
 
 export type CareerSurfaceKind = typeof CAREER_SURFACES[number]['kind'];

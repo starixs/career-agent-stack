@@ -14,6 +14,7 @@ import { captureIntake } from './intake';
 import { setMailCredentialsPath, setMailPassword } from './mail/credentials';
 import { syncMailAccount, type FetchedMail } from './mail/sync';
 import { CareerStore } from './store';
+import { SEASON_KEY, takeoverBriefing } from './mail/takeover';
 import { createMemoryRepos } from './test-db';
 
 vi.mock('../sse', () => ({ broadcast: vi.fn() }));
@@ -27,7 +28,8 @@ afterEach(() => { setMailCredentialsPath(null); rmSync(dir, { recursive: true, f
 async function deps(llm: FakeLLM) {
   const repos = createMemoryRepos();
   const core = await loadCore();
-  return { repos, core, llm, broadcast: () => undefined, sessionId: () => 'global', now: () => NOW };
+  const events: Array<{ event: string; data: unknown }> = [];
+  return { repos, core, llm, broadcast: (event: string, data: unknown) => { events.push({ event, data }); }, sessionId: () => 'global', now: () => NOW, events };
 }
 
 const mail = (uid: number, received_at: string, from: string, subject: string, text: string): FetchedMail =>
@@ -62,7 +64,7 @@ describe('冷启动 · 关键期中途第一次连邮箱', () => {
     const stages = Object.fromEntries(d.repos.applicationsWithJob().map(a => [a.job.company_name, a.stage]));
     expect(stages).toEqual({ 美团: 'applied', 字节跳动: 'applied', 腾讯: 'interview', 京东: 'rejected', 阿里巴巴: 'interview', 网易: 'applied' });
     expect(llm.calls).toHaveLength(1);
-    expect(res.history).toEqual({ by_rules: 5, by_model: 1, unclassified: 1 });
+    expect(res.history).toMatchObject({ by_rules: 5, by_model: 1, unclassified: 1 });
   });
 
   it('无关邮件不进库；认不出的求职邮件留着，不乱建申请', async () => {
@@ -96,7 +98,22 @@ describe('冷启动 · 关键期中途第一次连邮箱', () => {
     expect(d.repos.listDeadlines({ application_id: tencent.id })).toEqual([]);
   });
 
-  it.todo('〔面·做法二〕首次连接的历史邮件合成一张接管简报');
+  it('接管简报：接管了几家、要你的事、阶段判断与依据、没认出的邮件；只推一次打开简报', async () => {
+    const { d, account } = await firstSync();
+    const b = takeoverBriefing(d.repos, account.id, NOW)!;
+    expect(b.applications).toBe(6);
+    expect(b.report).toMatchObject({ address: 'me@qq.com', span: { from: '2026-08-20T02:00:00Z', to: '2026-10-28T03:00:00Z' } });
+    expect(b.needs.map(n => n.title)).toEqual([expect.stringContaining('阿里巴巴')]);
+    expect(Object.fromEntries(b.buckets.map(x => [x.id, x.items.length]))).toEqual({ applied: 3, interview: 2, offer: 0, closed: 1 });
+    expect(b.season).toMatchObject({ id: 'autumn', source: 'guess' });
+    expect(b.season.basis).toContain('10 月');
+    expect(b.unclassified.map(u => u.subject)).toEqual(['您有一条新的通知']);
+    const opens = d.events.filter(e => e.event === 'career:focus' && (e.data as { surface?: string }).surface === 'takeover');
+    expect(opens).toHaveLength(1);
+
+    d.repos.kvSet(SEASON_KEY, { id: 'spring', at: NOW });
+    expect(takeoverBriefing(d.repos, account.id, NOW)!.season).toMatchObject({ id: 'spring', source: 'user' });
+  });
 });
 
 describe('冷启动 · 用户把一封旧邮件贴进来', () => {
