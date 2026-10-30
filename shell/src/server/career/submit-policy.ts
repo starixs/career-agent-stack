@@ -9,14 +9,18 @@
  * 任何一种免审都要求填后检查 attention === 0（必填为空 / 值没生效 / 站点报错 / 附件没回显 / 草稿 / 待补 都不行）。
  * 页面上被用户改过、提交失败、用户拒绝，都把这张表的计数清零。
  */
-import type { Repos } from '@career/core';
+import { normalizeHost, type Repos } from '@career/core';
 
 export const AUTO_MODE_KEY = 'apply:auto_mode';
 export const LEARN_THRESHOLD = 3;
 const trustKey = (signature: string) => `apply:page_trust:${signature}`;
 
 export interface AutoModeSetting { enabled: boolean; updatedAt?: string }
-export interface PageTrust { streak: number; resumeSha: string | null; answersHash: string | null; host?: string; updatedAt: string }
+/**
+ * 一张表的信任记录。host 和 applicationIds 是给人看的出处：「为什么这家没让我审」「我撤回哪个站」都靠它们回答
+ * （formSignature 是哈希，看不出是哪个网站）。applicationIds = 本轮连续人工直接通过的那几份投递，清零时一起清。
+ */
+export interface PageTrust { streak: number; resumeSha: string | null; answersHash: string | null; host?: string; applicationIds?: string[]; updatedAt: string }
 export interface SubmitFingerprint { formSignature?: string | null; openAnswersHash?: string | null; resumeSha?: string | null; attention: number }
 export type SubmitDecision = { approve: true; by: 'auto' | 'learned'; reason: string } | { approve: false; reason: string };
 
@@ -44,15 +48,18 @@ export function decideSubmit(repos: Repos, fp: SubmitFingerprint): SubmitDecisio
 }
 
 /** 提交执行完：按结果更新这张表的信任计数。只有用户本人批准、页面没改、提交成功才 +1。 */
-export function recordSubmitOutcome(repos: Repos, input: { approvedBy: string | null; status: string; edits: number } & Omit<SubmitFingerprint, 'attention'>): PageTrust | undefined {
+export function recordSubmitOutcome(repos: Repos, input: { approvedBy: string | null; status: string; edits: number; url?: string | null; applicationId?: string | null } & Omit<SubmitFingerprint, 'attention'>): PageTrust | undefined {
   if (!input.formSignature) return undefined;
   const key = trustKey(input.formSignature);
   const cur = repos.kvGet<PageTrust>(key);
   const now = new Date().toISOString();
+  const host = input.url ? normalizeHost(input.url) : cur?.host;
   let next: PageTrust;
-  if (input.status !== 'submitted' || input.edits > 0) next = { streak: 0, resumeSha: cur?.resumeSha ?? null, answersHash: cur?.answersHash ?? null, updatedAt: now };
-  else if (input.approvedBy === 'user') next = { streak: (cur?.streak ?? 0) + 1, resumeSha: input.resumeSha ?? null, answersHash: input.openAnswersHash ?? null, updatedAt: now };
-  else return cur; // auto / learned 的成功不增加"人工确认"计数
+  if (input.status !== 'submitted' || input.edits > 0) next = { streak: 0, resumeSha: cur?.resumeSha ?? null, answersHash: cur?.answersHash ?? null, host, applicationIds: [], updatedAt: now };
+  else if (input.approvedBy === 'user') {
+    const applicationIds = [...(cur?.applicationIds ?? []), ...(input.applicationId ? [input.applicationId] : [])];
+    next = { streak: (cur?.streak ?? 0) + 1, resumeSha: input.resumeSha ?? null, answersHash: input.openAnswersHash ?? null, host, applicationIds, updatedAt: now };
+  } else return cur; // auto / learned 的成功不增加"人工确认"计数
   repos.kvSet(key, next);
   return next;
 }
@@ -61,5 +68,5 @@ export function recordSubmitOutcome(repos: Repos, input: { approvedBy: string | 
 export function resetPageTrust(repos: Repos, signature: string | null | undefined): void {
   if (!signature) return;
   const cur = repos.kvGet<PageTrust>(trustKey(signature));
-  if (cur) repos.kvSet(trustKey(signature), { ...cur, streak: 0, updatedAt: new Date().toISOString() });
+  if (cur) repos.kvSet(trustKey(signature), { ...cur, streak: 0, applicationIds: [], updatedAt: new Date().toISOString() });
 }

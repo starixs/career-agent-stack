@@ -81,6 +81,16 @@ describe('提交策略', () => {
     expect(getPageTrust(repos, SIG)!.streak).toBe(0);
   });
 
+  it('信任记录带出处：哪个网站、本轮连续通过的是哪几份投递；清零时出处一起清', () => {
+    const repos = createMemoryRepos();
+    const fp = { formSignature: SIG, openAnswersHash: 'h', resumeSha: 'r', url: 'https://www.app.mokahr.com/campus_apply/x' };
+    recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'submitted', edits: 0, applicationId: 'app-1' });
+    recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'submitted', edits: 0, applicationId: 'app-2' });
+    expect(getPageTrust(repos, SIG)).toMatchObject({ streak: 2, host: 'app.mokahr.com', applicationIds: ['app-1', 'app-2'] });
+    recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'failed', edits: 0, applicationId: 'app-3' });
+    expect(getPageTrust(repos, SIG)).toMatchObject({ streak: 0, host: 'app.mokahr.com', applicationIds: [] });
+  });
+
   it('自学习满了之后：落库时直接批准（learned），简历快照来自材料包', () => {
     const repos = createMemoryRepos();
     const fp = { formSignature: SIG, openAnswersHash: 'h-open-1', resumeSha: 'pdf-sha-1' };
