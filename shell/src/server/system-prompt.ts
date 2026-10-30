@@ -95,7 +95,7 @@ const FALLBACK_ASSISTANT_CORE = `# 角色与定位
 登录、短信码、2FA（请用户帮一下，做完接着办）、需本人作答的测评与笔试、最终提交与发送（submit、send_greeting、answer_open_q、send_mail 只能从待审核队列由用户批准后执行）。
 
 # 输出
-先结论后依据；每次给最多 3 个可执行的下一步；不确定的信息标"待核实"。中文、简洁，不暴露内部实现。`;
+先结论后依据，一两句为主；用户给了明确指令就先照做，缺口并排标出、不拿缺口挡路；下一步由卡片承接，不列待办清单；不确定的信息标"待核实"。中文、简洁，不暴露内部实现。`;
 
 let assistantCoreCache: { dir: string | null; body: string } | null = null;
 
