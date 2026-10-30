@@ -17,6 +17,7 @@ import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
+import { interviewResume } from '../career/interview-link';
 import { getShellLLM } from '../career/llm';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
@@ -1325,9 +1326,9 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         transcript: z.string().optional().describe('到目前为止的问答记录'), finish: z.boolean().optional().describe('结束并产出复盘'),
       }, async (args) => wrap(async () => {
         const job = args.job_id ? requireJob(args.job_id) : undefined;
-        const resume = args.resume_id ? store().getResume(args.resume_id) : undefined;
+        const resume = interviewResume(store(), repos(), args);
         const out = await askSkill<Record<string, unknown>>('interview-probe', `${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n已进行的问答：\n${args.transcript ?? '（尚未开始，请给出开场问题）'}\n\n${args.finish ? '请结束并给出面试官视角复盘。' : '请给出下一步追问（JSON）。'}`, { refs: args.company_type ? [args.company_type] : [], temperature: 0.6 });
-        const mock = store().createMockInterview({ job_id: args.job_id ?? null, resume_tailored_id: resume?.kind === 'tailored' ? args.resume_id : null, mode: 'probe', company_type: args.company_type ?? null, round: args.round ?? null, turns: args.transcript ? [{ transcript: args.transcript }] : [], report: args.finish ? out : undefined });
+        const mock = store().createMockInterview({ job_id: args.job_id ?? null, resume_tailored_id: resume?.kind === 'tailored' ? resume.row.id : null, mode: 'probe', company_type: args.company_type ?? null, round: args.round ?? null, turns: args.transcript ? [{ transcript: args.transcript }] : [], report: args.finish ? out : undefined });
         changed('mock_interview');
         return text({ mock_interview_id: mock.id, result: out });
       })()),
@@ -1454,9 +1455,9 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         resume_id: z.string().optional(), job_id: z.string().optional(), company_type: z.string().optional(), round: z.string().optional(),
       }, async (args) => wrap(async () => {
         const job = args.job_id ? requireJob(args.job_id) : undefined;
-        const resume = args.resume_id ? store().getResume(args.resume_id) : undefined;
+        const resume = interviewResume(store(), repos(), args);
         const out = await askSkill<{ predictions?: Array<{ statement: string; target_type?: string; expected_chain?: unknown; risk?: string; claim_id?: string }> }>('probe-predict', `简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}，轮次：${args.round ?? '未知'}\n\n输出 JSON：{"predictions":[{"statement":"","target_type":"data|project|industry|method","expected_chain":[],"risk":"high|mid|low","claim_id":""}]}`, { temperature: 0.3 });
-        const rows = store().addProbePredictions((out.predictions ?? []).filter(p => p?.statement).map(p => ({ statement: p.statement, target_type: p.target_type ?? 'project', expected_chain: p.expected_chain, risk: p.risk, claim_id: p.claim_id || null, resume_tailored_id: resume?.kind === 'tailored' ? args.resume_id : null })));
+        const rows = store().addProbePredictions((out.predictions ?? []).filter(p => p?.statement).map(p => ({ statement: p.statement, target_type: p.target_type ?? 'project', expected_chain: p.expected_chain, risk: p.risk, claim_id: p.claim_id || null, resume_tailored_id: resume?.kind === 'tailored' ? resume.row.id : null })));
         changed('probe_prediction');
         return text({ predictions: rows, raw: out });
       })()),

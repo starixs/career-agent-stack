@@ -32,3 +32,13 @@ export function rescheduleDeadline(repos: Repos, deadlineId: string, dueAt: stri
   const status = Date.parse(dueAt) > Date.now() ? 'open' : undefined;
   repos.db.update('deadline', deadlineId, { due_at: dueAt, ...(status ? { status } : {}), updated_at: new Date().toISOString() });
 }
+
+/**
+ * 面试准备用哪版简历：用户点名的 > 这个岗位投出去的那版（面试官手里的就是它）> 没有就返回 undefined（调用方退回经历库）。
+ */
+export function interviewResume(store: CareerStore, repos: Repos, input: { resume_id?: string; job_id?: string }): ReturnType<CareerStore['getResume']> {
+  if (input.resume_id) return store.getResume(input.resume_id);
+  if (!input.job_id) return undefined;
+  const sent = repos.listApplications().find(a => a.job_id === input.job_id && a.resume_tailored_id)?.resume_tailored_id;
+  return sent ? store.getResume(sent) : undefined;
+}
