@@ -27,11 +27,11 @@ import { createCareerServer } from './career-tools';
 /** 这条链路上用到的工具返回字段（只列测试读的）。 */
 interface ToolResults {
   inbox_capture: { created: { application_id?: string } };
-  today_queue: { items: Array<{ ref?: { id: string }; detail?: string; priority: number }> };
+  today_queue: { items: Array<{ ref?: { id: string }; kind: string; detail?: string; priority: number }> };
   dossier_get: { interviews: Array<{ id: string; round: string; retro_json: string | null }>; predictions: Array<{ statement: string }> };
   interview_predict: unknown;
   interview_probe: { mock_interview_id: string };
-  interview_questions: { questions: Array<{ question_id: string }> };
+  interview_questions: { questions: Array<{ question_id: string }>; carried_from: Array<{ interview_id: string; company: string | null; round: string }> };
   question_attempt: unknown;
   question_bank: { questions: Array<{ id: string; content: string; source: string; company: string | null; last_score: number | null }> };
   interview_retro: { interview_id: string };
@@ -191,8 +191,29 @@ describe('面试 · 百度二面前一晚到下一场同类面试', () => {
     expect(bank.questions[0]).toMatchObject({ content: '你们召回的负样本是怎么采的？', source: 'seen', company: '百度' });
   });
 
-  it.todo('〔面〕面完还没复盘时（周四 14:00 之后），这场面试在今日队列里显示什么：「面完了吗，要复盘吗」还是不显示');
-  it.todo('〔面〕下周字节同类二面：准备时要不要自动带上百度复盘的卡点（next_round_probes、低分题），「同类」按岗位类别还是按 JD 关键词判');
+  it('面完还没复盘（周四傍晚）：今日队列里是一条不标红的「面完了？」，第二天晚上就不再催', async () => {
+    await invitesArrive();
+    vi.setSystemTime(new Date('2026-11-05T10:00:00.000Z')); // 周四 18:00
+    const item = (await call('today_queue')).items.find(i => i.ref?.id === baidu.appId);
+    expect(item).toMatchObject({ kind: 'interview_retro', priority: 4 });
+    vi.setSystemTime(new Date('2026-11-06T12:00:00.000Z')); // 周五 20:00
+    expect((await call('today_queue')).items.find(i => i.ref?.id === baidu.appId)).toBeUndefined();
+  });
+  it('下周字节同类二面：出题、模拟、预测都带上百度复盘的卡点和没练好的原题', async () => {
+    await retroFriday();
+    const bytedance = repos.upsertJob({ source_platform: 'campus', source_job_id: 'bd-2', title: '机器学习算法工程师（推荐）', company_name: '字节跳动' });
+    const other = repos.upsertJob({ source_platform: 'campus', source_job_id: 'bd-3', title: 'Java 后端开发', company_name: '京东' });
+    llm.push(JSON.stringify({ questions: [{ type: 'project', question: '负样本怎么采？' }] }));
+    const out = await call('interview_questions', { job_id: bytedance.id, round: '二面' });
+    const prompt = llm.calls.at(-1)?.messages[0].content ?? '';
+    expect(prompt).toContain('线上 A/B 收益');
+    expect(prompt).toContain('你们召回的负样本是怎么采的？');
+    expect(out.carried_from).toEqual([{ interview_id: expect.any(String), company: '百度', round: 'second' }]);
+    // 不同类的岗位不带
+    llm.push(JSON.stringify({ questions: [] }));
+    await call('interview_questions', { job_id: other.id, round: '二面' });
+    expect(llm.calls.at(-1)?.messages[0].content).not.toContain('线上 A/B 收益');
+  });
   it.todo('〔面〕复盘暴露的经历问题（说不清线上收益）回流到哪：给主张补事实的待确认卡、还是改简历措辞、还是只记在复盘里');
   it.todo('〔面〕面试前一晚的连续练习放在哪：对话里一问一答，还是一个专门的「模拟面试」工作面（计时、可中断续练）');
   it.todo('〔面〕「帮我准备」的终态是什么：一张百度二面准备卡（卷宗 + 深挖点 + 题 + 上一轮复盘）还是在对话里逐项给');

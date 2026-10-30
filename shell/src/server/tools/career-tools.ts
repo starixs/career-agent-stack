@@ -17,6 +17,7 @@ import { getRepos, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
+import { carryoverFor, carryoverPrompt } from '../career/interview-carry';
 import { bookInterview, closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
 import { getShellLLM } from '../career/llm';
 import { MAIL_PRESETS } from '../career/mail/providers';
@@ -1314,12 +1315,13 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         category: z.enum(['开发', '数据分析', '产品', '运营', '设计', '市场营销', '销售', 'HR', '财务', '审计', '法务', '战略咨询']).optional(),
       }, async (args) => wrap(async () => {
         const job = requireJob(args.job_id);
-        const out = await askSkill<{ questions?: Array<{ type?: string; question?: string; probe_points?: string[]; difficulty?: string; jd_requirement?: string }>; coverage_note?: string }>('interview-questions', `${jobDigest(job)}\n岗位类别：${args.category ?? '未知'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n用户经历摘要：\n${experienceDigest()}`, { refs: args.category ? [args.category] : [], temperature: 0.5 });
+        const carried = carryoverFor(store(), repos(), job, args.round);
+        const out = await askSkill<{ questions?: Array<{ type?: string; question?: string; probe_points?: string[]; difficulty?: string; jd_requirement?: string }>; coverage_note?: string }>('interview-questions', `${jobDigest(job)}\n岗位类别：${args.category ?? '未知'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n用户经历摘要：\n${experienceDigest()}\n\n${carryoverPrompt(carried)}`, { refs: args.category ? [args.category] : [], temperature: 0.5 });
         // 出的题进题库（来源 generated，绑定岗位），之后练习、真实面试遇到都能对上同一道题
         const r = repos();
         const questions = (out.questions ?? []).filter(q => q?.question).map(q => ({ ...q, question_id: r.upsertQuestion({ content: q.question!, kind: 'interview', category: q.type ?? null, probe_points: q.probe_points ?? [], jd_requirement: q.jd_requirement ?? null, company_name: job.company_name, title: job.title, job_id: job.id, source: 'generated', source_ref: `generated:${job.id}`, tags: q.difficulty ? [q.difficulty] : [] }).id }));
         if (questions.length) changed('question');
-        return text({ ...out, questions, note: '题目已存进题库（question_id）。用户练习作答后用 question_attempt 打分记录，便于比较进步。' });
+        return text({ ...out, questions, carried_from: carried.retros.map(r => ({ interview_id: r.interview_id, company: r.company, round: r.round })), note: '题目已存进题库（question_id）。用户练习作答后用 question_attempt 打分记录，便于比较进步。carried_from 是这次带上的往场复盘，告诉用户「按上次卡住的地方出了题」。' });
       })()),
 
       tool('interview_book', '记一场邮箱里没有的面试（HR 电话 / 短信 / 微信约的）：用户说「我约了周四下午百度二面」就用它。找到或建好这份申请、推进到面试、记面试和时间点；同一场再记一次只改时间。邮件来的面试邀请走 inbox_capture。', {
@@ -1349,7 +1351,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       }, async (args) => wrap(async () => {
         const job = args.job_id ? requireJob(args.job_id) : undefined;
         const resume = interviewResume(store(), repos(), args);
-        const out = await askSkill<Record<string, unknown>>('interview-probe', `${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n已进行的问答：\n${args.transcript ?? '（尚未开始，请给出开场问题）'}\n\n${args.finish ? '请结束并给出面试官视角复盘。' : '请给出下一步追问（JSON）。'}`, { refs: args.company_type ? [args.company_type] : [], temperature: 0.6 });
+        const carried = job ? carryoverPrompt(carryoverFor(store(), repos(), job, args.round)) : '';
+        const out = await askSkill<Record<string, unknown>>('interview-probe', `${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n${carried}\n\n已进行的问答：\n${args.transcript ?? '（尚未开始，请给出开场问题）'}\n\n${args.finish ? '请结束并给出面试官视角复盘。' : '请给出下一步追问（JSON）。'}`, { refs: args.company_type ? [args.company_type] : [], temperature: 0.6 });
         const turns = args.transcript ? [{ transcript: args.transcript }] : undefined;
         const mock = args.mock_interview_id
           ? store().updateMockInterview(args.mock_interview_id, { turns, report: args.finish ? out : undefined })
@@ -1484,7 +1487,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       }, async (args) => wrap(async () => {
         const job = args.job_id ? requireJob(args.job_id) : undefined;
         const resume = interviewResume(store(), repos(), args);
-        const out = await askSkill<{ predictions?: Array<{ statement: string; target_type?: string; expected_chain?: unknown; risk?: string; claim_id?: string }> }>('probe-predict', `简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}，轮次：${args.round ?? '未知'}\n\n输出 JSON：{"predictions":[{"statement":"","target_type":"data|project|industry|method","expected_chain":[],"risk":"high|mid|low","claim_id":""}]}`, { temperature: 0.3 });
+        const carried = job ? carryoverPrompt(carryoverFor(store(), repos(), job, args.round)) : '';
+        const out = await askSkill<{ predictions?: Array<{ statement: string; target_type?: string; expected_chain?: unknown; risk?: string; claim_id?: string }> }>('probe-predict', `简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}，轮次：${args.round ?? '未知'}\n\n${carried ? `${carried}\n\n` : ''}输出 JSON：{"predictions":[{"statement":"","target_type":"data|project|industry|method","expected_chain":[],"risk":"high|mid|low","claim_id":""}]}`, { temperature: 0.3 });
         const rows = store().addProbePredictions((out.predictions ?? []).filter(p => p?.statement).map(p => ({ statement: p.statement, target_type: p.target_type ?? 'project', expected_chain: p.expected_chain, risk: p.risk, claim_id: p.claim_id || null, resume_tailored_id: resume?.kind === 'tailored' ? resume.row.id : null })));
         changed('probe_prediction');
         return text({ predictions: rows, raw: out });
