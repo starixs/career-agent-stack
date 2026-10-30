@@ -38,6 +38,8 @@ import { cancellableFetch } from '../utils/cancellation';
 import { getCurrentTurnSignal } from '../utils/turn-abort';
 import { REVIEW_CARD_KIND, reviewCardId } from '../../shared/careerReviewCard';
 
+import { createOfferTools } from './offer-tools';
+
 type CallToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
 export interface CareerToolDeps {
@@ -1488,16 +1490,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ gap_plan: plan, result: out });
       })()),
 
-      tool('offer_compare', '多个 Offer 放进同一张表拆解比较，列出事实与差异及需用户自行判断的项；不给排序结论。', {
-        offer_ids: z.array(z.string()).min(1),
-      }, async (args) => wrap(async () => {
-        const s = store();
-        const offers = args.offer_ids.map(id => s.getOffer(id)).filter((o): o is NonNullable<typeof o> => !!o);
-        if (offers.length === 0) return err('没有找到任何 Offer');
-        const companies = offers.map(o => (o.company_name ? s.findCompany(o.company_name) : undefined)).filter(Boolean);
-        const out = await askSkill('offer-compare', `Offers：\n${JSON.stringify(offers)}\n\n公司调研：\n${JSON.stringify(companies.map(c => ({ name: c!.legal_name, traffic_light: c!.traffic_light })))}\n\n用户经历与偏好：\n${experienceDigest()}\n${JSON.stringify(prefs())}`, { temperature: 0.2 });
-        return text(out);
-      })()),
+      ...createOfferTools({ tool, z, repos, store, wrap, text, err, changed, askSkill: (skill, user, opts) => askSkill(skill, user, opts), userContext: () => `用户经历与偏好：\n${experienceDigest()}\n${JSON.stringify(prefs())}` }),
     ],
   });
 }

@@ -18,7 +18,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 vi.mock('../browser-host/capability-client', () => ({ acquireBrowserCapability: vi.fn() }));
 vi.mock('../sse', () => ({ broadcast: vi.fn() }));
 
-import { FakeLLM, StaticKeyProvider, Vault } from '@career/core';
+import { FakeLLM, StaticKeyProvider, Vault, type Offer } from '@career/core';
 
 import { loadCore } from '../career/core-module';
 import { captureIntake } from '../career/intake';
@@ -26,17 +26,14 @@ import { RunRegistry } from '../career/runs';
 import { CareerStore } from '../career/store';
 import { createMemoryRepos } from '../career/test-db';
 import { createCareerServer } from './career-tools';
+import type { OfferSituation } from './offer-tools';
 
-// 工具返回的 JSON 结构随工具而变，测试里按路径取值。
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Json = any;
-
-const call = async (name: string, args: Record<string, unknown> = {}) => {
+const call = async <T = unknown>(name: string, args: Record<string, unknown> = {}): Promise<T> => {
   const h = mocks.handlers.get(name);
   if (!h) throw new Error(`工具未注册：${name}`);
   const res = await h(args);
   if (res.isError) throw new Error(`${name} 失败：${res.content[0].text}`);
-  return JSON.parse(res.content[0].text) as Json;
+  return JSON.parse(res.content[0].text) as T;
 };
 
 const triage = (company: string, title: string, due_at: string, notes: string, summary: string) =>
@@ -114,6 +111,36 @@ describe('Offer · 十一月中两个 Offer 期限交错', () => {
     expect(titles).toContain('小米 · 算法工程师 三方签约截止');
     expect(repos.getApplication(bd.id)?.stage).toBe('offer');
     expect(appsOf('字节跳动')).toHaveLength(1);
+  });
+
+  it('问「小米和字节怎么选」：对话里列得出两个 Offer 和各自处境', async () => {
+    await untilNov14();
+    const { offers } = await call<{ offers: OfferSituation[] }>('offer_list');
+    const byCo: Record<string, OfferSituation> = Object.fromEntries(offers.map(o => [o.company_name ?? '', o]));
+    expect(byCo['小米'].stage).toBe('hired');
+    expect(byCo['小米'].deadlines.map(d => d.title)).toEqual(['小米 · 算法工程师 三方签约截止']);
+    expect(byCo['字节跳动'].stage).toBe('offer');
+    expect(byCo['字节跳动'].deadlines.map(d => d.due_at)).toEqual(['2026-11-21T15:59:00.000Z']);
+  });
+
+  it('比较时喂给模型的是每个 Offer 的处境（已接、三方 17 号），不是过期的 8 号回复', async () => {
+    await untilNov14();
+    const ids = new CareerStore(repos, core).listOffers().map(o => o.id);
+    llm.push(JSON.stringify({ offers: [], comparison_table: [], decide_yourself: [], ask_hr: [] }));
+    await call('offer_compare', { offer_ids: ids });
+    const prompt = String(llm.calls.at(-1)?.messages[0].content);
+    expect(prompt).toContain('三方签约截止');
+    expect(prompt).toContain('2026-11-17T15:59:00.000Z');
+    expect(prompt).toContain('"stage": "hired"');
+  });
+
+  it('对话里补字节的薪酬和改答复期限：写进 Offer，截止事件跟着改，只有一处真相', async () => {
+    await untilNov14();
+    const bdOffer = offersOf('字节跳动')[0];
+    const { offer } = await call<{ offer: Offer }>('offer_save', { offer_id: bdOffer.id, comp: { base: 32000, months: 15, signing: 30000 }, location: '北京', deadline: '2026-11-24' });
+    expect(JSON.parse(offer.comp_json)).toEqual({ base: 32000, months: 15, signing: 30000 });
+    const open = repos.listDeadlines({ status: 'open' }).filter(d => d.offer_id === bdOffer.id);
+    expect(open.map(d => d.due_at)).toEqual(['2026-11-24T15:59:00.000Z']);
   });
 
   it('在 Offer 页手动新建、带答复日期：也进截止事件，月历和队列看得到', async () => {

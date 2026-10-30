@@ -60,6 +60,8 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   material_save: '存下材料',
   material_use_record: '记下说过的话',
   offer_compare: '比较 offer',
+  offer_list: '查看 offer',
+  offer_save: '记录 offer',
   question_add: '把题收进题库',
   question_attempt: '记下这次作答',
   question_bank: '翻题库',
