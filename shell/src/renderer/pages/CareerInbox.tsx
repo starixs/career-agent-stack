@@ -13,6 +13,7 @@ import {
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
+import { takeCareerFocus } from '@/features/career-shell/pendingFocus';
 import { isManualSend, isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
 import { ManualSendText } from '@/components/career/ManualSendText';
 import { StrikeText } from '@/components/career/StrikeText';
@@ -90,21 +91,22 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
 
   const [filter, setFilter] = useState<Filter>('all');
   const [showDismissed, setShowDismissed] = useState(false);
-  const [highlightId, setHighlightId] = useState<string | null>(null);
+  // 从小芽面板 / 对话点进来时，聚焦事件可能在本页挂载前就发了（App 先暂存）：挂载时取走
+  const [highlightId, setHighlightId] = useState<string | null>(() => takeCareerFocus('inbox')?.id ?? null);
   // 本次会话里处理掉的条目留在原位（服务端刷新后它们会从列表里消失）。
   const [resolved, setResolved] = useState<ReadonlyMap<string, Resolved>>(() => new Map());
   const [kept, setKept] = useState<ReadonlyMap<string, FeedEntry>>(() => new Map());
-  const itemsRef = useRef<InboxItem[]>([]);
-  useEffect(() => { itemsRef.current = inbox.data ?? []; });
 
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
     if (payload?.surface !== 'inbox') return;
     if (!payload.id) return;
-    const id = payload.id;
-    setHighlightId(id);
+    setHighlightId(payload.id);
     setFilter('all');
-    if (itemsRef.current.find(it => it.id === id)?.status === 'dismissed') setShowDismissed(true);
   }), []);
+  // 要定位的那条已被忽略：展开「已忽略的」才看得到
+  useEffect(() => {
+    if (highlightId && inbox.data?.find(it => it.id === highlightId)?.status === 'dismissed') setShowDismissed(true);
+  }, [highlightId, inbox.data]);
 
   const appLabel = useMemo(() => {
     const map = new Map((dossiers.data ?? []).map(d => [d.application_id, `${d.company_name ?? '未知公司'} · ${d.title}`]));

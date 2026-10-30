@@ -5,6 +5,7 @@ vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), ap
 
 import { apiDelete, apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
+import { stashCareerFocus } from '@/features/career-shell/pendingFocus';
 import CareerInbox, { detectProvider, relativeTime } from './CareerInbox';
 
 const items = [
@@ -198,6 +199,14 @@ describe('CareerInbox', () => {
     await screen.findByText(/某某科技 后端开发实习生 JD/);
     act(() => { emitEvent('career:focus', { surface: 'inbox', id: 'i2' }); });
     const row = (await screen.findByText(/诚邀您参加甲公司一面/)).closest('[data-inbox-id]');
+    expect(row?.className).toContain('bg-[var(--primary-soft)]');
+  });
+
+  it('小芽先说了「那封在通知中心」、用户后来才点进来（本页还没挂载）：照样定位到那一条', async () => {
+    mockGet();
+    stashCareerFocus({ surface: 'inbox', id: 'i3', origin: 'assistant' });
+    render(<CareerInbox isActive onOpenChat={vi.fn()} />);
+    const row = (await screen.findByText('广告')).closest('[data-inbox-id]');
     expect(row?.className).toContain('bg-[var(--primary-soft)]');
   });
 
