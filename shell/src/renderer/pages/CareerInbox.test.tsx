@@ -219,6 +219,25 @@ describe('CareerInbox', () => {
     expect(await within(row).findByText(/^没参加 · /)).toBeInTheDocument();
   });
 
+  it('处理完的信（已归档、带来的事也做完）折进「已处理」，不算进「全部」；点开能看', async () => {
+    const settledItems = items.map(it => (it.id === 'i2' ? { ...it, settled: true } : it));
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
+      if (path.startsWith('/api/career/inbox')) return { ok: true, items: settledItems };
+      if (path.startsWith('/api/career/actions?status=pending_review')) return { ok: true, actions };
+      if (path.startsWith('/api/career/actions')) return { ok: true, actions: [] };
+      if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines };
+      if (path.startsWith('/api/career/mail/accounts')) return { ok: true, accounts, presets };
+      if (path.startsWith('/api/career/dossiers')) return { ok: true, dossiers };
+      return { ok: true };
+    });
+    render(<CareerInbox isActive onOpenChat={vi.fn()} />);
+    await screen.findByText(/某某科技 后端开发实习生 JD/);
+    expect(screen.queryByText(/诚邀您参加甲公司一面/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '全部 3' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '看已处理的 1 封' }));
+    expect(screen.getByText(/诚邀您参加甲公司一面/)).toBeInTheDocument();
+  });
+
   it('小芽先说了「那封在通知中心」、用户后来才点进来（本页还没挂载）：照样定位到那一条', async () => {
     mockGet();
     stashCareerFocus({ surface: 'inbox', id: 'i3', origin: 'assistant' });

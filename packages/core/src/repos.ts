@@ -461,6 +461,25 @@ export class Repos {
     return this.getInboxItem(id)!
   }
   dismissInboxItem(id: string): InboxItem { return this.resolveInboxItem(id, { status: 'dismissed' }) }
+  /**
+   * 一封已归档的信带来的事是不是都处理完了：它关联的时间点、或关联投递（面试、Offer 所在的投递）上没有还开着的时间点。
+   * 通知中心据此把处理完的信折进「已处理」，「全部」的数字只算还没处理的。
+   */
+  inboxSettled(item: InboxItem): boolean {
+    if (item.status !== 'processed') return false
+    if (item.linked_type === 'deadline' && item.linked_id) {
+      const d = this.getDeadline(item.linked_id)
+      return !d || (d.status !== 'open' && d.status !== 'missed')
+    }
+    const appId = this.applicationOfLink(item.linked_type, item.linked_id)
+    return !appId || this.listDeadlines({ status: 'open_or_missed', application_id: appId }).length === 0
+  }
+  private applicationOfLink(type: string | null, id: string | null): string | null {
+    if (!id) return null
+    if (type === 'application') return id
+    if (type === 'interview' || type === 'offer') return this.db.get<{ application_id: string | null }>(`SELECT application_id FROM ${type} WHERE id=?`, [id])?.application_id ?? null
+    return null
+  }
 
   // ---------- 截止与定时事件（不丢球） ----------
   /** due_at 为 null = 时间未知（例如笔试通知里没写时间）：照样建，笔试记录 / 投递进度能看到，今日队列提示去确认时间。 */

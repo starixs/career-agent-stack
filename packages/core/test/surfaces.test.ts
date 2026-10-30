@@ -94,6 +94,20 @@ describe('过了时间的笔试 / 面试：问一句「考了吗」', () => {
   })
 })
 
+describe('通知中心：处理完的信折起来', () => {
+  it('inboxSettled：已归档且关联投递上没有开着的时间点才算处理完；没归档的永远不算', () => {
+    const r = mem()
+    const job = r.upsertJob({ source_platform: 'campus', source_job_id: 'jf', title: '后端', company_name: '九方云' })
+    const app = r.createApplication(job.id)
+    const mail = r.resolveInboxItem(r.createInboxItem({ raw_text: '在线测评' }).id, { kind: 'assessment', linked_type: 'application', linked_id: app.id })
+    const test = r.createDeadline({ kind: 'assessment', title: '九方云测评', due_at: '2026-10-04T15:59:00.000Z', application_id: app.id })
+    expect(r.inboxSettled(mail)).toBe(false)
+    r.setDeadlineStatus(test.id, 'done')
+    expect(r.inboxSettled(mail)).toBe(true)
+    expect(r.inboxSettled(r.createInboxItem({ raw_text: '认不出来' }))).toBe(false)
+  })
+})
+
 describe('面试改期', () => {
   it('rescheduleInterview：面试记录和它的时间点一起改；已过期改到将来变回未完成，做完的不动', () => {
     const r = mem()

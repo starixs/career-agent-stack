@@ -26,7 +26,8 @@ import { BindMailForm, MailAccountRow } from '@/components/career/MailBinding';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 
-const INBOX_TABLES = ['inbox_item', 'mail_message', 'mail_account'] as const;
+// deadline：信带来的事做完后，这封信要折进「已处理」
+const INBOX_TABLES = ['inbox_item', 'mail_message', 'mail_account', 'deadline'] as const;
 const MAIL_TABLES = ['mail_account', 'mail_message'] as const;
 const DOSSIER_TABLES = ['application', 'job'] as const;
 const ACTION_TABLES = ['action_queue'] as const;
@@ -91,7 +92,6 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   const showBatch = !!batch && (batch.status === 'running' || batch.status === 'paused');
 
   const [filter, setFilter] = useState<Filter>('all');
-  const [showDismissed, setShowDismissed] = useState(false);
   // 从小芽面板 / 对话点进来时，聚焦事件可能在本页挂载前就发了（App 先暂存）：挂载时取走
   const [highlightId, setHighlightId] = useState<string | null>(() => takeCareerFocus('inbox')?.id ?? null);
   // 本次会话里处理掉的条目留在原位（服务端刷新后它们会从列表里消失）。
@@ -113,7 +113,8 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   const entries = useMemo(() => {
     const now = new Date();
     const list: FeedEntry[] = [];
-    for (const item of inbox.data ?? []) if (item.status !== 'dismissed') list.push({ type: 'mail', key: `mail:${item.id}`, at: item.created_at, item });
+    // 处理完的信（已归档、带来的事也都做完）折进「已处理」，不占「全部」的数字
+    for (const item of inbox.data ?? []) if (item.status !== 'dismissed' && !item.settled) list.push({ type: 'mail', key: `mail:${item.id}`, at: item.created_at, item });
     for (const action of pending.data ?? []) list.push({ type: 'review', key: `review:${action.id}`, at: action.created_at, action });
     for (const action of needsUser.data ?? []) {
       if (action.kind === 'submit') list.push({ type: 'review', key: `confirm:${action.id}`, at: action.updated_at, action, confirm: true });
@@ -132,11 +133,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   }, [entries, showBatch]);
   const visible = filter === 'all' ? entries : entries.filter(e => e.type === filter);
   const dismissed = useMemo(() => (inbox.data ?? []).filter(it => it.status === 'dismissed'), [inbox.data]);
-  // 要定位的那条已被忽略：展开「已忽略的」才看得到；用户点「收起」时连定位一起放下
-  const dismissedOpen = showDismissed || (!!highlightId && dismissed.some(it => it.id === highlightId));
-  const toggleDismissed = () => {
-    if (dismissedOpen) { setShowDismissed(false); setHighlightId(null); } else setShowDismissed(true);
-  };
+  const settled = useMemo(() => (inbox.data ?? []).filter(it => it.status !== 'dismissed' && it.settled), [inbox.data]);
 
   const resolve = (entry: FeedEntry, label: string) => {
     setResolved(prev => new Map(prev).set(entry.key, { label, at: new Date().toISOString() }));
@@ -191,21 +188,11 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
               </li>
             ))}
           </ul>
-          {dismissed.length > 0 && (filter === 'all' || filter === 'mail') && (
-            <div className="mt-3">
-              <button type="button" onClick={toggleDismissed} className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--ink)] hover:underline">
-                {dismissedOpen ? '收起已忽略的' : `看已忽略的 ${dismissed.length} 条`}
-              </button>
-              {dismissedOpen && (
-                <ul className="mt-2 divide-y divide-[var(--line)]">
-                  {dismissed.map(item => (
-                    <li key={item.id} className="py-3">
-                      <InboxRow item={item} dossiers={dossiers.data ?? []} highlighted={item.id === highlightId} onChanged={inbox.reload} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+          {(filter === 'all' || filter === 'mail') && (
+            <>
+              <FoldedMail label="已处理的" unit="封" items={settled} dossiers={dossiers.data ?? []} highlightId={highlightId} onCollapse={() => setHighlightId(null)} onChanged={inbox.reload} />
+              <FoldedMail label="已忽略的" unit="条" items={dismissed} dossiers={dossiers.data ?? []} highlightId={highlightId} onCollapse={() => setHighlightId(null)} onChanged={inbox.reload} />
+            </>
           )}
         </section>
 
@@ -382,6 +369,32 @@ function MailSection({ accounts, presets, loading, error, onChanged }: {
       </ul>
       {showBind && <BindMailForm presets={presets} onBound={message => { setBindResult(message); setShowBind(false); onChanged(); }} />}
     </Card>
+  );
+}
+
+/** 收起来的一组信（已处理 / 已忽略）：要定位的那条在里面就自动展开；用户点「收起」时连定位一起放下。 */
+function FoldedMail({ label, unit, items, dossiers, highlightId, onCollapse, onChanged }: {
+  label: string; unit: string; items: InboxItem[]; dossiers: DossierSummary[]; highlightId: string | null; onCollapse: () => void; onChanged: () => void;
+}) {
+  const [show, setShow] = useState(false);
+  if (items.length === 0) return null;
+  const open = show || (!!highlightId && items.some(it => it.id === highlightId));
+  const toggle = () => { if (open) { setShow(false); onCollapse(); } else setShow(true); };
+  return (
+    <div className="mt-3">
+      <button type="button" onClick={toggle} className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--ink)] hover:underline">
+        {open ? `收起${label}` : `看${label} ${items.length} ${unit}`}
+      </button>
+      {open && (
+        <ul className="mt-2 divide-y divide-[var(--line)]">
+          {items.map(item => (
+            <li key={item.id} className="py-3">
+              <InboxRow item={item} dossiers={dossiers} highlighted={item.id === highlightId} onChanged={onChanged} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

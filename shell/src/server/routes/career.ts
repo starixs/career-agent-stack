@@ -686,7 +686,8 @@ const ROUTES: Route[] = [
   // ---------- 收件箱 ----------
   route('GET', '/api/career/inbox', ({ repos, url }) => {
     const status = url.searchParams.get('status');
-    return ok({ items: repos.listInbox(status === 'new' || status === 'processed' || status === 'dismissed' ? status : undefined) });
+    const items = repos.listInbox(status === 'new' || status === 'processed' || status === 'dismissed' ? status : undefined);
+    return ok({ items: items.map(item => ({ ...item, settled: repos.inboxSettled(item) })) });
   }),
   route('POST', '/api/career/inbox', async (ctx) => {
     const text = str(ctx.body.text);

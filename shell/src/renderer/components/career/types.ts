@@ -213,6 +213,8 @@ export interface InboxItem {
   id: string; source: 'paste' | 'mail' | 'file' | 'url' | 'chat'; raw_text: string; kind: InboxKind | null;
   status: 'new' | 'processed' | 'dismissed'; parsed_json: string | null; linked_type: string | null; linked_id: string | null;
   mail_message_id: string | null; note: string | null; created_at: string; processed_at: string | null;
+  /** 服务端算的：已归档且它带来的事都处理完了（core.Repos.inboxSettled），通知中心折进「已处理」。 */
+  settled?: boolean;
 }
 export type DeadlineKind = 'assessment' | 'written_test' | 'interview' | 'application_deadline' | 'offer_reply' | 'referral_expiry' | 'other';
 export interface Deadline {

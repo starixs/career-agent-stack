@@ -178,6 +178,15 @@ describe('对话和页面分工 · 两天没开，回来', () => {
     expect(item.ref).toEqual({ type: 'inbox_item', id: junk.id });
   });
 
-  it.todo('〔面〕通知中心里处理完的邮件（已归档、关联的时间点也做完）还要不要留在「全部」的计数里');
+  it('测评做完以后，通知中心里那封测评邮件算「已处理」、折起来；后天面试的邀请信还开着', async () => {
+    const settledOf = async () => Object.fromEntries(((await page(repos, 'GET', '/api/career/inbox')).items as Array<{ raw_text: string; settled: boolean }>).map(i => [i.raw_text, i.settled]));
+    expect((await settledOf())['九方云在线测评，今晚截止']).toBe(false);
+    await page(repos, 'POST', `/api/career/deadlines/${deadlineOf('九方云', 'assessment').id}/status`, { status: 'done' });
+    const after = await settledOf();
+    expect(after['九方云在线测评，今晚截止']).toBe(true);
+    expect(after['百度一面周日']).toBe(false);
+    expect(after['拼多多：很遗憾']).toBe(true);
+  });
+
   it.todo('〔组件〕回来卡（等你条之后做）：读同一份今日队列，页面上刚处理掉的不进卡');
 });
