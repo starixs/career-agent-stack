@@ -30,15 +30,12 @@ describe('CareerGuide（功能市场）', () => {
     nav.off();
   });
 
-  it('笔试助力：带着「笔试」筛选打开助力记录', () => {
+  it('笔试助力：直接打开搜题页', () => {
     const nav = capture(CAREER_NAVIGATE_EVENT);
-    const filter = capture('career:assist-filter');
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /笔试助力/ }));
-    expect(filter.seen).toEqual(['exam']);
-    expect(nav.seen).toEqual([{ kind: 'career-dossier', view: 'assist' }]);
+    expect(nav.seen).toEqual([{ kind: 'career-dossier', view: 'exam-search' }]);
     nav.off();
-    filter.off();
   });
 
   it('小功能和点子把话预填进对话输入框，不直接发送', () => {

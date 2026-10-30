@@ -9,19 +9,18 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-import { requestAssistFilter } from '@/components/career/AssistRecords';
 import { CareerPage, SectionTitle, suggestToChat } from '@/components/career/CareerPrimitives';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { requestNavigation, type NavTarget } from '@/features/career-shell/navModel';
 
 /** 点了做什么：去一个页面，或把一句话预填进对话输入框。 */
-type MarketAction = { open: NavTarget; before?: () => void } | { prefill: string };
+type MarketAction = { open: NavTarget } | { prefill: string };
 
 export interface MarketItem { name: string; what: string; icon: LucideIcon; action: MarketAction }
 
 export const WORKBENCHES: MarketItem[] = [
   { name: '面试助力', what: '面试记录、题库刷题、模拟面试和深挖点预测都在这里', icon: Users, action: { open: { kind: 'career-dossier', view: 'interview' } } },
-  { name: '笔试助力', what: '收到的笔试、测评都在一张表里，点「助力」交给小芽', icon: PenLine, action: { open: { kind: 'career-dossier', view: 'assist' }, before: () => requestAssistFilter('exam') } },
+  { name: '笔试助力', what: '截图粘贴就出答案，先查同公司同岗位的往年题', icon: PenLine, action: { open: { kind: 'career-dossier', view: 'exam-search' } } },
   { name: '简历编辑', what: '直接看成品，哪里不对说一句就改', icon: FileText, action: { open: { kind: 'career-material', view: 'resume' } } },
   { name: '题库刷题', what: '挑一个题库练，答完给你点评', icon: Library, action: { open: { kind: 'career-dossier', view: 'interview' } } },
   { name: 'Offer 对比', what: '薪资、城市、成长一项项比', icon: Scale, action: { open: { kind: 'career-dossier', view: 'offer' } } },
@@ -56,7 +55,6 @@ export function runMarketAction(action: MarketAction, note: string): void {
     suggestToChat(action.prefill, { surface: 'guide', note }, 'prefill');
     return;
   }
-  action.before?.();
   requestNavigation(action.open);
 }
 

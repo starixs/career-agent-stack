@@ -30,15 +30,17 @@ import { useCloseLayer } from '@/hooks/useCloseLayer';
 const CareerApply = lazy(() => import('@/pages/CareerApply'));
 const CareerInterview = lazy(() => import('@/pages/CareerInterview'));
 const CareerOffer = lazy(() => import('@/pages/CareerOffer'));
+const CareerExamSearch = lazy(() => import('@/pages/CareerExamSearch'));
 
 // 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
-type View = 'line' | 'apply' | 'assist' | 'interview' | 'offer';
+type View = 'line' | 'apply' | 'assist' | 'interview' | 'offer' | 'exam-search';
 const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
   apply: { title: '岗位收藏', subtitle: '想投的岗位和准备好的申请' },
   line: { title: '投递记录', subtitle: '投了哪些，走到了哪一步' },
   assist: { title: '助力记录', subtitle: '笔试、面试、模拟面试，每一次助力都在这里' },
   interview: { title: '面试工作台', subtitle: '面试记录、题库、模拟面试和深挖点预测' },
   offer: { title: 'Offer 对比', subtitle: '把拿到的 Offer 放在一起比' },
+  'exam-search': { title: '笔试助力', subtitle: '截图或粘贴题目，先查题库再作答' },
 };
 /** 已合并进助力记录的旧视图。 */
 const RENAMED_VIEWS: Record<string, View> = { exam: 'assist' };
@@ -98,6 +100,7 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
           {view === 'apply' && <CareerApply embedded />}
           {view === 'interview' && <CareerInterview embedded />}
           {view === 'offer' && <CareerOffer embedded />}
+          {view === 'exam-search' && <CareerExamSearch />}
         </Suspense>
       )}
     </CareerPage>

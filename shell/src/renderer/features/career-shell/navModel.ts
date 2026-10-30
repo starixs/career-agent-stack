@@ -84,7 +84,7 @@ export const DEFAULT_SUB_VIEWS = {
 } as const;
 
 /** 我的求职里不在二级栏、只从功能市场打开的视图。 */
-const MARKET_DOSSIER_VIEWS: ReadonlySet<string> = new Set(['interview', 'offer']);
+const MARKET_DOSSIER_VIEWS: ReadonlySet<string> = new Set(['interview', 'offer', 'exam-search']);
 
 /** Target opened when an area without L2 items is chosen. */
 export const AREA_DIRECT_TARGET: Partial<Record<NavArea, NavTarget>> = {

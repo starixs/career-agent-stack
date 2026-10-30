@@ -39,6 +39,7 @@ import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, prepareJobs, 
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
 import { broadcast as sseBroadcast } from '../sse';
+import { fail, ok } from './career-response';
 
 export interface CareerRouteDeps {
   repos?: Repos;
@@ -62,11 +63,6 @@ export interface CareerRouteDeps {
 
 type Json = Record<string, unknown>;
 
-export function careerJson(body: Json, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-}
-export const ok = (data: Json = {}, status = 200) => careerJson({ ok: true, ...data }, status);
-export const fail = (error: string, status = 400) => careerJson({ ok: false, error }, status);
 
 function parseJsonObj(raw: string | null | undefined): Json {
   try { const v = JSON.parse(raw ?? '{}'); return v && typeof v === 'object' ? v as Json : {}; } catch { return {}; }
@@ -949,6 +945,10 @@ function toCardDto(row: import('@career/core').ChatCardRow) {
 
 export async function handleCareerRoute(pathname: string, request: Request, deps: CareerRouteDeps = {}): Promise<Response | null> {
   if (!pathname.startsWith('/api/career/') || pathname.startsWith('/api/career/browser/')) return null;
+  if (pathname.startsWith('/api/career/exam-search/')) {
+    const { handleExamSearchRoute } = await import('./career-exam-search');
+    return handleExamSearchRoute(pathname, request, { repos: deps.repos, llm: deps.llm ?? undefined, broadcast: deps.broadcast });
+  }
   const method = request.method.toUpperCase();
   for (const r of ROUTES) {
     if (r.method !== method) continue;
