@@ -50,8 +50,12 @@ describe('收件箱 / 截止 / 今日队列', () => {
     const job = r.upsertJob({ source_platform: 'boss', source_job_id: 'j1', title: '数据分析实习生', company_name: '甲公司' })
     const app = r.createApplication(job.id)
     r.transition(app.id, 'ready'); r.transition(app.id, 'approved'); r.transition(app.id, 'pending'); r.transition(app.id, 'applied')
-    // 把 updated_at 拨回 30 天前制造静默
+    // 另一份投递：把 updated_at 拨回 30 天前制造静默（挂着笔试的那份有动静，不算静默）
+    const quietJob = r.upsertJob({ source_platform: 'boss', source_job_id: 'j2', title: '后端开发', company_name: '戊公司' })
+    const quiet = r.createApplication(quietJob.id)
+    r.jumpTo(quiet.id, 'applied')
     r.db.update('application', app.id, { updated_at: '2026-09-01T00:00:00Z' })
+    r.db.update('application', quiet.id, { updated_at: '2026-09-01T00:00:00Z' })
     r.createDeadline({ kind: 'assessment', title: '乙公司测评', due_at: '2026-10-02T10:00:00Z' })
     const written = r.createDeadline({ kind: 'written_test', title: '丙公司笔试', due_at: '2026-10-03T12:00:00Z', application_id: app.id })
     r.createDeadline({ kind: 'offer_reply', title: '丁公司 offer 回复', due_at: '2026-10-20T00:00:00Z' })
@@ -66,8 +70,8 @@ describe('收件箱 / 截止 / 今日队列', () => {
     // 挂在投递上的截止：ref 指向投递，deadline_id 仍给出截止事件本身，便于改期 / 完成
     expect(today.items[1].ref).toEqual({ type: 'application', id: app.id })
     expect(today.items[1].deadline_id).toBe(written.id)
-    expect(today.items[4].suggest).toContain(app.id)
-    expect(today.waiting).toEqual({ count: 1, by_stage: [{ stage: 'applied', n: 1 }] })
+    expect(today.items[4].suggest).toContain(quiet.id)
+    expect(today.waiting).toEqual({ count: 2, by_stage: [{ stage: 'applied', n: 2 }] })
     expect(today.pending_review).toBe(1)
     expect(today.inbox_new).toBe(1)
     expect(r.listDeadlines({ status: 'missed' }).map(d => d.title)).toEqual(['乙公司测评'])
@@ -128,5 +132,18 @@ describe('卷宗 / 素材 / 复盘 / 邮箱', () => {
     expect(r.findMailByMessageId('<x@y>')!.subject).toBe('面试邀请')
     expect(ACTIONS_REQUIRING_REVIEW).toContain('send_mail')
     expect(r.enqueueAction('send_mail', {}, null, true).status).toBe('pending_review')
+  })
+})
+
+describe('静默看投递上最后一次动静', () => {
+  it('阶段没变但来过笔试通知 / 还有没到的面试：不算静默；什么都没有才算', () => {
+    const r = mem()
+    const mk = (id: string) => { const j = r.upsertJob({ source_platform: 'boss', source_job_id: id, title: '后端开发', company_name: id }); const a = r.createApplication(j.id); r.jumpTo(a.id, 'applied'); r.db.update('application', a.id, { updated_at: '2026-09-01T00:00:00Z' }); return a.id }
+    const exam = mk('笔试'); const later = mk('面试'); const quiet = mk('静默')
+    r.createDeadline({ kind: 'written_test', title: '笔试', due_at: '2026-10-05T06:00:00Z', application_id: exam })
+    const far = r.createDeadline({ kind: 'interview', title: '面试', due_at: '2026-10-30T06:00:00Z', application_id: later })
+    r.db.run('UPDATE deadline SET created_at=? WHERE id=?', ['2026-09-02T00:00:00Z', far.id])
+    expect(r.today(NOW).items.filter(i => i.kind === 'stale').map(i => i.ref.id)).toEqual([quiet])
+    expect(r.funnel(NOW).overall!.silent).toBe(1)
   })
 })

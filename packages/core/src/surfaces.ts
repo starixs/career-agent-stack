@@ -43,6 +43,10 @@ export function weekStartOf(iso: string): string {
 }
 
 // ---------- 静默判定 ----------
+/** 两个 ISO 时刻取晚的；b 缺省时返回 a。静默判定的「最后一次动静」用它合并阶段变化和投递上的其他事件。 */
+export function latestIso(a: string, b?: string | null): string {
+  return b && Date.parse(b) > Date.parse(a) ? b : a
+}
 export interface SilenceVerdict { silent: boolean; days: number; threshold: number | null }
 /** 停留天数超过阶段阈值即"可视为静默"；没有阈值的阶段永不静默。 */
 export function silenceOf(stage: ApplicationStage, updatedAt: string, nowIso: string): SilenceVerdict {
