@@ -40,6 +40,7 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   gap_plan: '对照岗位找差距',
   greeting_compose: '写打招呼的话',
   inbox_capture: '归档收到的消息',
+  inbox_correct: '更正读错的消息',
   inbox_dismiss: '收起一条消息',
   inbox_list: '看收件箱',
   ingest_document: '读你给的文档',
