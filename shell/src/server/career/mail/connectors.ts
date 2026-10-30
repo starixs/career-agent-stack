@@ -91,7 +91,7 @@ export function isConnectorId(value: unknown): value is ConnectorId {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(MAIL_CONNECTORS, value);
 }
 
-/** 授权码去掉空格；格式不对返回 null（16 位字母，大小写各家不同，不强求）。 */
+/** 授权码去掉空格；格式不对返回 null（16 位字母数字，规则见 shared/mailAuthCode.ts）。 */
 export function normalizeAuthCode(raw: string): string | null {
   return authCodeProblem(raw) ? null : cleanAuthCode(raw);
 }

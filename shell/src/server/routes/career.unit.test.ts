@@ -316,7 +316,8 @@ describe('五个面的路由', () => {
       expect((await call(deps, 'POST', '/api/career/mail/connectors/outlook/verify', {})).status).toBe(404);
 
       const bad = await call(deps, 'POST', '/api/career/mail/connectors/qq/verify', { email: 'me@qq.com', authCode: '123' });
-      expect(bad.json.result).toMatchObject({ ok: false, error_code: 'invalid_input' });
+      // 提示说清差在哪（2026-10-31：服务端还写着「16 位字母」，和数字混排的新授权码规则对不上）
+      expect(bad.json.result).toMatchObject({ ok: false, error_code: 'invalid_input', message: '授权码是 16 位，现在 3 位' });
       deps.mailVerify = { imap: async () => { throw Object.assign(new Error('Command failed'), { authenticationFailed: true, responseText: 'Login fail. Account is abnormal or password error' }); } };
       const wrong = await call(deps, 'POST', '/api/career/mail/connectors/qq/verify', { email: 'me@qq.com', authCode: 'abcdefghijklmnop' });
       expect(wrong.json.result).toMatchObject({ ok: false, error_code: 'imap_auth_failed' });

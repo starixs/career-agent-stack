@@ -152,10 +152,14 @@ export async function defaultPerceiver(apply: ApplyEngineModule, page: ApplyPage
 /** 缺省资料组装：basics 来自私密库（兜底 kv:profile.basics），经历 / 答案库来自 Repos；三个钩子都绑到私密库。 */
 export async function defaultDriveProfile(body: Record<string, unknown>, apply: ApplyEngineModule, llm: LlmLike): Promise<DriveProfileBundle | null> {
   if (typeof apply.ApplyService !== 'function') return null;
-  const [{ getRepos }, { getVault }] = await Promise.all([import('../career/db'), import('../career/vault')]);
-  const [repos, vault] = await Promise.all([getRepos(), getVault()]);
+  const [{ getRepos }, { getVault }, { loadCore }, { CareerStore }, { educationFromMaster, educationRows, withResumeEducation }] = await Promise.all([
+    import('../career/db'), import('../career/vault'), import('../career/core-module'), import('../career/store'), import('../career/resume-education'),
+  ]);
+  const [repos, vault, core] = await Promise.all([getRepos(), getVault(), loadCore()]);
   const resumePath = typeof body.resumePath === 'string' && body.resumePath.trim() ? body.resumePath.trim() : undefined;
   const profile = new apply.ApplyService(repos, llm, { vault }).buildProfile(resumePath);
+  // 教育经历的起止时间只在主简历里：按学校补齐（resume-education.ts）
+  profile.education = withResumeEducation(educationRows(profile.education), educationFromMaster(new CareerStore(repos, core).listResumeMasters()[0]));
   const purpose = typeof body.applicationId === 'string' ? `网申填表 ${body.applicationId}` : '网申填表';
   return {
     profile,

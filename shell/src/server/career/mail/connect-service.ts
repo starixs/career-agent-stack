@@ -4,6 +4,7 @@
  */
 import type { MailAccount } from '@career/core';
 
+import { authCodeProblem } from '../../../shared/mailAuthCode';
 import { dataChanged, type IntakeDeps } from '../intake';
 import { connectionOf, connectorServers, normalizeAuthCode, type ConnectorId } from './connectors';
 import { setMailPassword } from './credentials';
@@ -24,7 +25,7 @@ export async function connectMailbox(deps: IntakeDeps, input: ConnectInput, veri
   const address = input.email.trim().toLowerCase();
   const code = normalizeAuthCode(input.authCode);
   if (!EMAIL_RE.test(address)) return { ok: false, error_code: 'invalid_input', message: '邮箱地址格式不对' };
-  if (!code) return { ok: false, error_code: 'invalid_input', message: '授权码是 16 位字母' };
+  if (!code) return { ok: false, error_code: 'invalid_input', message: authCodeProblem(input.authCode) ?? '授权码格式不对' };
   const existing = r.listMailAccounts().find(a => a.address === address);
   if (existing && !isExpired(existing) && !input.reauthorize) {
     return { ok: false, error_code: 'duplicate', message: '这个邮箱已经连上了', account_id: existing.id };

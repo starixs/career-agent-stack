@@ -88,10 +88,24 @@ function fileNamePart(value: string | null | undefined, max = 40): string {
   return [...cleaned].slice(0, max).join('').trim();
 }
 
+/**
+ * 岗位库里的合集标题（「软件类 / 通信类 / IC类」「智能研发类 汽车研发类 测试类 等8个岗位」）不是一个岗位：
+ * 放进上传文件名会让 HR 看到一串类目（2026-10-31 小鹏），这时用简历的求职方向（「后端开发」）。
+ */
+const COUNT_RX = /等\s*\d+\s*个岗位/;
+/** 合集标题：写着「等 N 个岗位」，或者分隔开的每一段都是「XX类」（单个岗位名里也可能有斜杠，如「算法/推荐」）。 */
+function isAggregateTitle(title: string): boolean {
+  if (COUNT_RX.test(title)) return true;
+  const parts = title.split(/[/／、|]+/).map(p => p.trim()).filter(Boolean);
+  return parts.length >= 2 && parts.every(p => /类$/.test(p));
+}
+
 /** `姓名-岗位-公司.pdf`；姓名缺失时用简历名，全部缺失时叫「简历.pdf」。 */
-export function readableResumeFileName(parts: { person?: string | null; resumeName?: string | null; jobTitle?: string | null; company?: string | null }): string {
+export function readableResumeFileName(parts: { person?: string | null; resumeName?: string | null; jobTitle?: string | null; company?: string | null; direction?: string | null }): string {
   const who = fileNamePart(parts.person) || fileNamePart(parts.resumeName);
-  const title = parts.jobTitle?.trim() === '未命名岗位' ? '' : fileNamePart(parts.jobTitle);
+  const raw = parts.jobTitle?.trim() ?? '';
+  // 方向写了几个（「后端开发 / 数据开发 / AI 应用开发」）只取第一个：文件名要短
+  const title = !raw || raw === '未命名岗位' ? '' : isAggregateTitle(raw) ? fileNamePart(parts.direction?.split(/[/／、|,，]+/)[0]) : fileNamePart(raw);
   const name = [who, title, fileNamePart(parts.company)].filter(Boolean).join('-');
   return `${name || '简历'}.pdf`;
 }
@@ -112,15 +126,18 @@ function packetFileNameParts(repos: Repos, packet: ApplicationPacket, resolveTex
     }
   } catch { /* 快照损坏：退回简历名 */ }
   let resumeName: string | undefined;
+  let direction: string | undefined;
   try {
     if (packet.resume_id) {
-      resumeName = repos.db.get<{ name: string }>('SELECT name FROM resume_master WHERE id=?', [packet.resume_id])?.name
-        ?? repos.db.get<{ name: string }>('SELECT m.name AS name FROM resume_tailored t JOIN resume_master m ON m.id=t.master_id WHERE t.id=?', [packet.resume_id])?.name;
+      const master = repos.db.get<{ name: string; direction: string | null }>('SELECT name, direction FROM resume_master WHERE id=?', [packet.resume_id])
+        ?? repos.db.get<{ name: string; direction: string | null }>('SELECT m.name AS name, m.direction AS direction FROM resume_tailored t JOIN resume_master m ON m.id=t.master_id WHERE t.id=?', [packet.resume_id]);
+      resumeName = master?.name;
+      direction = master?.direction ?? undefined;
     }
-  } catch { /* ignore */ }
+  } catch (error) { console.warn(`[career] packet ${packet.id} resume name lookup failed: ${error instanceof Error ? error.message : String(error)}`); }
   let jd: { title?: string | null; company_name?: string | null } = {};
   try { jd = JSON.parse(packet.jd_snapshot_json || '{}') as typeof jd; } catch { /* ignore */ }
-  return { person, resumeName, jobTitle: jd.title ?? null, company: jd.company_name ?? null };
+  return { person, resumeName, jobTitle: jd.title ?? null, company: jd.company_name ?? null, direction };
 }
 
 /** 材料包 PDF 的可读副本：`<packets>/upload/<packet_id>/<可读名>.pdf`，内容与哈希存档一致才复用。失败时返回 undefined。 */
