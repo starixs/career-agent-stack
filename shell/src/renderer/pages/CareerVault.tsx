@@ -14,10 +14,10 @@ import type { ReactNode } from 'react';
 import { AnswerBankPanel } from '@/components/career/AnswerBankPanel';
 import { careerApi } from '@/components/career/careerApi';
 import {
-  Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextInput, formatDate, useSuggestToChat,
+  Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextInput, formatDate, relativeTime, useSuggestToChat,
 } from '@/components/career/CareerPrimitives';
-import { BindMailForm, MailAccountRow, relativeTime } from '@/components/career/MailBinding';
-import type { AccountFetchState, ExperienceNode, MailAccount, MailPreset, VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultProfileFieldDef } from '@/components/career/types';
+import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
+import type { AccountFetchState, ExperienceNode, VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultProfileFieldDef } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { VaultExperienceFields } from '@/components/career/VaultExperienceFields';
 
@@ -72,7 +72,6 @@ export function groupSites(items: VaultItemMeta[]): Array<{ host: string; label:
 export default function CareerVault({ focusExperienceId }: { focusExperienceId?: string; isActive?: boolean; onOpenChat?: () => void }) {
   const query = useCareerQuery(careerApi.vault, ['vault']);
   const experiences = useCareerQuery(careerApi.experiences, ['experience']);
-  const mail = useCareerQuery(careerApi.mailAccounts, ['mail_account']);
   const fetches = useCareerQuery(careerApi.accountFetches, ['account_fetch']);
   const data = query.data;
   const [showLog, setShowLog] = useState(false);
@@ -99,7 +98,7 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
               <div className="mt-4 border-t border-[var(--line)] pt-3">
                 <div className="mb-1 text-xs font-medium text-[var(--muted)]">绑定账号：绑得越多，小芽越懂你，网申要填的也越少</div>
                 <ul className="divide-y divide-[var(--line)]">
-                  <MailBindingRow accounts={mail.data?.accounts ?? []} presets={mail.data?.presets ?? {}} loading={mail.loading && !mail.data} onChanged={mail.reload} />
+                  <MailBindingRow />
                   {ACCOUNTS.map(def => <AccountRow key={def.field} def={def} item={data.items.find(i => i.scope === 'profile' && i.field === def.field)} fetch={fetches.data?.[def.field] ?? null} onChanged={() => { query.reload(); fetches.reload(); }} />)}
                 </ul>
               </div>
@@ -206,23 +205,14 @@ function ProfileFieldRow({ def, item, onChanged }: { def: VaultProfileFieldDef; 
 
 // ─── 绑定账号 ───
 
-function MailBindingRow({ accounts, presets, loading, onChanged }: { accounts: MailAccount[]; presets: Record<string, MailPreset>; loading: boolean; onChanged: () => void }) {
-  const [binding, setBinding] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
+function MailBindingRow() {
   return (
     <li className="py-2">
       <div className="flex min-h-9 items-center gap-3">
         <span className="w-20 shrink-0 text-sm text-[var(--ink)]">邮箱同步</span>
-        <span className="min-w-0 flex-1 text-xs text-[var(--muted)]">{loading ? '…' : accounts.length ? '笔试、面试、拒信邮件自动识别' : '绑定后笔试、面试、拒信邮件自动识别'}</span>
-        {!loading && accounts.length === 0 && <Button variant="secondary" size="sm" onClick={() => setBinding(v => !v)}>{binding ? '收起' : '绑定'}</Button>}
+        <span className="min-w-0 flex-1 text-xs text-[var(--muted)]">笔试、面试、拒信邮件自动识别</span>
       </div>
-      {note && <div role="status" className="text-xs text-[var(--success)]">{note}</div>}
-      {accounts.length > 0 && (
-        <ul className="divide-y divide-[var(--line)] pl-[92px]">
-          {accounts.map(acc => <MailAccountRow key={acc.id} account={acc} preset={presets[acc.provider]} onChanged={onChanged} />)}
-        </ul>
-      )}
-      {binding && accounts.length === 0 && <BindMailForm presets={presets} onBound={message => { setNote(message); setBinding(false); onChanged(); }} />}
+      <div className="mt-2"><MailConnectCenter /></div>
     </li>
   );
 }

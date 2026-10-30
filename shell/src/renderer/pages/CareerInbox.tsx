@@ -18,14 +18,13 @@ import { ManualSendText } from '@/components/career/ManualSendText';
 import { StrikeText } from '@/components/career/StrikeText';
 import { SubmitReviewList, approvalLabel } from '@/components/career/SubmitReviewList';
 import type {
-  ActionQueueItem, CareerFocusEvent, Deadline, DossierSummary, InboxItem, IntakeResult, MailAccount, MailPreset, SubmitReviewSummary,
+  ActionQueueItem, CareerFocusEvent, Deadline, DossierSummary, InboxItem, IntakeResult, SubmitReviewSummary,
 } from '@/components/career/types';
-import { BindMailForm, MailAccountRow } from '@/components/career/MailBinding';
+import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 
 const INBOX_TABLES = ['inbox_item', 'mail_message', 'mail_account'] as const;
-const MAIL_TABLES = ['mail_account', 'mail_message'] as const;
 const DOSSIER_TABLES = ['application', 'job'] as const;
 const ACTION_TABLES = ['action_queue'] as const;
 const DEADLINE_TABLES = ['deadline'] as const;
@@ -46,7 +45,6 @@ const KIND_LABELS: Record<string, string> = {
 const LINKED_TYPE_LABELS: Record<string, string> = { application: '投递', interview: '面试', offer: 'Offer', job: '岗位', deadline: '截止', inbox_item: '收件' };
 const PREVIEW_LIMIT = 160;
 
-export { detectProvider, relativeTime } from '@/components/career/MailBinding';
 
 /** 待批准动作的一句话摘要（与投递页同一套取字段顺序）。 */
 export function actionSummary(action: ActionQueueItem): string {
@@ -78,7 +76,6 @@ interface Resolved { label: string; at: string }
 
 export default function CareerInbox({ embedded = false }: CareerPageProps) {
   const inbox = useCareerQuery(careerApi.inbox, INBOX_TABLES);
-  const mail = useCareerQuery(careerApi.mailAccounts, MAIL_TABLES);
   const dossiers = useCareerQuery(careerApi.dossiers, DOSSIER_TABLES);
   const pending = useCareerQuery(careerApi.pendingActions, ACTION_TABLES);
   const needsUser = useCareerQuery(() => careerApi.actionsNeedingUser().catch(() => []), ACTION_TABLES);
@@ -207,7 +204,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
 
         <section aria-label="丢进来" className="space-y-6 border-t border-[var(--line)] pt-6">
           <CaptureBox onCaptured={inbox.reload} />
-          <MailSection accounts={mail.data?.accounts ?? []} presets={mail.data?.presets ?? {}} loading={mail.loading && !mail.data} error={mail.error} onChanged={mail.reload} />
+          <MailSection />
         </section>
       </div>
       <PageAskBar target={{ kind: 'career-inbox' }} placeholder="问问这些通知，比如「哪封邮件要我回」" />
@@ -356,23 +353,11 @@ function CaptureBox({ onCaptured }: { onCaptured: () => void }) {
   );
 }
 
-function MailSection({ accounts, presets, loading, error, onChanged }: {
-  accounts: MailAccount[]; presets: Record<string, MailPreset>; loading: boolean; error: string | null; onChanged: () => void;
-}) {
-  const [showBind, setShowBind] = useState(false);
-  const [bindResult, setBindResult] = useState<string | null>(null);
+/** 邮箱连接：连接中心（mail-connect/）统一负责连接、状态、管理。 */
+function MailSection() {
   return (
-    <Card title="邮箱同步" extra={<Button variant="ghost" size="sm" onClick={() => setShowBind(s => !s)}>{showBind ? '收起' : '绑定邮箱'}</Button>}>
-      {error && <ErrorRow message={error} onRetry={onChanged} />}
-      {bindResult && <div role="status" className="mb-2 text-xs text-[var(--success)]">{bindResult}</div>}
-      {loading && <LoadingRow />}
-      {!loading && accounts.length === 0 && !showBind && (
-        <div className="text-sm text-[var(--muted)]">还没有绑定邮箱。绑定后面试邀请、笔试测评、拒信会自动进通知中心，你不用天天刷。</div>
-      )}
-      <ul className="divide-y divide-[var(--line)]">
-        {accounts.map(acc => <MailAccountRow key={acc.id} account={acc} preset={presets[acc.provider]} onChanged={onChanged} />)}
-      </ul>
-      {showBind && <BindMailForm presets={presets} onBound={message => { setBindResult(message); setShowBind(false); onChanged(); }} />}
+    <Card title="邮箱连接">
+      <MailConnectCenter />
     </Card>
   );
 }

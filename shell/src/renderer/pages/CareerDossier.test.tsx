@@ -79,6 +79,7 @@ function mockGet({ exams = [] as unknown[], interviews = [] as unknown[], mocks 
     if (path.startsWith('/api/career/interviews')) return { ok: true, interviews };
     if (path.startsWith('/api/career/mock-interviews')) return { ok: true, mockInterviews: mocks };
     if (path.startsWith('/api/career/mail/accounts')) return { ok: true, accounts: mailAccounts, presets: {} };
+    if (path.startsWith('/api/career/mail/connectors')) return { ok: true, connectors: [{ id: 'qq', name: 'QQ 邮箱', auth_type: 'credential_form', capabilities: ['receive'], open_url: 'https://wx.mail.qq.com/', open_label: '打开 QQ 邮箱', help_url: null, guide: [], verify_note: '', fields: [] }], accounts: mailAccounts };
     return { ok: true };
   });
 }
@@ -298,7 +299,7 @@ describe('CareerDossier · 助力记录', () => {
     fireEvent.click(screen.getByRole('button', { name: '绑定邮箱' }));
     const dialog = await screen.findByRole('dialog', { name: '新建助力记录' });
     expect(within(dialog).getByRole('tab', { name: /从邮箱同步/ })).toHaveAttribute('aria-selected', 'true');
-    expect(within(dialog).getByRole('button', { name: /QQ 邮箱/ })).toBeInTheDocument();
+    expect(await within(dialog).findByRole('button', { name: /QQ 邮箱/ })).toBeInTheDocument();
     unmount();
 
     mockGet({ exams: examDeadlines, mailAccounts: [{ id: 'acc1', address: 'me@qq.com', provider: 'qq', status: 'ok', last_sync_at: null, last_error: null }] });

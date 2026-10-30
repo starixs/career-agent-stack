@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
 
-import { apiPostJson, apiPutJson } from '@/api/apiFetch';
+import { apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { TabContext, type TabContextValue } from '@/context/TabContext';
 
@@ -143,28 +143,24 @@ describe('对话内流程卡片', () => {
     off();
   });
 
-  it('绑定邮箱：按域名给授权码说明，绑定成功后请助理归档，消息里不带地址和授权码', async () => {
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { id: 'm1' }, verify: { syncing: true } });
+  it('绑定邮箱卡片：从连接中心连好后请助理归档，消息里不带地址和授权码', async () => {
+    const connector = { id: 'qq', name: 'QQ 邮箱', auth_type: 'credential_form', capabilities: ['receive'], open_url: 'https://wx.mail.qq.com/', open_label: '打开 QQ 邮箱', help_url: null,
+      guide: [{ title: '打开 QQ 邮箱网页版', text: '' }], verify_note: '', fields: [{ key: 'email', type: 'email', label: '邮箱地址', placeholder: '' }, { key: 'authCode', type: 'secret', label: '授权码', placeholder: '', length: 16 }] };
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, connectors: [connector], accounts: [] });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, result: { ok: true, smtp_ok: true, account: { id: 'm1', provider: 'qq', address: 'me@qq.com' } } });
     const { seen, off } = captureSuggest();
-    renderCards([card('mail_bind', { presets: [{ provider: 'qq', label: 'QQ 邮箱', help: '设置 → 账户 → 开启 IMAP 并生成授权码' }] }, '绑定求职邮箱')]);
+    renderCards([card('mail_bind', {}, '绑定求职邮箱')]);
+    fireEvent.click(await screen.findByRole('button', { name: /QQ 邮箱/ }));
+    fireEvent.click(screen.getByRole('button', { name: '开始连接' }));
+    fireEvent.click(screen.getByRole('button', { name: '我已获取授权码，下一步' }));
     fireEvent.change(screen.getByLabelText('邮箱地址'), { target: { value: 'me@qq.com' } });
-    expect(screen.getByText(/开启 IMAP 并生成授权码/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'abcd1234' } });
-    fireEvent.click(screen.getByRole('button', { name: '绑定并同步' }));
-    await waitFor(() => expect(seen).toHaveLength(1));
-    expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/accounts', { address: 'me@qq.com', password: 'abcd1234' });
-    expect(seen[0]).not.toMatch(/me@qq.com|abcd1234/);
+    fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'abcdefghijklmnop' } });
+    fireEvent.click(screen.getByRole('button', { name: '验证并连接' }));
+    await waitFor(() => expect(seen).toHaveLength(1), { timeout: 3000 });
+    expect(seen[0]).not.toMatch(/me@qq.com|abcdefghijklmnop/);
+    expect(await screen.findByText(/已连接 me@qq.com/)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     off();
-  });
-
-  it('绑定邮箱：连接失败时留在卡片上显示原因', async () => {
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { id: 'm1' }, verify: { error: 'AUTHENTICATIONFAILED' } });
-    const dismiss = renderCards([card('mail_bind', { presets: [] })]);
-    fireEvent.change(screen.getByLabelText('邮箱地址'), { target: { value: 'me@163.com' } });
-    fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: '绑定并同步' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('AUTHENTICATIONFAILED');
-    expect(dismiss).not.toHaveBeenCalled();
   });
 
   it('底部只放无锚点 / 锚点不在消息里的待处理卡片；已处理的不在底部堆叠', () => {

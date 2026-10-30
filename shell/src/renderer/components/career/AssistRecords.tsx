@@ -19,7 +19,7 @@ import { careerApi } from './careerApi';
 import { INTERVIEW_ROUND_LABELS } from './careerConstants';
 import { Badge, Button, EmptyState, ErrorRow, Field, LoadingRow, Select, TextArea, TextInput, formatDate, textOrUnknown, useSuggestToChat } from './CareerPrimitives';
 import type { CareerFocusEvent, IntakeResult, MailAccount, MailPreset } from './types';
-import { BindMailForm, MailAccountRow } from './MailBinding';
+import { MailConnectCenter } from './mail-connect/MailConnectCenter';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
 const ASSIST_TABLES = ['deadline', 'application', 'job', 'interview', 'mock_interview', 'exam_practice', 'mail_account'] as const;
@@ -187,8 +187,6 @@ export function AssistRecords() {
       {dialog && (
         <NewAssistDialog
           initial={dialog}
-          accounts={accounts}
-          presets={query.data?.mail.presets ?? {}}
           onClose={() => setDialog(null)}
           onChanged={query.reload}
         />
@@ -206,8 +204,8 @@ const METHODS: Array<{ id: NewMethod; label: string; hint: string }> = [
   { id: 'mail', label: '从邮箱同步', hint: '笔试、面试邮件自动识别' },
 ];
 
-function NewAssistDialog({ initial, accounts, presets, onClose, onChanged }: {
-  initial: NewMethod; accounts: MailAccount[]; presets: Record<string, MailPreset>; onClose: () => void; onChanged: () => void;
+function NewAssistDialog({ initial, onClose, onChanged }: {
+  initial: NewMethod; onClose: () => void; onChanged: () => void;
 }) {
   const [method, setMethod] = useState<NewMethod>(initial);
   const close = useCallback(() => onClose(), [onClose]);
@@ -244,7 +242,7 @@ function NewAssistDialog({ initial, accounts, presets, onClose, onChanged }: {
         <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
           {method === 'manual' && <ManualForm onDone={done} />}
           {method === 'link' && <LinkForm onDone={onChanged} />}
-          {method === 'mail' && <MailPanel accounts={accounts} presets={presets} onChanged={onChanged} />}
+          {method === 'mail' && <MailPanel />}
         </div>
       </div>
     </OverlayBackdrop>
@@ -340,23 +338,11 @@ function LinkForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function MailPanel({ accounts, presets, onChanged }: { accounts: MailAccount[]; presets: Record<string, MailPreset>; onChanged: () => void }) {
-  const [bound, setBound] = useState<string | null>(null);
-  if (accounts.length === 0) {
-    return (
-      <div className="space-y-2">
-        <p className="text-sm text-[var(--muted)]">还没有绑定邮箱。绑定后笔试、面试通知会自动识别进来，你只需要偶尔点一下「同步邮箱」。</p>
-        {bound && <div role="status" className="text-xs text-[var(--success)]">{bound}</div>}
-        <BindMailForm presets={presets} onBound={message => { setBound(message); onChanged(); }} />
-      </div>
-    );
-  }
+function MailPanel() {
   return (
     <div className="space-y-2">
-      <p className="text-sm text-[var(--muted)]">邮箱已绑定。点「立即同步」拉一次新邮件，识别出的笔试 / 面试会直接出现在列表里。</p>
-      <ul className="divide-y divide-[var(--line)]">
-        {accounts.map(acc => <MailAccountRow key={acc.id} account={acc} preset={presets[acc.provider]} onChanged={onChanged} />)}
-      </ul>
+      <p className="text-sm text-[var(--muted)]">连上邮箱后，笔试、面试通知会自动识别进来，你只需要偶尔点一下「同步邮箱」。</p>
+      <MailConnectCenter />
     </div>
   );
 }

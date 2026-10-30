@@ -232,13 +232,25 @@ export interface MailAccount {
   id: string; provider: 'qq' | '163' | '126' | 'gmail' | 'outlook' | 'imap'; address: string; display_name: string | null;
   imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; status: 'unverified' | 'ok' | 'auth_failed' | 'error';
   last_sync_at: string | null; last_uid: number; last_error: string | null; created_at: string; updated_at: string;
+  consecutive_fails?: number; last_ok_at?: string | null; last_check_at?: string | null;
+  /** 连接状态投影（服务端 mail/connectors.ts connectionOf 判定，界面只展示）。 */
+  connection?: { state: 'active' | 'expired' | 'verifying'; health: 'healthy' | 'degraded' | 'expired' };
 }
-/** 一键连接邮箱的进度（服务端 mail/connect.ts）。 */
-export interface MailConnectSession {
-  id: string; provider: 'qq' | '163' | '126' | 'gmail';
-  status: 'starting' | 'login' | 'settings' | 'need_address' | 'verifying' | 'done' | 'failed' | 'cancelled';
-  hint: string; address: string | null; account_id: string | null; summary: string | null; error: string | null; started_at: string; updated_at: string;
+/** 邮箱连接器目录（服务端 mail/connectors.ts）：引导、字段、官方页面都是数据。 */
+export type MailConnectorId = 'qq' | '163' | '126' | 'gmail';
+export interface MailConnector {
+  id: MailConnectorId; name: string; auth_type: 'credential_form' | 'oauth'; capabilities: Array<'receive' | 'send'>;
+  open_url: string; open_label: string; help_url: string | null;
+  guide: Array<{ title: string; text: string; path?: string[] }>;
+  verify_note: string;
+  fields: Array<{ key: 'email' | 'authCode'; type: 'email' | 'secret'; label: string; placeholder: string; helper?: string; length?: number }>;
 }
+export type MailConnectErrorCode = 'imap_auth_failed' | 'imap_disabled' | 'provider_blocked' | 'unreachable' | 'duplicate' | 'invalid_input';
+export type MailConnectResult =
+  | { ok: true; account: MailAccount; smtp_ok: boolean }
+  | { ok: false; error_code: MailConnectErrorCode; message: string; account_id?: string };
+export interface MailAuditEntry { id: string; actor: 'agent' | 'user' | 'system'; operation: string; status: 'ok' | 'failed'; detail: Record<string, unknown> | null; latency_ms: number | null; created_at: string }
+export interface MailAccountDetail { account: MailAccount; usage: { days: number; by_op: Record<string, { ok: number; failed: number }> }; audit: MailAuditEntry[] }
 export interface MailPreset { provider: string; label: string; imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; help: string }
 export interface MailMessage {
   id: string; account_id: string; uid: number | null; message_id: string | null; in_reply_to: string | null; direction: 'in' | 'out';

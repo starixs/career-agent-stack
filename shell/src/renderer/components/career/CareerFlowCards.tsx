@@ -22,7 +22,7 @@ import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
-import { MAIL_OPTIONS, MailConnectDialog, MailOptionGrid, type MailOption } from './MailBinding';
+import { MailConnectCenter } from './mail-connect/MailConnectCenter';
 import type { BatchState, CareerCard, CareerCardState } from './types';
 
 // ---------- 数据解析（card.data 来自服务端，逐项校验） ----------
@@ -254,56 +254,13 @@ export function SiteLoginCard({ card, onDone, onDismiss }: CardProps) {
 
 // ---------- 绑定求职邮箱 ----------
 export function MailBindCard({ card, onDone, onDismiss }: CardProps) {
-  const presets = list(card.data.presets).map(p => ({ provider: str(p.provider) ?? '', label: str(p.label) ?? '', help: str(p.help) ?? '' })).filter(p => p.provider);
-  const [address, setAddress] = useState('');
-  const [password, setPassword] = useState('');
-  const [result, setResult] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState<MailOption | null>(null);
-  const { busy, error, run } = useSubmit();
-  const domain = address.split('@')[1]?.toLowerCase() ?? '';
-  const hint = presets.find(p => domain && (domain.startsWith(`${p.provider}.`) || (p.provider === 'outlook' && /outlook|hotmail|live/.test(domain)) || (p.provider === 'gmail' && domain === 'gmail.com')));
-  const bind = () => run(async () => {
-    const out = await careerApi.bindMailAccount({ address: address.trim(), password });
-    if (out.verify?.error) throw new Error(`已保存，但连接失败：${out.verify.error}`);
-    setResult(out.verify?.syncing ? '已绑定，正在后台读取最近的求职邮件' : '已绑定');
-  }).then(ok => {
-    if (!ok) return;
-    onDone();
-    suggestToChat('邮箱已在卡片里绑定好了，请把新邮件里和求职有关的归档一下');
-  });
+  // 从对话进连接中心：连好后关掉卡片，回到对话播报并请助理归档
+  const [connected, setConnected] = useState<string | null>(null);
   return (
     <CardShell testId="career-card-mail_bind" icon={<Mail className="size-4" />} title={card.title} onDismiss={onDismiss}>
-      {!result && (
-        <>
-          <MailOptionGrid selected={null} options={MAIL_OPTIONS.filter(o => o.connect)} onPick={setConnecting} />
-          <p className="mb-2 mt-3 text-xs text-[var(--muted)]">其他邮箱，或已经有授权码：</p>
-        </>
-      )}
-      {connecting && (
-        <MailConnectDialog
-          option={connecting}
-          onClose={() => setConnecting(null)}
-          onManual={() => setConnecting(null)}
-          onBound={message => { setConnecting(null); setResult(message); onDone(); suggestToChat('邮箱已在卡片里绑定好了，请把新邮件里和求职有关的归档一下'); }}
-        />
-      )}
-      <div className="grid gap-2 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
-          <span>邮箱地址</span>
-          <TextInput aria-label="邮箱地址" autoComplete="off" placeholder="name@qq.com" value={address} onChange={e => setAddress(e.target.value)} />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
-          <span>授权码 / 应用密码</span>
-          <TextInput aria-label="授权码" type="password" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} />
-        </label>
-      </div>
-      {hint?.help && <p className="mt-2 text-xs text-[var(--muted)]">{hint.label}：{hint.help}</p>}
-      <p className="mt-2 text-xs text-[var(--subtle)]">授权码只存在本机（仅你的账户可读），助理看不到。</p>
-      <ErrorLine error={error} />
-      {result && <div role="status" className="mt-2 text-xs text-[var(--success)]">{result}</div>}
-      <div className="mt-3 flex items-center gap-2">
-        <Button variant="primary" busy={busy} disabled={!address.includes('@') || !password} onClick={() => void bind()}>绑定并同步</Button>
-      </div>
+      {connected
+        ? <div role="status" className="text-sm text-[var(--success)]">已连接 {connected}，正在后台收近半年的求职邮件。</div>
+        : <MailConnectCenter from="chat" onConnected={account => { setConnected(account.address); onDone(); suggestToChat('邮箱已经连好了，等历史邮件收完，帮我看看有哪些要我处理的'); }} />}
     </CardShell>
   );
 }
