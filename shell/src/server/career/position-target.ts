@@ -8,7 +8,7 @@ import type { Job, JobPrefs } from '@career/core';
 
 import { expandJobQuery } from '../../shared/jobSearch';
 
-export interface PositionTarget { terms: string[]; search: string[]; prefer: string[] }
+export interface PositionTarget { terms: string[]; search: string[]; prefer: string[]; strong: number }
 
 /** 英文岗位名常见的城市写法（外企校招页多是「Shanghai_xxx Intern」）。 */
 const CITY_EN: Record<string, string> = { 上海: 'shanghai', 北京: 'beijing', 深圳: 'shenzhen', 广州: 'guangzhou', 杭州: 'hangzhou', 南京: 'nanjing', 成都: 'chengdu', 武汉: 'wuhan', 苏州: 'suzhou', 合肥: 'hefei' };
@@ -33,5 +33,6 @@ export function positionTargetFor(prefs: JobPrefs, job: Pick<Job, 'title'> | nul
   // 站内搜索：先用户自己的说法，再用这家公司自己的分类名（「软件类」），再同义词，最后通用的「开发」
   const search = [...new Set([...directions, ...relevant, ...expanded.slice(1, 3), ...(tech ? ['开发'] : [])])].slice(0, 4);
   const prefer = (prefs.cities ?? []).flatMap(c => [c, CITY_EN[c]].filter((x): x is string => !!x));
-  return { terms, search, prefer };
+  // 用户方向本身的说法（排在 terms 最前）算强匹配；通用的「开发 / 研发」只在搜过站内还没有时才用
+  return { terms, search, prefer, strong: new Set(expanded).size };
 }

@@ -18,6 +18,8 @@ export interface PositionTarget {
   search: string[]
   /** 加分项（期望城市等），不命中也不排除。 */
   prefer?: string[]
+  /** terms 里前几个是用户方向本身的说法；只沾后面通用词（「研发」「开发」）的岗位先不点，搜过站内再退而求其次。 */
+  strong?: number
 }
 
 export interface PositionLink { selector: string; href: string; text: string }
@@ -41,6 +43,8 @@ export const positionLinksScript: PageScript<null, PositionLink[]> = {
   fn: () => {
     const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim().slice(0, 160)
     const visible = (el: Element) => { const r = el.getBoundingClientRect(); return r.width >= 1 && r.height >= 1 }
+    // 北森 / hotjob 的岗位行用 window.open 在新标签页打开详情：改成本页跳转，引擎手里的这一页才跟得过去
+    window.open = ((url?: string | URL) => { if (url) location.href = String(url); return null }) as typeof window.open
     const out: Array<{ selector: string; href: string; text: string }> = []
     let n = 0
     const push = (el: Element, href: string) => {
@@ -111,25 +115,30 @@ function mentions(text: string, term: string): boolean {
 }
 
 /** 一条链接像不像对口岗位：不像岗位的给 0；像岗位但一个方向词都不沾也给 0（不乱点别的岗位）。 */
-export function scorePositionLink(link: PositionLink, target: PositionTarget, adapter: SiteAdapter): number {
+export function scorePositionLink(link: PositionLink, target: PositionTarget, adapter: SiteAdapter, strongOnly = false): number {
   const text = link.text.toLowerCase()
   if (text.length < MIN_LINK_TEXT) return 0
   // 有链接样式的站只认这种链接；可点的岗位行（没有 href）按文字像不像岗位判断
   const pattern = adapter.hints.positionLink
   if (pattern && link.href ? !pattern.test(link.href) : !JOBISH.test(link.text)) return 0
   let score = 0
-  target.terms.forEach((term, i) => { if (term && mentions(text, term)) score += Math.max(1, 10 - i) })
-  if (!score) return 0
+  let strong = false
+  target.terms.forEach((term, i) => {
+    if (!term || !mentions(text, term)) return
+    score += Math.max(1, 10 - i)
+    if (i < (target.strong ?? target.terms.length)) strong = true
+  })
+  if (!score || (strongOnly && !strong)) return 0
   for (const p of target.prefer ?? []) if (p && mentions(text, p)) score += 2
   if (CAMPUS_BONUS.test(link.text)) score += 1
   return score
 }
 
-export function pickPosition(links: readonly PositionLink[], target: PositionTarget, adapter: SiteAdapter): PositionLink | undefined {
+export function pickPosition(links: readonly PositionLink[], target: PositionTarget, adapter: SiteAdapter, strongOnly = false): PositionLink | undefined {
   let best: PositionLink | undefined
   let bestScore = 0
   for (const link of links) {
-    const s = scorePositionLink(link, target, adapter)
+    const s = scorePositionLink(link, target, adapter, strongOnly)
     if (s > bestScore) { best = link; bestScore = s }
   }
   return best
@@ -140,24 +149,26 @@ export interface NavigateOptions { settleMs?: number; log?: (msg: string) => voi
 export async function navigateToPosition(page: PageLike, adapter: SiteAdapter, target: PositionTarget, opts: NavigateOptions = {}): Promise<NavigateResult> {
   const settle = Math.max(opts.settleMs ?? 1500, 0)
   const tried: string[] = []
-  const tryPick = async (via: NonNullable<NavigateResult['via']>): Promise<NavigateResult | null> => {
+  const tryPick = async (via: NonNullable<NavigateResult['via']>, strongOnly = false): Promise<NavigateResult | null> => {
     const links = await page.evaluate(positionLinksScript, null).catch(e => { opts.log?.(`读岗位链接失败：${e instanceof Error ? e.message : String(e)}`); return [] as PositionLink[] })
-    const best = pickPosition(links, target, adapter)
+    const best = pickPosition(links, target, adapter, strongOnly)
     if (!best) return null
     await page.click(best.selector)
     await page.waitForTimeout(settle)
     return { moved: true, picked: best.text.slice(0, 60), via, tried }
   }
-  const direct = await tryPick('link')
+  const direct = await tryPick('link', true)
   if (direct) return direct
   const section = await page.evaluate(positionSectionScript, null).catch(() => null)
   if (section) {
     await page.click(section)
     await page.waitForTimeout(settle)
     tried.push('校园招聘栏目')
-    const inSection = await tryPick('link')
+    const inSection = await tryPick('link', true)
     if (inSection) return inSection
   }
+  // 搜过还没有对口的，再在最后看到的列表里退而求其次（只沾「研发 / 开发」这类通用词也行）
+  const fallback = async () => tryPick('link')
   for (const term of target.search.slice(0, MAX_SEARCH_TERMS)) {
     tried.push(term)
     const url = adapter.positionSearchUrl?.(page.url(), term)
@@ -176,5 +187,5 @@ export async function navigateToPosition(page: PageLike, adapter: SiteAdapter, t
     const r = await tryPick('search_box')
     if (r) return r
   }
-  return { moved: false, tried }
+  return (await fallback()) ?? { moved: false, tried }
 }

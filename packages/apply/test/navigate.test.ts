@@ -124,6 +124,21 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     expect(r.finalUrl).toBe('https://acme.zhiye.com/login')
   })
 
+  it('列表上只有沾通用词的岗位：先站内搜方向词，搜到 Java 后端就点它，不点「研发测试」', async () => {
+    const list = 'https://acme.jobs.feishu.cn/campus/position/list'
+    const page = new FakePage([
+      { url: list, links: [{ text: '【27届】机器人系统集成培训生 深圳 研发 - 测试', href: '/campus/position/1/detail', goto: 'https://acme.jobs.feishu.cn/campus/position/1/detail' }] },
+      { url: `https://acme.jobs.feishu.cn/campus/position/list?keywords=%E5%90%8E%E7%AB%AF%E5%BC%80%E5%8F%91`, links: [{ text: '【27届】Java 全栈开发 广州', href: '/campus/position/2/detail', goto: 'https://acme.jobs.feishu.cn/campus/position/2/detail' }] },
+      { url: 'https://acme.jobs.feishu.cn/campus/position/1/detail', text: 'JD', buttons: [{ text: '投递', goto: 'https://acme.jobs.feishu.cn/apply/1' }] },
+      { url: 'https://acme.jobs.feishu.cn/campus/position/2/detail', text: 'JD', buttons: [{ text: '投递', goto: 'https://acme.jobs.feishu.cn/apply/2' }] },
+      { url: 'https://acme.jobs.feishu.cn/apply/1', fields: basics, buttons: [{ text: '投递', submit: true }] },
+      { url: 'https://acme.jobs.feishu.cn/apply/2', fields: basics, buttons: [{ text: '投递', submit: true }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: { ...backend, terms: [...backend.terms, '研发', '开发'], strong: backend.terms.length } })
+    expect(r.finalUrl).toBe('https://acme.jobs.feishu.cn/apply/2')
+    expect(r.status).toBe('stopped_before_submit')
+  })
+
   it('不给 target 时行为不变：首页没表单就如实报没有表单', async () => {
     const r = await driveApplication(new FakePage({ url: 'https://app.mokahr.com/campus-recruitment/acme/100#/', text: '欢迎加入' }), noLLM(), profile, quiet)
     expect(r.status).toBe('blocked')
