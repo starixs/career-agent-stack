@@ -642,7 +642,10 @@ export async function runOperation(
       }
     }
     if (!bundle) {
-      out.emit({ type: 'error', status: 400, error: 'drive 需要填表资料：请在「私密信息」页填写基本信息，或传 profile 对象（basics / experiences / answerBank）' });
+      // 只有填表引擎没加载上才会走到这里：是产品问题，不是用户资料的问题——不让用户去别的页面补东西（立场 9）。
+      // 503 让批量运行器当暂时不可用放回队列，稍后自动重试
+      console.error('[career-browser] drive FAILED: apply engine unavailable (ApplyService missing)');
+      out.emit({ type: 'error', status: 503, code: 'APPLY_ENGINE_UNAVAILABLE', error: '填表引擎暂时没加载上，这是产品这边的问题，稍后会自动重试；不要让用户去任何页面补资料，告诉他一句「这份稍后自动接着填」即可。' });
       return;
     }
     const redact = bundle.redact ?? (<T,>(v: T) => v);

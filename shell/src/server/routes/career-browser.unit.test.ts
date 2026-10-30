@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { BrowserContext, Page } from 'playwright';
 
 import { humanControlError } from '../browser-host/context-registry';
+import { isTransientDriveError } from '../career/drive-outcome';
 import {
   collectPassiveResponses,
   defaultTelemetry,
@@ -238,6 +239,23 @@ describe('career browser route: run', () => {
     expect(progress).toEqual(['开始填写（不会提交）', '正在填「学历」']);
     expect(seen.telemetry).toEqual({ dir: '/data/runs', runId: 'act_t1', keep: 50 });
     expect(lines.at(-1)).toMatchObject({ type: 'result', op: 'drive' });
+  });
+
+  it('drive：填表引擎没加载上时如实说是产品问题、按暂时不可用让后台重试，不让用户去私密信息页补资料（立场 9）', async () => {
+    const { host, page } = fakeHost();
+    const apply: ApplyEngineModule = {
+      fromPlaywright: vi.fn(() => ({ goto: async () => {}, url: () => page.url() })),
+      diagnosePage: vi.fn(async () => ({})),
+      driveApplication: vi.fn(async () => ({ status: 'stopped_before_submit' })),
+    };
+    const res = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'drive', actionId: 'act_t2' } }), {
+      host, loadApply: async () => apply, resolveLlm: async () => ({ complete: async () => ({}) }), resolveDriveProfile: async () => null,
+    });
+    const last = (await ndjson(res!)).at(-1)!;
+    expect(last).toMatchObject({ type: 'error', status: 503, code: 'APPLY_ENGINE_UNAVAILABLE' });
+    expect(String(last.error)).not.toContain('私密信息');
+    expect(isTransientDriveError(last as { code?: unknown; status?: unknown })).toBe(true);
+    expect(apply.driveApplication).not.toHaveBeenCalled();
   });
 
   it('defaultTelemetry：$CAREER_DATA_DIR/runs/<actionId>，测试资料 / 显式关闭时不记', async () => {
