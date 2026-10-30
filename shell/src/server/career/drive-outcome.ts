@@ -11,6 +11,7 @@
  */
 import type { ActionQueueItem, Repos } from '@career/core';
 
+import { explainApproval } from './learned-rules';
 import { decideSubmit } from './submit-policy';
 
 /** @career/apply 的 SubmitReview（只用到这些字段；requiredTrusted / verified / 行级 verified / code 是引擎可选的核验结果，有就优先用）。 */
@@ -249,7 +250,11 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     }, action.application_id);
     r.updateTask(taskId, { status: 'done', progress: 1 });
     const decision = decideSubmit(r, { attention: review.attention, formSignature: review.formSignature, openAnswersHash: review.openAnswersHash, resumeSha });
-    if (decision.approve) r.reviewActions([submitAction.id], 'approved', decision.by);
+    if (decision.approve) {
+      r.reviewActions([submitAction.id], 'approved', decision.by);
+      // 免审在用户没看的时候发生：把凭哪条规则、依据哪几家写进卷宗，用户事后问「为什么没让我审」有据可查
+      if (action.application_id) r.addDossierNote({ application_id: action.application_id, kind: 'note', content: explainApproval(r, decision, review.formSignature) });
+    }
     if (action.application_id) {
       try { r.db.update('application', action.application_id, { page_url: finalUrl ?? null, next_action: decision.approve ? '正在提交' : '审核后提交', blocker_reason: null, updated_at: new Date().toISOString() }); } catch { /* ignore */ }
     }
