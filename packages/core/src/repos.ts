@@ -89,6 +89,8 @@ export class Repos {
     this.db.transaction(() => {
       this.db.update('application', appId, { ...stripUndefined(extra), stage: to, updated_at: t })
       this.db.insert('application_history', { id: newId('hist'), application_id: appId, from_stage: app.stage, to_stage: to, note: note ?? null, created_at: t })
+      // 离开 offer 阶段（接受 / 被拒 / 放弃）= 已经答复过了：回复截止不再催，过期也不报「已过期」
+      if (app.stage === 'offer') this.db.run(`UPDATE deadline SET status=?, updated_at=? WHERE application_id=? AND kind='offer_reply' AND status IN ('open','missed')`, [to === 'hired' ? 'done' : 'cancelled', t, appId])
     })
     return this.getApplication(appId)!
   }
