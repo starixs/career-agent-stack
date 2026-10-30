@@ -456,8 +456,10 @@ async function agentTakeover(d: FillDeps, f: FormField, value: string, out: Outc
   const trace = (result: 'ok' | 'fail' | 'info', detail?: string) => recorder.trace({ stage, action: 'agent', field: f.id, label: f.label, result, detail })
   const hint = [reasonText(out.code), out.display ? `当时显示「${out.display}」` : '', out.seen?.length ? `认出的选项：${out.seen.join(' | ')}` : ''].filter(Boolean).join('；')
   const verify = async () => { const display = await currentValue(d, f); return { ok: agentOk(f, value, display), display } }
+  // 离开这一格再读：收起弹层、失焦后值还在才算填上（搜索词不算）
+  const commit = async () => { await d.page.evaluate(closePopupScript, { selector: f.selector }); return verify() }
   try {
-    const r = await withWatchdog(`模型接手「${f.label}」`, AGENT_WATCHDOG_MS, () => agentFill({ page: d.page, llm, snapshot: d.snapshot, trace: step => trace('info', step) }, f, value, { hint }, verify))
+    const r = await withWatchdog(`模型接手「${f.label}」`, AGENT_WATCHDOG_MS, () => agentFill({ page: d.page, llm, snapshot: d.snapshot, trace: step => trace('info', step) }, f, value, { hint }, verify, commit))
     // 模型的原因只进日志（运行记录 + 侧车日志锚点 [apply-agent]），批量测完统一捞出来迭代；学生只看我们写好的那句人话
     trace(r.verified ? 'ok' : 'fail', r.verified ? `显示「${r.display}」（${r.steps} 步）` : r.reason)
     recorder.bump(r.verified ? 'agent_ok' : 'agent_fail')

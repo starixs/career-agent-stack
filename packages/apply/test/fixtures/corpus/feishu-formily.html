@@ -4,6 +4,7 @@
   - 表单项是 div.ud-formily-item（带 data-form-field-id），标签在 .ud-formily-item-label 里，必填星号是 span.ud-formily-item-asterisk；
   - 手机号由登录账号带出，是只读文字，后面紧跟的才是邮箱输入框（按位置猜标签会把邮箱框认成「手机号码」）；
   - 控件上有 data-form-field-i18n-name（网站自己标的字段名）；
+  - 「学校名称」是包在 ud__select 里的可输入框，外面那层 __placeholder__wrapper 包着输入框本身（不是占位提示节点）；
   - 「推荐方式」是 UD 单选组：radio 没有 name，选中态只在 aria-checked 上，默认选「无」；
   - 别的字段的树形下拉弹层（挂在 body、absolute 定位）没收起时，里面有带 checkbox 的树节点——那是选项，不是表单字段；
   - 页面顶部有投递次数说明（role=alert 的信息横幅），不是校验错误；邮箱下面那条红字才是。
@@ -25,6 +26,10 @@
 <div data-form-field-id="expect_city" id="formily-item-expect_city" class="ud-formily-item ud-formily-item-layout-vertical">
   <div class="ud-formily-item-label"><div class="ud-formily-item-label-content"><span><label>期望工作地点</label></span></div></div>
   <div class="ud-formily-item-control"><div class="ud-formily-item-control-content"><input class="ud__native-input" data-form-field-id="expect_city" value=""></div></div>
+</div>
+<div data-form-field-id="school" id="formily-item-school" class="ud-formily-item ud-formily-item-layout-vertical">
+  <div class="ud-formily-item-label"><div class="ud-formily-item-label-content"><span><label>学校名称</label><span class="ud-formily-item-asterisk">*</span></span></div></div>
+  <div class="ud-formily-item-control"><div class="ud-formily-item-control-content"><div class="ud-formily-item-control-content-component"><div class="ud__select" style="width:100%"><div><div class="ud__input ud__input--size-lg"><label class="ud__input-input-wrap"><div class="ud__input-input__placeholder__wrapper"><input class="ud__native-input" options="" data-form-field-id="school" data-form-field-i18n-name="学校名称" value="华东理工大学"></div></label></div></div></div></div></div></div>
 </div>
 <div data-form-field-id="code_type" data-form-field-i18n-name="推荐方式" id="formily-item-code_type" class="ud-formily-item ud-formily-item-layout-vertical">
   <div class="ud-formily-item-label"><div class="ud-formily-item-label-content"><span><label>推荐方式</label><span class="ud-formily-item-asterisk">*</span></span></div></div>

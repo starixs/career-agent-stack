@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { FakeLLM } from '@career/core'
-import { FakePage, extractFields, interpretForm, findBankAnswer, beisen } from '../src/index.js'
+import { FakePage, extractFields, interpretForm, findBankAnswer, beisen, noneExperiencePlan } from '../src/index.js'
 import { profile, noLLM, draftLLM } from './helpers.js'
 
 async function fieldsOf(spec: Parameters<typeof FakePage.prototype.evaluate>[0] extends never ? never : ConstructorParameters<typeof FakePage>[0]) { return extractFields(new FakePage(spec)) }
@@ -44,6 +44,12 @@ describe('interpret', () => {
     expect(findBankAnswer('请选择学历类型', bank)?.answer).toBe('统招全日制')
     expect(findBankAnswer('国籍', bank)?.answer).toBe('中国')
     expect(findBankAnswer('你的期望薪资是多少', profile.answerBank)?.answer).toBe('15k-18k')
+  })
+  it('「没有工作经历」这类勾选框按资料定：有实习就不勾（展开后按行填），没有才勾；项目同理（2026-10-31 小鹏默认勾着，实习整段没填）', () => {
+    expect(noneExperiencePlan('没有工作经历', profile)).toMatchObject({ status: 'fill', value: 'false' })
+    expect(noneExperiencePlan('暂无实习经历', { ...profile, experiences: [] })).toMatchObject({ status: 'fill', value: 'true' })
+    expect(noneExperiencePlan('无项目经验', { ...profile, experiences: [{ title: '课设', org: '课程项目', claims: [] }] })).toMatchObject({ value: 'false' })
+    expect(noneExperiencePlan('我已阅读并同意隐私协议', profile)).toBeNull()
   })
   it('开放题 → 起草并标 draft_needs_confirm，带用到的经历', async () => {
     const llm = draftLLM({ '为什么选择我们': '我在 A 公司做过推荐系统重构……' })

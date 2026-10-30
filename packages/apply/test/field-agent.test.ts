@@ -94,6 +94,20 @@ describe('字段兜底代理：结构树没办成，模型接着办', () => {
     expect(r2.verified).toBe(false)
   })
 
+  it('看着填上了还要离开这一格再读：只是搜索词（离开就没了）不算，提醒模型去点选项', async () => {
+    const s = fakeSelect()
+    // 第一次选中只是搜索词：离开后被清空；第二次点选才真正提交
+    const commit = async () => {
+      const ok = s.state.clicks.filter(r => r === 'r4').length >= 2 && s.state.display === '本科'
+      if (!ok) s.state.display = ''
+      return { ok, display: s.state.display }
+    }
+    const llm = says({ note: '点开', action: 'click', ref: 'r1' }, { note: '选本科', action: 'click', ref: 'r4' }, { note: '再点开', action: 'click', ref: 'r1' }, { note: '点选本科', action: 'click', ref: 'r4' })
+    const r = await agentFill({ page: s.page, llm }, field, '本科', {}, s.verify, commit)
+    expect(r).toMatchObject({ verified: true, display: '本科' })
+    expect(String(llm.calls[2].messages[0].content)).toContain('刚才只是搜索词，要点选下拉里的选项')
+  })
+
   it('打的字只能来自目标值：目标值的一部分，或同一个日期的另一种写法', () => {
     expect(typedFromValue('华东理工', '华东理工大学')).toBe(true)
     expect(typedFromValue('2023年09月', '2023-09')).toBe(true)

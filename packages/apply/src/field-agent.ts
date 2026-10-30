@@ -198,8 +198,17 @@ async function act(page: PageLike, a: Decision, node: SemanticNode | undefined, 
   return null
 }
 
+/**
+ * 看着填上了，再离开这一格读一次（commit：收起弹层、失焦后读）：搜索型下拉里只打了字、没点选项时，
+ * 输入框里的搜索词会被当成显示值，离开后就没了（2026-10-31 小鹏「学校名称」）。没给 commit 就以 verify 为准。
+ */
+async function settled(commit: AgentVerify | undefined, check: { ok: boolean; display: string }): Promise<{ ok: boolean; display: string }> {
+  return commit ? commit().catch(() => ({ ok: false, display: '' })) : check
+}
+const NOT_COMMITTED = (n: number, display: string) => `${n}. 看着填上了，但离开这一格后显示「${display || '空'}」：刚才只是搜索词，要点选下拉里的选项`
+
 /** 走一趟。永不抛错：读页面失败、模型失败、动作失败都折算成观察或「没办成」。 */
-export async function agentFill(d: AgentDeps, f: FormField, value: string, goal: AgentGoal, verify: AgentVerify): Promise<AgentResult> {
+export async function agentFill(d: AgentDeps, f: FormField, value: string, goal: AgentGoal, verify: AgentVerify, commit?: AgentVerify): Promise<AgentResult> {
   const max = d.maxSteps ?? AGENT_MAX_STEPS
   const mem: Memory = { history: [], stall: 0, lastSig: '' }
   let display = ''
@@ -207,7 +216,11 @@ export async function agentFill(d: AgentDeps, f: FormField, value: string, goal:
     const ctx = await d.page.evaluate(semanticContextScript, { selector: f.selector }).catch(() => ({ nodes: [] as SemanticNode[] }))
     const check = await verify().catch(() => ({ ok: false, display: '' }))
     display = check.display
-    if (step > 1 && check.ok) return { verified: true, display, steps: step - 1 }
+    if (step > 1 && check.ok) {
+      const done = await settled(commit, check)
+      if (done.ok) return { verified: true, display: done.display, steps: step - 1 }
+      mem.history.push(NOT_COMMITTED(step - 1, done.display)); continue
+    }
     if (!ctx.nodes.length) return { verified: false, display, steps: step - 1, reason: '这一格在页面上找不到可操作的地方了' }
     const sig = `${display}#${ctx.nodes.map(n => n.text).join('|')}`
     mem.stall = step > 1 && sig === mem.lastSig ? mem.stall + 1 : 0
@@ -219,8 +232,9 @@ export async function agentFill(d: AgentDeps, f: FormField, value: string, goal:
     if (!a || !action) { mem.history.push(`${step}. （模型没给出动作）`); mem.stall++; continue }
     if (action === 'give_up') return { verified: false, display, steps: step, reason: clip(str(a.reason) || note || '模型判断办不到', MAX_NOTE) }
     if (action === 'done') {
-      if (check.ok) return { verified: true, display, steps: step }
-      mem.history.push(`${step}. 说做完了，但当前显示「${display || '空'}」还不是目标值`); continue
+      const done = check.ok ? await settled(commit, check) : check
+      if (done.ok) return { verified: true, display: done.display, steps: step }
+      mem.history.push(check.ok ? NOT_COMMITTED(step, done.display) : `${step}. 说做完了，但当前显示「${display || '空'}」还不是目标值`); continue
     }
     const node = ctx.nodes.find(n => n.ref === str(a.ref))
     const receipt = await act(d.page, a, node, value)
@@ -229,5 +243,6 @@ export async function agentFill(d: AgentDeps, f: FormField, value: string, goal:
     await d.page.waitForTimeout(SETTLE_MS)
   }
   const last = await verify().catch(() => ({ ok: false, display }))
-  return last.ok ? { verified: true, display: last.display, steps: max } : { verified: false, display: last.display, steps: max, reason: `走了 ${max} 步还没设成「${clip(value, 20)}」` }
+  const final = last.ok ? await settled(commit, last) : last
+  return final.ok ? { verified: true, display: final.display, steps: max } : { verified: false, display: final.display, steps: max, reason: `走了 ${max} 步还没设成「${clip(value, 20)}」` }
 }

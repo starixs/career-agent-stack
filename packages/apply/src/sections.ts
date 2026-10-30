@@ -1,6 +1,6 @@
 import type { PageLike } from './page.js'
 import { extractFields, type FormField } from './extract.js'
-import { normKey, type Profile } from './interpret.js'
+import { isProjectExperience, isWorkExperience, normKey, type Profile } from './interpret.js'
 import { pageSignalsScript, type ButtonInfo } from './scripts.js'
 import { isSubmitText } from './guards.js'
 import { normalizeValueForField } from './normalize.js'
@@ -75,6 +75,26 @@ export function groupRows(fields: FormField[], spec: SectionSpec): Array<Array<{
   return rows
 }
 
+/** 一端日期：2026、2026-06、2026.06、2026/6、2026年6月；另一端还可以是「至今」。 */
+const PERIOD_END = '(\\d{4}(?:[.\\-/年]\\d{1,2}月?)?|至今|现在|今)'
+const PERIOD_RX = new RegExp(`^\\s*${PERIOD_END}\\s*(?:~|～|–|—|至|到|-)\\s*${PERIOD_END}\\s*$`)
+
+/**
+ * 「2026-06~2026-09」→ 开始 2026-06、结束 2026-09。日期里的短横线不是分隔符：
+ * 2026-10-31 小鹏按 [~-] 一刀切成了「2026」「06」，实习开始时间填成了 2026-01。
+ */
+export function splitPeriod(period?: string): { start?: string; end?: string } {
+  const text = (period ?? '').trim()
+  if (!text) return {}
+  // 「2024年3月至今」：「至今」是结束，不是「至」+「今」
+  const ongoing = /^(.+?)\s*(?:-|~|～|–|—)?\s*(至今|现在)$/.exec(text)
+  if (ongoing && /\d/.test(ongoing[1])) return { start: ongoing[1].trim(), end: '至今' }
+  const m = PERIOD_RX.exec(text)
+  if (m) return { start: m[1], end: m[2] }
+  const parts = text.split(/\s*[~～–—至到]\s*/)
+  return { start: parts[0] || undefined, end: parts[1] || undefined }
+}
+
 /** 简历资料 → 分区条目。 */
 export function entriesFor(key: SectionKey, profile: Profile): SectionEntry[] {
   if (key === 'education') {
@@ -83,9 +103,10 @@ export function entriesFor(key: SectionKey, profile: Profile): SectionEntry[] {
     const b = profile.basics
     return b.school ? [{ school: b.school, major: b.major, degree: b.degree, end: b.graduation }] : []
   }
-  const split = (period?: string) => { const m = (period ?? '').split(/\s*[~～\-–—至到]\s*/); return { start: m[0] || undefined, end: m[1] || undefined } }
-  if (key === 'experience') return profile.experiences.filter(e => e.org && !/课程项目|个人项目|课设|毕业设计/.test(e.org)).map(e => ({ org: e.org, role: e.role, ...split(e.period), description: e.claims.join('；') || undefined }))
-  return profile.experiences.filter(e => !e.org || /课程项目|个人项目|课设|毕业设计/.test(e.org)).map(e => ({ name: e.title, role: e.role, ...split(e.period), description: e.claims.join('；') || undefined }))
+  const split = (period?: string) => splitPeriod(period)
+  // 实习 / 工作分区只填实习工作，校园经历（社团、学生会、竞赛队）不进去
+  if (key === 'experience') return profile.experiences.filter(isWorkExperience).map(e => ({ org: e.org, role: e.role, ...split(e.period), description: e.claims.join('；') || undefined }))
+  return profile.experiences.filter(isProjectExperience).map(e => ({ name: e.title, role: e.role, ...split(e.period), description: e.claims.join('；') || undefined }))
 }
 
 /** "添加"后面没有具体对象：只剩量词 / 泛称（一条、一行、更多、another…）。 */

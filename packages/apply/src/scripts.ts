@@ -203,9 +203,11 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
     /** 最近的"表单项"祖先（ant-form-item / mtd-form-item / el-form-item / form-group / li / tr / fieldset）。 */
     // 飞书 formily：表单项是 ud-formily-item，或带 data-form-field-id（2026-10-31 小鹏网申表：认不出表单项，标签和必填星号全找错）
     const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem|formily-item)(\s|$)/i
+    /** 控件到它所在表单项最多隔几层：飞书 UD 的可输入下拉嵌了 9 层（小鹏「学校名称」必填星号因此没认出来）。 */
+    const ITEM_DEPTH = 12
     const itemOf = (n: Element): Element | null => {
       let c: Element | null = n.parentElement
-      for (let i = 0; c && c !== document.body && i < 8; i++, c = c.parentElement) {
+      for (let i = 0; c && c !== document.body && i < ITEM_DEPTH; i++, c = c.parentElement) {
         const cls = typeof c.className === 'string' ? c.className : ''
         if (ITEM_RX.test(cls) || c.hasAttribute('data-form-field-id') || c.tagName === 'FIELDSET' || c.tagName === 'LI' || c.tagName === 'TR') return c
       }
@@ -431,7 +433,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         const shell = shellAncestor || el
         // 选中值的展示节点；MTD 是 .mtd-select-filter-label（没选时带 -hint 类、写"请选择"，不算值）
         const shownEl = shell === el ? null : shell.querySelector('[class*="selection-item" i], [class*="single-value" i], [class*="selected-value" i], [class*="filter-label" i]:not([class*="hint" i]), .el-input__inner, .layui-input') as HTMLElement | null
-        const hasLabelNode = shell !== el && !!shell.querySelector('[class*="filter-label" i], [class*="selection-item" i], [class*="placeholder" i]:not(input)')
+        // 展示 / 占位节点要是和输入框分开的另一个节点；包着输入框本身的那层（飞书 UD 的 __placeholder__wrapper）不算，否则输入框里的值永远读不到（小鹏「学校名称」）
+        const hasLabelNode = shell !== el && Array.from(shell.querySelectorAll('[class*="filter-label" i], [class*="selection-item" i], [class*="placeholder" i]:not(input)')).some(n => !n.contains(el))
         // 认不出展示节点时，按外壳里看得到的文字读选中值（飞书 UD 等没见过的组件库）
         const shown = clean((shownEl && shownEl !== el ? ((shownEl as HTMLInputElement).value || shownEl.textContent) : '') || (hasLabelNode ? '' : (el as HTMLInputElement).value) || (shell !== el && !shownEl ? shownText(shell) : ''))
         let label = clean(labelFor(el))

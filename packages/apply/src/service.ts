@@ -8,6 +8,9 @@ import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import { RiskGuard } from './safety.js'
 import { normalizeDegree } from './normalize.js'
 
+const EXPERIENCE_KINDS: ReadonlySet<string> = new Set(['work', 'project', 'campus'])
+const isExperienceKind = (t: string): t is 'work' | 'project' | 'campus' => EXPERIENCE_KINDS.has(t)
+
 /**
  * ApplyService：把 driveApplication 的结果落到 Repos。
  *  - action_queue：fill_form 执行记录（approved → executing → done/failed/needs_user）；
@@ -63,7 +66,7 @@ export class ApplyService {
   buildProfile(resumePath?: string): Profile {
     const basics: Record<string, string> = { ...(this.repos.kvGet<Record<string, string>>('profile.basics') ?? {}) }
     if (this.vault) Object.assign(basics, this.vault.profileBasics({ actor: 'form_fill', purpose: '组装网申资料' }))
-    const experiences = this.repos.experienceTree().map(e => ({ title: e.title, org: e.org ?? undefined, role: e.role ?? undefined, period: [e.start_date, e.end_date].filter(Boolean).join('~') || undefined, claims: e.claims.filter(c => c.status !== 'pending').map(c => c.text) }))
+    const experiences = this.repos.experienceTree().map(e => ({ title: e.title, org: e.org ?? undefined, role: e.role ?? undefined, period: [e.start_date, e.end_date].filter(Boolean).join('~') || undefined, claims: e.claims.filter(c => c.status !== 'pending').map(c => c.text), ...(isExperienceKind(e.type) ? { kind: e.type } : {}) }))
     // 停用的不用；excluded（证件 / 密码 / 是否使用 AI…）从不进答案库；固定的排最前
     const answerBank = this.repos.db.all<{ question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: string }>(`SELECT question_key, question_text, answer, high_impact, confirmed, status FROM answer_bank WHERE status!='archived' AND sensitivity!='excluded' ORDER BY (status='pinned') DESC, confirmed DESC, updated_at DESC`)
       .map(a => ({ question_key: a.question_key, question_text: a.question_text, answer: a.answer, high_impact: !!a.high_impact, confirmed: !!a.confirmed, pinned: a.status === 'pinned' }))

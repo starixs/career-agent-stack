@@ -58,6 +58,8 @@ describe('driveApplication', () => {
     expect(page.actions.filter(a => a.kind === 'fill' && a.target === 'f1').length).toBe(0)
     expect(page.valueOf('邮箱')).toBe('zhangsan@example.com')
     expect(r.status).toBe('stopped_before_submit')
+    // 投前过目清单：附件按上传回显算填好（不是「必填项还是空的」），显示文件名
+    expect(r.review!.rows.find(x => x.label === '简历附件')).toMatchObject({ status: 'ok', value: 'resume-zhangsan.pdf' })
   })
   it('没有回显时 uploads.echoed=false', async () => {
     const page = new FakePage({ url: 'https://x.com/apply', fields: [{ label: '上传简历', type: 'file' }, { label: '姓名' }], buttons: ['提交'] })

@@ -541,6 +541,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         if (!f) continue
         // 起止范围控件（一个标签管两格）：逐格解释分不清开始 / 结束，交给 5.5 分区按行填
         if (ranges.has(f.id) && p.status !== 'skip') { deferred.push(p); continue }
+        // 经历分区行里的「描述 / 工作内容」：用这段经历确认过的说法由 5.5 分区填，不当开放题起草（分区没填上再退回草稿）
+        if (p.status === 'draft_needs_confirm' && layer === 'dom' && isRowDescription(f)) { deferred.push(p); continue }
         if (p.status === 'needs_user') {
           // 资料里找不到、但标签是分区行字段（如「在校时间」=入学）：先留给重复分区按行填，分区也没填上再记"要你补"
           if (p.source === 'none' && layer === 'dom' && !f.labelUncertain && SECTIONS.some(spec => matchRowField(f.label, spec))) { deferred.push(p); continue }
@@ -617,6 +619,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
             if (f.labelUncertain && p.status === 'fill') { rec.needsUser.push({ ...p, status: 'needs_user', value: undefined, code: 'label_uncertain', note: `${reasonText('label_uncertain')}（${f.labelUncertain}）` }); continue }
             plans.push(p)
             if (ranges.has(f.id) && p.status !== 'skip') { deferred.push(p); continue }
+            if (p.status === 'draft_needs_confirm' && isRowDescription(f)) { deferred.push(p); continue }
             if (p.status === 'needs_user') { rec.needsUser.push(p); continue }
             if (p.status === 'draft_needs_confirm') { rec.drafts.push(p); continue }
             if (p.status !== 'fill' || p.value === undefined) continue
@@ -669,6 +672,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       for (const p of deferred) {
         const f = planFields.get(p.fieldId)
         if (f && written.has(slotOf(f))) continue
+        if (p.status === 'draft_needs_confirm') { rec.drafts.push(p); continue }
         if (ranges.has(p.fieldId)) log(`[apply-gap] 起止格子「${p.label}」认不出属于哪段经历`)
         rec.needsUser.push(p.status === 'needs_user' ? p : { ...p, status: 'needs_user', value: undefined, confidence: 0, note: reasonText('fill_error') })
       }
@@ -884,6 +888,11 @@ function stableSlot(f: FormField): string | null {
 }
 /** 去重用的格子键：认不准时退回到本次抽取的 id（只在同一次抽取内去重，不跨抽取复用）。 */
 function slotOf(f: FormField): string { return stableSlot(f) ?? `id:${f.id}` }
+
+/** 经历分区行里的描述格（「描述」「工作内容」「项目描述」）。 */
+function isRowDescription(f: FormField): boolean {
+  return SECTIONS.some(spec => matchRowField(f.label, spec) === 'description')
+}
 
 function sameValue(f: FormField, v: string): boolean {
   if (f.value === undefined || f.value === '') return false

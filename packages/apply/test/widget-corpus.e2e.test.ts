@@ -265,7 +265,9 @@ describe('飞书 formily 表单结构（真实 Chrome）', () => {
     const fields = await engine!.extractFields(engine!.fromPlaywright(page))
     const byLabel = Object.fromEntries(fields.map(f => [f.label, f]))
     // 弹层里的树节点勾选框不算字段；没有 name 的单选按字段项成一组，选项用自己的文字、默认选中读 aria-checked
-    expect(Object.keys(byLabel)).toEqual(['邮箱', '年龄', '期望工作地点', '推荐方式'])
+    expect(Object.keys(byLabel)).toEqual(['邮箱', '年龄', '期望工作地点', '学校名称', '推荐方式'])
+    // 学校名称：输入框里的值就是选中值，必填星号也认得出（投前过目不能报「选填，留空」）
+    expect(byLabel['学校名称']).toMatchObject({ value: '华东理工大学', required: true })
     expect(byLabel['邮箱'].required).toBe(true)
     expect(byLabel['年龄'].required).toBe(true)
     expect(byLabel['期望工作地点'].required).toBe(false)

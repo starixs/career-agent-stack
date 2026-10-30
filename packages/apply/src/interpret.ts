@@ -13,7 +13,9 @@ import { matchOption, normalizeValueForField } from './normalize.js'
  * 不编造：profile 里没有的信息一律 needs_user，不猜。
  */
 
-export interface ProfileExperience { title: string; org?: string; role?: string; period?: string; claims: string[] }
+/** 经历类别：实习 / 工作、项目、校园（社团、学生会、竞赛队）。导入简历时按简历分区记下；老数据没有时按机构名推断。 */
+export type ExperienceKind = 'work' | 'project' | 'campus'
+export interface ProfileExperience { title: string; org?: string; role?: string; period?: string; claims: string[]; kind?: ExperienceKind }
 export interface ProfileEducation { school: string; major?: string; degree?: string; start?: string; end?: string }
 export interface AnswerBankEntry { question_key: string; question_text?: string; answer: string; high_impact: boolean; confirmed?: boolean; /** 用户固定（总是用这条） */ pinned?: boolean }
 export interface Profile {
@@ -130,6 +132,36 @@ export function findBankAnswer(label: string, bank: AnswerBankEntry[]): AnswerBa
   return hits[0]
 }
 
+/** 「没有工作经历」「暂无实习经历」「无项目经验」：否定式勾选框（勾上就收起整个经历分区）。 */
+const NONE_EXPERIENCE_RX = /^(没有|无|暂无|尚无)(.{0,4}?)(工作|实习|项目|实践|社会实践)?(经历|经验)$/
+/** 课程 / 个人项目不算工作实习。 */
+const PROJECT_ORG_RX = /课程项目|个人项目|课设|毕业设计/
+/** 没有类别的老数据：机构名像社团 / 学生会 / 竞赛队的是校园经历，不是实习（2026-10-31 小鹏把「校 ACM 集训队」填进了实习）。 */
+const CAMPUS_ORG_RX = /(学生会|社团|协会|集训队|校队|志愿|团委|班级|俱乐部|学院.*部|研究会|学社)/
+
+/** 实习 / 工作经历：网申「实习/工作经历」分区只填这些。 */
+export function isWorkExperience(e: ProfileExperience): boolean {
+  if (e.kind) return e.kind === 'work'
+  return !!e.org && !PROJECT_ORG_RX.test(e.org) && !CAMPUS_ORG_RX.test(e.org)
+}
+/** 项目经历：没有机构、或机构是课程 / 个人项目。 */
+export function isProjectExperience(e: ProfileExperience): boolean {
+  if (e.kind) return e.kind === 'project'
+  return !e.org || PROJECT_ORG_RX.test(e.org)
+}
+
+/**
+ * 否定式经历勾选框按资料定：资料里有这类经历就不勾（实习经历要填进去），没有才勾。
+ * 2026-10-31 小鹏：网站默认勾着「没有工作经历」，引擎对勾选框一律不动，学生的实习整段没填。
+ */
+export function noneExperiencePlan(label: string, profile: Profile): Pick<FieldPlan, 'status' | 'source' | 'confidence' | 'value' | 'note'> | null {
+  const m = NONE_EXPERIENCE_RX.exec(normKey(label))
+  if (!m) return null
+  const project = m[3] === '项目'
+  const has = profile.experiences.some(e => (project ? isProjectExperience(e) : isWorkExperience(e)))
+  return { status: 'fill', source: 'profile', confidence: 0.9, value: has ? 'false' : 'true', note: has ? '资料里有这类经历，不勾「没有」，展开后按行填' : '资料里没有这类经历' }
+}
+
 /** 选项匹配：字典归一（学历 / 性别 / 政治面貌）+ 月份名 + 包含 + 模糊相等（见 normalize.ts）。 */
 function pickOption(options: string[], value: string | undefined, hint: { key?: string; label?: string } = {}): string | undefined {
   return matchOption(options, value, hint)
@@ -158,6 +190,9 @@ export async function interpretForm(llm: LLM, fields: FormField[], profile: Prof
       else plans.push({ ...base, status: 'needs_user', source: 'none', confidence: 0, note: profile.resumePath ? '不确定该上传什么文件' : '没有简历文件路径' })
       continue
     }
+    // 「没有工作经历 / 暂无项目经历」这类否定勾选框：按资料定勾不勾（不勾才会展开经历分区，由分区按行填）
+    const none = f.type === 'checkbox' ? noneExperiencePlan(label, profile) : null
+    if (none) { plans.push({ ...base, ...none }); continue }
     // 已确认草稿
     const ck = Object.keys(confirmed).find(k => normKey(k) === normKey(label))
     if (ck) { plans.push({ ...base, status: 'fill', source: 'draft', confidence: 0.85, value: confirmed[ck], note: '用户已确认的草稿' }); continue }
