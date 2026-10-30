@@ -27,6 +27,15 @@ export interface JourneyBrowser {
   control(): 'agent' | 'human';
   /** 收尾：控制权还给助理。 */
   releaseControl(): void;
+  /**
+   * 把这一页的真实窗口弹到你面前，直接在窗口里扫码 / 拖滑块 / 输验证码（跟手；现场画面只用来看）。
+   * 2026-10-31 实例测试：现场画面里拖滑块完全不跟手（face-ga-port 已定）。
+   */
+  reveal?(page: JourneyPage): Promise<void>;
+  /** 整趟走完：真实窗口收回角落。 */
+  conceal?(): Promise<void>;
+  /** 登上了：记下这个站的会话 Cookie，重启后补回（session-cookies.ts）。 */
+  rememberLogin?(site: string): Promise<void>;
 }
 export interface JourneyDeps {
   repos: Repos; browser: JourneyBrowser; sessionKey: string;
@@ -61,7 +70,10 @@ function stepOf(repos: Repos, handoffId: string): Step | null {
 function release(deps: JourneyDeps, step: Step, credentials: string[]): void {
   const fresh = deps.repos.db.get<Handoff>('SELECT * FROM handoff WHERE id=?', [step.h.id]);
   if (fresh && !fresh.resumed_at) deps.repos.closeHandoff(step.h.id, 'login_detected');
-  if (step.site) learnLoginMarks(deps.repos, step.site, credentials);
+  if (step.site) {
+    learnLoginMarks(deps.repos, step.site, credentials);
+    void deps.browser.rememberLogin?.(step.site).catch(e => console.warn(`[career] login-journey: 记会话 Cookie 失败（${step.site}）`, e instanceof Error ? e.message : e));
+  }
   BatchRunner.command(deps.repos, 'run', 'login-journey', [step.actionId]);
   deps.changed(['handoff', 'action_queue', 'task']);
 }
@@ -98,6 +110,7 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
     }
     setLivePin({ sessionKey: deps.sessionKey, appKey: step.appKey, askId, handoffId: id, index, total: handoffIds.length });
     deps.browser.focus(page);
+    await deps.browser.reveal?.(page).catch(e => console.warn(`[career] login-journey: 弹出真实窗口失败（${step.site ?? '?'}），只能在现场画面里操作`, e instanceof Error ? e.message : e));
     deps.changed(['handoff']);
     const { outcome, credentials, signal } = await waitForLogin(deps, step, page);
     result.steps.push({ handoff_id: id, outcome, credentials, ...(signal ? { signal } : {}) });
@@ -112,8 +125,9 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
 export function startJourney(deps: JourneyDeps, askId: string, handoffIds: readonly string[]): Promise<JourneyResult> | null {
   if (running) return null;
   cancelled = false;
-  running = runSteps(deps, askId, handoffIds).finally(() => {
+  running = runSteps(deps, askId, handoffIds).finally(async () => {
     setLivePin(null);
+    await deps.browser.conceal?.().catch(e => console.warn('[career] login-journey: 收回真实窗口失败', e instanceof Error ? e.message : e));
     if (deps.browser.control() === 'human') deps.browser.releaseControl();
     running = null;
     deps.changed(['handoff']);

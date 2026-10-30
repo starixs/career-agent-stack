@@ -668,7 +668,9 @@ export async function runOperation(
       // 慢站首次加载超时很常见：单次 goto 失败不判死（详见 browse.ts navigateWithRetry）。
       // 这里失败给模型的是"可恢复"指引而不是裸错误，避免它直接跟用户说打不开。
       try {
-        const { navigateWithRetry } = await import('../career/browse');
+        const [{ navigateWithRetry }, { restoreSessionCookies }] = await Promise.all([import('../career/browse'), import('../career/session-cookies')]);
+        // 重启过的话，上次登上时记下的会话 Cookie 先补回去，免得又要扫码（face-ga-port：登录态要保住）
+        await restoreSessionCookies(context, url).catch(e => console.warn(`[career-browser] session-cookies restore skipped url=${url}`, e instanceof Error ? e.message : e));
         await navigateWithRetry(page, url);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);

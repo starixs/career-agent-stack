@@ -320,9 +320,11 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
             <div className="min-w-0">
               <div className="font-human font-semibold">这一步要你本人来{reason ? `：${reason}` : ''}</div>
               <div className="text-xs text-[var(--ink-2)]">
-                {takeover?.message ?? (humanActive
-                  ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。'
-                  : '点画面或「控制浏览器」接手，完成后交还给小芽。')}
+                {revealed
+                  ? '那一页已经弹到你面前（真实浏览器窗口），直接在那个窗口里扫码、拖滑块、输验证码；登上了会自动接着办。'
+                  : takeover?.message ?? (humanActive
+                    ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。'
+                    : '点画面或「控制浏览器」接手，完成后交还给小芽。')}
               </div>
             </div>
           </div>

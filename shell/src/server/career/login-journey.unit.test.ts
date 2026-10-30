@@ -51,6 +51,7 @@ function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; response
   let screenCall = 0;
   let call = 0;
   const focused: string[] = [];
+  const windows: string[] = [];
   const pages = new Map<string, JourneyPage & { key: string }>();
   const browser: JourneyBrowser = {
     cookies: async () => script.cookies(call++),
@@ -63,8 +64,10 @@ function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; response
     focus: p => { focused.push((p as JourneyPage & { key: string }).key); },
     control: () => 'agent',
     releaseControl: () => undefined,
+    reveal: async p => { windows.push(`show:${(p as JourneyPage & { key: string }).key}`); },
+    conceal: async () => { windows.push('hide'); },
   };
-  return { browser, focused };
+  return { browser, focused, windows };
 }
 
 function waitingLogin(repos: Repos, site: string) {
@@ -118,7 +121,7 @@ describe('登录之旅', () => {
     const b = waitingLogin(repos, 'b.com');
     const pins: Array<string | undefined> = [];
     // a.com：第 3 次读到新 token；b.com：一直是旧 sid，之后换了新值
-    const { browser, focused } = fakeBrowser({ cookies: n => [
+    const { browser, focused, windows } = fakeBrowser({ cookies: n => [
       { domain: '.known.com', name: 'sid', value: 'k' },
       { domain: '.a.com', name: 'token', ...(n >= 2 ? { value: 'user' } : { value: '' }) },
       { domain: '.b.com', name: 'sid', value: n >= 7 ? 'user' : 'guest' },
@@ -133,6 +136,8 @@ describe('登录之旅', () => {
     expect(repos.kvGet<{ ids: string[] }>(BATCH_COMMAND_KEY)?.ids.sort()).toEqual([a.action.id, k.action.id, b.action.id].sort());
     expect(pins).toContain(a.app.id);
     expect(livePin()).toBeNull(); // 走完松开
+    // 要你帮的那几家弹出真实窗口直接操作（跟手），走完收回（2026-10-31：现场画面里拖滑块不跟手）
+    expect(windows).toEqual([`show:${a.app.id}`, `show:${b.app.id}`, 'hide']);
   });
 
   it('登录接口返回失败（密码错）时凭证变了也不算，继续等', async () => {

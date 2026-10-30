@@ -7,6 +7,8 @@ import type { BrowserContext, Page } from 'playwright';
 
 import { findApplicationPage } from './app-pages';
 import { careerBrowserHost } from './batch-service';
+import { liveHub } from './live-hub';
+import { rememberSessionCookies } from './session-cookies';
 import { journeyRunning, startJourney, type JourneyBrowser, type JourneyPage } from './login-journey';
 import { onLoginResponse, screenSample } from './login-watch';
 
@@ -26,6 +28,16 @@ function browserOf(context: BrowserContext, host: Awaited<ReturnType<typeof care
       return jp;
     },
     focus: jp => { const page = pages.get(jp); if (page) host.focusPage(id, page); },
+    reveal: async jp => {
+      const page = pages.get(jp);
+      if (!page) return;
+      host.focusPage(id, page);
+      await page.bringToFront();
+      // 和「显示真实窗口」按钮同一条事件：现场抽屉据此改提示、切按钮
+      liveHub.publish('career:live-window', { sessionId: id, ...(await host.setWindowVisible(id, true)) });
+    },
+    rememberLogin: async site => { await rememberSessionCookies(context, site); },
+    conceal: async () => { liveHub.publish('career:live-window', { sessionId: id, ...(await host.setWindowVisible(id, false)) }); },
     control: () => host.getControl(id).control,
     releaseControl: () => { host.setControl(id, 'agent'); },
   };
