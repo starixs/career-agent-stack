@@ -1,5 +1,5 @@
 /**
- * 从页面输入框（PageAskBar）发来的那一轮回复结束后，挂在回复下面的「回到 XX」打破式卡片。
+ * 从页面发来的那一轮（底部输入框 PageAskBar，或页面上的「交给助理」类按钮）回复结束后，挂在回复下面的「回到 XX」打破式卡片。
  *
  * 卡片反映这一轮实际做了什么（只看 career 工具，`mcp__career__*`）：
  *  - 状态：有 career 工具失败 / 这一轮出错 → 「出错了」；调过写入类工具 → 「已更新」；只读或纯回答 → 「已回答」；被打断 → 「已中断」。
@@ -14,7 +14,7 @@ import { careerContextSurface } from '../../../shared/systemReminder';
 import { BreakoutCard, CountAnchor, DateAnchor, PageAnchor, type BreakoutTone } from './BreakoutCard';
 import { dict, inputOf, joinParts, parseResult, str } from './cardContent';
 import { requestNavigation } from './navModel';
-import { pageLabel, parsePageSurface, type PageTarget } from './pageSurface';
+import { pageLabel, returnTargetOf, type PageTarget } from './pageSurface';
 
 function textOf(message: Message): string {
   if (typeof message.content === 'string') return message.content;
@@ -186,7 +186,7 @@ export function pageReturnTargets(messages: readonly Message[]): Map<string, Pag
   for (const message of messages) {
     if (message.role === 'user') {
       flush();
-      pending = parsePageSurface(careerContextSurface(textOf(message)));
+      pending = returnTargetOf(careerContextSurface(textOf(message)));
       turn = [];
     } else if (message.role === 'assistant') {
       turn.push(message);
