@@ -5,7 +5,7 @@ import { extractFields, formFingerprint, type FormField } from './extract.js'
 import { interpretForm, normKey, type FieldPlan, type Profile, type InterpretOptions } from './interpret.js'
 import { pageSignalsScript, type PageSignals, type ButtonInfo } from './scripts.js'
 import { detectObstacle, findFinalSubmit, isEntryText, isNextText, isSubmitText } from './guards.js'
-import { navigateToPosition, type PositionTarget } from './navigate.js'
+import { navigateToPosition, positionLinksScript, type PositionLink, type PositionTarget } from './navigate.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import type { RiskGuard } from './safety.js'
 import { humanDelay, type PacingOptions } from './pacing.js'
@@ -293,6 +293,15 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     reason: 'login', userAction: `请在浏览器里点「${button}」进入网申（通常要先登录），看到申请表后点"交还"，我从那一页接着填`,
   })
   let lastFingerprint = ''
+  /** 去站里找对口岗位（navigate.ts）；找到了返回 true，调用方重读这一页。 */
+  const seek = async (why: string): Promise<boolean> => {
+    if (!opts.target || !untouched() || navHops >= MAX_NAV_HOPS) return false
+    navHops++
+    const nav = await navigateToPosition(page, adapter, opts.target, { settleMs: Math.max(opts.settleMs ?? 800, 0) * 2, log })
+    recorder.trace({ stage: 'entry', action: 'navigate', result: nav.moved ? 'info' : 'fail', detail: `${why}｜${nav.moved ? `${nav.via}：${nav.picked}` : `没找到对口岗位（试了 ${nav.tried.join('、') || '页面链接'}）`}` })
+    if (nav.moved) progress(`找到岗位「${nav.picked}」`, 'entry', nav.picked)
+    return nav.moved
+  }
 
   try {
     try { libraries = await page.evaluate(libraryFingerprintScript) } catch { /* ignore */ }
@@ -332,6 +341,12 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       // 1.5 障碍层：页面一打开就挡着的弹窗（cookie / 须知 / 公告）
       if (!(await blockers('page', rec)) && unresolvedBlocker) { pages.push(rec); return blockerHandoff(unresolvedBlocker) }
 
+      // 1.8 列表页 / 首页：页面上有这个站的岗位详情链接、却没有申请入口 → 先去找岗位。
+      // 列表页左边的「职位类别 / 城市」筛选框不是网申表（2026-10-31 实例测试：小鹏列表页的筛选被当成表单填了）
+      if (index === 1 && adapter.hints.positionLink && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
+        const links = await page.evaluate(positionLinksScript, null).catch(() => [] as PositionLink[])
+        if (links.some(l => adapter.hints.positionLink!.test(l.href)) && await seek('列表页')) { index--; continue }
+      }
       // 2. 抽取（L1）；抽不到且有感知器 → L2 视觉伪字段
       let fields = await step('抽取字段', () => extractFields(page))
       let layer: DriveLayer = 'dom'
@@ -378,12 +393,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       if (!fields.length) {
         if (index === 1 || untouched()) {
           // 首页 / 合集页：先去找对口的具体岗位，进了详情页再走上面的申请入口
-          if (opts.target && untouched() && navHops < MAX_NAV_HOPS) {
-            navHops++
-            const nav = await navigateToPosition(page, adapter, opts.target, { settleMs: Math.max(opts.settleMs ?? 800, 0) * 2, log })
-            recorder.trace({ stage: 'entry', action: 'navigate', result: nav.moved ? 'info' : 'fail', detail: nav.moved ? `${nav.via}：${nav.picked}` : `没找到对口岗位（试了 ${nav.tried.join('、') || '页面链接'}）` })
-            if (nav.moved) { progress(`找到岗位「${nav.picked}」`, 'entry', nav.picked); index--; continue }
-          }
+          if (await seek('没有表单')) { index--; continue }
           pages.push(rec); all.escalations.push(...rec.escalations)
           const entry = sig.buttons.find(b => isEntryText(b.text, adapter)) ?? findFinalSubmit(sig.buttons, adapter)
           return entry ? entryHandoff(entry.text) : finish('blocked', '页面上没有可填写的表单字段')

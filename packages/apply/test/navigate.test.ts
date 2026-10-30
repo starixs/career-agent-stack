@@ -50,6 +50,24 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
     expect(page.submitted).toBe(false)
   })
 
+  it('飞书列表页：左边的筛选框不是网申表 → 先点进对口岗位，详情页「投递」进表单，表单页的「投递」绝不点', async () => {
+    const list = 'https://acme.jobs.feishu.cn/campus/position/list'
+    const page = new FakePage([
+      { url: list, fields: [{ label: '职位类别', type: 'checkbox' }, { label: '城市', type: 'checkbox' }], links: [
+        { text: '【27届校招】Java 后端开发工程师 上海', href: '/campus/position/7/detail', goto: 'https://acme.jobs.feishu.cn/campus/position/7/detail' },
+        { text: '【27届校招】汽车销售顾问', href: '/campus/position/8/detail', goto: 'https://acme.jobs.feishu.cn/campus/position/8/detail' },
+      ] },
+      { url: 'https://acme.jobs.feishu.cn/campus/position/7/detail', text: '岗位职责', buttons: [{ text: '投递', goto: 'https://acme.jobs.feishu.cn/campus/apply/7' }] },
+      { url: 'https://acme.jobs.feishu.cn/campus/apply/7', fields: basics, buttons: [{ text: '投递', submit: true }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, target: backend })
+    expect(page.actions.filter(a => a.target?.startsWith('link:')).map(a => a.target)).toEqual(['link:【27届校招】Java 后端开发工程师 上海'])
+    expect(r.entryClicked).toBe('投递')
+    expect(r.status).toBe('stopped_before_submit')
+    expect(page.submitted).toBe(false)
+    expect(page.fieldValues()).toMatchObject({ 姓名: '张三' })
+  })
+
   it('不给 target 时行为不变：首页没表单就如实报没有表单', async () => {
     const r = await driveApplication(new FakePage({ url: 'https://app.mokahr.com/campus-recruitment/acme/100#/', text: '欢迎加入' }), noLLM(), profile, quiet)
     expect(r.status).toBe('blocked')
