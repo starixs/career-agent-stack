@@ -91,6 +91,11 @@ export interface Interview {
   tags_json: string; retro_json: string | null; result: string; result_source: string;
   created_at: string; updated_at: string;
 }
+/** 用户自己录的面试录音：上传后等语音识别转写，转好了再复盘。 */
+export interface InterviewRecording {
+  id: string; interview_id: string; name: string; mime: string | null; size: number;
+  status: 'awaiting_asr' | 'transcribed' | 'failed'; uploaded_at: string; error?: string;
+}
 export interface MockInterview {
   id: string; job_id: string | null; resume_tailored_id: string | null; mode: string;
   company_type: string | null; round: string | null; turns_json: string; report_json: string | null;
@@ -186,7 +191,7 @@ export function liveStatusText(ev: LiveFrameStatus): string {
 export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
 
 // ---------- 对话内流程卡片（SSE career:card；对话是主场，卡片把"要用户动手的一步"就地解决） ----------
-export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps';
+export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps' | 'interview_prep';
 /** 模型 Key（必需）/ 搜索 Key（建议）的配置状态；source=build 表示来自启动环境变量或打包常量。 */
 export interface CareerSetupStatus {
   llm: { configured: boolean; source: 'settings' | 'build' | 'none' };
@@ -264,7 +269,7 @@ export interface MailMessage {
   from_addr: string | null; to_addr: string | null; subject: string | null; snippet: string | null; body_text: string | null; received_at: string | null;
   relevance: 'unknown' | 'job' | 'ignored'; kind: InboxKind | null; inbox_item_id: string | null; application_id: string | null; action_id: string | null; created_at: string;
 }
-export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'followup';
+export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'interview_retro' | 'followup';
 export interface TodayItem { kind: TodayItemKind; priority: number; title: string; detail?: string; due_at?: string | null; ref: { type: string; id: string }; deadline_id?: string; suggest?: string; ask?: 'attendance' }
 /** 「今天做过」一条：任务进展 / 投递阶段变化 / 动作执行。 */
 export interface ActivityEntry { id: string; at: string; kind: 'task' | 'stage' | 'action'; status: string; title: string; detail: string | null }
@@ -275,6 +280,8 @@ export interface DossierSummary {
   days_since_update: number; next_deadline: Deadline | null; interview_count: number; resume_tailored_id: string | null; closed: boolean;
   /** 以下由服务端 dossierSummaries 给出；旧数据可能缺，按缺省处理。 */
   created_at?: string; applied_at?: string | null; reached_stages?: string[]; exam_kinds?: Array<'assessment' | 'written_test'>; job_url?: string | null;
+  /** 目标申请：interview = 进过面试（自动）；user = 用户亲手标的；null = 不算。系统不替用户认定。 */
+  target?: 'interview' | 'user' | null;
 }
 export interface Dossier {
   application: Application; job: Job; company: Company | null;
@@ -330,6 +337,8 @@ export interface JobBoardRow {
   application: { id: string; stage: ApplicationStage; next_action: string | null; updated_at: string } | null;
   /** 多维表格维度（server job-board.ts boardMeta）：来源数据里有才有。 */
   meta?: JobBoardMeta;
+  /** 目标岗位：interview = 进过面试；user = 用户亲手标的；null = 不算。 */
+  target?: 'interview' | 'user' | null;
 }
 export interface JobBoardMeta { batch: string | null; industry: string | null; type_tags: string[] }
 export interface JobBoardFilter { q?: string; employment_type?: string; city?: string; cohort?: string; open_only?: boolean; fits_only?: boolean; progress?: 'none' | 'active' | 'done'; sort?: 'match' | 'deadline' | 'updated' }

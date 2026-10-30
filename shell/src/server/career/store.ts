@@ -8,6 +8,7 @@ import { isSendNote, type Repos, type Company, type Interview, type Offer, type 
 import type { CoreModule } from './core-module';
 import { normalizeIso } from './dates';
 import { syncOfferReplyDeadline } from './offer-deadline';
+import { markedTargetJobs, targetSourceOf, type TargetSource } from './targets';
 
 /** CareerStore 只需要 core 的两个纯函数；由调用方在 `await loadCore()` 后注入，避免静态 import。 */
 export type CoreIds = Pick<CoreModule, 'newId' | 'now'>;
@@ -148,9 +149,17 @@ export class CareerStore {
     return this.getInterview(id)!;
   }
   listMockInterviews(): MockInterview[] { return this.db.all<MockInterview>('SELECT * FROM mock_interview ORDER BY updated_at DESC'); }
+  getMockInterview(id: string): MockInterview | undefined { return this.db.get<MockInterview>('SELECT * FROM mock_interview WHERE id=?', [id]); }
   createMockInterview(input: { job_id?: string | null; resume_tailored_id?: string | null; mode: string; company_type?: string | null; round?: string | null; turns?: unknown; report?: unknown }): MockInterview {
     const t = this.now(); const id = this.newId('mok');
     this.db.insert('mock_interview', { id, job_id: input.job_id ?? null, resume_tailored_id: input.resume_tailored_id ?? null, mode: input.mode, company_type: input.company_type ?? null, round: input.round ?? null, turns_json: jsonOrEmpty(input.turns, '[]'), report_json: input.report !== undefined ? jsonOrEmpty(input.report) : null, created_at: t, updated_at: t });
+    return this.db.get<MockInterview>('SELECT * FROM mock_interview WHERE id=?', [id])!;
+  }
+  /** 同一场模拟面试接着练：问答记录换成最新的全文，结束时写复盘。 */
+  updateMockInterview(id: string, patch: { turns?: unknown; report?: unknown }): MockInterview {
+    const cur = this.db.get<MockInterview>('SELECT * FROM mock_interview WHERE id=?', [id]);
+    if (!cur) throw new Error(`模拟面试不存在：${id}`);
+    this.db.update('mock_interview', id, { ...(patch.turns !== undefined ? { turns_json: jsonOrEmpty(patch.turns, '[]') } : {}), ...(patch.report !== undefined ? { report_json: jsonOrEmpty(patch.report) } : {}), updated_at: this.now() });
     return this.db.get<MockInterview>('SELECT * FROM mock_interview WHERE id=?', [id])!;
   }
   // ---------- 笔试练习 ----------
@@ -267,6 +276,7 @@ export class CareerStore {
       // 邮件补建 / 手动记录路过的 applied 不是真正的投递时刻（不知道哪天投的）
       if (h.to_stage === 'applied' && !appliedAt.has(h.application_id) && isSendNote(h.note)) appliedAt.set(h.application_id, h.created_at);
     }
+    const marked = markedTargetJobs(this.repos);
     return this.repos.applicationsWithJob().map(a => {
       // 下一个截止只看有时间的；时间未知（due_at 为 null）的笔试 / 测评仍计入 exam_kinds 点亮进度条
       const next = deadlines.filter((d): d is Deadline & { due_at: string } => d.application_id === a.id && !!d.due_at).sort((x, y) => x.due_at.localeCompare(y.due_at))[0] ?? null;
@@ -276,6 +286,7 @@ export class CareerStore {
       return {
         application_id: a.id, job_id: a.job_id, company_name: a.job.company_name, title: a.job.title, stage: a.stage, updated_at: a.updated_at, days_since_update: days, next_deadline: next, interview_count: itv.length, resume_tailored_id: a.resume_tailored_id, closed: ['rejected', 'discarded', 'skip', 'hired'].includes(a.stage),
         created_at: a.created_at, applied_at: appliedAt.get(a.id) ?? null, reached_stages: reachedBy.get(a.id) ?? [], exam_kinds: examKinds, job_url: a.job.url ?? null,
+        target: targetSourceOf(a, reachedBy.get(a.id) ?? [], marked),
       };
     });
   }
@@ -315,6 +326,8 @@ export interface DossierSummary {
   /** 这条投递有过的测评 / 笔试安排（截止事件，不含已取消）。 */
   exam_kinds: Array<'assessment' | 'written_test'>;
   job_url: string | null;
+  /** 算不算目标申请、为什么：interview = 进过面试；user = 用户亲手标的；null = 不算（系统不替用户认定）。 */
+  target: TargetSource | null;
 }
 export interface Dossier {
   application: Application; job: Job; company: Company | null;

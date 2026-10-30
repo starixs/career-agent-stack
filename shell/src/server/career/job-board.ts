@@ -19,6 +19,7 @@ import { JOB_PREFS_KEY, matchJob, normalizeBoardMeta, parseBoardJson, type Job, 
 
 import { freezePacket, pickResumeForJob, type PacketDeps } from './packets';
 import type { CareerStore } from './store';
+import { markedTargetJobs, targetSourceOf, type TargetSource } from './targets';
 
 export function getJobPrefs(repos: Repos): JobPrefs { return repos.kvGet<JobPrefs>(JOB_PREFS_KEY) ?? {}; }
 export function setJobPrefs(repos: Repos, prefs: JobPrefs): JobPrefs {
@@ -85,6 +86,8 @@ export interface BoardRow {
   application: { id: string; stage: string; next_action: string | null; updated_at: string } | null;
   /** 多维表格用的维度（批次 / 行业 / 类型标签），从来源数据里能拿到的才有，拿不到为空，不猜。 */
   meta: BoardMeta;
+  /** 目标岗位：进过面试（interview）或用户亲手标的（user）；其余为 null，系统不替用户认定。 */
+  target: TargetSource | null;
 }
 export type BoardMeta = JobBoardMeta;
 
@@ -131,7 +134,11 @@ export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().t
   const apps = new Map<string, BoardRow['application']>();
   for (const a of repos.listApplications()) if (!apps.has(a.job_id)) apps.set(a.job_id, { id: a.id, stage: a.stage, next_action: a.next_action, updated_at: a.updated_at });
   const q = f.q?.trim().toLowerCase();
-  let rows: BoardRow[] = repos.listJobs().filter(j => j.source_status !== 'merged').map(job => ({ job, match: parseMatch(job.match_json), application: apps.get(job.id) ?? null, meta: boardMeta(job) }));
+  const marked = markedTargetJobs(repos);
+  const reached = new Map<string, string[]>();
+  for (const h of repos.stageHistory()) reached.set(h.application_id, [...(reached.get(h.application_id) ?? []), h.to_stage]);
+  const targetOf = (job: Job, app: BoardRow['application']) => targetSourceOf({ job_id: job.id, stage: app?.stage ?? '' }, app ? reached.get(app.id) ?? [] : [], marked);
+  let rows: BoardRow[] = repos.listJobs().filter(j => j.source_status !== 'merged').map(job => ({ job, match: parseMatch(job.match_json), application: apps.get(job.id) ?? null, meta: boardMeta(job), target: targetOf(job, apps.get(job.id) ?? null) }));
   rows = rows.filter(({ job, match, application }) => {
     if (q && !`${job.company_name ?? ''} ${job.title} ${job.location ?? ''}`.toLowerCase().includes(q)) return false;
     if (f.employment_type && job.employment_type !== f.employment_type) return false;

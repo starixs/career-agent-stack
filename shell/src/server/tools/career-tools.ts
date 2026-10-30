@@ -17,6 +17,10 @@ import { getRepos, careerDataDir, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
 import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/export';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps } from '../career/intake';
+import { carryoverFor, carryoverPrompt, lastTranscript } from '../career/interview-carry';
+import { buildInterviewPrep } from '../career/interview-prep';
+import { applyRetroFollowups } from '../career/retro-followups';
+import { bookInterview, closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
 import { getShellLLM } from '../career/llm';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
@@ -24,6 +28,7 @@ import { draftMaterial } from '../career/materials';
 import { generateWeeklyReview } from '../career/review';
 import { getRunRegistry, type RunRegistry } from '../career/runs';
 import { getSearchProvider, type CareerSearchProvider } from '../career/search';
+import { setTargetJob } from '../career/targets';
 import { loadSkillPrompt } from '../career/skills';
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { SEARCH_NOT_CONFIGURED_MESSAGE } from '../career/setup';
@@ -1153,8 +1158,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         // 条数多时不展开逐条证据，避免结果被截断；要细看某几条再按 job_ids 查
         const detailed = rows.length <= 50;
         const applied = Object.fromEntries(Object.entries(args).filter(([k, v]) => k !== 'limit' && v !== undefined && !(Array.isArray(v) && v.length === 0)));
-        return text({ prefs: getJobPrefs(repos()), total: matched.length, returned: rows.length, filters: applied, rows: rows.map(({ job, match, application, meta }) => ({
-          job_id: job.id, job_key: job.job_key, company: job.company_name, title: job.title, type: job.employment_type, cohort: job.cohort, batch: meta.batch, industry: meta.industry, type_tags: boardTypeTags({ job, meta }),
+        return text({ prefs: getJobPrefs(repos()), total: matched.length, returned: rows.length, filters: applied, rows: rows.map(({ job, match, application, meta, target }) => ({
+          job_id: job.id, target, job_key: job.job_key, company: job.company_name, title: job.title, type: job.employment_type, cohort: job.cohort, batch: meta.batch, industry: meta.industry, type_tags: boardTypeTags({ job, meta }),
           location: job.location, deadline: job.deadline, url: job.url, stage: boardStageOf({ application }), progress: application?.stage ?? null, score: match?.score ?? null, fits: match?.hard_ok ?? null, summary: match?.summary ?? '尚未计算匹配',
           ...(detailed ? {
             hard: match?.hard.filter(h => h.ok !== true).map(h => `${h.label}：${h.detail}`), covered: match?.requirements.filter(r => r.status === 'covered').map(r => `${r.requirement} ← ${r.evidence?.label ?? ''}「${r.evidence?.text.slice(0, 40) ?? ''}」`),
@@ -1373,22 +1378,67 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         category: z.enum(['开发', '数据分析', '产品', '运营', '设计', '市场营销', '销售', 'HR', '财务', '审计', '法务', '战略咨询']).optional(),
       }, async (args) => wrap(async () => {
         const job = requireJob(args.job_id);
-        const out = await askSkill<{ questions?: Array<{ type?: string; question?: string; probe_points?: string[]; difficulty?: string; jd_requirement?: string }>; coverage_note?: string }>('interview-questions', `${jobDigest(job)}\n岗位类别：${args.category ?? '未知'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n用户经历摘要：\n${experienceDigest()}`, { refs: args.category ? [args.category] : [], temperature: 0.5 });
+        const carried = carryoverFor(store(), repos(), job, args.round);
+        const out = await askSkill<{ questions?: Array<{ type?: string; question?: string; probe_points?: string[]; difficulty?: string; jd_requirement?: string }>; coverage_note?: string }>('interview-questions', `${jobDigest(job)}\n岗位类别：${args.category ?? '未知'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n用户经历摘要：\n${experienceDigest()}\n\n${carryoverPrompt(carried)}`, { refs: args.category ? [args.category] : [], temperature: 0.5 });
         // 出的题进题库（来源 generated，绑定岗位），之后练习、真实面试遇到都能对上同一道题
         const r = repos();
         const questions = (out.questions ?? []).filter(q => q?.question).map(q => ({ ...q, question_id: r.upsertQuestion({ content: q.question!, kind: 'interview', category: q.type ?? null, probe_points: q.probe_points ?? [], jd_requirement: q.jd_requirement ?? null, company_name: job.company_name, title: job.title, job_id: job.id, source: 'generated', source_ref: `generated:${job.id}`, tags: q.difficulty ? [q.difficulty] : [] }).id }));
         if (questions.length) changed('question');
-        return text({ ...out, questions, note: '题目已存进题库（question_id）。用户练习作答后用 question_attempt 打分记录，便于比较进步。' });
+        return text({ ...out, questions, carried_from: carried.retros.map(r => ({ interview_id: r.interview_id, company: r.company, round: r.round })), note: '题目已存进题库（question_id）。用户练习作答后用 question_attempt 打分记录，便于比较进步。carried_from 是这次带上的往场复盘，告诉用户「按上次卡住的地方出了题」。' });
       })()),
 
-      tool('interview_probe', '模拟面试 / 简历深挖：漏斗追问。首轮不传 transcript 时给开场问题；传 transcript 时给追问或结束复盘。结果记录到 mock_interview。', {
+      tool('interview_prep', '「帮我准备 X 的面试」的收尾：在对话里出一张面试准备卡（时间、上一轮 / 同类面试卡在哪、三个高风险深挖点、几道题、开始模拟按钮）。先用 interview_predict 和 interview_questions 补上预测和题（返回的 missing 会说缺哪样），再调它出卡；卡片已经把要点摆出来，回复里不要再逐条重复。', {
+        application_id: z.string().optional(), company_name: z.string().optional(),
+      }, async (args) => wrap(() => {
+        let appId = args.application_id;
+        if (!appId && args.company_name) {
+          const hits = repos().findOpenApplicationsByCompany(args.company_name);
+          if (hits.length > 1) return err(`${args.company_name} 有 ${hits.length} 条投递，请让用户选：${hits.map(h => `${h.job.title}（${h.id}）`).join('、')}`);
+          appId = hits[0]?.id;
+        }
+        if (!appId) return err('需要 application_id 或公司名；可以先用 dossier_list 找');
+        const prep = buildInterviewPrep(store(), repos(), appId);
+        card(`interview-prep:${prep.interview_id ?? appId}`, 'interview_prep', `准备 ${prep.company ?? ''} ${prep.title}`.trim(), { ...prep });
+        return text({ ...prep, note: prep.missing.length ? `还缺：${prep.missing.join('、')}；补上后再调一次 interview_prep 更新卡片。` : '准备卡已出现在对话里。' });
+      })()),
+
+      tool('interview_book', '记一场邮箱里没有的面试（HR 电话 / 短信 / 微信约的）：用户说「我约了周四下午百度二面」就用它。找到或建好这份申请、推进到面试、记面试和时间点；同一场再记一次只改时间。邮件来的面试邀请走 inbox_capture。', {
+        company_name: z.string(), title: z.string().optional(), round: z.string().optional().describe('如 一面 / 二面 / HR 面 / 终面'),
+        when: z.string().describe('ISO 时间，如 2026-11-05T14:00:00+08:00'), location: z.string().optional().describe('会议链接或地点'), note: z.string().optional(), application_id: z.string().optional(),
+      }, async (args) => wrap(() => {
+        const out = bookInterview(store(), repos(), args);
+        changed('application', 'application_history', 'interview', 'deadline');
+        focus({ surface: 'dossier', application_id: out.application_id });
+        return text(out);
+      })()),
+
+      tool('job_target', '把岗位标成 / 取消目标岗位（重点打磨的那几个）。只在用户亲口说「这几个是我的目标 / 重点准备」时用，不要替用户判断哪些是目标；进过面试的申请自动算目标，不用标。', {
+        job_id: z.string().optional(), application_id: z.string().optional(), target: z.boolean(),
+      }, async (args) => wrap(() => {
+        const jobId = args.job_id ?? (args.application_id ? repos().getApplication(args.application_id)?.job_id : undefined);
+        if (!jobId) return err('需要 job_id 或 application_id');
+        setTargetJob(repos(), jobId, args.target);
+        changed('kv');
+        return text({ job_id: jobId, target: args.target, note: args.target ? '已标成目标岗位。' : '已取消你的标记；进过面试的申请仍算目标。' });
+      })()),
+
+      tool('interview_probe', '模拟面试 / 简历深挖：漏斗追问。首轮不传 transcript 时给开场问题；传 transcript 时给追问或结束复盘。一场模拟记一条 mock_interview：接着练时带上首轮返回的 mock_interview_id。', {
         job_id: z.string().optional(), resume_id: z.string().optional(), company_type: z.enum(['大厂', '创业公司', '国企央企', '外企']).optional(), round: z.string().optional(),
         transcript: z.string().optional().describe('到目前为止的问答记录'), finish: z.boolean().optional().describe('结束并产出复盘'),
+        mock_interview_id: z.string().optional().describe('接着练同一场时传上一轮返回的 mock_interview_id；不传就开新的一场'),
       }, async (args) => wrap(async () => {
+        // 隔了一会儿「接着练」只给了 mock_interview_id：从上次存下的问答接着问，岗位和轮次也沿用
+        const prior = args.mock_interview_id ? store().getMockInterview(args.mock_interview_id) : undefined;
+        if (args.mock_interview_id && !prior) return err(`模拟面试不存在：${args.mock_interview_id}`);
+        if (prior) args = { ...args, job_id: args.job_id ?? prior.job_id ?? undefined, round: args.round ?? prior.round ?? undefined, transcript: args.transcript ?? lastTranscript(prior) };
         const job = args.job_id ? requireJob(args.job_id) : undefined;
-        const resume = args.resume_id ? store().getResume(args.resume_id) : undefined;
-        const out = await askSkill<Record<string, unknown>>('interview-probe', `${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n已进行的问答：\n${args.transcript ?? '（尚未开始，请给出开场问题）'}\n\n${args.finish ? '请结束并给出面试官视角复盘。' : '请给出下一步追问（JSON）。'}`, { refs: args.company_type ? [args.company_type] : [], temperature: 0.6 });
-        const mock = store().createMockInterview({ job_id: args.job_id ?? null, resume_tailored_id: resume?.kind === 'tailored' ? args.resume_id : null, mode: 'probe', company_type: args.company_type ?? null, round: args.round ?? null, turns: args.transcript ? [{ transcript: args.transcript }] : [], report: args.finish ? out : undefined });
+        const resume = interviewResume(store(), repos(), args);
+        const carried = job ? carryoverPrompt(carryoverFor(store(), repos(), job, args.round)) : '';
+        const out = await askSkill<Record<string, unknown>>('interview-probe', `${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}\n轮次：${args.round ?? '未知'}\n\n简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n${carried}\n\n已进行的问答：\n${args.transcript ?? '（尚未开始，请给出开场问题）'}\n\n${args.finish ? '请结束并给出面试官视角复盘。' : '请给出下一步追问（JSON）。'}`, { refs: args.company_type ? [args.company_type] : [], temperature: 0.6 });
+        const turns = args.transcript ? [{ transcript: args.transcript }] : undefined;
+        const mock = args.mock_interview_id
+          ? store().updateMockInterview(args.mock_interview_id, { turns, report: args.finish ? out : undefined })
+          : store().createMockInterview({ job_id: args.job_id ?? null, resume_tailored_id: resume?.kind === 'tailored' ? resume.row.id : null, mode: 'probe', company_type: args.company_type ?? null, round: args.round ?? null, turns: turns ?? [], report: args.finish ? out : undefined });
         changed('mock_interview');
         return text({ mock_interview_id: mock.id, result: out });
       })()),
@@ -1504,24 +1554,37 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         round: z.enum(['hr', 'first', 'second', 'final', 'group', 'other']).optional(), company_type: z.string().optional(), date: z.string().optional(),
         result: z.enum(['none', 'rejected', 'advanced', 'no_feedback_inferred']).optional(), result_source: z.enum(['none', 'official', 'inferred']).optional(),
       }, async (args) => wrap(async () => {
-        const out = await askSkill<Record<string, unknown>>('interview-retro', `本场信息：公司 ${args.company_name ?? '未知'}，岗位 ${args.title ?? '未知'}，轮次 ${args.round ?? '未知'}，企业性质 ${args.company_type ?? '未知'}，结果 ${args.result ?? 'none'}（来源 ${args.result_source ?? 'none'}）\n\n面试记录：\n${args.transcript}\n\n历史面试（最近 5 场）：\n${JSON.stringify(store().listInterviews().slice(0, 5).map(i => ({ company: i.company_name, round: i.round, tags: i.tags_json, result: i.result })))}`, { refs: ['题型诊断', '标签词表'], temperature: 0.2 });
+        const library = repos().experienceTree().map(e => `## [${e.id}] ${e.title}${e.org ? ` @ ${e.org}` : ''}\n${e.claims.map(c => `- [${c.id}][${c.status}] ${c.text}`).join('\n') || '- （无主张）'}`).join('\n\n') || '（经历库为空）';
+        const out = await askSkill<Record<string, unknown>>('interview-retro', `本场信息：公司 ${args.company_name ?? '未知'}，岗位 ${args.title ?? '未知'}，轮次 ${args.round ?? '未知'}，企业性质 ${args.company_type ?? '未知'}，结果 ${args.result ?? 'none'}（来源 ${args.result_source ?? 'none'}）\n\n面试记录：\n${args.transcript}\n\n用户经历库：\n${library}\n\n历史面试（最近 5 场）：\n${JSON.stringify(store().listInterviews().slice(0, 5).map(i => ({ company: i.company_name, round: i.round, tags: i.tags_json, result: i.result })))}`, { refs: ['题型诊断', '标签词表'], temperature: 0.2 });
         const s = store();
         const patch = { transcript: args.transcript, retro_json: out, tags_json: out.tags ?? [], result: args.result, result_source: args.result_source, company_name: args.company_name, title: args.title, round: args.round, date: args.date };
-        const interview = args.interview_id ? s.updateInterview(args.interview_id, patch as never) : s.createInterview(patch as never);
+        // 没给 interview_id 时落回邀请建的那一场，挂在对应申请上，不另起一条孤儿记录
+        const target = retroTarget(s, repos(), args);
+        const interview = target.interview_id ? s.updateInterview(target.interview_id, patch as never) : s.createInterview({ ...patch, application_id: target.application_id ?? null } as never);
         // 真实面试里被问到的题进题库（"我见过的"），同一题跨场次累计
         const asked = Array.isArray((out as { questions?: unknown }).questions) ? (out as { questions: Array<{ quote?: string; type?: string; content_tags?: string[] }> }).questions : [];
         const seen = asked.filter(q => q?.quote && q.quote.trim().length >= 4).map(q => repos().upsertQuestion({ content: q.quote!, kind: 'interview', category: q.type ?? null, company_name: args.company_name ?? null, title: args.title ?? null, source: 'seen', source_ref: `interview:${interview.id}`, tags: q.content_tags ?? [] }).id);
-        changed('interview', ...(args.date ? ['deadline'] : []), ...(seen.length ? ['question'] : []));
-        return text({ interview_id: interview.id, retro: out, questions_saved: seen.length });
+        const closed = closeInterviewDeadline(repos(), interview.id);
+        // 复盘冒出的新事实进经历库待确认、答不上来的列成「还要补」：只出卡，不改简历
+        const followups = applyRetroFollowups(repos(), out);
+        for (const f of followups) {
+          card(`retro-claims:${interview.id}:${f.experience_id}`, 'claims_confirm', f.claims.length ? `面试里说到「${f.experience_title}」的 ${f.claims.length} 条新说法` : `「${f.experience_title}」还有 ${f.gaps.length} 处要补`, {
+            experience_id: f.experience_id, experience_title: f.experience_title, source: 'interview_retro', interview_id: interview.id, gaps: f.gaps,
+            claims: f.claims.map(c => ({ id: c.id, text: c.text, result_metric: c.result_metric ?? null, attribution: c.attribution ?? null })),
+          });
+        }
+        changed('interview', ...(args.date ? ['deadline'] : []), ...(seen.length ? ['question'] : []), ...(closed ? ['deadline'] : []), ...(followups.some(f => f.claims.length) ? ['claim'] : []));
+        return text({ interview_id: interview.id, retro: out, questions_saved: seen.length, followups: followups.map(f => ({ experience: f.experience_title, new_claims: f.claims.length, gaps: f.gaps })) });
       })()),
 
       tool('interview_predict', '从简历 / 主张预测面试深挖点：靶子类型、预期追问链、露馅风险，写入 probe_prediction。', {
         resume_id: z.string().optional(), job_id: z.string().optional(), company_type: z.string().optional(), round: z.string().optional(),
       }, async (args) => wrap(async () => {
         const job = args.job_id ? requireJob(args.job_id) : undefined;
-        const resume = args.resume_id ? store().getResume(args.resume_id) : undefined;
-        const out = await askSkill<{ predictions?: Array<{ statement: string; target_type?: string; expected_chain?: unknown; risk?: string; claim_id?: string }> }>('probe-predict', `简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}，轮次：${args.round ?? '未知'}\n\n输出 JSON：{"predictions":[{"statement":"","target_type":"data|project|industry|method","expected_chain":[],"risk":"high|mid|low","claim_id":""}]}`, { temperature: 0.3 });
-        const rows = store().addProbePredictions((out.predictions ?? []).filter(p => p?.statement).map(p => ({ statement: p.statement, target_type: p.target_type ?? 'project', expected_chain: p.expected_chain, risk: p.risk, claim_id: p.claim_id || null, resume_tailored_id: resume?.kind === 'tailored' ? args.resume_id : null })));
+        const resume = interviewResume(store(), repos(), args);
+        const carried = job ? carryoverPrompt(carryoverFor(store(), repos(), job, args.round)) : '';
+        const out = await askSkill<{ predictions?: Array<{ statement: string; target_type?: string; expected_chain?: unknown; risk?: string; claim_id?: string }> }>('probe-predict', `简历 / 主张：\n${resume ? resume.row.schema_json : experienceDigest(false)}\n\n${job ? jobDigest(job) : '岗位：未指定'}\n企业性质：${args.company_type ?? '未知'}，轮次：${args.round ?? '未知'}\n\n${carried ? `${carried}\n\n` : ''}输出 JSON：{"predictions":[{"statement":"","target_type":"data|project|industry|method","expected_chain":[],"risk":"high|mid|low","claim_id":""}]}`, { temperature: 0.3 });
+        const rows = store().addProbePredictions((out.predictions ?? []).filter(p => p?.statement).map(p => ({ statement: p.statement, target_type: p.target_type ?? 'project', expected_chain: p.expected_chain, risk: p.risk, claim_id: p.claim_id || null, resume_tailored_id: resume?.kind === 'tailored' ? resume.row.id : null })));
         changed('probe_prediction');
         return text({ predictions: rows, raw: out });
       })()),

@@ -11,7 +11,7 @@ import type {
   ExamPractice,
   CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
-  InboxItem, IntakeResult, Interview, Job, MailAccount, MailAccountDetail, MailConnectResult, MailConnector, MailConnectorId, MailMessage, MailOauthStart, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
+  InboxItem, IntakeResult, Interview, InterviewRecording, Job, MailAccount, MailAccountDetail, MailConnectResult, MailConnector, MailConnectorId, MailMessage, MailOauthStart, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue, WeeklyReview,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
   AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
@@ -162,6 +162,14 @@ export const careerApi = {
   createInterview: (body: Partial<Interview>) => apiPostJson<unknown>(careerPath('/interviews'), body).then(r => pickObject<Interview>(r, 'interview')),
   updateInterview: (id: string, body: Partial<Interview>) =>
     apiPutJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}`), body).then(r => pickObject<Interview>(r, 'interview')),
+  /** 电话 / 短信约的面试：自己记一场（建申请、面试、时间点；同一场再记只改时间）。 */
+  bookInterview: (body: { company_name: string; title?: string | null; round?: string | null; when: string; location?: string | null; note?: string | null }) =>
+    apiPostJson<unknown>(careerPath('/interviews/book'), body).then(r => asDict(r) as { application_id?: string; interview_id?: string; deadline_id?: string }),
+  interviewRecordings: (id: string) => apiGetJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/recordings`)).then(r => pickList<InterviewRecording>(r, 'recordings')),
+  uploadInterviewRecording: (id: string, file: { name: string; mime?: string; data: string }) =>
+    apiPostJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/recordings`), file).then(r => pickObject<InterviewRecording>(r, 'recording')),
+  /** 把岗位标成 / 取消目标；进过面试的申请自动算目标，不用标。 */
+  setJobTarget: (jobId: string, target: boolean) => apiPostJson<unknown>(careerPath('/targets'), { job_id: jobId, target }),
   examPractices: () => apiGetJson<unknown>(careerPath('/exam-practices')).then(r => pickList<ExamPractice>(r, 'examPractices')),
   mockInterviews: () => apiGetJson<unknown>(careerPath('/mock-interviews')).then(r => pickList<MockInterview>(r, 'mockInterviews', 'mock_interviews', 'items')),
   /** API.md 未列出该路由；后端若未实现则按空列表处理。 */

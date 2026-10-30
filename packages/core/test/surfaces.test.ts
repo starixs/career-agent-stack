@@ -34,6 +34,23 @@ describe('纯函数', () => {
 })
 
 describe('收件箱 / 截止 / 今日队列', () => {
+  it('面试时间过了不算错过：一天内提示复盘、不标红，之后只留在卷宗', () => {
+    const r = mem()
+    const d = r.createDeadline({ kind: 'interview', title: '百度 · 算法 面试（二面）', due_at: '2026-10-03T06:00:00.000Z', application_id: null })
+    expect(r.markMissedDeadlines(NOW)).toBe(0)
+    const item = r.today(NOW).items.find(i => i.deadline_id === d.id)
+    expect(item).toMatchObject({ kind: 'interview_retro', priority: 4, title: '百度 · 算法（二面） 面完了？' })
+    expect(r.today('2026-10-04T07:00:00.000Z').items.find(i => i.deadline_id === d.id)).toBeUndefined()
+    expect(r.getDeadline(d.id)!.status).toBe('open')
+  })
+  it('面试在今日队列里说「几天后」，不说「截止」；测评仍说截止', () => {
+    const r = mem()
+    r.createDeadline({ kind: 'interview', title: '百度二面', due_at: '2026-10-05T06:00:00.000Z' })
+    r.createDeadline({ kind: 'assessment', title: '九方云测评', due_at: '2026-10-05T06:00:00.000Z' })
+    const details = Object.fromEntries(r.today(NOW).items.map(i => [i.title, i.detail]))
+    expect(details['百度二面']).toBe('2 天后')
+    expect(details['九方云测评']).toBe('2 天后截止')
+  })
   it('收件箱条目从 new 到 processed，并关联对象', () => {
     const r = mem()
     const item = r.createInboxItem({ source: 'paste', raw_text: '诚邀您参加 10 月 5 日 14:00 的一面' })

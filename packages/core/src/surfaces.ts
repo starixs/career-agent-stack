@@ -56,7 +56,7 @@ export function silenceOf(stage: ApplicationStage, updatedAt: string, nowIso: st
 }
 
 // ---------- 今日队列 ----------
-export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'followup'
+export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'interview_retro' | 'followup'
 export interface TodayItem {
   kind: TodayItemKind
   /** 越小越靠前：1 今天到期 / 2 待审 / 3 接管 / 4 面试 / 5 收件箱 / 6 静默 / 7 近三天到期、时间未知 / 8 已过期 */
@@ -84,19 +84,38 @@ export function sortToday(items: TodayItem[]): TodayItem[] {
 export const OVERDUE_PRIORITY = 8
 
 /**
- * 笔试、测评、面试多在外部平台进行，他去没去我们看不见；没打勾不等于错过。
- * 过了时间、还没答过的，回来时问一句，不当成「已过期」去催。
+ * 笔试、测评多在外部平台进行，他去没去我们看不见；没打勾不等于错过。
+ * 过了时间、还没答过的，回来时问一句，不当成「已过期」去催。面试不在这里：过了时间提示复盘（pastInterviewToToday）。
  */
-export const ATTENDANCE_KINDS: ReadonlySet<string> = new Set(['written_test', 'assessment', 'interview'])
-export const ATTENDANCE_QUESTION: Record<string, string> = { written_test: '考了吗？', assessment: '做了吗？', interview: '去了吗？' }
+export const ATTENDANCE_KINDS: ReadonlySet<string> = new Set(['written_test', 'assessment'])
+export const ATTENDANCE_QUESTION: Record<string, string> = { written_test: '考了吗？', assessment: '做了吗？' }
 
 export function asksAttendance(d: Pick<Deadline, 'kind' | 'status' | 'due_at'>, nowIso: string): boolean {
   return ATTENDANCE_KINDS.has(d.kind) && (d.status === 'open' || d.status === 'missed') && !!d.due_at && Date.parse(d.due_at) < Date.parse(nowIso)
 }
 
 /** 只处理有时间的事件；时间未知（due_at 为 null）的由调用方（Repos.today）单独处理。 */
+/** 面试时间过后多久内提示「面完了？说几句就能复盘」；过了就只留在卷宗里，不再催。 */
+export const RETRO_PROMPT_HOURS = 24
+
+/**
+ * 面试时间过了 ≠ 错过：多半是已经面完、还没复盘。复盘会把时间点记为完成，所以这里还 open 的就是没复盘的。
+ * 一天内给一条不标红的复盘提示，之后不再出现在今日队列。
+ */
+function pastInterviewToToday(d: Deadline & { due_at: string }, nowIso: string): TodayItem | null {
+  const hours = (Date.parse(nowIso) - Date.parse(d.due_at)) / 3_600_000
+  if (hours > RETRO_PROMPT_HOURS) return null
+  const name = d.title.replace(/\s*面试/, '')
+  return {
+    kind: 'interview_retro', priority: 4, title: `${name} 面完了？`, detail: '说几句或传一段录音就能复盘', due_at: d.due_at,
+    ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id }, deadline_id: d.id,
+    suggest: `复盘一下 ${d.title}${d.application_id ? `（application_id=${d.application_id}）` : ''}`,
+  }
+}
+
 export function deadlineToToday(d: Deadline & { due_at: string }, nowIso: string): TodayItem | null {
   if (d.status !== 'open') return null
+  if (d.kind === 'interview' && Date.parse(d.due_at) < Date.parse(nowIso)) return pastInterviewToToday(d, nowIso)
   const days = daysBetween(nowIso, d.due_at)
   if (days > 3) return null
   const overdue = Date.parse(d.due_at) < Date.parse(nowIso)
@@ -110,7 +129,8 @@ export function deadlineToToday(d: Deadline & { due_at: string }, nowIso: string
   return {
     kind: d.kind === 'interview' && days === 0 ? 'interview_today' : 'deadline',
     priority: overdue ? OVERDUE_PRIORITY : days === 0 ? (d.kind === 'interview' ? 4 : 1) : 7,
-    title: d.title, detail: `${label}截止`, due_at: d.due_at,
+    // 面试是要去参加的一个时间，不是截止
+    title: d.title, detail: d.kind === 'interview' ? label : `${label}截止`, due_at: d.due_at,
     ref: { type: d.application_id ? 'application' : 'deadline', id: d.application_id ?? d.id },
     deadline_id: d.id,
   }

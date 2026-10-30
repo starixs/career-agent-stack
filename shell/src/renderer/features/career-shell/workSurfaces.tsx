@@ -9,7 +9,7 @@ import { FileText, Globe, Maximize2, Minimize2, PenLine, Users, X, type LucideIc
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { careerApi } from '@/components/career/careerApi';
-import { Button, LoadingRow } from '@/components/career/CareerPrimitives';
+import { Button, ChatActionButton, LoadingRow } from '@/components/career/CareerPrimitives';
 import type { ExamPractice, MockInterview } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import type { ToolUseSimple } from '@/types/chat';
@@ -245,6 +245,39 @@ function reportLines(report: unknown): Array<{ label: string; text: string }> {
     .map(([label, value]) => ({ label, text: typeof value === 'string' ? value : JSON.stringify(value, null, 1) }));
 }
 
+/** 计时刷新间隔：秒表只显示到秒。 */
+const CLOCK_TICK_MS = 1000;
+
+function clockText(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600); const m = Math.floor((total % 3600) / 60); const sec = total % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+}
+
+/** 面试前一晚连着练：这场练了多久、这一问想了多久（换题时重新计）。结束后停表。 */
+export function MockClock({ startedAt, question, running }: { startedAt: string | null; question: string | null; running: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return undefined;
+    const t = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
+    return () => clearInterval(t);
+  }, [running]);
+  const start = startedAt ? Date.parse(startedAt) : NaN;
+  return (
+    <div className="flex items-center gap-4 text-xs tabular-nums text-[var(--muted)]" data-testid="mock-clock">
+      {!Number.isNaN(start) && <span>这场已练 {clockText(now - start)}</span>}
+      {running && question && <QuestionClock key={question} now={now} />}
+    </div>
+  );
+}
+
+/** 换题时按 key 重新挂载，从这一问出现的时刻起计。 */
+function QuestionClock({ now }: { now: number }) {
+  const [askedAt] = useState(() => Date.now());
+  return <span>这一问 {clockText(now - askedAt)}</span>;
+}
+
 export function MockInterviewSurfacePanel() {
   const { refId, context } = useWorkSurfaces();
   const query = useCareerQuery(careerApi.mockInterviews, ['mock_interview']);
@@ -260,6 +293,13 @@ export function MockInterviewSurfacePanel() {
     >
       <div className="space-y-4 px-5 py-4">
         {query.loading && !query.data && <LoadingRow />}
+        {record && <MockClock startedAt={record.created_at} question={context ?? null} running={!report} />}
+        {record && !report && !context && (
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-sm text-[var(--ink-2)]">
+            <span className="flex-1">这场还没练完，可以接着从上次停下的地方练。</span>
+            <ChatActionButton size="sm" variant="primary" text={`接着练这场模拟面试（mock_interview_id=${record.id}）`}>接着练</ChatActionButton>
+          </div>
+        )}
         {context && (
           <div>
             <div className="mb-1 text-xs text-[var(--muted)]">当前问题</div>
@@ -284,6 +324,9 @@ export function MockInterviewSurfacePanel() {
               ))}
             </dl>
           </div>
+        )}
+        {report !== null && record && (
+          <ChatActionButton size="sm" variant="ghost" text={`按这次复盘的卡点再练一场${record.job_id ? `（job_id=${record.job_id}）` : ''}`}>按卡点再练一场</ChatActionButton>
         )}
         {!query.loading && !record && !context && <p className="text-sm text-[var(--subtle)]">还没有这场模拟面试的记录。</p>}
       </div>

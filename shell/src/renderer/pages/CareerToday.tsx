@@ -13,6 +13,7 @@ import { careerApi, safeJson } from '@/components/career/careerApi';
 import { AttendanceButtons } from '@/components/career/AttendanceButtons';
 import { ACTION_KIND_LABELS } from '@/components/career/careerConstants';
 import { Button, CareerPage, ChatActionButton, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
+import { requestNavigation } from '@/features/career-shell/navModel';
 import { onOnboardingIntroRequest, takeOnboardingIntroRequest } from '@/features/career-shell/onboardingReminder';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
@@ -35,7 +36,7 @@ const DEADLINE_TABLES = ['deadline'] as const;
 const ACTIVITY_TABLES = ['action_queue', 'task', 'application_history'] as const;
 
 const KIND_LABELS: Record<TodayItemKind, string> = {
-  deadline: '截止', review: '待批准', handoff: '需要你', interview_today: '今日面试', stale: '静默', inbox: '通知', followup: '跟进',
+  deadline: '截止', review: '待批准', handoff: '需要你', interview_today: '今日面试', interview_retro: '复盘', stale: '静默', inbox: '通知', followup: '跟进',
 };
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'] as const;
 const STRIKE_MS = 700;
@@ -360,8 +361,8 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
 }) {
   const act = useCareerAction();
   const { item, action } = todo;
-  // 问「考了吗」的不再标红「已过期」：他多半去过，只是没回来打勾
-  const due = todo.done || todo.askAttendance ? null : formatDue(item.due_at);
+  // 问「考了吗」、面完待复盘的都不标红「已过期」：他多半去过，只是没回来打勾
+  const due = todo.done || todo.askAttendance || item.kind === 'interview_retro' ? null : formatDue(item.due_at);
   const refs = { [`${item.ref.type}_id`]: item.ref.id };
   const complete = (fn: () => Promise<unknown>, note: string) => act.run(async () => { await fn(); onDone(todo, note); });
 
@@ -416,6 +417,9 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
           )}
           {item.kind === 'interview_today' && (
             <ChatActionButton size="sm" variant="ghost" text="帮我准备这场面试" context={{ surface: 'today', refs: applicationId ? { application_id: applicationId } : refs }} />
+          )}
+          {item.kind === 'interview_retro' && (
+            <Button size="sm" onClick={() => requestNavigation({ kind: 'career-dossier', view: 'interview' })}>说几句或传录音</Button>
           )}
           {/* 逐条的静默只剩「投递中」卡住的；AI 收起的那条汇总（ref.type=silent_collected）只报数，没有按钮 */}
           {item.kind === 'stale' && item.ref.type === 'application' && (

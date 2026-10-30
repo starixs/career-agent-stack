@@ -19,7 +19,7 @@ import type { ExamPractice } from '@/components/career/types';
 import type { ToolUseSimple } from '@/types/chat';
 
 import { MessageSurfaceCards } from './MessageSurfaceCards';
-import { ExamSurfaceView, MockInterviewSurfacePanel, refIdForTool, surfaceForTool, WorkSurfaceCard } from './workSurfaces';
+import { ExamSurfaceView, MockClock, MockInterviewSurfacePanel, refIdForTool, surfaceForTool, WorkSurfaceCard } from './workSurfaces';
 import { expandWorkSurface, resetWorkSurfaces, useWorkSurfaces } from './workSurfaceStore';
 
 function tool(name: string, over: Partial<ToolUseSimple> = {}): ToolUseSimple {
@@ -152,6 +152,20 @@ describe('expanded panels', () => {
     render(<MockInterviewSurfacePanel />);
     expect(screen.getByText('轮到你回答', { selector: 'div' })).toBeInTheDocument();
     expect(await screen.findByText(/做了校园二手交易小程序/)).toBeInTheDocument();
+  });
+
+  it('mock clock: 计这场练了多久和这一问想了多久；换题重新计，结束停表', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    vi.setSystemTime(new Date('2026-11-03T13:10:00.000Z'));
+    const { rerender } = render(<MockClock startedAt="2026-11-03T13:00:00.000Z" question="AUC 怎么算的？" running />);
+    act(() => { vi.advanceTimersByTime(45_000); });
+    expect(screen.getByTestId('mock-clock')).toHaveTextContent('这场已练 10:45这一问 00:45');
+    rerender(<MockClock startedAt="2026-11-03T13:00:00.000Z" question="线上收益呢？" running />);
+    act(() => { vi.advanceTimersByTime(5_000); });
+    expect(screen.getByTestId('mock-clock')).toHaveTextContent('这一问 00:05');
+    rerender(<MockClock startedAt="2026-11-03T13:00:00.000Z" question={null} running={false} />);
+    expect(screen.getByTestId('mock-clock')).not.toHaveTextContent('这一问');
+    vi.useRealTimers();
   });
 
   it('exam view lists questions with answers, verdicts and the summary', () => {

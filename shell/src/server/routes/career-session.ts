@@ -15,7 +15,7 @@ import { getRepos } from '../career/db';
 import { resetPageTrust } from '../career/submit-policy';
 import { getRunRegistry, type RunRegistry } from '../career/runs';
 import { broadcast as sseBroadcast } from '../sse';
-import { fail, ok } from './career-response';
+import { fail, ok } from './career-http';
 
 export type BrowserControl = 'agent' | 'human';
 

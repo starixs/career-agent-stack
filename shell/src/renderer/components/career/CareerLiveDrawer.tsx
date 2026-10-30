@@ -27,6 +27,7 @@ import { careerApi } from './careerApi';
 import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport } from './CareerLiveViewport';
+import { readAsBase64 } from './fileBase64';
 import { Button, suggestToChat } from './CareerPrimitives';
 import type { BatchState, CareerProgressEvent, CareerTakeoverEvent, LiveFileChooser, LiveFileChooserEvent, LiveFrame, LiveSnapshot, LiveStreamEvent, LiveFrameStatus } from './types';
 import { liveStatusText } from './types';
@@ -70,19 +71,6 @@ export function CareerLiveDrawer({ autoOpenOnHandoff = true }: { autoOpenOnHando
 function hostOf(url: string | null | undefined): string | null {
   if (!url) return null;
   try { return new URL(url).host; } catch { return null; }
-}
-
-function readAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = String(reader.result ?? '');
-      const comma = url.indexOf(',');
-      resolve(comma >= 0 ? url.slice(comma + 1) : url);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('读取文件失败'));
-    reader.readAsDataURL(file);
-  });
 }
 
 function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDone: (message: string | null) => void }) {

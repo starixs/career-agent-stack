@@ -10,7 +10,7 @@ import { startImport } from '../career/exam-search/importer';
 import { ExamSearchService, upcomingExamContexts } from '../career/exam-search/service';
 import { getShellLLM } from '../career/llm';
 import { broadcast as sseBroadcast } from '../sse';
-import { fail, ok } from './career-response';
+import { fail, ok } from './career-http';
 
 export const EXAM_SEARCH_PREFIX = '/api/career/exam-search/';
 

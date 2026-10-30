@@ -27,6 +27,11 @@ export function careerExportsDir(): string {
   return join(careerDataDir(), 'exports');
 }
 
+/** 面试录音目录（用户自己录的面试，等语音识别转写）。 */
+export function careerRecordingsDir(): string {
+  return join(careerDataDir(), 'recordings');
+}
+
 /** 首次调用时惰性加载 @career/core 并打开数据库；并发调用共享同一个 Promise。 */
 export async function getRepos(): Promise<Repos> {
   if (repos) return repos;

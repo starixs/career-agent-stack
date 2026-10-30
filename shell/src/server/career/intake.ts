@@ -9,6 +9,7 @@ import type { Repos, LLM, Job, JdParsed, InboxItem, InboxKind, InboxSource, Dead
 
 import { fetchPage } from './web-fetch';
 import { normalizeIso } from './dates';
+import { normalizeRoundLabel, openInterviewDeadline, rescheduleDeadline, upsertInvitedInterview } from './interview-link';
 import type { CoreModule } from './core-module';
 import { loadSkillPrompt } from './skills';
 import { CareerStore } from './store';
@@ -227,9 +228,12 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       }
       case 'interview_invite': {
         const a = ensureApplication('interview', `收到面试邀请${f.round ? `（${f.round}）` : ''}`);
-        const itv = store.createInterview({ application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRound(f.round), date: normalizeIso(f.when, refIso) ?? null });
+        // 同一场的提醒 / 改期邮件落回原来那场：只更新时间，不多建面试和时间点
+        const { interview: itv } = upsertInvitedInterview(store, { application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRoundLabel(f.round), date: normalizeIso(f.when, refIso) ?? null });
         created.interview_id = itv.id; tables.add('interview');
-        addDeadline('interview', `${label} 面试${f.round ? `（${f.round}）` : ''}`, f.when, { interview_id: itv.id });
+        const known = openInterviewDeadline(r, itv.id);
+        if (!known) addDeadline('interview', `${label} 面试${f.round ? `（${f.round}）` : ''}`, f.when, { interview_id: itv.id });
+        else if (itv.date && itv.date !== known.due_at) { rescheduleDeadline(r, known.id, itv.date); tables.add('deadline'); }
         r.addDossierNote({ application_id: a.id, kind: 'heard', round: f.round ?? null, content: `面试邀请：${f.when ?? '时间待定'}${f.location_or_link ? `，${f.location_or_link}` : ''}${f.contact ? `，联系人 ${f.contact}` : ''}` });
         tables.add('dossier_note');
         break;
@@ -342,16 +346,6 @@ export function recordExam(deps: Pick<IntakeDeps, 'repos' | 'broadcast' | 'sessi
 }
 
 // ---------- 小工具 ----------
-function normalizeRound(round?: string): string {
-  const r = (round ?? '').toLowerCase();
-  if (['hr', 'first', 'second', 'final', 'group'].includes(r)) return r;
-  if (/hr|人事/.test(r)) return 'hr';
-  if (/一面|初面|first|1/.test(r)) return 'first';
-  if (/二面|second|2/.test(r)) return 'second';
-  if (/终面|final|三面/.test(r)) return 'final';
-  if (/群面|group/.test(r)) return 'group';
-  return 'other';
-}
 
 /** 三方 / 签约通知：和 offer 回复是两个期限（先答复、再签三方），单独记一条，不和回复截止混在一起。 */
 const SIGNING_RE = /三方|签约/;
