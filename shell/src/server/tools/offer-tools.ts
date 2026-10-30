@@ -77,7 +77,7 @@ export function createOfferTools(d: OfferToolDeps) {
       return d.text({ offer });
     })()),
 
-    tool('offer_compare', '多个 Offer 放进同一张表拆解比较，列出事实与差异、期限冲突及需用户自行判断的项；不给排序结论。', {
+    tool('offer_compare', '多个 Offer 放进同一张表拆解比较，列出事实与差异、期限冲突及需用户自行判断的项；不给排序结论。Offer 页上已经有并排对比表，回复里不再贴整张表：只说哪个撤不回的期限先到、第一件要他自己定的事。', {
       offer_ids: z.array(z.string()).min(1),
     }, async (args) => d.wrap(async () => {
       const s = d.store();

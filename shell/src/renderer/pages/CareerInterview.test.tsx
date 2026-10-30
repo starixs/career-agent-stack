@@ -96,16 +96,18 @@ describe('CareerInterview', () => {
     expect(body).toMatchObject({ company_name: '小红书', round: '一面', when: new Date('2026-11-04T15:00').toISOString() });
   });
 
-  it('复盘：说几句就交给对话，带上这场面试的 id', async () => {
+  it('复盘：说几句就在这一页复盘，不绕到对话', async () => {
     mockGet();
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, interview: interviews[1] });
     const said: Array<{ text: string }> = [];
     const off = onEvent('career:chat-suggest', (e: { text: string }) => { said.push(e); });
     render(<CareerInterview />);
     fireEvent.click(await screen.findByText('丁公司 · 算法工程师'));
     fireEvent.change(screen.getByLabelText('说几句复盘'), { target: { value: '被问了为什么转算法，答得有点虚' } });
     fireEvent.click(screen.getByRole('button', { name: '开始复盘' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/interviews/i2/retro', { words: '被问了为什么转算法，答得有点虚' }));
     off();
-    expect(said[0]?.text).toBe('复盘一下 丁公司 HR 面（interview_id=i2）：被问了为什么转算法，答得有点虚');
+    expect(said).toHaveLength(0);
   });
 
   it('复盘：传一段录音，base64 发到这场面试的 recordings，显示等转写', async () => {

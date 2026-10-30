@@ -43,8 +43,9 @@ describe('面试接口', () => {
     expect(ds.map(d => [d.due_at, d.note])).toEqual([[new Date('2026-11-04T16:00:00+08:00').toISOString(), '腾讯会议 123']]);
   });
 
-  it('没填公司或时间说清楚缺什么', async () => {
-    expect((await call('POST', '/api/career/interviews/book', { company_name: '小红书' })).json.error).toMatch(/when/);
+  it('没填公司说清楚缺什么；没填时间先记上（时间待定），不挡住', async () => {
+    expect((await call('POST', '/api/career/interviews/book', {})).json.error).toMatch(/company_name/);
+    expect((await call('POST', '/api/career/interviews/book', { company_name: '小红书' })).json.deadline_id).toEqual(expect.any(String));
   });
 
   it('上传录音：存到本机、挂在那场面试上、等待转写；接口不回本机路径', async () => {

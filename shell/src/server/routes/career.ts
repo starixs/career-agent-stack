@@ -46,6 +46,7 @@ import { broadcast as sseBroadcast } from '../sse';
 import { careerJson, fail, ok, str, strOrNull, type Json } from './career-http';
 import { deliveryRoutes } from './career-delivery';
 import { interviewRoutes } from './career-interview';
+import type { AskSkill, PostCard } from '../career/interview-retro-run';
 
 export interface CareerRouteDeps {
   repos?: Repos;
@@ -125,6 +126,20 @@ function intakeDeps(ctx: Ctx): IntakeDeps {
   if (ctx.deps.llm === undefined) { try { llm = getShellLLM(); } catch { llm = null; } } else llm = ctx.deps.llm;
   return { repos: ctx.repos, core: ctx.core, llm, broadcast: ctx.deps.broadcast, sessionId: ctx.deps.sessionId };
 }
+/** 路由里调技能（面试页直接复盘等）：和工具层 askSkill 同形；没有模型时为 null。 */
+function skillAsker(ctx: Ctx): AskSkill | null {
+  const llm = intakeDeps(ctx).llm;
+  if (!llm) return null;
+  return async <T>(skill: string, user: string, opts: { refs?: string[]; temperature?: number }) => {
+    const system = await loadSkillPrompt(skill, opts.refs ?? []);
+    const res = await llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: opts.temperature ?? 0.3 });
+    return ctx.core.extractJson<T>(res.text);
+  };
+}
+function cardPoster(ctx: Ctx): PostCard {
+  const post = ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos);
+  return (id, kind, title, data) => post({ id, kind, title, data });
+}
 /** 邮箱连接器的分流入口（云端 / 本机），测试可注入校验、同步和云端请求。 */
 function mailBackendOf(ctx: Ctx) {
   return mailBackend({ ...intakeDeps(ctx), postChatCard: ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos) }, { verify: ctx.deps.mailVerify, sync: ctx.deps.mailSync, fetchImpl: ctx.deps.mailFetch });
@@ -150,6 +165,7 @@ const ROUTES: Route[] = [
   ...interviewRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({
     params: ctx.params, body: ctx.body, repos: ctx.repos, store: ctx.store,
     recordingsDir: ctx.deps.recordingsDir ?? careerRecordingsDir(), dataChanged: tables => dataChanged(ctx, tables),
+    ask: skillAsker(ctx), postCard: cardPoster(ctx),
   }))),
 
   ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url, params: ctx.params, body: ctx.body, vault: ctx.vault, dataChanged: tables => dataChanged(ctx, tables) }))),

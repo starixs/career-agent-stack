@@ -24,6 +24,7 @@ import { FakeLLM, StaticKeyProvider, Vault } from '@career/core';
 
 import { loadCore } from '../career/core-module';
 import { correctIntake } from '../career/intake-fix';
+import { runInterviewRetro } from '../career/interview-retro-run';
 import type { IntakeDeps } from '../career/intake';
 import { RunRegistry } from '../career/runs';
 import { CareerStore } from '../career/store';
@@ -34,6 +35,7 @@ interface ToolResults {
   inbox_capture: { item_id: string; status: string; created: { application_id?: string }; candidates: Array<{ application_id: string; label: string }>; note: string };
   today_queue: { items: Array<{ kind: string; title: string; suggest?: string; ask?: string; ref: { id: string } }> };
   interview_prep: { application_id: string };
+  interview_book: { application_id: string; interview_id: string; deadline_id: string };
 }
 
 async function call<K extends keyof ToolResults>(name: K, args: Record<string, unknown> = {}): Promise<ToolResults[K]> {
@@ -164,6 +166,28 @@ describe('投出之后 · 回音进来到复盘，用户不用打字解释', () 
     expect(offers).toHaveLength(1);
     expect(JSON.parse(offers[0].comp_json)).toEqual({ base: 32000, months: 15 });
     expect(offers[0].deadline?.slice(0, 10)).toBe('2026-11-22');
+  });
+
+  it('「我约了百度二面」没说时间：先记上（时间待定），不为时间追问；之后说了时间再记一次只改时间', async () => {
+    const first = await call('interview_book', { company_name: '百度', round: '二面' });
+    expect(repos.getApplication(baidu)?.stage).toBe('interview');
+    expect(repos.getDeadline(first.deadline_id)?.due_at).toBeNull();
+    const again = await call('interview_book', { company_name: '百度', round: '二面', when: INTERVIEW_AT });
+    expect(again.deadline_id).toBe(first.deadline_id);
+    expect(repos.getDeadline(first.deadline_id)?.due_at).toBe(new Date(INTERVIEW_AT).toISOString());
+  });
+
+  it('面试页「说几句」直接复盘：写回邀请那场、时间点记完成，不经过对话', async () => {
+    llm.push(triage('interview_invite', { company: '百度', round: '二面', when: INTERVIEW_AT }));
+    await call('inbox_capture', { text: '【百度】二面邀请', source: 'mail' });
+    const store = new CareerStore(repos, deps.core);
+    const itv = store.listInterviews().find(i => i.application_id === baidu)!;
+    const ask = vi.fn(async () => ({ questions: [{ quote: '召回模型的负样本怎么采？', type: 'project' }], focus_this_round: '负样本' })) as never;
+    const out = await runInterviewRetro(store, repos, ask, () => undefined, { transcript: '被问了负样本怎么采，没答好', interview_id: itv.id });
+    expect(out.interview_id).toBe(itv.id);
+    expect(store.getInterview(itv.id)?.retro_json).toContain('负样本');
+    expect(repos.listDeadlines({ application_id: baidu }).find(d => d.kind === 'interview')?.status).toBe('done');
+    expect(out.questions_saved).toBe(1);
   });
 
   it('投出之后这几样工具，回给助理的话里没有让用户「发给我 / 告诉我 / 自己选好再说」', () => {

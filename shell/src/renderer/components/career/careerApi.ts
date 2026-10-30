@@ -168,6 +168,8 @@ export const careerApi = {
   interviewRecordings: (id: string) => apiGetJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/recordings`)).then(r => pickList<InterviewRecording>(r, 'recordings')),
   uploadInterviewRecording: (id: string, file: { name: string; mime?: string; data: string }) =>
     apiPostJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/recordings`), file).then(r => pickObject<InterviewRecording>(r, 'recording')),
+  /** 面试页「说几句」直接复盘：结果写回这场面试，留在页面上。 */
+  retroInterview: (id: string, words: string) => apiPostJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/retro`), { words }).then(r => pickObject<Interview>(r, 'interview')),
   /** 把岗位标成 / 取消目标；进过面试的申请自动算目标，不用标。 */
   setJobTarget: (jobId: string, target: boolean) => apiPostJson<unknown>(careerPath('/targets'), { job_id: jobId, target }),
   examPractices: () => apiGetJson<unknown>(careerPath('/exam-practices')).then(r => pickList<ExamPractice>(r, 'examPractices')),

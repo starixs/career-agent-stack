@@ -20,8 +20,8 @@ import { CORRECTABLE_KINDS, correctIntake } from '../career/intake-fix';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps, type IntakeResult } from '../career/intake';
 import { carryoverFor, carryoverPrompt, lastTranscript } from '../career/interview-carry';
 import { buildInterviewPrep } from '../career/interview-prep';
-import { applyRetroFollowups } from '../career/retro-followups';
-import { applicationForInterview, bookInterview, closeInterviewDeadline, interviewResume, retroTarget } from '../career/interview-link';
+import { applicationForInterview, bookInterview, interviewResume } from '../career/interview-link';
+import { runInterviewRetro } from '../career/interview-retro-run';
 import { getShellLLM } from '../career/llm';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
@@ -650,7 +650,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         changed('account_fetch');
         return text({ state });
       })()),
-      tool('today_queue', '今天必须做的事（已排序：今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线 → 近三天到期 → 已过期没打勾的）+ 等待中的投递数。给用户最多三件。只含 3 天内的时间点（条目带 deadline_id）；更远的日程用 deadline_list。', {}, wrap(() => text(repos().today()))),
+      tool('today_queue', '今天必须做的事（已排序：今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线 → 近三天到期 → 已过期没打勾的）+ 等待中的投递数。今日页上都列着，回复只说最急的一件、其余报个数，不逐条复述。只含 3 天内的时间点（条目带 deadline_id）；更远的日程用 deadline_list。', {}, wrap(() => text(repos().today()))),
 
       tool('inbox_capture', '把用户丢进来的任何内容（JD、面试邀请、测评 / 笔试通知、拒信、Offer、内推码、截止提醒）归档成结构化对象：自动建岗位 / 面试 / 截止事件 / 关闭投递 / Offer，并关联到卷宗。', {
         text: z.string().describe('原文'), source: z.enum(['paste', 'file', 'url', 'chat']).optional(), application_id: z.string().optional().describe('用户已明确归属的投递'),
@@ -820,7 +820,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       })()),
 
       // ---------- 复盘 ----------
-      tool('weekly_review', '生成本周复盘：漏斗 + 代理反馈（哪类岗位走得远、挂在哪一环、静默比例）+ 下周策略 + 一个今天就能做的小动作。用户表达自我怀疑时也用它拿数字说话。', {
+      tool('weekly_review', '生成本周复盘：漏斗 + 代理反馈（哪类岗位走得远、挂在哪一环、静默比例）+ 下周策略 + 一个今天就能做的小动作。用户表达自我怀疑时也用它拿数字说话。回复两三句：一个事实数字、他自己的基数、那个小动作；不贴表格、不列 1-2-3。', {
         week_start: z.string().optional().describe('YYYY-MM-DD，缺省本周一'), user_note: z.string().optional().describe('用户想补充的情况或情绪'),
       }, async (args) => wrap(async () => {
         progress('weekly_review', '正在统计漏斗并生成复盘');
@@ -1430,9 +1430,9 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ ...prep, note: prep.missing.length ? `还缺：${prep.missing.join('、')}；补上后再调一次 interview_prep 更新卡片。` : '准备卡已出现在对话里。' });
       })()),
 
-      tool('interview_book', '记一场邮箱里没有的面试（HR 电话 / 短信 / 微信约的）：用户说「我约了周四下午百度二面」就用它。找到或建好这份申请、推进到面试、记面试和时间点；同一场再记一次只改时间。邮件来的面试邀请走 inbox_capture。', {
+      tool('interview_book', '记一场邮箱里没有的面试（HR 电话 / 短信 / 微信约的）：用户说「我约了周四下午百度二面」就用它。找到或建好这份申请、推进到面试、记面试和时间点；没说时间也先记（时间待定），同一场再记一次只改时间。邮件来的面试邀请走 inbox_capture。', {
         company_name: z.string(), title: z.string().optional(), round: z.string().optional().describe('如 一面 / 二面 / HR 面 / 终面'),
-        when: z.string().describe('ISO 时间，如 2026-11-05T14:00:00+08:00'), location: z.string().optional().describe('会议链接或地点'), note: z.string().optional(), application_id: z.string().optional(),
+        when: z.string().optional().describe('ISO 时间，如 2026-11-05T14:00:00+08:00；用户没说就不传，先记上（时间待定），不要为了时间追问'), location: z.string().optional().describe('会议链接或地点'), note: z.string().optional(), application_id: z.string().optional(),
       }, async (args) => wrap(() => {
         const out = bookInterview(store(), repos(), args);
         changed('application', 'application_history', 'interview', 'deadline');
@@ -1577,32 +1577,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ ...out, saved_claim_ids: added.map(c => c.id) });
       })()),
 
-      tool('interview_retro', '真实面试复盘：逐题诊断、信号判读、受控标签，归档到面试库（证据与推断分开，不预测结果）。用户说了几句、传了录音转写或在面试页勾了被问到的题，就直接调它：材料少也复盘，记不清的标材料不足、列进「还要补」，不要追问原话、不要让他再讲一遍；公司、轮次从邀请那场补（传 interview_id 或公司名即可）。', {
+      tool('interview_retro', '真实面试复盘：逐题诊断、信号判读、受控标签，归档到面试库（证据与推断分开，不预测结果）。用户说了几句或传了录音转写，就直接调它：材料少也复盘，记不清的标材料不足、列进「还要补」，不要追问原话、不要让他再讲一遍；公司、轮次从邀请那场补（传 interview_id 或公司名即可）。全文会留在面试页，回复只说一两句：最要紧的一处和下一场怎么用上，不要逐题复述。', {
         transcript: z.string(), interview_id: z.string().optional(), company_name: z.string().optional(), title: z.string().optional(),
         round: z.enum(['hr', 'first', 'second', 'final', 'group', 'other']).optional(), company_type: z.string().optional(), date: z.string().optional(),
         result: z.enum(['none', 'rejected', 'advanced', 'no_feedback_inferred']).optional(), result_source: z.enum(['none', 'official', 'inferred']).optional(),
       }, async (args) => wrap(async () => {
-        const library = repos().experienceTree().map(e => `## [${e.id}] ${e.title}${e.org ? ` @ ${e.org}` : ''}\n${e.claims.map(c => `- [${c.id}][${c.status}] ${c.text}`).join('\n') || '- （无主张）'}`).join('\n\n') || '（经历库为空）';
-        const out = await askSkill<Record<string, unknown>>('interview-retro', `本场信息：公司 ${args.company_name ?? '未知'}，岗位 ${args.title ?? '未知'}，轮次 ${args.round ?? '未知'}，企业性质 ${args.company_type ?? '未知'}，结果 ${args.result ?? 'none'}（来源 ${args.result_source ?? 'none'}）\n\n面试记录：\n${args.transcript}\n\n用户经历库：\n${library}\n\n历史面试（最近 5 场）：\n${JSON.stringify(store().listInterviews().slice(0, 5).map(i => ({ company: i.company_name, round: i.round, tags: i.tags_json, result: i.result })))}`, { refs: ['题型诊断', '标签词表'], temperature: 0.2 });
-        const s = store();
-        const patch = { transcript: args.transcript, retro_json: out, tags_json: out.tags ?? [], result: args.result, result_source: args.result_source, company_name: args.company_name, title: args.title, round: args.round, date: args.date };
-        // 没给 interview_id 时落回邀请建的那一场，挂在对应申请上，不另起一条孤儿记录
-        const target = retroTarget(s, repos(), args);
-        const interview = target.interview_id ? s.updateInterview(target.interview_id, patch as never) : s.createInterview({ ...patch, application_id: target.application_id ?? null } as never);
-        // 真实面试里被问到的题进题库（"我见过的"），同一题跨场次累计
-        const asked = Array.isArray((out as { questions?: unknown }).questions) ? (out as { questions: Array<{ quote?: string; type?: string; content_tags?: string[] }> }).questions : [];
-        const seen = asked.filter(q => q?.quote && q.quote.trim().length >= 4).map(q => repos().upsertQuestion({ content: q.quote!, kind: 'interview', category: q.type ?? null, company_name: args.company_name ?? null, title: args.title ?? null, source: 'seen', source_ref: `interview:${interview.id}`, tags: q.content_tags ?? [] }).id);
-        const closed = closeInterviewDeadline(repos(), interview.id);
-        // 复盘冒出的新事实进经历库待确认、答不上来的列成「还要补」：只出卡，不改简历
-        const followups = applyRetroFollowups(repos(), out);
-        for (const f of followups) {
-          card(`retro-claims:${interview.id}:${f.experience_id}`, 'claims_confirm', f.claims.length ? `面试里说到「${f.experience_title}」的 ${f.claims.length} 条新说法` : `「${f.experience_title}」还有 ${f.gaps.length} 处要补`, {
-            experience_id: f.experience_id, experience_title: f.experience_title, source: 'interview_retro', interview_id: interview.id, gaps: f.gaps,
-            claims: f.claims.map(c => ({ id: c.id, text: c.text, result_metric: c.result_metric ?? null, attribution: c.attribution ?? null })),
-          });
-        }
-        changed('interview', ...(args.date ? ['deadline'] : []), ...(seen.length ? ['question'] : []), ...(closed ? ['deadline'] : []), ...(followups.some(f => f.claims.length) ? ['claim'] : []));
-        return text({ interview_id: interview.id, retro: out, questions_saved: seen.length, followups: followups.map(f => ({ experience: f.experience_title, new_claims: f.claims.length, gaps: f.gaps })) });
+        const out = await runInterviewRetro(store(), repos(), askSkill, card, args);
+        changed(...out.tables);
+        return text({ interview_id: out.interview_id, retro: out.retro, questions_saved: out.questions_saved, followups: out.followups.map(f => ({ experience: f.experience_title, new_claims: f.claims.length, gaps: f.gaps })), note: '复盘全文已在面试页；回复一两句即可。' });
       })()),
 
       tool('interview_predict', '从简历 / 主张预测面试深挖点：靶子类型、预期追问链、露馅风险，写入 probe_prediction。', {
