@@ -62,7 +62,7 @@ export function ReturnCard({ away, onStart, onClose }: { away: AwayView; onStart
       <p className="cd-return-span">你不在的 {spanText(away.since)}{onClose && <button type="button" className="cd-return-close" onClick={onClose}>收起</button>}</p>
       {first ? (
         <div className="cd-return-lead">
-          {first.companies[0] && <CompanyPoster company={first.companies[0]} size="lg" state="ask" />}
+          {first.companies[0] && <CompanyPoster company={first.companies[0]} size="lg" state="ask" role={first.role} />}
           <div>
             <h3 className="font-human">{first.title}</h3>
             {dueText(first) && <p className="cd-due cd-due-xl">{dueText(first)}</p>}

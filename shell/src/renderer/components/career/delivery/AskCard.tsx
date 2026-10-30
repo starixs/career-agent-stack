@@ -4,7 +4,6 @@
  */
 import { useState } from 'react';
 
-import { TextInput } from '../CareerPrimitives';
 import { actionLabels, dueText, sourceText, subText } from './askText';
 import { CompanyPoster } from './CompanyPoster';
 import type { AskView } from './deliveryApi';
@@ -21,7 +20,7 @@ function AskImage({ ask }: { ask: AskView }) {
     return <div className="cd-mosaic">{cs.slice(0, MOSAIC_MAX).map(c => <CompanyPoster key={c.name} company={c} size="xs" state="ask" />)}</div>;
   }
   if (ask.kind === 'login') return <div className="cd-pair">{cs.map(c => <CompanyPoster key={c.name} company={c} size="md" state="ask" />)}</div>;
-  return <CompanyPoster company={cs[0]} size="lg" state="ask" role={ask.detail && ask.kind === 'review' ? ask.detail.replace(cs[0].name, '').trim() : undefined} />;
+  return <CompanyPoster company={cs[0]} size="lg" state="ask" role={ask.role} />;
 }
 
 function FieldInputs({ ask, values, onChange }: { ask: AskView; values: Record<string, string>; onChange: (label: string, v: string) => void }) {
@@ -32,7 +31,7 @@ function FieldInputs({ ask, values, onChange }: { ask: AskView; values: Record<s
       {fields.map(f => (
         <label key={f.label}>
           {fields.length > 1 && <span>{f.label}</span>}
-          <TextInput aria-label={f.label} type={f.sensitive ? 'password' : 'text'} autoComplete="off" placeholder={f.label} value={values[f.label] ?? ''} onChange={e => onChange(f.label, e.target.value)} />
+          <input className="cd-input" aria-label={f.label} type={f.sensitive ? 'password' : 'text'} autoComplete="off" placeholder={f.label} value={values[f.label] ?? ''} onChange={e => onChange(f.label, e.target.value)} />
         </label>
       ))}
     </div>

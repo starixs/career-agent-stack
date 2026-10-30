@@ -38,6 +38,8 @@ export interface AskView {
   detail?: string
   /** 一个动作能解决的所有申请 */
   application_ids: string[]
+  /** 只涉及一份申请时的岗位名（大海报下半写它） */
+  role?: string
   /** 涉及的公司（与 application_ids 同序去重；没有申请的截止按标题里的公司名） */
   companies: CompanyMark[]
   /** 合并前的每个源；处理时逐个落库 */
@@ -61,7 +63,7 @@ export interface AskView {
   suggest?: string
 }
 
-interface AppCtx { company: CompanyMark; jobDeadline: string | null; label: string }
+interface AppCtx { company: CompanyMark; jobDeadline: string | null; label: string; role: string }
 type Ctx = { apps: Map<string, AppCtx>; nowIso: string }
 
 const LOGIN_REASONS = new Set(['login', 'captcha', '2fa', 'user_request'])
@@ -79,7 +81,7 @@ const strOf = (v: unknown): string | undefined => (typeof v === 'string' && v.tr
 function appContext(repos: Repos): Map<string, AppCtx> {
   const map = new Map<string, AppCtx>()
   for (const a of repos.applicationsWithJob()) {
-    map.set(a.id, { company: companyMarkOf(a.job.company_name, a.job.company_id), jobDeadline: a.job.deadline, label: `${a.job.company_name ?? ''} ${a.job.title}`.trim() })
+    map.set(a.id, { company: companyMarkOf(a.job.company_name, a.job.company_id), jobDeadline: a.job.deadline, label: `${a.job.company_name ?? ''} ${a.job.title}`.trim(), role: a.job.title })
   }
   return map
 }
@@ -304,5 +306,6 @@ export function compareAsks(a: AskView, b: AskView): number {
 export function buildAsks(repos: Repos, nowIso: string): AskView[] {
   const ctx: Ctx = { apps: appContext(repos), nowIso }
   const asks = foldAssessmentHandoffs([...deadlineAsks(repos, ctx), ...actionAsks(repos, ctx), ...handoffAsks(repos, ctx)])
+  for (const a of asks) if (a.application_ids.length === 1) a.role = ctx.apps.get(a.application_ids[0])?.role
   return asks.sort(compareAsks)
 }

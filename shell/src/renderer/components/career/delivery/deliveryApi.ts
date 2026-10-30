@@ -8,7 +8,7 @@ export interface CompanyMark { company_id: string | null; name: string; logo?: s
 export type AskKind = 'info' | 'login' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure';
 export interface AskField { label: string; vault_field: string | null; sensitive: boolean; fillable: boolean }
 export interface AskView {
-  id: string; kind: AskKind; title: string; detail?: string;
+  id: string; kind: AskKind; title: string; detail?: string; role?: string;
   application_ids: string[]; companies: CompanyMark[]; sources: Array<{ type: 'deadline' | 'action' | 'handoff'; id: string }>; action_ids?: string[];
   due_at: string | null; overdue: boolean; deadline_kind?: string; url?: string | null;
   source?: { inbox_item_id: string; received_at: string };

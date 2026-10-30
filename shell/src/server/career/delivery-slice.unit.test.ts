@@ -128,6 +128,8 @@ describe('情景 C · 两天没开，回来', () => {
     expect(a.replies.map(r => [r.label, r.n])).toEqual([['面试邀请', 1], ['笔试 / 测评', 2], ['不合适', 2]]);
     expect(a.replies[2].companies.map(c => c.name).sort()).toEqual(['京东', '拼多多']);
     expect(a.quiet).toBe(SILENT.length);
+    expect(a.sent).toEqual([]); // 不在的两天里没有新投出的
+    expect(a.asks[0]).toMatchObject({ role: '后端开发' });
   });
 
   it('在通知中心把测评做完：回来卡和等你条都不再有它（同一个 id）', async () => {

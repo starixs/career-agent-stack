@@ -7,7 +7,7 @@ import { useCareerQuery } from '../useCareerData';
 import { CompanyPoster } from './CompanyPoster';
 import { deliveryApi, type PosterState, type RunView } from './deliveryApi';
 
-const OVER: Record<PosterState, string> = { wait: '排队', run: '定制中', done: '已投出', ask: '等你看', failed: '没投成', next: '排队' };
+const OVER: Record<PosterState, string> = { wait: '排队', run: '定制中', done: '已投出', ask: '等你', failed: '没投成', next: '排队' };
 
 export function BatchWall({ run, compact, onWatch }: { run: RunView; compact?: boolean; onWatch?: (jobId: string) => void }) {
   const targets = run.items.filter(i => i.star);

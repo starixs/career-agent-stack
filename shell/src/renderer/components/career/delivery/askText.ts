@@ -48,6 +48,8 @@ export function subText(ask: AskView): string | null {
       if (!r || r.required_total === null) return ask.detail ?? null;
       return `必填 ${r.required_filled ?? 0} / ${r.required_total}${r.gaps ? ` · ${r.gaps} 处要看` : ' · 都核对过'}`;
     }
+    // 期限类的 detail 是「明天截止」这种，和期限大字重复，不再写
+    case 'deadline': return ask.due_at ? null : ask.detail ?? null;
     default: return ask.detail ?? null;
   }
 }
