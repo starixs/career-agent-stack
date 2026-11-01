@@ -40,13 +40,14 @@ export interface NavAreaDefinition {
 }
 
 export const NAV_AREAS: readonly NavAreaDefinition[] = [
+  // 主线体验（11-02）：落地就是对话，对话排第一。
+  { id: 'chat', label: '对话', icon: 'chat', items: [] },
   {
     id: 'work', label: '工作台', icon: 'dashboard', items: [
       { id: 'today', label: '招聘概览', icon: 'sun', target: { kind: 'career-today' } },
       { id: 'inbox', label: '通知中心', icon: 'inbox', target: { kind: 'career-inbox' } },
     ],
   },
-  { id: 'chat', label: '对话', icon: 'chat', items: [] },
   {
     id: 'career', label: '我的求职', icon: 'briefcase', items: [
       { id: 'saved', label: '岗位库', icon: 'library', target: { kind: 'career-dossier', view: 'apply' } },
@@ -64,12 +65,11 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
     ],
   },
   {
-    // 技能与工具、小助理暂时停放在设置里，去留待定（2026-10-09）；网络代理与通知已移除（2026-10-13）。
+    // 小助理暂时停放在设置里；网络代理与通知已移除（2026-10-13）；技能与工具收起（2026-11-01，收口面）。
     id: 'settings', label: '设置', icon: 'settings', footer: true, items: [
       { id: 'general', label: '通用设置', icon: 'sliders', target: { kind: 'settings', section: 'general' } },
       { id: 'desktop-pet', label: '桌面宠物', icon: 'pet', target: { kind: 'settings', section: 'desktop-pet' } },
       { id: 'shortcuts', label: '快捷键', icon: 'keyboard', target: { kind: 'settings', section: 'shortcuts' } },
-      { id: 'capabilities', label: '技能与工具', icon: 'wrench', target: { kind: 'capabilities' } },
       { id: 'feedback', label: '小助理与反馈', icon: 'help', target: { kind: 'settings', section: 'feedback' } },
       { id: 'about', label: '关于', icon: 'info', target: { kind: 'settings', section: 'about' } },
     ],

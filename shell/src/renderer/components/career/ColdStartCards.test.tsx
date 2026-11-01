@@ -47,15 +47,22 @@ describe('冷启动的对话卡片', () => {
     expect(onDone).toHaveBeenCalled();
   });
 
-  it('起步卡：只在明确没有邮箱、也没有申请时出现', async () => {
-    vi.mocked(apiGetJson).mockImplementation(async (path: string) => path.startsWith('/api/career/onboarding')
-      ? { ok: true, checklist: { has_mail_account: false, has_application: false } }
-      : { ok: true, connectors: [], accounts: [] });
+  it('起步卡（两扇门）：没有简历也没有经历时出现；「先聊聊」把开场白发进对话，「选个文件」请输入框打开文件选择', async () => {
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, checklist: { has_master_resume: false, has_experience: false } });
     const { unmount } = render(<StarterCard />);
-    expect(await screen.findByRole('region', { name: '起步卡' })).toHaveTextContent('有简历？直接把 PDF 拖到下面的输入框里');
+    const section = await screen.findByRole('region', { name: '起步卡' });
+    const sent: unknown[] = [];
+    const picks: unknown[] = [];
+    const offSend = onEvent('career:chat-suggest', p => sent.push(p));
+    const offPick = onEvent('career:pick-resume', p => picks.push(p));
+    fireEvent.click(within(section).getByRole('button', { name: '还没有，先聊聊' }));
+    fireEvent.click(within(section).getByRole('button', { name: '有，选个文件给我' }));
+    offSend(); offPick();
+    expect(sent).toEqual([{ text: '我没有简历，先聊聊我做过的事', context: undefined, mode: 'send' }]);
+    expect(picks).toHaveLength(1);
     unmount();
 
-    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, checklist: { has_mail_account: true, has_application: false } });
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, checklist: { has_master_resume: true, has_experience: false } });
     render(<StarterCard />);
     await waitFor(() => expect(apiGetJson).toHaveBeenCalled());
     expect(screen.queryByRole('region', { name: '起步卡' })).not.toBeInTheDocument();

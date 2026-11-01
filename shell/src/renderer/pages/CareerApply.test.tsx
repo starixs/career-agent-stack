@@ -44,7 +44,7 @@ describe('CareerApply · 岗位库', () => {
     vi.mocked(apiPostJson).mockReset();
   });
 
-  it('空状态：表格是主体，不再有「等你批准」和投递概况；浏览器空闲时不占位；底部是页面输入框和「AI 找工作」入口', async () => {
+  it('空状态：表格是主体，不再有「等你批准」和投递概况；浏览器空闲时不占位；底部是页面输入框，没有灰着的「即将上线」按钮', async () => {
     mockGet(true);
     render(<CareerApply />);
     expect(await screen.findByText('没有符合筛选的岗位')).toBeInTheDocument();
@@ -52,7 +52,7 @@ describe('CareerApply · 岗位库', () => {
     expect(screen.queryByText('投递概况')).not.toBeInTheDocument();
     expect(screen.queryByTestId('browser-status-bar')).not.toBeInTheDocument();
     expect(screen.getByTestId('page-ask-bar')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /AI 找工作/ })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /AI 找工作/ })).not.toBeInTheDocument();
     // 不调用旧的看板 / 待审接口
     expect(vi.mocked(apiGetJson).mock.calls.some(([p]) => String(p).startsWith('/api/career/board'))).toBe(false);
   });

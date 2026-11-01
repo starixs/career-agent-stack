@@ -17,7 +17,6 @@ import { requestNavigation } from '@/features/career-shell/navModel';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
 import { ManualSendText } from '@/components/career/ManualSendText';
-import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
 import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { StrikeText } from '@/components/career/StrikeText';
 import {
@@ -29,7 +28,6 @@ import { useCareerAction, useCareerQuery } from '@/components/career/useCareerDa
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 
 const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history', 'mail_account'] as const;
-const ONBOARDING_TABLES = ['experience', 'claim', 'resume_master', 'mail_account', 'job', 'application', 'material'] as const;
 const ACTION_TABLES = ['action_queue'] as const;
 const DEADLINE_TABLES = ['deadline'] as const;
 const ACTIVITY_TABLES = ['action_queue', 'task', 'application_history'] as const;
@@ -77,7 +75,6 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
   const confirming = useCareerQuery(() => careerApi.actionsNeedingUser().catch(() => []), ACTION_TABLES);
   const deadlines = useCareerQuery(() => careerApi.deadlines(), DEADLINE_TABLES);
   const activity = useCareerQuery(() => careerApi.activity(gridStartIso).catch(() => []), ACTIVITY_TABLES);
-  const onboarding = useCareerQuery(careerApi.onboarding, ONBOARDING_TABLES);
 
   // 翻到别的月份时补拉那段时间的活动记录（已完成的动作）。
   const activityReload = activity.reload;
@@ -119,9 +116,6 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
   };
   const snooze = (todo: CalendarTodo) => setSnoozed(prev => new Set(prev).add(todo.key));
 
-  // 冷启动做法二：还没连邮箱、也没有任何申请时，先请他把手里有的给我（按真实数据出现和消失，不靠「看过了」标记）
-  const startHere = !!onboarding.data && !onboarding.data.has_mail_account && !onboarding.data.has_application;
-
   const shiftMonth = (delta: number) => setCursor(c => {
     const d = new Date(c.year, c.month + delta, 1);
     return { year: d.getFullYear(), month: d.getMonth() };
@@ -144,7 +138,6 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
         subtitle={subtitle}
       >
         <div ref={topRef} className="flex min-h-full flex-col">
-          {startHere && <StartHere onOpenChat={onOpenChat} />}
           <div className="flex flex-1 flex-col gap-6 px-6 pt-5 lg:flex-row">
             <section aria-label="月历" className="min-w-0 flex-1">
               {loadError && <ErrorRow message={loadError} onRetry={reloadAll} />}
@@ -182,24 +175,6 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
         </div>
       </CareerPage>
     </div>
-  );
-}
-
-/** 从你手里有的开始：连邮箱就把几个月的申请接管进来；有简历就拖进对话；什么都没有就从说一段经历开始。 */
-function StartHere({ onOpenChat }: { onOpenChat?: () => void }) {
-  return (
-    <section aria-labelledby="career-start-here" className="mx-6 mt-5 grid gap-3 rounded-[10px] border border-[var(--line)] bg-[var(--side)] px-5 py-4">
-      <div>
-        <h2 id="career-start-here" className="font-human text-lg font-semibold text-[var(--ink)]">从你手里有的开始</h2>
-        <p className="mt-0.5 text-sm text-[var(--muted)]">连上邮箱，已经投过的申请、笔试面试通知会自动收进来；不用先填问卷。</p>
-      </div>
-      <MailConnectCenter />
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--ink-2)]">
-        <span>有简历？</span>
-        <Button variant="secondary" size="sm" onClick={() => onOpenChat?.()}>去对话里拖进来</Button>
-        <span className="text-xs text-[var(--subtle)]">什么都还没有也没关系，在对话里说说你做过的一件事就行。</span>
-      </div>
-    </section>
   );
 }
 

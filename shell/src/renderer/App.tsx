@@ -504,9 +504,8 @@ export default function App() {
   // user accepts the pill; the click path validates them before committing the
   // final live Tab projection.
   const [restoreCandidate] = useState(() => buildRestoredTabs());
-  // The visible landing page is 工作台 › 招聘概览. The launcher stays as the
-  // hidden boot surface that the career boot below flips into the single
-  // assistant Chat, so 对话 is ready one click away.
+  // 主线体验（11-02）：第一次打开就落在对话，小芽先开口。Launcher 是 career boot
+  // 翻成唯一个人助理 Chat 的启动面；招聘概览留在后台，想看再看。
   const [initialWorkspace] = useState(() => {
     const launcher = createNewTab();
     const landing: Tab = {
@@ -514,7 +513,7 @@ export default function App() {
       view: 'career-today',
       title: t(CAREER_PAGE_TITLE_KEYS['career-today']),
     };
-    return { tabs: [launcher, landing] as Tab[], activeTabId: landing.id };
+    return { tabs: [launcher, landing] as Tab[], activeTabId: launcher.id };
   });
   const { state: tabWorkspace, controller: tabWorkspaceController } =
     useTabWorkspaceController<Tab, typeof builtinTabModules>({
@@ -2854,7 +2853,7 @@ export default function App() {
         }
 
         const title = t('tabs.assistantChat');
-        // 落地页是工作台（招聘概览），对话在后台就绪。下面两条启动路径都会在同步阶段
+        // 落地在对话；用户若在启动期间已点去别的页面，就留在那页。下面两条启动路径都会在同步阶段
         // 激活 Launcher / 新 Chat（launch 在入口同步读取激活 Tab；spawn 用 flushSync 激活新 Tab），
         // 这里记下用户此刻所在的页面，并在同一 tick 里把焦点还回去，中间态不会被绘制。
         const pageToKeep = () => {

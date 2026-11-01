@@ -1,24 +1,21 @@
 import AsyncQuestionCard from '@/components/AsyncQuestionCard';
 import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, Copy, Check, Undo2, RotateCcw, GitBranch, Download } from 'lucide-react';
+import { ChevronDown, Copy, Check, Undo2, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { track } from '@/analytics';
 import AttachmentPreviewList from '@/components/AttachmentPreviewList';
-import BlockGroup from '@/components/BlockGroup';
+import { QuietWorkLine, SpeechBlocks } from '@/components/chat/AssistantSpeech';
 import Markdown from '@/components/Markdown';
 import { useToastOptional } from '@/components/Toast';
 import WidgetRenderer from '@/components/tools/WidgetRenderer';
 import { parseWidgetTags, hasWidgetTags } from '@/components/tools/widgetTagParser';
 import Tip from '@/components/Tip';
 import ToolAttachmentGallery from '@/components/tools/ToolAttachmentGallery';
-import { TurnFileEditSummary } from '@/components/TurnFileEditSummary';
 import { CareerFlowCards } from '@/components/career/CareerFlowCards';
 import { MessageSurfaceCards } from '@/features/career-shell/MessageSurfaceCards';
 import { useNotifyRowLayoutChanged } from '@/context/ChatRowLayoutContext';
 import { useCareerCards } from '@/context/CareerCardsContext';
-import { buildReplyMarkdown, downloadMarkdown, localDateStr } from '@/utils/markdownExport';
-import { formatDuration, formatTokens } from '@/utils/formatTokens';
 import { groupContentBlocksForDisplay } from '@/utils/contentBlockDisplay';
 import { parseBackgroundTaskNotificationContent } from '@/utils/backgroundTaskStatus';
 import { copyPlainText } from '@/utils/clipboard';
@@ -53,23 +50,6 @@ interface MessageProps {
 function formatTimestamp(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
-
-function getTurnMetaLabel(message: MessageType, t: (key: string, options?: Record<string, unknown>) => string): string | null {
-  const parts: string[] = [];
-  if (typeof message.durationMs === 'number' && Number.isFinite(message.durationMs) && message.durationMs > 0) {
-    parts.push(t('message.turnDuration', { duration: formatDuration(message.durationMs) }));
-  }
-
-  const usage = message.usage;
-  if (usage) {
-    const totalTokens = (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0);
-    if (totalTokens > 0) {
-      parts.push(`${formatTokens(totalTokens)} tokens`);
-    }
-  }
-
-  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 /**
@@ -139,16 +119,14 @@ function extractAssistantText(content: MessageType['content']): string {
  * Action bar for assistant messages: copy + retry.
  * Always visible (not hover), left-aligned icon buttons.
  */
-function AssistantActions({ message, onRetry, onFork, className = '' }: {
+function AssistantActions({ message, onRetry, className = '' }: {
   message: MessageType;
   onRetry?: (id: string) => void;
-  onFork?: (id: string) => void;
   className?: string;
 }) {
   const { t } = useTranslation('app');
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const exportingRef = useRef(false);
   const toast = useToastOptional();
 
   useEffect(() => {
@@ -156,21 +134,6 @@ function AssistantActions({ message, onRetry, onFork, className = '' }: {
   }, []);
 
   const text = extractAssistantText(message.content);
-  const turnMetaLabel = getTurnMetaLabel(message, t);
-
-  const handleExport = async () => {
-    // In-flight guard against double-click → duplicate download + toast.
-    if (!text.trim() || exportingRef.current) return;
-    exportingRef.current = true;
-    try {
-      track('message_export', {});
-      const fileName = t('message.replyFileName', { date: localDateStr() });
-      toast?.success(await downloadMarkdown(fileName, buildReplyMarkdown(text)));
-    } finally {
-      exportingRef.current = false;
-    }
-  };
-
   return (
     <div className={`group/actions flex min-h-8 w-full items-center gap-1 -ml-2 pt-1 ${className}`}>
       <Tip label={copied ? t('message.actions.copied') : t('message.actions.copy')}>
@@ -192,14 +155,6 @@ function AssistantActions({ message, onRetry, onFork, className = '' }: {
           {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
         </button>
       </Tip>
-      <Tip label={t('message.actions.exportMarkdown')}>
-        <button type="button"
-          aria-label={t('message.actions.exportMarkdown')}
-          onClick={handleExport}
-          className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
-          <Download className="size-3.5" />
-        </button>
-      </Tip>
       {onRetry && (
         <Tip label={t('message.actions.retry')}>
           <button type="button"
@@ -209,25 +164,6 @@ function AssistantActions({ message, onRetry, onFork, className = '' }: {
             <RotateCcw className="size-3.5" />
           </button>
         </Tip>
-      )}
-      {onFork && (message.sdkUuid || message.runtimeTurnAnchor) && (
-        <Tip label={t('message.actions.fork')}>
-          <button type="button"
-            aria-label={t('message.actions.fork')}
-            onClick={() => onFork(message.id)}
-            className="compact-action text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]">
-            <GitBranch className="size-3.5" />
-          </button>
-        </Tip>
-      )}
-      <TurnFileEditSummary content={message.content} />
-      {turnMetaLabel && (
-        <span
-          className="ml-2 min-w-0 flex-1 truncate text-xs text-[var(--muted)]/60 opacity-0 transition-opacity duration-150 group-hover/actions:opacity-100 group-focus-within/actions:opacity-100"
-          title={turnMetaLabel}
-        >
-          {turnMetaLabel}
-        </span>
       )}
     </div>
   );
@@ -282,7 +218,7 @@ function renderWidgetSegments(text: string, isLoading: boolean, unclosedNotice: 
  * Message component with memo optimization.
  * History messages won't re-render when streaming message updates.
  */
-const Message = memo(function Message({ message, isLoading = false, onRewind, onRetry, onFork, exitPlanModeSlot, initialUserCollapsed = false }: MessageProps) {
+const Message = memo(function Message({ message, isLoading = false, onRewind, onRetry, exitPlanModeSlot, initialUserCollapsed = false }: MessageProps) {
   const { t } = useTranslation('app');
   const { openPreview } = useImagePreview();
   const toast = useToastOptional();
@@ -513,14 +449,9 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
             /* ai-message-content 标记 host prose 上下文；具体 16px/1.7、零字距和
                各语义块节奏由 Markdown 默认变体统一拥有。三个 assistant 分支
                （string/blocks/widget-segment）与文档预览共用这一条路径。 */
-            <div className="ai-message-content text-[var(--ink)] select-text">
-              {/* Tail-fade only while text is the actively-streaming edge — `streamingTextActive`
-                  clears on the text block's content-block-stop, so it doesn't linger during a
-                  slow gap before the next block (string-content path). */}
-              <Markdown streaming={isLoading && !!message.streamingTextActive}>{message.content}</Markdown>
-            </div>
+            <SpeechBlocks text={message.content} streaming={isLoading && !!message.streamingTextActive} />
           )}
-          {!isLoading && <AssistantActions message={message} onRetry={onRetry} onFork={onFork} />}
+          {!isLoading && <AssistantActions message={message} onRetry={onRetry} />}
         </div>
       </div>
     );
@@ -590,14 +521,11 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
                   // this text (moved to next tool/thinking, or a slow gap), the fade clears
                   // even though the turn is still loading. Without it the last chars linger faded.
                   return (
-                    <div
+                    <SpeechBlocks
                       key={index}
-                      className="flex justify-start w-full px-1 py-1 select-none"
-                    >
-                      <div className="ai-message-content w-full max-w-none text-[var(--ink)] select-text">
-                        <Markdown streaming={isLoading && index === groupedBlocks.length - 1 && !!message.streamingTextActive}>{item.text}</Markdown>
-                      </div>
-                    </div>
+                      text={item.text}
+                      streaming={isLoading && index === groupedBlocks.length - 1 && !!message.streamingTextActive}
+                    />
                   );
                 }
                 return null;
@@ -629,11 +557,7 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
                 : [];
               return (
                 <Fragment key={`group-${index}`}>
-                  <BlockGroup
-                    blocks={item}
-                    isLatestActiveSection={isLatestActiveSection}
-                    isStreaming={isAssistantStreaming}
-                  />
+                  {isLatestActiveSection && isAssistantStreaming && <QuietWorkLine blocks={item} />}
                   {groupAttachments.length > 0 && (
                     <div className="px-1">
                       <ToolAttachmentGallery attachments={groupAttachments} />
@@ -653,7 +577,7 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
             })}
           </div>
         </article>
-        {!isLoading && <AssistantActions className="px-4" message={message} onRetry={onRetry} onFork={onFork} />}
+        {!isLoading && <AssistantActions className="px-4" message={message} onRetry={onRetry} />}
       </div>
     </div>
   );

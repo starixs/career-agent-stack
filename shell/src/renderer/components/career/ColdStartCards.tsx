@@ -8,14 +8,17 @@
 import { emitEvent } from '@/api/eventBus';
 
 import { careerApi } from './careerApi';
-import { Button, ErrorRow, LoadingRow } from './CareerPrimitives';
+import { PICK_RESUME_EVENT } from '@/components/chat-input/hooks/useResumePickSend';
+
+import { Button, ErrorRow, LoadingRow, suggestToChat } from './CareerPrimitives';
 import { CompanyPoster, CompanyTag, CountTag, dueWords } from './CompanyMark';
-import { MailConnectCenter } from './mail-connect/MailConnectCenter';
 import type { CareerCard, CareerFocusEvent, TakeoverBriefing } from './types';
 import { useCareerQuery } from './useCareerData';
 
 const TABLES = ['mail_account', 'mail_message', 'application', 'deadline'] as const;
-const ONBOARDING_TABLES = ['mail_account', 'application'] as const;
+const ONBOARDING_TABLES = ['experience', 'resume_master'] as const;
+/** 「还没有，先聊聊」发进对话的那句话；会触发经历访谈技能（triggers 里有「我没有简历」）。 */
+const NO_RESUME_OPENER = '我没有简历，先聊聊我做过的事';
 /** 事实行里每行最多几个小签，其余折成「+N」。 */
 const FACT_TAGS = 3;
 const TEST_KINDS: ReadonlySet<string> = new Set(['written_test', 'assessment']);
@@ -100,18 +103,26 @@ export function TakeoverCard({ card, onDone }: { card: CareerCard; onDone: () =>
   );
 }
 
-/** 起步卡：没连邮箱、也没有任何申请时出现在对话底部；连好任一处，两处（这里和招聘概览）一起消失。 */
+/**
+ * 起步卡 = 开场"两扇门"（主线体验 §1，11-02 定）：还没有简历、也没聊过经历时，小芽先开口，只给两扇门。
+ * 先懂他，不先要东西：没有简历的人点「还没有，先聊聊」就进经历访谈；有简历的点一下选文件，选完替他发出去。
+ * 和招聘概览上的起步块读同一份数据（onboarding），有了简历或经历两处一起消失。
+ */
 export function StarterCard() {
   const q = useCareerQuery(careerApi.onboarding, ONBOARDING_TABLES);
   const d = q.data;
-  // 只在明确知道「没有邮箱、也没有申请」时出现；数据不全时不出
-  if (!d || d.has_mail_account !== false || d.has_application !== false) return null;
+  if (!d || d.has_master_resume !== false || d.has_experience !== false) return null;
   return (
     <section data-testid="career-starter-card" aria-label="起步卡" className="grid gap-3 py-1">
-      <h4 className="font-human text-lg font-semibold text-[var(--ink)]">从你手里有的开始</h4>
-      <MailConnectCenter from="chat" />
-      <div className="rounded-[10px] border-[1.5px] border-dashed border-[var(--line-2)] px-3.5 py-3 text-sm text-[var(--muted)]">有简历？直接把 PDF 拖到下面的输入框里</div>
-      <p className="text-sm text-[var(--subtle)]">什么都还没有也没关系，跟我说说你做过的一件事就行。</p>
+      <div className="grid gap-1">
+        <h4 className="font-human text-lg font-semibold text-[var(--ink)]">我是小芽，帮你把网申从写简历一路做到投出去。</h4>
+        <p className="text-sm text-[var(--ink-2)]">每一步你都看得见，提交之前一定先给你看。你手上有简历吗？</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="primary" onClick={() => emitEvent(PICK_RESUME_EVENT, null)}>有，选个文件给我</Button>
+        <Button variant="secondary" onClick={() => suggestToChat(NO_RESUME_OPENER)}>还没有，先聊聊</Button>
+      </div>
+      <p className="text-xs text-[var(--subtle)]">也可以直接把文件拖到下面的输入框里。</p>
     </section>
   );
 }

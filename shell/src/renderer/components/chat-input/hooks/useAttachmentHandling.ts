@@ -527,7 +527,8 @@ export function useAttachmentHandling({
     }
   }, [fileService, workspacePath, addPreparedImageAttachment, undoStack, isImportScopeCurrent, notifyUnsupportedImageFallback, onWorkspaceRefresh, provider, currentModelId, isExternalRuntime, attachmentSessionId, toastRef, insertReferenceText, t]);
 
-  const handleUploadButtonClick = useCallback(async () => {
+  /** 打开文件选择；返回选中的文件数（浏览器环境交给 input[type=file]，返回 -1 表示结果稍后经 onChange 到达）。 */
+  const handleUploadButtonClick = useCallback(async (): Promise<number> => {
     setShowPlusMenu(false);
     if (isTauriEnvironment()) {
       try {
@@ -536,21 +537,23 @@ export function useAttachmentHandling({
           directory: false,
           title: t('input.attachments.pickFilesTitle'),
         });
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) return 0;
         const paths = Array.isArray(selected)
           ? selected.filter((path): path is string => typeof path === 'string')
           : (typeof selected === 'string' ? [selected] : []);
         if (paths.length > 0) {
           await processDroppedFilePaths(paths);
         }
+        return paths.length;
       } catch (err) {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current) return 0;
         console.error('[SimpleChatInput] File picker error:', err);
         toastRef.current.error(t('input.attachments.pickFilesFailed'));
       }
-      return;
+      return 0;
     }
     fileInputRef.current?.click();
+    return -1;
   }, [processDroppedFilePaths, setShowPlusMenu, fileInputRef, toastRef, t]);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

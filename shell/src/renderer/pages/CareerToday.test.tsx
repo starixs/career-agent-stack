@@ -223,22 +223,10 @@ describe('CareerToday · 从你手里有的开始', () => {
     window.localStorage.clear();
   });
 
-  it('没连邮箱、也没有申请：先请他把手里有的给我（连邮箱 / 拖简历），不再弹五步引导', async () => {
+  it('起步只在对话里（两扇门，三选一）：招聘概览上不再有起步块', async () => {
     mockGet({ checklist: checklistPartial });
-    const onOpenChat = vi.fn();
-    render(<CareerToday isActive onOpenChat={onOpenChat} />);
-    const start = await screen.findByRole('region', { name: '从你手里有的开始' });
-    expect(await within(start).findByRole('button', { name: /QQ 邮箱/ })).toBeInTheDocument();
-    fireEvent.click(within(start).getByRole('button', { name: '去对话里拖进来' }));
-    expect(onOpenChat).toHaveBeenCalled();
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '新手引导' })).not.toBeInTheDocument();
-  });
-
-  it('连了邮箱或已经有申请：这一块不出现', async () => {
-    mockGet({ checklist: checklistDone });
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
-    await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司');
+    await waitFor(() => expect(apiGetJson).toHaveBeenCalled());
     expect(screen.queryByRole('region', { name: '从你手里有的开始' })).not.toBeInTheDocument();
   });
 

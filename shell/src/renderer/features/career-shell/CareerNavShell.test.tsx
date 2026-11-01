@@ -7,7 +7,7 @@ import { resetCareerSubViews, setCareerSubView } from './subViewStore';
 
 describe('navModel', () => {
   it('lists the five areas plus settings, and L2 never repeats the area name', () => {
-    expect(NAV_AREAS.map(area => area.label)).toEqual(['工作台', '对话', '我的求职', '功能市场', '我的资料', '设置']);
+    expect(NAV_AREAS.map(area => area.label)).toEqual(['对话', '工作台', '我的求职', '功能市场', '我的资料', '设置']);
     for (const area of NAV_AREAS) {
       expect(area.items.map(item => item.label)).not.toContain(area.label);
     }
@@ -20,7 +20,7 @@ describe('navModel', () => {
     expect(NAV_AREAS.find(area => area.id === 'assets')!.items.map(item => item.label))
       .toEqual(['基本资料', '简历']);
     expect(NAV_AREAS.find(area => area.id === 'settings')!.items.map(item => item.id))
-      .toEqual(['general', 'desktop-pet', 'shortcuts', 'capabilities', 'feedback', 'about']);
+      .toEqual(['general', 'desktop-pet', 'shortcuts', 'feedback', 'about']);
   });
 
   it('locates the area and item from the active tab and the page sub-view', () => {

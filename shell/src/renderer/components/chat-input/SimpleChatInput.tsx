@@ -26,6 +26,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { ModalityBadges } from '@/components/ModalityBadges';
 import { useImagePreview } from '@/context/ImagePreviewContext';
 import { useWorkspaceFileService } from '@/hooks/useWorkspaceFileService';
+import { useResumePickSend } from './hooks/useResumePickSend';
 import { type PermissionMode, PERMISSION_MODES, type Provider, type ProviderVerifyStatus, getModelDisplayName } from '@/config/types';
 import { useConfigData } from '@/config/useConfigData';
 import { resolveEnterKeyAction, sendKeyHint } from '@/utils/chatSendKey';
@@ -1145,6 +1146,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
       sendingRef.current = false;
     }
   }, [onSend, images, inputValue, provider, currentModelId, isExternalRuntime, setImages, onSlashAction, enabledClientActionCommands, showConfigLockedReason, notifyUnsupportedImageFallback]);
+
+  useResumePickSend({ inputValue, setInputValue, pickFiles: handleUploadButtonClick, send: () => { void handleSend(); } });
 
   // Handle keyboard navigation in file search and slash menu
   // Handler for selecting a slash command — shared by the click path

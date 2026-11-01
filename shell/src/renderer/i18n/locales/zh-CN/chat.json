@@ -14,7 +14,7 @@
   },
   "input": {
     "launcherPlaceholder": "今天，想干点啥？",
-    "placeholder": "输入消息，使用 @ 引用文件，/ 使用技能...",
+    "placeholder": "跟小芽说说，或者把简历拖进来…",
     "companionPlaceholder": "问问{{name}}，或者派个活…",
     "addScreenshot": "添加屏幕截图",
     "send": "发送",

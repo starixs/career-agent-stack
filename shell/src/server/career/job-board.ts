@@ -117,7 +117,7 @@ export function seedCampusJobsIfEmpty(repos: Repos, store: CareerStore, bridges:
   if (repos.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM job')?.n) return null;
   let stored: number;
   try {
-    const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), { excludeExpired: false });
+    const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), { excludeExpired: true });
     stored = bridges.importCampusJobs(repos, items).length;
   } catch (error) {
     console.warn('[career] 首次自动导入校招数据失败:', error instanceof Error ? error.message : error);

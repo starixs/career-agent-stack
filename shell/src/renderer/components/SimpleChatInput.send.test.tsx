@@ -234,7 +234,7 @@ describe('SimpleChatInput send paths', () => {
     const user = userEvent.setup();
     renderInput();
 
-    const textarea = screen.getByPlaceholderText('输入消息，使用 @ 引用文件，/ 使用技能...');
+    const textarea = screen.getByPlaceholderText('跟小芽说说，或者把简历拖进来…');
     await user.type(textarea, '@');
 
     const emptySearchHint = await screen.findByText('输入文件名搜索...');
@@ -290,7 +290,7 @@ describe('SimpleChatInput send paths', () => {
         ],
       });
 
-      const textarea = screen.getByPlaceholderText('输入消息，使用 @ 引用文件，/ 使用技能...');
+      const textarea = screen.getByPlaceholderText('跟小芽说说，或者把简历拖进来…');
       await user.type(textarea, '/');
 
       expect(await screen.findByText('/goal')).toBeInTheDocument();
@@ -469,7 +469,7 @@ describe('SimpleChatInput send paths', () => {
           source: 'client',
         }],
       });
-      const textarea = screen.getByPlaceholderText('输入消息，使用 @ 引用文件，/ 使用技能...');
+      const textarea = screen.getByPlaceholderText('跟小芽说说，或者把简历拖进来…');
       await user.type(textarea, '/');
       await user.click(await screen.findByText('/compact'));
 
@@ -489,7 +489,7 @@ describe('SimpleChatInput send paths', () => {
     const user = userEvent.setup();
     const onSend = renderInput();
 
-    const textarea = screen.getByPlaceholderText('输入消息，使用 @ 引用文件，/ 使用技能...');
+    const textarea = screen.getByPlaceholderText('跟小芽说说，或者把简历拖进来…');
     await user.type(textarea, 'chat hello');
     await user.click(screen.getByTitle(/发送/));
 
@@ -744,7 +744,7 @@ describe('SimpleChatInput send paths', () => {
       },
     });
 
-    const textarea = screen.getByPlaceholderText('输入消息，使用 @ 引用文件，/ 使用技能...');
+    const textarea = screen.getByPlaceholderText('跟小芽说说，或者把简历拖进来…');
     await user.type(textarea, 'subscription hello');
     await user.click(screen.getByTitle(/发送/));
 

@@ -6,7 +6,7 @@
  * 同步 / 导入 / 导出是次要动作，收在工具栏右侧。勾选后「投这 N 家」一次确认就开始（JobBoardApply.tsx），
  * 底部输入框上沿是和对话同一条等你条；输入框旁边是「AI 找工作」入口（功能未上线，先禁用）。
  */
-import { ChevronDown, Download, ExternalLink as ExternalLinkIcon, Link2, RefreshCw, Search, Sparkles, X } from 'lucide-react';
+import { ChevronDown, Download, ExternalLink as ExternalLinkIcon, Link2, RefreshCw, Search, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
@@ -154,17 +154,6 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
         target={{ kind: 'career-dossier', view: 'apply' }}
         refs={boardAskRefs(filter, ids, picked)}
         placeholder="问问这些岗位，比如「哪些下周截止、适合我」"
-        actions={(
-          <button
-            type="button"
-            disabled
-            title="AI 找工作即将上线"
-            className="flex h-11 shrink-0 items-center gap-1.5 rounded-xl border-[1.5px] border-[var(--line-2)] bg-[var(--paper)] px-4 text-sm font-semibold text-[var(--subtle)]"
-          >
-            <Sparkles className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
-            AI 找工作
-          </button>
-        )}
       />
     </section>
   );
