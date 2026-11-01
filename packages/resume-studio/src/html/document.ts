@@ -3,7 +3,7 @@
  * 版面尺寸用 pt / mm，与打印一致；缩放只动两个变量：--fs（字号）与 --sp（间距），见 fit.ts。
  */
 import type { ResumeData } from "../schema/resume/data";
-import type { HtmlLayout } from "./templates";
+import type { HtmlTemplate } from "./templates";
 import {
 	getPdfFallbackFontFamilies,
 	getRawWebFontSource,
@@ -13,6 +13,7 @@ import {
 	type FontWeight,
 } from "../fonts";
 import { filterSections } from "../pdf/templates/shared/filtering";
+import { iconSvg } from "./icons";
 import { escapeHtml as esc } from "./sanitize";
 import { renderSection } from "./sections";
 import { getHtmlTemplate } from "./templates";
@@ -104,38 +105,67 @@ a { color: inherit; text-decoration: ${m.page.hideLinkUnderline ? "none" : "unde
 .level i.on { background: var(--primary); }
 .level.bar { height: 4pt; border: 1px solid var(--primary); }
 .level.bar i { height: 100%; border: 0; background: var(--primary); }
-.photo { object-fit: ${data.picture.fit}; }
+.photo { object-fit: ${data.picture.fit}; flex-shrink: 0; }
+.icon { width: 1em; height: 1em; flex-shrink: 0; vertical-align: -0.125em; }
+.contact { display: inline-flex; align-items: center; column-gap: 0.25em; }
+.contact .icon { color: var(--primary); }
+.section-title { display: flex; align-items: center; column-gap: 0.35em; }
+.with-icon { display: inline-flex; align-items: center; column-gap: 0.3em; }
+.item-icon { color: var(--primary); }
+.level.icons { gap: 1pt; color: var(--primary); }
+.level.icons span { opacity: 0.35; display: inline-flex; }
+.level.icons span.on { opacity: 1; }
 `;
 }
 
-function header(data: ResumeData): string {
-	const b = data.basics;
+function photo(data: ResumeData): string {
 	const p = data.picture;
-	const photo =
-		!p.hidden && p.url
-			? `<img class="photo" src="${esc(p.url)}" alt="" style="width:${p.size}pt;height:${p.size / p.aspectRatio}pt;border-radius:${p.borderRadius}pt;border:${p.borderWidth}pt solid ${p.borderColor};transform:rotate(${p.rotation}deg)">`
-			: "";
-	const contacts = [
-		b.email && `<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`,
-		b.phone && `<span>${esc(b.phone)}</span>`,
-		b.location && `<span>${esc(b.location)}</span>`,
-		b.website.url && /^https?:/i.test(b.website.url) && `<a href="${esc(b.website.url)}">${esc(b.website.label || b.website.url)}</a>`,
-		...b.customFields.map((f) => f.text && (f.link && /^https?:/i.test(f.link) ? `<a href="${esc(f.link)}">${esc(f.text)}</a>` : `<span>${esc(f.text)}</span>`)),
-	].filter(Boolean);
-	return `<header class="header">${photo}<div class="identity"><h1 class="name">${esc(b.name)}</h1>${b.headline ? `<div class="headline">${esc(b.headline)}</div>` : ""}<div class="contacts">${contacts.join("")}</div></div></header>`;
+	if (p.hidden || !p.url) return "";
+	return `<img class="photo" src="${esc(p.url)}" alt="" style="width:${p.size}pt;height:${p.size / p.aspectRatio}pt;border-radius:${p.borderRadius}pt;border:${p.borderWidth}pt solid ${p.borderColor};transform:rotate(${p.rotation}deg)">`;
 }
 
-function columns(data: ResumeData, layout: HtmlLayout): string {
-	return data.metadata.layout.pages
-		.map((page, index) => {
-			const main = filterSections(page.main, data).map((id) => renderSection(id, data)).join("");
-			const side = page.fullWidth ? "" : filterSections(page.sidebar, data).map((id) => renderSection(id, data)).join("");
-			const brk = index > 0 ? ' style="break-before: page"' : "";
-			if (layout === "stack" || !side) return `<div class="columns"${brk}><div class="main">${main}${side}</div></div>`;
-			return `<div class="columns ${layout}"${brk}><aside class="sidebar">${side}</aside><div class="main">${main}</div></div>`;
-		})
-		.join("");
+function header(data: ResumeData, withPhoto: boolean): string {
+	const b = data.basics;
+	const ic = (name: string) => (data.metadata.page.hideIcons ? "" : iconSvg(name));
+	const web = (url: string) => /^https?:/i.test(url);
+	const contacts = [
+		b.email && `<a class="contact" href="mailto:${esc(b.email)}">${ic("envelope")}${esc(b.email)}</a>`,
+		b.phone && `<span class="contact">${ic("phone")}${esc(b.phone)}</span>`,
+		b.location && `<span class="contact">${ic("map-pin")}${esc(b.location)}</span>`,
+		b.website.url && web(b.website.url) && `<a class="contact" href="${esc(b.website.url)}">${ic("globe")}${esc(b.website.label || b.website.url)}</a>`,
+		...b.customFields.map((f) => {
+			if (!f.text) return "";
+			const inner = `${ic(f.icon)}${esc(f.text)}`;
+			return f.link && web(f.link) ? `<a class="contact" href="${esc(f.link)}">${inner}</a>` : `<span class="contact">${inner}</span>`;
+		}),
+	].filter(Boolean);
+	return `<header class="header">${withPhoto ? photo(data) : ""}<div class="identity"><h1 class="name">${esc(b.name)}</h1>${b.headline ? `<div class="headline">${esc(b.headline)}</div>` : ""}<div class="contacts">${contacts.join("")}</div></div></header>`;
 }
+
+const interleave = (a: string[], b: string[]) =>
+	Array.from({ length: Math.max(a.length, b.length) }, (_, i) => [b[i], a[i]]).flat().filter((x): x is string => Boolean(x));
+
+/** 一个版式页：首页带页眉（位置由模板定），后续页另起一页。 */
+function layoutPage(data: ResumeData, t: HtmlTemplate, page: ResumeData["metadata"]["layout"]["pages"][number], first: boolean): string {
+	const render = (ids: string[]) => filterSections(ids, data).map((id) => renderSection(id, data));
+	const main = render(page.main);
+	const side = page.fullWidth ? [] : render(page.sidebar);
+	const brk = first ? "" : ' style="break-before: page"';
+	const twoCol = (t.layout === "sidebar-left" || t.layout === "sidebar-right") && side.length > 0;
+	const sidePhoto = first && t.photo === "sidebar" && twoCol ? photo(data) : "";
+	const head = first ? header(data, !sidePhoto) : "";
+	const at = twoCol ? (t.header ?? "top") : "top";
+	if (!twoCol) {
+		const body = t.layout === "interleave" ? interleave(main, side) : [...main, ...side];
+		return `${head}<div class="columns"${brk}><div class="main">${body.join("")}</div></div>`;
+	}
+	const aside = `<aside class="sidebar">${sidePhoto}${at === "sidebar" ? head : ""}${side.join("")}</aside>`;
+	const mainCol = `<div class="main">${at === "main" ? head : ""}${main.join("")}</div>`;
+	return `${at === "top" ? head : ""}<div class="columns ${t.layout}"${brk}>${aside}${mainCol}</div>`;
+}
+
+const columns = (data: ResumeData, t: HtmlTemplate) =>
+	data.metadata.layout.pages.map((page, index) => layoutPage(data, t, page, index === 0)).join("");
 
 export type BuildHtmlOptions = { fontCss?: string };
 
@@ -144,5 +174,5 @@ export function buildResumeHtml(data: ResumeData, options: BuildHtmlOptions = {}
 	const template = getHtmlTemplate(data.metadata.template);
 	if (!template) return null;
 	const lang = esc(data.metadata.page.locale || "zh-CN");
-	return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>${options.fontCss ?? ""}${baseCss(data)}${template.css}</style></head><body data-template="${esc(data.metadata.template)}"><div class="page"><div class="content">${header(data)}${columns(data, template.layout)}</div></div></body></html>`;
+	return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><style>${options.fontCss ?? ""}${baseCss(data)}${template.css}</style></head><body data-template="${esc(data.metadata.template)}"><div class="page"><div class="content">${columns(data, template)}</div></div></body></html>`;
 }

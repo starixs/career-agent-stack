@@ -7,28 +7,20 @@
 import type { Template } from "../schema/templates";
 import type { BrandHeader, BrandLine, BrandSectionDecoration, BrandStyle } from "../pdf/templates/brand/brands";
 import { BRAND_HAIRLINE, BRAND_STYLES, isBrandTemplate } from "../pdf/templates/brand/brands";
+import { CLASSIC_HTML_TEMPLATES } from "./classic";
 
-export type HtmlLayout = "stack" | "sidebar-left" | "sidebar-right";
-export type HtmlTemplate = { layout: HtmlLayout; css: string };
-
-const ONYX: HtmlTemplate = {
-	layout: "stack",
-	css: `
-.header { border-bottom: 1px solid var(--primary); padding-bottom: var(--margin-y); }
-.section-title { color: var(--primary); }`,
-};
-
-const AZURILL: HtmlTemplate = {
-	layout: "sidebar-left",
-	css: `
-.header { flex-direction: column; text-align: center; }
-.header .contacts { justify-content: center; }
-.section-title { color: var(--primary); }
-.main .items { position: relative; padding-left: 16px; }
-.main .items::before { content: ""; position: absolute; left: 4px; top: 4px; bottom: 4px; width: 1px; background: var(--primary); }
-.main .item { position: relative; }
-.main .item::before { content: ""; position: absolute; left: -16px; top: 0.45em; width: 7px; height: 7px; border-radius: 50%; border: 1px solid var(--primary); background: var(--bg); }
-.main .roles .item::before { display: none; }`,
+/**
+ * stack：单列，主栏分区后接侧栏分区；interleave：单列，侧栏与主栏分区交替（Bronzor 的标签栅格）；
+ * sidebar-left / sidebar-right：两栏。
+ */
+export type HtmlLayout = "stack" | "interleave" | "sidebar-left" | "sidebar-right";
+export type HtmlTemplate = {
+	layout: HtmlLayout;
+	/** 页眉位置：页面顶部（默认）/ 侧栏顶部 / 主栏顶部。只在两栏布局下生效，单列一律放顶部。 */
+	header?: "top" | "sidebar" | "main";
+	/** 照片位置：页眉里（默认）/ 侧栏顶部（姓名留在页眉）。 */
+	photo?: "header" | "sidebar";
+	css: string;
 };
 
 const line = (l: BrandLine) =>
@@ -87,11 +79,9 @@ ${grid}`,
 	};
 }
 
-const CLASSIC: Partial<Record<Template, HtmlTemplate>> = { onyx: ONYX, azurill: AZURILL };
-
 export function getHtmlTemplate(template: Template): HtmlTemplate | undefined {
 	if (isBrandTemplate(template)) return brandTemplate(BRAND_STYLES[template]);
-	return CLASSIC[template];
+	return CLASSIC_HTML_TEMPLATES[template] ?? undefined;
 }
 
 export const hasHtmlTemplate = (template: Template): boolean => getHtmlTemplate(template) !== undefined;

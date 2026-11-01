@@ -4,7 +4,9 @@
  *   .item > .item-head(.row > .primary/.secondary/.aside) + .rich
  */
 import type { ResumeData, SectionItem, SectionType } from "../schema/resume/data";
+import { getResumeSectionIcon } from "../pdf/section-icon";
 import { getResumeSectionTitle } from "../pdf/section-title";
+import { iconSvg } from "./icons";
 import { filterItems } from "../pdf/templates/shared/filtering";
 import { escapeHtml as esc, sanitizeRichText } from "./sanitize";
 
@@ -32,13 +34,26 @@ const keywords = (list: string[], layout: "inline" | "list" = "inline") => {
 };
 
 function level(value: number, ctx: Ctx): string {
-	const type = ctx.data.metadata.design.level.type;
+	const { type, icon } = ctx.data.metadata.design.level;
 	if (type === "hidden" || value <= 0) return "";
+	if (type === "icon") {
+		const svg = iconSvg(icon);
+		if (!svg) return "";
+		return `<div class="level icons">${Array.from({ length: LEVEL_MAX }, (_, i) => `<span class="${i < value ? "on" : ""}">${svg}</span>`).join("")}</div>`;
+	}
 	if (type === "progress-bar") return `<div class="level bar"><i style="width:${(value / LEVEL_MAX) * 100}%"></i></div>`;
 	const shape = type === "circle" ? "dot" : "box";
 	const cells = Array.from({ length: LEVEL_MAX }, (_, i) => `<i class="${i < value ? "on" : ""}"></i>`).join("");
 	return `<div class="level ${shape}">${cells}</div>`;
 }
+
+/** 条目图标（技能 / 社交账号 / 兴趣），「隐藏图标」开时不画。 */
+const itemIcon = (ctx: Ctx, name: string, color: string) => {
+	if (ctx.data.metadata.page.hideIcons || !name) return "";
+	const svg = iconSvg(name, "icon item-icon");
+	return svg && color ? svg.replace("<svg ", `<svg style="color:${esc(color)}" `) : svg;
+};
+const titled = (icon: string, text: string) => (icon ? `<span class="primary with-icon">${icon}${esc(text)}</span>` : span("primary", text));
 
 const RENDERERS: { [K in SectionType]: (it: SectionItem<K>, ctx: Ctx, layout?: "inline" | "list") => string } = {
 	experience: (it) => {
@@ -59,10 +74,16 @@ const RENDERERS: { [K in SectionType]: (it: SectionItem<K>, ctx: Ctx, layout?: "
 		),
 	projects: (it) => item(head(row(span("primary", it.name), span("aside", it.period)), row(link(it.website))), rich(it.description)),
 	skills: (it, ctx, layout) =>
-		item(head(row(span("primary", it.name), span("aside", it.proficiency))), level(it.level, ctx), keywords(it.keywords, layout)),
+		item(head(row(titled(itemIcon(ctx, it.icon, it.iconColor), it.name), span("aside", it.proficiency))), level(it.level, ctx), keywords(it.keywords, layout)),
 	languages: (it, ctx) => item(head(row(span("primary", it.language), span("aside", it.fluency))), level(it.level, ctx)),
-	interests: (it) => item(head(row(span("primary", it.name))), keywords(it.keywords)),
-	profiles: (it) => item(head(row(span("primary", it.network)), row(it.website.url ? link({ url: it.website.url, label: it.username || it.website.label }) : span("secondary", it.username)))),
+	interests: (it, ctx) => item(head(row(titled(itemIcon(ctx, it.icon, it.iconColor), it.name))), keywords(it.keywords)),
+	profiles: (it, ctx) =>
+		item(
+			head(
+				row(titled(itemIcon(ctx, it.icon, it.iconColor), it.network)),
+				row(it.website.url ? link({ url: it.website.url, label: it.username || it.website.label }) : span("secondary", it.username)),
+			),
+		),
 	awards: (it) => item(head(row(span("primary", it.title), span("aside", it.date)), row(span("secondary", it.awarder), link(it.website))), rich(it.description)),
 	certifications: (it) => item(head(row(span("primary", it.title), span("aside", it.date)), row(span("secondary", it.issuer), link(it.website))), rich(it.description)),
 	publications: (it) => item(head(row(span("primary", it.title), span("aside", it.date)), row(span("secondary", it.publisher), link(it.website))), rich(it.description)),
@@ -71,7 +92,8 @@ const RENDERERS: { [K in SectionType]: (it: SectionItem<K>, ctx: Ctx, layout?: "
 };
 
 const shell = (ctx: Ctx, id: string, type: string, title: string, showHeading: boolean, columns: number, body: string) => {
-	const heading = showHeading ? `<h2 class="section-title">${esc(getResumeSectionTitle(ctx.data, id, title))}</h2>` : "";
+	const icon = ctx.data.metadata.page.hideSectionIcons ? "" : iconSvg(getResumeSectionIcon(ctx.data, id), "icon section-icon");
+	const heading = showHeading ? `<h2 class="section-title">${icon}${esc(getResumeSectionTitle(ctx.data, id, title))}</h2>` : "";
 	return `<section class="section" data-section="${esc(type)}" data-id="${esc(id)}">${heading}<div class="items" style="--cols:${Math.max(1, columns)}">${body}</div></section>`;
 };
 
