@@ -10,6 +10,7 @@
 import type { Repos, Vault } from '@career/core';
 import type { ResumeData } from '@career/resume-studio/schema';
 
+import { renderHtmlResumePdf } from './resume-html-pdf';
 import { fromStudio, toStudio } from './resume-studio-convert';
 import type { CareerStore } from './store';
 
@@ -103,8 +104,16 @@ async function prepareNodeFonts(): Promise<void> {
 /** 用工作台模板渲染 PDF（与预览同一套）；私密库占位符在这里解成明文，只进 PDF，不回写。 */
 export async function renderStudioPdfBuffer(deps: StudioDeps, id: string, resolve: (doc: unknown) => unknown = d => d): Promise<Buffer> {
   const { data } = await loadStudio(deps, id);
+  const resolved = resolve(data) as ResumeData;
+  try {
+    const pdf = await renderHtmlResumePdf(resolved);
+    if (pdf) return pdf;
+  } catch (error) {
+    // HTML 引擎（Chrome）不可用时退回 react-pdf：导出必须出得来，但版面会和预览不同，所以留可 grep 的锚点
+    console.error(`[resume-pdf] FAILED engine=html resume=${id} template=${resolved.metadata.template} fallback=react-pdf error=${error instanceof Error ? error.message.split('\n')[0] : String(error)}`);
+  }
   await prepareNodeFonts();
   const { createResumePdfFile } = await import('@career/resume-studio/server');
-  const file = await createResumePdfFile({ data: resolve(data) as ResumeData, filename: `${id}.pdf` });
+  const file = await createResumePdfFile({ data: resolved, filename: `${id}.pdf` });
   return Buffer.from(await file.arrayBuffer());
 }

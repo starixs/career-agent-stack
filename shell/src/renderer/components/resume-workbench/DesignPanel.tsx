@@ -182,6 +182,7 @@ export function DesignPanel({ data, update, resumeId }: { data: ResumeData; upda
               className={`flex-1 rounded-md border px-2 py-1 text-xs ${m.page.format === f ? 'border-[var(--primary)] text-[var(--ink)]' : 'border-[var(--line)] text-[var(--muted)]'}`}>{f === 'a4' ? 'A4' : 'Letter'}</button>
           ))}
         </div>
+        <Toggle label="自动排满一页（缩放字号与间距）" checked={m.page.autoFit} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.autoFit = v; }))} />
         <Range label="左右页边距" unit="pt" min={6} max={40} value={m.page.marginX} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.marginX = v; }), { merge: 'marginX' })} />
         <Range label="上下页边距" unit="pt" min={6} max={40} value={m.page.marginY} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.marginY = v; }), { merge: 'marginY' })} />
         <Range label="分区间距" unit="pt" min={0} max={20} value={m.page.gapY} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.gapY = v; }), { merge: 'gapY' })} />

@@ -500,6 +500,12 @@ export const pageSchema = z.object({
 		.boolean()
 		.describe("Whether to hide the section heading icons displayed before section titles.")
 		.catch(true),
+	autoFit: z
+		.boolean()
+		.describe(
+			"Whether to scale font size and spacing so the resume fills exactly one page (HTML templates). Content too long even at the minimum scale keeps its natural size and flows onto more pages.",
+		)
+		.catch(true),
 });
 
 export const levelDesignSchema = z.object({
