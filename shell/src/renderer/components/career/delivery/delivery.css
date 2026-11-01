@@ -86,7 +86,9 @@
 .cd-slots button[aria-checked='true'] { border-color: var(--primary); color: var(--primary); font-weight: 600; }
 
 /* ---------- 卡组（浮层） ---------- */
-.cd-deck { position: absolute; left: 0; right: 0; bottom: 100%; max-height: 520px; overflow: auto; padding: 14px 22px 22px; border-top: 1px solid var(--line-2); background: var(--paper); box-shadow: 0 -18px 40px -24px rgba(20, 16, 12, 0.35); }
+.cd-deck { position: absolute; left: 0; right: 0; bottom: 100%; max-height: min(520px, calc(100vh - 260px)); overflow: auto; overscroll-behavior: contain; pointer-events: auto; padding: 14px 22px 0; border-top: 1px solid var(--line-2); background: var(--paper); box-shadow: 0 -18px 40px -24px rgba(20, 16, 12, 0.35); }
+/* 卡片比可见空间长时（缺信息卡 7 项），「填好 / 跳过」这一行贴在卡组底部，不用滚到底才点得到（2026-10-31 实测滚不到「填好」） */
+.cd-deck .cd-acts { position: sticky; bottom: 0; z-index: 1; margin-bottom: 0; padding: 12px 0 18px; background: var(--paper); }
 .cd-deck-head { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; font-size: 13px; color: var(--muted); }
 .cd-deck-count { color: var(--primary); }
 .cd-deck-count b { font-size: 16px; }
