@@ -1,5 +1,7 @@
 import type { Template } from "../../schema/templates";
 import type { TemplatePage } from "../document";
+import { BRAND_TEMPLATES } from "./brand/brands";
+import { createBrandPage } from "./brand/BrandPage";
 import { AzurillPage } from "./azurill/AzurillPage";
 import { BronzorPage } from "./bronzor/BronzorPage";
 import { ChikoritaPage } from "./chikorita/ChikoritaPage";
@@ -32,6 +34,7 @@ export const templatePages: Partial<Record<Template, TemplatePage>> = {
 	pikachu: PikachuPage,
 	rhyhorn: RhyhornPage,
 	scizor: ScizorPage,
+	...Object.fromEntries(BRAND_TEMPLATES.map((template) => [template, createBrandPage(template)])),
 };
 
 const defaultTemplatePage = AzurillPage;
