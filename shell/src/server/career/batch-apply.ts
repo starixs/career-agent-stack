@@ -95,13 +95,15 @@ export async function prepareAhead(deps: Deps, limit = PREPARE_AHEAD_LIMIT): Pro
   if (inFlight >= limit) return [];
   const picks = jobBoard(deps.repos, { open_only: true, fits_only: true, sort: 'match' })
     .filter(r => !r.application && keywords.some(k => `${r.job.title} ${r.job.jd_raw ?? ''}`.toLowerCase().includes(k)))
-    .slice(0, limit - inFlight)
     .map(r => r.job.id);
-  const plan = planJobs(deps.repos, deps.store, picks);
-  if (!plan.ready.length) return [];
-  const results = await prepareJobs(deps, plan.ready, null, { fallbackResumeId: null });
+  // 先过一遍能不能开始（没网申链接、已在投的不备），再取前几家
+  const ready = planJobs(deps.repos, deps.store, picks).ready.slice(0, limit - inFlight);
+  if (!ready.length) return [];
+  const results = await prepareJobs(deps, ready, null, { fallbackResumeId: null });
   const actions = results.filter(r => r.ok && r.action_id).map(r => deps.repos.getAction(r.action_id!)).filter((a): a is ActionQueueItem => !!a);
   deps.repos.reviewActions(actions.map(a => a.id), 'approved', 'system');
-  console.log(`[career] prepare-ahead started=${actions.length} picks=${picks.length}`);
+  const failed = results.filter(r => !r.ok);
+  if (failed.length) console.warn(`[career] prepare-ahead skipped ${failed.length}: ${failed.map(r => `${r.job_id}:${r.reason ?? '?'}`).join('; ')}`);
+  console.log(`[career] prepare-ahead started=${actions.length} candidates=${picks.length}`);
   return startApprovedFills(deps.repos, actions, 'prepare');
 }
