@@ -47,7 +47,7 @@ describe('tool → work surface', () => {
 describe('collapsed cards', () => {
   beforeEach(() => resetWorkSurfaces());
 
-  it('hangs one card under each work-surface tool call and ignores other tools', () => {
+  it('hangs one card under each work-surface tool call; browser calls get none (the rail owns them)', () => {
     render(
       <MessageSurfaceCards tools={[
         tool('mcp__career__today_queue'),
@@ -55,14 +55,14 @@ describe('collapsed cards', () => {
         tool('mcp__career__exam_practice', { result: JSON.stringify({ exam_id: 'exm_1', status: 'answering', questions: 5, answered: 2 }) }),
       ]} />,
     );
-    expect(screen.getByTestId('career-browser-card')).toHaveTextContent('浏览器');
+    expect(screen.queryByTestId('career-browser-card')).not.toBeInTheDocument();
     expect(screen.getByTestId('career-surface-card-exam')).toHaveTextContent('轮到你作答 · 已答 2 / 5');
     expect(screen.queryByTestId('career-surface-card-resume')).not.toBeInTheDocument();
   });
 
-  it('a finished browser call shows 已完成 without the live view', () => {
-    render(<MessageSurfaceCards tools={[tool('mcp__career__apply_run', { result: '{}' })]} />);
-    expect(screen.getByTestId('career-browser-card')).toHaveTextContent('已完成 · 查看');
+  it('several apply_* calls in one reply still add no browser cards to the chat', () => {
+    render(<MessageSurfaceCards tools={[tool('mcp__career__apply_run', { result: '{}' }), tool('mcp__career__apply_continue', { isLoading: true })]} />);
+    expect(screen.queryByTestId('career-browser-card')).not.toBeInTheDocument();
   });
 
   it('a waiting mock interview shows the question and opens its panel with it', () => {

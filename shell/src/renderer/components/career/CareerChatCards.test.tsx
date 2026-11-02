@@ -110,19 +110,13 @@ describe('CareerChatCards', () => {
     expect(reviewDecisionMessage({ ...base, kind: 'fill_form' }, 'approved')).toBeNull();
   });
 
-  it('浏览器交接：工具卡说明停在哪一步，「去处理」展开右侧浏览器栏', async () => {
+  it('浏览器交接不在对话里出卡（现场与等你在右栏，三选一）', () => {
     resetWorkSurfaces();
     renderWithTab({
       careerTakeover: { sessionId: 's1', runId: 'run1', state: 'paused', reason: 'login', url: 'https://example.com' },
       requestCareerTakeover: vi.fn(async () => true),
     });
-    const card = screen.getByTestId('career-browser-card');
-    expect(card).toHaveTextContent('停在这一步「需要登录」');
-    const events: unknown[] = [];
-    const off = onEvent('career:live-drawer', p => events.push(p));
-    fireEvent.click(screen.getByRole('button', { name: '去处理' }));
-    off();
-    await waitFor(() => expect(events).toEqual([{ open: true }]));
+    expect(screen.queryByTestId('career-browser-card')).not.toBeInTheDocument();
   });
 
   it('running 状态不显示接管卡片；进度行可折叠', () => {

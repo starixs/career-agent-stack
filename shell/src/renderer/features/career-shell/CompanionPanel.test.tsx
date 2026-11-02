@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/components/career/careerApi', () => ({
@@ -113,6 +113,18 @@ describe('CompanionPanel', () => {
     fireEvent.click(screen.getByRole('tab', { name: /待办/ }));
     expect(await screen.findByText('确认两道开放题')).toBeInTheDocument();
     expect(screen.getByText(/剩 \d+ 小时/)).toBeInTheDocument();
+  });
+
+  it('网申那一行在等你时给「去处理」，点了打开浏览器现场（对话里不再出浏览器卡）', async () => {
+    railSnapshot = { ...railSnapshot, blocks: blocks.map(b => (b.id === 'apply' ? { ...b, status: 'waiting', line: '2 份等你一下' } : b)) };
+    const seen: unknown[] = [];
+    const off = onEvent('career:focus', p => seen.push(p));
+    render(<CompanionPanel />);
+    const row = await screen.findByTestId('rail-block-apply');
+    fireEvent.click(within(row).getByRole('button', { name: '去处理' }));
+    off();
+    expect(seen).toContainEqual({ surface: 'live_drawer' });
+    railSnapshot = { ...railSnapshot, blocks };
   });
 
   it('定方向时岗位池是主角：符合的数和条件小签', async () => {

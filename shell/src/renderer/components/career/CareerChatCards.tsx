@@ -1,5 +1,6 @@
 /**
- * 对话内求职卡片（对话底部）：没有锚点的流程卡片 / 浏览器需要你 / 可折叠进度行 / 回来卡（离开超过半天）。
+ * 对话内求职卡片（对话底部）：没有锚点的流程卡片 / 可折叠进度行 / 回来卡（离开超过半天）。
+ * 浏览器现场与它的交接不在对话里出卡，在右栏「网申」那一行（主线体验 §6.6 三选一）。
  * 要你的事（待审核、缺项）不在这里，在输入框上沿的等你条。
  * 状态来自 TabContext（TabProvider 处理 career:* SSE），回传走 Session 路由。
  * 待审核动作是 kind=review 的流程卡片（CareerReviewCard.tsx），有锚点时挂在那次工具调用下面。
@@ -10,11 +11,8 @@ import { useMemo, useState } from 'react';
 
 import { useTabStateOptional } from '@/context/TabContext';
 
-import { surfaceForTool } from '@/features/career-shell/workSurfaces';
-import { unwrapCareerTool } from '@/components/tools/careerToolLabels';
 
-import { BrowserWorkCard, shouldShowBrowserCard } from './BrowserWorkCard';
-import { CareerFlowCards, useBatchState } from './CareerFlowCards';
+import { CareerFlowCards } from './CareerFlowCards';
 import { ReturnBriefing } from './delivery/ReturnCard';
 import { CareerKeysPanel, useCareerSetupStatus } from './CareerKeysPanel';
 import { StarterCard } from './ColdStartCards';
@@ -33,22 +31,16 @@ export function CareerChatCards() {
 }
 
 function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useTabStateOptional>> }) {
-  const batch = useBatchState();
-  const { careerTakeover, careerProgress } = tab;
+  const { careerProgress } = tab;
   // 底部只放"无处可挂"的待处理卡片：没有锚点（后台批量等），或锚点那次工具调用不在已加载的消息里。
   // 有锚点的卡片渲染在对应回复下面（Message.tsx），处理完折叠，不在底部堆叠。
   const anchoredIds = useMemo(() => collectToolUseIds(tab.messages ?? []), [tab.messages]);
-  // 浏览器卡默认挂在发起它的 apply_* 调用下面；只有后台批量或找不到那次调用时才放在底部。
-  const hasBrowserToolCall = useMemo(() => hasToolCall(tab.messages ?? [], name => surfaceForTool(name) === 'browser'), [tab.messages]);
   const cards = useMemo(() => (tab.careerCards ?? []).filter(c => (c.state ?? 'pending') === 'pending' && (!c.toolUseId || !anchoredIds.has(c.toolUseId))), [tab.careerCards, anchoredIds]);
   return (
     <div className="space-y-2 py-2">
       <CareerSetupCards />
       <StarterCard />
       {careerProgress && <CareerProgressRow progress={careerProgress} onDismiss={tab.dismissCareerProgress} />}
-      {shouldShowBrowserCard(careerTakeover, careerProgress, batch) && (batch?.status === 'running' || !hasBrowserToolCall) && (
-        <BrowserWorkCard takeover={careerTakeover} progress={careerProgress} />
-      )}
       <CareerFlowCards cards={cards} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
       <ReturnBriefing messageCount={tab.messages?.length ?? 0} />
     </div>
@@ -83,16 +75,6 @@ export function CareerSetupCards() {
 }
 
 /** 已加载消息里所有顶层工具调用的 id（卡片锚点）。 */
-function hasToolCall(messages: ReadonlyArray<{ content: unknown }>, match: (name: string | undefined) => boolean): boolean {
-  for (const m of messages) {
-    if (!Array.isArray(m.content)) continue;
-    for (const b of m.content as Array<{ type?: string; tool?: { name?: string } }>) {
-      if ((b.type === 'tool_use' || b.type === 'server_tool_use') && b.tool && match(unwrapCareerTool(b.tool as { name: string }).name)) return true;
-    }
-  }
-  return false;
-}
-
 export function collectToolUseIds(messages: ReadonlyArray<{ content: unknown }>): Set<string> {
   const ids = new Set<string>();
   for (const m of messages) {

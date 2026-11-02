@@ -1,37 +1,28 @@
 /**
  * 挂在一次回复下面的打破式卡片：
- *  - 属于工作面的工具调用（浏览器 / 改简历 / 模拟面试 / 笔试），各出一张能在右侧展开的卡片；
+ *  - 属于工作面的工具调用（改简历 / 模拟面试 / 笔试），各出一张能在右侧展开的卡片；
+ *    浏览器不在对话里出卡：网申现场和等你都在右栏（主线体验 §6.6 三选一）。2026-11-02 真网站实测：
+ *    每次 apply_* 调用各挂一张，几张读的是同一个全局交接状态，对话里堆出一串一模一样、不写哪家的「浏览器」卡；
  *  - 公司 / 岗位、岗位清单、截止日程、导出文件这类结果，出一张信息卡，点了去对应页面。
  */
-import { BrowserWorkCard } from '@/components/career/BrowserWorkCard';
-import type { CareerProgressEvent } from '@/components/career/types';
 import type { ToolUseSimple } from '@/types/chat';
 
 import { BreakoutCard } from './BreakoutCard';
 import { infoCardFor, isInfoCardTool } from './cardContent';
 import { requestNavigation } from './navModel';
 import { surfaceToolsIn, WorkSurfaceCard } from './workSurfaces';
-import { useWorkSurfaces } from './workSurfaceStore';
 
 export function MessageSurfaceCards({ tools }: { tools: readonly (ToolUseSimple | undefined)[] }) {
-  const { takeover, runs } = useWorkSurfaces();
-  const entries = surfaceToolsIn(tools);
+  const entries = surfaceToolsIn(tools).flatMap(({ surface, tool }) => (surface === 'browser' ? [] : [{ surface, tool }]));
   const infos = tools.flatMap(tool => {
     if (!tool || !isInfoCardTool(tool.name)) return [];
     const spec = infoCardFor(tool);
     return spec ? [{ tool, spec }] : [];
   });
   if (entries.length === 0 && infos.length === 0) return null;
-  const latestRun = runs[0];
-  const lastStep = latestRun?.steps[latestRun.steps.length - 1];
-  const progress: CareerProgressEvent | null = latestRun
-    ? { phase: lastStep?.phase ?? '', message: lastStep?.message ?? '', progress: latestRun.progress ?? undefined }
-    : null;
   return (
     <div data-testid="career-surface-cards" className="space-y-2 px-1 py-1">
-      {entries.map(({ surface, tool }) => (surface === 'browser'
-        ? <BrowserWorkCard key={tool.id} tool={tool} takeover={takeover} progress={progress} />
-        : <WorkSurfaceCard key={tool.id} surface={surface} tool={tool} />))}
+      {entries.map(({ surface, tool }) => <WorkSurfaceCard key={tool.id} surface={surface} tool={tool} />)}
       {infos.map(({ tool, spec }) => (
         <BreakoutCard
           key={tool.id}

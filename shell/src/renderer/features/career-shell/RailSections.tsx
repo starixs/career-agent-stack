@@ -73,8 +73,10 @@ function BlockRow({ block }: { block: RailBlock }) {
         </span>
         <span className="block text-xs text-[var(--muted)]">{block.line}</span>
       </span>
-      {block.id === 'apply' && block.status === 'working' && (
-        <button type="button" onClick={look} className="shrink-0 text-xs text-[var(--primary)] underline-offset-2 hover:underline">看一眼</button>
+      {block.id === 'apply' && (block.status === 'working' || block.status === 'waiting') && (
+        <button type="button" onClick={look} className="shrink-0 text-xs text-[var(--primary)] underline-offset-2 hover:underline">
+          {block.status === 'waiting' ? '去处理' : '看一眼'}
+        </button>
       )}
     </li>
   );
