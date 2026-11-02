@@ -101,6 +101,12 @@ function isAggregateTitle(title: string): boolean {
 }
 
 /** `姓名-岗位-公司.pdf`；姓名缺失时用简历名，全部缺失时叫「简历.pdf」。 */
+/** 一份材料包用的简历属于哪份主简历（主简历本身或它的定制版），取名字和方向。 */
+export function resumeMasterOf(repos: Repos, resumeId: string): { name: string; direction: string | null } | undefined {
+  return repos.db.get<{ name: string; direction: string | null }>('SELECT name, direction FROM resume_master WHERE id=?', [resumeId])
+    ?? repos.db.get<{ name: string; direction: string | null }>('SELECT m.name AS name, m.direction AS direction FROM resume_tailored t JOIN resume_master m ON m.id=t.master_id WHERE t.id=?', [resumeId]);
+}
+
 export function readableResumeFileName(parts: { person?: string | null; resumeName?: string | null; jobTitle?: string | null; company?: string | null; direction?: string | null }): string {
   const who = fileNamePart(parts.person) || fileNamePart(parts.resumeName);
   const raw = parts.jobTitle?.trim() ?? '';
@@ -129,8 +135,7 @@ function packetFileNameParts(repos: Repos, packet: ApplicationPacket, resolveTex
   let direction: string | undefined;
   try {
     if (packet.resume_id) {
-      const master = repos.db.get<{ name: string; direction: string | null }>('SELECT name, direction FROM resume_master WHERE id=?', [packet.resume_id])
-        ?? repos.db.get<{ name: string; direction: string | null }>('SELECT m.name AS name, m.direction AS direction FROM resume_tailored t JOIN resume_master m ON m.id=t.master_id WHERE t.id=?', [packet.resume_id]);
+      const master = resumeMasterOf(repos, packet.resume_id);
       resumeName = master?.name;
       direction = master?.direction ?? undefined;
     }

@@ -12,6 +12,7 @@ import type { CoreModule } from './core-module';
 import type { CareerStore } from './store';
 import { BATCH_STATE_KEY, type BatchState } from './batch-runner';
 import { getJobPrefs, jobBoard } from './job-board';
+import { resumeMasterOf } from './packets';
 import { readLedger, shouldProposeDelegate } from './trust-ledger';
 import type { MainlineStage, RailBlock, RailPool, RailReceipt, RailSnapshot, RailWaiting, TrustEntry } from '../../shared/careerRail';
 
@@ -79,26 +80,27 @@ function mailBlock(repos: Repos): RailBlock {
 
 function receipts(repos: Repos): RailReceipt[] {
   const placeholders = SENT_STAGES.map(() => '?').join(',');
-  const rows = repos.db.all<{ application_id: string; company: string | null; title: string; at: string; resume: string | null; result_json: string | null }>(
+  const rows = repos.db.all<{ application_id: string; company: string | null; title: string; at: string; payload_json: string | null }>(
     `SELECT a.id AS application_id, j.company_name AS company, j.title AS title, MIN(h.created_at) AS at,
-            (SELECT m.name FROM resume_tailored t JOIN resume_master m ON m.id = t.master_id WHERE t.id = a.resume_tailored_id) AS resume,
-            (SELECT q.result_json FROM action_queue q WHERE q.application_id = a.id AND q.status = 'done' ORDER BY q.updated_at DESC LIMIT 1) AS result_json
+            (SELECT q.payload_json FROM action_queue q WHERE q.application_id = a.id AND q.kind = 'submit' AND q.status = 'done' ORDER BY q.updated_at DESC LIMIT 1) AS payload_json
        FROM application a JOIN job j ON j.id = a.job_id
        JOIN application_history h ON h.application_id = a.id AND h.to_stage = 'applied'
       WHERE a.stage IN (${placeholders})
       GROUP BY a.id ORDER BY at DESC LIMIT ?`, [...SENT_STAGES, RECEIPT_LIMIT]);
-  return rows.map(r => ({ application_id: r.application_id, company: r.company ?? '未知公司', title: r.title, at: r.at, resume: r.resume, filled: filledCount(r.result_json) }));
+  return rows.map(r => ({ application_id: r.application_id, company: r.company ?? '未知公司', title: r.title, at: r.at, ...submitSummary(repos, r.payload_json) }));
 }
 
-/** 动作结果里记下的已填格数（填表引擎的 summary.filled）；没有就不写数。 */
-function filledCount(resultJson: string | null): number | null {
-  if (!resultJson) return null;
+/** 回执里的两样：这份交出去用的是哪版简历（材料包），填了几格（提交那一步记下的填表摘要）。 */
+function submitSummary(repos: Repos, payloadJson: string | null): { resume: string | null; filled: number | null } {
+  if (!payloadJson) return { resume: null, filled: null };
   try {
-    const parsed = JSON.parse(resultJson) as { summary?: { filled?: unknown } };
-    return typeof parsed.summary?.filled === 'number' ? parsed.summary.filled : null;
+    const payload = JSON.parse(payloadJson) as { packet_id?: unknown; summary?: { filled?: unknown } };
+    const packet = typeof payload.packet_id === 'string' ? repos.getPacket(payload.packet_id) : undefined;
+    const resume = packet?.resume_id ? resumeMasterOf(repos, packet.resume_id)?.name ?? null : null;
+    return { resume, filled: typeof payload.summary?.filled === 'number' ? payload.summary.filled : null };
   } catch (error) {
-    console.warn('[career] rail: 动作结果解析失败', error instanceof Error ? error.message : error);
-    return null;
+    console.warn('[career] rail: 提交记录解析失败', error instanceof Error ? error.message : error);
+    return { resume: null, filled: null };
   }
 }
 
@@ -119,7 +121,7 @@ function pool(repos: Repos): RailPool {
   const keywords = (p.keywords ?? []).map(k => k.toLowerCase());
   const mentions = (r: (typeof open)[number]) => !keywords.length || keywords.some(k => `${r.job.title} ${r.job.jd_raw ?? ''}`.toLowerCase().includes(k));
   const fits = open.filter(r => r.match?.hard_ok !== false && mentions(r)).length;
-  const conditions = [...(p.keywords ?? []), ...(p.cities ?? []), p.cohort ? `${p.cohort} 届` : null, p.degree].filter((c): c is string => !!c);
+  const conditions = [...(p.keywords ?? []), ...(p.cities ?? []), p.cohort ? (p.cohort.endsWith('届') ? p.cohort : `${p.cohort} 届`) : null, p.degree].filter((c): c is string => !!c);
   return { total: open.length, fits: conditions.length ? fits : open.length, conditions };
 }
 

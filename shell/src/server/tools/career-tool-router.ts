@@ -26,6 +26,12 @@ export const XIAOYA_TOOLS: ReadonlySet<string> = new Set([
   'web_search', 'web_fetch',
 ]);
 
+/**
+ * 在对话这一轮里直接开浏览器填表的老入口：会把对话卡住几十秒（违背「启动就回」），也会让小芽多开一家没被要求的投递
+ * （2026-11-02 实例 A：「先投一家看看」被投成两家）。投递一律走 jobs_apply 交后台；这几个不再给小芽。
+ */
+export const IN_TURN_APPLY_TOOLS: ReadonlySet<string> = new Set(['apply_prepare', 'apply_run', 'apply_batch']);
+
 export const MORE_ACTIONS_TOOL = 'more_actions';
 /** 目录里每个能力的说明截到多长：够认出是干什么的就行，细节在原工具说明里。 */
 const CATALOG_SUMMARY_CHARS = 48;
@@ -42,7 +48,7 @@ function errorResult(message: string): CallToolResult {
 /** 把全部工具分成「小芽常驻」和「more_actions 里的」，返回挂到 MCP server 上的那一组。 */
 export function routeCareerTools<T extends ToolDef>(all: T[], tool: (name: string, description: string, schema: Record<string, unknown>, handler: (args: { name: string; args?: Record<string, unknown> }, extra: unknown) => Promise<CallToolResult>) => T, z: ZodModule): T[] {
   const resident = all.filter(t => XIAOYA_TOOLS.has(t.name));
-  const others = new Map(all.filter(t => !XIAOYA_TOOLS.has(t.name)).map(t => [t.name, t]));
+  const others = new Map(all.filter(t => !XIAOYA_TOOLS.has(t.name) && !IN_TURN_APPLY_TOOLS.has(t.name)).map(t => [t.name, t]));
   if (!others.size) return resident;
   const catalog = [...others.values()].map(t => `- ${t.name}：${summary(t.description)}`).join('\n');
   const more = tool(
