@@ -83,4 +83,18 @@ describe('server MCP catalogue merge', () => {
     expect(resolveWorkspaceConfig('/workspace', metadata, { includeMcp: true }).mcpServers)
       .toEqual([]);
   });
+
+  it('求职产品：快照里没记 providerId 的会话恢复时回到内置 Provider，不落到订阅登录', () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'keystone-admin-config-'));
+    scratchDirs.push(scratch);
+    const configDir = join(scratch, '.keystone');
+    mkdirSync(configDir, { recursive: true });
+    vi.stubEnv(process.platform === 'win32' ? 'USERPROFILE' : 'HOME', scratch);
+    vi.stubEnv('CAREER_LLM_MODEL', 'deepseek-flash');
+    vi.stubEnv('CAREER_LLM_BASE_URL', 'https://api.deepseek.com/anthropic');
+    writeFileSync(join(configDir, 'config.json'), JSON.stringify({ defaultProviderId: 'career-llm' }), 'utf8');
+    const resolved = resolveWorkspaceConfig('/workspace', { configSnapshotAt: '2026-11-02T00:00:00.000Z' } as never, { includeMcp: false });
+    expect(resolved.providerRoute).toEqual(expect.objectContaining({ providerId: 'career-llm' }));
+    expect(resolved.model).toBe('deepseek-flash');
+  });
 });

@@ -1248,6 +1248,12 @@ function resolveOwnedBuiltinProviderRoute(args: {
       providers,
     });
   }
+  // 求职产品的内置 Provider 是唯一权威（config.defaultProviderId 固定为 career-llm）。
+  // 外部调用 / 后台送达开出的会话快照里没记 providerId，按旧的「只看模型名」规则会落到订阅登录，
+  // 恢复时报「Not logged in」；这里直接回到产品内置 Provider。
+  if (config.defaultProviderId === CAREER_LLM_PROVIDER_ID) {
+    return resolveExplicitProviderRoute({ providerId: CAREER_LLM_PROVIDER_ID, model: sessionMeta.model ?? getCareerBuildConstants().llmModel, providers });
+  }
   if (sessionMeta.configSnapshotAt) {
     return resolveLegacyModelOnlyProviderRoute({
       model: sessionMeta.model,
