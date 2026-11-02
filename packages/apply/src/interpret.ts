@@ -87,6 +87,11 @@ export const BASIC_ALIASES: Record<string, string[]> = {
 
 /** 高影响问题：只能用答案库原话，不能猜。 */
 export const HIGH_IMPACT_RX = /(薪资|薪酬|期望薪|待遇|年薪|月薪|salary|compensation|签证|visa|工作许可|work authori[sz]ation|sponsorship|竞业|违约金|服从调剂|是否接受(调剂|外派|出差|加班|轮岗|异地)|接受.*(出差|加班|轮岗)|身份证|证件号|护照|是否在职|离职原因|在职状态|offer)/i
+/**
+ * 别人的信息（父母、家庭成员、配偶、紧急联系人…）：绝不拿他本人的资料去对，也不让模型起草，只用他亲口给过的原话（答案库）。
+ * 2026-11-02 实例 C：「父亲姓名」按「姓名」对上了他自己的名字，「父亲工作单位」被起草成了他经历里的「学校食堂」，就这么交了出去。
+ */
+export const OTHER_PERSON_RX = /(父亲|母亲|父母|爸爸|妈妈|家长|家庭成员|家庭关系|家庭情况|配偶|亲属|兄弟|姐妹|紧急联系人|紧急联络人|监护人)/
 /** 开放题：起草后要用户确认。 */
 export const OPEN_QUESTION_RX = /(为什么|为何|请描述|请简述|请介绍|请说明|请谈谈|请举例|自我评价|自我介绍|个人优势|个人简介|职业规划|求职动机|申请理由|应聘理由|动机|经历描述|项目描述|实习经历|项目经历|获奖|荣誉|自荐|cover letter|why |describe|tell us|motivation)/i
 
@@ -181,7 +186,7 @@ export async function interpretForm(llm: LLM, fields: FormField[], profile: Prof
   for (const f of fields) {
     const label = f.label || f.name || ''
     const base = { fieldId: f.id, label }
-    const highImpact = HIGH_IMPACT_RX.test(label)
+    const highImpact = HIGH_IMPACT_RX.test(label) || OTHER_PERSON_RX.test(label)
     const isOpen = f.isRichText || f.type === 'textarea' || OPEN_QUESTION_RX.test(label)
 
     // 文件：有简历就上传

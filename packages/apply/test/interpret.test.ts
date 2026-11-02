@@ -26,6 +26,16 @@ describe('interpret', () => {
     const without = await interpretForm(noLLM(), fields, profile)
     expect(without[1]).toMatchObject({ status: 'needs_user', source: 'none' })
   })
+  it('别人的信息（父母、家庭成员）不拿他本人的资料去对、不让模型起草；只用他给过的原话（2026-11-02 实例 C）', async () => {
+    const llm = noLLM()
+    const fields = await fieldsOf({ url: 'u', fields: [{ label: '父亲姓名', required: true }, { label: '母亲工作单位及职务', required: true }, { label: '紧急联系人电话', required: true }] })
+    const plans = await interpretForm(llm, fields, { ...profile, answerBank: [] })
+    expect(plans.map(p => [p.status, p.source])).toEqual([['needs_user', 'none'], ['needs_user', 'none'], ['needs_user', 'none']])
+    expect(plans.some(p => p.value === '张三' || p.value === '13800000000')).toBe(false)
+    expect(llm.calls.length).toBe(0)
+    const told = await interpretForm(noLLM(), fields.slice(0, 1), { ...profile, answerBank: [{ question_key: '父亲姓名', answer: '林某', high_impact: true, confirmed: true }] })
+    expect(told[0]).toMatchObject({ status: 'fill', source: 'answer_bank', value: '林某' })
+  })
   it('高影响问题有答案库原话 → 原话填，source=answer_bank', async () => {
     const fields = await fieldsOf({ url: 'u', fields: [{ label: '期望薪资（月薪）' }] })
     const [p] = await interpretForm(noLLM(), fields, profile)
