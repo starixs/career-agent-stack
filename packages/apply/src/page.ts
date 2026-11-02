@@ -117,6 +117,8 @@ export interface FakeFieldSpec {
 export interface FakeDialogSpec { text: string; buttons: string[]; modal?: boolean; cookie?: boolean; afterUpload?: boolean; dismissBy?: string[] }
 export interface FakeButtonSpec {
   text: string; goto?: string; submit?: boolean; disabled?: boolean; box?: [number, number, number, number]; domHidden?: boolean
+  /** 是普通链接（<a href>）：信号里带上去处 */
+  href?: string
   /** "添加一行"类按钮：点击后在当前页追加这些字段（模拟重复分区）。 */
   addFields?: FakeFieldSpec[]
   /** 提交类按钮：点击后站点报这些校验错误（不跳转）。 */
@@ -461,7 +463,7 @@ export class FakePage {
     return parts.filter(Boolean).join(' ')
   }
   private signals(): PageSignals {
-    const buttons: ButtonInfo[] = this.current.buttons.filter(b => !b.domHidden).map(b => ({ id: b.id, text: b.text, selector: `[data-career-btn="${b.id}"]`, disabled: !!b.disabled }))
+    const buttons: ButtonInfo[] = this.current.buttons.filter(b => !b.domHidden).map(b => ({ id: b.id, text: b.text, selector: `[data-career-btn="${b.id}"]`, disabled: !!b.disabled, ...(b.href ? { href: b.href } : {}) }))
     return {
       url: this.url(), title: this.current.spec.title ?? '', text: this.bodyText(),
       hasPasswordInput: this.current.login, captchaDom: this.current.captcha, buttons,

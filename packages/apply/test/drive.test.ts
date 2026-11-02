@@ -102,6 +102,18 @@ describe('driveApplication', () => {
     expect(page.submitted).toBe(false)
     expect(page.actions.some(a => a.kind === 'click' && a.target?.startsWith('button:'))).toBe(false)
   })
+  it('详情页的「立即投递」是普通链接（去网申页）：跟着链接打开，接着填，停在提交前；同名按钮仍不点（2026-11-02 真实站点）', async () => {
+    const page = new FakePage([
+      { url: 'https://x.com/job/1', text: '岗位职责', buttons: [{ text: '立即投递', href: 'https://x.com/apply/1' }] },
+      { url: 'https://x.com/apply/1', fields: basics, buttons: [{ text: '提交申请', submit: true }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, quiet)
+    expect(r.entryClicked).toBe('立即投递')
+    expect(r.status).toBe('stopped_before_submit')
+    expect(page.submitted).toBe(false)
+    expect(page.actions.some(a => a.kind === 'click' && a.target === 'button:立即投递')).toBe(false)
+    expect(page.fieldValues()).toMatchObject({ 姓名: '张三' })
+  })
   it('入口点进去跳到登录页 → 交给用户登录（不点登录）', async () => {
     const page = new FakePage([
       { url: 'https://x.com/job/1', text: '岗位职责', buttons: [{ text: '申请职位', goto: 'https://x.com/login' }] },

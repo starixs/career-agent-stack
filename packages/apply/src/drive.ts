@@ -4,7 +4,7 @@ import type { PageLike } from './page.js'
 import { extractFields, formFingerprint, type FormField } from './extract.js'
 import { interpretForm, normKey, type FieldPlan, type Profile, type InterpretOptions } from './interpret.js'
 import { pageSignalsScript, type PageSignals, type ButtonInfo } from './scripts.js'
-import { detectObstacle, findFinalSubmit, isDetailEntryText, isNextText, isSubmitText, type Obstacle } from './guards.js'
+import { detectObstacle, findFinalSubmit, isDetailEntryText, isEntryText, isNextText, isSubmitText, type Obstacle } from './guards.js'
 import { navigateToPosition, positionLinksScript, type PositionLink, type PositionTarget } from './navigate.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import type { RiskGuard } from './safety.js'
@@ -398,8 +398,26 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       // 2.1 岗位详情页：页面上没有任何表单字段、这次也没填过东西 → 允许点申请入口按钮进入网申表（最终提交仍永不点）
       // 北森 zhiye 的岗位行点开是就地展开、行里出「投递」：页面上只有搜索框 / 没标签的格子时也算「还没有表单」
-      if ((!fields.length || onlySearchOrUnlabeled(fields)) && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
-        const entry = sig.buttons.find(b => !b.disabled && isDetailEntryText(b.text, adapter))
+      // 详情页上常有订阅邮箱、站内搜索这类格子：没有一个像网申表的格子（无必填、无姓名 / 手机 / 学校 / 简历…）也算还没进表（2026-11-02 蔚来真实站点）
+      if ((!fields.length || onlySearchOrUnlabeled(fields) || !looksLikeApplicationForm(fields)) && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
+        const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text, adapter))
+        // 「立即投递 / 投递简历」这类按钮可能是一键投递，永远不点；但它若只是个链接（<a href> 去网申表），跟着链接走只是打开页面（2026-11-02 真实站点）
+        const entryLink = entry ? undefined : sig.buttons.find(b => !b.disabled && !!b.href && isDetailEntryText(b.text, adapter))
+        if (entryLink?.href && untouched()) {
+          entryClicks++
+          progress(`打开「${entryLink.text}」指向的网申页`, 'entry', entryLink.text)
+          recorder.trace({ stage: 'entry', action: 'navigate', result: 'info', detail: `${entryLink.text} → ${entryLink.href}` })
+          try {
+            await page.goto(entryLink.href)
+            entryClicked = entryLink.text
+            await humanDelay(pause[0], pause[1], opts)
+            index--
+            continue
+          } catch (e) {
+            const c = classifyError(e)
+            recorder.trace({ stage: 'entry', action: 'navigate', result: 'fail', code: c.code, detail: c.raw })
+          }
+        }
         // 学历要求高于他：不点投递，交给自主找路换一个岗位（2026-10-31：天翼云「超级优才」要博士，本科生差点投出去）
         const over = entry ? requiredAbove(sig.text, opts.target?.tooHigh ?? []) : undefined
         if (over) {
@@ -892,7 +910,7 @@ async function clickButton(page: PageLike, b: ButtonInfo, adapter: SiteAdapter):
 }
 /** 申请入口：只认入口文案（立即申请 / 申请职位 / 我要投递 / Apply…），且调用方已确认页面上没有表单字段。 */
 async function clickEntry(page: PageLike, b: ButtonInfo, adapter: SiteAdapter): Promise<void> {
-  if (!isDetailEntryText(b.text, adapter)) throw new Error(`「${b.text}」不是申请入口按钮`)
+  if (!isEntryText(b.text, adapter)) throw new Error(`「${b.text}」不是申请入口按钮`)
   const detailEntry = (adapter.hints.detailEntryWords ?? []).some(w => normKey(w) === normKey(b.text))
   if (!detailEntry && (adapter.hints.submitWords ?? []).some(w => normKey(w) === normKey(b.text)) && !/申请|apply/i.test(b.text)) throw new Error(`「${b.text}」是该站的提交按钮`)
   await page.click(b.selector)

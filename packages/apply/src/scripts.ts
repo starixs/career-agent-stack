@@ -36,7 +36,7 @@ export interface RawField {
   labelUncertain?: string
 }
 
-export interface ButtonInfo { id: string; text: string; selector: string; disabled: boolean }
+export interface ButtonInfo { id: string; text: string; selector: string; disabled: boolean; /** 是普通链接时的去处（http/https）：只读导航，不是点击动作 */ href?: string }
 
 /** 页面信号：供阻碍检测、按钮查找、上传回显检查使用。 */
 export interface PageSignals {
@@ -508,7 +508,9 @@ export const pageSignalsScript: PageScript<void, PageSignals> = {
       const id = `b${n++}`
       b.setAttribute('data-career-btn', id)
       const disabled = (b as HTMLButtonElement).disabled || b.getAttribute('aria-disabled') === 'true' || /(^|\s)(is-disabled|disabled)(\s|$)/.test(b.className || '')
-      buttons.push({ id, text, selector: `[data-career-btn="${id}"]`, disabled })
+      const rawHref = b.tagName === 'A' ? (b as HTMLAnchorElement).href : ''
+      const href = /^https?:/i.test(rawHref) && rawHref.split('#')[0] !== location.href.split('#')[0] ? rawHref : undefined
+      buttons.push({ id, text, selector: `[data-career-btn="${id}"]`, disabled, ...(href ? { href } : {}) })
       tagged.push(b)
       if (n >= 80) break
     }
