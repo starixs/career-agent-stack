@@ -145,7 +145,9 @@ export function detectHints(raw: Pick<RawObservation, 'hasPassword' | 'bodySampl
   const hints = new Set<Hint>();
   const t = raw.bodySample;
   // 扫完码跳到「绑定手机号 / 邮箱」「完善信息」这类中间页也还没登完（2026-10-31：联发科技扫码后停在 /login/bindMobile，被判成已登上）
-  if (raw.hasPassword || /扫码登录|微信登录|请先登录|登录后查看|手机号登录|验证码登录|绑定手机|手机号绑定|绑定邮箱|请绑定|完善(个人|账号)?信息后|验证手机号/.test(t) || LOGIN_PATH_RX.test(raw.url)) hints.add('login');
+  // 登录框的说法各站不同：美团勾了隐私协议后「扫码登录」换成「微信快捷登录」，其余只剩「手机登录」「立即登录」，
+  // 认不出就当登录框没了，登录之旅没登就放行（2026-11-02 实测）
+  if (raw.hasPassword || /扫码登录|微信(快捷)?登录|请先登录|登录后查看|手机号?登录|短信(验证码)?登录|账号(密码)?登录|密码登录|立即登录|登录\s*\/\s*注册|验证码登录|绑定手机|手机号绑定|绑定邮箱|请绑定|完善(个人|账号)?信息后|验证手机号/.test(t) || LOGIN_PATH_RX.test(raw.url)) hints.add('login');
   if (/滑块|拖动滑块|安全验证|人机验证|请完成验证|协助验证|不是自动程序|captcha|geetest|验证码已发送/i.test(t)) hints.add('captcha');
   if (/访问过于频繁|操作频繁|异常访问|风险提示|账号存在异常|请求存在异常|限制本次访问|操作存在异常|暂停您的访问|访问被阻断|访问受限/.test(t) || VERIFICATION_URL_RX.test(raw.url)) hints.add('risk');
   if (elements.some(e => e.submitLike)) hints.add('submit_page');

@@ -46,6 +46,13 @@ describe('detectHints', () => {
     expect(detectHints({ hasPassword: false, bodySample: '我的投递', url: 'https://x.com/campus/jobs' }, [])).toEqual([]);
   });
 
+  it('美团登录框勾了隐私协议之后（「扫码登录」换成「微信快捷登录」）→ 仍是 login，不能当成登上了（2026-11-02 实测）', () => {
+    const meituan = '智能商业分析师（BA/DS） 美团·招聘 手机登录 +86 15500001234 获取验证码 立即登录 小明 微信快捷登录 使用其他头像、昵称或账号 我已阅读并同意《个人信息保护隐私政策》';
+    expect(detectHints({ hasPassword: false, bodySample: meituan, url: 'https://zhaopin.meituan.com/web/position/detail' }, [])).toEqual(['login']);
+    // 登上以后导航栏只有「我的投递」，没有登录框
+    expect(detectHints({ hasPassword: false, bodySample: '智能商业分析师（BA/DS） 立即申请 我的投递', url: 'https://zhaopin.meituan.com/web/position/detail' }, [])).toEqual([]);
+  });
+
   it('搜狗这类反爬页（「需要您协助验证」+ antispider 地址）→ captcha + risk，不再只报 submit_page', () => {
     const raw = { hasPassword: false, bodySample: '此验证码用于确认这些请求是您的正常行为而不是自动程序发出的，需要您协助验证。', url: 'https://weixin.sogou.com/antispider/?from=x' };
     expect(detectHints(raw, [el({ text: '提交', submitLike: true })])).toEqual(['captcha', 'risk', 'submit_page']);
