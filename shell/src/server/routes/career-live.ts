@@ -176,7 +176,10 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
       const result = await deps.host.withProductSession(id, async context => {
         const page = await pinnedOrActive(context, id);
         const frame = body.frame && typeof body.frame === 'object' ? body.frame as { width?: number; height?: number } : {};
-        const vp = page.viewportSize() ?? { width: frame.width ?? 1280, height: frame.height ?? 800 };
+        // 帧按页面真实的 CSS 视口上报（screencast.readViewport），换算也得用真实视口：
+        // 托管窗口被放大 / 放到虚拟屏后，Playwright 记的 viewportSize 还是启动时那个（2026-11-02 美团登录：点击落到了别处）
+        const real = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })).catch(() => null);
+        const vp = (real?.width && real.height ? real : null) ?? page.viewportSize() ?? { width: frame.width ?? 1280, height: frame.height ?? 800 };
         const sx = frame.width ? vp.width / frame.width : 1;
         const sy = frame.height ? vp.height / frame.height : sx;
         const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);

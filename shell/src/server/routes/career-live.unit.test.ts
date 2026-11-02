@@ -141,6 +141,23 @@ describe('career live route', () => {
     expect(spyRunner.start).toHaveBeenCalled();
   });
 
+  it('input：按页面真实视口换算，不信 Playwright 记的启动视口（窗口被放大后点击会落到别处）', async () => {
+    const repos = createMemoryRepos();
+    const host = fakeHost();
+    const calls: unknown[][] = [];
+    const page = {
+      url: () => 'https://zhaopin.meituan.com/web/position/detail', title: async () => '职位详情', isClosed: () => false,
+      viewportSize: () => ({ width: 1366, height: 768 }),
+      evaluate: async () => ({ width: 1440, height: 1543 }),
+      mouse: { click: async (...a: unknown[]) => { calls.push(a); } },
+      waitForTimeout: async () => {},
+    };
+    host.withProductSession = async <T,>(_id: string, fn: (ctx: never) => Promise<T>) => fn({ pages: () => [page], newPage: async () => page, on: () => {} } as never);
+    host.control = 'human';
+    await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'click', x: 658, y: 785, frame: { width: 1440, height: 1543 } }), deps(repos, host));
+    expect(calls[0]).toEqual([658, 785, { clickCount: 1 }]);
+  });
+
   it('input：只有接管中才转发；坐标按帧尺寸换算到视口；type / press 走键盘', async () => {
     const repos = createMemoryRepos();
     const host = fakeHost();
@@ -148,6 +165,7 @@ describe('career live route', () => {
     const page = {
       url: () => 'https://x.com/apply', title: async () => '网申', isClosed: () => false,
       viewportSize: () => ({ width: 1280, height: 900 }),
+      evaluate: async () => null,
       mouse: { click: async (...a: unknown[]) => { calls.push(['click', a]); }, move: async (...a: unknown[]) => { calls.push(['move', a]); }, wheel: async (...a: unknown[]) => { calls.push(['wheel', a]); }, down: async () => { calls.push(['down', []]); }, up: async () => { calls.push(['up', []]); } },
       keyboard: { type: async (...a: unknown[]) => { calls.push(['type', a]); }, press: async (...a: unknown[]) => { calls.push(['press', a]); } },
       waitForTimeout: async () => {},
