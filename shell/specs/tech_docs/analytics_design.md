@@ -118,7 +118,6 @@ Core interaction:
 - `message_error`
 - `message_retry`
 - `message_copy`
-- `message_export`
 
 Thinking export and copy:
 
