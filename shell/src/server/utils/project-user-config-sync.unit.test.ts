@@ -46,6 +46,18 @@ describe('project-user-config-sync', () => {
     writeFileSync(join(dir, 'SKILL.md'), `---\nname: ${name}\ndescription: ${name}\n---\n`);
   }
 
+  itNonWindows('求职工作区只挂文档解析和录音转文字，命令行、记忆、下载、宠物这些通用技能不挂', () => {
+    const { home } = makeEnv();
+    for (const name of ['keystone-anydoc', 'keystone-speech-recognition', 'keystone-cli', 'download-anything', 'hatch-pet', 'officecli']) writeUserSkill(home, name);
+    const career = join(home, '.keystone', 'projects', 'career');
+    mkdirSync(career, { recursive: true });
+    syncProjectUserConfigFiles(career);
+    const skills = join(career, '.claude', 'skills');
+    expect(existsSync(join(skills, 'keystone-anydoc'))).toBe(true);
+    expect(existsSync(join(skills, 'keystone-speech-recognition'))).toBe(true);
+    for (const name of ['keystone-cli', 'download-anything', 'hatch-pet', 'officecli']) expect(existsSync(join(skills, name))).toBe(false);
+  });
+
   function writeUserCommand(home: string, name: string): void {
     const dir = join(home, '.keystone', 'commands');
     mkdirSync(dir, { recursive: true });

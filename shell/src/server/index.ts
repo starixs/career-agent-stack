@@ -999,7 +999,7 @@ const SYSTEM_SKILLS: readonly string[] = [
   // 求职助理：不发布 cuse（见 Rust SYSTEM_SKILLS）。
   'keystone-task-alignment',
   // v10: ultra-research removed — not generic enough.
-  'download-anything',
+  // v59: download-anything retired — no job-search use.
   // v9: keystone-cli — global skill that exposes the entire `keystone`
   // CLI surface (cron / task / mcp / model / agent / runtime / skill /
   // plugin / widget / im / config) to every AI session in the product.

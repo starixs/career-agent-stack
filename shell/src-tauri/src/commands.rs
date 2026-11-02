@@ -1074,7 +1074,7 @@ fn sync_admin_agent_blocking<R: Runtime>(app_handle: AppHandle<R>) -> Result<boo
 // matching exclusion list in src/server/index.ts::seedBundledSkills
 // MUST be kept in sync (comment there points back here).
 
-const SYSTEM_SKILLS_VERSION: &str = "58";
+const SYSTEM_SKILLS_VERSION: &str = "59";
 
 /// One process-wide transaction owner for the versioned system-skill
 /// snapshot. Startup automation and ConfigProvider may request convergence at
@@ -1094,7 +1094,7 @@ const SYSTEM_SKILLS: &[&str] = &[
     // v10: ultra-research removed — not generic enough to ship as system
     // skill. Existing installs retain the dir at ~/.keystone/skills/
     // ultra-research/ until the user deletes it (no orphan cleanup logic).
-    "download-anything",
+    // v59: download-anything retired — no job-search use (收口面 2026-11-01).
     // v52: keystone-cli documents physical local directory/.zip/.skill
     // installs and the CLI-owned explicit-relative cwd boundary.
     // v9: keystone-cli promoted from helper-bundled skill (was at
@@ -1151,7 +1151,7 @@ const SYSTEM_SKILLS: &[&str] = &[
 /// Product-owned system skills whose former independent workflow must not
 /// survive an upgrade. These directories were force-overwritten by keystone,
 /// so removing the exact retired names cannot delete a user-owned skill.
-const RETIRED_SYSTEM_SKILLS: &[&str] = &["keystone-sensor", "task-alignment", "task-implement"];
+const RETIRED_SYSTEM_SKILLS: &[&str] = &["keystone-sensor", "task-alignment", "task-implement", "download-anything"];
 
 /// Force-sync every system skill from the app bundle to
 /// `~/.keystone/skills/<name>/`. Runs once per `SYSTEM_SKILLS_VERSION`
@@ -1605,7 +1605,7 @@ mod system_skills_tests {
 
     #[test]
     fn v57_keeps_cuse_and_product_skills_aligned() {
-        assert_eq!(SYSTEM_SKILLS_VERSION, "58");
+        assert_eq!(SYSTEM_SKILLS_VERSION, "59");
         assert!(!SYSTEM_SKILLS.contains(&"cuse"));
         assert!(!REQUIRED_SYSTEM_SKILLS.contains(&"cuse"));
         assert!(SYSTEM_SKILLS.contains(&"keystone-task-alignment"));
@@ -1733,10 +1733,6 @@ mod system_skills_tests {
     #[test]
     fn keystone_authored_bundle_frontmatter_uses_standard_metadata_map() {
         for (name, content) in [
-            (
-                "download-anything",
-                include_str!("../../bundled-skills/download-anything/SKILL.md"),
-            ),
             (
                 "keystone-cli",
                 include_str!("../../bundled-skills/keystone-cli/SKILL.md"),

@@ -112,6 +112,9 @@ export function trySyncProjectUserConfigFiles(
   }
 }
 
+/** 求职工作区里允许出现的全局技能：文档解析（各种格式的简历、附件）和录音转文字（面试复盘）。 */
+export const CAREER_WORKSPACE_GLOBAL_SKILLS: ReadonlySet<string> = new Set(['keystone-anydoc', 'keystone-speech-recognition']);
+
 /**
  * Sync user-level skills and commands into a project's .claude/ as symlinks.
  *
@@ -142,8 +145,12 @@ export function syncProjectUserConfigFiles(
         .filter(candidate => candidate.kind === 'skill' && candidate.source === 'global')
         .map(candidate => candidate.sourceLocalId))
     : null;
+  // 求职工作区只挂求职用得上的全局技能（收口面，2026-11-01 定）：命令行操控、任务中心、通用记忆、
+  // 造技能 / 造工具 / 写提示词、下载、宠物、Office 生成都不进求职对话；底座代码不动，只是不挂载。
+  const careerWorkspace = workspacePathsEqual(projectDir, join(keystoneDir, 'projects', 'career'));
   const projectableGlobalSkills = globalSkillInventory.projectableEntries.filter(entry => (
-    !admittedGlobalSkillFolders || admittedGlobalSkillFolders.has(entry.folderName)
+    (!admittedGlobalSkillFolders || admittedGlobalSkillFolders.has(entry.folderName))
+    && (!careerWorkspace || CAREER_WORKSPACE_GLOBAL_SKILLS.has(entry.folderName))
   ));
   const globalSkillNameByFolder = new Map(
     globalSkillInventory.entries.map(entry => [entry.folderName, entry.name]),
