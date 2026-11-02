@@ -893,7 +893,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ action_id: action.id, subject, body, attachment: attachment?.filename ?? null, unresolved: out.unresolved ?? [], note: '邮件已进入待审核队列，用户在「今日」或卷宗里批准后才会发送；请把主题与正文给用户确认。' });
       })()),
 
-      tool('experience_add', '写入一段经历到经历库，并附带若干主张（claims，状态一律 pending，需用户确认后才能进简历）。接着补一段已有的经历时传 experience_id，主张加到原经历上，不另建。', {
+      tool('experience_add', '写入一段他口述的经历，并附带若干主张（claims）；他亲口说的直接算确认，能进简历。接着补一段已有的经历时传 experience_id，主张加到原经历上，不另建。', {
         experience_id: z.string().optional().describe('接着补已有经历时传；缺省新建'),
         title: z.string().describe('经历标题'), role: z.string().optional(), org: z.string().optional(),
         start_date: z.string().optional().describe('YYYY-MM'), end_date: z.string().optional().describe('YYYY-MM，在职/进行中留空'),
@@ -912,10 +912,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         } else {
           experience = r.createExperience({ ...fields, role: args.role ?? null, org: args.org ?? null, start_date: args.start_date ?? null, end_date: args.end_date ?? null, summary: args.summary ?? null, redacted: args.redacted ? 1 : 0 });
         }
-        const claims = (args.claims ?? []).map(c => r.addClaim({ experience_id: experience.id, text: c.text, attribution: c.attribution, result_metric: c.result_metric ?? null, created_from: 'interview' }));
+        // 他亲口说的就是他确认过的（主线体验 11-02）：不再出逐条勾选的确认卡——那是把协作变成新劳动。
+        // 防编造靠两条：只记他说过的事实（技能里不升格、没说的数字不写），右栏每行标「来自你说的」、点了就能改。
+        const claims = (args.claims ?? []).map(c => {
+          const claim = r.addClaim({ experience_id: experience.id, text: c.text, attribution: c.attribution, result_metric: c.result_metric ?? null, created_from: 'interview' });
+          r.confirmClaim(claim.id);
+          return { ...claim, status: 'user_confirmed' as const };
+        });
         changed('experience', 'claim');
-        claimsCard(experience, claims);
-        return text({ experience, claims, note: '主张状态为 pending；对话里已出现确认卡片，用户可以直接逐条勾选确认，也可以口头确认后调用 claim_confirm。' });
+        return text({ experience, claims, note: '已记进他的简历素材（他亲口说的，直接算确认），右边能看到。不要让他再逐条确认；他说哪里不对就改那一条。' });
       })()),
 
       tool('experience_list', '返回整棵经历树（经历 → 主张 → 证据）。', {}, wrap(() => text(repos().experienceTree()))),

@@ -80,8 +80,7 @@ describe('准备期 · 三周后回来接着补经历', () => {
     const { mtId } = await firstVisit();
     await call('experience_add', { experience_id: mtId, title: '数据分析实习', claims: [{ text: '看板日活 120 人，覆盖 3 个城市运营', attribution: 'self', result_metric: '日活 120' }] });
     expect(repos.listExperiences().filter(e => e.org === '美团' || e.title === '数据分析实习')).toHaveLength(1);
-    expect(repos.listClaims(mtId).map(c => c.text)).toContain('看板日活 120 人，覆盖 3 个城市运营');
-    expect(cards().at(-1)).toMatchObject({ kind: 'claims_confirm', data: { experience_id: mtId } });
+    expect(repos.listClaims(mtId).find(c => c.text === '看板日活 120 人，覆盖 3 个城市运营')?.status).toBe('user_confirmed');
   });
 
   it('补完一段就从「没聊完」里拿掉，另一段还在', async () => {

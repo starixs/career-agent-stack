@@ -74,12 +74,11 @@ describe('对话内流程卡片', () => {
     expect(cards()).toHaveLength(0);
   });
 
-  it('experience_add：带主张时推「确认说法」卡片', async () => {
+  it('experience_add：他亲口说的直接算确认，不推逐条确认卡（主线体验 11-02）', async () => {
     const out = (await call('experience_add', { title: '字节实习', claims: [{ text: '主导召回重构', result_metric: 'CTR +3%' }, { text: '带 3 人小组', attribution: 'team' }] })).json();
-    const [c] = cards();
+    expect(cards().filter(c => c.card.kind === 'claims_confirm')).toHaveLength(0);
     const experience = out.experience as { id: string };
-    expect(c.card).toMatchObject({ id: `claims:${experience.id}`, kind: 'claims_confirm', data: { experience_title: '字节实习' } });
-    expect((c.card.data.claims as Array<{ text: string; result_metric: string | null }>).map(x => [x.text, x.result_metric])).toEqual([['主导召回重构', 'CTR +3%'], ['带 3 人小组', null]]);
+    expect(repos.listClaims(experience.id).map(c => c.status)).toEqual(['user_confirmed', 'user_confirmed']);
   });
 
   it('apply_run：没过提交门槛时缺项只出一张 apply_gaps 卡，能填的项带输入（资料字段写私密库）；开放题 → drafts 卡', async () => {
@@ -169,24 +168,24 @@ describe('对话内流程卡片', () => {
   });
 
   it('卡片锚定到产生它的工具调用并落库；状态接口改 completed，重新推出回到 pending', async () => {
-    const handler = mocks.handlers.get('experience_add')! as unknown as (args: Record<string, unknown>, extra: unknown) => Promise<{ content: Array<{ text: string }> }>;
-    const res = await handler({ title: '字节实习', claims: [{ text: '主导召回重构' }] }, { _meta: { 'claudecode/toolUseId': 'toolu_anchor' } });
-    const expId = (JSON.parse(res.content[0].text) as { experience: { id: string } }).experience.id;
-    const pushed = cards().find(c => c.card.kind === 'claims_confirm')!;
-    expect(pushed.card).toMatchObject({ id: `claims:${expId}`, toolUseId: 'toolu_anchor', state: 'pending' });
-    expect(repos.listChatCards('sess-1').map(r => [r.id, r.tool_use_id, r.state])).toEqual([[`claims:${expId}`, 'toolu_anchor', 'pending']]);
+    const handler = mocks.handlers.get('vault_status')! as unknown as (args: Record<string, unknown>, extra: unknown) => Promise<{ content: Array<{ text: string }> }>;
+    await handler({}, { _meta: { 'claudecode/toolUseId': 'toolu_anchor' } });
+    const cardId = 'vault_missing';
+    const pushed = cards().find(c => c.card.kind === 'vault_missing')!;
+    expect(pushed.card).toMatchObject({ id: cardId, toolUseId: 'toolu_anchor', state: 'pending' });
+    expect(repos.listChatCards('sess-1').map(r => [r.id, r.tool_use_id, r.state])).toEqual([[cardId, 'toolu_anchor', 'pending']]);
 
     const req = (path: string, body?: unknown) => new Request(`http://local${path}`, body ? { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } } : {});
     const routeDeps = { repos, vault, llm: null, broadcast: () => {}, sessionId: () => 'sess-1' };
-    const setRes = await handleCareerRoute(`/api/career/cards/claims:${expId}/state`, req(`/api/career/cards/claims:${expId}/state`, { state: 'completed' }), routeDeps);
+    const setRes = await handleCareerRoute(`/api/career/cards/${cardId}/state`, req(`/api/career/cards/${cardId}/state`, { state: 'completed' }), routeDeps);
     expect(await setRes!.json()).toMatchObject({ ok: true, card: { state: 'completed', toolUseId: 'toolu_anchor' } });
     const list = await (await handleCareerRoute('/api/career/cards', req('/api/career/cards?session_id=sess-1'), routeDeps))!.json() as { cards: Array<{ id: string; state: string; data: Record<string, unknown> }> };
     expect(list.cards).toHaveLength(1);
-    expect(list.cards[0]).toMatchObject({ state: 'completed', data: { experience_title: '字节实习' } });
+    expect(list.cards[0]).toMatchObject({ id: cardId, state: 'completed' });
 
     // 同 id 重新推出（无锚点的调用）：回到 pending，锚点保留
-    repos.upsertChatCard({ id: `claims:${expId}`, session_id: 'sess-1', tool_use_id: null, kind: 'claims_confirm', title: 't', data: {} });
-    expect(repos.getChatCard(`claims:${expId}`)).toMatchObject({ state: 'pending', tool_use_id: 'toolu_anchor' });
+    repos.upsertChatCard({ id: cardId, session_id: 'sess-1', tool_use_id: null, kind: 'vault_missing', title: 't', data: {} });
+    expect(repos.getChatCard(cardId)).toMatchObject({ state: 'pending', tool_use_id: 'toolu_anchor' });
 
     const bad = await handleCareerRoute('/api/career/cards/x/state', req('/api/career/cards/x/state', { state: 'nope' }), routeDeps);
     expect(bad!.status).toBe(400);
