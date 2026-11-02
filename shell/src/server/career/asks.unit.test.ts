@@ -41,7 +41,7 @@ describe('AskView：一个动作能解决的才合并', () => {
     expect(asks[0]).toMatchObject({ kind: 'info', id: handoffs[0].id, title: '证件号码' });
     expect(asks[0].sources.map(s => s.id)).toEqual(handoffs.map(h => h.id));
     expect(asks[0].application_ids).toHaveLength(20);
-    expect(asks[0].fields).toEqual([{ label: '证件号码', vault_field: 'idNumber', sensitive: true, fillable: true }]);
+    expect(asks[0].fields).toEqual([{ label: '证件号码', text: '证件号码', vault_field: 'idNumber', sensitive: true, fillable: true }]);
   });
 
   it('开放题小芽写好了一版：「等你」里的这一格带着草稿，他看一眼确认就行（2026-11-02 实例 A）', () => {
@@ -54,7 +54,15 @@ describe('AskView：一个动作能解决的才合并', () => {
       gate: { gaps: [{ label: '你为什么选择我们？', status: 'needs_user', required: true }] },
     });
     const [ask] = buildAsks(repos, NOW);
-    expect(ask.fields).toEqual([{ label: '你为什么选择我们？', vault_field: null, sensitive: false, fillable: true, draft: '我在社团做过三次宣传活动……' }]);
+    expect(ask.fields).toEqual([{ label: '你为什么选择我们？', text: '你为什么选择我们？', vault_field: null, sensitive: false, fillable: true, draft: '我在社团做过三次宣传活动……' }]);
+  });
+
+  it('问卷题目的题号和冒号不给人看：标题「您的年龄等 2 项」，回填仍按页面原题（2026-11-02 斯达半导体）', () => {
+    const repos = createMemoryRepos();
+    stuckOnFields(repos, app(repos, '斯达半导体').id, ['3.您的年龄', '4.您所在或者毕业的高校名称：']);
+    const [ask] = buildAsks(repos, NOW);
+    expect(ask.title).toBe('您的年龄等 2 项');
+    expect(ask.fields?.map(f => [f.label, f.text])).toEqual([['3.您的年龄', '您的年龄'], ['4.您所在或者毕业的高校名称：', '您所在或者毕业的高校名称']]);
   });
 
   it('缺的字段不一样就不合并：填了证件号码解决不了缺生源地的那家', () => {

@@ -46,7 +46,7 @@ function FieldInput({ f, value, onChange }: { f: AskField; value: string; onChan
   const listId = options.length ? `cd-opts-${f.label}` : undefined;
   return (
     <>
-      <input className="cd-input" aria-label={f.label} type={f.sensitive ? 'password' : 'text'} autoComplete="off" placeholder={options.length ? `输入几个字选，如「${options[0]}」` : f.label} list={listId} value={value} onChange={e => onChange(e.target.value)} />
+      <input className="cd-input" aria-label={f.label} type={f.sensitive ? 'password' : 'text'} autoComplete="off" placeholder={options.length ? `输入几个字选，如「${options[0]}」` : f.text ?? f.label} list={listId} value={value} onChange={e => onChange(e.target.value)} />
       {listId && <datalist id={listId}>{options.map(o => <option key={o} value={o} />)}</datalist>}
     </>
   );
@@ -60,7 +60,7 @@ function FieldInputs({ ask, values, onChange }: { ask: AskView; values: Record<s
     <div className="cd-fields">
       {fields.map(f => {
         const input = <FieldInput f={f} value={values[f.label] ?? ''} onChange={v => onChange(f.label, v)} />;
-        const title = fields.length > 1 && <span>{f.label}</span>;
+        const title = fields.length > 1 && <span>{f.text ?? f.label}</span>;
         return isChoice(f)
           ? <div key={f.label} className="cd-field">{title}{input}</div>
           : <label key={f.label} className="cd-field">{title}{input}</label>;

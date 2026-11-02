@@ -30,7 +30,7 @@ export type AskKind = 'info' | 'login' | 'deadline' | 'slot' | 'review' | 'start
 export type AskSourceType = 'deadline' | 'action' | 'handoff'
 export interface AskSource { type: AskSourceType; id: string }
 export interface AskField {
-  label: string; /** 能在卡片里填时写进私密库的字段；null = 写答案库 */ vault_field: string | null; sensitive: boolean; /** 上传类、读回不一致等只能去页面上看的项 */ fillable: boolean
+  label: string; /** 给人看的说法：去掉问卷题号「3.」和结尾冒号（label 仍是回填页面用的键） */ text: string; /** 能在卡片里填时写进私密库的字段；null = 写答案库 */ vault_field: string | null; sensitive: boolean; /** 上传类、读回不一致等只能去页面上看的项 */ fillable: boolean
   /** 网页上这一格的可选项（下拉 / 单选）：卡片里让他点选，不用猜网站的写法 */
   options?: string[]
   /** 小芽已经写好的一版（开放题草稿）：卡片里预填，他看一眼确认或改几个字，不从空白开始写 */
@@ -242,9 +242,14 @@ function missingFields(action: ActionQueueItem | undefined): AskField[] {
     const def = PROFILE_BY_KEY.get(keyOf.get(label) ?? '')
     const options = optionsOf.get(label) ?? []
     const draft = draftOf.get(label)
-    fields.push({ label, vault_field: def?.field ?? null, sensitive: def?.sensitive ?? false, fillable: !files.has(label) && !UNFILLABLE.has(String(g.status)), ...(options.length && !def?.sensitive ? { options } : {}), ...(draft && !def?.sensitive ? { draft } : {}) })
+    fields.push({ label, text: askFieldText(label), vault_field: def?.field ?? null, sensitive: def?.sensitive ?? false, fillable: !files.has(label) && !UNFILLABLE.has(String(g.status)), ...(options.length && !def?.sensitive ? { options } : {}), ...(draft && !def?.sensitive ? { draft } : {}) })
   }
   return fields
+}
+
+/** 问卷题目带的题号和结尾冒号（「3.您的年龄」「4、学校名称：」）不给人看（2026-11-02 等你卡标题成了「3.您的年龄等 4 项」）。 */
+export function askFieldText(label: string): string {
+  return label.replace(/^\s*\d+\s*[.、．)）]\s*/, '').replace(/[：:]\s*$/, '').trim() || label
 }
 
 interface HandoffRow { h: Handoff; appId: string | null; action?: ActionQueueItem }
@@ -260,7 +265,7 @@ function infoAsks(ctx: Ctx, rows: readonly HandoffRow[]): AskView[] {
   }
   return [...groups.values()].map(({ rows: rs, fields }) => {
     const appIds = uniq(rs.map(r => r.appId))
-    const names = fields.map(f => f.label)
+    const names = fields.map(f => f.text)
     return {
       id: rs[0].h.id, kind: 'info' as const,
       title: names.length ? (names.length > 1 ? `${names[0]}等 ${names.length} 项` : names[0]) : '还差几项要你补',
