@@ -766,12 +766,16 @@ export class PlaywrightBrowserHost {
     }));
   }
 
-  async retireProductSession(productSessionId: string): Promise<void> {
+  /**
+   * 会话侧车停了：收回它的连接。keepContext = 这个浏览器上下文还有别的主人（求职助理的上下文由 Global 后台网申共用），
+   * 只收连接、不关上下文——否则对话这一轮一结束，后台正在填的网申就被一起关掉（2026-11-02 真实站点实例）。
+   */
+  async retireProductSession(productSessionId: string, options: { keepContext?: boolean } = {}): Promise<void> {
     const candidates = new Set([...this.connections.values(), ...this.pendingConnections]);
     await Promise.all([...candidates]
       .filter(connection => connection.binding.productSessionId === productSessionId)
       .map(connection => this.retireConnection(connection)));
-    await this.dependencies.registry.closeSessionContext(productSessionId);
+    if (!options.keepContext) await this.dependencies.registry.closeSessionContext(productSessionId);
   }
 
   private reconcileConnectionBinding(

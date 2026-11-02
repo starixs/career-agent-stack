@@ -160,6 +160,18 @@ describe('managed Browser with the installed MCP protocol and transport', () => 
     },
   );
 
+  it('keeps a shared Context alive when only the chat side retires (background applying still uses it)', async () => {
+    const h = setup();
+    const sessionId = await h.initialize();
+    await h.request(h.call(2), sessionId);
+    expect(h.contexts).toHaveLength(1);
+    await h.host.retireProductSession('session-a', { keepContext: true });
+    expect(h.contexts[0].closed).toBe(false);
+    await h.host.retireProductSession('session-a');
+    expect(h.contexts[0].closed).toBe(true);
+    await h.host.shutdown();
+  });
+
   it('drains a cancelled established tool before retiring its live Context', async () => {
     const h = setup();
     const sessionId = await h.initialize();

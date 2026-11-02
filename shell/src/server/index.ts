@@ -2089,7 +2089,10 @@ async function main() {
         }
         try {
           const browserHost = await ensureBrowserHost();
-          await browserHost.retireProductSession(body.productSessionId.trim());
+          // 求职助理的浏览器上下文 Global 后台网申也在用：对话侧车停了不关它（全双工：长活不随对话这一轮结束）
+          const { careerProductSessionId } = await import('./career/product-session');
+          const productSessionId = body.productSessionId.trim();
+          await browserHost.retireProductSession(productSessionId, { keepContext: productSessionId === careerProductSessionId() });
           return jsonResponse({ success: true });
         } catch (error) {
           return jsonResponse({
