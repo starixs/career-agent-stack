@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { FakePage, beisen, driveApplication, feishu, generic, isEntryText, moka, pickPosition, requiredAbove, type PositionTarget } from '../src/index.js'
+import { FakePage, beisen, driveApplication, feishu, generic, isDetailEntryText, isEntryText, moka, pickPosition, requiredAbove, type PositionTarget } from '../src/index.js'
 import { noLLM, profile } from './helpers.js'
 
 const quiet = { pause: [0, 0] as [number, number], settleMs: 0, humanTyping: false }
@@ -32,6 +32,9 @@ describe('从首页 / 合集页找到具体岗位（立场 10：库里的岗位�
   it('飞书详情页的「投递」只打开网申表，算入口；别的站仍不算', () => {
     expect(isEntryText('投递', feishu)).toBe(true)
     expect(isEntryText('投递', generic)).toBe(false)
+    // 中文校招详情页最常见的入口文案（2026-11-02 实例 A）：只在详情页入口守卫里算入口，别处仍不算
+    for (const t of ['立即投递', '投递简历', '投递职位']) { expect(isDetailEntryText(t, generic)).toBe(true); expect(isEntryText(t, generic)).toBe(false) }
+    expect(isDetailEntryText('提交申请', generic)).toBe(false)
   })
 
   it('Moka 首页 → 站内搜方向词 → 点进对口岗位 → 「申请职位」进表单 → 停在提交前，绝不点提交', async () => {

@@ -34,6 +34,19 @@ export function isEntryText(text: string, adapter?: SiteAdapter): boolean {
 }
 
 /**
+ * 详情页上的申请入口：在 isEntryText 之外，再认「立即投递 / 投递简历 / 投递职位」这几个中文校招官网最常见的入口
+ * （2026-11-02 实例 A：它们被当成提交按钮，引擎停在详情页让学生自己去点）。
+ * 只给 drive 的入口守卫用——那里只在页面一个表单字段都没有、这次什么都没填过时才点；表单底部的同名按钮永远不点。
+ * 自主找路等别处仍只认 isEntryText，不放宽。
+ */
+const DETAIL_ENTRY_RX = /^(立即投递|投递简历|投递职位|投递该职位|申请投递)$/
+export function isDetailEntryText(text: string, adapter?: SiteAdapter): boolean {
+  if (isEntryText(text, adapter)) return true
+  const t = squash(text).replace(/[>›→»]+$/, '').trim()
+  return DETAIL_ENTRY_RX.test(nospace(t))
+}
+
+/**
  * 页面上的"最终提交"按钮：导航里的「我的投递」「查看投递记录」之类也命中提交词，但不是表单的提交按钮；
  * 优先短文案、排在后面的（表单底部）。只用于"停在哪个按钮前"的描述，永远不点。
  */
