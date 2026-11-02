@@ -92,6 +92,21 @@ describe('两路合起来（LoginJudge）', () => {
     expect(screenOnly.observe(C('guest'), clear)).toMatchObject({ state: 'logged_in', signal: 'screen' }); // 凭证名认不出的站：登录框出现过又不见了
   });
 
+  it('登录表单还开着时，点「获取验证码」冒出来的 token Cookie 不算登上；登录接口返回成功、或表单关掉后才算（2026-11-02 美团）', () => {
+    const form: ScreenSample = { loginShown: true, errorShown: false, formShown: true };
+    const j = new LoginJudge(C('guest'));
+    j.observe(C('guest'), form);
+    expect(responseVerdict('https://verify.meituan.com/v2/ext_api/page_data?yoda', 200, '{"status":1}')).toBeNull(); // 滑块
+    expect(responseVerdict('https://passport.meituan.com/api/sendSmsCode', 200, '{"code":0}')).toBeNull(); // 发码
+    expect(j.observe(C('risk-token'), form).state).toBe('waiting');
+    j.response(responseVerdict('https://passport.meituan.com/api/login/mobile', 200, '{"code":0}'));
+    expect(j.observe(C('user'), form)).toMatchObject({ state: 'logged_in', signal: 'credentials' });
+    // 没听到登录接口，但登录表单关了、新凭证在：照样算
+    const k = new LoginJudge(C('guest'));
+    k.observe(C('guest'), form);
+    expect(k.observe(C('user'), ON_LOGIN)).toMatchObject({ state: 'logged_in', signal: 'credentials' });
+  });
+
   it('画面一开始就没有登录框（岗位详情页、导航栏只有登录链接）：看不到登录框不等于登上，一直等', () => {
     const j = new LoginJudge(C('guest'));
     for (let i = 0; i < 5; i++) expect(j.observe(C('guest'), clear).state).toBe('waiting');

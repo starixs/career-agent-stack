@@ -34,8 +34,12 @@ const POLL_MS = 1500;
 const CLEAR_STREAK = 2;
 
 /** 页内：判提示要用的那几样。不能引用外部变量。 */
-export function hintSampleInPage(): Pick<RawObservation, 'url' | 'hasPassword' | 'bodySample'> {
-  return { url: location.href, hasPassword: !!document.querySelector('input[type=password]'), bodySample: (document.body?.innerText || '').slice(0, 3000) };
+export function hintSampleInPage(): Pick<RawObservation, 'url' | 'hasPassword' | 'bodySample'> & { loginForm: boolean } {
+  const bodySample = (document.body?.innerText || '').slice(0, 3000);
+  // 登录表单还开着：看得见的手机号 / 验证码 / 密码 / 账号输入框，而且页面上写着「登录」（只剩角落一个「扫码登录」字样不算）
+  const visible = (el: Element) => { const r = (el as HTMLElement).getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+  const loginInput = Array.from(document.querySelectorAll('input')).some(i => visible(i) && (i.type === 'password' || /(手机号|验证码|密码|账号|用户名)/.test(`${i.placeholder} ${i.getAttribute('aria-label') ?? ''}`)));
+  return { url: location.href, hasPassword: !!document.querySelector('input[type=password]'), bodySample, loginForm: loginInput && /登录/.test(bodySample) };
 }
 
 export async function waitForUser(page: Page, opts: WaitOptions): Promise<WaitOutcome> {

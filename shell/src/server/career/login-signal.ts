@@ -4,7 +4,8 @@
  *  - 数据层：这个网站发下了新的 / 换掉了会话凭证 Cookie；登录类请求的返回。
  *  - 画面：登录框 / 「扫码登录」这类提示连续两次都不在了；页面上出现「密码错误」「验证码错误」这类字。
  *  - 合起来（LoginJudge）：任何一路说失败（接口返回失败、画面报错）就继续等；否则数据层有新凭证、或画面上登录提示
- *    稳定消失，任一成立就算登上。凭证名起得偏、数据层认不出的站，靠画面也能过；画面一直留着登录字样的站，靠数据层过。
+ *    稳定消失，任一成立就算登上。登录表单（手机号 / 验证码 / 密码框）还开着时，新凭证要配上登录接口返回成功才算
+ *    （2026-11-02 美团：点「获取验证码」弹滑块、发了几个带 token 的 Cookie，没登就被放行）。凭证名起得偏、数据层认不出的站，靠画面也能过；画面一直留着登录字样的站，靠数据层过。
  *
  *  细节：凭证按站（含同公司的单点登录域名，按 siteOf 归到同一站）算；登录类请求（地址带 login / auth / passport / sso …）
  *  返回 4xx、success:false、非 0 业务码算失败——密码错时有的站也会刷新会话 Cookie，所以失败要能否决。
@@ -24,6 +25,8 @@ const AUTH_NAME = /(token|session|sess|sid|ticket|auth|passport|jwt|login|uid|us
 const TRACKING_NAME = /^(_ga|_gid|_gat|hm_|hmaccount|um_|cna|_fbp|_bl_uid|sajssdk|sensorsdata|__utm|_clck|_clsk|tfstk|isg|xlly_s)/i;
 /** 登录类请求的地址特征。 */
 const LOGIN_URL = /(login|signin|sign_in|auth|passport|sso|oauth|token|verify|captcha\/check)/i;
+/** 发验证码、过滑块这类请求：成功只说明码发出去了 / 滑块过了，不是登上了（美团 yoda 滑块）。 */
+const NOT_LOGIN_RESULT_URL = /(send_?(sms|code)|sms|get_?code|verify_?code\/send|captcha|slider|yoda)/i;
 
 const cookieSite = (domain: string) => siteOf(`https://${domain.replace(/^\./, '')}/`);
 
@@ -46,7 +49,7 @@ export type ResponseVerdict = 'ok' | 'fail' | null;
 
 /** 一个登录类请求的返回说明了什么。不是登录类请求、或看不出来，返回 null。 */
 export function responseVerdict(url: string, status: number, body: string | null): ResponseVerdict {
-  if (!LOGIN_URL.test(url)) return null;
+  if (!LOGIN_URL.test(url) || NOT_LOGIN_RESULT_URL.test(url)) return null;
   if (status >= 400) return 'fail';
   if (!body) return null;
   let json: unknown;
@@ -60,8 +63,8 @@ export function responseVerdict(url: string, status: number, body: string | null
   return null;
 }
 
-/** 画面上看到的：还有没有登录框 / 登录提示，有没有登录报错。 */
-export interface ScreenSample { loginShown: boolean; errorShown: boolean }
+/** 画面上看到的：还有没有登录框 / 登录提示，有没有登录报错；formShown = 登录表单（手机号 / 验证码 / 密码输入框）还开着。 */
+export interface ScreenSample { loginShown: boolean; errorShown: boolean; formShown?: boolean }
 /** 画面上的登录报错。 */
 export const LOGIN_ERROR_TEXT = /(密码错误|密码不正确|验证码错误|验证码不正确|账号或密码|用户名或密码|登录失败|账号不存在)/;
 /** 登录提示连续这么多次不在才算消失（登录跳转途中会闪一下）。 */
@@ -91,7 +94,8 @@ export class LoginJudge {
     if (screen?.loginShown) this.loginSeen = true;
     this.streak = this.loginSeen && screen && !screen.loginShown && !screen.errorShown ? this.streak + 1 : 0;
     if (this.last === 'fail' || screen?.errorShown) return { state: 'failed', credentials: fresh };
-    const data = fresh.length > 0;
+    // 登录表单还开着时，新冒出来的 Cookie 只是访客 / 风控凭证（美团点「获取验证码」就发了一批），要有登录接口返回成功才算
+    const data = fresh.length > 0 && (!screen?.formShown || this.last === 'ok');
     const seen = this.streak >= SCREEN_CLEAR_STREAK;
     if (!data && !seen) return { state: 'waiting', credentials: fresh };
     return { state: 'logged_in', signal: data && seen ? 'both' : data ? 'credentials' : 'screen', credentials: fresh };
