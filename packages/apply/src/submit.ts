@@ -30,6 +30,8 @@ export interface SubmitResult {
   edits: SubmitEdit[]
   missingRequired: string[]
   errors: string[]
+  /** 他批准提交时一并勾上 / 点了的「已阅读并同意…」（如实记进回执）。 */
+  agreed?: string[]
   finalUrl: string
   screenshot?: Uint8Array
 }
@@ -63,11 +65,35 @@ async function uploadStillShown(page: PageLike, f: FormField, filled: FilledReco
   return (parts.length > 0 && parts.every(x => text.includes(x))) || /\.(pdf|docx?)\b/i.test(area.text)
 }
 
+/**
+ * 「我已阅读并同意《填答者协议》《隐私条款》」「本人承诺所填信息真实」：不勾就交不出去（问卷星点提交弹「请阅读并同意…」，2026-11-02 斯达半导体）。
+ * 填表时从不勾——只在他点头批准提交的这一步勾，同意跟着他的批准走，并记进回执。
+ */
+const CONSENT_RX = /(已阅读|阅读并同意|我同意|同意.{0,12}(协议|条款|声明|政策|须知)|承诺.{0,12}(真实|属实|准确))/
+const CONSENT_BUTTON_RX = /^(同意并继续|同意并提交|我同意|同意|确定同意)$/
+
+async function tickConsents(page: PageLike, fields: FormField[]): Promise<string[]> {
+  const agreed: string[] = []
+  for (const f of fields.filter(x => x.type === 'checkbox' && x.value !== 'true' && CONSENT_RX.test(x.label))) {
+    try { await page.click(f.selector); agreed.push(f.label) } catch { /* 勾不上就照常交，网站会说缺什么 */ }
+  }
+  return agreed
+}
+
+/** 点了提交后弹出的「请阅读并同意…」框：点一次「同意并继续」（同上，算在他的批准里）。 */
+async function acceptConsentDialog(page: PageLike, sig: PageSignals, done: Set<string>): Promise<string | null> {
+  if (!/(协议|条款|隐私|声明)/.test(sig.text)) return null
+  const b = sig.buttons.find(x => CONSENT_BUTTON_RX.test(x.text.replace(/\s+/g, '')) && !x.disabled && !done.has(x.text))
+  if (!b) return null
+  done.add(b.text)
+  try { await page.click(b.selector); return b.text } catch { return null }
+}
+
 export async function submitApplication(page: PageLike, opts: SubmitOptions = {}): Promise<SubmitResult> {
   const adapter = opts.adapter ?? pickAdapter(page.url())
   const log = opts.log ?? (() => {})
   const shot = () => page.screenshot().catch(() => undefined)
-  const base = { edits: [] as SubmitEdit[], missingRequired: [] as string[], errors: [] as string[] }
+  const base: { edits: SubmitEdit[]; missingRequired: string[]; errors: string[]; agreed?: string[] } = { edits: [], missingRequired: [], errors: [] }
 
   const fields = await extractFields(page)
   const empty = fields.filter(f => f.required && (f.type === 'checkbox' ? f.value !== 'true' : !(f.value ?? '').trim()))
@@ -80,6 +106,8 @@ export async function submitApplication(page: PageLike, opts: SubmitOptions = {}
     return { ...base, status: 'needs_user', message: `还有 ${missing.length} 个必填项是空的，没有提交：${missing.slice(0, 5).join('、')}`, edits, missingRequired: missing, finalUrl: page.url(), screenshot: await shot() }
   }
 
+  const agreed = await tickConsents(page, fields)
+  if (agreed.length) { base.agreed = agreed; log(`勾上了：${agreed.join('、')}`) }
   const before: PageSignals = await page.evaluate(pageSignalsScript)
   const ob = detectObstacle(before, adapter)
   if (ob) return { ...base, status: 'handoff', reason: ob.reason, message: `提交前出现需要你本人处理的情况：${ob.evidence}`, edits, finalUrl: page.url(), screenshot: await shot() }
@@ -94,10 +122,13 @@ export async function submitApplication(page: PageLike, opts: SubmitOptions = {}
 
   const timeout = opts.timeoutMs ?? 15_000
   const poll = opts.pollMs ?? 500
+  const consentClicks = new Set<string>()
   for (let waited = 0; waited <= timeout; waited += poll) {
     await page.waitForTimeout(poll)
     let sig: PageSignals
     try { sig = await page.evaluate(pageSignalsScript) } catch { continue } // 跳转中
+    const accepted = await acceptConsentDialog(page, sig, consentClicks)
+    if (accepted) { base.agreed = [...(base.agreed ?? []), accepted]; log(`点了「${accepted}」`); continue }
     const ok = sig.text.match(SUBMIT_SUCCESS_RX)
     if (ok) return { ...base, status: 'submitted', message: `已提交（页面提示「${ok[0]}」）`, evidence: ok[0], edits, button: button.text, finalUrl: page.url(), screenshot: await shot() }
     const ob2 = detectObstacle(sig, adapter)

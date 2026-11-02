@@ -338,6 +338,14 @@ describe('问卷星上传（真实 Chrome）', () => {
     const r = await engine.submitApplication(engine.fromPlaywright(page), { filled, timeoutMs: 500, pollMs: 100 })
     expect(r.missingRequired).not.toContain('8.上传简历')
     expect(r).toMatchObject({ status: 'submitted', button: '提交' }) // 提交按钮是 div 也找得到、点得到
+    expect(r.agreed).toEqual(['我已阅读并同意']) // 他批准提交时一并勾上，记进回执
+    // 页面上没有勾选框、点提交才弹「请阅读并同意」：点一次「同意并继续」
+    const dlg = await open('corpus/wjx-questionnaire.html#uploaded-nocheckbox')
+    await dlg.fill('#q1', '周子航'); await dlg.fill('#q3', '北京邮电大学'); await dlg.fill('#q5', '北京市海淀区')
+    await dlg.click('#div2 .ui-radio'); await dlg.click('#div4 .ui-radio:nth-child(2)'); await dlg.selectOption('#q6', { label: '共青团员' })
+    const r2 = await engine.submitApplication(engine.fromPlaywright(dlg), { filled, timeoutMs: 3000, pollMs: 100 })
+    expect(r2).toMatchObject({ status: 'submitted', agreed: ['同意并继续'] })
+    await dlg.context().close()
     // 没传过的那张表：照样报空
     const fresh = await open('corpus/wjx-questionnaire.html')
     expect((await engine.submitApplication(engine.fromPlaywright(fresh), { filled: [], timeoutMs: 500, pollMs: 100 })).missingRequired).toContain('8.上传简历')
