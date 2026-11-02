@@ -552,16 +552,19 @@ export const pageSignalsScript: PageScript<void, PageSignals> = {
       if (n >= 80) break
     }
     // 很多站的"添加一段经历"是带点击事件的 div / span（美团「添加教育经历」就是），不是 button：
-    // 按行为补收——可点（手形光标 / onclick / tabindex）、文字是"添加 / 新增 …"的最内层元素。只补这类入口，不碰提交按钮识别。
+    // 按行为补收——可点（手形光标 / onclick / tabindex / 按钮类名）、文字是"添加 / 新增 …"的最内层元素。
     // 北森 zhiye 岗位行就地展开后的「立即投递」也是可点 div（2026-10-31 联发科技）：申请入口同样按行为补收，
     // 点不点由 drive 的入口守卫决定（只在页面还没有网申表时点）
-    const ADD_RX = /^(\+|＋)?\s*(添加|新增|增加|继续添加|再添加)|^(立即投递|投递|投递简历|申请职位|立即申请|我要投递|我要申请)$/
+    // 问卷星的「提交」也是 div#ctlNext.submitbtn：最终提交按钮同样按行为补收，否则批准后找不到按钮、永远交不出去（2026-11-02 中兵通信）。
+    // 收进来不等于会点：填表阶段的提交守卫一律不点提交类文案，只有他批准后的提交步骤才点它
+    const ADD_RX = /^(\+|＋)?\s*(添加|新增|增加|继续添加|再添加)|^(立即投递|投递|投递简历|申请职位|立即申请|我要投递|我要申请|提交|提交申请|确认提交|提交问卷|提交报名|立即提交)$/
     const addCands = Array.from(document.querySelectorAll('div, span, p, li, i, label, em, strong')).filter(el => {
       // 只排除本次已当按钮收下的元素（上一次扫描留下的标记不算，否则第二次扫描就把它漏了）
       if (tagged.some(b => b.contains(el)) || !vis(el)) return false
       const t = clean((el as HTMLElement).innerText)
       if (!t || t.length > 16 || !ADD_RX.test(t)) return false
-      const clickable = getComputedStyle(el).cursor === 'pointer' || el.hasAttribute('onclick') || el.getAttribute('tabindex') === '0'
+      const cls = typeof el.className === 'string' ? el.className : ''
+      const clickable = getComputedStyle(el).cursor === 'pointer' || el.hasAttribute('onclick') || el.getAttribute('tabindex') === '0' || /(submit|btn)/i.test(cls)
       return clickable
     })
     for (const el of addCands) {

@@ -304,9 +304,13 @@ describe('问卷星上传（真实 Chrome）', () => {
   it('传完 input 被清空、文件名只在上传区：提交前不把已传好的简历报成必填空着（2026-11-02 中兵通信）', async ({ skip }) => {
     if (!engine || !browser) return skip()
     const page = await open('corpus/wjx-questionnaire.html#uploaded')
+    // 其余必填都填好（填完停在提交前的样子）
+    await page.fill('#q1', '周子航'); await page.fill('#q3', '北京邮电大学'); await page.fill('#q5', '北京市海淀区')
+    await page.click('#div2 .ui-radio'); await page.click('#div4 .ui-radio:nth-child(2)'); await page.selectOption('#q6', { label: '共青团员' })
     const filled = [{ fieldId: 'fx', label: '8.上传简历', value: '{{vault:profile.name}}-北京邮电大学-硕士.pdf', source: 'profile' as const }]
     const r = await engine.submitApplication(engine.fromPlaywright(page), { filled, timeoutMs: 500, pollMs: 100 })
     expect(r.missingRequired).not.toContain('8.上传简历')
+    expect(r).toMatchObject({ status: 'submitted', button: '提交' }) // 提交按钮是 div 也找得到、点得到
     // 没传过的那张表：照样报空
     const fresh = await open('corpus/wjx-questionnaire.html')
     expect((await engine.submitApplication(engine.fromPlaywright(fresh), { filled: [], timeoutMs: 500, pollMs: 100 })).missingRequired).toContain('8.上传简历')
