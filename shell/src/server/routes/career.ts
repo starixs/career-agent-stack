@@ -39,7 +39,7 @@ import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
 import { confirmSubmitResult } from '../career/submit-executor';
 import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
-import { applyJobs, planJobs, startApprovedFills } from '../career/batch-apply';
+import { applyJobs, planJobs, prepareAhead, startApprovedFills } from '../career/batch-apply';
 import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
@@ -534,6 +534,12 @@ const ROUTES: Route[] = [
     // 批准即执行：发送投递邮件；提交交给提交执行器（立即踢一轮，不等轮询）；填表交给批量运行器
     const sent = decision === 'approved' ? await executeApprovedSendMails(intakeDeps(ctx), ids) : [];
     if (decision === 'approved' && submits.length) void kickSubmit();
+    // 他看着一份做通、点了头：后台接着把方向对得上的几家备到提交前（预准备，主线 ⑥）
+    if (decision === 'approved' && submits.length) {
+      void prepareAhead({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir })
+        .then(ids => { if (ids.length) dataChanged(ctx, ['application', 'action_queue']); })
+        .catch((error: unknown) => console.error('[career] prepare-ahead FAILED', error instanceof Error ? error.message : error));
+    }
     // 批准填表同样即执行：交给后台批量运行器（命令轮询几秒内接走）
     const filling = decision === 'approved' ? startApprovedFills(ctx.repos, actions, 'approval') : [];
     // 招呼语 / 开放题答案没有执行器（平台私信、网申开放题都只能本人操作）：批准 = 内容定稿，

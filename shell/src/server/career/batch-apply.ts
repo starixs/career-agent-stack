@@ -6,11 +6,13 @@
  *  - applyJobs：一次确认 = 建投递冻结材料 + 批准开始 + 交给后台批量运行器；没有「待投清单」这一步（用户 10-30：选了就是要投），
  *    不经过对话，也不用再去别处点「开始」。岗位页「开始投」和对话里的 jobs_apply 都走这里。
  *  - startApprovedFills：批准了的填表一律交后台运行器（岗位页、等你条、对话里的卡片都走这里），助理不再逐份 apply_run。
+ *  - prepareAhead：预准备（主线体验 ⑥，face-pipeline 2e）——他看着一份做通、在提交卡上点了头之后，后台把方向对得上的
+ *    几家先定制、填到提交前停住；他回来看到「备好了 N 家」，点一下就交。提交前一律停，没他点头不交（放过权的那一类除外）。
  */
 import type { ActionQueueItem, Repos } from '@career/core';
 
 import { BatchRunner } from './batch-runner';
-import { prepareJobs } from './job-board';
+import { getJobPrefs, jobBoard, prepareJobs } from './job-board';
 import { pickResumeForJob, type PacketDeps } from './packets';
 import type { CareerStore } from './store';
 import { markedTargetJobs } from './targets';
@@ -80,4 +82,26 @@ export async function applyJobs(deps: Deps, jobIds: readonly string[], resumeId?
   const started = startApprovedFills(deps.repos, actions, 'board');
   const failed = results.filter(r => !r.ok).map(r => ({ job_id: r.job_id, reason: r.reason ?? '没能开始' }));
   return { started, skipped: [...plan.skipped, ...failed] };
+}
+
+/** 预准备一次最多备几家：够他回来点一下就交一批，又不会让没被选中的备料白跑太多（反方意见：备了不投就是浪费）。 */
+export const PREPARE_AHEAD_LIMIT = 5;
+
+/** 方向对得上、还没投也没在投的岗位，按匹配排前 limit 家，定制并填到提交前。返回开始备的填表动作。 */
+export async function prepareAhead(deps: Deps, limit = PREPARE_AHEAD_LIMIT): Promise<string[]> {
+  const keywords = (getJobPrefs(deps.repos).keywords ?? []).map(k => k.toLowerCase());
+  if (!keywords.length || !deps.store.listResumeMasters().length) return [];
+  const inFlight = deps.repos.listActions().filter(a => a.kind === 'fill_form' && ACTIVE_ACTION.has(a.status)).length;
+  if (inFlight >= limit) return [];
+  const picks = jobBoard(deps.repos, { open_only: true, fits_only: true, sort: 'match' })
+    .filter(r => !r.application && keywords.some(k => `${r.job.title} ${r.job.jd_raw ?? ''}`.toLowerCase().includes(k)))
+    .slice(0, limit - inFlight)
+    .map(r => r.job.id);
+  const plan = planJobs(deps.repos, deps.store, picks);
+  if (!plan.ready.length) return [];
+  const results = await prepareJobs(deps, plan.ready, null, { fallbackResumeId: null });
+  const actions = results.filter(r => r.ok && r.action_id).map(r => deps.repos.getAction(r.action_id!)).filter((a): a is ActionQueueItem => !!a);
+  deps.repos.reviewActions(actions.map(a => a.id), 'approved', 'system');
+  console.log(`[career] prepare-ahead started=${actions.length} picks=${picks.length}`);
+  return startApprovedFills(deps.repos, actions, 'prepare');
 }

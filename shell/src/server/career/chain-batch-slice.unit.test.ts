@@ -15,7 +15,8 @@ import type { Repos } from '@career/core';
 import { handleCareerRoute } from '../routes/career';
 import { handleCareerSessionRoute } from '../routes/career-session';
 import { applyabilityOf, recordApplyability } from './applyability';
-import { applyJobs, planJobs } from './batch-apply';
+import { applyJobs, planJobs, prepareAhead } from './batch-apply';
+import { setJobPrefs } from './job-board';
 import { BATCH_COMMAND_KEY } from './batch-runner';
 import { loadCore } from './core-module';
 import { asksFor } from './delivery';
@@ -117,5 +118,19 @@ describe('链路 · 框选一批、确认投出', () => {
     expect(plan.ready).toHaveLength(4);
     expect(plan.skipped).toEqual([]);
     expect(['DeepSeek', '美团', '大疆', '京东'].map(c => applyabilityOf(repos, jobOf(c).id))).toEqual(['no_form', 'login', 'form', 'unknown']);
+  });
+
+  it('预准备：方向定了、简历在，他点头之后后台把对得上的几家备到提交前；没方向不备，投过的不备', async () => {
+    store.createResumeMaster({ name: 'AI 方向', schema_json: { basics: {} } });
+    expect(await prepareAhead(deps)).toEqual([]);
+    setJobPrefs(repos, { keywords: ['AI'] });
+    const started = await prepareAhead(deps, 3);
+    expect(started).toHaveLength(3);
+    expect(started.every(id => repos.getAction(id)!.approved_by === 'system')).toBe(true);
+    expect(repos.kvGet<{ ids?: string[] }>(BATCH_COMMAND_KEY)?.ids).toEqual(started);
+    const prepared = new Set(started.map(id => repos.getAction(id)!.application_id));
+    expect(prepared.has(appOf('拼多多').id)).toBe(false);
+    // 已经在备的算数：不会一口气越备越多
+    expect(await prepareAhead(deps, 3)).toEqual([]);
   });
 });

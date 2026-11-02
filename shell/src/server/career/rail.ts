@@ -20,7 +20,6 @@ export type { MainlineStage, RailSnapshot } from '../../shared/careerRail';
 /** 回执最多列几张：右栏是扫一眼的地方，完整记录在漏斗页。 */
 const RECEIPT_LIMIT = 30;
 const SENT_STAGES = ['applied', 'responded', 'interview', 'offer', 'rejected', 'hired'];
-const PREPARED_STATUSES = new Set(['pending_review', 'approved']);
 const WAITING_STATUSES = new Set(['needs_user', 'pending_review']);
 
 function startOfToday(): string {
@@ -128,7 +127,8 @@ export function railSnapshot(repos: Repos, store: CareerStore, core: CoreModule)
   const list = receipts(repos);
   const since = startOfToday();
   const wait = waiting(repos);
-  const prepared = repos.listActions().filter(a => a.kind === 'fill_form' && PREPARED_STATUSES.has(a.status)).length;
+  // 备好 = 填好了、停在提交前、点一下就交的份数（预准备备出来的也在这里）
+  const prepared = repos.listActions('pending_review').filter(a => a.kind === 'submit').length;
   return {
     stage: mainlineStage(repos, store, list.length, ledger),
     blocks: [resumeBlock(repos, store, core), tailorBlock(repos), applyBlock(repos, list.length), mailBlock(repos)],
