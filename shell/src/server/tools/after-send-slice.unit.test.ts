@@ -33,7 +33,7 @@ import { createCareerServer } from './career-tools';
 
 interface ToolResults {
   inbox_capture: { item_id: string; status: string; created: { application_id?: string }; candidates: Array<{ application_id: string; label: string }>; note: string };
-  today_queue: { items: Array<{ kind: string; title: string; suggest?: string; ask?: string; ref: { id: string } }> };
+  today_queue: { items: Array<{ kind: string; title: string; suggest?: string; ask?: string; ref: { id: string } }>; sent_recent: Array<{ company: string; title: string }> };
   interview_prep: { application_id: string };
   interview_book: { application_id: string; interview_id: string; deadline_id: string };
 }
@@ -109,6 +109,13 @@ describe('投出之后 · 回音进来到复盘，用户不用打字解释', () 
     const out = await call('inbox_capture', { text: '【美团】后端开发工程师 一面邀请', source: 'mail' });
     expect(out.created.application_id).toBe(mt.backend);
     expect(out.candidates).toEqual([]);
+  });
+
+  it('他回来问进展：今日队列带上近 24 小时投出去的几家，小芽第一句能报「投出了几家」（2026-11-02 中兵通信投出去了没被提起）', async () => {
+    const out = await call('today_queue');
+    expect(out.sent_recent.map(r => `${r.company} · ${r.title}`).sort()).toEqual(['百度 · 机器学习算法工程师', '美团 · 后端开发工程师', '美团 · 算法工程师']);
+    vi.setSystemTime(new Date('2026-11-04T02:00:00.000Z')); // 两天后：不再算「刚投出」
+    expect((await call('today_queue')).sent_recent).toEqual([]);
   });
 
   it('今日队列里两天后的面试带「帮我准备」；按公司准备时自动挑排着面试的那份', async () => {

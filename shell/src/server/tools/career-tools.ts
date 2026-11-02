@@ -12,6 +12,7 @@ import { basename, isAbsolute, resolve } from 'path';
 import type { Repos, LLM, Job, JdParsed, Claim, Experience, Vault, ActionQueueItem, Task, Deadline } from '@career/core';
 
 import { loadCore } from '../career/core-module';
+import { receipts } from '../career/rail';
 import type { BoardRow } from '../career/job-board';
 import { getRepos, careerDataDir, careerExportsDir } from '../career/db';
 import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
@@ -78,6 +79,13 @@ const sessionCtx: { sessionId: string; workspace: string } = { sessionId: 'defau
  * 浏览器没接下这次填表（409 用户正在接管 / 被别处占用、503 停机…）：把它的 code 原样变成一条 error 行交给调用方分诊。
  * 之前直接抛错，code 丢了，用户点了「控制浏览器」那一刻排到的那份网申就被判成失败、再也不重跑（2026-11-02 美团）。
  */
+/** 近 24 小时真投出去的几家（右栏回执同一份数据）：他回来问进展，第一句先报这个（2026-11-02：中兵通信投出去了，小芽一个字没提）。 */
+const SENT_RECENT_MS = 24 * 3_600_000;
+function sentRecent(repos: Repos): Array<{ company: string; title: string; at: string }> {
+  const since = new Date(Date.now() - SENT_RECENT_MS).toISOString();
+  return receipts(repos).filter(r => r.at >= since).map(r => ({ company: r.company, title: r.title, at: r.at }));
+}
+
 export function browserRefusalLine(status: number, body: string): Record<string, unknown> {
   let parsed: { error?: unknown; code?: unknown } = {};
   try { parsed = JSON.parse(body) as typeof parsed; } catch { /* 不是 JSON：只按状态码 */ }
@@ -676,7 +684,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         changed('account_fetch');
         return text({ state });
       })()),
-      tool('today_queue', '今天必须做的事（已排序：今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线 → 近三天到期 → 已过期没打勾的）+ 等待中的投递数。今日页上都列着，回复只说最急的一件、其余报个数，不逐条复述。只含 3 天内的时间点（条目带 deadline_id）；更远的日程用 deadline_list。', {}, wrap(() => text(repos().today()))),
+      tool('today_queue', '今天必须做的事（已排序：今天到期 → 待你批准 → 需要你本人 → 今日面试 → 新收件 → 可关闭的静默线 → 近三天到期 → 已过期没打勾的）+ 等待中的投递数 + sent_recent（近 24 小时真投出去的，哪几家）。他问「怎么样了」：先报投出了几家、是哪几家（sent_recent），再说最急的一件要他的事、其余报个数，不逐条复述。只含 3 天内的时间点（条目带 deadline_id）；更远的日程用 deadline_list。', {}, wrap(() => text({ ...repos().today(), sent_recent: sentRecent(repos()) }))),
 
       tool('inbox_capture', '把用户丢进来的任何内容（JD、面试邀请、测评 / 笔试通知、拒信、Offer、内推码、截止提醒）归档成结构化对象：自动建岗位 / 面试 / 截止事件 / 关闭投递 / Offer，并关联到卷宗。', {
         text: z.string().describe('原文'), source: z.enum(['paste', 'file', 'url', 'chat']).optional(), application_id: z.string().optional().describe('用户已明确归属的投递'),

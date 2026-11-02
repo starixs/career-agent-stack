@@ -22,6 +22,11 @@ export const TRUST_LEDGER_KEY = 'trust:ledger';
 export const DELEGATE_PROPOSE_AFTER = 2;
 
 const SYSTEM_LABELS: Record<string, string> = { beisen: '北森', moka: 'Moka', feishu: '飞书招聘', nowcoder: '牛客', boss: 'BOSS 直聘' };
+/** 没有专门适配、按网站记的那一类：给学生看他认得的名字，不是域名（右栏「学会了」里出现过「wjx.cn」，2026-11-02）。 */
+const SITE_LABELS: Record<string, string> = {
+  'wjx.cn': '问卷星', 'qq.com': '腾讯', 'jsj.top': '金数据', 'jsjform.com': '金数据', 'mikecrm.com': '麦客表单',
+  'kdocs.cn': '金山表单', 'mokahr.com': 'Moka', 'zhiye.com': '北森', 'hotjob.cn': 'HotJob', 'feishu.cn': '飞书招聘', 'toutiao.com': '字节问卷',
+};
 
 /** 网申网址属于哪一类：认得出的招聘系统按系统记，认不出的按网站记（同一网站的结构一样）。 */
 export async function systemOf(url: string): Promise<{ key: string; label: string }> {
@@ -34,7 +39,7 @@ export function systemOfSync(url: string): { key: string; label: string } {
   const adapter = loadedApply()?.pickAdapter(url);
   if (adapter && adapter.id !== 'generic') return { key: `system:${adapter.id}`, label: SYSTEM_LABELS[adapter.id] ?? adapter.id };
   const site = siteOf(url) ?? url;
-  return { key: `site:${site}`, label: site };
+  return { key: `site:${site}`, label: SITE_LABELS[site] ?? site };
 }
 
 export const targetKey = (company: string) => `target:${company}`;

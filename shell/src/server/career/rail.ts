@@ -78,7 +78,7 @@ function mailBlock(repos: Repos): RailBlock {
   return { id: 'mail', label: '盯邮箱', status: 'working', line: `在盯 ${accounts[0].address}，有动静叫你` };
 }
 
-function receipts(repos: Repos): RailReceipt[] {
+export function receipts(repos: Repos): RailReceipt[] {
   const placeholders = SENT_STAGES.map(() => '?').join(',');
   const rows = repos.db.all<{ application_id: string; company: string | null; title: string; at: string; payload_json: string | null }>(
     `SELECT a.id AS application_id, j.company_name AS company, j.title AS title, MIN(h.created_at) AS at,
