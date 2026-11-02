@@ -315,6 +315,16 @@ describe('问卷星地区浮层（真实 Chrome）', () => {
     expect(r.model.q7).toBe('浙江-杭州市')
     await page.context().close()
   }, 90_000)
+
+  it('上一格没选完留下的 layui 选择浮层：收起时关掉，下一格不会点进上一格的浮层（2026-11-02 现居住地选进了户籍的浮层）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/wjx-city-popup.html')
+    await page.click('#q7', { force: true })
+    expect(await page.isVisible('.layui-layer')).toBe(true)
+    await engine.fromPlaywright(page).evaluate(engine.closePopupScript, { selector: '#q8' })
+    expect(await page.isVisible('.layui-layer')).toBe(false)
+    await page.context().close()
+  }, 30_000)
 })
 
 describe('问卷星上传（真实 Chrome）', () => {

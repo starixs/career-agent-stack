@@ -561,6 +561,15 @@ export const closePopupScript: PageScript<{ selector?: string }, boolean> = {
     await sleep(60)
     for (const t of ['mousedown', 'mouseup']) document.body.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, view: window, clientX: 1, clientY: 1 }))
     const el = selector ? document.querySelector(selector) as HTMLElement | null : null
+    // layui 选择浮层（问卷星地区 / 学校）不认 Esc 和点空白：上一格没选完，浮层一直开着，下一格的点选全落进上一格的浮层
+    // （2026-11-02 斯达半导体：现居住地选进了户籍的浮层）。只关「选择器式」的：不含当前这一格、自己没有可填的文本框
+    for (const layer of Array.from(document.querySelectorAll('.layui-layer'))) {
+      const r = layer.getBoundingClientRect()
+      if (r.width < 2 || r.height < 2 || (el && layer.contains(el))) continue
+      const ownInputs = Array.from(layer.querySelectorAll('input:not([type=hidden]):not(.select2-search__field), textarea')).length
+      const close = layer.querySelector('.layui-layer-close') as HTMLElement | null
+      if (!ownInputs && close) close.click()
+    }
     try { el?.blur(); (document.activeElement as HTMLElement | null)?.blur?.() } catch { /* ignore */ }
     await sleep(80)
     return true
