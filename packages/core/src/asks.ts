@@ -33,6 +33,8 @@ export interface AskField {
   label: string; /** 能在卡片里填时写进私密库的字段；null = 写答案库 */ vault_field: string | null; sensitive: boolean; /** 上传类、读回不一致等只能去页面上看的项 */ fillable: boolean
   /** 网页上这一格的可选项（下拉 / 单选）：卡片里让他点选，不用猜网站的写法 */
   options?: string[]
+  /** 小芽已经写好的一版（开放题草稿）：卡片里预填，他看一眼确认或改几个字，不从空白开始写 */
+  draft?: string
 }
 
 export interface AskView {
@@ -232,13 +234,15 @@ function missingFields(action: ActionQueueItem | undefined): AskField[] {
   const keyOf = new Map(records(result.needsUser).map(p => [strOf(p.label), strOf(p.key)]))
   const optionsOf = new Map(records(result.needsUser).map(p => [strOf(p.label), Array.isArray(p.options) ? p.options.filter((o): o is string => typeof o === 'string' && !!o.trim()) : []]))
   const files = new Set(records(result.fields).filter(f => f.type === 'file').map(f => strOf(f.label)))
+  const draftOf = new Map(records(result.drafts).filter(d => typeof d.value === 'string' && d.value.trim()).map(d => [strOf(d.label), String(d.value)]))
   const fields: AskField[] = []
   for (const g of records(gate?.gaps)) {
     const label = strOf(g.label)
     if (!label || g.required === false || fields.some(f => f.label === label)) continue
     const def = PROFILE_BY_KEY.get(keyOf.get(label) ?? '')
     const options = optionsOf.get(label) ?? []
-    fields.push({ label, vault_field: def?.field ?? null, sensitive: def?.sensitive ?? false, fillable: !files.has(label) && !UNFILLABLE.has(String(g.status)), ...(options.length && !def?.sensitive ? { options } : {}) })
+    const draft = draftOf.get(label)
+    fields.push({ label, vault_field: def?.field ?? null, sensitive: def?.sensitive ?? false, fillable: !files.has(label) && !UNFILLABLE.has(String(g.status)), ...(options.length && !def?.sensitive ? { options } : {}), ...(draft && !def?.sensitive ? { draft } : {}) })
   }
   return fields
 }

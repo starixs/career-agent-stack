@@ -40,8 +40,9 @@ function resumeBlock(repos: Repos, store: CareerStore, core: CoreModule): RailBl
   const masters = store.listResumeMasters();
   const experiences = repos.listExperiences().length;
   const interviewing = Object.values(repos.kvGet<{ rounds?: Record<string, string> }>(core.INTERVIEW_STATE_KEY)?.rounds ?? {}).includes('in_progress');
-  if (interviewing) return { id: 'resume', label: '写简历', status: 'working', line: `边聊边写，已经有 ${experiences} 段经历` };
+  // 简历一出来就算好了：访谈进度里留着没收尾的轮次，不该让右栏一直说「正在写」（2026-11-02 实例 A）
   if (masters.length) return { id: 'resume', label: '写简历', status: 'done', line: `简历好了：${masters[0].name}` };
+  if (interviewing) return { id: 'resume', label: '写简历', status: 'working', line: `边聊边写，已经有 ${experiences} 段经历` };
   return { id: 'resume', label: '写简历', status: 'idle', line: '等你把简历给我，或者聊聊你做过的事' };
 }
 

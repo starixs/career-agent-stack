@@ -75,7 +75,8 @@ export function AskCard({ ask, busy, error, onGo, onLater, onHold }: {
   /** 单家投前过目点「先不投」后的选项；不给就照旧走 onLater。 */
   onHold?: (choice: HoldChoice) => Promise<unknown> | void;
 }) {
-  const [values, setValues] = useState<Record<string, string>>({});
+  // 开放题小芽已经写好一版：预填进去，他看一眼确认或改几个字
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((ask.fields ?? []).filter(f => f.fillable && f.draft).map(f => [f.label, f.draft!])));
   const [holding, setHolding] = useState(false);
   const holdable = ask.kind === 'review' && ask.application_ids.length <= 1 && !!onHold;
   const labels = actionLabels(ask);

@@ -44,6 +44,19 @@ describe('AskView：一个动作能解决的才合并', () => {
     expect(asks[0].fields).toEqual([{ label: '证件号码', vault_field: 'idNumber', sensitive: true, fillable: true }]);
   });
 
+  it('开放题小芽写好了一版：「等你」里的这一格带着草稿，他看一眼确认就行（2026-11-02 实例 A）', () => {
+    const repos = createMemoryRepos();
+    const a = repos.enqueueAction('fill_form', { job: 'x' }, app(repos, '青禾').id, true);
+    repos.openHandoff('missing_info', { actionId: a.id, message: '还差 1 项' });
+    repos.setActionStatus(a.id, 'needs_user', {
+      needsUser: [{ label: '你为什么选择我们？' }],
+      drafts: [{ label: '你为什么选择我们？', value: '我在社团做过三次宣传活动……' }],
+      gate: { gaps: [{ label: '你为什么选择我们？', status: 'needs_user', required: true }] },
+    });
+    const [ask] = buildAsks(repos, NOW);
+    expect(ask.fields).toEqual([{ label: '你为什么选择我们？', vault_field: null, sensitive: false, fillable: true, draft: '我在社团做过三次宣传活动……' }]);
+  });
+
   it('缺的字段不一样就不合并：填了证件号码解决不了缺生源地的那家', () => {
     const repos = createMemoryRepos();
     stuckOnFields(repos, app(repos, '甲').id, ['证件号码']);

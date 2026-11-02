@@ -16,6 +16,7 @@ import { BatchWall } from './BatchWall';
 import type { AskView, AwayView, CompanyMark, RunView } from './deliveryApi';
 import { OPEN_DECK_EVENT, ReturnCard, spanText } from './ReturnCard';
 import { WaitingDock } from './WaitingDock';
+import { AskCard } from './AskCard';
 
 const mark = (name: string, logo?: string, fill?: string): CompanyMark => ({ company_id: null, name, ...(logo ? { logo } : {}), ...(fill ? { fill } : {}) });
 const NOW = new Date('2026-10-28T10:30:00+08:00');
@@ -278,5 +279,14 @@ describe('字和路', () => {
       deadlines: [{ id: 'd2', kind: 'interview', title: '京东 · AI 一面', due_at: '2026-10-31T06:00:00.000Z', status: 'open' } as never],
     }, [ask], NOW);
     expect(track.map(n => [n.label, !!n.on, !!n.ask])).toEqual([['投出', true, false], ['一面', false, true]]);
+  });
+});
+
+describe('等你卡 · 开放题带着小芽写好的一版', () => {
+  it('草稿预填在格子里，他看一眼直接点就交回去（2026-11-02 实例 A）', async () => {
+    const onGo = vi.fn();
+    const ask: AskView = { ...ASK_INFO, id: 'hnd_why', title: '你为什么选择我们？', fields: [{ label: '你为什么选择我们？', vault_field: null, sensitive: false, fillable: true, draft: '我在社团做过三次宣传活动。' }] };
+    render(<AskCard ask={ask} busy={false} error={null} onGo={onGo} onLater={vi.fn()} />);
+    expect(screen.getByDisplayValue('我在社团做过三次宣传活动。')).toBeInTheDocument();
   });
 });
