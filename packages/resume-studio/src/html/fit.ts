@@ -41,9 +41,23 @@ export async function fitOnePage(measure: Measure, available: number): Promise<F
 	return { font: await maxFitting(1, MAX_FONT, (v) => ({ font: v, space: MAX_SPACE }), measure, limit), space: MAX_SPACE };
 }
 
-/** 页面里执行：设置比例并返回内容高度（px）。导出时序列化成字符串在 Chrome 里跑，故不引用外部变量。 */
-export const MEASURE_SNIPPET = (s: FitScales) =>
-	`(() => { const r = document.documentElement.style; r.setProperty('--fs', '${s.font}'); r.setProperty('--sp', '${s.space}'); return document.querySelector('.content').getBoundingClientRect().height; })()`;
+/**
+ * 设置比例并返回一页需要的高度（px）= 内容高 + .page 上下内边距（页边距全在 .page 内边距里，见 document.ts）。
+ * 渲染层直接调用（CSP 不允许 eval）；导出在 Chrome 里跑同一逻辑的字符串版 MEASURE_SNIPPET，两份须一致（有测试对照）。
+ */
+export function applyAndMeasure(doc: Document, s: FitScales): number {
+	doc.documentElement.style.setProperty("--fs", String(s.font));
+	doc.documentElement.style.setProperty("--sp", String(s.space));
+	const page = doc.querySelector(".page");
+	const content = doc.querySelector(".content");
+	if (!page || !content) return 0;
+	const cs = doc.defaultView?.getComputedStyle(page);
+	const pad = cs ? Number.parseFloat(cs.paddingTop) + Number.parseFloat(cs.paddingBottom) : 0;
+	return content.getBoundingClientRect().height + pad;
+}
 
-/** 可用内容高度（CSS px，96dpi）：纸高减上下页边距。 */
-export const availableHeightPx = (pageHeightMm: number, marginYPt: number) => (pageHeightMm * 72) / 25.4 / 0.75 - (2 * marginYPt) / 0.75;
+export const MEASURE_SNIPPET = (s: FitScales) =>
+	`(() => { const d = document; d.documentElement.style.setProperty('--fs', '${s.font}'); d.documentElement.style.setProperty('--sp', '${s.space}'); const p = d.querySelector('.page'); const c = d.querySelector('.content'); if (!p || !c) return 0; const cs = getComputedStyle(p); return c.getBoundingClientRect().height + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom); })()`;
+
+/** 纸高（CSS px，96dpi）。 */
+export const paperHeightPx = (pageHeightMm: number) => (pageHeightMm / 25.4) * 96;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BRAND_TEMPLATES } from "../pdf/templates/brand/brands";
 import { sampleResumeData } from "../schema/resume/sample";
+import { templateSchema } from "../schema/templates";
 import { buildResumeHtml } from "./document";
 import { FILL_TARGET, fitOnePage, MAX_FONT, MAX_SPACE, MIN_FONT, type FitScales } from "./fit";
 import { sanitizeRichText } from "./sanitize";
@@ -58,7 +59,7 @@ describe("buildResumeHtml", () => {
 		return data;
 	};
 
-	it.each(["onyx", "azurill", ...BRAND_TEMPLATES])("%s 生成完整文档并含各分区", (template) => {
+	it.each([...templateSchema.options])("%s 生成完整文档并含各分区", (template) => {
 		const html = buildResumeHtml(withTemplate(template));
 		expect(html).toContain("<!doctype html>");
 		expect(html).toContain(`data-template="${template}"`);
@@ -66,8 +67,17 @@ describe("buildResumeHtml", () => {
 		expect(html).toContain(sampleResumeData.basics.name);
 	});
 
-	it("还没有 HTML 版的模板返回 null（迁移期回落 react-pdf）", () => {
-		expect(buildResumeHtml(withTemplate("pikachu"))).toBeNull();
+	it("所有模板都有 HTML 版（迁移完成，不再回落 react-pdf）", () => {
+		const missing = templateSchema.options.filter((t) => buildResumeHtml(withTemplate(t)) === null);
+		expect(missing).toEqual([]);
+	});
+
+	it("页边距只由 .page 内边距承担：@page 页边距为 0，屏幕与打印同一套几何", () => {
+		for (const t of templateSchema.options) {
+			const html = buildResumeHtml(withTemplate(t)) ?? "";
+			expect(html, t).toMatch(/@page \{ size: [\d.]+mm [\d.]+mm; margin: 0; \}/);
+			expect(html, t).not.toMatch(/@page\s*(:first\s*)?\{[^}]*margin-(top|left|right|bottom)/);
+		}
 	});
 
 	it("姓名等纯文本字段转义，不能注入标签", () => {

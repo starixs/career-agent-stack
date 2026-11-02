@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { ResumeData } from '@career/resume-studio/schema';
-import { availableHeightPx, buildResumeHtml, fitOnePage, PAGE_SIZE_MM, requiredFonts, type FitScales, type FontRequirement } from '@career/resume-studio/html';
+import { applyAndMeasure, buildResumeHtml, fitOnePage, PAGE_SIZE_MM, paperHeightPx, requiredFonts, type FitScales, type FontRequirement } from '@career/resume-studio/html';
 
 import { prepareFonts } from './studioFonts';
 
@@ -56,13 +56,7 @@ function swapDocument(doc: Document, html: string): void {
   for (const { name, value } of Array.from(next.body.attributes)) doc.body.setAttribute(name, value);
 }
 
-function applyScales(doc: Document, s: FitScales): number {
-  doc.documentElement.style.setProperty('--fs', String(s.font));
-  doc.documentElement.style.setProperty('--sp', String(s.space));
-  return doc.querySelector('.content')?.getBoundingClientRect().height ?? 0;
-}
-
-type Layout = { height: number; pages: number; pageHeightPx: number; marginTopPx: number };
+type Layout = { height: number; pages: number; pageHeightPx: number };
 
 async function layoutResume(iframe: HTMLIFrameElement, data: ResumeData): Promise<Layout | null> {
   const win = iframe.contentWindow as (Window & typeof globalThis) | null;
@@ -72,15 +66,14 @@ async function layoutResume(iframe: HTMLIFrameElement, data: ResumeData): Promis
   await injectFonts(win, requiredFonts(data));
   await win.document.fonts.ready;
   const size = PAGE_SIZE_MM[data.metadata.page.format === 'letter' ? 'letter' : 'a4'];
-  const available = availableHeightPx(size.height, data.metadata.page.marginY);
-  const scales = data.metadata.page.autoFit ? await fitOnePage(s => applyScales(win.document, s), available) : { font: 1, space: 1 };
-  const contentHeight = applyScales(win.document, scales);
+  const paper = paperHeightPx(size.height);
+  const scales: FitScales = data.metadata.page.autoFit ? await fitOnePage(s => applyAndMeasure(win.document, s), paper) : { font: 1, space: 1 };
+  const used = applyAndMeasure(win.document, scales);
   const page = win.document.querySelector('.page');
   return {
-    height: page?.getBoundingClientRect().height ?? contentHeight,
-    pages: Math.max(1, Math.ceil(contentHeight / available - 0.001)),
-    pageHeightPx: available,
-    marginTopPx: (data.metadata.page.marginY * 4) / 3,
+    height: page?.getBoundingClientRect().height ?? used,
+    pages: Math.max(1, Math.ceil(used / paper - 0.001)),
+    pageHeightPx: paper,
   };
 }
 
@@ -142,7 +135,7 @@ export function HtmlPreview({ data, zoom, onPages, thumbnail = false }: {
         {frame}
         {layout && Array.from({ length: layout.pages - 1 }, (_, i) => (
           <div key={i} aria-hidden className="pointer-events-none absolute inset-x-0 border-t border-dashed border-[var(--danger)]/60"
-            style={{ top: (layout.marginTopPx + (i + 1) * layout.pageHeightPx) * scale }}>
+            style={{ top: (i + 1) * layout.pageHeightPx * scale }}>
             <span className="absolute right-1 top-0.5 text-[10px] text-[var(--danger)]">第 {i + 2} 页</span>
           </div>
         ))}

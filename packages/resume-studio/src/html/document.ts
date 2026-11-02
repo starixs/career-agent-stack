@@ -60,7 +60,7 @@ function baseCss(data: ResumeData): string {
 	const m = data.metadata;
 	const size = PAGE_SIZE_MM[m.page.format === "letter" ? "letter" : "a4"];
 	return `
-@page { size: ${size.width}mm ${size.height}mm; margin: ${m.page.marginY}pt ${m.page.marginX}pt; }
+@page { size: ${size.width}mm ${size.height}mm; margin: 0; }
 :root {
   --fs: 1; --sp: 1;
   --primary: ${m.design.colors.primary}; --text: ${m.design.colors.text}; --ink: var(--text); --muted: color-mix(in srgb, var(--text) 62%, white);
@@ -73,9 +73,10 @@ function baseCss(data: ResumeData): string {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { background: var(--bg); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body { font-family: ${fontStack(data, m.typography.body.fontFamily)}; font-size: var(--body-size); line-height: ${m.typography.body.lineHeight}; color: var(--text); background: var(--bg); line-break: strict; overflow-wrap: anywhere; }
-.page { width: ${size.width}mm; padding: ${m.page.marginY}pt ${m.page.marginX}pt; background: var(--bg); }
+/* 页边距统一由 .page 内边距承担（@page 为 0），屏幕与打印同一套几何；clone 让分页后每页都重复上下留白。
+   模板要让色块贴纸边，就改 .page 的内边距；排满一页按「内容高 + .page 上下内边距」对比纸高（fit.ts）。 */
+.page { width: ${size.width}mm; padding: ${m.page.marginY}pt ${m.page.marginX}pt; background: var(--bg); box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 @media screen { .page { min-height: ${size.height}mm; } }
-@media print { .page { width: auto; padding: 0; } }
 .content { display: flex; flex-direction: column; row-gap: var(--margin-y); }
 .header { display: flex; align-items: center; column-gap: calc(var(--gap-x) * 3); row-gap: var(--gap-y); }
 .identity { flex: 1; min-width: 0; display: flex; flex-direction: column; row-gap: calc(var(--gap-y) * 0.35); }

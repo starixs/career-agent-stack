@@ -71,7 +71,7 @@ async function fitPage(page: Page, data: ResumeData): Promise<void> {
   if (!data.metadata.page.autoFit) return;
   const html = await import('@career/resume-studio/html');
   const size = html.PAGE_SIZE_MM[data.metadata.page.format === 'letter' ? 'letter' : 'a4'];
-  const available = html.availableHeightPx(size.height, data.metadata.page.marginY);
+  const available = html.paperHeightPx(size.height);
   const scales = await html.fitOnePage(s => page.evaluate<number>(html.MEASURE_SNIPPET(s)), available);
   await page.evaluate(html.MEASURE_SNIPPET(scales));
 }
