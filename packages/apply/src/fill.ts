@@ -75,6 +75,13 @@ export const isDateLike = (f: Pick<FormField, 'type' | 'label' | 'placeholder'>)
   || /yyyy|年|月/i.test(f.placeholder ?? '')
 
 /** 显示值与计划值是否一致（文本归一；下拉 / 字典同义；日期按数字；手机号按数字）。 */
+/**
+ * 地区类格子：地区选择器写回的是「北京-北京市-海淀区」，资料里是「北京市海淀区」，是同一个地方（2026-11-02 斯达半导体现居住地）。
+ * 去掉分隔符和省 / 市 / 区 / 县，再把直辖市重复的那段（北京北京）并成一段后比；多一级、少一级都不算。
+ */
+const REGION_LABEL_RX = /(户籍|籍贯|居住地|所在地|生源地|地区|省市|家庭住址|现住址)/
+const regionKey = (s: string) => s.replace(/[\s\-/／,，、·]+/g, '').replace(/(特别行政区|自治区|省|市|区|县)/g, '').replace(/(.{2,})\1/g, '$1')
+
 export function displayMatches(display: string | undefined, value: string, f: Pick<FormField, 'label' | 'type' | 'maxLength'>, chosen?: string): boolean {
   const d = (display ?? '').trim()
   if (!d) return !value.trim()
@@ -85,6 +92,7 @@ export function displayMatches(display: string | undefined, value: string, f: Pi
     if (sd === sv) return true
     if (f.maxLength && sv.startsWith(sd) && sd.length >= Math.min(f.maxLength, sv.length)) return true
   }
+  if (!choice && REGION_LABEL_RX.test(f.label) && regionKey(d) === regionKey(value)) return true
   const nd = normKey(d), nv = normKey(value)
   if (choice && nd === nv) return true
   if (choice && chosen && (nd === normKey(chosen) || nd.includes(normKey(chosen)))) return true

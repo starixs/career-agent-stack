@@ -49,3 +49,15 @@ describe('isDateLike', () => {
     expect(isDateLike({ type: 'text', label: '出生年月' })).toBe(true)
   })
 })
+
+describe('地区类格子的读回', () => {
+  it('选择器写回「北京-北京市-海淀区」和资料「北京市海淀区」是同一个地方；多一级 / 换一个地方不算（2026-11-02 斯达半导体）', async () => {
+    const { displayMatches } = await import('../src/fill.js')
+    const f = { label: '8.现居住地', type: 'text' as const }
+    expect(displayMatches('北京-北京市-海淀区', '北京市海淀区', f)).toBe(true)
+    expect(displayMatches('浙江-杭州市', '浙江省杭州市', { ...f, label: '7.您的户籍所在地' })).toBe(true)
+    expect(displayMatches('浙江-杭州市-西湖区', '浙江省杭州市', { ...f, label: '7.您的户籍所在地' })).toBe(false)
+    expect(displayMatches('北京-北京市-朝阳区', '北京市海淀区', f)).toBe(false)
+    expect(displayMatches('北京-北京市-海淀区', '北京市海淀区', { ...f, label: '公司名称' })).toBe(false)
+  })
+})

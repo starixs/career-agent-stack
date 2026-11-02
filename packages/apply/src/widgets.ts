@@ -1022,8 +1022,12 @@ export const select2PickScript: PageScript<{ selector: string }, { ok: boolean; 
     if (!select || !option) return { ok: false }
     select.value = option.value
     select.dispatchEvent(new Event('change', { bubbles: true }))
-    // 收起 select2 的结果列表，免得挡住下一步
-    document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    // 收起这个结果列表，免得挡住下一级下拉和「完成」（实测：不收起，下一级点不开、「完成」被结果项挡住）。
+    // select2 自己的关闭命令最可靠；页面没暴露 jQuery 时退回点一下空白处
+    const jq = (window as unknown as { jQuery?: (el: Element) => { select2?: (cmd: string) => unknown } }).jQuery
+    const s2 = jq ? jq(select) : undefined
+    if (s2?.select2) s2.select2('close')
+    else document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     return { ok: true, label: text }
   },
 }
