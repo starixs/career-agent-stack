@@ -112,6 +112,11 @@ export function learnLoginMarks(repos: Repos, site: string, names: readonly stri
   repos.kvSet(marksKey(site), [...new Set([...prev, ...names])]);
 }
 
+/** 学错了（页面明明还要登录）：忘掉这个站的凭证名，下次重新学。 */
+export function forgetLoginMarks(repos: Repos, site: string): void {
+  repos.kvSet(marksKey(site), []);
+}
+
 /** 学过这个站的凭证名，而且现在都还在、没过期：已登录。没学过返回 false（不猜）。 */
 export function knownLoggedIn(repos: Repos, cookies: readonly CookieLike[], site: string, nowSec = Date.now() / 1000): boolean {
   const marks = repos.kvGet<string[]>(marksKey(site)) ?? [];

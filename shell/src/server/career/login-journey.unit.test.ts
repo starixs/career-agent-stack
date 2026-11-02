@@ -133,7 +133,7 @@ describe('登录之旅', () => {
     const b = waitingLogin(repos, 'b.com');
     const pins: Array<string | undefined> = [];
     // a.com：第 3 次读到新 token；b.com：一直是旧 sid，之后换了新值
-    const { browser, focused } = fakeBrowser({ cookies: n => [
+    const { browser, focused } = fakeBrowser({ screen: key => (key === k.app.id ? { loginShown: false, errorShown: false } : ON_LOGIN), cookies: n => [
       { domain: '.known.com', name: 'sid', value: 'k' },
       { domain: '.a.com', name: 'token', ...(n >= 2 ? { value: 'user' } : { value: '' }) },
       { domain: '.b.com', name: 'sid', value: n >= 7 ? 'user' : 'guest' },
@@ -148,6 +148,16 @@ describe('登录之旅', () => {
     expect(repos.kvGet<{ ids: string[] }>(BATCH_COMMAND_KEY)?.ids.sort()).toEqual([a.action.id, k.action.id, b.action.id].sort());
     expect(pins).toContain(a.app.id);
     expect(livePin()).toBeNull(); // 走完松开
+  });
+
+  it('学过的凭证还在、页面却还要登录：学错了，忘掉、让你真登一次（2026-11-02 美团：风控 Cookie 被记成登录凭证，之后永远轮不到你登录）', async () => {
+    const repos = createMemoryRepos();
+    learnLoginMarks(repos, 'a.com', ['risk_token']);
+    const a = waitingLogin(repos, 'a.com');
+    const { browser } = fakeBrowser({ cookies: n => [{ domain: '.a.com', name: 'risk_token', value: 'x' }, { domain: '.a.com', name: 'token', value: n >= 3 ? 'user' : '' }] });
+    const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, ...fast }, a.handoff.id, [a.handoff.id]);
+    expect(out?.steps.map(s => s.outcome)).toEqual(['logged_in']);
+    expect(repos.kvGet<string[]>('browser:login_marks:a.com')).toEqual(['token']);
   });
 
   it('学生把页面关了：这家不干等，交给后台重新打开，接着下一家', async () => {

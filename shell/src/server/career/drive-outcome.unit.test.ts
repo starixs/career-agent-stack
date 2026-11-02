@@ -84,3 +84,13 @@ describe('persistDriveOutcome：瞬时 / 可抢占错误不判死', () => {
     expect(isTransientDriveError(undefined)).toBe(false);
   });
 });
+
+describe('浏览器没接下这次填表（HTTP 拒绝）', () => {
+  it('409 用户正在接管：带着 code 变成 error 行，分诊为暂时不可用，不判这份网申失败（2026-11-02 美团）', async () => {
+    const { browserRefusalLine } = await import('../tools/career-tools');
+    const line = browserRefusalLine(409, JSON.stringify({ ok: false, error: '用户正在接管浏览器，等待交回', code: 'BROWSER_CONTROL_HUMAN' }));
+    expect(line).toMatchObject({ type: 'error', status: 409, code: 'BROWSER_CONTROL_HUMAN' });
+    expect(isTransientDriveError(line)).toBe(true);
+    expect(browserRefusalLine(502, '<html>bad gateway</html>')).toEqual({ type: 'error', status: 502, error: '浏览器没有接下这次填表（HTTP 502）' });
+  });
+});

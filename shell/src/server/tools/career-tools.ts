@@ -74,6 +74,20 @@ export interface CareerToolDeps {
 const sessionCtx: { sessionId: string; workspace: string } = { sessionId: 'default', workspace: '' };
 
 /** builtin-mcp-registry 的 configure 钩子：冻结当前 Session id 供事件携带，记下工作区供相对路径解析。 */
+/**
+ * 浏览器没接下这次填表（409 用户正在接管 / 被别处占用、503 停机…）：把它的 code 原样变成一条 error 行交给调用方分诊。
+ * 之前直接抛错，code 丢了，用户点了「控制浏览器」那一刻排到的那份网申就被判成失败、再也不重跑（2026-11-02 美团）。
+ */
+export function browserRefusalLine(status: number, body: string): Record<string, unknown> {
+  let parsed: { error?: unknown; code?: unknown } = {};
+  try { parsed = JSON.parse(body) as typeof parsed; } catch { /* 不是 JSON：只按状态码 */ }
+  return {
+    type: 'error', status,
+    ...(typeof parsed.code === 'string' ? { code: parsed.code } : {}),
+    error: `浏览器没有接下这次填表（HTTP ${status}${typeof parsed.error === 'string' ? `：${parsed.error}` : ''}）`,
+  };
+}
+
 export function configureCareerTools(_env: Record<string, string>, ctx: { sessionId: string; workspace?: string }): void {
   sessionCtx.sessionId = ctx.sessionId || 'default';
   sessionCtx.workspace = ctx.workspace || '';
@@ -427,7 +441,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cap.token}` }, body: JSON.stringify(body) },
       { parentSignal, timeoutMs: 10 * 60_000 },
     );
-    if (!response.ok || !response.body) throw new Error(`浏览器没有接下这次填表（HTTP ${response.status}）`);
+    if (!response.ok) { onEvent(browserRefusalLine(response.status, await response.text().catch(() => ''))); return; }
+    if (!response.body) throw new Error(`浏览器没有接下这次填表（HTTP ${response.status}，没有返回内容）`);
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buf = '';

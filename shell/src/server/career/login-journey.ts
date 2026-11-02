@@ -15,7 +15,7 @@ import type { Handoff, Repos } from '@career/core';
 import { siteOf } from './app-pages';
 import { BatchRunner } from './batch-runner';
 import { setLivePin } from './live-pin';
-import { authCookies, knownLoggedIn, learnLoginMarks, LoginJudge, type CookieLike, type LoginSignal, type ResponseVerdict, type ScreenSample } from './login-signal';
+import { authCookies, forgetLoginMarks, knownLoggedIn, learnLoginMarks, LoginJudge, type CookieLike, type LoginSignal, type ResponseVerdict, type ScreenSample } from './login-signal';
 
 export interface JourneyPage {
   url(): string; onLoginResponse(cb: (verdict: ResponseVerdict) => void): () => void; /** 画面这一路；读不到给 null */ screen(): Promise<ScreenSample | null>;
@@ -115,7 +115,12 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
     const page = deps.browser.pageFor(step.appKey);
     if (!page) { reopen(deps, step); result.steps.push({ handoff_id: id, outcome: 'no_page' }); continue; } // 页面没了：交给后台重新打开
     if (step.site && knownLoggedIn(deps.repos, await deps.browser.cookies(), step.site)) {
-      release(deps, step, []); result.steps.push({ handoff_id: id, outcome: 'known' }); continue;
+      // 学过的凭证在，但页面上登录框还开着：那是学错了（2026-11-02 美团：滑块发的风控 Cookie 被当成登录凭证记下，
+      // 之后每次都直接放行、后台又撞登录墙，永远轮不到你登录）。忘掉，这次让你真登一次
+      const screen = await page.screen();
+      if (!screen?.loginShown && !screen?.formShown) { release(deps, step, []); result.steps.push({ handoff_id: id, outcome: 'known' }); continue; }
+      console.warn(`[career] login-journey: ${step.site} 学过的登录凭证还在，但页面仍要登录——忘掉重学`);
+      forgetLoginMarks(deps.repos, step.site);
     }
     setLivePin({ sessionKey: deps.sessionKey, appKey: step.appKey, askId, handoffId: id, index, total: handoffIds.length });
     deps.browser.focus(page);
