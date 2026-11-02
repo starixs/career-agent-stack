@@ -290,6 +290,9 @@ describe('问卷星（真实 Chrome）', () => {
     const degree = fields.find(f => f.type === 'radio' && f.options?.includes('硕士'))
     expect(degree).toMatchObject({ label: expect.stringContaining('学历'), options: ['本科', '硕士', '博士'] })
     expect(fields.filter(f => /您的姓名/.test(f.label))).toHaveLength(1)
+    // select2 外壳不是第二个字段：只有原生 select 一个「政治面貌」，没有空标签的必填项
+    expect(fields.filter(f => /政治面貌/.test(f.label)).map(f => f.type)).toEqual(['select'])
+    expect(fields.filter(f => !f.label.trim())).toEqual([])
     const r = await fill(page, gender!.label, '男')
     expect(r.att).toMatchObject({ verified: true })
     expect(r.model.q2).toBe('男')

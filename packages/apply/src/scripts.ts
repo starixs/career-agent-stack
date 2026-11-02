@@ -424,6 +424,10 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const isFile = itype === 'file'
       if (!isFile && itype !== 'radio' && itype !== 'checkbox' && !vis(el)) continue
       if (el.closest('[class*="search" i][class*="box" i], [role="search"]')) continue
+      // select2 / chosen 给原生 <select> 套的外壳（紧跟在 select 后面、role=combobox、没有自己的标签）：同一个字段，原生 select 已经收了。
+      // 问卷星「性别」就是这样，外壳被当成一个必填的「没认出名字的字段」，挡住提交还推给用户（2026-11-02 中兵通信）
+      const deco = role === 'combobox' && tag !== 'select' ? el.closest('.select2-container, .chosen-container') : null
+      if (deco && deco.previousElementSibling?.tagName === 'SELECT') continue
       // 下拉 / 树选择弹层里的勾选框、搜索框是选项，不是表单字段（2026-10-31 小鹏：期望工作地点弹层没收起，9 个树节点勾选框被当成「?」字段）
       if (inFloatingPicker(el)) continue
       const name = (el as HTMLInputElement).name || (el as HTMLElement).id || undefined
