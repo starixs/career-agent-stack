@@ -2,9 +2,9 @@
  * 提交介入程度（产品决策 2026-10-09）：
  *  - 默认：每份网申填完停在提交前，审阅清单给用户看一遍，用户批准后由产品点提交；
  *  - auto 模式（用户主动打开）：填后检查没有需要人看的项就直接批准提交（approved_by='auto'）；
- *  - 自学习免审：同一张表（formSignature 相同）用户连续 LEARN_THRESHOLD 次没改动直接批准且提交成功，
- *    之后这张表免人工确认（approved_by='learned'）——前提是简历版本（resume_sha256）与开放题答案
- *    （openAnswersHash）都和上一次用户批准时完全一致；有任何新内容就停下给人看。
+ *  - 他盖章放权（主线体验，2026-11-02 定，替代原来的「自学习免审」）：信任按「类」攒，一类 = 一种网申系统
+ *    （北森、Moka…；认不出的按网站）。同类做通够数后小芽提议「以后同类直接投」，他点了，这一类才免人工确认
+ *    （approved_by='delegated'）。AI 不自己升：连续批准几次不再自动免审。
  *
  * 目标岗位（进过面试、或用户亲手标的，含批次卡上的「这家我要看」）一律投前过目，auto 和自学习都不免（规范
  * CAREER_INTELLIGENT_UI.md §5.4，2026-10-27 确认）。
@@ -15,6 +15,7 @@
 import { normalizeHost, type Repos } from '@career/core';
 
 import { isTargetApplication } from './targets';
+import { systemOfSync, trustOf } from './trust-ledger';
 
 export const AUTO_MODE_KEY = 'apply:auto_mode';
 export const LEARN_THRESHOLD = 3;
@@ -26,8 +27,8 @@ export interface AutoModeSetting { enabled: boolean; updatedAt?: string }
  * （formSignature 是哈希，看不出是哪个网站）。applicationIds = 本轮连续人工直接通过的那几份投递，清零时一起清。
  */
 export interface PageTrust { streak: number; resumeSha: string | null; answersHash: string | null; host?: string; applicationIds?: string[]; updatedAt: string }
-export interface SubmitFingerprint { formSignature?: string | null; openAnswersHash?: string | null; resumeSha?: string | null; attention: number; /** 这份投递；是目标岗位时一律给人看 */ applicationId?: string | null }
-export type SubmitDecision = { approve: true; by: 'auto' | 'learned'; reason: string } | { approve: false; reason: string };
+export interface SubmitFingerprint { formSignature?: string | null; openAnswersHash?: string | null; resumeSha?: string | null; attention: number; /** 这份投递；是目标岗位时一律给人看 */ applicationId?: string | null; /** 网申页面网址：按它认是哪一类网申系统 */ url?: string | null }
+export type SubmitDecision = { approve: true; by: 'auto' | 'delegated'; reason: string } | { approve: false; reason: string };
 
 export function getAutoMode(repos: Repos): AutoModeSetting {
   return repos.kvGet<AutoModeSetting>(AUTO_MODE_KEY) ?? { enabled: false };
@@ -45,12 +46,10 @@ export function decideSubmit(repos: Repos, fp: SubmitFingerprint): SubmitDecisio
   if (fp.attention > 0) return { approve: false, reason: `填后检查有 ${fp.attention} 项需要你看` };
   if (isTargetApplication(repos, fp.applicationId)) return { approve: false, reason: '目标岗位：投之前先给你看' };
   if (getAutoMode(repos).enabled) return { approve: true, by: 'auto', reason: 'auto 模式：检查全部通过，直接提交' };
-  if (!fp.formSignature) return { approve: false, reason: '没有界面指纹，按默认需要你确认' };
-  const trust = getPageTrust(repos, fp.formSignature);
-  if (!trust || trust.streak < LEARN_THRESHOLD) return { approve: false, reason: `这张表你已连续 ${trust?.streak ?? 0} 次直接通过，满 ${LEARN_THRESHOLD} 次后免确认` };
-  if ((trust.resumeSha ?? null) !== (fp.resumeSha ?? null)) return { approve: false, reason: '这次用的简历和你上次批准的不是同一份，需要你确认' };
-  if ((trust.answersHash ?? null) !== (fp.openAnswersHash ?? null)) return { approve: false, reason: '开放题答案和你上次批准的不一样，需要你确认' };
-  return { approve: true, by: 'learned', reason: `这张表你已连续 ${trust.streak} 次直接通过，简历与开放题答案都没变，免确认提交` };
+  const system = fp.url ? systemOfSync(fp.url) : null;
+  if (!system) return { approve: false, reason: '认不出是哪种网申系统，按默认需要你确认' };
+  if (trustOf(repos, system.key) !== 'delegated') return { approve: false, reason: `${system.label}这一类你还没交给我，提交前先给你看` };
+  return { approve: true, by: 'delegated', reason: `${system.label}这一类你说过以后直接投，检查全部通过，直接提交` };
 }
 
 /** 提交执行完：按结果更新这张表的信任计数。只有用户本人批准、页面没改、提交成功才 +1。 */

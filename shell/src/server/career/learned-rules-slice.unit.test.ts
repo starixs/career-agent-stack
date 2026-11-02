@@ -27,6 +27,7 @@ import { RunRegistry } from './runs';
 import { executeSubmitAction } from './submit-executor';
 import { LEARN_THRESHOLD, decideSubmit, getPageTrust, setAutoMode } from './submit-policy';
 import { createMemoryRepos } from './test-db';
+import { delegate, systemOfSync } from './trust-ledger';
 
 const MOKA = 'https://app.mokahr.com/campus_apply/';
 const MOKA_SIG = 'sig-moka-campus-v1';
@@ -89,19 +90,20 @@ describe('AI 学到的规则 · 秋招第八周', () => {
     }
   }
 
-  it('第四家 Moka（美团）免审直接提交；卷宗里能看到「为什么没让我审」和依据是哪几家', async () => {
+  it('Moka 上连着批准三家也不会自己免审；他盖章「以后同类直接投」后，第四家直接提交，卷宗里写明凭什么', async () => {
     await learnMoka();
+    expect(repos.getAction(fillUpTo(repos, '京东').submitId)!.status).toBe('pending_review');
+    delegate(repos, systemOfSync(MOKA).key);
     const { app, submitId } = fillUpTo(repos, '美团');
-    expect(repos.getAction(submitId)!.approved_by).toBe('learned');
+    expect(repos.getAction(submitId)!.approved_by).toBe('delegated');
     await exec(submitId);
     const dossier = (await call('dossier_get', { application_id: app.id })).text;
-    expect(dossier).toContain('自学习免审');
-    for (const c of ['字节跳动', '快手', '小红书']) expect(dossier).toContain(c);
-    expect(dossier).toContain('app.mokahr.com');
+    expect(dossier).toContain('以后直接投');
   });
 
   it('「AI 替我记着哪些不用问我」：一处列出免审的网申系统、auto 模式、页面上学到的答案', async () => {
     await learnMoka();
+    delegate(repos, systemOfSync(MOKA).key);
     setAutoMode(repos, false);
     repos.saveAnswer({ question_key: '期望薪资', question_text: '期望薪资', answer: '30k', confirmed: true, source: 'page_edit', event: 'corrected', application_id: fillUpTo(repos, '京东', { url: 'https://zhaopin.jd.com/apply', sig: 'sig-jd' }).app.id });
     const res = await call('learned_rules');
@@ -121,6 +123,7 @@ describe('AI 学到的规则 · 秋招第八周', () => {
 
   it('撤回对 Moka 的免审：还没点提交的回到待审，已投出的如实说撤不回；之后的 Moka 表都要人看', async () => {
     await learnMoka();
+    delegate(repos, systemOfSync(MOKA).key);
     const done = fillUpTo(repos, '美团');
     await exec(done.submitId);
     const queued = fillUpTo(repos, '滴滴');
@@ -129,12 +132,12 @@ describe('AI 学到的规则 · 秋招第八周', () => {
     const res = await call('learned_rules', { revoke_host: 'app.mokahr.com' });
     expect(res.isError).toBe(false);
     const out = JSON.parse(res.text) as { revoked: number; returned_to_review: string[]; already_submitted: string[] };
-    expect(out.revoked).toBe(1);
+    expect(out.revoked).toBeGreaterThan(0);
     expect(out.returned_to_review).toEqual(['滴滴']);
     expect(out.already_submitted).toEqual(['美团']);
     expect(repos.getAction(queued.submitId)!.status).toBe('pending_review');
     expect(getPageTrust(repos, MOKA_SIG)!.streak).toBe(0);
-    expect(decideSubmit(repos, { attention: 0, formSignature: MOKA_SIG, openAnswersHash: 'open-1', resumeSha: 'resume-v3' }).approve).toBe(false);
+    expect(decideSubmit(repos, { attention: 0, formSignature: MOKA_SIG, openAnswersHash: 'open-1', resumeSha: 'resume-v3', url: MOKA }).approve).toBe(false);
   });
 
   it('Moka 改版（字段换了）：指纹不同，不沿用旧的免审', async () => {

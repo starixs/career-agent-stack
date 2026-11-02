@@ -118,7 +118,7 @@ export function gapsHeadline(gaps: readonly SubmitGap[]): string {
 export type DriveEvent = Record<string, unknown>;
 export type DriveOutcome =
   | { kind: 'handoff'; handoffId: string; reason: string; userAction?: string; message: string; finalUrl?: string; summary: Record<string, unknown>; /** 停在提交前但没过提交门槛时的缺项 */ gate?: SubmitGate }
-  | { kind: 'done'; submitActionId: string; pending: number; summary: Record<string, unknown>; submitButton?: string; gate: SubmitGate; headline: string; /** auto 模式 / 自学习免审时已直接批准 */ autoApproved?: 'auto' | 'learned'; decision?: string }
+  | { kind: 'done'; submitActionId: string; pending: number; summary: Record<string, unknown>; submitButton?: string; gate: SubmitGate; headline: string; /** auto 模式 / 他盖章放权的那一类已直接批准 */ autoApproved?: 'auto' | 'delegated'; decision?: string }
   | { kind: 'failed'; blocked: boolean; message: string; summary?: Record<string, unknown> }
   /** 瞬时 / 可抢占：不是这份网申的失败。动作放回 approved（start）或 needs_user（continue），条件恢复后重跑。 */
   | { kind: 'transient'; code?: string; message: string };
@@ -276,7 +276,7 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     }, action.application_id);
     r.updateTask(taskId, { status: 'done', progress: 1 });
     // 只剩我们内部的核验缺口：照常进投前过目，但至少算一项要看，绝不免审直接投出
-    const decision = decideSubmit(r, { attention: gate.ready ? review.attention : Math.max(review.attention, 1), formSignature: review.formSignature, openAnswersHash: review.openAnswersHash, resumeSha, applicationId: action.application_id });
+    const decision = decideSubmit(r, { attention: gate.ready ? review.attention : Math.max(review.attention, 1), formSignature: review.formSignature, openAnswersHash: review.openAnswersHash, resumeSha, applicationId: action.application_id, url: finalUrl ?? strOf(fillPayload.url) });
     if (decision.approve) {
       r.reviewActions([submitAction.id], 'approved', decision.by);
       // 免审在用户没看的时候发生：把凭哪条规则、依据哪几家写进卷宗，用户事后问「为什么没让我审」有据可查

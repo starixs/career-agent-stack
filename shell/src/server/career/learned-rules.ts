@@ -5,12 +5,14 @@
  *  - auto 模式开关（kv `apply:auto_mode`）；
  *  - 提交前在页面上改过、写回答案库的值（answer_bank source=page_edit）：改成了什么、在哪家改的。
  *
- * 撤回免审只清零计数（之后要重新人工通过 LEARN_THRESHOLD 次）；靠这条免审批准、还没执行的提交退回待审，
- * 已经投出去的撤不回，只如实列出来。私密类问题（personal / self_id）只露问题不露值。
+ * 免审只来自他盖章（信任账本 trust-ledger，2026-11-02 起）：exempt = 这张表所在的那一类他放了权；连续通过的次数只是依据。
+ * 撤回 = 收回那一类的放权并清零计数；靠放权批准、还没执行的提交退回待审，已经投出去的撤不回，只如实列出来。
+ * 私密类问题（personal / self_id）只露问题不露值。
  */
 import type { ActionQueueItem, AnswerRow, Repos } from '@career/core';
 
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, type PageTrust, type SubmitDecision } from './submit-policy';
+import { revoke as revokeTrust, systemOfSync, trustOf } from './trust-ledger';
 
 const TRUST_PREFIX = 'apply:page_trust:';
 
@@ -32,7 +34,8 @@ function listTrusts(repos: Repos): Array<{ signature: string; trust: PageTrust }
 
 function trustView(repos: Repos, signature: string, trust: PageTrust): PageTrustView {
   const companies = (trust.applicationIds ?? []).map(id => companyOf(repos, id)).filter((c): c is string => !!c);
-  return { signature, host: trust.host ?? null, streak: trust.streak, exempt: trust.streak >= LEARN_THRESHOLD, companies, updatedAt: trust.updatedAt };
+  const exempt = !!trust.host && trustOf(repos, systemOfSync(`https://${trust.host}/`).key) === 'delegated';
+  return { signature, host: trust.host ?? null, streak: trust.streak, exempt, companies, updatedAt: trust.updatedAt };
 }
 
 function pageEditView(repos: Repos, a: AnswerRow): PageEditView {
@@ -54,25 +57,35 @@ export function listLearnedRules(repos: Repos): LearnedRules {
 /** 免审批准时写进卷宗的一句话：凭哪条规则、依据是哪几家。用户事后问「为什么没让我审」就看这里。 */
 export function explainApproval(repos: Repos, decision: Extract<SubmitDecision, { approve: true }>, signature: string | null | undefined): string {
   if (decision.by === 'auto') return `没等你审就提交：你开着 auto 模式，填后检查全部通过（${decision.reason}）`;
+  if (decision.by === 'delegated') return `没等你审就提交：${decision.reason}。想收回，在右栏「学会了」里点那一类，或者说「北森的以后还是先给我看」`;
   const trust = signature ? repos.kvGet<PageTrust>(`${TRUST_PREFIX}${signature}`) : undefined;
   const view = trust && signature ? trustView(repos, signature, trust) : undefined;
   const basis = view?.companies.length ? `；依据是你之前在 ${view.host ?? '这个网站'} 上直接批准过的 ${view.companies.join('、')}` : '';
   return `没等你审就提交（自学习免审）：${decision.reason}${basis}。不想这样可以说「撤回 ${view?.host ?? '这个网站'} 的免审」`;
 }
 
-const submitsOn = (repos: Repos, signatures: Set<string>, status: ActionQueueItem['status']) =>
-  repos.listActions(status).filter(a => a.kind === 'submit' && a.approved_by === 'learned' && signatures.has(String(parse(a.payload_json).formSignature ?? '')));
+const sameClass = (a: ActionQueueItem, key: string): boolean => {
+  const url = parse(a.payload_json).url;
+  return typeof url === 'string' && systemOfSync(url).key === key;
+};
+const freeSubmits = (repos: Repos, status: ActionQueueItem['status'], signatures: Set<string>, classKey: string | null) =>
+  repos.listActions(status).filter(a => a.kind === 'submit' && (
+    (a.approved_by === 'learned' && signatures.has(String(parse(a.payload_json).formSignature ?? '')))
+    || (a.approved_by === 'delegated' && !!classKey && sameClass(a, classKey))));
 
-/** 撤回某个网站（或某一张表）的免审。 */
+/** 撤回某个网站（或某一张表）的免审：收回那一类的放权，清零计数。 */
 export function revokePageTrust(repos: Repos, target: { host?: string; signature?: string }): RevokeResult {
   const hit = listTrusts(repos).filter(t => t.trust.streak > 0 && (t.signature === target.signature || (!!target.host && t.trust.host === target.host)));
   const signatures = new Set(hit.map(t => t.signature));
   for (const sig of signatures) resetPageTrust(repos, sig);
-  const queued = submitsOn(repos, signatures, 'approved');
-  for (const a of queued) repos.reopenAction(a.id, { status: 'trust_revoked', message: '你撤回了这个网站的免审，提交前要你看一遍' });
+  const host = target.host ?? hit[0]?.trust.host;
+  const classKey = host ? systemOfSync(`https://${host}/`).key : null;
+  const revokedClass = classKey && trustOf(repos, classKey) === 'delegated' ? revokeTrust(repos, classKey) : null;
+  const queued = freeSubmits(repos, 'approved', signatures, classKey);
+  for (const a of queued) repos.reopenAction(a.id, { status: 'trust_revoked', message: '你收回了这一类的放权，提交前要你看一遍' });
   return {
-    revoked: signatures.size,
+    revoked: signatures.size + (revokedClass ? 1 : 0),
     returned_to_review: queued.map(a => companyOf(repos, a.application_id) ?? a.id),
-    already_submitted: submitsOn(repos, signatures, 'done').map(a => companyOf(repos, a.application_id) ?? a.id),
+    already_submitted: freeSubmits(repos, 'done', signatures, classKey).map(a => companyOf(repos, a.application_id) ?? a.id),
   };
 }

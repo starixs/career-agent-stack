@@ -10,7 +10,7 @@
 import type { Repos } from '@career/core';
 
 import { siteOf } from './app-pages';
-import { loadApply } from './domain';
+import { loadApply, loadedApply } from './domain';
 
 import type { TrustEntry, TrustKind, TrustState } from '../../shared/careerRail';
 
@@ -25,9 +25,14 @@ const SYSTEM_LABELS: Record<string, string> = { beisen: '北森', moka: 'Moka', 
 
 /** 网申网址属于哪一类：认得出的招聘系统按系统记，认不出的按网站记（同一网站的结构一样）。 */
 export async function systemOf(url: string): Promise<{ key: string; label: string }> {
-  const apply = await loadApply();
-  const adapter = apply.pickAdapter(url);
-  if (adapter.id !== 'generic') return { key: `system:${adapter.id}`, label: SYSTEM_LABELS[adapter.id] ?? adapter.id };
+  await loadApply();
+  return systemOfSync(url);
+}
+
+/** 同步版：投递引擎已加载时按招聘系统认，没加载时按网站认。 */
+export function systemOfSync(url: string): { key: string; label: string } {
+  const adapter = loadedApply()?.pickAdapter(url);
+  if (adapter && adapter.id !== 'generic') return { key: `system:${adapter.id}`, label: SYSTEM_LABELS[adapter.id] ?? adapter.id };
   const site = siteOf(url) ?? url;
   return { key: `site:${site}`, label: site };
 }

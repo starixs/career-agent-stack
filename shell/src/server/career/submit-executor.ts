@@ -11,6 +11,7 @@
  *    uncertain → 不重试（避免重复投递），动作 needs_user，等用户确认"已投递 / 重新提交"。
  *  - 每次结果都更新自学习计数（submit-policy.recordSubmitOutcome）。
  */
+import { recordSuccess, systemOfSync } from './trust-ledger';
 import { normalizeHost, type ActionQueueItem, type Repos } from '@career/core';
 
 import { recordSubmitOutcome } from './submit-policy';
@@ -91,6 +92,8 @@ export async function executeSubmitAction(deps: SubmitExecutorDeps, actionId: st
 
   if (status === 'submitted') {
     r.setActionStatus(actionId, 'done', result);
+    // 信任账本：这一类又做通了一份（第一次是当着他的面做通的）；够数后右栏「学会了」里出「以后同类直接投」
+    if (url) { recordSuccess(r, systemOfSync(url)); changed('kv'); }
     if (appId) {
       try {
         const app = r.getApplication(appId);
@@ -139,7 +142,7 @@ export function confirmSubmitResult(repos: Repos, actionId: string, submitted: b
 }
 
 function approvalLabel(a: ActionQueueItem): string {
-  return a.approved_by === 'auto' ? 'auto 模式' : a.approved_by === 'learned' ? '自学习免审' : '你批准后';
+  return a.approved_by === 'auto' ? 'auto 模式' : a.approved_by === 'delegated' ? '这一类你交给我了' : a.approved_by === 'learned' ? '自学习免审' : '你批准后';
 }
 function note(r: Repos, appId: string | null, content: string): void {
   if (!appId) return;

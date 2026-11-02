@@ -38,12 +38,20 @@ export function loadBridges(): Promise<BridgesModule> {
   return load('@career/bridges', () => import('@career/bridges'));
 }
 
+let loadedApplyModule: ApplyModule | null = null;
+
 export function loadApply(): Promise<ApplyModule> {
-  return load('@career/apply', () => import('@career/apply'));
+  return load('@career/apply', () => import('@career/apply')).then(mod => { loadedApplyModule = mod; return mod; });
+}
+
+/** 已经加载过的 @career/apply（同步取用，比如提交决策当下要认网申系统）；还没加载过就是 null。 */
+export function loadedApply(): ApplyModule | null {
+  return loadedApplyModule;
 }
 
 /** 测试注入。 */
 export function setDomainModule(pkg: '@career/resume' | '@career/bridges' | '@career/apply', mod: unknown | null): void {
   if (mod === null) cache.delete(pkg);
   else cache.set(pkg, Promise.resolve(mod));
+  if (pkg === '@career/apply') loadedApplyModule = (mod as ApplyModule | null) ?? null;
 }

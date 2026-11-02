@@ -882,7 +882,7 @@ export function shortestStagePath(from: ApplicationStage, to: ApplicationStage):
 }
 
 /** 谁批准的：用户本人 / auto 模式 / 自学习免审 / 系统（不需要审核的动作）。 */
-export type ApprovalSource = 'user' | 'auto' | 'learned' | 'system'
+export type ApprovalSource = 'user' | 'auto' | 'learned' | 'delegated' | 'system'
 
 function stripUndefined<T extends object>(o: T): Partial<T> {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>

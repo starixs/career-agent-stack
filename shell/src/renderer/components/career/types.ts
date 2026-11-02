@@ -66,7 +66,7 @@ export interface Application {
 export interface ActionQueueItem {
   id: string; application_id: string | null; kind: ActionKind; payload_json: string; status: ActionStatus;
   result_json: string | null; reviewed_at: string | null; created_at: string; updated_at: string;
-  /** 谁批准的：user / auto（auto 模式）/ learned（自学习免审）/ system */
+  /** 谁批准的：user / auto（auto 模式）/ delegated（他盖章放权的那一类）/ learned（旧版自学习免审，历史数据）/ system */
   approved_by?: string | null; packet_id?: string | null;
 }
 /** 填后检查的审阅清单（submit 动作 payload.review.rows）。 */

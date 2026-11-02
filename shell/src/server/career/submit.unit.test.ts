@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Repos } from '@career/core';
+import { delegate, recordSuccess, systemOfSync } from './trust-ledger';
 
 import { evaluateSubmitGate, persistDriveOutcome } from './drive-outcome';
 import { SubmitExecutor, confirmSubmitResult, executeSubmitAction } from './submit-executor';
@@ -63,7 +64,7 @@ describe('提交策略', () => {
     expect(() => persist(repos, driveResult(null))).toThrow('unexpected handoff');
   });
 
-  it('目标岗位（批次卡上点了「这家我要看」）：auto 模式和自学习都不免审，投前先给你看', () => {
+  it('目标岗位（批次卡上点了「这家我要看」）：auto 模式和放权都不免审，投前先给你看', () => {
     const repos = createMemoryRepos();
     setAutoMode(repos, true);
     const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j-mt', title: 'AI应用开发', company_name: '美团' });
@@ -73,23 +74,20 @@ describe('提交策略', () => {
     expect(decideSubmit(repos, { attention: 0, applicationId: app.id })).toMatchObject({ approve: false, reason: expect.stringMatching(/目标岗位/) });
   });
 
-  it(`自学习：同一张表连续 ${LEARN_THRESHOLD} 次人工直接通过后免确认；简历或开放题变了就停`, () => {
+  it('不再自学习：同一张表连续批准多少次，AI 都不自己放权；只有他盖章的那一类才直接提交', () => {
     const repos = createMemoryRepos();
-    const fp = { formSignature: SIG, openAnswersHash: 'h-open-1', resumeSha: 'r1' };
-    for (let i = 0; i < LEARN_THRESHOLD; i++) {
+    const url = 'https://x.com/apply';
+    const fp = { formSignature: SIG, openAnswersHash: 'h-open-1', resumeSha: 'r1', url };
+    for (let i = 0; i < LEARN_THRESHOLD + 2; i++) {
       expect(decideSubmit(repos, { ...fp, attention: 0 }).approve).toBe(false);
       recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'submitted', edits: 0 });
+      recordSuccess(repos, systemOfSync(url));
     }
-    const ok = decideSubmit(repos, { ...fp, attention: 0 });
-    expect(ok).toMatchObject({ approve: true, by: 'learned' });
-    expect(decideSubmit(repos, { ...fp, resumeSha: 'r2', attention: 0 })).toMatchObject({ approve: false, reason: expect.stringMatching(/简历/) });
-    expect(decideSubmit(repos, { ...fp, openAnswersHash: 'h-open-2', attention: 0 })).toMatchObject({ approve: false, reason: expect.stringMatching(/开放题/) });
+    expect(decideSubmit(repos, { ...fp, attention: 0 })).toMatchObject({ approve: false, reason: expect.stringMatching(/还没交给我/) });
+    delegate(repos, systemOfSync(url).key);
+    expect(decideSubmit(repos, { ...fp, attention: 0 })).toMatchObject({ approve: true, by: 'delegated' });
+    // 放了权也不跳过检查：填后有要看的照样停
     expect(decideSubmit(repos, { ...fp, attention: 1 }).approve).toBe(false);
-    // 免审后的成功不算"人工确认"，不继续累加；一次页面改动就清零
-    recordSubmitOutcome(repos, { ...fp, approvedBy: 'learned', status: 'submitted', edits: 0 });
-    expect(getPageTrust(repos, SIG)!.streak).toBe(LEARN_THRESHOLD);
-    recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'submitted', edits: 1 });
-    expect(getPageTrust(repos, SIG)!.streak).toBe(0);
   });
 
   it('信任记录带出处：哪个网站、本轮连续通过的是哪几份投递；清零时出处一起清', () => {
@@ -102,14 +100,14 @@ describe('提交策略', () => {
     expect(getPageTrust(repos, SIG)).toMatchObject({ streak: 0, host: 'app.mokahr.com', applicationIds: [] });
   });
 
-  it('自学习满了之后：落库时直接批准（learned），简历快照来自材料包', () => {
+  it('他盖章的那一类：落库时直接批准（delegated）；没盖章的停在提交前', () => {
     const repos = createMemoryRepos();
-    const fp = { formSignature: SIG, openAnswersHash: 'h-open-1', resumeSha: 'pdf-sha-1' };
-    for (let i = 0; i < LEARN_THRESHOLD; i++) recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'submitted', edits: 0 });
-    const same = persist(repos, driveResult({}), { resumeSha: 'pdf-sha-1' });
-    expect(same.submit.approved_by).toBe('learned');
-    const other = persist(repos, driveResult({}), { resumeSha: 'pdf-sha-2' });
-    expect(other.submit.status).toBe('pending_review');
+    const before = persist(repos, driveResult({}));
+    expect(before.submit.status).toBe('pending_review');
+    recordSuccess(repos, systemOfSync('https://x.com/apply'));
+    delegate(repos, systemOfSync('https://x.com/apply').key);
+    const after = persist(repos, driveResult({}));
+    expect(after.submit.approved_by).toBe('delegated');
   });
 });
 

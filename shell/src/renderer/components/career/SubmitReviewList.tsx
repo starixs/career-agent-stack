@@ -21,7 +21,7 @@ const STATUS: Record<SubmitReviewStatus, { label: string; tone: BadgeTone }> = {
 const SOURCE: Record<string, string> = { profile: '资料', answer_bank: '答案库', draft: 'AI 草稿' };
 
 export function approvalLabel(by: string | null | undefined): string | null {
-  return by === 'auto' ? 'auto 模式已批准' : by === 'learned' ? '自学习免确认' : null;
+  return by === 'auto' ? 'auto 模式已批准' : by === 'delegated' ? '这一类你交给我了' : by === 'learned' ? '自学习免确认' : null;
 }
 
 export function SubmitReviewList({ review }: { review: SubmitReviewSummary | null | undefined }) {
