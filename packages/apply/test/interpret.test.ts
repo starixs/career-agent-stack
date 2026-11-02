@@ -12,6 +12,11 @@ describe('interpret', () => {
     expect(plans.map(p => [p.status, p.source, p.value])).toEqual([['fill', 'profile', '张三'], ['fill', 'profile', '13800000000'], ['fill', 'profile', '本科'], ['fill', 'profile', '男']])
     expect(plans.every(p => p.confidence > 0.8)).toBe(true)
   })
+  it('问卷星的题目带题号、说法不同：「高校名称」「现居住地」也对得上资料（2026-11-02 斯达半导体）', async () => {
+    const fields = await fieldsOf({ url: 'u', fields: [{ label: '4.您所在或者毕业的高校名称：' }, { label: '8.现居住地' }] })
+    const plans = await interpretForm(noLLM(), fields, profile)
+    expect(plans.map(p => [p.status, p.source, p.key])).toEqual([['fill', 'profile', 'school'], ['fill', 'profile', 'city']])
+  })
   it('高影响问题没有答案库原话 → needs_user，不调用模型', async () => {
     const llm = noLLM()
     const fields = await fieldsOf({ url: 'u', fields: [{ label: '是否需要签证担保', required: true }, { label: '是否接受出差', type: 'select', options: ['是', '否'] }] })

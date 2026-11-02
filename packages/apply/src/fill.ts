@@ -1,6 +1,6 @@
 import { extractJson, type LLM } from '@career/core'
 import type { PageLike } from './page.js'
-import { extractFields, radioOptionSelector, type FormField } from './extract.js'
+import { extractFields, radioOptionSelector, radioProxySelector, type FormField } from './extract.js'
 import { fillValueScript } from './scripts.js'
 import {
   activeEditableScript, clearSelectScript, closePopupScript, datePickScript, domSnippetScript, focusFieldScript, clearHighlightScript, openOptionsScript,
@@ -317,7 +317,8 @@ async function fillOnce(d: FillDeps, f: FormField, value: string, sig: string): 
     case 'radio': {
       const opt = matchOption(f.options, value, { label: f.label })
       if (!opt) return fail('radio', 'no_matching_option')
-      await page.click(radioOptionSelector(f, opt))
+      const proxy = radioProxySelector(f, opt)
+      await page.click((await page.evaluate(probeTargetScript, { selector: proxy })).exists ? proxy : radioOptionSelector(f, opt))
       const cur = (await extractFields(page)).find(x => x.id === f.id)
       return displayMatches(cur?.value, opt, f) ? { verified: true, strategy: 'radio', display: cur?.value, chosen: opt } : fail('radio', 'option_not_selected', cur?.value)
     }

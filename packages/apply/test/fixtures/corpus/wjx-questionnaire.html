@@ -1,0 +1,30 @@
+<!doctype html>
+<!--
+  问卷星网申表结构（取自 2026-11-02 斯达半导体 / 中兵通信校招问卷 v.wjx.cn，删去样式与无关节点）：
+  - 整张问卷包在一个 <fieldset class="fieldset" id="fieldset1"> 里，每道题是 div.field（topic=n），题目在 .field-label 里，带题号「2.」；
+  - 单选题的 radio 是 display:none，旁边 a.jqradio 是画出来的圆圈；选项文字在 <div class="label" for="q2_1"> 里——是 div 不是 <label>；
+  - 点 div.ui-radio 才选中（站点脚本把 input.checked 置上、给 a.jqradio 加 jqchecked）。
+  2026-11-02 实测：整页 fieldset 被当成单选组的容器，「性别」「学历」都认成了第一题「1.您的姓名：」；选项文字退到外层，拿到了题目。
+-->
+<html><head><meta charset="utf-8"><title>斯达半导体校园招聘简历投递</title></head><body>
+<div id="divQuestion"><fieldset class='fieldset' pg='1' id='fieldset1'>
+<div class='field ui-field-contain' topic='1' id='div1' req='1' type='1'><div class='field-label'><span class='req'>*</span><div class='topicnumber'>1.</div><div class='topichtml'>您的姓名：</div></div><div class='ui-input-text selfMess'><input type='text' autocomplete='off' id='q1' value='' name='q1' verify='姓名'/></div><div class='errorMessage'></div></div>
+<div class='field ui-field-contain' topic='2' id='div2' req='1' type='3'><div class='field-label'><span class='req'>*</span><div class='topicnumber'>2.</div><div class='topichtml'>您的性别：</div></div><div class='ui-controlgroup columns column2 two_column'><div class='ui-radio'><span class='jqradiowrapper'><input type='radio' value='1' id='q2_1' name='q2' style='display:none;'/><a class='jqradio' href='javascript:;'></a></span><div class='label' for='q2_1'>男</div></div><div class='ui-radio'><span class='jqradiowrapper'><input type='radio' value='2' id='q2_2' name='q2' style='display:none;'/><a class='jqradio' href='javascript:;'></a></span><div class='label' for='q2_2'>女</div></div></div><div class='errorMessage'></div></div>
+<div class='field ui-field-contain' topic='3' id='div3' req='1' type='1'><div class='field-label'><span class='req'>*</span><div class='topicnumber'>3.</div><div class='topichtml'>您所在或者毕业的高校名称：</div></div><div class='ui-input-text selfMess'><input type='text' autocomplete='off' id='q3' value='' name='q3' verify='高校'/></div><div class='errorMessage'></div></div>
+<div class='field ui-field-contain' topic='4' id='div4' req='1' type='3'><div class='field-label'><span class='req'>*</span><div class='topicnumber'>4.</div><div class='topichtml'>学历</div></div><div class='ui-controlgroup column1'><div class='ui-radio'><span class='jqradiowrapper'><input type='radio' value='1' id='q4_1' name='q4' style='display:none;'/><a class='jqradio' href='javascript:;'></a></span><div class='label' for='q4_1'>本科</div></div><div class='ui-radio'><span class='jqradiowrapper'><input type='radio' value='2' id='q4_2' name='q4' style='display:none;'/><a class='jqradio' href='javascript:;'></a></span><div class='label' for='q4_2'>硕士</div></div><div class='ui-radio'><span class='jqradiowrapper'><input type='radio' value='3' id='q4_3' name='q4' style='display:none;'/><a class='jqradio' href='javascript:;'></a></span><div class='label' for='q4_3'>博士</div></div></div><div class='errorMessage'></div></div>
+<div class='field ui-field-contain' topic='5' id='div5' req='1' type='1'><div class='field-label'><span class='req'>*</span><div class='topicnumber'>5.</div><div class='topichtml'>现居住地</div></div><div class='ui-input-text'><input type='text' autocomplete='off' id='q5' value='' name='q5'/></div><div class='errorMessage'></div></div>
+</fieldset></div>
+<div id="ctlNext">提交</div>
+<script>
+window.__model = {}
+for (const box of document.querySelectorAll('.ui-radio')) {
+  box.addEventListener('click', () => {
+    const input = box.querySelector('input[type=radio]')
+    for (const other of document.querySelectorAll(`input[name="${input.name}"]`)) { other.checked = false; other.nextElementSibling.classList.remove('jqchecked') }
+    input.checked = true; input.nextElementSibling.classList.add('jqchecked')
+    window.__model[input.name] = box.querySelector('.label').textContent
+  })
+}
+for (const input of document.querySelectorAll('input[type=text]')) input.addEventListener('input', () => { window.__model[input.name] = input.value })
+</script>
+</body></html>

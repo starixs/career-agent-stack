@@ -66,6 +66,11 @@ export function radioOptionSelector(field: FormField, option: string): string {
   return `${field.selector}[data-career-option="${option.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`
 }
 
+/** 藏起来的单选选项的替身（抽取时打上 data-career-proxy）：页面上真正能点的那个。 */
+export function radioProxySelector(field: FormField, option: string): string {
+  return `[data-career-proxy="${field.id}"][data-career-proxy-option="${option.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`
+}
+
 /** 页面指纹：url + 字段标签，用来判断"点了下一步但页面没变"。 */
 export function formFingerprint(url: string, fields: FormField[]): string {
   return `${url}::${fields.map(f => `${f.type}:${f.label}`).join('|')}`

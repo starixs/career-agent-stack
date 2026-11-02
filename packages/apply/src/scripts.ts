@@ -118,6 +118,7 @@ export const elementAtScript: PageScript<{ x: number; y: number }, { tag: string
 export const extractFieldsScript: PageScript<void, RawField[]> = {
   id: SCRIPT_IDS.extractFields,
   fn: () => {
+    for (const n of Array.from(document.querySelectorAll('[data-career-proxy]'))) { n.removeAttribute('data-career-proxy'); n.removeAttribute('data-career-proxy-option') }
     const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim().slice(0, 160)
     const stripStar = (s: string) => s.replace(/^[\s*＊]+|[\s*＊:：]+$/g, '').trim()
     const isGeneric = (s: string) => /^(请选择|请输入|选择|输入|搜索|search|select|choose|type|--|please select|e\.?g\.?)/i.test(s.trim())
@@ -301,7 +302,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       }
       labelVia = 'for'
       const id = (el as HTMLElement).id
-      if (id) { const l = document.querySelector(`label[for="${CSS.escape(id)}"]`); if (l && ok(pure(l))) return pure(l) }
+      // 问卷星把选项文字放在 <div class="label" for="q2_1"> 里：不是 <label> 也照认（2026-11-02 实测，选项拿成了题目）
+      if (id) { const l = document.querySelector(`label[for="${CSS.escape(id)}"]`) ?? document.querySelector(`[for="${CSS.escape(id)}"]`); if (l && ok(pure(l))) return pure(l) }
       const pl = el.closest('label'); if (pl && ok(pure(pl))) return pure(pl)
       labelVia = 'wrapper'
       const w = wrapperOf(el)
@@ -327,10 +329,36 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       if (via === 'name' && /^[a-z0-9_-]+$/i.test(label) && label.length > 18) return '只有内部字段名'
       return ''
     }
+    /**
+     * 单选组的外层容器（radiogroup / fieldset / *radio-group*）——只有里面没有别的字段时才算：
+     * 问卷星整页包在一个 fieldset 里，拿它当组容器，每组单选都认成了第一题（2026-11-02 实测）。
+     */
+    function choiceGroupBox(first: Element): Element | null {
+      const box = first.closest('[role=radiogroup], fieldset, [class*="radio-group" i]')
+      if (!box) return null
+      const name = (first as HTMLInputElement).name
+      const own = (x: Element) => { const t = (x as HTMLInputElement).type; return t === 'hidden' || (t === 'radio' && (x as HTMLInputElement).name === name) }
+      return Array.from(box.querySelectorAll('input, select, textarea')).every(own) ? box : null
+    }
+    /**
+     * 藏起来的单选（display:none，旁边画一个假圆圈）真正能点的那个：它的 [for] 文字、包着它的 label，
+     * 或只包着这一个选项的最小可见容器。问卷星就是这样，直接点 input 会一直等它变可见（2026-11-02 实测）。
+     */
+    function choiceProxy(r: Element): Element | null {
+      const id = (r as HTMLElement).id
+      const forEl = id ? document.querySelector(`[for="${CSS.escape(id)}"]`) : null
+      if (forEl && vis(forEl)) return forEl
+      const lb = r.closest('label'); if (lb && vis(lb)) return lb
+      for (let a = r.parentElement, i = 0; a && i < 4; a = a.parentElement, i++) {
+        if (a.querySelectorAll('input[type=radio]').length > 1) return null
+        if (vis(a)) return a
+      }
+      return null
+    }
     function groupLabel(first: Element, options: string[]): string {
       const sem = first.closest('[data-form-field-i18n-name]')?.getAttribute('data-form-field-i18n-name') || ''
       if (sem.trim()) return stripStar(clean(sem))
-      const rg = first.closest('[role=radiogroup], fieldset, [class*="radio-group" i]')
+      const rg = choiceGroupBox(first)
       if (rg) {
         const al = rg.getAttribute('aria-label'); if (al) return stripStar(al)
         const lg = rg.querySelector('legend'); if (lg?.textContent?.trim()) return stripStar(clean(lg.textContent))
@@ -412,7 +440,12 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         meta[id] = { xpath: xpathOf(el), framework: frameworkOf(el) }
         const options = group.map(r => clean(labelFor(r) || (r as HTMLInputElement).value)).filter(Boolean)
         let value: string | undefined
-        group.forEach((r, i) => { r.setAttribute('data-career-field', id); r.setAttribute('data-career-option', options[i] ?? String(i)); if ((r as HTMLInputElement).checked || r.getAttribute('aria-checked') === 'true') value = options[i] })
+        group.forEach((r, i) => {
+          r.setAttribute('data-career-field', id); r.setAttribute('data-career-option', options[i] ?? String(i))
+          if ((r as HTMLInputElement).checked || r.getAttribute('aria-checked') === 'true') value = options[i]
+          const px = vis(r) ? null : choiceProxy(r)
+          if (px) { px.setAttribute('data-career-proxy', id); px.setAttribute('data-career-proxy-option', options[i] ?? String(i)) }
+        })
         out.push({ id, label: clean(groupLabel(el, options)) || rn || '', name: rn, type: 'radio', options, required, value, requiredVia: req.via })
         continue
       }

@@ -279,6 +279,24 @@ describe('飞书 formily 表单结构（真实 Chrome）', () => {
   })
 })
 
+describe('问卷星（真实 Chrome）', () => {
+  it('整页 fieldset 不当单选组容器；选项文字在 div[for] 里；点选中、读得回', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/wjx-questionnaire.html')
+    const P = engine.fromPlaywright(page)
+    const fields = await engine.extractFields(P)
+    const gender = fields.find(f => f.type === 'radio' && f.options?.includes('男'))
+    expect(gender).toMatchObject({ label: expect.stringContaining('您的性别'), options: ['男', '女'], required: true })
+    const degree = fields.find(f => f.type === 'radio' && f.options?.includes('硕士'))
+    expect(degree).toMatchObject({ label: expect.stringContaining('学历'), options: ['本科', '硕士', '博士'] })
+    expect(fields.filter(f => /您的姓名/.test(f.label))).toHaveLength(1)
+    const r = await fill(page, gender!.label, '男')
+    expect(r.att).toMatchObject({ verified: true })
+    expect(r.model.q2).toBe('男')
+    await page.context().close()
+  }, 90_000)
+})
+
 describe('飞书 UD 下拉（真实 Chrome）', () => {
   it('选项包了 5 层的虚拟列表能逐项认出、点叶子选中、外壳里读回；禁用项不选；没有的值留空', async ({ skip }) => {
     if (!engine || !browser) return skip()
