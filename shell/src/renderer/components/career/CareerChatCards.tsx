@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react';
 import { useTabStateOptional } from '@/context/TabContext';
 
 import { surfaceForTool } from '@/features/career-shell/workSurfaces';
+import { unwrapCareerTool } from '@/components/tools/careerToolLabels';
 
 import { BrowserWorkCard, shouldShowBrowserCard } from './BrowserWorkCard';
 import { CareerFlowCards, useBatchState } from './CareerFlowCards';
@@ -86,7 +87,7 @@ function hasToolCall(messages: ReadonlyArray<{ content: unknown }>, match: (name
   for (const m of messages) {
     if (!Array.isArray(m.content)) continue;
     for (const b of m.content as Array<{ type?: string; tool?: { name?: string } }>) {
-      if ((b.type === 'tool_use' || b.type === 'server_tool_use') && match(b.tool?.name)) return true;
+      if ((b.type === 'tool_use' || b.type === 'server_tool_use') && b.tool && match(unwrapCareerTool(b.tool as { name: string }).name)) return true;
     }
   }
   return false;

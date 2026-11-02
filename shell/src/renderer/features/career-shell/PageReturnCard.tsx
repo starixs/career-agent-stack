@@ -15,6 +15,7 @@ import { BreakoutCard, CountAnchor, DateAnchor, PageAnchor, type BreakoutTone } 
 import { dict, inputOf, joinParts, parseResult, str } from './cardContent';
 import { requestNavigation } from './navModel';
 import { pageLabel, returnTargetOf, type PageTarget } from './pageSurface';
+import { unwrapCareerTool } from '@/components/tools/careerToolLabels';
 
 function textOf(message: Message): string {
   if (typeof message.content === 'string') return message.content;
@@ -27,8 +28,9 @@ function blocksOf(message: Message): ContentBlock[] {
 
 const CAREER_PREFIX = 'mcp__career__';
 
-export function careerToolName(tool: Pick<ToolUseSimple, 'name'>): string | null {
-  return tool.name?.startsWith(CAREER_PREFIX) ? tool.name.slice(CAREER_PREFIX.length) : null;
+export function careerToolName(tool: Pick<ToolUseSimple, 'name' | 'parsedInput' | 'inputJson'>): string | null {
+  const name = tool.name ? unwrapCareerTool(tool).name : tool.name;
+  return name?.startsWith(CAREER_PREFIX) ? name.slice(CAREER_PREFIX.length) : null;
 }
 
 /** 一定会改数据的 career 工具 → 预览里那一行的说法。 */

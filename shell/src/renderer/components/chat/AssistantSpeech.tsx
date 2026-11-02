@@ -5,7 +5,7 @@
  *    细节在右栏「正在做」和日志里，不给用户看。
  */
 import Markdown from '@/components/Markdown';
-import { getCareerToolLabel } from '@/components/tools/careerToolLabels';
+import { getCareerToolLabel, unwrapCareerTool } from '@/components/tools/careerToolLabels';
 import type { ContentBlock } from '@/types/chat';
 import { splitSpeechSegments } from '@/utils/speechSegments';
 
@@ -29,7 +29,7 @@ export function quietWorkLabel(blocks: ContentBlock[]): string {
   for (let i = blocks.length - 1; i >= 0; i -= 1) {
     const block = blocks[i];
     if ((block.type === 'tool_use' || block.type === 'server_tool_use') && block.tool?.name) {
-      return getCareerToolLabel(block.tool.name) ?? '在处理';
+      return getCareerToolLabel(unwrapCareerTool(block.tool).name) ?? '在处理';
     }
   }
   return '在想';

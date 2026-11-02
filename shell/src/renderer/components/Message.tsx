@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { track } from '@/analytics';
 import AttachmentPreviewList from '@/components/AttachmentPreviewList';
 import { QuietWorkLine, SpeechBlocks } from '@/components/chat/AssistantSpeech';
+import { unwrapCareerTool } from '@/components/tools/careerToolLabels';
 import Markdown from '@/components/Markdown';
 import { useToastOptional } from '@/components/Toast';
 import WidgetRenderer from '@/components/tools/WidgetRenderer';
@@ -564,7 +565,7 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
                     </div>
                   )}
                   <MessageSurfaceCards
-                    tools={item.map(b => (b.type === 'tool_use' || b.type === 'server_tool_use') ? b.tool : undefined)}
+                    tools={item.map(b => (b.type === 'tool_use' || b.type === 'server_tool_use') && b.tool ? unwrapCareerTool(b.tool) : undefined)}
                   />
                   {groupCards.length > 0 && (
                     <div data-testid="career-inline-cards" className="space-y-2 px-1 py-1">

@@ -95,3 +95,28 @@ export function getCareerToolLabel(toolName: string): string | null {
   const action = toolName.slice(CAREER_TOOL_PREFIX.length);
   return CAREER_TOOL_LABELS[action] ?? action.replace(/_/g, ' ');
 }
+
+/** 主线之外的能力收进了 more_actions 一个入口（server/tools/career-tool-router.ts）；前端按里面真正调用的那个工具来认。 */
+const MORE_ACTIONS_TOOL = `${CAREER_TOOL_PREFIX}more_actions`;
+
+function parseInput(raw: unknown, json: string | undefined): Record<string, unknown> | null {
+  if (raw && typeof raw === 'object') return raw as Record<string, unknown>;
+  if (!json) return null;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null;
+  } catch {
+    // 输入还在流式传来、JSON 不完整：先按外层工具认，传完再认里面那个
+    return null;
+  }
+}
+
+/** more_actions(name, args) → 当作 mcp__career__<name>(args) 看待；其他工具原样返回。 */
+export function unwrapCareerTool<T extends { name: string; parsedInput?: unknown; inputJson?: string }>(tool: T): T {
+  if (tool.name !== MORE_ACTIONS_TOOL) return tool;
+  const input = parseInput(tool.parsedInput, tool.inputJson);
+  const inner = input?.name;
+  if (typeof inner !== 'string' || !inner) return tool;
+  const args = input?.args && typeof input.args === 'object' ? input.args : {};
+  return { ...tool, name: `${CAREER_TOOL_PREFIX}${inner}`, parsedInput: args, inputJson: JSON.stringify(args) };
+}

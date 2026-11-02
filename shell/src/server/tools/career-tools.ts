@@ -239,6 +239,8 @@ export function toolUseIdFrom(extra: unknown): string | null {
   return typeof id === 'string' && id ? id : null;
 }
 
+import { routeCareerTools } from './career-tool-router';
+
 // ============= Server =============
 
 export async function createCareerServer(deps: CareerToolDeps = {}) {
@@ -616,11 +618,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         : `${outcome.headline}，还没有提交。对话里有一张提交卡片带审阅清单（${outcome.decision ?? '需要用户确认'}）；用户看过批准后，产品替用户点提交。告诉用户去卡片里看一遍，不要提工具名或动作 id。` });
   }
 
-  return createSdkMcpServer({
-    name: 'career',
-    version: '1.0.0',
-    instructions: '求职助理的数据与执行工具。读写一律走这些工具；submit / send_greeting / answer_open_q / send_mail 进入待审核队列，由用户批准后执行（网申提交例外：用户开了 auto 模式，或同一张表已自学习免审时会直接提交）；send_greeting / answer_open_q 批准后不会自动发出，而是转为 needs_user 交给用户本人去平台发送。',
-    tools: [
+  const allTools = [
       // ---------- 概览 / 经历库 ----------
       tool('career_overview', '返回看板三问题（今天必须做什么 / 哪里卡住 / 漏斗分布）+ 待审数 + 进行中的任务 + 未关闭的接管。', {}, wrap(() => text(store().overview()))),
 
@@ -1628,6 +1626,11 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         parseJd: async jobId => (await parseAndStoreJd({ job_id: jobId })).parsed, confirmedClaims,
       }),
       ...createOfferTools({ tool, z, repos, store, wrap, text, err, changed, askSkill: (skill, user, opts) => askSkill(skill, user, opts), userContext: () => `用户经历与偏好：\n${experienceDigest()}\n${JSON.stringify(prefs())}` }),
-    ],
+  ];
+  return createSdkMcpServer({
+    name: 'career',
+    version: '1.0.0',
+    instructions: '求职助理的数据与执行工具。读写一律走这些工具；submit / send_greeting / answer_open_q / send_mail 进入待审核队列，由用户批准后执行（网申提交例外：用户开了 auto 模式，或同一张表已自学习免审时会直接提交）；send_greeting / answer_open_q 批准后不会自动发出，而是转为 needs_user 交给用户本人去平台发送。',
+    tools: routeCareerTools(allTools, tool as never, z),
   });
 }
