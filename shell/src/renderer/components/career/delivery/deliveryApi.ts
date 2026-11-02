@@ -18,7 +18,7 @@ export type PosterState = 'wait' | 'run' | 'done' | 'ask' | 'failed' | 'next';
 export interface RunPoster { application_id: string; job_id: string; role: string; company: CompanyMark; star: boolean; state: PosterState }
 export interface RunView { total: number; done: number; running: number; asking: number; failed: number; items: RunPoster[] }
 export interface ReplyFact { kind: 'interview' | 'exam' | 'rejection' | 'offer'; label: string; n: number; companies: CompanyMark[] }
-export interface AwayView { since: string; asks: AskView[]; sent: CompanyMark[]; replies: ReplyFact[]; quiet: number }
+export interface AwayView { since: string; asks: AskView[]; sent: CompanyMark[]; replies: ReplyFact[]; quiet: number; /** 替你挡掉的：填好了停在提交前、没你点头不交 */ held: number }
 
 type Dict = Record<string, unknown>;
 const isDict = (v: unknown): v is Dict => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -51,7 +51,7 @@ export const parseRun = (raw: unknown): RunView | null => (isRunView(raw) ? raw 
 function parseAway(raw: unknown): AwayView | null {
   if (!isDict(raw) || !isStr(raw.since) || !Array.isArray(raw.sent) || !Array.isArray(raw.replies) || typeof raw.quiet !== 'number') return null;
   const replies = raw.replies.filter((r): r is ReplyFact => isDict(r) && isStr(r.label) && typeof r.n === 'number' && Array.isArray(r.companies) && r.companies.every(isCompanyMark));
-  return { since: raw.since, asks: parseAsks(raw.asks), sent: raw.sent.filter(isCompanyMark), replies, quiet: raw.quiet };
+  return { since: raw.since, asks: parseAsks(raw.asks), sent: raw.sent.filter(isCompanyMark), replies, quiet: raw.quiet, held: typeof raw.held === 'number' ? raw.held : 0 };
 }
 
 const field = (res: unknown, key: string): unknown => (isDict(res) ? res[key] : undefined);

@@ -229,7 +229,7 @@ describe('情景 C · 两天没开，回来', () => {
     since: '2026-10-28T13:00:00.000Z', asks: [{ ...ASK_JFY, due_at: '2026-10-30T15:59:00.000Z' }, ASK_LOGIN],
     sent: [mark('美团', 'mt', '#ffd100'), mark('京东', 'jd')],
     replies: [{ kind: 'interview', label: '面试邀请', n: 1, companies: [mark('百度')] }, { kind: 'exam', label: '笔试 / 测评', n: 2, companies: [mark('九方云'), mark('讯飞', 'xf')] }, { kind: 'rejection', label: '不合适', n: 2, companies: [mark('拼多多'), mark('京东')] }],
-    quiet: 13,
+    quiet: 13, held: 3,
   };
 
   it('最急的一件放最大，点「从最急的开始」打开卡组并定位到它；下面几行只给数字和公司；末尾一句没回音的', () => {
@@ -241,6 +241,7 @@ describe('情景 C · 两天没开，回来', () => {
     expect(card).toHaveTextContent('还有 1 件等你');
     expect(card).toHaveTextContent('面试邀请');
     expect(card).toHaveTextContent('其余 13 家还没回音。');
+    expect(within(card).getByTestId('return-held')).toHaveTextContent('替你挡下 3 份：都填好了，停在提交前，没你点头不交。');
     fireEvent.click(screen.getByRole('button', { name: '从最急的开始' }));
     expect(opened).toEqual(['ddl_jfy']);
     off();

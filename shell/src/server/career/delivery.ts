@@ -69,7 +69,7 @@ export function buildRun(repos: Repos, by: { since?: string; actionIds?: readonl
 // ---------- 回来卡 ----------
 
 export interface ReplyFact { kind: 'interview' | 'exam' | 'rejection' | 'offer'; label: string; n: number; companies: CompanyMark[] }
-export interface AwayView { since: string; asks: AskView[]; sent: CompanyMark[]; replies: ReplyFact[]; quiet: number }
+export interface AwayView { since: string; asks: AskView[]; sent: CompanyMark[]; replies: ReplyFact[]; quiet: number; /** 填好了停在提交前、等他点头的份数 */ held: number }
 
 const REPLY_OF: Partial<Record<string, { kind: ReplyFact['kind']; label: string }>> = {
   interview_invite: { kind: 'interview', label: '面试邀请' },
@@ -126,5 +126,7 @@ export function buildAway(repos: Repos, since: string, nowIso = new Date().toISO
   // 没回音：投出后停在「已投递」、也没有任何来信或期限挂在它身上（笔试邀请不一定推进阶段）
   const heard = new Set([...repos.listInbox().map(i => inboxApplication(repos, i)), ...repos.listDeadlines().map(d => d.application_id)]);
   const quiet = repos.db.all<{ id: string }>(`SELECT id FROM application WHERE stage = 'applied'`).filter(a => !heard.has(a.id)).length;
-  return { since, asks: asksFor(repos, nowIso), sent: sent.map(s => companyMarkOf(s.company_name, s.company_id)), replies: replyFacts(repos, since), quiet };
+  // 替你挡掉的（主线体验 §6.8，X 调研：让他看见闸门在起作用）：你不在时填好、停在提交前、没你点头不交的
+  const held = repos.listActions('pending_review').filter(a => a.kind === 'submit' && a.created_at >= since).length;
+  return { since, asks: asksFor(repos, nowIso), sent: sent.map(s => companyMarkOf(s.company_name, s.company_id)), replies: replyFacts(repos, since), quiet, held };
 }
