@@ -28,6 +28,7 @@ export const WIDGET_SCRIPT_IDS = {
   uploadArea: 'career.uploadArea',
   widgetSignature: 'career.widgetSignature',
   semanticContext: 'career.semanticContext',
+  select2Pick: 'career.select2Pick',
 } as const
 
 // ---------------------------------------------------------------------------
@@ -994,5 +995,35 @@ export const semanticContextScript: PageScript<{ selector: string }, { nodes: Se
       }
     }
     return { nodes }
+  },
+}
+
+/**
+ * select2 下拉的结果项：在它包着的原生 <select> 里选上这一项并派发 change（select2 和站点联动都听 change）。
+ * 问卷星地区浮层的省 / 市 / 区是 select2，结果列表挂在 body 上、压在 layui 遮罩下面：真点击落在遮罩上，
+ * 派发的 click 又不触发 select2（它听 mouseup），省份时灵时不灵、区县一直选不上（2026-11-02 斯达半导体）。
+ * 不是 select2 结果项返回 ok:false，调用方照常点。
+ */
+export const select2PickScript: PageScript<{ selector: string }, { ok: boolean; label?: string }> = {
+  id: WIDGET_SCRIPT_IDS.select2Pick,
+  fn: ({ selector }) => {
+    const el = document.querySelector(selector)
+    const list = el?.closest('ul[id^="select2-"][id$="-results"]')
+    if (!el || !list) return { ok: false }
+    // 结果列表的 id 是 select2-<键>-results；原生下拉常常没有 id（问卷星按 name 加随机后缀起键），
+    // 就从同一个键的显示框（select2-<键>-container）找回它前面那个 <select>
+    const key = list.id.slice('select2-'.length, -'-results'.length)
+    const byId = document.getElementById(key)
+    const shell = document.getElementById(`select2-${key}-container`)?.closest('.select2-container')
+    const found = byId?.tagName === 'SELECT' ? byId : shell?.previousElementSibling
+    const select = found?.tagName === 'SELECT' ? found as HTMLSelectElement : null
+    const text = (el.textContent || '').replace(/\s+/g, ' ').trim()
+    const option = select ? Array.from(select.options).find(o => o.text.replace(/\s+/g, ' ').trim() === text) : undefined
+    if (!select || !option) return { ok: false }
+    select.value = option.value
+    select.dispatchEvent(new Event('change', { bubbles: true }))
+    // 收起 select2 的结果列表，免得挡住下一步
+    document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    return { ok: true, label: text }
   },
 }

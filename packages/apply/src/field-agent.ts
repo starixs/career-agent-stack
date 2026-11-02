@@ -5,7 +5,7 @@ import { isNextText, isSubmitText } from './guards.js'
 import type { PageLike } from './page.js'
 import type { PageScript } from './scripts.js'
 import { normKey } from './text.js'
-import { activeEditableScript, semanticContextScript, type SemanticNode } from './widgets.js'
+import { activeEditableScript, select2PickScript, semanticContextScript, type SemanticNode } from './widgets.js'
 
 /**
  * 字段兜底代理：结构树没办成、又不是真定论的格子，交给模型接着办（face-ga-port 2b，2026-10-31 你定）。
@@ -174,6 +174,9 @@ async function act(page: PageLike, a: Decision, node: SemanticNode | undefined, 
   const sel = node ? `[data-career-ref="${node.ref}"]` : ''
   if (action === 'click') {
     if (!node || isSubmitText(node.text) || isNextText(node.text) || DANGER_RX.test(node.text)) return null
+    // select2 结果项：直接在它包着的原生下拉里选（见 select2PickScript）；不是就照常点
+    const s2 = await page.evaluate(select2PickScript, { selector: sel }).catch(() => null)
+    if (s2?.ok) return `在下拉里选了「${s2.label}」`
     return robustClick(page, sel)
   }
   if (action === 'type') {

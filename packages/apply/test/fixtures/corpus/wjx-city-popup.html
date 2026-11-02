@@ -1,0 +1,59 @@
+<!doctype html>
+<!--
+  问卷星地区浮层（取自 2026-11-02 斯达半导体「户籍所在地」，删去样式与无关节点）：
+  - 只读输入框 onclick=openCityBox 弹出 layui 浮层（.layui-layer，下面一层 .layui-layer-shade 遮罩）；
+  - 浮层里省 / 市是原生 <select class="province|city select2-hidden-accessible">，没有 id，套着 select2 外壳；
+  - 点外壳打开 select2 结果列表，挂在 body 上，列表 id = select2-<name>-<随机>-results，显示框 id = select2-<同一个键>-container；
+  - 结果项只认真实的 mouseup（实测：派发的 click 不起作用），合成事件一律不算；这里再盖一层透明遮罩，真点击也点不到（实测「被 layui-layer-shade 挡住」）；
+  - 选了省份由站点脚本（jQuery 的 change）填城市；点「完成」把「省-市」写回输入框。
+-->
+<html><head><meta charset="utf-8"><title>问卷星地区浮层</title></head><body>
+<div class='field ui-field-contain' id='div7'><div class='field-label'><span class='req'>*</span><div class='topichtml'>7.您的户籍所在地</div></div>
+<div class='ui-input-text'><input type='text' id='q7' name='q7' readonly='readonly' onclick='openCityBox(this)' required></div></div>
+<div id="layer" style="display:none">
+  <div class="layui-layer-shade" style="position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:1000"></div>
+  <div class="layui-layer layui-layer-page" style="position:fixed;top:60px;left:200px;width:420px;background:#fff;padding:20px;z-index:1001">
+    <div class="layui-layer-content"><div class="layer_content">
+      <div class="ui-select"><select class="province select2-hidden-accessible" name="province" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"><option value="">--请选择省份--</option><option value="北京">北京</option><option value="浙江">浙江</option></select></div>
+      <div class="ui-select"><select class="city select2-hidden-accessible" name="city" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)"><option value="">--请选择城市--</option></select></div>
+      <a id="done" href="javascript:;" class="layui-layer-btn0">完成</a>
+    </div></div>
+  </div>
+</div>
+<div id="blocker" style="display:none;position:fixed;inset:0;z-index:2147483647"></div>
+<script>
+window.__model = {}
+const CITIES = { 北京: ['北京市'], 浙江: ['杭州市', '宁波市'] }
+let target = null, openList = null
+function shellFor(select, key) {
+  const shell = document.createElement('span')
+  shell.className = 'select2 select2-container select2-container--default'
+  shell.innerHTML = `<span class="selection"><span class="select2-selection select2-selection--single" role="combobox" tabindex="0"><span class="select2-selection__rendered" id="select2-${key}-container">${select.options[select.selectedIndex].text}</span></span></span>`
+  select.after(shell)
+  shell.querySelector('.select2-selection').addEventListener('click', () => openResults(select, key, shell))
+  select.addEventListener('change', () => { shell.querySelector('.select2-selection__rendered').textContent = select.options[select.selectedIndex].text })
+}
+function openResults(select, key, shell) {
+  openList?.remove()
+  const r = shell.getBoundingClientRect()
+  const c = document.createElement('span')
+  c.className = 'select2-container select2-container--default select2-container--open'
+  c.style.cssText = `position:absolute;top:${r.bottom + scrollY}px;left:${r.left}px;z-index:2147483646;background:#fff;border:1px solid #ccc`
+  c.innerHTML = `<span class="select2-dropdown"><span class="select2-results"><ul class="select2-results__options" role="listbox" id="select2-${key}-results">${Array.from(select.options).map(o => `<li class="select2-results__option" role="option">${o.text}</li>`).join('')}</ul></span></span>`
+  document.body.appendChild(c); openList = c
+  document.querySelector('#blocker').style.display = 'block'
+  for (const li of c.querySelectorAll('li')) li.addEventListener('mouseup', e => { if (!e.isTrusted) return; const o = Array.from(select.options).find(x => x.text === li.textContent); select.value = o.value; select.dispatchEvent(new Event('change', { bubbles: true })); close() })
+}
+function close() { openList?.remove(); openList = null; document.querySelector('#blocker').style.display = 'none' }
+document.addEventListener('mousedown', e => { if (openList && !openList.contains(e.target)) close() })
+const prov = document.querySelector('select.province'), city = document.querySelector('select.city')
+prov.addEventListener('change', () => { city.innerHTML = '<option value="">--请选择城市--</option>' + (CITIES[prov.value] ?? []).map(c => `<option value="${c}">${c}</option>`).join(''); city.dispatchEvent(new Event('change')) })
+shellFor(prov, 'province-vo'); shellFor(city, 'city-k3')
+window.openCityBox = el => { target = el; document.querySelector('#layer').style.display = 'block' }
+document.querySelector('#done').addEventListener('click', () => {
+  if (!prov.value || !city.value) return
+  target.value = `${prov.value}-${city.value}`; window.__model[target.name] = target.value
+  document.querySelector('#layer').style.display = 'none'
+})
+</script>
+</body></html>

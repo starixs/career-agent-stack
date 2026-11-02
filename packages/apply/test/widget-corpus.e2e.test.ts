@@ -300,6 +300,23 @@ describe('问卷星（真实 Chrome）', () => {
   }, 90_000)
 })
 
+describe('问卷星地区浮层（真实 Chrome）', () => {
+  it('select2 省 / 市：结果项真点击被遮罩挡、派发 click 又不算——在它包着的原生下拉里选上，点完成后读回（2026-11-02 斯达半导体）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const pick = (re: RegExp) => (req: LlmRequest) => {
+      const hit = String(req.messages[0].content).split('\n').find(l => re.test(l))
+      return JSON.stringify(hit ? { action: 'click', ref: hit.split(' ')[0] } : { action: 'give_up' })
+    }
+    const steps = [/^r\d+ <input[^>]*> /, /^r\d+ <span[^>]*> --请选择省份--$/, /^r\d+ <li[^>]*> 浙江$/, /^r\d+ <span[^>]*> --请选择城市--$/, /^r\d+ <li[^>]*> 杭州市$/, /^r\d+ <a[^>]*> 完成$/]
+    const llm = new FakeLLM([...steps.map(pick), () => JSON.stringify({ action: 'done' })])
+    const page = await open('corpus/wjx-city-popup.html')
+    const r = await fill(page, '7.您的户籍所在地', '浙江-杭州市', { llm })
+    expect(r.att).toMatchObject({ verified: true, strategy: 'agent' })
+    expect(r.model.q7).toBe('浙江-杭州市')
+    await page.context().close()
+  }, 90_000)
+})
+
 describe('问卷星上传（真实 Chrome）', () => {
   it('传完 input 被清空、文件名只在上传区：提交前不把已传好的简历报成必填空着（2026-11-02 中兵通信）', async ({ skip }) => {
     if (!engine || !browser) return skip()
