@@ -106,6 +106,18 @@ describe('apply_run / apply_continue', () => {
     expect(repos.listTasks().filter(t => t.kind === 'apply')).toHaveLength(1); // 复用同一个任务
   });
 
+  it('还在等他登录：apply_continue 不继续，也不让小芽说「登录好了」；他交还 / 登录被认出来之后才继续', async () => {
+    script = [{ type: 'result', op: 'drive', result: { status: 'handoff', reason: 'login', message: '需要你本人处理：登录', userAction: '请登录', finalUrl: 'https://x.zhiye.com/login', adapterId: 'beisen', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], escalations: [], layersUsed: ['dom'] } }];
+    await call('apply_run', { action_id: actionId });
+    const early = await call('apply_continue', { action_id: actionId });
+    expect(early.json()).toMatchObject({ continued: false, waiting_for: 'login' });
+    expect(bodies).toHaveLength(1);
+    repos.closeHandoff(repos.openHandoffs()[0].id, 'login_detected');
+    script = [{ type: 'result', op: 'drive', result: { status: 'stopped_before_submit', message: 'ok', finalUrl: 'https://x.zhiye.com/apply', adapterId: 'beisen', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], escalations: [], layersUsed: ['dom'], review: PASSING_REVIEW } }];
+    expect((await call('apply_continue', { action_id: actionId })).isError).toBeUndefined();
+    expect(bodies).toHaveLength(2);
+  });
+
   it('路由报错行（如 501 引擎未就绪）是瞬时问题 → 放回队列等重试，不判 failed、不 blocked', async () => {
     script = [{ type: 'error', status: 501, error: '表单引擎 @career/apply 尚未构建' }];
     const res = await call('apply_run', { action_id: actionId });

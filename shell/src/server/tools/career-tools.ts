@@ -1275,6 +1275,9 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const action = repos().getAction(args.action_id);
         if (!action) return err(`动作不存在：${args.action_id}`);
         if (action.status !== 'needs_user' && action.status !== 'executing') return err(`动作状态为 ${action.status}，只有接管中（needs_user / executing）的填表动作可以继续${applyStatusHint(action.status)}`);
+        // 登录 / 二次验证只有他本人能做：他还没做完（没交还），就不继续，也不能对他说「登录好了」（2026-11-02 真实站点实例：没登录就说了「登录过了」）
+        const waitingLogin = repos().openHandoffs().find(h => h.action_id === action.id && (h.reason === 'login' || h.reason === '2fa'));
+        if (waitingLogin) return text({ continued: false, waiting_for: waitingLogin.reason, note: '他还没在浏览器里登录完。不要说「登录好了」或「接着填了」；告诉他右边那件等他登录，登完会自动接着填。' });
         return runDrive(action, 'continue');
       })()),
 
@@ -1292,7 +1295,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ action_id: action.id, greeting: out.greeting, review: out.review, status: action.status });
       })()),
 
-      tool('apply_auto_mode', '查看或切换投递 auto 模式。开启后：填完检查全部通过的网申会直接提交，不再等用户批准；有任何需要人看的项仍会停下。只在用户明确要求时开启 / 关闭。另：同一张表用户连续 3 次直接批准、简历与开放题答案没变时，会自动免确认（自学习，不受此开关影响）。', {
+      tool('apply_auto_mode', '查看或切换投递 auto 模式。开启后：填完检查全部通过的网申会直接提交，不再等用户批准；有任何需要人看的项仍会停下。只在用户明确要求时开启 / 关闭。另：某一类网申系统他盖章「以后同类直接投」之后，这一类检查全过也会直接提交（他在右栏「学会了」里点的，不是你替他定）。', {
         enabled: z.boolean().optional().describe('不传只查看'),
       }, async (args) => wrap(async () => {
         const { getAutoMode, setAutoMode, LEARN_THRESHOLD } = await import('../career/submit-policy');
