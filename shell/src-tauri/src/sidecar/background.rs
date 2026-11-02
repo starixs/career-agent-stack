@@ -66,6 +66,32 @@ fn check_sidecar_session_snapshot(port: u16) -> Option<SidecarSessionSnapshot> {
     }
 }
 
+/// 后台批量网申是否在跑（Global sidecar 的 /api/career/batch/state）。
+/// 批量跑在 Global 里，对话那一轮早结束了；只看会话状态的话，电脑会在投到一半时睡着。
+pub(super) fn check_global_batch_running() -> bool {
+    let Some(port) = dirs::home_dir()
+        .and_then(|home| std::fs::read_to_string(home.join(".keystone").join(PORT_FILE_NAME)).ok())
+        .and_then(|raw| raw.trim().parse::<u16>().ok())
+    else {
+        return false;
+    };
+    let url = format!("http://127.0.0.1:{}/api/career/batch/state", port);
+    let Ok(client) = crate::local_http::blocking_builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+    else {
+        return false;
+    };
+    match client.get(&url).send() {
+        Ok(response) if response.status().is_success() => response
+            .json::<serde_json::Value>()
+            .ok()
+            .and_then(|body| body.get("batch")?.get("status")?.as_str().map(|s| s == "running"))
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
 pub(super) fn check_sidecar_session_state(port: u16) -> Option<String> {
     check_sidecar_session_snapshot(port).map(|snapshot| snapshot.session_state)
 }

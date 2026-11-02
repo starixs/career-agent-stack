@@ -946,7 +946,7 @@ pub async fn monitor_turn_wake_lock(
                     check_sidecar_session_state(port).as_deref(),
                     Some("running") | Some("starting")
                 )
-            })
+            }) || check_global_batch_running()
         })
         .await
         .unwrap_or(false);

@@ -53,16 +53,21 @@ function tailorBlock(repos: Repos): RailBlock {
   return { id: 'tailor', label: '定制', status: n ? 'done' : 'idle', line: n ? `已经按岗位改了 ${n} 份` : '定好方向后，按每个岗位改一版' };
 }
 
-function applyBlock(repos: Repos): RailBlock {
+function applyBlock(repos: Repos, sent: number): RailBlock {
   const batch = repos.kvGet<BatchState>(BATCH_STATE_KEY);
   const actions = repos.listActions().filter(a => a.kind === 'fill_form');
   const waiting = actions.filter(a => a.status === 'needs_user').length;
+  const failed = actions.filter(a => a.status === 'failed').length;
+  const held = repos.listActions('pending_review').filter(a => a.kind === 'submit').length;
   const running = batch?.status === 'running' ? (batch.running ?? []) : [];
   const total = actions.length;
-  const done = actions.filter(a => a.status === 'done').length;
-  if (running.length) return { id: 'apply', label: '网申', status: 'working', line: `在填：${running.map(r => r.title).join('、')}`, done, total };
-  if (waiting) return { id: 'apply', label: '网申', status: 'waiting', line: `${waiting} 份等你一下`, done, total };
-  if (total) return { id: 'apply', label: '网申', status: 'done', line: `投出 ${done} 份`, done, total };
+  const base = { id: 'apply' as const, label: '网申', done: sent, total };
+  if (running.length) return { ...base, status: 'working', line: `在填：${running.map(r => r.title).join('、')}` };
+  if (waiting) return { ...base, status: 'waiting', line: `${waiting} 份等你一下` };
+  if (held) return { ...base, status: 'waiting', line: `${held} 份填好了，停在提交前等你点头` };
+  // 填表没成：如实说，不当成完成（2026-11-02 实例 A：失败曾显示成「投出 0 份」）
+  if (failed) return { ...base, status: 'waiting', line: `${failed} 份没填成，我在查原因${sent ? `；已投出 ${sent} 份` : ''}` };
+  if (total) return { ...base, status: 'done', line: `投出 ${sent} 份` };
   return { id: 'apply', label: '网申', status: 'idle', line: '简历和方向好了就开始' };
 }
 
@@ -115,7 +120,7 @@ export function railSnapshot(repos: Repos, store: CareerStore, core: CoreModule)
   const prepared = repos.listActions().filter(a => a.kind === 'fill_form' && PREPARED_STATUSES.has(a.status)).length;
   return {
     stage: mainlineStage(repos, store, list.length, ledger),
-    blocks: [resumeBlock(repos, store, core), tailorBlock(repos), applyBlock(repos), mailBlock(repos)],
+    blocks: [resumeBlock(repos, store, core), tailorBlock(repos), applyBlock(repos, list.length), mailBlock(repos)],
     waiting: wait,
     receipts: list,
     learned: ledger.map(e => ({ ...e, propose: shouldProposeDelegate(e) })),

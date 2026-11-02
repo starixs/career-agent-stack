@@ -49,6 +49,18 @@ describe('右栏读模型', () => {
   });
 });
 
+describe('右栏的网申块说真话', () => {
+  it('填表失败不算完成：如实说没填成；投出几份按真的投出算', async () => {
+    const core = await loadCore();
+    const repos = createMemoryRepos();
+    const store = new CareerStore(repos, core);
+    const fill = repos.enqueueAction('fill_form', { url: 'https://x.zhiye.com/apply' });
+    repos.setActionStatus(fill.id, 'failed', { error: '浏览器没有返回填表结果' });
+    const apply = railSnapshot(repos, store, core).blocks.find(b => b.id === 'apply')!;
+    expect(apply).toMatchObject({ status: 'waiting', line: '1 份没填成，我在查原因', done: 0 });
+  });
+});
+
 describe('信任账本', () => {
   it('当面做通才到 shown；只有盖章才到 delegated；收回后下一份又当面', () => {
     const repos = createMemoryRepos();

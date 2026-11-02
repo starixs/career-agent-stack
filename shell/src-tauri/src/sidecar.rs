@@ -38,7 +38,7 @@ pub(crate) mod spawn;
 pub(crate) mod stdio;
 pub(crate) mod types;
 
-use background::check_sidecar_session_state;
+use background::{check_global_batch_running, check_sidecar_session_state};
 #[allow(unused_imports)]
 pub use background::{
     cancel_background_completion, cmd_cancel_background_completion, cmd_get_background_sessions,
