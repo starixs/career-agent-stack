@@ -49,6 +49,19 @@ describe('右栏读模型', () => {
   });
 });
 
+describe('岗位池当场收窄', () => {
+  it('他说一个方向，符合的数跟着变，条件变成小签', async () => {
+    const core = await loadCore();
+    const repos = createMemoryRepos();
+    const store = new CareerStore(repos, core);
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'a', title: '新媒体运营', company_name: '甲' });
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'b', title: '财务专员', company_name: '乙' });
+    expect(railSnapshot(repos, store, core).pool).toEqual({ total: 2, fits: 2, conditions: [] });
+    setJobPrefs(repos, { keywords: ['运营'] });
+    expect(railSnapshot(repos, store, core).pool).toEqual({ total: 2, fits: 1, conditions: ['运营'] });
+  });
+});
+
 describe('右栏的网申块说真话', () => {
   it('填表失败不算完成：如实说没填成；投出几份按真的投出算', async () => {
     const core = await loadCore();

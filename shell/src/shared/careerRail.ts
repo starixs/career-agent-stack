@@ -15,6 +15,8 @@ export type BlockStatus = 'working' | 'waiting' | 'done' | 'idle';
 export interface RailBlock { id: BlockId; label: string; status: BlockStatus; line: string; done?: number; total?: number }
 export interface RailReceipt { application_id: string; company: string; title: string; at: string; resume: string | null; filled: number | null }
 export interface RailWaiting { count: number; first: { title: string; detail: string | null } | null }
+/** 岗位池收窄（§6.5）：他说一句偏好，符合的数当场变；每个条件一枚小签。 */
+export interface RailPool { total: number; fits: number; conditions: string[] }
 export interface RailSnapshot {
   stage: MainlineStage;
   blocks: RailBlock[];
@@ -22,5 +24,6 @@ export interface RailSnapshot {
   receipts: RailReceipt[];
   learned: Array<TrustEntry & { propose: boolean }>;
   today: { prepared: number; sent: number; waiting: number };
+  pool: RailPool;
 }
 

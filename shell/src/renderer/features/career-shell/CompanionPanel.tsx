@@ -17,7 +17,7 @@ import { resolveSelectedPetPack } from '@/floating-ball/petPackLibrary';
 import { PetSprite } from '@/floating-ball/PetSprite';
 
 import { requestNavigation } from './navModel';
-import { BlockRows, Learned, MainlineProgress, RailHeading, Receipts, ResumeChip, ResumeDraft, TodayStrip, WaitingTop } from './RailSections';
+import { BlockRows, Learned, MainlineProgress, PoolPanel, RailHeading, Receipts, ResumeChip, ResumeDraft, TodayStrip, WaitingTop } from './RailSections';
 import { useWorkSurfaces, type ProgressRun } from './workSurfaceStore';
 
 /** PetSprite's own box rule lives in floating-ball/fb.css, which must not load in the main window. */
@@ -25,7 +25,7 @@ const PET_SPRITE_BOX = 'h-[82px] w-[76px] bg-no-repeat';
 
 const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history', 'mail_account'] as const;
 const ACTIVITY_TABLES = ['task', 'application_history', 'action_queue', 'application'] as const;
-const RAIL_TABLES = ['experience', 'claim', 'resume_master', 'resume_tailored', 'action_queue', 'application', 'application_history', 'handoff', 'kv', 'mail_account', 'task'] as const;
+const RAIL_TABLES = ['experience', 'claim', 'resume_master', 'resume_tailored', 'action_queue', 'application', 'application_history', 'handoff', 'kv', 'mail_account', 'task', 'job'] as const;
 const EXPERIENCE_TABLES = ['experience', 'claim'] as const;
 
 type CompanionTab = 'now' | 'todo' | 'trail';
@@ -168,6 +168,7 @@ export function CompanionPanel() {
             {rail.data.stage === 'profile'
               ? (<><RailHeading>你的简历，正在长</RailHeading><ResumeDraft experiences={experiences.data ?? []} /></>)
               : (<><ResumeChip count={(experiences.data ?? []).length} open={draftOpen} onToggle={() => setDraftOpen(v => !v)} />{draftOpen && <div className="mt-2"><ResumeDraft experiences={experiences.data ?? []} /></div>}</>)}
+            {rail.data.stage === 'direction' && (<><RailHeading>按你的方向，岗位库里</RailHeading><PoolPanel pool={rail.data.pool} /></>)}
             <RailHeading>正在做</RailHeading>
             {activeRun && <NowSection run={activeRun} handoff={handoff} />}
             <BlockRows blocks={rail.data.blocks} />

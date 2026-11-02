@@ -29,7 +29,7 @@ const blocks = [
   { id: 'mail', label: '盯邮箱', status: 'idle', line: '投出去之后，连上邮箱我替你盯回音' },
 ];
 let railSnapshot: Record<string, unknown> = {
-  stage: 'profile', blocks, waiting: { count: 0, first: null }, receipts: [], learned: [], today: { prepared: 0, sent: 0, waiting: 0 },
+  stage: 'profile', blocks, waiting: { count: 0, first: null }, receipts: [], learned: [], today: { prepared: 0, sent: 0, waiting: 0 }, pool: { total: 6, fits: 3, conditions: ['运营'] },
 };
 
 let onboardingChecklist: Record<string, boolean> = { has_experience: true, has_confirmed_claim: true, has_master_resume: true, has_mail_account: true, has_job: true, has_application: true, has_material: true };
@@ -115,12 +115,21 @@ describe('CompanionPanel', () => {
     expect(screen.getByText(/剩 \d+ 小时/)).toBeInTheDocument();
   });
 
+  it('定方向时岗位池是主角：符合的数和条件小签', async () => {
+    railSnapshot = { ...railSnapshot, stage: 'direction' };
+    render(<CompanionPanel />);
+    expect(await screen.findByTestId('rail-pool')).toHaveTextContent('符合的 3 个');
+    expect(screen.getByTestId('rail-pool')).toHaveTextContent('运营');
+    railSnapshot = { ...railSnapshot, stage: 'profile' };
+  });
+
   it('建档之后简历收成一枚小块；学会了的那一类做通够数时，他盖章「以后同类直接投」', async () => {
     railSnapshot = { ...railSnapshot, stage: 'batch',
       receipts: [{ application_id: 'a1', company: '招商银行', title: '财务管培', at: '2026-11-02T03:00:00.000Z', resume: '小林的简历', filled: 43 }],
       learned: [{ key: 'system:beisen', kind: 'system', label: '北森', state: 'shown', successes: 2, updated_at: '', propose: true }] };
     render(<CompanionPanel />);
     expect(await screen.findByTestId('rail-resume-chip')).toHaveTextContent('简历 · 1 段 ✓');
+    expect(screen.queryByTestId('rail-pool')).not.toBeInTheDocument();
     expect(screen.queryByTestId('rail-resume-draft')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /足迹/ }));
     expect(await screen.findByTestId('rail-receipts')).toHaveTextContent('填了 43 格');

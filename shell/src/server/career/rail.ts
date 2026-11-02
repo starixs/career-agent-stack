@@ -11,9 +11,9 @@ import type { CoreModule } from './core-module';
 
 import type { CareerStore } from './store';
 import { BATCH_STATE_KEY, type BatchState } from './batch-runner';
-import { getJobPrefs } from './job-board';
+import { getJobPrefs, jobBoard } from './job-board';
 import { readLedger, shouldProposeDelegate } from './trust-ledger';
-import type { MainlineStage, RailBlock, RailReceipt, RailSnapshot, RailWaiting, TrustEntry } from '../../shared/careerRail';
+import type { MainlineStage, RailBlock, RailPool, RailReceipt, RailSnapshot, RailWaiting, TrustEntry } from '../../shared/careerRail';
 
 export type { MainlineStage, RailSnapshot } from '../../shared/careerRail';
 
@@ -112,6 +112,17 @@ function waiting(repos: Repos): RailWaiting {
   return { count, first };
 }
 
+/** 岗位池：没截止的岗位里有几个符合他说过的条件（本地查询，不过模型，所以能当场变）。 */
+function pool(repos: Repos): RailPool {
+  const open = jobBoard(repos, { open_only: true });
+  const p = getJobPrefs(repos);
+  const keywords = (p.keywords ?? []).map(k => k.toLowerCase());
+  const mentions = (r: (typeof open)[number]) => !keywords.length || keywords.some(k => `${r.job.title} ${r.job.jd_raw ?? ''}`.toLowerCase().includes(k));
+  const fits = open.filter(r => r.match?.hard_ok !== false && mentions(r)).length;
+  const conditions = [...(p.keywords ?? []), ...(p.cities ?? []), p.cohort ? `${p.cohort} 届` : null, p.degree].filter((c): c is string => !!c);
+  return { total: open.length, fits: conditions.length ? fits : open.length, conditions };
+}
+
 export function railSnapshot(repos: Repos, store: CareerStore, core: CoreModule): RailSnapshot {
   const ledger = Object.values(readLedger(repos)).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const list = receipts(repos);
@@ -125,5 +136,6 @@ export function railSnapshot(repos: Repos, store: CareerStore, core: CoreModule)
     receipts: list,
     learned: ledger.map(e => ({ ...e, propose: shouldProposeDelegate(e) })),
     today: { prepared, sent: list.filter(r => r.at >= since).length, waiting: wait.count },
+    pool: pool(repos),
   };
 }

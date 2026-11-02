@@ -10,7 +10,7 @@
 import { emitEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
 import type { ExperienceNode } from '@/components/career/types';
-import { MAINLINE_STAGE_ORDER, type MainlineStage, type RailBlock, type RailReceipt, type RailSnapshot, type TrustEntry } from '../../../shared/careerRail';
+import { MAINLINE_STAGE_ORDER, type MainlineStage, type RailBlock, type RailPool, type RailReceipt, type RailSnapshot, type TrustEntry } from '../../../shared/careerRail';
 
 import { requestNavigation } from './navModel';
 
@@ -92,6 +92,23 @@ export function TodayStrip({ today }: { today: RailSnapshot['today'] }) {
     <div className="mx-1 mt-3 grid grid-cols-3 rounded-lg bg-[var(--paper)] py-2" data-testid="rail-today">
       {cell(today.prepared, '备好')}{cell(today.sent, '今天投出')}{cell(today.waiting, '等你')}
     </div>
+  );
+}
+
+/** 定方向时的主角：他说一句偏好，符合的岗位数当场变；每个条件一枚小签（§6.5）。 */
+export function PoolPanel({ pool }: { pool: RailPool }) {
+  return (
+    <section aria-label="岗位池" data-testid="rail-pool" className="mx-1 rounded-lg bg-[var(--paper)] px-3 py-2">
+      <p className="font-human text-sm text-[var(--ink)]">
+        符合的 <b className="text-lg tabular-nums transition-all duration-300">{pool.fits}</b> 个
+        <span className="ml-1 text-xs text-[var(--muted)]">（岗位库里没截止的 {pool.total} 个）</span>
+      </p>
+      {pool.conditions.length > 0 && (
+        <ul className="mt-1.5 flex flex-wrap gap-1">
+          {pool.conditions.map(c => <li key={c} className="speech-block rounded-full border border-[var(--line-2)] px-2 py-0.5 text-xs text-[var(--ink-2)]">{c}</li>)}
+        </ul>
+      )}
+    </section>
   );
 }
 
