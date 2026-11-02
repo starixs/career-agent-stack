@@ -1012,10 +1012,15 @@ export const select2PickScript: PageScript<{ selector: string }, { ok: boolean; 
     if (!el || !list) return { ok: false }
     // 结果列表的 id 是 select2-<键>-results；原生下拉常常没有 id（问卷星按 name 加随机后缀起键），
     // 就从同一个键的显示框（select2-<键>-container）找回它前面那个 <select>
+    // 同一个浮层开过两次时，旧的一份还留在页面里、键也一样（实测：先填户籍再填现居住地，区县选进了旧浮层里那个看不见的下拉，
+    // 「完成」一直报「请选择区县」）——先认现在展开着、看得见的那个下拉
     const key = list.id.slice('select2-'.length, -'-results'.length)
+    const seen = (n: Element) => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 }
+    const open = Array.from(document.querySelectorAll('.select2.select2-container--open')).find(sh => sh.previousElementSibling?.tagName === 'SELECT' && seen(sh))
+    const shells = Array.from(document.querySelectorAll(`[id="select2-${key}-container"]`)).map(n => n.closest('.select2-container')).filter((n): n is Element => !!n)
+    const shell = open ?? shells.find(seen) ?? shells[0]
     const byId = document.getElementById(key)
-    const shell = document.getElementById(`select2-${key}-container`)?.closest('.select2-container')
-    const found = byId?.tagName === 'SELECT' ? byId : shell?.previousElementSibling
+    const found = shell?.previousElementSibling ?? byId
     const select = found?.tagName === 'SELECT' ? found as HTMLSelectElement : null
     const text = (el.textContent || '').replace(/\s+/g, ' ').trim()
     const option = select ? Array.from(select.options).find(o => o.text.replace(/\s+/g, ' ').trim() === text) : undefined
