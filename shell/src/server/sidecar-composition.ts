@@ -72,6 +72,8 @@ const SESSION_EXACT_PATHS = new Set([
   '/api/exit-plan-mode/respond',
   '/api/generate-session-title',
   '/api/goal/objective',
+  // 会话正开着（GUI 里的对话就是它）时，外部读取经 Rust 转到这个主人进程；漏了它，对话一开着就读不到（2026-11-02 实例 C）
+  '/api/internal/session/text-page',
   '/api/image',
   '/api/audio',
   '/api/interaction-scenario/set',

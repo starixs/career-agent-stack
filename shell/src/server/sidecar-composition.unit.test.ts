@@ -49,6 +49,8 @@ describe('Sidecar production composition', () => {
     ['POST', '/goal/execute-sync', 'session'],
     ['POST', '/api/im/enqueue', 'session'],
     ['POST', '/api/inbox/drain', 'session'],
+    // 会话开着时外部读取转给主人进程（2026-11-02 实例 C：漏了就一律 404）
+    ['POST', '/api/internal/session/text-page', 'session'],
     ['POST', '/api/runtime/config', 'session'],
     ['POST', '/api/admin/session/send', 'common'],
     ['POST', '/api/admin/session/get', 'common'],
