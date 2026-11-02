@@ -297,6 +297,20 @@ describe('问卷星（真实 Chrome）', () => {
   }, 90_000)
 })
 
+describe('问卷星上传（真实 Chrome）', () => {
+  it('传完 input 被清空、文件名只在上传区：提交前不把已传好的简历报成必填空着（2026-11-02 中兵通信）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/wjx-questionnaire.html#uploaded')
+    const filled = [{ fieldId: 'fx', label: '8.上传简历', value: '{{vault:profile.name}}-北京邮电大学-硕士.pdf', source: 'profile' as const }]
+    const r = await engine.submitApplication(engine.fromPlaywright(page), { filled, timeoutMs: 500, pollMs: 100 })
+    expect(r.missingRequired).not.toContain('8.上传简历')
+    // 没传过的那张表：照样报空
+    const fresh = await open('corpus/wjx-questionnaire.html')
+    expect((await engine.submitApplication(engine.fromPlaywright(fresh), { filled: [], timeoutMs: 500, pollMs: 100 })).missingRequired).toContain('8.上传简历')
+    await page.context().close(); await fresh.context().close()
+  }, 60_000)
+})
+
 describe('飞书 UD 下拉（真实 Chrome）', () => {
   it('选项包了 5 层的虚拟列表能逐项认出、点叶子选中、外壳里读回；禁用项不选；没有的值留空', async ({ skip }) => {
     if (!engine || !browser) return skip()

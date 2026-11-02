@@ -4,7 +4,9 @@ import { extractFields } from './extract.js'
 import { pageSignalsScript, type ButtonInfo, type PageSignals } from './scripts.js'
 import { detectObstacle, isSubmitText } from './guards.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
-import { diffAgainstPlan, type FilledRecord } from './drive.js'
+import { diffAgainstPlan, looseName, type FilledRecord } from './drive.js'
+import { uploadAreaScript } from './widgets.js'
+import type { FormField } from './extract.js'
 import { normKey } from './interpret.js'
 
 /**
@@ -45,6 +47,22 @@ export interface SubmitOptions {
 
 export const SUBMIT_SUCCESS_RX = /(投递成功|提交成功|申请成功|报名成功|已成功投递|已成功提交|已投递|已提交|感谢(您|你)的(投递|申请|关注)|我们已收到(您|你)的(简历|申请)|简历已发送|application (has been )?(submitted|received)|thank(s| you) for (applying|your application)|successfully (submitted|applied))/i
 
+/**
+ * 我们传过的附件还在不在：很多站（问卷星的上传组件）传完就把 <input type=file> 清空，只在上传区留文件名，
+ * 只看 value 会把已传好的简历报成「必填项是空的」，永远交不出去（2026-11-02 中兵通信）。
+ * 记下的文件名是脱敏的（{{vault:...}}-岗位-公司.pdf），按占位符以外的那段对；对不上时上传区有 .pdf/.doc 文件项也算。
+ */
+async function uploadStillShown(page: PageLike, f: FormField, filled: FilledRecord[] | undefined): Promise<boolean> {
+  if (f.type !== 'file') return false
+  const rec = filled?.find(r => r.label === f.label || r.fieldId === f.id)
+  if (!rec?.value) return false
+  let area: { text: string }
+  try { area = await page.evaluate(uploadAreaScript, { selector: f.selector }) } catch { return false }
+  const parts = rec.value.replace(/\.[a-z0-9]{2,5}$/i, '').split(/\{\{[^}]+\}\}/).map(looseName).filter(x => x.length >= 2)
+  const text = looseName(area.text)
+  return (parts.length > 0 && parts.every(x => text.includes(x))) || /\.(pdf|docx?)\b/i.test(area.text)
+}
+
 export async function submitApplication(page: PageLike, opts: SubmitOptions = {}): Promise<SubmitResult> {
   const adapter = opts.adapter ?? pickAdapter(page.url())
   const log = opts.log ?? (() => {})
@@ -52,7 +70,9 @@ export async function submitApplication(page: PageLike, opts: SubmitOptions = {}
   const base = { edits: [] as SubmitEdit[], missingRequired: [] as string[], errors: [] as string[] }
 
   const fields = await extractFields(page)
-  const missing = fields.filter(f => f.required && (f.type === 'checkbox' ? f.value !== 'true' : !(f.value ?? '').trim())).map(f => f.label)
+  const empty = fields.filter(f => f.required && (f.type === 'checkbox' ? f.value !== 'true' : !(f.value ?? '').trim()))
+  const missing: string[] = []
+  for (const f of empty) if (!(await uploadStillShown(page, f, opts.filled))) missing.push(f.label)
   const edits: SubmitEdit[] = (opts.filled?.length ? diffAgainstPlan(fields, opts.filled) : [])
     .filter(m => m.actual !== undefined && (m.actual ?? '').trim() !== '')
     .map(m => ({ label: m.label, before: m.expected, after: m.actual ?? '' }))
