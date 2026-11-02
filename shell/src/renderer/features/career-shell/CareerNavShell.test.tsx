@@ -11,10 +11,10 @@ describe('navModel', () => {
     for (const area of NAV_AREAS) {
       expect(area.items.map(item => item.label)).not.toContain(area.label);
     }
-    // 工作台只有两项：任务中心不再出现在这里
+    // 工作台只剩招聘概览：通知中心并进右栏「等你」
     const work = NAV_AREAS.find(area => area.id === 'work')!.items;
-    expect(work.map(item => item.label)).toEqual(['招聘概览', '通知中心']);
-    expect(work.map(item => item.target.kind)).toEqual(['career-today', 'career-inbox']);
+    expect(work.map(item => item.label)).toEqual(['招聘概览']);
+    expect(work.map(item => item.target.kind)).toEqual(['career-today']);
     expect(NAV_AREAS.find(area => area.id === 'career')!.items.map(item => item.label))
       .toEqual(['岗位库', '投递记录', '助力记录']);
     expect(NAV_AREAS.find(area => area.id === 'assets')!.items.map(item => item.label))
@@ -27,7 +27,7 @@ describe('navModel', () => {
     expect(locateNav('chat', {})).toEqual({ area: 'chat', itemId: null });
     expect(locateNav('career-guide', {})).toEqual({ area: 'market', itemId: null });
     expect(locateNav('career-today', {})).toEqual({ area: 'work', itemId: 'today' });
-    expect(locateNav('career-inbox', {})).toEqual({ area: 'work', itemId: 'inbox' });
+    expect(locateNav('career-inbox', {})).toEqual({ area: 'work', itemId: null });
     expect(locateNav('taskcenter', {})).toEqual({ area: 'work', itemId: null });
     expect(locateNav('record', {})).toEqual({ area: 'work', itemId: null });
     expect(locateNav('launcher', {})).toEqual({ area: 'chat', itemId: null });

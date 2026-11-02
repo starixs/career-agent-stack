@@ -11,6 +11,8 @@ import { join } from 'path';
 import type { Repos, ApplicationStage, JobPrefs, LLM, Vault, VaultScope } from '@career/core';
 
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
+import { railSnapshot } from '../career/rail';
+import { delegate as delegateTrust, revoke as revokeTrust } from '../career/trust-ledger';
 import { StudioResumeNotFoundError, loadStudio, previewPlaceholders, saveStudio } from '../career/resume-studio';
 import { careerSetupStatus } from '../career/setup';
 import { loadCore, type CoreModule } from '../career/core-module';
@@ -745,6 +747,18 @@ const ROUTES: Route[] = [
 
   // ---------- 今日 ----------
   route('GET', '/api/career/today', ({ repos }) => ok(repos.today())),
+  // 右栏（主线体验 §6.1a）：后台在做什么、等你、回执、学会了，一次读全
+  route('GET', '/api/career/rail', ({ repos, store, core }) => ok({ rail: railSnapshot(repos, store, core) })),
+  // 信任账本：他盖章放权 / 收回（只由用户动作调用，AI 不自己升）
+  route('POST', '/api/career/trust', (ctx) => {
+    const b = ctx.body;
+    const key = typeof b.key === 'string' ? b.key : '';
+    if (!key) return fail('缺少 key');
+    const entry = b.action === 'revoke' ? revokeTrust(ctx.repos, key) : delegateTrust(ctx.repos, key);
+    if (!entry) return fail(`没有这一类：${key}`, 404);
+    dataChanged(ctx, ['kv']);
+    return ok({ entry });
+  }),
   // 「今天做过」：since 由客户端给本地零点（ISO），服务端不猜时区。
   route('GET', '/api/career/activity', ({ repos, url }) => {
     const since = url.searchParams.get('since');

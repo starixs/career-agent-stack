@@ -45,7 +45,7 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
   {
     id: 'work', label: '工作台', icon: 'dashboard', items: [
       { id: 'today', label: '招聘概览', icon: 'sun', target: { kind: 'career-today' } },
-      { id: 'inbox', label: '通知中心', icon: 'inbox', target: { kind: 'career-inbox' } },
+      // 通知中心并进右栏「等你」（主线体验，11-02 定）；页面保留，从右栏和卡片点进去仍能打开。
     ],
   },
   {
@@ -107,6 +107,8 @@ export function locateNav(
   if (!activeView) return { area: null, itemId: null };
   if (activeView === 'chat' || activeView === 'launcher') return { area: 'chat', itemId: null };
   if (activeView === 'capabilities') return { area: 'settings', itemId: 'capabilities' };
+  // 通知中心不在导航里了（并进右栏「等你」），从右栏点进去时停在工作台下。
+  if (activeView === 'career-inbox') return { area: 'work', itemId: null };
   if (activeView === 'settings') return { area: 'settings', itemId: subViews.settings ?? 'general' };
   // 功能市场没有二级栏；从它打开的工具页（复盘、面试工作台、Offer 对比）也归在这里。
   if (activeView === 'career-guide' || activeView === 'career-review') return { area: 'market', itemId: null };

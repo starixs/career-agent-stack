@@ -5,6 +5,7 @@
 import type { ResumeData as StudioResumeData } from '@career/resume-studio/schema';
 
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
+import type { RailSnapshot } from '../../../shared/careerRail';
 
 import type {
   ActivityEntry,
@@ -249,6 +250,10 @@ export const careerApi = {
     return { items: pickList<TodayQueue['items'][number]>(d.items), waiting: (d.waiting as TodayQueue['waiting']) ?? { count: 0, by_stage: [] }, inbox_new: typeof d.inbox_new === 'number' ? d.inbox_new : 0, pending_review: typeof d.pending_review === 'number' ? d.pending_review : 0 } satisfies TodayQueue;
   }),
   /** 「今天做过」：从 since（本地零点）起的活动，新的在前。 */
+  /** 右栏（主线体验 §6.1a）：主线进度、后台岗位块、等你、回执、学会了、今天。 */
+  rail: () => apiGetJson<unknown>(careerPath('/rail')).then(r => pickObject<RailSnapshot>(r, 'rail')),
+  /** 信任账本：他盖章放权（以后同类直接投）/ 收回。 */
+  trust: (key: string, action: 'delegate' | 'revoke' = 'delegate') => apiPostJson<unknown>(careerPath('/trust'), { key, action }),
   activity: (since: string) => apiGetJson<unknown>(careerPath(`/activity?since=${encodeURIComponent(since)}`)).then(r => pickList<ActivityEntry>(r, 'entries')),
   onboarding: () => apiGetJson<unknown>(careerPath('/onboarding')).then(r => pickObject<OnboardingChecklist>(r, 'checklist')),
   handoffs: () => apiGetJson<unknown>(careerPath('/handoffs')).then(r => pickList<{ id: string; reason: string; message: string | null; paused_at: string }>(r, 'handoffs')),

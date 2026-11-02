@@ -1,7 +1,8 @@
 /**
  * 对话页右侧的伙伴面板（specs/CAREER_DESIGN.md §5.4）：上半是陪伴宠物（形象、名字、状态），
- * 下半披露它在做什么——正在做（进度步骤）、接下来（今日队列）、今天做过（活动记录）。
- * 全部来自真实数据：career:progress 事件、/api/career/today、/api/career/activity。
+ * 下半披露它在做什么（主线体验 §6.1a，11-02）：后台在做什么全在这里，不进对话——此刻 = 主线进度、等你、
+ * 简历草稿（建档时是主角）、几个后台岗位、今天三个数；足迹 = 回执、学会了、今天做过。
+ * 全部来自真实数据：/api/career/rail、/api/career/experiences、/api/career/today、/api/career/activity。
  */
 import { CheckCircle2, Clock, Globe, ListTodo, Loader2, Pencil, Settings, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -16,6 +17,7 @@ import { resolveSelectedPetPack } from '@/floating-ball/petPackLibrary';
 import { PetSprite } from '@/floating-ball/PetSprite';
 
 import { requestNavigation } from './navModel';
+import { BlockRows, Learned, MainlineProgress, RailHeading, Receipts, ResumeChip, ResumeDraft, TodayStrip, WaitingTop } from './RailSections';
 import { useWorkSurfaces, type ProgressRun } from './workSurfaceStore';
 
 /** PetSprite's own box rule lives in floating-ball/fb.css, which must not load in the main window. */
@@ -23,6 +25,8 @@ const PET_SPRITE_BOX = 'h-[82px] w-[76px] bg-no-repeat';
 
 const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history', 'mail_account'] as const;
 const ACTIVITY_TABLES = ['task', 'application_history', 'action_queue', 'application'] as const;
+const RAIL_TABLES = ['experience', 'claim', 'resume_master', 'resume_tailored', 'action_queue', 'application', 'application_history', 'handoff', 'kv', 'mail_account', 'task'] as const;
+const EXPERIENCE_TABLES = ['experience', 'claim'] as const;
 
 type CompanionTab = 'now' | 'todo' | 'trail';
 
@@ -77,6 +81,9 @@ export function CompanionPanel() {
   const activity = useCareerQuery(() => careerApi.activity(since), ACTIVITY_TABLES);
   const items = today.data?.items ?? [];
   const entries = activity.data ?? [];
+  const rail = useCareerQuery(careerApi.rail, RAIL_TABLES);
+  const experiences = useCareerQuery(careerApi.experiences, EXPERIENCE_TABLES);
+  const [draftOpen, setDraftOpen] = useState(false);
 
   const [tab, setTab] = useState<CompanionTab>('now');
   const openPetSettings = () => requestNavigation({ kind: 'settings', section: 'desktop-pet' });
@@ -101,7 +108,7 @@ export function CompanionPanel() {
       aria-label="伙伴面板"
       data-companion-panel
     >
-      <div className="relative flex shrink-0 flex-col items-center gap-1.5 px-5 pb-4 pt-6">
+      <div className="relative flex shrink-0 flex-col items-center gap-1 px-5 pb-3 pt-4">
         <button
           type="button"
           onClick={openPetSettings}
@@ -110,7 +117,7 @@ export function CompanionPanel() {
         >
           <Settings className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden="true" />
         </button>
-        <div className="relative grid h-28 w-28 place-items-center rounded-full bg-[var(--paper)] shadow-[0_0_0_4px_var(--paper),0_0_0_6px_var(--line-2)]">
+        <div className="relative grid h-20 w-20 place-items-center rounded-full bg-[var(--paper)] shadow-[0_0_0_4px_var(--paper),0_0_0_6px_var(--line-2)]">
           <PetSprite pack={pack} animation={animation} playback="loop" title={pack.displayName} className={PET_SPRITE_BOX} />
           <button
             type="button"
@@ -153,14 +160,18 @@ export function CompanionPanel() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-        {tab === 'now' && (
+        {tab === 'now' && rail.data && (
           <>
-            <SectionHeading>正在做</SectionHeading>
-            <NowSection run={activeRun} handoff={handoff} />
-            <SectionHeading count={items.length}>接下来</SectionHeading>
-            <TodoList items={items.slice(0, 3)} loading={today.loading && !today.data} />
-            <SectionHeading>今天做过</SectionHeading>
-            <TrailList entries={entries.slice(0, 3)} loading={activity.loading && !activity.data} />
+            <MainlineProgress stage={rail.data.stage} />
+            <WaitingTop waiting={rail.data.waiting} />
+            {/* 右栏随阶段换主角（§6.7）：建档时简历草稿是主角；建档完收成一枚小块，点一下临时展开 */}
+            {rail.data.stage === 'profile'
+              ? (<><RailHeading>你的简历，正在长</RailHeading><ResumeDraft experiences={experiences.data ?? []} /></>)
+              : (<><ResumeChip count={(experiences.data ?? []).length} open={draftOpen} onToggle={() => setDraftOpen(v => !v)} />{draftOpen && <div className="mt-2"><ResumeDraft experiences={experiences.data ?? []} /></div>}</>)}
+            <RailHeading>正在做</RailHeading>
+            {activeRun && <NowSection run={activeRun} handoff={handoff} />}
+            <BlockRows blocks={rail.data.blocks} />
+            <TodayStrip today={rail.data.today} />
           </>
         )}
         {tab === 'todo' && (
@@ -171,6 +182,10 @@ export function CompanionPanel() {
         )}
         {tab === 'trail' && (
           <>
+            <RailHeading count={rail.data?.receipts.length}>回执</RailHeading>
+            <Receipts receipts={rail.data?.receipts ?? []} />
+            <RailHeading count={rail.data?.learned.length}>学会了</RailHeading>
+            <Learned learned={rail.data?.learned ?? []} onChanged={rail.reload} />
             <SectionHeading count={entries.length}>今天做过</SectionHeading>
             <TrailList entries={entries} loading={activity.loading && !activity.data} />
           </>
