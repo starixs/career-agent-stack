@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { z } from 'zod/v4';
 
 import { MORE_ACTIONS_TOOL, routeCareerTools } from './career-tool-router';
+
+const { z } = await import('zod/v4');
 
 type Handler = (args: never, extra: unknown) => Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }>;
 const def = (name: string, description: string, inputSchema: Record<string, unknown>, handler: Handler) => ({ name, description, inputSchema, handler });
