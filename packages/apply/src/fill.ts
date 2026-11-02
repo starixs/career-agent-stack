@@ -68,7 +68,11 @@ export interface FieldAttempt {
 const EMAIL_OK = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/
 const isEmailField = (f: Pick<FormField, 'type' | 'label' | 'name'>) => f.type === 'email' || /邮箱|e-?mail/i.test(`${f.label} ${f.name ?? ''}`)
 
-export const isDateLike = (f: Pick<FormField, 'type' | 'label' | 'placeholder'>) => f.type === 'date' || DATE_FIELD_RX.test(`${f.label} ${f.placeholder ?? ''}`) || /yyyy|年|月/i.test(f.placeholder ?? '')
+/** 标签说的是一个名字 / 地方（「毕业的高校名称」「毕业院校」）：带了「毕业」也不是日期（2026-11-02 斯达半导体：学校被当日期框，报「日期格式看不懂」） */
+const NAMED_THING_RX = /(学校|院校|高校|名称|单位|地点|城市|专业|地址)/
+export const isDateLike = (f: Pick<FormField, 'type' | 'label' | 'placeholder'>) => f.type === 'date'
+  || (DATE_FIELD_RX.test(`${f.label} ${f.placeholder ?? ''}`) && !NAMED_THING_RX.test(f.label))
+  || /yyyy|年|月/i.test(f.placeholder ?? '')
 
 /** 显示值与计划值是否一致（文本归一；下拉 / 字典同义；日期按数字；手机号按数字）。 */
 export function displayMatches(display: string | undefined, value: string, f: Pick<FormField, 'label' | 'type' | 'maxLength'>, chosen?: string): boolean {

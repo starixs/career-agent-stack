@@ -39,3 +39,13 @@ describe('字典归一（quillfill semantic-map）', () => {
     expect(normalizeValueForField('至今', { label: '结束时间', placeholder: 'YYYY-MM' })).toBe('至今')
   })
 })
+
+describe('isDateLike', () => {
+  it('「毕业的高校名称」「毕业院校」是名字不是日期；「毕业时间」「出生年月」才是（2026-11-02 斯达半导体）', async () => {
+    const { isDateLike } = await import('../src/fill.js')
+    expect(isDateLike({ type: 'text', label: '4.您所在或者毕业的高校名称' })).toBe(false)
+    expect(isDateLike({ type: 'text', label: '毕业院校' })).toBe(false)
+    expect(isDateLike({ type: 'text', label: '毕业时间' })).toBe(true)
+    expect(isDateLike({ type: 'text', label: '出生年月' })).toBe(true)
+  })
+})
