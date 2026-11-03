@@ -132,10 +132,8 @@ export class BridgePageProxy {
   // ---- 导航 ----
 
   async goto(url: string): Promise<void> {
-    await this.evaluateRaw(`window.location.href = ${JSON.stringify(url)}`)
-    // 只等 readyState：导航中上下文销毁由 evaluate 的错误重试兜底（browse inPage 已有）。
-    // tab.url 的新值要等扩展 tabs_update 推来，不能在这里强等。
-    await this.waitForLoadStateWithTimeout(GOTO_TIMEOUT_MS)
+    if (this.closed) throw new Error('Page is closed')
+    await this.deps.bridge.sendCommand({ cmd: 'tabs', method: 'navigate', tabId: this.tab.id, url }, GOTO_TIMEOUT_MS)
   }
 
   async goBack(): Promise<void> { await this.evaluateRaw('history.back(); return true') }
@@ -251,6 +249,9 @@ export class BridgePageProxy {
   }
 
   async click(selector: string): Promise<void> {
+    // Background tabs throttle trusted input; debugger attach can shift layout.
+    // Activate before measuring, not after obtaining coordinates.
+    await this.ensureCdp().send('Page.bringToFront')
     const rect = await this.rectOf(selector)
     if (!rect) throw new Error(`找不到要点的元素: ${selector}`)
     await this.scrollIntoViewIfNeeded(selector)
@@ -384,7 +385,8 @@ export class BridgePageProxySet {
     if (deps.tabs) this.offTabs = deps.tabs.onTabsChange(tabs => this.syncTabs(tabs))
     this.syncTabs(deps.bridge.tabs())
     this.offDisconnect = deps.bridge.onDisconnect?.(() => {
-      this.syncTabs([])
+      for (const page of this.proxies.values()) page.markClosed()
+      this.proxies.clear(); this.knownTabs.clear()
       for (const cb of [...this.closeListeners]) cb()
       this.closeListeners.clear()
     }) ?? null
@@ -422,7 +424,7 @@ export class BridgePageProxySet {
           { cmd: 'tabs', method: 'create', url: 'about:blank', active: false },
         ).catch(() => null)
         if (!created?.id) throw new Error('桥开新标签失败')
-        const proxy = this.proxy({ id: created.id, url: created.url ?? 'about:blank', title: '' })
+        const proxy = this.proxy({ id: created.id, url: created.url || 'about:blank', title: '' })
         for (const cb of this.pageListeners) cb(proxy)
         return proxy
       },
@@ -441,7 +443,7 @@ export class BridgePageProxySet {
     for (const t of tabs) {
       seen.add(t.id)
       const existing = this.proxies.get(t.id)
-      if (existing) { existing.tab = t; continue }
+      if (existing) { existing.tab = t; this.knownTabs.add(t.id); continue }
       this.proxy(t)
       if (this.knownTabs.size > 0) {
         const fresh = this.proxies.get(t.id)!
@@ -451,10 +453,10 @@ export class BridgePageProxySet {
       this.knownTabs.add(t.id)
     }
     for (const [id, proxy] of this.proxies) {
-      if (!seen.has(id) && proxy.isClosed() === false) {
+      if (!seen.has(id) && this.knownTabs.has(id) && proxy.isClosed() === false) {
         // 标签被用户关掉：通知消费者，但不再发送 tabs close。
         proxy.markClosed()
-        this.proxies.delete(id)
+        this.proxies.delete(id); this.knownTabs.delete(id)
       }
     }
   }

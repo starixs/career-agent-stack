@@ -14,7 +14,8 @@ function worker() {
   }
   const debuggerApi = { onEvent: event(), onDetach: event(), attach: vi.fn(async () => {}), detach: vi.fn(async (_target: { tabId: number }) => {}), sendCommand: vi.fn(async () => ({})) }
   const context = createContext({
-    WebSocket: Socket, console,
+    WebSocket: Socket, console, setTimeout: vi.fn(), clearTimeout: vi.fn(),
+    importScripts: vi.fn(), CAREER_BRIDGE_CONFIG: { url: 'ws://127.0.0.1:18775', token: 'fixture-token' },
     chrome: {
       storage: { local: { get: async () => ({}) } },
       tabs: {
@@ -36,6 +37,12 @@ function worker() {
 }
 
 describe('shipped career-bridge service worker', () => {
+  it('sends the product-provided token on automatic connection', async () => {
+    const { context } = worker()
+    await runInContext('ws.onopen()', context)
+    expect(runInContext('JSON.parse(ws.send.mock.calls[0][0]).token', context)).toBe('fixture-token')
+  })
+
   it('retains a newly created blank tab until navigation, excludes Chrome internal pages', async () => {
     const { context } = worker()
     const tabs = await runInContext('currentTabs()', context)

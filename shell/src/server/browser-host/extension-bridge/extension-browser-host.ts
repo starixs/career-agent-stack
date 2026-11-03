@@ -1,14 +1,14 @@
 import type { BrowserContext, Page } from 'playwright'
 import { verifyBrowserCapability, type VerifiedBrowserCapability } from '../capability-client'
 import type { BrowserControl, BrowserControlState } from '../context-registry'
-import { bridgeEngineContext } from './bridge-host'
+import { bridgeEngineContext, ensureProductBrowserReady } from './bridge-host'
 import type { BridgePageProxy } from './bridge-page-proxy'
 import type { FileChooserLike } from '../../career/file-chooser'
 
 type Engine = NonNullable<ReturnType<typeof bridgeEngineContext>>
 interface BorrowOptions { allowHumanControl?: boolean; signal?: AbortSignal; create?: { workspacePath: string; hostGeneration?: number } }
 
-/** The global sidecar owns access, never the user's Chrome process/profile/tabs. */
+/** Global owns the product browser and shared access; personal Chrome is untouched. */
 export class ExtensionBrowserHost {
   private control: BrowserControlState = { control: 'agent', reason: null, since: Date.now() }
   private activeAgentBorrows = 0
@@ -16,7 +16,11 @@ export class ExtensionBrowserHost {
   private fileChooserListener: ((id: string, chooser: FileChooserLike) => void) | null = null
   setFileChooserListener(listener: (id: string, chooser: FileChooserLike) => void): void { this.fileChooserListener = listener }
 
-  constructor(private readonly deps = { engine: bridgeEngineContext, verifyCapability: verifyBrowserCapability }) {}
+  constructor(private readonly deps: {
+    engine: typeof bridgeEngineContext
+    verifyCapability: typeof verifyBrowserCapability
+    ready?: (signal?: AbortSignal) => Promise<void>
+  } = { engine: bridgeEngineContext, verifyCapability: verifyBrowserCapability, ready: ensureProductBrowserReady }) {}
 
   async verifyCapability(token: string, signal?: AbortSignal): Promise<VerifiedBrowserCapability> {
     try { return await this.deps.verifyCapability(token, signal) }
@@ -52,7 +56,7 @@ export class ExtensionBrowserHost {
   private engine(): Engine {
     if (this.stopping) throw Object.assign(new Error('Browser Host is stopping'), { name: 'BROWSER_HOST_STOPPING' })
     const engine = this.deps.engine()
-    if (!engine) throw Object.assign(new Error('请在日常 Chrome 中启用 career-bridge 扩展后重试'), { name: 'BRIDGE_NOT_CONNECTED' })
+    if (!engine) throw Object.assign(new Error('浏览器尚未自动连通，请稍后重试'), { name: 'BRIDGE_NOT_CONNECTED' })
     return engine
   }
 
@@ -62,6 +66,11 @@ export class ExtensionBrowserHost {
   }
 
   async withProductSession<T>(id: string, fn: (context: BrowserContext) => Promise<T>, options: BorrowOptions = {}): Promise<T> {
+    options.signal?.throwIfAborted()
+    if (!options.allowHumanControl && this.control.control === 'human') {
+      throw Object.assign(new Error('用户正在接管浏览器，等待交回'), { name: 'BROWSER_CONTROL_HUMAN' })
+    }
+    if (!this.deps.engine()) await this.deps.ready?.(options.signal)
     options.signal?.throwIfAborted()
     if (!options.allowHumanControl && this.control.control === 'human') {
       throw Object.assign(new Error('用户正在接管浏览器，等待交回'), { name: 'BROWSER_CONTROL_HUMAN' })

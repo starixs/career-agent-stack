@@ -82,12 +82,21 @@ describe('BridgePageProxy 基础面', () => {
     expect(execCalls.at(-1)!.code).toContain('{"x":41}')
   })
 
-  it('goto：location 赋值 + readyState 轮询至 complete', async () => {
-    const { page, execCalls } = proxyHarness()
+  it('goto uses Chrome tabs navigation, including blank pages with a live screenshot lease', async () => {
+    const { page, execCalls, cdpCalls } = proxyHarness()
     await page.goto('https://www.liepin.com/')
-    const codes = execCalls.map(c => c.code)
-    expect(codes.some(c => c.includes('location.href') && c.includes('liepin'))).toBe(true)
-    expect(codes.filter(c => c.includes('document.readyState')).length).toBeGreaterThan(0)
+    expect(cdpCalls).toContainEqual({ cmd: 'tabs', method: 'navigate', tabId: 7, url: 'https://www.liepin.com/' })
+    expect(execCalls.some(c => c.code.includes('window.location.href ='))).toBe(false)
+  })
+
+  it('a pre-creation tab snapshot cannot close a newly returned page', async () => {
+    const { set, emitTabs } = proxyHarness()
+    const fresh = await set.toContext().newPage()
+    emitTabs([TAB])
+    expect(fresh.isClosed()).toBe(false)
+    emitTabs([TAB, { id: 99, url: 'about:blank', title: '' }])
+    emitTabs([TAB])
+    expect(fresh.isClosed()).toBe(true)
   })
 
   it('evaluate 失败附导航上下文销毁关键词（browse 的 CONTEXT_GONE 重试能接住）', async () => {
@@ -120,6 +129,17 @@ describe('可信输入（CDP 三事件）', () => {
 })
 
 describe('DOM 操作面（apply PageLike 底层）', () => {
+  it('activates the working tab and attaches before measuring click coordinates', async () => {
+    const { page, bridge, execCalls, cdpCalls } = proxyHarness()
+    const send = bridge.sendCommand
+    bridge.sendCommand = async <T,>(cmd: Record<string, unknown>, timeout?: number): Promise<T> => {
+      if (cmd.method === 'Page.bringToFront') expect(execCalls).toHaveLength(0)
+      return send<T>(cmd, timeout)
+    }
+    await page.click('#send')
+    expect(cdpCalls.some(c => c.method === 'Page.bringToFront')).toBe(true)
+  })
+
   it('fill：JS 赋值 + input/change 事件', async () => {
     const { page, execCalls } = proxyHarness()
     await page.fill('input[name=name]', '张三')

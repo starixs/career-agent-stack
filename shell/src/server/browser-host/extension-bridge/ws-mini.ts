@@ -60,7 +60,10 @@ export class MiniWsConnection {
       const { opcode, payload, fin } = frame
       if (opcode === OP_PING) { this.writeFrame(OP_PONG, payload); continue }
       if (opcode === OP_PONG) continue
-      if (opcode === OP_CLOSE) { this.writeFrame(OP_CLOSE, payload); this.socket.end(); return }
+      if (opcode === OP_CLOSE) {
+        if (!this.closeSent) { this.writeFrame(OP_CLOSE, payload); this.closeSent = true }
+        this.socket.end(); return
+      }
       if (opcode === OP_TEXT || opcode === OP_CONT) {
         this.fragments.push(payload)
         if (!fin) continue

@@ -1,21 +1,24 @@
 # career-bridge 扩展
 
-把**用户自己的真实 Chrome** 接到产品 sidecar 上执行自动化。架构移植自
+把**产品自动准备的持久浏览器**接到 Global sidecar 上执行自动化。普通用户不需要安装或配置扩展。架构移植自
 [lsdefine/GenericAgent](https://github.com/lsdefine/GenericAgent) 的
 `assets/tmwd_cdp_bridge`（MIT）：扩展 background 主动连出到
 `ws://127.0.0.1:18775`，页面零自动化痕迹——没有 CDP-at-launch、没有
 `--enable-automation`，`navigator.webdriver` 在 `document_start` 就被删掉，
-登录态 / Cookie / GPU / WebGL 指纹全部是用户真实浏览器的。
+使用真实有窗口浏览器与产品专用 profile，登录态持久保留，不复制日常 Chrome Cookie；不能保证所有网站风控都通过。
 
-## 安装（未打包加载）
+## 产品自动接入
+
+Rust 自动准备并校验官方浏览器；Global 启动前把扩展复制到私有、内容寻址目录，生成安装级连接配置，再用 `--load-extension` 装载。首次无需任何扩展操作，后续自动连接。`connection.js` 中的密钥禁止提交或输出到日志。
+
+## 仅开发调试：手动加载
 
 1. 打开 Chrome → `chrome://extensions`
 2. 右上角开「开发者模式」
 3. 「加载已解压的扩展程序」→ 选择含 `manifest.json` 的目录：开发时是本目录，安装版是应用 Resources 下的 `career-bridge/`
 4. 右下角角标显示 `career-bridge: 已连接` 即桥通
 
-> 在日常 Chrome 中手动加载。产品不再启动或维护第二个托管 Chromium，
-> 也不接管 Chrome 的更新、Cookie 存储和窗口尺寸。
+> 以上不是产品用户的使用步骤。源目录默认不含连接密钥，不能连接启用鉴权的产品桥；只供隔离的开发协议测试。产品不修改日常 Chrome 的配置、扩展或 Cookie。
 
 ## 能力
 

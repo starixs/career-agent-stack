@@ -1,29 +1,45 @@
-import { cpSync, existsSync, mkdirSync } from 'fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs'
+import { createHash } from 'node:crypto'
+import { z } from 'zod'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
 /**
- * 扩展预置：把 career-bridge 扩展复制到数据目录（防止用户直接改仓库里的源文件），
- * 并给出托管 Chromium 的 `--load-extension` 启动参数。
- *
- * 能力边界（重要）：
- * - Chrome 136+ 品牌版禁用了 `--load-extension`，本机 Chrome 只能手动
- *   chrome://extensions 未打包加载（见 extension/README.md）。
- * - 托管 Chromium（CAREER_BROWSER_CHANNEL=chromium）仍支持启动参数加载。
+ * 产品自动预置 career-bridge 到自己的数据目录；仅给产品准备的官方浏览器加载。
+ * 不修改用户日常 Chrome 的 Preferences / policy，也不要求开启开发者模式。
  */
 
 export const EXTENSION_DIR_NAME = 'career-bridge'
 
 /** 源目录（仓库内 extension/，bundle 后相对本文件）。 */
-export function extensionSourceDir(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), 'extension-bridge', 'extension')
+export function extensionSourceDir(base = dirname(fileURLToPath(import.meta.url))): string {
+  const bundled = join(base, EXTENSION_DIR_NAME)
+  const source = join(base, 'extension-bridge', 'extension')
+  const selected = existsSync(join(bundled, 'manifest.json')) ? bundled : source
+  const manifest = z.object({ manifest_version: z.literal(3), background: z.object({ service_worker: z.literal('background.js') }) })
+  manifest.parse(JSON.parse(readFileSync(join(selected, 'manifest.json'), 'utf8')))
+  return selected
 }
 
 /** 把扩展复制到 dataDir 下（幂等：已存在先覆盖关键文件）。 */
-export function stageExtension(dataDir: string): string {
-  const target = join(dataDir, 'browser-extension', EXTENSION_DIR_NAME)
-  if (!existsSync(target)) mkdirSync(target, { recursive: true })
-  cpSync(extensionSourceDir(), target, { recursive: true })
+export function stageExtension(dataDir: string, connection?: { url: string; token: string }): string {
+  const config = connection ? z.object({ url: z.string().regex(/^ws:\/\/127\.0\.0\.1:\d+$/), token: z.string().min(32) }).parse(connection) : undefined
+  const source = extensionSourceDir()
+  const digest = createHash('sha256').update(JSON.stringify(config ?? null))
+  for (const name of readdirSync(source).filter(n => n.endsWith('.js') || n === 'manifest.json').sort()) {
+    digest.update(name).update(readFileSync(join(source, name)))
+  }
+  // Immutable source/config path prevents Chrome reusing a cached MV3 worker
+  // after an app upgrade. Unchanged builds keep the same extension identity.
+  const target = join(dataDir, 'browser-extension', EXTENSION_DIR_NAME, digest.digest('hex').slice(0, 32))
+  mkdirSync(target, { recursive: true, mode: 0o700 })
+  chmodSync(target, 0o700)
+  cpSync(source, target, { recursive: true })
+  if (config) {
+    const file = join(target, 'connection.js')
+    writeFileSync(file, `globalThis.CAREER_BRIDGE_CONFIG = ${JSON.stringify(config)};\n`, { mode: 0o600 })
+    chmodSync(file, 0o600)
+  }
   return target
 }
 

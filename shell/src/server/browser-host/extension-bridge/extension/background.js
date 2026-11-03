@@ -3,16 +3,17 @@
 // 主动连出 WebSocket 到本地 Node 服务，页面零自动化痕迹；MV3 service worker
 // 会被休眠，用 chrome.alarms 轮询探活 + keepalive 保活。
 
-const WS_PORT = 18775;
-const WS_URL_DEFAULT = `ws://127.0.0.1:${WS_PORT}`;
+importScripts('connection.js');
+const wsUrl = globalThis.CAREER_BRIDGE_CONFIG.url;
+const connectionToken = globalThis.CAREER_BRIDGE_CONFIG.token;
 let ws = null;
 let disconnecting = false;
-let wsUrl = WS_URL_DEFAULT;
-
-async function loadConfig() {
-  try { const s = await chrome.storage.local.get('wsUrl'); if (s.wsUrl) wsUrl = s.wsUrl; } catch {}
-}
-loadConfig();
+let announced = false;
+const PROBE_MS = 2000;
+const KEEPALIVE_MS = 20000;
+const PROBE_TIMEOUT_MS = 2000;
+let probeTimer = null;
+let keepaliveTimer = null;
 
 function log(...a) { try { console.log('[career-bridge]', ...a); } catch {} }
 
@@ -23,13 +24,25 @@ function log(...a) { try { console.log('[career-bridge]', ...a); } catch {} }
 const isScriptable = url => url && (/^https?:/.test(url) || url === 'about:blank');
 
 async function currentTabs() {
-  const tabs = (await chrome.tabs.query({})).filter(t => isScriptable(t.url));
-  return tabs.map(t => ({ id: t.id, url: t.url, title: t.title }));
+  const tabs = (await chrome.tabs.query({})).map(t => ({ id: t.id,
+    url: t.pendingUrl || t.url || (t.status === 'loading' ? 'about:blank' : ''), title: t.title || '' }));
+  return tabs.filter(t => isScriptable(t.url));
 }
 
+let updatingTabs = false;
+let tabsDirty = false;
 async function sendTabsUpdate() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: 'tabs_update', tabs: await currentTabs() }));
+  tabsDirty = true;
+  if (updatingTabs) return;
+  updatingTabs = true;
+  try {
+    while (tabsDirty && announced && ws?.readyState === WebSocket.OPEN) {
+      tabsDirty = false;
+      const tabs = await currentTabs();
+      if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'tabs_update', tabs }));
+    }
+  } catch (e) { log('tab synchronization failed', e.message); }
+  finally { updatingTabs = false; }
 }
 chrome.tabs.onUpdated.addListener((_, changeInfo) => { if (changeInfo.status === 'complete') sendTabsUpdate(); });
 chrome.tabs.onRemoved.addListener(() => sendTabsUpdate());
@@ -51,12 +64,31 @@ async function handleCookies(msg) {
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
+const NAVIGATION_TIMEOUT_MS = 18000; // Finishes before the host's 20s command deadline.
+async function navigateTab(tabId, url) {
+  if (!(url === 'about:blank' || /^https?:\/\//.test(url))) throw new Error('Unsupported navigation URL');
+  return new Promise((resolve, reject) => {
+    const finish = (error, tab) => {
+      clearTimeout(timer); chrome.tabs.onUpdated.removeListener(updated); chrome.tabs.onRemoved.removeListener(removed);
+      if (error) reject(error); else resolve({ ok: true, data: { id: tab.id, url: tab.url, title: tab.title } });
+    };
+    const updated = (id, change, tab) => { if (id === tabId && change.status === 'complete') finish(null, tab); };
+    const removed = id => { if (id === tabId) finish(new Error('Navigation tab closed')); };
+    const timer = setTimeout(() => finish(new Error('Navigation timed out')), NAVIGATION_TIMEOUT_MS);
+    chrome.tabs.onUpdated.addListener(updated); chrome.tabs.onRemoved.addListener(removed);
+    chrome.tabs.update(tabId, { url }).then(tab => {
+      if (tab.status === 'complete' && tab.url === url) finish(null, tab);
+    }).catch(error => finish(error));
+  });
+}
+
 async function handleTabs(msg) {
   try {
     if (msg.method === 'create') {
       const tab = await chrome.tabs.create({ url: msg.url, active: msg.active !== undefined ? msg.active : false, index: msg.index });
-      return { ok: true, data: { id: tab.id, url: tab.url, title: tab.title } };
+      return { ok: true, data: { id: tab.id, url: tab.pendingUrl || tab.url || msg.url || 'about:blank', title: tab.title || '' } };
     }
+    if (msg.method === 'navigate') return await navigateTab(msg.tabId, msg.url);
     if (msg.method === 'switch') {
       const tab = await chrome.tabs.update(msg.tabId, { active: true });
       await chrome.windows.update(tab.windowId, { focused: true });
@@ -294,15 +326,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 
-function scheduleProbe() { chrome.alarms.create('cb-ws-probe', { delayInMinutes: 0.083 }); }   // ~5s
-function scheduleKeepalive() { chrome.alarms.create('cb-ws-keepalive', { delayInMinutes: 0.4 }); } // ~24s
+function scheduleProbe() {
+  clearTimeout(probeTimer);
+  probeTimer = setTimeout(() => connectWS(), PROBE_MS);
+  chrome.alarms.create('cb-ws-probe', { delayInMinutes: 0.5 }); // MV3 wake-up fallback
+}
+function scheduleKeepalive() {
+  clearTimeout(keepaliveTimer);
+  keepaliveTimer = setTimeout(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) { ws.send('{"type":"ping"}'); scheduleKeepalive(); }
+    else scheduleProbe();
+  }, KEEPALIVE_MS);
+  chrome.alarms.create('cb-ws-keepalive', { delayInMinutes: 0.5 });
+}
 
 async function isServerAlive() {
   try {
     const ctrl = new AbortController();
-    setTimeout(() => ctrl.abort(), 2000);
-    await fetch(`http://127.0.0.1:${WS_PORT}`, { signal: ctrl.signal });
-    return true;
+    const timer = setTimeout(() => ctrl.abort(), PROBE_TIMEOUT_MS);
+    try {
+      const health = new URL(wsUrl); health.protocol = 'http:';
+      await fetch(health.origin, { signal: ctrl.signal });
+      return true;
+    } finally { clearTimeout(timer); }
   } catch { return false; }
 }
 
@@ -326,7 +372,9 @@ function connectWS() {
     log('connected to', wsUrl);
     setStatus('connected');
     scheduleKeepalive();
-    ws.send(JSON.stringify({ type: 'ext_ready', tabs: await currentTabs() }));
+    ws.send(JSON.stringify({ type: 'ext_ready', token: connectionToken ?? undefined, tabs: await currentTabs() }));
+    announced = true;
+    await sendTabsUpdate();
   };
   ws.onmessage = async event => {
     try {
@@ -340,7 +388,7 @@ function connectWS() {
     } catch (e) { log('message parse error', e); }
   };
   ws.onclose = async () => {
-    log('disconnected'); ws = null; disconnecting = true;
+    log('disconnected'); clearTimeout(keepaliveTimer); ws = null; announced = false; disconnecting = true;
     // Sidecar is gone: don't leave a debugger/hidden file dialog/stream attached
     // to the user's Chrome. Reconnect only after the old attachments drain.
     const ids = [...attachedTabs]; attachedTabs.clear();

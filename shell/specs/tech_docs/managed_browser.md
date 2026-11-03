@@ -1,37 +1,36 @@
-# 浏览器宿主：Chrome 扩展单通道
+# 浏览器宿主：产品自动准备，扩展单通道
 
-产品浏览器现由 `ExtensionBrowserHost` 接入用户日常 Chrome。旧文件名保留供架构文档链接使用；普通 `playwright` preset 和 Tauri `BrowserPanel` 不属于这个宿主。
+用户不需要安装扩展、开启开发者模式、选择目录或配置端口。原「只接用户日常 Chrome」方案缺少产品级首次接入，已按 2026-11-03 用户确认调整。网站首次登录也继续尽量自动完成，不能把免装扩展换成手动登录。
 
-## Owner 与入口
+## Owner 与启动
 
-- Chrome 进程、窗口、标签页、Cookie 和更新归用户/Chrome 所有。产品不启动第二个 Chromium，不复制 Cookie，不因 Session 退役或 Sidecar 退出关闭用户标签页，也不隐藏、最小化或调整用户窗口。
-- Global Sidecar 启动 `ExtensionBridge`，扩展主动连接。`BridgePageProxySet` 立即读取当前标签快照，然后订阅增删改；断连时旧代理失效，重连时建立新代理。
-- Rust `BrowserRuntimeAuthority` 继续签发和校验 Session capability；移除浏览器安装器不等于移除鉴权。聊天经 `withContext`，Global 批量/提交/登录之旅/现场经 `withProductSession`，最终使用同一个桥 Context。
-- 一台物理浏览器只有一个接管锁。用户接管期间禁止新 Agent 借用（含其它 Session）；现场只读借用不改控制权。原有提交确认与数据库动作状态机不变。
-- 引擎通过 `focusPage` 指定工作页，`pages()` 将它放首位。登录之旅的 pin 优先。读取标题、检查页面不能反过来抢走显示焦点。
+- Rust `browser_resource` 是浏览器二进制的唯一 owner：应用启动自动检查，首次自动下载锁定的官方 headed Chrome for Testing / Chromium。复用 `managed-browser-runtime.json` 的平台、版本、SHA-256、大小与条目数；不依赖用户安装 Node、Playwright 或 Chrome。
+- 官方 HTTPS 下载禁止重定向，流量/时限有界，校验后安全解包。沿用文件锁、磁盘空间检查和同盘 staging/替换；校验失败不重试，不将半包发布为就绪。应用更新仍由同一 lock 决定版本，不在失败时偷偷切换 latest。
+- Global Sidecar 等待 Rust 资源就绪，预置扩展，再启动一个产品专用浏览器进程。`~/.keystone/browser-profile/product` 跨任务和重启保留；不修改日常 Chrome 的 Preferences、企业 policy，不读取或复制它的 Cookie。
+- **唯一执行通道仍是 ExtensionBridge → ExtensionBrowserHost。** 不恢复 Playwright browser launch / CDP-at-launch 第二驱动，不携带 Playwright control runtime；CDP 仅由扩展在需要输入、截图等操作时借用 debugger。
+- 应用安装级连接密钥只存在私有本机文件，扩展先鉴权再发布标签；不能靠任意 localhost WebSocket 的 ping 抢占连接。密钥不能每次 Sidecar 重启轮换：MV3 可能缓存已加载脚本。扩展按源码与连接配置的内容摘要预置到不可变目录，更新时避免复用旧 worker。
+- Rust 仍校验 Session capability。Session Sidecar 不抢占桥端口；聊天、后台批量、已批准提交、登录之旅和现场都借用 Global 的同一 Context。产品启动预热浏览器，任务遇到准备中时等待；查看现场不另起进程。
+- 正常关闭只终止本产品创建的子进程，不扫描杀死用户 Chrome。Session 退役不删除全局浏览器或登录态。网络/磁盘/启动失败有明确状态，不再提示手装扩展。关闭浏览器后，下一次执行任务可自动启动；连接短暂中断由扩展探活恢复。
 
-## 画面与输入
+## 页面、画面与输入
 
-`/api/career/live/stream?frames=1` 沿用已有 NDJSON 协议：snapshot、frame-status、frame、heartbeat。`ScreencastHub` 经 Page 适配器调用桥 CDP；帧带 width/height/ts/source，兼容现有 Renderer，不另造 SSE 帧通道。普通 LiveHub 订阅者不接收 base64 原始 CDP 帧。
+- 新标签的 `pendingUrl` / `about:blank` 必须保留；串行发布标签快照。创建响应之后到达的旧快照不能误关尚未被快照观察到的新 Page。
+- 导航用 `chrome.tabs.update` 并等待完成，不依赖在空白页执行脚本。标签原生导航不与正在截图的 debugger 租约冲突。
+- 点击前先激活工作标签并完成 debugger attach，再读坐标。实机发现后台页的可信鼠标事件会严重延迟，attach 也可能改变布局；不能仅靠假 Page 测试声称可用。
+- `/api/career/live/stream?frames=1` 沿用 snapshot、frame-status、frame、heartbeat；未就绪时显示自动准备/连接/失败状态。`ScreencastHub` 逐帧 ACK 并补静止截图，不把 base64 广播到普通事件订阅者。
+- `BridgeCdp` 按标签共享 debugger 租约；预览、输入、被动采集各自借用，最后一份退出才 detach。取消、关页和断连清理监听、计时器及租约；重连后现场重新挂接。
+- 同一浏览器只有一个接管锁。用户接管后禁止所有 Agent 新借用；准备完成时也重新核对控制权和取消信号。文件选择复用 `FileChooserBroker`，输入与帧使用真实 CSS 坐标。
+- 登录之旅 pin 优先于引擎工作页；读取页面不能抢夺工作页焦点。当前不新增隐藏/最小化/窗口尺寸控制；Chrome 调试黄条是平台行为，不能承诺不存在。
 
-- `BridgeCdp` 按标签管理 debugger 租约。输入和多个预览各自借用；最后一份租约退出才 detach，关一个预览不打断另一个预览或输入。
-- 帧逐个 ACK；静止页补截图。流取消、启动失败、扩展断连时清理监听、计时器和租约；重连后等待流自动重新接入。
-- 输入仍必须先接管。帧坐标按真实 CSS 视口换算；拖拽保留最后坐标和按键状态，支持滚轮、双击及组合键。
-- 输入租约拦截 `Page.fileChooserOpened`，通过已有 `FileChooserBroker` 和 `/live/file` 在产品内选择附件；交回时关闭拦截，完成/取消/过期释放远程对象。引擎路径上传真实文件字节，不发送空占位文件。
-- 被动采集经 Network 事件等待响应完成后读取 JSON body，不拦截或重放请求；移除最后一个监听者时释放 observer 租约。
-- `/live/viewport` 返回 unsupported，不修改真实窗口尺寸。`/live/window` 的显示动作只切换到工作标签，隐藏动作不隐藏用户 Chrome。
-- Chrome 调试黄条是平台行为，无法保证隐藏；输入执行或预览持有 debugger 时可能显示。不能把“当前有画面”说成“无自动化痕迹”。
+## 登录与验证
 
-## 旧链路退役
+自动浏览器就绪后继续复用 `@career/apply` 的私有验证钩子：按已授权的手机号/邮箱请求、等待、回填新码，确认通过后继续填写或已批准提交。图形验证先自动尝试，失败、扫码、人脸等仍保留接管。最终提交审批不因自动登录而放宽。
 
-- 不再支持 `CAREER_BROWSER_MANAGED` 后备开关；桥未连接返回明确错误。
-- 移除 `keystone-browser` 预设注册，保留该 ID 的防冒名保护；旧 `/mcp/playwright` 返回 410。普通用户自配 Playwright preset 不变。
-- Rust 浏览器资源模块仅保留升级兼容的 status/install/maintain 拒绝响应。下载、解压、维护与 executable resolution 已移除；build.rs 不再读取浏览器资源 lock。
-- 安装包不携带 Playwright control runtime 或原生窗口助手；改为携带 `career-bridge/` 扩展目录。`@career/captcha` 加入领域包 staging，避免只在开发 checkout 能启动。
-- 旧托管实现、资源 lock 和测试源码仍可用于历史回归，但不再接到产品启动/构建入口。用户旧 profile、登录存储和下载缓存未删除。
+**尚未完成的产品覆盖**：真实站点模板、手机/邮箱实机收码和完整首次登录成功率尚未验收；`verification.json` 只是开发/定向验收配置，不是让最终用户手工填写选择器的产品方案。详见 `app/docs/APPLY_VERIFICATION.md`。
 
-## 验证与边界
+## 验证
 
-确定性测试覆盖真实宿主/代理/现场路由的组合：已有标签首灌、capability、跨调用方接管、帧格式/ACK、断连重连、输入坐标、双租约、取消清理、产品内选文件、被动响应采集及本地附件字节。发行 Sidecar 在隔离 HOME 下、没有任何 Playwright 包时启动并校验新/退役接口。
-
-这些测试使用替身扩展，不等于真实 Chrome 或招聘网站验收。仍需实机核对画面/拖拽/选文件/导航，以及各站点 iframe、原生对话框和页面事件；不能据类型检查或替身测试宣称所有 browse/apply 能力已完全等价。“到浏览器看”保留为用户主动选择的同一页面入口，不是另一条浏览器执行通道。
+- 确定性测试覆盖资源锁与路径限制、安装状态、接入鉴权、准备只执行一次、取消不晚启动、保留 profile、断线重连、标签生命周期与可信点击顺序；原能力令牌/接管/帧/文件选择回归仍保留。
+- `node --import tsx/esm scripts/career-product-browser-smoke.mjs` 使用已由桌面校验的浏览器、隔离 profile 和真实扩展，跑本地短信/邮箱登录页；收码是固定替身，不发真实短信/邮件、不投递。
+- 本轮 Mac 实测：首次自动下载/校验/启动/扩展握手通过；两条本地登录流程通过；同一 profile 重启自动连接并保留本地登录标记。重启曾暴露 MV3 配置缓存问题，已用安装级密钥及内容寻址扩展目录修正。
+- 这些结果不代表招聘站、人脸/扫码、真实邮件/蓝牙或 Windows/Linux 安装包已经验收。普通 Playwright preset、Tauri BrowserPanel 仍不是这条产品执行通道。

@@ -1,5 +1,7 @@
 # Chrome 单通道续作交接
 
+> **后续更新（2026-11-03）**：该工作树已合并。用户否定了手动安装扩展的产品流程；现在由 Rust 自动准备浏览器、Global 预置扩展并启动持久 profile，执行仍保持单一扩展通道。Mac 自动启动、真实扩展本地 OTP 小样及重启保留登录标记已验证；真实站点/手机/邮箱仍待验收。当前规范见 `app/shell/specs/tech_docs/managed_browser.md`。下文保留为本次合并前的历史记录，不再作为安装指南。
+
 工作树：`.claude/worktrees/browser-stealth-driver`，基于 `314c6bcd`，本轮尚未合并/发布。
 
 ## 已落地

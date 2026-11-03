@@ -31,6 +31,33 @@ afterAll(async () => {
   await bridge?.stop()
 })
 
+it('product connection requires its launch token; a stray ping cannot hijack it', async () => {
+  const logs: string[] = []
+  const secured = await ExtensionBridge.start({ port: 0, token: 'private-fixture-token', log: msg => logs.push(msg) })
+  const connect = async () => {
+    const socket = new WebSocket(`ws://127.0.0.1:${secured.port}`)
+    await new Promise<void>((resolve, reject) => {
+      socket.addEventListener('open', () => resolve(), { once: true })
+      socket.addEventListener('error', () => reject(new Error('connect failed')), { once: true })
+    })
+    return socket
+  }
+  const good = await connect(), bad = await connect(), wrong = await connect()
+  try {
+    good.send(JSON.stringify({ type: 'ext_ready', token: 'private-fixture-token', tabs: [{ id: 1, url: 'about:blank' }] }))
+    await new Promise<void>(resolve => { if (secured.isConnected()) resolve(); else { const off = secured.onTabsChange(() => { off(); resolve() }) } })
+    const closed = new Promise<void>(resolve => bad.addEventListener('close', () => resolve(), { once: true }))
+    bad.send(JSON.stringify({ type: 'ping' }))
+    await closed
+    const rejected = new Promise<void>(resolve => wrong.addEventListener('close', () => resolve(), { once: true }))
+    wrong.send(JSON.stringify({ type: 'ext_ready', token: 'wrong', tabs: [] }))
+    await rejected
+    expect(logs.some(message => message.includes('ws socket error'))).toBe(false)
+    expect(secured.isConnected()).toBe(true)
+    expect(secured.tabs()[0]?.id).toBe(1)
+  } finally { good.close(); bad.close(); wrong.close(); await secured.stop() }
+})
+
 describe('ExtensionBridge 端到端协议', () => {
   it('扩展连入 + ext_ready → 标签可见、isConnected', async () => {
     client = new WebSocket(`ws://127.0.0.1:${port}`)

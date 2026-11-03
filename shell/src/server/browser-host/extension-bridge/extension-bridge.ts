@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto'
+import { z } from 'zod'
 import { MiniWsConnection, startMiniWsServer, type MiniWsServer } from './ws-mini.js'
 
 /**
  * 扩展桥服务端：TMWebDriver（lsdefine/GenericAgent，MIT）语义的 Node 移植。
  *
- * 架构：Chrome 扩展（extension/ 目录）装在用户的真实 Chrome 里，background
- * service worker **主动连出**到本服务（ws://127.0.0.1:18775）。页面零痕迹：
- * 没有 CDP-at-launch、没有 --enable-automation、navigator.webdriver 在
- * document_start 就被删掉。登录态 / Cookie / 指纹全部是用户真实浏览器的。
+ * 架构：产品自动预置 Chrome 扩展（extension/），background service worker
+ * 主动连出到本服务（ws://127.0.0.1:18775），先通过安装级密钥握手。
+ * 使用产品专用持久 profile，不修改日常 Chrome；无 CDP-at-launch 或
+ * --enable-automation。需要输入/截图时由扩展借用 debugger，不保证绕过风控。
  *
  * 协议（extension → server）：
  *   {type:'ext_ready', tabs}  连接建立 + 全量标签
@@ -47,6 +48,13 @@ interface PendingExec {
 }
 
 const CONNECTIVITY_CHECK_MS = 3_000
+const tabSchema = z.object({ id: z.number().int(), url: z.string(), title: z.string().default('') })
+const messageSchema = z.object({
+  type: z.enum(['ext_ready', 'tabs_update', 'cdp_event', 'cdp_detached', 'ack', 'result', 'error', 'ping']),
+  token: z.string().optional(), tabs: z.array(tabSchema).optional(), newTabs: z.array(tabSchema).optional(),
+  id: z.string().optional(), tabId: z.number().int().optional(), method: z.string().optional(),
+  params: z.unknown().optional(), reason: z.string().optional(), result: z.unknown().optional(), error: z.unknown().optional(),
+})
 
 export class ExtensionBridge {
   private server: MiniWsServer | null = null
@@ -58,10 +66,11 @@ export class ExtensionBridge {
   private readonly disconnectListeners = new Set<() => void>()
   private connectivityTimer: NodeJS.Timeout | null = null
 
-  private constructor(private readonly log: (msg: string, err?: unknown) => void) {}
+  private constructor(private readonly log: (msg: string, err?: unknown) => void, private readonly token?: string) {}
+  get port(): number { return this.server?.port ?? EXTENSION_BRIDGE_DEFAULT_PORT }
 
-  static async start(opts: { port?: number; log?: (msg: string, err?: unknown) => void } = {}): Promise<ExtensionBridge> {
-    const bridge = new ExtensionBridge(opts.log ?? (() => {}))
+  static async start(opts: { port?: number; token?: string; log?: (msg: string, err?: unknown) => void } = {}): Promise<ExtensionBridge> {
+    const bridge = new ExtensionBridge(opts.log ?? (() => {}), opts.token)
     bridge.server = await startMiniWsServer('127.0.0.1', opts.port ?? EXTENSION_BRIDGE_DEFAULT_PORT, conn => ({
       onMessage: raw => bridge.handleMessage(conn, raw),
       onClose: () => bridge.handleClose(conn),
@@ -73,16 +82,22 @@ export class ExtensionBridge {
   }
 
   private handleMessage(conn: MiniWsConnection, raw: string): void {
-    if (conn !== this.conn && this.conn?.isConnected()) {
-      // 同时装了两份扩展 / 两个浏览器：只认最新的
-      this.log('[extension-bridge] second connection; keeping latest')
+    let decoded: unknown
+    try { decoded = JSON.parse(raw) } catch { this.log('[extension-bridge] malformed message'); conn.close(); return }
+    const parsed = messageSchema.safeParse(decoded)
+    if (!parsed.success) { this.log('[extension-bridge] invalid message'); conn.close(); return }
+    const msg = parsed.data
+    if (conn !== this.conn) {
+      if (msg.type !== 'ext_ready' || (this.token !== undefined && msg.token !== this.token)) {
+        this.log('[extension-bridge] unauthorized connection rejected'); conn.close(); return
+      }
+      this.conn?.close()
+      this.conn = conn
+      this.log('[extension-bridge] extension connected')
     }
-    this.conn = conn
-    let msg: Record<string, unknown>
-    try { msg = JSON.parse(raw) } catch { return }
-    const type = msg.type as string | undefined
+    const type = msg.type
     if (type === 'ext_ready' || type === 'tabs_update') {
-      this.syncTabs(msg.tabs as BridgeTab[] | undefined)
+      this.syncTabs(msg.tabs)
       return
     }
     // CDP 事件上行（持久 attach 的标签页）：screencast 帧流 / 会话被用户断开
@@ -96,7 +111,7 @@ export class ExtensionBridge {
       }
       return
     }
-    const id = msg.id as string | undefined
+    const id = msg.id
     if (!id) return
     const pending = this.pending.get(id)
     if (type === 'ack' && pending) { pending.acked = true; return }
@@ -175,7 +190,7 @@ export class ExtensionBridge {
   private request(payload: Record<string, unknown>, timeoutMs: number): Promise<ExecuteJsResult> {
     const conn = this.conn
     if (!conn?.isConnected()) {
-      return Promise.reject(new Error('扩展未连接：请在浏览器里安装并启用 career-bridge 扩展（extension-bridge/extension，未打包加载）'))
+      return Promise.reject(new Error('扩展未连接：产品浏览器尚未自动就绪，请稍后重试'))
     }
     const id = payload.id as string
     return new Promise<ExecuteJsResult>((resolve, reject) => {

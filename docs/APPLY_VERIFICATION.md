@@ -12,9 +12,11 @@
 
 **这是可配置的接入，不是已验证的全站覆盖。** 当前没有真实招聘站选择器模板/成功率数据。云端邮箱凭证模式、扫码、人脸、验证器、跨域 iframe、需要额外协议勾选的注册页仍需人工；不伪造云端 OTP API，不自动接受协议。图形验证也不能保证通过。
 
-## 你需要配置的东西
+## 开发/定向验收配置（不是最终用户的产品步骤）
 
-1. Chrome 加载 `app/shell/src/server/browser-host/extension-bridge/extension`，连接产品；产品和外部 Chrome 是同一页。
+**浏览器接入现已由产品自动完成。网站模板覆盖与收码授权的完整产品开通流程尚未完成，不能把下面的 JSON/选择器工作转交给最终用户。**
+
+1. 启动桌面，产品自动准备浏览器并装载扩展；现场与外部窗口是同一页，不需要用户开启开发者模式或加载扩展。
 2. 在私密资料填写手机号、邮箱。在「手机连接」配对并允许读取短信，确认状态为 connected；在邮箱连接页连接**与网申资料相同**的本机邮箱。
 3. 把 `app/docs/verification.example.json` 复制到 `$CAREER_DATA_DIR/verification.json`；未设置环境变量时是 `~/.keystone/career/verification.json`。建议文件权限 `0600`，不要提交真实配置。
 4. 将示例站点替换为目标站点，确认选择器和成功标志，最后改 `enabled: true`。配置每次启动一次填表/提交时读取，不需要把密钥放进 JSON。
@@ -64,9 +66,11 @@ node --import tsx/esm scripts/career-verification-check.mjs ../docs/verification
 ```bash
 cd app/shell
 node scripts/career-verification-browser-smoke.mjs
+# 经真实产品浏览器和扩展的更完整验收（先启动桌面自动准备资源）
+node --import tsx/esm scripts/career-product-browser-smoke.mjs
 ```
 
-本轮两条小样（短信/邮箱）都确认 `changed`、恰好发码一次、收码资源释放。该脚本使用已安装的 Ego Lite；并非 career-bridge 扩展端到端测试。
+两种小样（短信/邮箱）都确认 `changed`、恰好发码一次、收码资源释放。前者使用 Ego Lite；后者使用产品实际启动器、真实 Chrome 扩展及隔离 profile，另验证重启后自动连通且保留本地登录标记。两者都不是真实手机/邮箱收码或招聘站验收。
 
 替身与 DOM 测试不等于真实手机、邮箱、扩展、招聘站整链验收。后续实机仍需用户完成以上配置；当前没有执行真实网申或大型批量测试。
 
@@ -79,3 +83,11 @@ node scripts/career-verification-browser-smoke.mjs
 - 全量 unit **不全绿**：仍有交接文档记录的 `themeArchitecture`（delivery.css）、`agent-workspace-identity` 两项失败，以及旧 context-registry 假 Page 缺少 `isClosed` 导致的 7 个未处理拒绝；未为本功能修改无关生产逻辑或削弱断言。
 - `check-test-classification.mjs` 被 checkout 缺少 `app/shell/.github/workflows/test.yml` 阻断，不把它记为通过。
 - 合并保留的 `workSurfaces` 新测试已与用户原有「不显示已完成徽标」改动对齐；这些用户未提交文件仍未包含在本功能提交中。
+
+### 浏览器零配置续作（同日，后续验收）
+
+- 桌面首次自动下载、校验、预置扩展、启动与鉴权握手实际通过；Global 现场流实际收到 `1200×713` 的 screencast frame，不只是端口探活。
+- 产品真实浏览器/扩展上的短信、邮箱本地登录小样通过；同一 profile 重启后自动连通并保留本地登录标记。收码仍为替身，未操作真实招聘站。
+- 定向 unit 66 项、桥/启动 integration 14 项、Rust 资源测试 6 项、打包测试 6 项通过；TypeScript 与变更 TypeScript ESLint 通过。
+- 最近一次全量 unit：5257 通过、3 失败、7 个未处理拒绝。除前述两个已记录失败外，Markdown definitions 在并行全量中失败一次；单独复跑该文件 8 项通过，未修改它或将其直接归为已知基线。全量仍不能记为通过。
+- 下一阶段仍是产品内收码授权与真实站点首次登录覆盖，不让用户手配扩展或站点选择器；大型批量测试尚未启动。

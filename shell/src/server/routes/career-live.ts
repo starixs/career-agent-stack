@@ -23,6 +23,7 @@ import { livePin, userWaitActive } from '../career/live-pin';
 import { createPageFollower } from '../career/page-follower';
 import { ScreencastHub, fromPlaywrightPage } from '../career/screencast';
 import { livePageViewport } from '../browser-host/extension-bridge/extension-browser-host';
+import { productBrowserWaitingMessage } from '../browser-host/extension-bridge/bridge-host';
 
 /** 现场画面每一帧都发（原来隔帧）：人帮一下留在产品里要跟手，画面一动就推（face-ga-port 1b）。静止页面本来就不出帧。 */
 const LIVE_EVERY_NTH_FRAME = 1;
@@ -302,7 +303,7 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
       let framesTimer: ReturnType<typeof setInterval> | null = null;
       if (wantFrames) {
         let attached = false;
-        let notified = false;
+        let lastWaitingMessage = '';
         const poll = deps.framesPollMs ?? 2000;
         // 画面状态（渲染层据此给准确的提示，而不是一句过时的"浏览器还没打开"）：
         // waiting 还没打开 / connecting 正在接上 / closed 接上后被关掉了；实时还是静止由帧的 source 区分
@@ -313,7 +314,8 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
           if (attached || abort.signal.aborted) return;
           const id = deps.productSessionId();
           if (!id || !deps.host.hasContext(id)) {
-            if (!notified) { notified = true; status('waiting', id ? 'Chrome 扩展尚未连接；启用 career-bridge 后画面会自动出现' : '还没有个人助理会话'); }
+            const message = id ? productBrowserWaitingMessage() : '还没有个人助理会话';
+            if (message !== lastWaitingMessage) { lastWaitingMessage = message; status('waiting', message); }
             return;
           }
           attached = true;
@@ -348,15 +350,15 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
             await hub.stop();
             if (contextClosed && !abort.signal.aborted) {
               // 浏览器被关了：回到等待，下次打开自动接上（不需要用户重开现场）
-              notified = true;
-              status('closed', '浏览器连接已断开；Chrome 扩展重新连接后画面会自动接上');
+              lastWaitingMessage = '';
+              status('closed', '浏览器连接已断开；正在等待自动重连');
               pushSnapshot();
               rearm();
             }
           }, { allowHumanControl: true, signal: abort.signal }).catch(e => {
             write({ type: 'frame-error', error: e instanceof Error ? e.message : String(e) });
             // 浏览器在接上前被关掉：回到等待状态，下次打开再接
-            notified = false;
+            lastWaitingMessage = '';
             rearm();
           });
         };
