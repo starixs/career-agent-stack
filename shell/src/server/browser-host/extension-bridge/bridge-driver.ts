@@ -1,5 +1,5 @@
 import type { CaptchaPage, CdpSessionLike } from '@career/captcha'
-import type { BridgeTab, ExtensionBridge } from './extension-bridge'
+import type { BridgeCdpEvent, BridgeTab, ExtensionBridge } from './extension-bridge'
 
 /**
  * BridgeDriver：把扩展桥（用户日常 Chrome 里的 career-bridge）包装成
@@ -17,6 +17,12 @@ export interface BridgeLike {
   findTab(urlPattern: string): BridgeTab | null
   executeJs(tabId: number, code: string, timeoutMs?: number): Promise<{ data: unknown }>
   sendCommand<T = unknown>(cmd: Record<string, unknown>, timeoutMs?: number): Promise<T>
+}
+
+/** 事件能力（真实 ExtensionBridge 有；fake 可不给）。 */
+export interface BridgeEventSource {
+  onCdpEvent(cb: (event: BridgeCdpEvent) => void): () => void
+  onDisconnect(cb: () => void): () => void
 }
 
 /** CDP 命令走扩展的 chrome.debugger（per-tab attach，产出 isTrusted 原生事件）。 */
@@ -92,4 +98,61 @@ export async function bridgePageFor(
   }
   if (!tab) return null
   return new BridgeCaptchaPage(bridge as BridgeLike, tab)
+}
+
+export interface ScreencastFrame {
+  /** JPEG/PNG 帧数据（base64）。 */
+  data: string
+  format?: string
+  /** 帧元数据（offsetWidth/Height、pageScaleFactor…），现场画面比例用。 */
+  metadata?: unknown
+}
+
+export interface BridgeScreencast {
+  stop(): Promise<void>
+}
+
+/**
+ * 用户真实浏览器标签页的 screencast（产品内"现场画面"的桥数据源）：
+ * 持久 attach（cdp_attach）→ Page.startScreencast → 帧经 cdp_event 上行 →
+ * 每帧 ACK（不 ACK Chrome 不发下一帧）→ stop 时停流并 detach（黄条消失）。
+ * 注意：持久 attach 期间 Chrome 顶部有"正在调试此浏览器"黄条（无法隐藏），
+ * 所以按需开、用完就关。
+ */
+export async function startTabScreencast(
+  bridge: BridgeLike & Partial<BridgeEventSource>,
+  tabId: number,
+  onFrame: (frame: ScreencastFrame) => void,
+  opts: { onDetached?: (reason: string) => void } = {},
+): Promise<BridgeScreencast> {
+  if (!bridge.onCdpEvent) throw new Error('这个桥没有事件上行能力')
+  let stopped = false
+  const offEvent = bridge.onCdpEvent(event => {
+    if (event.tabId !== tabId) return
+    if (event.kind === 'detached') {
+      stopped = true
+      opts.onDetached?.(event.reason ?? '')
+      return
+    }
+    if (event.method === 'Page.screencastFrame') {
+      const p = (event.params ?? {}) as { data?: string; format?: string; metadata?: unknown; sessionId?: string }
+      if (!p.data) return
+      onFrame({ data: p.data, format: p.format, metadata: p.metadata })
+      // ACK 下一帧（Chrome 要求逐帧确认）
+      void bridge.sendCommand({ cmd: 'cdp', tabId, method: 'Page.screencastFrameAck', params: { sessionId: p.sessionId } }).catch(() => {})
+    }
+  })
+  const offDisconnect = bridge.onDisconnect?.(() => { stopped = true; opts.onDetached?.('bridge-disconnected') })
+  await bridge.sendCommand({ cmd: 'cdp_attach', tabId })
+  await bridge.sendCommand({ cmd: 'cdp', tabId, method: 'Page.startScreencast', params: { format: 'jpeg', quality: 60, everyNthFrame: 1 } })
+  return {
+    async stop() {
+      if (stopped) { offEvent(); offDisconnect?.(); return }
+      stopped = true
+      offEvent()
+      offDisconnect?.()
+      await bridge.sendCommand({ cmd: 'cdp', tabId, method: 'Page.stopScreencast', params: {} }).catch(() => {})
+      await bridge.sendCommand({ cmd: 'cdp_detach', tabId }).catch(() => {})
+    },
+  }
 }

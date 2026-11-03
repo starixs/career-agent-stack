@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { BridgeCaptchaPage, BridgeCdpSession, bridgePageFor, type BridgeLike } from './bridge-driver'
-import type { BridgeTab } from './extension-bridge'
+import { BridgeCaptchaPage, BridgeCdpSession, bridgePageFor, startTabScreencast, type BridgeEventSource, type BridgeLike } from './bridge-driver'
+import type { BridgeCdpEvent, BridgeTab } from './extension-bridge'
 
 /**
  * BridgeDriver 单测：假桥（记录 executeJs / sendCommand）验证
@@ -90,5 +90,68 @@ describe('bridgePageFor', () => {
   it('开不出来返回 null', async () => {
     const bridge = fakeBridge({ findTab: () => null, sendCommand: vi.fn(async () => ({})) })
     expect(await bridgePageFor(bridge, 'zhipin', 'https://www.zhipin.com/')).toBeNull()
+  })
+})
+
+/** 带事件上行的假桥（screencast 用）。 */
+function eventBridge() {
+  const listeners = new Set<(e: BridgeCdpEvent) => void>()
+  const disconnects = new Set<() => void>()
+  const commands: Array<Record<string, unknown>> = []
+  const bridge: BridgeLike & BridgeEventSource = {
+    ...fakeBridge(),
+    onCdpEvent: (cb) => { listeners.add(cb); return () => listeners.delete(cb) },
+    onDisconnect: (cb) => { disconnects.add(cb); return () => disconnects.delete(cb) },
+    sendCommand: async <T,>(cmd: Record<string, unknown>): Promise<T> => {
+      commands.push(cmd)
+      return {} as T
+    },
+  }
+  return {
+    bridge,
+    commands,
+    emit: (e: BridgeCdpEvent) => { for (const cb of listeners) cb(e) },
+    drop: () => { for (const cb of disconnects) cb() },
+  }
+}
+
+describe('startTabScreencast（产品内现场画面的桥数据源）', () => {
+  it('attach → startScreencast，帧上行回调并逐帧 ACK，stop 停流并 detach', async () => {
+    const h = eventBridge()
+    const frames: Array<{ data: string }> = []
+    const cast = await startTabScreencast(h.bridge, 42, f => frames.push(f))
+    expect(h.commands[0]).toMatchObject({ cmd: 'cdp_attach', tabId: 42 })
+    expect(h.commands[1]).toMatchObject({ cmd: 'cdp', tabId: 42, method: 'Page.startScreencast' })
+    h.emit({ kind: 'event', tabId: 42, method: 'Page.screencastFrame', params: { data: 'ZjE=', sessionId: 's1' } })
+    h.emit({ kind: 'event', tabId: 42, method: 'Page.screencastFrame', params: { data: 'ZjI=', sessionId: 's2' } })
+    // 其他 tab 的事件不进来
+    h.emit({ kind: 'event', tabId: 7, method: 'Page.screencastFrame', params: { data: 'bm8=', sessionId: 's3' } })
+    await Promise.resolve()
+    expect(frames.map(f => f.data)).toEqual(['ZjE=', 'ZjI='])
+    const acks = h.commands.filter(c => c.method === 'Page.screencastFrameAck')
+    expect(acks.map(a => (a.params as { sessionId: string }).sessionId)).toEqual(['s1', 's2'])
+    await cast.stop()
+    expect(h.commands.at(-2)).toMatchObject({ method: 'Page.stopScreencast' })
+    expect(h.commands.at(-1)).toMatchObject({ cmd: 'cdp_detach', tabId: 42 })
+  })
+
+  it('用户点黄条取消（cdp_detached）→ 回调 onDetached，stop 不再重复 detach', async () => {
+    const h = eventBridge()
+    const detached: string[] = []
+    const cast = await startTabScreencast(h.bridge, 42, () => {}, { onDetached: r => detached.push(r) })
+    const before = h.commands.length
+    h.emit({ kind: 'detached', tabId: 42, reason: 'canceled_by_user' })
+    expect(detached).toEqual(['canceled_by_user'])
+    await cast.stop()
+    expect(h.commands.length).toBe(before) // 已失效：不再补发 stop/detach
+  })
+
+  it('桥整体断开也触发 onDetached', async () => {
+    const h = eventBridge()
+    const detached: string[] = []
+    const cast = await startTabScreencast(h.bridge, 42, () => {}, { onDetached: r => detached.push(r) })
+    h.drop()
+    expect(detached).toEqual(['bridge-disconnected'])
+    await cast.stop()
   })
 })

@@ -24,9 +24,16 @@
 |---|---|
 | `{cmd:'tabs'}` | 列出可脚本化的标签页 |
 | `{cmd:'cookies', url}` | 读 Cookie（含 partitioned） |
-| `{cmd:'cdp', tabId, method, params}` | 单条 CDP 命令（per-tab attach） |
+| `{cmd:'cdp', tabId, method, params}` | 单条 CDP 命令（per-command attach，用完即散） |
+| `{cmd:'cdp_attach'/'cdp_detach', tabId}` | 持久 CDP 会话（screencast 等要持续事件的场景；attach 期间 Chrome 顶部有"正在调试此浏览器"黄条，用完必须 detach） |
 | `{cmd:'batch', commands:[...]}` | 批量链式命令，`$N.path` 引用第 N 个结果 |
 | `{id, tabId, code}` | 在标签页主世界执行 JS（CSP 站自动 CDP 兜底） |
+
+上行事件（扩展 → 服务端）：`tabs_update`（标签增删改）、`cdp_event`
+（持久会话的 CDP 事件，如 `Page.screencastFrame` 帧流）、`cdp_detached`
+（用户点了黄条"取消" / 标签页关闭）。服务端侧见 `bridge-driver.ts` 的
+`startTabScreencast`（帧 ACK 循环 + 断开清理），帧经 LiveHub
+`career:bridge-cdp` 转发给产品内现场画面。
 
 内容脚本：`disable-dialogs.js` 删 `navigator.webdriver` + 中和 alert/confirm/prompt；
 `badge.js` 右下角连接角标。

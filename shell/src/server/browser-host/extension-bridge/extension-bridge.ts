@@ -23,6 +23,16 @@ export const EXTENSION_BRIDGE_DEFAULT_PORT = 18775
 
 export interface BridgeTab { id: number; url: string; title: string }
 
+/** 扩展上行的 CDP 事件（screencast 帧等）。 */
+export interface BridgeCdpEvent {
+  kind: 'event' | 'detached'
+  tabId: number
+  method?: string
+  params?: unknown
+  /** detached 时的原因（用户点了黄条"取消" / 标签页关闭）。 */
+  reason?: string
+}
+
 export interface ExecuteJsResult {
   data: unknown
   /** 执行期间新开的标签（点击 target=_blank 等）。 */
@@ -44,6 +54,8 @@ export class ExtensionBridge {
   private readonly tabsById = new Map<number, BridgeTab>()
   private readonly pending = new Map<string, PendingExec>()
   private readonly tabListeners = new Set<(tabs: BridgeTab[]) => void>()
+  private readonly cdpListeners = new Set<(event: BridgeCdpEvent) => void>()
+  private readonly disconnectListeners = new Set<() => void>()
   private connectivityTimer: NodeJS.Timeout | null = null
 
   private constructor(private readonly log: (msg: string, err?: unknown) => void) {}
@@ -73,6 +85,17 @@ export class ExtensionBridge {
       this.syncTabs(msg.tabs as BridgeTab[] | undefined)
       return
     }
+    // CDP 事件上行（持久 attach 的标签页）：screencast 帧流 / 会话被用户断开
+    if (type === 'cdp_event' || type === 'cdp_detached') {
+      const tabId = Number(msg.tabId)
+      if (Number.isInteger(tabId)) {
+        const event: BridgeCdpEvent = type === 'cdp_event'
+          ? { kind: 'event', tabId, method: String(msg.method ?? ''), params: msg.params }
+          : { kind: 'detached', tabId, reason: typeof msg.reason === 'string' ? msg.reason : '' }
+        for (const cb of this.cdpListeners) { try { cb(event) } catch { /* listener 自己崩不影响桥 */ } }
+      }
+      return
+    }
     const id = msg.id as string | undefined
     if (!id) return
     const pending = this.pending.get(id)
@@ -90,8 +113,10 @@ export class ExtensionBridge {
     if (this.conn === conn) {
       this.conn = null
       this.log('[extension-bridge] extension disconnected')
+      // 扩展一断，持久 attach（screencast 会话）全部失效
+      for (const cb of this.disconnectListeners) { try { cb() } catch { /* listener 自己崩不影响桥 */ } }
       // 导航 / 扩展重载期间在途请求：给个短暂窗口等重连，到点报错
-      for (const [id, p] of this.pending) {
+      for (const [, p] of this.pending) {
         p.timer.refresh?.()
       }
       this.emitTabs()
@@ -113,6 +138,18 @@ export class ExtensionBridge {
   onTabsChange(cb: (tabs: BridgeTab[]) => void): () => void {
     this.tabListeners.add(cb)
     return () => this.tabListeners.delete(cb)
+  }
+
+  /** 订阅上行 CDP 事件（screencast 帧等）。 */
+  onCdpEvent(cb: (event: BridgeCdpEvent) => void): () => void {
+    this.cdpListeners.add(cb)
+    return () => this.cdpListeners.delete(cb)
+  }
+
+  /** 订阅扩展断开（持久 attach 的会话随之全部失效）。 */
+  onDisconnect(cb: () => void): () => void {
+    this.disconnectListeners.add(cb)
+    return () => this.disconnectListeners.delete(cb)
   }
 
   tabs(): BridgeTab[] { return [...this.tabsById.values()] }

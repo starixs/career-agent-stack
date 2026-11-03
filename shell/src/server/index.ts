@@ -1940,6 +1940,9 @@ async function main() {
       const bridge = await ensureExtensionBridge()
       if (!bridge) return
       bridge.onTabsChange(tabs => liveHub?.publish('career:bridge-tabs', { connected: bridge.isConnected(), count: tabs.length }))
+      // 真实浏览器标签页的 CDP 事件流（screencast 帧等）转发到 LiveHub，
+      // 现场画面 / 渲染层按需订阅（startTabScreencast 按需开、用完关黄条）
+      bridge.onCdpEvent(event => liveHub?.publish('career:bridge-cdp', { ...event }))
       console.log('[startup] extension-bridge ready（等待用户 Chrome 装 career-bridge 扩展连入，见 app/shell/src/server/browser-host/extension-bridge/extension/README.md）')
     })
     .catch(error => console.warn(`[startup] extension-bridge=start-failed error=${error instanceof Error ? error.message : String(error)}`));

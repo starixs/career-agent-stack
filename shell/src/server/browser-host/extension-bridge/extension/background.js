@@ -63,18 +63,58 @@ async function handleTabs(msg) {
   } catch (e) { return { ok: false, error: e.message }; }
 }
 
+// 持久 attach 的标签页（screencast 等需要持续事件流的场景）。attach 期间 Chrome 顶部
+// 会显示"正在调试此浏览器"黄条（Chrome 的固定设计，无法隐藏）；用完必须 detach。
+const attachedTabs = new Set();
+
+// CDP 事件上行：只转发我们自己持久 attach 的标签页（chrome.debugger.onEvent 本来就
+// 只对自己 attach 的 target 触发，双保险）。screencast 帧从这里回服务端。
+chrome.debugger.onEvent.addListener((source, method, params) => {
+  if (!attachedTabs.has(source.tabId)) return;
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try { ws.send(JSON.stringify({ type: 'cdp_event', tabId: source.tabId, method, params })); } catch {}
+});
+// 用户点了黄条上的"取消"/关掉标签页 → 告诉服务端持久会话没了
+chrome.debugger.onDetach.addListener((source) => {
+  attachedTabs.delete(source.tabId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try { ws.send(JSON.stringify({ type: 'cdp_detached', tabId: source.tabId, reason: source.reason || '' })); } catch {}
+  }
+});
+
 async function handleCdp(msg) {
   const tabId = msg.tabId;
   if (!tabId) return { ok: false, error: 'no tabId' };
+  const kept = attachedTabs.has(tabId);
   try {
-    await chrome.debugger.attach({ tabId }, '1.3');
+    if (!kept) await chrome.debugger.attach({ tabId }, '1.3');
     const result = await chrome.debugger.sendCommand({ tabId }, msg.method, msg.params || {});
-    await chrome.debugger.detach({ tabId });
+    if (!kept) await chrome.debugger.detach({ tabId });
     return { ok: true, data: result };
   } catch (e) {
-    try { await chrome.debugger.detach({ tabId }); } catch {}
+    if (!kept) { try { await chrome.debugger.detach({ tabId }); } catch {} }
     return { ok: false, error: e.message };
   }
+}
+
+// 持久 attach / detach：screencast 之类要持续收事件的能力用（产品内"现场画面"）。
+async function handleCdpAttach(msg) {
+  const tabId = msg.tabId;
+  if (!tabId) return { ok: false, error: 'no tabId' };
+  try {
+    if (!attachedTabs.has(tabId)) {
+      await chrome.debugger.attach({ tabId }, '1.3');
+      attachedTabs.add(tabId);
+    }
+    return { ok: true };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+async function handleCdpDetach(msg) {
+  const tabId = msg.tabId;
+  if (!tabId) return { ok: false, error: 'no tabId' };
+  attachedTabs.delete(tabId);
+  try { await chrome.debugger.detach({ tabId }); return { ok: true }; }
+  catch (e) { return { ok: false, error: e.message }; }
 }
 
 // batch：一次请求多命令；CDP 懒 attach 复用；$N.path 引用第 N 个结果字段（文件上传链常用）
@@ -90,7 +130,8 @@ async function handleBatch(msg) {
       else if (c.cmd === 'tabs') R.push(await handleTabs(c));
       else if (c.cmd === 'cdp') {
         const tabId = c.tabId;
-        if (attached !== tabId) {
+        const kept = attachedTabs.has(tabId); // 持久会话（screencast）复用，不 attach/detach
+        if (!kept && attached !== tabId) {
           if (attached) { await chrome.debugger.detach({ tabId: attached }); attached = null; }
           await chrome.debugger.attach({ tabId }, '1.3');
           attached = tabId;
@@ -110,6 +151,8 @@ async function handleExtMessage(msg) {
   if (msg.cmd === 'tabs') return await handleTabs(msg);
   if (msg.cmd === 'cookies') return await handleCookies(msg);
   if (msg.cmd === 'cdp') return await handleCdp(msg);
+  if (msg.cmd === 'cdp_attach') return await handleCdpAttach(msg);
+  if (msg.cmd === 'cdp_detach') return await handleCdpDetach(msg);
   if (msg.cmd === 'batch') return await handleBatch(msg);
   return { ok: false, error: 'unknown cmd: ' + msg.cmd };
 }

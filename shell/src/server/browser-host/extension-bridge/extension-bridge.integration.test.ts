@@ -69,6 +69,31 @@ describe('ExtensionBridge 端到端协议', () => {
     await expect(pending).resolves.toEqual([{ name: 'token', value: 'x' }])
   })
 
+  it('cdp_event / cdp_detached 上行 → onCdpEvent 订阅者收到', async () => {
+    const seen: Array<Record<string, unknown>> = []
+    const off = bridge.onCdpEvent(e => seen.push(e as unknown as Record<string, unknown>))
+    client.send(JSON.stringify({ type: 'cdp_event', tabId: 7, method: 'Page.screencastFrame', params: { data: 'aGk=' } }))
+    client.send(JSON.stringify({ type: 'cdp_detached', tabId: 7, reason: 'canceled_by_user' }))
+    await new Promise(r => setTimeout(r, 100))
+    off()
+    expect(seen.length).toBe(2)
+    expect(seen[0]).toMatchObject({ kind: 'event', tabId: 7, method: 'Page.screencastFrame' })
+    expect((seen[0] as { params: { data: string } }).params.data).toBe('aGk=')
+    expect(seen[1]).toMatchObject({ kind: 'detached', tabId: 7, reason: 'canceled_by_user' })
+  })
+
+  it('没发过消息的杂散连接断开不误伤主会话（onDisconnect 不触发）', async () => {
+    const probe = new WebSocket(`ws://127.0.0.1:${port}`)
+    await new Promise<void>((res, rej) => { probe.addEventListener('open', () => res(), { once: true }); probe.addEventListener('error', () => rej(new Error('connect failed')), { once: true }) })
+    let disconnected = false
+    const off = bridge.onDisconnect(() => { disconnected = true })
+    probe.close() // 杂散连接：从未发过消息，不占主会话位
+    await new Promise(r => setTimeout(r, 150))
+    off()
+    expect(disconnected).toBe(false)
+    expect(bridge.isConnected()).toBe(true) // 主客户端还在线
+  })
+
   it('扩展断开 → isConnected false，在途请求在 stop 时拒绝', async () => {
     const inFlight = bridge.executeJs(7, 'slow()')
     const req = await nextMessage(client)
