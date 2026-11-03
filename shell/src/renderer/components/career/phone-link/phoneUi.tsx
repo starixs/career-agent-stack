@@ -9,11 +9,11 @@ interface StateView { label: string; tone: Tone; hint: string; retry: boolean }
 
 const VIEWS: Record<LinkState, StateView | null> = {
   none: null,
-  connecting: { label: '连接中', tone: 'info', hint: '手机问能否访问短信时，点「允许」', retry: false },
-  connected: { label: '已连接', tone: 'success', hint: '网申的短信验证码会自动填', retry: false },
+  connecting: { label: '连接中', tone: 'info', hint: '请解锁手机；如出现访问短信请求，请点「允许」', retry: false },
+  connected: { label: '已连接', tone: 'success', hint: '手机短信通道已接通', retry: false },
   lost: { label: '没连上', tone: 'warning', hint: '手机在旁边、蓝牙开着就会自动连上', retry: false },
   unreachable: { label: '没连上', tone: 'warning', hint: '手机在旁边、蓝牙开着就会自动连上', retry: false },
-  refused: { label: '没拿到短信权限', tone: 'warning', hint: '在手机蓝牙设置里点这台电脑，打开「短信」或「显示通知」后重试', retry: true },
+  refused: { label: '短信服务未接通', tone: 'warning', hint: '请解锁手机，在短信访问请求中点「允许」；没有请求时可点重试', retry: true },
   unsupported: { label: '不支持', tone: 'neutral', hint: '这台手机不支持蓝牙读短信，验证码还是请你填', retry: false },
   unpaired: { label: '配对已解除', tone: 'warning', hint: '重新连接一次就好', retry: false },
   helper_missing: { label: '缺少组件', tone: 'warning', hint: '更新到最新版后再试', retry: true },

@@ -60,10 +60,11 @@ describe('手机连接', () => {
     expect(screen.getByText('【飞书招聘】')).toBeTruthy();
   });
 
-  it('拒绝了短信权限：告诉他去哪打开，并能重试', async () => {
+  it('短信握手未完成：提示解锁确认权限，不把超时断言为主动拒绝', async () => {
     serve({ binding: { address: MI10.address, name: 'Mi 10', bound_at: '' }, state: 'refused' });
     render(<PhoneConnectCenter />);
-    expect(await screen.findByText(/打开「短信」或「显示通知」后重试/)).toBeTruthy();
+    expect(await screen.findByText('短信服务未接通')).toBeTruthy();
+    expect(screen.getByText(/请解锁手机/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: '重试' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/phone/bind', { address: MI10.address, name: 'Mi 10' }));
   });

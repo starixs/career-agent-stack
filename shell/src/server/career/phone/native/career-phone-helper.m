@@ -22,6 +22,11 @@ static void emit(NSDictionary *obj) {
   fflush(stdout);
 }
 
+// Only protocol stage and numeric status: never payloads, addresses or codes.
+static void diagnostic(NSString *stage, NSInteger result) {
+  emit(@{ @"ev": @"diagnostic", @"stage": stage, @"result": @(result) });
+}
+
 // stdin EOF = 宿主走了，跟着退出。全局持有事件源，防止 ARC 释放。
 static dispatch_source_t gStdinSource;
 static void exitOnStdinClose(void) {
@@ -98,9 +103,10 @@ static int cmdWaitPair(void) {
 
 @interface SDPWait : NSObject
 @property (nonatomic) BOOL done;
+@property (nonatomic) IOReturn status;
 @end
 @implementation SDPWait
-- (void)sdpQueryComplete:(IOBluetoothDevice *)d status:(IOReturn)status { self.done = YES; }
+- (void)sdpQueryComplete:(IOBluetoothDevice *)d status:(IOReturn)status { self.status = status; self.done = YES; }
 @end
 
 static void put16(NSMutableData *d, NSUInteger v) { uint8_t b[2] = { (uint8_t)(v >> 8), (uint8_t)v }; [d appendBytes:b length:2]; }
@@ -169,11 +175,12 @@ static void eachHeader(NSData *resp, NSUInteger from, void (^fn)(uint8_t hid, NS
   }
 }
 
-// 返回 nil 表示成功；否则是失败状态（unsupported / refused / unreachable）。
-- (NSString *)open {
+// 返回 nil 表示成功；否则是失败状态（unsupported / unreachable）。
+- (NSString *)openChannel {
   SDPWait *w = [SDPWait new];
-  [self.dev performSDPQuery:w];
+  diagnostic(@"sdp_start", [self.dev performSDPQuery:w]);
   spin(20, ^BOOL { return w.done; });
+  diagnostic(@"sdp_done", w.done ? w.status : -1);
   IOBluetoothSDPUUID *mas = [IOBluetoothSDPUUID uuid16:0x1132];
   BluetoothRFCOMMChannelID cid = 0;
   for (IOBluetoothSDPServiceRecord *rec in self.dev.services ?: @[]) {
@@ -185,18 +192,27 @@ static void eachHeader(NSData *resp, NSUInteger from, void (^fn)(uint8_t hid, NS
 
   self.del = [Chan new];
   IOBluetoothRFCOMMChannel *ch = nil;
-  if ([self.dev openRFCOMMChannelAsync:&ch withChannelID:cid delegate:self.del] != kIOReturnSuccess) return @"unreachable";
+  IOReturn started = [self.dev openRFCOMMChannelAsync:&ch withChannelID:cid delegate:self.del];
+  diagnostic(@"rfcomm_start", started);
+  self.chan = ch; // Own and close even a timed-out, partially opened channel.
+  if (started != kIOReturnSuccess) { [self close]; return @"unreachable"; }
   Chan *del = self.del;
   spin(60, ^BOOL { return del.opened || del.closed; });
-  if (!self.del.opened || !ch) return @"unreachable";
-  self.chan = ch;
+  diagnostic(@"rfcomm_done", self.del.opened ? 0 : -1);
+  if (!self.del.opened || !ch) { [self close]; return @"unreachable"; }
+  return nil;
+}
 
+- (NSString *)open {
+  NSString *failure = [self openChannel];
+  if (failure) return failure;
   static const uint8_t target[16] = { 0xBB,0x58,0x2B,0x40,0x42,0x0C,0x11,0xDB,0xB0,0xDE,0x08,0x00,0x20,0x0C,0x9A,0x66 };
   NSMutableData *body = [NSMutableData dataWithBytes:(uint8_t[]){ 0x10, 0x00 } length:2];
   put16(body, 0x0800);
   hdrBytes(body, 0x46, [NSData dataWithBytes:target length:16]);
   // 手机可能在这里弹「允许访问短信」，给足时间
   NSData *resp = [self send:packet(0x80, body) wait:90];
+  diagnostic(@"obex_connect", resp.length ? ((const uint8_t *)resp.bytes)[0] : -1);
   if (!resp || ((const uint8_t *)resp.bytes)[0] != 0xA0) { [self close]; return @"refused"; }
   __block uint32_t connID = 0;
   eachHeader(resp, 7, ^(uint8_t hid, NSData *v) {
@@ -207,6 +223,7 @@ static void eachHeader(NSData *resp, NSUInteger from, void (^fn)(uint8_t hid, NS
     NSMutableData *b = [NSMutableData dataWithBytes:(uint8_t[]){ 0x02, 0x00 } length:2];
     hdr4(b, 0xCB, connID); hdrUnicode(b, 0x01, f);
     NSData *r = [self send:packet(0x85, b) wait:30];
+    diagnostic(@"set_path", r.length ? ((const uint8_t *)r.bytes)[0] : -1);
     if (!r || ((const uint8_t *)r.bytes)[0] != 0xA0) { [self close]; return @"refused"; }
   }
   return nil;

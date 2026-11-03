@@ -2,7 +2,7 @@
  * 手机连接服务（只在 Global 侧车跑一份）：绑定哪台手机、常驻原生助手盯验证码短信、配对引导。
  *
  * - 绑定记在 kv（PHONE_KV_KEY）；短信只在内存里留最近一条，不落库、不进日志。
- * - 助手（native/career-phone-helper.m）自己负责断线重连，这里只转述状态；助手进程意外退出时按退避重启。
+ * - 助手（native/career-phone-helper.m）负责断线重连；界面保留最近失败，直到接通或主动重试。助手进程意外退出时按退避重启。
  * - waitForCode 给以后的网申流程用：只认「开始等之后」到达、签名对得上的那条，防止批量投时串号。
  */
 import { createHash } from 'node:crypto';
@@ -53,6 +53,7 @@ export class PhoneLinkService {
   private state: LinkState = 'none';
   private latest: CodeSms | null = null;
   private link: HelperProcess | null = null;
+  private linkGeneration = 0;
   private pairing: HelperProcess | null = null;
   private respawn: ReturnType<typeof setTimeout> | null = null;
   private waiters = new Set<Waiter>();
@@ -178,15 +179,22 @@ export class PhoneLinkService {
     const binding = this.binding();
     if (!binding || this.stopped) return;
     this.setState('connecting');
+    const generation = ++this.linkGeneration;
+    let exited = false;
     try {
-      this.link = await this.deps.spawn(['link', binding.address], ev => this.onLinkEvent(ev), code => this.onLinkExit(code));
+      const proc = await this.deps.spawn(['link', binding.address],
+        ev => { if (generation === this.linkGeneration) this.onLinkEvent(ev); },
+        code => { exited = true; if (generation === this.linkGeneration) this.onLinkExit(code); });
+      if (generation !== this.linkGeneration || this.stopped || exited) { proc.close(); return; }
+      this.link = proc;
     } catch (error) {
       console.warn('[phone-link] 助手启动失败:', error instanceof Error ? error.message : error);
-      this.setState('helper_missing');
+      if (generation === this.linkGeneration) this.setState('helper_missing');
     }
   }
 
   private disconnect(): void {
+    this.linkGeneration++;
     if (this.respawn) { clearTimeout(this.respawn); this.respawn = null; }
     const link = this.link;
     this.link = null;
@@ -195,13 +203,23 @@ export class PhoneLinkService {
   }
 
   private onLinkEvent(ev: HelperEvent): void {
-    if (ev.ev === 'link' && isLinkState(ev.state)) { this.setState(ev.state); return; }
+    if (ev.ev === 'diagnostic' && typeof ev.stage === 'string'
+      && ['sdp_start', 'sdp_done', 'rfcomm_start', 'rfcomm_done', 'obex_connect', 'set_path'].includes(ev.stage)
+      && typeof ev.result === 'number' && Number.isInteger(ev.result)) {
+      console.log(`[phone-link] stage=${ev.stage} result=${ev.result}`); return;
+    }
+    if (ev.ev === 'link' && isLinkState(ev.state)) {
+      // The helper owns transport retries; retain the failure on screen until
+      // it succeeds or the user explicitly reconnects. Otherwise 60s retries
+      // hide the actionable failure behind a near-permanent spinner.
+      if (ev.state === 'connecting' && ['unreachable', 'refused', 'lost'].includes(this.state)) return;
+      this.setState(ev.state); return;
+    }
     if (ev.ev === 'latest') { if (typeof ev.body === 'string') this.receive(ev, false); else this.deps.changed(); return; }
     if (ev.ev === 'sms') this.receive(ev, true);
   }
 
   private onLinkExit(code: number | null): void {
-    if (!this.link) return; // 主动断开
     this.link = null;
     // 3 = 手机没有短信读取服务、2 = 已取消配对：重启也没用
     if (code === 3 || code === 2 || this.stopped) return;

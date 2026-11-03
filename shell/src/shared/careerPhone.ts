@@ -1,6 +1,6 @@
 /** 手机连接（蓝牙读短信收验证码）的状态与接口数据。界面经 /api/career/phone 读取。 */
 
-/** 连接状态。unsupported = 手机没有短信读取服务；refused = 手机拒绝了访问短信；unreachable = 连不上（不在旁边 / 蓝牙关了）。 */
+/** 连接状态。unsupported = 手机没有短信读取服务；refused = 短信服务握手未通过（拒绝、授权未完成或握手中断，不等于用户明确拒绝）；unreachable = 连不上（不在旁边 / 蓝牙关了）。 */
 export const LINK_STATES = ['none', 'connecting', 'connected', 'lost', 'unreachable', 'refused', 'unsupported', 'unpaired', 'helper_missing'] as const;
 export type LinkState = typeof LINK_STATES[number];
 

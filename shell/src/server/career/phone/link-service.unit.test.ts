@@ -28,7 +28,7 @@ function setup(over: Partial<PhoneLinkDeps> = {}) {
     now: () => t,
     ...over,
   };
-  return { svc: new PhoneLinkService(deps), kv, procs, changed, openBluetoothSettings, tick: (ms: number) => { t += ms; } };
+  return { svc: new PhoneLinkService(deps), deps, kv, procs, changed, openBluetoothSettings, tick: (ms: number) => { t += ms; } };
 }
 
 const MI10 = { address: 'e0-cc-f8-b6-28-12', name: 'Mi 10' };
@@ -101,6 +101,57 @@ describe('PhoneLinkService', () => {
     const waiting = svc.waitForCode(opts); svc.unbind();
     await expect(waiting).resolves.toBeNull();
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('重连后旧助手的事件和退出不能覆盖新连接或再启动一个助手', async () => {
+    const { svc, procs } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    const old = procs[0]!;
+    await svc.bind(MI10.address, MI10.name);
+    procs[1]!.emit({ ev: 'link', state: 'connected' });
+    old.emit({ ev: 'link', state: 'unreachable' });
+    old.emit({ ev: 'sms', body: '验证码：123456', sender: 'fixture', time: '' });
+    old.exit(0);
+    expect(svc.status()).toMatchObject({ state: 'connected', latest: null });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(procs).toHaveLength(2);
+  });
+
+  it('后台重试不把连接失败重新遮成连接中，接通后才清除失败', async () => {
+    const { svc, procs } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    const link = procs[0]!;
+    for (const state of ['unreachable', 'refused', 'lost']) {
+      link.emit({ ev: 'link', state });
+      link.emit({ ev: 'link', state: 'connecting' });
+      expect(svc.status().state).toBe(state);
+    }
+    link.emit({ ev: 'link', state: 'connected' });
+    expect(svc.status().state).toBe('connected');
+  });
+
+  it('解绑期间才返回的助手必须关闭，不得恢复旧绑定的状态', async () => {
+    const { svc, deps, procs } = setup();
+    const spawn = deps.spawn;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    deps.spawn = async (...args) => { const proc = await spawn(...args); await gate; return proc; };
+    const binding = svc.bind(MI10.address, MI10.name);
+    svc.unbind(); release?.(); await binding;
+    expect(procs[0]!.closed).toBe(true);
+    procs[0]!.emit({ ev: 'link', state: 'connected' });
+    expect(svc.status()).toMatchObject({ state: 'none', binding: null });
+  });
+
+  it('诊断只记录允许的阶段与状态码，不输出额外正文', async () => {
+    const { svc, procs } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      procs[0]!.emit({ ev: 'diagnostic', stage: 'obex_connect', result: -1, body: 'private-fixture' });
+      procs[0]!.emit({ ev: 'diagnostic', stage: 'private-fixture', result: -1 });
+      expect(log.mock.calls).toEqual([['[phone-link] stage=obex_connect result=-1']]);
+    } finally { log.mockRestore(); }
   });
 
   it('助手意外退出：标 lost，过一会重启', async () => {
