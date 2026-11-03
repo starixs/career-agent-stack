@@ -174,12 +174,17 @@ export function setWebFontUrlRewriter(rewrite: ((url: string) => string) | null)
 	fontUrlRewriter = rewrite;
 }
 
-export function getWebFontSource(family: string, weight: FontWeight = "400", italic = false) {
+/** 字体文件的原始 CDN 地址（不经改写器）：侧车导出 HTML 简历时按原始地址拦截并从缓存应答。 */
+export function getRawWebFontSource(family: string, weight: FontWeight = "400", italic = false) {
 	const webFont = getWebFont(family);
 	if (!webFont) return null;
 
 	const key = `${weight}${italic ? "italic" : ""}` as FontFileWeight;
-	const url = webFont.files[key] ?? (italic ? webFont.files[weight] : undefined) ?? webFont.preview;
+	return webFont.files[key] ?? (italic ? webFont.files[weight] : undefined) ?? webFont.preview ?? null;
+}
+
+export function getWebFontSource(family: string, weight: FontWeight = "400", italic = false) {
+	const url = getRawWebFontSource(family, weight, italic);
 	return url && fontUrlRewriter ? fontUrlRewriter(url) : url;
 }
 

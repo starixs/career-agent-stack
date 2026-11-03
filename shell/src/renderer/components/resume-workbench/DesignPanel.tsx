@@ -11,7 +11,7 @@ import CustomSelect from '@/components/CustomSelect';
 
 import { EDITABLE_SECTIONS, edit } from './studioEdit';
 import { AtsPanel } from './AtsPanel';
-import { TEMPLATES, thumbOf } from './templateCatalog';
+import { TEMPLATE_GROUPS, TEMPLATES, thumbOf } from './templateCatalog';
 
 type Update = (recipe: (d: ResumeData) => ResumeData, opts?: { merge?: string }) => void;
 
@@ -82,11 +82,21 @@ export function DesignPanel({ data, update, resumeId }: { data: ResumeData; upda
   return (
     <div data-testid="studio-design" className="text-sm">
       <Group title="模板">
+        {TEMPLATE_GROUPS.map(g => (
+        <div key={g.key} className="space-y-1">
+        <div className="text-xs text-[var(--muted)]">{g.title}</div>
         <div className="grid grid-cols-3 gap-2">
-          {TEMPLATES.map(t => {
+          {TEMPLATES.filter(t => t.group === g.key).map(t => {
             const active = m.template === t.id;
+            const pick = () => {
+              if (t.accent) setCustomColor(t.accent.toLowerCase());
+              update(doc => edit(doc, draft => {
+                draft.metadata.template = t.id;
+                if (t.accent) draft.metadata.design.colors.primary = hexToRgba(t.accent);
+              }));
+            };
             return (
-              <button key={t.id} type="button" title={t.label} aria-label={t.label} aria-pressed={active} onClick={() => update(doc => edit(doc, draft => { draft.metadata.template = t.id; }))}
+              <button key={t.id} type="button" title={t.label} aria-label={t.label} aria-pressed={active} onClick={pick}
                 className={`group relative overflow-hidden rounded-md border text-left transition-colors ${active ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/40' : 'border-[var(--line)] hover:border-[var(--line-2)]'}`}>
                 {thumbOf(t.id) ? <img src={thumbOf(t.id)} alt="" className="aspect-[1/1.414] w-full bg-white object-cover object-top" draggable={false} /> : <div className="aspect-[1/1.414] w-full bg-[var(--inset)]" />}
                 <div className="truncate px-1 py-0.5 text-xs text-[var(--muted)]">{t.label.split(' · ')[0]}</div>
@@ -95,6 +105,8 @@ export function DesignPanel({ data, update, resumeId }: { data: ResumeData; upda
             );
           })}
         </div>
+        </div>
+        ))}
       </Group>
 
       {page0 && (
@@ -170,6 +182,7 @@ export function DesignPanel({ data, update, resumeId }: { data: ResumeData; upda
               className={`flex-1 rounded-md border px-2 py-1 text-xs ${m.page.format === f ? 'border-[var(--primary)] text-[var(--ink)]' : 'border-[var(--line)] text-[var(--muted)]'}`}>{f === 'a4' ? 'A4' : 'Letter'}</button>
           ))}
         </div>
+        <Toggle label="自动排满一页（缩放字号与间距）" checked={m.page.autoFit} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.autoFit = v; }))} />
         <Range label="左右页边距" unit="pt" min={6} max={40} value={m.page.marginX} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.marginX = v; }), { merge: 'marginX' })} />
         <Range label="上下页边距" unit="pt" min={6} max={40} value={m.page.marginY} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.marginY = v; }), { merge: 'marginY' })} />
         <Range label="分区间距" unit="pt" min={0} max={20} value={m.page.gapY} onChange={v => update(doc => edit(doc, draft => { draft.metadata.page.gapY = v; }), { merge: 'gapY' })} />

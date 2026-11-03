@@ -12,6 +12,7 @@ await build({
     'pdf/server': 'src/pdf/server.tsx',
     'pdf/document': 'src/pdf/document.tsx',
     'fonts/index': 'src/fonts/index.ts',
+    'html/index': 'src/html/index.ts',
   },
   outdir: 'dist',
   bundle: true,

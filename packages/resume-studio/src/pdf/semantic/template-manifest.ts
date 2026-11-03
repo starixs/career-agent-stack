@@ -2,6 +2,7 @@ import type { SemanticNodeKind } from "../../resume/stylesheet/types";
 import type { CustomSectionType } from "../../schema/resume/data";
 import type { Template } from "../../schema/templates";
 import type { PrimitiveBinding, SemanticBindingRegistry } from "./binding-inventory";
+import { brandSemanticManifests } from "../templates/brand/semantic";
 import { azurillSemanticManifest } from "../templates/azurill/semantic";
 import { bronzorSemanticManifest } from "../templates/bronzor/semantic";
 import { chikoritaSemanticManifest } from "../templates/chikorita/semantic";
@@ -147,6 +148,7 @@ const TEMPLATE_SEMANTIC_MANIFESTS = {
 	pikachu: pikachuSemanticManifest,
 	rhyhorn: rhyhornSemanticManifest,
 	scizor: scizorSemanticManifest,
+	...brandSemanticManifests,
 } as const satisfies Readonly<Record<Template, TemplateSemanticManifest>>;
 
 export function getTemplateSemanticManifest(template: Template): TemplateSemanticManifest {

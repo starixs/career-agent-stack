@@ -602,6 +602,9 @@ for TARGET in "${BUILD_TARGETS[@]}"; do
     node "${PROJECT_DIR}/scripts/prepare-native-inference.mjs" "$TARGET"
     node "${PROJECT_DIR}/scripts/prepare-cuse-bundle.mjs" "$TARGET"
     codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "${PROJECT_DIR}/bundled-skills/cuse/scripts/cuse"
+    # 手机连接助手（蓝牙读短信收验证码）：双架构一份，打包前签名
+    node "${PROJECT_DIR}/scripts/prepare-phone-helper.mjs"
+    codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "${PROJECT_DIR}/src-tauri/resources/phone-helper/career-phone-helper"
 
     npm run tauri:build -- --target "$TARGET" --config "$BUILD_ASSETS_CONFIG"
 

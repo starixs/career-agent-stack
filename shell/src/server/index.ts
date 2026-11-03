@@ -82,6 +82,7 @@ import {
   type SidecarComposition,
 } from './sidecar-composition';
 import { startCareerMailPoller } from './career/mail/poller';
+import { startCareerPhoneLink } from './career/phone';
 import {
   aggregateGlobalUsageStats,
   buildSessionDetailedUsageStats,
@@ -1767,7 +1768,11 @@ async function main() {
   startupBeacon('ensureAgentDir done');
 
   // 求职产品：邮箱轮询只在 Global 侧车跑一份（收到面试邀请 / 测评 / 拒信自动进收件箱与卷宗）。
-  if (hasSidecarCapability(sidecarComposition, 'global')) startCareerMailPoller();
+  if (hasSidecarCapability(sidecarComposition, 'global')) {
+    startCareerMailPoller();
+    // 手机连接（蓝牙读短信收验证码）同样只在 Global 侧车跑一份
+    startCareerPhoneLink();
+  }
 
   // Initialize unified logging system (intercepts console.log and sends to SSE)
   // PRD — wire the stdio-broken probe + marker so the logger wrapper
