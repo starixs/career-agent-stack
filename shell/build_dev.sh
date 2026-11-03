@@ -161,6 +161,7 @@ if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
     codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "${PROJECT_DIR}/bundled-skills/cuse/scripts/cuse"
 fi
 node "${PROJECT_DIR}/scripts/prepare-window-helper.mjs"
+node "${PROJECT_DIR}/scripts/prepare-phone-helper.mjs"
 echo -e "${GREEN}✓ 原生推理资源 ready${NC}"
 echo ""
 

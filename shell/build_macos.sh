@@ -605,6 +605,9 @@ for TARGET in "${BUILD_TARGETS[@]}"; do
     # 托管浏览器的原生窗口助手（虚拟屏 + 焦点守卫）：双架构一份，打包前签名
     node "${PROJECT_DIR}/scripts/prepare-window-helper.mjs"
     codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "${PROJECT_DIR}/src-tauri/resources/window-helper/career-window-helper"
+    # 手机连接助手（蓝牙读短信收验证码）：同样双架构一份，打包前签名
+    node "${PROJECT_DIR}/scripts/prepare-phone-helper.mjs"
+    codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "${PROJECT_DIR}/src-tauri/resources/phone-helper/career-phone-helper"
 
     npm run tauri:build -- --target "$TARGET" --config "$BUILD_ASSETS_CONFIG"
 

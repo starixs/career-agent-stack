@@ -17,6 +17,7 @@ import {
   Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextInput, formatDate, relativeTime, useSuggestToChat,
 } from '@/components/career/CareerPrimitives';
 import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
+import { PhoneConnectCenter } from '@/components/career/phone-link/PhoneConnectCenter';
 import { isOralExperience, type AccountFetchState, type ExperienceNode, type VaultAccessLogRow, type VaultItemMeta, type VaultOverview, type VaultProfileFieldDef } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { VaultExperienceFields } from '@/components/career/VaultExperienceFields';
@@ -99,6 +100,7 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
                 <div className="mb-1 text-xs font-medium text-[var(--muted)]">绑定账号：绑得越多，小芽越懂你，网申要填的也越少</div>
                 <ul className="divide-y divide-[var(--line)]">
                   <MailBindingRow />
+                  <PhoneBindingRow />
                   {ACCOUNTS.map(def => <AccountRow key={def.field} def={def} item={data.items.find(i => i.scope === 'profile' && i.field === def.field)} fetch={fetches.data?.[def.field] ?? null} onChanged={() => { query.reload(); fetches.reload(); }} />)}
                 </ul>
               </div>
@@ -213,6 +215,18 @@ function MailBindingRow() {
         <span className="min-w-0 flex-1 text-xs text-[var(--muted)]">笔试、面试、拒信邮件自动识别</span>
       </div>
       <div className="mt-2"><MailConnectCenter /></div>
+    </li>
+  );
+}
+
+function PhoneBindingRow() {
+  return (
+    <li className="py-2">
+      <div className="flex min-h-9 items-center gap-3">
+        <span className="w-20 shrink-0 text-sm text-[var(--ink)]">手机验证码</span>
+        <span className="min-w-0 flex-1 text-xs text-[var(--muted)]">网申的短信验证码自动填，手机不用装 App</span>
+      </div>
+      <div className="mt-2"><PhoneConnectCenter /></div>
     </li>
   );
 }
