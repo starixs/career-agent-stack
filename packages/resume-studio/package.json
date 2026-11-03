@@ -24,6 +24,10 @@
     "./fonts": {
       "types": "./dist/fonts/index.d.ts",
       "import": "./dist/fonts/index.js"
+    },
+    "./html": {
+      "types": "./dist/html/index.d.ts",
+      "import": "./dist/html/index.js"
     }
   },
   "scripts": {

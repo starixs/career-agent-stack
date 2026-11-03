@@ -114,7 +114,7 @@ export const probeTargetScript: PageScript<{ selector: string }, ProbeResult> = 
     const type = (input.type || '').toLowerCase()
     const role = el.getAttribute('role') || ''
     const readonly = !!input.readOnly || el.hasAttribute('readonly')
-    const KNOWN = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const KNOWN = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, .ud__select'
     const pe = el.parentElement
     const shell = pe ? (pe.closest(KNOWN) ?? pe.closest('[class*="select" i], [class*="picker" i], [class*="cascader" i]')) : null
     // 禁用：控件自身 disabled / aria-disabled，或组件外壳带 xx-disabled / is-disabled（MTD 的 mtd-select-disabled）
@@ -244,6 +244,8 @@ export interface OpenOptionsResult {
   via?: 'aria' | 'class' | 'mutation' | 'options' | 'marked'
   /** 弹层可见文字（截断），用来比较"键入后候选有没有变化"。 */
   popupText?: string
+  /** 列表只渲染 / 只露出了一部分（虚拟滚动、滚动条）：短列表里没有不等于真的没有，值得打字搜。 */
+  partial?: boolean
 }
 export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = {
   id: WIDGET_SCRIPT_IDS.openOptions,
@@ -252,10 +254,18 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
     const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim()
     const el = document.querySelector(selector) as HTMLElement | null
     if (!el) return { opened: false, options: [], searchable: false, cascade: false, detail: '元素不存在' }
-    const KNOWN = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const KNOWN = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, .ud__select'
     const GENERIC = '[class*="select" i], [class*="cascader" i], [role=combobox]'
     const pe = el.parentElement
-    const shell = ((pe ? (pe.closest(KNOWN) ?? pe.closest(GENERIC)) : null) as HTMLElement | null) ?? el
+    let shell = ((pe ? (pe.closest(KNOWN) ?? pe.closest(GENERIC)) : null) as HTMLElement | null) ?? el
+    // 外壳按结构往上取最外层同类节点（同 readDisplay），这样箭头图标、外壳点击、弹层归属都以整个组件为准
+    if (shell !== el && !shell.matches(KNOWN)) {
+      for (let a = shell.parentElement; a && a !== document.body && a.matches(GENERIC); a = a.parentElement) {
+        const inner = shell
+        if (a.querySelector('label') || Array.from(a.querySelectorAll('input, select, textarea')).some(n => n !== el && !inner.contains(n))) break
+        shell = a as HTMLElement
+      }
+    }
     const vis = (n: Element) => {
       const r = n.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false
       for (let a: Element | null = n, i = 0; a && i < 12; a = a.parentElement, i++) { const cs = getComputedStyle(a); if (cs.display === 'none' || Number(cs.opacity || '1') < 0.05 || (i === 0 && cs.visibility === 'hidden')) return false }
@@ -264,6 +274,10 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
     const OPT = '[role=option], [class*="select-item" i]:not([class*="group" i]), [class*="select-option" i], [class*="dropdown" i] li, [class*="select" i] li, [class*="popper" i] li, [class*="cascader" i] li, [class*="cascader-node" i], [class*="menu-item" i], .layui-anim dd, [class*="option" i]:not([class*="options" i]):not(select):not(option)'
     const POP = '[class*="dropdown" i], [class*="popper" i], [class*="popup" i], [role=listbox], [class*="menu" i], [class*="cascader" i], .layui-anim'
     const EMPTY_RX = /^(无匹配|无数据|暂无|没有|加载中|搜索中|请输入|输入关键字|no (data|match|result)|loading|searching)/i
+    /** 内容高度超过可视高度这么多倍才算"还有没露出来的选项"（排除一两像素的边框 / 阴影误差）。 */
+    const PARTIAL_RATIO = 1.15
+    /** 已渲染的行高加起来达到内容高度的这个比例，就算选项都渲染了（留出分组标题 / 内边距的余量）。 */
+    const COVER_RATIO = 0.9
     const fire = (n: Element) => {
       if (typeof PointerEvent === 'function') n.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }))
       n.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }))
@@ -281,7 +295,18 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
       // 空状态（「无数据」「暂无」「加载中」）是下拉的占位提示，不是选项
       const t = clean(n.textContent); return t.length > 0 && t.length <= 60 && !EMPTY_RX.test(t) && vis(n)
     })
-    /** 浮层里的选项：先认常见选项节点；认不出就取同一父节点下最多的"带完整短文本的最内层节点"。 */
+    /** 叶子往上爬到"文字还是它自己"的最外层：这一层才是列表里的一行（飞书 UD 每个选项包了 5 层：div > div.item > div.content > span > span）。 */
+    const rowOf = (n: Element, layer: Element): Element => {
+      const t = clean(n.textContent)
+      let row = n
+      for (let a = n.parentElement; a && a !== layer && layer.contains(a) && clean(a.textContent) === t; a = a.parentElement) row = a
+      return row
+    }
+    /**
+     * 浮层里的选项：先认常见选项节点；认不出就取"带完整短文本的最内层节点"，按它所在那一行的父节点分组、取最多的一组。
+     * 返回叶子本身（点叶子，事件往上冒泡经过每一层包装，挂在哪一层的点击处理都收得到）。
+     * 2026-10-31 小鹏（飞书）：原来只按父 / 祖父节点分组，包了 5 层的虚拟列表整个被当成一个选项（「博士MBA硕士本科…」）。
+     */
     const optionsIn = (layer: Element): Element[] => {
       const known = collect().filter(n => layer.contains(n))
       if (known.length) return known
@@ -293,13 +318,29 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
         return vis(n)
       })
       const groups = new Map<Element, Element[]>()
-      for (const n of leaves) { const p = n.parentElement ?? layer; groups.set(p, [...(groups.get(p) ?? []), n]) }
-      // 每个选项可能是 <div><span>文本</span></div>：按"父节点的父节点"再聚一次
-      const best = Array.from(groups.values()).sort((x, y) => y.length - x.length)[0] ?? []
-      if (best.length >= 2) return best
-      const groups2 = new Map<Element, Element[]>()
-      for (const n of leaves) { const p = n.parentElement?.parentElement ?? layer; groups2.set(p, [...(groups2.get(p) ?? []), n]) }
-      return Array.from(groups2.values()).sort((x, y) => y.length - x.length)[0] ?? []
+      for (const n of leaves) { const p = rowOf(n, layer).parentElement ?? layer; groups.set(p, [...(groups.get(p) ?? []), n]) }
+      return Array.from(groups.values()).sort((x, y) => y.length - x.length)[0] ?? []
+    }
+    /** 选项禁用：叶子到它那一行之间任何一层带 disabled 类 / aria-disabled（UD 把 -disabled 挂在 item 上，不在叶子上）。 */
+    const disabledOpt = (n: Element, layer: Element | null): boolean => {
+      const row = layer ? rowOf(n, layer) : n
+      for (let a: Element | null = n; a; a = a === row ? null : a.parentElement) {
+        const cls = typeof a.className === 'string' ? a.className : ''
+        if (/disabled/i.test(cls) || a.getAttribute('aria-disabled') === 'true') return true
+      }
+      return false
+    }
+    /**
+     * 列表只渲染了一部分（虚拟滚动）：弹层里有内容高度明显超过可视高度的容器，且已渲染的选项行加起来盖不住那段内容。
+     * 选项都渲染了、只是框不够高要滚动才看得见（小鹏「学历」9 项）不算——那时列表是完整的。
+     */
+    const scrollsMore = (layer: Element | null, opts: Element[]): boolean => {
+      if (!layer) return false
+      const boxes = [layer, ...Array.from(layer.querySelectorAll('*'))].filter(n => n.clientHeight > 0 && n.scrollHeight > n.clientHeight * PARTIAL_RATIO)
+      if (!boxes.length) return false
+      const rows = new Set(opts.map(n => rowOf(n, layer)))
+      const covered = Array.from(rows).reduce((sum, r) => sum + r.getBoundingClientRect().height, 0)
+      return boxes.some(b => covered < b.scrollHeight * COVER_RATIO)
     }
     const owned = (): Element | null => {
       for (const n of [el, shell, ...Array.from(shell.querySelectorAll('[aria-controls], [aria-owns]'))]) {
@@ -400,11 +441,10 @@ export const openOptionsScript: PageScript<OpenOptionsArg, OpenOptionsResult> = 
     const options: OptionInfo[] = nodes.slice(0, 300).map((n, i) => {
       const id = `o${i}`
       n.setAttribute('data-career-opt', id)
-      const cls = typeof n.className === 'string' ? n.className : ''
-      return { id, text: clean(n.textContent), disabled: /disabled/i.test(cls) || n.getAttribute('aria-disabled') === 'true' || undefined }
+      return { id, text: clean(n.textContent), disabled: disabledOpt(n, popup) || undefined }
     })
     const cascade = nodes.some(n => /cascader/i.test(`${(n.closest(POP) as HTMLElement | null)?.className ?? ''} ${typeof n.className === 'string' ? n.className : ''}`))
-    return { opened: true, options, searchable, cascade, via, popupText: popup ? clean((popup as HTMLElement).innerText).slice(0, 300) : '' }
+    return { opened: true, options, searchable, cascade, via, popupText: popup ? clean((popup as HTMLElement).innerText).slice(0, 300) : '', partial: scrollsMore(popup, nodes) }
   },
 }
 
@@ -437,7 +477,7 @@ export const pickOptionScript: PageScript<{ selector: string; optId: string; tex
     const colsBefore = cascadeCols()
     fire(opt)
     await sleep(settleMs ?? 250)
-    const KNOWN = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const KNOWN = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, .ud__select'
     const pe = el.parentElement
     const shell = (pe ? (pe.closest(KNOWN) ?? pe.closest('[class*="select" i], [class*="cascader" i], [role=combobox]')) : null) as HTMLElement | null
     const display = () => {
@@ -473,7 +513,7 @@ export const clearSelectScript: PageScript<{ selector: string }, { clicked: bool
     const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
     const el = document.querySelector(selector) as HTMLElement | null
     if (!el) return { clicked: false }
-    const KNOWN = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const KNOWN = '.ant-select, .ant-cascader, .el-select, .el-cascader, .ivu-select, .mtd-select, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, .ud__select'
     const pe = el.parentElement
     const shell = pe ? (pe.closest(KNOWN) ?? pe.closest('[class*="select" i], [class*="cascader" i]')) : null
     if (!shell) return { clicked: false }
@@ -539,10 +579,19 @@ export const readDisplayScript: PageScript<{ selector: string }, ReadDisplayResu
     const el = document.querySelector(selector) as HTMLElement | null
     if (!el) return { exists: false, display: '' }
     const vis = (n: Element) => { const r = n.getBoundingClientRect(); return r.width >= 2 && r.height >= 2 && getComputedStyle(n).visibility !== 'hidden' }
-    const KNOWN = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const KNOWN = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, .ud__select'
     const GENERIC = '[class*="select" i], [class*="picker" i], [class*="cascader" i], [role=combobox]'
     const pe = el.parentElement
-    const shell = pe ? (pe.closest(KNOWN) ?? pe.closest(GENERIC)) : null
+    let shell = pe ? (pe.closest(KNOWN) ?? pe.closest(GENERIC)) : null
+    // 组件外壳按结构找：最近的同类节点可能只是包着搜索框的那一层（飞书 UD 的 __search），选中值渲染在它外面；
+    // 往上取最外层同类节点，遇到装着别的字段控件或标签的那层就停
+    if (shell && !shell.matches(KNOWN)) {
+      for (let a = shell.parentElement; a && a !== document.body && a.matches(GENERIC); a = a.parentElement) {
+        const inner = shell
+        if (a.querySelector('label') || Array.from(a.querySelectorAll('input, select, textarea')).some(n => n !== el && !inner.contains(n))) break
+        shell = a
+      }
+    }
     if (el.tagName === 'SELECT') { const s = el as HTMLSelectElement; return { exists: true, display: s.selectedIndex >= 0 ? clean(s.options[s.selectedIndex]?.textContent) : '' } }
     // 无障碍属性直接给出的显示值
     const vt = el.getAttribute('aria-valuetext'); if (vt && clean(vt)) return { exists: true, display: clean(vt) }
@@ -858,15 +907,19 @@ export const formStatsScript: PageScript<void, FormStats> = {
 export const domSnippetScript: PageScript<{ selector: string; max?: number }, string> = {
   id: WIDGET_SCRIPT_IDS.domSnippet,
   fn: ({ selector, max }) => {
+    /** 弹层片段上限：够看清前几个选项的结构，又不让失败快照膨胀（telemetry 单文件上限 20K）。 */
+    const POPUP_SNIPPET_MAX = 8000
     const el = document.querySelector(selector)
     if (!el) return ''
-    // 取整个表单项（带标签与同组控件），而不是只包住控件的 xx-form-item-wrapper
-    const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem)(\s|$)/i
+    // 取整个表单项（带标签与同组控件），而不是只包住控件的 xx-form-item-wrapper；飞书 formily 是 ud-formily-item
+    const ITEM_RX = /(^|\s)([\w-]+-)?(form-item|form-group|formitem|formily-item)(\s|$)/i
     let item: Element | null = null
     for (let n = el.parentElement, i = 0; n && n !== document.body && i < 10; n = n.parentElement, i++) if (ITEM_RX.test(typeof n.className === 'string' ? n.className : '')) { item = n; break }
     const root = item ?? el.closest('[class*="form-item" i], [class*="form-group" i], [class*="field" i]') ?? el.parentElement ?? el
-    const html = root.outerHTML.replace(/value="[^"]*"/g, 'value="…"')
-    return html.slice(0, max ?? 4000)
+    const html = root.outerHTML.replace(/value="[^"]*"/g, 'value="…"').slice(0, max ?? 4000)
+    // 下拉没选上时，真正要看的是它的弹层（选项节点长什么样）：openOptions 标记过的弹层一并带上（收起后多数组件仍留在 DOM 里）
+    const popup = document.querySelector('[data-career-popup="1"]')
+    return popup ? `${html}\n<!-- 弹层 -->\n${popup.outerHTML.replace(/value="[^"]*"/g, 'value="…"').slice(0, POPUP_SNIPPET_MAX)}` : html
   },
 }
 
@@ -879,7 +932,7 @@ export const widgetSignatureScript: PageScript<{ selector: string }, { sig: stri
   fn: ({ selector }) => {
     const el = document.querySelector(selector) as HTMLElement | null
     if (!el) return { sig: '' }
-    const KNOWN = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const KNOWN = '.ant-select, .ant-picker, .ant-cascader, .el-select, .el-date-editor, .el-cascader, .ivu-select, .ivu-date-picker, .mtd-select, .mtd-picker, .mtd-date-picker, .mtd-cascader, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, .ud__select'
     const pe = el.parentElement
     const shell = (pe ? (pe.closest(KNOWN) ?? pe.closest('[class*="select" i], [class*="picker" i], [class*="date" i], [class*="cascader" i], [role=combobox]')) : null) ?? el
     const STATE = /(^is-|^has-|-(focus|focused|open|opened|active|disabled|large|small|lg|sm|md|hint|empty|multiple|single|clearable|suffix|prefix|show-search|allow-clear|visible|hidden|selected|error|success|warning)$)/i
@@ -903,7 +956,7 @@ export const semanticContextScript: PageScript<{ selector: string }, { nodes: Se
     if (!el) return { nodes: [] }
     for (const n of Array.from(document.querySelectorAll('[data-career-ref]'))) n.removeAttribute('data-career-ref')
     const vis = (n: Element) => { const r = n.getBoundingClientRect(); if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.top > window.innerHeight) return false; const cs = getComputedStyle(n); return cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity || '1') > 0.05 }
-    const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem)(\s|$)/i
+    const ITEM_RX = /(^|\s)([\w-]+-)?(form-item|form-group|formitem|formily-item)(\s|$)/i
     let item: Element = el.parentElement ?? el
     for (let n = el.parentElement, i = 0; n && n !== document.body && i < 8; n = n.parentElement, i++) {
       if (ITEM_RX.test(typeof n.className === 'string' ? n.className : '')) { item = n; break }

@@ -296,46 +296,58 @@ describe('五个面的路由', () => {
     expect((await call(deps, 'GET', '/api/career/materials')).json.materials).toEqual([]);
     const review = await call(deps, 'GET', '/api/career/review');
     expect((review.json.funnel as { overall: unknown }).overall).toBeNull();
-    // 无模型时周复盘仍落一条只含漏斗的记录
-    const weekly = await call(deps, 'POST', '/api/career/review/weekly', {});
-    expect(weekly.status).toBe(200);
-    expect((weekly.json.review as { week_start: string }).week_start).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect((review.json.board as { counts: number[] }).counts).toEqual([0, 0, 0, 0]);
+    // 未来的月份退回本月
+    const future = await call(deps, 'GET', '/api/career/review?month=2999-01');
+    expect((future.json.board as { month: { is_current: boolean } }).month.is_current).toBe(true);
+    // 周复盘已删掉（2026-10-30），复盘只看「我的求职月」
+    expect((await call(deps, 'POST', '/api/career/review/weekly', {})).status).toBe(404);
   });
 
-  it('mail accounts：绑定需要授权码，预设按域名补齐，删除时清掉授权码', async () => {
-    const { setMailCredentialsPath, getMailPassword } = await import('../career/mail/credentials');
+  it('mail connectors：目录只有个人邮箱，每家带引导和字段；格式不对、授权码错都不存', async () => {
+    const { setMailCredentialsPath } = await import('../career/mail/credentials');
     const dir = mkdtempSync(join(tmpdir(), 'career-mail-route-')); tempDirs.push(dir);
     setMailCredentialsPath(join(dir, 'c.json'));
     try {
-      expect((await call(deps, 'POST', '/api/career/mail/accounts', { address: 'me@qq.com' })).status).toBe(400);
-      const bound = await call(deps, 'POST', '/api/career/mail/accounts', { address: 'Me@QQ.com', password: 'authcode', verify: false });
-      const account = bound.json.account as { id: string; address: string; imap_host: string; smtp_port: number };
-      expect(account).toMatchObject({ address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_port: 465 });
-      expect(getMailPassword(account.id)).toBe('authcode');
-      const list = await call(deps, 'GET', '/api/career/mail/accounts');
-      expect((list.json.accounts as unknown[]).length).toBe(1);
-      expect((list.json.presets as Record<string, unknown>).qq).toBeTruthy();
-      expect((await call(deps, 'POST', '/api/career/mail/accounts', { address: 'me@unknown-domain.cn', password: 'x' })).status).toBe(400);
-      expect((await call(deps, 'DELETE', `/api/career/mail/accounts/${account.id}`)).json.ok).toBe(true);
-      expect(getMailPassword(account.id)).toBeNull();
-    } finally { setMailCredentialsPath(null); }
+      const list = await call(deps, 'GET', '/api/career/mail/connectors');
+      const connectors = list.json.connectors as Array<{ id: string; guide: unknown[]; fields: Array<{ key: string }> }>;
+      expect(connectors.map(c => c.id)).toEqual(['qq', '163', '126', 'gmail']);
+      expect(connectors.every(c => c.guide.length > 0 && c.fields.map(f => f.key).join() === 'email,authCode')).toBe(true);
+      expect((await call(deps, 'POST', '/api/career/mail/connectors/outlook/verify', {})).status).toBe(404);
+
+      const bad = await call(deps, 'POST', '/api/career/mail/connectors/qq/verify', { email: 'me@qq.com', authCode: '123' });
+      // 提示说清差在哪（2026-10-31：服务端还写着「16 位字母」，和数字混排的新授权码规则对不上）
+      expect(bad.json.result).toMatchObject({ ok: false, error_code: 'invalid_input', message: '授权码是 16 位，现在 3 位' });
+      deps.mailVerify = { imap: async () => { throw Object.assign(new Error('Command failed'), { authenticationFailed: true, responseText: 'Login fail. Account is abnormal or password error' }); } };
+      const wrong = await call(deps, 'POST', '/api/career/mail/connectors/qq/verify', { email: 'me@qq.com', authCode: 'abcdefghijklmnop' });
+      expect(wrong.json.result).toMatchObject({ ok: false, error_code: 'imap_auth_failed' });
+      expect((await call(deps, 'GET', '/api/career/mail/accounts')).json.accounts).toEqual([]);
+    } finally { setMailCredentialsPath(null); delete deps.mailVerify; }
   });
 
-  it('mail connect：只开放有配方的邮箱；连接可查可取消；打不开浏览器时如实报错', async () => {
-    expect((await call(deps, 'POST', '/api/career/mail/connect', { provider: 'outlook' })).status).toBe(400);
-    expect((await call(deps, 'GET', '/api/career/mail/connect/nope')).status).toBe(404);
-    const pending = new Promise<void>(() => {});
-    deps.mailConnect = { withPage: () => pending };
-    const started = await call(deps, 'POST', '/api/career/mail/connect', { provider: 'qq' });
-    const session = started.json.session as { id: string; status: string };
-    expect(started.json.label).toBe('QQ 邮箱');
-    expect(session.status).toBe('starting');
-    expect((await call(deps, 'POST', `/api/career/mail/connect/${session.id}/address`, { address: 'x' })).status).toBe(400);
-    expect(((await call(deps, 'DELETE', `/api/career/mail/connect/${session.id}`)).json.session as { status: string }).status).toBe('cancelled');
+  it('mail connectors：校验通过才保存并转后台导入；同一邮箱再连提示已连接；详情有留痕，断开清掉授权码', async () => {
+    const { setMailCredentialsPath, getMailPassword } = await import('../career/mail/credentials');
+    const dir = mkdtempSync(join(tmpdir(), 'career-mail-bg-')); tempDirs.push(dir);
+    setMailCredentialsPath(join(dir, 'c.json'));
+    const synced: string[] = [];
+    deps.mailSync = (_d, account) => { synced.push(account.address); return new Promise(() => undefined); };
+    deps.mailVerify = { imap: async () => ({ uidvalidity: 42 }), smtp: async () => { throw new Error('smtp blocked'); } };
+    try {
+      const done = await call(deps, 'POST', '/api/career/mail/connectors/163/verify', { email: 'Me@163.com', authCode: 'ABCD EFGH IJKL MNOP' });
+      const result = done.json.result as { ok: boolean; smtp_ok: boolean; account: { id: string; address: string; uidvalidity: number; connection: { state: string } } };
+      expect(result).toMatchObject({ ok: true, smtp_ok: false, account: { address: 'me@163.com', uidvalidity: 42, connection: { state: 'active' } } });
+      expect(getMailPassword(result.account.id)).toBe('ABCDEFGHIJKLMNOP');
+      expect(synced).toEqual(['me@163.com']);
 
-    deps.mailConnect = { withPage: async () => { throw new Error('还没有个人助理会话'); } };
-    const broken = (await call(deps, 'POST', '/api/career/mail/connect', { provider: '163' })).json.session as { id: string };
-    await new Promise(r => setTimeout(r, 0));
-    expect((await call(deps, 'GET', `/api/career/mail/connect/${broken.id}`)).json.session).toMatchObject({ status: 'failed', error: '还没有个人助理会话' });
+      const again = await call(deps, 'POST', '/api/career/mail/connectors/163/verify', { email: 'me@163.com', authCode: 'ABCDEFGHIJKLMNOP' });
+      expect(again.json.result).toMatchObject({ ok: false, error_code: 'duplicate', account_id: result.account.id });
+
+      const detail = await call(deps, 'GET', `/api/career/mail/accounts/${result.account.id}/detail`);
+      expect((detail.json.usage as { by_op: Record<string, { ok: number }> }).by_op.connect.ok).toBe(1);
+      expect((detail.json.audit as Array<{ actor: string }>)[0].actor).toBe('user');
+
+      expect((await call(deps, 'DELETE', `/api/career/mail/accounts/${result.account.id}`)).json.ok).toBe(true);
+      expect(getMailPassword(result.account.id)).toBeNull();
+    } finally { setMailCredentialsPath(null); delete deps.mailVerify; delete deps.mailSync; }
   });
 });

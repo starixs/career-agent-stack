@@ -5,7 +5,6 @@ vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), ap
 
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
-import { ONBOARDING_INTRO_KEY } from '@/components/career/OnboardingIntro';
 import { localDateKey } from '@/components/career/todoCalendar';
 import CareerToday, { formatDue } from './CareerToday';
 
@@ -57,6 +56,7 @@ function mockGet(over: Partial<MockState> = {}) {
     if (path.startsWith('/api/career/actions?status=needs_user')) return { ok: true, actions: state.needsUser };
     if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines: state.deadlines };
     if (path.startsWith('/api/career/activity')) return { ok: true, entries: [] };
+    if (path.startsWith('/api/career/mail/connectors')) return { ok: true, connectors: [{ id: 'qq', name: 'QQ 邮箱', auth_type: 'credential_form', capabilities: ['receive'], open_url: 'https://wx.mail.qq.com/', open_label: '打开 QQ 邮箱', help_url: null, guide: [], verify_note: '', fields: [] }], accounts: [] };
     return { ok: true };
   });
 }
@@ -68,7 +68,6 @@ describe('CareerToday · 招聘概览', () => {
     vi.mocked(apiGetJson).mockReset();
     vi.mocked(apiPostJson).mockReset();
     window.localStorage.clear();
-    window.localStorage.setItem(ONBOARDING_INTRO_KEY, '1');
   });
 
   it('formatDue：已过期 / 今天 / 明天 / x 天后', () => {
@@ -155,6 +154,20 @@ describe('CareerToday · 招聘概览', () => {
     expect(screen.getByRole('button', { name: cellName(tomorrow) }).querySelector('[data-category="remind"]')).toHaveAttribute('data-lit', 'false');
   });
 
+  it('前天的笔试没打勾：今天那栏问「考了吗」，不标红已过期；点「考了」→ POST attendance，这一行划掉', async () => {
+    const twoDaysAgo = localDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2));
+    const exam = { ...deadlines[0], id: 'd9', kind: 'written_test', title: '美团笔试', due_at: `${twoDaysAgo}T19:00:00`, status: 'missed', attendance_question: '考了吗？' };
+    mockGet({ deadlines: [exam] });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, deadline: { ...exam, status: 'done' } });
+    render(<CareerToday isActive onOpenChat={vi.fn()} />);
+    const row = (await within(sidebar()).findByText('美团笔试：考了吗？')).closest('li')!;
+    expect(within(row).queryByText('已过期')).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: '完成' })).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: '考了' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/deadlines/d9/attendance', { attended: true }));
+    await waitFor(() => expect(document.querySelector('[data-todo="deadline:d9"]')).toHaveAttribute('data-done', 'true'));
+  });
+
   it('关闭这条线 → POST close-silent；再等等只在本地隐藏', async () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, application: { id: 'a1' } });
@@ -164,6 +177,14 @@ describe('CareerToday · 招聘概览', () => {
     expect(apiPostJson).not.toHaveBeenCalled();
   });
 
+  it('AI 收起的没回音的线只报一个数：没有「关闭这条线 / 再等等」', async () => {
+    mockGet({ items: [{ kind: 'stale', priority: 6, title: '这周有 51 家一直没回音，已替你收起', detail: '来信会自动接回', ref: { type: 'silent_collected', id: '2026-10-19' } }] });
+    render(<CareerToday isActive onOpenChat={vi.fn()} />);
+    expect(await within(sidebar()).findByText('这周有 51 家一直没回音，已替你收起')).toBeInTheDocument();
+    expect(within(sidebar()).queryByRole('button', { name: '关闭这条线' })).not.toBeInTheDocument();
+    expect(within(sidebar()).queryByRole('button', { name: '再等等' })).not.toBeInTheDocument();
+  });
+
   it('data-changed 后重新拉取', async () => {
     mockGet();
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
@@ -171,6 +192,17 @@ describe('CareerToday · 招聘概览', () => {
     const before = vi.mocked(apiGetJson).mock.calls.filter(c => String(c[0]).startsWith('/api/career/deadlines')).length;
     act(() => { emitEvent('career:data-changed', { tables: ['deadline'] }); });
     await waitFor(() => expect(vi.mocked(apiGetJson).mock.calls.filter(c => String(c[0]).startsWith('/api/career/deadlines')).length).toBe(before + 1));
+  });
+
+  it('邮箱连接失效排在今天最前，「重新授权」去通知中心的连接中心', async () => {
+    mockGet({ items: [{ kind: 'mail_auth', priority: 0, title: 'me@qq.com 连接失效', detail: '新邮件暂时收不进来', due_at: null, ref: { type: 'mail_account', id: 'm1' } }, ...items] });
+    render(<CareerToday isActive onOpenChat={vi.fn()} />);
+    const row = (await within(sidebar()).findByText('me@qq.com 连接失效')).closest('li') as HTMLElement;
+    const focus: unknown[] = [];
+    const off = onEvent('career:focus', p => focus.push(p));
+    fireEvent.click(within(row).getByRole('button', { name: '重新授权' }));
+    off();
+    expect(focus).toEqual([{ surface: 'inbox' }]);
   });
 
   it('翻月：下个月 / 今天', async () => {
@@ -185,53 +217,29 @@ describe('CareerToday · 招聘概览', () => {
   });
 });
 
-describe('CareerToday · 新手引导', () => {
+describe('CareerToday · 从你手里有的开始', () => {
   beforeEach(() => {
     vi.mocked(apiGetJson).mockReset();
     window.localStorage.clear();
   });
 
-  it('第一次打开自动弹出：做完的划掉、放大第一件没做的；跳过后记住，不再自动弹', async () => {
+  it('没连邮箱、也没有申请：先请他把手里有的给我（连邮箱 / 拖简历），不再弹五步引导', async () => {
     mockGet({ checklist: checklistPartial });
-    const { unmount } = render(<CareerToday isActive onOpenChat={vi.fn()} />);
-    const dialog = await screen.findByRole('dialog', { name: '五步跑通第一条投递' });
-    const experience = dialog.querySelector('[data-step="experience"]') as HTMLElement;
-    expect(within(experience).getByTestId('strike-line')).toBeInTheDocument();
-    expect(dialog.querySelector('[data-step="resume"]')).toHaveAttribute('data-focus', 'true');
-    expect(dialog.querySelectorAll('[data-focus="true"]')).toHaveLength(1);
-
-    fireEvent.click(within(dialog).getByRole('button', { name: '跳过' }));
+    const onOpenChat = vi.fn();
+    render(<CareerToday isActive onOpenChat={onOpenChat} />);
+    const start = await screen.findByRole('region', { name: '从你手里有的开始' });
+    expect(await within(start).findByRole('button', { name: /QQ 邮箱/ })).toBeInTheDocument();
+    fireEvent.click(within(start).getByRole('button', { name: '去对话里拖进来' }));
+    expect(onOpenChat).toHaveBeenCalled();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(window.localStorage.getItem(ONBOARDING_INTRO_KEY)).toBe('1');
-    unmount();
-
-    render(<CareerToday isActive onOpenChat={vi.fn()} />);
-    await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司');
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    // 页头「新手引导」随时再打开
-    fireEvent.click(screen.getByRole('button', { name: '新手引导' }));
-    expect(screen.getByRole('dialog', { name: '五步跑通第一条投递' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '新手引导' })).not.toBeInTheDocument();
   });
 
-  it('开始第一步 → 把那一步的话发进对话并关闭', async () => {
-    mockGet({ checklist: checklistPartial });
-    render(<CareerToday isActive onOpenChat={vi.fn()} />);
-    const dialog = await screen.findByRole('dialog');
-    const seen: Array<{ text: string; context?: { surface?: string } }> = [];
-    const off = onEvent<{ text: string; context?: { surface?: string } }>('career:chat-suggest', p => { seen.push(p); });
-    fireEvent.click(within(dialog).getByRole('button', { name: '开始第一步' }));
-    off();
-    expect(seen).toEqual([expect.objectContaining({ text: '帮我生成主简历', context: expect.objectContaining({ surface: 'today' }) })]);
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(window.localStorage.getItem(ONBOARDING_INTRO_KEY)).toBe('1');
-  });
-
-  it('五步都做完时不自动弹出', async () => {
+  it('连了邮箱或已经有申请：这一块不出现', async () => {
     mockGet({ checklist: checklistDone });
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
     await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司');
-    await waitFor(() => expect(screen.getByRole('button', { name: '新手引导' })).toBeInTheDocument());
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '从你手里有的开始' })).not.toBeInTheDocument();
   });
 
   it('页面输入框带上选中那一天（refs.date）', async () => {

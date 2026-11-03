@@ -290,6 +290,11 @@ export class PlaywrightBrowserHost {
     return this.dependencies.registry.isWindowRevealed(productSessionId);
   }
 
+  /** 托管 Chrome 此刻被隐藏（隐藏兜底）：截图要走 fromSurface:false。 */
+  surfacelessCapture(productSessionId: string): boolean {
+    return this.dependencies.registry.surfacelessCapture(productSessionId);
+  }
+
   profileDirFor(productSessionId: string): string | null {
     return this.dependencies.registry.profileDirFor(productSessionId);
   }

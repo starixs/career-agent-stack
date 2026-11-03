@@ -3,12 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
 
-import { apiPostJson, apiPutJson } from '@/api/apiFetch';
+import { apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { TabContext, type TabContextValue } from '@/context/TabContext';
 
 import { CareerChatCards, collectToolUseIds } from './CareerChatCards';
-import { CareerFlowCards, humanizePath, humanizeValue } from './CareerFlowCards';
+import { BatchProgressCard, CareerFlowCards, NeedsUserCard } from './CareerFlowCards';
+import { ApplyGapsCard } from './CareerReviewCard';
 import type { CareerCard } from './types';
 
 const card = (kind: CareerCard['kind'], data: Record<string, unknown>, title = '卡片'): CareerCard => ({ id: `${kind}:1`, kind, title, data, createdAt: '2026-10-03T00:00:00Z' });
@@ -16,6 +17,12 @@ const card = (kind: CareerCard['kind'], data: Record<string, unknown>, title = '
 function renderCards(cards: CareerCard[], dismiss = vi.fn(), messages: unknown[] = []) {
   const value = { tabId: 't', agentDir: '/tmp', careerTakeover: null, careerProgress: null, careerCards: cards, setCareerCardState: dismiss, messages } as unknown as TabContextValue;
   render(<TabContext.Provider value={value}><CareerChatCards /></TabContext.Provider>);
+  return dismiss;
+}
+
+/** 缺项卡归等你条、不在对话里渲染（规范 §5.1）；卡片组件本身仍在，直接渲染来测。 */
+function renderCard(Comp: typeof NeedsUserCard, c: CareerCard, dismiss = vi.fn()) {
+  render(<Comp card={c} onDone={() => dismiss(c.id, 'completed')} onDismiss={() => dismiss(c.id, 'dismissed')} />);
   return dismiss;
 }
 
@@ -28,6 +35,8 @@ function captureSuggest() {
 
 describe('对话内流程卡片', () => {
   beforeEach(() => {
+    // 对话底部的起步卡会读资料完成度：默认返回空（不出起步卡）
+    vi.mocked(apiGetJson).mockReset().mockResolvedValue({ ok: true });
     vi.mocked(apiPostJson).mockReset().mockResolvedValue({ ok: true });
     vi.mocked(apiPutJson).mockReset().mockResolvedValue({ ok: true, item: {} });
   });
@@ -47,7 +56,7 @@ describe('对话内流程卡片', () => {
 
   it('网申缺项：资料字段进私密库、其余进答案库，然后请助理从当前页继续', async () => {
     const { seen, refs, off } = captureSuggest();
-    renderCards([card('needs_user', { action_id: 'act1', items: [{ label: '身份证号', vault_field: 'idNumber', sensitive: true }, { label: '期望薪资', note: '月薪' }] })]);
+    renderCard(NeedsUserCard, card('needs_user', { action_id: 'act1', items: [{ label: '身份证号', vault_field: 'idNumber', sensitive: true }, { label: '期望薪资', note: '月薪' }] }));
     fireEvent.change(screen.getByLabelText('身份证号'), { target: { value: '110101200001011234' } });
     fireEvent.change(screen.getByLabelText('期望薪资'), { target: { value: '面议' } });
     fireEvent.click(screen.getByRole('button', { name: '保存并继续填表' }));
@@ -63,10 +72,10 @@ describe('对话内流程卡片', () => {
 
   it('还差几项（合并后的唯一缺项卡）：能填的项带输入框，填了就保存并继续检查；上传类只列不填', async () => {
     const { seen, refs, off } = captureSuggest();
-    renderCards([card('apply_gaps', { action_id: 'act1', required_filled: 18, required_total: 20, items: [
+    renderCard(ApplyGapsCard, card('apply_gaps', { action_id: 'act1', required_filled: 18, required_total: 20, items: [
       { label: '证件号码', reason: '高影响问题', status: 'needs_user', required: true, input: { vault_field: 'idNumber', sensitive: true } },
       { label: '作品集', reason: '不确定该上传什么文件', status: 'needs_user', required: true, input: null },
-    ] }, '「美团」还差 2 项要你补')]);
+    ] }, '「美团」还差 2 项要你补'));
     const box = screen.getByTestId('career-card-apply_gaps');
     expect(box).toHaveTextContent('作品集');
     expect(screen.queryByLabelText('作品集')).toBeNull();
@@ -91,7 +100,7 @@ describe('对话内流程卡片', () => {
 
   it('还差几项：逐项列出字段与原因，「补好了」请助理从当前页继续检查（id 在隐藏上下文）', async () => {
     const { seen, refs, off } = captureSuggest();
-    const dismiss = renderCards([card('apply_gaps', { action_id: 'act9', required_filled: 10, required_total: 12, items: [{ label: '毕业时间', reason: '必填项还是空的', status: 'empty' }, { label: '简历附件', reason: '页面没有出现上传成功提示', status: 'upload_unconfirmed' }] }, '「美团 后端」还差 2 项要你补：毕业时间、简历附件')]);
+    const dismiss = renderCard(ApplyGapsCard, card('apply_gaps', { action_id: 'act9', required_filled: 10, required_total: 12, items: [{ label: '毕业时间', reason: '必填项还是空的', status: 'empty' }, { label: '简历附件', reason: '页面没有出现上传成功提示', status: 'upload_unconfirmed' }] }, '「美团 后端」还差 2 项要你补：毕业时间、简历附件'));
     const el = screen.getByTestId('career-card-apply_gaps');
     expect(el).toHaveTextContent('必填 10/12');
     expect(el).toHaveTextContent('毕业时间');
@@ -104,32 +113,76 @@ describe('对话内流程卡片', () => {
     off();
   });
 
-  it('经历说法：只确认勾选的', async () => {
+  it('经历说法：表头一下「全部通过」', async () => {
+    renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '字节实习', claims: [{ id: 'c1', text: '主导推荐召回重构' }, { id: 'c2', text: '带 3 人小组' }] })]);
+    expect(screen.queryByRole('button', { name: /确定所选/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '全部通过' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/claims/c2/confirm', {}));
+    expect(apiPostJson).toHaveBeenCalledWith('/api/career/claims/c1/confirm', {});
+  });
+
+  it('经历说法：去掉一条后「确定所选」只确认勾着的', async () => {
     renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '字节实习', claims: [{ id: 'c1', text: '主导推荐召回重构', result_metric: 'CTR +3%' }, { id: 'c2', text: '带 3 人小组', attribution: 'team' }] })]);
-    fireEvent.click(screen.getByLabelText('带 3 人小组'));
-    fireEvent.click(screen.getByRole('button', { name: '确认所选 1 条' }));
+    fireEvent.pointerDown(screen.getByRole('checkbox', { name: '带 3 人小组' }));
+    fireEvent.click(screen.getByRole('button', { name: '确定所选 1 条' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/claims/c1/confirm', {}));
     expect(apiPostJson).not.toHaveBeenCalledWith('/api/career/claims/c2/confirm', {});
   });
 
-  it('简历改动：按勾选路径应用', async () => {
-    renderCards([card('resume_diff', { tailored_id: 'rt1', ops: [{ op: 'replace', path: '/experiences/0/bullets/1', value: '新要点', reason: '对齐 JD 关键词' }, { op: 'remove', path: '/skills/3' }], unresolved: ['想补 Kafka 经验'] })]);
-    expect(screen.getByText('改写 · 经历 1 · 要点 2')).toBeInTheDocument();
-    expect(screen.getByText('理由：对齐 JD 关键词')).toBeInTheDocument();
-    expect(screen.getByText(/缺少已确认的经历支撑/)).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('应用：技能 4'));
-    fireEvent.click(screen.getByRole('button', { name: '应用所选 1 处' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/resumes/rt1/confirm', { accepted_paths: ['/experiences/0/bullets/1'] }));
+  it('面试复盘回流：新说法可确认，答不上来的事实列出来、点「去补这几处」交给助理', async () => {
+    const { seen, off } = captureSuggest();
+    renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '美团实习', source: 'interview_retro', interview_id: 'itv1', claims: [{ id: 'c9', text: '召回负样本按曝光未点击采样' }], gaps: ['线上 A/B 收益说不清'] })]);
+    expect(screen.getByTestId('career-card-claims_confirm')).toHaveTextContent('这场面试里没答上来、还要补的事实');
+    expect(screen.getByTestId('career-card-claims_confirm')).toHaveTextContent('下次定制时才会用上');
+    fireEvent.click(screen.getByRole('button', { name: '去补这几处' }));
+    off();
+    expect(seen).toEqual(['帮我把「美团实习」补上：线上 A/B 收益说不清']);
   });
 
-  it('批量投递进行中：对话里出现进度卡，可暂停', async () => {
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, batch: { status: 'paused', updatedAt: '', done: 2, failed: 0, handoffs: 0, queued: 3, todayCount: 2 } });
+  it('只有要补的事实、没有新说法时，不出确认按钮', () => {
+    renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '美团实习', source: 'interview_retro', claims: [], gaps: ['线上收益'] })]);
+    expect(screen.queryByRole('button', { name: /全部通过|确定所选/ })).toBeNull();
+    expect(screen.getByRole('button', { name: '去补这几处' })).toBeInTheDocument();
+  });
+
+  it('面试准备卡：时间、上次卡点、高风险深挖点、题，点「开始模拟」交给助理', () => {
+    const { seen, off } = captureSuggest();
+    renderCards([card('interview_prep', {
+      company: '百度', title: '算法', job_id: 'j1', round: 'second', at: '2026-11-05T06:00:00.000Z',
+      carried: [{ company: '百度', round: 'first', same_application: true, points: ['线上 A/B 收益'] }],
+      predictions: [{ statement: '召回 AUC +1.8%', risk: 'high', chain: ['口径？', '线上？'] }],
+      questions: [{ id: 'q1', content: '负样本怎么采？' }],
+    }, '准备 百度 算法')]);
+    const el = screen.getByTestId('career-card-interview_prep');
+    expect(el).toHaveTextContent('上一轮：线上 A/B 收益');
+    expect(el).toHaveTextContent('高风险 · 召回 AUC +1.8%');
+    expect(el).toHaveTextContent('口径？ → 线上？');
+    expect(el).toHaveTextContent('负样本怎么采？');
+    fireEvent.click(screen.getByRole('button', { name: '开始模拟' }));
+    off();
+    expect(seen[0]).toBe('开始模拟 百度 二面（job_id=j1，round=second），先从高风险的深挖点问起');
+  });
+
+  it('批量投递进行中：对话里不再单独出进度卡（数字在等你条「投出 x / y」）', () => {
     renderCards([]);
     act(() => emitEvent('career:batch', { status: 'running', updatedAt: '', done: 2, failed: 0, handoffs: 1, queued: 3, todayCount: 2, message: '正在填写：B 公司' }));
-    expect(await screen.findByTestId('career-card-batch')).toHaveTextContent('正在填写：B 公司');
+    expect(screen.queryByTestId('career-card-batch')).toBeNull();
+  });
+
+  it('批量进度卡（通知中心仍在用）：可暂停', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, batch: { status: 'paused', updatedAt: '', done: 2, failed: 0, handoffs: 0, queued: 3, todayCount: 2 } });
+    render(<BatchProgressCard batch={{ status: 'running', updatedAt: '', done: 2, failed: 0, handoffs: 1, queued: 3, todayCount: 2, message: '正在填写：B 公司' }} />);
+    expect(screen.getByTestId('career-card-batch')).toHaveTextContent('正在填写：B 公司');
     fireEvent.click(screen.getByRole('button', { name: '暂停' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/batch/command', { cmd: 'pause' }));
     expect(await screen.findByRole('button', { name: '继续' })).toBeInTheDocument();
+  });
+
+  it('改了共用的简历：对话里一张更正卡，换成新版的一堆、已经在投或投出改不了的一堆', () => {
+    render(<CareerFlowCards cards={[card('fix', { swapped: [{ company_id: null, name: '美团', logo: 'mt' }], locked: [{ company_id: null, name: '京东' }, { company_id: null, name: '拼多多' }] }, '改了共用的简历')]} onStateChange={vi.fn()} />);
+    const el = screen.getByTestId('fix-card');
+    expect(el).toHaveTextContent('1 家换成新版');
+    expect(el).toHaveTextContent('2 家已经在投或投出，改不了');
   });
 
   it('稍后再说：只是从对话里移除', () => {
@@ -153,28 +206,24 @@ describe('对话内流程卡片', () => {
     off();
   });
 
-  it('绑定邮箱：按域名给授权码说明，绑定成功后请助理归档，消息里不带地址和授权码', async () => {
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { id: 'm1' }, verify: { fetched: 12, job_related: 3 } });
+  it('绑定邮箱卡片：从连接中心连好后请助理归档，消息里不带地址和授权码', async () => {
+    const connector = { id: 'qq', name: 'QQ 邮箱', auth_type: 'credential_form', capabilities: ['receive'], open_url: 'https://wx.mail.qq.com/', open_label: '打开 QQ 邮箱', help_url: null,
+      guide: [{ title: '打开 QQ 邮箱网页版', text: '' }], verify_note: '', fields: [{ key: 'email', type: 'email', label: '邮箱地址', placeholder: '' }, { key: 'authCode', type: 'secret', label: '授权码', placeholder: '', length: 16 }] };
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, connectors: [connector], accounts: [] });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, result: { ok: true, smtp_ok: true, account: { id: 'm1', provider: 'qq', address: 'me@qq.com' } } });
     const { seen, off } = captureSuggest();
-    renderCards([card('mail_bind', { presets: [{ provider: 'qq', label: 'QQ 邮箱', help: '设置 → 账户 → 开启 IMAP 并生成授权码' }] }, '绑定求职邮箱')]);
+    renderCards([card('mail_bind', {}, '绑定求职邮箱')]);
+    fireEvent.click(await screen.findByRole('button', { name: /QQ 邮箱/ }));
+    fireEvent.click(screen.getByRole('button', { name: '开始连接' }));
+    fireEvent.click(screen.getByRole('button', { name: '我已获取授权码，下一步' }));
     fireEvent.change(screen.getByLabelText('邮箱地址'), { target: { value: 'me@qq.com' } });
-    expect(screen.getByText(/开启 IMAP 并生成授权码/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'abcd1234' } });
-    fireEvent.click(screen.getByRole('button', { name: '绑定并同步' }));
-    await waitFor(() => expect(seen).toHaveLength(1));
-    expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/accounts', { address: 'me@qq.com', password: 'abcd1234' });
-    expect(seen[0]).not.toMatch(/me@qq.com|abcd1234/);
+    fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'abcdefghijklmnop' } });
+    fireEvent.click(screen.getByRole('button', { name: '验证并连接' }));
+    await waitFor(() => expect(seen).toHaveLength(1), { timeout: 3000 });
+    expect(seen[0]).not.toMatch(/me@qq.com|abcdefghijklmnop/);
+    expect(await screen.findByText(/已连接 me@qq.com/)).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     off();
-  });
-
-  it('绑定邮箱：连接失败时留在卡片上显示原因', async () => {
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { id: 'm1' }, verify: { error: 'AUTHENTICATIONFAILED' } });
-    const dismiss = renderCards([card('mail_bind', { presets: [] })]);
-    fireEvent.change(screen.getByLabelText('邮箱地址'), { target: { value: 'me@163.com' } });
-    fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: '绑定并同步' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('AUTHENTICATIONFAILED');
-    expect(dismiss).not.toHaveBeenCalled();
   });
 
   it('底部只放无锚点 / 锚点不在消息里的待处理卡片；已处理的不在底部堆叠', () => {
@@ -201,23 +250,5 @@ describe('对话内流程卡片', () => {
 
   it('collectToolUseIds 只收集顶层工具调用', () => {
     expect([...collectToolUseIds([{ content: 'text' }, { content: [{ type: 'text' }, { type: 'tool_use', tool: { id: 't1' } }, { type: 'server_tool_use', tool: { id: 't2' } }] }])]).toEqual(['t1', 't2']);
-  });
-
-  it('humanizePath', () => {
-    expect(humanizePath('/basics/summary')).toBe('基本信息 · 个人简介');
-    expect(humanizePath('/projects/-')).toBe('项目（末尾）');
-    expect(humanizePath('/basics/objective')).toBe('基本信息 · 求职意向');
-    expect(humanizePath('/skills/0/keywords')).toBe('技能 1 · 关键词');
-  });
-
-  it('humanizeValue shows string arrays as a plain list', () => {
-    expect(humanizeValue('["Java","MySQL"]')).toBe('Java、MySQL');
-    expect(humanizeValue('[1,2]')).toBe('1、2');
-    expect(humanizeValue('[未完')).toBe('[未完');
-    expect(humanizeValue('普通文字')).toBe('普通文字');
-    expect(humanizeValue(JSON.stringify([{ id: 'awd-1', title: '国家奖学金', claim_ids: ['c1'] }, { id: 'awd-2', title: '数模一等奖' }]))).toBe('国家奖学金、数模一等奖');
-    expect(humanizeValue(JSON.stringify(['education', 'experience', 'skills']), '/section_order')).toBe('教育 → 经历 → 技能');
-    expect(humanizeValue(JSON.stringify([{ id: 'x' }]))).toBe('1 项');
-    expect(humanizePath('/section_order')).toBe('板块顺序');
   });
 });

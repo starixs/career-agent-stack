@@ -2,8 +2,10 @@ import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import type { Repos } from '@career/core';
 
+import { adoptApplicationPage, resetApplicationPages } from '../career/app-pages';
 import { FileChooserBroker, type FileChooserLike } from '../career/file-chooser';
 import { LiveHub } from '../career/live-hub';
+import { beginUserWait, setLivePin } from '../career/live-pin';
 import { createMemoryRepos } from '../career/test-db';
 import { handleCareerLiveRoute, type CareerLiveDeps, type CareerLiveHost } from './career-live';
 
@@ -84,6 +86,48 @@ describe('career live route', () => {
     expect(bad!.status).toBe(400);
   });
 
+  it('state：登录之旅带上「第几家 / 共几家」；助理在等你处理时 waitingUser=true（交还时抽屉不再往对话里补一句）', async () => {
+    const repos = createMemoryRepos();
+    const d = deps(repos);
+    const state = async () => (await (await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), d))!.json()) as { journey: unknown; waitingUser: boolean };
+    expect(await state()).toMatchObject({ journey: null, waitingUser: false });
+    setLivePin({ sessionKey: 's', appKey: 'app', askId: 'h1', handoffId: 'h1', index: 1, total: 3 });
+    const end = beginUserWait();
+    try {
+      expect(await state()).toMatchObject({ journey: { index: 1, total: 3 }, waitingUser: true });
+    } finally { end(); end(); setLivePin(null); }
+    expect((await state()).waitingUser).toBe(false);
+  });
+
+  it('state：登录之旅里状态行的网址是钉住的那一家，不是后台正在填的另一页', async () => {
+    const mk = (url: string) => { const frame = {}; return { url: () => url, title: async () => url, isClosed: () => false, mainFrame: () => frame, once: () => {} }; };
+    const [busy, login] = [mk('https://busy.test/apply'), mk('https://login.test/sso')];
+    const host = { ...fakeHost(), withProductSession: async <T,>(_id: string, fn: (ctx: never) => Promise<T>) => fn({ pages: () => [busy, login] } as never) };
+    adoptApplicationPage('s', 'app-login', login as never);
+    setLivePin({ sessionKey: 's', appKey: 'app-login', askId: 'h1', handoffId: 'h1', index: 0, total: 2 });
+    try {
+      const res = await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), deps(createMemoryRepos(), host as never));
+      expect(((await res!.json()) as { browser: { url: string } }).browser.url).toBe('https://login.test/sso');
+    } finally { setLivePin(null); resetApplicationPages(); }
+  });
+
+  it('登录之旅里交还：只关当前带你过的这一家，别家还没登录的和缺信息的那批不被一起当成处理完', async () => {
+    const repos = createMemoryRepos();
+    const host = fakeHost();
+    const d = deps(repos, host);
+    const open = (site: string, reason: 'login' | 'missing_info') => {
+      const app = repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: site, title: 'x', url: `https://${site}/a` }).id);
+      return { app, h: repos.openHandoff(reason, { actionId: repos.enqueueAction('fill_form', {}, app.id).id }) };
+    };
+    const a = open('a.com', 'login'); const b = open('b.com', 'login'); const c = open('c.com', 'missing_info');
+    setLivePin({ sessionKey: 's', appKey: a.app.id, askId: a.h.id, handoffId: a.h.id, index: 0, total: 2 });
+    try {
+      await handleCareerLiveRoute('/api/career/live/control', req('/api/career/live/control', { control: 'human' }), d);
+      await handleCareerLiveRoute('/api/career/live/control', req('/api/career/live/control', { control: 'agent' }), d);
+      expect(repos.openHandoffs().map(h => h.id).sort()).toEqual([b.h.id, c.h.id].sort());
+    } finally { setLivePin(null); }
+  });
+
   it('没有浏览器时 control 409；batch 命令无运行器时写 kv', async () => {
     const repos = createMemoryRepos();
     const d = deps(repos, fakeHost(false));
@@ -104,8 +148,9 @@ describe('career live route', () => {
     const page = {
       url: () => 'https://x.com/apply', title: async () => '网申', isClosed: () => false,
       viewportSize: () => ({ width: 1280, height: 900 }),
-      mouse: { click: async (...a: unknown[]) => { calls.push(['click', a]); }, move: async (...a: unknown[]) => { calls.push(['move', a]); }, wheel: async (...a: unknown[]) => { calls.push(['wheel', a]); } },
+      mouse: { click: async (...a: unknown[]) => { calls.push(['click', a]); }, move: async (...a: unknown[]) => { calls.push(['move', a]); }, wheel: async (...a: unknown[]) => { calls.push(['wheel', a]); }, down: async () => { calls.push(['down', []]); }, up: async () => { calls.push(['up', []]); } },
       keyboard: { type: async (...a: unknown[]) => { calls.push(['type', a]); }, press: async (...a: unknown[]) => { calls.push(['press', a]); } },
+      waitForTimeout: async () => {},
     };
     host.withProductSession = async <T,>(_id: string, fn: (ctx: never) => Promise<T>) => fn({ pages: () => [page], newPage: async () => page, on: () => {} } as never);
     const d = deps(repos, host);
@@ -123,6 +168,16 @@ describe('career live route', () => {
     expect(calls[3][1]).toEqual([0, 200]);
     const bad = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'nope' }), d);
     expect(bad!.status).toBe(400);
+    // 拖动（滑块验证码）实时转发：按下 → 移动（带按键）→ 松开，坐标同样按帧换算
+    calls.length = 0;
+    const frame = { width: 640, height: 450 };
+    for (const ev of [{ type: 'down', x: 10, y: 20, clickCount: 1 }, { type: 'move', x: 60, y: 22 }, { type: 'up', x: 110, y: 21 }]) {
+      const res = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { ...ev, frame }), d);
+      expect(res!.status).toBe(200);
+    }
+    expect(calls.map(c => c[0])).toEqual(['move', 'down', 'move', 'move', 'up']);
+    expect(calls[0][1]).toEqual([20, 40]);
+    expect(calls[3][1]).toEqual([220, 42]);
   });
 
   it('内嵌窗口：接管不前置真实 Chrome；放出窗口后才前置；/live/window 切换并广播', async () => {
@@ -236,6 +291,27 @@ describe('career live route', () => {
     open = true;
     await until(() => borrowed.mock.calls.length > 0);
     expect(borrowed).toHaveBeenCalledWith('sess-career');
+    controller.abort();
+  });
+
+  it('画面流：浏览器在连上之后才打开，接上画面时补推一份 snapshot（否则「控制浏览器」一直灰着）', async () => {
+    const repos = createMemoryRepos();
+    const host = fakeHost(false);
+    let open = false;
+    host.hasContext = () => open;
+    const d = { ...deps(repos, host), framesPollMs: 10, heartbeatMs: 60_000 };
+    const controller = new AbortController();
+    const res = await handleCareerLiveRoute('/api/career/live/stream', new Request('http://local/api/career/live/stream?frames=1', { signal: controller.signal }), d);
+    const reader = res!.body!.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    const snapshots = () => buf.split('\n').filter(Boolean).map(l => JSON.parse(l) as { type: string; browser?: { hasBrowser: boolean } }).filter(l => l.type === 'snapshot');
+    const until = async (pred: () => boolean) => { for (let i = 0; i < 100 && !pred(); i++) { const r = await Promise.race([reader.read(), new Promise<{ value?: Uint8Array; done: boolean }>(ok => setTimeout(() => ok({ done: false }), 20))]); if (r.value) buf += decoder.decode(r.value); } };
+    await until(() => snapshots().length > 0 && buf.includes('"state":"waiting"'));
+    expect(snapshots()[0].browser?.hasBrowser).toBe(false);
+    open = true;
+    await until(() => snapshots().some(s => s.browser?.hasBrowser));
+    expect(snapshots().at(-1)?.browser?.hasBrowser).toBe(true);
     controller.abort();
   });
 

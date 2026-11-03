@@ -5,7 +5,9 @@ vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), ap
 
 import { apiDelete, apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
-import CareerInbox, { detectProvider, relativeTime } from './CareerInbox';
+import { relativeTime } from '@/components/career/CareerPrimitives';
+import { stashCareerFocus } from '@/features/career-shell/pendingFocus';
+import CareerInbox from './CareerInbox';
 
 const items = [
   { id: 'i1', source: 'paste', raw_text: '某某科技 后端开发实习生 JD：负责服务端开发…', kind: null, status: 'new', parsed_json: null, linked_type: null, linked_id: null, mail_message_id: null, note: '没看出是哪家公司', created_at: '2026-10-02T10:00:00', processed_at: null },
@@ -35,6 +37,7 @@ function mockGet(opts: { batch?: unknown; needsUser?: unknown[] } = {}) {
     if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines };
     if (path.startsWith('/api/career/batch/state')) return { ok: true, batch: opts.batch ?? null };
     if (path.startsWith('/api/career/mail/accounts')) return { ok: true, accounts, presets };
+    if (path.startsWith('/api/career/mail/connectors')) return { ok: true, connectors: [{ id: 'qq', name: 'QQ 邮箱', auth_type: 'credential_form', capabilities: ['receive'], open_url: 'https://wx.mail.qq.com/', open_label: '打开 QQ 邮箱', help_url: null, guide: [], verify_note: '', fields: [] }], accounts: accounts.map(a => ({ ...a, connection: { state: 'active', health: 'healthy' } })) };
     if (path.startsWith('/api/career/dossiers')) return { ok: true, dossiers };
     return { ok: true };
   });
@@ -47,13 +50,7 @@ describe('CareerInbox', () => {
     vi.mocked(apiDelete).mockReset();
   });
 
-  it('detectProvider / relativeTime', () => {
-    expect(detectProvider('a@qq.com')).toBe('qq');
-    expect(detectProvider('a@foxmail.com')).toBe('qq');
-    expect(detectProvider('a@163.com')).toBe('163');
-    expect(detectProvider('a@gmail.com')).toBe('gmail');
-    expect(detectProvider('a@hotmail.com')).toBe('outlook');
-    expect(detectProvider('a@company.cn')).toBe('imap');
+  it('relativeTime', () => {
     const now = new Date(2026, 9, 3, 12, 0);
     expect(relativeTime(null, now)).toBe('从未');
     expect(relativeTime(new Date(2026, 9, 3, 11, 30).toISOString(), now)).toBe('30 分钟前');
@@ -139,37 +136,12 @@ describe('CareerInbox', () => {
     expect((box as HTMLTextAreaElement).value).toBe('');
   });
 
-  it('绑定邮箱 → POST /api/career/mail/accounts，显示验证结果；授权码不发给对话', async () => {
+  it('邮箱连接区显示连接中心：已连接的邮箱带状态（连接流程见 mail-connect/MailConnect.test.tsx）', async () => {
     mockGet();
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, account: { ...accounts[0], id: 'm2', address: 'new@163.com' }, verify: { fetched: 12, job_related: 3 } });
     render(<CareerInbox isActive onOpenChat={vi.fn()} />);
-    expect(await screen.findByText('me@qq.com')).toBeInTheDocument();
-    expect(screen.getByText('QQ 邮箱')).toBeInTheDocument();
-    expect(screen.getByText('已连接')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '绑定邮箱' }));
-    expect(screen.getByRole('button', { name: /163 邮箱/ })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '已经有授权码？手动填写' }));
-    fireEvent.change(screen.getByLabelText('邮箱地址'), { target: { value: 'new@163.com' } });
-    fireEvent.change(screen.getByLabelText('授权码'), { target: { value: 'secret-code' } });
-    expect(screen.getByText(/只保存在本机，不会发给对话/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '绑定并验证' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/accounts', { address: 'new@163.com', password: 'secret-code', display_name: undefined }));
-    expect(await screen.findByText('已连接，拉到 12 封，其中 3 封与求职相关')).toBeInTheDocument();
-  });
-
-  it('立即同步 → POST mail/sync；解绑需确认后 DELETE', async () => {
-    mockGet();
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, results: [{ account_id: 'm1', fetched: 4, stored: 4, job_related: 1, ignored: 3, archived: [] }] });
-    vi.mocked(apiDelete).mockResolvedValue({ ok: true });
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    render(<CareerInbox isActive onOpenChat={vi.fn()} />);
-    fireEvent.click(await screen.findByRole('button', { name: '立即同步' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail/sync', { account_id: 'm1' }));
-    expect(await screen.findByText('拉到 4 封，其中 1 封与求职相关')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '解绑' }));
-    await waitFor(() => expect(apiDelete).toHaveBeenCalledWith('/api/career/mail/accounts/m1'));
-    expect(confirmSpy).toHaveBeenCalled();
-    confirmSpy.mockRestore();
+    const card = await screen.findByRole('button', { name: /QQ 邮箱/ });
+    expect(card).toHaveTextContent('me@qq.com');
+    expect(card).toHaveTextContent('已连接');
   });
 
   it('待处理条目：忽略 → POST inbox/:id/dismiss；重新识别可带归属；交给助理带 inbox_id', async () => {
@@ -198,6 +170,50 @@ describe('CareerInbox', () => {
     await screen.findByText(/某某科技 后端开发实习生 JD/);
     act(() => { emitEvent('career:focus', { surface: 'inbox', id: 'i2' }); });
     const row = (await screen.findByText(/诚邀您参加甲公司一面/)).closest('[data-inbox-id]');
+    expect(row?.className).toContain('bg-[var(--primary-soft)]');
+  });
+
+  it('过了时间的面试提醒问「去了吗」：点「没去」→ POST attendance，原地划掉', async () => {
+    const past = { ...deadlines[0], id: 'd8', kind: 'interview', title: '百度一面', due_at: new Date(Date.now() - 86_400_000).toISOString(), status: 'missed', attendance_question: '去了吗？' };
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
+      if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines: [past] };
+      if (path.startsWith('/api/career/inbox')) return { ok: true, items: [] };
+      if (path.startsWith('/api/career/mail/accounts')) return { ok: true, accounts: [], presets };
+      return { ok: true, actions: [], dossiers: [] };
+    });
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, deadline: { ...past, status: 'skipped' } });
+    render(<CareerInbox isActive onOpenChat={vi.fn()} />);
+    const row = (await screen.findByText('百度一面：去了吗？')).closest('li')!;
+    expect(within(row).queryByRole('button', { name: '完成' })).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: '没去' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/deadlines/d8/attendance', { attended: false }));
+    expect(await within(row).findByText(/^没参加 · /)).toBeInTheDocument();
+  });
+
+  it('处理完的信（已归档、带来的事也做完）折进「已处理」，不算进「全部」；点开能看', async () => {
+    const settledItems = items.map(it => (it.id === 'i2' ? { ...it, settled: true } : it));
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
+      if (path.startsWith('/api/career/inbox')) return { ok: true, items: settledItems };
+      if (path.startsWith('/api/career/actions?status=pending_review')) return { ok: true, actions };
+      if (path.startsWith('/api/career/actions')) return { ok: true, actions: [] };
+      if (path.startsWith('/api/career/deadlines')) return { ok: true, deadlines };
+      if (path.startsWith('/api/career/mail/accounts')) return { ok: true, accounts, presets };
+      if (path.startsWith('/api/career/dossiers')) return { ok: true, dossiers };
+      return { ok: true };
+    });
+    render(<CareerInbox isActive onOpenChat={vi.fn()} />);
+    await screen.findByText(/某某科技 后端开发实习生 JD/);
+    expect(screen.queryByText(/诚邀您参加甲公司一面/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '全部 3' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '看已处理的 1 封' }));
+    expect(screen.getByText(/诚邀您参加甲公司一面/)).toBeInTheDocument();
+  });
+
+  it('小芽先说了「那封在通知中心」、用户后来才点进来（本页还没挂载）：照样定位到那一条', async () => {
+    mockGet();
+    stashCareerFocus({ surface: 'inbox', id: 'i3', origin: 'assistant' });
+    render(<CareerInbox isActive onOpenChat={vi.fn()} />);
+    const row = (await screen.findByText('广告')).closest('[data-inbox-id]');
     expect(row?.className).toContain('bg-[var(--primary-soft)]');
   });
 

@@ -5,7 +5,7 @@ triggers: 改简历,定制简历,按JD改,优化简历,简历,一页简历,简�
 ---
 
 # 目标
-用经历库里已确认的主张，按目标岗位生成简历修改方案：输出 JSON Patch 与逐条理由，用户逐条确认后再应用。
+用经历库里已确认的主张，按目标岗位生成简历修改方案：输出 JSON Patch 与逐条理由，产品会直接应用，不再等用户逐条确认。
 
 # 输入
 母版简历 schema、JdParsed、经历库中 status 为 user_confirmed 或 verified 的主张、强度 strength（nudge / keywords / full）、公司性质与岗位类别（按需加载 references：风格库、岗位速查、版式规范）。
@@ -26,12 +26,12 @@ triggers: 改简历,定制简历,按JD改,优化简历,简历,一页简历,简�
 ```json
 {
   "strength":"nudge|keywords|full",
-  "patch":[{"op":"replace|add|remove|move","path":"/experiences/0/bullets/1","value":"","from":""}],
+  "patch":[{"op":"replace|add|remove","path":"/experience/0/bullets/1","value":"","from":""}],
   "reasons":[{"path":"","reason":"","claim_ids":[],"jd_keywords":[]}],
   "unresolved":[{"need":"","why":""}]
 }
 ```
-每条 patch 都要有对应 reasons 并引用 claim_ids；没有已确认主张支撑的改动放 unresolved，提示用户先去经历库补充。
+每条 patch 都要有对应 reasons 并引用 claim_ids。path 的顶层键只能是简历 schema 里的 basics / education / experience / projects / skills / awards / certifications / custom_sections（单数 experience、复数 projects），写错的改动会被丢掉。没有已确认主张支撑的改动放 unresolved，need 写成用户一眼能懂的一句话（如「JD 要 SQL，经历里没提到」）：产品会把它列在「改了什么」卡上，助理不在对话里追问。
 
 # 约束
 - 只用已确认主张，pending 主张不进简历；缺数据标"未知"而不是估一个。

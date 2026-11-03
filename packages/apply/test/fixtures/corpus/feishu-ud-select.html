@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>语料：飞书 UD Select</title>
+<!--
+  飞书招聘网申表（Universe Design）下拉的 DOM 形态（2026-10-31 小鹏真机失败快照里抄下的结构，数据虚构）：
+  外壳 .ud__select > .ud__select__selector > __content > [__placeholder] [__search > input readonly role=combobox type=search] + __arrow；
+  在 selector 上 mousedown 开 / 关；弹层挂到 body：.ud__select__dropdown > … > .rc-virtual-list-holder（max-height 240，内容 320）>
+  .rc-virtual-list-holder-inner > 每个选项包 5 层（「学历」按 data-total 模拟虚拟列表只渲染了一部分）：div > div.ud__select__list__item > div.__content > span > span > 文本（另有空的 div.__check）；
+  点击处理只挂在 .ud__select__list__item 上（点叶子要冒泡上来才收得到）；禁用项带 .ud__select__list__item-disabled；
+  选中后外壳里出现 .ud__select__selector__item 显示选中文字（真机还没抓到选中态，这里按同一命名风格放一个）。
+-->
+<style>
+body{font:14px -apple-system,"PingFang SC",sans-serif;margin:24px}
+.ud-formily-item{margin-bottom:16px;width:600px}
+.ud-formily-item-asterisk{color:#f54a45;margin-left:2px}
+.ud__select, .zz__select{position:relative;width:100%}
+.ud__select__selector, .zz__select__selector{position:relative;border:1px solid #d0d3d6;border-radius:6px;height:40px;padding:0 12px;display:flex;align-items:center;cursor:pointer}
+.ud__select__selector__content, .zz__select__selector__content{position:relative;flex:1;height:38px;display:flex;align-items:center}
+.ud__select__selector__placeholder, .zz__select__selector__placeholder{color:#8f959e}
+.ud__select__selector__search, .zz__select__selector__search{position:absolute;inset:0}
+.ud__select__selector__search__input, .zz__select__selector__search__input{width:100%;height:38px;border:0;outline:0;background:transparent;padding:0;cursor:pointer}
+.ud__select__selector__arrow, .zz__select__selector__arrow{width:16px}
+.ud__select__dropdown, .zz__select__dropdown{position:absolute;background:#fff;box-shadow:0 6px 16px rgba(0,0,0,.12);border-radius:6px;padding:4px;width:600px;z-index:1050}
+.ud__select__dropdown-hidden, .zz__select__dropdown-hidden{display:none}
+.ud__select__list__item, .zz__select__list__item{display:flex;align-items:center;height:36px;padding:0 12px;cursor:pointer}
+.ud__select__list__item__content, .zz__select__list__item__content{flex:1}
+.ud__select__list__item-disabled, .zz__select__list__item-disabled{color:#bbbfc4;cursor:not-allowed}
+</style></head><body>
+<form>
+  <div class="register-form-group-wrapper">
+    <div data-mount="degree" data-label="学历" data-required="1" data-total="30" data-opts="博士,MBA,硕士,本科,大专,高中,专职!,初中,小学"></div>
+    <div data-mount="education_type" data-label="学历类型" data-required="1" data-opts="海外及港澳台,统招全日制,统招非全日制,自考,其他"></div>
+    <div data-mount="politics" data-label="政治面貌" data-opts="中共党员,中共预备党员,共青团员,民革党员,民盟盟员,民建会员,无党派人士,群众,其他"></div>
+  </div>
+</form>
+<script>
+(function () {
+  const model = window.__model = {}
+  // ?lib=zz：同一结构换一套不在组件库名单里的类名前缀（验证外壳 / 选项都按结构认，不靠库名）
+  const P = new URLSearchParams(location.search).get('lib') || 'ud'
+  const c = names => names.split(' ').map(n => n.startsWith('~') ? `${P}__${n.slice(1)}` : n).join(' ')
+  const el = (tag, cls, kids) => { const n = document.createElement(tag); if (cls) n.className = c(cls); for (const k of kids || []) n.append(k); return n }
+  function mount(host) {
+    const key = host.dataset.mount
+    const item = el('div', 'ud-formily-item ud-formily-item-layout-vertical')
+    item.dataset.formFieldId = key; item.dataset.formFieldName = key; item.dataset.formFieldI18nName = host.dataset.label
+    const lab = el('span', '', [el('label', '', [host.dataset.label])])
+    if (host.dataset.required) lab.append(el('span', 'ud-formily-item-asterisk', ['*']))
+    item.append(el('div', 'ud-formily-item-label', [el('div', 'ud-formily-item-label-content', [lab])]))
+    const placeholder = el('div', '~select__selector__placeholder', ['请选择'])
+    const input = el('input', '~select__selector__search__input ~native-input')
+    input.setAttribute('role', 'combobox'); input.setAttribute('autocomplete', 'off'); input.type = 'search'; input.readOnly = true
+    const content = el('div', '~select__selector__content', [placeholder, el('div', '~select__selector__search', [input])])
+    const selector = el('div', '~select__selector ~select__selector-lg ~select__selector-readOnly', [content, el('div', '~select__selector__arrow', [el('span', 'universe-icon', ['⌄'])])])
+    const shell = el('div', '~select select__45922b', [selector])
+    item.append(el('div', 'ud-formily-item-control', [el('div', 'ud-formily-item-control-content', [el('div', 'ud-formily-item-control-content-component', [shell])])]))
+    host.replaceWith(item)
+
+    const opts = host.dataset.opts.split(',').map(t => ({ text: t.replace(/!$/, ''), disabled: t.endsWith('!') }))
+    const inner = el('div', 'rc-virtual-list-holder-inner')
+    inner.style.cssText = 'display:flex;flex-direction:column;position:absolute;left:0;right:0;top:0'
+    const holder = el('div', 'rc-virtual-list-holder', [el('div', '', [inner])])
+    holder.style.cssText = 'max-height:240px;overflow-y:hidden'
+    // data-total：虚拟列表一共有多少项（只渲染了 opts 这几项）；不写就是全渲染了
+    holder.firstChild.style.cssText = `height:${(Number(host.dataset.total) || opts.length) * 36}px;position:relative;overflow:hidden`
+    const hidden = `${P}__select__dropdown-hidden`
+    const drop = el('div', `~select__dropdown ~select__dropdown-hidden`, [el('div', '', [el('div', '~select__list', [el('div', '~select__list__menu', [el('div', 'rc-virtual-list', [holder])])])])])
+    document.body.append(drop)
+    const close = () => drop.classList.add(hidden)
+    for (const o of opts) {
+      const row = el('div', '~select__list__item' + (o.disabled ? ' ~select__list__item-disabled' : ''), [
+        el('div', '~select__list__item__content ~textOverflow', [el('span', '', [el('span', '', [o.text])])]),
+        el('div', '~select__list__item__check'),
+      ])
+      row.addEventListener('click', () => {
+        if (o.disabled) return
+        model[key] = o.text
+        content.querySelector(`.${P}__select__selector__item`)?.remove()
+        placeholder.textContent = ''
+        content.insertBefore(el('div', '~select__selector__item', [o.text]), content.firstChild)
+        close()
+      })
+      inner.append(el('div', '', [row]))
+    }
+    selector.addEventListener('mousedown', ev => {
+      ev.preventDefault()
+      if (!drop.classList.contains(hidden)) return close()
+      for (const d of document.querySelectorAll(`.${P}__select__dropdown`)) d.classList.add(hidden)
+      const r = selector.getBoundingClientRect()
+      drop.style.left = `${r.left + scrollX}px`; drop.style.top = `${r.bottom + scrollY + 4}px`
+      drop.classList.remove(hidden)
+    })
+    document.addEventListener('mousedown', ev => { if (!drop.contains(ev.target) && !shell.contains(ev.target)) close() })
+  }
+  document.querySelectorAll('[data-mount]').forEach(mount)
+})()
+</script>
+</body></html>

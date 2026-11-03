@@ -8,6 +8,7 @@ vi.mock('@/pages/CareerOffer', () => ({ default: () => <div data-testid="embedde
 
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
+import { CAREER_NAVIGATE_EVENT } from '@/features/career-shell/navModel';
 import { resetCareerSubViews, setCareerSubView } from '@/features/career-shell/subViewStore';
 import CareerDossier from './CareerDossier';
 
@@ -79,6 +80,7 @@ function mockGet({ exams = [] as unknown[], interviews = [] as unknown[], mocks 
     if (path.startsWith('/api/career/interviews')) return { ok: true, interviews };
     if (path.startsWith('/api/career/mock-interviews')) return { ok: true, mockInterviews: mocks };
     if (path.startsWith('/api/career/mail/accounts')) return { ok: true, accounts: mailAccounts, presets: {} };
+    if (path.startsWith('/api/career/mail/connectors')) return { ok: true, connectors: [{ id: 'qq', name: 'QQ 邮箱', auth_type: 'credential_form', capabilities: ['receive'], open_url: 'https://wx.mail.qq.com/', open_label: '打开 QQ 邮箱', help_url: null, guide: [], verify_note: '', fields: [] }], accounts: mailAccounts };
     return { ok: true };
   });
 }
@@ -158,6 +160,19 @@ describe('CareerDossier · 投递记录', () => {
     fireEvent.change(screen.getByLabelText('搜索投递线'), { target: { value: '丙' } });
     expect(bodyRows().map(r => r.getAttribute('aria-label'))).toEqual(['丙公司 · 后端工程师']);
   });
+  it('从漏斗 / 甘特跳过来只看那一组投递，可清除；之后按单条定位会解除筛选', async () => {
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    await screen.findByRole('table');
+    act(() => { emitEvent('career:focus', { surface: 'dossier', filter: { label: '漏斗 · 走到面试', application_ids: ['a1', 'a3'] } }); });
+    await waitFor(() => expect(bodyRows().map(r => r.getAttribute('aria-label'))).toEqual(['丙公司 · 后端工程师', '戊公司 · 数据工程师']));
+    expect(screen.getByText('只看：漏斗 · 走到面试')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '清除筛选' }));
+    expect(bodyRows()).toHaveLength(4);
+    act(() => { emitEvent('career:focus', { surface: 'dossier', filter: { label: '空的一组', application_ids: [] } }); });
+    expect(await screen.findByText('这一组里没有投递')).toBeInTheDocument();
+    act(() => { emitEvent('career:focus', { surface: 'dossier', application_id: 'a2' }); });
+    await waitFor(() => expect(bodyRows()).toHaveLength(4));
+  });
   it('二级导航选的子视图决定页标题与嵌入页', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');
@@ -167,7 +182,7 @@ describe('CareerDossier · 投递记录', () => {
     expect(screen.getByRole('heading', { name: '面试工作台' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'apply'); });
     expect(await screen.findByTestId('embedded-apply')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '岗位收藏' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '岗位库' })).toBeInTheDocument();
     // 旧的「笔试记录」视图落到助力记录
     act(() => { setCareerSubView('career-dossier', 'exam'); });
     expect(await screen.findByText('还没有助力记录')).toBeInTheDocument();
@@ -215,15 +230,17 @@ describe('CareerDossier · 助力记录', () => {
     await waitFor(() => expect(screen.getByRole('row', { name: '丙公司 · 后端工程师' }).className).toContain('shadow-[inset_3px_0_0_var(--primary)]'));
   });
 
-  it('助力：笔试把带投递和截止 id 的话发进对话，不打开档案', async () => {
-    const suggested: unknown[] = [];
-    const off = onEvent('career:chat-suggest', p => suggested.push(p));
+  it('助力：笔试带着公司和岗位打开搜题页，不发进对话', async () => {
+    const seen: unknown[] = [];
+    const offs = ['career:chat-suggest', 'career:exam-search-context', CAREER_NAVIGATE_EVENT].map(event => onEvent(event, p => seen.push([event, p])));
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');
     fireEvent.click(within(bodyRows()[0]).getByRole('button', { name: '助力' }));
-    expect(suggested[0]).toMatchObject({ text: '帮我准备丙公司的笔试', context: { surface: 'dossier', refs: { application_id: 'a1', deadline_id: 'w1' } }, mode: 'send' });
-    expect(screen.getByRole('heading', { name: '助力记录' })).toBeInTheDocument();
-    off();
+    expect(seen).toEqual([
+      ['career:exam-search-context', expect.objectContaining({ company: '丙公司' })],
+      [CAREER_NAVIGATE_EVENT, { kind: 'career-dossier', view: 'exam-search' }],
+    ]);
+    offs.forEach(off => off());
   });
 
   it('新建 › 手动填写笔试：调用 /exams；面试走 /interviews', async () => {
@@ -285,7 +302,7 @@ describe('CareerDossier · 助力记录', () => {
     fireEvent.click(screen.getByRole('button', { name: '绑定邮箱' }));
     const dialog = await screen.findByRole('dialog', { name: '新建助力记录' });
     expect(within(dialog).getByRole('tab', { name: /从邮箱同步/ })).toHaveAttribute('aria-selected', 'true');
-    expect(within(dialog).getByRole('button', { name: /QQ 邮箱/ })).toBeInTheDocument();
+    expect(await within(dialog).findByRole('button', { name: /QQ 邮箱/ })).toBeInTheDocument();
     unmount();
 
     mockGet({ exams: examDeadlines, mailAccounts: [{ id: 'acc1', address: 'me@qq.com', provider: 'qq', status: 'ok', last_sync_at: null, last_error: null }] });

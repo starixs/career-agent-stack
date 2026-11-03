@@ -18,9 +18,10 @@ export function serverConfig(repos: Repos, env: NodeJS.ProcessEnv = process.env)
   return { base_url: base.replace(/\/+$/, ''), token: saved?.token?.trim() || env.CAREER_API_TOKEN?.trim() || undefined };
 }
 
-type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
+export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
-async function call<T>(cfg: ServerConfig, path: string, init: RequestInit = {}, fetchImpl: FetchLike = fetch): Promise<T> {
+/** 调服务端接口（鉴权、超时、非 2xx 抛错）。邮箱连接器（mail/remote.ts）与岗位库共用。 */
+export async function serverCall<T>(cfg: ServerConfig, path: string, init: RequestInit = {}, fetchImpl: FetchLike = fetch): Promise<T> {
   const res = await fetchImpl(`${cfg.base_url}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...(cfg.token ? { Authorization: `Bearer ${cfg.token}` } : {}), ...(init.headers as Record<string, string> | undefined) },
@@ -37,7 +38,7 @@ export class RemoteJobSource implements JobSource {
   async search(q: JobQuery): Promise<JobPage> {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
-    const page = await call<JobPage>(this.cfg, `/v1/jobs?${params}`, {}, this.fetchImpl);
+    const page = await serverCall<JobPage>(this.cfg, `/v1/jobs?${params}`, {}, this.fetchImpl);
     return { items: Array.isArray(page.items) ? page.items : [], next_cursor: page.next_cursor ?? null };
   }
 }
@@ -48,7 +49,7 @@ export async function uploadAnswerEvents(repos: Repos, cfg: ServerConfig, fetchI
   if (!events.length) return { uploaded: 0 };
   const body = { events: events.map(toWire) };
   try {
-    await call(cfg, '/v1/answer-events', { method: 'POST', body: JSON.stringify(body) }, fetchImpl);
+    await serverCall(cfg, '/v1/answer-events', { method: 'POST', body: JSON.stringify(body) }, fetchImpl);
     repos.markAnswerEventsUploaded(events.map(e => e.id));
     return { uploaded: events.length };
   } catch (error) {

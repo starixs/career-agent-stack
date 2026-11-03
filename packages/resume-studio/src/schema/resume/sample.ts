@@ -618,6 +618,7 @@ export const sampleResumeData: ResumeData = {
 			hideLinkUnderline: false,
 			hideIcons: false,
 			hideSectionIcons: false,
+			autoFit: true,
 		},
 		design: {
 			level: {

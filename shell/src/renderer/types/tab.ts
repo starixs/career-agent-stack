@@ -15,6 +15,7 @@ import type { CareerReviewTab } from '@/features/career-review/tabContract';
 import type { CareerGuideTab } from '@/features/career-guide/tabContract';
 import type { CareerLiveTab } from '@/features/career-live/tabContract';
 import type { CareerVaultTab } from '@/features/career-vault/tabContract';
+import type { CareerTakeoverTab } from '@/features/career-takeover/tabContract';
 
 export type { TabBase } from '@/tab-workspace/contracts';
 export type {
@@ -43,6 +44,7 @@ export type { CareerReviewTab } from '@/features/career-review/tabContract';
 export type { CareerGuideTab } from '@/features/career-guide/tabContract';
 export type { CareerLiveTab } from '@/features/career-live/tabContract';
 export type { CareerVaultTab } from '@/features/career-vault/tabContract';
+export type { CareerTakeoverTab } from '@/features/career-takeover/tabContract';
 
 /** 求职工作台五个面 + 指南 + 两个辅助面（浏览器现场 / 私密信息）的 Tab 种类（单实例）；清单以 features/career-shared/nav.ts 为准。 */
 export type CareerPageTab =
@@ -53,7 +55,8 @@ export type CareerPageTab =
   | CareerReviewTab
   | CareerGuideTab
   | CareerLiveTab
-  | CareerVaultTab;
+  | CareerVaultTab
+  | CareerTakeoverTab;
 export type CareerPageKind = CareerPageTab['view'];
 export const CAREER_PAGE_KINDS: readonly CareerPageKind[] = [
   'career-today',
@@ -64,6 +67,7 @@ export const CAREER_PAGE_KINDS: readonly CareerPageKind[] = [
   'career-guide',
   'career-live',
   'career-vault',
+  'career-takeover',
 ];
 
 /** Closed union for the builtin career-assistant edition. Downstream editions

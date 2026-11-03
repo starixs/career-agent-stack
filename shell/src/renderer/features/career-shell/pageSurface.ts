@@ -3,6 +3,7 @@
  * 页面发出的消息带上 `page:<kind>[:<view>]` 作为隐藏上下文的 surface；
  * 对话里那一轮回复结束后，据此挂一张「回到 XX」卡片，点了回到原页面看结果。
  */
+import { surfaceToKind } from '@/features/career-shared/nav';
 import { CAREER_PAGE_KINDS, type CareerPageKind } from '@/types/tab';
 
 import { NAV_AREAS, type NavTarget } from './navModel';
@@ -20,6 +21,18 @@ export function parsePageSurface(surface: string | null | undefined): PageTarget
   const [kind, view] = surface.slice(PREFIX.length).split(':');
   if (!(CAREER_PAGE_KINDS as readonly string[]).includes(kind)) return null;
   return view ? { kind: kind as CareerPageKind, view } : { kind: kind as CareerPageKind };
+}
+
+/**
+ * 这一轮该回到哪一页：底部输入框发的是 `page:…`；页面上的按钮（「帮我准备这场面试」「交给助理处理」）
+ * 只带面板名（today / inbox / dossier…），同样是从那一页来的，也给回程。对话里卡片的来源（apply 等）不算页面。
+ * 不带子视图时回到那一页当前停着的视图（页面切走不卸载，停在哪就回哪）。
+ */
+export function returnTargetOf(surface: string | null | undefined): PageTarget | null {
+  const page = parsePageSurface(surface);
+  if (page) return page;
+  const kind = surfaceToKind(surface);
+  return kind ? { kind } : null;
 }
 
 /** 二级导航里这一页叫什么；没在导航里的页面退回通用叫法。 */

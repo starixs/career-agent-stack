@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type WheelEvent, type ClipboardEvent } from 'react';
 
 import { careerApi } from './careerApi';
+import { useLivePointer } from './useLivePointer';
 import type { LiveFrame } from './types';
 
 const SPECIAL_KEYS = new Set(['Enter', 'Backspace', 'Tab', 'Escape', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
@@ -117,8 +118,16 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
     return { x: Math.round(x), y: Math.round(y) };
   };
 
+  // 接管期间按下 / 移动 / 松开实时转发（useLivePointer）：拖滑块时画面跟着手走
+  const pointer = useLivePointer(
+    input => send(input, input.type === 'move' ? '拖动' : input.type === 'down' ? `按下 ${input.x},${input.y}` : '松开'),
+    frameCoords,
+    () => (frame ? { width: frame.width, height: frame.height } : null),
+  );
+
   const onClick = (ev: MouseEvent<HTMLDivElement>) => {
     boxRef.current?.focus();
+    if (interactive && pointer.consumeClick()) return; // 按下 + 松开已经在网页里点过了
     const c = frameCoords(ev);
     if (!interactive) {
       if (!onRequestControl || !frame || claiming) return;
@@ -159,6 +168,10 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
       aria-label={interactive ? '浏览器实时画面（可直接操作）' : onRequestControl ? '浏览器实时画面（点击即接管）' : '浏览器实时画面（只读）'}
       tabIndex={0}
       data-testid="live-viewport"
+      onMouseDown={interactive ? pointer.onMouseDown : undefined}
+      onMouseMove={interactive ? pointer.onMouseMove : undefined}
+      onMouseUp={interactive ? pointer.onMouseUp : undefined}
+      onMouseLeave={interactive ? pointer.onMouseLeave : undefined}
       onClick={onClick}
       onWheel={onWheel}
       onKeyDown={onKeyDown}

@@ -53,9 +53,7 @@ import BugReportOverlay from '@/components/BugReportOverlay';
 import { DispatchTaskDialog } from '@/components/task-center/DispatchTaskDialog';
 import CustomTitleBar from '@/components/CustomTitleBar';
 import { CareerNavShell } from '@/features/career-shell/CareerNavShell';
-import { BallReminderRelay } from '@/features/career-shell/BallReminderRelay';
-import { markReminderShown, requestOnboardingIntro } from '@/features/career-shell/onboardingReminder';
-import { CAREER_NAVIGATE_EVENT, type NavTarget } from '@/features/career-shell/navModel';
+import { CAREER_NAVIGATE_EVENT, requestNavigation, type NavTarget } from '@/features/career-shell/navModel';
 import type { CareerFocusEvent } from '@/components/career/types';
 import { stashCareerFocus } from '@/features/career-shell/pendingFocus';
 import { OPEN_BUG_REPORT_EVENT } from '@/features/career-shell/shellEvents';
@@ -1275,13 +1273,12 @@ export default function App() {
         listenerAc.signal,
       );
 
-      // 桌面悬浮球上的新手引导提醒被点了：回到工作台打开引导，今天不再提醒。
+      // 悬浮球的「回工作台」：五步引导已退役（冷启动做法二），回到招聘概览，那里有「从你手里有的开始」。
       void listenWithCleanup(
         'fb:open-onboarding',
         () => {
           if (!mountedRef.current) return;
-          markReminderShown();
-          requestOnboardingIntro();
+          requestNavigation({ kind: 'career-today' });
         },
         listenerAc.signal,
       );
@@ -4964,6 +4961,7 @@ export default function App() {
       'career-guide': careerPageBinding,
       'career-live': careerPageBinding,
       'career-vault': careerPageBinding,
+      'career-takeover': careerPageBinding,
     }),
     [
       capabilitiesBinding,
@@ -4985,7 +4983,6 @@ export default function App() {
           <CareerLiveDrawer />
           <CareerResumeDrawer />
           <CareerNavShell activeView={activeTab?.view} onOpen={handleOpenNavTarget} />
-          <BallReminderRelay activeView={activeTab?.view} />
           <div className="flex min-w-0 flex-1 flex-col" data-tab-workspace>
             {/* 标题栏：求职助理是单一对话，不再展示多 Tab 标签条与"+"；
                 标签页切换全部经由左侧全局导航。 */}

@@ -152,6 +152,8 @@ export interface SimpleChatInputProps {
   agentStatusSlot?: React.ReactNode;
   /** 长任务等待时的小游戏提示 / 卡片；与 agentStatusSlot 同居输入框上方浮层行。 */
   waitingArcadeSlot?: React.ReactNode;
+  /** 求职：等你条（要你的事唯一的落点），紧贴输入框上沿、不随对话滚走；卡组从它上方展开。 */
+  waitingDockSlot?: React.ReactNode;
   onOverlayHeightChange?: (height: number) => void;
 }
 

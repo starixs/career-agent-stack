@@ -7,7 +7,9 @@
  */
 import type { Repos, LLM, Job, JdParsed, InboxItem, InboxKind, InboxSource, DeadlineKind } from '@career/core';
 
-import { htmlToText } from './attachment-reader';
+import { fetchPage } from './web-fetch';
+import { normalizeIso } from './dates';
+import { normalizeRoundLabel, openInterviewDeadline, rescheduleDeadline, upsertInvitedInterview } from './interview-link';
 import type { CoreModule } from './core-module';
 import { loadSkillPrompt } from './skills';
 import { CareerStore } from './store';
@@ -16,7 +18,7 @@ import { CareerStore } from './store';
  * 面板定位：前六个是一级入口（打开对应页签）；resume_editor / live_drawer 是聊天旁的抽屉（不跳转），
  * vault 打开私密信息页。
  */
-export type FocusSurface = 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide' | 'vault' | 'resume_editor' | 'live_drawer';
+export type FocusSurface = 'today' | 'takeover' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide' | 'vault' | 'resume_editor' | 'live_drawer';
 export interface FocusHint { surface: FocusSurface; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string }
 
 export interface IntakeDeps {
@@ -38,13 +40,15 @@ export interface IntakeInput {
   mail?: { subject?: string | null; from?: string | null; received_at?: string | null };
   /** 用户在面板里已指定归属的投递。 */
   application_id?: string | null;
+  /** 第一次连邮箱时导入的历史邮件：不推面板、不进通知中心，只把申请和卷宗建好。 */
+  history?: boolean;
 }
 
 export interface TriageResult {
   kind?: InboxKind | string;
   relevance?: 'job' | 'ignored';
   confidence?: number;
-  fields?: { company?: string; title?: string; round?: string; when?: string; due_at?: string; location_or_link?: string; contact?: string; referral_code?: string; notes?: string };
+  fields?: { company?: string; title?: string; round?: string; when?: string; due_at?: string; location_or_link?: string; contact?: string; referral_code?: string; notes?: string; comp?: Record<string, number | string> };
   match?: { application_id?: string; candidates?: string[] };
   actions?: Array<{ type: string; payload?: Record<string, unknown> }>;
   urgency?: 'urgent' | 'soon' | 'normal';
@@ -58,9 +62,17 @@ export interface IntakeResult {
   focus: FocusHint;
   /** 面板 / 对话要告诉用户的一句话。 */
   summary: string;
+  /** 同一家有几份在投、对不上是哪一份：列出来让用户点一下（不另建一份，也不让他打字说明）。 */
+  candidates?: ApplicationChoice[];
 }
 
-const INBOX_KIND_SET = new Set<string>(['jd', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other']);
+export interface ApplicationChoice { application_id: string; label: string }
+
+export { normalizeIso } from './dates';
+
+const INBOX_KIND_SET = new Set<string>(['jd', 'application_received', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other']);
+/** 招聘方对一份已投申请的回音：能把一份关掉的申请重新打开的那几类。 */
+const REPLY_KINDS = new Set<InboxKind>(['interview_invite', 'assessment', 'written_test', 'rejection', 'offer']);
 
 /** 技能提示词 + 模型 → JSON（与 career-tools.askSkill 同形，这里不依赖工具层）。 */
 async function askSkill<T>(deps: IntakeDeps, skill: string, user: string, temperature = 0.2): Promise<T> {
@@ -87,7 +99,7 @@ export async function parseAndStoreJd(
   let job = input.job_id ? r.getJob(input.job_id) : undefined;
   if (input.job_id && !job) throw new Error(`岗位不存在：${input.job_id}`);
   const jdRaw = input.jd_raw ?? job?.jd_raw ?? undefined;
-  if (!jdRaw) throw new Error('需要 jd_raw（链接导入目前只记录 url，不抓取页面；请把 JD 文本一起给我）');
+  if (!jdRaw) throw new Error('这个岗位还没有 JD 正文：有链接就用 browser_open 打开读（要登录就 browser_wait_user 请用户登录一下），读到后 browser_capture_job 收录；不要让用户复制粘贴 JD。');
   const digest = r.experienceTree().map(e => `## ${e.title}\n${e.claims.filter(c => c.status !== 'pending').map(c => `- ${c.text}`).join('\n')}`).join('\n\n') || '（经历库为空）';
   const parsed = await askSkill<JdParsed>(deps, 'jd-parse', `公司：${input.company_name ?? job?.company_name ?? '未知'}\n岗位：${input.title ?? job?.title ?? '未知'}\n\nJD 原文：\n${jdRaw}\n\n经历库摘要：\n${digest}`);
   const title = input.title ?? job?.title ?? parsed.title ?? jdRaw.split('\n').map(l => l.trim()).find(Boolean)?.slice(0, 60) ?? '未命名岗位';
@@ -117,18 +129,9 @@ export async function captureIntake(deps: IntakeDeps, input: IntakeInput): Promi
     return { item, triage: null, created: { deadline_ids: [] }, focus: focus(deps, { surface: 'inbox', id: item.id }), summary: '已放进收件箱，等助理在线时归档。' };
   }
   const nowIso = deps.now?.() ?? new Date().toISOString();
-  const openApps = r.applicationsWithJob().filter(a => !['rejected', 'discarded', 'skip', 'hired'].includes(a.stage));
-  const appList = openApps.map(a => `- ${a.job.company_name ?? '未知'} / ${a.job.title} / 阶段 ${a.stage} / application_id=${a.id}`).join('\n') || '（没有进行中的投递）';
   let triage: TriageResult;
   try {
-    triage = await askSkill<TriageResult>(deps, 'inbox-triage', [
-      `当前日期：${nowIso.slice(0, 10)}`,
-      `来源：${input.source ?? 'paste'}`,
-      input.mail ? `邮件主题：${input.mail.subject ?? ''}\n发件人：${input.mail.from ?? ''}\n收件时间：${input.mail.received_at ?? ''}` : '',
-      input.application_id ? `用户指定归属投递 application_id=${input.application_id}` : '',
-      `进行中的投递：\n${appList}`,
-      `原文：\n${text.slice(0, 12_000)}`,
-    ].filter(Boolean).join('\n\n'));
+    triage = await triageText(deps, text, input, nowIso);
   } catch (error) {
     const note = `归类失败：${error instanceof Error ? error.message : String(error)}`;
     const failed = r.resolveInboxItem(item.id, { kind: 'other', status: 'new', note });
@@ -138,7 +141,35 @@ export async function captureIntake(deps: IntakeDeps, input: IntakeInput): Promi
   return applied;
 }
 
-async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResult, input: IntakeInput, nowIso: string): Promise<IntakeResult> {
+/**
+ * 调 inbox-triage 技能判类型、抽字段。hint 是用户点「不对」时选的正确类型：带上它重新抽一次字段（如面试时间），
+ * 用户不用再解释一遍那封信说了什么。
+ */
+export async function triageText(deps: IntakeDeps, text: string, input: Pick<IntakeInput, 'source' | 'mail' | 'application_id'>, nowIso: string, hint?: string): Promise<TriageResult> {
+  const openApps = deps.repos.applicationsWithJob().filter(a => !['rejected', 'discarded', 'skip', 'hired'].includes(a.stage));
+  const appList = openApps.map(a => `- ${a.job.company_name ?? '未知'} / ${a.job.title} / 阶段 ${a.stage} / application_id=${a.id}`).join('\n') || '（没有进行中的投递）';
+  return askSkill<TriageResult>(deps, 'inbox-triage', [
+    `当前日期：${nowIso.slice(0, 10)}`,
+    `来源：${input.source ?? 'paste'}`,
+    input.mail ? `邮件主题：${input.mail.subject ?? ''}\n发件人：${input.mail.from ?? ''}\n收件时间：${input.mail.received_at ?? ''}` : '',
+    input.application_id ? `用户指定归属投递 application_id=${input.application_id}` : '',
+    hint ? `用户更正：这条内容的类型是 ${hint}，按这个类型抽字段` : '',
+    `进行中的投递：\n${appList}`,
+    `原文：\n${text.slice(0, 12_000)}`,
+  ].filter(Boolean).join('\n\n'));
+}
+
+/**
+ * 已经分好类的内容直接落库，不调模型（历史邮件的规则分类用）。
+ * history 时静默：调用方整批结束后自己推一次 dataChanged。
+ */
+export async function captureTriaged(deps: IntakeDeps, input: IntakeInput, triage: TriageResult): Promise<IntakeResult> {
+  const quiet: IntakeDeps = input.history ? { ...deps, broadcast: () => undefined } : deps;
+  const item = deps.repos.createInboxItem({ source: input.source ?? 'paste', raw_text: input.text.trim(), mail_message_id: input.mail_message_id ?? null });
+  return applyTriage(quiet, item, triage, input, deps.now?.() ?? new Date().toISOString());
+}
+
+export async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResult, input: IntakeInput, nowIso: string): Promise<IntakeResult> {
   const r = deps.repos;
   const store = new CareerStore(r, deps.core);
   const kind: InboxKind = INBOX_KIND_SET.has(String(triage.kind)) ? triage.kind as InboxKind : 'other';
@@ -151,7 +182,18 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
   // 找归属投递：用户指定 > 模型匹配 > 公司名匹配（唯一时才用）
   let app = input.application_id ? r.getApplication(input.application_id) : undefined;
   if (!app && triage.match?.application_id) app = r.getApplication(triage.match.application_id);
-  if (!app && company) { const hits = r.findOpenApplicationsByCompany(company); if (hits.length === 1) app = hits[0]; }
+  // Offer 来信还要算上已接受的那份：接了意向之后还会来三方、入职通知
+  const hits = !app && company ? r.findOpenApplicationsByCompany(company, kind === 'offer' ? ['hired'] : []) : [];
+  if (hits.length === 1) app = hits[0];
+  // 同一家有几份在投：先按岗位名对；还对不上就列出来让用户点一下，不另建一份「未命名岗位」
+  if (!app && hits.length > 1) {
+    const byTitle = title ? hits.filter(h => h.job.title.includes(title) || title.includes(h.job.title)) : [];
+    if (byTitle.length === 1) app = byTitle[0];
+    else if (kind !== 'jd') return askWhichApplication(deps, item, triage, kind, byTitle.length > 1 ? byTitle : hits);
+  }
+  // 都没有：这家投出过、后来被关掉（多半是静默超时）的那份，迟到的回信接回它，不另起一份；重新打开放进下面的 try
+  const closed = !app && company && REPLY_KINDS.has(kind) ? r.findClosedSentApplicationsByCompany(company) : [];
+  if (closed.length === 1) app = closed[0];
 
   /**
    * 找不到投递就建岗位 + 投递；然后只往前推进到目标阶段（Repos.advanceTo）：已经在面试的投递又收到一封笔试通知，
@@ -162,20 +204,29 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       // 邮件 / 粘贴里只有公司与岗位名；批次只在原文字面出现时才记（不猜行业）
       const board = deps.core.serializeBoardMeta({ batch: deps.core.batchFromText(title, input.mail?.subject, item.raw_text) });
       const job = r.upsertJob({ source_platform: 'manual', title: title ?? '未命名岗位', company_name: company, board_json: board });
-      app = r.createApplication(job.id);
+      app = r.createApplication(job.id, null, at);
       created.job_id = job.id;
       tables.add('job').add('application');
     }
-    const { app: next, moved } = r.advanceTo(app.id, stage, note);
+    const { app: next, moved } = r.advanceTo(app.id, stage, note, at);
     app = next;
     created.application_id = app.id;
     if (moved) tables.add('application').add('application_history');
     return app;
   };
-  /** allowUnknownTime：笔试 / 测评通知没写时间也建一条（due_at 为 null = 时间未知），笔试记录和投递进度才看得到。 */
+  /** 邮件里没写年份的日期按收件时间补年份：九月的旧邮件写「9月10日」就是今年九月，不是明年。 */
+  const refIso = input.mail?.received_at ?? nowIso;
+  /** 阶段流转记在邮件到达的时刻，「我的求职月」才按真实月份统计。 */
+  const at = input.mail?.received_at ?? undefined;
+  /**
+   * allowUnknownTime：笔试 / 测评通知没写时间也建一条（due_at 为 null = 时间未知），笔试记录和投递进度才看得到。
+   * 导入时就已经过去的事（第一次连邮箱拉到的历史邮件）不建截止事件：它已经发生了，只留在卷宗和面试记录里，
+   * 否则会以「已过期」顶到首屏最上面，盖住真正要你的事。
+   */
   const addDeadline = (dk: DeadlineKind, label: string, when: string | undefined, extra: { interview_id?: string; offer_id?: string } = {}, allowUnknownTime = false) => {
-    const due = normalizeIso(when, nowIso);
+    const due = normalizeIso(when, refIso);
     if (!due && !allowUnknownTime) return;
+    if (due && Date.parse(due) < Date.parse(nowIso)) return;
     const d = r.createDeadline({ kind: dk, title: label, due_at: due, application_id: app?.id ?? null, job_id: app?.job_id ?? null, source: input.source === 'mail' ? 'mail' : 'inbox', url: f.location_or_link?.startsWith('http') ? f.location_or_link : null, note: f.notes ?? null, ...extra });
     created.deadline_ids.push(d.id);
     tables.add('deadline');
@@ -184,17 +235,25 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
   const label = `${company ?? '未知公司'}${title ? ` · ${title}` : ''}`;
 
   try {
+    if (closed.length === 1 && app) { app = r.reopenClosed(app.id, noteText); tables.add('application').add('application_history'); }
     switch (kind) {
       case 'jd': {
         const { job } = await parseAndStoreJd(deps, { jd_raw: item.raw_text, company_name: company ?? undefined, title: title ?? undefined });
         created.job_id = job.id; tables.add('job');
         break;
       }
+      case 'application_received': {
+        ensureApplication('applied', '收到投递确认');
+        break;
+      }
       case 'interview_invite': {
         const a = ensureApplication('interview', `收到面试邀请${f.round ? `（${f.round}）` : ''}`);
-        const itv = store.createInterview({ application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRound(f.round), date: normalizeIso(f.when, nowIso) ?? null });
+        // 同一场的提醒 / 改期邮件落回原来那场：只更新时间，不多建面试和时间点
+        const { interview: itv } = upsertInvitedInterview(store, { application_id: a.id, company_name: company ?? r.getJob(a.job_id)?.company_name ?? null, title, round: normalizeRoundLabel(f.round), date: normalizeIso(f.when, refIso) ?? null });
         created.interview_id = itv.id; tables.add('interview');
-        addDeadline('interview', `${label} 面试${f.round ? `（${f.round}）` : ''}`, f.when, { interview_id: itv.id });
+        const known = openInterviewDeadline(r, itv.id);
+        if (!known) addDeadline('interview', `${label} 面试${f.round ? `（${f.round}）` : ''}`, f.when, { interview_id: itv.id });
+        else if (itv.date && itv.date !== known.due_at) { rescheduleDeadline(r, known.id, itv.date); tables.add('deadline'); }
         r.addDossierNote({ application_id: a.id, kind: 'heard', round: f.round ?? null, content: `面试邀请：${f.when ?? '时间待定'}${f.location_or_link ? `，${f.location_or_link}` : ''}${f.contact ? `，联系人 ${f.contact}` : ''}` });
         tables.add('dossier_note');
         break;
@@ -208,8 +267,10 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
         break;
       }
       case 'rejection': {
+        // 没见过的公司来了拒信，说明投过：先补建这份投递再关掉，漏斗才完整
+        if (!app && company) ensureApplication('applied', '收到拒信（之前的投递）');
         if (app) {
-          app = r.jumpTo(app.id, 'rejected', '收到拒信');
+          app = r.jumpTo(app.id, 'rejected', '收到拒信', {}, at);
           created.closed_application_id = app.id; tables.add('application').add('application_history');
           r.addDossierNote({ application_id: app.id, kind: 'heard', content: `拒信：${triage.summary ?? ''}` });
           tables.add('dossier_note');
@@ -218,9 +279,19 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
       }
       case 'offer': {
         const a = ensureApplication('offer', '收到 Offer');
-        const offer = store.createOffer({ application_id: a.id, company_name: company, title, deadline: normalizeIso(f.due_at, nowIso) ?? null, risk_notes: f.notes ?? null });
-        created.offer_id = offer.id; tables.add('offer');
-        addDeadline('offer_reply', `${label} Offer 回复截止`, f.due_at, { offer_id: offer.id });
+        // 同一份申请只有一个 Offer：意向书之后的正式 offer、三方通知都落在它上面
+        const existing = store.listOffers().find(o => o.application_id === a.id);
+        const signing = isSigningNotice(f.notes, input.mail?.subject);
+        const due = signing ? null : normalizeIso(f.due_at, refIso);
+        // 答复期限由 Offer 自己同步到截止事件（只有一处真相）；三方是另一件事，单独记
+        // offer 原文里写了的薪酬直接记下，用户不用再报一遍（只抄原文的数，和已有的合并）
+        const comp = offerComp(f.comp, existing?.comp_json);
+        const offer = existing
+          ? (due || comp ? store.updateOffer(existing.id, { ...(due ? { deadline: due } : {}), ...(comp ? { comp_json: comp } : {}) }) : existing)
+          : store.createOffer({ application_id: a.id, company_name: company, title, deadline: due, risk_notes: f.notes ?? null, comp_json: comp ?? undefined }, input.source === 'mail' ? 'mail' : 'inbox');
+        created.offer_id = offer.id; tables.add('offer').add('deadline');
+        if (signing) addDeadline('other', `${label} 三方签约截止`, f.due_at, { offer_id: offer.id });
+        else created.deadline_ids.push(...r.listDeadlines({ status: 'open' }).filter(d => d.offer_id === offer.id && d.kind === 'offer_reply').map(d => d.id));
         break;
       }
       case 'referral': {
@@ -246,37 +317,29 @@ async function applyTriage(deps: IntakeDeps, item: InboxItem, triage: TriageResu
         : created.job_id ? { linked_type: 'job', linked_id: created.job_id }
           : created.deadline_ids[0] ? { linked_type: 'deadline', linked_id: created.deadline_ids[0] } : {};
   const needsUser = kind === 'other' || (triage.relevance === 'job' && !linked.linked_id && kind !== 'rejection');
-  const done = r.resolveInboxItem(item.id, { kind, parsed: triage, ...linked, note: noteText, status: needsUser ? 'new' : 'processed' });
+  const status = input.history ? 'dismissed' : needsUser ? 'new' : 'processed';
+  const done = r.resolveInboxItem(item.id, { kind, parsed: triage, ...linked, note: noteText, status });
   dataChanged(deps, [...tables]);
   const appId = created.application_id ?? created.closed_application_id ?? app?.id ?? null;
   const hint: FocusHint = appId ? { surface: 'dossier', application_id: appId } : created.job_id ? { surface: 'dossier', job_id: created.job_id } : { surface: 'inbox', id: item.id };
   return { item: done, triage, created, focus: focus(deps, hint), summary: triage.summary ?? noteText };
 }
 
-// ---------- 分享链接（Boss / 猎聘等转发出来的笔试 / 面试通知） ----------
-const LINK_FETCH_TIMEOUT_MS = 10_000;
-const LINK_TEXT_LIMIT = 12_000;
+/** 对不上是哪一份：信先留在通知中心（status new），候选写进 parsed 的 match.candidates，用户点一下由 assignIntake 落库。 */
+function askWhichApplication(deps: IntakeDeps, item: InboxItem, triage: TriageResult, kind: InboxKind, hits: Array<{ id: string; job: Job }>): IntakeResult {
+  const candidates = hits.map(h => ({ application_id: h.id, label: `${h.job.company_name ?? '未知公司'} · ${h.job.title}` }));
+  const note = `${candidates[0].label.split(' · ')[0]}有 ${candidates.length} 份在投，点一下归到哪一份`;
+  const parsed: TriageResult = { ...triage, match: { ...triage.match, candidates: candidates.map(c => c.application_id) } };
+  const pending = deps.repos.resolveInboxItem(item.id, { kind, parsed, note, status: 'new' });
+  dataChanged(deps, ['inbox_item']);
+  return { item: pending, triage: parsed, created: { deadline_ids: [] }, focus: focus(deps, { surface: 'inbox', id: item.id }), summary: note, candidates };
+}
 
-/** 取分享页的标题、描述和正文文字；拿不到（要登录、超时、非 HTML）返回 null，由调用方退回只用粘贴的文字。 */
+// ---------- 分享链接（Boss / 猎聘等转发出来的笔试 / 面试通知） ----------
+/** 取分享页的标题和正文文字；拿不到（要登录、超时、非 HTML、只有空壳）返回 null，由调用方退回只用粘贴的文字。 */
 export async function fetchSharePage(url: string, fetchImpl: typeof fetch = fetch): Promise<string | null> {
-  try {
-    const res = await fetchImpl(url, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(LINK_FETCH_TIMEOUT_MS),
-      headers: { 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36', accept: 'text/html,*/*' },
-    });
-    if (!res.ok) return null;
-    const type = res.headers.get('content-type') ?? '';
-    if (type && !/html|text/i.test(type)) return null;
-    const html = await res.text();
-    const meta = (name: string) => html.match(new RegExp(`<meta[^>]+(?:name|property)=["']${name}["'][^>]*content=["']([^"']*)["']`, 'i'))?.[1]?.trim();
-    const title = html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1]?.trim();
-    const parts = [title, meta('og:title'), meta('description'), meta('og:description'), htmlToText(html)].filter((p): p is string => !!p);
-    const text = [...new Set(parts)].join('\n').trim();
-    return text ? text.slice(0, LINK_TEXT_LIMIT) : null;
-  } catch {
-    return null;
-  }
+  const page = await fetchPage(url, fetchImpl);
+  return page.verdict === 'ok' && page.text ? [page.title, page.text].filter(Boolean).join('\n') : null;
 }
 
 /**
@@ -315,36 +378,20 @@ export function recordExam(deps: Pick<IntakeDeps, 'repos' | 'broadcast' | 'sessi
 }
 
 // ---------- 小工具 ----------
-function normalizeRound(round?: string): string {
-  const r = (round ?? '').toLowerCase();
-  if (['hr', 'first', 'second', 'final', 'group'].includes(r)) return r;
-  if (/hr|人事/.test(r)) return 'hr';
-  if (/一面|初面|first|1/.test(r)) return 'first';
-  if (/二面|second|2/.test(r)) return 'second';
-  if (/终面|final|三面/.test(r)) return 'final';
-  if (/群面|group/.test(r)) return 'group';
-  return 'other';
+
+/** 来信里抽到的薪酬并进已有的（来信优先，已有的不丢）；什么都没抽到返回 null，不动原值。 */
+function offerComp(fromMail: Record<string, number | string> | undefined, currentJson: string | null | undefined): string | null {
+  const picked = Object.fromEntries(Object.entries(fromMail ?? {}).filter(([, v]) => (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.trim())));
+  if (!Object.keys(picked).length) return null;
+  let current: Record<string, unknown> = {};
+  try { current = currentJson ? JSON.parse(currentJson) as Record<string, unknown> : {}; } catch (error) {
+    console.warn('[career-intake] offer comp_json unreadable, overwrite with mail fields:', error instanceof Error ? error.message : error);
+  }
+  return JSON.stringify({ ...current, ...picked });
 }
 
-/** 把模型给的时间（ISO / "2026-10-05 14:00" / "10月5日 14:00"）规整成 ISO；解析不了返回 null。 */
-export function normalizeIso(value: string | undefined | null, nowIso: string): string | null {
-  if (!value) return null;
-  const v = value.trim();
-  if (!v) return null;
-  const direct = Date.parse(v);
-  if (!Number.isNaN(direct) && /\d{4}-\d{2}-\d{2}/.test(v)) return new Date(direct).toISOString();
-  const cn = v.match(/(?:(\d{4})年)?(\d{1,2})月(\d{1,2})日?(?:\s*(\d{1,2})[:：点](\d{2})?)?/);
-  if (cn) {
-    const year = cn[1] ? Number(cn[1]) : Number(nowIso.slice(0, 4));
-    const d = new Date(Date.UTC(year, Number(cn[2]) - 1, Number(cn[3]), cn[4] ? Number(cn[4]) - 8 : 15, cn[5] ? Number(cn[5]) : 59));
-    if (!cn[1] && d.getTime() < Date.parse(nowIso) - 86_400_000 * 30) d.setUTCFullYear(year + 1);
-    return d.toISOString();
-  }
-  const dash = v.match(/(\d{1,2})[-/](\d{1,2})(?:\s+(\d{1,2}):(\d{2}))?/);
-  if (dash) {
-    const year = Number(nowIso.slice(0, 4));
-    const d = new Date(Date.UTC(year, Number(dash[1]) - 1, Number(dash[2]), dash[3] ? Number(dash[3]) - 8 : 15, dash[4] ? Number(dash[4]) : 59));
-    return d.toISOString();
-  }
-  return null;
+/** 三方 / 签约通知：和 offer 回复是两个期限（先答复、再签三方），单独记一条，不和回复截止混在一起。 */
+const SIGNING_RE = /三方|签约/;
+function isSigningNotice(...texts: Array<string | null | undefined>): boolean {
+  return texts.some(t => !!t && SIGNING_RE.test(t));
 }

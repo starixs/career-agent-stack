@@ -447,6 +447,13 @@ function applySubagentCallsUpdate(
     return { ...msg, content: updated };
 }
 
+
+/** 同 id 覆盖（工具重跑时更新内容并回到 pending）；锚点沿用已有的，避免卡片在回复之间跳动。 */
+function mergeCareerCard(prev: CareerCard[], card: CareerCard): CareerCard[] {
+    const old = prev.find(c => c.id === card.id);
+    const next: CareerCard = { ...card, state: card.state ?? 'pending', toolUseId: card.toolUseId ?? old?.toolUseId ?? null };
+    return [...prev.filter(c => c.id !== card.id), next];
+}
 export function applySubagentLifecycleUpdate(
     msg: Message,
     parentToolUseId: string,
@@ -3653,12 +3660,7 @@ export default function TabProvider({
                 const card = payload?.card;
                 if (!card || typeof card.id !== 'string' || typeof card.kind !== 'string') break;
                 if (!shouldAcceptInteractiveEvent(payload?.sessionId ?? card.sessionId)) break;
-                // 同 id 覆盖（工具重跑时更新内容并回到 pending）；锚点沿用已有的，避免卡片在回复之间跳动
-                setCareerCards(prev => {
-                    const old = prev.find(c => c.id === card.id);
-                    const next: CareerCard = { ...card, state: card.state ?? 'pending', toolUseId: card.toolUseId ?? old?.toolUseId ?? null };
-                    return [...prev.filter(c => c.id !== card.id), next];
-                });
+                setCareerCards(prev => mergeCareerCard(prev, card));
                 emitEvent('career:card', payload);
                 if (!isActiveRef.current || shouldNotifyUser()) {
                     onUnreadChangeRef.current?.(true);
@@ -5507,6 +5509,14 @@ export default function TabProvider({
             setCareerCards(prev => upsertReviewCard(prev, review));
             if (!isActiveRef.current || shouldNotifyUser()) onUnreadChangeRef.current?.(true);
         });
+        // Global 后台（邮件导入收完后的接管卡等）推来的卡片：不在工具调用里，落在对话底部
+        const offCard = onEvent<CareerCardEvent & { type?: string }>('career:card', payload => {
+            const card = payload?.card;
+            if (payload?.type !== 'career:card' || !card || typeof card.id !== 'string' || typeof card.kind !== 'string') return;
+            if (!shouldAcceptInteractiveEvent(payload.sessionId ?? card.sessionId)) return;
+            setCareerCards(prev => mergeCareerCard(prev, card));
+            if (!isActiveRef.current || shouldNotifyUser()) onUnreadChangeRef.current?.(true);
+        });
         const offTakeover = onEvent<CareerTakeoverEvent & { type?: string }>('career:takeover', payload => {
             if (payload?.type !== 'career:takeover' || !payload.runId) return;
             if (!shouldAcceptInteractiveEvent(payload.sessionId)) return;
@@ -5514,7 +5524,7 @@ export default function TabProvider({
             setCareerTakeover(takeover);
             if (takeover.state === 'paused' && (!isActiveRef.current || shouldNotifyUser())) onUnreadChangeRef.current?.(true);
         });
-        return () => { offReview(); offTakeover(); };
+        return () => { offReview(); offCard(); offTakeover(); };
     }, [shouldAcceptInteractiveEvent]);
 
     // 其他页面（岗位与投递的浏览器状态条）通过 eventBus 把接管动作交给当前会话的 Chat Tab 执行。

@@ -9,19 +9,18 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-import { requestAssistFilter } from '@/components/career/AssistRecords';
 import { CareerPage, SectionTitle, suggestToChat } from '@/components/career/CareerPrimitives';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { requestNavigation, type NavTarget } from '@/features/career-shell/navModel';
 
 /** 点了做什么：去一个页面，或把一句话预填进对话输入框。 */
-type MarketAction = { open: NavTarget; before?: () => void } | { prefill: string };
+type MarketAction = { open: NavTarget } | { prefill: string };
 
 export interface MarketItem { name: string; what: string; icon: LucideIcon; action: MarketAction }
 
 export const WORKBENCHES: MarketItem[] = [
   { name: '面试助力', what: '面试记录、题库刷题、模拟面试和深挖点预测都在这里', icon: Users, action: { open: { kind: 'career-dossier', view: 'interview' } } },
-  { name: '笔试助力', what: '收到的笔试、测评都在一张表里，点「助力」交给小芽', icon: PenLine, action: { open: { kind: 'career-dossier', view: 'assist' }, before: () => requestAssistFilter('exam') } },
+  { name: '笔试助力', what: '截图粘贴就出答案，先查同公司同岗位的往年题', icon: PenLine, action: { open: { kind: 'career-dossier', view: 'exam-search' } } },
   { name: '简历编辑', what: '直接看成品，哪里不对说一句就改', icon: FileText, action: { open: { kind: 'career-material', view: 'resume' } } },
   { name: '题库刷题', what: '挑一个题库练，答完给你点评', icon: Library, action: { open: { kind: 'career-dossier', view: 'interview' } } },
   { name: 'Offer 对比', what: '薪资、城市、成长一项项比', icon: Scale, action: { open: { kind: 'career-dossier', view: 'offer' } } },
@@ -48,7 +47,7 @@ export const IDEAS: Idea[] = [
   { text: '绑定邮箱，面试邀请、笔试和拒信自动进来，不用天天刷。', button: '去绑定', action: { open: { kind: 'career-vault' } } },
   { text: '投出去两周没动静？让小芽看看哪些线可以关掉，把精力留给别处。', button: '看看', action: { prefill: '帮我看看哪些投递很久没动静了，哪些可以关掉' } },
   { text: '明天面试？一句话摊开卷宗：投的哪版简历、对这家说过什么。', button: '摊开卷宗', action: { prefill: '我明天面试，把这家公司的卷宗摊开：' } },
-  { text: '每周看一次漏斗就够了：投了多少、卡在哪一环。', button: '做一次复盘', action: { prefill: '给我做一次本周复盘' } },
+  { text: '隔一阵看一次漏斗就够了：投了多少、卡在哪一环。', button: '看我的求职月', action: { open: { kind: 'career-review' } } },
 ];
 
 export function runMarketAction(action: MarketAction, note: string): void {
@@ -56,7 +55,6 @@ export function runMarketAction(action: MarketAction, note: string): void {
     suggestToChat(action.prefill, { surface: 'guide', note }, 'prefill');
     return;
   }
-  action.before?.();
   requestNavigation(action.open);
 }
 

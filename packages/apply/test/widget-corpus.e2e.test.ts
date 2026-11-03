@@ -4,11 +4,12 @@
  * 断言以页面数据模型（window.__model）和用户可见显示值为准。语料页见 fixtures/corpus/*.html 头注释。
  *
  *   组件                     | 能填对                                   | 做不到就留空
+ *   飞书 UD Select（真机结构）| 学历、学历类型（选项包 5 层的虚拟列表）    | 选项里没有
  *   MTD select（真机结构）    | 学历（label 节点读回）、学校（远程搜索）  | 远程搜索搜不到同名学校
  *   antd Select              | 学历（不可搜索、不打字）、城市（showSearch）| 选项里没有 / showSearch 搜不到
  *   element-ui el-select     | 学历（readonly）、院校（filterable+remote）| remote 搜不到；可编辑但打字没反应 → 学成"不可搜索"
- *   自研 div 下拉            | 最高学历（随机类名浮层，MutationObserver） | 选项里没有；语义兜底模型 give_up
- *   内联展开（启发式认不出）  | 语义兜底层一步步点选                      | （同上 give_up）
+ *   自研 div 下拉            | 最高学历（随机类名浮层，MutationObserver） | 选项里没有；模型接手也 give_up
+ *   内联展开（启发式认不出）  | 模型接手（field-agent）一步步点选          | （同上 give_up）
  *   原生 select              | 性别                                     | 选项里没有
  *   antd DatePicker          | 直接输入、只读走面板                      | 超出可选年份
  *   element DatePicker       | 换写法输入（yyyy/MM，记进控件记忆）、面板  | 月份全禁用
@@ -174,7 +175,7 @@ describe('控件语料库（真实 Chrome）', () => {
     expect(r.model.gender).toBeUndefined()
   }, 90_000)
 
-  it('语义兜底层：启发式认不出的内联列表，模型在受限动作集里点选并核验；模型放弃 / 不可用就留空', async ({ skip }) => {
+  it('模型接手（field-agent）：启发式认不出的内联列表，模型点开、点选并核验；模型放弃 / 不可用就留空', async ({ skip }) => {
     if (!browser || !engine) return skip()
     const respond = (target: string) => (req: LlmRequest) => {
       const lines = req.messages[0].content.split('\n')
@@ -186,7 +187,7 @@ describe('控件语料库（真实 Chrome）', () => {
     let page = await open('corpus/custom-div.html')
     const llm = new FakeLLM(Array.from({ length: 6 }, () => respond('3-5年')))
     let r = await fill(page, '工作年限', '3-5年', { llm })
-    expect(r.att).toMatchObject({ verified: true, strategy: 'semantic', display: '3-5年' })
+    expect(r.att).toMatchObject({ verified: true, strategy: 'agent', display: '3-5年' })
     expect(r.model.years).toBe('3-5年')
     // 模型只敢点相近项 / 放弃 → 留空
     page = await open('corpus/custom-div.html')
@@ -255,4 +256,75 @@ describe('控件语料库（真实 Chrome）', () => {
       expect(check.echoed, check.evidence).toBe(echoed)
     }, 30_000)
   }
+})
+
+describe('飞书 formily 表单结构（真实 Chrome）', () => {
+  it('标签认网站自己标的字段名、必填认 asterisk 星号：只读手机号后面的邮箱框不会被认成「手机号码」', async ({ skip }) => {
+    if (!engine || !browser) skip()
+    const page = await open('corpus/feishu-formily.html')
+    const fields = await engine!.extractFields(engine!.fromPlaywright(page))
+    const byLabel = Object.fromEntries(fields.map(f => [f.label, f]))
+    // 弹层里的树节点勾选框不算字段；没有 name 的单选按字段项成一组，选项用自己的文字、默认选中读 aria-checked
+    expect(Object.keys(byLabel)).toEqual(['邮箱', '年龄', '期望工作地点', '学校名称', '推荐方式'])
+    // 学校名称：输入框里的值就是选中值，必填星号也认得出（投前过目不能报「选填，留空」）
+    expect(byLabel['学校名称']).toMatchObject({ value: '华东理工大学', required: true })
+    expect(byLabel['邮箱'].required).toBe(true)
+    expect(byLabel['年龄'].required).toBe(true)
+    expect(byLabel['期望工作地点'].required).toBe(false)
+    expect(byLabel['推荐方式']).toMatchObject({ type: 'radio', options: ['无', '内推', '大使推荐'], value: '无', required: true })
+    // 投递次数说明是信息横幅，不是校验错误；邮箱下面的红字才是
+    const sig = await engine!.fromPlaywright(page).evaluate(engine!.pageSignalsScript)
+    expect(sig.errors).toEqual(['请输入正确的邮箱'])
+    await page.context().close()
+  })
+})
+
+describe('飞书 UD 下拉（真实 Chrome）', () => {
+  it('选项包了 5 层的虚拟列表能逐项认出、点叶子选中、外壳里读回；禁用项不选；没有的值留空', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const e = engine
+    let page = await open('corpus/feishu-ud-select.html')
+    // 2026-10-31 小鹏：整个列表被当成一个选项（「博士MBA硕士本科…」），学历、学历类型都没选上
+    const P = e.fromPlaywright(page)
+    const f = (await e.extractFields(P)).find(x => x.label === '学历')!
+    const open1 = await P.evaluate(e.openOptionsScript, { selector: f.selector })
+    expect(open1.options.map(o => o.text)).toEqual(['博士', 'MBA', '硕士', '本科', '大专', '高中', '专职', '初中', '小学'])
+    expect(open1.options.find(o => o.text === '专职')?.disabled).toBe(true)
+    expect(open1.partial).toBe(true) // 虚拟列表 30 项只渲染了 9 项：列表没露全
+    await P.evaluate(e.closePopupScript, { selector: f.selector })
+    // 9 项全渲染了、只是框不够高要滚动：列表是完整的
+    const politics = (await e.extractFields(P)).find(x => x.label === '政治面貌')!
+    expect((await P.evaluate(e.openOptionsScript, { selector: politics.selector })).partial).toBe(false)
+    await P.evaluate(e.closePopupScript, { selector: politics.selector })
+    let r = await fill(page, '学历', '本科')
+    expect(r.att).toMatchObject({ verified: true })
+    expect(r.model.degree).toBe('本科')
+    expect(r.display).toBe('本科')
+    // 填后检查重新抽取时也读得出选中值（不能把选好的「学历」报成必填还空着）
+    expect((await e.extractFields(P)).find(x => x.label === '学历')?.value).toBe('本科')
+    r = await fill(page, '学历类型', '统招全日制')
+    expect(r.att).toMatchObject({ verified: true })
+    expect(r.model.education_type).toBe('统招全日制')
+    await page.context().close()
+    page = await open('corpus/feishu-ud-select.html')
+    r = await fill(page, '学历类型', '定向委培')
+    left(r.att)
+    expect(r.model.education_type).toBeUndefined()
+    await page.context().close()
+    // 要学生补的下拉：问之前点开读出选项再收起，跟着问题带过去（学历类型 5 项；禁用项不带）
+    page = await open('corpus/feishu-ud-select.html')
+    const P2 = e.fromPlaywright(page)
+    const kind = (await e.extractFields(P2)).find(x => x.label === '学历类型')!
+    const degree = (await e.extractFields(P2)).find(x => x.label === '学历')!
+    const asked = await e.attachOptions(P2, [{ fieldId: kind.id, label: '学历类型', status: 'needs_user', source: 'none', confidence: 0 }, { fieldId: degree.id, label: '学历', status: 'needs_user', source: 'none', confidence: 0 }])
+    expect(asked[0].options).toEqual(['海外及港澳台', '统招全日制', '统招非全日制', '自考', '其他'])
+    expect(asked[1].options).toBeUndefined() // 学历虚拟列表只渲染了一部分：带一半会误导，不带
+    await page.context().close()
+    // 同一结构换一套不在组件库名单里的类名：外壳按结构往上找到最外层同类节点，选中值照样读得回来
+    page = await open('corpus/feishu-ud-select.html?lib=zz')
+    r = await fill(page, '学历', '本科')
+    expect(r.att).toMatchObject({ verified: true })
+    expect(r.display).toBe('本科')
+    await page.context().close()
+  }, 120_000)
 })

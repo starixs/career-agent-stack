@@ -19,7 +19,7 @@
           "$HOME/.keystone/**"
         ]
       },
-      "csp": "default-src 'self' ipc: tauri: asset: http://ipc.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ipc: tauri: asset: http://ipc.localhost http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://download.keystone.io; img-src 'self' data: blob: asset: keystone-resource: keystone: http://keystone-resource.localhost http://keystone.localhost http://asset.localhost https://asset.localhost https://download.keystone.io https:; media-src 'self' blob: asset: keystone-resource: keystone: http://keystone-resource.localhost http://keystone.localhost http://asset.localhost https://asset.localhost;",
+      "csp": "default-src 'self' ipc: tauri: asset: http://ipc.localhost; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' ipc: tauri: asset: http://ipc.localhost http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://download.keystone.io; img-src 'self' data: blob: asset: keystone-resource: keystone: http://keystone-resource.localhost http://keystone.localhost http://asset.localhost https://asset.localhost https://download.keystone.io https:; media-src 'self' blob: asset: keystone-resource: keystone: http://keystone-resource.localhost http://keystone.localhost http://asset.localhost https://asset.localhost;",
       "dangerousDisableAssetCspModification": true
     }
   },
@@ -56,6 +56,7 @@
       "../src-tauri/resources/playwright-control/playwright-core": "node_modules/playwright-core",
       "../src/shared": "shared",
       "../bundled-skills": "bundled-skills",
+      "../../skills": "skills",
       "../bundled-agents": "bundled-agents",
       "../src-tauri/resources/cli": "cli",
       "../src-tauri/resources/document-processing": "document-processing",

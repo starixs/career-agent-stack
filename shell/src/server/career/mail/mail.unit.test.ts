@@ -9,7 +9,7 @@ import { createMemoryRepos } from '../test-db';
 import { deleteMailPassword, getMailPassword, setMailCredentialsPath, setMailPassword } from './credentials';
 import { detectProvider, presetFor } from './providers';
 import { executeSendMailAction } from './send';
-import { isLikelyJobMail, syncMailAccount, type FetchedMail } from './sync';
+import { isLikelyJobMail, syncAllMailAccounts, syncMailAccount, type FetchedMail } from './sync';
 
 vi.mock('../../sse', () => ({ broadcast: vi.fn() }));
 
@@ -47,15 +47,17 @@ describe('providers / credentials', () => {
 });
 
 describe('syncMailAccount', () => {
-  it('新邮件落库、求职邮件归档到卷宗、无关邮件忽略、last_uid 前进、重复 uid 跳过', async () => {
+  it('增量同步：新邮件落库、求职邮件归档到卷宗、无关邮件忽略、last_uid 前进、重复 uid 跳过', async () => {
     const llm = new FakeLLM();
     const d = await deps(llm);
     const job = d.repos.upsertJob({ source_platform: 'manual', title: '运营', company_name: '甲公司' });
     const app = d.repos.createApplication(job.id);
-    const account = d.repos.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' });
+    const created = d.repos.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' });
+    d.repos.updateMailAccount(created.id, { last_uid: 4 });
+    const account = d.repos.getMailAccount(created.id)!;
     setMailPassword(account.id, 'code');
     llm.push(JSON.stringify({ kind: 'interview_invite', relevance: 'job', fields: { company: '甲公司', when: '2026-10-06T02:00:00Z', round: 'hr' }, match: { application_id: app.id }, summary: '甲公司 HR 面' }));
-    const fetched = [mail({ uid: 5 }), mail({ uid: 6, from: 'news@shop.com', subject: '双十一优惠', text: '买买买' })];
+    const fetched = [mail({ uid: 5 }), mail({ uid: 6, message_id: '<m6@x>', from: 'news@shop.com', subject: '双十一优惠', text: '买买买' })];
     const res = await syncMailAccount({ ...d, fetchNew: async () => fetched }, account);
     expect(res).toMatchObject({ fetched: 2, stored: 2, job_related: 1, ignored: 1 });
     expect(d.repos.getMailAccount(account.id)).toMatchObject({ status: 'ok', last_uid: 6 });
@@ -69,15 +71,29 @@ describe('syncMailAccount', () => {
     expect(again.stored).toBe(0);
     expect(llm.calls).toHaveLength(1);
   });
-  it('没有授权码 → auth_failed；拉取抛错 → 记录错误不抛出', async () => {
+  it('没有授权码直接判失效；认证失败连续 3 次才判失效，之后轮询跳过、不再登录；网络错误只降级', async () => {
     const d = await deps(null);
-    const account = d.repos.upsertMailAccount({ provider: '163', address: 'me@163.com', imap_host: 'imap.163.com', smtp_host: 'smtp.163.com' });
-    expect((await syncMailAccount(d, account)).error).toContain('授权码');
-    expect(d.repos.getMailAccount(account.id)!.status).toBe('auth_failed');
-    setMailPassword(account.id, 'x');
-    const res = await syncMailAccount({ ...d, fetchNew: async () => { throw new Error('Invalid credentials (Failure)'); } }, account);
-    expect(res.error).toContain('Invalid');
-    expect(d.repos.getMailAccount(account.id)!.status).toBe('auth_failed');
+    const { id } = d.repos.upsertMailAccount({ provider: '163', address: 'me@163.com', imap_host: 'imap.163.com', smtp_host: 'smtp.163.com' });
+    const get = () => d.repos.getMailAccount(id)!;
+    expect((await syncMailAccount(d, get())).error).toContain('授权码');
+    expect(get().status).toBe('auth_failed');
+
+    d.repos.updateMailAccount(id, { status: 'ok' });
+    setMailPassword(id, 'x');
+    let logins = 0;
+    const failing = { ...d, fetchNew: async () => { logins++; throw Object.assign(new Error('Invalid credentials (Failure)'), { authenticationFailed: true }); } };
+    for (let i = 1; i <= 3; i++) {
+      expect((await syncMailAccount(failing, get())).error).toContain('授权码不对');
+      expect(get()).toMatchObject({ consecutive_fails: i, status: i < 3 ? 'error' : 'auth_failed' });
+    }
+    expect(await syncAllMailAccounts(failing)).toEqual([]);
+    expect(logins).toBe(3);
+
+    d.repos.updateMailAccount(id, { status: 'ok', consecutive_fails: 0 });
+    await syncMailAccount({ ...d, fetchNew: async () => { throw new Error('connect ETIMEDOUT 1.2.3.4:993'); } }, get());
+    expect(get()).toMatchObject({ status: 'error', consecutive_fails: 1 });
+    await syncMailAccount({ ...d, fetchNew: async () => [] }, get());
+    expect(get()).toMatchObject({ status: 'ok', consecutive_fails: 0 });
   });
 });
 

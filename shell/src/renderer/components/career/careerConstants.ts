@@ -1,5 +1,5 @@
 import type { BadgeTone } from './CareerPrimitives';
-import type { ActionKind, ApplicationStage } from './types';
+import type { ActionKind, ApplicationStage, DeadlineKind } from './types';
 
 /** 与 packages/core/src/states.ts 的 STAGE_TRANSITIONS 保持一致（前端副本，只用于展示允许的目标阶段）。 */
 export const STAGE_TRANSITIONS: Record<ApplicationStage, readonly ApplicationStage[]> = {
@@ -26,6 +26,16 @@ export const STAGE_LABELS: Record<ApplicationStage, string> = {
 export const FUNNEL_ORDER: ApplicationStage[] = [
   'evaluated', 'ready', 'approved', 'pending', 'applied', 'responded', 'interview', 'offer', 'hired',
 ];
+
+export const DEADLINE_KIND_LABELS: Record<DeadlineKind, string> = {
+  assessment: '测评', written_test: '笔试', interview: '面试', application_deadline: '网申截止',
+  offer_reply: 'Offer 答复', referral_expiry: '内推码过期', other: '其他',
+};
+
+/** 岗位来源平台；未收录的按原值显示。 */
+export const PLATFORM_LABELS: Record<string, string> = {
+  boss: 'Boss 直聘', campus: '校招官网', manual: '手动添加', zhilian: '智联招聘', moka: 'Moka', liepin: '猎聘',
+};
 
 export const ACTION_KIND_LABELS: Record<ActionKind, string> = {
   fill_form: '填表', submit: '提交', send_greeting: '发招呼', upload: '上传',

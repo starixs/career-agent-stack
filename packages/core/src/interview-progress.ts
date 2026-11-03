@@ -2,6 +2,7 @@
  * 经历访谈进度（R03 从零写简历与对话挖掘经历）：
  * 六轮普查（教育 → 课程项目 → 实习 → 校园 → 比赛与个人项目 → 技能证书）每轮的状态 + 下一轮要问的问题，
  * 存 kv `experience:interview`，跨对话延续；再从经历库算出"还缺什么"（没有确认主张的经历、缺量化结果的主张、待确认数）。
+ * 一段经历常要隔几周、分几次才补完，所以"还要问什么"按经历各记一份（open），不共用一个槽位。
  */
 import type { Claim, Experience } from './types.js'
 
@@ -23,7 +24,17 @@ export interface InterviewState {
   current_round?: InterviewRound | null
   current_experience_id?: string | null
   follow_up_questions?: string[]
+  /** 没聊完的经历 → 下次接着问的问题；问题清空即聊完。 */
+  open?: Record<string, string[]>
   updated_at?: string
+}
+
+/** 记下 / 清掉某段经历还要问的问题，返回新状态。 */
+export function withOpenExperience(state: InterviewState, experienceId: string, questions: string[]): InterviewState {
+  const open = { ...(state.open ?? {}) }
+  if (questions.length) open[experienceId] = questions
+  else delete open[experienceId]
+  return { ...state, open }
 }
 
 export interface InterviewProgress {
@@ -32,6 +43,8 @@ export interface InterviewProgress {
   next_round: InterviewRound | null
   current_experience_id: string | null
   follow_up_questions: string[]
+  /** 补到一半的经历，各自还要问什么（只含经历库里还在的）。 */
+  open_experiences: Array<{ id: string; title: string; follow_up_questions: string[] }>
   gaps: {
     experiences_without_confirmed: Array<{ id: string; title: string }>
     claims_without_metric: Array<{ id: string; text: string; experience: string }>
@@ -49,13 +62,15 @@ export function interviewProgress(tree: Array<Experience & { claims: Claim[] }>,
   const noMetric = tree.flatMap(e => e.claims.filter(c => c.status !== 'pending' && !c.result_metric && !/\d/.test(c.text)).map(c => ({ id: c.id, text: c.text, experience: e.title })))
   const pending = tree.reduce((n, e) => n + e.claims.filter(c => c.status === 'pending').length, 0)
   const nextLabel = INTERVIEW_ROUNDS.find(r => r.key === next)?.label
+  const open = tree.filter(e => state.open?.[e.id]?.length).map(e => ({ id: e.id, title: e.title, follow_up_questions: state.open![e.id] }))
   const suggestion = pending > 0 ? `先确认 ${pending} 条待确认的主张（没确认的不会进简历）`
+    : open.length ? `接着补「${open[0].title}」，还有 ${open[0].follow_up_questions.length} 个问题`
     : next ? `继续「${nextLabel}」这一轮访谈`
       : noMetric.length ? `给 ${noMetric.length} 条主张补上量化结果（数据量、人数、提升幅度）`
         : withoutConfirmed.length ? `「${withoutConfirmed[0].title}」还没有确认过的主张`
           : '六轮都聊完了，可以起草主简历'
   return {
-    rounds, done, next_round: next, current_experience_id: state.current_experience_id ?? null, follow_up_questions: state.follow_up_questions ?? [],
+    rounds, done, next_round: next, current_experience_id: state.current_experience_id ?? null, follow_up_questions: state.follow_up_questions ?? [], open_experiences: open,
     gaps: { experiences_without_confirmed: withoutConfirmed, claims_without_metric: noMetric.slice(0, 20), pending_claims: pending }, suggestion,
   }
 }

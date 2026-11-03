@@ -27,6 +27,7 @@ import { careerApi } from './careerApi';
 import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport } from './CareerLiveViewport';
+import { readAsBase64 } from './fileBase64';
 import { Button, suggestToChat } from './CareerPrimitives';
 import type { BatchState, CareerProgressEvent, CareerTakeoverEvent, LiveFileChooser, LiveFileChooserEvent, LiveFrame, LiveSnapshot, LiveStreamEvent, LiveFrameStatus } from './types';
 import { liveStatusText } from './types';
@@ -70,19 +71,6 @@ export function CareerLiveDrawer({ autoOpenOnHandoff = true }: { autoOpenOnHando
 function hostOf(url: string | null | undefined): string | null {
   if (!url) return null;
   try { return new URL(url).host; } catch { return null; }
-}
-
-function readAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const url = String(reader.result ?? '');
-      const comma = url.indexOf(',');
-      resolve(comma >= 0 ? url.slice(comma + 1) : url);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('读取文件失败'));
-    reader.readAsDataURL(file);
-  });
 }
 
 function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDone: (message: string | null) => void }) {
@@ -172,6 +160,36 @@ export interface BrowserSessionPanelProps {
   onStop?: () => void;
 }
 
+/** 交还后替你说的一句（不用你打字）；助理该调哪个工具放在隐藏 note 里。 */
+export const HANDBACK_TEXT = '浏览器里的事我处理好了，交还给你，接着办吧。';
+const HANDBACK_NOTE = '用户在浏览器现场处理完并点了交还：之前 browser_wait_user 没等到的，先 browser_observe 看一眼再接着做原来的事；对话里 apply_run 发起的填表，调用 apply_continue(action_id) 从当前页继续。';
+
+/**
+ * 交还后要不要替你跟助理说一声：
+ *  - 走 run 的：会话的接管交接已经通知了助理；后台批量在跑：它自己从当前页续；
+ *  - 助理还在 browser_wait_user 里等着：等待自己会看到交还，再说一句就成了同一件事叫两次。
+ * 其余（等待已超时、助理已收尾这一轮）才说，免得你交还后还得回对话打「好了」。
+ */
+export function handbackNeedsAssistant({ viaRun, batch, snapshot }: { viaRun: boolean; batch: BatchState | null; snapshot: LiveSnapshot | null }): boolean {
+  return !viaRun && batch?.status !== 'running' && snapshot?.waitingUser !== true;
+}
+
+/** 交还那一刻重新取一次现场状态（流里的快照只在连上 / 画面接上时推，「助理在不在等」可能已经变了）；取不到用手上的。 */
+async function freshSnapshot(cur: LiveSnapshot | null): Promise<LiveSnapshot | null> {
+  try { return await careerApi.liveState(); } catch (error) {
+    console.warn('[career-live] handback state refresh FAILED', error instanceof Error ? error.message : error);
+    return cur;
+  }
+}
+
+/** 等你处理 / 你在操作时，每隔几秒刷新一次现场状态：登录之旅切到下一家时「第几家」跟着变。 */
+const TAKEOVER_REFRESH_MS = 3000;
+
+/** 状态行：登录之旅里带上「第几家 / 共几家」，一家家过时知道还剩多少。 */
+export function journeyText(journey: LiveSnapshot['journey']): string {
+  return journey && journey.total > 1 ? ` · 登录第 ${journey.index + 1} / ${journey.total} 家` : '';
+}
+
 /** 展开态：对话页右侧的浏览器会话栏。 */
 export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
   const { takeover, fullscreen } = useWorkSurfaces();
@@ -228,9 +246,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     if (!ok) { setNotice('操作失败，请重试'); return false; }
     setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: action === 'take' ? 'human' : 'agent' } } : s));
     recordTakeover(takeover ? { ...takeover, state: action === 'take' ? 'human_active' : 'resuming' } : takeover);
-    // 交回后：走 run 的由会话的接管交接统一通知助理（只在对话发起的填写上，批量自己续跑）；
-    // 直接切控制权的这条没有 run，批量没在跑时让助理接着填（apply_continue）
-    if (action === 'handback' && !viaRun && batch?.status !== 'running') suggestToChat('浏览器里的事我已经处理完并交回了，请从当前页继续填表');
+    if (action === 'handback' && handbackNeedsAssistant({ viaRun, batch, snapshot: await freshSnapshot(snapshot) })) suggestToChat(HANDBACK_TEXT, { surface: 'apply', note: HANDBACK_NOTE });
     return true;
   };
   const toggleWindow = async () => {
@@ -245,6 +261,12 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     : undefined;
 
   const handoff = takeover?.state === 'paused';
+  const attending = handoff || humanActive;
+  useEffect(() => {
+    if (!attending) return;
+    const t = window.setInterval(() => { void careerApi.liveState().then(setSnapshot).catch(error => console.debug('[career-live] takeover state refresh failed; retry next tick', error)); }, TAKEOVER_REFRESH_MS);
+    return () => window.clearInterval(t);
+  }, [attending]);
   const host = hostOf(snapshot?.browser.url);
   const statusTone = handoff || humanActive ? 'bg-[var(--warning)]' : control === 'agent' ? 'bg-[var(--success)]' : 'bg-[var(--subtle)]';
   const statusText = handoff
@@ -273,7 +295,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
           <div className="font-human text-lg font-semibold text-[var(--ink)]">浏览器会话</div>
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
             <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
-            <span className="truncate">{statusText}{host ? ` · ${host}` : ''}</span>
+            <span className="truncate">{statusText}{journeyText(snapshot?.journey)}{host ? ` · ${host}` : ''}</span>
             <span className="ml-2 shrink-0 text-[var(--subtle)]">{stream.status === 'open' ? '直播中' : stream.status === 'connecting' ? '连接中…' : '重连中'}</span>
           </div>
         </div>
@@ -298,9 +320,11 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
             <div className="min-w-0">
               <div className="font-human font-semibold">这一步要你本人来{reason ? `：${reason}` : ''}</div>
               <div className="text-xs text-[var(--ink-2)]">
-                {takeover?.message ?? (humanActive
-                  ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。'
-                  : '点画面或「控制浏览器」接手，完成后交还给小芽。')}
+                {revealed
+                  ? '那一页已经弹到你面前（真实浏览器窗口），直接在那个窗口里扫码、拖滑块、输验证码；登上了会自动接着办。'
+                  : takeover?.message ?? (humanActive
+                    ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。'
+                    : '点画面或「控制浏览器」接手，完成后交还给小芽。')}
               </div>
             </div>
           </div>

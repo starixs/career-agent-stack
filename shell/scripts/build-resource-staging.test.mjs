@@ -749,3 +749,11 @@ test('setup, local builds and CI share signed CLIProxy preparation without a pub
   assert.match(speechResourceScript, /-DBUILD_TESTING=\$\{speechNativeTestPlan\(target\)\.buildTesting\}/);
   assert.match(speechResourceScript, /runSpeechNativeTests\(\{ target, buildDir: adapterBuild/);
 });
+
+test('packaged app ships the career skills and lets the renderer compile WebAssembly', () => {
+  // server-dist.js runs from Resources/; skills-dir.ts looks for Resources/skills.
+  // Without it every loadSkillPrompt tool (resume_import, jd-parse, tailor) fails only in release builds.
+  assert.equal(tauriConfig.bundle.resources['../../skills'], 'skills');
+  // The resume preview compiles WebAssembly; WKWebView enforces the CSP only in release builds.
+  assert.match(tauriConfig.app.security.csp, /script-src [^;]*'wasm-unsafe-eval'/);
+});

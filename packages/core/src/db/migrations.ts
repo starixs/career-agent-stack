@@ -224,6 +224,38 @@ export const MIGRATIONS: readonly Migration[] = [
       }
     },
   },
+  {
+    version: 8,
+    name: 'mail-connector-health-audit',
+    up(db) {
+      // 邮箱连接器：健康计数（连续失败 3 次才判失效，网络抖一下不算）与 UIDVALIDITY（变了说明邮箱重建过，要重新同步）。
+      addColumn(db, 'mail_account', 'consecutive_fails', 'INTEGER NOT NULL DEFAULT 0')
+      addColumn(db, 'mail_account', 'last_ok_at', 'TEXT')
+      addColumn(db, 'mail_account', 'last_check_at', 'TEXT')
+      addColumn(db, 'mail_account', 'uidvalidity', 'INTEGER')
+      // 谁动过这个邮箱：助理代发、系统同步、用户解绑都留一笔，连接管理页直接展示。
+      db.exec(`CREATE TABLE IF NOT EXISTS mail_audit (
+        id TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL REFERENCES mail_account(id) ON DELETE CASCADE,
+        actor TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        status TEXT NOT NULL,
+        detail_json TEXT,
+        latency_ms INTEGER,
+        created_at TEXT NOT NULL
+      )`)
+      db.exec('CREATE INDEX IF NOT EXISTS idx_mail_audit_account ON mail_audit(account_id, created_at)')
+    },
+  },
+  {
+    version: 9,
+    name: 'mail-account-remote-id',
+    up(db) {
+      // 凭证上云后，云端连接是事实源；本机镜像一行账号（remote_id = 云端 connection_id），邮件记录仍挂在本机账号上。
+      addColumn(db, 'mail_account', 'remote_id', 'TEXT')
+      db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_account_remote ON mail_account(remote_id) WHERE remote_id IS NOT NULL')
+    },
+  },
 ]
 
 export function currentVersion(db: DatabaseSync): number {

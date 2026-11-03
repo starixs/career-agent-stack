@@ -4,7 +4,8 @@ import type { PageLike } from './page.js'
 import { extractFields, formFingerprint, type FormField } from './extract.js'
 import { interpretForm, normKey, type FieldPlan, type Profile, type InterpretOptions } from './interpret.js'
 import { pageSignalsScript, type PageSignals, type ButtonInfo } from './scripts.js'
-import { detectObstacle, findFinalSubmit, isEntryText, isNextText, isSubmitText } from './guards.js'
+import { detectObstacle, findFinalSubmit, isEntryText, isNextText, isSubmitText, type Obstacle } from './guards.js'
+import { navigateToPosition, positionLinksScript, type PositionLink, type PositionTarget } from './navigate.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import type { RiskGuard } from './safety.js'
 import { humanDelay, type PacingOptions } from './pacing.js'
@@ -12,7 +13,8 @@ import { fillLoginForm, type LoginCredential } from './login.js'
 import { looksLikeFormVisually, pairVisualFields, type Perceiver, type UiKind } from './perception.js'
 import { visionScan, visionFill, visionClickText, visionFindButton, type VisionOptions } from './vision.js'
 import { describeObstacle, looksLikeRiskUrl, type CaptchaKind } from './obstacles.js'
-import { fillRepeatingSections, matchRowField, SECTIONS, type SectionSummary } from './sections.js'
+import { fillRepeatingSections, matchRowField, rangeFieldIds, SECTIONS, type SectionSummary } from './sections.js'
+import { resolveRangeValues } from './range-fallback.js'
 import { normalizeHost, type SiteMemory, type WidgetMemory } from './memory.js'
 import { matchOption } from './normalize.js'
 import type { FieldType } from './scripts.js'
@@ -21,6 +23,8 @@ import { clearBlockers, type HandledBlocker } from './blockers.js'
 import { displayMatches, fillAndVerify, type FieldAttempt } from './fill.js'
 import { classifyError, reasonText, withWatchdog, type FieldReasonCode } from './codes.js'
 import { isSensitiveLabel, noopRecorder, RunRecorder, type Recorder, type TelemetryOptions } from './telemetry.js'
+import { snapshotNeedsUser } from './diag.js'
+import { attachOptions, settleNeedsUser } from './needs.js'
 import { clearHighlightScript, libraryFingerprintScript, maskSensitiveScript, prepareEntryClickScript, readDisplayScript, uploadAreaScript, type UploadAreaResult } from './widgets.js'
 
 /**
@@ -177,7 +181,7 @@ export interface DriveOptions extends PacingOptions {
   siteMemory?: SiteMemory
   /** 站点控件记忆；不传时用 siteMemory 同一存储上的控件记忆。 */
   widgetMemory?: WidgetMemory
-  /** 关掉语义兜底层（启发式失败时让模型走一步）。 */
+  /** 关掉模型接手（field-agent.ts：结构树没办成时交模型接着办）。 */
   semanticFallback?: boolean
   /** 续跑时：这些标签上次是 needs_user，若现在页面上已有值（用户自己填的），回传给调用方存进答案库。 */
   learnFrom?: string[]
@@ -194,6 +198,13 @@ export interface DriveOptions extends PacingOptions {
   highlight?: boolean
   /** 详情页上允许点申请入口按钮进入网申表（缺省开）。 */
   allowEntryClick?: boolean
+  /** 打开的是校招首页 / 合集页时去找哪种岗位（navigate.ts）；不给就不找，按原样报「没有表单」。 */
+  target?: PositionTarget
+  /**
+   * 内置找路（navigate.ts 的规则）走不通时，交给模型自主找路（GA 式循环，由调用方注入，face-ga-port 已定）。
+   * moved=true：页面已经到了网申表或登录页，引擎接着按原流程判断；note：没找到时给学生看的一句话（原样作为结果说明）。
+   */
+  pathfinder?: (why: string) => Promise<{ moved: boolean; note?: string }>
   /** 障碍层 / 下拉候选不确定时用的模型（缺省用 driveApplication 的 llm）。 */
   widgetLlm?: LLM | null
 }
@@ -202,6 +213,8 @@ const SUBMIT_WORDS = ['提交', '确认提交', '提交申请', '投递', '立�
 const NEXT_WORDS = ['下一步', '下一页', '继续', '保存并继续', '保存并下一步', 'Next', 'Continue'] as const
 const KIND_TO_TYPE: Partial<Record<UiKind, FieldType>> = { input: 'text', select: 'select', checkbox: 'checkbox', radio: 'radio' }
 const PAGE_STEP_MS = 25_000
+/** 从首页走到岗位详情最多跳几次：首页 → 列表 → 详情，再多就是在乱逛。 */
+const MAX_NAV_HOPS = 2
 const TEXTLIKE = new Set<FieldType>(['text', 'email', 'tel', 'number', 'textarea'])
 
 const isRecorder = (t: DriveOptions['telemetry']): t is Recorder => !!t && typeof (t as Recorder).trace === 'function'
@@ -222,6 +235,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   let libraries: string[] = []
   let entryClicked: string | undefined
   let entryClicks = 0
+  let navHops = 0
+  let lastSeekTried: string[] = []
+  let lastSeekNote: string | undefined
+  let pathfinderUsed = false
   const recallKey = opts.siteMemory ? opts.siteMemory.recaller(host) : undefined
   const layersUsed = new Set<DriveLayer>()
   const visionOpts: VisionOptions | null = opts.perceiver && page.mouse
@@ -262,6 +279,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   }
   const telemetryRef = recorder.dir && recorder.runId ? { dir: recorder.dir, runId: recorder.runId } : undefined
   const finish = async (status: DriveStatus, message: string, extra: Partial<DriveResult> = {}): Promise<DriveResult> => {
+    all.needsUser = await attachOptions(page, settleNeedsUser(all.needsUser, all.filled), log)
     let screenshot: Uint8Array | undefined
     try { await page.evaluate(clearHighlightScript) } catch { /* ignore */ }
     try { screenshot = await page.screenshot() } catch { /* 截图失败不影响结果 */ }
@@ -270,6 +288,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     if (status === 'stopped_before_submit') { try { review = await buildSubmitReview(page, all) } catch { /* 检查失败时调用方按"需要人看"处理 */ } }
     if (status === 'stopped_before_submit') progress(message, 'stop')
     const result: DriveResult = { status, message, pages, ...all, layersUsed: [...layersUsed], fields: allFields, blockers: allBlockers, entryClicked, libraries, ...(telemetryRef ? { telemetry: telemetryRef } : {}), screenshot, finalUrl: page.url(), adapterId: adapter.id, ...(review ? { review } : {}), ...extra }
+    if (all.needsUser.length) await snapshotNeedsUser(page, recorder, all.needsUser)
     recorder.trace({ stage: 'finish', result: status === 'failed' ? 'fail' : 'info', detail: `${status}：${message}` })
     summarize(status, result)
     return result
@@ -283,26 +302,47 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   })
   /** 一路下来没碰到任何表单项。 */
   const untouched = () => !all.filled.length && !all.needsUser.length && !all.drafts.length && !all.uploads.length && !all.mismatches.length
+  /** 什么都没填成，只有截图识字层点不进去的「格子」。 */
+  const visionOnlyMisses = () => !all.filled.length && !all.uploads.length && !all.drafts.length && !all.mismatches.length && all.needsUser.length > 0 && all.needsUser.every(p => p.code === 'vision_failed')
   const entryHandoff = (button: string) => finish('handoff', `这是岗位详情页，不是网申表：页面上没有可填写的字段，「${button}」是申请入口。`, {
     reason: 'login', userAction: `请在浏览器里点「${button}」进入网申（通常要先登录），看到申请表后点"交还"，我从那一页接着填`,
   })
   let lastFingerprint = ''
+  /** 去站里找对口岗位（navigate.ts）；找到了返回 true，调用方重读这一页。 */
+  const seek = async (why: string): Promise<boolean> => {
+    if (!opts.target || !untouched() || navHops >= MAX_NAV_HOPS) return false
+    navHops++
+    const nav = await navigateToPosition(page, adapter, opts.target, { settleMs: Math.max(opts.settleMs ?? 800, 0) * 2, log })
+    recorder.trace({ stage: 'entry', action: 'navigate', result: nav.moved ? 'info' : 'fail', detail: `${why}｜${nav.moved ? `${nav.via}：${nav.picked}` : `没找到对口岗位（试了 ${nav.tried.join('、') || '页面链接'}）`}` })
+    if (nav.moved) { progress(`找到岗位「${nav.picked}」`, 'entry', nav.picked); return true }
+    lastSeekTried = nav.tried
+    // 自主找路一份网申只走一趟：模型回合要花时间和钱，一趟没到就如实报
+    if (!opts.pathfinder || pathfinderUsed) return false
+    pathfinderUsed = true
+    progress('换个方式找：一步一步在网站上找对口岗位', 'entry')
+    const auto = await opts.pathfinder(why).catch(e => { log(`自主找路出错：${e instanceof Error ? e.message : String(e)}`); return { moved: false, note: undefined } })
+    recorder.trace({ stage: 'entry', action: 'pathfinder', result: auto.moved ? 'info' : 'fail', detail: auto.note ?? (auto.moved ? '到了' : '没到') })
+    if (!auto.moved && auto.note) lastSeekNote = auto.note
+    return auto.moved
+  }
 
   try {
     try { libraries = await page.evaluate(libraryFingerprintScript) } catch { /* ignore */ }
     recorder.trace({ stage: 'start', result: 'info', detail: `${page.url()} | 组件库：${libraries.join(',') || '未识别'} | 适配器：${adapter.id}` })
     if (adapter.preprocess) await adapter.preprocess(page).catch(e => log(`预处理失败：${e instanceof Error ? e.message : e}`))
     for (let index = 1; index <= maxPages; index++) {
-      // 0. 风险锁 / 页数上限
+      // 0. 风险锁（网站拦过才有；没有每日上限，用户 2026-10-30「不要做上限」）
       if (opts.riskGuard) {
         const s = opts.riskGuard.shouldStop()
         if (s.stop) return finish('blocked', `风险守卫要求停止：${s.reason}${s.detail ? '（' + s.detail + '）' : ''}`)
-        if (!opts.riskGuard.reservePage()) return finish('blocked', '今日页数上限已到')
+        opts.riskGuard.countPage()
       }
       // 1. 阻碍检测
-      let sig = await step('读取页面信号', () => page.evaluate(pageSignalsScript))
+      let sig = await step('读取页面信号', () => readSignalsSettled(page, Math.max(opts.settleMs ?? 800, 0)))
       const risk = opts.riskGuard?.inspect(sig, adapter) ?? null
-      const ob = detectObstacle(sig, adapter)
+      // 导航栏的「登录/注册」不是登录墙：还没找岗位之前先去找（2026-10-31：北森 zhiye 首页一打开就被当成要登录）
+      const rawOb = detectObstacle(sig, adapter)
+      const ob = rawOb && opts.target && untouched() && !entryClicked && isNavLoginLink(rawOb) ? null : rawOb
       if (risk && risk.reason === 'rate_limit') return finish('blocked', `平台限流提示：${risk.evidence}，已上风险锁`)
       if (!ob && looksLikeRiskUrl(sig.url)) { opts.riskGuard?.trip('rate_limit', `跳转到风控页 ${sig.url}`); return finish('blocked', `被跳转到风控 / 验证页：${sig.url}，已上风险锁`) }
       if (ob) {
@@ -326,13 +366,53 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       // 1.5 障碍层：页面一打开就挡着的弹窗（cookie / 须知 / 公告）
       if (!(await blockers('page', rec)) && unresolvedBlocker) { pages.push(rec); return blockerHandoff(unresolvedBlocker) }
 
+      // 1.8 列表页 / 首页：页面上有这个站的岗位详情链接、却没有申请入口 → 先去找岗位。
+      // 列表页左边的「职位类别 / 城市」筛选框不是网申表（2026-10-31 实例测试：小鹏列表页的筛选被当成表单填了）
+      // 适配器认得出这是校招首页 / 列表页（能拼出站内搜索网址、自己又不是岗位详情）也一样：Moka 首页的搜索框标签常被认成标语
+      // 只在一开始（还没点过申请入口、还没找过岗位）判断；点进网申表以后同一站的网址也拼得出搜索网址，不能再跳走
+      // 列表页例外：飞书首页的「立即投递」点进去是招聘项目的岗位列表，还得再挑岗位
+      // 详情页 = 只有一个申请入口，或网址本身就是岗位详情；列表页每张岗位卡上都有「立即投递」（Moka），不能当详情页
+      const entries = sig.buttons.filter(b => !b.disabled && isEntryText(b.text, adapter))
+      const looksDetail = entries.length === 1 || !!adapter.hints.positionLink?.test(page.url())
+      if (index === 1 && navHops === 0 && !looksDetail) {
+        const here = page.url()
+        const atHome = !entryClicked && !!adapter.positionSearchUrl?.(here, '') && !adapter.hints.positionLink?.test(here)
+        const links = adapter.hints.positionLink ? await page.evaluate(positionLinksScript, null).catch(() => [] as PositionLink[]) : []
+        const onList = entries.length >= 2 || links.some(l => adapter.hints.positionLink!.test(l.href))
+        if (atHome || onList) {
+          if (await seek(atHome ? '校招首页' : '列表页')) { index--; continue }
+          // 已经认定这是首页 / 列表页、又走不出去：这里没有网申表。绝不把列表上的筛选、分页当表单填，
+          // 也不把岗位卡上的「立即投递」当成提交按钮（2026-10-31：大众校招列表页又被报成「已填完，停在立即投递前」）
+          if (opts.target) { pages.push(rec); return finish('blocked', lastSeekNote ?? `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
+        }
+      }
       // 2. 抽取（L1）；抽不到且有感知器 → L2 视觉伪字段
       let fields = await step('抽取字段', () => extractFields(page))
       let layer: DriveLayer = 'dom'
       rec.fieldCount = fields.length
+      // 2.05 第一页只有搜索框 / 筛选框（Moka 首页的「输入职位关键字」、列表页的城市筛选）：不是网申表，先去找岗位
+      if (index === 1 && fields.length && (onlySearchOrFilter(fields) || filterBarOnly(fields)) && !sig.buttons.some(b => !b.disabled && isEntryText(b.text, adapter))) {
+        if (await seek('只有搜索 / 筛选框')) { index--; continue }
+        // 找过了还是只有筛选框：这不是网申表，绝不当成「填好了」交去提交（2026-10-31：大众校招搜索页的筛选被报成表单已填完）
+        if (opts.target) { pages.push(rec); return finish('blocked', lastSeekNote ?? `这家现在没有和你方向对口的岗位（站内找过：${lastSeekTried.join('、') || '页面上的岗位'}）`) }
+      }
       // 2.1 岗位详情页：页面上没有任何表单字段、这次也没填过东西 → 允许点申请入口按钮进入网申表（最终提交仍永不点）
-      if (!fields.length && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
-        const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text))
+      // 北森 zhiye 的岗位行点开是就地展开、行里出「投递」：页面上只有搜索框 / 没标签的格子时也算「还没有表单」
+      if ((!fields.length || onlySearchOrUnlabeled(fields)) && untouched() && opts.allowEntryClick !== false && entryClicks < 2) {
+        const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text, adapter))
+        // 学历要求高于他：不点投递，交给自主找路换一个岗位（2026-10-31：天翼云「超级优才」要博士，本科生差点投出去）
+        const over = entry ? requiredAbove(sig.text, opts.target?.tooHigh ?? []) : undefined
+        if (over) {
+          log(`岗位要求「${over}」，高于你的学历，不投这个`)
+          if (opts.pathfinder && !pathfinderUsed) {
+            pathfinderUsed = true
+            const auto = await opts.pathfinder(`这个岗位要求${over}，换一个`).catch(() => ({ moved: false, note: undefined }))
+            if (auto.moved) { index--; continue }
+            if (auto.note) lastSeekNote = auto.note
+          }
+          pages.push(rec)
+          return finish('blocked', lastSeekNote ?? `这个岗位要求${over}，高于你的学历，没有投`)
+        }
         if (entry) {
           entryClicks++
           progress(`点击「${entry.text}」进入申请表`, 'entry', entry.text)
@@ -351,6 +431,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           }
         }
       }
+      // DOM 里没有表单：先看是不是首页 / 合集页（去找岗位），再交给视觉层——首页的轮播、登录框会被视觉当成输入框
+      if (!fields.length && index === 1 && await seek('DOM 没有表单')) { index--; continue }
       if (!fields.length && visionOpts) {
         const p = await visionScan(page, visionOpts, '寻找表单输入框')
         if (looksLikeFormVisually(p)) {
@@ -371,9 +453,11 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       lastFingerprint = fp
       if (!fields.length) {
         if (index === 1 || untouched()) {
+          // 首页 / 合集页：先去找对口的具体岗位，进了详情页再走上面的申请入口
+          if (await seek('没有表单')) { index--; continue }
           pages.push(rec); all.escalations.push(...rec.escalations)
-          const entry = sig.buttons.find(b => isEntryText(b.text)) ?? findFinalSubmit(sig.buttons, adapter)
-          return entry ? entryHandoff(entry.text) : finish('blocked', '页面上没有可填写的表单字段')
+          const entry = sig.buttons.find(b => isEntryText(b.text, adapter)) ?? findFinalSubmit(sig.buttons, adapter)
+          return entry ? entryHandoff(entry.text) : finish('blocked', lastSeekNote ?? '页面上没有可填写的表单字段')
         }
         break // 后续页没字段：可能到了确认页
       }
@@ -452,10 +536,15 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       if (uploaded) { fields = await step('抽取字段', () => extractFields(page)); for (const f of fields) byId.set(f.id, f) }
 
       const deferred: FieldPlan[] = []
+      const ranges = layer === 'dom' ? rangeFieldIds(fields) : new Set<string>()
       // 5. 逐字段：填写 + 核验 + 失败回滚（只填与当前值不同的；高影响缺答案 / 草稿不填）
       for (const p of plans) {
         const f = byId.get(p.fieldId)
         if (!f) continue
+        // 起止范围控件（一个标签管两格）：逐格解释分不清开始 / 结束，交给 5.5 分区按行填
+        if (ranges.has(f.id) && p.status !== 'skip') { deferred.push(p); continue }
+        // 经历分区行里的「描述 / 工作内容」：用这段经历确认过的说法由 5.5 分区填，不当开放题起草（分区没填上再退回草稿）
+        if (p.status === 'draft_needs_confirm' && layer === 'dom' && isRowDescription(f)) { deferred.push(p); continue }
         if (p.status === 'needs_user') {
           // 资料里找不到、但标签是分区行字段（如「在校时间」=入学）：先留给重复分区按行填，分区也没填上再记"要你补"
           if (p.source === 'none' && layer === 'dom' && !f.labelUncertain && SECTIONS.some(spec => matchRowField(f.label, spec))) { deferred.push(p); continue }
@@ -520,6 +609,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           const fresh = now.filter(f => !f.isFile && !known.has(slotOf(f)) && !written.has(slotOf(f)))
           if (!fresh.length) break
           for (const f of fresh) { known.add(slotOf(f)); planFields.set(f.id, f); byId.set(f.id, f) }
+          // 新出现的起止格子同样交给 5.5 分区按行认开始 / 结束（2026-10-31 小鹏整表重渲染后两格又都成了毕业时间）
+          for (const id of rangeFieldIds(now)) ranges.add(id)
           recorder.trace({ stage: 'revealed', result: 'info', detail: `新出现 ${fresh.length} 格：${fresh.map(f => f.label || '?').join(' | ')}` })
           log(`前面的选择让页面新出现了 ${fresh.length} 格：${fresh.map(f => f.label || '?').join('、')}`)
           const more = await interpretForm(llm, fresh, profile, { adapter, recallKey, ...opts.interpret })
@@ -529,6 +620,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
             if (!f) continue
             if (f.labelUncertain && p.status === 'fill') { rec.needsUser.push({ ...p, status: 'needs_user', value: undefined, code: 'label_uncertain', note: `${reasonText('label_uncertain')}（${f.labelUncertain}）` }); continue }
             plans.push(p)
+            if (ranges.has(f.id) && p.status !== 'skip') { deferred.push(p); continue }
+            if (p.status === 'draft_needs_confirm' && isRowDescription(f)) { deferred.push(p); continue }
             if (p.status === 'needs_user') { rec.needsUser.push(p); continue }
             if (p.status === 'draft_needs_confirm') { rec.drafts.push(p); continue }
             if (p.status !== 'fill' || p.value === undefined) continue
@@ -567,7 +660,24 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         } catch (e) { log(`重复分区填写异常：${e instanceof Error ? e.message : String(e)}`); recorder.bump('section_error') }
       }
       await retryDisabled() // 分区里新加的行同样有联动（第二段学历选了，专业才解锁）
-      for (const p of deferred) { const f = planFields.get(p.fieldId); if (!f || !written.has(slotOf(f))) rec.needsUser.push(p) }
+      // 起止格子分区没填上：按所在经历 / 模型认出是哪一段再填，不交给人（range-fallback.ts）
+      const rangeLeft = new Set(deferred.filter(p => { const f = planFields.get(p.fieldId); return ranges.has(p.fieldId) && !!f && !written.has(slotOf(f)) }).map(p => p.fieldId))
+      if (rangeLeft.size) {
+        const planned = [...planFields.values()]
+        for (const r of await resolveRangeValues(planned, rangeLeft, ranges, profile, widgetLlm, log)) {
+          const old = planFields.get(r.fieldId)
+          const f = old && (fields.find(x => slotOf(x) === slotOf(old)) ?? old)
+          if (!f) continue
+          record(f, r.value, 'profile', await fillAndVerify(fillDeps, f, r.value, 'range'), 'range')
+        }
+      }
+      for (const p of deferred) {
+        const f = planFields.get(p.fieldId)
+        if (f && written.has(slotOf(f))) continue
+        if (p.status === 'draft_needs_confirm') { rec.drafts.push(p); continue }
+        if (ranges.has(p.fieldId)) log(`[apply-gap] 起止格子「${p.label}」认不出属于哪段经历`)
+        rec.needsUser.push(p.status === 'needs_user' ? p : { ...p, status: 'needs_user', value: undefined, confidence: 0, note: reasonText('fill_error') })
+      }
 
       // 6. 整页复核（只对 DOM 层）：核验通过的值有没有被页面后来的动作冲掉（如上传解析回填、联动清空）；冲掉的重填一次，再不行就清空留给用户
       if (layer === 'dom') {
@@ -649,7 +759,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       if (!next) {
         pushPage()
-        if (untouched()) return submit ? entryHandoff(submit.text) : finish('blocked', '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
+        if (untouched()) return submit ? entryHandoff(submit.text) : finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
+        // 一格都没填成、要补的全是截图识字层点不进去的「格子」、也没有提交按钮：这不是网申表（多是岗位列表），
+        // 如实报找路的结论，不说「表单已填完」（2026-10-31 阿斯麦：岗位卡片上的字被当成输入框）
+        if (!submit && visionOnlyMisses()) return finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
         const msg = submit ? `已填完，停在「${submit.text}」前，等你确认后再提交` : '表单已填完，页面上没有找到下一步或提交按钮，请人工检查'
         return finish('stopped_before_submit', msg, { submitButton: submit?.text, reason: submit ? 'submit_confirm' : undefined })
       }
@@ -719,6 +832,59 @@ function outcomesFor(index: number, fields: FormField[], rec: PageRecord): Field
   return out
 }
 
+/** 页面刚打开就自己跳转（北森 zhiye 首页会跳到栏目页）时，第一次读页面会撞上「执行上下文被销毁」：等一下再读。 */
+const NAV_RACE_RX = /Execution context was destroyed|navigat/i
+const SIGNAL_RETRIES = 2
+async function readSignalsSettled(page: PageLike, settleMs: number): Promise<PageSignals> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await page.evaluate(pageSignalsScript) } catch (error) {
+      if (attempt >= SIGNAL_RETRIES || !NAV_RACE_RX.test(error instanceof Error ? error.message : String(error))) throw error
+      await page.waitForTimeout(Math.max(settleMs, 500) * 2)
+    }
+  }
+}
+
+const SEARCH_FILTER_RX = /(搜索|关键字|关键词|keyword|search|筛选|职位类别|职位类型|工作地点|城市|地点|所属部门|职能类型|行\/页|条\/页|每页|排序)/i
+/** 列表页 / 首页上的搜索框和筛选项，不是网申表的格子。 */
+function isSearchOrFilterField(f: FormField): boolean {
+  return SEARCH_FILTER_RX.test(`${f.label} ${f.placeholder ?? ''}`)
+}
+/** 这一页只有搜索 / 筛选（没标签的格子不算反证，但至少要有一个认得出是筛选的）。 */
+function onlySearchOrFilter(fields: FormField[]): boolean {
+  return fields.some(isSearchOrFilterField) && fields.every(f => isSearchOrFilterField(f) || !`${f.label}${f.placeholder ?? ''}`.trim())
+}
+/** 页面上写着高于他的学历门槛（「博士研究生及以上」）；后面跟「优先」的只是偏好，不算门槛。 */
+export function requiredAbove(text: string, words: readonly string[]): string | undefined {
+  for (const w of words) {
+    let at = text.indexOf(w)
+    while (at >= 0) {
+      if (!text.slice(at + w.length, at + w.length + 4).includes('优先')) return w
+      at = text.indexOf(w, at + w.length)
+    }
+  }
+  return undefined
+}
+/** 网申表的痕迹：个人 / 联系 / 教育类格子、简历上传，或者必填星号。 */
+const APPLICATION_FIELD_RX = /(姓名|手机|电话|邮箱|证件|身份证|性别|出生|民族|籍贯|学校|院校|学历|学位|专业|毕业|简历|附件|name|phone|mobile|email|school|degree|major|resume|cv)/i
+function looksLikeApplicationForm(fields: FormField[]): boolean {
+  return fields.some(f => f.isFile || f.required || APPLICATION_FIELD_RX.test(`${f.label} ${f.placeholder ?? ''}`))
+}
+/**
+ * 筛选栏：没有任何网申表的痕迹，格子又全是下拉 / 搜索框 / 没标签的——按结构认，不靠筛选词表
+ * （2026-10-31 韶音 Moka 列表页的「职位性质 / 职能类型」不在词表里，被当成网申表去填）。
+ */
+function filterBarOnly(fields: FormField[]): boolean {
+  return !looksLikeApplicationForm(fields) && fields.every(f => f.type === 'select' || f.custom || isSearchOrFilterField(f) || !`${f.label}${f.placeholder ?? ''}`.trim())
+}
+/** 只有搜索 / 筛选 / 没标签的格子（没有一个像网申表的格子）。 */
+function onlySearchOrUnlabeled(fields: FormField[]): boolean {
+  return fields.every(f => isSearchOrFilterField(f) || !`${f.label}${f.placeholder ?? ''}`.trim())
+}
+/** 只因为页面文字里有导航栏那种「登录 / 注册」才判成登录墙（没有密码框、不是登录网址）。 */
+function isNavLoginLink(ob: Obstacle): boolean {
+  return ob.reason === 'login' && /^登录\s*\/\s*注册$/.test(ob.evidence.trim())
+}
+
 /** 点击前最后一道防线：文案像提交就拒绝。 */
 async function clickButton(page: PageLike, b: ButtonInfo, adapter: SiteAdapter): Promise<void> {
   if (isSubmitText(b.text, adapter)) throw new Error(`拒绝点击提交类按钮「${b.text}」`)
@@ -726,8 +892,9 @@ async function clickButton(page: PageLike, b: ButtonInfo, adapter: SiteAdapter):
 }
 /** 申请入口：只认入口文案（立即申请 / 申请职位 / 我要投递 / Apply…），且调用方已确认页面上没有表单字段。 */
 async function clickEntry(page: PageLike, b: ButtonInfo, adapter: SiteAdapter): Promise<void> {
-  if (!isEntryText(b.text)) throw new Error(`「${b.text}」不是申请入口按钮`)
-  if ((adapter.hints.submitWords ?? []).some(w => normKey(w) === normKey(b.text)) && !/申请|apply/i.test(b.text)) throw new Error(`「${b.text}」是该站的提交按钮`)
+  if (!isEntryText(b.text, adapter)) throw new Error(`「${b.text}」不是申请入口按钮`)
+  const detailEntry = (adapter.hints.detailEntryWords ?? []).some(w => normKey(w) === normKey(b.text))
+  if (!detailEntry && (adapter.hints.submitWords ?? []).some(w => normKey(w) === normKey(b.text)) && !/申请|apply/i.test(b.text)) throw new Error(`「${b.text}」是该站的提交按钮`)
   await page.click(b.selector)
 }
 
@@ -738,6 +905,11 @@ function stableSlot(f: FormField): string | null {
 }
 /** 去重用的格子键：认不准时退回到本次抽取的 id（只在同一次抽取内去重，不跨抽取复用）。 */
 function slotOf(f: FormField): string { return stableSlot(f) ?? `id:${f.id}` }
+
+/** 经历分区行里的描述格（「描述」「工作内容」「项目描述」）。 */
+function isRowDescription(f: FormField): boolean {
+  return SECTIONS.some(spec => matchRowField(f.label, spec) === 'description')
+}
 
 function sameValue(f: FormField, v: string): boolean {
   if (f.value === undefined || f.value === '') return false

@@ -9,10 +9,9 @@ import { FileText, Globe, Maximize2, Minimize2, PenLine, Users, X, type LucideIc
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { careerApi } from '@/components/career/careerApi';
-import { Button, LoadingRow } from '@/components/career/CareerPrimitives';
-import type { CareerCard, ExamPractice, MockInterview } from '@/components/career/types';
+import { Button, ChatActionButton, LoadingRow } from '@/components/career/CareerPrimitives';
+import type { ExamPractice, MockInterview } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
-import { useTabStateOptional } from '@/context/TabContext';
 import type { ToolUseSimple } from '@/types/chat';
 
 import { BreakoutCard, ProgressAnchor, type BreakoutTone } from './BreakoutCard';
@@ -33,6 +32,8 @@ const TOOL_SURFACES: Record<string, WorkSurface> = {
   browser_observe: 'browser',
   browser_act: 'browser',
   browser_read: 'browser',
+  browser_wait_user: 'browser',
+  browser_solve_captcha: 'browser',
   browser_capture_job: 'browser',
   resume_master_create: 'resume',
   resume_save: 'resume',
@@ -90,12 +91,11 @@ export { pendingQuestion } from './cardContent';
 
 type CardState = { tone: BreakoutTone; text: string };
 
-function cardState(surface: WorkSurface, tool: ToolUseSimple, extra: { pendingDiff: boolean }): CardState {
+function cardState(surface: WorkSurface, tool: ToolUseSimple): CardState {
   if (tool.isLoading) return { tone: 'running', text: '正在做…' };
   if (tool.isError || tool.isFailed) return { tone: 'error', text: '出错了，可以让小芽重试' };
   if (tool.isStopped) return { tone: 'idle', text: '已停止' };
   const result = parseToolResult(tool) ?? {};
-  if (surface === 'resume' && extra.pendingDiff) return { tone: 'waiting', text: '这几处修改等你采纳' };
   if (surface === 'mock-interview' && pendingQuestion(tool)) return { tone: 'waiting', text: '轮到你回答' };
   if (surface === 'exam' && result.status === 'answering') {
     const total = Number(result.questions ?? 0);
@@ -117,9 +117,9 @@ function useResumeReveal(resumeId: string | null): Reveal {
   return useMemo(() => makeReveal(preview), [preview]);
 }
 
-function ResumeCardContent({ tool, diffCard, refId, children }: { tool: ToolUseSimple; diffCard: CareerCard | undefined; refId: string | null; children: (content: CardContent) => ReactNode }) {
+function ResumeCardContent({ tool, refId, children }: { tool: ToolUseSimple; refId: string | null; children: (content: CardContent) => ReactNode }) {
   const reveal = useResumeReveal(refId);
-  return children(resumeContent(tool, diffCard, reveal));
+  return children(resumeContent(tool, reveal));
 }
 
 function ExamCardContent({ tool, children }: { tool: ToolUseSimple; children: (content: CardContent) => ReactNode }) {
@@ -132,15 +132,10 @@ function ExamCardContent({ tool, children }: { tool: ToolUseSimple; children: (c
 }
 
 export function WorkSurfaceCard({ surface, tool }: { surface: Exclude<WorkSurface, 'browser'>; tool: ToolUseSimple }) {
-  const tab = useTabStateOptional();
   const { expanded, refId: openRef } = useWorkSurfaces();
   const meta = SURFACE_META[surface];
   const refId = refIdForTool(surface, tool);
-  const diffCard = surface === 'resume'
-    ? (tab?.careerCards ?? []).find(card => card.kind === 'resume_diff' && ((refId && card.id.endsWith(`:${refId}`)) || card.toolUseId === tool.id))
-    : undefined;
-  const pendingDiff = Boolean(diffCard) && (diffCard?.state ?? 'pending') === 'pending';
-  const state = cardState(surface, tool, { pendingDiff });
+  const state = cardState(surface, tool);
   const open = expanded === surface && (openRef ?? null) === (refId ?? null);
   const question = surface === 'mock-interview' ? pendingQuestion(tool) : null;
 
@@ -168,7 +163,7 @@ export function WorkSurfaceCard({ surface, tool }: { surface: Exclude<WorkSurfac
   );
 
   if (surface === 'exam') return <ExamCardContent tool={tool}>{render}</ExamCardContent>;
-  if (surface === 'resume') return <ResumeCardContent tool={tool} diffCard={diffCard} refId={refId}>{render}</ResumeCardContent>;
+  if (surface === 'resume') return <ResumeCardContent tool={tool} refId={refId}>{render}</ResumeCardContent>;
   return render(mockInterviewContent(tool));
 }
 
@@ -222,13 +217,10 @@ export function SurfaceShell({ surface, status, primary, handoff, children }: {
 
 export function ResumeSurfacePanel() {
   const { refId, nonce } = useWorkSurfaces();
-  const tab = useTabStateOptional();
-  const pendingDiff = (tab?.careerCards ?? []).some(card => card.kind === 'resume_diff' && (card.state ?? 'pending') === 'pending' && (!refId || card.id.endsWith(`:${refId}`)));
   return (
     <SurfaceShell
       surface="resume"
-      status={pendingDiff ? { tone: 'waiting', text: '有修改等你采纳' } : { tone: 'idle', text: '自动保存，小芽会读到最新内容' }}
-      handoff={pendingDiff ? { title: '这几处修改等你采纳', detail: '在对话里的「简历改动」卡片上勾选要采纳的几处，再点应用；没勾的不会改。' } : null}
+      status={{ tone: 'idle', text: '自动保存，小芽会读到最新内容' }}
     >
       <Suspense fallback={<div className="px-5"><LoadingRow /></div>}>
         <div className="h-full">
@@ -253,6 +245,39 @@ function reportLines(report: unknown): Array<{ label: string; text: string }> {
     .map(([label, value]) => ({ label, text: typeof value === 'string' ? value : JSON.stringify(value, null, 1) }));
 }
 
+/** 计时刷新间隔：秒表只显示到秒。 */
+const CLOCK_TICK_MS = 1000;
+
+function clockText(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600); const m = Math.floor((total % 3600) / 60); const sec = total % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+}
+
+/** 面试前一晚连着练：这场练了多久、这一问想了多久（换题时重新计）。结束后停表。 */
+export function MockClock({ startedAt, question, running }: { startedAt: string | null; question: string | null; running: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return undefined;
+    const t = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
+    return () => clearInterval(t);
+  }, [running]);
+  const start = startedAt ? Date.parse(startedAt) : NaN;
+  return (
+    <div className="flex items-center gap-4 text-xs tabular-nums text-[var(--muted)]" data-testid="mock-clock">
+      {!Number.isNaN(start) && <span>这场已练 {clockText(now - start)}</span>}
+      {running && question && <QuestionClock key={question} now={now} />}
+    </div>
+  );
+}
+
+/** 换题时按 key 重新挂载，从这一问出现的时刻起计。 */
+function QuestionClock({ now }: { now: number }) {
+  const [askedAt] = useState(() => Date.now());
+  return <span>这一问 {clockText(now - askedAt)}</span>;
+}
+
 export function MockInterviewSurfacePanel() {
   const { refId, context } = useWorkSurfaces();
   const query = useCareerQuery(careerApi.mockInterviews, ['mock_interview']);
@@ -268,6 +293,13 @@ export function MockInterviewSurfacePanel() {
     >
       <div className="space-y-4 px-5 py-4">
         {query.loading && !query.data && <LoadingRow />}
+        {record && <MockClock startedAt={record.created_at} question={context ?? null} running={!report} />}
+        {record && !report && !context && (
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-sm text-[var(--ink-2)]">
+            <span className="flex-1">这场还没练完，可以接着从上次停下的地方练。</span>
+            <ChatActionButton size="sm" variant="primary" text={`接着练这场模拟面试（mock_interview_id=${record.id}）`}>接着练</ChatActionButton>
+          </div>
+        )}
         {context && (
           <div>
             <div className="mb-1 text-xs text-[var(--muted)]">当前问题</div>
@@ -292,6 +324,9 @@ export function MockInterviewSurfacePanel() {
               ))}
             </dl>
           </div>
+        )}
+        {report !== null && record && (
+          <ChatActionButton size="sm" variant="ghost" text={`按这次复盘的卡点再练一场${record.job_id ? `（job_id=${record.job_id}）` : ''}`}>按卡点再练一场</ChatActionButton>
         )}
         {!query.loading && !record && !context && <p className="text-sm text-[var(--subtle)]">还没有这场模拟面试的记录。</p>}
       </div>

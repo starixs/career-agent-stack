@@ -31,6 +31,12 @@ describe('assistRecords', () => {
     expect(rows.find(r => r.key === 'deadline:d2')?.detail).toBe('已过');
   });
 
+  it('在月历上取消了这场面试：助力记录里同一场标「已取消」，不再算没到的', () => {
+    const cancelled = { ...deadline('d5', 'interview', '2026-10-17T06:00:00.000Z', 'a-2', 'cancelled'), interview_id: 'i1' };
+    const rows = assistRecords({ ...src, deadlines: [...src.deadlines, cancelled] }, NOW);
+    expect(rows.find(r => r.key === 'interview:i1')).toMatchObject({ detail: '终面 · 已取消', upcoming: false, cancelled: true });
+  });
+
   it('筛选：笔试含测评和笔试练习', () => {
     const rows = assistRecords(src, NOW);
     expect(filterAssists(rows, 'exam').map(r => r.type)).toEqual(['written_test', 'exam_practice', 'assessment']);

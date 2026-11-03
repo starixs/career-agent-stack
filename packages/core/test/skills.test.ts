@@ -9,11 +9,11 @@ const SKILLS_ROOT = resolve(here, '../../../skills')
 
 /** 产品内置的 22 个求职技能（名称固定）。 */
 const EXPECTED = [
-  'assistant-core', 'experience-interview', 'jd-parse', 'resume-draft', 'resume-tailor', 'derivatives',
+  'assistant-core', 'experience-interview', 'jd-parse', 'resume-draft', 'resume-tailor', 'resume-import', 'derivatives',
   'job-evaluate', 'company-research', 'apply-playbook', 'greeting', 'interview-probe',
   'interview-questions', 'project-story', 'probe-predict', 'interview-retro',
   'direction-explore', 'gap-plan', 'offer-compare', 'campus-timeline',
-  'inbox-triage', 'weekly-review', 'material-draft',
+  'inbox-triage', 'material-draft',
 ] as const
 
 /** 必须带 references 的技能及其最少文件数。 */

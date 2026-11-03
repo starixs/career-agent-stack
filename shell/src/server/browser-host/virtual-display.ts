@@ -1,151 +1,181 @@
 /**
- * macOS 虚拟屏（可选，`CAREER_BROWSER_WINDOW=virtual-display`）：用私有 CGVirtualDisplay 建一块看不见的屏幕，
- * 托管 Chrome 只在这块屏上，不占用户桌面的角落；"显示真实窗口"时照旧搬回主屏。
+ * macOS 虚拟屏（macOS 缺省开启，`CAREER_BROWSER_WINDOW=corner` 关闭）：用私有 CGVirtualDisplay 建一块看不见的屏幕，
+ * 托管 Chrome 只在这块屏上，不占用户桌面的角落；"显示真实窗口"时照旧搬回主屏。屏由原生窗口助手
+ * （native/career-window-helper.m 的 display 模式）持有，放在哪由这里决定。
  *
- * 2026-10-11 实测（真实 Chrome）：虚拟屏上画面流 3 秒 28 帧、截图 9–16ms、CDP 点击生效；
- * 虚拟屏放在主屏左上对角（只碰一个角、不共用边），鼠标按 macOS 规则过不去。
+ * 2026-10-11 实测（真实 Chrome）：虚拟屏上画面流 3 秒 28 帧、截图 9–16ms、CDP 点击生效。
+ * 放置：虚拟屏只能和别的屏碰一个角，不能共用一段边——共用边鼠标就能滑进这块看不见的屏。
+ * 2026-10-26 实测：外接屏在主屏上方时，旧的"主屏左上对角"和外接屏重叠，macOS 把它推到贴着外接屏左边，
+ * 鼠标从外接屏往左就消失了。所以按全部屏幕挑位置、放完核对实际结果，屏幕重排后再核对一次。
  * 风险：虚拟屏一消失，macOS 会把上面的窗口搬到主屏正中——所以和托管 Chrome 同生共死：
- * 先关 Chrome 再放屏；助手进程意外退出时 onLost 通知宿主立刻把窗口停回角落。
- * 私有 API 可能随系统升级失效：编译 / 创建失败一律退回角落停靠，不影响浏览器本身。
+ * 先关 Chrome 再放屏；助手意外退出（onLost）或重排后挪不开（onUnsafe）时宿主改用隐藏兜底。
  */
-import { spawn, execFile, type ChildProcess } from 'child_process';
-import { createHash } from 'crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { resolveWindowHelper, spawnHelper, type HelperEvent, type HelperProcess } from './window-helper-binary';
 
-export const VIRTUAL_DISPLAY_SOURCE = String.raw`#import <Foundation/Foundation.h>
-#import <CoreGraphics/CoreGraphics.h>
-@interface CGVirtualDisplayDescriptor : NSObject
-@property (retain, nonatomic) dispatch_queue_t queue;
-@property (retain, nonatomic) NSString *name;
-@property (nonatomic) unsigned int maxPixelsWide;
-@property (nonatomic) unsigned int maxPixelsHigh;
-@property (nonatomic) CGSize sizeInMillimeters;
-@property (nonatomic) unsigned int productID;
-@property (nonatomic) unsigned int vendorID;
-@property (nonatomic) unsigned int serialNum;
-@property (copy, nonatomic) void (^terminationHandler)(id, id);
-@end
-@interface CGVirtualDisplayMode : NSObject
-- (instancetype)initWithWidth:(unsigned int)width height:(unsigned int)height refreshRate:(double)refreshRate;
-@end
-@interface CGVirtualDisplaySettings : NSObject
-@property (retain, nonatomic) NSArray *modes;
-@property (nonatomic) unsigned int hiDPI;
-@end
-@interface CGVirtualDisplay : NSObject
-@property (readonly, nonatomic) unsigned int displayID;
-- (instancetype)initWithDescriptor:(CGVirtualDisplayDescriptor *)descriptor;
-- (BOOL)applySettings:(CGVirtualDisplaySettings *)settings;
-@end
-int main(int argc, const char *argv[]) {
-  @autoreleasepool {
-    unsigned int w = argc > 1 ? (unsigned int)atoi(argv[1]) : 1366;
-    unsigned int h = argc > 2 ? (unsigned int)atoi(argv[2]) : 768;
-    CGVirtualDisplayDescriptor *d = [[CGVirtualDisplayDescriptor alloc] init];
-    d.queue = dispatch_get_main_queue();
-    d.name = @"Career Agent Workspace";
-    d.maxPixelsWide = w; d.maxPixelsHigh = h;
-    d.sizeInMillimeters = CGSizeMake(w * 0.264, h * 0.264);
-    d.productID = 0x4b53; d.vendorID = 0x4b53; d.serialNum = 1;
-    d.terminationHandler = ^(id a, id b) { exit(0); };
-    CGVirtualDisplay *display = [[CGVirtualDisplay alloc] initWithDescriptor:d];
-    if (!display) { printf("{\"error\":\"create failed\"}\n"); fflush(stdout); return 2; }
-    CGVirtualDisplaySettings *s = [[CGVirtualDisplaySettings alloc] init];
-    s.hiDPI = 0;
-    s.modes = @[[[CGVirtualDisplayMode alloc] initWithWidth:w height:h refreshRate:60]];
-    if (![display applySettings:s]) { printf("{\"error\":\"apply failed\"}\n"); fflush(stdout); return 3; }
-    for (int i = 0; i < 50; i++) { if (CGDisplayBounds(display.displayID).size.width > 0) break; [NSThread sleepForTimeInterval:0.05]; }
-    CGRect main = CGDisplayBounds(CGMainDisplayID());
-    CGDisplayConfigRef cfg;
-    if (CGBeginDisplayConfiguration(&cfg) == kCGErrorSuccess) {
-      CGConfigureDisplayOrigin(cfg, display.displayID, (int)main.origin.x - (int)w, (int)main.origin.y - (int)h);
-      CGCompleteDisplayConfiguration(cfg, kCGConfigureForSession);
-    }
-    [NSThread sleepForTimeInterval:0.3];
-    CGRect b = CGDisplayBounds(display.displayID);
-    printf("{\"displayID\":%u,\"x\":%.0f,\"y\":%.0f,\"w\":%.0f,\"h\":%.0f}\n", display.displayID, b.origin.x, b.origin.y, b.size.width, b.size.height);
-    fflush(stdout);
-    dispatch_source_t src = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, STDIN_FILENO, 0, dispatch_get_main_queue());
-    dispatch_source_set_event_handler(src, ^{ char buf[64]; if (read(STDIN_FILENO, buf, sizeof buf) <= 0) exit(0); });
-    dispatch_resume(src);
-    dispatch_main();
-  }
-}
-`;
-
+export interface DisplayRect { id: number; x: number; y: number; w: number; h: number; main?: boolean }
 export interface VirtualDisplayBounds { displayID: number; x: number; y: number; w: number; h: number }
 
-/** 解析助手进程第一行输出。 */
-export function parseVirtualDisplayLine(line: string): VirtualDisplayBounds {
-  const raw = JSON.parse(line) as Partial<VirtualDisplayBounds> & { error?: string };
-  if (raw.error) throw new Error(`虚拟屏创建失败：${raw.error}`);
-  if (![raw.displayID, raw.x, raw.y, raw.w, raw.h].every(v => typeof v === 'number') || !raw.w || !raw.h) throw new Error('虚拟屏返回的尺寸无效');
-  return raw as VirtualDisplayBounds;
+/** 两块屏是否重叠或共用一段边（只碰一个角不算）。 */
+export function touchesAlongEdge(a: DisplayRect, b: DisplayRect): boolean {
+  const overlapX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  const overlapY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  if (overlapX < 0 || overlapY < 0) return false;
+  return overlapX > 0 || overlapY > 0;
 }
 
-export interface VirtualDisplayOptions { binDir: string; width?: number; height?: number; clang?: string; onLost?: () => void; log?: (msg: string) => void }
+export function isIsolated(self: DisplayRect, others: DisplayRect[]): boolean {
+  return others.every(other => !touchesAlongEdge(self, other));
+}
+
+/** 候选位置：主屏优先，每块屏的四个对角各一个；只留和所有屏都不共用边的。 */
+export function isolatedOrigins(others: DisplayRect[], w: number, h: number): Array<{ x: number; y: number }> {
+  const ordered = [...others].sort((a, b) => Number(Boolean(b.main)) - Number(Boolean(a.main)));
+  const out: Array<{ x: number; y: number }> = [];
+  for (const d of ordered) {
+    for (const c of [
+      { x: d.x - w, y: d.y - h },
+      { x: d.x - w, y: d.y + d.h },
+      { x: d.x + d.w, y: d.y - h },
+      { x: d.x + d.w, y: d.y + d.h },
+    ]) {
+      if (isIsolated({ id: -1, ...c, w, h }, others) && !out.some(o => o.x === c.x && o.y === c.y)) out.push(c);
+    }
+  }
+  return out;
+}
+
+/** 助手的 displays / placed 事件：拆成虚拟屏自己和其余的屏。 */
+export function parseDisplays(event: HelperEvent): { self: DisplayRect | null; others: DisplayRect[] } {
+  const list = Array.isArray(event.displays) ? event.displays as DisplayRect[] : [];
+  const valid = list.filter(d => [d.id, d.x, d.y, d.w, d.h].every(v => typeof v === 'number' && Number.isFinite(v)));
+  return { self: valid.find(d => d.id === event.self) ?? null, others: valid.filter(d => d.id !== event.self) };
+}
+
+const toBounds = (d: DisplayRect): VirtualDisplayBounds => ({ displayID: d.id, x: d.x, y: d.y, w: d.w, h: d.h });
+
+export interface VirtualDisplayOptions {
+  binDir: string;
+  width?: number;
+  height?: number;
+  /** 助手意外退出，虚拟屏没了。 */
+  onLost?: () => void;
+  /** 屏幕重排后虚拟屏换了位置（仍然安全）：宿主把窗口重新停过去。 */
+  onMoved?: (bounds: VirtualDisplayBounds) => void;
+  /** 屏幕重排后虚拟屏贴边且挪不开：宿主先把窗口藏好，再 stop()。 */
+  onUnsafe?: () => void;
+  log?: (msg: string) => void;
+  resolveBinary?: (binDir: string) => Promise<string>;
+  spawn?: typeof spawnHelper;
+}
+
+type Waiter = (event: HelperEvent) => boolean;
 
 export class VirtualDisplay {
-  private child: ChildProcess | null = null;
+  private proc: HelperProcess | null = null;
   private bounds: VirtualDisplayBounds | null = null;
   private starting: Promise<VirtualDisplayBounds> | null = null;
   private stopping = false;
+  private replacing = false;
+  private waiter: Waiter | null = null;
+  private others: DisplayRect[] = [];
   constructor(private readonly opts: VirtualDisplayOptions) {}
 
   current(): VirtualDisplayBounds | null { return this.bounds; }
+  /** 最近一次看到的其余屏幕（日志 / 冒烟核对用）。 */
+  otherDisplays(): DisplayRect[] { return this.others; }
 
-  private async binary(): Promise<string> {
-    const dir = this.opts.binDir;
-    mkdirSync(dir, { recursive: true });
-    const tag = createHash('sha1').update(VIRTUAL_DISPLAY_SOURCE).digest('hex').slice(0, 10);
-    const bin = join(dir, `career-vdisplay-${tag}`);
-    if (existsSync(bin)) return bin;
-    const src = `${bin}.m`;
-    writeFileSync(src, VIRTUAL_DISPLAY_SOURCE);
-    const clang = this.opts.clang ?? '/usr/bin/clang';
-    if (!existsSync(clang)) throw new Error('没有 clang（需要 Xcode 命令行工具），退回角落停靠');
-    await new Promise<void>((resolve, reject) => execFile(clang, ['-fobjc-arc', '-framework', 'Foundation', '-framework', 'CoreGraphics', '-o', bin, src], { timeout: 120_000 }, e => (e ? reject(e) : resolve())));
-    return bin;
-  }
-
-  /** 确保虚拟屏存在；返回它在全局坐标里的位置。 */
+  /** 确保虚拟屏存在且不和别的屏共用边；返回它在全局坐标里的位置。 */
   ensure(): Promise<VirtualDisplayBounds> {
-    if (this.bounds && this.child && this.child.exitCode === null) return Promise.resolve(this.bounds);
+    if (this.bounds && this.proc) return Promise.resolve(this.bounds);
     if (this.starting) return this.starting;
     this.starting = (async () => {
-      const bin = await this.binary();
-      const child = spawn(bin, [String(this.opts.width ?? 1366), String(this.opts.height ?? 768)], { stdio: ['pipe', 'pipe', 'ignore'] });
-      const bounds = await new Promise<VirtualDisplayBounds>((resolve, reject) => {
-        let buf = '';
-        const timer = setTimeout(() => { child.kill(); reject(new Error('虚拟屏创建超时')); }, 8000);
-        child.stdout!.on('data', d => {
-          buf += d;
-          const nl = buf.indexOf('\n');
-          if (nl < 0) return;
-          clearTimeout(timer);
-          try { resolve(parseVirtualDisplayLine(buf.slice(0, nl))); } catch (e) { child.kill(); reject(e); }
-        });
-        child.once('exit', code => { clearTimeout(timer); reject(new Error(`虚拟屏助手退出（${code}）`)); });
+      const bin = await (this.opts.resolveBinary ?? resolveWindowHelper)(this.opts.binDir);
+      this.stopping = false;
+      const proc = (this.opts.spawn ?? spawnHelper)(bin, ['display', String(this.opts.width ?? 1366), String(this.opts.height ?? 768)], event => this.onEvent(event));
+      this.proc = proc;
+      proc.child.once('exit', code => {
+        const wasReady = this.bounds !== null;
+        if (this.proc === proc) { this.proc = null; this.bounds = null; }
+        this.waiter?.({ ev: 'exit', code });
+        if (wasReady && !this.stopping) { this.opts.log?.('虚拟屏意外消失'); this.opts.onLost?.(); }
       });
-      this.child = child; this.bounds = bounds; this.stopping = false;
-      child.once('exit', () => {
-        const lost = !this.stopping;
-        this.child = null; this.bounds = null;
-        if (lost) { this.opts.log?.('虚拟屏意外消失，托管窗口退回角落'); this.opts.onLost?.(); }
-      });
-      this.opts.log?.(`虚拟屏就绪 id=${bounds.displayID} at ${bounds.x},${bounds.y} ${bounds.w}x${bounds.h}`);
-      return bounds;
+      try {
+        const first = await this.next(['displays', 'error'], 8000);
+        if (first.ev === 'error') throw new Error(`虚拟屏创建失败：${String(first.error)}`);
+        const bounds = await this.place(first);
+        this.bounds = bounds;
+        this.opts.log?.(`虚拟屏就绪 id=${bounds.displayID} at ${bounds.x},${bounds.y} ${bounds.w}x${bounds.h}`);
+        return bounds;
+      } catch (error) {
+        this.stopping = true;
+        proc.close();
+        if (this.proc === proc) this.proc = null;
+        throw error;
+      }
     })().finally(() => { this.starting = null; });
     return this.starting;
   }
 
-  /** 释放虚拟屏：调用方必须先把托管窗口停走 / 关掉（否则 macOS 会把窗口搬到主屏正中）。 */
+  private next(names: string[], timeoutMs: number): Promise<HelperEvent> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.waiter = null; reject(new Error('虚拟屏助手没有回应')); }, timeoutMs);
+      this.waiter = event => {
+        if (event.ev === 'exit') { clearTimeout(timer); this.waiter = null; reject(new Error(`虚拟屏助手退出（${String(event.code)}）`)); return true; }
+        if (!names.includes(event.ev)) return false;
+        clearTimeout(timer); this.waiter = null; resolve(event);
+        return true;
+      };
+    });
+  }
+
+  private onEvent(event: HelperEvent): void {
+    if (this.waiter?.(event)) return;
+    if (event.ev === 'displays' && this.bounds) void this.recheck(event);
+  }
+
+  /** 当前位置不安全就按候选位置逐个试，放完以系统实际给的位置为准。 */
+  private async place(event: HelperEvent): Promise<VirtualDisplayBounds> {
+    let { self, others } = parseDisplays(event);
+    this.others = others;
+    if (!self) throw new Error('助手没报出虚拟屏的位置');
+    if (isIsolated(self, others)) return toBounds(self);
+    for (const origin of isolatedOrigins(others, self.w, self.h)) {
+      this.proc?.send(`place ${origin.x} ${origin.y}`);
+      ({ self, others } = parseDisplays(await this.next(['placed'], 5000)));
+      this.others = others;
+      if (self && isIsolated(self, others)) return toBounds(self);
+    }
+    throw new Error('找不到和别的屏都不共用边的位置');
+  }
+
+  /** 屏幕重排（插拔、调整排列）后核对：还安全就只更新位置，贴边了就挪，挪不开交给宿主。 */
+  private async recheck(event: HelperEvent): Promise<void> {
+    if (this.replacing) return;
+    const { self } = parseDisplays(event);
+    if (!self) return;
+    this.replacing = true;
+    try {
+      const bounds = await this.place(event);
+      const before = this.bounds;
+      this.bounds = bounds;
+      if (!before || before.x !== bounds.x || before.y !== bounds.y || before.w !== bounds.w || before.h !== bounds.h) {
+        this.opts.log?.(`屏幕重排，虚拟屏移到 ${bounds.x},${bounds.y}`);
+        this.opts.onMoved?.(bounds);
+      }
+    } catch (error) {
+      this.opts.log?.(`屏幕重排后虚拟屏贴边且挪不开：${error instanceof Error ? error.message : String(error)}`);
+      this.opts.onUnsafe?.();
+    } finally {
+      this.replacing = false;
+    }
+  }
+
+  /** 释放虚拟屏：调用方必须先把托管窗口停走 / 关掉 / 藏好（否则 macOS 会把窗口搬到主屏正中）。 */
   stop(): void {
     this.stopping = true;
-    const c = this.child;
-    this.child = null; this.bounds = null;
-    if (c) { c.stdin?.end(); setTimeout(() => { if (c.exitCode === null) c.kill(); }, 1500).unref?.(); }
+    const proc = this.proc;
+    this.proc = null; this.bounds = null;
+    proc?.close();
   }
 }
 

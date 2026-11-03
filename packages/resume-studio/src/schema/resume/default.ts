@@ -82,6 +82,7 @@ export const defaultResumeData: ResumeData = {
 			hideLinkUnderline: false,
 			hideIcons: false,
 			hideSectionIcons: true,
+			autoFit: true,
 		},
 		design: {
 			colors: {

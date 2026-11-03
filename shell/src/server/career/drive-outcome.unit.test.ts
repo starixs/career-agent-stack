@@ -22,6 +22,19 @@ describe('persistDriveOutcome：页面身份不对', () => {
     expect(changed).toContain('handoff');
   });
 
+  it('续填时原页面没了（浏览器重启过）APPLICATION_PAGE_GONE → 放回队列重新打开，不交给用户找页面', () => {
+    const repos = createMemoryRepos();
+    const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'mk1', title: '软件开发', company_name: '联发科技', url: 'https://mediatek.zhiye.com/' });
+    const app = repos.createApplication(job.id);
+    const action = repos.enqueueAction('fill_form', { job_id: job.id, url: job.url }, app.id);
+    repos.reviewActions([action.id], 'approved');
+    const task = repos.createTask({ title: 't', kind: 'apply' });
+    const out = persistDriveOutcome({ repos, action: repos.getAction(action.id)!, taskId: task.id, mode: 'continue', events: [{ type: 'error', status: 410, code: 'APPLICATION_PAGE_GONE', error: '找不到这份网申的页面了，当前页面在 about:blank' }], changed: () => {} });
+    expect(out.kind).toBe('transient');
+    expect(repos.getAction(action.id)?.status).toBe('approved');
+    expect(repos.openHandoffs()).toEqual([]);
+  });
+
   it('真错误（如渲染进程崩了的 500）照旧判失败', () => {
     const repos = createMemoryRepos();
     const action = repos.enqueueAction('fill_form', { url: 'https://x' });

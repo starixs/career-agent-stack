@@ -22,6 +22,7 @@ export type BrowserChannel = "chrome" | "managed-chromium";
  * - `CAREER_BROWSER_WINDOW=window`：独立窗口（不内嵌）；`corner`：内嵌但停主屏角落（不用虚拟屏）；
  *   缺省 / `virtual-display`：macOS 内嵌到虚拟屏（推荐，桌面完全不可见），其余平台等同 `corner`。
  * - `CAREER_BROWSER_RESIDENT=0`：关闭浏览器常驻（恢复旧的"空闲 15 秒拆除 Context"回收）。
+ * - `CAREER_BROWSER_FOCUS_GUARD=0`：关闭 macOS 焦点守卫（也就没有虚拟屏不可用时的隐藏兜底）。
  */
 export interface BrowserRuntimePolicy {
   persistentProfile: boolean;
@@ -37,7 +38,7 @@ export interface BrowserRuntimePolicy {
   /**
    * macOS 虚拟屏（macOS 缺省开启）：内嵌窗口停到一块看不见的虚拟屏上，
    * 不占用户桌面角落（browser-host/virtual-display.ts）。`CAREER_BROWSER_WINDOW=corner` 关闭；
-   * 创建失败退回角落停靠，不影响浏览器本身。
+   * 创建失败 / 中途消失时改用隐藏兜底（需要焦点守卫），不影响浏览器本身。
    */
   virtualDisplay?: boolean;
   /**
@@ -46,6 +47,12 @@ export interface BrowserRuntimePolicy {
    * 浏览器只随显式关闭（browser_close / 会话退休 / 进程退出 / 用户自己关掉 Chrome）退出。
    */
   residentContext?: boolean;
+  /**
+   * macOS 焦点守卫（macOS 内嵌缺省开启，`CAREER_BROWSER_FOCUS_GUARD=0` 关闭）：托管 Chrome 启动 / 开新页 /
+   * 网页弹窗时会被系统激活、抢走用户正在用的应用的焦点，守卫立刻还回去；虚拟屏不可用时的隐藏兜底也靠它
+   * （browser-host/window-guard.ts）。
+   */
+  windowGuard?: boolean;
 }
 
 export interface CompiledBrowserRuntimeSettings {
@@ -207,6 +214,7 @@ export function resolveBrowserRuntimePolicy(
     embeddedWindow: windowMode !== 'window',
     virtualDisplay: platform === 'darwin' && windowMode !== 'window' && windowMode !== 'corner',
     residentContext: env.CAREER_BROWSER_RESIDENT?.trim() !== '0',
+    windowGuard: platform === 'darwin' && windowMode !== 'window' && env.CAREER_BROWSER_FOCUS_GUARD?.trim() !== '0',
   };
 }
 

@@ -30,26 +30,31 @@ describe('CareerGuide（功能市场）', () => {
     nav.off();
   });
 
-  it('笔试助力：带着「笔试」筛选打开助力记录', () => {
+  it('笔试助力：直接打开搜题页', () => {
     const nav = capture(CAREER_NAVIGATE_EVENT);
-    const filter = capture('career:assist-filter');
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /笔试助力/ }));
-    expect(filter.seen).toEqual(['exam']);
-    expect(nav.seen).toEqual([{ kind: 'career-dossier', view: 'assist' }]);
+    expect(nav.seen).toEqual([{ kind: 'career-dossier', view: 'exam-search' }]);
     nav.off();
-    filter.off();
   });
 
   it('小功能和点子把话预填进对话输入框，不直接发送', () => {
     const chat = capture('career:chat-suggest');
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /岗位评估/ }));
-    fireEvent.click(screen.getByRole('button', { name: '做一次复盘' }));
+    fireEvent.click(screen.getByRole('button', { name: '摊开卷宗' }));
     expect(chat.seen).toEqual([
       expect.objectContaining({ text: '帮我评估这个岗位，JD 是：', mode: 'prefill' }),
-      expect.objectContaining({ text: '给我做一次本周复盘', mode: 'prefill' }),
+      expect.objectContaining({ text: '我明天面试，把这家公司的卷宗摊开：', mode: 'prefill' }),
     ]);
     chat.off();
+  });
+
+  it('复盘不走对话：直接打开「我的求职月」', () => {
+    const nav = capture(CAREER_NAVIGATE_EVENT);
+    render(<CareerGuide isActive onOpenChat={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: '看我的求职月' }));
+    expect(nav.seen).toEqual([{ kind: 'career-review' }]);
+    nav.off();
   });
 });

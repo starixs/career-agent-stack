@@ -276,6 +276,19 @@ export function formatDate(value: string | null | undefined, fallback = '未知'
   return value.length > 10 ? value.slice(0, 10) : value;
 }
 
+/** 相对时间：刚刚 / x 分钟前 / x 小时前 / x 天前；解析失败退回日期。 */
+export function relativeTime(value: string | null | undefined, now: Date = new Date()): string {
+  if (!value) return '从未';
+  const t = new Date(value).getTime();
+  if (Number.isNaN(t)) return formatDate(value);
+  const diffMin = Math.max(0, Math.round((now.getTime() - t) / 60_000));
+  if (diffMin < 1) return '刚刚';
+  if (diffMin < 60) return `${diffMin} 分钟前`;
+  const diffHour = Math.round(diffMin / 60);
+  if (diffHour < 24) return `${diffHour} 小时前`;
+  return `${Math.round(diffHour / 24)} 天前`;
+}
+
 export function textOrUnknown(value: string | number | null | undefined): string {
   return value == null || value === '' ? '未知' : String(value);
 }

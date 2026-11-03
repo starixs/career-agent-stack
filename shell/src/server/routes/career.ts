@@ -13,31 +13,43 @@ import type { Repos, ApplicationStage, JobPrefs, LLM, Vault, VaultScope } from '
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { StudioResumeNotFoundError, loadStudio, previewPlaceholders, saveStudio } from '../career/resume-studio';
 import { careerSetupStatus } from '../career/setup';
-import { confirmTailorProposal } from '../career/tailor';
 import { loadCore, type CoreModule } from '../career/core-module';
-import { getRepos, careerExportsDir } from '../career/db';
-import { DomainUnavailableError, loadBridges } from '../career/domain';
+import { getRepos, careerExportsDir, careerRecordingsDir } from '../career/db';
+import { DomainUnavailableError, loadBridges, loadResume } from '../career/domain';
+import { clearOralExperiences, confirmIntake } from '../career/resume-intake';
 import { EXPORT_FORMATS, EXPORT_MIME, ResumeNotFoundError, exportResumeFile, isAtsMode, setAtsMode, type ExportFormat } from '../career/export';
 import { runAtsCheck } from '../career/ats-check';
 import { getShellLLM } from '../career/llm';
 import { captureIntake, captureLink, recordExam, type IntakeDeps } from '../career/intake';
-import { deleteMailPassword, setMailPassword } from '../career/mail/credentials';
-import { MAIL_PRESETS, detectProvider, presetFor } from '../career/mail/providers';
+import { MAIL_PRESETS } from '../career/mail/providers';
+import { isConnectorId } from '../career/mail/connectors';
+import { applyAddress, reconcileApplyAddress } from '../career/mail/apply-address';
+import { SEASON_KEY, guessSeason, isSeasonId, markTakeoverViewed, takeoverBriefing } from '../career/mail/takeover';
+import { withConnection } from '../career/mail/connect-service';
+import { mailBackend } from '../career/mail/backend';
+import { productChatCardPoster, type PostChatCard } from '../career/chat-card-push';
+import type { VerifyDeps } from '../career/mail/verify';
 import { executeApprovedSendMails } from '../career/mail/send';
-import { syncAllMailAccounts, syncMailAccount, verifyImapLogin } from '../career/mail/sync';
-import { RECIPES, cancelMailConnect, fromPlaywrightPage, getMailConnect, isConnectProvider, provideConnectAddress, startMailConnect, type ConnectDeps } from '../career/mail/connect';
+import type { syncMailAccount } from '../career/mail/sync';
 import { draftMaterial } from '../career/materials';
-import { generateWeeklyReview } from '../career/review';
 import { loadSkillPrompt } from '../career/skills';
 import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
 import { confirmSubmitResult } from '../career/submit-executor';
 import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
-import { BatchRunner } from '../career/batch-runner';
-import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
-import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource } from '../career/server-api';
+import { applyJobs, planJobs, startApprovedFills } from '../career/batch-apply';
+import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
+import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
+import { scheduleRefresh } from '../career/correction';
 import { broadcast as sseBroadcast } from '../sse';
+
+import { careerJson, fail, ok, str, strOrNull, type Json } from './career-http';
+import { deliveryRoutes } from './career-delivery';
+import { interviewRoutes } from './career-interview';
+import { phoneRoutes } from './career-phone';
+import { phoneLink } from '../career/phone';
+import type { AskSkill, PostCard } from '../career/interview-retro-run';
 
 export interface CareerRouteDeps {
   repos?: Repos;
@@ -49,24 +61,33 @@ export interface CareerRouteDeps {
   /** undefined → 进程共享 ShellLLM；null → 不调用模型（导入岗位时不解析 JD）。 */
   llm?: LLM | null;
   resumeModule?: () => Promise<typeof import('@career/resume')>;
-  /** 邮箱一键连接借页面 / 试登录（测试注入；缺省走产品浏览器与真实 IMAP）。 */
-  mailConnect?: Partial<Pick<ConnectDeps, 'withPage' | 'verifyLogin' | 'tickMs' | 'sleep'>>;
+  /** 连接邮箱时的真实校验（测试注入；缺省走真实 IMAP / SMTP）。 */
+  mailVerify?: VerifyDeps;
+  /** 绑定后的后台首次同步（测试注入；缺省走真实 IMAP）。 */
+  mailSync?: typeof syncMailAccount;
+  /** 云端邮箱连接器的 HTTP（测试注入；缺省 fetch）。 */
+  mailFetch?: FetchLike;
+  /** 后台往对话里放卡（测试注入；缺省经现场通道推给个人助理对话）。 */
+  postChatCard?: PostChatCard;
   /** false：导出不用简历工作台模板（测试里没有 react-pdf 字体网络时用）。 */
   studioExport?: boolean;
+  /** 面试录音落盘目录（测试注入临时目录；缺省在求职数据目录下）。 */
+  recordingsDir?: string;
 }
 
-type Json = Record<string, unknown>;
-
-export function careerJson(body: Json, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
-}
-export const ok = (data: Json = {}, status = 200) => careerJson({ ok: true, ...data }, status);
-export const fail = (error: string, status = 400) => careerJson({ ok: false, error }, status);
+export { careerJson, fail, ok };
 
 function parseJsonObj(raw: string | null | undefined): Json {
   try { const v = JSON.parse(raw ?? '{}'); return v && typeof v === 'object' ? v as Json : {}; } catch { return {}; }
 }
 /** 提交执行器与页面释放只在 Global 侧车（浏览器宿主所在进程）可用；动态加载避免路由模块拉起浏览器依赖。 */
+/** 「这家不投了」：申请标成跳过（提交前的各阶段都能到 skip）；已经不在能跳过的阶段就只记日志，不挡拒绝本身。 */
+function dropApplication(repos: Repos, applicationId: string): void {
+  try { repos.transition(applicationId, 'skip', '你说这家不投了'); } catch (error) {
+    console.warn(`[career] drop application ${applicationId} FAILED`, error instanceof Error ? error.message : error);
+  }
+}
+
 async function kickSubmit(): Promise<void> {
   try { const { kickSubmitExecutor } = await import('../career/batch-service'); await kickSubmitExecutor(); } catch { /* 轮询会兜底 */ }
 }
@@ -83,8 +104,6 @@ async function readBody(request: Request): Promise<Json> {
   }
 }
 
-const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
-const strOrNull = (v: unknown): string | null | undefined => (v === null ? null : str(v));
 
 interface Ctx {
   request: Request;
@@ -117,7 +136,31 @@ function intakeDeps(ctx: Ctx): IntakeDeps {
   if (ctx.deps.llm === undefined) { try { llm = getShellLLM(); } catch { llm = null; } } else llm = ctx.deps.llm;
   return { repos: ctx.repos, core: ctx.core, llm, broadcast: ctx.deps.broadcast, sessionId: ctx.deps.sessionId };
 }
+/** 路由里调技能（面试页直接复盘等）：和工具层 askSkill 同形；没有模型时为 null。 */
+function skillAsker(ctx: Ctx): AskSkill | null {
+  const llm = intakeDeps(ctx).llm;
+  if (!llm) return null;
+  return async <T>(skill: string, user: string, opts: { refs?: string[]; temperature?: number }) => {
+    const system = await loadSkillPrompt(skill, opts.refs ?? []);
+    const res = await llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: opts.temperature ?? 0.3 });
+    return ctx.core.extractJson<T>(res.text);
+  };
+}
+function cardPoster(ctx: Ctx): PostCard {
+  const post = ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos);
+  return (id, kind, title, data) => post({ id, kind, title, data });
+}
+/** 邮箱连接器的分流入口（云端 / 本机），测试可注入校验、同步和云端请求。 */
+function mailBackendOf(ctx: Ctx) {
+  return mailBackend({ ...intakeDeps(ctx), postChatCard: ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos) }, { verify: ctx.deps.mailVerify, sync: ctx.deps.mailSync, fetchImpl: ctx.deps.mailFetch });
+}
 const isoOrUndefined = (v: unknown): string | undefined => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : undefined);
+
+/** 页面上改了简历：停手后把没点开始的申请换成新版（career/correction.ts）。 */
+function refreshAfterEdit(ctx: Ctx, resumeId: string): void {
+  scheduleRefresh(() => ({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir }), resumeId,
+    r => { if (r) dataChanged(ctx, ['action_queue', 'application_packet']); });
+}
 
 function exportResume(ctx: Ctx, id: string, format: ExportFormat): Promise<string> {
   // 占位符 → 明文只在渲染这一刻发生；落库 JSON 与模型看到的仍是 {{vault:...}}
@@ -129,6 +172,15 @@ const isVaultScope = (v: unknown): v is VaultScope => typeof v === 'string' && (
 
 const ROUTES: Route[] = [
   route('GET', '/api/career/overview', ({ store }) => ok(store.overview())),
+  ...interviewRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({
+    params: ctx.params, body: ctx.body, repos: ctx.repos, store: ctx.store,
+    recordingsDir: ctx.deps.recordingsDir ?? careerRecordingsDir(), dataChanged: tables => dataChanged(ctx, tables),
+    ask: skillAsker(ctx), postCard: cardPoster(ctx),
+  }))),
+
+  ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url, params: ctx.params, body: ctx.body, vault: ctx.vault, dataChanged: tables => dataChanged(ctx, tables) }))),
+  // ---------- 手机连接（蓝牙读短信收验证码，见 career/phone） ----------
+  ...phoneRoutes(phoneLink).map(([method, path, handler]) => route(method, path, ctx => handler({ body: ctx.body }))),
 
   // ---------- 经历库 ----------
   route('GET', '/api/career/experiences', ({ repos }) => ok({ experiences: repos.experienceTree() })),
@@ -193,9 +245,34 @@ const ROUTES: Route[] = [
     try {
       const resume = ctx.store.saveResume(ctx.params.id, ctx.body.schema_json);
       dataChanged(ctx, ['resume_master', 'resume_tailored', 'resume_snapshot']);
+      refreshAfterEdit(ctx, ctx.params.id);
       return ok({ resume });
     } catch (error) {
       return fail(error instanceof Error ? error.message : '保存失败', 404);
+    }
+  }),
+  // 交简历卡片里点「生成主简历」：确认勾选的说法，按导入草稿直接组装主简历（不调模型）
+  route('POST', '/api/career/resume-intake/:id/confirm', async (ctx) => {
+    const claimIds = Array.isArray(ctx.body.claim_ids) ? ctx.body.claim_ids.filter((x): x is string => typeof x === 'string') : [];
+    const rawChoice = ctx.body.profile_choice && typeof ctx.body.profile_choice === 'object' ? ctx.body.profile_choice as Record<string, unknown> : {};
+    const choice = Object.fromEntries(Object.entries(rawChoice).filter((e): e is [string, 'resume' | 'vault'] => e[1] === 'resume' || e[1] === 'vault'));
+    try {
+      const mod = await (ctx.deps.resumeModule ?? loadResume)();
+      const out = await confirmIntake({ repos: ctx.repos, vault: ctx.vault, store: ctx.store, placeholder: field => ctx.core.vaultPlaceholder('profile', '', field), normalize: async input => mod.parseResume(input) }, ctx.params.id, claimIds, choice);
+      dataChanged(ctx, ['claim', 'resume_master', 'resume_snapshot', 'vault']);
+      return ok(out);
+    } catch (error) {
+      console.error(`[resume-intake] confirm ${ctx.params.id} failed:`, error instanceof Error ? error.message : error);
+      return fail(error instanceof Error ? error.message : '生成主简历失败', error instanceof DomainUnavailableError ? 501 : 400);
+    }
+  }),
+  route('POST', '/api/career/resume-intake/:id/clear-oral', (ctx) => {
+    try {
+      const cleared = clearOralExperiences(ctx.repos, ctx.params.id);
+      dataChanged(ctx, ['experience', 'claim', 'evidence']);
+      return ok({ cleared });
+    } catch (error) {
+      return fail(error instanceof Error ? error.message : '清理失败', 404);
     }
   }),
   // ---------- 简历工作台（resume-studio 文档：内容 + 模板 / 布局 / 字体 / 配色） ----------
@@ -213,6 +290,7 @@ const ROUTES: Route[] = [
     try {
       const out = await saveStudio({ repos: ctx.repos, store: ctx.store }, ctx.params.id, ctx.body.data);
       dataChanged(ctx, ['resume_master', 'resume_tailored', ...(out.snapshot ? ['resume_snapshot'] : [])]);
+      refreshAfterEdit(ctx, ctx.params.id);
       return ok({ content_updated_at: out.contentUpdatedAt, snapshot: out.snapshot, preview: previewPlaceholders({ vault: ctx.vault }, out.data, ctx.params.id) });
     } catch (error) {
       if (error instanceof StudioResumeNotFoundError) return fail(error.message, 404);
@@ -220,14 +298,6 @@ const ROUTES: Route[] = [
     }
   }),
 
-  /** 对话内「简历改动」卡片：只应用用户勾选的路径（缺省全部），与 resume_confirm 工具同一条路径。 */
-  route('POST', '/api/career/resumes/:id/confirm', (ctx) => {
-    const accepted = Array.isArray(ctx.body.accepted_paths) ? (ctx.body.accepted_paths as unknown[]).filter((p): p is string => typeof p === 'string') : undefined;
-    const result = confirmTailorProposal(ctx.store, ctx.repos, ctx.params.id, accepted);
-    if (!result) return fail(`定制简历不存在：${ctx.params.id}`, 404);
-    dataChanged(ctx, ['resume_tailored', 'resume_snapshot']);
-    return ok({ tailored: result.tailored, applied_ops: result.applied });
-  }),
   // 过机筛开关：开了之后导出与投递材料包都用单栏无照片的 ATS 版；自检按当前设置导出后抽文字对照
   route('GET', '/api/career/resumes/:id/ats', ({ repos, params }) => ok({ enabled: isAtsMode(repos, params.id) })),
   route('PUT', '/api/career/resumes/:id/ats', (ctx) => {
@@ -363,13 +433,20 @@ const ROUTES: Route[] = [
       return fail(error instanceof Error ? error.message : '同步失败', 502);
     }
   }),
-  route('POST', '/api/career/jobs/prepare', async (ctx) => {
+  // 框选一批、确认投出：先算清楚（几家开始 / 跳过原因 / 要不要选简历），确认后一次开始，交给后台批量运行器
+  route('POST', '/api/career/jobs/plan', (ctx) => {
+    const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : [];
+    if (!ids.length) return fail('job_ids 不能为空');
+    return ok({ plan: planJobs(ctx.repos, ctx.store, ids) });
+  }),
+  route('POST', '/api/career/jobs/apply', async (ctx) => {
     const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : [];
     if (!ids.length) return fail('job_ids 不能为空');
     try {
-      const results = await prepareJobs({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir }, ids, str(ctx.body.resume_id) ?? null);
+      const res = await applyJobs({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir }, ids, str(ctx.body.resume_id) ?? null);
+      console.log(`[career] jobs/apply started=${res.started.length} skipped=${res.skipped.length}`);
       dataChanged(ctx, ['application', 'action_queue']);
-      return ok({ results, queued: results.filter(r => r.ok).length });
+      return ok(res);
     } catch (error) {
       if (error instanceof DomainUnavailableError) return fail(error.message, 501);
       throw error;
@@ -447,19 +524,20 @@ const ROUTES: Route[] = [
     dataChanged(ctx, ['action_queue']);
     const submits = actions.filter(a => a.kind === 'submit');
     if (decision === 'rejected') {
-      // 拒绝提交：这张表的自学习计数清零，关掉这份网申的页面
+      // 拒绝提交：这张表的自学习计数清零，关掉这份网申的页面；drop = 「这家不投了」，申请一并标成跳过
       for (const a of submits) {
         const p = parseJsonObj(a.payload_json);
         resetPageTrust(ctx.repos, typeof p.formSignature === 'string' ? p.formSignature : null);
         if (a.application_id) void releasePage(a.application_id);
+        if (a.application_id && ctx.body.drop === true) dropApplication(ctx.repos, a.application_id);
       }
+      if (ctx.body.drop === true) dataChanged(ctx, ['application']);
     }
     // 批准即执行：发送投递邮件；提交交给提交执行器（立即踢一轮，不等轮询）；填表交给批量运行器
     const sent = decision === 'approved' ? await executeApprovedSendMails(intakeDeps(ctx), ids) : [];
     if (decision === 'approved' && submits.length) void kickSubmit();
     // 批准填表同样即执行：交给后台批量运行器（命令轮询几秒内接走）
-    const filling = decision === 'approved' ? actions.filter(a => a.kind === 'fill_form').map(a => a.id) : [];
-    if (filling.length) BatchRunner.command(ctx.repos, 'run', 'approval', filling);
+    const filling = decision === 'approved' ? startApprovedFills(ctx.repos, actions, 'approval') : [];
     // 招呼语 / 开放题答案没有执行器（平台私信、网申开放题都只能本人操作）：批准 = 内容定稿，
     // 交给用户本人去发，动作停在 needs_user 并带上要发的文字，不能显示成「已完成」。
     const handedToUser = decision === 'approved' ? handOverUserSentActions(ctx.repos, actions) : [];
@@ -518,7 +596,8 @@ const ROUTES: Route[] = [
   route('PUT', '/api/career/interviews/:id', (ctx) => {
     try {
       const interview = ctx.store.updateInterview(ctx.params.id, ctx.body as never);
-      dataChanged(ctx, ['interview']);
+      // 改了时间的话，月历上那个时间点也跟着改了（Repos.rescheduleInterview）
+      dataChanged(ctx, ['interview', 'deadline']);
       return ok({ interview });
     } catch (error) {
       return fail(error instanceof Error ? error.message : '更新失败', 404);
@@ -694,7 +773,8 @@ const ROUTES: Route[] = [
   // ---------- 收件箱 ----------
   route('GET', '/api/career/inbox', ({ repos, url }) => {
     const status = url.searchParams.get('status');
-    return ok({ items: repos.listInbox(status === 'new' || status === 'processed' || status === 'dismissed' ? status : undefined) });
+    const items = repos.listInbox(status === 'new' || status === 'processed' || status === 'dismissed' ? status : undefined);
+    return ok({ items: items.map(item => ({ ...item, settled: repos.inboxSettled(item) })) });
   }),
   route('POST', '/api/career/inbox', async (ctx) => {
     const text = str(ctx.body.text);
@@ -719,9 +799,14 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 截止事件 ----------
-  route('GET', '/api/career/deadlines', ({ repos, url }) => {
+  route('GET', '/api/career/deadlines', ({ repos, core, url }) => {
     const status = url.searchParams.get('status');
-    return ok({ deadlines: repos.listDeadlines({ status: status === 'open' || status === 'done' || status === 'missed' || status === 'cancelled' || status === 'open_or_missed' ? status : undefined }) });
+    const filter = status === 'open_or_missed' ? status : core.DEADLINE_STATUSES.find(known => known === status);
+    const nowIso = new Date().toISOString();
+    // 过了时间的笔试 / 测评（面试过了时间走复盘，不问）：月历和通知中心问「考了吗」，不当「已过期」去催（规则在 core.asksAttendance，只有一份）
+    const deadlines = repos.listDeadlines({ status: filter })
+      .map(d => ({ ...d, attendance_question: core.asksAttendance(d, nowIso) ? core.ATTENDANCE_QUESTION[d.kind] ?? null : null }));
+    return ok({ deadlines });
   }),
   route('POST', '/api/career/inbox/link', async (ctx) => {
     const url = str(ctx.body.url);
@@ -751,9 +836,17 @@ const ROUTES: Route[] = [
     dataChanged(ctx, ['deadline']);
     return ok({ deadline });
   }),
+  route('POST', '/api/career/deadlines/:id/attendance', (ctx) => {
+    if (typeof ctx.body.attended !== 'boolean') return fail('attended 必须是 true / false');
+    try {
+      const deadline = ctx.repos.answerAttendance(ctx.params.id, ctx.body.attended);
+      dataChanged(ctx, ['deadline', 'dossier_note']);
+      return ok({ deadline });
+    } catch (error) { return fail(error instanceof Error ? error.message : '更新失败', 404); }
+  }),
   route('POST', '/api/career/deadlines/:id/status', (ctx) => {
     const status = ctx.body.status;
-    if (status !== 'open' && status !== 'done' && status !== 'missed' && status !== 'cancelled') return fail('status 非法');
+    if (status !== 'open' && status !== 'done' && status !== 'missed' && status !== 'cancelled' && status !== 'skipped') return fail('status 非法');
     try {
       const deadline = ctx.repos.setDeadlineStatus(ctx.params.id, status);
       dataChanged(ctx, ['deadline']);
@@ -830,87 +923,74 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 复盘 ----------
-  route('GET', '/api/career/review', ({ repos }) => ok({ funnel: repos.funnel(), reviews: repos.listWeeklyReviews(12) })),
-  route('POST', '/api/career/review/weekly', async (ctx) => {
-    try {
-      const out = await generateWeeklyReview(intakeDeps(ctx), { week_start: str(ctx.body.week_start), user_note: str(ctx.body.user_note) });
-      return ok({ review: out.review, output: out.output });
-    } catch (error) { return fail(error instanceof Error ? error.message : '复盘失败', 503); }
+  route('GET', '/api/career/review', ({ repos, url }) => {
+    // 周边界按本机时区算：侧车跑在用户自己的机器上
+    const board = repos.monthBoard({ month: url.searchParams.get('month') ?? undefined, tzOffsetMinutes: -new Date().getTimezoneOffset() });
+    return ok({ funnel: repos.funnel(), board });
   }),
-
   // ---------- 邮箱 ----------
-  route('GET', '/api/career/mail/accounts', ({ repos }) => ok({ accounts: repos.listMailAccounts(), presets: MAIL_PRESETS })),
-  route('POST', '/api/career/mail/accounts', async (ctx) => {
-    const address = str(ctx.body.address)?.toLowerCase(); const password = str(ctx.body.password);
-    if (!address || !address.includes('@')) return fail('address 需要是邮箱地址');
-    const providerInput = str(ctx.body.provider);
-    const provider = (providerInput && ['qq', '163', '126', 'gmail', 'outlook', 'imap'].includes(providerInput) ? providerInput : detectProvider(address)) as import('@career/core').MailProvider;
-    const preset = presetFor(provider);
-    const imap_host = str(ctx.body.imap_host) ?? preset?.imap_host; const smtp_host = str(ctx.body.smtp_host) ?? preset?.smtp_host;
-    if (!imap_host || !smtp_host) return fail('该邮箱域名没有预设，请填写 imap_host 与 smtp_host');
-    const existing = ctx.repos.listMailAccounts().find(a => a.address === address);
-    if (!password && !existing) return fail('首次绑定需要授权码 / 应用密码');
-    const account = ctx.repos.upsertMailAccount({ provider, address, display_name: strOrNull(ctx.body.display_name), imap_host, imap_port: typeof ctx.body.imap_port === 'number' ? ctx.body.imap_port : preset?.imap_port, smtp_host, smtp_port: typeof ctx.body.smtp_port === 'number' ? ctx.body.smtp_port : preset?.smtp_port });
-    if (password) setMailPassword(account.id, password);
+  route('GET', '/api/career/mail/accounts', async (ctx) => {
+    await mailBackendOf(ctx).refresh().catch(error => console.warn('[career-mail] refresh connections failed:', error instanceof Error ? error.message : error));
+    return ok({ accounts: ctx.repos.listMailAccounts().map(withConnection), presets: MAIL_PRESETS });
+  }),
+  // 连接器目录：每家怎么连（引导、字段、官方页面）是数据，云端下发，界面照着渲染
+  route('GET', '/api/career/mail/connectors', async (ctx) => {
+    const backend = mailBackendOf(ctx);
+    const [connectors] = await Promise.all([backend.catalog(), backend.refresh().catch(error => console.warn('[career-mail] refresh connections failed:', error instanceof Error ? error.message : error))]);
+    return ok({ connectors, accounts: ctx.repos.listMailAccounts().map(withConnection), backend: backend.kind, apply_address: applyAddress(ctx.vault) });
+  }),
+  // 填回授权码 → 真实校验 → 保存（云端或本机）；成功后历史导入转到后台
+  route('POST', '/api/career/mail/connectors/:id/verify', async (ctx) => {
+    if (!isConnectorId(ctx.params.id)) return fail(`暂不支持这个邮箱：${ctx.params.id}`, 404);
+    const backend = mailBackendOf(ctx);
+    const result = await backend.connect({ connector: ctx.params.id, email: str(ctx.body.email) ?? '', authCode: str(ctx.body.authCode) ?? '', reauthorize: ctx.body.reauthorize === true });
+    if (!result.ok) return ok({ result });
+    backend.startImport(result.account);
+    // 和网申用的邮箱对上：基本资料没填就记成这个；填的是另一个，如实告诉他那边的回音收不到
+    const applyMismatch = reconcileApplyAddress(ctx.vault, result.account.address);
+    dataChanged(ctx, ['mail_account', 'vault']);
+    return ok({ result: { ...result, account: withConnection(result.account), apply_address_mismatch: applyMismatch } });
+  }),
+  // OAuth 轨（预留）：云端未启用时返回 oauth_not_enabled，界面显示「审核后开放」
+  route('POST', '/api/career/mail/connectors/:id/oauth/start', async (ctx) => {
+    if (!isConnectorId(ctx.params.id)) return fail(`暂不支持这个邮箱：${ctx.params.id}`, 404);
+    return ok({ result: await mailBackendOf(ctx).oauthStart(ctx.params.id) });
+  }),
+  route('GET', '/api/career/mail/connectors/:id/oauth/status', async (ctx) => {
+    if (!isConnectorId(ctx.params.id)) return fail(`暂不支持这个邮箱：${ctx.params.id}`, 404);
+    const state = ctx.url.searchParams.get('state') ?? '';
+    const r = await mailBackendOf(ctx).oauthStatus(ctx.params.id, state);
+    if (r.account) dataChanged(ctx, ['mail_account']);
+    return ok({ status: r.status, account: r.account ? withConnection(r.account) : null });
+  }),
+  // 接管简报：第一次连邮箱、历史邮件收完后看替你接管了什么（mail/takeover.ts）
+  route('GET', '/api/career/mail/takeover', ({ repos, url }) => ok({ briefing: takeoverBriefing(repos, url.searchParams.get('account_id'), new Date().toISOString()) })),
+  route('POST', '/api/career/mail/takeover/:id/viewed', (ctx) => { markTakeoverViewed(ctx.repos, ctx.params.id); dataChanged(ctx, ['mail_account']); return ok({}); }),
+  // 求职阶段：用户纠正 AI 的判断
+  route('POST', '/api/career/season', (ctx) => {
+    const id = ctx.body.id;
+    if (id === null) ctx.repos.kvSet(SEASON_KEY, null);
+    else if (isSeasonId(id)) ctx.repos.kvSet(SEASON_KEY, { id, at: new Date().toISOString() });
+    else return fail('id 需要是 prep / autumn_early / autumn / spring / offer 之一');
     dataChanged(ctx, ['mail_account']);
-    // 立即验证一次（拉最近邮件），把状态写回账号
-    const verify = ctx.body.verify === false ? null : await syncMailAccount(intakeDeps(ctx), account);
-    return ok({ account: ctx.repos.getMailAccount(account.id), verify });
+    return ok({ season: guessSeason(ctx.repos, new Date().toISOString()) });
   }),
-  // 一键连接：产品浏览器打开官方页面，扫码登录后自动读授权码、验证、绑定（mail/connect.ts）
-  route('POST', '/api/career/mail/connect', (ctx) => {
-    const provider = ctx.body.provider;
-    if (!isConnectProvider(provider)) return fail(`暂不支持一键连接：${String(provider)}`);
-    const preset = presetFor(provider)!;
-    const injected = ctx.deps.mailConnect ?? {};
-    const deps: ConnectDeps = {
-      withPage: injected.withPage ?? (async fn => {
-        const { withMailConnectPage } = await import('../career/batch-service');
-        await withMailConnectPage(page => fn(fromPlaywrightPage(page)));
-      }),
-      verifyLogin: injected.verifyLogin ?? ((_p, address, code) => verifyImapLogin(preset.imap_host, preset.imap_port, address, code)),
-      bind: async (p, address, code) => {
-        const account = ctx.repos.upsertMailAccount({ provider: p, address, imap_host: preset.imap_host, imap_port: preset.imap_port, smtp_host: preset.smtp_host, smtp_port: preset.smtp_port });
-        setMailPassword(account.id, code);
-        dataChanged(ctx, ['mail_account']);
-        const verify = await syncMailAccount(intakeDeps(ctx), account);
-        return { account_id: account.id, summary: verify.error ? `已连接，首次同步失败：${verify.error}` : `拉到 ${verify.fetched} 封，其中 ${verify.job_related} 封与求职相关` };
-      },
-      ...(injected.tickMs ? { tickMs: injected.tickMs } : {}),
-      ...(injected.sleep ? { sleep: injected.sleep } : {}),
-    };
-    return ok({ session: startMailConnect(deps, provider, { address: str(ctx.body.address) }), label: RECIPES[provider].label });
+  route('GET', '/api/career/mail/accounts/:id/detail', async (ctx) => {
+    const account = ctx.repos.getMailAccount(ctx.params.id);
+    return account ? ok(await mailBackendOf(ctx).detail(account)) : fail(`邮箱账号不存在：${ctx.params.id}`, 404);
   }),
-  route('GET', '/api/career/mail/connect/:id', ({ params }) => {
-    const session = getMailConnect(params.id);
-    return session ? ok({ session }) : fail('连接已结束或不存在', 404);
-  }),
-  route('POST', '/api/career/mail/connect/:id/address', (ctx) => {
-    const address = str(ctx.body.address)?.toLowerCase();
-    if (!address || !address.includes('@')) return fail('address 需要是邮箱地址');
-    const session = provideConnectAddress(ctx.params.id, address);
-    return session ? ok({ session }) : fail('连接已结束或不存在', 404);
-  }),
-  route('DELETE', '/api/career/mail/connect/:id', ({ params }) => {
-    const session = cancelMailConnect(params.id);
-    return session ? ok({ session }) : fail('连接已结束或不存在', 404);
-  }),
-  route('DELETE', '/api/career/mail/accounts/:id', (ctx) => {
-    if (!ctx.repos.getMailAccount(ctx.params.id)) return fail(`邮箱账号不存在：${ctx.params.id}`, 404);
-    ctx.repos.deleteMailAccount(ctx.params.id);
-    deleteMailPassword(ctx.params.id);
+  route('DELETE', '/api/career/mail/accounts/:id', async (ctx) => {
+    const account = ctx.repos.getMailAccount(ctx.params.id);
+    if (!account) return fail(`邮箱账号不存在：${ctx.params.id}`, 404);
+    await mailBackendOf(ctx).unbind(account);
     dataChanged(ctx, ['mail_account']);
     return ok({});
   }),
   route('POST', '/api/career/mail/sync', async (ctx) => {
     const accountId = str(ctx.body.account_id);
-    const deps = intakeDeps(ctx);
-    if (accountId) {
-      const account = ctx.repos.getMailAccount(accountId);
-      if (!account) return fail(`邮箱账号不存在：${accountId}`, 404);
-      return ok({ results: [await syncMailAccount(deps, account)] });
-    }
-    return ok({ results: await syncAllMailAccounts(deps) });
+    const account = accountId ? ctx.repos.getMailAccount(accountId) : undefined;
+    if (accountId && !account) return fail(`邮箱账号不存在：${accountId}`, 404);
+    return ok({ results: await mailBackendOf(ctx).syncNow(account) });
   }),
   route('GET', '/api/career/mail/messages', ({ repos, url }) => {
     const direction = url.searchParams.get('direction');
@@ -955,6 +1035,10 @@ function toCardDto(row: import('@career/core').ChatCardRow) {
 
 export async function handleCareerRoute(pathname: string, request: Request, deps: CareerRouteDeps = {}): Promise<Response | null> {
   if (!pathname.startsWith('/api/career/') || pathname.startsWith('/api/career/browser/')) return null;
+  if (pathname.startsWith('/api/career/exam-search/')) {
+    const { handleExamSearchRoute } = await import('./career-exam-search');
+    return handleExamSearchRoute(pathname, request, { repos: deps.repos, llm: deps.llm ?? undefined, broadcast: deps.broadcast });
+  }
   const method = request.method.toUpperCase();
   for (const r of ROUTES) {
     if (r.method !== method) continue;

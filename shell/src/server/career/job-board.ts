@@ -1,10 +1,10 @@
 /**
- * 岗位汇总表（R01 校招与实习网申汇总 / R02 依据简历找匹配岗位 / R06 勾选加入待投清单）。
+ * 岗位汇总表（R01 校招与实习网申汇总 / R02 依据简历找匹配岗位 / R06 框选一批确认就开始投，见 batch-apply.ts）。
  *
  *  - 求职条件 kv `profile.job_prefs`（届别 / 学历 / 城市 / 类型 / 方向词），推荐不得违反。
  *  - 匹配证据：已确认的经历主张 + 主简历（及定制版）里的条目文字；`matchJob` 逐条要求对证据，结果存 job.match_json / match_score。
  *  - 汇总表：岗位 + 我的进度（投递阶段）+ 匹配，按筛选条件与排序给出。
- *  - 加入待投清单：对勾选的岗位逐个 apply_prepare（冻结材料包 + fill_form 待审）。
+ *  - prepareJobs：给一批岗位逐个建投递、冻结材料包、排 fill_form（只由 batch-apply.applyJobs 调，排完立刻批准开始；没有「待投清单」这一步）。
  *
  * 汇总表维度（批次 / 行业 / 类型标签）的存放约定——所有导入路径与读取方都按这个来：
  *  - 权威位置是 job.board_json（迁移 v7），形如 `{"batch":"正式批"|null,"industry":"互联网"|null,"type_tags":["央国企"]}`，
@@ -19,6 +19,7 @@ import { JOB_PREFS_KEY, matchJob, normalizeBoardMeta, parseBoardJson, type Job, 
 
 import { freezePacket, pickResumeForJob, type PacketDeps } from './packets';
 import type { CareerStore } from './store';
+import { markedTargetJobs, targetSourceOf, type TargetSource } from './targets';
 
 export function getJobPrefs(repos: Repos): JobPrefs { return repos.kvGet<JobPrefs>(JOB_PREFS_KEY) ?? {}; }
 export function setJobPrefs(repos: Repos, prefs: JobPrefs): JobPrefs {
@@ -85,6 +86,8 @@ export interface BoardRow {
   application: { id: string; stage: string; next_action: string | null; updated_at: string } | null;
   /** 多维表格用的维度（批次 / 行业 / 类型标签），从来源数据里能拿到的才有，拿不到为空，不猜。 */
   meta: BoardMeta;
+  /** 目标岗位：进过面试（interview）或用户亲手标的（user）；其余为 null，系统不替用户认定。 */
+  target: TargetSource | null;
 }
 export type BoardMeta = JobBoardMeta;
 
@@ -126,12 +129,18 @@ export function seedCampusJobsIfEmpty(repos: Repos, store: CareerStore, bridges:
 }
 
 const DONE = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired', 'skip']);
+/** 投出去过的阶段（放弃 / 跳过的不算）。 */
+const SENT = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'hired']);
 
 export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().toISOString().slice(0, 10)): BoardRow[] {
   const apps = new Map<string, BoardRow['application']>();
   for (const a of repos.listApplications()) if (!apps.has(a.job_id)) apps.set(a.job_id, { id: a.id, stage: a.stage, next_action: a.next_action, updated_at: a.updated_at });
   const q = f.q?.trim().toLowerCase();
-  let rows: BoardRow[] = repos.listJobs().filter(j => j.source_status !== 'merged').map(job => ({ job, match: parseMatch(job.match_json), application: apps.get(job.id) ?? null, meta: boardMeta(job) }));
+  const marked = markedTargetJobs(repos);
+  const reached = new Map<string, string[]>();
+  for (const h of repos.stageHistory()) reached.set(h.application_id, [...(reached.get(h.application_id) ?? []), h.to_stage]);
+  const targetOf = (job: Job, app: BoardRow['application']) => targetSourceOf({ job_id: job.id, stage: app?.stage ?? '' }, app ? reached.get(app.id) ?? [] : [], marked);
+  let rows: BoardRow[] = repos.listJobs().filter(j => j.source_status !== 'merged').map(job => ({ job, match: parseMatch(job.match_json), application: apps.get(job.id) ?? null, meta: boardMeta(job), target: targetOf(job, apps.get(job.id) ?? null) }));
   rows = rows.filter(({ job, match, application }) => {
     if (q && !`${job.company_name ?? ''} ${job.title} ${job.location ?? ''}`.toLowerCase().includes(q)) return false;
     if (f.employment_type && job.employment_type !== f.employment_type) return false;
@@ -153,16 +162,20 @@ export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().t
 
 function parseMatch(raw: string | null | undefined): JobMatch | null { try { return raw ? JSON.parse(raw) as JobMatch : null; } catch { return null; } }
 
-/** 勾选的岗位加入待投清单：逐个创建投递 + 冻结材料包 + fill_form 待审。已在进行中的跳过。 */
-export async function prepareJobs(deps: PacketDeps & { store: CareerStore }, jobIds: string[], resumeId?: string | null): Promise<Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }>> {
+/** 逐个创建投递 + 冻结材料包 + 排 fill_form（待审，由 applyJobs 当场批准）。已在投、已投过的跳过。 */
+export async function prepareJobs(deps: PacketDeps & { store: CareerStore }, jobIds: string[], resumeId?: string | null, opts: { fallbackResumeId?: string | null } = {}): Promise<Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }>> {
   const out: Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }> = [];
   for (const jobId of jobIds) {
     const job = deps.repos.getJob(jobId);
     if (!job) { out.push({ job_id: jobId, ok: false, reason: '岗位不存在' }); continue; }
-    const existing = deps.repos.listApplications().find(a => a.job_id === jobId && !DONE.has(a.stage));
-    if (existing && deps.repos.listActions().some(a => a.application_id === existing.id && ['pending_review', 'approved', 'executing', 'needs_user'].includes(a.status))) { out.push({ job_id: jobId, ok: false, reason: '已在待投清单或正在投' }); continue; }
+    const apps = deps.repos.listApplications().filter(a => a.job_id === jobId);
+    // 已经投出去的岗位不再投第二次（框选时常会连带勾上已投的那几行）
+    if (apps.some(a => SENT.has(a.stage))) { out.push({ job_id: jobId, ok: false, reason: '已经投过' }); continue; }
+    const existing = apps.find(a => !DONE.has(a.stage));
+    if (existing && deps.repos.listActions().some(a => a.application_id === existing.id && ['pending_review', 'approved', 'executing', 'needs_user'].includes(a.status))) { out.push({ job_id: jobId, ok: false, reason: '已在投' }); continue; }
     if (!job.url) { out.push({ job_id: jobId, ok: false, reason: '没有网申链接' }); continue; }
-    const picked = pickResumeForJob(deps.store, jobId, resumeId);
+    // 定制版优先；没有定制版又有好几份主简历时，用确认时选好的那份（fallbackResumeId），不再逐个问
+    const picked = pickResumeForJob(deps.store, jobId, resumeId) ?? (opts.fallbackResumeId ? pickResumeForJob(deps.store, null, opts.fallbackResumeId) : undefined);
     if (!picked) { out.push({ job_id: jobId, ok: false, reason: '有多份主简历，请先选这次投哪一份' }); continue; }
     const app = existing ?? deps.repos.createApplication(jobId, picked.kind === 'tailored' ? picked.id : null);
     const { packet, warning } = await freezePacket(deps, { applicationId: app.id, jobId, resumeId: picked.id });

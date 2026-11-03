@@ -8,7 +8,7 @@
 import { Mail, Plus, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { emitEvent, onEvent } from '@/api/eventBus';
+import { emitEvent } from '@/api/eventBus';
 import OverlayBackdrop from '@/components/OverlayBackdrop';
 import { requestNavigation } from '@/features/career-shell/navModel';
 import { expandWorkSurface } from '@/features/career-shell/workSurfaceStore';
@@ -19,30 +19,14 @@ import { careerApi } from './careerApi';
 import { INTERVIEW_ROUND_LABELS } from './careerConstants';
 import { Badge, Button, EmptyState, ErrorRow, Field, LoadingRow, Select, TextArea, TextInput, formatDate, textOrUnknown, useSuggestToChat } from './CareerPrimitives';
 import type { CareerFocusEvent, IntakeResult, MailAccount, MailPreset } from './types';
-import { BindMailForm, MailAccountRow } from './MailBinding';
+import { openExamSearch } from './exam-search/searchContext';
+import { MailConnectCenter } from './mail-connect/MailConnectCenter';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
 const ASSIST_TABLES = ['deadline', 'application', 'job', 'interview', 'mock_interview', 'exam_practice', 'mail_account'] as const;
 const FILTERS: Array<{ id: AssistFilter; label: string }> = [
   { id: 'all', label: '全部' }, { id: 'exam', label: '笔试' }, { id: 'interview', label: '面试' }, { id: 'mock', label: '模拟面试' },
 ];
-
-// ─── 从别的页面（功能市场的「笔试助力」）带筛选跳进来 ───
-
-const ASSIST_FILTER_EVENT = 'career:assist-filter';
-let pendingFilter: AssistFilter | null = null;
-
-/** 打开助力记录前调用：页面已挂载时立刻切换，没挂载时挂载后取用。 */
-export function requestAssistFilter(filter: AssistFilter): void {
-  pendingFilter = filter;
-  emitEvent(ASSIST_FILTER_EVENT, filter);
-}
-
-function takePendingFilter(): AssistFilter | null {
-  const f = pendingFilter;
-  pendingFilter = null;
-  return f;
-}
 
 async function loadAssists() {
   const [deadlines, dossiers, interviews, mocks, practices, mail] = await Promise.all([
@@ -67,13 +51,12 @@ function formatLocalDateTime(iso: string | null): string {
 
 export function AssistRecords() {
   const query = useCareerQuery(loadAssists, ASSIST_TABLES);
-  const [filter, setFilter] = useState<AssistFilter>(() => takePendingFilter() ?? 'all');
+  const [filter, setFilter] = useState<AssistFilter>('all');
   const [dialog, setDialog] = useState<NewMethod | null>(null);
   const sync = useCareerAction();
   const [syncNote, setSyncNote] = useState<string | null>(null);
   const suggest = useSuggestToChat();
 
-  useEffect(() => onEvent<AssistFilter>(ASSIST_FILTER_EVENT, f => { takePendingFilter(); setFilter(f); }), []);
 
   const allRows = useMemo(() => query.data?.rows ?? [], [query.data]);
   const rows = useMemo(() => filterAssists(allRows, filter), [allRows, filter]);
@@ -95,7 +78,8 @@ export function AssistRecords() {
     switch (row.type) {
       case 'written_test':
       case 'assessment':
-        suggest(`帮我准备${company}的${ASSIST_TYPE_LABELS[row.type]}`, { surface: 'dossier', refs: { ...refs, deadline_id: row.id } });
+        // 笔试助力 = 搜题（2026-10-30）：带上这场的公司和岗位，搜题时先查它们的往年题
+        openExamSearch({ company: row.company_name ?? '', role: row.title ?? '' });
         return;
       case 'interview':
         suggest(`帮我准备${company}的这场面试`, { surface: 'dossier', refs: { ...refs, interview_id: row.id } });
@@ -165,7 +149,7 @@ export function AssistRecords() {
                     tabIndex={clickable ? 0 : undefined}
                     onClick={clickable ? () => openDossier(r) : undefined}
                     onKeyDown={clickable ? e => { if (e.key === 'Enter' && e.target === e.currentTarget) openDossier(r); } : undefined}
-                    className={`border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${clickable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]' : ''} ${r.detail === '已过' ? 'text-[var(--muted)]' : ''}`}
+                    className={`border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${clickable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]' : ''} ${r.detail === '已过' || r.cancelled ? 'text-[var(--muted)]' : ''}`}
                   >
                     <td className="truncate px-2 py-2 font-medium text-[var(--ink)]" title={r.company_name ?? undefined}>{textOrUnknown(r.company_name)}</td>
                     <td className="truncate px-2 py-2 text-[var(--ink-2)]" title={r.title ?? undefined}>{r.title ?? '—'}</td>
@@ -187,8 +171,6 @@ export function AssistRecords() {
       {dialog && (
         <NewAssistDialog
           initial={dialog}
-          accounts={accounts}
-          presets={query.data?.mail.presets ?? {}}
           onClose={() => setDialog(null)}
           onChanged={query.reload}
         />
@@ -206,8 +188,8 @@ const METHODS: Array<{ id: NewMethod; label: string; hint: string }> = [
   { id: 'mail', label: '从邮箱同步', hint: '笔试、面试邮件自动识别' },
 ];
 
-function NewAssistDialog({ initial, accounts, presets, onClose, onChanged }: {
-  initial: NewMethod; accounts: MailAccount[]; presets: Record<string, MailPreset>; onClose: () => void; onChanged: () => void;
+function NewAssistDialog({ initial, onClose, onChanged }: {
+  initial: NewMethod; onClose: () => void; onChanged: () => void;
 }) {
   const [method, setMethod] = useState<NewMethod>(initial);
   const close = useCallback(() => onClose(), [onClose]);
@@ -244,7 +226,7 @@ function NewAssistDialog({ initial, accounts, presets, onClose, onChanged }: {
         <div className="min-h-0 flex-1 overflow-auto px-5 py-4">
           {method === 'manual' && <ManualForm onDone={done} />}
           {method === 'link' && <LinkForm onDone={onChanged} />}
-          {method === 'mail' && <MailPanel accounts={accounts} presets={presets} onChanged={onChanged} />}
+          {method === 'mail' && <MailPanel />}
         </div>
       </div>
     </OverlayBackdrop>
@@ -340,23 +322,11 @@ function LinkForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function MailPanel({ accounts, presets, onChanged }: { accounts: MailAccount[]; presets: Record<string, MailPreset>; onChanged: () => void }) {
-  const [bound, setBound] = useState<string | null>(null);
-  if (accounts.length === 0) {
-    return (
-      <div className="space-y-2">
-        <p className="text-sm text-[var(--muted)]">还没有绑定邮箱。绑定后笔试、面试通知会自动识别进来，你只需要偶尔点一下「同步邮箱」。</p>
-        {bound && <div role="status" className="text-xs text-[var(--success)]">{bound}</div>}
-        <BindMailForm presets={presets} onBound={message => { setBound(message); onChanged(); }} />
-      </div>
-    );
-  }
+function MailPanel() {
   return (
     <div className="space-y-2">
-      <p className="text-sm text-[var(--muted)]">邮箱已绑定。点「立即同步」拉一次新邮件，识别出的笔试 / 面试会直接出现在列表里。</p>
-      <ul className="divide-y divide-[var(--line)]">
-        {accounts.map(acc => <MailAccountRow key={acc.id} account={acc} preset={presets[acc.provider]} onChanged={onChanged} />)}
-      </ul>
+      <p className="text-sm text-[var(--muted)]">连上邮箱后，笔试、面试通知会自动识别进来，你只需要偶尔点一下「同步邮箱」。</p>
+      <MailConnectCenter />
     </div>
   );
 }

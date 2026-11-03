@@ -1,10 +1,10 @@
 /**
- * 岗位收藏：页面主体就是岗位多维表格（JobBoard）。
+ * 岗位库：页面主体就是岗位多维表格（JobBoard）。
  *
  * 「等你批准」的动作队列在通知中心处理，这里不再重复。留下的只有正确性需要的两样：
  *  - 结果不确定的提交（点了提交没等到成功提示）：有才出现一条提示，必须由用户确认，否则这条投递会一直卡着；
  *  - 浏览器在跑 / 停下等你接管时的状态条：空闲时不占位。
- * auto 模式开关跟「加入待投清单」放在一起（它决定加进去的网申是否检查通过直接提交）。
+ * auto 模式开关跟「投这 N 家」放在一起（它决定加进去的网申是否检查通过直接提交）。
  */
 import { BrowserStatusBar } from '@/components/career/BrowserStatusBar';
 import { careerApi, safeJson } from '@/components/career/careerApi';
@@ -35,7 +35,7 @@ export default function CareerApply({ embedded = false }: { embedded?: boolean }
   };
 
   return (
-    <CareerPage embedded={embedded} title="岗位收藏">
+    <CareerPage embedded={embedded} title="岗位库">
       <div className="flex h-full min-h-0 flex-col">
         <BrowserStatusBar hideWhenIdle />
         {data && data.confirming.length > 0 && (

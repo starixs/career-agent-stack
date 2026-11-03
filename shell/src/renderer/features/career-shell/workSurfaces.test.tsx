@@ -19,7 +19,7 @@ import type { ExamPractice } from '@/components/career/types';
 import type { ToolUseSimple } from '@/types/chat';
 
 import { MessageSurfaceCards } from './MessageSurfaceCards';
-import { ExamSurfaceView, MockInterviewSurfacePanel, refIdForTool, surfaceForTool, WorkSurfaceCard } from './workSurfaces';
+import { ExamSurfaceView, MockClock, MockInterviewSurfacePanel, refIdForTool, surfaceForTool, WorkSurfaceCard } from './workSurfaces';
 import { expandWorkSurface, resetWorkSurfaces, useWorkSurfaces } from './workSurfaceStore';
 
 function tool(name: string, over: Partial<ToolUseSimple> = {}): ToolUseSimple {
@@ -100,6 +100,20 @@ describe('breakout card content follows the tool fields', () => {
     expect(card).not.toHaveTextContent('{{vault:');
   });
 
+  it('a tailored resume summarises the applied changes straight from the tool result', () => {
+    render(<WorkSurfaceCard surface="resume" tool={tool('resume_tailor', { result: JSON.stringify({
+      tailored_id: 'rt_1', job_title: 'AI 应用开发', company: '甲公司', applied_ops: 2,
+      ops: [{ op: 'replace', path: '/basics/objective', value: 'AI 应用开发工程师', reason: '对齐岗位方向' }, { op: 'add', path: '/skills/-', value: 'RAG', reason: null }],
+      unresolved: ['想补 Kafka'],
+    }) })} />);
+    const card = screen.getByTestId('career-surface-card-resume');
+    expect(card).toHaveTextContent('甲公司');
+    expect(card).toHaveTextContent('重写 1 · 新增 1');
+    expect(card).toHaveTextContent('1 处缺经历支撑');
+    expect(card).toHaveTextContent('已完成 · 查看');
+    expect(card).not.toHaveTextContent('等你采纳');
+  });
+
   it('a mock interview rail marks the follow-up stage once a transcript exists', () => {
     render(<WorkSurfaceCard surface="mock-interview" tool={tool('interview_probe', {
       parsedInput: { transcript: '问：…\n答：…', company_type: '大厂', round: '一面' },
@@ -140,6 +154,20 @@ describe('expanded panels', () => {
     expect(await screen.findByText(/做了校园二手交易小程序/)).toBeInTheDocument();
   });
 
+  it('mock clock: 计这场练了多久和这一问想了多久；换题重新计，结束停表', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+    vi.setSystemTime(new Date('2026-11-03T13:10:00.000Z'));
+    const { rerender } = render(<MockClock startedAt="2026-11-03T13:00:00.000Z" question="AUC 怎么算的？" running />);
+    act(() => { vi.advanceTimersByTime(45_000); });
+    expect(screen.getByTestId('mock-clock')).toHaveTextContent('这场已练 10:45这一问 00:45');
+    rerender(<MockClock startedAt="2026-11-03T13:00:00.000Z" question="线上收益呢？" running />);
+    act(() => { vi.advanceTimersByTime(5_000); });
+    expect(screen.getByTestId('mock-clock')).toHaveTextContent('这一问 00:05');
+    rerender(<MockClock startedAt="2026-11-03T13:00:00.000Z" question={null} running={false} />);
+    expect(screen.getByTestId('mock-clock')).not.toHaveTextContent('这一问');
+    vi.useRealTimers();
+  });
+
   it('exam view lists questions with answers, verdicts and the summary', () => {
     const exam: ExamPractice = {
       id: 'exm_1', title: '星河科技 行测', company_name: '星河科技', job_id: null, kind: '行测',
@@ -158,14 +186,14 @@ describe('expanded panels', () => {
 });
 
 describe('info cards for results without a work surface', () => {
-  it('a job list shows the count, the first three rows and opens 岗位收藏', () => {
+  it('a job list shows the count, the first three rows and opens 岗位库', () => {
     const rows = ['甲', '乙', '丙', '丁'].map((c, i) => ({ job_id: `j${i}`, company: `${c}公司`, title: '后端', location: '北京', deadline: '2026-10-20' }));
     render(<MessageSurfaceCards tools={[tool('mcp__career__jobs_board', { result: JSON.stringify({ rows }) })]} />);
     const card = screen.getByTestId('career-info-card-jobs_board');
     expect(card).toHaveTextContent('4个岗位');
     expect(card).toHaveTextContent('丙公司 · 后端');
     expect(card).not.toHaveTextContent('丁公司');
-    expect(card).toHaveTextContent('1 个，在岗位收藏里看全部');
+    expect(card).toHaveTextContent('1 个，在岗位库里看全部');
   });
 
   it('a deadline shows a date block and skips fields the tool did not return', () => {

@@ -89,6 +89,7 @@ describe('resolveBrowserRuntimePolicy', () => {
       embeddedWindow: true,
       virtualDisplay: false,
       residentContext: true,
+      windowGuard: false,
     });
 
     expect(resolveBrowserRuntimePolicy({
@@ -105,6 +106,7 @@ describe('resolveBrowserRuntimePolicy', () => {
       embeddedWindow: false,
       virtualDisplay: false,
       residentContext: false,
+      windowGuard: false,
     });
   });
 
@@ -115,6 +117,12 @@ describe('resolveBrowserRuntimePolicy', () => {
     // 显式写 virtual-display 与缺省一致
     expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'virtual-display' }, '/home/tester', 'darwin'))
       .toMatchObject({ embeddedWindow: true, virtualDisplay: true });
+    // 焦点守卫：macOS 内嵌缺省开（corner 也开，只抢焦点不藏），独立窗口 / 显式关闭 / 其余平台没有
+    expect(resolveBrowserRuntimePolicy({}, '/home/tester', 'darwin').windowGuard).toBe(true);
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'corner' }, '/home/tester', 'darwin').windowGuard).toBe(true);
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'window' }, '/home/tester', 'darwin').windowGuard).toBe(false);
+    expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_FOCUS_GUARD: '0' }, '/home/tester', 'darwin').windowGuard).toBe(false);
+    expect(resolveBrowserRuntimePolicy({}, '/home/tester', 'win32').windowGuard).toBe(false);
     // corner：退回主屏角落停靠（虚拟屏不可用时的手动逃生口）
     expect(resolveBrowserRuntimePolicy({ CAREER_BROWSER_WINDOW: 'corner' }, '/home/tester', 'darwin'))
       .toMatchObject({ embeddedWindow: true, virtualDisplay: false });

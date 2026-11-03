@@ -126,6 +126,13 @@ describe('driveApplication 分层降级', () => {
     const r2 = await driveApplication(noMouse, noLLM(), profile, { ...quiet, perceiver: new FakePerceiver(formFrame()) })
     expect(r2.status).toBe('blocked'); expect(r2.layersUsed).toEqual([])
   })
+  it('截图里像有格子、却一个都点不进去、也没有提交按钮：如实报没找到网申表，不说「表单已填完」（2026-10-31 阿斯麦岗位列表）', async () => {
+    const page = new FakePage({ url: 'https://x.com/jobs', text: '热招职位 装机工程师 点击下方城市申请职位' })
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, perceiver: new FakePerceiver(formFrame()) })
+    expect(r.status).toBe('blocked')
+    expect(r.message).not.toContain('表单已填完')
+    expect(r.filled).toEqual([])
+  })
   it('截图感知也看不到表单 → blocked，记录 no_fields failed', async () => {
     const page = new FakePage({ url: 'https://x.com/jd', text: '职位介绍' })
     const r = await driveApplication(page, noLLM(), profile, { ...quiet, perceiver: new FakePerceiver({ source: 'fake', viewport: vp, elements: [el('text', '职位介绍', [0, 0, 100, 20])] }) })

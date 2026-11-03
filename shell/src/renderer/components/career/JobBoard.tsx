@@ -1,9 +1,10 @@
 /**
- * 岗位收藏：多维表格（R01 校招 / 实习网申汇总，R02 匹配，R06 勾选加入待投清单，R08 导出表格）。
+ * 岗位库：多维表格（R01 校招 / 实习网申汇总，R02 匹配，R06 框选一批确认投出，R08 导出表格）。
  *
  * 一行一个岗位：公司 / 岗位 / 批次 / 行业 / 类型标签 / 地点 / 截止 / 匹配 / 我的进度 / 链接。点匹配分展开"哪条要求对应你哪段经历"。
  * 筛选只用已有取值做成的选项（批次 / 行业 / 类型 / 地点 / 进度）加一个公司 / 岗位搜索，全部在前端即时算（jobBoardFilters.ts）。
- * 同步 / 导入 / 导出是次要动作，收在工具栏右侧。底部是页面输入框（PageAskBar），旁边是「AI 找工作」入口（功能未上线，先禁用）。
+ * 同步 / 导入 / 导出是次要动作，收在工具栏右侧。勾选后「投这 N 家」一次确认就开始（JobBoardApply.tsx），
+ * 底部输入框上沿是和对话同一条等你条；输入框旁边是「AI 找工作」入口（功能未上线，先禁用）。
  */
 import { ChevronDown, Download, ExternalLink as ExternalLinkIcon, Link2, RefreshCw, Search, Sparkles, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
@@ -21,6 +22,10 @@ import {
   DEFAULT_BOARD_FILTER, activeFilterCount, batchLabel, boardAskRefs, facetOptions, filterBoardRows, typeTagsOf,
   type BoardFilterState, type BoardSort, type FacetKey,
 } from './jobBoardFilters';
+import { WaitingDock } from './delivery/WaitingDock';
+import { ApplyConfirm } from './JobBoardApply';
+import { TargetStar } from './TargetStar';
+import { useRangeSelect } from './useRangeSelect';
 import type { EmploymentType, JobBoardRow, JobPrefs } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
@@ -49,26 +54,31 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
   const [filter, setFilter] = useState<BoardFilterState>(DEFAULT_BOARD_FILTER);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
-  const [panel, setPanel] = useState<'import' | 'prefs' | null>(null);
+  const [panel, setPanel] = useState<'import' | 'prefs' | 'apply' | null>(null);
   // 一次取回全部岗位，筛选在前端算（选项要从全部取值里来）
   const query = useCareerQuery(() => careerApi.jobBoard({}), ['job', 'application', 'action_queue']);
   const allRows = useMemo(() => query.data?.rows ?? [], [query.data]);
   const rows = useMemo(() => filterBoardRows(allRows, filter), [allRows, filter]);
   const ids = useMemo(() => rows.map(r => r.job.id), [rows]);
-  const live = new Set([...selected].filter(id => ids.includes(id)));
-  const allChecked = ids.length > 0 && live.size === ids.length;
+  // 勾选跨搜索保留：学生常常搜一家勾一家，凑成一批再投（2026-10-31 实例测试：换个搜索词前面勾的就没了）。
+  // 只丢掉库里已经不存在的岗位；当前列表里看得见几个单独算，表头全选只管看得见的这些。
+  const allIds = useMemo(() => new Set(allRows.map(r => r.job.id)), [allRows]);
+  const picked = [...selected].filter(id => allIds.has(id));
+  const visiblePicked = ids.filter(id => selected.has(id)).length;
+  const hiddenPicked = picked.length - visiblePicked;
+  const allChecked = ids.length > 0 && visiblePicked === ids.length;
+  const toggleAllVisible = () => {
+    const next = new Set(selected);
+    for (const id of ids) { if (allChecked) next.delete(id); else next.add(id); }
+    setSelected(next);
+  };
   const act = useCareerAction();
   const refresh = () => { query.reload(); onChanged?.(); };
   const run = (fn: () => Promise<string | null>) => act.run(async () => { setNotice(await fn()); refresh(); });
   const patch = (p: Partial<BoardFilterState>) => setFilter(f => ({ ...f, ...p }));
 
-  const prepare = () => run(async () => {
-    const res = await careerApi.prepareJobs([...live]);
-    setSelected(new Set());
-    const skipped = (res.results ?? []).filter(r => !r.ok);
-    return `已加入待投清单 ${res.queued ?? 0} 个${skipped.length ? `；跳过 ${skipped.length} 个（${[...new Set(skipped.map(s => s.reason))].join('、')}）` : ''}。到通知中心批准后开始填写。`;
-  });
-  const toggleRow = (id: string) => setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const started = (msg: string) => { setNotice(msg); setSelected(new Set()); setPanel(null); refresh(); };
+  const pick = useRangeSelect(ids, selected, setSelected);
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -102,11 +112,12 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
       {/* 状态行：勾选与批量动作在左，我的条件在右 */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-6 pb-2 text-xs text-[var(--muted)]">
         <span className="tabular-nums">{query.data ? `${rows.length} 个岗位${rows.length !== allRows.length ? `（共 ${allRows.length}）` : ''}` : ''}</span>
-        {live.size > 0 && <span className="tabular-nums">已选 {live.size}</span>}
-        <Button size="sm" variant={live.size > 0 ? 'primary' : 'ghost'} busy={act.busy} disabled={live.size === 0} onClick={() => void prepare()}>加入待投清单（{live.size}）</Button>
+        {picked.length > 0 && <span className="tabular-nums">已选 {picked.length}{hiddenPicked > 0 ? `（${hiddenPicked} 个在别的搜索里）` : ''}</span>}
+        <Button size="sm" variant={picked.length > 0 ? 'primary' : 'ghost'} disabled={picked.length === 0} aria-pressed={panel === 'apply'} onClick={() => setPanel(p => (p === 'apply' ? null : 'apply'))}>{picked.length > 0 ? `投这 ${picked.length} 家` : '勾选岗位后一键投'}</Button>
         {bulkExtra}
         {query.data && <PrefsSummary prefs={query.data.prefs} editing={panel === 'prefs'} onEdit={() => setPanel(p => (p === 'prefs' ? null : 'prefs'))} />}
       </div>
+      {panel === 'apply' && picked.length > 0 && <ApplyConfirm jobIds={picked} onStarted={started} onCancel={() => setPanel(null)} />}
       {panel === 'prefs' && query.data && <PrefsEditor prefs={query.data.prefs} onDone={() => setPanel(null)} onSaved={() => { setPanel(null); refresh(); }} />}
 
       <div className="px-6">
@@ -123,22 +134,25 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
             <thead className="text-left text-xs text-[var(--muted)] [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-[var(--bg)] [&_th]:shadow-[inset_0_-1px_0_var(--line-2)]">
               <tr>
                 <th className="w-9 px-2 py-2 font-medium">
-                  <input type="checkbox" aria-label="全选岗位" checked={allChecked} ref={el => { if (el) el.indeterminate = live.size > 0 && !allChecked; }} onChange={() => setSelected(allChecked ? new Set() : new Set(ids))} />
+                  <input type="checkbox" aria-label="全选岗位" checked={allChecked} ref={el => { if (el) el.indeterminate = visiblePicked > 0 && !allChecked; }} onChange={toggleAllVisible} />
                 </th>
                 {COLUMNS.map(c => <th key={c.key} className={`whitespace-nowrap px-2 py-2 font-medium ${c.className ?? ''}`}>{c.label}</th>)}
               </tr>
             </thead>
             <tbody>
-              {rows.map(row => <BoardRow key={row.job.id} row={row} checked={live.has(row.job.id)} onToggle={() => toggleRow(row.job.id)} onChanged={refresh} />)}
+              {rows.map(row => <BoardRow key={row.job.id} row={row} checked={selected.has(row.job.id)} pick={pick} onChanged={refresh} />)}
             </tbody>
           </table>
         </div>
       )}
       {rows.length === 0 && <div className="flex-1" />}
 
+      {/* 和对话里同一条等你条（同一批事，处理一处处处生效）：投出去以后要你登录、补信息、一键投出都在这里，不用翻页去找 */}
+      <div className="flex justify-center px-6 pt-2"><WaitingDock /></div>
+
       <PageAskBar
         target={{ kind: 'career-dossier', view: 'apply' }}
-        refs={boardAskRefs(filter, ids, [...live])}
+        refs={boardAskRefs(filter, ids, picked)}
         placeholder="问问这些岗位，比如「哪些下周截止、适合我」"
         actions={(
           <button
@@ -279,7 +293,7 @@ function Pill({ children }: { children: ReactNode }) {
 
 const CELL = 'truncate px-2 py-2';
 
-function BoardRow({ row, checked, onToggle, onChanged }: { row: JobBoardRow; checked: boolean; onToggle: () => void; onChanged: () => void }) {
+function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked: boolean; pick: ReturnType<typeof useRangeSelect>; onChanged: () => void }) {
   const { job, match, application } = row;
   const [open, setOpen] = useState(false);
   const stageAction = useCareerAction();
@@ -291,8 +305,13 @@ function BoardRow({ row, checked, onToggle, onChanged }: { row: JobBoardRow; che
   return (
     <>
       <tr className={`group border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${checked ? 'bg-[var(--selected)]' : ''} ${job.source_status === 'closed' ? 'text-[var(--subtle)]' : ''}`}>
-        <td className="px-2 py-2"><input type="checkbox" aria-label={`选择岗位 ${job.title}`} checked={checked} onChange={onToggle} /></td>
-        <td className={`${CELL} font-medium text-[var(--ink)]`} title={company}>{company}</td>
+        {/* 勾选列可框选：Shift + 点选一段，按住拖过几行一起勾 */}
+        <td className="cursor-pointer select-none px-2 py-2" onMouseDown={() => pick.pressStart(job.id)} onMouseEnter={() => pick.dragOver(job.id)}>
+          <input type="checkbox" aria-label={`选择岗位 ${job.title}`} checked={checked} readOnly onClick={e => pick.click(job.id, e.shiftKey)} />
+        </td>
+        <td className={`${CELL} font-medium text-[var(--ink)]`} title={company}>
+          <span className="flex min-w-0 items-center gap-1"><TargetStar jobId={job.id} source={row.target} label={`${company} ${job.title}`} onChanged={onChanged} /><span className="truncate">{company}</span></span>
+        </td>
         <td className={`${CELL} text-[var(--ink-2)]`} title={job.title}>
           {job.title}{job.source_status === 'closed' && <span className="ml-1 text-[var(--subtle)]">（已下架）</span>}
         </td>

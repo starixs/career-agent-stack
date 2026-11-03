@@ -328,7 +328,7 @@ CREATE TABLE IF NOT EXISTS deadline (
   interview_id TEXT,
   offer_id TEXT,
   source TEXT NOT NULL DEFAULT 'manual',    -- manual|inbox|mail|agent|job
-  status TEXT NOT NULL DEFAULT 'open',      -- open|done|missed|cancelled
+  status TEXT NOT NULL DEFAULT 'open',      -- open|done|missed|cancelled|skipped（用户说没去）
   url TEXT,
   note TEXT,
   created_at TEXT NOT NULL,
@@ -375,7 +375,7 @@ CREATE TABLE IF NOT EXISTS material_use (
 );
 CREATE INDEX IF NOT EXISTS idx_material_use_company ON material_use(company_name, used_at);
 
--- 每周复盘：漏斗 + 代理反馈 + 策略调整建议。
+-- 每周复盘：已停用（2026-10-30 周复盘功能删掉，复盘只看「我的求职月」）。表留着不读，免得为删表加一次迁移。
 CREATE TABLE IF NOT EXISTS weekly_review (
   id TEXT PRIMARY KEY,
   week_start TEXT NOT NULL,                 -- YYYY-MM-DD（周一）

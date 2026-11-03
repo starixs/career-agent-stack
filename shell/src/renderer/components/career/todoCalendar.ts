@@ -12,9 +12,12 @@ export const CATEGORY_LABELS: Record<TodoCategory, string> = { review: '待批�
 /** 点亮时的颜色；全部完成后统一变灰（--line-2）。 */
 export const CATEGORY_COLORS: Record<TodoCategory, string> = { review: 'var(--primary)', handoff: 'var(--warning)', remind: 'var(--info)' };
 
+/** 与服务端 RETRO_PROMPT_HOURS 一致：面试时间过后一天内提示复盘。 */
+export const RETRO_PROMPT_MS = 24 * 3_600_000;
+
 export function categoryOf(kind: TodayItemKind): TodoCategory {
   if (kind === 'review') return 'review';
-  if (kind === 'handoff') return 'handoff';
+  if (kind === 'handoff' || kind === 'mail_auth') return 'handoff';
   return 'remind';
 }
 
@@ -37,6 +40,8 @@ export interface CalendarTodo {
   manualSend?: boolean;
   /** 本地划掉时记下怎么处理的（已批准 / 不发了 / 已完成…）。 */
   note?: string;
+  /** 过了时间的笔试 / 测评（面试过了时间走复盘，不问）：行里不放「完成」，放「考了 / 没去」（AttendanceButtons）。 */
+  askAttendance?: Deadline['kind'];
 }
 
 function pad(n: number): string {
@@ -88,17 +93,31 @@ export function buildTodos(src: TodoSources): CalendarTodo[] {
 
   for (const d of src.deadlines ?? []) {
     if (d.status === 'cancelled') continue;
-    const done = d.status === 'done';
+    // skipped = 回来时答了「没去」：和做完一样收起，留在原来那天
+    const done = d.status === 'done' || d.status === 'skipped';
     const origin = dateKeyOf(d.due_at);
+    const past = d.kind === 'interview' && !done && !!d.due_at && Date.parse(d.due_at) < now.getTime();
+    if (past) {
+      // 面试时间过了 = 多半面完了：一天内放在今天提示复盘；更早的留在原来那天，不像待办一样顺延成「已过期」
+      const fresh = now.getTime() - Date.parse(d.due_at!) <= RETRO_PROMPT_MS;
+      const item: TodayItem = { kind: 'interview_retro', priority: 4, title: `${d.title} 面完了？`, detail: '说几句或传一段录音就能复盘', due_at: d.due_at, ref: { type: 'deadline', id: d.id } };
+      if (fresh) add({ key: `deadline:${d.id}`, category: 'remind', date: todayKey, originDate: origin, done: false, item, applicationId: d.application_id });
+      else add({ key: `deadline:${d.id}`, category: 'remind', date: origin ?? todayKey, originDate: origin, done: true, item: { ...item, title: d.title }, applicationId: d.application_id, note: '没复盘' });
+      continue;
+    }
+    const question = done ? null : d.attendance_question ?? null;
     const item: TodayItem = {
       kind: d.kind === 'interview' && origin === todayKey ? 'interview_today' : 'deadline',
-      priority: 1, title: d.title, due_at: d.due_at, ref: { type: 'deadline', id: d.id },
+      priority: 1, title: question ? `${d.title}：${question}` : d.title, due_at: d.due_at, ref: { type: 'deadline', id: d.id },
     };
-    add({ key: `deadline:${d.id}`, category: 'remind', date: place(origin, done), originDate: origin, done, item, applicationId: d.application_id });
+    add({
+      key: `deadline:${d.id}`, category: 'remind', date: place(origin, done), originDate: origin, done, item, applicationId: d.application_id,
+      ...(d.status === 'skipped' ? { note: '没参加' } : {}), ...(question ? { askAttendance: d.kind } : {}),
+    });
   }
 
   for (const item of src.today ?? []) {
-    if (haveDeadlines && (item.kind === 'deadline' || item.kind === 'interview_today')) continue;
+    if (haveDeadlines && (item.kind === 'deadline' || item.kind === 'interview_today' || item.kind === 'interview_retro')) continue;
     const action = item.kind === 'review' ? actionById.get(item.ref.id) : undefined;
     const origin = dateKeyOf(item.due_at) ?? dateKeyOf(action?.created_at);
     add({ key: `${item.ref.type}:${item.ref.id}`, category: categoryOf(item.kind), date: place(origin, false), originDate: origin, done: false, item, action });

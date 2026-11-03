@@ -5,16 +5,17 @@
 import type { ResumeData as StudioResumeData } from '@career/resume-studio/schema';
 
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
+import { parsePairedPhones, parsePhoneStatus, type PairedPhone } from '../../../shared/careerPhone';
 
 import type {
   ActivityEntry,
   ExamPractice,
   CareerCard, CareerCardState, CareerSetupStatus,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
-  InboxItem, IntakeResult, Interview, Job, MailAccount, MailConnectSession, MailMessage, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
-  ProbePrediction, ResumeMaster, ResumeTailored, TodayQueue, WeeklyReview,
+  InboxItem, IntakeResult, Interview, InterviewRecording, Job, MailAccount, MailAccountDetail, MailConnectResult, MailConnector, MailConnectorId, MailMessage, MailOauthStart, SeasonId, TakeoverBriefing, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
+  ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
-  AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
+  AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPlan, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
 } from './types';
 
 type Dict = Record<string, unknown>;
@@ -48,6 +49,17 @@ export function pickObject<T>(res: unknown, ...keys: string[]): T {
   return rest as T;
 }
 
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+function parseSkipped(v: unknown): JobPlan['skipped'] {
+  return (Array.isArray(v) ? v : []).map(asDict).filter(x => typeof x.job_id === 'string').map(x => ({ job_id: String(x.job_id), reason: typeof x.reason === 'string' ? x.reason : '没能开始' }));
+}
+/** 跨边界：/jobs/plan 的形状，字段缺了按空处理，不猜。 */
+function parseJobPlan(v: unknown): JobPlan {
+  const d = asDict(v);
+  const resumes = (Array.isArray(d.resumes) ? d.resumes : []).map(asDict).filter(r => typeof r.id === 'string').map(r => ({ id: String(r.id), name: typeof r.name === 'string' ? r.name : '未命名简历' }));
+  return { ready: strings(d.ready), targets: typeof d.targets === 'number' ? d.targets : 0, skipped: parseSkipped(d.skipped), needs_resume: strings(d.needs_resume), resumes };
+}
+
 export function careerPath(p: string): string {
   return `/api/career${p}`;
 }
@@ -57,6 +69,10 @@ export const careerApi = {
   experiences: () => apiGetJson<unknown>(careerPath('/experiences')).then(r => pickList<ExperienceNode>(r, 'experiences', 'tree', 'items')),
   addExperience: (body: Partial<ExperienceNode>) => apiPostJson<unknown>(careerPath('/experiences'), body).then(r => pickObject<ExperienceNode>(r, 'experience')),
   confirmClaim: (id: string) => apiPostJson<unknown>(careerPath(`/claims/${encodeURIComponent(id)}/confirm`), {}),
+  /** 交简历卡片：确认勾选的说法并按导入草稿生成主简历。 */
+  confirmResumeIntake: (id: string, claimIds: string[], profileChoice: Record<string, 'resume' | 'vault'> = {}) => apiPostJson<unknown>(careerPath(`/resume-intake/${encodeURIComponent(id)}/confirm`), { claim_ids: claimIds, profile_choice: profileChoice }).then(r => { const d = asDict(r); return { masterId: typeof d.master_id === 'string' ? d.master_id : null, oral: typeof d.oral === 'number' ? d.oral : 0 }; }),
+  /** 交简历后一键清掉口述建的旧经历（不进主简历的那些）。 */
+  clearOralExperiences: (id: string) => apiPostJson<unknown>(careerPath(`/resume-intake/${encodeURIComponent(id)}/clear-oral`), {}),
   /** 简历工作台文档（resume-studio ResumeData）；preview 是占位符 → 明文，只给预览用。 */
   getStudio: (id: string) => apiGetJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/studio`)).then(r => {
     const d = asDict(r);
@@ -75,8 +91,6 @@ export const careerApi = {
   saveAnswer: (body: { question_key: string; question_text: string; answer: string; high_impact?: boolean; confirmed?: boolean }) =>
     apiPostJson<unknown>(careerPath('/answer-bank'), body).then(r => asDict(r)),
   /** 应用定制简历提案（只取勾选的 JSON Pointer 路径；缺省全部）并确认。 */
-  confirmResume: (id: string, acceptedPaths?: string[]) =>
-    apiPostJson<unknown>(careerPath(`/resumes/${encodeURIComponent(id)}/confirm`), acceptedPaths ? { accepted_paths: acceptedPaths } : {}).then(r => asDict(r)),
 
   // ----- 简历 -----
   resumes: () => apiGetJson<unknown>(careerPath('/resumes')).then(r => {
@@ -112,8 +126,11 @@ export const careerApi = {
   setJobPrefs: (prefs: JobPrefs) => apiPutJson<unknown>(careerPath('/job-prefs'), prefs).then(r => pickObject<JobPrefs>(r, 'prefs')),
   matchJobs: (jobIds?: string[]) => apiPostJson<unknown>(careerPath('/jobs/match'), jobIds ? { job_ids: jobIds } : {}).then(r => pickObject<{ n?: number }>(r)),
   syncJobs: (source: 'campus' | 'server') => apiPostJson<unknown>(careerPath('/jobs/sync'), { source }).then(r => pickObject<{ fetched?: number; stored?: number; matched?: number }>(r)),
-  prepareJobs: (jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/prepare'), { job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
-    .then(r => pickObject<{ queued?: number; results?: Array<{ job_id: string; ok: boolean; reason?: string }> }>(r)),
+  /** 框选确认前：几家能开始、几家标星、哪几家跳过（带原因）、要不要选一份简历。 */
+  planJobs: (jobIds: string[]) => apiPostJson<unknown>(careerPath('/jobs/plan'), { job_ids: jobIds }).then(r => parseJobPlan(asDict(r).plan)),
+  /** 一次确认就开始：建投递冻结材料 + 批准 + 交后台批量运行器。 */
+  applyJobs: (jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/apply'), { job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
+    .then(r => ({ started: strings(asDict(r).started), skipped: parseSkipped(asDict(r).skipped) })),
   questions: (f: { kind?: string; source?: string; company?: string; q?: string; weak_only?: boolean } = {}) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== '' && v !== false) p.set(k, v === true ? '1' : String(v));
@@ -131,8 +148,9 @@ export const careerApi = {
   setStage: (id: string, to: string, note?: string) =>
     apiPostJson<unknown>(careerPath(`/applications/${encodeURIComponent(id)}/stage`), { to, note }).then(r => pickObject<Application>(r, 'application')),
   pendingActions: () => apiGetJson<unknown>(careerPath('/actions?status=pending_review')).then(r => pickList<ActionQueueItem>(r, 'actions', 'items')),
-  reviewActions: (ids: string[], decision: 'approved' | 'rejected') =>
-    apiPostJson<unknown>(careerPath('/actions/review'), { ids, decision }).then(r => pickObject<{ n?: number; submitting?: string[] }>(r)),
+  /** drop：拒绝提交时顺带把这份申请标成「不投了」（跳过）。 */
+  reviewActions: (ids: string[], decision: 'approved' | 'rejected', opts: { drop?: boolean } = {}) =>
+    apiPostJson<unknown>(careerPath('/actions/review'), { ids, decision, ...(opts.drop ? { drop: true } : {}) }).then(r => pickObject<{ n?: number; submitting?: string[] }>(r)),
   /** 提交结果不确定 / 接管后：用户确认是否已经投递成功。 */
   confirmSubmit: (id: string, submitted: boolean) =>
     apiPostJson<unknown>(careerPath(`/actions/${encodeURIComponent(id)}/confirm-submit`), { submitted }).then(r => pickObject<ActionQueueItem>(r, 'action')),
@@ -164,6 +182,16 @@ export const careerApi = {
   createInterview: (body: Partial<Interview>) => apiPostJson<unknown>(careerPath('/interviews'), body).then(r => pickObject<Interview>(r, 'interview')),
   updateInterview: (id: string, body: Partial<Interview>) =>
     apiPutJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}`), body).then(r => pickObject<Interview>(r, 'interview')),
+  /** 电话 / 短信约的面试：自己记一场（建申请、面试、时间点；同一场再记只改时间）。 */
+  bookInterview: (body: { company_name: string; title?: string | null; round?: string | null; when: string; location?: string | null; note?: string | null }) =>
+    apiPostJson<unknown>(careerPath('/interviews/book'), body).then(r => asDict(r) as { application_id?: string; interview_id?: string; deadline_id?: string }),
+  interviewRecordings: (id: string) => apiGetJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/recordings`)).then(r => pickList<InterviewRecording>(r, 'recordings')),
+  uploadInterviewRecording: (id: string, file: { name: string; mime?: string; data: string }) =>
+    apiPostJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/recordings`), file).then(r => pickObject<InterviewRecording>(r, 'recording')),
+  /** 面试页「说几句」直接复盘：结果写回这场面试，留在页面上。 */
+  retroInterview: (id: string, words: string) => apiPostJson<unknown>(careerPath(`/interviews/${encodeURIComponent(id)}/retro`), { words }).then(r => pickObject<Interview>(r, 'interview')),
+  /** 把岗位标成 / 取消目标；进过面试的申请自动算目标，不用标。 */
+  setJobTarget: (jobId: string, target: boolean) => apiPostJson<unknown>(careerPath('/targets'), { job_id: jobId, target }),
   examPractices: () => apiGetJson<unknown>(careerPath('/exam-practices')).then(r => pickList<ExamPractice>(r, 'examPractices')),
   mockInterviews: () => apiGetJson<unknown>(careerPath('/mock-interviews')).then(r => pickList<MockInterview>(r, 'mockInterviews', 'mock_interviews', 'items')),
   /** API.md 未列出该路由；后端若未实现则按空列表处理。 */
@@ -208,7 +236,7 @@ export const careerApi = {
   batchCommand: (cmd: 'start' | 'pause' | 'stop') => apiPostJson<unknown>(careerPath('/batch/command'), { cmd }).then(r => asDict(r).batch as BatchState | undefined),
   batchState: () => apiGetJson<unknown>(careerPath('/batch/state')).then(r => (asDict(r).batch ?? null) as BatchState | null),
   /** 接管期间把现场窗里的鼠标 / 键盘转发到托管 Chrome；坐标按帧尺寸给。 */
-  liveInput: (input: { type: 'click' | 'move' | 'wheel' | 'type' | 'press'; x?: number; y?: number; dx?: number; dy?: number; text?: string; key?: string; double?: boolean; frame?: { width: number; height: number } }) =>
+  liveInput: (input: { type: 'click' | 'move' | 'down' | 'up' | 'wheel' | 'type' | 'press'; x?: number; y?: number; dx?: number; dy?: number; text?: string; key?: string; double?: boolean; clickCount?: number; frame?: { width: number; height: number } }) =>
     apiPostJson<unknown>(careerPath('/live/input'), input).then(r => asDict(r)),
   /** 临时放出 / 收回真实 Chrome 窗口（默认浏览器只在产品画面里出现）。 */
   liveWindow: (visible: boolean) => apiPostJson<unknown>(careerPath('/live/window'), { visible }).then(r => asDict(r).revealed === true),
@@ -240,6 +268,8 @@ export const careerApi = {
   /** 手动新建笔试 / 测评：挂到同公司进行中的投递上（没有就新建一条），再建截止事件。 */
   createExam: (body: { company_name: string; title?: string | null; kind: 'written_test' | 'assessment'; due_at: string; url?: string | null; note?: string | null }) =>
     apiPostJson<unknown>(careerPath('/exams'), body).then(r => asDict(r) as { deadline_id?: string; application_id?: string }),
+  /** 回答「考了吗」：考了 → done，没去 → skipped，服务端记进卷宗。 */
+  answerAttendance: (id: string, attended: boolean) => apiPostJson<unknown>(careerPath(`/deadlines/${encodeURIComponent(id)}/attendance`), { attended }).then(r => pickObject<Deadline>(r, 'deadline')),
   setDeadlineStatus: (id: string, status: Deadline['status']) => apiPostJson<unknown>(careerPath(`/deadlines/${encodeURIComponent(id)}/status`), { status }).then(r => pickObject<Deadline>(r, 'deadline')),
 
   // ----- 卷宗 -----
@@ -260,25 +290,42 @@ export const careerApi = {
   recordMaterialUse: (body: { material_id?: string | null; application_id?: string | null; job_id?: string | null; company_name?: string | null; context: string; content_snapshot: string }) => apiPostJson<unknown>(careerPath('/materials/uses'), body).then(r => pickObject<MaterialUse>(r, 'use')),
 
   // ----- 复盘 -----
-  review: () => apiGetJson<unknown>(careerPath('/review')).then(r => {
+  review: (month?: string) => apiGetJson<unknown>(careerPath(month ? `/review?month=${encodeURIComponent(month)}` : '/review')).then(r => {
     const d = asDict(r);
-    return { funnel: (d.funnel as Funnel) ?? { by_category: [], by_platform: [], overall: null }, reviews: pickList<WeeklyReview>(d.reviews) };
+    return { funnel: (d.funnel as Funnel) ?? { by_category: [], by_platform: [], overall: null }, board: (d.board as MonthBoard | undefined) ?? null };
   }),
-  generateWeeklyReview: (body: { week_start?: string; user_note?: string } = {}) => apiPostJson<unknown>(careerPath('/review/weekly'), body).then(r => asDict(r) as { review?: WeeklyReview; output?: Record<string, unknown> }),
+
+  // ----- 手机连接（蓝牙读短信收验证码） -----
+  phone: () => apiGetJson<unknown>(careerPath('/phone')).then(r => {
+    const d = asDict(r);
+    return { status: parsePhoneStatus(d.status), phones: parsePairedPhones(d.phones), computerName: typeof d.computer_name === 'string' ? d.computer_name : '' };
+  }),
+  startPhonePairing: () => apiPostJson<unknown>(careerPath('/phone/pair'), {}).then(r => parsePhoneStatus(asDict(r).status)),
+  cancelPhonePairing: () => apiPostJson<unknown>(careerPath('/phone/pair/cancel'), {}).then(r => parsePhoneStatus(asDict(r).status)),
+  bindPhone: (phone: Pick<PairedPhone, 'address' | 'name'>) => apiPostJson<unknown>(careerPath('/phone/bind'), { address: phone.address, name: phone.name }).then(r => parsePhoneStatus(asDict(r).status)),
+  unbindPhone: () => apiDelete<unknown>(careerPath('/phone')),
 
   // ----- 邮箱 -----
   mailAccounts: () => apiGetJson<unknown>(careerPath('/mail/accounts')).then(r => {
     const d = asDict(r);
     return { accounts: pickList<MailAccount>(d.accounts), presets: (d.presets as Record<string, MailPreset>) ?? {} };
   }),
-  bindMailAccount: (body: { address: string; password?: string; provider?: string; display_name?: string; imap_host?: string; imap_port?: number; smtp_host?: string; smtp_port?: number; verify?: boolean }) =>
-    apiPostJson<unknown>(careerPath('/mail/accounts'), body).then(r => asDict(r) as { account?: MailAccount; verify?: { error?: string; fetched?: number; job_related?: number } | null }),
-  startMailConnect: (provider: MailConnectSession['provider'], address?: string) =>
-    apiPostJson<unknown>(careerPath('/mail/connect'), { provider, address }).then(r => asDict(r).session as MailConnectSession),
-  mailConnect: (id: string) => apiGetJson<unknown>(careerPath(`/mail/connect/${encodeURIComponent(id)}`)).then(r => asDict(r).session as MailConnectSession),
-  mailConnectAddress: (id: string, address: string) =>
-    apiPostJson<unknown>(careerPath(`/mail/connect/${encodeURIComponent(id)}/address`), { address }).then(r => asDict(r).session as MailConnectSession),
-  cancelMailConnect: (id: string) => apiDelete<unknown>(careerPath(`/mail/connect/${encodeURIComponent(id)}`)),
+  mailConnectors: () => apiGetJson<unknown>(careerPath('/mail/connectors')).then(r => {
+    const d = asDict(r);
+    const apply = asDict(d.apply_address);
+    // 网申用的邮箱（基本资料里那个）：连邮箱时预填、默认选对应的服务商
+    const applyAddress = typeof apply.address === 'string' ? { address: apply.address, connector_id: typeof apply.connector_id === 'string' ? apply.connector_id : null } : null;
+    return { connectors: pickList<MailConnector>(d.connectors), accounts: pickList<MailAccount>(d.accounts), applyAddress };
+  }),
+  verifyMailConnector: (id: MailConnectorId, body: { email: string; authCode: string; reauthorize?: boolean }) =>
+    apiPostJson<unknown>(careerPath(`/mail/connectors/${encodeURIComponent(id)}/verify`), body).then(r => asDict(r).result as MailConnectResult),
+  startMailOauth: (id: MailConnectorId) => apiPostJson<unknown>(careerPath(`/mail/connectors/${encodeURIComponent(id)}/oauth/start`), {}).then(r => asDict(r).result as MailOauthStart),
+  mailOauthStatus: (id: MailConnectorId, state: string) =>
+    apiGetJson<unknown>(careerPath(`/mail/connectors/${encodeURIComponent(id)}/oauth/status?state=${encodeURIComponent(state)}`)).then(r => asDict(r) as { status: 'pending' | 'done' | 'failed'; account: MailAccount | null }),
+  takeover: (accountId?: string | null) => apiGetJson<unknown>(careerPath(`/mail/takeover${accountId ? `?account_id=${encodeURIComponent(accountId)}` : ''}`)).then(r => (asDict(r).briefing ?? null) as TakeoverBriefing | null),
+  markTakeoverViewed: (accountId: string) => apiPostJson<unknown>(careerPath(`/mail/takeover/${encodeURIComponent(accountId)}/viewed`), {}),
+  setSeason: (id: SeasonId | null) => apiPostJson<unknown>(careerPath('/season'), { id }).then(r => asDict(r).season as TakeoverBriefing['season']),
+  mailAccountDetail: (id: string) => apiGetJson<unknown>(careerPath(`/mail/accounts/${encodeURIComponent(id)}/detail`)).then(r => asDict(r) as unknown as MailAccountDetail),
   deleteMailAccount: (id: string) => apiDelete<unknown>(careerPath(`/mail/accounts/${encodeURIComponent(id)}`)),
   syncMail: (account_id?: string) => apiPostJson<unknown>(careerPath('/mail/sync'), { account_id }).then(r => pickList<{ account_id: string; fetched: number; stored: number; job_related: number; ignored: number; error?: string; archived: Array<{ summary: string }> }>(r, 'results')),
   mailMessages: (filter: { application_id?: string; direction?: 'in' | 'out'; relevance?: 'job' | 'ignored' | 'unknown'; limit?: number } = {}) => {

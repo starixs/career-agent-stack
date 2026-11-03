@@ -16,6 +16,13 @@ export interface SiteAdapterHints {
   captchaIndicators?: string[]
   /** 字段别名：profile 键 → 该站常见 label 写法。 */
   fieldAliases?: Record<string, string[]>
+  /**
+   * 这个站的岗位详情页上，这些按钮只是打开网申表（要登录、要填表），不是一键投递。
+   * 只在页面上还没有表单字段、本次也没填过东西时当入口点；表单页上的同名按钮仍是最终提交，永远不点。
+   */
+  detailEntryWords?: string[]
+  /** 岗位详情链接的 href 样子（从首页 / 列表页挑岗位时只认这种链接）。 */
+  positionLink?: RegExp
 }
 
 export interface SiteAdapter {
@@ -24,6 +31,8 @@ export interface SiteAdapter {
   hints: SiteAdapterHints
   /** 进入表单前的预处理（关闭弹窗、切到表单 tab 等）。失败不应抛出。 */
   preprocess?(page: PageLike): Promise<void>
+  /** 站内岗位搜索的网址（首页 / 合集页 → 搜关键词）；认不出这个站的网址结构就返回 null。 */
+  positionSearchUrl?(url: string, keyword: string): string | null
 }
 
 export function hostOf(url: string): string {

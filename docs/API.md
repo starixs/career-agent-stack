@@ -27,7 +27,8 @@
 | GET / PUT | `/api/career/job-prefs` | 求职条件（届别 / 学历 / 城市 / 类型 / 方向词）；PUT 后重算全部匹配 |
 | POST | `/api/career/jobs/match` | `{job_ids?}` 重算匹配 |
 | POST | `/api/career/jobs/sync` | `{source:'campus'|'server'}` 同步校招汇总或服务端岗位库（契约见 SERVER-API.md），并重算匹配 |
-| POST | `/api/career/jobs/prepare` | `{job_ids, resume_id?}` 勾选的岗位加入待投清单（逐个冻结材料包 + fill_form 待审） |
+| POST | `/api/career/jobs/plan` | `{job_ids}` 框选确认前的计划：能开始的、标星数、跳过原因、要不要选简历 |
+| POST | `/api/career/jobs/apply` | `{job_ids, resume_id?}` 一次就开始：冻结材料包 + 批准 + 交后台批量运行器（没有待投清单） |
 | POST | `/api/career/export/workbook` | 导出求职表格（岗位汇总 / 投递进度 / 网申答案 / 题库）→ `{path, sheets}` |
 | GET / PUT | `/api/career/server-config` | 服务端地址与令牌（令牌只写不读） |
 | GET | `/api/career/questions?kind&source&company&q&weak_only=1` | 题库（R09） |
@@ -57,7 +58,6 @@
 | GET | `/api/career/offers` | offer[] |
 | POST/PUT | `/api/career/offers[/:id]` | 新建 / 更新 |
 | GET | `/api/career/answer-bank` | answer_bank[] |
-| POST | `/api/career/resumes/:id/confirm` | `{accepted_paths?: string[]}`：把 resume_tailor 的提案（只取勾选的 JSON Pointer 路径，缺省全部）应用到定制简历并确认；与 resume_confirm 工具共用 `career/tailor.ts`。对话内「简历改动」卡片用 |
 | GET / PUT | `/api/career/resumes/:id/studio` | 简历工作台文档（resume-studio `ResumeData`）。GET 回 `{data, content_updated_at, rebuilt, preview}`（preview：占位符 → 明文，只给预览用）；PUT `{data}` 回写内容并存排版 |
 | GET | `/api/career/cards?session_id=` | 该会话的对话内卡片（含 `toolUseId` 锚点与 `state`） |
 | POST | `/api/career/cards/:id/state` | `{state:'pending'|'completed'|'dismissed'}` 完成 / 稍后 / 重新打开 |
@@ -79,7 +79,6 @@
 | GET / POST | `/api/career/materials/uses` | 使用记录（`?application_id=&company_name=&material_id=`）/ `{material_id?, application_id?, company_name?, context, content_snapshot}` |
 | POST | `/api/career/materials/draft` | `{kind, question, length?, job_id?, application_id?, company_name?}` → 草稿 + conflicts（需模型） |
 | GET | `/api/career/review` | `{funnel: {overall, by_category, by_platform}, reviews}` |
-| POST | `/api/career/review/weekly` | `{week_start?, user_note?}` → 生成并保存周复盘（无模型时只存漏斗） |
 | GET / POST | `/api/career/mail/accounts` | 账号与预设 / 绑定 `{address, password?, provider?, display_name?, imap_host?, smtp_host?, verify?}`（立即同步一次验证） |
 | DELETE | `/api/career/mail/accounts/:id` | 解绑并删除本机授权码 |
 | POST | `/api/career/mail/connect` | 一键连接 `{provider: qq\|163\|126\|gmail, address?}` → `{session}`：产品浏览器打开官方页面，用户扫码登录后自动读授权码、IMAP 验证、绑定 |
@@ -157,8 +156,7 @@
 | `resume_master_create` | name?, direction?, basics?, education?, draft? | 创建主简历；缺省用 resume-draft 技能从已确认主张起草，basics / education 只搬运用户给的信息 |
 | `resume_get` | resume_id? | 读取简历完整 JSON（缺省唯一主简历） |
 | `resume_save` | resume_id?, resume \| patch | 按用户要求改简历并保存（先存快照） |
-| `resume_tailor` | master_id?, job_id, strength | 生成 JSON Patch 提案（不落库），返回 diff 摘要；master_id 缺省取唯一主简历 |
-| `resume_confirm` | tailored_id | 用户确认 diff 后落库 |
+| `resume_tailor` | master_id?, job_id, strength | 生成改动并直接写进新的定制简历（无审核），返回改动明细；master_id 缺省取唯一主简历 |
 | `resume_export` | resume_id, format | 导出并返回路径 |
 | `company_research` | company_name | intel-compass 九段报告 → company 表 |
 | `web_search` | query, count? | 唯一的外部动作 |
@@ -169,7 +167,7 @@
 | `jobs_board` | 筛选条件 | 岗位汇总表 + 可解释匹配（只推荐 fits=true 的） |
 | `jobs_sync` | source: campus / server | 同步岗位并重算匹配 |
 | `job_prefs` | cohort / degree / cities / employment_types / keywords | 查看 / 设置求职条件（硬条件） |
-| `jobs_prepare` | job_ids, resume_id? | 多个岗位一次加入待投清单 |
+| `jobs_apply` | job_ids, resume_id? | 投这几个岗位：一次就开始，后台批量填到提交前 |
 | `question_bank` | kind / source / company / q / weak_only | 查题库（见过次数、最近 / 最好得分） |
 | `question_add` | questions[], company_name?, source? | 补录用户见过的题（原题） |
 | `question_attempt` | question_id, answer_text, score, feedback? | 记一次作答与评分，返回分数趋势 |
@@ -191,7 +189,7 @@
 | `dossier_note_add` | application_id, kind, round?, content | 说过的 / 听到的 / 联系人 |
 | `application_set_stage` | application_id, stage, note? | 沿状态机合法路径推进或关闭 |
 | `material_list` / `material_draft` / `material_save` / `material_use_record` | … | 素材库：复用优先 + 一致性核对 |
-| `weekly_review` | week_start?, user_note? | 漏斗 + 代理反馈 + 一个小动作 |
+| `month_review` | — | 对话里放一张「我的求职月」卡（本月四个数），点开到漏斗页 |
 | `mail_accounts` / `mail_sync` / `mail_list` | – / account_id? / application_id? | 邮箱（绑定在面板完成，授权码不进对话） |
 | `mail_compose` | to, job_id \| application_id, resume_id?, notes? | 起草投递邮件（可附简历 PDF）并入待审队列 `send_mail` |
 

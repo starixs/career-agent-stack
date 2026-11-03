@@ -7,25 +7,28 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { careerApi, safeJson } from '@/components/career/careerApi';
 import { ACTION_KIND_LABELS } from '@/components/career/careerConstants';
+import { AttendanceButtons } from '@/components/career/AttendanceButtons';
 import { BatchProgressCard, useBatchState } from '@/components/career/CareerFlowCards';
 import {
   Badge, Button, CareerPage, Card, ChatActionButton, DueLabel, ErrorRow, LoadingRow, Select, TextArea, formatDate,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
+import { requestNavigation } from '@/features/career-shell/navModel';
+import { takeCareerFocus } from '@/features/career-shell/pendingFocus';
 import { isManualSend, isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
 import { ManualSendText } from '@/components/career/ManualSendText';
 import { StrikeText } from '@/components/career/StrikeText';
 import { SubmitReviewList, approvalLabel } from '@/components/career/SubmitReviewList';
 import type {
-  ActionQueueItem, CareerFocusEvent, Deadline, DossierSummary, InboxItem, IntakeResult, MailAccount, MailPreset, SubmitReviewSummary,
+  ActionQueueItem, CareerFocusEvent, Deadline, DossierSummary, InboxItem, IntakeResult, SubmitReviewSummary,
 } from '@/components/career/types';
-import { BindMailForm, MailAccountRow } from '@/components/career/MailBinding';
+import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 
-const INBOX_TABLES = ['inbox_item', 'mail_message', 'mail_account'] as const;
-const MAIL_TABLES = ['mail_account', 'mail_message'] as const;
+// deadline：信带来的事做完后，这封信要折进「已处理」
+const INBOX_TABLES = ['inbox_item', 'mail_message', 'mail_account', 'deadline'] as const;
 const DOSSIER_TABLES = ['application', 'job'] as const;
 const ACTION_TABLES = ['action_queue'] as const;
 const DEADLINE_TABLES = ['deadline'] as const;
@@ -41,12 +44,11 @@ const FILTERS: Filter[] = ['all', 'mail', 'review', 'batch', 'remind'];
 
 const SOURCE_LABELS: Record<InboxItem['source'], string> = { paste: '粘贴', mail: '邮件', file: '文件', url: '链接', chat: '对话' };
 const KIND_LABELS: Record<string, string> = {
-  jd: '岗位 JD', interview_invite: '面试邀请', assessment: '测评', written_test: '笔试', rejection: '拒信', offer: 'Offer', referral: '内推', deadline: '截止提醒', other: '未识别',
+  jd: '岗位 JD', application_received: '投递确认', interview_invite: '面试邀请', assessment: '测评', written_test: '笔试', rejection: '拒信', offer: 'Offer', referral: '内推', deadline: '截止提醒', other: '未识别',
 };
 const LINKED_TYPE_LABELS: Record<string, string> = { application: '投递', interview: '面试', offer: 'Offer', job: '岗位', deadline: '截止', inbox_item: '收件' };
 const PREVIEW_LIMIT = 160;
 
-export { detectProvider, relativeTime } from '@/components/career/MailBinding';
 
 /** 待批准动作的一句话摘要（与投递页同一套取字段顺序）。 */
 export function actionSummary(action: ActionQueueItem): string {
@@ -71,14 +73,13 @@ export function isDueSoon(d: Deadline, now: Date = new Date()): boolean {
 type FeedEntry =
   | { type: 'mail'; key: string; at: string; item: InboxItem }
   | { type: 'review'; key: string; at: string; action: ActionQueueItem; confirm?: boolean; manual?: boolean }
-  | { type: 'remind'; key: string; at: string; deadline: Deadline };
+  | { type: 'remind'; key: string; at: string; deadline: Deadline; past: boolean };
 
 /** 本地处理过的条目：批准后原地变成「已发送 · 10:42」，不跳走（7.2）。 */
 interface Resolved { label: string; at: string }
 
 export default function CareerInbox({ embedded = false }: CareerPageProps) {
   const inbox = useCareerQuery(careerApi.inbox, INBOX_TABLES);
-  const mail = useCareerQuery(careerApi.mailAccounts, MAIL_TABLES);
   const dossiers = useCareerQuery(careerApi.dossiers, DOSSIER_TABLES);
   const pending = useCareerQuery(careerApi.pendingActions, ACTION_TABLES);
   const needsUser = useCareerQuery(() => careerApi.actionsNeedingUser().catch(() => []), ACTION_TABLES);
@@ -89,21 +90,17 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   const showBatch = !!batch && (batch.status === 'running' || batch.status === 'paused');
 
   const [filter, setFilter] = useState<Filter>('all');
-  const [showDismissed, setShowDismissed] = useState(false);
-  const [highlightId, setHighlightId] = useState<string | null>(null);
+  // 从小芽面板 / 对话点进来时，聚焦事件可能在本页挂载前就发了（App 先暂存）：挂载时取走
+  const [highlightId, setHighlightId] = useState<string | null>(() => takeCareerFocus('inbox')?.id ?? null);
   // 本次会话里处理掉的条目留在原位（服务端刷新后它们会从列表里消失）。
   const [resolved, setResolved] = useState<ReadonlyMap<string, Resolved>>(() => new Map());
   const [kept, setKept] = useState<ReadonlyMap<string, FeedEntry>>(() => new Map());
-  const itemsRef = useRef<InboxItem[]>([]);
-  useEffect(() => { itemsRef.current = inbox.data ?? []; });
 
   useEffect(() => onEvent<CareerFocusEvent>('career:focus', payload => {
     if (payload?.surface !== 'inbox') return;
     if (!payload.id) return;
-    const id = payload.id;
-    setHighlightId(id);
+    setHighlightId(payload.id);
     setFilter('all');
-    if (itemsRef.current.find(it => it.id === id)?.status === 'dismissed') setShowDismissed(true);
   }), []);
 
   const appLabel = useMemo(() => {
@@ -114,13 +111,14 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   const entries = useMemo(() => {
     const now = new Date();
     const list: FeedEntry[] = [];
-    for (const item of inbox.data ?? []) if (item.status !== 'dismissed') list.push({ type: 'mail', key: `mail:${item.id}`, at: item.created_at, item });
+    // 处理完的信（已归档、带来的事也都做完）折进「已处理」，不占「全部」的数字
+    for (const item of inbox.data ?? []) if (item.status !== 'dismissed' && !item.settled) list.push({ type: 'mail', key: `mail:${item.id}`, at: item.created_at, item });
     for (const action of pending.data ?? []) list.push({ type: 'review', key: `review:${action.id}`, at: action.created_at, action });
     for (const action of needsUser.data ?? []) {
       if (action.kind === 'submit') list.push({ type: 'review', key: `confirm:${action.id}`, at: action.updated_at, action, confirm: true });
       else if (isManualSend(action)) list.push({ type: 'review', key: `manual:${action.id}`, at: action.updated_at, action, manual: true });
     }
-    for (const d of deadlines.data ?? []) if (isDueSoon(d, now)) list.push({ type: 'remind', key: `remind:${d.id}`, at: d.created_at, deadline: d });
+    for (const d of deadlines.data ?? []) if (isDueSoon(d, now)) list.push({ type: 'remind', key: `remind:${d.id}`, at: d.created_at, deadline: d, past: !!d.due_at && Date.parse(d.due_at) < now.getTime() });
     const seen = new Set(list.map(e => e.key));
     for (const [key, entry] of kept) if (!seen.has(key)) list.push(entry);
     return list.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
@@ -133,6 +131,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   }, [entries, showBatch]);
   const visible = filter === 'all' ? entries : entries.filter(e => e.type === filter);
   const dismissed = useMemo(() => (inbox.data ?? []).filter(it => it.status === 'dismissed'), [inbox.data]);
+  const settled = useMemo(() => (inbox.data ?? []).filter(it => it.status !== 'dismissed' && it.settled), [inbox.data]);
 
   const resolve = (entry: FeedEntry, label: string) => {
     setResolved(prev => new Map(prev).set(entry.key, { label, at: new Date().toISOString() }));
@@ -182,32 +181,22 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
                   <ReviewRow entry={entry} label={appLabel(entry.action.application_id)} resolved={resolved.get(entry.key)} onResolved={label => { resolve(entry, label); reloadFeed(); }} />
                 )}
                 {entry.type === 'remind' && (
-                  <RemindRow deadline={entry.deadline} label={entry.deadline.application_id ? appLabel(entry.deadline.application_id) : null} resolved={resolved.get(entry.key)} onResolved={label => { resolve(entry, label); reloadFeed(); }} />
+                  <RemindRow deadline={entry.deadline} past={entry.past} label={entry.deadline.application_id ? appLabel(entry.deadline.application_id) : null} resolved={resolved.get(entry.key)} onResolved={label => { resolve(entry, label); reloadFeed(); }} />
                 )}
               </li>
             ))}
           </ul>
-          {dismissed.length > 0 && (filter === 'all' || filter === 'mail') && (
-            <div className="mt-3">
-              <button type="button" onClick={() => setShowDismissed(s => !s)} className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--ink)] hover:underline">
-                {showDismissed ? '收起已忽略的' : `看已忽略的 ${dismissed.length} 条`}
-              </button>
-              {showDismissed && (
-                <ul className="mt-2 divide-y divide-[var(--line)]">
-                  {dismissed.map(item => (
-                    <li key={item.id} className="py-3">
-                      <InboxRow item={item} dossiers={dossiers.data ?? []} highlighted={item.id === highlightId} onChanged={inbox.reload} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+          {(filter === 'all' || filter === 'mail') && (
+            <>
+              <FoldedMail label="已处理的" unit="封" items={settled} dossiers={dossiers.data ?? []} highlightId={highlightId} onCollapse={() => setHighlightId(null)} onChanged={inbox.reload} />
+              <FoldedMail label="已忽略的" unit="条" items={dismissed} dossiers={dossiers.data ?? []} highlightId={highlightId} onCollapse={() => setHighlightId(null)} onChanged={inbox.reload} />
+            </>
           )}
         </section>
 
         <section aria-label="丢进来" className="space-y-6 border-t border-[var(--line)] pt-6">
           <CaptureBox onCaptured={inbox.reload} />
-          <MailSection accounts={mail.data?.accounts ?? []} presets={mail.data?.presets ?? {}} loading={mail.loading && !mail.data} error={mail.error} onChanged={mail.reload} />
+          <MailSection />
         </section>
       </div>
       <PageAskBar target={{ kind: 'career-inbox' }} placeholder="问问这些通知，比如「哪封邮件要我回」" />
@@ -294,20 +283,29 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
   );
 }
 
-function RemindRow({ deadline, label, resolved, onResolved }: { deadline: Deadline; label: string | null; resolved?: Resolved; onResolved: (label: string) => void }) {
+function RemindRow({ deadline, past, label, resolved, onResolved }: { deadline: Deadline; past: boolean; label: string | null; resolved?: Resolved; onResolved: (label: string) => void }) {
   const act = useCareerAction();
+  // 过了时间的笔试 / 测评：问「考了吗」，不标红「已过期」（面试过了时间走复盘，不问）
+  const question = deadline.attendance_question ?? null;
   return (
     <div>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <TypeLabel type="remind" />
         {label && <span className="text-xs text-[var(--muted)]">{label}</span>}
-        <span className="ml-auto text-xs tabular-nums">{resolved ? <span className="text-[var(--success)]">{`${resolved.label} · ${hhmm(resolved.at)}`}</span> : <DueLabel at={deadline.due_at} />}</span>
+        <span className="ml-auto text-xs tabular-nums">{resolved ? <span className="text-[var(--success)]">{`${resolved.label} · ${hhmm(resolved.at)}`}</span> : !question && <DueLabel at={deadline.due_at} />}</span>
       </div>
-      <div className="mt-1 text-sm"><StrikeText done={!!resolved} animate className={resolved ? '' : 'font-medium text-[var(--ink)]'}>{deadline.title}</StrikeText></div>
+      <div className="mt-1 text-sm"><StrikeText done={!!resolved} animate className={resolved ? '' : 'font-medium text-[var(--ink)]'}>{question ? `${deadline.title}：${question}` : deadline.title}</StrikeText></div>
       {act.error && <ErrorRow message={act.error} />}
       {!resolved && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>
+          {/* 面试是要去参加的时间，不是要「完成」的待办：没到时间是准备，过了时间是复盘（同一个位置，不加按钮） */}
+          {question
+            ? <AttendanceButtons deadlineId={deadline.id} kind={deadline.kind} onAnswered={onResolved} />
+            : deadline.kind === 'interview' && past
+              ? <Button size="sm" variant="secondary" onClick={() => requestNavigation({ kind: 'career-dossier', view: 'interview' })}>面完了？去复盘</Button>
+              : deadline.kind === 'interview'
+                ? <ChatActionButton size="sm" variant="secondary" text="帮我准备这场面试" context={{ surface: 'inbox', refs: deadline.application_id ? { application_id: deadline.application_id } : { deadline_id: deadline.id } }} />
+                : <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>}
           {deadline.application_id && (
             <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: deadline.application_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
           )}
@@ -356,24 +354,38 @@ function CaptureBox({ onCaptured }: { onCaptured: () => void }) {
   );
 }
 
-function MailSection({ accounts, presets, loading, error, onChanged }: {
-  accounts: MailAccount[]; presets: Record<string, MailPreset>; loading: boolean; error: string | null; onChanged: () => void;
-}) {
-  const [showBind, setShowBind] = useState(false);
-  const [bindResult, setBindResult] = useState<string | null>(null);
+/** 邮箱连接：连接中心（mail-connect/）统一负责连接、状态、管理。 */
+function MailSection() {
   return (
-    <Card title="邮箱同步" extra={<Button variant="ghost" size="sm" onClick={() => setShowBind(s => !s)}>{showBind ? '收起' : '绑定邮箱'}</Button>}>
-      {error && <ErrorRow message={error} onRetry={onChanged} />}
-      {bindResult && <div role="status" className="mb-2 text-xs text-[var(--success)]">{bindResult}</div>}
-      {loading && <LoadingRow />}
-      {!loading && accounts.length === 0 && !showBind && (
-        <div className="text-sm text-[var(--muted)]">还没有绑定邮箱。绑定后面试邀请、笔试测评、拒信会自动进通知中心，你不用天天刷。</div>
-      )}
-      <ul className="divide-y divide-[var(--line)]">
-        {accounts.map(acc => <MailAccountRow key={acc.id} account={acc} preset={presets[acc.provider]} onChanged={onChanged} />)}
-      </ul>
-      {showBind && <BindMailForm presets={presets} onBound={message => { setBindResult(message); setShowBind(false); onChanged(); }} />}
+    <Card title="邮箱连接">
+      <MailConnectCenter />
     </Card>
+  );
+}
+
+/** 收起来的一组信（已处理 / 已忽略）：要定位的那条在里面就自动展开；用户点「收起」时连定位一起放下。 */
+function FoldedMail({ label, unit, items, dossiers, highlightId, onCollapse, onChanged }: {
+  label: string; unit: string; items: InboxItem[]; dossiers: DossierSummary[]; highlightId: string | null; onCollapse: () => void; onChanged: () => void;
+}) {
+  const [show, setShow] = useState(false);
+  if (items.length === 0) return null;
+  const open = show || (!!highlightId && items.some(it => it.id === highlightId));
+  const toggle = () => { if (open) { setShow(false); onCollapse(); } else setShow(true); };
+  return (
+    <div className="mt-3">
+      <button type="button" onClick={toggle} className="text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--ink)] hover:underline">
+        {open ? `收起${label}` : `看${label} ${items.length} ${unit}`}
+      </button>
+      {open && (
+        <ul className="mt-2 divide-y divide-[var(--line)]">
+          {items.map(item => (
+            <li key={item.id} className="py-3">
+              <InboxRow item={item} dossiers={dossiers} highlighted={item.id === highlightId} onChanged={onChanged} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

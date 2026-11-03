@@ -1,3 +1,4 @@
+import { basename } from 'node:path'
 import { createHash } from 'node:crypto'
 import type { PageLike } from './page.js'
 import { extractFields, type FormField } from './extract.js'
@@ -91,8 +92,13 @@ export async function buildSubmitReview(page: PageLike, all: { filled: FilledRec
   for (const p of all.drafts) add({ fieldId: p.fieldId, label: p.label, required: !!fields.find(f => f.id === p.fieldId)?.required, status: 'draft', value: p.value, source: 'draft', reason: '开放题草稿，确认后才会填' })
   for (const u of all.uploads) if (!u.echoed) add({ fieldId: u.fieldId, label: `附件：${u.file}`, required: true, status: 'upload_unconfirmed', reason: u.evidence ?? '页面没有出现上传成功提示' })
   // 当前页：必填但为空（含驱动没碰过的字段）；选填空值单独标 empty_optional，不再算 ok
+  // 文件格子读不出值（input[type=file] 上传后不回显路径）：以上传回显记录为准，不报「选填，留空」（2026-10-31 小鹏）
+  const fileFields = fields.filter(f => f.isFile)
+  const echoedFor = (f: FormField) => all.uploads.find(u => u.echoed && u.fieldId === f.id) ?? (fileFields.length === 1 ? all.uploads.find(u => u.echoed) : undefined)
   for (const f of fields) {
     if (seen.has(f.id)) continue
+    const upload = f.isFile ? echoedFor(f) : undefined
+    if (upload) { add({ fieldId: f.id, label: f.label, required: f.required, status: 'ok', verified: true, value: basename(upload.file), source: 'profile' }); continue }
     const empty = f.type === 'checkbox' ? f.value !== 'true' : !(f.value ?? '').trim()
     const filled = all.filled.find(r => r.fieldId === f.id)
     if (f.required && empty) add({ fieldId: f.id, label: f.label, required: true, status: 'empty', reason: '必填项还是空的', labelUncertain: f.labelUncertain })

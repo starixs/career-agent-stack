@@ -67,6 +67,9 @@ describe('投递材料包', () => {
     expect(unresolved.path!.endsWith('/通用版-算法推荐 实习-乙 公司.pdf')).toBe(true);
     expect(readableResumeFileName({ resumeName: '通用版', jobTitle: '未命名岗位', company: null })).toBe('通用版.pdf');
     expect(readableResumeFileName({})).toBe('简历.pdf');
+    // 岗位库的合集标题不是一个岗位：用简历的求职方向（2026-10-31 小鹏）
+    expect(readableResumeFileName({ person: '林知远', jobTitle: '智能研发类 汽车研发类 测试类 等8个岗位', company: '小鹏', direction: '后端开发 / 数据开发 / AI 应用开发' })).toBe('林知远-后端开发-小鹏.pdf');
+    expect(readableResumeFileName({ person: '林知远', jobTitle: '软件类 / 通信类 / IC类', company: '联发科技' })).toBe('林知远-联发科技.pdf');
     expect(readableResumeFileName({ person: '../王五', jobTitle: '后端\n开发', company: 'a:b' })).toBe('王五-后端 开发-ab.pdf');
   });
 

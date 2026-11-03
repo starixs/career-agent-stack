@@ -25,7 +25,7 @@ describe('page surface ids', () => {
     const reminder = buildCareerContextReminder({ surface: id });
     expect(careerContextSurface(`${reminder}\n\n帮我筛一下`)).toBe(id);
     expect(parsePageSurface(id)).toEqual({ kind: 'career-dossier', view: 'apply' });
-    expect(pageLabel({ kind: 'career-dossier', view: 'apply' })).toBe('岗位收藏');
+    expect(pageLabel({ kind: 'career-dossier', view: 'apply' })).toBe('岗位库');
   });
 
   it('ignores surfaces that are not pages', () => {
@@ -49,6 +49,19 @@ describe('return cards', () => {
     ]);
     expect([...targets.keys()]).toEqual(['a3']);
     expect(targets.get('a3')?.target).toEqual({ kind: 'career-today' });
+  });
+
+  it('page buttons (「帮我准备这场面试」) carry the panel surface, not page:…; they get a way back too, chat cards do not', () => {
+    const fromButton = `${buildCareerContextReminder({ surface: 'today', refs: { application_id: 'a1' } })}\n\n帮我准备这场面试`;
+    const fromChatCard = `${buildCareerContextReminder({ surface: 'apply', refs: { action_id: 'x' } })}\n\n继续`;
+    const targets = pageReturnTargets([
+      msg('u1', 'user', fromButton),
+      msg('a1', 'assistant', '好的'),
+      msg('u2', 'user', fromChatCard),
+      msg('a2', 'assistant', '继续填'),
+    ]);
+    expect([...targets.keys()]).toEqual(['a1']);
+    expect(targets.get('a1')?.target).toEqual({ kind: 'career-today' });
   });
 
   it('reads the whole turn: a deadline written in an earlier assistant message shows up as 已更新 with its title and date', () => {

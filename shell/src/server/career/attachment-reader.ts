@@ -236,8 +236,13 @@ async function viaSheet(abs: string): Promise<{ text: string; pages: number }> {
 
 /** pdf.js 文本层，按 hasEOL 还原换行，保留页边界。 */
 async function viaPdfText(abs: string): Promise<{ text: string; pages: number; pageTexts: string[] }> {
+  return pdfBytesToText(new Uint8Array(readFileSync(abs)));
+}
+
+/** 同上，直接吃字节（网页直取到的 PDF 用这个，不落盘）。 */
+export async function pdfBytesToText(data: Uint8Array): Promise<{ text: string; pages: number; pageTexts: string[] }> {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(readFileSync(abs)), useWorkerFetch: false, disableFontFace: true, useSystemFonts: false, verbosity: 0 } as Parameters<typeof pdfjs.getDocument>[0]).promise;
+  const doc = await pdfjs.getDocument({ data, useWorkerFetch: false, disableFontFace: true, useSystemFonts: false, verbosity: 0 } as Parameters<typeof pdfjs.getDocument>[0]).promise;
   const pageTexts: string[] = [];
   try {
     for (let i = 1; i <= doc.numPages; i++) {
@@ -430,6 +435,13 @@ export function convertAttachment(abs: string, cwd: string, deps: ConvertDeps): 
   return task;
 }
 
+/** 文件名带「简历 / resume / CV」，或正文同时有教育和经历段落：多半是用户自己的简历。 */
+const RESUME_NAME_RX = /简历|resume|\bcv\b/i;
+export function looksLikeResume(name: string, text: string): boolean {
+  if (RESUME_NAME_RX.test(name)) return true;
+  return /教育(背景|经历)/.test(text) && /(实习|工作|项目)经[历验]/.test(text);
+}
+
 /** 拼给模型看的上下文；没有需要转换的附件时返回 null。 */
 export function renderAttachmentContext(files: AttachmentText[]): string | null {
   if (!files.length) return null;
@@ -453,7 +465,8 @@ export function renderAttachmentContext(files: AttachmentText[]): string | null 
       shown,
       clipped ? `\n…（后面还有约 ${f.text.length - limit} 字没放进来；需要时用 Read 读 ${f.convertedPath}，用 offset/limit 分段）` : '',
       '</attached-file>',
-    ].join('\n');
+      looksLikeResume(f.name, f.text) ? `这份看起来是用户自己的简历：调用 resume_import(path="${f.path}") 一次收进来（基本信息进私密库、经历进经历库、出一张卡点一下生成主简历）。不要在对话里复述简历内容，也不要追问简历上已有的信息。` : '',
+    ].filter(Boolean).join('\n');
   });
   return [
     '用户这条消息带了文件，系统已在本地把它们转成文字，内容就在下面。直接根据内容回答；'

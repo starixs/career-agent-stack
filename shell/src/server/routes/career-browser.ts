@@ -59,6 +59,10 @@ export interface ApplyEngineModule {
   composePerceivers?: (perceivers: PerceiverLike[], id?: string) => PerceiverLike;
   synthesizeInputsFromLabels?: (p: unknown) => unknown;
   VlmPerceiver?: new (llm: LlmLike, base?: PerceiverLike) => PerceiverLike;
+  /** 提交词 / 入口词判断与站点适配器（自主找路的点击闸用）。 */
+  isSubmitText?: (text: string) => boolean;
+  isEntryText?: (text: string, adapter?: unknown) => boolean;
+  pickAdapter?: (url: string) => unknown;
   /** 提交执行器（只在 submit 动作被批准后调用）。 */
   submitApplication?: (page: ApplyPageLike, options?: Record<string, unknown>) => Promise<Record<string, unknown> & { screenshot?: Uint8Array }>;
 }
@@ -148,10 +152,15 @@ export async function defaultPerceiver(apply: ApplyEngineModule, page: ApplyPage
 /** 缺省资料组装：basics 来自私密库（兜底 kv:profile.basics），经历 / 答案库来自 Repos；三个钩子都绑到私密库。 */
 export async function defaultDriveProfile(body: Record<string, unknown>, apply: ApplyEngineModule, llm: LlmLike): Promise<DriveProfileBundle | null> {
   if (typeof apply.ApplyService !== 'function') return null;
-  const [{ getRepos }, { getVault }] = await Promise.all([import('../career/db'), import('../career/vault')]);
-  const [repos, vault] = await Promise.all([getRepos(), getVault()]);
+  const [{ getRepos }, { getVault }, { loadCore }, { CareerStore }, { educationFromMaster, educationRows, withResumeEducation }, { backfillExperienceKinds }] = await Promise.all([
+    import('../career/db'), import('../career/vault'), import('../career/core-module'), import('../career/store'), import('../career/resume-education'), import('../career/resume-intake'),
+  ]);
+  const [repos, vault, core] = await Promise.all([getRepos(), getVault(), loadCore()]);
+  backfillExperienceKinds(repos);
   const resumePath = typeof body.resumePath === 'string' && body.resumePath.trim() ? body.resumePath.trim() : undefined;
   const profile = new apply.ApplyService(repos, llm, { vault }).buildProfile(resumePath);
+  // 教育经历的起止时间只在主简历里：按学校补齐（resume-education.ts）
+  profile.education = withResumeEducation(educationRows(profile.education), educationFromMaster(new CareerStore(repos, core).listResumeMasters()[0]));
   const purpose = typeof body.applicationId === 'string' ? `网申填表 ${body.applicationId}` : '网申填表';
   return {
     profile,
@@ -432,6 +441,14 @@ async function runBrowse(body: Record<string, unknown>, context: BrowserContext,
       out.emit({ type: 'result', op: 'browse', action, receipt: rest, ...(observation ? { observation } : {}) });
       return;
     }
+    if (action === 'solve_captcha') {
+      await runSolveCaptcha(page, out, deps);
+      return;
+    }
+    if (action === 'wait_user') {
+      await runWaitUser(body, page, out, deps);
+      return;
+    }
     if (action === 'read') {
       const r = await browse.read(page, typeof body.offset === 'number' ? body.offset : 0, typeof body.length === 'number' ? Math.min(body.length, 8000) : 4000);
       out.emit({ type: 'result', op: 'browse', action, read: r });
@@ -441,6 +458,116 @@ async function runBrowse(body: Record<string, unknown>, context: BrowserContext,
   } catch (error) {
     out.emit({ type: 'error', status: 500, code: 'BROWSE_FAILED', error: error instanceof Error ? error.message : String(error) });
   }
+}
+
+/** LlmLike 的返回是 unknown：在边界上确认有 text 再交给解题器。 */
+/** 首页 / 合集页上去找哪种岗位：按这份申请的岗位和用户的求职方向（position-target.ts）。取不到就不找。 */
+async function positionTargetForBody(body: Record<string, unknown>) {
+  if (typeof body.applicationId !== 'string' || !body.applicationId) return null;
+  try {
+    const [{ getRepos }, { getJobPrefs }, { positionTargetFor }] = await Promise.all([import('../career/db'), import('../career/job-board'), import('../career/position-target')]);
+    const repos = await getRepos();
+    const app = repos.getApplication(body.applicationId);
+    return positionTargetFor(getJobPrefs(repos), (app && repos.getJob(app.job_id)) ?? null);
+  } catch (error) {
+    console.warn(`[career-browser] position target unavailable application=${body.applicationId}: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
+
+/** 内置找路走不通时的自主找路（GA 式循环，face-ga-port 已定）。引擎缺判断函数时不开。 */
+async function pathfinderForBody(applicationId: string, context: BrowserContext, page: Page, apply: ApplyEngineModule, llm: LlmLike, deps: CareerBrowserRouteDependencies) {
+  const { isSubmitText, isEntryText, pickAdapter } = apply;
+  if (!isSubmitText || !isEntryText || !pickAdapter) return null;
+  const [{ pathfinderFor }, vault] = await Promise.all([import('../career/pathfinder-host'), import('../career/vault').then(m => m.getVault()).catch(() => null)]);
+  return pathfinderFor({
+    context, page, applicationId, llm, isSubmitText,
+    isEntryText: (text, url) => isEntryText(text, pickAdapter(url)),
+    resolveVault: vault ? (t: string) => vault.resolve(t, { actor: 'form_fill', purpose: `自主找路 ${applicationId}` }) : undefined,
+    focusPage: p => deps.focusPage?.(p, false),
+    log: msg => console.log(`[career] ${msg}`),
+  });
+}
+
+function visionLlm(llm: LlmLike): import('../career/captcha-solver').VisionLlm {
+  return {
+    async complete(request) {
+      const res = await llm.complete(request);
+      const text = res && typeof res === 'object' && 'text' in res && typeof res.text === 'string' ? res.text : null;
+      if (text === null) throw new Error('视觉模型返回里没有 text');
+      return { text };
+    },
+  };
+}
+
+/** 浏览器环境检查（Cloudflare 一类）不用解，等它自己放行。 */
+const BROWSER_CHECK_WAIT_MS = 6000;
+
+/**
+ * 简单验证码 AI 自己过：图形字 / 点选 / 滑块（captcha-solver.ts）。短信码、认不出的类型回 needs_user，
+ * 由模型转 browser_wait_user 请用户帮一下。
+ */
+async function runSolveCaptcha(page: Page, out: RunEmitter, deps: CareerBrowserRouteDependencies): Promise<void> {
+  const browse = await import('../career/browse');
+  const { hintSampleInPage } = await import('../career/browse-handoff');
+  const solver = await import('../career/captcha-solver');
+  const apply = await (deps.loadApply ?? loadApplyModule)();
+  const blocked = async () => { const h = browse.detectHints(await browse.inPage(page, hintSampleInPage, null), []); return h.includes('captcha') || h.includes('risk'); };
+  const sample = await browse.inPage(page, hintSampleInPage, null);
+  const classify = (apply as unknown as { classifyCaptcha?: (s: { title: string; text: string }) => string } | null)?.classifyCaptcha;
+  const kind = classify ? classify({ title: await page.title().catch(() => ''), text: sample.bodySample }) : 'unknown';
+  const finish = async (captcha: Record<string, unknown>) => {
+    console.log(`[career-browser] solve-captcha kind=${kind} status=${String(captcha.status)} attempts=${String(captcha.attempts ?? 0)}`);
+    const observation = await browse.observe(page.context(), page, { isSubmitText: () => false }).catch(() => null);
+    out.emit({ type: 'result', op: 'browse', action: 'solve_captcha', captcha: { kind, ...captcha }, ...(observation ? { observation } : {}) });
+  };
+  if (kind === 'browser_check') {
+    await page.waitForTimeout(BROWSER_CHECK_WAIT_MS);
+    return finish({ status: (await blocked()) ? 'needs_user' : 'solved', attempts: 1, steps: ['等环境检查自己放行'] });
+  }
+  if (kind !== 'image_text' && kind !== 'image_click' && kind !== 'slider') return finish({ status: 'needs_user', attempts: 0, steps: [`${kind} 类验证要本人处理`] });
+  const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
+  if (!llm || (llm.supportsImages && !llm.supportsImages())) return finish({ status: 'needs_user', attempts: 0, steps: ['当前模型看不了图'] });
+  out.emit({ type: 'progress', phase: 'solve_captcha', message: '正在自己过验证码' });
+  const { overlayMarks } = await import('../career/captcha-overlay');
+  const result = await solver.solveCaptcha(page, kind, { llm: visionLlm(llm), overlay: overlayMarks }, blocked);
+  return finish(result.status === 'solved' ? result : { ...result, status: 'needs_user' });
+}
+
+/**
+ * 请用户帮一下（扫码登录、短信码……），做完接着办：现场画面切到这一页，盯着挡路的东西消失或用户交还。
+ * 用户此时多半在接管（control=human），所以这一个操作在接管期间也放行（见 handleCareerBrowserRoute）。
+ */
+async function runWaitUser(body: Record<string, unknown>, page: Page, out: RunEmitter, deps: CareerBrowserRouteDependencies): Promise<void> {
+  const { waitForUser, WAIT_USER_DEFAULT_MS, WAIT_USER_MAX_MS } = await import('../career/browse-handoff');
+  const browse = await import('../career/browse');
+  deps.focusPage?.(page, true);
+  const what = typeof body.what === 'string' ? body.what : '请在浏览器里处理一下';
+  out.emit({ type: 'progress', phase: 'wait_user', message: what });
+  const sessionKey = deps.productSessionId ?? 'default';
+  let sawHuman = deps.host.getControl(sessionKey).control === 'human';
+  const blocking = Array.isArray(body.blocking) ? body.blocking.filter((h): h is import('../career/browse').Hint => ['login', 'captcha', 'risk'].includes(String(h))) : [];
+  // 等登录：数据层（新会话凭证 + 登录接口返回）和画面两路一起看（用户 2026-10-30：要看数据层，不止看画面）
+  const watch = blocking.includes('login') ? await (await import('../career/login-watch')).watchLogin(page) : null;
+  const outcome = await waitForUser(page, {
+    blocking,
+    ...(watch ? { login: () => watch.check() } : {}),
+    timeoutMs: clampNumber(body.timeoutMs, WAIT_USER_DEFAULT_MS, 5_000, WAIT_USER_MAX_MS),
+    handedBack: () => {
+      const human = deps.host.getControl(sessionKey).control === 'human';
+      if (human) sawHuman = true;
+      return sawHuman && !human;
+    },
+  });
+  watch?.stop();
+  // 记下这个站的凭证名：下次登录之旅切到它之前先查，还有效就不用你再登
+  if (watch?.site && outcome.credentials?.length) {
+    const [{ learnLoginMarks }, { getRepos }] = await Promise.all([import('../career/login-signal'), import('../career/db')]);
+    learnLoginMarks(await getRepos(), watch.site, outcome.credentials);
+  }
+  console.log(`[career-browser] wait-user status=${outcome.status} signal=${outcome.signal ?? '-'} waited_ms=${outcome.waited_ms} blocking=${blocking.join('|') || 'url'}`);
+  const observation = outcome.status === 'page_closed' ? null : await browse.observe(page.context(), page, { isSubmitText: () => false }).catch(() => null);
+  out.emit({ type: 'result', op: 'browse', action: 'wait_user', wait: outcome, ...(observation ? { observation } : {}) });
 }
 
 export async function runOperation(
@@ -552,7 +679,10 @@ export async function runOperation(
       }
     }
     if (!bundle) {
-      out.emit({ type: 'error', status: 400, error: 'drive 需要填表资料：请在「私密信息」页填写基本信息，或传 profile 对象（basics / experiences / answerBank）' });
+      // 只有填表引擎没加载上才会走到这里：是产品问题，不是用户资料的问题——不让用户去别的页面补东西（立场 9）。
+      // 503 让批量运行器当暂时不可用放回队列，稍后自动重试
+      console.error('[career-browser] drive FAILED: apply engine unavailable (ApplyService missing)');
+      out.emit({ type: 'error', status: 503, code: 'APPLY_ENGINE_UNAVAILABLE', error: '填表引擎暂时没加载上，这是产品这边的问题，稍后会自动重试；不要让用户去任何页面补资料，告诉他一句「这份稍后自动接着填」即可。' });
       return;
     }
     const redact = bundle.redact ?? (<T,>(v: T) => v);
@@ -561,7 +691,9 @@ export async function runOperation(
       // 慢站首次加载超时很常见：单次 goto 失败不判死（详见 browse.ts navigateWithRetry）。
       // 这里失败给模型的是"可恢复"指引而不是裸错误，避免它直接跟用户说打不开。
       try {
-        const { navigateWithRetry } = await import('../career/browse');
+        const [{ navigateWithRetry }, { restoreSessionCookies }] = await Promise.all([import('../career/browse'), import('../career/session-cookies')]);
+        // 重启过的话，上次登上时记下的会话 Cookie 先补回去，免得又要扫码（face-ga-port：登录态要保住）
+        await restoreSessionCookies(context, url).catch(e => console.warn(`[career-browser] session-cookies restore skipped url=${url}`, e instanceof Error ? e.message : e));
         await navigateWithRetry(page, url);
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
@@ -580,6 +712,8 @@ export async function runOperation(
     }
     out.emit({ type: 'progress', phase: 'drive', message: '开始填写（不会提交）' });
     const telemetry = await (deps.resolveTelemetry ?? defaultTelemetry)(body);
+    const target = body.profile ? null : await positionTargetForBody(body);
+    const pathfinder = target && typeof body.applicationId === 'string' ? await pathfinderForBody(body.applicationId, context, page, apply, llm, deps) : null;
     const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
       maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
       humanTyping: body.humanTyping !== false,
@@ -588,6 +722,8 @@ export async function runOperation(
       ...(bundle.loginFill ? { loginFill: bundle.loginFill } : {}),
       ...(perceiver ? { perceiver } : {}),
       ...(siteMemory ? { siteMemory } : {}),
+      ...(target ? { target } : {}),
+      ...(pathfinder ? { pathfinder } : {}),
       ...(Array.isArray(body.learnFrom) ? { learnFrom: (body.learnFrom as unknown[]).filter((x): x is string => typeof x === 'string') } : {}),
       // 内部调试日志只进运行记录（引擎写 trace.jsonl），不广播给界面；界面只收人话进度
       onProgress: (p: { message: string; kind?: string; label?: string }) => out.emit({ type: 'progress', phase: 'drive', message: redact(p.message), ...(p.kind ? { kind: p.kind } : {}) }),
@@ -776,13 +912,15 @@ export async function handleCareerBrowserRoute(
   } catch (error) {
     return errorResponse(error, '浏览器凭据校验失败');
   }
+  // 「等用户帮一下」本来就是在用户接管期间等，不能被接管挡掉
+  const waitsForUser = op === 'browse' && body.action === 'wait_user';
   const control = host.getControl(binding.productSessionId);
-  if (control.control === 'human') {
+  if (control.control === 'human' && !waitsForUser) {
     return failure(409, '用户正在接管浏览器，等待交回', 'BROWSER_CONTROL_HUMAN');
   }
   return ndjsonStream(request, (out, signal) => host.withContext(
     token,
     (context, b) => runOperation(op, body, context, out, signal, { ...deps, productSessionId: b.productSessionId, focusPage: page => host.focusPage?.(b.productSessionId, page) }),
-    { signal },
+    { signal, ...(waitsForUser ? { allowHumanControl: true } : {}) },
   ));
 }

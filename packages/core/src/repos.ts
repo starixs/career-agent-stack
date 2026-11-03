@@ -5,14 +5,18 @@ import { canonicalJson, jobKey, sha256 } from './keys.js'
 import { inferEmploymentType, mergeBoardMeta, normalizeCohort, parseBoardJson } from './jobs.js'
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
-import { canReachStage, canTransition, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
-import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, WeeklyReview, MailAccount, MailMessage } from './types.js'
-import { classifyJobTitle, deadlineToToday, funnelBy, sortToday, staleToToday, type TodayItem, type FunnelRow } from './surfaces.js'
+import { canReachStage, canTransition, CLOSED_STAGES, STAGE_TRANSITIONS, ACTIONS_REQUIRING_REVIEW, type ApplicationStage, type ActionKind, type HandoffReason, handoffReasonLabel, type TaskStatus, type InboxKind, type InboxSource, type DeadlineKind, type DeadlineStatus, type DossierNoteKind, type MaterialKind } from './states.js'
+import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, MailAccount, MailAudit, MailMessage, Interview, Offer } from './types.js'
+import { classifyJobTitle, collectedToToday, COLLECTABLE_STAGES, deadlineToToday, funnelBy, latestIso, OVERDUE_PRIORITY, silenceOf, SILENT_COLLECT_NOTE, sortToday, stageLabel, staleToToday, weekStartOf, type TodayItem, type FunnelRow } from './surfaces.js'
+import { buildMonthBoard, REOPEN_NOTE_PREFIX, type MonthBoard, type StageHistoryRow } from './review-board.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
 export interface AnswerRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: AnswerSensitivity; source: string; use_count: number; last_used_at: string | null; updated_at: string }
 export interface AnswerEventRow { id: string; kind: AnswerEventKind; question_key: string; question_text: string; answer: string | null; previous_value: string | null; source: string | null; sensitivity: AnswerSensitivity; application_id: string | null; job_key: string | null; site_host: string | null; created_at: string; uploaded_at: string | null; upload_error: string | null }
 export interface ChatCardRow { id: string; session_id: string | null; tool_use_id: string | null; kind: string; title: string; data_json: string; state: 'pending' | 'completed' | 'dismissed'; created_at: string; updated_at: string }
+
+/** 已经投出去的阶段：到了这些阶段，招聘方的回音就会往邮箱里来。 */
+const SENT_STAGES: readonly ApplicationStage[] = ['applied', 'responded', 'interview', 'pending', 'offer', 'hired', 'rejected']
 
 export class Repos {
   constructor(public readonly db: Db) {}
@@ -25,6 +29,12 @@ export class Repos {
     const t = now(); const id = newId('exp')
     this.db.insert('experience', { id, title: e.title, role: e.role ?? null, org: e.org ?? null, start_date: e.start_date ?? null, end_date: e.end_date ?? null, type: e.type ?? 'other', summary: e.summary ?? null, redacted: e.redacted ?? 0, created_at: t, updated_at: t })
     return this.db.get<Experience>('SELECT * FROM experience WHERE id=?', [id])!
+  }
+  getExperience(id: string): Experience | undefined { return this.db.get<Experience>('SELECT * FROM experience WHERE id=?', [id]) }
+  /** 补一段经历时只写这次明确给出的字段，不把没提到的抹成空。 */
+  updateExperience(id: string, patch: Partial<Omit<Experience, 'id' | 'created_at'>>): void {
+    const fields = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined))
+    this.db.update('experience', id, { ...fields, updated_at: now() })
   }
   addClaim(c: Partial<Claim> & { experience_id: string; text: string }): Claim {
     const t = now(); const id = newId('clm')
@@ -73,21 +83,24 @@ export class Repos {
   }
 
   // ---------- 投递台 ----------
-  createApplication(jobId: string, resumeTailoredId?: string | null): Application {
-    const t = now(); const id = newId('app')
+  /** at：这件事真实发生的时间（导入历史邮件时用收件时间），缺省为现在；「我的求职月」按它分月。 */
+  createApplication(jobId: string, resumeTailoredId?: string | null, at?: string): Application {
+    const t = at ?? now(); const id = newId('app')
     this.db.insert('application', { id, job_id: jobId, resume_tailored_id: resumeTailoredId ?? null, stage: 'evaluated', created_at: t, updated_at: t })
     this.db.insert('application_history', { id: newId('hist'), application_id: id, from_stage: null, to_stage: 'evaluated', note: null, created_at: t })
     return this.getApplication(id)!
   }
   getApplication(id: string): Application | undefined { return this.db.get<Application>('SELECT * FROM application WHERE id=?', [id]) }
   listApplications(): Application[] { return this.db.all<Application>('SELECT * FROM application ORDER BY updated_at DESC') }
-  transition(appId: string, to: ApplicationStage, note?: string, extra: Partial<Application> = {}): Application {
+  transition(appId: string, to: ApplicationStage, note?: string, extra: Partial<Application> = {}, at?: string): Application {
     const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
     if (!canTransition(app.stage, to)) throw new Error(`不允许的阶段流转: ${app.stage} → ${to}`)
-    const t = now()
+    const t = at ?? now()
     this.db.transaction(() => {
       this.db.update('application', appId, { ...stripUndefined(extra), stage: to, updated_at: t })
       this.db.insert('application_history', { id: newId('hist'), application_id: appId, from_stage: app.stage, to_stage: to, note: note ?? null, created_at: t })
+      // 离开 offer 阶段（接受 / 被拒 / 放弃）= 已经答复过了：回复截止不再催，过期也不报「已过期」
+      if (app.stage === 'offer') this.db.run(`UPDATE deadline SET status=?, updated_at=? WHERE application_id=? AND kind='offer_reply' AND status IN ('open','missed')`, [to === 'hired' ? 'done' : 'cancelled', t, appId])
     })
     return this.getApplication(appId)!
   }
@@ -95,24 +108,48 @@ export class Repos {
    * 沿状态机最短合法路径把投递推进到目标阶段（收件箱 / 邮件归档用：收到面试邀请时投递可能还停在 evaluated）。
    * 每一步都写 application_history；到不了目标阶段抛错。
    */
-  jumpTo(appId: string, to: ApplicationStage, note?: string, extra: Partial<Application> = {}): Application {
+  jumpTo(appId: string, to: ApplicationStage, note?: string, extra: Partial<Application> = {}, at?: string): Application {
     const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
     if (app.stage === to) return app
     const path = shortestStagePath(app.stage, to)
     if (!path) throw new Error(`无法从 ${app.stage} 推进到 ${to}`)
     // transition 自带事务（SQLite 不支持嵌套），这里顺序执行即可。
     let cur = app
-    path.forEach((stage, i) => { cur = this.transition(appId, stage, i === path.length - 1 ? note : `自动推进（${note ?? ''}）`, i === path.length - 1 ? extra : {}) })
+    path.forEach((stage, i) => { cur = this.transition(appId, stage, i === path.length - 1 ? note : `自动推进（${note ?? ''}）`, i === path.length - 1 ? extra : {}, at) })
     return cur
   }
   /**
    * 只往前推进（收件箱 / 邮件归档用）：目标阶段在当前阶段前方才 jumpTo；已经在目标阶段、或已走得更远 / 已关闭
    * （例如已在面试又收到一封笔试通知），原样返回、不抛错——一封迟到的邮件不能让整条归档失败。
    */
-  advanceTo(appId: string, to: ApplicationStage, note?: string): { app: Application; moved: boolean } {
+  advanceTo(appId: string, to: ApplicationStage, note?: string, at?: string): { app: Application; moved: boolean } {
     const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
     if (!canReachStage(app.stage, to)) return { app, moved: false }
-    return { app: this.jumpTo(appId, to, note), moved: true }
+    return { app: this.jumpTo(appId, to, note, {}, at), moved: true }
+  }
+  /**
+   * 更正误判（邮件读错、用户说错）：撤掉最近一次推进，连同那次自动补的中间步骤，阶段回到推进之前。
+   * 历史行直接删掉而不是再记一条回退：漏斗和「我的求职月」读历史，误判留着就会多算一封不存在的拒信。
+   * 卷宗里另记一笔更正，事情经过仍查得到。
+   */
+  undoLastStage(appId: string, reason: string): Application {
+    const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
+    const rows = this.db.all<{ id: string; from_stage: ApplicationStage | null; to_stage: ApplicationStage; note: string | null }>(
+      'SELECT id, from_stage, to_stage, note FROM application_history WHERE application_id=? ORDER BY created_at DESC, rowid DESC', [appId])
+    const last = rows[0]
+    if (!last?.from_stage || last.to_stage !== app.stage) throw new Error(`投递 ${appId} 没有可撤回的推进（当前 ${app.stage}）`)
+    const undo = [last]
+    for (const row of rows.slice(1)) {
+      if (!row.from_stage || !row.note?.startsWith('自动推进（') || row.to_stage !== undo.at(-1)!.from_stage) break
+      undo.push(row)
+    }
+    const back = undo.at(-1)!.from_stage!
+    this.db.transaction(() => {
+      for (const row of undo) this.db.run('DELETE FROM application_history WHERE id=?', [row.id])
+      this.db.update('application', appId, { stage: back, updated_at: now() })
+      this.addDossierNote({ application_id: appId, kind: 'note', content: `更正：撤回「${stageLabel(app.stage)}」，回到「${stageLabel(back)}」。${reason}` })
+    })
+    return this.getApplication(appId)!
   }
   /** 看板三问题：今天必须做什么 / 哪里卡住 / 漏斗分布。 */
   board(today = now().slice(0, 10)) {
@@ -460,6 +497,25 @@ export class Repos {
     return this.getInboxItem(id)!
   }
   dismissInboxItem(id: string): InboxItem { return this.resolveInboxItem(id, { status: 'dismissed' }) }
+  /**
+   * 一封已归档的信带来的事是不是都处理完了：它关联的时间点、或关联投递（面试、Offer 所在的投递）上没有还开着的时间点。
+   * 通知中心据此把处理完的信折进「已处理」，「全部」的数字只算还没处理的。
+   */
+  inboxSettled(item: InboxItem): boolean {
+    if (item.status !== 'processed') return false
+    if (item.linked_type === 'deadline' && item.linked_id) {
+      const d = this.getDeadline(item.linked_id)
+      return !d || (d.status !== 'open' && d.status !== 'missed')
+    }
+    const appId = this.applicationOfLink(item.linked_type, item.linked_id)
+    return !appId || this.listDeadlines({ status: 'open_or_missed', application_id: appId }).length === 0
+  }
+  private applicationOfLink(type: string | null, id: string | null): string | null {
+    if (!id) return null
+    if (type === 'application') return id
+    if (type === 'interview' || type === 'offer') return this.db.get<{ application_id: string | null }>(`SELECT application_id FROM ${type} WHERE id=?`, [id])?.application_id ?? null
+    return null
+  }
 
   // ---------- 截止与定时事件（不丢球） ----------
   /** due_at 为 null = 时间未知（例如笔试通知里没写时间）：照样建，笔试记录 / 投递进度能看到，今日队列提示去确认时间。 */
@@ -481,9 +537,34 @@ export class Repos {
     if (!this.db.update('deadline', id, { status, updated_at: now() })) throw new Error(`截止事件不存在：${id}`)
     return this.getDeadline(id)!
   }
-  /** 把已过期仍 open 的事件标为 missed（今日队列读取前调用）。 */
+  /**
+   * 面试时间存了两份：interview.date（助力记录、卷宗读）和它的 deadline.due_at（月历、今日队列、通知中心读）。
+   * 从任一处改期都走这里，两份一起改；已过期的改到将来重新变回未完成。做完 / 取消的时间点不动。
+   */
+  rescheduleInterview(interviewId: string, dueIso: string, nowIso = now()): void {
+    this.db.transaction(() => {
+      this.db.run('UPDATE interview SET date=?, updated_at=? WHERE id=?', [dueIso, nowIso, interviewId])
+      this.db.run(
+        `UPDATE deadline SET due_at=?, status=CASE WHEN status='missed' AND ?>? THEN 'open' ELSE status END, updated_at=? WHERE interview_id=? AND status IN ('open','missed')`,
+        [dueIso, dueIso, nowIso, nowIso, interviewId])
+    })
+  }
+  /**
+   * 回答「考了吗 / 做了吗」（只问笔试、测评）：考了 → done，没去 → skipped（邀请是真的来过，漏斗照样算回应）。
+   * 挂在投递上的记一笔进卷宗，之后这件事只在卷宗里，不再出现在队列、月历和通知中心。
+   */
+  answerAttendance(id: string, attended: boolean): Deadline {
+    const d = this.getDeadline(id)
+    if (!d) throw new Error(`截止事件不存在：${id}`)
+    this.db.transaction(() => {
+      this.db.update('deadline', id, { status: attended ? 'done' : 'skipped', updated_at: now() })
+      if (d.application_id) this.db.insert('dossier_note', { id: newId('dnt'), application_id: d.application_id, kind: 'note', round: null, content: `${d.title}：${attended ? '参加了' : '没参加'}（回来时确认）`, created_at: now() })
+    })
+    return this.getDeadline(id)!
+  }
+  /** 把已过期仍 open 的事件标为 missed（今日队列读取前调用）。面试不算：时间过了多半是面完了，不是错过了。 */
   markMissedDeadlines(nowIso = now()): number {
-    return this.db.run(`UPDATE deadline SET status='missed', updated_at=? WHERE status='open' AND due_at < ?`, [nowIso, nowIso]).changes
+    return this.db.run(`UPDATE deadline SET status='missed', updated_at=? WHERE status='open' AND due_at < ? AND kind <> 'interview'`, [nowIso, nowIso]).changes
   }
 
   // ---------- 卷宗 ----------
@@ -498,13 +579,39 @@ export class Repos {
     const jobs = new Map(this.listJobs().map(j => [j.id, j]))
     return this.listApplications().flatMap(a => { const job = jobs.get(a.job_id); return job ? [{ ...a, job }] : [] })
   }
-  /** 按公司名（含品牌别名）找仍在进行中的投递；邮件 / 收件箱归档用。 */
-  findOpenApplicationsByCompany(companyName: string): Array<Application & { job: Job }> {
+  /**
+   * 按公司名（含品牌别名）找仍在进行中的投递；邮件 / 收件箱归档用。
+   * alsoStages：额外算作「还在进行」的终态，如 Offer 来信要算上已接受（hired）的那份——接了之后还会来三方、入职通知。
+   */
+  findOpenApplicationsByCompany(companyName: string, alsoStages: readonly ApplicationStage[] = []): Array<Application & { job: Job }> {
+    const closed = CLOSED_STAGES.filter(s => !alsoStages.includes(s))
+    return this.applicationsOfCompany(companyName).filter(a => !closed.includes(a.stage))
+  }
+  /** 按公司名找投出过、后来被关掉的投递（静默超时关闭或用户放弃）：迟到的回信要接回它们。 */
+  findClosedSentApplicationsByCompany(companyName: string): Array<Application & { job: Job }> {
+    const sent = new Set(this.db.all<{ application_id: string }>(`SELECT DISTINCT application_id FROM application_history WHERE to_stage='applied'`).map(r => r.application_id))
+    return this.applicationsOfCompany(companyName).filter(a => a.stage === 'discarded' && sent.has(a.id))
+  }
+  /**
+   * 关掉的投递来了迟到的回信：重新打开回到已投递，后续由归档照常推进。
+   * 这不是状态机里的前进边（放进 STAGE_TRANSITIONS 会让 jumpTo 经 discarded 绕路回退），所以单独一个入口、只认 discarded。
+   */
+  reopenClosed(appId: string, note: string): Application {
+    const app = this.getApplication(appId); if (!app) throw new Error(`application 不存在: ${appId}`)
+    if (app.stage !== 'discarded') throw new Error(`只有已关闭的投递能重新打开: ${appId} 现在是 ${app.stage}`)
+    const t = now()
+    this.db.transaction(() => {
+      this.db.update('application', appId, { stage: 'applied', updated_at: t })
+      this.db.insert('application_history', { id: newId('hist'), application_id: appId, from_stage: 'discarded', to_stage: 'applied', note: `${REOPEN_NOTE_PREFIX}${note}`, created_at: t })
+    })
+    return this.getApplication(appId)!
+  }
+  private applicationsOfCompany(companyName: string): Array<Application & { job: Job }> {
     const key = companyName.trim().toLowerCase()
     if (!key) return []
     return this.applicationsWithJob().filter(a => {
       const name = (a.job.company_name ?? '').toLowerCase()
-      return name && (name.includes(key) || key.includes(name)) && !['rejected', 'discarded', 'skip', 'hired'].includes(a.stage)
+      return name && (name.includes(key) || key.includes(name))
     })
   }
 
@@ -548,9 +655,10 @@ export class Repos {
   }
 
   // ---------- 今日队列 ----------
-  /** 今天必须做的事（已排序）：过期 / 今天到期 → 待审 → 接管 → 今日面试 → 新收件 → 静默可关 → 近三天到期。 */
+  /** 今天必须做的事（已排序）：今天到期 → 待审 → 接管 → 今日面试 → 新收件 → 静默可关 → 近三天到期 → 已过期（OVERDUE_PRIORITY）。 */
   today(nowIso = now()): { items: TodayItem[]; waiting: { count: number; by_stage: Array<{ stage: string; n: number }> }; inbox_new: number; pending_review: number } {
     this.markMissedDeadlines(nowIso)
+    this.collectSilent(nowIso)
     const items: TodayItem[] = []
     for (const d of this.listDeadlines({ status: 'open_or_missed' })) {
       if (!d.due_at) {
@@ -565,15 +673,29 @@ export class Repos {
       const app = a.application_id ? this.getApplication(a.application_id) : undefined
       const job = app ? this.getJob(app.job_id) : undefined
       const where = job ? ` · ${job.company_name ?? ''} ${job.title}` : ''
-      // 填表不需要事前批准（填写本身不会提交）：还在待审的 fill_form 只是「待投清单」里没开始的那几份
-      if (a.kind === 'fill_form') items.push({ kind: 'review', priority: 2, title: `待投清单：还没开始填${where}`, detail: '开始后会填到提交前停下，等你确认再提交', ref: { type: 'action', id: a.id } })
+      // 填表不需要事前批准（填写本身不会提交）：还在待审的 fill_form 只剩批准后材料变了、退回来要你再说一声开始的
+      if (a.kind === 'fill_form') items.push({ kind: 'review', priority: 2, title: `还没开始填${where}`, detail: '开始后会填到提交前停下，等你确认再提交', ref: { type: 'action', id: a.id } })
       else items.push({ kind: 'review', priority: 2, title: `待你批准：${actionLabel(a.kind)}${where}`, detail: '助理已准备好，批准后才会执行', ref: { type: 'action', id: a.id } })
     }
     for (const h of this.openHandoffs()) items.push({ kind: 'handoff', priority: 3, title: `需要你本人处理：${handoffReasonLabel(h.reason)}`, detail: h.message ?? undefined, ref: { type: 'handoff', id: h.id } })
     const apps = this.applicationsWithJob()
-    for (const a of apps) { const it = staleToToday({ ...a, title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }
+    const activity = this.lastActivityByApp()
+    for (const a of apps) { const it = staleToToday({ ...a, updated_at: latestIso(a.updated_at, activity.get(a.id)), title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }
+    const weekStart = weekStartOf(nowIso)
+    const collected = collectedToToday(this.collectedIds(weekStart + 'T00:00:00Z').size, weekStart); if (collected) items.push(collected)
+    // 邮箱连接失效（连续认证失败到阈值）：没有外部期限，但挡住之后所有邮件，排最前（规范 5.2 例外）
+    for (const a of this.listMailAccounts()) {
+      if (a.status !== 'auth_failed') continue
+      items.push({ kind: 'mail_auth', priority: 0, title: `${a.address} 连接失效`, detail: '新邮件暂时收不进来，笔试、面试通知可能会漏；重新授权就能恢复', due_at: null, ref: { type: 'mail_account', id: a.id } })
+    }
+    // 投出去了却没连邮箱：回音全在邮箱里，投出之后这一段整个接不上（世界模型 §8 第一条），给一条，连上就消失。
+    // 它没有外部期限，排在队尾，不抢「回来先给最急的一件」（OVERDUE_PRIORITY 那一档）
+    if (!this.listMailAccounts().length) {
+      const sent = apps.filter(a => SENT_STAGES.includes(a.stage)).length
+      if (sent) items.push({ kind: 'mail_auth', priority: OVERDUE_PRIORITY, title: `投出了 ${sent} 份，回音会发到邮箱`, detail: '连上网申填的那个邮箱，面试、笔试、拒信就会自己进来', due_at: null, ref: { type: 'mail_missing', id: 'mail' } })
+    }
     const inboxNew = this.listInbox('new')
-    if (inboxNew.length) items.push({ kind: 'inbox', priority: 5, title: `收件箱有 ${inboxNew.length} 条新内容待归档`, ref: { type: 'inbox', id: inboxNew[0].id }, suggest: '帮我把收件箱里的新内容归档' })
+    if (inboxNew.length) items.push({ kind: 'inbox', priority: 5, title: `收件箱有 ${inboxNew.length} 条新内容待归档`, ref: { type: 'inbox_item', id: inboxNew[0].id }, suggest: '帮我把收件箱里的新内容归档' })
     const waitingStages: ApplicationStage[] = ['applied', 'responded', 'interview', 'pending']
     const waiting = apps.filter(a => waitingStages.includes(a.stage))
     const byStage = new Map<string, number>()
@@ -605,20 +727,68 @@ export class Repos {
     return entries.sort((x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0)).slice(0, limit)
   }
 
+  /** 等回音的线到了静默阈值就收起（discarded，备注 SILENT_COLLECT_NOTE）；来信时 reopenClosed 接回。返回收起几条。 */
+  collectSilent(nowIso = now()): number {
+    const activity = this.lastActivityByApp()
+    const quiet = this.listApplications().filter(a => COLLECTABLE_STAGES.includes(a.stage) && silenceOf(a.stage, latestIso(a.updated_at, activity.get(a.id)), nowIso).silent)
+    for (const a of quiet) this.jumpTo(a.id, 'discarded', SILENT_COLLECT_NOTE)
+    return quiet.length
+  }
+  /** 因静默被收起、现在仍收着的投递；since 给定时只算那之后收起的。 */
+  collectedIds(since = ''): Set<string> {
+    return new Set(this.db.all<{ id: string }>(
+      `SELECT DISTINCT a.id FROM application a JOIN application_history h ON h.application_id=a.id
+       WHERE a.stage='discarded' AND h.to_stage='discarded' AND h.note=? AND h.created_at >= ?`, [SILENT_COLLECT_NOTE, since]).map(r => r.id))
+  }
+  /**
+   * 每份投递除阶段变化以外最近的一次动静：挂上的截止事件（建立时刻；还没到的取到期时刻）、卷宗记录、关联邮件。
+   * 静默判定按它和 updated_at 取晚的——收到笔试通知时阶段不变（仍是已投递），只看 updated_at 会把后天要考的线叫成静默。
+   */
+  lastActivityByApp(): Map<string, string> {
+    const rows = this.db.all<{ application_id: string; at: string | null }>(
+      `SELECT application_id, MAX(at) AS at FROM (
+         SELECT application_id, created_at AS at FROM deadline WHERE application_id IS NOT NULL
+         UNION ALL SELECT application_id, due_at FROM deadline WHERE application_id IS NOT NULL AND status='open' AND due_at IS NOT NULL
+         UNION ALL SELECT application_id, created_at FROM dossier_note WHERE application_id IS NOT NULL
+         UNION ALL SELECT application_id, received_at FROM mail_message WHERE application_id IS NOT NULL AND received_at IS NOT NULL
+       ) GROUP BY application_id`)
+    return new Map(rows.flatMap(r => (r.at ? [[r.application_id, r.at] as [string, string]] : [])))
+  }
+
   // ---------- 漏斗 / 复盘 ----------
+  /** 全部阶段流转，按时间先后。 */
+  stageHistory(): StageHistoryRow[] {
+    return this.db.all<StageHistoryRow>('SELECT application_id, from_stage, to_stage, note, created_at FROM application_history ORDER BY created_at, rowid')
+  }
   funnel(nowIso = now()): { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null } {
-    const rows = this.applicationsWithJob()
+    const reached = new Map<string, string[]>()
+    for (const h of this.stageHistory()) reached.set(h.application_id, [...(reached.get(h.application_id) ?? []), h.to_stage])
+    const activity = this.lastActivityByApp()
+    const collected = this.collectedIds()
+    const rows = this.applicationsWithJob().map(a => ({ ...a, updated_at: latestIso(a.updated_at, activity.get(a.id)), reached_stages: reached.get(a.id) ?? [], collected: collected.has(a.id) }))
     const byCategory = funnelBy(rows, r => classifyJobTitle(r.job.title), nowIso)
     const byPlatform = funnelBy(rows, r => r.job.source_platform, nowIso)
     const overall = funnelBy(rows, () => 'all', nowIso)[0] ?? null
     return { by_category: byCategory, by_platform: byPlatform, overall }
   }
-  saveWeeklyReview(r: { week_start: string; funnel: unknown; insights?: unknown; suggestions?: unknown; small_action?: string | null }): WeeklyReview {
-    const id = newId('wrv')
-    this.db.insert('weekly_review', { id, week_start: r.week_start, funnel_json: JSON.stringify(r.funnel ?? {}), insights_json: JSON.stringify(r.insights ?? []), suggestions_json: JSON.stringify(r.suggestions ?? []), small_action: r.small_action ?? null, created_at: now() })
-    return this.db.get<WeeklyReview>('SELECT * FROM weekly_review WHERE id=?', [id])!
+  /** 产品亲手完成提交的投递数（网申提交成功或投递邮件已发出），从开始用起累计。 */
+  agentSubmittedCount(): number {
+    return this.db.get<{ n: number }>(`SELECT COUNT(DISTINCT application_id) AS n FROM action_queue WHERE kind IN ('submit','send_mail') AND status='done' AND application_id IS NOT NULL`)?.n ?? 0
   }
-  listWeeklyReviews(limit = 12): WeeklyReview[] { return this.db.all<WeeklyReview>('SELECT * FROM weekly_review ORDER BY created_at DESC LIMIT ?', [limit]) }
+  /** 「我的求职月」看板：自然月四层漏斗 + 过往月份 + 每一天的投递后来怎么样了。month 为 YYYY-MM，缺省为本月。 */
+  monthBoard(opts: { nowIso?: string; month?: string; tzOffsetMinutes?: number } = {}): MonthBoard {
+    return buildMonthBoard({
+      apps: this.applicationsWithJob(),
+      history: this.stageHistory(),
+      deadlines: this.listDeadlines(),
+      interviews: this.db.all<Interview>('SELECT * FROM interview'),
+      offers: this.db.all<Offer>('SELECT * FROM offer'),
+      agentSubmitted: this.agentSubmittedCount(),
+      nowIso: opts.nowIso ?? now(),
+      month: opts.month,
+      tzOffsetMinutes: opts.tzOffsetMinutes ?? 0,
+    })
+  }
 
   // ---------- 邮箱 ----------
   upsertMailAccount(a: { provider: MailAccount['provider']; address: string; display_name?: string | null; imap_host: string; imap_port?: number; smtp_host: string; smtp_port?: number }): MailAccount {
@@ -632,13 +802,29 @@ export class Repos {
     this.db.insert('mail_account', { id, provider: a.provider, address: a.address, display_name: a.display_name ?? null, imap_host: a.imap_host, imap_port: a.imap_port ?? 993, smtp_host: a.smtp_host, smtp_port: a.smtp_port ?? 465, status: 'unverified', last_sync_at: null, last_uid: 0, last_error: null, created_at: t, updated_at: t })
     return this.getMailAccount(id)!
   }
+  /**
+   * 云端连接的本机镜像：按 remote_id 找到就更新，找不到按地址认领（本地连过同一邮箱），再没有就新建。
+   * 只写展示和外键需要的字段，不碰授权码。
+   */
+  mirrorMailAccount(m: { remote_id: string; provider: MailAccount['provider']; address: string; imap_host: string; smtp_host: string; status: string; last_error: string | null; consecutive_fails: number; last_ok_at: string | null; last_check_at: string | null; last_sync_at: string | null; created_at: string }): MailAccount {
+    const t = now()
+    const found = this.db.get<MailAccount>('SELECT * FROM mail_account WHERE remote_id=?', [m.remote_id]) ?? this.db.get<MailAccount>('SELECT * FROM mail_account WHERE address=?', [m.address])
+    const fields = { remote_id: m.remote_id, provider: m.provider, address: m.address, status: m.status, last_error: m.last_error, consecutive_fails: m.consecutive_fails, last_ok_at: m.last_ok_at, last_check_at: m.last_check_at, last_sync_at: m.last_sync_at, updated_at: t }
+    if (found) { this.db.update('mail_account', found.id, fields); return this.getMailAccount(found.id)! }
+    const id = newId('mla')
+    this.db.insert('mail_account', { ...fields, id, display_name: null, imap_host: m.imap_host, imap_port: 993, smtp_host: m.smtp_host, smtp_port: 465, last_uid: 0, created_at: m.created_at || t })
+    return this.getMailAccount(id)!
+  }
+  getMailAccountByRemote(remoteId: string): MailAccount | undefined { return this.db.get<MailAccount>('SELECT * FROM mail_account WHERE remote_id=?', [remoteId]) }
   getMailAccount(id: string): MailAccount | undefined { return this.db.get<MailAccount>('SELECT * FROM mail_account WHERE id=?', [id]) }
   listMailAccounts(): MailAccount[] { return this.db.all<MailAccount>('SELECT * FROM mail_account ORDER BY created_at') }
-  updateMailAccount(id: string, patch: Partial<Pick<MailAccount, 'status' | 'last_sync_at' | 'last_uid' | 'last_error' | 'display_name'>>): void { this.db.update('mail_account', id, { ...stripUndefined(patch), updated_at: now() }) }
+  updateMailAccount(id: string, patch: Partial<Pick<MailAccount, 'status' | 'last_sync_at' | 'last_uid' | 'last_error' | 'display_name' | 'consecutive_fails' | 'last_ok_at' | 'last_check_at' | 'uidvalidity'>>): void { this.db.update('mail_account', id, { ...stripUndefined(patch), updated_at: now() }) }
   deleteMailAccount(id: string): void { this.db.run('DELETE FROM mail_account WHERE id=?', [id]) }
   /** 同账号同 uid 只存一次；返回 null 表示已存在。 */
+  /** 邮箱重建（UIDVALIDITY 变了）后 uid 会重新编号，所以同账号同 Message-ID 也算已存在。 */
   insertMailMessage(m: Omit<MailMessage, 'id' | 'created_at'>): MailMessage | null {
     if (m.uid !== null && this.db.get('SELECT 1 FROM mail_message WHERE account_id=? AND uid=?', [m.account_id, m.uid])) return null
+    if (m.message_id && this.db.get('SELECT 1 FROM mail_message WHERE account_id=? AND message_id=?', [m.account_id, m.message_id])) return null
     const id = newId('mail')
     this.db.insert('mail_message', { ...m, id, created_at: now() })
     return this.getMailMessage(id)!
@@ -655,6 +841,18 @@ export class Repos {
     return this.db.all<MailMessage>(`SELECT * FROM mail_message ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY COALESCE(received_at, created_at) DESC LIMIT ?`, params)
   }
   findMailByMessageId(messageId: string): MailMessage | undefined { return this.db.get<MailMessage>('SELECT * FROM mail_message WHERE message_id=?', [messageId]) }
+
+  // ---------- 邮箱操作留痕 ----------
+  addMailAudit(a: { account_id: string; actor: MailAudit['actor']; operation: string; status: MailAudit['status']; detail?: unknown; latency_ms?: number | null }): void {
+    this.db.insert('mail_audit', { id: newId('maud'), account_id: a.account_id, actor: a.actor, operation: a.operation, status: a.status, detail_json: a.detail === undefined ? null : JSON.stringify(a.detail), latency_ms: a.latency_ms ?? null, created_at: now() })
+  }
+  listMailAudit(accountId: string, sinceIso?: string, limit = 50): MailAudit[] {
+    return this.db.all<MailAudit>(`SELECT * FROM mail_audit WHERE account_id=? ${sinceIso ? 'AND created_at>=?' : ''} ORDER BY created_at DESC LIMIT ?`, sinceIso ? [accountId, sinceIso, limit] : [accountId, limit])
+  }
+  /** 近 N 天按操作计数（连接管理页的用量）。 */
+  mailUsage(accountId: string, sinceIso: string): Array<{ operation: string; status: string; n: number }> {
+    return this.db.all<{ operation: string; status: string; n: number }>('SELECT operation, status, COUNT(*) AS n FROM mail_audit WHERE account_id=? AND created_at>=? GROUP BY operation, status', [accountId, sinceIso])
+  }
 }
 
 function actionLabel(kind: ActionKind): string {

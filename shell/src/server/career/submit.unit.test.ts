@@ -4,6 +4,7 @@ import type { Repos } from '@career/core';
 import { evaluateSubmitGate, persistDriveOutcome } from './drive-outcome';
 import { SubmitExecutor, confirmSubmitResult, executeSubmitAction } from './submit-executor';
 import { LEARN_THRESHOLD, decideSubmit, getPageTrust, recordSubmitOutcome, setAutoMode } from './submit-policy';
+import { setTargetJob } from './targets';
 import { createMemoryRepos } from './test-db';
 
 // 阶段 1：填后检查 → 提交策略（默认人审 / auto 模式 / 自学习免审）→ 提交执行器。
@@ -62,6 +63,16 @@ describe('提交策略', () => {
     expect(() => persist(repos, driveResult(null))).toThrow('unexpected handoff');
   });
 
+  it('目标岗位（批次卡上点了「这家我要看」）：auto 模式和自学习都不免审，投前先给你看', () => {
+    const repos = createMemoryRepos();
+    setAutoMode(repos, true);
+    const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j-mt', title: 'AI应用开发', company_name: '美团' });
+    const app = repos.createApplication(job.id);
+    expect(decideSubmit(repos, { attention: 0, applicationId: app.id }).approve).toBe(true);
+    setTargetJob(repos, job.id, true);
+    expect(decideSubmit(repos, { attention: 0, applicationId: app.id })).toMatchObject({ approve: false, reason: expect.stringMatching(/目标岗位/) });
+  });
+
   it(`自学习：同一张表连续 ${LEARN_THRESHOLD} 次人工直接通过后免确认；简历或开放题变了就停`, () => {
     const repos = createMemoryRepos();
     const fp = { formSignature: SIG, openAnswersHash: 'h-open-1', resumeSha: 'r1' };
@@ -79,6 +90,16 @@ describe('提交策略', () => {
     expect(getPageTrust(repos, SIG)!.streak).toBe(LEARN_THRESHOLD);
     recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'submitted', edits: 1 });
     expect(getPageTrust(repos, SIG)!.streak).toBe(0);
+  });
+
+  it('信任记录带出处：哪个网站、本轮连续通过的是哪几份投递；清零时出处一起清', () => {
+    const repos = createMemoryRepos();
+    const fp = { formSignature: SIG, openAnswersHash: 'h', resumeSha: 'r', url: 'https://www.app.mokahr.com/campus_apply/x' };
+    recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'submitted', edits: 0, applicationId: 'app-1' });
+    recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'submitted', edits: 0, applicationId: 'app-2' });
+    expect(getPageTrust(repos, SIG)).toMatchObject({ streak: 2, host: 'app.mokahr.com', applicationIds: ['app-1', 'app-2'] });
+    recordSubmitOutcome(repos, { ...fp, approvedBy: 'user', status: 'failed', edits: 0, applicationId: 'app-3' });
+    expect(getPageTrust(repos, SIG)).toMatchObject({ streak: 0, host: 'app.mokahr.com', applicationIds: [] });
   });
 
   it('自学习满了之后：落库时直接批准（learned），简历快照来自材料包', () => {
@@ -115,15 +136,10 @@ describe('提交门槛：全部过关才入队提交，否则交给用户补', (
     expect((reviews[0].data?.review as { requiredFilled: number }).requiredFilled).toBe(12);
   });
 
+  // 学生能答的缺口（资料里没有的值、必填空着）→ 等你补；拿不到填后检查是例外，也停下
   const notReady: Array<[string, Record<string, unknown> | null, Record<string, unknown>, RegExp]> = [
     ['必填没填满', { rows: [ok('姓名'), { label: '毕业时间', required: true, status: 'empty', reason: '必填项还是空的' }], requiredTotal: 2, requiredFilled: 1 }, {}, /毕业时间/],
     ['有需要你填的项', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { needsUser: [{ label: '期望薪资', note: '答案库里没有' }] }, /期望薪资/],
-    ['值没生效', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { mismatches: [{ fieldId: 'x', label: '学历', expected: '本科', actual: '' }] }, /学历/],
-    ['网站报错', { rows: [ok('姓名'), { label: '手机号格式不正确', required: true, status: 'site_error' }], requiredTotal: 1, requiredFilled: 1 }, {}, /手机号格式不正确/],
-    ['附件没回显', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { uploads: [{ fieldId: 'f', file: '/x/张三.pdf', echoed: false }] }, /简历附件/],
-    ['读不到任何行（必填数不可信）', { rows: [], requiredTotal: 0, requiredFilled: 0 }, {}, /必填项核对/],
-    ['引擎说读回核验没通过', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1, verified: false }, {}, /必填项核对/],
-    ['行级读回核验没通过', { rows: [{ ...ok('姓名'), verified: false, reason: '页面上读回来是空的' }], requiredTotal: 1, requiredFilled: 1 }, {}, /姓名/],
     ['没有填后检查', null, {}, /填后检查/],
   ];
   for (const [name, review, extra, label] of notReady) {
@@ -140,6 +156,30 @@ describe('提交门槛：全部过关才入队提交，否则交给用户补', (
       expect(repos.getAction(fill.id)!.status).toBe('needs_user');
       expect(repos.openHandoffs().map(h => h.reason)).toEqual(['missing_info']);
       expect(repos.getApplication(app.id)!.stage).toBe('needs_user');
+    });
+  }
+
+  // 我们自己的识别 / 核验缺口（2026-10-31 你定：识别不到不交给人补）→ 不进等你补，照常投前过目，但绝不免审
+  const internalOnly: Array<[string, Record<string, unknown>, Record<string, unknown>]> = [
+    ['值没生效', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { mismatches: [{ fieldId: 'x', label: '学历', expected: '本科', actual: '' }] }],
+    ['网站报错', { rows: [ok('姓名'), { label: '手机号格式不正确', required: true, status: 'site_error' }], requiredTotal: 1, requiredFilled: 1 }, {}],
+    ['附件没回显', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1 }, { uploads: [{ fieldId: 'f', file: '/x/张三.pdf', echoed: false }] }],
+    ['读不到任何行（必填数不可信）', { rows: [], requiredTotal: 0, requiredFilled: 0 }, {}],
+    ['星号数对不上', { rows: [ok('姓名')], requiredTotal: 1, requiredFilled: 1, requiredTrusted: false, requiredNote: '页面上有 16 个必填星号，只认出 12 个必填项' }, {}],
+    ['行级读回核验没通过', { rows: [{ ...ok('姓名'), verified: false, reason: '页面上读回来是空的' }], requiredTotal: 1, requiredFilled: 1 }, {}],
+  ];
+  for (const [name, review, extra] of internalOnly) {
+    it(`${name}：不推给学生补，进投前过目且不免审`, () => {
+      const repos = createMemoryRepos();
+      setAutoMode(repos, true);
+      const { fill } = seedFill(repos);
+      const task = repos.createTask({ title: 't', kind: 'apply' });
+      const out = persistDriveOutcome({ repos, action: fill, taskId: task.id, changed: () => {}, mode: 'start', events: driveResult(review, extra) });
+      expect(out.kind).toBe('done');
+      if (out.kind !== 'done') return;
+      expect(out.autoApproved).toBeUndefined();
+      expect(repos.getAction(out.submitActionId)!.status).toBe('pending_review');
+      expect(repos.openHandoffs()).toEqual([]);
     });
   }
 

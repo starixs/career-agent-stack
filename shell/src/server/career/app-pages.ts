@@ -95,6 +95,12 @@ export async function releaseApplicationPage(context: BrowserContext, sessionKey
   if (page && context.pages().filter(p => !p.isClosed()).length > 1) await page.close().catch(() => { /* 已关闭 */ });
 }
 
+/** 找回这份网申登记着的页面（不新开、不改登记）；没有或已关返回 undefined。登录之旅钉页用。 */
+export function findApplicationPage(context: BrowserContext, sessionKey: string, appKey: string): Page | undefined {
+  const e = entries.get(slot(sessionKey, appKey));
+  return e ? findLive(context, e.frame) : undefined;
+}
+
 /** 当前登记着页面的网申（排查 / 状态展示用）。 */
 export function openApplicationKeys(sessionKey: string): string[] {
   const prefix = `${sessionKey}::`;

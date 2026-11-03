@@ -201,12 +201,15 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       return hit ? stripStar(hit.text) : ''
     }
     /** 最近的"表单项"祖先（ant-form-item / mtd-form-item / el-form-item / form-group / li / tr / fieldset）。 */
-    const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem)(\s|$)/i
+    // 飞书 formily：表单项是 ud-formily-item，或带 data-form-field-id（2026-10-31 小鹏网申表：认不出表单项，标签和必填星号全找错）
+    const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem|formily-item)(\s|$)/i
+    /** 控件到它所在表单项最多隔几层：飞书 UD 的可输入下拉嵌了 9 层（小鹏「学校名称」必填星号因此没认出来）。 */
+    const ITEM_DEPTH = 12
     const itemOf = (n: Element): Element | null => {
       let c: Element | null = n.parentElement
-      for (let i = 0; c && c !== document.body && i < 8; i++, c = c.parentElement) {
+      for (let i = 0; c && c !== document.body && i < ITEM_DEPTH; i++, c = c.parentElement) {
         const cls = typeof c.className === 'string' ? c.className : ''
-        if (ITEM_RX.test(cls) || c.tagName === 'FIELDSET' || c.tagName === 'LI' || c.tagName === 'TR') return c
+        if (ITEM_RX.test(cls) || c.hasAttribute('data-form-field-id') || c.tagName === 'FIELDSET' || c.tagName === 'LI' || c.tagName === 'TR') return c
       }
       return null
     }
@@ -233,11 +236,31 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       }
       return true
     }
-    const KNOWN_SELECT = '.ant-select, .el-select, .ivu-select, .mtd-select, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select'
+    const KNOWN_SELECT = '.ant-select, .el-select, .ivu-select, .mtd-select, .next-select, .kuma-select2, .layui-form-select, .phoenix-select, .atsx-select, .ud__select'
     /** 控件所在的自定义下拉外壳：先认已知组件库的根，再退到泛 [class*=select]（MTD 输入框外还套着 mtd-select-filter-input）。 */
+    /**
+     * 下拉外壳：先认已知组件库；否则按结构往上取最外层带 select 的节点，遇到装着别的控件或标签的那层就停
+     * （最近的那层可能只是包着搜索框的 __search，选中值渲染在它外面——2026-10-31 小鹏「学历」被读成空）。
+     */
     function selectShellOf(n: Element): Element | null {
       const p = n.parentElement
-      return p ? (p.closest(KNOWN_SELECT) ?? p.closest('[class*="select" i]')) : null
+      if (!p) return null
+      const known = p.closest(KNOWN_SELECT)
+      if (known) return known
+      let shell = p.closest('[class*="select" i]')
+      for (let a = shell?.parentElement ?? null; shell && a && a !== document.body && /select/i.test(typeof a.className === 'string' ? a.className : ''); a = a.parentElement) {
+        const inner: Element = shell
+        if (a.querySelector('label') || Array.from(a.querySelectorAll('input, select, textarea')).some(c => c !== n && !inner.contains(c))) break
+        shell = a
+      }
+      return shell
+    }
+    /** 外壳里用户看得到的选中文字：去掉占位 / 提示节点和图标字符；只剩提示语（请选择…）算空。 */
+    function shownText(shell: Element): string {
+      let t = clean((shell as HTMLElement).innerText)
+      for (const h of Array.from(shell.querySelectorAll('[class*="placeholder" i]:not(input), [class*="hint" i]'))) { const x = clean((h as HTMLElement).innerText); if (x) t = t.replace(x, '') }
+      t = clean(t.replace(/[\p{So}\p{Co}×✕✖⨯⌄∨˅]/gu, ''))
+      return /^(请选择|请输入|选择|搜索|please select|select|--)?$/i.test(t) ? '' : t
     }
     function isPlainText(n: Element): boolean {
       const t = ((n as HTMLInputElement).type || '').toLowerCase()
@@ -268,6 +291,14 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const aria = el.getAttribute('aria-label'); if (ok(aria)) return stripStar(aria!)
       const lb = el.getAttribute('aria-labelledby')
       if (lb) { const t = lb.split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' '); if (ok(t)) return stripStar(clean(t)) }
+      // 网站自己标在控件上的字段名（飞书 data-form-field-i18n-name）：比按位置猜的标签可靠。
+      // 单选 / 勾选框例外：它们的标签是选项自己的文字，整组的字段名由 groupLabel 用（2026-10-31 小鹏：三个选项都成了「推荐方式」）
+      const choiceType = ((el as HTMLInputElement).type || '').toLowerCase()
+      if (choiceType !== 'radio' && choiceType !== 'checkbox') {
+        labelVia = 'semantic'
+        const sem = el.getAttribute('data-form-field-i18n-name') || el.closest('[data-form-field-i18n-name]')?.getAttribute('data-form-field-i18n-name') || ''
+        if (ok(sem)) return stripStar(clean(sem))
+      }
       labelVia = 'for'
       const id = (el as HTMLElement).id
       if (id) { const l = document.querySelector(`label[for="${CSS.escape(id)}"]`); if (l && ok(pure(l))) return pure(l) }
@@ -297,6 +328,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       return ''
     }
     function groupLabel(first: Element, options: string[]): string {
+      const sem = first.closest('[data-form-field-i18n-name]')?.getAttribute('data-form-field-i18n-name') || ''
+      if (sem.trim()) return stripStar(clean(sem))
       const rg = first.closest('[role=radiogroup], fieldset, [class*="radio-group" i]')
       if (rg) {
         const al = rg.getAttribute('aria-label'); if (al) return stripStar(al)
@@ -309,7 +342,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       }
       return ''
     }
-    const REQ_CLASS_RX = /(^|\s)([\w-]*-)?(is-)?required(\s|$)|(^|\s)[\w-]*-required[\w-]*(\s|$)|(^|\s)(star|asterisk)(\s|$)/i
+    const REQ_CLASS_RX = /(^|\s)([\w-]*-)?(is-)?required(\s|$)|(^|\s)[\w-]*-required[\w-]*(\s|$)|(^|\s)([\w-]*-)?(star|asterisk)(\s|$)/i
     const starIn = (n: Element | null): boolean => {
       if (!n) return false
       for (const s of Array.from(n.querySelectorAll('i, em, span, b, sup, [class*="required" i], [class*="star" i], [class*="asterisk" i]')).slice(0, 12)) {
@@ -340,9 +373,17 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       }
       return { required: false }
     }
+    const PICKER_SEL = '[data-career-popup], [class*="dropdown" i], [class*="popper" i], [class*="popover" i], [role=listbox], [role=tree], [class*="treeselect" i], [class*="cascader-menu" i]'
+    /** 控件在浮起来的下拉层里（祖先是 absolute / fixed 定位的弹层）。 */
+    const inFloatingPicker = (n: Element): boolean => {
+      const layer = n.closest(PICKER_SEL)
+      if (!layer) return false
+      for (let a: Element | null = layer; a && a !== document.body; a = a.parentElement) { const pos = getComputedStyle(a).position; if (pos === 'absolute' || pos === 'fixed') return true }
+      return false
+    }
     const out: RawField[] = []
     const meta: Record<string, { xpath: string; framework: string }> = {}
-    const seenRadio = new Set<string>()
+    const seenRadio = new Set<Element>()
     let n = 0
     const els = Array.from(document.querySelectorAll('input, textarea, select, [contenteditable="true"], [role="combobox"]'))
     for (const el of els) {
@@ -355,19 +396,23 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const isFile = itype === 'file'
       if (!isFile && itype !== 'radio' && itype !== 'checkbox' && !vis(el)) continue
       if (el.closest('[class*="search" i][class*="box" i], [role="search"]')) continue
+      // 下拉 / 树选择弹层里的勾选框、搜索框是选项，不是表单字段（2026-10-31 小鹏：期望工作地点弹层没收起，9 个树节点勾选框被当成「?」字段）
+      if (inFloatingPicker(el)) continue
       const name = (el as HTMLInputElement).name || (el as HTMLElement).id || undefined
       const req = requiredOf(el)
       const required = req.required
       if (itype === 'radio') {
+        if (seenRadio.has(el)) continue
         const rn = (el as HTMLInputElement).name
-        if (rn && seenRadio.has(rn)) continue
-        if (rn) seenRadio.add(rn)
-        const group = rn ? Array.from(document.querySelectorAll(`input[type=radio][name="${CSS.escape(rn)}"]`)) : [el]
+        // 没有 name 的单选（飞书 UD）：按共同容器成组（radiogroup / fieldset / *radio-group* / 网站标的字段项），不然一组被拆成几个字段
+        const box = rn ? null : el.closest('[role=radiogroup], fieldset, [class*="radio-group" i], [data-form-field-id]')
+        const group = rn ? Array.from(document.querySelectorAll(`input[type=radio][name="${CSS.escape(rn)}"]`)) : box ? Array.from(box.querySelectorAll('input[type=radio]')).filter(r => !(r as HTMLInputElement).name) : [el]
+        group.forEach(r => seenRadio.add(r))
         const id = `f${n++}`
         meta[id] = { xpath: xpathOf(el), framework: frameworkOf(el) }
         const options = group.map(r => clean(labelFor(r) || (r as HTMLInputElement).value)).filter(Boolean)
         let value: string | undefined
-        group.forEach((r, i) => { r.setAttribute('data-career-field', id); r.setAttribute('data-career-option', options[i] ?? String(i)); if ((r as HTMLInputElement).checked) value = options[i] })
+        group.forEach((r, i) => { r.setAttribute('data-career-field', id); r.setAttribute('data-career-option', options[i] ?? String(i)); if ((r as HTMLInputElement).checked || r.getAttribute('aria-checked') === 'true') value = options[i] })
         out.push({ id, label: clean(groupLabel(el, options)) || rn || '', name: rn, type: 'radio', options, required, value, requiredVia: req.via })
         continue
       }
@@ -388,8 +433,10 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         const shell = shellAncestor || el
         // 选中值的展示节点；MTD 是 .mtd-select-filter-label（没选时带 -hint 类、写"请选择"，不算值）
         const shownEl = shell === el ? null : shell.querySelector('[class*="selection-item" i], [class*="single-value" i], [class*="selected-value" i], [class*="filter-label" i]:not([class*="hint" i]), .el-input__inner, .layui-input') as HTMLElement | null
-        const hasLabelNode = shell !== el && !!shell.querySelector('[class*="filter-label" i], [class*="selection-item" i], [class*="placeholder" i]:not(input)')
-        const shown = clean((shownEl && shownEl !== el ? ((shownEl as HTMLInputElement).value || shownEl.textContent) : '') || (hasLabelNode ? '' : (el as HTMLInputElement).value))
+        // 展示 / 占位节点要是和输入框分开的另一个节点；包着输入框本身的那层（飞书 UD 的 __placeholder__wrapper）不算，否则输入框里的值永远读不到（小鹏「学校名称」）
+        const hasLabelNode = shell !== el && Array.from(shell.querySelectorAll('[class*="filter-label" i], [class*="selection-item" i], [class*="placeholder" i]:not(input)')).some(n => !n.contains(el))
+        // 认不出展示节点时，按外壳里看得到的文字读选中值（飞书 UD 等没见过的组件库）
+        const shown = clean((shownEl && shownEl !== el ? ((shownEl as HTMLInputElement).value || shownEl.textContent) : '') || (hasLabelNode ? '' : (el as HTMLInputElement).value) || (shell !== el && !shownEl ? shownText(shell) : ''))
         let label = clean(labelFor(el))
         let uncertain = suspicious(label, labelVia)
         // 组合控件的前缀下拉（区号 / 证件类型）：和后面的输入框共用一个标签。标签归输入框，前缀下拉按提示文字另起名，
@@ -467,7 +514,9 @@ export const pageSignalsScript: PageScript<void, PageSignals> = {
     }
     // 很多站的"添加一段经历"是带点击事件的 div / span（美团「添加教育经历」就是），不是 button：
     // 按行为补收——可点（手形光标 / onclick / tabindex）、文字是"添加 / 新增 …"的最内层元素。只补这类入口，不碰提交按钮识别。
-    const ADD_RX = /^(\+|＋)?\s*(添加|新增|增加|继续添加|再添加)/
+    // 北森 zhiye 岗位行就地展开后的「立即投递」也是可点 div（2026-10-31 联发科技）：申请入口同样按行为补收，
+    // 点不点由 drive 的入口守卫决定（只在页面还没有网申表时点）
+    const ADD_RX = /^(\+|＋)?\s*(添加|新增|增加|继续添加|再添加)|^(立即投递|投递|投递简历|申请职位|立即申请|我要投递|我要申请)$/
     const addCands = Array.from(document.querySelectorAll('div, span, p, li, i, label, em, strong')).filter(el => {
       // 只排除本次已当按钮收下的元素（上一次扫描留下的标记不算，否则第二次扫描就把它漏了）
       if (tagged.some(b => b.contains(el)) || !vis(el)) return false
@@ -484,9 +533,20 @@ export const pageSignalsScript: PageScript<void, PageSignals> = {
       if (n >= 100) break
     }
     const errors: string[] = []
+    // 校验错误要像错误：信息 / 提醒类横幅（「还可以投递 3 次」「截止说明」）不算——2026-10-31 小鹏的投递次数说明被当成了要学生处理的校验错误
+    const NOTICE_CLASS_RX = /(info|notice|tips?|warn|success|hint)/i
+    const ERROR_CLASS_RX = /(error|danger|invalid)/i
+    const ERROR_WORD_RX = /(请|必填|不能为空|不得为空|格式|有误|错误|不正确|不合法|无效|已存在|invalid|required|error)/i
+    const clsOf = (n: Element) => (typeof n.className === 'string' ? n.className : '')
+    const isNotice = (e: Element): boolean => {
+      for (let a: Element | null = e, i = 0; a && i < 4; a = a.parentElement, i++) { const c = clsOf(a); if (ERROR_CLASS_RX.test(c)) return false; if (NOTICE_CLASS_RX.test(c)) return true }
+      return false
+    }
     for (const e of Array.from(document.querySelectorAll('[aria-invalid="true"] ~ *, [role="alert"], [class*="error" i]:not([class*="clear" i]), [class*="form-item__error" i], [class*="explain-error" i]'))) {
-      if (!vis(e)) continue
-      const t = clean(e.textContent); if (t && t.length > 1 && t.length < 160) errors.push(t)
+      if (!vis(e) || isNotice(e)) continue
+      const t = clean(e.textContent)
+      if (e.getAttribute('role') === 'alert' && !ERROR_CLASS_RX.test(clsOf(e)) && !ERROR_WORD_RX.test(t)) continue
+      if (t && t.length > 1 && t.length < 160) errors.push(t)
     }
     const fieldCount = Array.from(document.querySelectorAll('input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select, [contenteditable="true"]')).filter(vis).length
     return {

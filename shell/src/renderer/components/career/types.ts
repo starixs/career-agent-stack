@@ -30,6 +30,8 @@ export interface Evidence {
 }
 export type ClaimNode = Claim & { evidence: Evidence[] };
 export type ExperienceNode = Experience & { claims: ClaimNode[] };
+/** 说法全部来自口述访谈的经历（和服务端 resume-intake.ts oralExperienceIds 同一判断）。 */
+export const isOralExperience = (e: ExperienceNode): boolean => Array.isArray(e.claims) && e.claims.length > 0 && e.claims.every(c => c.created_from === 'interview');
 
 export interface ResumeMaster {
   id: string; name: string; direction: string | null; schema_json: string; created_at: string; updated_at: string;
@@ -90,6 +92,11 @@ export interface Interview {
   round: string; date: string | null; interviewer_role_guess: string | null; transcript: string | null;
   tags_json: string; retro_json: string | null; result: string; result_source: string;
   created_at: string; updated_at: string;
+}
+/** 用户自己录的面试录音：上传后等语音识别转写，转好了再复盘。 */
+export interface InterviewRecording {
+  id: string; interview_id: string; name: string; mime: string | null; size: number;
+  status: 'awaiting_asr' | 'transcribed' | 'failed'; uploaded_at: string; error?: string;
 }
 export interface MockInterview {
   id: string; job_id: string | null; resume_tailored_id: string | null; mode: string;
@@ -160,7 +167,7 @@ export interface VaultAccessLogRow { id: string; item_id: string | null; actor: 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
 export interface BatchState {
   status: BatchStatus; startedAt?: string; updatedAt: string; currentActionId?: string; currentTitle?: string;
-  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked' | 'daily_cap';
+  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked';
   message?: string; done: number; failed: number; handoffs: number; queued: number; todayCount: number; lastError?: string;
   /** 正在并行填写的网申（不同网站各一份）。 */
   running?: Array<{ actionId: string; title: string; host: string }>; concurrency?: number;
@@ -171,6 +178,10 @@ export interface LiveSnapshot {
   batch: BatchState | null;
   openHandoffs: number;
   fileChooser?: LiveFileChooser | null;
+  /** 登录之旅：第几家（从 0 数）/ 共几家。 */
+  journey?: { index: number; total: number } | null;
+  /** 助理正在等你处理（browser_wait_user）：交还时它自己会接着办。 */
+  waitingUser?: boolean;
 }
 /** 页面请求选文件（系统选文件框被拦下，改在产品里选）。 */
 export interface LiveFileChooser { id: string; sessionId: string; multiple: boolean; accept: string | null; url: string; ts: number }
@@ -186,7 +197,7 @@ export function liveStatusText(ev: LiveFrameStatus): string {
 export type LiveStreamEvent = ({ type: 'snapshot'; ts: number } & LiveSnapshot) | LiveFrame | { type: 'heartbeat'; ts: number } | { type: 'frame-error' | 'error'; error: string } | ({ type: string; ts?: number } & Record<string, unknown>);
 
 // ---------- 对话内流程卡片（SSE career:card；对话是主场，卡片把"要用户动手的一步"就地解决） ----------
-export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'resume_diff' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps';
+export type CareerCardKind = 'vault_missing' | 'needs_user' | 'drafts' | 'claims_confirm' | 'resume_intake' | 'tailor_diff' | 'site_login' | 'mail_bind' | 'search_setup' | 'review' | 'apply_gaps' | 'interview_prep' | 'takeover' | 'application' | 'fix';
 /** 模型 Key（必需）/ 搜索 Key（建议）的配置状态；source=build 表示来自启动环境变量或打包常量。 */
 export interface CareerSetupStatus {
   llm: { configured: boolean; source: 'settings' | 'build' | 'none' };
@@ -213,12 +224,16 @@ export interface InboxItem {
   id: string; source: 'paste' | 'mail' | 'file' | 'url' | 'chat'; raw_text: string; kind: InboxKind | null;
   status: 'new' | 'processed' | 'dismissed'; parsed_json: string | null; linked_type: string | null; linked_id: string | null;
   mail_message_id: string | null; note: string | null; created_at: string; processed_at: string | null;
+  /** 服务端算的：已归档且它带来的事都处理完了（core.Repos.inboxSettled），通知中心折进「已处理」。 */
+  settled?: boolean;
 }
 export type DeadlineKind = 'assessment' | 'written_test' | 'interview' | 'application_deadline' | 'offer_reply' | 'referral_expiry' | 'other';
 export interface Deadline {
   id: string; kind: DeadlineKind; title: string; due_at: string | null; application_id: string | null; job_id: string | null;
-  interview_id: string | null; offer_id: string | null; source: string; status: 'open' | 'done' | 'missed' | 'cancelled';
+  interview_id: string | null; offer_id: string | null; source: string; status: 'open' | 'done' | 'missed' | 'cancelled' | 'skipped';
   url: string | null; note: string | null; created_at: string; updated_at: string;
+  /** 过了时间的笔试 / 测评（面试过了时间走复盘，不问）：服务端给出要问的那句（「考了吗？」），答完收进卷宗；不用问时为 null / 缺省。 */
+  attendance_question?: string | null;
 }
 export interface DossierNote { id: string; application_id: string; kind: 'note' | 'said' | 'heard' | 'contact' | 'referral' | 'mail'; round: string | null; content: string; created_at: string }
 export type MaterialKind = 'open_question' | 'project_story' | 'self_intro' | 'why_company' | 'why_role' | 'strength_weakness' | 'career_plan' | 'other';
@@ -227,26 +242,51 @@ export interface Material {
   claim_ids_json: string; tags_json: string; company_scope: string | null; confirmed: number; created_at: string; updated_at: string;
 }
 export interface MaterialUse { id: string; material_id: string | null; application_id: string | null; job_id: string | null; company_name: string | null; context: string; content_snapshot: string; used_at: string }
-export interface WeeklyReview { id: string; week_start: string; funnel_json: string; insights_json: string; suggestions_json: string; small_action: string | null; created_at: string }
 export interface MailAccount {
   id: string; provider: 'qq' | '163' | '126' | 'gmail' | 'outlook' | 'imap'; address: string; display_name: string | null;
   imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; status: 'unverified' | 'ok' | 'auth_failed' | 'error';
   last_sync_at: string | null; last_uid: number; last_error: string | null; created_at: string; updated_at: string;
+  consecutive_fails?: number; last_ok_at?: string | null; last_check_at?: string | null;
+  /** 连接状态投影（服务端 mail/connectors.ts connectionOf 判定，界面只展示）。 */
+  connection?: { state: 'active' | 'expired' | 'verifying'; health: 'healthy' | 'degraded' | 'expired' };
 }
-/** 一键连接邮箱的进度（服务端 mail/connect.ts）。 */
-export interface MailConnectSession {
-  id: string; provider: 'qq' | '163' | '126' | 'gmail';
-  status: 'starting' | 'login' | 'settings' | 'need_address' | 'verifying' | 'done' | 'failed' | 'cancelled';
-  hint: string; address: string | null; account_id: string | null; summary: string | null; error: string | null; started_at: string; updated_at: string;
+/** 邮箱连接器目录（服务端 mail/connectors.ts）：引导、字段、官方页面都是数据。 */
+export type MailConnectorId = 'qq' | '163' | '126' | 'gmail';
+export interface MailConnector {
+  id: MailConnectorId; name: string; auth_type: 'credential_form' | 'oauth'; capabilities: Array<'receive' | 'send'>;
+  open_url: string; open_label: string; help_url: string | null;
+  guide: Array<{ title: string; text: string; path?: string[] }>;
+  verify_note: string;
+  fields: Array<{ key: 'email' | 'authCode'; type: 'email' | 'secret'; label: string; placeholder: string; helper?: string; length?: number }>;
+  /** OAuth 轨（预留）：审核通过、云端开启后为 true。 */
+  oauth?: { enabled: boolean };
 }
+/** 接管简报（服务端 mail/takeover.ts）。 */
+export type SeasonId = 'prep' | 'autumn_early' | 'autumn' | 'spring' | 'offer';
+export interface TakeoverBriefing {
+  report: { account_id: string; address: string; started_at: string; updated_at: string; viewed_at: string | null; mails: number; by_rules: number; by_model: number; unclassified: number; application_ids: string[]; span: { from: string | null; to: string | null } };
+  applications: number;
+  buckets: Array<{ id: 'applied' | 'interview' | 'offer' | 'closed'; label: string; items: Array<{ application_id: string; company: string | null; title: string; stage: string }> }>;
+  needs: Array<{ deadline_id: string; application_id: string | null; kind: string; title: string; due_at: string | null; url: string | null }>;
+  season: { id: SeasonId; label: string; basis: string; source: 'user' | 'guess' };
+  seasons: Array<{ id: SeasonId; label: string }>;
+  unclassified: Array<{ mail_id: string; subject: string | null; from: string | null; received_at: string | null }>;
+}
+export type MailOauthStart = { ok: true; authorize_url: string; state: string } | { ok: false; error_code: string; message: string };
+export type MailConnectErrorCode = 'imap_auth_failed' | 'imap_disabled' | 'provider_blocked' | 'unreachable' | 'duplicate' | 'invalid_input';
+export type MailConnectResult =
+  | { ok: true; account: MailAccount; smtp_ok: boolean; /** 网申填的是另一个邮箱时给出那个地址：那边的回音这里收不到 */ apply_address_mismatch?: string | null }
+  | { ok: false; error_code: MailConnectErrorCode; message: string; account_id?: string };
+export interface MailAuditEntry { id: string; actor: 'agent' | 'user' | 'system'; operation: string; status: 'ok' | 'failed'; detail: Record<string, unknown> | null; latency_ms: number | null; created_at: string }
+export interface MailAccountDetail { account: MailAccount; usage: { days: number; by_op: Record<string, { ok: number; failed: number }> }; audit: MailAuditEntry[] }
 export interface MailPreset { provider: string; label: string; imap_host: string; imap_port: number; smtp_host: string; smtp_port: number; help: string }
 export interface MailMessage {
   id: string; account_id: string; uid: number | null; message_id: string | null; in_reply_to: string | null; direction: 'in' | 'out';
   from_addr: string | null; to_addr: string | null; subject: string | null; snippet: string | null; body_text: string | null; received_at: string | null;
   relevance: 'unknown' | 'job' | 'ignored'; kind: InboxKind | null; inbox_item_id: string | null; application_id: string | null; action_id: string | null; created_at: string;
 }
-export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'followup';
-export interface TodayItem { kind: TodayItemKind; priority: number; title: string; detail?: string; due_at?: string | null; ref: { type: string; id: string }; suggest?: string }
+export type TodayItemKind = 'deadline' | 'review' | 'handoff' | 'stale' | 'inbox' | 'interview_today' | 'interview_retro' | 'followup' | 'mail_auth';
+export interface TodayItem { kind: TodayItemKind; priority: number; title: string; detail?: string; due_at?: string | null; ref: { type: string; id: string }; deadline_id?: string; suggest?: string; ask?: 'attendance' }
 /** 「今天做过」一条：任务进展 / 投递阶段变化 / 动作执行。 */
 export interface ActivityEntry { id: string; at: string; kind: 'task' | 'stage' | 'action'; status: string; title: string; detail: string | null }
 export interface TodayQueue { items: TodayItem[]; waiting: { count: number; by_stage: Array<{ stage: string; n: number }> }; inbox_new: number; pending_review: number }
@@ -256,6 +296,8 @@ export interface DossierSummary {
   days_since_update: number; next_deadline: Deadline | null; interview_count: number; resume_tailored_id: string | null; closed: boolean;
   /** 以下由服务端 dossierSummaries 给出；旧数据可能缺，按缺省处理。 */
   created_at?: string; applied_at?: string | null; reached_stages?: string[]; exam_kinds?: Array<'assessment' | 'written_test'>; job_url?: string | null;
+  /** 目标申请：interview = 进过面试（自动）；user = 用户亲手标的；null = 不算。系统不替用户认定。 */
+  target?: 'interview' | 'user' | null;
 }
 export interface Dossier {
   application: Application; job: Job; company: Company | null;
@@ -266,6 +308,23 @@ export interface Dossier {
 }
 export interface FunnelRow { key: string; total: number; applied: number; responded: number; interview: number; offer: number; rejected: number; silent: number }
 export interface Funnel { by_category: FunnelRow[]; by_platform: FunnelRow[]; overall: FunnelRow | null }
+/** 「我的求职月」看板，结构同 @career/core 的 MonthBoard。四层：投出 → 笔试/测评 → 面试 → Offer。 */
+export type LayerCounts = [number, number, number, number];
+export interface MonthDay { day: number; sent: number; split: LayerCounts; pending: boolean; companies: { exam: string[]; interview: string[]; offer: string[] } }
+export interface MonthBoard {
+  month: { key: string; year: number; month: number; days: number; dow1: number; today: number | null; is_current: boolean; prev_key: string | null; next_key: string | null };
+  counts: LayerCounts;
+  prev: LayerCounts | null;
+  history: Array<{ key: string; month: number; counts: LayerCounts }>;
+  in_transit: number;
+  since_total: number;
+  days: MonthDay[];
+  exams: Array<{ company: string; kind: 'assessment' | 'written_test'; status: string; due_at: string | null }>;
+  interviews: Array<{ company: string; rounds: Array<{ round: string; done: boolean; date: string | null }> }>;
+  next_interview: { company: string; round: string; date: string } | null;
+  offers: Array<{ company: string; title: string | null; location: string | null; reply_by: string | null }>;
+  rhythm: { reply_days: number | null; first_interview_after: number | null };
+}
 export interface IntakeResult {
   item: InboxItem; triage: { kind?: string; summary?: string; urgency?: string } | null;
   created: { job_id?: string; application_id?: string; interview_id?: string; offer_id?: string; deadline_ids: string[]; closed_application_id?: string };
@@ -273,7 +332,9 @@ export interface IntakeResult {
 }
 /** 工具 / 路由完成后让面板跳到对应对象。 */
 export interface CareerFocusEvent {
-  sessionId?: string | null; surface: 'today' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
+  sessionId?: string | null; surface: 'today' | 'takeover' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
+  /** 投递记录按一组投递筛选（从漏斗、甘特跳过去）；label 说明这组是什么。 */
+  filter?: { label: string; application_ids: string[] };
   /** assistant = 小芽在对话里做完事推来的提示：只记下定位，不把用户从对话里带走。 */
   origin?: 'user' | 'assistant';
 }
@@ -282,6 +343,8 @@ export interface CareerChatSuggestEvent { text: string; context?: { surface?: st
 
 // ===== 岗位汇总表 =====
 export type EmploymentType = 'campus' | 'intern' | 'social' | 'unknown';
+/** 框选确认前的计划（服务端 career/batch-apply.ts JobPlan）。 */
+export interface JobPlan { ready: string[]; targets: number; skipped: Array<{ job_id: string; reason: string }>; needs_resume: string[]; resumes: Array<{ id: string; name: string }> }
 export interface JobPrefs { cohort?: string | null; degree?: string | null; cities?: string[]; employment_types?: EmploymentType[]; keywords?: string[] }
 export interface JobHardCheck { rule: string; label: string; ok: boolean | null; detail: string }
 export interface JobRequirementMatch { requirement: string; weight: number; status: 'covered' | 'missing'; terms: string[]; evidence?: { id: string; kind: 'claim' | 'resume'; text: string; label?: string } }
@@ -292,6 +355,8 @@ export interface JobBoardRow {
   application: { id: string; stage: ApplicationStage; next_action: string | null; updated_at: string } | null;
   /** 多维表格维度（server job-board.ts boardMeta）：来源数据里有才有。 */
   meta?: JobBoardMeta;
+  /** 目标岗位：interview = 进过面试；user = 用户亲手标的；null = 不算。 */
+  target?: 'interview' | 'user' | null;
 }
 export interface JobBoardMeta { batch: string | null; industry: string | null; type_tags: string[] }
 export interface JobBoardFilter { q?: string; employment_type?: string; city?: string; cohort?: string; open_only?: boolean; fits_only?: boolean; progress?: 'none' | 'active' | 'done'; sort?: 'match' | 'deadline' | 'updated' }

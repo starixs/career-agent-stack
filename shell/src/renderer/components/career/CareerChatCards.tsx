@@ -1,5 +1,6 @@
 /**
- * 对话内求职卡片（对话底部）：没有锚点的流程卡片（含待审核动作）/ 浏览器需要你 / 可折叠进度行。
+ * 对话内求职卡片（对话底部）：没有锚点的流程卡片 / 浏览器需要你 / 可折叠进度行 / 回来卡（离开超过半天）。
+ * 要你的事（待审核、缺项）不在这里，在输入框上沿的等你条。
  * 状态来自 TabContext（TabProvider 处理 career:* SSE），回传走 Session 路由。
  * 待审核动作是 kind=review 的流程卡片（CareerReviewCard.tsx），有锚点时挂在那次工具调用下面。
  * 在 TabProvider 之外渲染时返回 null，MessageList 的既有测试不受影响。
@@ -13,7 +14,9 @@ import { surfaceForTool } from '@/features/career-shell/workSurfaces';
 
 import { BrowserWorkCard, shouldShowBrowserCard } from './BrowserWorkCard';
 import { CareerFlowCards, useBatchState } from './CareerFlowCards';
+import { ReturnBriefing } from './delivery/ReturnCard';
 import { CareerKeysPanel, useCareerSetupStatus } from './CareerKeysPanel';
+import { StarterCard } from './ColdStartCards';
 import { openLiveDrawer } from './CareerLiveDrawer';
 
 import { HANDOFF_REASON_LABELS, TAKEOVER_STATE_LABELS } from './careerConstants';
@@ -40,11 +43,13 @@ function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useT
   return (
     <div className="space-y-2 py-2">
       <CareerSetupCards />
+      <StarterCard />
       {careerProgress && <CareerProgressRow progress={careerProgress} onDismiss={tab.dismissCareerProgress} />}
       {shouldShowBrowserCard(careerTakeover, careerProgress, batch) && (batch?.status === 'running' || !hasBrowserToolCall) && (
         <BrowserWorkCard takeover={careerTakeover} progress={careerProgress} />
       )}
-      <CareerFlowCards cards={cards} batch={batch} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
+      <CareerFlowCards cards={cards} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
+      <ReturnBriefing messageCount={tab.messages?.length ?? 0} />
     </div>
   );
 }
@@ -153,7 +158,7 @@ export function CareerTakeoverCard({ takeover, onAction }: {
  * 没登记的内部名字不显示，免得露出 apply_run 这类技术名。已经是中文的原样显示。
  */
 const PHASE_LABELS: Record<string, string> = {
-  fill_form: '填表', apply_run: '填表', apply_continue: '填表', apply_batch: '批量投递', apply_prepare: '准备材料', jobs_prepare: '准备材料',
+  fill_form: '填表', apply_run: '填表', apply_continue: '填表', apply_batch: '批量投递', apply_prepare: '准备材料', jobs_apply: '开始投',
   web_search: '搜索', resume_export: '导出简历', submit: '提交',
 };
 export function phaseLabel(phase: string | undefined): string | null {

@@ -21,7 +21,7 @@ const rows: JobBoardRow[] = [
 ];
 const TODAY = '2026-10-13';
 
-describe('岗位收藏筛选（选项来自已有取值，不做条件编辑器）', () => {
+describe('岗位库筛选（选项来自已有取值，不做条件编辑器）', () => {
   it('维度选项按条数倒序；进度按固定顺序；地点拆成单个城市', () => {
     expect(facetOptions(rows, 'batch')).toEqual([{ value: '正式批', label: '正式批', count: 2 }, { value: '实习', label: '实习', count: 1 }]);
     expect(facetOptions(rows, 'city').map(o => [o.value, o.count])).toEqual([['上海', 2], ['北京', 1], ['深圳', 1]]);

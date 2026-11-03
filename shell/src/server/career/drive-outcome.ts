@@ -11,6 +11,8 @@
  */
 import type { ActionQueueItem, Repos } from '@career/core';
 
+import { recordApplyability } from './applyability';
+import { explainApproval } from './learned-rules';
 import { decideSubmit } from './submit-policy';
 
 /** @career/apply 的 SubmitReview（只用到这些字段；requiredTrusted / verified / 行级 verified / code 是引擎可选的核验结果，有就优先用）。 */
@@ -76,6 +78,15 @@ export function evaluateSubmitGate(result: Record<string, unknown>): SubmitGate 
   if (!trusted) add('必填项核对', 'unverified', strOf(review.requiredNote) ?? '没能读回表单核对必填项');
   else if (filled < total && !gaps.some(g => g.required)) add('必填项', 'empty', `还有 ${total - filled} 个必填项没填好`);
   return { ready: trusted && filled === total && gaps.length === 0, requiredFilled: filled, requiredTotal: total, gaps };
+}
+
+/**
+ * 学生能答的缺口：资料里确实没有的值、必填还空着、开放题草稿。其余（读不回、星号数对不上、网站提示、附件回显、填进去没生效）
+ * 是我们自己的识别 / 核验问题：不推给学生补（face-ga-port 2b，2026-10-31 你定），只是不许免审直接投出，并记 [apply-gap] 日志迭代。
+ */
+const STUDENT_GAP_STATUSES: ReadonlySet<string> = new Set(['needs_user', 'empty', 'draft']);
+export function studentGaps(gaps: readonly SubmitGap[]): SubmitGap[] {
+  return gaps.filter(g => STUDENT_GAP_STATUSES.has(g.status));
 }
 
 /** 岗位在文案里的叫法：没有公司和岗位名时说"这个岗位"。 */
@@ -173,8 +184,16 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     deps.changed('task', 'action_queue', 'application');
     return { kind: 'failed', blocked, message, summary };
   };
-  // 交还后核对身份没过（页面换了网站 / 找不到网申页面）：不算失败，重新交给用户——回到网申页面后再交还就能接着填
   const code = (errorLine as { code?: string } | undefined)?.code;
+  // 续填时原页面没了（浏览器被关 / 重启）：和「浏览器关了重新打开」同一件事，放回队列从网申网址重新打开，不让用户自己找回去
+  // （2026-10-31 实例测试：登上之后重启了一次，就让学生「回到网申页面后再交还」）
+  if (!result && code === 'APPLICATION_PAGE_GONE' && deps.mode === 'continue') {
+    r.requeueAction(action.id);
+    r.updateTask(taskId, { status: 'queued' });
+    deps.changed('task', 'action_queue');
+    return { kind: 'transient', code, message: '原来的网申页面已经关了，重新打开接着填' };
+  }
+  // 交还后核对身份没过（用户把页面换到了别的网站）：不算失败，重新交给用户——回到网申页面后再交还就能接着填
   if (!result && (code === 'APPLICATION_PAGE_MOVED' || code === 'APPLICATION_PAGE_GONE')) {
     const message = errorLine?.error ?? '这份网申的页面不对，请回到网申页面后再交还';
     const h = r.openHandoff('user_request', { actionId: action.id, taskId, message });
@@ -195,6 +214,8 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
   }
   if (!result) return fail(errorLine ? `${errorLine.error ?? '浏览器路由报错'}（HTTP ${errorLine.status ?? '?'}）` : '浏览器没有返回填表结果');
   const summary = summarizeDriveResult(result);
+  // 记下这个岗位能不能直接投（有表 / 合集 / 要登录），下次框选时就知道，不用再撞一次
+  recordApplyability(r, action, result);
   // 用户接管期间自己填好的字段 → 答案库（未确认），下次同类问题直接用原话
   if (Array.isArray(result.learned)) {
     for (const item of result.learned as Array<{ label?: string; value?: string }>) {
@@ -223,14 +244,20 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     const job = typeof fillPayload.job_id === 'string' ? r.getJob(fillPayload.job_id) : undefined;
     const submitButton = typeof result.submitButton === 'string' ? result.submitButton : undefined;
     const gate = evaluateSubmitGate(result);
-    if (!gate.ready) {
-      // 没过门槛：不入队提交。填表动作停在 needs_user + missing_info 接管，用户补完后从当前页继续、重新检查
-      const gapText = gapsHeadline(gate.gaps);
+    const asks = studentGaps(gate.gaps);
+    if (!gate.ready && gate.gaps.length > asks.length) {
+      console.log(`[apply-gap] action=${action.id} internal: ${gate.gaps.filter(g => !asks.includes(g)).map(g => `${g.label.slice(0, 40)}(${g.status})`).join('; ')}`);
+    }
+    // 没拿到填后检查（页面读不了）是例外：没有清单可过目，只能照旧停下
+    if (!gate.ready && (asks.length || !result.review)) {
+      // 有学生能答的缺口：不入队提交。填表动作停在 needs_user + missing_info 接管，补完后从当前页继续、重新检查；等你卡只列这些
+      const shown = asks.length ? asks : gate.gaps;
+      const gapText = gapsHeadline(shown);
       const h = r.openHandoff('missing_info', { actionId: action.id, taskId, message: gapText });
-      r.setActionStatus(action.id, 'needs_user', { ...summary, gate });
+      r.setActionStatus(action.id, 'needs_user', { ...summary, gate: { ...gate, gaps: shown } });
       if (action.application_id) { try { r.transition(action.application_id, 'needs_user', gapText, { page_url: finalUrl, blocker_reason: gapText, next_action: '补齐缺项后继续检查' }); } catch { /* ignore */ } }
       deps.changed('handoff', 'task', 'action_queue', 'application');
-      return { kind: 'handoff', handoffId: h.id, reason: 'missing_info', userAction: `${gapText}。补好后告诉我，我从当前页接着检查`, message: gapText, finalUrl, summary, gate };
+      return { kind: 'handoff', handoffId: h.id, reason: 'missing_info', userAction: `${gapText}。在输入框上沿的「等你」里填一次，我从当前页接着填`, message: gapText, finalUrl, summary, gate };
     }
     r.setActionStatus(action.id, 'done', summary);
     const review = result.review as SubmitReviewLike;
@@ -248,8 +275,13 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
       formSignature: review.formSignature ?? null, openAnswersHash: review.openAnswersHash ?? null, resumeSha,
     }, action.application_id);
     r.updateTask(taskId, { status: 'done', progress: 1 });
-    const decision = decideSubmit(r, { attention: review.attention, formSignature: review.formSignature, openAnswersHash: review.openAnswersHash, resumeSha });
-    if (decision.approve) r.reviewActions([submitAction.id], 'approved', decision.by);
+    // 只剩我们内部的核验缺口：照常进投前过目，但至少算一项要看，绝不免审直接投出
+    const decision = decideSubmit(r, { attention: gate.ready ? review.attention : Math.max(review.attention, 1), formSignature: review.formSignature, openAnswersHash: review.openAnswersHash, resumeSha, applicationId: action.application_id });
+    if (decision.approve) {
+      r.reviewActions([submitAction.id], 'approved', decision.by);
+      // 免审在用户没看的时候发生：把凭哪条规则、依据哪几家写进卷宗，用户事后问「为什么没让我审」有据可查
+      if (action.application_id) r.addDossierNote({ application_id: action.application_id, kind: 'note', content: explainApproval(r, decision, review.formSignature) });
+    }
     if (action.application_id) {
       try { r.db.update('application', action.application_id, { page_url: finalUrl ?? null, next_action: decision.approve ? '正在提交' : '审核后提交', blocker_reason: null, updated_at: new Date().toISOString() }); } catch { /* ignore */ }
     }

@@ -20,6 +20,8 @@ export const STAGE_TRANSITIONS: Record<ApplicationStage, readonly ApplicationSta
   offer: ['hired', 'rejected', 'discarded'],
   rejected: [], discarded: [], skip: ['evaluated'], hired: [],
 }
+/** 关掉了的投递：不再进归档匹配、不算进行中。 */
+export const CLOSED_STAGES: readonly ApplicationStage[] = ['rejected', 'discarded', 'skip', 'hired']
 export function canTransition(from: ApplicationStage, to: ApplicationStage): boolean {
   return (STAGE_TRANSITIONS[from] ?? []).includes(to)
 }
@@ -80,14 +82,15 @@ export const INTERVIEW_RESULT_SOURCES = ['none', 'official', 'inferred'] as cons
 // ===== 五个面（收件箱 / 今日 / 卷宗 / 素材 / 复盘）用到的枚举 =====
 export const INBOX_SOURCES = ['paste', 'mail', 'file', 'url', 'chat'] as const
 export type InboxSource = typeof INBOX_SOURCES[number]
-export const INBOX_KINDS = ['jd', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other'] as const
+export const INBOX_KINDS = ['jd', 'application_received', 'interview_invite', 'assessment', 'written_test', 'rejection', 'offer', 'referral', 'deadline', 'other'] as const
 export type InboxKind = typeof INBOX_KINDS[number]
 export const INBOX_STATUSES = ['new', 'processed', 'dismissed'] as const
 export type InboxStatus = typeof INBOX_STATUSES[number]
 
 export const DEADLINE_KINDS = ['assessment', 'written_test', 'interview', 'application_deadline', 'offer_reply', 'referral_expiry', 'other'] as const
 export type DeadlineKind = typeof DEADLINE_KINDS[number]
-export const DEADLINE_STATUSES = ['open', 'done', 'missed', 'cancelled'] as const
+/** skipped：过了时间、用户回来说没去 / 没做（和 cancelled 不同：邀请是真的来过，漏斗照样算回应）。 */
+export const DEADLINE_STATUSES = ['open', 'done', 'missed', 'cancelled', 'skipped'] as const
 export type DeadlineStatus = typeof DEADLINE_STATUSES[number]
 
 export const DOSSIER_NOTE_KINDS = ['note', 'said', 'heard', 'contact', 'referral', 'mail'] as const
@@ -99,5 +102,8 @@ export type MaterialKind = typeof MATERIAL_KINDS[number]
 export const MAIL_PROVIDERS = ['qq', '163', '126', 'gmail', 'outlook', 'imap'] as const
 export type MailProvider = typeof MAIL_PROVIDERS[number]
 
-/** 投递静默判定：某阶段停留超过 N 天且没有任何新事件，视为"可关闭的静默"。 */
-export const SILENCE_DAYS: Partial<Record<ApplicationStage, number>> = { applied: 21, responded: 14, interview: 14, pending: 7 }
+/**
+ * 投递静默判定：某阶段停留超过 N 天且没有任何新事件，视为"可关闭的静默"。
+ * 投出后 30 天、面试后 21 天（2026-10-30 定，低谷面）：回音多半 7 天内，大厂约一个月；秋招面试后等两三周很常见。
+ */
+export const SILENCE_DAYS: Partial<Record<ApplicationStage, number>> = { applied: 30, responded: 14, interview: 21, pending: 7 }

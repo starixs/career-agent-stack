@@ -18,8 +18,20 @@ import type { BatchRunner, BatchState } from '../career/batch-runner';
 import type { FileChooserBroker, PendingFileChooser, UploadedFile } from '../career/file-chooser';
 import { BatchRunner as BatchRunnerClass } from '../career/batch-runner';
 import type { LiveHub } from '../career/live-hub';
+import { findApplicationPage } from '../career/app-pages';
+import { livePin, userWaitActive } from '../career/live-pin';
 import { createPageFollower } from '../career/page-follower';
 import { ScreencastHub, fromPlaywrightPage } from '../career/screencast';
+
+/** 现场画面每一帧都发（原来隔帧）：人帮一下留在产品里要跟手，画面一动就推（face-ga-port 1b）。静止页面本来就不出帧。 */
+const LIVE_EVERY_NTH_FRAME = 1;
+
+/** 登录之旅钉住的那一页优先（后台并行时画面和你的操作都不被切走）；没钉或那页没了就看选中页。 */
+async function pinnedOrActive(context: BrowserContext, productSessionId: string): Promise<Page> {
+  const pin = livePin();
+  const pinned = pin ? findApplicationPage(context, pin.sessionKey || productSessionId, pin.appKey) : undefined;
+  return pinned ?? activePage(context);
+}
 
 export const CAREER_LIVE_PREFIX = '/api/career/live/';
 export const CAREER_BATCH_PREFIX = '/api/career/batch/';
@@ -33,6 +45,8 @@ export interface CareerLiveHost {
   /** 内嵌窗口模式（真实 Chrome 停在屏幕角落）；缺省视为 false。 */
   embeddedWindow?(): boolean;
   isWindowRevealed?(productSessionId: string): boolean;
+  /** 托管 Chrome 此刻被隐藏（虚拟屏不可用时的兜底）：画面改为轮询 fromSurface:false 截图。 */
+  surfacelessCapture?(productSessionId: string): boolean;
   setWindowVisible?(productSessionId: string, visible: boolean): Promise<{ revealed: boolean }>;
   /** 现场画面框尺寸（CSS 像素）→ 页面视口按比例跟随；浏览器还没开时记下来，打开后生效。 */
   fitLiveViewport?(productSessionId: string, box: { width: number; height: number }): Promise<{ viewport: { width: number; height: number } | null; changed: number }>;
@@ -71,6 +85,14 @@ export interface LiveSnapshot {
   openHandoffs: number;
   /** 等用户在产品里选文件的上传请求。 */
   fileChooser: PendingFileChooser | null;
+  /** 登录之旅：现在带你登第几家 / 共几家（没在登录之旅时为 null）。 */
+  journey: { index: number; total: number } | null;
+  /** 助理正在 browser_wait_user 里等你：交还时等待自己会接着办，不用再往对话里补一句。 */
+  waitingUser: boolean;
+}
+
+function journeyOf(pin: ReturnType<typeof livePin>): LiveSnapshot['journey'] {
+  return pin ? { index: pin.index, total: pin.total } : null;
 }
 
 export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> {
@@ -79,7 +101,8 @@ export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> 
   let url: string | undefined; let title: string | undefined;
   if (id && hasBrowser) {
     try {
-      await deps.host.withProductSession(id, async context => { const page = await activePage(context); url = page.url(); title = await page.title().catch(() => ''); }, { allowHumanControl: true });
+      // 和画面、输入同一页：登录之旅钉住的那一家（否则状态行写的是后台正在填的另一家）
+      await deps.host.withProductSession(id, async context => { const page = await pinnedOrActive(context, id); url = page.url(); title = await page.title().catch(() => ''); }, { allowHumanControl: true });
     } catch { /* 浏览器正在关闭等，忽略 */ }
   }
   const control = id && hasBrowser ? deps.host.getControl(id) : null;
@@ -93,6 +116,8 @@ export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> 
     batch: deps.runner?.state() ?? null,
     openHandoffs: deps.repos.openHandoffs().length,
     fileChooser: deps.files?.current() ?? null,
+    journey: journeyOf(livePin()),
+    waitingUser: userWaitActive(),
   };
 }
 
@@ -124,7 +149,9 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
     } else {
       // 交回：关掉等用户处理的填表接管，批量运行器据此从当前页继续
       let closed = 0;
-      for (const h of deps.repos.openHandoffs()) {
+      // 登录之旅里交还的只是当前带你过的这一家；别的网站还没登录、缺信息的那批也不能被一起当成处理完
+      const pinned = livePin();
+      for (const h of deps.repos.openHandoffs().filter(x => !pinned || x.id === pinned.handoffId)) {
         const action = h.action_id ? deps.repos.getAction(h.action_id) : undefined;
         if (!action || action.kind === 'fill_form') { try { deps.repos.closeHandoff(h.id, 'live_handback'); closed++; } catch { /* ignore */ } }
       }
@@ -147,7 +174,7 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
     const type = body.type;
     try {
       const result = await deps.host.withProductSession(id, async context => {
-        const page = await activePage(context);
+        const page = await pinnedOrActive(context, id);
         const frame = body.frame && typeof body.frame === 'object' ? body.frame as { width?: number; height?: number } : {};
         const vp = page.viewportSize() ?? { width: frame.width ?? 1280, height: frame.height ?? 800 };
         const sx = frame.width ? vp.width / frame.width : 1;
@@ -156,6 +183,9 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
         switch (type) {
           case 'click': { const x = Math.round(num(body.x) * sx), y = Math.round(num(body.y) * sy); await page.mouse.click(x, y, { clickCount: body.double === true ? 2 : 1 }); return { x, y }; }
           case 'move': { await page.mouse.move(Math.round(num(body.x) * sx), Math.round(num(body.y) * sy)); return {}; }
+          // 按下 / 移动 / 松开逐个实时转发（useLivePointer）：拖滑块时网页跟着手走；按住期间的移动带着按键状态
+          case 'down': { const x = Math.round(num(body.x) * sx), y = Math.round(num(body.y) * sy); await page.mouse.move(x, y); await page.mouse.down({ clickCount: Math.min(Math.max(Math.round(num(body.clickCount)), 1), 3) }); return { x, y }; }
+          case 'up': { const x = Math.round(num(body.x) * sx), y = Math.round(num(body.y) * sy); await page.mouse.move(x, y); await page.mouse.up(); return { x, y }; }
           case 'wheel': { await page.mouse.wheel(Math.round(num(body.dx) * sx), Math.round(num(body.dy) * sy)); return {}; }
           case 'type': { const text = typeof body.text === 'string' ? body.text.slice(0, 2000) : ''; if (text) await page.keyboard.type(text); return { typed: text.length }; }
           case 'press': { const key = typeof body.key === 'string' ? body.key.slice(0, 40) : ''; if (!key) throw new Error('key 不能为空'); await page.keyboard.press(key); return { key }; }
@@ -261,7 +291,9 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
       const onAbort = () => { if (!abort.signal.aborted) abort.abort(); };
       if (request.signal.aborted) onAbort(); else request.signal.addEventListener('abort', onAbort, { once: true });
 
-      void liveSnapshot(deps).then(snapshot => write({ type: 'snapshot', ts: Date.now(), ...snapshot })).catch(e => write({ type: 'error', error: e instanceof Error ? e.message : String(e) }));
+      // 浏览器开 / 关会改变「能不能接管」：连上时推一次，画面接上或断开时再推，渲染层的接管入口才不会停在旧状态
+      const pushSnapshot = () => { void liveSnapshot(deps).then(snapshot => write({ type: 'snapshot', ts: Date.now(), ...snapshot })).catch(e => write({ type: 'error', error: e instanceof Error ? e.message : String(e) })); };
+      pushSnapshot();
       const unsub = deps.hub.subscribe(ev => write(ev));
       const heartbeat = setInterval(() => write({ type: 'heartbeat', ts: Date.now() }), deps.heartbeatMs ?? 10_000);
 
@@ -286,11 +318,12 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
           attached = true;
           if (framesTimer) { clearInterval(framesTimer); framesTimer = null; }
           status('connecting');
+          pushSnapshot();
           // 持有一个租约直到连接断开：没有租约的话 15 秒后 Context 会被回收
           void deps.host.withProductSession(id, async context => {
             // 跟随新开的标签页（网申弹出的登录 / 扫码页）：直到它关掉，或者选中页被引擎 / 用户换掉
-            const follower = createPageFollower<Page>(() => activePage(context));
-            const hub = new ScreencastHub(async () => fromPlaywrightPage(await follower.pick()), { quality: 55, maxWidth: 1280, maxHeight: 900, everyNthFrame: 2, log: msg => { console.warn(`[career-live] ${msg}`); if (/失败/.test(msg)) write({ type: 'frame-error', error: msg }); } });
+            const follower = createPageFollower<Page>(() => pinnedOrActive(context, id));
+            const hub = new ScreencastHub(async () => fromPlaywrightPage(await follower.pick()), { quality: 55, maxWidth: 1280, maxHeight: 900, everyNthFrame: LIVE_EVERY_NTH_FRAME, surfaceless: () => deps.host.surfacelessCapture?.(id) ?? false, log: msg => { console.warn(`[career-live] ${msg}`); if (/失败/.test(msg)) write({ type: 'frame-error', error: msg }); } });
             unsubFrames = hub.subscribe(frame => write({ type: 'frame', ...frame }));
             const onPage = (page: Page) => { void follower.follow(page).then(() => hub.refresh()).catch(() => {}); };
             context.on('page', onPage);
@@ -310,6 +343,7 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
               // 浏览器被关了：回到等待，下次打开自动接上（不需要用户重开现场）
               notified = true;
               status('closed', '浏览器已关闭；助理再次打开浏览器时画面会自动接上');
+              pushSnapshot();
               rearm();
             }
           }, { allowHumanControl: true, signal: abort.signal }).catch(e => {

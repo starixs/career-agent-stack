@@ -6,7 +6,7 @@
  *  - 每个动作：drive → persistDriveOutcome 落库；遇接管（登录 / 验证码 / 测评）就等用户在浏览器里处理并点"交回"
  *    （handoff.resumed_at 被写上）再从当前页继续，不需要模型再调工具。
  *  - 并行（p-queue）：不同网站同时填（默认 2 份，每份网申在自己的页面上），同一网站严格串行；
- *    同一网站两份之间拟人停顿；平台有风险锁就先跳过该平台；用户正在接管浏览器时不再开新的；每日上限。
+ *    同一网站两份之间拟人停顿；平台有风险锁就先跳过该平台；用户正在接管浏览器时不再开新的。没有每日上限（用户 2026-10-30「不要做上限」）。
  *  - 每次状态变化 broadcast `career:batch`；接管状态同时广播 `career:takeover`，前端接管条 / 现场窗复用。
  */
 import PQueue from 'p-queue';
@@ -23,7 +23,7 @@ export interface BatchState {
   /** 正在并行填写的网申（每个网站至多一份）。 */
   running?: Array<{ actionId: string; title: string; host: string }>;
   concurrency?: number;
-  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked' | 'daily_cap';
+  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked';
   message?: string;
   done: number;
   failed: number;
@@ -42,6 +42,8 @@ export interface BatchCommand { cmd: 'start' | 'pause' | 'stop' | 'run'; at: str
 export const BATCH_STATE_KEY = 'apply:batch:state';
 export const BATCH_COMMAND_KEY = 'apply:batch:command';
 const DAILY_KEY = (day: string) => `apply:batch:count:${day}`;
+/** 同一份网申页面连着打不开几次就判失败：站点慢偶尔一两次常见，三次多半是链接失效或站点挂了。 */
+const MAX_SITE_RETRIES = 3;
 
 export interface DriveRequest { action: ActionQueueItem; payload: Record<string, unknown>; mode: 'start' | 'continue'; resumePath?: string; /** 续跑时上次 needs_user 的标签：用户自己填好的值学进答案库 */ learnFrom?: string[] }
 export interface BatchRunnerDeps {
@@ -55,6 +57,11 @@ export interface BatchRunnerDeps {
    * 浏览器没了（App 重启 / 被回收）就重新排队、从头打开那一份，不再干等。缺省视为开着。
    */
   hasBrowser?: () => boolean;
+  /**
+   * 这份网申的页面还在不在（浏览器开着、但学生把那个窗口 / 标签关了）。缺省视为在。
+   * 2026-10-31 实例测试：学生下意识关掉外面那个「一模一样的浏览器」，产品里没画面、也一直干等。
+   */
+  pageGone?: (action: Pick<ActionQueueItem, 'id' | 'application_id'>) => boolean;
   broadcast: (event: string, data: unknown) => void;
   sessionId?: () => string;
   /** 平台是否有风险锁（RiskGuard 的 kv）。 */
@@ -62,7 +69,6 @@ export interface BatchRunnerDeps {
   /** 这份投递要上传的简历文件：优先材料包（核对哈希），旧动作按 resume_id 现导。 */
   resumeFileFor?: (payload: Record<string, unknown>) => Promise<{ path?: string; error?: string }>;
   pacingMs?: [number, number];
-  dailyCap?: number;
   /** 同时填几份（不同网站）；同一网站永远串行。缺省 2。 */
   concurrency?: number;
   pollMs?: number;
@@ -82,6 +88,7 @@ export class BatchRunner {
   private wake: (() => void) | null = null;
   /** 每个网站因"暂时不可用 / 被占用"退避到的最早重试时间（毫秒时间戳）。 */
   private transientCooldown = new Map<string, number>();
+  private siteFailures = new Map<string, number>();
   constructor(private readonly deps: BatchRunnerDeps) {}
 
   private get repos() { return this.deps.repos; }
@@ -191,7 +198,6 @@ export class BatchRunner {
 
   private async loopBody(): Promise<void> {
     const poll = this.deps.pollMs ?? 3000;
-    const cap = this.deps.dailyCap ?? 30;
     const [pLo, pHi] = this.deps.pacingMs ?? [20_000, 60_000];
     const concurrency = Math.max(1, this.deps.concurrency ?? 2);
     const queue = new PQueue({ concurrency });
@@ -200,8 +206,6 @@ export class BatchRunner {
     /** 每个网站下一份最早什么时候开始（同站拟人停顿）。 */
     const nextAt = new Map<string, number>();
     const running = () => [...inFlight].map(([actionId, v]) => ({ actionId, title: v.title, host: v.host }));
-    /** 今天已开始但还没计数的（runOne 结束时才计入当天名额）。 */
-    const startedInFlight = () => [...inFlight.values()].filter(v => v.mode === 'start').length;
     const busyHosts = () => new Set([...inFlight.values()].map(v => v.host));
     const launch = (action: ActionQueueItem, mode: 'start' | 'continue') => {
       const host = this.platformOf(action, this.payloadOf(action));
@@ -242,14 +246,11 @@ export class BatchRunner {
         if (busyHosts().has(host) || (this.transientCooldown.get(host) ?? 0) > nowMs) continue;
         launch(a, 'continue');
       }
-      const capped = this.todayCount() + startedInFlight() >= cap;
-      if (!capped) {
-        for (const a of q) {
-          if (inFlight.size >= concurrency || this.todayCount() + startedInFlight() >= cap) break;
-          if (this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a)))) continue;
-          if (!ready(a) || busyHosts().has(this.platformOf(a, this.payloadOf(a)))) continue;
-          launch(a, 'start');
-        }
+      for (const a of q) {
+        if (inFlight.size >= concurrency) break;
+        if (this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a)))) continue;
+        if (!ready(a) || busyHosts().has(this.platformOf(a, this.payloadOf(a)))) continue;
+        launch(a, 'start');
       }
       if (inFlight.size) {
         this.setState({ status: 'running', phase: 'driving', running: running(), concurrency, currentActionId: running()[0]?.actionId, currentTitle: running()[0]?.title, message: `正在填写 ${inFlight.size} 份：${running().map(r => r.title).join('、')}` });
@@ -257,7 +258,6 @@ export class BatchRunner {
         continue;
       }
       // 没有在填的
-      if (this.todayCount() >= cap && q.length) { this.setState({ phase: 'daily_cap', running: [], message: `今日已投 ${this.todayCount()} 份，达到上限 ${cap}，明天继续` }); await this.idle(60_000); continue; }
       if (q.length) {
         const lockedAll = q.every(a => this.deps.riskLocked?.(this.platformOf(a, this.payloadOf(a))));
         if (lockedAll) { this.setState({ phase: 'rate_locked', running: [], message: `队列里 ${q.length} 份所在平台都在风险锁中，稍后再试` }); await this.idle(60_000); continue; }
@@ -270,6 +270,10 @@ export class BatchRunner {
       if (waiting > 0 && this.deps.hasBrowser && !this.deps.hasBrowser()) {
         const n = this.requeueStaleHandoffs();
         if (n > 0) { this.setState({ message: `浏览器已关闭，重新打开 ${n} 份等你处理的网申` }); continue; }
+      }
+      if (waiting > 0 && this.deps.pageGone) {
+        const n = this.requeueStaleHandoffs(this.deps.pageGone);
+        if (n > 0) { this.setState({ message: `网申页面被关掉了，重新打开 ${n} 份接着办` }); continue; }
       }
       if (waiting > 0) { this.setState({ phase: 'waiting_user', currentActionId: undefined, running: [], message: `有 ${waiting} 份等你在浏览器里处理后交回` }); await this.idle(poll); continue; }
       const finished = this.state();
@@ -297,21 +301,36 @@ export class BatchRunner {
    * 浏览器已经不在时，等用户处理的接管页面也没了：关掉这些接管，把动作放回队列（approved），
    * 下一轮按 start 模式从岗位网址重新打开；遇到登录 / 验证码会生成新的、页面还在的接管。
    */
-  requeueStaleHandoffs(): number {
-    const stale = this.repos.db.all<{ action_id: string; handoff_id: string }>(
-      `SELECT a.id AS action_id, h.id AS handoff_id FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status='needs_user' AND h.resumed_at IS NULL`,
+  requeueStaleHandoffs(pageGone?: NonNullable<BatchRunnerDeps['pageGone']>): number {
+    const stale = this.repos.db.all<{ action_id: string; application_id: string | null; handoff_id: string; reason: string }>(
+      `SELECT a.id AS action_id, a.application_id, h.id AS handoff_id, h.reason FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status='needs_user' AND h.resumed_at IS NULL`,
     );
     const actions = new Set<string>();
     for (const row of stale) {
-      try { this.repos.closeHandoff(row.handoff_id, 'browser_closed'); } catch { /* 已关闭 */ }
+      // 只看页面没了的那几份；缺信息的不靠页面（在等你条里填），页面关了也不用重开
+      if (pageGone && (row.reason === 'missing_info' || !pageGone({ id: row.action_id, application_id: row.application_id }))) continue;
+      try { this.repos.closeHandoff(row.handoff_id, pageGone ? 'page_closed' : 'browser_closed'); } catch { /* 已关闭 */ }
       actions.add(row.action_id);
     }
     for (const id of actions) this.repos.requeueAction(id);
     if (actions.size) {
-      this.log(`requeued ${actions.size} stale handoff action(s): browser closed`);
+      this.log(`requeued ${actions.size} stale handoff action(s): ${pageGone ? 'page closed' : 'browser closed'}`);
       this.deps.broadcast('career:data-changed', { sessionId: this.deps.sessionId?.() ?? 'global', tables: ['handoff', 'action_queue'] });
     }
     return actions.size;
+  }
+
+  /**
+   * 站点侧的瞬时错误（导航失败、引擎启动失败）按动作计次；浏览器被占用、用户接管这类不是站点的问题，不计。
+   * 达到上限返回 true；成功跑过一次（没有这两类错误）就清零。只记在内存里：重启后重新给几次机会。
+   */
+  private siteKeepsFailing(actionId: string, line: { code?: unknown; status?: unknown }): boolean {
+    const siteSide = line.code === 'NAVIGATION_FAILED' || line.status === 503;
+    if (!siteSide) { this.siteFailures.delete(actionId); return false; }
+    const n = (this.siteFailures.get(actionId) ?? 0) + 1;
+    if (n >= MAX_SITE_RETRIES) { this.siteFailures.delete(actionId); return true; }
+    this.siteFailures.set(actionId, n);
+    return false;
   }
 
   private payloadOf(a: ActionQueueItem): Record<string, unknown> { try { return JSON.parse(a.payload_json) as Record<string, unknown>; } catch { return {}; } }
@@ -363,7 +382,13 @@ export class BatchRunner {
       events.push({ type: 'error', status: 500, error: e instanceof Error ? e.message : String(e), ...(e instanceof Error && e.name !== 'Error' ? { code: e.name } : {}) });
     }
     // 瞬时 / 可抢占（浏览器被对话占用、用户接管、宿主停机、会话消失、501/503）：放回队列，不算失败、不占当天名额
-    const transientLine = events.find(e => e.type === 'error') as { code?: unknown; status?: unknown } | undefined;
+    const transientLine = events.find(e => e.type === 'error') as { code?: unknown; status?: unknown; error?: unknown } | undefined;
+    if (transientLine && this.siteKeepsFailing(action.id, transientLine)) {
+      // 站点这边连着打不开：不再当瞬时重排，交给下面按失败落库（如实告诉用户这一家打不开）
+      transientLine.code = undefined;
+      transientLine.status = 502;
+      transientLine.error = `连续 ${MAX_SITE_RETRIES} 次打不开这家网申页面：${String(transientLine.error ?? '')}`;
+    }
     if (events.some(e => e.type === 'error') && isTransientDriveError(transientLine)) {
       if (mode === 'start') r.requeueAction(action.id); else r.setActionStatus(action.id, 'needs_user');
       r.updateTask(task.id, { status: 'queued' });

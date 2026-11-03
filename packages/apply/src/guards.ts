@@ -26,9 +26,10 @@ export function isSubmitText(text: string, adapter?: SiteAdapter): boolean {
  * 不含"投递 / 立即投递 / 投递简历 / 提交"——这些可能是一键投递，永远不点。最终提交（表单页的「投递」「提交」）永远不点。
  */
 export const ENTRY_RX = /^(立即申请|马上申请|在线申请|申请职位|申请该职位|申请此职位|申请岗位|我要申请|我要投递|去申请|去网申|网申入口|进入网申|开始申请|apply|apply now|apply online|apply for this (job|position|role)|start (your )?application)$/i
-export function isEntryText(text: string): boolean {
+export function isEntryText(text: string, adapter?: SiteAdapter): boolean {
   const t = squash(text).replace(/[>›→»]+$/, '').trim()
   if (!t || t.length > 24) return false
+  if ((adapter?.hints.detailEntryWords ?? []).some(w => nospace(w) === nospace(t))) return true
   return ENTRY_RX.test(t) || ENTRY_RX.test(nospace(t))
 }
 

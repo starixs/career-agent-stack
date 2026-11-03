@@ -11,7 +11,7 @@
  *    uncertain → 不重试（避免重复投递），动作 needs_user，等用户确认"已投递 / 重新提交"。
  *  - 每次结果都更新自学习计数（submit-policy.recordSubmitOutcome）。
  */
-import type { ActionQueueItem, Repos } from '@career/core';
+import { normalizeHost, type ActionQueueItem, type Repos } from '@career/core';
 
 import { recordSubmitOutcome } from './submit-policy';
 
@@ -54,7 +54,8 @@ export async function executeSubmitAction(deps: SubmitExecutorDeps, actionId: st
   }
   const errorLine = events.find(e => e.type === 'error') as { status?: number; error?: string; code?: string } | undefined;
   const result = [...events].reverse().find(e => e.type === 'result' && e.op === 'submit')?.result as Record<string, unknown> | undefined;
-  const fingerprint = { formSignature: str(payload.formSignature), openAnswersHash: str(payload.openAnswersHash), resumeSha: str(payload.resumeSha) };
+  const url = str(payload.url);
+  const fingerprint = { formSignature: str(payload.formSignature), openAnswersHash: str(payload.openAnswersHash), resumeSha: str(payload.resumeSha), url, applicationId: appId };
 
   if (!result) {
     const message = `${String(errorLine?.error ?? '浏览器没有返回提交结果')}`;
@@ -85,7 +86,7 @@ export async function executeSubmitAction(deps: SubmitExecutorDeps, actionId: st
   // 页面上被用户改过的值：以用户为准写回答案库（下次直接用），并进上传队列
   for (const e of edits) {
     if (!e.label || !e.after) continue;
-    try { r.saveAnswer({ question_key: e.label, question_text: e.label, answer: e.after, confirmed: true, source: 'page_edit', event: 'corrected', application_id: appId }); } catch { /* ignore */ }
+    try { r.saveAnswer({ question_key: e.label, question_text: e.label, answer: e.after, confirmed: true, source: 'page_edit', event: 'corrected', application_id: appId, site_host: url ? normalizeHost(url) : null }); } catch { /* ignore */ }
   }
 
   if (status === 'submitted') {
@@ -110,8 +111,10 @@ export async function executeSubmitAction(deps: SubmitExecutorDeps, actionId: st
   if (status === 'uncertain') {
     // 不能重试：可能已经投出去了。等用户在页面上确认。
     r.setActionStatus(actionId, 'needs_user', result);
+    // 开一个交接：落进今日「要你的事」，浏览器也会为它保留；用户确认后 confirmSubmitResult 关掉
+    r.openHandoff('submit_confirm', { actionId, message: `提交后不确定投出去没有：${message}。到页面上看一眼，再在「等你」里点「投出了」或「没投出去」` });
     if (appId) { try { r.transition(appId, 'needs_user', message, { next_action: '到页面确认是否已投递成功' }); } catch { /* ignore */ } }
-    changed('action_queue', 'application');
+    changed('action_queue', 'application', 'handoff');
     deps.broadcast('career:review', { sessionId: sid, actionIds: [actionId], kind: 'submit', summary: message });
     return { actionId, status, message };
   }

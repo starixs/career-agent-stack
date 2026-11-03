@@ -4,12 +4,12 @@ import { extractFields, radioOptionSelector, type FormField } from './extract.js
 import { fillValueScript } from './scripts.js'
 import {
   activeEditableScript, clearSelectScript, closePopupScript, datePickScript, domSnippetScript, focusFieldScript, clearHighlightScript, openOptionsScript,
-  pageSelectionScript, pickOptionScript, probeTargetScript, readDisplayScript, semanticContextScript, widgetSignatureScript, type OptionInfo, type ProbeResult,
+  pageSelectionScript, pickOptionScript, probeTargetScript, readDisplayScript, widgetSignatureScript, type OptionInfo, type ProbeResult,
 } from './widgets.js'
 import { classifyError, reasonText, withWatchdog, type FieldReasonCode } from './codes.js'
+import { agentFill } from './field-agent.js'
 import type { BoundWidgetMemory, WidgetPatch } from './memory.js'
 import { formatDate, type DateStyle } from './normalize.js'
-import { isNextText, isSubmitText } from './guards.js'
 import { DATE_FIELD_RX, dictFor, matchOption, normalizeByDict, parseLooseDate } from './normalize.js'
 import { fuzzyEquals, normKey, strictText } from './text.js'
 import { humanDelay, type PacingOptions } from './pacing.js'
@@ -45,9 +45,9 @@ export interface FillDeps extends PacingOptions {
   highlight?: boolean
   /** 站点控件记忆（已绑定 host）：同站同类控件优先用上次成功的做法。 */
   widgetMemory?: BoundWidgetMemory
-  /** 语义兜底层（启发式都失败时让模型在受限动作集里走一步）；默认开，没有 llm 时不跑。 */
+  /** 模型接手（field-agent.ts）：结构树没办成、又不是真定论时交模型接着办；默认开，没有 llm 时不跑。 */
   semantic?: boolean
-  /** 给语义兜底层的打码截图（模型支持图片时附上）。 */
+  /** 给模型接手时的打码截图（模型支持图片时附上）。 */
   snapshot?: () => Promise<Uint8Array | undefined>
 }
 export interface FieldAttempt {
@@ -92,7 +92,11 @@ export function displayMatches(display: string | undefined, value: string, f: Pi
 }
 
 /** learned：这次试出来的控件做法（写进站点控件记忆）。 */
-type Outcome = Omit<FieldAttempt, 'ms' | 'rollback' | 'reason'> & { learned?: WidgetPatch }
+type Outcome = Omit<FieldAttempt, 'ms' | 'rollback' | 'reason'> & {
+  learned?: WidgetPatch
+  /** 结构层认出的选项（给模型当线索）。 */
+  seen?: string[]
+}
 const fail = (strategy: string, code: FieldReasonCode, display?: string): Outcome => ({ verified: false, strategy, code, display })
 
 async function readDisplay(page: PageLike, f: FormField): Promise<string> {
@@ -188,7 +192,7 @@ async function fillCustomSelect(d: FillDeps, f: FormField, value: string, sig: s
   if (!opt && d.llm && open.options.length) { opt = await llmPickOption(d.llm, f.label, first, open.options); if (opt) strategy = 'llm-option-click' }
   let typed = false
   // 只有列表是空的（远程搜索要先输关键字）或很长、可能只显示了一部分时才打字搜。短列表里没有就是没有，不打字。
-  const mayBePartial = !open.options.length || open.options.length >= SEARCH_WORTHY_OPTIONS
+  const mayBePartial = !open.options.length || open.options.length >= SEARCH_WORTHY_OPTIONS || !!open.partial
   // 可搜索探测（行为，不看类名）：先键入一两个字，看候选 / 弹层文字有没有变化；没变化 → 不可搜索，清空、不再打字。
   // 不可编辑（readonly）的输入框一个字都不打。搜出来的结果只认同一个意思，不按回车，仍然点选项
   if (!opt && editable && mayBePartial && page.keyboard) {
@@ -219,7 +223,7 @@ async function fillCustomSelect(d: FillDeps, f: FormField, value: string, sig: s
     d.recorder?.trace({ stage: 'field', action: 'options', label: f.label, result: 'fail', code: 'no_matching_option', detail: open.options.slice(0, 20).map(o => o.text).join(' | ') || '（没有选项）' })
     await close()
     if (typed) await clearQuery(d, f)
-    return { ...fail(typed ? 'search-click' : 'custom-select', 'no_matching_option'), learned }
+    return { ...fail(typed ? 'search-click' : 'custom-select', 'no_matching_option'), learned, seen: open.options.slice(0, 20).map(o => o.text) }
   }
   let pick = await page.evaluate(pickOptionScript, { selector: f.selector, optId: opt.id, text: opt.text })
   let chosen = opt.text
@@ -243,8 +247,17 @@ async function fillCustomSelect(d: FillDeps, f: FormField, value: string, sig: s
     display = await readDisplay(page, f)
     if (ok(display)) return { verified: true, strategy, display, chosen, learned }
   }
+  // 选了却读不回：留一份选完那一刻的表单项 DOM（回滚之后就看不到选中值是怎么渲染的了）
+  await snapshotField(d, f, `picked-${f.label}`)
   if (typed) await clearQuery(d, f)
   return { ...fail(strategy, 'option_not_selected', display), chosen, learned }
+}
+
+async function snapshotField(d: FillDeps, f: FormField, name: string): Promise<void> {
+  if (!d.recorder) return
+  try { d.recorder.dom(name, await d.page.evaluate(domSnippetScript, { selector: f.selector })) } catch (e) {
+    d.recorder.trace({ stage: 'field', action: 'snapshot', label: f.label, result: 'fail', detail: classifyError(e).raw.slice(0, 120) })
+  }
 }
 
 /** 搜索型下拉没选中：把输入框里剩下的搜索词清掉（它不是值，但看起来像），只动这个可编辑的搜索框。 */
@@ -392,14 +405,8 @@ export async function fillAndVerify(d: FillDeps, f: FormField, value: string, st
   }
   // 自学习：这类控件这次怎么成 / 怎么败的，写进站点控件记忆
   if (sig && out?.learned) { try { d.widgetMemory?.learn(sig, out.learned, !!out.verified, out.code) } catch { /* 记忆失败不影响填写 */ } }
-  // 语义兜底：下拉 / 日期的启发式都没成（不是"选项里没有"这种确定结论）→ 让模型在受限动作集里走几步，照常按可见值核验
-  if (out && !out.verified && d.llm && d.semantic !== false && SEMANTIC_CODES.has(out.code ?? '') && (f.type === 'select' || isDateLike(f))) {
-    try {
-      const sem = await withWatchdog(`语义兜底「${f.label}」`, d.watchdogMs ?? 30_000, () => semanticFill(d, f, value))
-      if (sem.verified) out = sem
-      recorder.trace({ stage, action: 'semantic', field: f.id, label: f.label, result: sem.verified ? 'ok' : 'fail', detail: sem.display !== undefined ? `显示「${sem.display}」` : sem.strategy })
-    } catch (e) { recorder.trace({ stage, action: 'semantic', field: f.id, label: f.label, result: 'fail', detail: classifyError(e).raw.slice(0, 200) }) }
-  }
+  // 结构树没办成、又不是真定论 → 模型接着办（field-agent.ts，face-ga-port 2b）；它给的原因带给学生
+  if (out && !out.verified) out = await agentTakeover(d, f, value, out, stage)
   // 视觉层可能误按全选：整页被选中就收起选区
   try { const sel = await page.evaluate(pageSelectionScript, { collapse: true }); if (sel.whole) recorder.trace({ stage, action: 'selection', label: f.label, result: 'fail', code: 'page_selected', detail: `${sel.chars} 字被选中，已收起` }) } catch { /* ignore */ }
   try { await page.evaluate(clearHighlightScript) } catch { /* ignore */ }
@@ -422,53 +429,47 @@ export async function fillAndVerify(d: FillDeps, f: FormField, value: string, st
 }
 
 // ---------------------------------------------------------------------------
-// 语义兜底层：字段所在表单项 + 附近浮层的精简节点表（打码）+ 可选的打码截图 → 模型在受限动作集里给一步：
-//   click(ref) / type(ref, text) / done / give_up。确定性约束：
-//   - 只能点表单项或其浮层里的节点，文案像提交 / 下一步的节点不点；
-//   - 只能往可编辑、焦点确认在它上面的输入框里打字，且打的字必须是资料值的一部分（不让模型编值）；
-//   - 最多 4 步，每步后按用户可见显示值核验，过了才算成功；不过由 fillAndVerify 照常回滚留空。
+// 模型接手（field-agent.ts）：结构树没办成的格子，除真定论外一律交模型接着办，照常按用户可见的值核验。
 // ---------------------------------------------------------------------------
-const SEMANTIC_CODES = new Set(['options_not_found', 'option_not_selected', 'date_panel_unsupported', 'readback_mismatch', 'not_editable'])
-interface SemanticStep { action?: 'click' | 'type' | 'done' | 'give_up'; ref?: string; text?: string }
-async function semanticFill(d: FillDeps, f: FormField, value: string): Promise<Outcome> {
-  const { page, llm } = d
-  if (!llm) return fail('semantic', 'fill_error')
-  const history: string[] = []
-  // 下拉只认同一个意思（不认"包含"）：模型点到相近项也不算成功
-  const semanticOk = (disp: string) => !!disp && (f.type === 'select' ? sameMeaning(disp, value, f.label) : displayMatches(disp, value, f))
-  const system = '你在帮用户操作网页表单里的一个控件（下拉 / 日期 / 自定义组件），把它设成给定的值。你只能从给出的节点里选一步动作，输出 JSON：' +
-    '{"action":"click","ref":"r3"} 或 {"action":"type","ref":"r1","text":"要输入的字"} 或 {"action":"done"} 或 {"action":"give_up"}。' +
-    '规则：只为把这个控件设成目标值；不点提交 / 下一步 / 保存 / 删除；输入的字只能取自目标值；看不到确定对应目标值的选项就 give_up，绝不选相近的。'
-  for (let step = 0; step < 4; step++) {
-    const ctx = await page.evaluate(semanticContextScript, { selector: f.selector })
-    if (!ctx.nodes.length) break
-    const display = await readDisplay(page, f)
-    if (step > 0 && semanticOk(display)) return { verified: true, strategy: 'semantic', display }
-    const lines = ctx.nodes.map(n => `${n.ref} <${n.tag}${n.role ? ` role=${n.role}` : ''}${n.editable ? ' 可输入' : ''}${n.inPopup ? ' 浮层' : ''}> ${n.text}`).join('\n')
-    let images: Array<{ mediaType: 'image/jpeg'; data: string }> | undefined
-    if (llm.supportsImages?.() && d.snapshot) { try { const shot = await d.snapshot(); if (shot) images = [{ mediaType: 'image/jpeg', data: Buffer.from(shot).toString('base64') }] } catch { /* 没图也行 */ } }
-    const res = await llm.complete({ system, messages: [{ role: 'user', content: `字段：${f.label}\n目标值：${value}\n当前显示：${display || '（空）'}\n已做：${history.join('；') || '无'}\n可操作节点：\n${lines}`, ...(images ? { images } : {}) }], json: true, temperature: 0, maxTokens: 120 })
-    const a = extractJson<SemanticStep>(res.text)
-    if (a.action === 'done' || a.action === 'give_up' || !a.action) break
-    const node = ctx.nodes.find(n => n.ref === a.ref)
-    if (!node) break
-    const sel = `[data-career-ref="${node.ref}"]`
-    if (a.action === 'click') {
-      if (isSubmitText(node.text) || isNextText(node.text) || /保存|删除|取消|提交|投递|确定提交/.test(node.text)) break
-      await page.click(sel)
-      history.push(`点了 ${node.ref}「${node.text}」`)
-    } else if (a.action === 'type') {
-      const text = (a.text ?? '').trim()
-      // 只允许输入目标值的一部分；只往可编辑、焦点确认在它上面的框里打
-      if (!text || !normKey(value).includes(normKey(text)) || !node.editable || !page.keyboard) break
-      await page.click(sel)
-      const focus = await page.evaluate(activeEditableScript, { selector: sel }).catch(() => null)
-      if (!focus?.editable || !focus.isTarget) break
-      for (const ch of Array.from(text)) await page.keyboard.type(ch)
-      history.push(`在 ${node.ref} 输入「${text}」`)
-    } else break
-    await page.waitForTimeout(400)
+/** 真定论：模型也改变不了的事实（资料里的值本身 / 格子被锁 / 标签没认准不敢写 / 别处已写过），不交给模型。 */
+const FINAL_CODES: ReadonlySet<string> = new Set(['field_disabled', 'date_unparseable', 'profile_value_invalid', 'duplicate_write', 'label_uncertain'])
+/** 模型接手一格的看门狗：AGENT_MAX_STEPS 步 ×（一次模型调用 + 动作）留足余量。 */
+const AGENT_WATCHDOG_MS = 120_000
+
+/** 这一格现在的值：单选 / 勾选读抽取到的选中态，其余读用户可见的显示值。 */
+async function currentValue(d: FillDeps, f: FormField): Promise<string> {
+  if (f.type !== 'radio' && f.type !== 'checkbox') return readDisplay(d.page, f)
+  try { return (await extractFields(d.page)).find(x => x.id === f.id)?.value ?? '' } catch (e) { d.log?.(`读「${f.label}」的选中态失败：${classifyError(e).raw.slice(0, 80)}`); return '' }
+}
+/** 下拉只认同一个意思（不认"包含"），模型点到相近项也不算成功。 */
+function agentOk(f: FormField, value: string, display: string): boolean {
+  if (!display.trim()) return false
+  if (f.type === 'checkbox') return (display === 'true') === /^(true|1|yes|是)$/i.test(value)
+  if (f.type === 'select') return sameMeaning(display, value, f.label)
+  return displayMatches(display, value, f)
+}
+
+async function agentTakeover(d: FillDeps, f: FormField, value: string, out: Outcome, stage: string): Promise<Outcome> {
+  const llm = d.llm
+  if (!llm || d.semantic === false || f.type === 'file' || FINAL_CODES.has(out.code ?? '')) return out
+  const recorder = d.recorder ?? noopRecorder
+  const trace = (result: 'ok' | 'fail' | 'info', detail?: string) => recorder.trace({ stage, action: 'agent', field: f.id, label: f.label, result, detail })
+  const hint = [reasonText(out.code), out.display ? `当时显示「${out.display}」` : '', out.seen?.length ? `认出的选项：${out.seen.join(' | ')}` : ''].filter(Boolean).join('；')
+  const verify = async () => { const display = await currentValue(d, f); return { ok: agentOk(f, value, display), display } }
+  // 离开这一格再读：收起弹层、失焦后值还在才算填上（搜索词不算）
+  const commit = async () => { await d.page.evaluate(closePopupScript, { selector: f.selector }); return verify() }
+  try {
+    const r = await withWatchdog(`模型接手「${f.label}」`, AGENT_WATCHDOG_MS, () => agentFill({ page: d.page, llm, snapshot: d.snapshot, trace: step => trace('info', step) }, f, value, { hint }, verify, commit))
+    // 模型的原因只进日志（运行记录 + 侧车日志锚点 [apply-agent]），批量测完统一捞出来迭代；学生只看我们写好的那句人话
+    trace(r.verified ? 'ok' : 'fail', r.verified ? `显示「${r.display}」（${r.steps} 步）` : r.reason)
+    recorder.bump(r.verified ? 'agent_ok' : 'agent_fail')
+    d.log?.(`[apply-agent] ${r.verified ? 'ok' : 'fail'} field=${f.label} code=${out.code ?? '-'} steps=${r.steps}${r.verified ? '' : ` reason=${r.reason ?? '-'}`}`)
+    if (r.verified) return { verified: true, strategy: 'agent', display: r.display, ...(f.type === 'select' || f.type === 'radio' ? { chosen: r.display } : {}) }
+    // 没办成：收起它打开的弹层，免得挡住下一格（2026-10-31 小鹏：学历类型的弹层挡住了专业）
+    await d.page.evaluate(closePopupScript, { selector: f.selector }).catch((e: unknown) => d.log?.(`收起「${f.label}」的弹层失败：${classifyError(e).raw.slice(0, 80)}`))
+    return { ...out, display: r.display || out.display }
+  } catch (e) {
+    trace('fail', classifyError(e).raw.slice(0, 200))
+    return out
   }
-  const display = await readDisplay(page, f)
-  return semanticOk(display) ? { verified: true, strategy: 'semantic', display } : fail('semantic', 'option_not_selected', display)
 }

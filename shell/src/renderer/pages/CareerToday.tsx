@@ -6,16 +6,19 @@
  */
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { careerApi, safeJson } from '@/components/career/careerApi';
+import { AttendanceButtons } from '@/components/career/AttendanceButtons';
 import { ACTION_KIND_LABELS } from '@/components/career/careerConstants';
 import { Button, CareerPage, ChatActionButton, ErrorRow, LoadingRow } from '@/components/career/CareerPrimitives';
-import { onOnboardingIntroRequest, takeOnboardingIntroRequest } from '@/features/career-shell/onboardingReminder';
+import { requestNavigation } from '@/features/career-shell/navModel';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { isManualSendKind, manualSendText } from '@/components/career/manualSendActions';
 import { ManualSendText } from '@/components/career/ManualSendText';
-import { OnboardingIntro, buildSteps, markIntroSeen, readIntroSeen } from '@/components/career/OnboardingIntro';
+import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
+import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { StrikeText } from '@/components/career/StrikeText';
 import {
   CATEGORY_COLORS, CATEGORY_LABELS, TODO_CATEGORIES, buildTodos, groupByDate, localDateKey, mergeCompleted, monthGrid, summarizeDay,
@@ -25,14 +28,15 @@ import type { CareerFocusEvent, TodayItemKind } from '@/components/career/types'
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 
-const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history'] as const;
+const TODAY_TABLES = ['deadline', 'action_queue', 'handoff', 'application', 'inbox_item', 'application_history', 'mail_account'] as const;
 const ONBOARDING_TABLES = ['experience', 'claim', 'resume_master', 'mail_account', 'job', 'application', 'material'] as const;
 const ACTION_TABLES = ['action_queue'] as const;
 const DEADLINE_TABLES = ['deadline'] as const;
 const ACTIVITY_TABLES = ['action_queue', 'task', 'application_history'] as const;
 
 const KIND_LABELS: Record<TodayItemKind, string> = {
-  deadline: '截止', review: '待批准', handoff: '需要你', interview_today: '今日面试', stale: '静默', inbox: '通知', followup: '跟进',
+  mail_auth: '邮箱',
+  deadline: '截止', review: '待批准', handoff: '需要你', interview_today: '今日面试', interview_retro: '复盘', stale: '静默', inbox: '通知', followup: '跟进',
 };
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'] as const;
 const STRIKE_MS = 700;
@@ -115,15 +119,8 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
   };
   const snooze = (todo: CalendarTodo) => setSnoozed(prev => new Set(prev).add(todo.key));
 
-  // 首次打开自动弹出新手引导（五步都做完就不打扰）；页头「新手引导」随时再开。
-  const steps = useMemo(() => (onboarding.data ? buildSteps(onboarding.data) : null), [onboarding.data]);
-  const [seenAtMount] = useState(readIntroSeen);
-  const [introDismissed, setIntroDismissed] = useState(false);
-  // 从 Mino 面板 / 桌面悬浮球的每日提醒点进来：直接打开引导。
-  const [introRequested, setIntroRequested] = useState(takeOnboardingIntroRequest);
-  const introOpen = !!steps && (introRequested || (!seenAtMount && !introDismissed && steps.some(s => !s.done)));
-  const closeIntro = () => { markIntroSeen(); setIntroDismissed(true); setIntroRequested(false); };
-  useEffect(() => onOnboardingIntroRequest(() => setIntroRequested(true)), []);
+  // 冷启动做法二：还没连邮箱、也没有任何申请时，先请他把手里有的给我（按真实数据出现和消失，不靠「看过了」标记）
+  const startHere = !!onboarding.data && !onboarding.data.has_mail_account && !onboarding.data.has_application;
 
   const shiftMonth = (delta: number) => setCursor(c => {
     const d = new Date(c.year, c.month + delta, 1);
@@ -145,22 +142,29 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
         embedded={embedded}
         title="招聘概览"
         subtitle={subtitle}
-        actions={steps && <Button variant="ghost" size="sm" onClick={() => setIntroRequested(true)}>新手引导</Button>}
       >
         <div ref={topRef} className="flex min-h-full flex-col">
+          {startHere && <StartHere onOpenChat={onOpenChat} />}
           <div className="flex flex-1 flex-col gap-6 px-6 pt-5 lg:flex-row">
             <section aria-label="月历" className="min-w-0 flex-1">
               {loadError && <ErrorRow message={loadError} onRetry={reloadAll} />}
               {today.loading && !today.data && <LoadingRow />}
-              <div className="mb-3 flex items-center gap-2">
-                <h2 className="font-human text-lg font-semibold tabular-nums text-[var(--ink)]">{`${cursor.year} 年 ${cursor.month + 1} 月`}</h2>
-                <div className="ml-auto flex items-center gap-1">
-                  <Button variant="ghost" size="sm" aria-label="上个月" onClick={() => shiftMonth(-1)}><ChevronLeft className="h-4 w-4" strokeWidth={1.75} /></Button>
-                  <Button variant="secondary" size="sm" onClick={goToday}>今天</Button>
-                  <Button variant="ghost" size="sm" aria-label="下个月" onClick={() => shiftMonth(1)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
-                </div>
-              </div>
-              <MonthGrid grid={grid} month={cursor.month} todayKey={todayKey} selected={selected} byDate={byDate} onSelect={selectDay} />
+              <MonthGrid
+                title={`${cursor.year} 年 ${cursor.month + 1} 月`}
+                nav={(
+                  <>
+                    <Button variant="ghost" size="sm" aria-label="上个月" onClick={() => shiftMonth(-1)}><ChevronLeft className="h-4 w-4" strokeWidth={1.75} /></Button>
+                    <Button variant="secondary" size="sm" onClick={goToday}>今天</Button>
+                    <Button variant="ghost" size="sm" aria-label="下个月" onClick={() => shiftMonth(1)}><ChevronRight className="h-4 w-4" strokeWidth={1.75} /></Button>
+                  </>
+                )}
+                grid={grid}
+                month={cursor.month}
+                todayKey={todayKey}
+                selected={selected}
+                byDate={byDate}
+                onSelect={selectDay}
+              />
               <Legend />
             </section>
             <DaySidebar
@@ -177,45 +181,87 @@ export default function CareerToday({ onOpenChat, embedded = false }: CareerPage
           <PageAskBar target={{ kind: 'career-today' }} refs={{ date: selected }} placeholder="比如「10 月 20 日提醒我交测评」，或者问问今天先做哪件" />
         </div>
       </CareerPage>
-      {introOpen && steps && <OnboardingIntro steps={steps} onClose={closeIntro} />}
     </div>
   );
 }
 
-function MonthGrid({ grid, month, todayKey, selected, byDate, onSelect }: {
+/** 从你手里有的开始：连邮箱就把几个月的申请接管进来；有简历就拖进对话；什么都没有就从说一段经历开始。 */
+function StartHere({ onOpenChat }: { onOpenChat?: () => void }) {
+  return (
+    <section aria-labelledby="career-start-here" className="mx-6 mt-5 grid gap-3 rounded-[10px] border border-[var(--line)] bg-[var(--side)] px-5 py-4">
+      <div>
+        <h2 id="career-start-here" className="font-human text-lg font-semibold text-[var(--ink)]">从你手里有的开始</h2>
+        <p className="mt-0.5 text-sm text-[var(--muted)]">连上邮箱，已经投过的申请、笔试面试通知会自动收进来；不用先填问卷。</p>
+      </div>
+      <MailConnectCenter />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--ink-2)]">
+        <span>有简历？</span>
+        <Button variant="secondary" size="sm" onClick={() => onOpenChat?.()}>去对话里拖进来</Button>
+        <span className="text-xs text-[var(--subtle)]">什么都还没有也没关系，在对话里说说你做过的一件事就行。</span>
+      </div>
+    </section>
+  );
+}
+
+// 一本挂在墙上的月历：顶上一排装订环，底下错开两张墨线纸露出厚度（硬边层次，跟按钮同一套语言），最底一张带柔阴影。
+function MonthGrid({ title, nav, grid, month, todayKey, selected, byDate, onSelect }: {
+  title: string; nav: ReactNode;
   grid: Date[]; month: number; todayKey: string; selected: string; byDate: Map<string, CalendarTodo[]>; onSelect: (date: Date) => void;
 }) {
+  const sheet = 'rounded-[var(--radius-lg)] border-[1.5px] border-[var(--ink)]';
   return (
-    <div className="overflow-hidden rounded-[var(--radius-lg)] border-[1.5px] border-[var(--line-2)] bg-[var(--paper)]">
-      <div className="grid grid-cols-7 border-b border-[var(--line-2)]">
-        {WEEKDAYS.map(w => (
-          <div key={w} className="py-1.5 text-center font-human text-xs text-[var(--muted)]">{`周${w}`}</div>
-        ))}
+    <div className="relative pb-2 pr-2 pt-2.5">
+      <div aria-hidden className={`absolute bottom-0 left-2 right-0 top-[18px] bg-[var(--inset)] shadow-[var(--shadow-md)] ${sheet}`} />
+      <div aria-hidden className={`absolute bottom-1 left-1 right-1 top-[14px] bg-[var(--paper)] ${sheet}`} />
+      <div className={`relative overflow-hidden bg-[var(--paper)] shadow-[var(--shadow-sm)] ${sheet}`}>
+        <div className="relative flex items-center gap-2 border-b-[1.5px] border-[var(--ink)] px-4 pb-2.5 pt-6">
+          <BindingRow className="inset-x-0 top-1.5">{() => <span className="h-2.5 w-2.5 rounded-full bg-[var(--bg)] shadow-[inset_0_1px_2px_rgb(0_0_0/0.35)]" />}</BindingRow>
+          <h2 className="font-human text-xl font-semibold tabular-nums text-[var(--ink)]">{title}</h2>
+          <div className="ml-auto flex items-center gap-1">{nav}</div>
+        </div>
+        <div className="grid grid-cols-7 border-b border-[var(--line-2)] bg-[var(--inset)]">
+          {WEEKDAYS.map((w, i) => (
+            <div key={w} className={`py-1.5 text-center font-human text-xs ${i >= 5 ? 'text-[var(--seal)]' : 'text-[var(--muted)]'}`}>{`周${w}`}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {grid.map((date, i) => {
+            const key = localDateKey(date);
+            return (
+              <DayCell
+                key={key}
+                date={date}
+                inMonth={date.getMonth() === month}
+                isToday={key === todayKey}
+                isSelected={key === selected}
+                weekend={i % 7 >= 5}
+                lastCol={i % 7 === 6}
+                lastRow={i >= 35}
+                todos={byDate.get(key) ?? []}
+                onSelect={onSelect}
+              />
+            );
+          })}
+        </div>
       </div>
-      <div className="grid grid-cols-7">
-        {grid.map((date, i) => {
-          const key = localDateKey(date);
-          return (
-            <DayCell
-              key={key}
-              date={date}
-              inMonth={date.getMonth() === month}
-              isToday={key === todayKey}
-              isSelected={key === selected}
-              lastCol={i % 7 === 6}
-              lastRow={i >= 35}
-              todos={byDate.get(key) ?? []}
-              onSelect={onSelect}
-            />
-          );
-        })}
-      </div>
+      <BindingRow className="left-0 right-2 top-0">{() => <span className="h-5 w-2 rounded-full border-[1.5px] border-[var(--ink)] bg-[var(--line-2)]" />}</BindingRow>
     </div>
   );
 }
 
-function DayCell({ date, inMonth, isToday, isSelected, lastCol, lastRow, todos, onSelect }: {
-  date: Date; inMonth: boolean; isToday: boolean; isSelected: boolean; lastCol: boolean; lastRow: boolean; todos: CalendarTodo[]; onSelect: (date: Date) => void;
+const BINDING_RINGS = 12;
+
+// 装订环和纸上的孔共用一套排布，环正好压在孔上。
+function BindingRow({ className, children }: { className: string; children: () => ReactNode }) {
+  return (
+    <div aria-hidden className={`pointer-events-none absolute flex justify-around px-10 ${className}`}>
+      {Array.from({ length: BINDING_RINGS }, (_, i) => <span key={i} className="flex w-2 justify-center">{children()}</span>)}
+    </div>
+  );
+}
+
+function DayCell({ date, inMonth, isToday, isSelected, weekend, lastCol, lastRow, todos, onSelect }: {
+  date: Date; inMonth: boolean; isToday: boolean; isSelected: boolean; weekend: boolean; lastCol: boolean; lastRow: boolean; todos: CalendarTodo[]; onSelect: (date: Date) => void;
 }) {
   const summary = summarizeDay(todos);
   const open = todos.filter(t => !t.done).length;
@@ -227,10 +273,10 @@ function DayCell({ date, inMonth, isToday, isSelected, lastCol, lastRow, todos, 
       aria-pressed={isSelected}
       data-date={localDateKey(date)}
       onClick={() => onSelect(date)}
-      className={`flex min-h-[104px] min-w-0 flex-col gap-1 p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)] ${lastCol ? '' : 'border-r'} ${lastRow ? '' : 'border-b'} border-[var(--line)] ${isSelected ? 'bg-[var(--selected)]' : 'hover:bg-[var(--hover)]'}`}
+      className={`flex min-h-[104px] min-w-0 flex-col gap-1 p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)] ${lastCol ? '' : 'border-r'} ${lastRow ? '' : 'border-b'} border-[var(--line)] ${isSelected ? 'bg-[var(--selected)] shadow-[inset_0_0_0_1.5px_var(--ink)]' : 'hover:bg-[var(--hover)]'}`}
     >
       <span
-        className={`inline-flex h-6 min-w-6 items-center justify-center self-start rounded-full px-1 text-xs tabular-nums ${isToday ? 'bg-[var(--primary)] font-semibold text-[var(--on-primary)]' : inMonth ? 'font-medium text-[var(--ink)]' : 'text-[var(--subtle)]'}`}
+        className={`inline-flex h-6 min-w-6 items-center justify-center self-start rounded-full px-1 text-xs tabular-nums ${isToday ? 'bg-[var(--primary)] font-semibold text-[var(--on-primary)]' : inMonth ? `font-medium ${weekend ? 'text-[var(--seal)]' : 'text-[var(--ink)]'}` : 'text-[var(--subtle)]'}`}
       >
         {date.getDate()}
       </span>
@@ -298,6 +344,13 @@ function DaySidebar({ dateKey, isToday, todos, justDone, onDone, onSnooze, onCha
           </section>
         ))}
       </div>
+      {/* 今天这一栏的末尾手写一句：有事时打气，都划掉了道一声辛苦，没有待办时就说点闲话。 */}
+      {isToday && (
+        <QuoteNote
+          scene={todos.length === 0 ? 'quiet' : open === 0 ? 'done' : 'daily'}
+          className="mt-5 border-t border-dashed border-[var(--line-2)] pt-4 text-xl"
+        />
+      )}
     </aside>
   );
 }
@@ -318,14 +371,15 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
 }) {
   const act = useCareerAction();
   const { item, action } = todo;
-  const due = todo.done ? null : formatDue(item.due_at);
+  // 问「考了吗」、面完待复盘的都不标红「已过期」：他多半去过，只是没回来打勾
+  const due = todo.done || todo.askAttendance || item.kind === 'interview_retro' ? null : formatDue(item.due_at);
   const refs = { [`${item.ref.type}_id`]: item.ref.id };
   const complete = (fn: () => Promise<unknown>, note: string) => act.run(async () => { await fn(); onDone(todo, note); });
 
   const payload = action ? safeJson<Record<string, unknown>>(action.payload_json, {}) : {};
   const isSendMail = action?.kind === 'send_mail';
   const isReview = item.kind === 'review' && !todo.confirmSubmit;
-  // 待投清单里没开始的填表：不是「批准」，而是「开始填写」（填到提交前会停下等你确认）
+  // 还没开始的填表（批准后材料变了退回待审）：不是「批准」，而是「开始填写」（填到提交前会停下等你确认）
   const isFill = action?.kind === 'fill_form';
   // 招呼语 / 开放题回答批准后不由产品发送，而是变成「等你发出去」的一行（manualSend）。
   const approvedNote = action && isManualSendKind(action.kind) ? '已批准，待你发送' : '已批准';
@@ -365,17 +419,27 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
               <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.confirmSubmit(item.ref.id, false), '重新审核')}>没投出去</Button>
             </>
           )}
-          {deadlineDone && (
+          {deadlineDone && todo.askAttendance && (
+            <AttendanceButtons deadlineId={item.ref.id} kind={todo.askAttendance} onAnswered={note => onDone(todo, note)} />
+          )}
+          {deadlineDone && !todo.askAttendance && (
             <Button variant="primary" size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.setDeadlineStatus(item.ref.id, 'done'), '已完成')}>完成</Button>
           )}
           {item.kind === 'interview_today' && (
             <ChatActionButton size="sm" variant="ghost" text="帮我准备这场面试" context={{ surface: 'today', refs: applicationId ? { application_id: applicationId } : refs }} />
           )}
-          {item.kind === 'stale' && (
+          {item.kind === 'interview_retro' && (
+            <Button size="sm" onClick={() => requestNavigation({ kind: 'career-dossier', view: 'interview' })}>说几句或传录音</Button>
+          )}
+          {/* 逐条的静默只剩「投递中」卡住的；AI 收起的那条汇总（ref.type=silent_collected）只报数，没有按钮 */}
+          {item.kind === 'stale' && item.ref.type === 'application' && (
             <>
               <Button size="sm" busy={act.busy} onClick={() => void complete(() => careerApi.closeSilent(item.ref.id), '已关闭')}>关闭这条线</Button>
               <Button variant="ghost" size="sm" onClick={() => onSnooze(todo)}>再等等</Button>
             </>
+          )}
+          {item.kind === 'mail_auth' && (
+            <Button variant="primary" size="sm" onClick={() => emitEvent('career:focus', { surface: 'inbox' } satisfies CareerFocusEvent)}>{item.ref.type === 'mail_missing' ? '连上邮箱' : '重新授权'}</Button>
           )}
           {item.kind === 'inbox' && (
             <Button size="sm" onClick={() => emitEvent('career:focus', { surface: 'inbox', id: item.ref.type === 'inbox_item' ? item.ref.id : null } satisfies CareerFocusEvent)}>去通知中心</Button>
@@ -383,7 +447,8 @@ function TodoRow({ todo, animate, onDone, onSnooze, onChanged, onOpenChat }: {
           {item.kind === 'handoff' && !todo.confirmSubmit && !todo.manualSend && (
             <Button variant="primary" size="sm" onClick={onOpenChat}>打开对话接手</Button>
           )}
-          {item.suggest && item.kind !== 'interview_today' && (
+          {/* 今天的面试、面完复盘各有自己的按钮，不再重复出一个对话按钮 */}
+          {item.suggest && item.kind !== 'interview_today' && item.kind !== 'interview_retro' && (
             <ChatActionButton size="sm" variant="ghost" text={item.suggest} context={{ surface: 'today', refs }} />
           )}
           {applicationId && item.kind !== 'review' && (

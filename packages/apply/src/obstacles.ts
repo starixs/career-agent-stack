@@ -42,7 +42,7 @@ export function describeObstacle(reason: HandoffReason, sig: Pick<PageSignals, '
     case '2fa': return { reason, userAction: '请在浏览器里完成二次验证（验证器 / 短信 / 邮箱），然后点"交还"继续' }
     case 'assessment': return { reason, userAction: '这是需要本人作答的测评 / 笔试，请在浏览器里自行完成；完成后点"交还"，助理会继续后面的表单' }
     case 'submit_confirm': return { reason, userAction: '表单已填好，请在浏览器里检查一遍并由你本人点击提交' }
-    case 'missing_info': return { reason, userAction: '有几项资料缺失或需要你确认，请在对话里补充后再继续' }
+    case 'missing_info': return { reason, userAction: '有几项资料缺失或需要你确认：在输入框上沿的「等你」里填一次，我从当前页接着填' }
     default: return { reason, userAction: '请在浏览器里处理后点"交还"继续' }
   }
 }

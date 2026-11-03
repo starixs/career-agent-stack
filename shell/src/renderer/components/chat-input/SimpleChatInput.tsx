@@ -235,6 +235,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
   onForceExecuteQueued,
   agentStatusSlot,
   waitingArcadeSlot,
+  waitingDockSlot,
   onOverlayHeightChange,
   workspacePath = null,
   sessionId = null,
@@ -1435,6 +1436,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
           )}
         </div>
       )}
+
+      {!isLauncherMode && waitingDockSlot}
 
       {/* Input container */}
       <div className={isLauncherMode

@@ -36,6 +36,8 @@ export interface AssistRow {
   upcoming: boolean;
   application_id: string | null;
   url: string | null;
+  /** 面试在月历上被取消（它的时间点都标了取消）：同一场面试，这里也标出来、变淡。 */
+  cancelled?: boolean;
 }
 
 export interface AssistSources {
@@ -60,8 +62,19 @@ function countOf(json: string): number {
   }
 }
 
+/** 时间点都被取消了的面试 id（一场面试和它在月历上的时间点是同一件事）。 */
+function cancelledInterviews(deadlines: readonly Deadline[]): Set<string> {
+  const states = new Map<string, boolean>();
+  for (const d of deadlines) {
+    if (!d.interview_id) continue;
+    states.set(d.interview_id, (states.get(d.interview_id) ?? true) && d.status === 'cancelled');
+  }
+  return new Set([...states].filter(([, cancelled]) => cancelled).map(([id]) => id));
+}
+
 export function assistRecords(src: AssistSources, now: Date = new Date()): AssistRow[] {
   const byJob = new Map(src.dossiers.map(s => [s.job_id, s]));
+  const cancelled = cancelledInterviews(src.deadlines);
   const rows: AssistRow[] = [];
 
   for (const e of examRecords(src.deadlines, src.dossiers, now)) {
@@ -72,9 +85,12 @@ export function assistRecords(src: AssistSources, now: Date = new Date()): Assis
   }
   for (const iv of src.interviews) {
     const at = iv.date ?? null;
+    const round = INTERVIEW_ROUND_LABELS[iv.round] ?? iv.round;
+    const off = cancelled.has(iv.id);
     rows.push({
       key: `interview:${iv.id}`, id: iv.id, type: 'interview', company_name: iv.company_name, title: iv.title, at,
-      detail: INTERVIEW_ROUND_LABELS[iv.round] ?? iv.round, upcoming: isFuture(at, now), application_id: iv.application_id, url: null,
+      detail: off ? `${round} · 已取消` : round, upcoming: !off && isFuture(at, now), application_id: iv.application_id, url: null,
+      ...(off ? { cancelled: true } : {}),
     });
   }
   for (const m of src.mocks) {
