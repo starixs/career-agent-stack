@@ -1165,28 +1165,12 @@ async fn browser_resource_resolve_handler(
     if let Err(value) = validate_global_browser_owner(&headers, req.sidecar_id.trim()) {
         return no_store_json(value);
     }
-    match crate::browser_resource::resolve_browser_resource() {
-        Ok(resolution) => no_store_json(serde_json::json!({
-            "ok": true,
-            "executablePath": resolution.executable_path,
-            "revision": resolution.revision,
-        })),
-        Err(status) => no_store_json(serde_json::json!({
-            "ok": false,
-            "code": status.error_code.clone().unwrap_or_else(|| {
-                if status.state == "never_installed" {
-                    "BROWSER_RESOURCE_NOT_INSTALLED".to_string()
-                } else if status.state == "unsupported" {
-                    "BROWSER_RESOURCE_UNSUPPORTED".to_string()
-                } else {
-                    "BROWSER_RESOURCE_NOT_READY".to_string()
-                }
-            }),
-            "error": "Browser resources are not ready",
-            "state": status.state,
-            "retryAfterMs": 250,
-        })),
-    }
+    no_store_json(serde_json::json!({
+        "ok": false,
+        "code": "BROWSER_RESOURCE_RETIRED",
+        "error": "Use career-bridge in the user's Chrome; managed Chromium is retired",
+        "state": "unsupported",
+    }))
 }
 
 async fn browser_identity_read_handler(

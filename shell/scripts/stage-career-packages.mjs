@@ -23,7 +23,7 @@ const modulesStageRoot = join(shellRoot, 'src-tauri', 'resources', 'career-modul
 const stackRoot = resolve(appRoot, '..');
 /** 随包发布的 modules 数据文件（相对仓库根 modules/）。 */
 const MODULE_FILES = ['campus-radar/jobs.json'];
-const PACKAGES = ['core', 'resume', 'resume-studio', 'apply', 'bridges'];
+const PACKAGES = ['core', 'resume', 'resume-studio', 'apply', 'bridges', 'captcha'];
 
 const run = (cmd, args, cwd = appRoot) => execFileSync(cmd, args, { cwd, stdio: 'inherit' });
 

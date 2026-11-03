@@ -5,7 +5,6 @@ import {
   mkdtempSync,
   mkdirSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -57,7 +56,7 @@ async function stopChild(child) {
   if (child.exitCode === null) child.kill("SIGKILL");
 }
 
-test("the release Sidecar can lazily load Browser Host from its packaged runtime", async () => {
+test("the release Sidecar loads the extension host without any Playwright runtime", async () => {
   const build = spawnSync(
     process.execPath,
     ["scripts/esbuild-bundle.mjs", "server"],
@@ -77,6 +76,15 @@ test("the release Sidecar can lazily load Browser Host from its packaged runtime
     join(resourcesDir, "server-dist.js"),
   );
 
+  // Stage the actual eager domain imports (no Playwright, no symlinks to it).
+  for (const name of ['core', 'captcha']) {
+    const from = resolve(repoRoot, '..', 'packages', name);
+    const to = join(packagedNodeModules, '@career', name);
+    mkdirSync(to, { recursive: true });
+    cpSync(join(from, 'dist'), join(to, 'dist'), { recursive: true });
+    cpSync(join(from, 'package.json'), join(to, 'package.json'));
+  }
+  cpSync(resolve(repoRoot, '..', 'packages/core/node_modules/zod'), join(packagedNodeModules, 'zod'), { recursive: true, dereference: true });
   const port = await reservePort();
   const homeDir = join(releaseRoot, "home");
   const agentDir = join(homeDir, "agent");
@@ -100,6 +108,7 @@ test("the release Sidecar can lazily load Browser Host from its packaged runtime
         HOME: homeDir,
         USERPROFILE: homeDir,
         KEYSTONE_SIDECAR_ID: "__global__",
+        CAREER_BROWSER_EXTENSION_BRIDGE: '0',
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -117,58 +126,20 @@ test("the release Sidecar can lazily load Browser Host from its packaged runtime
   const output = () => `${stdout}\n${stderr}`;
 
   try {
-    // A Global/Session Sidecar that never uses Browser Host must not resolve
-    // Playwright at process startup. Add the packaged runtime only after the
-    // bare release bundle has answered health.
     await waitForHealth(port, child, output);
-    const stagedControlRoot = join(
-      repoRoot,
-      "src-tauri",
-      "resources",
-      "playwright-control",
-    );
-    mkdirSync(join(packagedNodeModules, "@playwright"), { recursive: true });
-    for (const packageName of ["playwright", "playwright-core"]) {
-      cpSync(
-        join(stagedControlRoot, packageName),
-        join(packagedNodeModules, packageName),
-        { recursive: true },
-      );
-    }
-    cpSync(
-      join(stagedControlRoot, "@playwright", "mcp"),
-      join(packagedNodeModules, "@playwright", "mcp"),
-      { recursive: true },
-    );
-    const importProbe = join(resourcesDir, "playwright-runtime-probe.mjs");
-    writeFileSync(
-      importProbe,
-      [
-        'import { createConnection } from "@playwright/mcp";',
-        'import { chromium } from "playwright";',
-        'if (typeof createConnection !== "function") throw new Error("missing createConnection");',
-        'if (typeof chromium?.launch !== "function") throw new Error("missing chromium.launch");',
-      ].join("\n"),
-    );
-    const importResult = spawnSync(process.execPath, [importProbe], {
-      cwd: resourcesDir,
-      encoding: "utf8",
-    });
-    assert.equal(
-      importResult.status,
-      0,
-      `${importResult.stdout}\n${importResult.stderr}`,
-    );
+    const browser = await fetch(`http://127.0.0.1:${port}/api/career/browser/state`);
+    assert.equal(browser.status, 401, output());
+    assert.equal((await browser.json()).code, 'BROWSER_CAPABILITY_REQUIRED', output());
     const response = await fetch(`http://127.0.0.1:${port}/mcp/playwright`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
     });
-    assert.equal(response.status, 401, output());
+    assert.equal(response.status, 410, output());
     const body = JSON.parse(await response.text());
     assert.equal(
-      body?.error?.data?.code,
-      "BROWSER_CAPABILITY_REQUIRED",
+      body.code,
+      "BROWSER_MCP_RETIRED",
       output(),
     );
   } finally {

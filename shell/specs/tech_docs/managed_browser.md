@@ -1,36 +1,37 @@
-# 托管浏览器工具
+# 浏览器宿主：Chrome 扩展单通道
 
-`keystone-browser` 是工具页的应用自有 Playwright MCP；普通 `playwright` preset 与 Tauri `BrowserPanel` 页面预览分别有自己的配置与生命周期。
+产品浏览器现由 `ExtensionBrowserHost` 接入用户日常 Chrome。旧文件名保留供架构文档链接使用；普通 `playwright` preset 和 Tauri `BrowserPanel` 不属于这个宿主。
 
-## Owner 与生命周期
+## Owner 与入口
 
-- Rust `BrowserResourceManager` 根据随 App 的资源 lock 安装、校验和公布 Chromium；Global Sidecar 只消费它返回的 executable。上游 `browser_install` 不经过这个 owner，故从托管工具目录移除，直接调用也返回产品安装入口。普通 Playwright preset 不受影响。
-- Rust `BrowserRuntimeAuthority` 按 Product Session、workspace、source/Host generation 验证 capability。Host 的 lazy Context getter 和工具后处理读取当前连接 binding；pending→正式 Session adoption 同时迁移已排队的 checkpoint timer。正在创建或关闭的 Context、冲突 owner 保留既有 rekey fence，不能猜测合并。
-- Global Sidecar `BrowserContextRegistry` 拥有共享 Chromium 以及每 Product Session 的 Context；每 MCP backend 仅借用。传输断开后保留 15 秒重连窗口；真正关闭由 Registry 负责。Playwright 的 SIGINT/SIGTERM handler 关闭，信号退出先经过产品 drain/checkpoint。
-- 借用代理跟踪 listener/route，清理一个 backend 不得关闭实际 Context。Page close 后释放该页监听记录；once 被触发时立即移除其跟踪记录。选择/排序引用由真实 Context 的 Page-close 观察器释放，跨越 backend 断开后的重连窗口。
+- Chrome 进程、窗口、标签页、Cookie 和更新归用户/Chrome 所有。产品不启动第二个 Chromium，不复制 Cookie，不因 Session 退役或 Sidecar 退出关闭用户标签页，也不隐藏、最小化或调整用户窗口。
+- Global Sidecar 启动 `ExtensionBridge`，扩展主动连接。`BridgePageProxySet` 立即读取当前标签快照，然后订阅增删改；断连时旧代理失效，重连时建立新代理。
+- Rust `BrowserRuntimeAuthority` 继续签发和校验 Session capability；移除浏览器安装器不等于移除鉴权。聊天经 `withContext`，Global 批量/提交/登录之旅/现场经 `withProductSession`，最终使用同一个桥 Context。
+- 一台物理浏览器只有一个接管锁。用户接管期间禁止新 Agent 借用（含其它 Session）；现场只读借用不改控制权。原有提交确认与数据库动作状态机不变。
+- 引擎通过 `focusPage` 指定工作页，`pages()` 将它放首位。登录之旅的 pin 优先。读取标题、检查页面不能反过来抢走显示焦点。
 
-## MCP 取消与完成
+## 画面与输入
 
-当前安装版 Playwright MCP 不把 Protocol 的 request signal 传给实际工具。直接转发 `notifications/cancelled` 会抑制最终协议回复，导致 JSON HTTP 响应永不完成，即使实际工具已经结束。
+`/api/career/live/stream?frames=1` 沿用已有 NDJSON 协议：snapshot、frame-status、frame、heartbeat。`ScreencastHub` 经 Page 适配器调用桥 CDP；帧带 width/height/ts/source，兼容现有 Renderer，不另造 SSE 帧通道。普通 LiveHub 订阅者不接收 base64 原始 CDP 帧。
 
-Host 因此在公开 transport 的收发边界记录尚未响应的 request id 及其 acquisition signal：合法取消只匹配同一连接的对应 tools/call，即使同批通知先于 lazy factory 到达也保留取消；已执行工具继续 drain 并返回正常终态。原始 Protocol 不再因这个通知省略回复，请求计数在 HTTP 等待完成后释放。replacement、capability retirement、DELETE 和 shutdown 使用同一 retirement 入口，先取消连接 acquisition signal，再等待 drain；即使工具已受理而 lazy factory 尚未注册 waiter，后续获取也能读到取消。批量消息也经过同一 transport policy。
+- `BridgeCdp` 按标签管理 debugger 租约。输入和多个预览各自借用；最后一份租约退出才 detach，关一个预览不打断另一个预览或输入。
+- 帧逐个 ACK；静止页补截图。流取消、启动失败、扩展断连时清理监听、计时器和租约；重连后等待流自动重新接入。
+- 输入仍必须先接管。帧坐标按真实 CSS 视口换算；拖拽保留最后坐标和按键状态，支持滚轮、双击及组合键。
+- 输入租约拦截 `Page.fileChooserOpened`，通过已有 `FileChooserBroker` 和 `/live/file` 在产品内选择附件；交回时关闭拦截，完成/取消/过期释放远程对象。引擎路径上传真实文件字节，不发送空占位文件。
+- 被动采集经 Network 事件等待响应完成后读取 JSON body，不拦截或重放请求；移除最后一个监听者时释放 observer 租约。
+- `/live/viewport` 返回 unsupported，不修改真实窗口尺寸。`/live/window` 的显示动作只切换到工作标签，隐藏动作不隐藏用户 Chrome。
+- Chrome 调试黄条是平台行为，无法保证隐藏；输入执行或预览持有 debugger 时可能显示。不能把“当前有画面”说成“无自动化痕迹”。
 
-取消请求不等于强制中断已经执行的 Playwright 操作。Host 不提前宣布其完成，也不在仍有工作时销毁它使用的 Context。
+## 旧链路退役
 
-## 登录保存与兼容
+- 不再支持 `CAREER_BROWSER_MANAGED` 后备开关；桥未连接返回明确错误。
+- 移除 `keystone-browser` 预设注册，保留该 ID 的防冒名保护；旧 `/mcp/playwright` 返回 410。普通用户自配 Playwright preset 不变。
+- Rust 浏览器资源模块仅保留升级兼容的 status/install/maintain 拒绝响应。下载、解压、维护与 executable resolution 已移除；build.rs 不再读取浏览器资源 lock。
+- 安装包不携带 Playwright control runtime 或原生窗口助手；改为携带 `career-bridge/` 扩展目录。`@career/captcha` 加入领域包 staging，避免只在开发 checkout 能启动。
+- 旧托管实现、资源 lock 和测试源码仍可用于历史回归，但不再接到产品启动/构建入口。用户旧 profile、登录存储和下载缓存未删除。
 
-Context 按 Product Session 隔离，但持久登录身份由当前 OS 用户共用的 Rust `browser_identity_store.rs` 保存（`~/.keystone/browser-identity-store.json`），不按 Session 或 workspace 分库。新 Context 从共享 identity snapshot 加载 Cookie；同一 Context 在重连窗口内复用其内存状态。不能把 Context 隔离解释为账号数据隔离。
+## 验证与边界
 
-托管登录状态有意仅保存 Cookie：全量 `storageState()` 可能创建历史 origin 的临时页面并导致可见闪烁。Rust 的 CAS 存储是持久 authority，Context 同时保存权威 base 与实际 observed base，以避免反复提交被其他 Session 否决的旧值。
+确定性测试覆盖真实宿主/代理/现场路由的组合：已有标签首灌、capability、跨调用方接管、帧格式/ACK、断连重连、输入坐标、双租约、取消清理、产品内选文件、被动响应采集及本地附件字节。发行 Sidecar 在隔离 HOME 下、没有任何 Playwright 包时启动并校验新/退役接口。
 
-750 ms 防抖的 checkpoint 正在提交时，后来请求记录一次待采样状态，合并为后续一次新快照；最终关闭同样等待这个新快照，不能把旧提交成功当成最终保存成功。循环结束与释放 in-flight 状态在同一 continuation 完成，避免外置 promise.finally 的微任务间隙漏掉新触发。保存失败仍沿既有一次重试及诊断策略关闭 Context，不承诺跨崩溃无损。
-
-Cookie 实体键包含 name/domain/path；分区 Cookie 另包含 partitionKey 和 Chromium 的 `_crHasCrossSiteAncestor`（缺省 true，与安装版 adapter 一致）。不同分区的更新、删除和 CAS 相互独立。
-
-身份存储 schema 2 自动读取并升级 schema 1，保留 state、revision 和非 Cookie 元数据。旧三元 Cookie revision key 无法还原其原先的分区，尤其是删除记录，因此迁移为 `keyRevisions` 内不可再推进的 `cookie-legacy:` family fence。旧 snapshot 仍受历史 revision 保护；从当前 snapshot 开始的新分区操作只推进自己的精确键。已被旧代码覆盖的 Cookie 无法凭剩余数据恢复。旧版本 reader 不支持 schema 2，降级不属于此迁移的兼容保证。
-
-## 工具能力与验证边界
-
-托管工具仍包含 `browser_run_code` 和现有文件工具，沿用当前文件访问与 roots 行为。借用 Page 代理用于生命周期管理，不能作为任意 Playwright 代码的对象访问隔离保证。
-
-`browser-host.lifecycle.unit.test.ts` 使用真实安装版 MCP 与生产 Host/Registry、合成 Context/资源服务验证取消、重试、adoption、目录与直接调用。Registry 测试覆盖快照交错和页面释放；Rust 测试覆盖分区实体及 schema 迁移。打包/API gate 固定上游版本和资源图；发行验收仍需对应平台、锁定 Chromium 产物的实际运行验证。
+这些测试使用替身扩展，不等于真实 Chrome 或招聘网站验收。仍需实机核对画面/拖拽/选文件/导航，以及各站点 iframe、原生对话框和页面事件；不能据类型检查或替身测试宣称所有 browse/apply 能力已完全等价。“到浏览器看”保留为用户主动选择的同一页面入口，不是另一条浏览器执行通道。

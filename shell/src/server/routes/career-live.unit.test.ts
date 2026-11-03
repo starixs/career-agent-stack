@@ -286,7 +286,7 @@ describe('career live route', () => {
     const until = async (pred: () => boolean) => { for (let i = 0; i < 100 && !pred(); i++) { const r = await Promise.race([reader.read(), new Promise<{ value?: Uint8Array; done: boolean }>(ok => setTimeout(() => ok({ done: false }), 20))]); if (r.value) buf += decoder.decode(r.value); } };
     await until(() => buf.includes('frame-status'));
     expect(buf).toContain('"state":"waiting"');
-    expect(buf).toContain('浏览器还没有打开');
+    expect(buf).toContain('Chrome 扩展尚未连接');
     expect(borrowed).not.toHaveBeenCalled();
     open = true;
     await until(() => borrowed.mock.calls.length > 0);
@@ -336,7 +336,7 @@ describe('career live route', () => {
     open = false;
     contexts[contexts.length - 1].emit('close');
     await until(() => buf.includes('"state":"closed"'));
-    expect(buf).toContain('浏览器已关闭');
+    expect(buf).toContain('浏览器连接已断开');
     open = true;
     await until(() => contexts.length > baseline);
     expect(contexts.length).toBeGreaterThan(baseline);

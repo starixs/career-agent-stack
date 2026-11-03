@@ -18,7 +18,6 @@ import type { OfficialToolId, OfficialToolSettings } from './official-tools';
 import type { SubscriptionVerifyFailureKind } from './subscription';
 import managedCodexRuntimeLock from './managed-codex-runtime.json';
 import {
-  MANAGED_BROWSER_MCP_ID,
   STANDARD_PLAYWRIGHT_MCP_ID,
 } from './browserTools';
 import { PLAYWRIGHT_MCP_PACKAGE_SPEC } from './mcpPackages';
@@ -2725,18 +2724,6 @@ export const PRESET_MCP_SERVERS: McpServerDefinition[] = [
     type: 'stdio',
     command: 'npx',
     args: [PLAYWRIGHT_MCP_PACKAGE_SPEC],
-    isBuiltin: true,
-    isFree: true,
-  },
-  {
-    id: MANAGED_BROWSER_MCP_ID,
-    name: '浏览器',
-    description: 'keystone 托管的 Chromium，支持多对话隔离与登录状态复用',
-    type: 'stdio',
-    // Product-owned sentinel. Runtime adapters project only this preset to the
-    // authenticated application Browser Host; it is never spawned as stdio.
-    command: '__browser_host__',
-    args: [],
     isBuiltin: true,
     isFree: true,
   },

@@ -129,6 +129,8 @@ export const HUMAN_LIKE_CONTEXT_OPTIONS: Readonly<BrowserContextOptions> = {
 /**
  * 真实 Chrome 配合 `--disable-blink-features=AutomationControlled` 本身已不暴露
  * `navigator.webdriver`；这里只补齐被 Playwright 空 profile 抹掉的"普通用户"特征。
+ * 弹窗中和（alert/confirm/prompt）来自扩展桥同款思路：原生弹窗会阻塞整页 JS
+ * 执行，等价自动化死锁；confirm 回 true / prompt 回默认值贴合"用户点了确定"。
  */
 export const HUMAN_LIKE_INIT_SCRIPT = `(() => {
   const define = (target, key, value) => {
@@ -152,6 +154,14 @@ export const HUMAN_LIKE_INIT_SCRIPT = `(() => {
       window.chrome = { app: { isInstalled: false }, runtime: {}, loadTimes() { return {}; }, csi() { return {}; } };
     } catch {}
   }
+  // 原生弹窗中和（toast 化，绝不阻塞）
+  try {
+    const note = (type, msg) => { try { console.log('[browser] ' + type + ' suppressed:', msg); } catch {} };
+    window.alert = msg => note('alert', msg);
+    window.confirm = msg => { note('confirm', msg); return true; };
+    window.prompt = (msg, def) => { note('prompt', msg); return def ?? null; };
+    window.print = () => note('print', 'blocked');
+  } catch {}
 })();`;
 
 function systemChromeCandidates(

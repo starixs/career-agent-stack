@@ -21,7 +21,6 @@ import { build } from 'esbuild';
 import { readFile, mkdir, readdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import { preparePlaywrightControlRuntime } from './prepare-playwright-control-runtime.mjs';
 
 // Read package.json version once and inject as a compile-time constant.
 // This is the ONLY way `keystone version` can show the real shipped
@@ -69,12 +68,9 @@ const TARGETS = {
     format: 'esm',
     sourcemap: true,
     banner: { js: ESM_INTEROP_BANNER },
-    // Playwright must keep its package-local CommonJS layout and data files.
-    // Bundling it into this ESM file leaves module-scoped globals such as
-    // `__dirname` unbound and breaks its relative package.json/assets lookup
-    // in release builds. Tauri ships these three pinned *control-code*
-    // packages under Resources/node_modules; Chromium itself remains a
-    // separately managed runtime artifact and is not part of the app bundle.
+    // Legacy helpers remain external for development tests; the product no longer
+    // stages Playwright packages or launches a managed Chromium. The production
+    // browser host is ExtensionBrowserHost; generic user MCP presets remain separate.
     external: [
       // 求职领域库通过 node_modules/@career/* 符号链接解析（scripts/link-career-packages.mjs），
       // 其依赖（node:sqlite、@react-pdf、@napi-rs/canvas 等）从各自的 pnpm node_modules 加载，
@@ -162,7 +158,6 @@ const outputDir = dirname(cfg.outfile);
 await mkdir(outputDir, { recursive: true });
 
 if (targetName === 'server') {
-  preparePlaywrightControlRuntime();
 }
 
 // The package must contain exactly one CLI business payload. Remove artifacts
