@@ -967,7 +967,7 @@ pub fn run() {
             // Only users who completed the explicit first install have opted
             // into Browser resources. Future app-locked revisions maintain
             // themselves in the background; a never-installed app stays idle.
-            browser_resource::start_automatic_maintenance();
+            // Managed Chromium retired: the user's Chrome owns its own updates.
             #[cfg(target_os = "macos")]
             if let Err(error) =
                 notification::install_macos_notification_delegate(app.handle())

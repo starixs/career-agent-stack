@@ -6,6 +6,7 @@
 const WS_PORT = 18775;
 const WS_URL_DEFAULT = `ws://127.0.0.1:${WS_PORT}`;
 let ws = null;
+let disconnecting = false;
 let wsUrl = WS_URL_DEFAULT;
 
 async function loadConfig() {
@@ -17,7 +18,9 @@ function log(...a) { try { console.log('[career-bridge]', ...a); } catch {} }
 
 // ---------- 标签同步 ----------
 
-const isScriptable = url => url && /^https?:/.test(url);
+// newPage() creates about:blank before goto(). Keep it in tab snapshots or the
+// proxy would be marked closed between creation and navigation.
+const isScriptable = url => url && (/^https?:/.test(url) || url === 'about:blank');
 
 async function currentTabs() {
   const tabs = (await chrome.tabs.query({})).filter(t => isScriptable(t.url));
@@ -316,7 +319,7 @@ chrome.alarms.onAlarm.addListener(async alarm => {
 });
 
 function connectWS() {
-  if (ws && ws.readyState <= 1) return;
+  if (disconnecting || (ws && ws.readyState <= 1)) return;
   ws = null;
   try { ws = new WebSocket(wsUrl); } catch { scheduleProbe(); return; }
   ws.onopen = async () => {
@@ -336,7 +339,14 @@ function connectWS() {
       }
     } catch (e) { log('message parse error', e); }
   };
-  ws.onclose = () => { log('disconnected'); ws = null; setStatus('connecting'); scheduleProbe(); };
+  ws.onclose = async () => {
+    log('disconnected'); ws = null; disconnecting = true;
+    // Sidecar is gone: don't leave a debugger/hidden file dialog/stream attached
+    // to the user's Chrome. Reconnect only after the old attachments drain.
+    const ids = [...attachedTabs]; attachedTabs.clear();
+    await Promise.allSettled(ids.map(tabId => chrome.debugger.detach({ tabId })));
+    disconnecting = false; setStatus('connecting'); scheduleProbe();
+  };
   ws.onerror = () => { /* onclose 会跟着触发 */ };
 }
 

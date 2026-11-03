@@ -2,7 +2,7 @@ import type { BrowserContext, Page } from 'playwright';
 
 import type { VerifiedBrowserCapability } from '../browser-host/capability-client';
 import type { BrowserControl, BrowserControlState } from '../browser-host/context-registry';
-import { bringToFront as bringContextToFront, restoreIfMinimized } from '../browser-host/page-control';
+import { bringToFront as bringContextToFront } from '../browser-host/page-control';
 import type { BrowserChannel } from '../browser-host/runtime-settings';
 import { adoptApplicationPage, lockPage, pageForApplication, releaseApplicationPage, unlockPage } from '../career/app-pages';
 
@@ -364,7 +364,7 @@ function errorName(error: unknown): string {
 function errorResponse(error: unknown, fallback: string): Response {
   const name = errorName(error);
   if (name === 'BROWSER_CAPABILITY_INVALID') return failure(401, '浏览器凭据无效或已过期', name);
-  if (name === 'BROWSER_CONTROL_HUMAN') return failure(409, error instanceof Error ? error.message : fallback, name);
+  if (name === 'BROWSER_CONTROL_HUMAN' || name === 'BRIDGE_NOT_CONNECTED') return failure(409, error instanceof Error ? error.message : fallback, name);
   if (name === 'BROWSER_HOST_STOPPING') return failure(503, '浏览器服务正在停止', name);
   if (name.startsWith('BROWSER_RESOURCE_')) return failure(503, '浏览器资源尚未就绪', name);
   console.warn(`[career-browser] request=failed error=${name || 'unknown'}`);
@@ -647,8 +647,7 @@ export async function runOperation(
     return;
   }
   if (appKey) deps.focusPage?.(page);
-  // 用户接管后可能把真实窗口最小化了；不恢复的话后面的截图会挂到超时
-  await restoreIfMinimized(context, page);
+  // 用户的 Chrome 窗口不归产品管理：只有显式「到浏览器看」才前置窗口。
   if (op === 'screenshot') {
     out.emit({ type: 'progress', phase: 'screenshot', message: '正在截图' });
     const bytes = await page.screenshot({ type: 'jpeg', quality: 60, fullPage: body.fullPage === true });
@@ -856,7 +855,7 @@ function ndjsonStream(
           const name = errorName(error);
           out.emit({
             type: 'error',
-            status: name === 'BROWSER_CONTROL_HUMAN' ? 409 : name === 'BROWSER_CAPABILITY_INVALID' ? 401 : 500,
+            status: name === 'BROWSER_CONTROL_HUMAN' || name === 'BRIDGE_NOT_CONNECTED' ? 409 : name === 'BROWSER_CAPABILITY_INVALID' ? 401 : 500,
             error: error instanceof Error && error.message ? error.message : '浏览器操作失败',
             ...(name ? { code: name } : {}),
           });
@@ -962,27 +961,15 @@ export async function handleCareerBrowserRoute(
   // 「等用户帮一下」本来就是在用户接管期间等，不能被接管挡掉
   const waitsForUser = op === 'browse' && body.action === 'wait_user';
   const control = host.getControl(binding.productSessionId);
-  if (control.control === 'human' && !waitsForUser && op !== 'bridge') {
+  const readsBridgeTabs = op === 'bridge' && (!body.action || body.action === 'tabs');
+  if (control.control === 'human' && !waitsForUser && !readsBridgeTabs) {
     return failure(409, '用户正在接管浏览器，等待交回', 'BROWSER_CONTROL_HUMAN');
   }
   // 桥操作跑在用户自己的 Chrome 里，不需要（也不该依赖）托管浏览器
   if (op === 'bridge') {
-    return ndjsonStream(request, (out, signal) => runBridgeOp(body, out, { ...deps, productSessionId: binding.productSessionId }, { host, token, signal }));
+    return ndjsonStream(request, out => runBridgeOp(body, out, { ...deps, productSessionId: binding.productSessionId }));
   }
-  // 单通道（ARCHITECTURE §4）：桥连接时引擎操作（browse / drive / submit…）直接跑在
-  // 用户真实浏览器上（BridgePageProxy 扮演 BrowserContext），不起 Playwright。
-  // 桥没连：CAREER_BROWSER_MANAGED=1 回退托管链路，否则引导装扩展。
-  if (op !== 'submit' && op !== 'release') {
-    const { bridgeEngineContext, extensionBridgeEnabled, managedFallbackEnabled } = await import('../browser-host/extension-bridge/bridge-host')
-    // 只查已启动的桥（sidecar 启动时拉起）：这里不 bind 端口
-    const engine = extensionBridgeEnabled() ? bridgeEngineContext() : null
-    if (engine) {
-      return ndjsonStream(request, (out, signal) => runOperation(op, body, engine.context as BrowserContext, out, signal, { ...deps, productSessionId: binding.productSessionId, focusPage: () => {} }));
-    }
-    if (!managedFallbackEnabled()) {
-      return failure(409, '浏览器主通道是 career-bridge（你日常的 Chrome，登录态全真）：请在 chrome://extensions 加载 app/shell/src/server/browser-host/extension-bridge/extension 后重试；确需托管浏览器时设 CAREER_BROWSER_MANAGED=1', 'BRIDGE_NOT_CONNECTED');
-    }
-  }
+  // 聊天、批量、提交与现场共用 ExtensionBrowserHost；不能绕过宿主的控制权和生命周期。
   return ndjsonStream(request, (out, signal) => host.withContext(
     token,
     (context, b) => runOperation(op, body, context, out, signal, { ...deps, productSessionId: b.productSessionId, focusPage: page => host.focusPage?.(b.productSessionId, page) }),
@@ -994,14 +981,13 @@ export async function handleCareerBrowserRoute(
  * 桥操作（用户日常 Chrome，career-bridge 扩展通道）：
  * - tabs：列出真实浏览器里可脚本化的标签页
  * - solve_captcha：在真实浏览器的标签页上过验证码（登录态 / 指纹全真，通过率最高）
- * - sync_cookies：把真实浏览器的 Cookie 灌进托管 Context（托管浏览器继承登录态）
+ * - sync_cookies 已退役：直接使用 Chrome 登录态，不复制 Cookie。
  * - exec：在指定标签页主世界执行 JS（模型自由操作兜底）
  */
 async function runBridgeOp(
   body: Record<string, unknown>,
   out: RunEmitter,
   deps: CareerBrowserRouteDependencies,
-  managed: { host: CareerBrowserHost; token: string; signal?: AbortSignal },
 ): Promise<void> {
   const [{ ensureExtensionBridge }, { bridgePageFor }] = await Promise.all([
     import('../browser-host/extension-bridge/bridge-host'),
@@ -1030,32 +1016,7 @@ async function runBridgeOp(
     return;
   }
   if (action === 'sync_cookies') {
-    const url = typeof body.url === 'string' ? body.url : '';
-    if (!/^https?:\/\//.test(url)) { out.emit({ type: 'error', status: 400, code: 'BRIDGE_BAD_REQUEST', error: 'url 必填（https://…）' }); return }
-    try {
-      const raw = await bridge.sendCommand<Array<Record<string, unknown>>>({ cmd: 'cookies', url });
-      // chrome.cookies → playwright addCookies 形状
-      const cookies = (raw ?? []).map(c => ({
-        name: String(c.name ?? ''),
-        value: String(c.value ?? ''),
-        domain: typeof c.domain === 'string' ? c.domain : new URL(url).hostname,
-        path: typeof c.path === 'string' ? c.path : '/',
-        expires: typeof c.expirationDate === 'number' ? c.expirationDate : -1,
-        httpOnly: c.httpOnly === true,
-        secure: c.secure === true,
-        sameSite: c.sameSite === 'no_restriction' ? 'None' as const : c.sameSite === 'lax' ? 'Lax' as const : c.sameSite === 'strict' ? 'Strict' as const : 'Lax' as const,
-      })).filter(c => c.name);
-      let applied = 0;
-      if (cookies.length) {
-        await managed.host.withContext(managed.token, async context => {
-          await context.addCookies(cookies as Parameters<BrowserContext['addCookies']>[0]);
-          applied = cookies.length;
-        }, { allowHumanControl: true, signal: managed.signal });
-      }
-      out.emit({ type: 'result', op: 'bridge', action, synced: applied, host: new URL(url).hostname });
-    } catch (error) {
-      out.emit({ type: 'error', status: 500, code: 'BRIDGE_SYNC_FAILED', error: error instanceof Error ? error.message : String(error) });
-    }
+    out.emit({ type: 'error', status: 410, code: 'BRIDGE_SYNC_RETIRED', error: '已直接使用真实 Chrome 登录态，无需复制 Cookie' });
     return;
   }
   if (action === 'solve_captcha') {

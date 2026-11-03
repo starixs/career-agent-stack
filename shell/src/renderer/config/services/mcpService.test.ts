@@ -114,10 +114,7 @@ describe('built-in Browser toggle persistence', () => {
       command: 'npx',
       isBuiltin: true,
     });
-    expect(findById(servers, 'keystone-browser')).toMatchObject({
-      command: '__browser_host__',
-      isBuiltin: true,
-    });
+    expect(findById(servers, 'keystone-browser')).toBeUndefined();
   });
 
   it.each(['playwright', 'keystone-browser'])('rejects custom creation for reserved id %s', async id => {

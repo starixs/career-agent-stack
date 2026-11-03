@@ -15,6 +15,8 @@ export interface FileChooserLike {
   element(): { getAttribute(name: string): Promise<string | null> };
   page(): { url(): string };
   setFiles(files: Array<{ name: string; mimeType: string; buffer: Buffer }>): Promise<void>;
+  /** Release a bridge remote-object handle on completion, cancellation or expiry. */
+  dispose?(): Promise<void>;
 }
 
 export interface PendingFileChooser {
@@ -85,6 +87,7 @@ export class FileChooserBroker {
   }
 
   private clear(): void {
+    void this.pending?.chooser.dispose?.().catch(() => {});
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.pending = null;

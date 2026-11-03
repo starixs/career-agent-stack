@@ -1,8 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "bundle": {
-    "resources": {
-      "../src-tauri/resources/window-helper/career-window-helper": "window-helper/career-window-helper"
-    }
+    "resources": {}
   }
 }
