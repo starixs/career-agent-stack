@@ -72,6 +72,37 @@ describe('PhoneLinkService', () => {
     await expect(waiting).resolves.toBeNull();
   });
 
+  it('strict 模式：拒绝旧码/签名包含匹配，同一短信只交给一个等待者', async () => {
+    const since = new Date(2026, 10, 3, 12, 27, 0).getTime();
+    const { svc, procs } = setup({ now: () => since + 2000 });
+    await svc.bind(MI10.address, MI10.name);
+    const link = procs.at(-1)!;
+    const opts = { since, signature: '飞书招聘', timeoutMs: 5000, strict: true };
+    const first = svc.waitForCode(opts); const second = svc.waitForCode(opts);
+    link.emit({ ev: 'sms', body: '【飞书招聘】验证码：111111', sender: 'x', time: '20261103T112700' });
+    link.emit({ ev: 'sms', body: '【飞书】验证码：222222', sender: 'x', time: '20261103T122702' });
+    const good = { ev: 'sms', body: '【飞书招聘】验证码：333333', sender: 'x', time: '20261103T122702' };
+    link.emit(good);
+    await expect(first).resolves.toMatchObject({ code: '333333' });
+    link.emit(good); // 助手重连重报也不能再消费
+    vi.advanceTimersByTime(5000);
+    await expect(second).resolves.toBeNull();
+  });
+
+  it('strict 模式不把重连的最近短信缓存当新码；取消/解绑立即清等待者', async () => {
+    const since = new Date(2026, 10, 3, 12, 27, 0).getTime();
+    const { svc, procs } = setup({ now: () => since });
+    await svc.bind(MI10.address, MI10.name);
+    procs.at(-1)!.emit({ ev: 'latest', body: '【飞书招聘】验证码：444444', sender: 'x', time: '20261103T122700' });
+    const abort = new AbortController();
+    const opts = { since, signature: '飞书招聘', timeoutMs: 5000, strict: true };
+    const cancelled = svc.waitForCode({ ...opts, signal: abort.signal }); abort.abort();
+    await expect(cancelled).resolves.toBeNull();
+    const waiting = svc.waitForCode(opts); svc.unbind();
+    await expect(waiting).resolves.toBeNull();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('助手意外退出：标 lost，过一会重启', async () => {
     const { svc, procs } = setup();
     await svc.bind(MI10.address, MI10.name);

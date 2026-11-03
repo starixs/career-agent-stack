@@ -5,6 +5,7 @@
  * - 助手（native/career-phone-helper.m）自己负责断线重连，这里只转述状态；助手进程意外退出时按退避重启。
  * - waitForCode 给以后的网申流程用：只认「开始等之后」到达、签名对得上的那条，防止批量投时串号。
  */
+import { createHash } from 'node:crypto';
 import type { HelperEvent, HelperProcess } from '../../utils/native-helper';
 
 import { extractCode, parseMapTime, smsSignature } from './sms-code';
@@ -32,7 +33,12 @@ const DEVICES_TIMEOUT_MS = 8_000;
 /** 签名比较前去掉的修饰（「飞书招聘」与站点名「飞书」能对上）。 */
 const SIGNATURE_NOISE = /招聘|校招|官方|网申|测评|平台/g;
 
-interface Waiter { since: number; signature: string | null; resolve: (sms: CodeSms | null) => void; timer: ReturnType<typeof setTimeout> }
+export interface CodeWaitOptions { since: number; signature?: string | null; timeoutMs: number; signal?: AbortSignal; /** 自动网申：精确签名、手机接收时间与一次消费。 */ strict?: boolean }
+interface Waiter { opts: CodeWaitOptions; resolve: (sms: CodeSms | null) => void }
+/** MAP 时间只有秒精度。 */
+const MAP_CLOCK_PRECISION_MS = 1000;
+/** 只保留短期去重摘要，不保留额外的短信正文。 */
+const CONSUMED_TTL_MS = 10 * 60_000;
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
@@ -51,6 +57,8 @@ export class PhoneLinkService {
   private respawn: ReturnType<typeof setTimeout> | null = null;
   private waiters = new Set<Waiter>();
   private stopped = false;
+  private consumed = new Map<string, number>();
+  private latestFresh = false;
 
   constructor(private readonly deps: PhoneLinkDeps) {}
 
@@ -133,17 +141,37 @@ export class PhoneLinkService {
   }
 
   /** 等一条验证码短信：只认 since 之后到达、签名对得上的；超时返回 null（调用方退回请本人填）。 */
-  waitForCode(opts: { since: number; signature?: string | null; timeoutMs: number }): Promise<CodeSms | null> {
-    const hit = this.latest && this.accepts(this.latest, opts.since, opts.signature ?? null) ? this.latest : null;
-    if (hit) return Promise.resolve(hit);
+  waitForCode(opts: CodeWaitOptions): Promise<CodeSms | null> {
+    if (opts.signal?.aborted) return Promise.resolve(null);
+    const hit = this.latest && (!opts.strict || this.latestFresh) && this.accepts(this.latest, opts) ? this.latest : null;
+    if (hit) { this.consume(hit, opts); return Promise.resolve(hit); }
     return new Promise((resolve) => {
-      const waiter: Waiter = { since: opts.since, signature: opts.signature ?? null, resolve, timer: setTimeout(() => { this.waiters.delete(waiter); resolve(null); }, opts.timeoutMs) };
+      const done = (sms: CodeSms | null) => {
+        clearTimeout(timer); opts.signal?.removeEventListener('abort', abort);
+        this.waiters.delete(waiter); resolve(sms);
+      };
+      const abort = () => done(null);
+      const waiter: Waiter = { opts, resolve: done };
+      const timer = setTimeout(abort, opts.timeoutMs);
       this.waiters.add(waiter);
+      opts.signal?.addEventListener('abort', abort, { once: true });
     });
   }
 
-  private accepts(sms: CodeSms, since: number, signature: string | null): boolean {
-    return !!sms.code && Date.parse(sms.seen_at) >= since && signatureMatches(signature, sms.signature);
+  private smsKey(sms: CodeSms): string { return createHash('sha256').update(`${sms.sender}|${sms.received_at}|${sms.body}`).digest('hex'); }
+
+  private consume(sms: CodeSms, opts: CodeWaitOptions): void {
+    for (const [key, at] of this.consumed) if (at < this.now() - CONSUMED_TTL_MS) this.consumed.delete(key);
+    if (opts.strict) this.consumed.set(this.smsKey(sms), this.now());
+  }
+
+  private accepts(sms: CodeSms, opts: CodeWaitOptions): boolean {
+    if (!sms.code || Date.parse(sms.seen_at) < opts.since) return false;
+    if (!opts.strict) return signatureMatches(opts.signature ?? null, sms.signature);
+    return !!opts.signature && opts.signature === sms.signature && !!sms.received_at
+      && Date.parse(sms.received_at) >= opts.since - MAP_CLOCK_PRECISION_MS
+      && Date.parse(sms.received_at) <= this.now() + MAP_CLOCK_PRECISION_MS
+      && !this.consumed.has(this.smsKey(sms));
   }
 
   private async connect(): Promise<void> {
@@ -163,6 +191,7 @@ export class PhoneLinkService {
     const link = this.link;
     this.link = null;
     link?.close();
+    for (const w of [...this.waiters]) w.resolve(null);
   }
 
   private onLinkEvent(ev: HelperEvent): void {
@@ -191,6 +220,7 @@ export class PhoneLinkService {
     // 连上时报的「最近一条」是历史短信：只给界面看，不能拿去应付正在等的站点
     if (!fresh) sms.seen_at = sms.received_at ?? new Date(0).toISOString();
     this.latest = sms;
+    this.latestFresh = fresh;
     console.log(`[phone-link] 收到验证码短信 signature=${sms.signature ?? '-'} fresh=${fresh}`);
     if (fresh) this.settleWaiters(sms);
     this.deps.changed();
@@ -198,9 +228,8 @@ export class PhoneLinkService {
 
   private settleWaiters(sms: CodeSms): void {
     for (const w of [...this.waiters]) {
-      if (!this.accepts(sms, w.since, w.signature)) continue;
-      clearTimeout(w.timer);
-      this.waiters.delete(w);
+      if (!this.accepts(sms, w.opts)) continue;
+      this.consume(sms, w.opts);
       w.resolve(sms);
     }
   }

@@ -1,4 +1,6 @@
 import type { BrowserContext, Page } from 'playwright';
+import type { VerificationHandler } from '@career/apply';
+import { getCaptchaPolicy } from '../career/captcha-automation';
 
 import type { VerifiedBrowserCapability } from '../browser-host/capability-client';
 import type { BrowserControl, BrowserControlState } from '../browser-host/context-registry';
@@ -96,6 +98,8 @@ export interface CareerBrowserRouteDependencies {
   loadApply?: () => Promise<ApplyEngineModule | null>;
   /** `drive` 需要模型。由后端组合层通过 {@link registerCareerBrowserLlmResolver} 接入。 */
   resolveLlm?: () => Promise<LlmLike | null>;
+  /** 测试注入；实际配置只从本机 verification.json 读取，不能由模型请求覆盖。 */
+  verify?: VerificationHandler;
   /**
    * `drive` 的资料：缺省在 Node 侧从求职 SQLite + 私密库组装（见 {@link defaultDriveProfile}），
    * 调用方（模型工具）不传、也拿不到 basics 明文。请求体里的 `profile` 只作测试 / 兜底。
@@ -512,23 +516,26 @@ function coreVisionLlm(llm: LlmLike): import('@career/core').LLM {
   };
 }
 
-/**
- * 验证码自动求解的站点预算（@career/captcha CaptchaPolicy）：单站点当天最多
- * 6 次自动尝试，连败后冷却 10 分钟。试不过就交用户，绝不硬碰触发风控升级。
- */
-let captchaPolicyPromise: Promise<import('@career/captcha').CaptchaPolicy> | null = null;
-function getCaptchaPolicy(): Promise<import('@career/captcha').CaptchaPolicy> {
-  captchaPolicyPromise ??= import('@career/captcha').then(m => new m.CaptchaPolicy());
-  return captchaPolicyPromise;
-}
-
 /** 浏览器环境检查（Cloudflare 一类）：先试着点一下验证框（CDP 可信点击），等不到再等放行。 */
 const BROWSER_CHECK_WAIT_MS = 6000;
 
-/**
- * 简单验证码 AI 自己过：图形字 / 点选 / 滑块（captcha-solver.ts）。短信码、认不出的类型回 needs_user，
- * 由模型转 browser_wait_user 请用户帮一下。
- */
+/** 自动验证共享组合点；请求体不能覆盖本机模板或收码授权。 */
+async function verificationForPage(page: Page, body: Record<string, unknown>, bundle: DriveProfileBundle, llm: LlmLike | null, signal: AbortSignal, out: RunEmitter, deps: CareerBrowserRouteDependencies): Promise<VerificationHandler | undefined> {
+  if (deps.verify) return deps.verify;
+  if (body.profile || !llm) return undefined;
+  const { createApplyVerification } = await import('../career/apply-verification');
+  return createApplyVerification({
+    page, llm: coreVisionLlm(llm), profile: bundle.profile, signal, resolveValue: bundle.resolveValue,
+    batch: body.caller === 'batch',
+    assertActive: () => { if (deps.host.getControl(deps.productSessionId ?? 'default').control === 'human') throw new Error('BROWSER_CONTROL_HUMAN'); },
+    progress: message => out.emit({ type: 'progress', phase: 'verification', message }),
+  }).catch(() => {
+    console.warn('[apply-verification] configuration unavailable');
+    return async () => ({ status: 'needs_user' as const });
+  });
+}
+
+/** 对话的显式图形验证工具；短信/邮箱收码在 drive/approved-submit 的私有钩子中完成。 */
 async function runSolveCaptcha(page: Page, out: RunEmitter, deps: CareerBrowserRouteDependencies): Promise<void> {
   const browse = await import('../career/browse');
   const { hintSampleInPage } = await import('../career/browse-handoff');
@@ -692,7 +699,7 @@ export async function runOperation(
   }
 
   if (op === 'submit') {
-    await runSubmit(apply, page, body, out, deps, sessionKey, appKey, context);
+    await runSubmit(apply, page, body, out, deps, sessionKey, appKey, context, signal);
     return;
   }
 
@@ -760,7 +767,9 @@ export async function runOperation(
     const telemetry = await (deps.resolveTelemetry ?? defaultTelemetry)(body);
     const target = body.profile ? null : await positionTargetForBody(body);
     const pathfinder = target && typeof body.applicationId === 'string' ? await pathfinderForBody(body.applicationId, context, page, apply, llm, deps) : null;
+    const verify = await verificationForPage(page, body, bundle, llm, signal, out, deps);
     const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
+      ...(verify ? { verify } : {}),
       maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
       humanTyping: body.humanTyping !== false,
       ...(typeof body.settleMs === 'number' ? { settleMs: body.settleMs } : {}),
@@ -794,7 +803,7 @@ export async function runOperation(
  * filled 里的私密库占位符先解成明文再与页面比对（否则会被误判成"用户改过"）；回传前统一脱敏。
  * 提交成功后关掉这份网申的页面。
  */
-async function runSubmit(apply: ApplyEngineModule, page: Page, body: Record<string, unknown>, out: RunEmitter, deps: CareerBrowserRouteDependencies, sessionKey: string, appKey: string | undefined, context: BrowserContext): Promise<void> {
+async function runSubmit(apply: ApplyEngineModule, page: Page, body: Record<string, unknown>, out: RunEmitter, deps: CareerBrowserRouteDependencies, sessionKey: string, appKey: string | undefined, context: BrowserContext, signal: AbortSignal): Promise<void> {
   if (typeof apply.submitApplication !== 'function') {
     out.emit({ type: 'error', status: 501, error: '表单引擎版本过旧，没有提交执行器（请重新构建 @career/apply）' });
     return;
@@ -806,7 +815,16 @@ async function runSubmit(apply: ApplyEngineModule, page: Page, body: Record<stri
     const vault = body.profile ? null : await (deps.resolveSubmitVault ?? defaultSubmitVault)().catch(() => null);
     const filled = Array.isArray(body.filled) ? (body.filled as Array<Record<string, unknown>>).map(f => ({ ...f, value: vault && typeof f.value === 'string' ? vault.resolve(f.value) : f.value })) : undefined;
     out.emit({ type: 'progress', phase: 'submit', message: `正在提交${typeof body.submitButton === 'string' ? `（「${body.submitButton}」）` : ''}` });
+    const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))().catch(() => {
+      console.warn('[apply-verification] model unavailable during approved submit');
+      return null;
+    });
+    const verify = await verificationForPage(page, body, {
+      profile: { basics: { phone: '{{vault:profile.phone}}', email: '{{vault:profile.email}}' } },
+      resolveValue: vault ? v => vault.resolve(v) : undefined,
+    }, llm, signal, out, deps);
     const result = await apply.submitApplication(apply.fromPlaywright(page), {
+      ...(verify ? { verify } : {}),
       ...(typeof body.submitButton === 'string' ? { expectedButton: body.submitButton } : {}),
       ...(filled ? { filled } : {}),
       ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),

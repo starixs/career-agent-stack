@@ -12,6 +12,7 @@ import { getMailPassword } from './credentials';
 import { isExpired, recordMailFailure, recordMailSuccess } from './health';
 import { classifyByRules } from './rules';
 import { recordTakeover } from './takeover';
+import { extractCode } from '../phone/sms-code';
 
 export interface MailSyncDeps extends IntakeDeps {
   /** 后台往个人助理对话里放卡（接管卡）；缺省不放（测试、没有对话的场合）。 */
@@ -45,7 +46,14 @@ const JOB_RE = /面试|笔试|测评|offer|录用|应聘|投递|简历|招聘|�
 const SENDER_RE = /mokahr|beisen|moka|zhaopin|51job|liepin|nowcoder|yingjiesheng|zhipin|lagou|hr@|hr-|talent|campus|recruit|careers|jobs|hire|workday|greenhouse|lever\.co|successfactors|teamtailor|ashby/i;
 const NOISE_RE = /验证码|verification code|unsubscribe|退订|账单|invoice|订单|促销|优惠|newsletter|digest|security alert|登录提醒/i;
 
+const OTP_RE = /验证码|校验码|动态码|one[- ]time (?:code|password)|verification code|security code|\botp\b/i;
+export function isVerificationMail(m: Pick<FetchedMail, 'subject' | 'text'>): boolean {
+  const text = `${m.subject ?? ''}\n${m.text}`;
+  return OTP_RE.test(m.subject ?? '') || (OTP_RE.test(text) && extractCode(text) !== null);
+}
+
 export function isLikelyJobMail(m: Pick<FetchedMail, 'from' | 'subject' | 'text'>): boolean {
+  if (isVerificationMail(m)) return false;
   const head = `${m.subject ?? ''}\n${(m.text ?? '').slice(0, 600)}`;
   if (NOISE_RE.test(m.subject ?? '') && !JOB_RE.test(m.subject ?? '')) return false;
   return JOB_RE.test(head) || SENDER_RE.test(m.from ?? '');
@@ -191,6 +199,8 @@ export async function archiveBatch(deps: MailSyncDeps, account: MailAccount, mai
 
 async function archiveMail(deps: MailSyncDeps, account: MailAccount, m: FetchedMail, result: MailSyncResult): Promise<void> {
   const r = deps.repos;
+  // 收码只由私有等待通道消费；包括带「招聘」字样的码邮件，不落求职库、不进模型。
+  if (isVerificationMail(m)) { result.ignored++; return; }
   const likely = isLikelyJobMail(m);
   // 历史导入不存无关邮件：几个月的私人邮件没必要进库
   if (result.history && !likely) { result.ignored++; return; }

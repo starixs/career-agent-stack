@@ -7,7 +7,7 @@ import { solveSlider } from './slider.js'
 /**
  * 求解调度：按验证码种类分流。
  * - slider / image_click / image_text / browser_check：AI 尝试（视觉 + 可信输入）
- * - sms：契约红线——短信验证码永远人工（拿不到用户手机）
+ * - sms：本包不读取用户消息；交由宿主已授权的短信/邮箱收码通道，未配置时人工
  * - unknown：留给人工，不盲试
  */
 export async function solveCaptcha(deps: SolverDeps, target: Pick<CaptchaTarget, 'kind' | 'vendor'>): Promise<SolveResult> {
@@ -16,7 +16,7 @@ export async function solveCaptcha(deps: SolverDeps, target: Pick<CaptchaTarget,
     case 'image_click': return solveImageClick(deps)
     case 'image_text': return solveImageText(deps)
     case 'browser_check': return solveBrowserCheck(deps)
-    case 'sms': return { outcome: 'unsupported', detail: '短信验证码需要用户手机，永远人工', attempts: 0 }
+    case 'sms': return { outcome: 'unsupported', detail: '短信/邮箱验证码需要宿主授权的收码通道，图形求解器不处理', attempts: 0 }
     default: return { outcome: 'unsupported', detail: `未知验证码种类（vendor=${target.vendor}），留给人工`, attempts: 0 }
   }
 }

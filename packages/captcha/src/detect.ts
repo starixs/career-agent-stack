@@ -8,9 +8,10 @@ export const DETECT_CAPTCHA_EXPR = `(() => {
   const text = ((document.body && document.body.innerText) || '').slice(0, 4000);
   const all = (document.title || '') + ' ' + text;
 
+  const visible = el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const find = selector => Array.from(document.querySelectorAll(selector)).find(visible);
   const iframeBySrc = (rx) => Array.from(document.querySelectorAll('iframe'))
-    .find(f => rx.test(f.src || ''));
-  const cls = (rx) => document.querySelector('[class*="' + rx + '"], .' + rx);
+    .find(f => visible(f) && rx.test(f.src || ''));
   const rectOf = (el) => {
     if (!el) return null;
     const r = el.getBoundingClientRect();
@@ -20,36 +21,36 @@ export const DETECT_CAPTCHA_EXPR = `(() => {
   // —— 厂商识别（iframe src 优先，其次特征 class / id）——
   let vendor = 'unknown'; let anchor = null; let prompt = '';
   const hif = iframeBySrc(/hcaptcha\\.com/);
-  if (hif || document.querySelector('.h-captcha,[data-sitekey]')) { vendor = 'hcaptcha'; anchor = hif || document.querySelector('.h-captcha'); }
+  if (hif || find('.h-captcha')) { vendor = 'hcaptcha'; anchor = hif || find('.h-captcha'); }
   const rif = iframeBySrc(/google\\.com\\/recaptcha/);
-  if (vendor === 'unknown' && (rif || document.querySelector('.g-recaptcha'))) { vendor = 'recaptcha'; anchor = rif || document.querySelector('.g-recaptcha'); }
+  if (vendor === 'unknown' && (rif || find('.g-recaptcha'))) { vendor = 'recaptcha'; anchor = rif || find('.g-recaptcha'); }
   const tif = iframeBySrc(/challenges\\.cloudflare\\.com/);
-  if (vendor === 'unknown' && (tif || document.querySelector('.cf-turnstile'))) { vendor = 'turnstile'; anchor = tif || document.querySelector('.cf-turnstile'); }
-  if (vendor === 'unknown' && document.querySelector('.geetest_box,[class*="geetest_"],.geetest_holder')) { vendor = 'geetest'; anchor = document.querySelector('.geetest_box,.geetest_popup,.geetest_holder,[class*="geetest_"]'); }
-  if (vendor === 'unknown' && document.querySelector('[class*="yidun"]')) { vendor = 'yidun'; anchor = document.querySelector('[class*="yidun_"][class*="panel"],[class*="yidun"]'); }
-  if (vendor === 'unknown' && (iframeBySrc(/captcha\\.qq\\.com|t.captcha/) || document.querySelector('.tcaptcha-transform,#tcaptcha_iframe'))) {
+  if (vendor === 'unknown' && (tif || find('.cf-turnstile'))) { vendor = 'turnstile'; anchor = tif || find('.cf-turnstile'); }
+  if (vendor === 'unknown' && find('.geetest_box,[class*="geetest_"],.geetest_holder')) { vendor = 'geetest'; anchor = find('.geetest_box,.geetest_popup,.geetest_holder,[class*="geetest_"]'); }
+  if (vendor === 'unknown' && find('[class*="yidun"]')) { vendor = 'yidun'; anchor = find('[class*="yidun_"][class*="panel"],[class*="yidun"]'); }
+  if (vendor === 'unknown' && (iframeBySrc(/captcha\\.qq\\.com|t.captcha/) || find('.tcaptcha-transform,#tcaptcha_iframe'))) {
     vendor = 'tencent';
-    anchor = document.querySelector('.tcaptcha-transform,#tcaptcha_iframe') || iframeBySrc(/captcha\\.qq\\.com|t\\.captcha/);
+    anchor = find('.tcaptcha-transform,#tcaptcha_iframe') || iframeBySrc(/captcha\\.qq\\.com|t\\.captcha/);
   }
-  if (vendor === 'unknown' && document.querySelector('#aliyunCaptcha-window,[class*="aliyunCaptcha"],#nc_1_wrapper')) {
+  if (vendor === 'unknown' && find('#aliyunCaptcha-window,[class*="aliyunCaptcha"],#nc_1_wrapper')) {
     vendor = 'aliyun';
-    anchor = document.querySelector('#aliyunCaptcha-window,[class*="aliyunCaptcha"],#nc_1_wrapper');
+    anchor = find('#aliyunCaptcha-window,[class*="aliyunCaptcha"],#nc_1_wrapper');
   }
 
   // —— 种类识别（DOM 特征优先，文本兜底）——
-  const sliderEl = document.querySelector(
+  const sliderEl = find(
     '.geetest_slider_button,[class*="yidun_slider"],.nc_iconfont,.btn_slide,.slider-btn,' +
     '.slider_handler,.slider-button,[class*="slider"][class*="handler"],' +
     '#aliyunCaptcha-sliding,[class*="slide"][class*="verify"]'
   );
-  const clickPromptEl = document.querySelector(
+  const clickPromptEl = find(
     '.geetest_tip_content,.geetest_item_wrap,[class*="yidun_tips"],.tcaptcha-title,' +
-    '[class*="captcha"][class*="title"],[class*="prompt"]'
+    '[class*="captcha"][class*="title"]'
   );
-  const imageTextInput = document.querySelector(
+  const imageTextInput = find(
     'input[name*="captcha" i],input[id*="captcha" i],input[placeholder*="验证码"],input[placeholder*="captcha" i]'
   );
-  const captchaImg = document.querySelector('img[class*="captcha" i],img[id*="captcha" i],canvas[class*="captcha" i],img[src*="captcha" i]');
+  const captchaImg = find('img[class*="captcha" i],img[id*="captcha" i],canvas[class*="captcha" i],img[src*="captcha" i]');
 
   let kind = 'unknown';
   if (/checking your browser|just a moment|verify you are human|not a robot|我是人类|点击进行验证|点击上方按钮验证/.test(all)) kind = 'browser_check';
@@ -57,8 +58,9 @@ export const DETECT_CAPTCHA_EXPR = `(() => {
   else if (sliderEl) kind = 'slider';
   else if (/拖动滑块|滑动验证|滑块|滑动完成拼图|向右滑动|geetest|nc_wrapper|slide to verify/i.test(all)) kind = 'slider';
   else if (clickPromptEl || /点选|按顺序点击|点击图中|依次点击|请点击.*(文字|图片)|select all images/i.test(all)) kind = 'image_click';
-  else if ((imageTextInput && captchaImg) || /图形验证码|看不清|换一张|输入图中|请输入验证码/.test(all)) kind = 'image_text';
-  else if (/短信验证码|手机验证码|获取验证码|验证码已发送|sms code|verification code sent/i.test(all)) kind = 'sms';
+  else if (imageTextInput && captchaImg) kind = 'image_text';
+  else if (find('input[autocomplete="one-time-code"]') || /短信验证码|手机验证码|邮箱验证码|邮件验证码|获取验证码|验证码已发送|sms code|email code|verification code sent/i.test(all)) kind = 'sms';
+  else if (/图形验证码|看不清|换一张|输入图中/.test(all)) kind = 'image_text';
   if (kind === 'unknown' && vendor !== 'unknown') kind = 'browser_check';
 
   if (clickPromptEl) prompt = (clickPromptEl.innerText || '').trim().slice(0, 80);

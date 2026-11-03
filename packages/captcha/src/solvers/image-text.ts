@@ -67,7 +67,7 @@ export async function solveImageText(deps: SolverDeps): Promise<SolveResult> {
     } catch (e) {
       return { outcome: 'failed', detail: `视觉识别失败: ${String(e)}`, attempts: attempt - 1 }
     }
-    if (!text || text.length > 8) { lastErr = `识别结果异常（${JSON.stringify(text)}）`; continue }
+    if (!text || text.length > 8) { lastErr = '识别结果格式异常'; continue }
 
     // 先可信点击输入框中心（聚焦），再键入
     const center = await inputCenter(deps, probe.inputSelector)
@@ -86,8 +86,8 @@ export async function solveImageText(deps: SolverDeps): Promise<SolveResult> {
       if (/验证码错误|验证码不正确|incorrect captcha/i.test(t)) return false;
       return !/图形验证码|请输入验证码/.test(t);
     })()`)
-    if (passed) return { outcome: 'passed', detail: `识别并键入 “${text}” 后通过`, attempts: attempt }
-    lastErr = `键入 “${text}” 未通过校验`
+    if (passed) return { outcome: 'passed', detail: '图形字符码已通过', attempts: attempt }
+    lastErr = '图形字符码未通过校验'
   }
   return { outcome: 'failed', detail: lastErr, attempts: maxAttempts }
 }

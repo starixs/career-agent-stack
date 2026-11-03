@@ -206,14 +206,15 @@ describe('career browser route: run', () => {
     expect((await ndjson(noLlm!)).at(-1)).toMatchObject({ type: 'error', status: 501 });
     expect(apply.driveApplication).not.toHaveBeenCalled();
 
+    const verify = vi.fn(async () => ({ status: 'unchanged' as const }));
     const driven = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'drive', profile: { basics: {} }, maxPages: 2 } }), {
-      host, loadApply: async () => apply, resolveLlm: async () => ({ complete: async () => ({}) }),
+      host, loadApply: async () => apply, resolveLlm: async () => ({ complete: async () => ({}) }), verify,
     });
     const lines = await ndjson(driven!);
     expect(lines.at(-1)).toMatchObject({
       type: 'result', op: 'drive', result: { status: 'stopped_before_submit' }, screenshot: { base64: Buffer.from([9]).toString('base64') },
     });
-    expect(apply.driveApplication).toHaveBeenCalledWith(expect.anything(), expect.anything(), { basics: {} }, expect.objectContaining({ maxPages: 2, humanTyping: true }));
+    expect(apply.driveApplication).toHaveBeenCalledWith(expect.anything(), expect.anything(), { basics: {} }, expect.objectContaining({ maxPages: 2, humanTyping: true, verify }));
   });
 
   it('drive：界面只收人话进度（不广播内部日志）；运行记录目录按 actionId 传给引擎', async () => {

@@ -3,7 +3,7 @@ import type { CaptchaKind } from './types.js'
 /**
  * 验证码自动求解策略：有预算才试，试不过就升级人工（L3），绝不硬碰。
  * 预算维度：单站点当天总次数 + 连续失败冷却 + 单次求解内部轮数（SolverDeps.maxAttempts）。
- * 契约红线（§8）：最终提交前的验证码永远人工——本策略不提供绕过手段。
+ * 本策略只决定能否尝试验证，不授予提交权限；最终投递必须仍由已批准的 submit 动作执行。
  */
 
 export interface AttemptRecord {
