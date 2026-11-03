@@ -2,6 +2,10 @@ import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import type { BrowserContext, Page } from 'playwright';
 
+// 本文件覆盖托管（Playwright）引擎路径：单通道架构（ARCHITECTURE §4）下它是
+// opt-in 后备——career-bridge（用户日常 Chrome）才是主通道。这里显式打开后备开关。
+process.env.CAREER_BROWSER_MANAGED = '1';
+
 import { humanControlError } from '../browser-host/context-registry';
 import { isTransientDriveError } from '../career/drive-outcome';
 import {

@@ -969,6 +969,20 @@ export async function handleCareerBrowserRoute(
   if (op === 'bridge') {
     return ndjsonStream(request, (out, signal) => runBridgeOp(body, out, { ...deps, productSessionId: binding.productSessionId }, { host, token, signal }));
   }
+  // 单通道（ARCHITECTURE §4）：桥连接时引擎操作（browse / drive / submit…）直接跑在
+  // 用户真实浏览器上（BridgePageProxy 扮演 BrowserContext），不起 Playwright。
+  // 桥没连：CAREER_BROWSER_MANAGED=1 回退托管链路，否则引导装扩展。
+  if (op !== 'submit' && op !== 'release') {
+    const { bridgeEngineContext, extensionBridgeEnabled, managedFallbackEnabled } = await import('../browser-host/extension-bridge/bridge-host')
+    // 只查已启动的桥（sidecar 启动时拉起）：这里不 bind 端口
+    const engine = extensionBridgeEnabled() ? bridgeEngineContext() : null
+    if (engine) {
+      return ndjsonStream(request, (out, signal) => runOperation(op, body, engine.context as BrowserContext, out, signal, { ...deps, productSessionId: binding.productSessionId, focusPage: () => {} }));
+    }
+    if (!managedFallbackEnabled()) {
+      return failure(409, '浏览器主通道是 career-bridge（你日常的 Chrome，登录态全真）：请在 chrome://extensions 加载 app/shell/src/server/browser-host/extension-bridge/extension 后重试；确需托管浏览器时设 CAREER_BROWSER_MANAGED=1', 'BRIDGE_NOT_CONNECTED');
+    }
+  }
   return ndjsonStream(request, (out, signal) => host.withContext(
     token,
     (context, b) => runOperation(op, body, context, out, signal, { ...deps, productSessionId: b.productSessionId, focusPage: page => host.focusPage?.(b.productSessionId, page) }),

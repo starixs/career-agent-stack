@@ -59,6 +59,10 @@ async function handleTabs(msg) {
       await chrome.windows.update(tab.windowId, { focused: true });
       return { ok: true };
     }
+    if (msg.method === 'close') {
+      await chrome.tabs.remove(msg.tabId);
+      return { ok: true };
+    }
     return { ok: true, data: await currentTabs() };
   } catch (e) { return { ok: false, error: e.message }; }
 }
