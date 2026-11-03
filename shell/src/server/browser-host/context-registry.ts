@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 
 import { VirtualDisplay, setVirtualParkTarget, type VirtualDisplayOptions } from './virtual-display';
 import { WindowGuard } from './window-guard';
@@ -27,6 +27,8 @@ import {
 } from './runtime-settings';
 import { fitPageViewport, PARK_DISPLAY_SIZE, parkWindow, surfacelessScreenshot, type SurfacelessScreenshotOptions, type ViewportSize } from './page-control';
 import { waitForBrowserResource, type BrowserResourceResolution } from './resource-client';
+import { attachCspStrip, cspStripEnabled } from './csp-strip';
+import { chromiumExtensionArgs, extensionLoadEnabled, stageExtension } from './stage-extension';
 
 /** 页面弹出系统选文件框时的回调（内嵌模式下原生框挂在看不见的窗口上，改由产品内选文件）。 */
 export type FileChooserListener = (productSessionId: string, chooser: FileChooser) => void;
@@ -774,6 +776,11 @@ export class BrowserContextRegistry {
       if (seedCookies && identity.state.cookies.length > 0) {
         await context.addCookies(identity.state.cookies as BrowserCookie[]);
       }
+      // CSP 头剥离：给每个页面挂 Fetch 域，剥掉响应里的 CSP 头（注入脚本的主世界 eval 兜底）
+      if (cspStripEnabled()) {
+        attachCspStrip(context);
+        console.log('[browser-host] csp-strip=on');
+      }
     } catch (error) {
       await context.close().catch(() => {});
       throw error;
@@ -851,11 +858,22 @@ export class BrowserContextRegistry {
   /** 本机 Chrome 由 Playwright 自己定位；托管 Chromium 才等待 Rust 的资源安装事务。 */
   private async resolveLaunchOptions(
     compiled: CompiledBrowserRuntimeSettings,
-    signal?: AbortSignal,
+    signal?: AbortSignal | undefined,
   ): Promise<Parameters<BrowserType['launch']>[0]> {
     if (compiled.channel === 'chrome') return compiled.launchOptions;
     const resource = await this.dependencies.resolveResource(signal);
-    return { ...compiled.launchOptions, executablePath: resource.executablePath };
+    const base = { ...compiled.launchOptions, executablePath: resource.executablePath };
+    // career-bridge 扩展（Chrome 136+ 品牌版已禁用 --load-extension，仅托管 Chromium 可自动加载）
+    if (extensionLoadEnabled()) {
+      try {
+        const dataRoot = dirname(this.runtimePolicy.profileRoot);
+        const dir = stageExtension(dataRoot);
+        return { ...base, args: [...(base.args ?? []), ...chromiumExtensionArgs(dir)] };
+      } catch (error) {
+        console.warn(`[browser-host] extension-stage=failed error=${error instanceof Error ? error.message : 'unknown'}`);
+      }
+    }
+    return base;
   }
 
   private async getBrowser(

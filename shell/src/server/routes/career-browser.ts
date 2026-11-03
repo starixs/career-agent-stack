@@ -402,13 +402,13 @@ export interface RunEmitter {
   aborted(): boolean;
 }
 
-export type CareerBrowserOp = 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'submit' | 'release' | 'browse';
+export type CareerBrowserOp = 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'submit' | 'release' | 'browse' | 'bridge';
 
 /**
  * HTTP 路由（能力令牌）只开放这四种；submit / release 只能由 Global 进程内的提交执行器直接调用 runOperation——
  * 提交必须先在动作队列里被批准并认领，不能被任何持有浏览器令牌的调用方绕过。
  */
-const OPS: ReadonlySet<string> = new Set<CareerBrowserOp>(['screenshot', 'diagnose', 'drive', 'collect_passive', 'browse']);
+const OPS: ReadonlySet<string> = new Set<CareerBrowserOp>(['screenshot', 'diagnose', 'drive', 'collect_passive', 'browse', 'bridge']);
 /** 模型逐步浏览用的专用页面（和各份网申的页面分开）。 */
 export const BROWSE_PAGE_KEY = '__browse__';
 
@@ -500,7 +500,29 @@ function visionLlm(llm: LlmLike): import('../career/captcha-solver').VisionLlm {
   };
 }
 
-/** 浏览器环境检查（Cloudflare 一类）不用解，等它自己放行。 */
+/** @career/captcha 要 core 的 LLM 形状（带 usage）；把路由的 LlmLike 补齐。 */
+function coreVisionLlm(llm: LlmLike): import('@career/core').LLM {
+  return {
+    async complete(request) {
+      const res = await llm.complete(request);
+      const text = res && typeof res === 'object' && 'text' in res && typeof res.text === 'string' ? res.text : '';
+      return { text, usage: { input_tokens: 0, output_tokens: 0 } };
+    },
+    ...(llm.supportsImages ? { supportsImages: () => llm.supportsImages!() } : {}),
+  };
+}
+
+/**
+ * 验证码自动求解的站点预算（@career/captcha CaptchaPolicy）：单站点当天最多
+ * 6 次自动尝试，连败后冷却 10 分钟。试不过就交用户，绝不硬碰触发风控升级。
+ */
+let captchaPolicyPromise: Promise<import('@career/captcha').CaptchaPolicy> | null = null;
+function getCaptchaPolicy(): Promise<import('@career/captcha').CaptchaPolicy> {
+  captchaPolicyPromise ??= import('@career/captcha').then(m => new m.CaptchaPolicy());
+  return captchaPolicyPromise;
+}
+
+/** 浏览器环境检查（Cloudflare 一类）：先试着点一下验证框（CDP 可信点击），等不到再等放行。 */
 const BROWSER_CHECK_WAIT_MS = 6000;
 
 /**
@@ -516,14 +538,38 @@ async function runSolveCaptcha(page: Page, out: RunEmitter, deps: CareerBrowserR
   const sample = await browse.inPage(page, hintSampleInPage, null);
   const classify = (apply as unknown as { classifyCaptcha?: (s: { title: string; text: string }) => string } | null)?.classifyCaptcha;
   const kind = classify ? classify({ title: await page.title().catch(() => ''), text: sample.bodySample }) : 'unknown';
+  const site = new URL(page.url()).hostname;
+  const captchaPolicy = await getCaptchaPolicy();
   const finish = async (captcha: Record<string, unknown>) => {
     console.log(`[career-browser] solve-captcha kind=${kind} status=${String(captcha.status)} attempts=${String(captcha.attempts ?? 0)}`);
     const observation = await browse.observe(page.context(), page, { isSubmitText: () => false }).catch(() => null);
     out.emit({ type: 'result', op: 'browse', action: 'solve_captcha', captcha: { kind, ...captcha }, ...(observation ? { observation } : {}) });
   };
+  // 站点预算：超了 / 冷却中直接请用户，不再自动试
+  const gate = captchaPolicy.canAttempt(site);
+  if (!gate.ok) {
+    captchaPolicy.record(site, kind as never, 'gave_up');
+    return finish({ status: 'needs_user', attempts: 0, steps: [gate.reason === 'cooldown' ? '这个站刚连败过，冷却 10 分钟内先请用户帮一下' : '这个站今天自动过码次数用完，先请用户帮一下'] });
+  }
   if (kind === 'browser_check') {
+    const cap = await import('@career/captcha');
+    const { captchaPageFromPlaywright } = await import('../career/captcha-page-adapter');
+    const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
+    const steps: string[] = [];
+    let attempts = 0;
+    if (llm && (!llm.supportsImages || llm.supportsImages())) {
+      const result = await cap.solveBrowserCheck({ page: captchaPageFromPlaywright(page), llm: coreVisionLlm(llm) });
+      attempts = result.attempts;
+      steps.push(result.detail);
+      if (result.outcome === 'passed') {
+        captchaPolicy.record(site, 'browser_check', 'passed');
+        return finish({ status: 'solved', attempts, steps });
+      }
+    }
     await page.waitForTimeout(BROWSER_CHECK_WAIT_MS);
-    return finish({ status: (await blocked()) ? 'needs_user' : 'solved', attempts: 1, steps: ['等环境检查自己放行'] });
+    const still = await blocked();
+    captchaPolicy.record(site, 'browser_check', still ? 'failed' : 'passed');
+    return finish({ status: still ? 'needs_user' : 'solved', attempts: attempts + 1, steps: [...steps, '点过验证框后等环境检查放行'] });
   }
   if (kind !== 'image_text' && kind !== 'image_click' && kind !== 'slider') return finish({ status: 'needs_user', attempts: 0, steps: [`${kind} 类验证要本人处理`] });
   const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
@@ -531,6 +577,7 @@ async function runSolveCaptcha(page: Page, out: RunEmitter, deps: CareerBrowserR
   out.emit({ type: 'progress', phase: 'solve_captcha', message: '正在自己过验证码' });
   const { overlayMarks } = await import('../career/captcha-overlay');
   const result = await solver.solveCaptcha(page, kind, { llm: visionLlm(llm), overlay: overlayMarks }, blocked);
+  captchaPolicy.record(site, kind as never, result.status === 'solved' ? 'passed' : 'failed');
   return finish(result.status === 'solved' ? result : { ...result, status: 'needs_user' });
 }
 
@@ -905,7 +952,7 @@ export async function handleCareerBrowserRoute(
 
   // action === 'run'
   const op = typeof body.op === 'string' && OPS.has(body.op) ? body.op as CareerBrowserOp : null;
-  if (!op) return failure(400, "op 必须是 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'browse'");
+  if (!op) return failure(400, "op 必须是 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'browse' | 'bridge'");
   let binding: VerifiedBrowserCapability;
   try {
     binding = await host.verifyCapability(token, request.signal);
@@ -915,12 +962,127 @@ export async function handleCareerBrowserRoute(
   // 「等用户帮一下」本来就是在用户接管期间等，不能被接管挡掉
   const waitsForUser = op === 'browse' && body.action === 'wait_user';
   const control = host.getControl(binding.productSessionId);
-  if (control.control === 'human' && !waitsForUser) {
+  if (control.control === 'human' && !waitsForUser && op !== 'bridge') {
     return failure(409, '用户正在接管浏览器，等待交回', 'BROWSER_CONTROL_HUMAN');
+  }
+  // 桥操作跑在用户自己的 Chrome 里，不需要（也不该依赖）托管浏览器
+  if (op === 'bridge') {
+    return ndjsonStream(request, (out, signal) => runBridgeOp(body, out, { ...deps, productSessionId: binding.productSessionId }, { host, token, signal }));
   }
   return ndjsonStream(request, (out, signal) => host.withContext(
     token,
     (context, b) => runOperation(op, body, context, out, signal, { ...deps, productSessionId: b.productSessionId, focusPage: page => host.focusPage?.(b.productSessionId, page) }),
     { signal, ...(waitsForUser ? { allowHumanControl: true } : {}) },
   ));
+}
+
+/**
+ * 桥操作（用户日常 Chrome，career-bridge 扩展通道）：
+ * - tabs：列出真实浏览器里可脚本化的标签页
+ * - solve_captcha：在真实浏览器的标签页上过验证码（登录态 / 指纹全真，通过率最高）
+ * - sync_cookies：把真实浏览器的 Cookie 灌进托管 Context（托管浏览器继承登录态）
+ * - exec：在指定标签页主世界执行 JS（模型自由操作兜底）
+ */
+async function runBridgeOp(
+  body: Record<string, unknown>,
+  out: RunEmitter,
+  deps: CareerBrowserRouteDependencies,
+  managed: { host: CareerBrowserHost; token: string; signal?: AbortSignal },
+): Promise<void> {
+  const [{ ensureExtensionBridge }, { bridgePageFor }] = await Promise.all([
+    import('../browser-host/extension-bridge/bridge-host'),
+    import('../browser-host/extension-bridge/bridge-driver'),
+  ]);
+  const bridge = await ensureExtensionBridge();
+  const action = typeof body.action === 'string' ? body.action : 'tabs';
+  if (!bridge || !bridge.isConnected()) {
+    out.emit({ type: 'result', op: 'bridge', action, bridge: { connected: false }, error: 'career-bridge 扩展未连接：请在用户 Chrome 里加载 app/shell/src/server/browser-host/extension-bridge/extension（chrome://extensions 未打包加载）' });
+    return;
+  }
+  if (action === 'tabs') {
+    out.emit({ type: 'result', op: 'bridge', action, bridge: { connected: true, tabs: bridge.tabs() } });
+    return;
+  }
+  if (action === 'exec') {
+    const tabId = Number(body.tabId);
+    const code = typeof body.code === 'string' ? body.code : '';
+    if (!Number.isInteger(tabId) || !code) { out.emit({ type: 'error', status: 400, code: 'BRIDGE_BAD_REQUEST', error: 'tabId 和 code 必填' }); return }
+    try {
+      const result = await bridge.executeJs(tabId, code);
+      out.emit({ type: 'result', op: 'bridge', action, exec: result });
+    } catch (error) {
+      out.emit({ type: 'error', status: 500, code: 'BRIDGE_EXEC_FAILED', error: error instanceof Error ? error.message : String(error) });
+    }
+    return;
+  }
+  if (action === 'sync_cookies') {
+    const url = typeof body.url === 'string' ? body.url : '';
+    if (!/^https?:\/\//.test(url)) { out.emit({ type: 'error', status: 400, code: 'BRIDGE_BAD_REQUEST', error: 'url 必填（https://…）' }); return }
+    try {
+      const raw = await bridge.sendCommand<Array<Record<string, unknown>>>({ cmd: 'cookies', url });
+      // chrome.cookies → playwright addCookies 形状
+      const cookies = (raw ?? []).map(c => ({
+        name: String(c.name ?? ''),
+        value: String(c.value ?? ''),
+        domain: typeof c.domain === 'string' ? c.domain : new URL(url).hostname,
+        path: typeof c.path === 'string' ? c.path : '/',
+        expires: typeof c.expirationDate === 'number' ? c.expirationDate : -1,
+        httpOnly: c.httpOnly === true,
+        secure: c.secure === true,
+        sameSite: c.sameSite === 'no_restriction' ? 'None' as const : c.sameSite === 'lax' ? 'Lax' as const : c.sameSite === 'strict' ? 'Strict' as const : 'Lax' as const,
+      })).filter(c => c.name);
+      let applied = 0;
+      if (cookies.length) {
+        await managed.host.withContext(managed.token, async context => {
+          await context.addCookies(cookies as Parameters<BrowserContext['addCookies']>[0]);
+          applied = cookies.length;
+        }, { allowHumanControl: true, signal: managed.signal });
+      }
+      out.emit({ type: 'result', op: 'bridge', action, synced: applied, host: new URL(url).hostname });
+    } catch (error) {
+      out.emit({ type: 'error', status: 500, code: 'BRIDGE_SYNC_FAILED', error: error instanceof Error ? error.message : String(error) });
+    }
+    return;
+  }
+  if (action === 'solve_captcha') {
+    const urlPattern = typeof body.urlPattern === 'string' ? body.urlPattern : '';
+    const openUrl = typeof body.openUrl === 'string' && /^https?:\/\//.test(body.openUrl) ? body.openUrl : undefined;
+    if (!urlPattern) { out.emit({ type: 'error', status: 400, code: 'BRIDGE_BAD_REQUEST', error: 'urlPattern 必填' }); return }
+    const captcha = await import('@career/captcha');
+    const page = await bridgePageFor(bridge, urlPattern, openUrl);
+    if (!page) {
+      out.emit({ type: 'result', op: 'bridge', action, captcha: { status: 'needs_user', attempts: 0, steps: [`真实浏览器里没有 URL 含 "${urlPattern}" 的标签页`] } });
+      return;
+    }
+    const site = new URL(page.url()).hostname;
+    const policy = await getCaptchaPolicy();
+    const target = await captcha.detectCaptcha(page);
+    if (!target) {
+      out.emit({ type: 'result', op: 'bridge', action, captcha: { status: 'solved', attempts: 0, steps: ['真实浏览器这一页没有可识别的验证码'], tab: { id: page.tab.id, url: page.tab.url } } });
+      return;
+    }
+    const gate = policy.canAttempt(site);
+    if (!gate.ok) {
+      policy.record(site, target.kind, 'gave_up');
+      out.emit({ type: 'result', op: 'bridge', action, captcha: { status: 'needs_user', attempts: 0, steps: [gate.reason === 'cooldown' ? '这个站刚连败过，冷却中' : '这个站今天自动过码次数用完'] } });
+      return;
+    }
+    const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
+    if (!llm || (llm.supportsImages && !llm.supportsImages())) {
+      out.emit({ type: 'result', op: 'bridge', action, captcha: { status: 'needs_user', attempts: 0, steps: ['当前模型看不了图'] } });
+      return;
+    }
+    out.emit({ type: 'progress', phase: 'solve_captcha', message: `在用户真实浏览器里过 ${target.kind}（${target.vendor}）` });
+    const result = await captcha.solveCaptcha({ page, llm: coreVisionLlm(llm) }, target);
+    policy.record(site, target.kind, result.outcome === 'passed' ? 'passed' : 'failed');
+    out.emit({
+      type: 'result',
+      op: 'bridge',
+      action,
+      captcha: { kind: target.kind, vendor: target.vendor, status: result.outcome === 'passed' ? 'solved' : 'needs_user', attempts: result.attempts, steps: [result.detail] },
+      tab: { id: page.tab.id, url: page.tab.url },
+    });
+    return;
+  }
+  out.emit({ type: 'error', status: 400, code: 'BRIDGE_BAD_ACTION', error: `未知 bridge action: ${action}` });
 }

@@ -1928,10 +1928,26 @@ async function main() {
   };
   // 批量投递运行器（Global 后台）需要免令牌借用浏览器宿主
   void import('./career/batch-service').then(({ registerBatchBrowserHost }) => registerBatchBrowserHost(ensureBrowserHost)).catch(() => {});
+  // 扩展桥（career-bridge）：用户真实 Chrome 里的扩展主动连到这里（TMWebDriver 架构）。
+  // 关掉：CAREER_BROWSER_EXTENSION_BRIDGE=0。端口被占（旧实例）只记日志不挡启动。
+  // 扩展桥（career-bridge）：用户日常 Chrome 里的扩展主动连到这里（TMWebDriver 架构，
+  // 复用真实浏览器的登录态 / 指纹 / 历史）。关掉：CAREER_BROWSER_EXTENSION_BRIDGE=0。
+  void Promise.all([
+    import('./browser-host/extension-bridge/bridge-host'),
+    import('./career/batch-service').then(({ liveHub }) => liveHub).catch(() => null),
+  ])
+    .then(async ([{ ensureExtensionBridge }, liveHub]) => {
+      const bridge = await ensureExtensionBridge()
+      if (!bridge) return
+      bridge.onTabsChange(tabs => liveHub?.publish('career:bridge-tabs', { connected: bridge.isConnected(), count: tabs.length }))
+      console.log('[startup] extension-bridge ready（等待用户 Chrome 装 career-bridge 扩展连入，见 app/shell/src/server/browser-host/extension-bridge/extension/README.md）')
+    })
+    .catch(error => console.warn(`[startup] extension-bridge=start-failed error=${error instanceof Error ? error.message : String(error)}`));
   gracefulShutdownHook = async () => {
     await Promise.all([
       drainSessionTranscripts(),
       browserHostPromise?.then(browserHost => browserHost.shutdown()),
+      import('./browser-host/extension-bridge/bridge-host').then(({ extensionBridge }) => extensionBridge()?.stop() ?? Promise.resolve()),
     ]);
   };
 

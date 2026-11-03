@@ -16,7 +16,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const shellRoot = resolve(here, '..');
 const packagesRoot = resolve(shellRoot, '..', 'packages');
 const scopeDir = join(shellRoot, 'node_modules', '@career');
-const PACKAGES = ['core', 'resume', 'resume-studio', 'apply', 'bridges'];
+const PACKAGES = ['core', 'resume', 'resume-studio', 'apply', 'bridges', 'captcha'];
 
 export function linkCareerPackages({ log = console.log, warn = console.warn } = {}) {
   if (!existsSync(packagesRoot)) {
