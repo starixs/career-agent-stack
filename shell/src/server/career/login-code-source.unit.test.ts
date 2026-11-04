@@ -14,9 +14,17 @@ vi.mock('./verification-config', () => ({
 }));
 vi.mock('./verification-source', () => ({
   prepareCodeSource: async (...args: unknown[]) => { prepared.calls.push(args); return { wait: prepared.wait, close: prepared.close }; },
+  acquireCodeLease: async () => () => undefined,
+}));
+const phone = vi.hoisted(() => ({ connected: true, waits: [] as unknown[] }));
+vi.mock('./phone', () => ({
+  phoneLink: async () => ({
+    ensureConnected: async () => phone.connected,
+    waitForCode: async (opts: unknown) => { phone.waits.push(opts); return { code: '654321' }; },
+  }),
 }));
 
-import { openLoginCodeSource } from './login-code-source';
+import { openLoginCodeSource, openPhoneCodeSource } from './login-code-source';
 
 const repos = {} as Repos;
 const sms = { id: 'crrc-sms', origin: 'https://crrc.hotjob.cn', channel: 'sms' };
@@ -48,5 +56,20 @@ describe('openLoginCodeSource', () => {
     prepared.wait.mockImplementation(() => new Promise((_, reject) => { signal().addEventListener('abort', () => reject(new Error('aborted'))); }));
     const source = await openLoginCodeSource(repos, 'https://crrc.hotjob.cn/a', 'sms', '15500001234');
     expect(await source?.wait(Date.now(), 20)).toBeNull();
+  });
+});
+
+describe('openPhoneCodeSource', () => {
+  it('没配模板：从连着的手机读「发码之后到的那一条」，不要求签名（2026-11-05）', async () => {
+    phone.connected = true; phone.waits = [];
+    const source = await openPhoneCodeSource();
+    expect(await source?.wait(1000, 120_000)).toBe('654321');
+    expect(phone.waits[0]).toMatchObject({ since: 1000, timeoutMs: 120_000 });
+    expect(phone.waits[0]).not.toHaveProperty('strict', true);
+    await source?.close();
+  });
+  it('手机没连上：返回 null，调用方再请他填', async () => {
+    phone.connected = false;
+    expect(await openPhoneCodeSource()).toBeNull();
   });
 });

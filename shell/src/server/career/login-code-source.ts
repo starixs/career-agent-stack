@@ -6,7 +6,7 @@
 import type { Repos } from '@career/core';
 
 import { loadVerificationConfig, templateFor } from './verification-config';
-import { prepareCodeSource, type PreparedCode } from './verification-source';
+import { acquireCodeLease, prepareCodeSource, type PreparedCode } from './verification-source';
 
 export interface LoginCodeSource { wait(since: number, timeoutMs: number): Promise<string | null>; close(): Promise<void> }
 
@@ -42,4 +42,29 @@ export async function openLoginCodeSource(repos: Repos, url: string, channel: 's
     },
     close: async () => { abort.abort(); await source.close(); },
   };
+}
+
+/** 手机这条短信收码通道同一时间只给一处用（登录之旅一次一家，网申填表里也可能在等码）。 */
+const PHONE_LEASE = 'sms:paired-phone';
+
+/**
+ * 没配模板时，短信验证码也从产品里连好的手机自己读（2026-11-05 用户：要手机验证码的，自动用产品内的功能收码去填）。
+ * 只认点「获取验证码」之后到达、带验证码的那一条；手机没连上返回 null，调用方再请他填。
+ */
+export async function openPhoneCodeSource(): Promise<LoginCodeSource | null> {
+  const abort = new AbortController();
+  try {
+    const { phoneLink } = await import('./phone');
+    const phone = await phoneLink();
+    if (!(await phone.ensureConnected(abort.signal))) return null;
+    const release = await acquireCodeLease(PHONE_LEASE, abort.signal);
+    console.log('[career] login-code-source: 从连着的手机自动收短信验证码');
+    return {
+      wait: async (since, timeoutMs) => (await phone.waitForCode({ since, timeoutMs, signal: abort.signal }))?.code ?? null,
+      close: async () => { release(); abort.abort(); },
+    };
+  } catch (e) {
+    console.warn('[career] login-code-source: 手机收码没打开', e instanceof Error ? e.message : e);
+    return null;
+  }
 }

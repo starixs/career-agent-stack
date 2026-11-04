@@ -10,7 +10,7 @@ import { loadApplyModule } from '../routes/career-browser';
 import { careerBrowserHost, careerWorkspacePath } from './batch-service';
 import { rememberSessionCookies } from './session-cookies';
 import { journeyRunning, startJourney, type JourneyBrowser, type JourneyPage, type SmsState } from './login-journey';
-import { openLoginCodeSource } from './login-code-source';
+import { openLoginCodeSource, openPhoneCodeSource } from './login-code-source';
 import { loginWithSavedPassword } from './login-password';
 import { answerPendingImage, autoRegisterByEmail, refreshPendingImage } from './login-register';
 import { onLoginResponse, screenSample } from './login-watch';
@@ -41,12 +41,12 @@ async function smsFirst(page: Page): Promise<SmsState> {
 const PHONE_CODE_TIMEOUT_MS = 120_000;
 
 /**
- * 短信登录：这家配了短信模板、手机连着，就在发码前开始盯手机，读到码自动填上点登录，他不用动手；
- * 没配或没读到，照旧请他在那一格填（2026-11-04 用户：手机号、邮箱都要全流程自动）。
+ * 短信登录：发码前就开始盯手机——配了模板按模板（精确签名），没配就用产品里连好的手机读「发码之后到的那一条」；
+ * 读到码自动填上点登录，他不用动手。手机没连上或没读到，照旧请他在那一格填（2026-11-04/05 用户：手机号、邮箱都要全流程自动）。
  */
 async function smsWithPhone(repos: Repos, page: Page, report: (s: SmsState) => void): Promise<SmsState> {
   const phone = await ownPhone();
-  const source = phone ? await openLoginCodeSource(repos, page.url(), 'sms', phone) : null;
+  const source = phone ? (await openLoginCodeSource(repos, page.url(), 'sms', phone)) ?? (await openPhoneCodeSource()) : null;
   try {
     const since = Date.now();
     const sms = await smsFirst(page);
