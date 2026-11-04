@@ -50,6 +50,18 @@ describe('CareerLiveDrawer', () => {
     expect(screen.queryByTestId('career-live-drawer')).not.toBeInTheDocument();
   });
 
+  it('登录之旅里有「这家先跳过」：这一家登不了就先跳过，接着下一家（2026-11-02 腾讯校招只能 QQ / 微信）', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true });
+    render(<Harness />);
+    act(() => openLiveDrawer());
+    await screen.findByTestId('career-live-drawer');
+    push(snapshot());
+    expect(screen.queryByRole('button', { name: '这家先跳过' })).not.toBeInTheDocument();
+    push(snapshot({ journey: { index: 0, total: 4 } }));
+    fireEvent.click(await screen.findByRole('button', { name: '这家先跳过' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/asks/current/login-journey', { skip: true }));
+  });
+
   it('点画面即接管：先切控制权，再把这次点击按帧坐标转发', async () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true });
     render(<Harness />);
@@ -126,8 +138,21 @@ describe('CareerLiveDrawer', () => {
     await waitFor(() => expect(live.handler).not.toBeNull());
     push(snapshot());
     expect(screen.getByText(/这一步要你本人来/)).toBeInTheDocument();
-    expect(screen.getByText('输入手机收到的验证码')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('输入手机收到的验证码');
     expect(screen.getByRole('button', { name: '控制浏览器' })).toBeInTheDocument();
+  });
+
+  it('后台的事只把栏备好、不把他从别的页面拽回对话页；他自己点去看才跳（2026-11-03 连邮箱时被一次次顶回去）', () => {
+    const navs: unknown[] = [];
+    const off = onEvent('career:navigate', p => { navs.push(p); });
+    render(<Harness />);
+    act(() => emitEvent('career:takeover', { runId: 'run1', state: 'paused', reason: 'login' }));
+    act(() => emitEvent('career:focus', { surface: 'live_drawer', origin: 'assistant' }));
+    expect(navs).toEqual([]);
+    act(() => emitEvent('career:focus', { surface: 'live_drawer' }));
+    act(() => openLiveDrawer());
+    expect(navs).toEqual([{ kind: 'chat' }, { kind: 'chat' }]);
+    off();
   });
   it('画面框尺寸上报给 Global，框变化时自动跟随（不用手动切换真实窗口）', async () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, viewport: { width: 1366, height: 900 }, changed: 1 });

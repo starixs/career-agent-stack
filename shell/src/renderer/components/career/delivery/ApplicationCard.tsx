@@ -29,7 +29,8 @@ export function ApplicationCard({ applicationId, company: mark }: { applicationI
     <article className="cd-app cd-root" data-testid="application-card">
       <CompanyPoster company={company} size="lg" role={d.job.title} state={waiting ? 'ask' : 'done'} />
       <div className="cd-app-text">
-        <h3 className="font-human">{d.job.company_name}<span>{d.job.title}</span></h3>
+        {/* 公司名已经在海报上：右边只写岗位，不再用大字把公司名重复一遍（窄的时候大字一字一行溢出，2026-11-02） */}
+        <h3 className="font-human" title={`${d.job.company_name ?? ''} · ${d.job.title}`}>{d.job.title}</h3>
         <ol className="cd-track">
           {track.map(n => (
             <li key={n.key} className={`${n.on ? 'on' : ''} ${n.ask ? 'ask' : ''}`}>

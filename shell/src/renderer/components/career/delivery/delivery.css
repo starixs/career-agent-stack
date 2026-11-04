@@ -163,8 +163,7 @@
 
 /* ---------- 申请对象卡 ---------- */
 .cd-app { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: start; margin: 18px 0 28px; }
-.cd-app h3 { display: flex; align-items: baseline; gap: 10px; margin: 0; font-size: 34px; font-weight: 400; color: var(--ink); }
-.cd-app h3 span { font-family: inherit; font-size: 16px; color: var(--subtle); }
+.cd-app h3 { margin: 0; font-size: 18px; font-weight: 400; line-height: 1.4; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .cd-track { display: flex; margin: 22px 0 0; padding: 0; list-style: none; }
 .cd-track li { position: relative; flex: 1; display: flex; flex-direction: column; gap: 4px; padding-top: 18px; font-size: 14px; color: var(--subtle); }
 .cd-track li::before { content: ''; position: absolute; top: 5px; left: 0; right: 0; height: 2px; background: var(--line-2); }

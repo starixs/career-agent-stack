@@ -43,6 +43,7 @@ import type { AskUserQuestionRequest, AskUserQuestion } from '../../shared/types
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
 import { CareerCardsContext } from '@/context/CareerCardsContext';
+import { useSupersededInfoCardsOf } from '@/features/career-shell/supersede';
 import { upsertReviewCard } from '@/components/career/CareerReviewCard';
 import type { CareerCard, CareerCardEvent, CareerCardState, CareerProgressEvent, CareerReviewEvent, CareerTakeoverActionRequest, CareerTakeoverEvent } from '@/components/career/types';
 import type { ExitPlanModeRequest, EnterPlanModeRequest, ExitPlanModeAllowedPrompt } from '../../shared/types/planMode';
@@ -5662,7 +5663,8 @@ export default function TabProvider({
     }), [tabId, agentDir, apiGetJson, postJson, apiPutJson, apiDeleteJson]);
 
     const isActiveValue = isActive ?? false;
-    const careerCardsValue = useMemo(() => ({ cards: careerCards, setState: setCareerCardState, respondReview: respondCareerReview }), [careerCards, setCareerCardState, respondCareerReview]);
+    const supersededTools = useSupersededInfoCardsOf(messages);
+    const careerCardsValue = useMemo(() => ({ cards: careerCards, setState: setCareerCardState, respondReview: respondCareerReview, supersededTools }), [careerCards, setCareerCardState, respondCareerReview, supersededTools]);
 
     return (
         <TabActiveContext.Provider value={isActiveValue}>

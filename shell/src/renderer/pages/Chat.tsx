@@ -960,10 +960,13 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
 
   // 侧栏当前内容变了就换到它的比例（用户拖过的优先）。
   const splitViewKey = splitActiveView === 'surface' && workSurfaces.expanded ? `surface:${workSurfaces.expanded}` : splitActiveView;
+  // 浏览器会话侧栏比例固定、不能拖：拖动会让托管浏览器跟着改视口、两边都抖（2026-11-02 用户：直接固定比例更轻）。
+  // 侧栏里的操作（点、滚）都落到浏览器画面上。
+  const splitLocked = splitViewKey === 'surface:browser';
   useEffect(() => {
     splitViewKeyRef.current = splitViewKey;
-    setSplitRatio(userSplitRatiosRef.current[splitViewKey] ?? defaultSplitRatio(splitViewKey));
-  }, [splitViewKey]);
+    setSplitRatio(splitLocked ? defaultSplitRatio(splitViewKey) : userSplitRatiosRef.current[splitViewKey] ?? defaultSplitRatio(splitViewKey));
+  }, [splitViewKey, splitLocked]);
 
   // 打开一个工作面（工具卡「打开」、助理推送）就切到它那一页；打开文件时切回文件页由 handleSplitFilePreview 负责。
   useEffect(() => {
@@ -5754,10 +5757,14 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
         <>
           {/* Draggable divider — hidden when panel is not visible */}
           <div
-            className={`z-10 flex w-1 cursor-col-resize items-center justify-center bg-[var(--line)] transition-colors hover:bg-[var(--primary)] ${!splitPanelVisible || browserUsesFullscreen ? 'hidden' : ''}`}
-            onMouseDown={handleSplitDividerMouseDown}
+            className={splitLocked
+              ? `w-px bg-[var(--line)] ${!splitPanelVisible || browserUsesFullscreen ? 'hidden' : ''}`
+              : `z-10 flex w-1 cursor-col-resize items-center justify-center bg-[var(--line)] transition-colors hover:bg-[var(--primary)] ${!splitPanelVisible || browserUsesFullscreen ? 'hidden' : ''}`}
+            onMouseDown={splitLocked ? undefined : handleSplitDividerMouseDown}
+            data-testid="split-divider"
+            data-locked={splitLocked ? 'true' : 'false'}
           >
-            <div className="h-8 w-0.5 rounded-full bg-[var(--subtle)]" />
+            {!splitLocked && <div className="h-8 w-0.5 rounded-full bg-[var(--subtle)]" />}
           </div>
           {/* Right panel — single flex-1 container for tab bar + file + terminal.
               Uses `hidden` when panel is not visible but terminal is alive in background. */}

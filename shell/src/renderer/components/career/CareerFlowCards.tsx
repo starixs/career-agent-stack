@@ -301,7 +301,7 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   mail_bind: props => <MailBindCard {...props} />,
   search_setup: props => <SearchSetupCard {...props} />,
   review: props => (str(props.card.data.kind) === 'fill_form'
-    ? <BatchWallCard actionIds={strIds(props.card.data.action_ids)} />
+    ? <BatchWallCard cardId={props.card.id} actionIds={strIds(props.card.data.action_ids)} />
     : <ReviewCard {...props} />),
   apply_gaps: props => <ApplyGapsCard {...props} />,
   interview_prep: props => <InterviewPrepCard {...props} />,

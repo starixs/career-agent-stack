@@ -3,19 +3,22 @@
  *  - 属于工作面的工具调用（改简历 / 模拟面试 / 笔试），各出一张能在右侧展开的卡片；
  *    浏览器不在对话里出卡：网申现场和等你都在右栏（主线体验 §6.6 三选一）。2026-11-02 真网站实测：
  *    每次 apply_* 调用各挂一张，几张读的是同一个全局交接状态，对话里堆出一串一模一样、不写哪家的「浏览器」卡；
- *  - 公司 / 岗位、岗位清单、截止日程、导出文件这类结果，出一张信息卡，点了去对应页面。
+ *  - 公司 / 岗位、岗位清单、截止日程、导出文件这类结果，出一张信息卡，点了去对应页面；
+ *    同一个对象后来又出了一次，前面那张就不再出（supersede.ts）。
  */
 import type { ToolUseSimple } from '@/types/chat';
 
 import { BreakoutCard } from './BreakoutCard';
 import { infoCardFor, isInfoCardTool } from './cardContent';
 import { requestNavigation } from './navModel';
+import { useSupersededInfoCards } from './supersede';
 import { surfaceToolsIn, WorkSurfaceCard } from './workSurfaces';
 
 export function MessageSurfaceCards({ tools }: { tools: readonly (ToolUseSimple | undefined)[] }) {
   const entries = surfaceToolsIn(tools).flatMap(({ surface, tool }) => (surface === 'browser' ? [] : [{ surface, tool }]));
+  const superseded = useSupersededInfoCards();
   const infos = tools.flatMap(tool => {
-    if (!tool || !isInfoCardTool(tool.name)) return [];
+    if (!tool || !isInfoCardTool(tool.name) || superseded.has(tool.id)) return [];
     const spec = infoCardFor(tool);
     return spec ? [{ tool, spec }] : [];
   });

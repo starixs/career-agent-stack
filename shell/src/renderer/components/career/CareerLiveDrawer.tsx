@@ -27,6 +27,8 @@ import { careerApi } from './careerApi';
 import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport } from './CareerLiveViewport';
+import { LivePageTabs } from './LivePageTabs';
+import { SmsCodeBar } from './SmsCodeBar';
 import { readAsBase64 } from './fileBase64';
 import { Button, suggestToChat } from './CareerPrimitives';
 import type { BatchState, CareerProgressEvent, CareerTakeoverEvent, LiveFileChooser, LiveFileChooserEvent, LiveFrame, LiveSnapshot, LiveStreamEvent, LiveFrameStatus } from './types';
@@ -37,22 +39,28 @@ const DRAWER_EVENT = 'career:live-drawer';
 const FILE_EVENT = 'career:live-filechooser';
 export function openLiveDrawer(options: { fullscreen?: boolean } = {}): void { emitEvent(DRAWER_EVENT, { open: true, ...options }); }
 
-/** 展开浏览器栏，并把用户带到唯一的对话页（栏长在对话页右侧）。 */
-function showBrowserSurface(options: { fullscreen?: boolean } = {}): void {
-  expandWorkSurface('browser', options);
+/**
+ * 展开浏览器栏。只有他自己点「去看」（openLiveDrawer）才把他带到对话页（栏长在对话页右侧）；
+ * 后台的事（某家要他接手、小芽说开现场、网页要选文件）只把栏备好，不把他从正在看的页面拽走——
+ * 他回到对话页时栏已经开着，等你的事由「等你」提醒（2026-11-03 用户：连邮箱时被一次次顶回对话页，后台网申成了前台）。
+ */
+function showBrowserSurface(options: { fullscreen?: boolean; navigate?: boolean } = {}): void {
+  const { navigate = false, ...surface } = options;
+  expandWorkSurface('browser', surface);
   emitEvent(DRAWER_OPENED_EVENT, { name: 'live' });
-  requestNavigation({ kind: 'chat' });
+  if (navigate) requestNavigation({ kind: 'chat' });
 }
 
 /** App 根上的事件控制器：不渲染任何东西。 */
 export function CareerLiveDrawer({ autoOpenOnHandoff = true }: { autoOpenOnHandoff?: boolean }) {
   useEffect(() => onEvent<{ open?: boolean; fullscreen?: boolean }>(DRAWER_EVENT, p => {
     if (p?.open === false) collapseWorkSurface('browser');
-    else showBrowserSurface({ fullscreen: p?.fullscreen });
+    else showBrowserSurface({ fullscreen: p?.fullscreen, navigate: true });
   }), []);
   // 助理调用 ui_open(live)：career:focus {surface:'live_drawer'}
-  useEffect(() => onEvent<{ surface?: string }>('career:focus', p => {
-    if (p?.surface === 'live_drawer') showBrowserSurface();
+  useEffect(() => onEvent<{ surface?: string; origin?: string }>('career:focus', p => {
+    // 他在右栏 / 等你里点「去看」才跳到对话页；小芽推来的只把栏备好
+    if (p?.surface === 'live_drawer') showBrowserSurface({ navigate: p.origin !== 'assistant' });
   }), []);
   // 抽屉互斥：简历编辑器打开时收起浏览器栏
   useEffect(() => onEvent<{ name?: string }>(DRAWER_OPENED_EVENT, p => { if (p?.name !== 'live') collapseWorkSurface('browser'); }), []);
@@ -261,13 +269,17 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     : undefined;
 
   const handoff = takeover?.state === 'paused';
-  const attending = handoff || humanActive;
+  // 登录之旅里也要跟着刷：短信码那一格（已发码 / 要先过拼图）随着这一家变
+  const attending = handoff || humanActive || !!snapshot?.journey || !!snapshot?.sms;
   useEffect(() => {
     if (!attending) return;
     const t = window.setInterval(() => { void careerApi.liveState().then(setSnapshot).catch(error => console.debug('[career-live] takeover state refresh failed; retry next tick', error)); }, TAKEOVER_REFRESH_MS);
     return () => window.clearInterval(t);
   }, [attending]);
   const host = hostOf(snapshot?.browser.url);
+  const handoffHint = revealed
+    ? '那一页已经弹到你面前（真实浏览器窗口），直接在那个窗口里扫码、拖滑块、输验证码；登上了会自动接着办。'
+    : takeover?.message ?? (humanActive ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。' : '点画面或「控制浏览器」接手，完成后交还给小芽。');
   const statusTone = handoff || humanActive ? 'bg-[var(--warning)]' : control === 'agent' ? 'bg-[var(--success)]' : 'bg-[var(--subtle)]';
   const statusText = handoff
     ? `等你处理${reason ? `：${reason}` : ''}`
@@ -304,6 +316,10 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
             <Square className="h-3.5 w-3.5" />停止
           </Button>
         )}
+        {snapshot?.journey && (
+          // 登录之旅里这一家登不了（只能 QQ / 微信、手边没账号）：先跳过，留在等你里，接着下一家
+          <Button variant="ghost" onClick={() => { void apiPostJson<unknown>('/api/career/asks/current/login-journey', { skip: true }).catch((e: unknown) => console.error('[career-live] 跳过这家 FAILED', e)); }}>这家先跳过</Button>
+        )}
         {!humanActive && <Button variant="primary" busy={busy === 'take'} disabled={!canTake} onClick={() => void act('take')}>控制浏览器</Button>}
         {humanActive && <Button variant="primary" busy={busy === 'handback'} disabled={busy !== null} onClick={() => void act('handback')}>交还给小芽</Button>}
         <Button variant="ghost" onClick={() => setWorkSurfaceFullscreen(!fullscreen)} aria-label={fullscreen ? '退出全屏' : '全屏'} title={fullscreen ? '退出全屏，回到侧栏' : '全屏操作'}>
@@ -312,24 +328,13 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <Button variant="ghost" onClick={() => collapseWorkSurface('browser')} aria-label="收起浏览器"><X className="h-3.5 w-3.5" /></Button>
       </header>
 
-      {/* 交接提示浮在画面上方、点击穿透，不挤占画面区域：画面区域一变，托管浏览器的视口就跟着变，页面会重排、跳动 */}
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        {(handoff || humanActive) && (
-          <div role="status" className="pointer-events-none absolute left-5 right-5 top-3 z-10 flex items-start gap-2.5 rounded-lg border border-[var(--hard)] bg-[var(--note)] px-3.5 py-2.5 text-sm text-[var(--ink)] shadow-[var(--theme-shadow-hard)]">
-            <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <div className="min-w-0">
-              <div className="font-human font-semibold">这一步要你本人来{reason ? `：${reason}` : ''}</div>
-              <div className="text-xs text-[var(--ink-2)]">
-                {revealed
-                  ? '那一页已经弹到你面前（真实浏览器窗口），直接在那个窗口里扫码、拖滑块、输验证码；登上了会自动接着办。'
-                  : takeover?.message ?? (humanActive
-                    ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。'
-                    : '点画面或「控制浏览器」接手，完成后交还给小芽。')}
-              </div>
-            </div>
-          </div>
-        )}
+      <LivePageTabs />
+      {/* 登录之旅走完后也留着：「X 已登录」要让他看到 */}
+      {snapshot?.sms && <SmsCodeBar sms={snapshot.sms} />}
 
+      {/* 画面区域高度不随提示变：画面区域一变，托管浏览器的视口就跟着变，页面会重排、跳动。
+          交接提示放在画面下面那一行，不盖住页面（2026-11-03 用户：操作时黄条挡住了页面顶部） */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={frameHostRef} data-testid="live-frame-host" className="min-h-0 flex-1 overflow-auto px-5 py-3">
           <div className="overflow-hidden rounded-lg border border-[var(--line-2)] bg-[var(--paper)] shadow-md">
             <CareerLiveViewport
@@ -343,7 +348,14 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
           </div>
           {chooser && <FileChooserPanel key={chooser.id} chooser={chooser} onDone={msg => { setChooser(null); setInfo(msg); }} />}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-            {snapshot?.browser.url && <span className="min-w-0 flex-1 truncate text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
+            {handoff || humanActive
+              ? (
+                <span role="status" className="flex min-w-0 flex-1 items-center gap-1.5 text-[var(--ink)]" title={handoffHint}>
+                  <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate"><span className="font-semibold">这一步要你本人来{reason ? `：${reason}` : ''}</span> · {handoffHint}</span>
+                </span>
+              )
+              : snapshot?.browser.url && <span className="min-w-0 flex-1 truncate text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
             {embedded && snapshot?.browser.hasBrowser && (
               <Button variant="ghost" busy={busy === 'window'} disabled={busy !== null} onClick={() => void toggleWindow()} title="画面里处理不了时（插件弹窗等）临时显示真实 Chrome 窗口">
                 <AppWindow className="h-3.5 w-3.5" />{revealed ? '收回真实窗口' : '显示真实窗口'}

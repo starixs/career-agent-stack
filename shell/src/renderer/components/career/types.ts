@@ -182,6 +182,8 @@ export interface LiveSnapshot {
   journey?: { index: number; total: number } | null;
   /** 助理正在等你处理（browser_wait_user）：交还时它自己会接着办。 */
   waitingUser?: boolean;
+  /** 登录之旅里这一家的短信码代办状态（Global login-journey）。 */
+  sms?: { status: 'sent' | 'captcha' | 'mail_captcha' | 'no_sms' | 'registering' | 'registered' | 'image_code' | 'checking' | 'logged_in'; detail?: string; image?: string; site?: string } | null;
 }
 /** 页面请求选文件（系统选文件框被拦下，改在产品里选）。 */
 export interface LiveFileChooser { id: string; sessionId: string; multiple: boolean; accept: string | null; url: string; ts: number }

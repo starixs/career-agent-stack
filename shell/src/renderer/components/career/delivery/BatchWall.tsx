@@ -2,7 +2,10 @@
  * 批次卡（规范 §5.5）：一句「这些都帮我投」开的那批申请，原地更新。标星的目标岗位中海报在上，其余小海报成格；
  * 只反映状态，不放动作（动作都在等你条）。悬停排队中的一家可以说「这家我要看」（标成目标，投前先给你看）。
  */
+import { useCareerCards } from '@/context/CareerCardsContext';
+
 import { careerApi } from '../careerApi';
+import type { CareerCard } from '../types';
 import { useCareerQuery } from '../useCareerData';
 import { CompanyPoster } from './CompanyPoster';
 import { deliveryApi, type PosterState, type RunView } from './deliveryApi';
@@ -38,8 +41,28 @@ export function BatchWall({ run, compact, onWatch }: { run: RunView; compact?: b
   );
 }
 
-/** 对话里的批次卡：按这次开的那几份填表动作取数，数据变了就重取。 */
-export function BatchWallCard({ actionIds }: { actionIds: readonly string[] }) {
+const isBatch = (c: CareerCard) => c.kind === 'review' && c.data.kind === 'fill_form';
+const idsOf = (c: CareerCard) => (Array.isArray(c.data.action_ids) ? c.data.action_ids.filter((x): x is string => typeof x === 'string') : []);
+
+/**
+ * 对话里同一时间只有一面批次墙：每投一家就开一张「投 1 家」，一屏都是同样的卡（2026-11-02）。
+ * 最后那张把对话里所有批次的申请合成一面墙原地更新，前面的不再出。不在卡片集合里（单独渲染）就照自己的那批。
+ */
+export function mergedBatchIds(cards: readonly CareerCard[], cardId: string | undefined, own: readonly string[]): string[] | null {
+  const batches = cards.filter(isBatch);
+  if (!cardId || !batches.some(c => c.id === cardId)) return [...own];
+  if (batches[batches.length - 1].id !== cardId) return null;
+  return [...new Set(batches.flatMap(idsOf))];
+}
+
+/** 对话里的批次卡：按合起来的那几份填表动作取数，数据变了就重取。 */
+export function BatchWallCard({ cardId, actionIds }: { cardId?: string; actionIds: readonly string[] }) {
+  const { cards } = useCareerCards();
+  const merged = mergedBatchIds(cards, cardId, actionIds);
+  return merged ? <BatchWallOf actionIds={merged} /> : null;
+}
+
+function BatchWallOf({ actionIds }: { actionIds: readonly string[] }) {
   const key = actionIds.join(',');
   const { data: run, reload } = useCareerQuery(() => deliveryApi.run(key.split(',')), ['action_queue', 'application', 'handoff', 'kv']);
   if (!run) return null;
