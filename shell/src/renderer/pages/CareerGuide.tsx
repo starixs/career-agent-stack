@@ -29,7 +29,7 @@ export const WORKBENCHES: MarketItem[] = [
 ];
 
 export const CHAT_TOOLS: MarketItem[] = [
-  { name: '网申助手', what: '打开网申页逐项填写，登录和最终提交交给你', icon: Send, action: { prefill: '帮我准备这个岗位的网申，链接是：' } },
+  { name: '网申助手', what: '查看投递进展，继续填写或处理验证', icon: Send, action: { open: { kind: 'career-live' } } },
   { name: '岗位评估', what: '贴一段 JD，看匹配度、缺口和值不值得投', icon: Target, action: { prefill: '帮我评估这个岗位，JD 是：' } },
   { name: '投递邮件', what: '起草邮件、附上简历，你批准了才发', icon: Mail, action: { prefill: '帮我给这个岗位写投递邮件，附上简历 PDF' } },
   { name: '开放题答案', what: '「为什么选我们」这类题按公司写，前后口径一致', icon: MessageSquareQuote, action: { prefill: '帮我写「为什么选择我们」，300 字，给这家公司：' } },

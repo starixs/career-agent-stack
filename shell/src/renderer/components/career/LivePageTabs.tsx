@@ -4,6 +4,7 @@
  * 在等你的几家排前面、带「等你」：哪家要你接手就点过去在那家处理，交还也只交那一家，别的照常填（2026-11-03）。
  */
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
+import CustomSelect from '@/components/CustomSelect';
 
 import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { useCareerQuery } from './useCareerData';
@@ -30,6 +31,21 @@ export function LivePageTabs() {
     void apiPostJson<unknown>('/api/career/live/view', { application_id: id })
       .then(reload, (e: unknown) => { console.error('[career-live] 切换现场 FAILED', id, e); reload(); });
   };
+  if (pages.length > 4) {
+    return (
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--line)] px-5 py-2" data-testid="live-page-tabs">
+        <span className="shrink-0 text-xs text-[var(--muted)]">{pages.length} 个任务</span>
+        <CustomSelect
+          ariaLabel="选择网申任务"
+          className="min-w-0 flex-1"
+          size="toolbar"
+          value={pages.find(p => p.current)?.application_id ?? ''}
+          options={pages.map(p => ({ value: p.application_id, label: `${p.company} · ${p.title}${p.waiting ? ' · 等你' : ''}` }))}
+          onChange={show}
+        />
+      </div>
+    );
+  }
   return (
     <div role="tablist" aria-label="正在投的几家" className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-[var(--line)] px-5 py-2" data-testid="live-page-tabs">
       {pages.map(p => (

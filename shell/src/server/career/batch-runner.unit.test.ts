@@ -299,3 +299,19 @@ describe('BatchRunner', () => {
     expect(sameHostOverlap).toBe(false);
   });
 });
+
+describe('BatchRunner 多任务展示数据', () => {
+  it('每份进度事件带公司、岗位和真实进度，前端才能按岗位分组', async () => {
+    const repos = createMemoryRepos();
+    seed(repos, 1);
+    const { runner, events } = makeRunner(repos, () => [
+      { type: 'progress', phase: 'driving', message: '正在填写教育经历', progress: 0.4 },
+      result('stopped_before_submit', { submitButton: '提交' }),
+    ]);
+    runner.start();
+    for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
+    const progress = events.find(e => e.event === 'career:progress')?.data as Record<string, unknown>;
+    expect(progress).toMatchObject({ company: '公司 0', job_title: '岗位 0', progress: 0.4, message: '正在填写教育经历' });
+    expect(String(progress.runId)).toMatch(/^run_act_/);
+  });
+});

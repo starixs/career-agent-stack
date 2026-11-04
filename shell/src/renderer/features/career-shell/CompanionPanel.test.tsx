@@ -72,6 +72,14 @@ describe('workSurfaceStore progress', () => {
     act(() => recordProgress({ runId: 'r1', phase: 'apply_run:done', message: '填完了', progress: 1 }, 4));
     expect(screen.getByTestId('run')).toHaveAttribute('data-finished', 'true');
   });
+  it('50 份并行任务各有自己的岗位身份与进度，不被旧任务覆盖', () => {
+    for (let i = 0; i < 50; i++) recordProgress({ runId: `r${i}`, phase: 'apply_batch', message: `填写第 ${i} 份`, company: `公司 ${i}`, job_title: `岗位 ${i}`, progress: 0.2 }, i + 1);
+    function Probe() { const { runs } = useWorkSurfaces(); return <><div data-testid="count">{runs.length}</div><div data-testid="job">{runs.find(r => r.key === 'r49')?.jobTitle}</div><div data-testid="company">{runs.find(r => r.key === 'r49')?.company}</div></>; }
+    render(<Probe />);
+    expect(screen.getByTestId('count')).toHaveTextContent('50');
+    expect(screen.getByTestId('job')).toHaveTextContent('岗位 49');
+    expect(screen.getByTestId('company')).toHaveTextContent('公司 49');
+  });
 });
 
 describe('CompanionPanel', () => {

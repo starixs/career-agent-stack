@@ -3,10 +3,10 @@
  *  - `CareerLiveDrawer` 挂在 App 根上，只负责把事件变成状态：打开请求、助理 ui_open(live)、
  *    交接暂停、页面请求选文件 → 展开对话页右侧的浏览器栏并切到对话；同时记录接管与进度。
  *  - `BrowserSessionPanel` 是展开后的右侧栏：实时画面、停止、控制浏览器 / 交还给小芽、全屏、
- *    选文件、临时显示真实窗口。关闭只是收起，后台填表 / 批量不受影响。
+ *    选文件、当前任务与分组进度。关闭只是收起，后台填表 / 批量不受影响。
  * 浏览器只在产品里出现，不弹真实 Chrome 窗口。
  */
-import { AppWindow, Lock, Maximize2, Minimize2, Paperclip, Square, X } from 'lucide-react';
+import { Lock, Maximize2, Minimize2, Paperclip, Square, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 
 import { apiPostJson } from '@/api/apiFetch';
@@ -28,6 +28,7 @@ import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport } from './CareerLiveViewport';
 import { LivePageTabs } from './LivePageTabs';
+import { TaskProgressPanel } from './TaskProgressPanel';
 import { SmsCodeBar } from './SmsCodeBar';
 import { readAsBase64 } from './fileBase64';
 import { Button, suggestToChat } from './CareerPrimitives';
@@ -207,7 +208,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
   const [frameError, setFrameError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [busy, setBusy] = useState<'take' | 'handback' | 'window' | null>(null);
+  const [busy, setBusy] = useState<'take' | 'handback' | null>(null);
   const [chooser, setChooser] = useState<LiveFileChooser | null>(null);
   const [revealed, setRevealed] = useState(false);
 
@@ -242,7 +243,6 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
 
   const control = snapshot?.browser.control ?? 'none';
   const humanActive = control === 'human' || takeover?.state === 'human_active';
-  const embedded = snapshot?.browser.embedded === true;
 
   const act = async (action: 'take' | 'handback'): Promise<boolean> => {
     setBusy(action); setNotice(null);
@@ -256,11 +256,6 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     recordTakeover(takeover ? { ...takeover, state: action === 'take' ? 'human_active' : 'resuming' } : takeover);
     if (action === 'handback' && handbackNeedsAssistant({ viaRun, batch, snapshot: await freshSnapshot(snapshot) })) suggestToChat(HANDBACK_TEXT, { surface: 'apply', note: HANDBACK_NOTE });
     return true;
-  };
-  const toggleWindow = async () => {
-    setBusy('window'); setNotice(null);
-    try { setRevealed(await careerApi.liveWindow(!revealed)); } catch (e) { setNotice(e instanceof Error ? e.message : String(e)); }
-    setBusy(null);
   };
   const reason = takeover?.reason ? (HANDOFF_REASON_LABELS[takeover.reason] ?? takeover.reason) : null;
   const canTake = !!snapshot?.browser.hasBrowser && busy === null;
@@ -356,19 +351,10 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
                 </span>
               )
               : snapshot?.browser.url && <span className="min-w-0 flex-1 truncate text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
-            {embedded && snapshot?.browser.hasBrowser && (
-              <Button variant="ghost" busy={busy === 'window'} disabled={busy !== null} onClick={() => void toggleWindow()} title="画面里处理不了时（插件弹窗等）临时显示真实 Chrome 窗口">
-                <AppWindow className="h-3.5 w-3.5" />{revealed ? '收回真实窗口' : '显示真实窗口'}
-              </Button>
-            )}
             {notice && <span role="alert" className="text-[var(--danger)]">{notice}</span>}
             {!notice && info && <span role="status" className="text-[var(--success)]">{info}</span>}
           </div>
-          {batch && batch.status !== 'idle' && (
-            <div className="mt-3 rounded-md border border-[var(--line)] bg-[var(--inset)] px-3 py-2 text-xs text-[var(--muted)]">
-              批量：{batch.message ?? batch.status} · 已填好 {batch.done} · 等你处理 {batch.handoffs} · 队列 {batch.queued}
-            </div>
-          )}
+          {snapshot?.browser.hasBrowser && <TaskProgressPanel title={snapshot.browser.title} batch={batch} takeover={takeover} />}
         </div>
       </div>
     </section>

@@ -120,15 +120,33 @@ describe('CareerLiveDrawer', () => {
     expect(screen.queryByTestId('live-file-chooser')).not.toBeInTheDocument();
   });
 
-  it('内嵌模式提供「显示真实窗口」逃生口', async () => {
-    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, revealed: true });
+  it('不再显示真实窗口按钮；下方展示当前任务与真实进度事件', async () => {
+    render(<Harness />);
+    act(() => openLiveDrawer());
+    await waitFor(() => expect(live.handler).not.toBeNull());
+    push(snapshot({ batch: { status: 'running', done: 1, failed: 0, handoffs: 0, queued: 1, currentTitle: '牛客 Agent 开发', message: '正在填写教育经历', phase: 'driving' } }));
+    act(() => { emitEvent('career:progress', { runId: 'run1', phase: 'driving', message: '正在填写教育经历', progress: 0.4 }); });
+    expect(screen.queryByRole('button', { name: '显示真实窗口' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '收回真实窗口' })).not.toBeInTheDocument();
+    expect(await screen.findByText('牛客 Agent 开发')).toBeInTheDocument();
+    expect(screen.getAllByText('正在填写教育经历').length).toBeGreaterThan(0);
+    expect(screen.getByText('任务事件')).toBeInTheDocument();
+    expect(screen.queryByText(/批量：/)).not.toBeInTheDocument();
+  });
+
+  it('多份并行时按岗位分开，选择一份只看这一份的事件', async () => {
     render(<Harness />);
     act(() => openLiveDrawer());
     await waitFor(() => expect(live.handler).not.toBeNull());
     push(snapshot());
-    fireEvent.click(await screen.findByRole('button', { name: '显示真实窗口' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/window', { visible: true }));
-    expect(await screen.findByRole('button', { name: '收回真实窗口' })).toBeInTheDocument();
+    act(() => {
+      emitEvent('career:progress', { runId: 'run_a', phase: 'apply_batch', message: '正在填写 A 的教育经历', company: '甲公司', job_title: 'Agent 开发' });
+      emitEvent('career:progress', { runId: 'run_b', phase: 'apply_batch', message: '正在等待 B 的登录验证', company: '乙公司', job_title: '大模型开发' });
+    });
+    expect((await screen.findAllByText('正在等待 B 的登录验证')).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: /甲公司/ }));
+    expect(screen.getAllByText('正在填写 A 的教育经历').length).toBeGreaterThan(0);
+    expect(screen.queryByText('正在等待 B 的登录验证')).not.toBeInTheDocument();
   });
 
   it('交接时显示「这一步要你本人来」，主按钮是控制浏览器', async () => {

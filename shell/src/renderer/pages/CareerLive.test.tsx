@@ -11,7 +11,8 @@ vi.mock('@/components/career/useGlobalLive', () => ({
 }));
 
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
-import CareerLive, { batchSummaryLine } from './CareerLive';
+import CareerLive from './CareerLive';
+import { applicationStats } from './CareerLiveModel';
 
 const push = (ev: unknown) => { live.handler?.(ev); };
 const snapshot = { type: 'snapshot', ts: 1, productSessionId: 's', browser: { hasBrowser: true, control: 'agent', reason: null, url: 'https://x.com/apply', title: '网申', channel: 'chrome' }, batch: { status: 'running', updatedAt: '', done: 2, failed: 0, handoffs: 1, queued: 3, todayCount: 2, phase: 'driving', message: '正在填写：B 公司 算法实习生', currentTitle: 'B 公司 算法实习生' }, openHandoffs: 1 };
@@ -28,7 +29,8 @@ describe('CareerLive', () => {
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());
     push(snapshot);
-    expect(await screen.findByText('已填好 2 · 失败 0 · 等你处理 1 · 队列 3 · 今日 2')).toBeInTheDocument();
+    expect(await screen.findByText('当前任务')).toBeInTheDocument();
+    expect(screen.queryByText(/已填好 2 · 失败 0/)).not.toBeInTheDocument();
     expect(screen.getByText('正在填写：B 公司 算法实习生')).toBeInTheDocument();
     expect(screen.getByText('助理在操作')).toBeInTheDocument();
     push({ type: 'frame', data: 'QUJD', width: 1280, height: 800, ts: 2 });
@@ -53,12 +55,17 @@ describe('CareerLive', () => {
     expect(screen.getByText(/等你处理：/)).toBeInTheDocument();
   });
 
-  it('没有浏览器时给出引导文案', async () => {
+  it('投递总览按真实申请状态统计，已结束或未投递不混入成功数', () => {
+    expect(applicationStats([
+      { stage: 'evaluated' }, { stage: 'needs_user' }, { stage: 'applied' },
+      { stage: 'rejected' }, { stage: 'discarded' }, { stage: 'skip' },
+    ] as never, 1)).toEqual({ total: 6, active: 1, waiting: 1, submitted: 2, closed: 2 });
+  });
+  it('没有浏览器时给出引导文案，不显示批量噪声', async () => {
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());
     push({ ...snapshot, browser: { ...snapshot.browser, hasBrowser: false, control: 'none' }, batch: null });
     expect(await screen.findByText(/浏览器还没有打开/)).toBeInTheDocument();
-    expect(screen.getByText('还没有批量任务')).toBeInTheDocument();
-    expect(batchSummaryLine(null)).toBe('还没有批量任务');
+    expect(screen.queryByText(/批量：/)).not.toBeInTheDocument();
   });
 });

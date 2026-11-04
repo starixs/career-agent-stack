@@ -40,4 +40,14 @@ describe('浏览器会话里切换正在投的几家（用户 2026-11-02「只�
     expect(tab).toHaveTextContent('等你');
     expect(screen.getByRole('tab', { name: '美团' })).not.toHaveTextContent('等你');
   });
+  it('50 家用任务选择器而不是 50 个横向标签；等你处理的岗位仍可识别和切换', async () => {
+    pages.list = Array.from({ length: 50 }, (_, i) => ({ application_id: `a${i}`, company: `公司 ${i}`, title: `岗位 ${i}`, current: i === 0, waiting: i === 49 ? 'login' : null }));
+    render(<LivePageTabs />);
+    const select = await screen.findByRole('button', { name: '选择网申任务' });
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    expect(screen.getByText('50 个任务')).toBeInTheDocument();
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole('button', { name: /公司 49/ }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/view', { application_id: 'a49' }));
+  });
 });

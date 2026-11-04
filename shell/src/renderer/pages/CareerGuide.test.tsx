@@ -50,6 +50,14 @@ describe('CareerGuide（功能市场）', () => {
     chat.off();
   });
 
+  it('网申助手直接打开投递控制页，不再只预填一句话', () => {
+    const nav = capture(CAREER_NAVIGATE_EVENT);
+    render(<CareerGuide isActive onOpenChat={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /网申助手/ }));
+    expect(nav.seen).toEqual([{ kind: 'career-live' }]);
+    nav.off();
+  });
+
   it('复盘不走对话：直接打开「我的求职月」', () => {
     const nav = capture(CAREER_NAVIGATE_EVENT);
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
