@@ -190,8 +190,10 @@ export interface LiveSnapshot {
   sms: SmsState | null;
 }
 
+/** 他切到了别家在看：登录之旅那一栏（含「这家先跳过」）不出，免得跳过的是钉住的那家而不是眼前这家。 */
 function journeyOf(pin: ReturnType<typeof livePin>): LiveSnapshot['journey'] {
-  return pin ? { index: pin.index, total: pin.total } : null;
+  const view = viewedApp();
+  return pin && (!view || view === pin.appKey) ? { index: pin.index, total: pin.total } : null;
 }
 
 export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> {

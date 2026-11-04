@@ -164,10 +164,14 @@ describe('career live route', () => {
       await handleCareerLiveRoute('/api/career/live/view', req('/api/career/live/view', { application_id: wjx }), d);
       expect(await url()).toBe('https://v.wjx.cn/vm/x.aspx');
       expect((await pages()).find(p => p.current)?.company).toBe('斯达半导体');
+      // 看着别家时不出登录之旅那一栏（「这家先跳过」跳的是钉住的中车，不是眼前这家）
+      const journey = async () => ((await (await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), d))!.json()) as { journey: unknown }).journey;
+      expect(await journey()).toBeNull();
       // 登录之旅换到下一家：放下他刚才的选择，画面跟到要他登录的那家
       setLivePin({ sessionKey: 'sess-career', appKey: wjx, askId: 'a', handoffId: 'h2', index: 1, total: 2 });
       setLivePin({ sessionKey: 'sess-career', appKey: crrc, askId: 'a', handoffId: 'h3', index: 1, total: 2 });
       expect(await url()).toBe('https://crrc.example/login');
+      expect(await journey()).toMatchObject({ index: 1, total: 2 });
     } finally { setLivePin(null); resetApplicationPages(); }
   });
 
