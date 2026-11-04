@@ -246,6 +246,10 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
   for (const [index, id] of handoffIds.entries()) {
     const step = stepOf(deps.repos, id);
     if (!step) continue; // 别处已经处理了
+    // 先钉住再开网页：开页要十几秒，这期间界面和「去登录」都要知道有一趟在走（2026-11-05：没钉住时状态报「没在登录」，
+    // 接着点的几十家全被悄悄拒掉）
+    setLivePin({ sessionKey: deps.sessionKey, appKey: step.appKey, askId, handoffId: id, index, total: handoffIds.length });
+    journeyChanged();
     const page = deps.browser.pageFor(step.appKey) ?? await openStepPage(deps, step);
     if (!page) { reopen(deps, step); result.steps.push({ handoff_id: id, outcome: 'no_page' }); continue; } // 开不了：交给后台重新打开
     if (step.site && knownLoggedIn(deps.repos, await deps.browser.cookies(), step.site)) {

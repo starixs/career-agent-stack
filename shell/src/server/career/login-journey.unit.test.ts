@@ -220,6 +220,18 @@ describe('登录之旅', () => {
     expect(out?.steps.map(s => s.outcome)).toEqual(['logged_in']);
   });
 
+  it('打开网页那十几秒里也算在登录：钉住这一家，「去登录」不会以为上一趟已经结束（2026-11-05）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const { browser } = fakeBrowser({ cookies: n => [{ domain: '.a.com', name: 'sid', value: n >= 3 ? 'user' : 'guest' }] });
+    const pageFor = browser.pageFor;
+    let pinWhileOpening: string | undefined;
+    browser.pageFor = () => undefined;
+    browser.openPage = async key => { pinWhileOpening = livePin()?.appKey; return pageFor(key); };
+    await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, ...fast }, a.handoff.id, [a.handoff.id]);
+    expect(pinWhileOpening).toBe(a.app.id);
+  });
+
   it('登录接口返回失败（密码错）时凭证变了也不算，继续等', async () => {
     const repos = createMemoryRepos();
     const a = waitingLogin(repos, 'a.com');
