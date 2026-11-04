@@ -10,6 +10,7 @@ import { loadApplyModule } from '../routes/career-browser';
 import { careerBrowserHost, careerWorkspacePath } from './batch-service';
 import { rememberSessionCookies } from './session-cookies';
 import { journeyRunning, startJourney, type JourneyBrowser, type JourneyPage, type SmsState } from './login-journey';
+import { openLoginCodeSource } from './login-code-source';
 import { loginWithSavedPassword } from './login-password';
 import { answerPendingImage, autoRegisterByEmail, refreshPendingImage } from './login-register';
 import { onLoginResponse, screenSample } from './login-watch';
@@ -36,6 +37,30 @@ async function smsFirst(page: Page): Promise<SmsState> {
   }
 }
 
+/** 手机上读码最多等多久（和 main 的短信来源一致）。 */
+const PHONE_CODE_TIMEOUT_MS = 120_000;
+
+/**
+ * 短信登录：这家配了短信模板、手机连着，就在发码前开始盯手机，读到码自动填上点登录，他不用动手；
+ * 没配或没读到，照旧请他在那一格填（2026-11-04 用户：手机号、邮箱都要全流程自动）。
+ */
+async function smsWithPhone(repos: Repos, page: Page, report: (s: SmsState) => void): Promise<SmsState> {
+  const phone = await ownPhone();
+  const source = phone ? await openLoginCodeSource(repos, page.url(), 'sms', phone) : null;
+  try {
+    const since = Date.now();
+    const sms = await smsFirst(page);
+    if (sms.status !== 'sent' || !source) return sms;
+    report({ status: 'registering', detail: '验证码发到你手机上了，我从手机上读，你不用填' });
+    const code = await source.wait(since, PHONE_CODE_TIMEOUT_MS);
+    if (!code) return { status: 'sent', detail: '手机上没读到验证码，收到了填这里' };
+    report({ status: 'registering', detail: '从手机上读到验证码了，正在登录' });
+    const apply = await loadApplyModule();
+    const done = apply?.submitSmsCode ? await apply.submitSmsCode(apply.fromPlaywright(page), code) : { ok: false, reason: '投递引擎版本不支持代办短信登录' };
+    return done.ok ? { status: 'registered', detail: '短信码填好了，正在确认登上没有…' } : { status: 'sent', detail: `没填上：${done.reason ?? '再试一次'}，收到的码可以填这里` };
+  } finally { await source?.close(); }
+}
+
 function journeyPage(repos: Repos, page: Page): JourneyPage {
   return {
     url: () => page.url(), onLoginResponse: cb => onLoginResponse(page, cb), screen: () => screenSample(page), closed: () => page.isClosed(),
@@ -47,7 +72,7 @@ function journeyPage(repos: Repos, page: Page): JourneyPage {
       if (byPassword) return byPassword;
       const byMail = await autoRegisterByEmail(repos, page, report);
       if (byMail) return byMail;
-      const sms = await smsFirst(page);
+      const sms = await smsWithPhone(repos, page, report);
       if (sms.status === 'no_sms') console.log(`[career] login-journey ${page.url().slice(0, 80)}: 短信这条路没走通（${sms.detail ?? '-'}）`);
       return sms.status === 'no_sms' ? { status: 'no_sms', detail: '没找到邮箱或手机号能登的方式，多半只能扫码' } : sms;
     },

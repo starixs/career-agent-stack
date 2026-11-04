@@ -10,7 +10,8 @@ import type { Repos } from '@career/core';
 import type { Page } from 'playwright';
 
 import type { SmsState } from './login-journey';
-import { mailboxFor, waitForMailCode } from './mail/code';
+import { openLoginCodeSource } from './login-code-source';
+import { MAIL_CODE_TIMEOUT_MS, mailboxFor, waitForMailCode } from './mail/code';
 import { loadApplyModule } from '../routes/career-browser';
 
 /** 站点密码：多数网申站要 8-20 位、字母加数字；12 位、去掉易混的 0/O/1/l/I。 */
@@ -117,6 +118,16 @@ export function saveSiteAccount(vault: Awaited<ReturnType<typeof ownMailbox>>['v
   vault.set({ scope: 'site', ref_id: host, field: 'password', value: password, sensitive: true, policy: { autofill: true } });
 }
 
+/**
+ * 邮件里的验证码怎么等：这家配了模板就用配好的来源（点发码之前就开、只认模板发件人），否则用通用取码。
+ * 用完调 close。
+ */
+async function mailCodeWaiter(repos: Repos, page: Page, mailbox: NonNullable<ReturnType<typeof mailboxFor>>, email: string): Promise<{ wait(since: number, timeoutMs: number): Promise<string | null>; close(): Promise<void> }> {
+  const configured = await openLoginCodeSource(repos, page.url(), 'email', email);
+  if (configured) return configured;
+  return { wait: (since, timeoutMs) => waitForMailCode(mailbox, since, { timeoutMs }), close: async () => undefined };
+}
+
 /** 返回 null 表示这家不走注册（没有注册表单 / 已有账号 / 引擎不支持），由调用方照原样报。 */
 export async function autoRegisterByEmail(repos: Repos, page: Page, report: (s: SmsState) => void): Promise<SmsState | null> {
   const host = hostOf(page.url());
@@ -126,8 +137,20 @@ export async function autoRegisterByEmail(repos: Repos, page: Page, report: (s: 
   if (!email) return null;
   if (!mailbox) { console.log(`[career] login-register ${host}: 邮箱还没连上，走手机号`); return null; } // 邮箱没连：让手机短信那条路接着试
   const password = generateSitePassword();
-  const since = Date.now();
   const P = apply.fromPlaywright(page);
+  const codes = await mailCodeWaiter(repos, page, mailbox, email);
+  try { return await registerWithMail({ apply, P, page, report, codes, host, email, password, vault }); } finally { await codes.close(); }
+}
+
+interface MailRegister {
+  apply: Apply; P: ReturnType<Apply['fromPlaywright']>; page: Page; report: (s: SmsState) => void;
+  codes: Awaited<ReturnType<typeof mailCodeWaiter>>; host: string; email: string; password: string;
+  vault: Awaited<ReturnType<typeof ownMailbox>>['vault'];
+}
+
+async function registerWithMail({ apply, P, page, report, codes, host, email, password, vault }: MailRegister): Promise<SmsState | null> {
+  if (!apply.prepareEmailRegister || !apply.submitRegisterCode) return null;
+  const since = Date.now();
   // 已经登上、只差「首次登录 · 设置密码」（上次收码登上后框没处理完）：设上就算办完
   if (await apply.setFirstPassword?.(P, password)) { saveSiteAccount(vault, host, email, password); return { status: 'registered' }; }
   // 上一趟点过「获取验证码」、图形码还挂在页面上（2026-11-03 中国中车：那一行只剩「确认发送」，找不到「获取验证码」就判成没表单）：直接请他看图
@@ -139,12 +162,12 @@ export async function autoRegisterByEmail(repos: Repos, page: Page, report: (s: 
   if (r.status === 'captcha') {
     // 点「获取验证码」弹了拼图（2026-11-03 畅游 / Moka）：拼图要他本人拖；拖好码就发到邮箱，照样自己去取，不让他填
     report({ status: 'mail_captcha' });
-    code = await waitForMailCode(mailbox, since, { timeoutMs: IMAGE_ANSWER_TIMEOUT_MS });
+    code = await codes.wait(since, IMAGE_ANSWER_TIMEOUT_MS);
     if (!code) return { status: 'no_sms', detail: '拼图之后三分钟没等到验证码邮件' };
   } else {
     if (r.status === 'image_code') { const stuck = await passImageCode(apply, page, report, text => answerForMailCode(apply, page, text)); if (stuck) return stuck; }
     report({ status: 'registering', detail: r.status === 'image_code' ? `图上的字对了，验证码已经发到 ${email}，正在取` : `验证码已经发到 ${email}，正在取` });
-    code = await waitForMailCode(mailbox, since);
+    code = await codes.wait(since, MAIL_CODE_TIMEOUT_MS);
     if (!code) return { status: 'no_sms', detail: '验证码邮件两分钟没到' };
   }
   report({ status: 'registering', detail: '从邮箱取到验证码了，正在登录' });
