@@ -40,6 +40,7 @@ import { ACCOUNT_FIELDS, reportAccountFetch } from '../career/accounts';
 import { applyTaskTitle, gapsHeadline, jobLabel, persistDriveOutcome, type SubmitGate } from '../career/drive-outcome';
 import { freezePacket, packetResumeFile, pickResumeForJob } from '../career/packets';
 import { formatBrowse, formatSolveCaptcha, formatWaitUser } from '../career/browse-format';
+import { BROWSE_SOP } from '../career/browse-sop';
 import { acquireBrowserCapability } from '../browser-host/capability-client';
 import { broadcast as sseBroadcast } from '../sse';
 import { cancellableFetch } from '../utils/cancellation';
@@ -1377,6 +1378,16 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const out = await browseCall({ action: 'act', act: args });
         return text(formatBrowse(out));
       })()),
+
+      tool('browser_cdp', '对当前浏览页的调试器会话直接发 CDP 命令（白名单：Page / Input / DOM / Runtime / Emulation）。典型用法：跨域 iframe（验证码常在这里）执行 JS——Page.getFrameTree 找 frameId → Page.createIsolatedWorld 拿 contextId → Runtime.evaluate 带 contextId；量元素坐标用 Runtime.evaluate 返回 getBoundingClientRect。截图返回的 base64 会被截断，看图用 browser_solve_captcha。遇到坐标点不中、下拉打不开先 browser_sop。', {
+        method: z.string().describe('CDP 方法名，如 Runtime.evaluate'),
+        params: z.record(z.string(), z.unknown()).optional().describe('方法参数对象'),
+      }, async (args) => wrap(async () => {
+        const out = await browseCall({ action: 'cdp', method: args.method, ...(args.params ? { params: args.params } : {}) });
+        return text(JSON.stringify(out.cdp ?? out));
+      })()),
+
+      tool('browser_sop', '读浏览器操作经验手册：坐标为什么点不中（调试器黄条会把页面推下约 20px）、自绘下拉框怎么开、滑块怎么拖、跨域 iframe 怎么执行 JS、视口外的勾选框怎么办、扩展截图超时怎么办。遇到操作不动 / 点了没反应先读它，不要连点。', {}, async () => wrap(async () => text(BROWSE_SOP))()),
 
       tool('browser_read', '分页读取浏览页的正文（岗位详情、公司介绍等），每次约 4000 字；next_offset 不为空时继续读。', {
         offset: z.number().int().min(0).optional(),

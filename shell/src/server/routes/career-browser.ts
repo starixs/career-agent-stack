@@ -1,8 +1,10 @@
 import type { BrowserContext, Page } from 'playwright';
+import type { VerificationHandler } from '@career/apply';
+import { getCaptchaPolicy } from '../career/captcha-automation';
 
 import type { VerifiedBrowserCapability } from '../browser-host/capability-client';
 import type { BrowserControl, BrowserControlState } from '../browser-host/context-registry';
-import { bringToFront as bringContextToFront, restoreIfMinimized } from '../browser-host/page-control';
+import { bringToFront as bringContextToFront } from '../browser-host/page-control';
 import type { BrowserChannel } from '../browser-host/runtime-settings';
 import { adoptApplicationPage, lockPage, pageForApplication, releaseApplicationPage, unlockPage } from '../career/app-pages';
 
@@ -113,6 +115,8 @@ export interface CareerBrowserRouteDependencies {
   loadApply?: () => Promise<ApplyEngineModule | null>;
   /** `drive` 需要模型。由后端组合层通过 {@link registerCareerBrowserLlmResolver} 接入。 */
   resolveLlm?: () => Promise<LlmLike | null>;
+  /** 测试注入；实际配置只从本机 verification.json 读取，不能由模型请求覆盖。 */
+  verify?: VerificationHandler;
   /**
    * `drive` 的资料：缺省在 Node 侧从求职 SQLite + 私密库组装（见 {@link defaultDriveProfile}），
    * 调用方（模型工具）不传、也拿不到 basics 明文。请求体里的 `profile` 只作测试 / 兜底。
@@ -382,7 +386,7 @@ function errorName(error: unknown): string {
 function errorResponse(error: unknown, fallback: string): Response {
   const name = errorName(error);
   if (name === 'BROWSER_CAPABILITY_INVALID') return failure(401, '浏览器凭据无效或已过期', name);
-  if (name === 'BROWSER_CONTROL_HUMAN') return failure(409, error instanceof Error ? error.message : fallback, name);
+  if (name === 'BROWSER_CONTROL_HUMAN' || name === 'BRIDGE_NOT_CONNECTED') return failure(409, error instanceof Error ? error.message : fallback, name);
   if (name === 'BROWSER_HOST_STOPPING') return failure(503, '浏览器服务正在停止', name);
   if (name.startsWith('BROWSER_RESOURCE_')) return failure(503, '浏览器资源尚未就绪', name);
   console.warn(`[career-browser] request=failed error=${name || 'unknown'}`);
@@ -420,17 +424,37 @@ export interface RunEmitter {
   aborted(): boolean;
 }
 
-export type CareerBrowserOp = 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'submit' | 'release' | 'browse';
+export type CareerBrowserOp = 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'submit' | 'release' | 'browse' | 'bridge';
 
 /**
  * HTTP 路由（能力令牌）只开放这四种；submit / release 只能由 Global 进程内的提交执行器直接调用 runOperation——
  * 提交必须先在动作队列里被批准并认领，不能被任何持有浏览器令牌的调用方绕过。
  */
-const OPS: ReadonlySet<string> = new Set<CareerBrowserOp>(['screenshot', 'diagnose', 'drive', 'collect_passive', 'browse']);
+const OPS: ReadonlySet<string> = new Set<CareerBrowserOp>(['screenshot', 'diagnose', 'drive', 'collect_passive', 'browse', 'bridge']);
 /** 模型逐步浏览用的专用页面（和各份网申的页面分开）。 */
 export const BROWSE_PAGE_KEY = '__browse__';
 
 /** 在已借到的 Context 上执行一次操作（路由与 Global 批量运行器共用）。 */
+/** 模型直发 CDP（action:'cdp'）：白名单域内直达当前浏览页的调试器会话（跨域 iframe / 坐标 / 截图）。 */
+async function runBrowseCdp(body: Record<string, unknown>, page: Page, out: RunEmitter): Promise<void> {
+  const { cdpMethodAllowed, sanitizeCdpResult } = await import('../career/browse-cdp');
+  const method = typeof body.method === 'string' ? body.method : '';
+  if (!cdpMethodAllowed(method)) {
+    out.emit({ type: 'error', status: 400, code: 'CDP_METHOD_NOT_ALLOWED', error: 'CDP 只开放 Page / Input / DOM / Runtime / Emulation 域；跨域 iframe 用 Page.getFrameTree + Page.createIsolatedWorld + Runtime.evaluate' });
+    return;
+  }
+  const proxy = page as unknown as { newCDPSession?: () => Promise<{ send(method: string, params?: Record<string, unknown>): Promise<unknown> }> };
+  const session = await proxy.newCDPSession?.();
+  if (!session) { out.emit({ type: 'error', status: 501, code: 'CDP_UNAVAILABLE', error: '当前浏览器没有调试器会话（扩展桥未连接）' }); return; }
+  try {
+    const params = body.params && typeof body.params === 'object' && !Array.isArray(body.params) ? body.params as Record<string, unknown> : undefined;
+    const data = await session.send(method, params);
+    out.emit({ type: 'result', op: 'browse', action: 'cdp', cdp: { ok: true, method, data: sanitizeCdpResult(data) } });
+  } catch (error) {
+    out.emit({ type: 'error', status: 500, code: 'CDP_FAILED', error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 /**
  * 模型逐步浏览（career/browse.ts）：observe / act / read。用专用浏览页；点击开了新标签就把浏览页换成新标签；
  * 每次操作后让现场画面切到这一页。输入里的 {{vault:...}} 在这里换成明文，模型看不到。
@@ -457,6 +481,10 @@ async function runBrowse(body: Record<string, unknown>, context: BrowserContext,
       // 操作成功就顺带给出新观察，省一轮往返（观察编号随之更新）
       const observation = receipt.ok && body.observeAfter !== false ? await browse.observe(context, page, browseDeps).catch(() => null) : null;
       out.emit({ type: 'result', op: 'browse', action, receipt: rest, ...(observation ? { observation } : {}) });
+      return;
+    }
+    if (action === 'cdp') {
+      await runBrowseCdp(body, page, out);
       return;
     }
     if (action === 'solve_captcha') {
@@ -518,13 +546,38 @@ function visionLlm(llm: LlmLike): import('../career/captcha-solver').VisionLlm {
   };
 }
 
-/** 浏览器环境检查（Cloudflare 一类）不用解，等它自己放行。 */
+/** @career/captcha 要 core 的 LLM 形状（带 usage）；把路由的 LlmLike 补齐。 */
+function coreVisionLlm(llm: LlmLike): import('@career/core').LLM {
+  return {
+    async complete(request) {
+      const res = await llm.complete(request);
+      const text = res && typeof res === 'object' && 'text' in res && typeof res.text === 'string' ? res.text : '';
+      return { text, usage: { input_tokens: 0, output_tokens: 0 } };
+    },
+    ...(llm.supportsImages ? { supportsImages: () => llm.supportsImages!() } : {}),
+  };
+}
+
+/** 浏览器环境检查（Cloudflare 一类）：先试着点一下验证框（CDP 可信点击），等不到再等放行。 */
 const BROWSER_CHECK_WAIT_MS = 6000;
 
-/**
- * 简单验证码 AI 自己过：图形字 / 点选 / 滑块（captcha-solver.ts）。短信码、认不出的类型回 needs_user，
- * 由模型转 browser_wait_user 请用户帮一下。
- */
+/** 自动验证共享组合点；请求体不能覆盖本机模板或收码授权。 */
+async function verificationForPage(page: Page, body: Record<string, unknown>, bundle: DriveProfileBundle, llm: LlmLike | null, signal: AbortSignal, out: RunEmitter, deps: CareerBrowserRouteDependencies): Promise<VerificationHandler | undefined> {
+  if (deps.verify) return deps.verify;
+  if (body.profile || !llm) return undefined;
+  const { createApplyVerification } = await import('../career/apply-verification');
+  return createApplyVerification({
+    page, llm: coreVisionLlm(llm), profile: bundle.profile, signal, resolveValue: bundle.resolveValue,
+    batch: body.caller === 'batch',
+    assertActive: () => { if (deps.host.getControl(deps.productSessionId ?? 'default').control === 'human') throw new Error('BROWSER_CONTROL_HUMAN'); },
+    progress: message => out.emit({ type: 'progress', phase: 'verification', message }),
+  }).catch(() => {
+    console.warn('[apply-verification] configuration unavailable');
+    return async () => ({ status: 'needs_user' as const });
+  });
+}
+
+/** 对话的显式图形验证工具；短信/邮箱收码在 drive/approved-submit 的私有钩子中完成。 */
 async function runSolveCaptcha(page: Page, out: RunEmitter, deps: CareerBrowserRouteDependencies): Promise<void> {
   const browse = await import('../career/browse');
   const { hintSampleInPage } = await import('../career/browse-handoff');
@@ -534,14 +587,38 @@ async function runSolveCaptcha(page: Page, out: RunEmitter, deps: CareerBrowserR
   const sample = await browse.inPage(page, hintSampleInPage, null);
   const classify = (apply as unknown as { classifyCaptcha?: (s: { title: string; text: string }) => string } | null)?.classifyCaptcha;
   const kind = classify ? classify({ title: await page.title().catch(() => ''), text: sample.bodySample }) : 'unknown';
+  const site = new URL(page.url()).hostname;
+  const captchaPolicy = await getCaptchaPolicy();
   const finish = async (captcha: Record<string, unknown>) => {
     console.log(`[career-browser] solve-captcha kind=${kind} status=${String(captcha.status)} attempts=${String(captcha.attempts ?? 0)}`);
     const observation = await browse.observe(page.context(), page, { isSubmitText: () => false }).catch(() => null);
     out.emit({ type: 'result', op: 'browse', action: 'solve_captcha', captcha: { kind, ...captcha }, ...(observation ? { observation } : {}) });
   };
+  // 站点预算：超了 / 冷却中直接请用户，不再自动试
+  const gate = captchaPolicy.canAttempt(site);
+  if (!gate.ok) {
+    captchaPolicy.record(site, kind as never, 'gave_up');
+    return finish({ status: 'needs_user', attempts: 0, steps: [gate.reason === 'cooldown' ? '这个站刚连败过，冷却 10 分钟内先请用户帮一下' : '这个站今天自动过码次数用完，先请用户帮一下'] });
+  }
   if (kind === 'browser_check') {
+    const cap = await import('@career/captcha');
+    const { captchaPageFromPlaywright } = await import('../career/captcha-page-adapter');
+    const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
+    const steps: string[] = [];
+    let attempts = 0;
+    if (llm && (!llm.supportsImages || llm.supportsImages())) {
+      const result = await cap.solveBrowserCheck({ page: captchaPageFromPlaywright(page), llm: coreVisionLlm(llm) });
+      attempts = result.attempts;
+      steps.push(result.detail);
+      if (result.outcome === 'passed') {
+        captchaPolicy.record(site, 'browser_check', 'passed');
+        return finish({ status: 'solved', attempts, steps });
+      }
+    }
     await page.waitForTimeout(BROWSER_CHECK_WAIT_MS);
-    return finish({ status: (await blocked()) ? 'needs_user' : 'solved', attempts: 1, steps: ['等环境检查自己放行'] });
+    const still = await blocked();
+    captchaPolicy.record(site, 'browser_check', still ? 'failed' : 'passed');
+    return finish({ status: still ? 'needs_user' : 'solved', attempts: attempts + 1, steps: [...steps, '点过验证框后等环境检查放行'] });
   }
   if (kind !== 'image_text' && kind !== 'image_click' && kind !== 'slider') return finish({ status: 'needs_user', attempts: 0, steps: [`${kind} 类验证要本人处理`] });
   const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
@@ -549,6 +626,7 @@ async function runSolveCaptcha(page: Page, out: RunEmitter, deps: CareerBrowserR
   out.emit({ type: 'progress', phase: 'solve_captcha', message: '正在自己过验证码' });
   const { overlayMarks } = await import('../career/captcha-overlay');
   const result = await solver.solveCaptcha(page, kind, { llm: visionLlm(llm), overlay: overlayMarks }, blocked);
+  captchaPolicy.record(site, kind as never, result.status === 'solved' ? 'passed' : 'failed');
   return finish(result.status === 'solved' ? result : { ...result, status: 'needs_user' });
 }
 
@@ -618,8 +696,7 @@ export async function runOperation(
     return;
   }
   if (appKey) deps.focusPage?.(page);
-  // 用户接管后可能把真实窗口最小化了；不恢复的话后面的截图会挂到超时
-  await restoreIfMinimized(context, page);
+  // 用户的 Chrome 窗口不归产品管理：只有显式「到浏览器看」才前置窗口。
   if (op === 'screenshot') {
     out.emit({ type: 'progress', phase: 'screenshot', message: '正在截图' });
     const bytes = await page.screenshot({ type: 'jpeg', quality: 60, fullPage: body.fullPage === true });
@@ -664,7 +741,7 @@ export async function runOperation(
   }
 
   if (op === 'submit') {
-    await runSubmit(apply, page, body, out, deps, sessionKey, appKey, context);
+    await runSubmit(apply, page, body, out, deps, sessionKey, appKey, context, signal);
     return;
   }
 
@@ -732,7 +809,9 @@ export async function runOperation(
     const telemetry = await (deps.resolveTelemetry ?? defaultTelemetry)(body);
     const target = body.profile ? null : await positionTargetForBody(body);
     const pathfinder = target && typeof body.applicationId === 'string' ? await pathfinderForBody(body.applicationId, context, page, apply, llm, deps) : null;
+    const verify = await verificationForPage(page, body, bundle, llm, signal, out, deps);
     const result = await apply.driveApplication(engineLikePage, llm, bundle.profile, {
+      ...(verify ? { verify } : {}),
       maxPages: clampNumber(body.maxPages, DRIVE_DEFAULT_MAX_PAGES, 1, 20),
       humanTyping: body.humanTyping !== false,
       ...(typeof body.settleMs === 'number' ? { settleMs: body.settleMs } : {}),
@@ -766,7 +845,7 @@ export async function runOperation(
  * filled 里的私密库占位符先解成明文再与页面比对（否则会被误判成"用户改过"）；回传前统一脱敏。
  * 提交成功后关掉这份网申的页面。
  */
-async function runSubmit(apply: ApplyEngineModule, page: Page, body: Record<string, unknown>, out: RunEmitter, deps: CareerBrowserRouteDependencies, sessionKey: string, appKey: string | undefined, context: BrowserContext): Promise<void> {
+async function runSubmit(apply: ApplyEngineModule, page: Page, body: Record<string, unknown>, out: RunEmitter, deps: CareerBrowserRouteDependencies, sessionKey: string, appKey: string | undefined, context: BrowserContext, signal: AbortSignal): Promise<void> {
   if (typeof apply.submitApplication !== 'function') {
     out.emit({ type: 'error', status: 501, error: '表单引擎版本过旧，没有提交执行器（请重新构建 @career/apply）' });
     return;
@@ -778,7 +857,16 @@ async function runSubmit(apply: ApplyEngineModule, page: Page, body: Record<stri
     const vault = body.profile ? null : await (deps.resolveSubmitVault ?? defaultSubmitVault)().catch(() => null);
     const filled = Array.isArray(body.filled) ? (body.filled as Array<Record<string, unknown>>).map(f => ({ ...f, value: vault && typeof f.value === 'string' ? vault.resolve(f.value) : f.value })) : undefined;
     out.emit({ type: 'progress', phase: 'submit', message: `正在提交${typeof body.submitButton === 'string' ? `（「${body.submitButton}」）` : ''}` });
+    const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))().catch(() => {
+      console.warn('[apply-verification] model unavailable during approved submit');
+      return null;
+    });
+    const verify = await verificationForPage(page, body, {
+      profile: { basics: { phone: '{{vault:profile.phone}}', email: '{{vault:profile.email}}' } },
+      resolveValue: vault ? v => vault.resolve(v) : undefined,
+    }, llm, signal, out, deps);
     const result = await apply.submitApplication(apply.fromPlaywright(page), {
+      ...(verify ? { verify } : {}),
       ...(typeof body.submitButton === 'string' ? { expectedButton: body.submitButton } : {}),
       ...(filled ? { filled } : {}),
       ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
@@ -827,7 +915,7 @@ function ndjsonStream(
           const name = errorName(error);
           out.emit({
             type: 'error',
-            status: name === 'BROWSER_CONTROL_HUMAN' ? 409 : name === 'BROWSER_CAPABILITY_INVALID' ? 401 : 500,
+            status: name === 'BROWSER_CONTROL_HUMAN' || name === 'BRIDGE_NOT_CONNECTED' ? 409 : name === 'BROWSER_CAPABILITY_INVALID' ? 401 : 500,
             error: error instanceof Error && error.message ? error.message : '浏览器操作失败',
             ...(name ? { code: name } : {}),
           });
@@ -923,7 +1011,7 @@ export async function handleCareerBrowserRoute(
 
   // action === 'run'
   const op = typeof body.op === 'string' && OPS.has(body.op) ? body.op as CareerBrowserOp : null;
-  if (!op) return failure(400, "op 必须是 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'browse'");
+  if (!op) return failure(400, "op 必须是 'screenshot' | 'diagnose' | 'drive' | 'collect_passive' | 'browse' | 'bridge'");
   let binding: VerifiedBrowserCapability;
   try {
     binding = await host.verifyCapability(token, request.signal);
@@ -933,12 +1021,103 @@ export async function handleCareerBrowserRoute(
   // 「等用户帮一下」本来就是在用户接管期间等，不能被接管挡掉
   const waitsForUser = op === 'browse' && body.action === 'wait_user';
   const control = host.getControl(binding.productSessionId);
-  if (control.control === 'human' && !waitsForUser) {
+  const readsBridgeTabs = op === 'bridge' && (!body.action || body.action === 'tabs');
+  if (control.control === 'human' && !waitsForUser && !readsBridgeTabs) {
     return failure(409, '用户正在接管浏览器，等待交回', 'BROWSER_CONTROL_HUMAN');
   }
+  // 桥操作跑在用户自己的 Chrome 里，不需要（也不该依赖）托管浏览器
+  if (op === 'bridge') {
+    return ndjsonStream(request, out => runBridgeOp(body, out, { ...deps, productSessionId: binding.productSessionId }));
+  }
+  // 聊天、批量、提交与现场共用 ExtensionBrowserHost；不能绕过宿主的控制权和生命周期。
   return ndjsonStream(request, (out, signal) => host.withContext(
     token,
     (context, b) => runOperation(op, body, context, out, signal, { ...deps, productSessionId: b.productSessionId, focusPage: page => host.focusPage?.(b.productSessionId, page) }),
     { signal, ...(waitsForUser ? { allowHumanControl: true } : {}) },
   ));
+}
+
+/**
+ * 桥操作（用户日常 Chrome，career-bridge 扩展通道）：
+ * - tabs：列出真实浏览器里可脚本化的标签页
+ * - solve_captcha：在真实浏览器的标签页上过验证码（登录态 / 指纹全真，通过率最高）
+ * - sync_cookies 已退役：直接使用 Chrome 登录态，不复制 Cookie。
+ * - exec：在指定标签页主世界执行 JS（模型自由操作兜底）
+ */
+async function runBridgeOp(
+  body: Record<string, unknown>,
+  out: RunEmitter,
+  deps: CareerBrowserRouteDependencies,
+): Promise<void> {
+  const [{ ensureExtensionBridge }, { bridgePageFor }] = await Promise.all([
+    import('../browser-host/extension-bridge/bridge-host'),
+    import('../browser-host/extension-bridge/bridge-driver'),
+  ]);
+  const bridge = await ensureExtensionBridge();
+  const action = typeof body.action === 'string' ? body.action : 'tabs';
+  if (!bridge || !bridge.isConnected()) {
+    out.emit({ type: 'result', op: 'bridge', action, bridge: { connected: false }, error: 'career-bridge 扩展未连接：请在用户 Chrome 里加载 app/shell/src/server/browser-host/extension-bridge/extension（chrome://extensions 未打包加载）' });
+    return;
+  }
+  if (action === 'tabs') {
+    out.emit({ type: 'result', op: 'bridge', action, bridge: { connected: true, tabs: bridge.tabs() } });
+    return;
+  }
+  if (action === 'exec') {
+    const tabId = Number(body.tabId);
+    const code = typeof body.code === 'string' ? body.code : '';
+    if (!Number.isInteger(tabId) || !code) { out.emit({ type: 'error', status: 400, code: 'BRIDGE_BAD_REQUEST', error: 'tabId 和 code 必填' }); return }
+    try {
+      const result = await bridge.executeJs(tabId, code);
+      out.emit({ type: 'result', op: 'bridge', action, exec: result });
+    } catch (error) {
+      out.emit({ type: 'error', status: 500, code: 'BRIDGE_EXEC_FAILED', error: error instanceof Error ? error.message : String(error) });
+    }
+    return;
+  }
+  if (action === 'sync_cookies') {
+    out.emit({ type: 'error', status: 410, code: 'BRIDGE_SYNC_RETIRED', error: '已直接使用真实 Chrome 登录态，无需复制 Cookie' });
+    return;
+  }
+  if (action === 'solve_captcha') {
+    const urlPattern = typeof body.urlPattern === 'string' ? body.urlPattern : '';
+    const openUrl = typeof body.openUrl === 'string' && /^https?:\/\//.test(body.openUrl) ? body.openUrl : undefined;
+    if (!urlPattern) { out.emit({ type: 'error', status: 400, code: 'BRIDGE_BAD_REQUEST', error: 'urlPattern 必填' }); return }
+    const captcha = await import('@career/captcha');
+    const page = await bridgePageFor(bridge, urlPattern, openUrl);
+    if (!page) {
+      out.emit({ type: 'result', op: 'bridge', action, captcha: { status: 'needs_user', attempts: 0, steps: [`真实浏览器里没有 URL 含 "${urlPattern}" 的标签页`] } });
+      return;
+    }
+    const site = new URL(page.url()).hostname;
+    const policy = await getCaptchaPolicy();
+    const target = await captcha.detectCaptcha(page);
+    if (!target) {
+      out.emit({ type: 'result', op: 'bridge', action, captcha: { status: 'solved', attempts: 0, steps: ['真实浏览器这一页没有可识别的验证码'], tab: { id: page.tab.id, url: page.tab.url } } });
+      return;
+    }
+    const gate = policy.canAttempt(site);
+    if (!gate.ok) {
+      policy.record(site, target.kind, 'gave_up');
+      out.emit({ type: 'result', op: 'bridge', action, captcha: { status: 'needs_user', attempts: 0, steps: [gate.reason === 'cooldown' ? '这个站刚连败过，冷却中' : '这个站今天自动过码次数用完'] } });
+      return;
+    }
+    const llm = await (deps.resolveLlm ?? registeredLlmResolver ?? (async () => null))();
+    if (!llm || (llm.supportsImages && !llm.supportsImages())) {
+      out.emit({ type: 'result', op: 'bridge', action, captcha: { status: 'needs_user', attempts: 0, steps: ['当前模型看不了图'] } });
+      return;
+    }
+    out.emit({ type: 'progress', phase: 'solve_captcha', message: `在用户真实浏览器里过 ${target.kind}（${target.vendor}）` });
+    const result = await captcha.solveCaptcha({ page, llm: coreVisionLlm(llm) }, target);
+    policy.record(site, target.kind, result.outcome === 'passed' ? 'passed' : 'failed');
+    out.emit({
+      type: 'result',
+      op: 'bridge',
+      action,
+      captcha: { kind: target.kind, vendor: target.vendor, status: result.outcome === 'passed' ? 'solved' : 'needs_user', attempts: result.attempts, steps: [result.detail] },
+      tab: { id: page.tab.id, url: page.tab.url },
+    });
+    return;
+  }
+  out.emit({ type: 'error', status: 400, code: 'BRIDGE_BAD_ACTION', error: `未知 bridge action: ${action}` });
 }

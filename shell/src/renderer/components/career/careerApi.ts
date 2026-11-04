@@ -6,6 +6,7 @@ import type { ResumeData as StudioResumeData } from '@career/resume-studio/schem
 
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 import type { RailSnapshot } from '../../../shared/careerRail';
+import { parsePairedPhones, parsePhoneStatus, type PairedPhone } from '../../../shared/careerPhone';
 
 import type {
   ActivityEntry,
@@ -298,6 +299,17 @@ export const careerApi = {
     const d = asDict(r);
     return { funnel: (d.funnel as Funnel) ?? { by_category: [], by_platform: [], overall: null }, board: (d.board as MonthBoard | undefined) ?? null };
   }),
+
+  // ----- 手机连接（蓝牙读短信收验证码） -----
+  phone: () => apiGetJson<unknown>(careerPath('/phone')).then(r => {
+    const d = asDict(r);
+    return { status: parsePhoneStatus(d.status), phones: parsePairedPhones(d.phones), computerName: typeof d.computer_name === 'string' ? d.computer_name : '' };
+  }),
+  startPhonePairing: () => apiPostJson<unknown>(careerPath('/phone/pair'), {}).then(r => parsePhoneStatus(asDict(r).status)),
+  cancelPhonePairing: () => apiPostJson<unknown>(careerPath('/phone/pair/cancel'), {}).then(r => parsePhoneStatus(asDict(r).status)),
+  bindPhone: (phone: Pick<PairedPhone, 'address' | 'name'>) => apiPostJson<unknown>(careerPath('/phone/bind'), { address: phone.address, name: phone.name }).then(r => parsePhoneStatus(asDict(r).status)),
+  reconnectPhone: () => apiPostJson<unknown>(careerPath('/phone/reconnect'), {}).then(r => parsePhoneStatus(asDict(r).status)),
+  unbindPhone: () => apiDelete<unknown>(careerPath('/phone')),
 
   // ----- 邮箱 -----
   mailAccounts: () => apiGetJson<unknown>(careerPath('/mail/accounts')).then(r => {

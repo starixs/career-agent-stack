@@ -2966,34 +2966,11 @@ describe('admin-api MCP add contract', () => {
 });
 
 describe('admin-api MCP connectivity test', () => {
-  it('diagnoses the managed Browser through its Session capability instead of spawning the sentinel', async () => {
-    managementApiMocks.managementApi.mockResolvedValueOnce({
-      ok: true,
-      url: 'http://127.0.0.1:31415/mcp/playwright',
-      token: 'a'.repeat(32),
-      hostGeneration: 7,
-    });
-
+  it('does not acquire capabilities or spawn the retired managed Browser preset', async () => {
     const { handleMcpTest } = await import('./admin-api');
     const result = await handleMcpTest({ id: 'keystone-browser' });
-
-    expect(result).toMatchObject({
-      success: true,
-      data: {
-        id: 'keystone-browser',
-        type: 'application-host',
-        state: 'ready',
-        sessionScoped: true,
-        hostGeneration: 7,
-      },
-    });
-    expect(result.hint).toContain('internal projection marker');
-    expect(managementApiMocks.managementApi).toHaveBeenCalledWith(
-      '/api/browser/capability/acquire',
-      'POST',
-      { sidecarId: 'test-session-sidecar' },
-      { parentSignal: undefined },
-    );
+    expect(result).toMatchObject({ success: false });
+    expect(managementApiMocks.managementApi).not.toHaveBeenCalled();
   });
 
   it('rejects a configured stdio command that exists but exits before MCP initialize', async () => {

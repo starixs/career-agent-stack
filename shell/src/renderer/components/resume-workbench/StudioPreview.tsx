@@ -1,30 +1,20 @@
 /**
- * 工作台中间的实时预览：resume-studio 模板在本地用 react-pdf 生成 PDF → pdf.js 画到 canvas。
+ * 工作台中间的实时预览。有 HTML 版的模板走 HtmlPreview（iframe 实排 + 排满一页，毫秒级）；
+ * 迁移期其余模板仍用 react-pdf 生成 PDF → pdf.js 画到 canvas：
  *  - 改动 400ms 防抖后重渲染；新页画好之前保留旧页，不闪；
  *  - 字体走侧车缓存（渲染层 CSP 不能直连字体 CDN）；
  *  - 预览里的私密信息是明文（preview 映射），文档本身仍是占位符。
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { hasHtmlTemplate } from '@career/resume-studio/html';
 import type { ResumeData } from '@career/resume-studio/schema';
 
-import { globalBaseUrl } from '@/components/career/useGlobalLive';
-
+import { HtmlPreview } from './HtmlPreview';
 import { withPreviewValues } from './studioEdit';
+import { prepareFonts } from './studioFonts';
 
 const RENDER_DEBOUNCE_MS = 400;
-
-let fontsReady: Promise<void> | null = null;
-/** 一次性：把模板字体的 CDN 地址改写到侧车字体缓存。 */
-function prepareFonts(): Promise<void> {
-  if (!fontsReady) {
-    fontsReady = (async () => {
-      const [{ setWebFontUrlRewriter }, base] = await Promise.all([import('@career/resume-studio/fonts'), globalBaseUrl()]);
-      if (base) setWebFontUrlRewriter(url => `${base}/api/career/live/font?u=${encodeURIComponent(url)}`);
-    })();
-  }
-  return fontsReady;
-}
 
 export async function renderStudioPdf(doc: ResumeData): Promise<Blob> {
   await prepareFonts();
@@ -34,7 +24,7 @@ export async function renderStudioPdf(doc: ResumeData): Promise<Blob> {
 
 interface RenderedPage { width: number; height: number; url: string }
 
-export function StudioPreview({ data, preview, zoom, onPages, thumbnail = false }: {
+type PreviewProps = {
   data: ResumeData;
   preview: Record<string, string>;
   /** 1 = 100%（A4 宽约 595pt）。 */
@@ -42,7 +32,18 @@ export function StudioPreview({ data, preview, zoom, onPages, thumbnail = false 
   onPages?: (count: number) => void;
   /** 汇总页缩略图：只画第一页，不留边距、不显示状态文字。 */
   thumbnail?: boolean;
-}) {
+};
+
+export function StudioPreview(props: PreviewProps) {
+  const { data, preview } = props;
+  const doc = useMemo(() => withPreviewValues(data, preview), [data, preview]);
+  if (hasHtmlTemplate(doc.metadata.template)) {
+    return <HtmlPreview data={doc} zoom={props.zoom} onPages={props.onPages} thumbnail={props.thumbnail} />;
+  }
+  return <PdfPreview {...props} />;
+}
+
+function PdfPreview({ data, preview, zoom, onPages, thumbnail = false }: PreviewProps) {
   const doc = useMemo(() => withPreviewValues(data, preview), [data, preview]);
   const [pages, setPages] = useState<RenderedPage[]>([]);
   const [busy, setBusy] = useState(false);

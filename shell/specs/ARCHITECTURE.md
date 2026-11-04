@@ -206,7 +206,7 @@ Record 的物理音轨与媒体时钟由 RecordingManager 持有；Media Worker 
 | Record / Speech | Rust RecordStore、RecordingManager、SpeechRecognitionManager + Media Worker | [录音与语音识别](./tech_docs/recording_and_speech_recognition.md) |
 | Search | Rust SearchEngine；Session、Record 与工作区文件索引 | [搜索](./tech_docs/search_architecture.md) |
 | Terminal / BrowserPanel | Rust native resource manager；绑定 exact Tab/resource generation | [DESIGN](./DESIGN.md)、[Pit-of-Success](./tech_docs/pit_of_success.md) |
-| 托管浏览器工具 | Rust 持有 Chromium 资源、Session capability 与身份持久化；Global Sidecar Registry 持有浏览器/Context，MCP backend 借用 | [托管浏览器](./tech_docs/managed_browser.md) |
+| 产品浏览器（扩展单通道） | Rust 自动准备/校验锁定的浏览器并校验 Session capability；Global 启动专用持久 profile、自动预置扩展，ExtensionBrowserHost 统一聊天/批量/现场与接管锁；不修改用户日常 Chrome，BridgeCdp 按标签借用 debugger | [浏览器宿主](./tech_docs/managed_browser.md) |
 | Floating Companion | Rust 独立窗口 + Renderer 轻量 WebView；以 `Companion` owner 复用 Product Session | [Session](./tech_docs/session_architecture.md) |
 | Cloud Space | Rust connector；登录、Cloud IO、Registered Agent 与 delivery | [Cloud Space](./tech_docs/space_cloud.md)、[Delivery protocol](./tech_docs/space_issue_delivery_protocol.md) |
 | Theme | Renderer app-global Theme owner；Appearance 只是明暗偏好 | [Theme](./tech_docs/theme_system.md) |

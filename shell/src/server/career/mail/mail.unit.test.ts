@@ -47,6 +47,15 @@ describe('providers / credentials', () => {
 });
 
 describe('syncMailAccount', () => {
+  it('招聘系统验证码不落 mail_message、不送模型，正常游标继续前进', async () => {
+    const llm = new FakeLLM(); const d = await deps(llm);
+    const account = d.repos.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' });
+    d.repos.updateMailAccount(account.id, { last_uid: 4 }); setMailPassword(account.id, 'test');
+    const res = await syncMailAccount({ ...d, fetchNew: async () => [mail({ uid: 5, subject: '招聘账号验证码', text: '验证码：123456', from: 'code@mokahr.com' })] }, d.repos.getMailAccount(account.id)!);
+    expect(res).toMatchObject({ stored: 0, ignored: 1 });
+    expect(d.repos.listMailMessages({})).toHaveLength(0); expect(llm.calls).toHaveLength(0);
+    expect(d.repos.getMailAccount(account.id)?.last_uid).toBe(5);
+  });
   it('增量同步：新邮件落库、求职邮件归档到卷宗、无关邮件忽略、last_uid 前进、重复 uid 跳过', async () => {
     const llm = new FakeLLM();
     const d = await deps(llm);

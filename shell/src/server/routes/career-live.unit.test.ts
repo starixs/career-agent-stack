@@ -199,7 +199,8 @@ describe('career live route', () => {
     const page = {
       url: () => 'https://zhaopin.meituan.com/web/position/detail', title: async () => '职位详情', isClosed: () => false,
       viewportSize: () => ({ width: 1366, height: 768 }),
-      evaluate: async () => ({ width: 1440, height: 1543 }),
+      // 真实 Chrome 桥接页报的是页面此刻的视口（livePageViewport）
+      viewport: async () => ({ width: 1440, height: 1543 }),
       mouse: { click: async (...a: unknown[]) => { calls.push(a); } },
       waitForTimeout: async () => {},
     };
@@ -355,7 +356,8 @@ describe('career live route', () => {
     const until = async (pred: () => boolean) => { for (let i = 0; i < 100 && !pred(); i++) { const r = await Promise.race([reader.read(), new Promise<{ value?: Uint8Array; done: boolean }>(ok => setTimeout(() => ok({ done: false }), 20))]); if (r.value) buf += decoder.decode(r.value); } };
     await until(() => buf.includes('frame-status'));
     expect(buf).toContain('"state":"waiting"');
-    expect(buf).toContain('浏览器还没有打开');
+    expect(buf).toContain('正在自动准备浏览器');
+    expect(buf).not.toContain('启用 career-bridge');
     expect(borrowed).not.toHaveBeenCalled();
     open = true;
     await until(() => borrowed.mock.calls.length > 0);
@@ -405,7 +407,7 @@ describe('career live route', () => {
     open = false;
     contexts[contexts.length - 1].emit('close');
     await until(() => buf.includes('"state":"closed"'));
-    expect(buf).toContain('浏览器已关闭');
+    expect(buf).toContain('浏览器连接已断开');
     open = true;
     await until(() => contexts.length > baseline);
     expect(contexts.length).toBeGreaterThan(baseline);

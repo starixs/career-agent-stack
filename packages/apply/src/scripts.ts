@@ -431,6 +431,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
     const seenRadio = new Set<Element>()
     const els = Array.from(document.querySelectorAll('input, textarea, select, [contenteditable="true"], [role="combobox"]'))
     for (const el of els) {
+      // 宿主自动收码写入的 OTP 不参与资料规划、答案记忆或模型上下文。
+      if (el.getAttribute('data-career-private') === 'otp') continue
       const tag = el.tagName.toLowerCase()
       const itype = ((el as HTMLInputElement).type || '').toLowerCase()
       const role = el.getAttribute('role') || ''

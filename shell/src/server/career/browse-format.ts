@@ -11,6 +11,13 @@ export function formatBrowse(out: Record<string, unknown>): string {
     lines.push(`回执：${rc.ok ? '成功' : '未执行 / 未确认'} · 效果 ${rc.observed_effect} · ${rc.retryable ? '可重试' : '不要重复这个操作'}${rc.code ? ` · ${rc.code}` : ''}`);
     lines.push(String(rc.note ?? ''));
     if (Array.isArray(rc.new_tabs) && rc.new_tabs.length) lines.push(`新标签页：${(rc.new_tabs as Array<{ title: string }>).map(t => t.title).join('、')}`);
+    const changes = rc.changes as { appeared?: string[]; disappeared?: string[] } | undefined;
+    if (changes && ((changes.appeared ?? []).length || (changes.disappeared ?? []).length)) {
+      const parts: string[] = [];
+      if (changes.appeared?.length) parts.push(`出现：${changes.appeared.join('、')}`);
+      if (changes.disappeared?.length) parts.push(`消失：${changes.disappeared.join('、')}`);
+      lines.push(`变化：${parts.join('；')}`);
+    }
     if (rc.required_next === 'apply_flow') lines.push('下一步：browser_capture_job 收录岗位 → apply_prepare（用户批准后由投递流程处理）。');
     if (rc.required_next === 'handoff') lines.push('下一步：请用户帮一下（browser_wait_user），他做完接着办。');
     if (rc.required_next === 'retry_or_observe') lines.push('下一步：导航失败但无副作用——先重试一次 browser_act navigate；仍失败用 browser_observe 看当前页再决定，不要直接告诉用户打不开。');

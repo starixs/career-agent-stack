@@ -206,14 +206,15 @@ describe('career browser route: run', () => {
     expect((await ndjson(noLlm!)).at(-1)).toMatchObject({ type: 'error', status: 501 });
     expect(apply.driveApplication).not.toHaveBeenCalled();
 
+    const verify = vi.fn(async () => ({ status: 'unchanged' as const }));
     const driven = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'drive', profile: { basics: {} }, maxPages: 2 } }), {
-      host, loadApply: async () => apply, resolveLlm: async () => ({ complete: async () => ({}) }),
+      host, loadApply: async () => apply, resolveLlm: async () => ({ complete: async () => ({}) }), verify,
     });
     const lines = await ndjson(driven!);
     expect(lines.at(-1)).toMatchObject({
       type: 'result', op: 'drive', result: { status: 'stopped_before_submit' }, screenshot: { base64: Buffer.from([9]).toString('base64') },
     });
-    expect(apply.driveApplication).toHaveBeenCalledWith(expect.anything(), expect.anything(), { basics: {} }, expect.objectContaining({ maxPages: 2, humanTyping: true }));
+    expect(apply.driveApplication).toHaveBeenCalledWith(expect.anything(), expect.anything(), { basics: {} }, expect.objectContaining({ maxPages: 2, humanTyping: true, verify }));
   });
 
   it('drive：界面只收人话进度（不广播内部日志）；运行记录目录按 actionId 传给引擎', async () => {
@@ -357,5 +358,22 @@ describe('collectPassiveResponses', () => {
     controller.abort();
     await expect(collecting).resolves.toEqual([expect.objectContaining({ status: 204, json: null })]);
     expect(page.listenerCount('response')).toBe(0);
+  });
+});
+
+describe('browse cdp', () => {
+  it('当前浏览页直达白名单 CDP，截图类长字符串不原样回传', async () => {
+    const { host, page } = fakeHost();
+    const send = vi.fn(async () => ({ result: { value: 'ok' }, data: 'A'.repeat(500) }));
+    Object.assign(page, { newCDPSession: async () => ({ send }) });
+    const res = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'browse', action: 'cdp', method: 'Runtime.evaluate', params: { expression: '1' } } }), { host });
+    expect((await ndjson(res!)).at(-1)).toMatchObject({ type: 'result', action: 'cdp', cdp: { ok: true, method: 'Runtime.evaluate', data: { result: { value: 'ok' }, data: '[500 chars omitted]' } } });
+    expect(send).toHaveBeenCalledWith('Runtime.evaluate', { expression: '1' });
+  });
+
+  it('Target / Network 等身份与网络域不开放给模型', async () => {
+    const { host } = fakeHost();
+    const res = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'browse', action: 'cdp', method: 'Target.attachToTarget', params: {} } }), { host });
+    expect((await ndjson(res!)).at(-1)).toMatchObject({ type: 'error', code: 'CDP_METHOD_NOT_ALLOWED' });
   });
 });
