@@ -25,6 +25,15 @@ import './delivery.css';
 
 /** 等你条上最多几个小签（规范 §5.2）。 */
 const DOCK_THUMBS = 3;
+/** 进度格最多画几格：一批几百份时一份一格会把整条挤成竖排方块（2026-11-03 实测）。 */
+export const METER_MAX_CELLS = 20;
+
+/** 进度格：份数少时一份一格，多了按比例点亮。 */
+export function meterCells(done: number, total: number): boolean[] {
+  const n = Math.min(Math.max(total, 0), METER_MAX_CELLS);
+  const lit = total > 0 ? Math.round((Math.min(done, total) / total) * n) : 0;
+  return Array.from({ length: n }, (_, i) => i < lit);
+}
 
 function DockBar({ asks, run, onDeck, onRun, dockRef }: { asks: AskView[]; run: RunView | null; onDeck: () => void; onRun: () => void; dockRef: React.RefObject<HTMLButtonElement | null> }) {
   const first = asks[0];
@@ -43,7 +52,7 @@ function DockBar({ asks, run, onDeck, onRun, dockRef }: { asks: AskView[]; run: 
       {run && (
         <button type="button" className="cd-dock-run" onClick={onRun} aria-label={`今天投出 ${run.done} / ${run.total}，点开看这批`}>
           <span>投出 {run.done} / {run.total}</span>
-          <span className="cd-meter" aria-hidden>{run.items.map((it, i) => <i key={it.application_id} className={i < run.done ? 'on' : ''} />)}</span>
+          <span className="cd-meter" aria-hidden>{meterCells(run.done, run.total).map((on, i) => <i key={i} className={on ? 'on' : ''} />)}</span>
         </button>
       )}
     </div>

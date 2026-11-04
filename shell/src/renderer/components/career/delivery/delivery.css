@@ -103,15 +103,15 @@
 
 /* ---------- 等你条 ---------- */
 .cd-dock { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 4px; }
-.cd-dock-ask { display: inline-flex; align-items: center; gap: 10px; height: 32px; padding: 0 12px 0 10px; border-radius: 8px; color: var(--primary); font-size: 13.5px; cursor: pointer; }
+.cd-dock-ask { display: inline-flex; align-items: center; gap: 10px; height: 32px; white-space: nowrap; flex-shrink: 0; padding: 0 12px 0 10px; border-radius: 8px; color: var(--primary); font-size: 13.5px; cursor: pointer; }
 .cd-dock-ask:hover { background: color-mix(in srgb, var(--primary) 9%, transparent); }
 .cd-dock-ask b { font-size: 16px; }
 .cd-dock-ask em { font-style: normal; font-weight: 600; }
 .cd-dock-thumbs { display: inline-flex; gap: 3px; }
 .cd-dock-none { padding: 0 10px; font-size: 13px; color: var(--subtle); }
-.cd-dock-run { display: inline-flex; align-items: center; gap: 10px; height: 32px; margin-left: auto; padding: 0 10px; border-radius: 8px; color: var(--ink-2); font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.cd-dock-run { display: inline-flex; align-items: center; gap: 10px; height: 32px; margin-left: auto; white-space: nowrap; flex-shrink: 0; padding: 0 10px; border-radius: 8px; color: var(--ink-2); font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; }
 .cd-dock-run:hover { background: var(--inset); }
-.cd-meter { display: inline-flex; gap: 2px; }
+.cd-meter { display: inline-flex; gap: 2px; flex-shrink: 0; }
 .cd-meter i { width: 6px; height: 12px; border-radius: 1.5px; box-shadow: inset 0 0 0 1px var(--ink); }
 .cd-meter i.on { background: var(--ink); }
 

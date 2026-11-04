@@ -290,3 +290,13 @@ describe('等你卡 · 开放题带着小芽写好的一版', () => {
     expect(screen.getByDisplayValue('我在社团做过三次宣传活动。')).toBeInTheDocument();
   });
 });
+
+describe('等你条进度格', () => {
+  it('一批几百份时最多画 20 格、按比例点亮；份数少时一份一格（2026-11-03 一批 1000+ 份把整条挤成竖排方块）', async () => {
+    const { meterCells, METER_MAX_CELLS } = await import('./WaitingDock');
+    expect(meterCells(250, 1000)).toHaveLength(METER_MAX_CELLS);
+    expect(meterCells(250, 1000).filter(Boolean)).toHaveLength(5);
+    expect(meterCells(2, 3)).toEqual([true, true, false]);
+    expect(meterCells(0, 0)).toEqual([]);
+  });
+});
