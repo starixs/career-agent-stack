@@ -129,15 +129,19 @@ describe('可信输入（CDP 三事件）', () => {
 })
 
 describe('DOM 操作面（apply PageLike 底层）', () => {
-  it('activates the working tab and attaches before measuring click coordinates', async () => {
+  it('activates the working tab inside its window before measuring, without raising Chrome over other apps (2026-11-04)', async () => {
     const { page, bridge, execCalls, cdpCalls } = proxyHarness()
     const send = bridge.sendCommand
+    const tabCmds: string[] = []
     bridge.sendCommand = async <T,>(cmd: Record<string, unknown>, timeout?: number): Promise<T> => {
-      if (cmd.method === 'Page.bringToFront') expect(execCalls).toHaveLength(0)
+      if (cmd.cmd === 'tabs') { tabCmds.push(String(cmd.method)); if (cmd.method === 'activate') { expect(execCalls).toHaveLength(0); return { ok: true } as T } }
       return send<T>(cmd, timeout)
     }
     await page.click('#send')
-    expect(cdpCalls.some(c => c.method === 'Page.bringToFront')).toBe(true)
+    expect(tabCmds).toContain('activate')
+    expect(tabCmds).not.toContain('switch')
+    expect(cdpCalls.some(c => c.method === 'Page.bringToFront')).toBe(false)
+    expect(cdpCalls.some(c => c.method === 'Emulation.setFocusEmulationEnabled')).toBe(true)
   })
 
   it('fill：JS 赋值 + input/change 事件', async () => {

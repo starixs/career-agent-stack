@@ -95,6 +95,11 @@ async function handleTabs(msg) {
       return { ok: true, data: { id: tab.id, url: tab.pendingUrl || tab.url || msg.url || 'about:blank', title: tab.title || '' } };
     }
     if (msg.method === 'navigate') return await navigateTab(msg.tabId, msg.url);
+    // 只在窗口内切标签（后台填表用）：不 windows.update(focused)，不把 Chrome 顶到用户正在用的应用前面
+    if (msg.method === 'activate') {
+      await chrome.tabs.update(msg.tabId, { active: true });
+      return { ok: true };
+    }
     if (msg.method === 'switch') {
       const tab = await chrome.tabs.update(msg.tabId, { active: true });
       await chrome.windows.update(tab.windowId, { focused: true });

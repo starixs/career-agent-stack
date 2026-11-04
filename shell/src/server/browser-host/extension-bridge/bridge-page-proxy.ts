@@ -105,6 +105,11 @@ export class BridgePageProxy {
   }
 
   /** 把工作标签页拉到前台（"到外面看"：真实 Chrome 窗口切到这一页）。 */
+  /** 只在它自己的窗口里切成当前标签，不激活窗口、不抢别的应用的焦点。 */
+  private async activateInWindow(): Promise<void> {
+    await this.deps.bridge.sendCommand({ cmd: 'tabs', method: 'activate', tabId: this.tab.id })
+  }
+
   async bringToFront(): Promise<void> {
     await this.deps.bridge.sendCommand({ cmd: 'tabs', method: 'switch', tabId: this.tab.id })
   }
@@ -250,8 +255,11 @@ export class BridgePageProxy {
 
   async click(selector: string): Promise<void> {
     // Background tabs throttle trusted input; debugger attach can shift layout.
-    // Activate before measuring, not after obtaining coordinates.
-    await this.ensureCdp().send('Page.bringToFront')
+    // Activate before measuring, not after obtaining coordinates. Only switch the tab inside its window:
+    // CDP Page.bringToFront also raises Chrome over whatever the user is doing (2026-11-04: the browser
+    // kept jumping to the front during background applying). Focus emulation keeps the page "focused".
+    await this.activateInWindow()
+    await this.ensureCdp().send('Emulation.setFocusEmulationEnabled', { enabled: true })
     const rect = await this.rectOf(selector)
     if (!rect) throw new Error(`找不到要点的元素: ${selector}`)
     await this.scrollIntoViewIfNeeded(selector)
