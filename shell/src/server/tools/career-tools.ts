@@ -189,6 +189,22 @@ export function mergeEvaluatePrefilter(existing: string | null | undefined, pref
 
 // ============= 岗位库表格的筛选维度（与渲染端 jobBoardFilters.ts 同义） =============
 // 页面上的「批次 / 行业 / 类型 / 地点 / 进度」多选 + 搜索：jobs_board 用同一套语义，保证助理看到的就是页面那一批。
+/** review_queue 默认回几条：够助理判断，又不超出工具输出上限。 */
+const REVIEW_QUEUE_DEFAULT_LIMIT = 50;
+/** 队列里一条动作的精简视图：公司、岗位、状态、出错原因、网申域名。 */
+export function reviewRow(r: Repos, a: ActionQueueItem): Record<string, unknown> {
+  const payload = parseJson<{ url?: string }>(a.payload_json) ?? {};
+  const result = parseJson<{ error?: string; status?: string; reason?: string; message?: string }>(a.result_json) ?? {};
+  const app = a.application_id ? r.getApplication(a.application_id) : undefined;
+  const job = app ? r.getJob(app.job_id) : undefined;
+  let host: string | undefined;
+  try { host = payload.url ? new URL(payload.url).hostname : undefined; } catch { host = payload.url; }
+  return {
+    id: a.id, kind: a.kind, status: a.status, application_id: a.application_id, company: job?.company_name, title: job?.title, host,
+    result: result.error ?? result.reason ?? result.status, message: result.message?.slice(0, 160), updated_at: a.updated_at,
+  };
+}
+
 const EMPLOYMENT_LABELS: Record<string, string> = { campus: '校招', intern: '实习', social: '社招' };
 /** 与 job-board.ts 的 DONE 一致：投出去之后的阶段。 */
 const BOARD_DONE_STAGES: ReadonlySet<string> = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired', 'skip']);
@@ -1430,9 +1446,16 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ job: { id: job.id, title: job.title, company_name: job.company_name, url: job.url }, parsed_title: (parsed as { title?: string }).title ?? null, note: '已收录。接下来可以 job_evaluate；用户决定投递就 apply_prepare（会让用户批准）。' });
       })()),
 
-      tool('review_queue', '列出动作队列（默认 pending_review）。', {
+      tool('review_queue', '列出动作队列（默认 pending_review）：每条只回公司、岗位、状态、出错原因和网申域名，默认最多 50 条（total 是总数）。', {
         status: z.enum(['pending_review', 'approved', 'executing', 'needs_user', 'done', 'failed', 'rejected']).optional(),
-      }, async (args) => wrap(() => text(repos().listActions(args.status ?? 'pending_review')))()),
+        limit: z.number().int().min(1).max(200).optional(),
+      }, async (args) => wrap(() => {
+        // 原样吐整条记录（payload / result 全文）几十条就超出工具输出上限，助理只能去翻落盘文件（2026-11-05 批量重投时）
+        const r = repos();
+        const all = r.listActions(args.status ?? 'pending_review');
+        const items = all.slice(0, args.limit ?? REVIEW_QUEUE_DEFAULT_LIMIT).map(a => reviewRow(r, a));
+        return text({ total: all.length, returned: items.length, items });
+      })()),
 
       // ---------- 面试 ----------
       tool('interview_questions', '按岗位与 JD 出一组带追问点的面试题（九类题型），不给标准答案。', {
