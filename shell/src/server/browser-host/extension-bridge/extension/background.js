@@ -127,7 +127,15 @@ async function handleCdp(msg) {
   const kept = attachedTabs.has(tabId);
   try {
     if (!kept) await chrome.debugger.attach({ tabId }, '1.3');
-    const result = await chrome.debugger.sendCommand({ tabId }, msg.method, msg.params || {});
+    let result;
+    try { result = await chrome.debugger.sendCommand({ tabId }, msg.method, msg.params || {}); }
+    catch (sendErr) {
+      // attachedTabs 标记还在但真实调试器已掉（infobar 被关 / Chrome 单方面 detach）：重挂一次再发，不把假活状态抛给上层
+      if (!/not attached/i.test(sendErr.message || '')) throw sendErr;
+      await chrome.debugger.attach({ tabId }, '1.3');
+      if (kept) attachedTabs.add(tabId);
+      result = await chrome.debugger.sendCommand({ tabId }, msg.method, msg.params || {});
+    }
     if (!kept) await chrome.debugger.detach({ tabId });
     return { ok: true, data: result };
   } catch (e) {

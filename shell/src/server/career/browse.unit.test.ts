@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { detectHints, inPage, type ElementInfo } from './browse';
+import { detectHints, diffDigest, digestInPage, inPage, type ElementInfo } from './browse';
 
 // 模型浏览的纯逻辑（真实 Chrome 流程见 scripts/career-browse-smoke.mjs）。
 
@@ -141,5 +141,44 @@ describe('动作期间新开的标签页只认自己打开的', () => {
     const otherRun = fake(null);
     const closedPopup = fake(me, true);
     expect(await openedBy(me, [otherRun, popup, closedPopup])).toEqual([popup]);
+  });
+});
+
+describe('diffDigest', () => {
+  it('报告这次操作后出现 / 消失的元素，各自有上限', () => {
+    const before = ['button 获取验证码', 'input 手机号'];
+    const after = ['button 重新发送(30s)', 'input 手机号', 'div 欢迎回来'];
+    expect(diffDigest(before, after)).toEqual({ appeared: ['button 重新发送(30s)', 'div 欢迎回来'], disappeared: ['button 获取验证码'] });
+    const many = Array.from({ length: 12 }, (_, i) => `item${i}`);
+    const capped = diffDigest([], many);
+    expect(capped.appeared).toHaveLength(6);
+    expect(capped.disappeared).toEqual([]);
+  });
+
+  it('没变化就两边都是空，不产生噪声', () => {
+    expect(diffDigest(['a', 'b'], ['b', 'a'])).toEqual({ appeared: [], disappeared: [] });
+  });
+});
+
+describe('digestInPage 隐私边界', () => {
+  it('只记录输入框占位提示，不把当前值（验证码、手机号）带进变化回执', () => {
+    class FakeInput {}
+    class FakeLink {}
+    const input = Object.assign(new FakeInput(), { tagName: 'INPUT', value: '123456', placeholder: '短信验证码', getBoundingClientRect: () => ({ width: 100, height: 20 }) });
+    const link = Object.assign(new FakeLink(), { tagName: 'A', innerText: '账号 15500001234，验证码 123456', getBoundingClientRect: () => ({ width: 100, height: 20 }) });
+    vi.stubGlobal('HTMLInputElement', FakeInput);
+    vi.stubGlobal('document', { querySelectorAll: (selector: string) => selector.includes('button') ? [input, link] : [] });
+    vi.stubGlobal('getComputedStyle', () => ({ visibility: 'visible', display: 'block' }));
+    const digest = digestInPage();
+    expect(digest).toEqual(['input 短信验证码', 'a 账号 [手机号]，验证码 [数字]']);
+    expect(digest.join(' ')).not.toContain('123456');
+    expect(digest.join(' ')).not.toContain('15500001234');
+    vi.unstubAllGlobals();
+  });
+});
+
+describe('diffDigest 桥接边界', () => {
+  it('桥接层没返回数组时按空清单处理，不让操作失败', () => {
+    expect(diffDigest(undefined as unknown as string[], null as unknown as string[])).toEqual({ appeared: [], disappeared: [] });
   });
 });

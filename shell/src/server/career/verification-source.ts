@@ -26,7 +26,7 @@ export async function prepareCodeSource(repos: Repos, template: VerificationTemp
   if (template.channel === 'sms') {
     if (template.smsRecipient !== recipient) throw new Error('手机号与配对确认配置不一致');
     const phone = await phoneLink();
-    if (phone.status().state !== 'connected') throw new Error('手机未连接');
+    if (!(await phone.ensureConnected(signal))) throw new Error('手机未连接');
     return {
       wait: async since => (await phone.waitForCode({ since, signature: template.smsSignature, strict: true, timeoutMs: 120_000, signal }))?.code ?? null,
       close: async () => undefined,

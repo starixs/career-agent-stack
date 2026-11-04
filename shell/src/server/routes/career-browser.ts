@@ -417,6 +417,26 @@ const OPS: ReadonlySet<string> = new Set<CareerBrowserOp>(['screenshot', 'diagno
 export const BROWSE_PAGE_KEY = '__browse__';
 
 /** 在已借到的 Context 上执行一次操作（路由与 Global 批量运行器共用）。 */
+/** 模型直发 CDP（action:'cdp'）：白名单域内直达当前浏览页的调试器会话（跨域 iframe / 坐标 / 截图）。 */
+async function runBrowseCdp(body: Record<string, unknown>, page: Page, out: RunEmitter): Promise<void> {
+  const { cdpMethodAllowed, sanitizeCdpResult } = await import('../career/browse-cdp');
+  const method = typeof body.method === 'string' ? body.method : '';
+  if (!cdpMethodAllowed(method)) {
+    out.emit({ type: 'error', status: 400, code: 'CDP_METHOD_NOT_ALLOWED', error: 'CDP 只开放 Page / Input / DOM / Runtime / Emulation 域；跨域 iframe 用 Page.getFrameTree + Page.createIsolatedWorld + Runtime.evaluate' });
+    return;
+  }
+  const proxy = page as unknown as { newCDPSession?: () => Promise<{ send(method: string, params?: Record<string, unknown>): Promise<unknown> }> };
+  const session = await proxy.newCDPSession?.();
+  if (!session) { out.emit({ type: 'error', status: 501, code: 'CDP_UNAVAILABLE', error: '当前浏览器没有调试器会话（扩展桥未连接）' }); return; }
+  try {
+    const params = body.params && typeof body.params === 'object' && !Array.isArray(body.params) ? body.params as Record<string, unknown> : undefined;
+    const data = await session.send(method, params);
+    out.emit({ type: 'result', op: 'browse', action: 'cdp', cdp: { ok: true, method, data: sanitizeCdpResult(data) } });
+  } catch (error) {
+    out.emit({ type: 'error', status: 500, code: 'CDP_FAILED', error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 /**
  * 模型逐步浏览（career/browse.ts）：observe / act / read。用专用浏览页；点击开了新标签就把浏览页换成新标签；
  * 每次操作后让现场画面切到这一页。输入里的 {{vault:...}} 在这里换成明文，模型看不到。
@@ -443,6 +463,10 @@ async function runBrowse(body: Record<string, unknown>, context: BrowserContext,
       // 操作成功就顺带给出新观察，省一轮往返（观察编号随之更新）
       const observation = receipt.ok && body.observeAfter !== false ? await browse.observe(context, page, browseDeps).catch(() => null) : null;
       out.emit({ type: 'result', op: 'browse', action, receipt: rest, ...(observation ? { observation } : {}) });
+      return;
+    }
+    if (action === 'cdp') {
+      await runBrowseCdp(body, page, out);
       return;
     }
     if (action === 'solve_captcha') {

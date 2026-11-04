@@ -64,3 +64,15 @@ describe('shipped career-bridge service worker', () => {
     expect(runInContext('ws !== null', context)).toBe(true)
   })
 })
+
+describe('debugger attachment recovery', () => {
+  it('标记仍在但 Chrome 已 detach 时，重挂一次再发，不重复脱离持久会话', async () => {
+    const { context, debuggerApi } = worker()
+    await runInContext('handleCdpAttach({tabId: 1})', context)
+    debuggerApi.sendCommand.mockRejectedValueOnce(new Error('Debugger is not attached to the tab with id: 1.'))
+    const result = await runInContext('handleCdp({tabId:1,method:"Runtime.evaluate",params:{expression:"1"}})', context)
+    expect(result).toEqual({ ok: true, data: {} })
+    expect(debuggerApi.attach).toHaveBeenCalledTimes(2)
+    expect(debuggerApi.detach).not.toHaveBeenCalled()
+  })
+})

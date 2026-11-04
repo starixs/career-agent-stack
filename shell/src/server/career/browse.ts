@@ -101,6 +101,28 @@ export function signatureInPage(): string {
   return `${location.href}|${b ? b.innerText.length : 0}|${document.querySelectorAll('*').length}|${Math.round(window.scrollY)}`;
 }
 
+/** 操作前后各取一份「页面上有什么」的清单（可交互元素 + 一闪而过的提示），给 diffDigest 算变化。页内执行，不能引用外部变量。 */
+export function digestInPage(): string[] {
+  const vis = (el: Element) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 2 && r.height > 2 && s.visibility !== 'hidden' && s.display !== 'none'; };
+  const out: string[] = [];
+  const push = (kind: string, el: Element) => { const raw = (el instanceof HTMLInputElement ? el.placeholder : (el as HTMLElement).innerText) || ''; const t = raw.replace(/1[3-9]\d{9}/g, '[手机号]').replace(/[\w.+-]+@[\w.-]+\.[a-z]+/gi, '[邮箱]').replace(/\b\d{4,8}\b/g, '[数字]').replace(/\s+/g, ' ').trim().slice(0, 24); if (t) out.push(`${kind} ${t}`); };
+  for (const el of Array.from(document.querySelectorAll('button, a[href], input, select, [role=button]')).filter(vis).slice(0, 40)) push(el.tagName.toLowerCase(), el);
+  for (const el of Array.from(document.querySelectorAll('[class*=toast], [class*=message], [class*=error], [class*=tip]')).filter(vis).slice(0, 8)) push('tip', el);
+  return [...new Set(out)];
+}
+
+/** 两份清单差集：这次操作后出现 / 消失了什么。各自封顶，避免长列表噪声。 */
+export function diffDigest(before: readonly string[], after: readonly string[], cap = 6): { appeared: string[]; disappeared: string[] } {
+  const previous = Array.isArray(before) ? before : [];
+  const current = Array.isArray(after) ? after : [];
+  const had = new Set(previous);
+  const has = new Set(current);
+  return {
+    appeared: current.filter(item => !had.has(item)).slice(0, cap),
+    disappeared: previous.filter(item => !has.has(item)).slice(0, cap),
+  };
+}
+
 /**
  * 把页面内函数送进浏览器执行。tsx / esbuild 为保留函数名会在函数体里插 `__name(...)`，
  * 序列化后浏览器里没有这个 helper 会直接 ReferenceError——所以先垫一个空实现。
@@ -233,6 +255,8 @@ export interface Receipt {
   observed_effect: 'navigated' | 'changed' | 'no_change' | 'unknown';
   url_before: string; url_after: string;
   new_tabs: Array<{ title: string; url: string }>;
+  /** 这次操作后页面元素出现 / 消失了什么（有变化时才有）。 */
+  changes?: { appeared: string[]; disappeared: string[] };
   /** 操作后要看的那一页（新开标签时会切过去）。 */
   page: Page;
   retryable: boolean;
@@ -291,6 +315,7 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
 
   const urlBefore = page.url();
   const sigBefore = await inPage(page, signatureInPage, null).catch(() => '');
+  const digestBefore = await inPage(page, digestInPage, null).catch(() => [] as string[]);
   const opened: Page[] = [];
   const onPage = (p: Page) => { opened.push(p); };
   context.on('page', onPage);
@@ -344,6 +369,8 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
   const newTabs = await Promise.all(fresh.map(async p => ({ title: (await p.title().catch(() => '')).slice(0, 60), url: p.url().slice(0, 200) })));
   const urlAfter = target.url();
   const sigAfter = await inPage(target, signatureInPage, null).catch(() => '');
+  const digestAfter = await inPage(target, digestInPage, null).catch(() => [] as string[]);
+  const changes = diffDigest(digestBefore, digestAfter);
   if (dispatchError) {
     const msg = dispatchError instanceof Error ? dispatchError.message : String(dispatchError);
     const changedAnyway = urlAfter !== urlBefore || (sigAfter && sigAfter !== sigBefore);
@@ -377,6 +404,7 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
   if (effect !== 'no_change' || target !== page) observations.delete(identity(page));
   return {
     ok: true, action: req.action, observed_effect: effect, url_before: urlBefore, url_after: urlAfter, new_tabs: newTabs, page: target,
+    ...(changes.appeared.length || changes.disappeared.length ? { changes } : {}),
     retryable: effect === 'no_change', required_next: 'observe',
     note: effect === 'no_change'
       ? (req.action === 'scroll' ? '已滚动。' : '页面没有明显变化：可能需要等加载，或者点到的不是你想要的元素。先 browser_observe 确认，不要连点。')

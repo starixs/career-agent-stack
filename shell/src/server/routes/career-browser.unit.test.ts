@@ -360,3 +360,20 @@ describe('collectPassiveResponses', () => {
     expect(page.listenerCount('response')).toBe(0);
   });
 });
+
+describe('browse cdp', () => {
+  it('当前浏览页直达白名单 CDP，截图类长字符串不原样回传', async () => {
+    const { host, page } = fakeHost();
+    const send = vi.fn(async () => ({ result: { value: 'ok' }, data: 'A'.repeat(500) }));
+    Object.assign(page, { newCDPSession: async () => ({ send }) });
+    const res = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'browse', action: 'cdp', method: 'Runtime.evaluate', params: { expression: '1' } } }), { host });
+    expect((await ndjson(res!)).at(-1)).toMatchObject({ type: 'result', action: 'cdp', cdp: { ok: true, method: 'Runtime.evaluate', data: { result: { value: 'ok' }, data: '[500 chars omitted]' } } });
+    expect(send).toHaveBeenCalledWith('Runtime.evaluate', { expression: '1' });
+  });
+
+  it('Target / Network 等身份与网络域不开放给模型', async () => {
+    const { host } = fakeHost();
+    const res = await handleCareerBrowserRoute('/api/career/browser/run', request('/api/career/browser/run', { body: { op: 'browse', action: 'cdp', method: 'Target.attachToTarget', params: {} } }), { host });
+    expect((await ndjson(res!)).at(-1)).toMatchObject({ type: 'error', code: 'CDP_METHOD_NOT_ALLOWED' });
+  });
+});

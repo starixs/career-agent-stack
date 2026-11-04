@@ -39,6 +39,23 @@ async function readCode(client: Client, afterUid: number, sender: string, recipi
   return { code: null, cursor };
 }
 
+/** 部分 163 邮箱的 EXAMINE / STATUS 不返回 UIDNEXT；只取最高 UID，不读正文或扫描历史。 */
+async function freezeBaseline(client: Client): Promise<{ cursor: number; validity: string }> {
+  const mailbox = client.mailbox;
+  if (!mailbox || typeof mailbox.uidValidity !== 'bigint' || mailbox.uidValidity <= 0n) throw new Error('邮箱没有 UID 身份');
+  const validity = String(mailbox.uidValidity);
+  if (mailbox.uidNext !== undefined) {
+    if (!Number.isSafeInteger(mailbox.uidNext) || mailbox.uidNext < 1) throw new Error('无效 UID 基线');
+    return { cursor: mailbox.uidNext - 1, validity };
+  }
+  if (!Number.isSafeInteger(mailbox.exists) || mailbox.exists < 0) throw new Error('无效邮箱状态');
+  if (mailbox.exists === 0) return { cursor: 0, validity };
+  const last = await client.fetchOne('*', { uid: true }, { uid: true });
+  if (!last || !Number.isSafeInteger(last.uid) || last.uid < 1
+    || !client.mailbox || String(client.mailbox.uidValidity) !== validity) throw new Error('无法冻结 UID 基线');
+  return { cursor: last.uid, validity };
+}
+
 /** 在发码前建立 IMAP 会话、冻结 UID 基线；旧码即使标为未读也不会被选中。 */
 export async function prepareMailCode(account: Pick<MailAccount, 'address' | 'imap_host' | 'imap_port'>, password: string, sender: string, signal: AbortSignal): Promise<PreparedCode> {
   const { ImapFlow } = await import('imapflow');
@@ -47,12 +64,15 @@ export async function prepareMailCode(account: Pick<MailAccount, 'address' | 'im
   client.on('error', () => { console.warn('[apply-verification] IMAP transport error'); });
   signal.throwIfAborted();
   signal.addEventListener('abort', abort, { once: true });
+  let release: (() => void) | undefined;
   try {
     await client.connect();
     const lock = await client.getMailboxLock('INBOX', { readOnly: true });
-    if (!client.mailbox || !client.mailbox.uidNext) throw new Error('邮箱没有 UID 基线');
-    let cursor = client.mailbox.uidNext - 1;
-    const validity = String(client.mailbox.uidValidity);
+    release = () => lock.release();
+    const baseline = await freezeBaseline(client);
+    signal.throwIfAborted();
+    let cursor = baseline.cursor;
+    const validity = baseline.validity;
     return {
       wait: async since => {
         while (!signal.aborted) {
@@ -67,7 +87,7 @@ export async function prepareMailCode(account: Pick<MailAccount, 'address' | 'im
       close: async () => { signal.removeEventListener('abort', abort); lock.release(); client.close(); },
     };
   } catch {
-    signal.removeEventListener('abort', abort); client.close();
+    signal.removeEventListener('abort', abort); release?.(); client.close();
     throw new Error('邮箱收码连接失败');
   }
 }
