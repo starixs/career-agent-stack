@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { ChildProcess } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { HelperEvent, HelperProcess } from '../../utils/native-helper';
@@ -154,6 +155,77 @@ describe('PhoneLinkService', () => {
     } finally { log.mockRestore(); }
   });
 
+  it('掉线、再次靠近及进程重启均保留设备记忆，不再启动配对流程', async () => {
+    const { svc, kv, procs, deps, tick, openBluetoothSettings } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    procs[0]!.emit({ ev: 'link', state: 'connected' });
+    const remembered = svc.binding();
+    expect(remembered?.last_connected_at).toBeTruthy();
+    procs[0]!.emit({ ev: 'link', state: 'lost' });
+    procs[0]!.emit({ ev: 'link', state: 'unreachable' });
+    expect(svc.binding()).toEqual(remembered);
+    tick(60_000); procs[0]!.emit({ ev: 'link', state: 'connected' });
+    expect(svc.binding()?.bound_at).toBe(remembered?.bound_at);
+    await svc.stop();
+    const restarted = new PhoneLinkService(deps);
+    await restarted.start();
+    expect(procs.at(-1)?.args).toEqual(['link', MI10.address]);
+    expect(kv.get(PHONE_KV_KEY)).toMatchObject(MI10);
+    expect(openBluetoothSettings).not.toHaveBeenCalled();
+    await restarted.stop();
+  });
+
+  it('再次选用同一手机、重试与修复配对都不清掉记忆', async () => {
+    const { svc, procs, tick, openBluetoothSettings } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    procs[0]!.emit({ ev: 'link', state: 'connected' });
+    const remembered = svc.binding(); tick(60_000);
+    await svc.bind(MI10.address, MI10.name);
+    expect(svc.binding()).toEqual(remembered);
+    await svc.reconnect();
+    expect(svc.binding()).toEqual(remembered);
+    await svc.startPairing();
+    expect(svc.binding()).toEqual(remembered);
+    expect(procs.every(p => p.args[0] === 'link')).toBe(true);
+    expect(openBluetoothSettings).toHaveBeenCalledOnce();
+    await svc.stop();
+  });
+
+  it('助手暂报未配对：保留设备并自动重新检查，恢复配对后无需再选手机', async () => {
+    const { svc, procs } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    procs[0]!.emit({ ev: 'link', state: 'unpaired' }); procs[0]!.exit(2);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(procs).toHaveLength(2);
+    expect(svc.binding()).toMatchObject(MI10);
+    procs[1]!.emit({ ev: 'link', state: 'connected' });
+    expect(svc.status().state).toBe('connected');
+    await svc.stop();
+  });
+
+  it('取消配对后迟到的 paired 事件不得重新绑定手机', async () => {
+    const { svc, procs } = setup();
+    await svc.startPairing(); const old = procs[0]!;
+    svc.cancelPairing();
+    old.emit({ ev: 'paired', ...MI10, phone: true });
+    await Promise.resolve();
+    expect(svc.binding()).toBeNull();
+    expect(procs).toHaveLength(1);
+  });
+
+  it('启动幂等；助手退出后迟到的 connected 不能把离线标绿', async () => {
+    const { svc, kv, procs } = setup();
+    kv.set(PHONE_KV_KEY, { ...MI10, bound_at: '' });
+    await Promise.all([svc.start(), svc.start()]);
+    expect(procs).toHaveLength(1);
+    procs[0]!.exit(1);
+    procs[0]!.emit({ ev: 'link', state: 'connected' });
+    expect(svc.status().state).toBe('lost');
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(procs).toHaveLength(2);
+    await svc.stop();
+  });
+
   it('助手意外退出：标 lost，过一会重启', async () => {
     const { svc, procs } = setup();
     await svc.bind(MI10.address, MI10.name);
@@ -198,6 +270,104 @@ describe('PhoneLinkService', () => {
     procs[0]!.exit(0);
     await vi.advanceTimersByTimeAsync(30_000);
     expect(procs).toHaveLength(1);
+  });
+
+  it('断线总预算两分钟，反复事件不续期；休眠八小时不再启动助手', async () => {
+    const { svc, procs } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    procs[0]!.emit({ ev: 'link', state: 'connected' });
+    const remembered = svc.binding();
+    procs[0]!.emit({ ev: 'link', state: 'lost' });
+    await vi.advanceTimersByTimeAsync(110_000);
+    procs[0]!.emit({ ev: 'link', state: 'connecting' });
+    procs[0]!.emit({ ev: 'link', state: 'authorizing' });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(svc.status().state).toBe('paused');
+    expect(procs[0]!.closed).toBe(true);
+    expect(svc.binding()).toEqual(remembered);
+    procs[0]!.emit({ ev: 'link', state: 'connected' }); procs[0]!.exit(0);
+    await svc.start(); svc.status();
+    await vi.advanceTimersByTimeAsync(8 * 60 * 60_000);
+    expect(procs).toHaveLength(1);
+    expect(svc.status().state).toBe('paused');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('进程崩溃重启和未配对重查共享总预算，不能各自无限重试', async () => {
+    const { svc, procs } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    for (let i = 0; i < 4; i++) {
+      procs.at(-1)!.emit({ ev: 'link', state: 'unpaired' }); procs.at(-1)!.exit(2);
+      await vi.advanceTimersByTimeAsync(30_000);
+    }
+    expect(svc.status().state).toBe('paused');
+    expect(procs).toHaveLength(4);
+    await vi.advanceTimersByTimeAsync(8 * 60 * 60_000);
+    expect(procs).toHaveLength(4);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('手动唤醒只开新一轮；接通清掉计时，下一次断线重新计时', async () => {
+    const { svc, procs } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    await vi.advanceTimersByTimeAsync(120_000);
+    await svc.reconnect();
+    expect(procs).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(110_000);
+    procs[1]!.emit({ ev: 'link', state: 'connected' });
+    await vi.advanceTimersByTimeAsync(8 * 60 * 60_000);
+    expect(svc.status().state).toBe('connected');
+    procs[1]!.emit({ ev: 'link', state: 'lost' });
+    await vi.advanceTimersByTimeAsync(119_999);
+    expect(procs[1]!.closed).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(svc.status().state).toBe('paused');
+  });
+
+  it('预算到期后才完成启动的助手也关闭', async () => {
+    const { svc, deps, procs } = setup(); const spawn = deps.spawn;
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    deps.spawn = async (...args) => { const proc = await spawn(...args); await gate; return proc; };
+    const pending = svc.bind(MI10.address, MI10.name);
+    await vi.advanceTimersByTimeAsync(120_000);
+    release?.(); await pending;
+    expect(procs[0]!.closed).toBe(true);
+    expect(svc.status().state).toBe('paused');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('真实收码需要时唤醒，共享同一轮预算，取消等待不会泄漏监听', async () => {
+    const { svc, procs } = setup();
+    await svc.bind(MI10.address, MI10.name);
+    await vi.advanceTimersByTimeAsync(120_000);
+    const abort = new AbortController();
+    const cancelled = svc.ensureConnected(abort.signal);
+    const ready = svc.ensureConnected(new AbortController().signal);
+    expect(procs).toHaveLength(2);
+    abort.abort(); await expect(cancelled).resolves.toBe(false);
+    procs[1]!.emit({ ev: 'link', state: 'connected' });
+    await expect(ready).resolves.toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+    procs[1]!.emit({ ev: 'link', state: 'lost' });
+    const absent = svc.ensureConnected(new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(120_000);
+    await expect(absent).resolves.toBe(false);
+    expect(svc.status().state).toBe('paused');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('原生助手不响应退出时只强制终止自己持有的子进程', async () => {
+    const child = new ChildProcess(); const kill = vi.spyOn(child, 'kill').mockReturnValue(true);
+    const close = vi.fn();
+    const { svc } = setup({ spawn: async () => ({ child, send: vi.fn(), close }) });
+    await svc.bind(MI10.address, MI10.name);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(close).toHaveBeenCalledOnce();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(kill).toHaveBeenCalledWith('SIGKILL');
+    expect(vi.getTimerCount()).toBe(0);
+    expect(child.listenerCount('exit')).toBe(0);
   });
 
   it('非 macOS：不启动助手', async () => {

@@ -2,7 +2,8 @@
  * 手机连接服务（只在 Global 侧车跑一份）：绑定哪台手机、常驻原生助手盯验证码短信、配对引导。
  *
  * - 绑定记在 kv（PHONE_KV_KEY）；短信只在内存里留最近一条，不落库、不进日志。
- * - 助手（native/career-phone-helper.m）负责断线重连；界面保留最近失败，直到接通或主动重试。助手进程意外退出时按退避重启。
+ * - 助手执行传输重试，Global 统一限制一轮离线恢复预算；到期停助手休眠，显式需求才唤醒。
+ * - 预算内保留最近失败；成功不清设备记忆，后台状态刷新不延长预算。
  * - waitForCode 给以后的网申流程用：只认「开始等之后」到达、签名对得上的那条，防止批量投时串号。
  */
 import { createHash } from 'node:crypto';
@@ -28,6 +29,12 @@ export interface PhoneLinkDeps {
 
 /** 助手进程意外退出后的重启间隔（助手内部已有断线重连，这里只兜进程级故障）。 */
 const RESPAWN_DELAY_MS = 10_000;
+/** 配对被系统移除后仍记住设备，低频检查它是否已重新配对。 */
+const REPAIR_CHECK_MS = 30_000;
+/** 一轮离线恢复的总预算（包含原生内部重试与进程重启），到期停进程而非降低扫描频率。 */
+const RECONNECT_WINDOW_MS = 2 * 60_000;
+/** EOF / SIGTERM 无响应时兜住原生 SDK 卡死，避免休眠后仍留后台进程。 */
+const LINK_CLOSE_GRACE_MS = 5_000;
 /** devices 子命令的等待上限。 */
 const DEVICES_TIMEOUT_MS = 8_000;
 /** 签名比较前去掉的修饰（「飞书招聘」与站点名「飞书」能对上）。 */
@@ -54,8 +61,13 @@ export class PhoneLinkService {
   private latest: CodeSms | null = null;
   private link: HelperProcess | null = null;
   private linkGeneration = 0;
+  private connecting = false;
   private pairing: HelperProcess | null = null;
+  private pairingStarting = false;
+  private pairingGeneration = 0;
   private respawn: ReturnType<typeof setTimeout> | null = null;
+  private retryWindow: ReturnType<typeof setTimeout> | null = null;
+  private connectionWaiters = new Set<(connected: boolean) => void>();
   private waiters = new Set<Waiter>();
   private stopped = false;
   private consumed = new Map<string, number>();
@@ -74,7 +86,7 @@ export class PhoneLinkService {
   }
 
   status(): PhoneStatus {
-    return { platform_supported: this.deps.platformSupported, binding: this.binding(), state: this.state, pairing: !!this.pairing, latest: this.latest };
+    return { platform_supported: this.deps.platformSupported, binding: this.binding(), state: this.state, pairing: !!this.pairing || this.pairingStarting, latest: this.latest };
   }
 
   /** 侧车启动时调用：有绑定就连上。 */
@@ -106,35 +118,76 @@ export class PhoneLinkService {
 
   /** 引导配对：打开蓝牙设置页，等手机端发起的新配对；配上就绑定并连接。 */
   async startPairing(): Promise<void> {
-    if (!this.deps.platformSupported || this.pairing) return;
-    this.pairing = await this.deps.spawn(['wait-pair'], (ev) => {
-      if (ev.ev !== 'paired') return;
-      if (ev.phone !== true) { console.warn('[phone-link] 新配对的不是手机，继续等'); return; }
-      this.pairing = null;
-      void this.bind(str(ev.address), str(ev.name));
-    }, () => { this.pairing = null; this.deps.changed(); });
-    this.deps.changed();
-    await this.deps.openBluetoothSettings().catch((error: unknown) => console.warn('[phone-link] 打不开蓝牙设置:', error instanceof Error ? error.message : error));
+    if (!this.deps.platformSupported || this.pairing || this.pairingStarting) return;
+    // Repair the remembered target; don't lose it or wait for a "new" address.
+    if (this.binding()) { await this.reconnect(); await this.deps.openBluetoothSettings(); return; }
+    const generation = ++this.pairingGeneration;
+    this.pairingStarting = true; this.deps.changed();
+    let finished = false;
+    try {
+      const proc = await this.deps.spawn(['wait-pair'], ev => {
+        if (generation !== this.pairingGeneration || ev.ev !== 'paired') return;
+        if (ev.phone !== true) { console.warn('[phone-link] 新配对的不是手机，继续等'); return; }
+        finished = true;
+        void this.bind(str(ev.address), str(ev.name)).catch(error => console.warn('[phone-link] 配对后连接失败:', error));
+      }, () => {
+        if (generation !== this.pairingGeneration) return;
+        finished = true; this.pairing = null; this.pairingStarting = false; this.deps.changed();
+      });
+      if (generation !== this.pairingGeneration || finished) { proc.close(); return; }
+      this.pairing = proc;
+      await this.deps.openBluetoothSettings();
+    } finally {
+      if (generation === this.pairingGeneration) { this.pairingStarting = false; this.deps.changed(); }
+    }
   }
 
   cancelPairing(): void {
-    if (!this.pairing) return;
-    this.pairing.close();
-    this.pairing = null;
-    this.deps.changed();
+    this.pairingGeneration++;
+    const active = this.pairing || this.pairingStarting;
+    this.pairing?.close(); this.pairing = null; this.pairingStarting = false;
+    if (active) this.deps.changed();
   }
 
   async bind(address: string, name: string): Promise<void> {
     if (!address) throw new Error('手机地址为空');
+    if (this.binding()?.address === address) { await this.reconnect(); return; }
     this.cancelPairing();
     this.disconnect();
     this.latest = null;
     this.deps.kvSet(PHONE_KV_KEY, { address, name, bound_at: new Date(this.now()).toISOString() });
+    this.setState('connecting');
     await this.connect();
   }
 
+  /** 重连不改持久记忆，也不打开首次配对流程。 */
+  async reconnect(): Promise<void> {
+    if (!this.binding()) throw new Error('尚未选择手机');
+    this.cancelPairing(); this.disconnect();
+    this.setState('connecting');
+    await this.connect();
+  }
+
+  /** 仅真实收码任务可自动唤醒；状态读取/页面刷新不唤醒，不延长正在进行的一轮。 */
+  async ensureConnected(signal: AbortSignal): Promise<boolean> {
+    signal.throwIfAborted();
+    if (this.stopped || !this.deps.platformSupported || !this.binding()) return false;
+    const waking = ['paused', 'none'].includes(this.state) ? this.reconnect() : Promise.resolve();
+    return new Promise<boolean>((resolve, reject) => {
+      const cleanup = () => { this.connectionWaiters.delete(done); signal.removeEventListener('abort', abort); };
+      const done = (connected: boolean) => { cleanup(); resolve(connected); };
+      const abort = () => done(false);
+      this.connectionWaiters.add(done);
+      signal.addEventListener('abort', abort, { once: true });
+      void waking.catch((error: unknown) => { cleanup(); reject(error); });
+      if (signal.aborted) done(false);
+      else if (this.state === 'connected') done(true);
+      else if (['none', 'paused', 'unsupported', 'helper_missing'].includes(this.state)) done(false);
+    });
+  }
+
   unbind(): void {
-    this.disconnect();
+    this.cancelPairing(); this.disconnect();
     this.latest = null;
     this.state = 'none';
     this.deps.kvSet(PHONE_KV_KEY, null);
@@ -177,42 +230,76 @@ export class PhoneLinkService {
 
   private async connect(): Promise<void> {
     const binding = this.binding();
-    if (!binding || this.stopped) return;
-    this.setState('connecting');
+    if (!binding || this.stopped || this.state === 'paused' || this.link || this.connecting) return;
+    this.beginRetryWindow();
+    if (this.respawn) { clearTimeout(this.respawn); this.respawn = null; }
+    this.connecting = true;
+    // Background checks must not replace an actionable failure with a spinner.
+    if (!['unpaired', 'lost', 'unreachable', 'refused'].includes(this.state)) this.setState('connecting');
     const generation = ++this.linkGeneration;
     let exited = false;
     try {
       const proc = await this.deps.spawn(['link', binding.address],
         ev => { if (generation === this.linkGeneration) this.onLinkEvent(ev); },
         code => { exited = true; if (generation === this.linkGeneration) this.onLinkExit(code); });
-      if (generation !== this.linkGeneration || this.stopped || exited) { proc.close(); return; }
+      if (generation !== this.linkGeneration || this.stopped || exited) { this.closeLinkProcess(proc); return; }
       this.link = proc;
     } catch (error) {
       console.warn('[phone-link] 助手启动失败:', error instanceof Error ? error.message : error);
       if (generation === this.linkGeneration) this.setState('helper_missing');
-    }
+    } finally { if (generation === this.linkGeneration) this.connecting = false; }
+  }
+
+  private beginRetryWindow(): void {
+    if (this.retryWindow) return;
+    this.retryWindow = setTimeout(() => {
+      console.log('[phone-link] retry budget exhausted; pausing until explicit demand');
+      this.disconnect(); this.latest = null; this.latestFresh = false;
+      this.setState('paused');
+    }, RECONNECT_WINDOW_MS);
+    this.retryWindow.unref?.();
+  }
+
+  private clearRetryWindow(): void {
+    if (this.retryWindow) clearTimeout(this.retryWindow);
+    this.retryWindow = null;
+  }
+
+  private closeLinkProcess(proc: HelperProcess): void {
+    proc.close();
+    if (proc.child.exitCode !== null || proc.child.signalCode !== null) return;
+    const force = setTimeout(() => {
+      proc.child.removeListener('exit', exited);
+      if (proc.child.exitCode === null && proc.child.signalCode === null) {
+        console.warn('[phone-link] helper did not stop; terminating owned process');
+        proc.child.kill('SIGKILL');
+      }
+    }, LINK_CLOSE_GRACE_MS);
+    const exited = () => clearTimeout(force);
+    proc.child.once('exit', exited); force.unref?.();
   }
 
   private disconnect(): void {
-    this.linkGeneration++;
+    this.clearRetryWindow();
+    this.linkGeneration++; this.connecting = false;
     if (this.respawn) { clearTimeout(this.respawn); this.respawn = null; }
     const link = this.link;
     this.link = null;
-    link?.close();
+    if (link) this.closeLinkProcess(link);
+    for (const done of [...this.connectionWaiters]) done(false);
     for (const w of [...this.waiters]) w.resolve(null);
   }
 
   private onLinkEvent(ev: HelperEvent): void {
     if (ev.ev === 'diagnostic' && typeof ev.stage === 'string'
-      && ['sdp_start', 'sdp_done', 'rfcomm_start', 'rfcomm_done', 'obex_connect', 'set_path'].includes(ev.stage)
+      && ['sdp_start', 'sdp_done', 'rfcomm_start', 'rfcomm_existing', 'rfcomm_delegate', 'rfcomm_done', 'obex_connect', 'set_path'].includes(ev.stage)
       && typeof ev.result === 'number' && Number.isInteger(ev.result)) {
       console.log(`[phone-link] stage=${ev.stage} result=${ev.result}`); return;
     }
     if (ev.ev === 'link' && isLinkState(ev.state)) {
-      // The helper owns transport retries; retain the failure on screen until
-      // it succeeds or the user explicitly reconnects. Otherwise 60s retries
-      // hide the actionable failure behind a near-permanent spinner.
-      if (ev.state === 'connecting' && ['unreachable', 'refused', 'lost'].includes(this.state)) return;
+      // Native transport retries share the Global budget. Retain actionable
+      // failures until success or explicit reconnect instead of a permanent spinner.
+      if (ev.state === 'connecting' && ['unreachable', 'refused', 'lost', 'unpaired'].includes(this.state)) return;
       this.setState(ev.state); return;
     }
     if (ev.ev === 'latest') { if (typeof ev.body === 'string') this.receive(ev, false); else this.deps.changed(); return; }
@@ -220,12 +307,14 @@ export class PhoneLinkService {
   }
 
   private onLinkExit(code: number | null): void {
+    this.linkGeneration++; this.connecting = false;
     this.link = null;
-    // 3 = 手机没有短信读取服务、2 = 已取消配对：重启也没用
-    if (code === 3 || code === 2 || this.stopped) return;
-    console.warn(`[phone-link] 助手退出（code=${code}），${RESPAWN_DELAY_MS / 1000} 秒后重启`);
-    this.setState('lost');
-    this.respawn = setTimeout(() => { this.respawn = null; void this.connect(); }, RESPAWN_DELAY_MS);
+    if (this.stopped || !this.binding()) return;
+    if (code === 3 && !this.binding()?.last_connected_at) { this.clearRetryWindow(); this.setState('unsupported'); return; }
+    const delay = code === 2 ? REPAIR_CHECK_MS : RESPAWN_DELAY_MS;
+    console.warn(`[phone-link] 助手退出（code=${code}），${delay / 1000} 秒后重新检查已记住的手机`);
+    this.setState(code === 2 ? 'unpaired' : 'lost');
+    this.respawn = setTimeout(() => { this.respawn = null; void this.connect(); }, delay);
     this.respawn.unref?.();
   }
 
@@ -253,8 +342,17 @@ export class PhoneLinkService {
   }
 
   private setState(state: LinkState): void {
+    if (['connected', 'paused', 'none', 'helper_missing'].includes(state)) this.clearRetryWindow();
+    else if (state !== 'unsupported') this.beginRetryWindow();
     if (this.state === state) return;
     this.state = state;
+    const binding = this.binding();
+    if (state === 'connected' && binding) {
+      this.deps.kvSet(PHONE_KV_KEY, { ...binding, last_connected_at: new Date(this.now()).toISOString() });
+    }
+    if (['connected', 'paused', 'none', 'unsupported', 'helper_missing'].includes(state)) {
+      for (const done of [...this.connectionWaiters]) done(state === 'connected');
+    }
     console.log(`[phone-link] state=${state}`);
     this.deps.changed();
   }

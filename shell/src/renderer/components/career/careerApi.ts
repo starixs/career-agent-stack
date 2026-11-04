@@ -303,6 +303,7 @@ export const careerApi = {
   startPhonePairing: () => apiPostJson<unknown>(careerPath('/phone/pair'), {}).then(r => parsePhoneStatus(asDict(r).status)),
   cancelPhonePairing: () => apiPostJson<unknown>(careerPath('/phone/pair/cancel'), {}).then(r => parsePhoneStatus(asDict(r).status)),
   bindPhone: (phone: Pick<PairedPhone, 'address' | 'name'>) => apiPostJson<unknown>(careerPath('/phone/bind'), { address: phone.address, name: phone.name }).then(r => parsePhoneStatus(asDict(r).status)),
+  reconnectPhone: () => apiPostJson<unknown>(careerPath('/phone/reconnect'), {}).then(r => parsePhoneStatus(asDict(r).status)),
   unbindPhone: () => apiDelete<unknown>(careerPath('/phone')),
 
   // ----- 邮箱 -----

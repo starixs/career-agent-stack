@@ -1,15 +1,15 @@
 /**
- * 连接手机的弹窗：打开时就开始等配对（服务端同时打开系统蓝牙设置），手机上点三下；
- * 配上、连上短信后显示最近一条验证码作为证明。苹果、安卓同一套步骤（都走蓝牙读短信）。
+ * 首次选择 / 配对与修复帮助。已有配对先直连，只有新设备才进入系统配对。
+ * 记忆保留在服务端；真正读到短信服务后才显示成功。
  * 状态全部来自服务端（phone_link 表变化时由父组件刷新），这里不自己推断。
  */
 import { CheckCircle2, Loader2, Smartphone, X } from 'lucide-react';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import OverlayBackdrop from '@/components/OverlayBackdrop';
 import { useCloseLayer } from '@/hooks/useCloseLayer';
 
-import type { PhoneStatus } from '../../../../shared/careerPhone';
+import type { PairedPhone, PhoneStatus } from '../../../../shared/careerPhone';
 import { careerApi } from '../careerApi';
 import { Button } from '../CareerPrimitives';
 import { useCareerAction } from '../useCareerData';
@@ -18,17 +18,23 @@ import { LatestCode, linkStateView } from './phoneUi';
 /** 与 className 里的 z-[70] 一致（Tailwind 只认字面量类名）。 */
 const Z = 70;
 
-export function PhonePairFlow({ status, computerName, onClose }: { status: PhoneStatus; computerName: string; onClose: () => void }) {
+interface Props {
+  status: PhoneStatus; phones: PairedPhone[]; computerName: string; repair: boolean;
+  onRefresh: () => void; onClose: () => void;
+}
+
+export function PhonePairFlow({ status, phones, computerName, repair, onRefresh, onClose }: Props) {
   const action = useCareerAction();
+  const [newDevice, setNewDevice] = useState(phones.length === 0 || status.pairing || repair);
   const started = useRef(false);
   const linked = !!status.binding;
   const done = linked && status.state === 'connected';
 
   useEffect(() => {
-    if (started.current || linked) return;
+    if (started.current || (linked && !repair) || !newDevice) return;
     started.current = true;
     void action.run(careerApi.startPhonePairing);
-  }, [action, linked]);
+  }, [action, linked, repair, newDevice]);
 
   const close = useCallback(() => {
     if (!linked) void careerApi.cancelPhonePairing().catch((error: unknown) => console.warn('[phone-link] 取消配对失败:', error));
@@ -46,8 +52,10 @@ export function PhonePairFlow({ status, computerName, onClose }: { status: Phone
         </header>
         <div className="overflow-y-auto px-6 py-5">
           {done ? <Connected status={status} onDone={onClose} />
-            : linked ? <Linking status={status} />
-              : <Steps computerName={computerName} />}
+            : linked && !repair ? <Linking status={status} />
+              : newDevice ? <Steps computerName={computerName} />
+                : <PhoneChoices phones={phones} busy={action.busy} onNew={() => setNewDevice(true)}
+                  onUse={phone => { void action.run(async () => { await careerApi.bindPhone(phone); onRefresh(); }); }} />}
           {action.error && <div role="alert" className="mt-3 text-xs text-[var(--danger)]">{action.error}</div>}
         </div>
       </div>
@@ -55,11 +63,22 @@ export function PhonePairFlow({ status, computerName, onClose }: { status: Phone
   );
 }
 
+function PhoneChoices({ phones, busy, onUse, onNew }: {
+  phones: PairedPhone[]; busy: boolean; onUse: (phone: PairedPhone) => void; onNew: () => void;
+}) {
+  return <div className="space-y-3">
+    <p className="text-sm text-[var(--muted)]">这些手机已经配对过，直接选择，不必重新配对。</p>
+    <div className="flex flex-wrap gap-2">{phones.map(phone => <Button key={phone.address} busy={busy}
+      onClick={() => onUse(phone)}>用 {phone.name || '这台手机'}</Button>)}</div>
+    <Button variant="ghost" busy={busy} onClick={onNew}>连接其他手机</Button>
+  </div>;
+}
+
 function Steps({ computerName }: { computerName: string }) {
   const steps = [
     <>打开手机「设置 → 蓝牙」，点 <b className="text-[var(--ink)]">{computerName || '这台电脑'}</b></>,
     <>两边数字一样：手机点「配对」，电脑点「连接」</>,
-    <>手机问能否访问短信或显示通知，点「允许」</>,
+    <>配对后请保持手机解锁：小米弹「消息权限申请」时点「是」；其他手机的短信访问请求点「允许」</>,
   ];
   return (
     <div>
@@ -82,7 +101,7 @@ function Linking({ status }: { status: PhoneStatus }) {
   const view = linkStateView(status.state);
   return (
     <div className="space-y-2">
-      <p className="text-sm text-[var(--ink)]">已和 <b>{status.binding?.name || '手机'}</b> 配对，正在连接短信…</p>
+      <p className="text-sm text-[var(--ink)]"><b>{status.binding?.name || '手机'}</b>：{view?.label || '等待连接'}</p>
       {view && <p className="text-xs text-[var(--muted)]">{view.hint}</p>}
     </div>
   );
@@ -93,8 +112,9 @@ function Connected({ status, onDone }: { status: PhoneStatus; onDone: () => void
     <div className="space-y-4">
       <p className="flex items-center gap-2 text-sm text-[var(--ink)]">
         <CheckCircle2 aria-hidden className="h-5 w-5 text-[var(--success)]" />
-        连上了 <b>{status.binding?.name || '手机'}</b>，网申的短信验证码以后自动填
+        <b>{status.binding?.name || '手机'}</b> 的短信服务已接通
       </p>
+      <p className="text-sm text-[var(--muted)]">已记住这台手机，无需重新配对。断线恢复最多尝试 2 分钟，之后休眠；需要收码时再唤醒。</p>
       {status.latest && <LatestCode sms={status.latest} />}
       <div className="flex justify-end"><Button variant="primary" onClick={onDone}>好</Button></div>
     </div>

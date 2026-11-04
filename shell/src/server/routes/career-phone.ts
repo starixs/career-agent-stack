@@ -4,7 +4,8 @@
  * - POST   /api/career/phone/pair         开始引导配对（打开系统蓝牙设置，等手机端发起配对）
  * - POST   /api/career/phone/pair/cancel  取消等待
  * - POST   /api/career/phone/bind         选用一台已配对的手机 { address, name }
- * - DELETE /api/career/phone              解绑
+ * - POST   /api/career/phone/reconnect    重连已记住手机，不改绑定
+ * - DELETE /api/career/phone              解除产品记忆（不删除系统配对）
  * 状态变化由服务自己广播 career:data-changed（表名 phone_link），这里不再重复广播。
  */
 import type { PhoneLinkService } from '../career/phone/link-service';
@@ -45,6 +46,12 @@ export function phoneRoutes(service: () => Promise<PhoneLinkService>): Array<[st
         console.warn(`[phone-link] 绑定 ${address} 失败:`, errorText(error));
         return fail(`绑定失败：${errorText(error)}`, 500);
       }
+      return ok({ status: s.status() });
+    }],
+    ['POST', '/api/career/phone/reconnect', async () => {
+      const s = await service();
+      if (!s.binding()) return fail('尚未选择手机', 409);
+      await s.reconnect();
       return ok({ status: s.status() });
     }],
     ['DELETE', '/api/career/phone', async () => {
