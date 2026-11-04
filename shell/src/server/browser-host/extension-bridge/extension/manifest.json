@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "career-bridge",
+  "version": "1.0.0",
+  "description": "求职助理的浏览器桥：接管真实浏览器执行自动化（登录态/指纹全真）",
+  "permissions": [
+    "cookies",
+    "tabs",
+    "activeTab",
+    "debugger",
+    "scripting",
+    "alarms",
+    "storage",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["disable-dialogs.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "js": ["badge.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

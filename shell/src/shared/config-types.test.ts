@@ -30,16 +30,13 @@ import managedCodexRuntimeLock from './managed-codex-runtime.json';
 import { TOKENDANCE_PROVIDER_ID } from './tokendance';
 
 describe('MCP presets', () => {
-  it('keeps standard Playwright generic and exposes the managed Browser separately', () => {
+  it('keeps generic Playwright but retires the managed Browser preset', () => {
     expect(PRESET_MCP_SERVERS.find(server => server.id === 'playwright')).toMatchObject({
       type: 'stdio',
       command: 'npx',
       args: ['@playwright/mcp@0.0.68'],
     });
-    expect(PRESET_MCP_SERVERS.find(server => server.id === 'keystone-browser')).toMatchObject({
-      name: '浏览器',
-      command: '__browser_host__',
-    });
+    expect(PRESET_MCP_SERVERS.find(server => server.id === 'keystone-browser')).toBeUndefined();
     expect(DEFAULT_CONFIG.mcpEnabledServers ?? []).not.toContain('keystone-browser');
   });
 

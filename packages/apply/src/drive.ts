@@ -10,6 +10,7 @@ import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import type { RiskGuard } from './safety.js'
 import { humanDelay, type PacingOptions } from './pacing.js'
 import { fillLoginForm, type LoginCredential } from './login.js'
+import { verifyBeforeContinuing, type VerificationHandler } from './verification.js'
 import { looksLikeFormVisually, pairVisualFields, type Perceiver, type UiKind } from './perception.js'
 import { visionScan, visionFill, visionClickText, visionFindButton, type VisionOptions } from './vision.js'
 import { describeObstacle, looksLikeRiskUrl, type CaptchaKind } from './obstacles.js'
@@ -174,6 +175,8 @@ export interface DriveOptions extends PacingOptions {
    * 只代填不点登录；验证码 / 滑块 / 短信码仍由用户本人完成。
    */
   loginFill?: (url: string) => Promise<LoginCredential | undefined> | LoginCredential | undefined
+  /** 宿主自动验证：在资料进模型之前运行，失败保留人工接管；最终提交不走这里。 */
+  verify?: VerificationHandler
   /** 视觉兜底层的感知器（OCR / 视觉模型）。不给则只有 DOM 层。 */
   perceiver?: Perceiver
   vision?: { maxFieldsPerPage?: number; maxScrolls?: number }
@@ -339,6 +342,9 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       // 1. 阻碍检测
       let sig = await step('读取页面信号', () => readSignalsSettled(page, Math.max(opts.settleMs ?? 800, 0)))
+      const verification = await verifyBeforeContinuing(page, sig, opts.verify)
+      sig = verification.signals
+      if (verification.blocked) return handoff(detectObstacle(sig, adapter)?.reason ?? 'captcha', sig, '自动验证未完成', '请在当前页完成验证后继续：')
       const risk = opts.riskGuard?.inspect(sig, adapter) ?? null
       // 导航栏的「登录/注册」不是登录墙：还没找岗位之前先去找（2026-10-31：北森 zhiye 首页一打开就被当成要登录）
       const rawOb = detectObstacle(sig, adapter)
@@ -728,7 +734,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         rec.fields = outcomesFor(index, after.length ? after : fields, rec)
       } else rec.fields = outcomesFor(index, fields, rec)
       sig = await step('读取页面信号', () => page.evaluate(pageSignalsScript))
+      const verified = await verifyBeforeContinuing(page, sig, opts.verify)
+      sig = verified.signals
       rec.errors = sig.errors
+      if (verified.blocked) { pushPage(); return handoff(detectObstacle(sig, adapter)?.reason ?? 'captcha', sig, '自动验证未完成', '请在当前页完成验证后继续：') }
       // 填写过程中可能触发验证码
       const ob2 = detectObstacle(sig, adapter)
       if (ob2) { pushPage(); opts.riskGuard?.inspect(sig, adapter); return handoff(ob2.reason, sig, ob2.evidence, '填写过程中出现需要你本人处理的情况：') }

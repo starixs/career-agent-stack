@@ -5,7 +5,7 @@
 import { execFile } from 'child_process';
 import { join } from 'path';
 
-import { broadcast as sseBroadcast } from '../../sse';
+import { liveHub } from '../live-hub';
 import { resolveNativeHelper, spawnHelper, type NativeHelperSpec } from '../../utils/native-helper';
 import { careerDataDir, getRepos } from '../db';
 import { PhoneLinkService } from './link-service';
@@ -49,7 +49,8 @@ async function createService(): Promise<PhoneLinkService> {
     openBluetoothSettings: () => new Promise((resolve, reject) => {
       execFile('/usr/bin/open', [BLUETOOTH_SETTINGS_URL], { timeout: OPEN_TIMEOUT_MS }, error => (error ? reject(error) : resolve()));
     }),
-    changed: () => sseBroadcast('career:data-changed', { sessionId: 'global', tables: [PHONE_TABLE] }),
+    // Global has no Session SSE clients; CareerLiveBridge subscribes to this hub.
+    changed: () => { liveHub.publish('career:data-changed', { sessionId: 'global', tables: [PHONE_TABLE] }); },
     computerName,
   });
 }

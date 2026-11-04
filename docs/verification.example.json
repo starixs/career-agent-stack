@@ -1,0 +1,32 @@
+{
+  "enabled": false,
+  "captcha": true,
+  "timeoutMs": 90000,
+  "templates": [
+    {
+      "id": "example-sms-login",
+      "origin": "https://jobs.example.com",
+      "pathPrefix": "/login",
+      "channel": "sms",
+      "recipientSelector": "#phone",
+      "codeSelectors": ["#sms-code"],
+      "sendSelector": "#send-sms",
+      "confirmSelector": "#login",
+      "successSelector": "#account-home",
+      "smsSignature": "示例招聘",
+      "smsRecipient": "13800000000"
+    },
+    {
+      "id": "example-email-login",
+      "origin": "https://careers.example.org",
+      "pathPrefix": "/sign-in",
+      "channel": "email",
+      "recipientSelector": "input[type=email]",
+      "codeSelectors": ["#email-code"],
+      "sendSelector": "#send-code",
+      "confirmSelector": "#verify",
+      "successSelector": "#profile-home",
+      "mailSender": "verification@example.org"
+    }
+  ]
+}

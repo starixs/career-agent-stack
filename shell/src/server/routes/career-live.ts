@@ -22,6 +22,8 @@ import { findApplicationPage } from '../career/app-pages';
 import { livePin, userWaitActive } from '../career/live-pin';
 import { createPageFollower } from '../career/page-follower';
 import { ScreencastHub, fromPlaywrightPage } from '../career/screencast';
+import { livePageViewport } from '../browser-host/extension-bridge/extension-browser-host';
+import { productBrowserWaitingMessage } from '../browser-host/extension-bridge/bridge-host';
 
 /** 现场画面每一帧都发（原来隔帧）：人帮一下留在产品里要跟手，画面一动就推（face-ga-port 1b）。静止页面本来就不出帧。 */
 const LIVE_EVERY_NTH_FRAME = 1;
@@ -176,7 +178,7 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
       const result = await deps.host.withProductSession(id, async context => {
         const page = await pinnedOrActive(context, id);
         const frame = body.frame && typeof body.frame === 'object' ? body.frame as { width?: number; height?: number } : {};
-        const vp = page.viewportSize() ?? { width: frame.width ?? 1280, height: frame.height ?? 800 };
+        const vp = await livePageViewport(page) ?? { width: frame.width ?? 1280, height: frame.height ?? 800 };
         const sx = frame.width ? vp.width / frame.width : 1;
         const sy = frame.height ? vp.height / frame.height : sx;
         const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -289,7 +291,7 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
         try { controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`)); } catch { closed = true; }
       };
       const onAbort = () => { if (!abort.signal.aborted) abort.abort(); };
-      if (request.signal.aborted) onAbort(); else request.signal.addEventListener('abort', onAbort, { once: true });
+      request.signal.addEventListener('abort', onAbort, { once: true });
 
       // 浏览器开 / 关会改变「能不能接管」：连上时推一次，画面接上或断开时再推，渲染层的接管入口才不会停在旧状态
       const pushSnapshot = () => { void liveSnapshot(deps).then(snapshot => write({ type: 'snapshot', ts: Date.now(), ...snapshot })).catch(e => write({ type: 'error', error: e instanceof Error ? e.message : String(e) })); };
@@ -301,7 +303,7 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
       let framesTimer: ReturnType<typeof setInterval> | null = null;
       if (wantFrames) {
         let attached = false;
-        let notified = false;
+        let lastWaitingMessage = '';
         const poll = deps.framesPollMs ?? 2000;
         // 画面状态（渲染层据此给准确的提示，而不是一句过时的"浏览器还没打开"）：
         // waiting 还没打开 / connecting 正在接上 / closed 接上后被关掉了；实时还是静止由帧的 source 区分
@@ -312,7 +314,8 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
           if (attached || abort.signal.aborted) return;
           const id = deps.productSessionId();
           if (!id || !deps.host.hasContext(id)) {
-            if (!notified) { notified = true; status('waiting', id ? '浏览器还没有打开；助理开始填表或你开始批量投递后画面会出现' : '还没有个人助理会话'); }
+            const message = id ? productBrowserWaitingMessage() : '还没有个人助理会话';
+            if (message !== lastWaitingMessage) { lastWaitingMessage = message; status('waiting', message); }
             return;
           }
           attached = true;
@@ -331,9 +334,15 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
             const follow = setInterval(() => { void hub.refresh(); }, 1500);
             let contextClosed = false;
             await new Promise<void>(resolve => {
-              if (abort.signal.aborted) { resolve(); return; }
-              abort.signal.addEventListener('abort', () => resolve(), { once: true });
-              context.once('close', () => { contextClosed = true; resolve(); });
+              const finish = () => {
+                abort.signal.removeEventListener('abort', finish);
+                context.off('close', onClose);
+                resolve();
+              };
+              const onClose = () => { contextClosed = true; finish(); };
+              context.once('close', onClose);
+              abort.signal.addEventListener('abort', finish, { once: true });
+              if (abort.signal.aborted) finish();
             });
             clearInterval(follow);
             context.off('page', onPage);
@@ -341,15 +350,15 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
             await hub.stop();
             if (contextClosed && !abort.signal.aborted) {
               // 浏览器被关了：回到等待，下次打开自动接上（不需要用户重开现场）
-              notified = true;
-              status('closed', '浏览器已关闭；助理再次打开浏览器时画面会自动接上');
+              lastWaitingMessage = '';
+              status('closed', '浏览器连接已断开；正在等待自动重连');
               pushSnapshot();
               rearm();
             }
           }, { allowHumanControl: true, signal: abort.signal }).catch(e => {
             write({ type: 'frame-error', error: e instanceof Error ? e.message : String(e) });
             // 浏览器在接上前被关掉：回到等待状态，下次打开再接
-            notified = false;
+            lastWaitingMessage = '';
             rearm();
           });
         };
@@ -365,6 +374,7 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
         request.signal.removeEventListener('abort', onAbort);
         if (!closed) { closed = true; try { controller.close(); } catch { /* already closed */ } }
       }, { once: true });
+      if (request.signal.aborted) onAbort();
     },
     cancel() { if (!abort.signal.aborted) abort.abort(); },
   });

@@ -31,7 +31,6 @@ sleep 1
 [ -x src-tauri/resources/nodejs/bin/node ] || bash scripts/download_nodejs.sh
 [ -d src-tauri/resources/tsx-runtime ] || node scripts/setup-tsx-runtime.mjs darwin arm64
 [ -d src-tauri/resources/sharp-runtime ] || node scripts/prepare-sharp-runtime.mjs darwin arm64
-node scripts/prepare-window-helper.mjs  # 托管浏览器的原生窗口助手；源码没变时秒过
 node scripts/prepare-phone-helper.mjs   # 手机连接助手（蓝牙读短信收验证码）；源码没变时秒过
 [ -f src-tauri/resources/plugin-bridge-dist.mjs ] || npm run build:bridge
 [ -f src-tauri/resources/claude-agent-sdk/claude ] || { mkdir -p src-tauri/resources/claude-agent-sdk && cp node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude src-tauri/resources/claude-agent-sdk/claude && chmod +x src-tauri/resources/claude-agent-sdk/claude; }

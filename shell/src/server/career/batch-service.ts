@@ -6,7 +6,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 
 
-import type { PlaywrightBrowserHost } from '../browser-host';
+import type { ExtensionBrowserHost } from '../browser-host/extension-bridge/extension-browser-host';
 import { BatchRunner } from './batch-runner';
 import { careerExportsDir, getRepos } from './db';
 import { FileChooserBroker } from './file-chooser';
@@ -18,7 +18,7 @@ import { SubmitExecutor } from './submit-executor';
 import type { CareerBrowserHost, RunEmitter } from '../routes/career-browser';
 import { openApplicationKeys } from './app-pages';
 
-type HostResolver = () => Promise<PlaywrightBrowserHost>;
+type HostResolver = () => Promise<ExtensionBrowserHost>;
 let hostResolver: HostResolver | null = null;
 let runnerPromise: Promise<BatchRunner> | null = null;
 
@@ -140,10 +140,10 @@ export async function getBatchRunner(): Promise<BatchRunner> {
   }
   return runnerPromise;
 }
-let hostCache: PlaywrightBrowserHost | null = null;
+let hostCache: ExtensionBrowserHost | null = null;
 
 /** 产品会话的浏览器宿主（Global 侧车）：登录之旅用。没就绪时显式报错。 */
-export async function careerBrowserHost(): Promise<{ host: PlaywrightBrowserHost; productSessionId: string }> {
+export async function careerBrowserHost(): Promise<{ host: ExtensionBrowserHost; productSessionId: string }> {
   if (!hostResolver) throw new Error('浏览器宿主尚未就绪（只能在 Global 侧车执行）');
   const host = await hostResolver();
   hostCache = host;
@@ -268,7 +268,7 @@ export function startHandoffKeeper(intervalMs = 3000): void {
   keeperTimer.unref?.();
 }
 
-export async function syncHandoffHold(deps: { repos?: { openHandoffs(): unknown[]; listActions?(status?: string): Array<{ kind: string }> }; host?: Pick<PlaywrightBrowserHost, 'hasContext' | 'setHandoffHold'> | null; sessionId?: string } = {}): Promise<boolean> {
+export async function syncHandoffHold(deps: { repos?: { openHandoffs(): unknown[]; listActions?(status?: string): Array<{ kind: string }> }; host?: Pick<ExtensionBrowserHost, 'hasContext' | 'setHandoffHold'> | null; sessionId?: string } = {}): Promise<boolean> {
   const id = deps.sessionId ?? careerProductSessionId();
   const host = deps.host !== undefined ? deps.host : (hostCache ?? (hostResolver ? hostCache = await hostResolver() : null));
   if (!id || !host) return false;

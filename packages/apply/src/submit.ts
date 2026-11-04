@@ -6,6 +6,7 @@ import { detectObstacle, isSubmitText } from './guards.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import { diffAgainstPlan, type FilledRecord } from './drive.js'
 import { normKey } from './interpret.js'
+import { verifyBeforeContinuing, type VerificationHandler } from './verification.js'
 
 /**
  * 提交执行器：只在动作队列里的 submit 动作被批准（用户本人 / auto 模式 / 自学习免审）后由产品调用。
@@ -41,6 +42,8 @@ export interface SubmitOptions {
   timeoutMs?: number
   pollMs?: number
   log?: (msg: string) => void
+  /** 仅由已批准的提交执行器注入；自动验证不再次点击提交。 */
+  verify?: VerificationHandler
 }
 
 export const SUBMIT_SUCCESS_RX = /(投递成功|提交成功|申请成功|报名成功|已成功投递|已成功提交|已投递|已提交|感谢(您|你)的(投递|申请|关注)|我们已收到(您|你)的(简历|申请)|简历已发送|application (has been )?(submitted|received)|thank(s| you) for (applying|your application)|successfully (submitted|applied))/i
@@ -51,6 +54,10 @@ export async function submitApplication(page: PageLike, opts: SubmitOptions = {}
   const shot = () => page.screenshot().catch(() => undefined)
   const base = { edits: [] as SubmitEdit[], missingRequired: [] as string[], errors: [] as string[] }
 
+  if (opts.verify) {
+    const checked = await verifyBeforeContinuing(page, await page.evaluate(pageSignalsScript), opts.verify)
+    if (checked.blocked) return { ...base, status: 'handoff', reason: 'captcha', message: '提交前自动验证未完成，请在当前页处理', finalUrl: page.url(), screenshot: await shot() }
+  }
   const fields = await extractFields(page)
   const missing = fields.filter(f => f.required && (f.type === 'checkbox' ? f.value !== 'true' : !(f.value ?? '').trim())).map(f => f.label)
   const edits: SubmitEdit[] = (opts.filled?.length ? diffAgainstPlan(fields, opts.filled) : [])
@@ -78,6 +85,11 @@ export async function submitApplication(page: PageLike, opts: SubmitOptions = {}
     await page.waitForTimeout(poll)
     let sig: PageSignals
     try { sig = await page.evaluate(pageSignalsScript) } catch { continue } // 跳转中
+    if (opts.verify && !SUBMIT_SUCCESS_RX.test(sig.text)) {
+      const checked = await verifyBeforeContinuing(page, sig, opts.verify)
+      sig = checked.signals
+      if (checked.blocked) return { ...base, status: 'handoff', reason: detectObstacle(sig, adapter)?.reason ?? 'captcha', message: '提交后的自动验证未完成，请处理；不要重复提交', edits, button: button.text, finalUrl: page.url(), screenshot: await shot() }
+    }
     const ok = sig.text.match(SUBMIT_SUCCESS_RX)
     if (ok) return { ...base, status: 'submitted', message: `已提交（页面提示「${ok[0]}」）`, evidence: ok[0], edits, button: button.text, finalUrl: page.url(), screenshot: await shot() }
     const ob2 = detectObstacle(sig, adapter)

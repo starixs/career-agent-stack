@@ -29,10 +29,7 @@ describe('server MCP catalogue merge', () => {
       command: 'npx',
       args: ['@playwright/mcp@0.0.68', '--user-data-dir=/tmp/playwright-profile'],
     });
-    expect(servers.find((server) => server.id === 'keystone-browser')).toMatchObject({
-      command: '__browser_host__',
-      args: [],
-    });
+    expect(servers.find((server) => server.id === 'keystone-browser')).toBeUndefined();
   });
 
   it('does not let persisted custom collisions shadow either built-in Browser preset', () => {
@@ -48,10 +45,7 @@ describe('server MCP catalogue merge', () => {
       command: 'npx',
       isBuiltin: true,
     });
-    expect(servers.find((server) => server.id === 'keystone-browser')).toMatchObject({
-      command: '__browser_host__',
-      isBuiltin: true,
-    });
+    expect(servers.find((server) => server.id === 'keystone-browser')).toBeUndefined();
   });
 
   it('resolves owned Session IDs against current definitions and global enablement', () => {

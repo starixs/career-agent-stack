@@ -1,10 +1,14 @@
 /** 手机连接（蓝牙读短信收验证码）的状态与接口数据。界面经 /api/career/phone 读取。 */
 
-/** 连接状态。unsupported = 手机没有短信读取服务；refused = 手机拒绝了访问短信；unreachable = 连不上（不在旁边 / 蓝牙关了）。 */
-export const LINK_STATES = ['none', 'connecting', 'connected', 'lost', 'unreachable', 'refused', 'unsupported', 'unpaired', 'helper_missing'] as const;
+/** 连接状态。unsupported = 手机没有短信读取服务；refused = 短信服务握手未通过（拒绝、授权未完成或握手中断，不等于用户明确拒绝）；unreachable = 连不上（不在旁边 / 蓝牙关了）。 */
+export const LINK_STATES = ['none', 'connecting', 'authorizing', 'connected', 'paused', 'lost', 'unreachable', 'refused', 'unsupported', 'unpaired', 'helper_missing'] as const;
 export type LinkState = typeof LINK_STATES[number];
 
-export interface PhoneBinding { address: string; name: string; bound_at: string }
+export interface PhoneBinding {
+  address: string; name: string; bound_at: string;
+  /** 曾真实接通短信服务的时间，不是手机当前授权状态的替代。 */
+  last_connected_at?: string;
+}
 
 /** 一条验证码短信（只在内存里，不落库、不进日志）。 */
 export interface CodeSms {
@@ -41,7 +45,11 @@ export const isLinkState = (v: unknown): v is LinkState => typeof v === 'string'
 
 export function parseBinding(raw: unknown): PhoneBinding | null {
   const r = asRecord(raw);
-  return asStr(r.address) ? { address: asStr(r.address), name: asStr(r.name), bound_at: asStr(r.bound_at) } : null;
+  if (!asStr(r.address)) return null;
+  const last = asStr(r.last_connected_at);
+  return { address: asStr(r.address), name: asStr(r.name), bound_at: asStr(r.bound_at),
+    ...(last && Number.isFinite(Date.parse(last)) ? { last_connected_at: last } : {}),
+  };
 }
 
 function parseCodeSms(raw: unknown): CodeSms | null {

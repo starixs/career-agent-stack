@@ -22,17 +22,36 @@ static void emit(NSDictionary *obj) {
   fflush(stdout);
 }
 
+// Only protocol stage and numeric status: never payloads, addresses or codes.
+static void diagnostic(NSString *stage, NSInteger result) {
+  emit(@{ @"ev": @"diagnostic", @"stage": stage, @"result": @(result) });
+}
+
 // stdin EOF = 宿主走了，跟着退出。全局持有事件源，防止 ARC 释放。
 static dispatch_source_t gStdinSource;
+static void (^gCloseLink)(void);
+static dispatch_source_t gTermSource;
+static void shutdownHelper(void) { if (gCloseLink) gCloseLink(); exit(0); }
 static void exitOnStdinClose(void) {
   dispatch_source_t src = dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, STDIN_FILENO, 0, dispatch_get_main_queue());
   dispatch_source_set_event_handler(src, ^{
     char buf[512];
-    if (read(STDIN_FILENO, buf, sizeof buf) <= 0) exit(0);
+    if (read(STDIN_FILENO, buf, sizeof buf) <= 0) shutdownHelper();
   });
   dispatch_resume(src);
   gStdinSource = src;
+  // Release the owned RFCOMM channel before exit, including normal host shutdown.
+  // Otherwise macOS may retain it and the next helper waits for a dead session.
+  signal(SIGTERM, SIG_IGN);
+  gTermSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, SIGTERM, 0, dispatch_get_main_queue());
+  dispatch_source_set_event_handler(gTermSource, ^{ shutdownHelper(); });
+  dispatch_resume(gTermSource);
 }
+
+// Transport readiness is not permission approval. A stalled channel is closed
+// promptly and retried; the later OBEX authorization keeps its longer budget.
+static const NSTimeInterval RFCOMM_OPEN_TIMEOUT_SECONDS = 8;
+static const NSTimeInterval MAP_AUTH_TIMEOUT_SECONDS = 90;
 
 static BOOL spin(NSTimeInterval secs, BOOL (^until)(void)) {
   NSDate *end = [NSDate dateWithTimeIntervalSinceNow:secs];
@@ -44,6 +63,20 @@ static BOOL spin(NSTimeInterval secs, BOOL (^until)(void)) {
 }
 
 static BOOL isPhone(IOBluetoothDevice *d) { return d.deviceClassMajor == kBluetoothDeviceClassMajorPhone; }
+
+// A failed query must never turn cached services into a false "unsupported"
+// result or an attempt to open a stale RFCOMM channel after the phone returns.
+static NSString *discoveryFailure(IOReturn started, BOOL done, IOReturn status, BOOL hasServices, BluetoothRFCOMMChannelID cid) {
+  if (started != kIOReturnSuccess || !done || status != kIOReturnSuccess) return @"unreachable";
+  if (cid) return nil;
+  return hasServices ? @"unsupported" : @"unreachable";
+}
+
+static BOOL rfcommReady(BOOL hasChannel, BOOL channelIsOpen, BOOL openedCallback, BOOL closed) {
+  // openRFCOMMChannelAsync may return an existing channel; no new callback
+  // is guaranteed. Never wait a full timeout for an event that already happened.
+  return hasChannel && !closed && (channelIsOpen || openedCallback);
+}
 
 static NSDictionary *deviceInfo(IOBluetoothDevice *d) {
   return @{ @"address": d.addressString ?: @"", @"name": d.name ?: @"", @"connected": @(d.isConnected), @"phone": @(isPhone(d)) };
@@ -98,9 +131,10 @@ static int cmdWaitPair(void) {
 
 @interface SDPWait : NSObject
 @property (nonatomic) BOOL done;
+@property (nonatomic) IOReturn status;
 @end
 @implementation SDPWait
-- (void)sdpQueryComplete:(IOBluetoothDevice *)d status:(IOReturn)status { self.done = YES; }
+- (void)sdpQueryComplete:(IOBluetoothDevice *)d status:(IOReturn)status { self.status = status; self.done = YES; }
 @end
 
 static void put16(NSMutableData *d, NSUInteger v) { uint8_t b[2] = { (uint8_t)(v >> 8), (uint8_t)v }; [d appendBytes:b length:2]; }
@@ -169,11 +203,13 @@ static void eachHeader(NSData *resp, NSUInteger from, void (^fn)(uint8_t hid, NS
   }
 }
 
-// 返回 nil 表示成功；否则是失败状态（unsupported / refused / unreachable）。
-- (NSString *)open {
+// 返回 nil 表示成功；否则是失败状态（unsupported / unreachable）。
+- (NSString *)openChannel {
   SDPWait *w = [SDPWait new];
-  [self.dev performSDPQuery:w];
-  spin(20, ^BOOL { return w.done; });
+  IOReturn query = [self.dev performSDPQuery:w];
+  diagnostic(@"sdp_start", query);
+  if (query == kIOReturnSuccess) spin(20, ^BOOL { return w.done; });
+  diagnostic(@"sdp_done", w.done ? w.status : -1);
   IOBluetoothSDPUUID *mas = [IOBluetoothSDPUUID uuid16:0x1132];
   BluetoothRFCOMMChannelID cid = 0;
   for (IOBluetoothSDPServiceRecord *rec in self.dev.services ?: @[]) {
@@ -181,22 +217,41 @@ static void eachHeader(NSData *resp, NSUInteger from, void (^fn)(uint8_t hid, NS
     BluetoothRFCOMMChannelID c = 0;
     if ([rec getRFCOMMChannelID:&c] == kIOReturnSuccess) { cid = c; break; }
   }
-  if (cid == 0) return w.done && self.dev.services.count ? @"unsupported" : @"unreachable";
+  NSString *failure = discoveryFailure(query, w.done, w.status, self.dev.services.count > 0, cid);
+  if (failure) return failure;
 
   self.del = [Chan new];
   IOBluetoothRFCOMMChannel *ch = nil;
-  if ([self.dev openRFCOMMChannelAsync:&ch withChannelID:cid delegate:self.del] != kIOReturnSuccess) return @"unreachable";
+  IOReturn started = [self.dev openRFCOMMChannelAsync:&ch withChannelID:cid delegate:self.del];
+  diagnostic(@"rfcomm_start", started);
+  self.chan = ch; // Own and close even a timed-out, partially opened channel.
+  if (started != kIOReturnSuccess) { [self close]; return @"unreachable"; }
+  diagnostic(@"rfcomm_existing", ch.isOpen ? 1 : 0);
+  if (!ch) { [self close]; return @"unreachable"; }
+  // IOBluetooth requires a registered incoming-data listener before opening
+  // completes, including when it returns a cached channel object.
+  IOReturn registered = [ch setDelegate:self.del];
+  diagnostic(@"rfcomm_delegate", registered);
+  if (registered != kIOReturnSuccess) { [self close]; return @"unreachable"; }
   Chan *del = self.del;
-  spin(60, ^BOOL { return del.opened || del.closed; });
-  if (!self.del.opened || !ch) return @"unreachable";
-  self.chan = ch;
+  spin(RFCOMM_OPEN_TIMEOUT_SECONDS, ^BOOL { return rfcommReady(ch != nil, ch.isOpen, del.opened, del.closed) || del.closed; });
+  BOOL ready = rfcommReady(ch != nil, ch.isOpen, del.opened, del.closed);
+  diagnostic(@"rfcomm_done", ready ? 0 : -1);
+  if (!ready) { [self close]; return @"unreachable"; }
+  return nil;
+}
 
+- (NSString *)open {
+  NSString *failure = [self openChannel];
+  if (failure) return failure;
   static const uint8_t target[16] = { 0xBB,0x58,0x2B,0x40,0x42,0x0C,0x11,0xDB,0xB0,0xDE,0x08,0x00,0x20,0x0C,0x9A,0x66 };
   NSMutableData *body = [NSMutableData dataWithBytes:(uint8_t[]){ 0x10, 0x00 } length:2];
   put16(body, 0x0800);
   hdrBytes(body, 0x46, [NSData dataWithBytes:target length:16]);
   // 手机可能在这里弹「允许访问短信」，给足时间
-  NSData *resp = [self send:packet(0x80, body) wait:90];
+  emit(@{ @"ev": @"link", @"state": @"authorizing" });
+  NSData *resp = [self send:packet(0x80, body) wait:MAP_AUTH_TIMEOUT_SECONDS];
+  diagnostic(@"obex_connect", resp.length ? ((const uint8_t *)resp.bytes)[0] : -1);
   if (!resp || ((const uint8_t *)resp.bytes)[0] != 0xA0) { [self close]; return @"refused"; }
   __block uint32_t connID = 0;
   eachHeader(resp, 7, ^(uint8_t hid, NSData *v) {
@@ -207,12 +262,21 @@ static void eachHeader(NSData *resp, NSUInteger from, void (^fn)(uint8_t hid, NS
     NSMutableData *b = [NSMutableData dataWithBytes:(uint8_t[]){ 0x02, 0x00 } length:2];
     hdr4(b, 0xCB, connID); hdrUnicode(b, 0x01, f);
     NSData *r = [self send:packet(0x85, b) wait:30];
+    diagnostic(@"set_path", r.length ? ((const uint8_t *)r.bytes)[0] : -1);
     if (!r || ((const uint8_t *)r.bytes)[0] != 0xA0) { [self close]; return @"refused"; }
   }
   return nil;
 }
 
-- (void)close { [self.chan closeChannel]; self.chan = nil; }
+- (void)close {
+  if (self.connID && self.chan.isOpen) {
+    NSMutableData *body = [NSMutableData data]; hdr4(body, 0xCB, self.connID);
+    NSData *disconnect = packet(0x81, body);
+    [self.chan writeSync:(void *)disconnect.bytes length:(UInt16)disconnect.length];
+  }
+  self.connID = 0;
+  [self.chan setDelegate:nil]; [self.chan closeChannel]; self.chan = nil;
+}
 - (BOOL)alive { return self.chan && !self.del.closed; }
 
 - (NSString *)getType:(NSString *)type name:(NSString *)name app:(NSData *)app {
@@ -295,6 +359,7 @@ static int cmdLink(NSString *addr) {
     emit(@{ @"ev": @"link", @"state": @"connecting" });
     MapLink *link = [MapLink new];
     link.dev = dev;
+    gCloseLink = ^{ [link close]; };
     NSString *fail = [link open];
     if (fail) {
       emit(@{ @"ev": @"link", @"state": fail });
@@ -303,10 +368,12 @@ static int cmdLink(NSString *addr) {
       continue;
     }
     backoff = 3;
-    emit(@{ @"ev": @"link", @"state": @"connected", @"name": dev.name ?: @"" });
-
     NSMutableSet *seen = [NSMutableSet set];
     NSArray *first = [link listing:20];
+    if (!first) {
+      [link close]; emit(@{ @"ev": @"link", @"state": @"lost" }); spin(backoff, nil); continue;
+    }
+    emit(@{ @"ev": @"link", @"state": @"connected", @"name": dev.name ?: @"" });
     BOOL reported = NO;
     for (NSDictionary *it in first ?: @[]) {
       [seen addObject:it[@"handle"]];

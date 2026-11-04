@@ -19,7 +19,7 @@ export interface ScreencastPageLike {
   isClosed(): boolean;
   newCDPSession(): Promise<CdpSessionLike>;
   /** 页面关闭时通知（playwright: page.once('close', …)）。 */
-  onClose?(listener: () => void): void;
+  onClose?(listener: () => void): void | (() => void);
   /**
    * 跨借用稳定的页面身份（playwright: page.mainFrame()）。借用代理每次都是新 Page 对象、适配器每次也是新包装，
    * 不按身份比较的话 refresh 会把同一页当成"换页"，每轮都停掉重开，第一帧永远到不了。缺省用对象本身。
@@ -50,6 +50,7 @@ export class ScreencastHub {
   private lastFrameAt = 0;
   private idleTimer: ReturnType<typeof setInterval> | null = null;
   private snapshotting = false;
+  private offClose: (() => void) | null = null;
   /**
    * 页面的 CSS 视口尺寸：实时帧和补截图都按它上报宽高。screencast 元数据里的 deviceWidth 在视口被模拟
    * （跟随现场画面框）后会和真实视口不一致，两种帧按各自尺寸上报，现场窗的比例就会来回跳。
@@ -81,10 +82,12 @@ export class ScreencastHub {
 
   private ensureStarted(): Promise<void> {
     if (this.session || this.starting) return this.starting ?? Promise.resolve();
+    let openingSession: CdpSessionLike | null = null;
     this.starting = (async () => {
       const page = await this.getPage();
       if (!page || page.isClosed()) throw new Error('没有可直播的浏览器页面');
       const session = await page.newCDPSession();
+      openingSession = session;
       session.on('Page.screencastFrame', ev => {
         void session.send('Page.screencastFrameAck', { sessionId: ev.sessionId }).catch(() => { /* 页面可能已关闭 */ });
         if (Date.now() - this.viewportAt > 1000) void this.readViewport(session);
@@ -96,7 +99,7 @@ export class ScreencastHub {
       await session.send('Page.enable').catch(() => { /* 某些实现已默认开启 */ })
       await this.readViewport(session);
       await session.send('Page.startScreencast', { format: 'jpeg', quality: this.opts.quality ?? 55, maxWidth: this.opts.maxWidth ?? 1280, maxHeight: this.opts.maxHeight ?? 900, everyNthFrame: this.opts.everyNthFrame ?? 2 });
-      page.onClose?.(() => { void this.stop(); if (this.subscribers.size) setTimeout(() => void this.ensureStarted().catch(() => {}), 500); });
+      this.offClose = page.onClose?.(() => { void this.stop(); }) ?? null;
       this.session = session; this.page = page;
       this.opts.log?.('screencast started');
       // screencast 只在页面有变化时才推帧：静止页面（岗位详情、登录页）接上后一帧都不会有，现场就一直黑着。
@@ -113,7 +116,11 @@ export class ScreencastHub {
         }, tickMs);
         this.idleTimer.unref?.();
       }
-    })().catch(e => { this.opts.log?.(`screencast 启动失败：${e instanceof Error ? e.message : String(e)}`); throw e; }).finally(() => { this.starting = null; });
+    })().catch(async e => {
+      await openingSession?.detach().catch(() => {});
+      this.opts.log?.(`screencast 启动失败：${e instanceof Error ? e.message : String(e)}`);
+      throw e;
+    }).finally(() => { this.starting = null; });
     return this.starting;
   }
 
@@ -158,7 +165,10 @@ export class ScreencastHub {
   }
 
   async stop(): Promise<void> {
+    // Unsubscribe can race async attach/start; drain it before releasing the lease.
+    await this.starting?.catch(() => {});
     if (this.idleTimer) { clearInterval(this.idleTimer); this.idleTimer = null; }
+    this.offClose?.(); this.offClose = null;
     const s = this.session; this.session = null; this.page = null;
     if (!s) return;
     try { await s.send('Page.stopScreencast'); } catch { /* ignore */ }
@@ -168,13 +178,13 @@ export class ScreencastHub {
 }
 
 /** 把 playwright 的 Page 适配成 ScreencastPageLike。 */
-export function fromPlaywrightPage(page: { url(): string; title(): Promise<string>; isClosed(): boolean; context(): { newCDPSession(p: unknown): Promise<unknown> }; once(event: 'close', fn: () => void): unknown; mainFrame?(): object }): ScreencastPageLike {
+export function fromPlaywrightPage(page: { url(): string; title(): Promise<string>; isClosed(): boolean; context(): { newCDPSession(p: unknown): Promise<unknown> }; once(event: 'close', fn: () => void): unknown; off?(event: 'close', fn: () => void): unknown; mainFrame?(): object }): ScreencastPageLike {
   return {
     identity: () => (typeof page.mainFrame === 'function' ? page.mainFrame() : page),
     url: () => page.url(),
     title: () => page.title(),
     isClosed: () => page.isClosed(),
     newCDPSession: async () => (await page.context().newCDPSession(page)) as CdpSessionLike,
-    onClose: fn => { page.once('close', fn); },
+    onClose: fn => { page.once('close', fn); return () => { page.off?.('close', fn); }; },
   };
 }

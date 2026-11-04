@@ -1911,32 +1911,36 @@ async function main() {
   console.log(`[startup] HTTP server binding to 127.0.0.1:${port}...`);
 
   const dispatchRequest = composeSidecarRequestHandler(sidecarComposition, handleRequest);
-  let browserHostPromise: Promise<import('./browser-host').PlaywrightBrowserHost> | null = null;
-  const ensureBrowserHost = async (): Promise<import('./browser-host').PlaywrightBrowserHost> => {
-    if (!browserHostPromise) {
-      browserHostPromise = import('./browser-host').then(async ({ PlaywrightBrowserHost }) => {
-        const host = new PlaywrightBrowserHost(port);
-        // 内嵌窗口模式：系统选文件框改由聊天旁的现场抽屉处理
-        try {
-          const { fileChooserBroker } = await import('./career/batch-service');
-          host.setFileChooserListener((productSessionId, chooser) => { void fileChooserBroker.offer(productSessionId, chooser).catch(() => {}); });
-          // 焦点守卫：托管 Chrome 开新页时 macOS 会激活它、抢走产品窗口焦点；告诉渲染层把焦点拿回来
-          const { liveHub } = await import('./career/batch-service');
-          host.setWindowListener((productSessionId, event) => { liveHub.publish('career:browser-window', { sessionId: productSessionId, event, at: Date.now() }); });
-        } catch (error) {
-          console.warn(`[career-live] file-chooser=wire-failed error=${error instanceof Error ? error.message : String(error)}`);
-        }
-        return host;
-      });
-    }
-    return browserHostPromise;
-  };
+  let browserHostPromise: Promise<import('./browser-host/extension-bridge/extension-browser-host').ExtensionBrowserHost> | null = null;
+  const ensureBrowserHost = () => browserHostPromise ??= import('./browser-host/extension-bridge/extension-browser-host')
+    .then(async ({ ExtensionBrowserHost }) => {
+      const host = new ExtensionBrowserHost();
+      const { fileChooserBroker } = await import('./career/batch-service');
+      host.setFileChooserListener((id, chooser) => { void fileChooserBroker.offer(id, chooser).catch(error => console.warn('[career-live] file chooser failed', error)); });
+      return host;
+    });
   // 批量投递运行器（Global 后台）需要免令牌借用浏览器宿主
   void import('./career/batch-service').then(({ registerBatchBrowserHost }) => registerBatchBrowserHost(ensureBrowserHost)).catch(() => {});
+  // Global 自动准备产品浏览器并预置扩展；所有调用仍只经过同一个扩展桥。
+  // Rust 拥有二进制下载/校验，Global 拥有进程；不修改用户日常 Chrome。
+  void Promise.all([
+    import('./browser-host/extension-bridge/bridge-host'),
+    import('./career/batch-service').then(({ liveHub }) => liveHub).catch(() => null),
+  ])
+    .then(async ([{ ensureExtensionBridge }, liveHub]) => {
+      const bridge = await ensureExtensionBridge()
+      if (!bridge) return
+      bridge.onTabsChange(tabs => liveHub?.publish('career:bridge-tabs', { connected: bridge.isConnected(), count: tabs.length }))
+      // 帧仅经 /live/stream?frames=1 输出；不把 base64 广播到普通事件订阅者。
+      bridge.onDisconnect(() => liveHub?.publish('career:bridge-tabs', { connected: false, count: 0 }))
+      console.log('[startup] extension-bridge listening; product browser prepares automatically')
+    })
+    .catch(error => console.warn(`[startup] extension-bridge=start-failed error=${error instanceof Error ? error.message : String(error)}`));
   gracefulShutdownHook = async () => {
     await Promise.all([
       drainSessionTranscripts(),
       browserHostPromise?.then(browserHost => browserHost.shutdown()),
+      import('./browser-host/extension-bridge/bridge-host').then(({ stopExtensionBridge }) => stopExtensionBridge()),
     ]);
   };
 
@@ -2164,8 +2168,7 @@ async function main() {
       // BrowserContext. It must be usable while Session runtimes are warming,
       // so it intentionally precedes the deferred agent-state gate.
       if (pathname === '/mcp/playwright') {
-        const browserHost = await ensureBrowserHost();
-        return browserHost.handleRequest(request);
+        return jsonResponse({ error: '托管 Playwright MCP 已退役；请使用 career 浏览器工具和 Chrome 扩展', code: 'BROWSER_MCP_RETIRED' }, 410);
       }
       // Career browser control plane (takeover lock, window focus, form-engine
       // runs) shares the same Host, capability check and pre-gate admission.

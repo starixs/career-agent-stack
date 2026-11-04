@@ -964,9 +964,8 @@ pub fn run() {
                     }
                 }
             });
-            // Only users who completed the explicit first install have opted
-            // into Browser resources. Future app-locked revisions maintain
-            // themselves in the background; a never-installed app stays idle.
+            // Browser setup is product-owned, including first launch. Rust
+            // prepares the pinned binary; the Global Sidecar loads our bridge.
             browser_resource::start_automatic_maintenance();
             #[cfg(target_os = "macos")]
             if let Err(error) =
