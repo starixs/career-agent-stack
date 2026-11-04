@@ -74,7 +74,13 @@ async function navigateTab(tabId, url) {
     };
     const updated = (id, change, tab) => { if (id === tabId && change.status === 'complete') finish(null, tab); };
     const removed = id => { if (id === tabId) finish(new Error('Navigation tab closed')); };
-    const timer = setTimeout(() => finish(new Error('Navigation timed out')), NAVIGATION_TIMEOUT_MS);
+    // 到点放行：页面早就打开了，只是一直有资源在加载、等不到 complete（2026-11-04 中国中车）。已经跳到目标站就算导航成功
+    const timer = setTimeout(() => {
+      chrome.tabs.get(tabId).then(tab => {
+        const arrived = (() => { try { return new URL(tab.url || tab.pendingUrl || '').origin === new URL(url).origin; } catch { return false; } })();
+        finish(arrived ? null : new Error('Navigation timed out'), tab);
+      }).catch(() => finish(new Error('Navigation timed out')));
+    }, NAVIGATION_TIMEOUT_MS);
     chrome.tabs.onUpdated.addListener(updated); chrome.tabs.onRemoved.addListener(removed);
     chrome.tabs.update(tabId, { url }).then(tab => {
       if (tab.status === 'complete' && tab.url === url) finish(null, tab);

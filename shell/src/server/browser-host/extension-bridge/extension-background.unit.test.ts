@@ -95,3 +95,29 @@ describe('exec CDP fallback', () => {
     expect(sent.map(s => JSON.parse(s).type)).toContain('result')
   })
 })
+
+describe('navigateTab', () => {
+  it('到点还没 complete、但标签页已经在目标站：算导航成功（页面一直有资源在加载，2026-11-04 中国中车）', async () => {
+    const { context } = worker()
+    let fire: (() => void) | undefined
+    Object.assign(context, { URL, setTimeout: (fn: () => void) => { fire = fn; return 0 } })
+    const chrome = (context as unknown as { chrome: { tabs: Record<string, unknown> } }).chrome
+    chrome.tabs.update = async () => ({ id: 7, url: 'https://crrc.hotjob.cn/a', status: 'loading' })
+    chrome.tabs.get = async () => ({ id: 7, url: 'https://crrc.hotjob.cn/a', status: 'loading', title: '中国中车' })
+    const pending = runInContext('navigateTab(7, "https://crrc.hotjob.cn/a")', context) as Promise<{ ok: boolean }>
+    await Promise.resolve(); fire?.()
+    expect(await pending).toMatchObject({ ok: true })
+  })
+
+  it('到点还停在空白页：照样报超时', async () => {
+    const { context } = worker()
+    let fire: (() => void) | undefined
+    Object.assign(context, { URL, setTimeout: (fn: () => void) => { fire = fn; return 0 } })
+    const chrome = (context as unknown as { chrome: { tabs: Record<string, unknown> } }).chrome
+    chrome.tabs.update = async () => ({ id: 7, url: 'about:blank', status: 'loading' })
+    chrome.tabs.get = async () => ({ id: 7, url: 'about:blank', status: 'loading' })
+    const pending = runInContext('navigateTab(7, "https://crrc.hotjob.cn/a")', context) as Promise<unknown>
+    await Promise.resolve(); fire?.()
+    await expect(pending).rejects.toThrow('Navigation timed out')
+  })
+})
