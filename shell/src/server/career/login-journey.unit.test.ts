@@ -191,6 +191,22 @@ describe('登录之旅', () => {
     expect(j.observe(new Map(), { loginShown: false, errorShown: false, loggedIn: true })).toMatchObject({ state: 'logged_in', signal: 'screen' });
   });
 
+  it('准备阶段（等图形码 / 拼图后的邮件）点「这家先跳过」：马上换下一家，不等准备做完（2026-11-05）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const b = waitingLogin(repos, 'b.com');
+    const { browser } = fakeBrowser({ cookies: n => [{ domain: '.b.com', name: 'sid', value: n >= 3 ? 'user' : 'guest' }] });
+    const pageFor = browser.pageFor;
+    let hang: (() => void) | undefined;
+    browser.pageFor = key => { const p = pageFor(key); return p && key === a.app.id ? { ...p, smsPrepare: () => new Promise(r => { hang = () => r({ status: 'no_sms' as const }); }) } : p; };
+    const run = startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, sleep: () => new Promise(r => setTimeout(r, 1)) }, a.handoff.id, [a.handoff.id, b.handoff.id]);
+    await new Promise(r => setTimeout(r, 10));
+    skipJourneyStep();
+    const out = await run;
+    expect(out?.steps.map(s => s.outcome)).toEqual(['skipped', 'logged_in']);
+    hang?.(); // 被丢下的准备工作后来才做完：不影响结果
+  });
+
   it('App 重启过、页面都没了：直接打开这一家的网址，就在这一家登录，不交后台整批重开（2026-11-03）', async () => {
     const repos = createMemoryRepos();
     const a = waitingLogin(repos, 'a.com');

@@ -99,7 +99,10 @@ const CHECK_GRACE_MS = 20_000;
 /** 「X 已登录」留多久。 */
 const DONE_SHOW_MS = 8_000;
 export function journeySms(): SmsState | null { return sms?.state ?? null; }
+/** 跳过 / 取消后被丢下的那一页：它的准备工作还在后台跑完，跑完报上来的状态不能冲掉下一家的那一格。 */
+const abandoned = new WeakSet<JourneyPage>();
 function setSms(page: JourneyPage, state: SmsState, extra: { checkingAt?: number } = {}): void {
+  if (abandoned.has(page)) return;
   sms = { page, state: { ...state, ...(smsSite ? { site: smsSite } : {}) }, ...extra };
   smsChanged?.(['handoff']);
   journeyChanged();
@@ -146,6 +149,24 @@ async function prepareSms(deps: JourneyDeps, page: JourneyPage): Promise<void> {
     console.warn('[career] login-journey sms prepare FAILED', e instanceof Error ? e.message : e);
   }
   deps.changed(['handoff']);
+}
+
+/**
+ * 准备阶段（等他看图打字、等拼图后的邮件）最长要等几分钟：期间点「这家先跳过」/ 取消也要马上生效
+ * （2026-11-05：邮箱那条路弹拼图时点了跳过，3 分钟没反应，后面几十家「去登录」全被拒）。
+ */
+async function prepareOrSkip(deps: JourneyDeps, page: JourneyPage): Promise<'skipped' | 'cancelled' | null> {
+  const sleep = deps.sleep ?? (ms => new Promise<void>(r => setTimeout(r, ms)));
+  let done = false;
+  const prep = prepareSms(deps, page).finally(() => { done = true; });
+  // 马上就能做完的准备（多数情况）不进轮询
+  await Promise.race([prep, new Promise<void>(r => setImmediate(r))]);
+  while (!done) {
+    if (cancelled) { abandoned.add(page); return 'cancelled'; }
+    if (skipRequested) { skipRequested = false; abandoned.add(page); return 'skipped'; }
+    await Promise.race([prep, sleep(deps.pollMs ?? POLL_MS)]);
+  }
+  return null;
 }
 
 interface Step { h: Handoff; actionId: string; appKey: string; site: string | null; url?: string; company?: string }
@@ -243,7 +264,14 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
     deps.browser.focus(page);
     deps.changed(['handoff']);
     smsSite = step.company ?? step.site ?? undefined;
-    await prepareSms(deps, page);
+    const early = await prepareOrSkip(deps, page);
+    if (early) {
+      sms = null;
+      result.steps.push({ handoff_id: id, outcome: early });
+      console.log(`[career] login-journey step ${id} outcome=${early}（准备阶段）`);
+      if (early === 'skipped') continue;
+      break;
+    }
     const { outcome, credentials, signal } = await waitForLogin(deps, step, page);
     if (outcome === 'logged_in' || outcome === 'handed_back') showDone(page); else sms = null;
     result.steps.push({ handoff_id: id, outcome, credentials, ...(signal ? { signal } : {}) });
