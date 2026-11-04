@@ -26,8 +26,10 @@ function worker() {
           { id: 3, url: 'chrome://extensions', title: 'Extensions' },
         ],
         sendMessage: async () => {},
+        get: async (id: number) => ({ id, url: 'about:blank', title: '' }),
       },
       debugger: debuggerApi,
+      scripting: { executeScript: vi.fn(async () => { throw new Error('Cannot access contents of url "about:blank".') }) },
       alarms: { onAlarm: event(), create: vi.fn() },
       runtime: { onMessage: event(), onInstalled: event(), onStartup: event() },
     },
@@ -74,5 +76,22 @@ describe('debugger attachment recovery', () => {
     expect(result).toEqual({ ok: true, data: {} })
     expect(debuggerApi.attach).toHaveBeenCalledTimes(2)
     expect(debuggerApi.detach).not.toHaveBeenCalled()
+  })
+})
+
+describe('exec CDP fallback', () => {
+  it('现场画面已持久挂着这个标签页：兜底借它的调试器，不另挂也不卸，不报「已有调试器」、不拆现场画面（2026-11-04）', async () => {
+    const { context, debuggerApi } = worker()
+    await runInContext('handleCdpAttach({tabId: 1})', context)
+    debuggerApi.attach.mockClear()
+    debuggerApi.sendCommand.mockResolvedValueOnce({ result: { value: { ok: true, data: 42 } } } as never)
+    const sent: string[] = []
+    // 代码里等 200ms 看有没有新开标签：替身的 setTimeout 立刻回调
+    Object.assign(context, { sent, setTimeout: (fn: () => void) => { fn(); return 0 } })
+    runInContext('ws = { readyState: 1, send: s => sent.push(s) }', context)
+    await runInContext('handleWsExec({ id: "e1", tabId: 1, code: "42" })', context)
+    expect(debuggerApi.attach).not.toHaveBeenCalled()
+    expect(debuggerApi.detach).not.toHaveBeenCalled()
+    expect(sent.map(s => JSON.parse(s).type)).toContain('result')
   })
 })

@@ -48,8 +48,11 @@ export function newCredentials(before: ReadonlyMap<string, string>, after: Reado
 export type ResponseVerdict = 'ok' | 'fail' | null;
 
 /** 一个登录类请求的返回说明了什么。不是登录类请求、或看不出来，返回 null。 */
+/** 这个网址像不像登录接口（只有像的才值得读返回体）。 */
+export function isLoginEndpoint(url: string): boolean { return LOGIN_URL.test(url) && !NOT_LOGIN_RESULT_URL.test(url); }
+
 export function responseVerdict(url: string, status: number, body: string | null): ResponseVerdict {
-  if (!LOGIN_URL.test(url) || NOT_LOGIN_RESULT_URL.test(url)) return null;
+  if (!isLoginEndpoint(url)) return null;
   if (status >= 400) return 'fail';
   if (!body) return null;
   let json: unknown;

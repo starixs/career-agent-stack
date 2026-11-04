@@ -65,6 +65,8 @@ const CENTER_TIMEOUT_MS = 2000
  * （2026-11-03 中国中车：「立即投递」被顶栏里的头像 user-box 挡住）。滚不动不要紧，照常点。
  */
 async function clickCentered(loc: ReturnType<Page['locator']>): Promise<void> {
+  // 真实 Chrome 桥接的 locator 只有引擎用到的几样（没有 evaluate）：那边点击自己按坐标走，直接点
+  if (typeof loc.evaluate !== 'function') { await loc.click({ timeout: CLICK_TIMEOUT_MS }); return }
   await loc.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' }), undefined, { timeout: CENTER_TIMEOUT_MS })
     .catch((e: unknown) => console.warn('[apply-page] 点之前没滚到中间，照常点', e instanceof Error ? e.message.split('\n')[0] : e))
   await loc.click({ timeout: CLICK_TIMEOUT_MS })

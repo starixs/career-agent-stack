@@ -93,7 +93,8 @@ const OPEN_PAGE_SETTLE_MS = 8_000;
 function browserOf(repos: Repos, context: BrowserContext, host: Awaited<ReturnType<typeof careerBrowserHost>>['host'], id: string): JourneyBrowser {
   const pages = new WeakMap<JourneyPage, Page>();
   return {
-    cookies: () => context.cookies(),
+    // 真实 Chrome 桥接不导出 Cookie（main 的设计）：数据层这一路就只剩登录接口返回，画面那一路照常
+    cookies: async () => (typeof context.cookies === 'function' ? context.cookies() : []),
     pageFor: appKey => {
       const page = findApplicationPage(context, id, appKey);
       if (!page) return undefined;
@@ -111,7 +112,8 @@ function browserOf(repos: Repos, context: BrowserContext, host: Awaited<ReturnTy
       return jp;
     },
     focus: jp => { const page = pages.get(jp); if (page) host.focusPage(id, page); },
-    rememberLogin: async site => { await rememberSessionCookies(context, site); },
+    // 桥接用持久的产品浏览器资料，登录自己会留下；只有能导出 Cookie 的托管浏览器才需要记
+    rememberLogin: async site => { if (typeof context.cookies === 'function') await rememberSessionCookies(context, site); },
     control: () => host.getControl(id).control,
     releaseControl: () => { host.setControl(id, 'agent'); },
   };

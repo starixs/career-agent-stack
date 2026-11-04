@@ -418,7 +418,9 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
             const hub = new ScreencastHub(async () => fromPlaywrightPage(await follower.pick()), { quality: 55, maxWidth: 1280, maxHeight: 900, everyNthFrame: LIVE_EVERY_NTH_FRAME, surfaceless: () => deps.host.surfacelessCapture?.(id) ?? false, log: msg => { console.warn(`[career-live] ${msg}`); if (/失败/.test(msg)) write({ type: 'frame-error', error: msg }); } });
             unsubFrames = hub.subscribe(frame => write({ type: 'frame', ...frame }));
             const onPage = (page: Page) => {
-              void page.opener().then(opener => follower.follow(page, opener)).then(followed => { if (followed) void hub.refresh(); })
+              // 桥接页面报不出是谁开的：当作不知道，不跟（画面留在选中的这一家）
+              const opener = typeof page.opener === 'function' ? page.opener() : Promise.resolve(null);
+              void opener.then(o => follower.follow(page, o)).then(followed => { if (followed) void hub.refresh(); })
                 .catch((e: unknown) => console.warn('[career-live] 跟随新页面 FAILED', e instanceof Error ? e.message : e));
             };
             context.on('page', onPage);

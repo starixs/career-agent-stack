@@ -291,18 +291,20 @@ async function handleWsExec(data) {
     // CSP 拦了主世界 eval → CDP Runtime.evaluate 兜底
     if (res && !res.ok && res.csp) {
       const wrappedCode = buildCdpScript(data.code);
+      // 现场画面已经持久挂着这个标签页：借它的调试器，不另挂、用完也不卸（否则「已有调试器」报错，还会把现场画面拆掉）
+      const kept = attachedTabs.has(tabId);
       try {
-        await chrome.debugger.attach({ tabId }, '1.3');
+        if (!kept) await chrome.debugger.attach({ tabId }, '1.3');
         const cdpRes = await chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
           expression: wrappedCode, awaitPromise: true, returnByValue: true,
         });
-        await chrome.debugger.detach({ tabId });
+        if (!kept) await chrome.debugger.detach({ tabId });
         if (cdpRes.exceptionDetails) {
           const desc = cdpRes.exceptionDetails.exception?.description || 'CDP Error';
           res = { ok: false, error: { name: 'Error', message: desc, stack: desc } };
         } else res = cdpRes.result.value;
       } catch (cdpErr) {
-        try { await chrome.debugger.detach({ tabId }); } catch {}
+        if (!kept) { try { await chrome.debugger.detach({ tabId }); } catch {} }
         res = { ok: false, error: { name: 'Error', message: 'CDP fallback failed: ' + cdpErr.message, stack: '' } };
       }
     }
