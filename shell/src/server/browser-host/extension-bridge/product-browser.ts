@@ -8,7 +8,11 @@ import type { ExtensionBridge } from './extension-bridge'
 import { cancellableDelay } from '../../utils/cancellation'
 
 const RESOURCE_TIMEOUT_MS = 45 * 60_000 // Covers at most four 10-minute transports plus extraction.
-const CONNECT_TIMEOUT_MS = 20_000
+/**
+ * 等扩展连上来最多多久。要长过扩展的唤醒闹钟（chrome.alarms 最短 30 秒）：产品浏览器在 App 重启后还开着，
+ * 新的启动请求交给了它，它的扩展后台已被 Chrome 挂起，只能等闹钟醒来再连（2026-11-04：等 20 秒必失败一次）。
+ */
+const CONNECT_TIMEOUT_MS = 45_000
 const CLOSE_TIMEOUT_MS = 8_000
 const START_ATTEMPTS = 3
 const START_RETRY_MS = 1000 // Allow an exiting predecessor to release Chrome's profile lock.
