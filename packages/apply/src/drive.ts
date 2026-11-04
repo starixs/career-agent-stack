@@ -868,6 +868,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   } catch (e) {
     const c = classifyError(e)
     recorder.trace({ stage: 'crash', result: 'fail', code: c.code, detail: c.raw })
+    // 运行记录没落盘时（遥测关着 / 目录没建）原始报错会只剩一句「填写时出错了」：日志里也留一份
+    console.warn(`[apply-drive] crash url=${page.url()} code=${c.code}: ${String(c.raw).slice(0, 400)}`)
     const screenshot = await page.screenshot().catch(() => undefined)
     const result: DriveResult = { status: 'failed', message: `网申填写中断：${c.text}`, failureCode: c.code, pages, ...all, layersUsed: [...layersUsed], fields: allFields, blockers: allBlockers, entryClicked, libraries, ...(telemetryRef ? { telemetry: telemetryRef } : {}), screenshot, finalUrl: page.url(), adapterId: adapter.id }
     summarize('failed', result)
