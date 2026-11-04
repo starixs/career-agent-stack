@@ -1,3 +1,4 @@
+import { ancestorClaudeMdExcludes } from './utils/claude-md-scope';
 import { createBuiltinInterruptController } from './builtin-session/interrupt';
 import { configureBuiltinTranscriptBinding } from './builtin-session/transcript';
 import { randomUUID } from 'crypto';
@@ -11393,6 +11394,8 @@ async function startStreamingSession(preWarm = false): Promise<void> {
       skills: [...new Set(enabledSkillAllowlist)].sort(),
       settings: {
         cleanupPeriodDays: claudeTranscriptCleanupPeriodDays,
+        // 产品工作区不读上级目录的 CLAUDE.md（会翻到用户给开发工具写的 ~/.claude/CLAUDE.md）
+        claudeMdExcludes: ancestorClaudeMdExcludes(agentDir),
         // keystone does not expose Anthropic feedback submission. Keep the
         // upstream draft feature off explicitly instead of inheriting a CLI
         // default that may change in a patch release.

@@ -413,3 +413,13 @@ describe('capability-suffix tolerance + per-field merge (#338)', () => {
     expect(applyContextWindowSuffix('   ')).toBeUndefined();
   });
 });
+
+describe('内置求职模型（DeepSeek flash）的上下文窗口', () => {
+  it('按 1M 算：传给 SDK 的模型名带 [1m]，自动压缩不再在 ~110K 就触发（2026-11-04 一个对话压了 19 次）', async () => {
+    const { buildCareerLlmPreset } = await import('../../shared/config-types');
+    const { applyContextWindowSuffixForContextLength } = await import('./model-capabilities');
+    const model = buildCareerLlmPreset().models?.[0];
+    expect(model?.contextLength).toBeGreaterThanOrEqual(1_000_000);
+    expect(applyContextWindowSuffixForContextLength(model?.model, model?.contextLength)).toBe(`${model?.model}[1m]`);
+  });
+});

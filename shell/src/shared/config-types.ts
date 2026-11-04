@@ -1587,6 +1587,9 @@ export function applyManagedCodexProviderReadiness(
  * 不经 OpenAI 翻译桥；鉴权为 `Authorization: Bearer`（authType `auth_token`，SDK 侧即 ANTHROPIC_AUTH_TOKEN）。
  * 别名 fable/sonnet/opus/haiku 全部指向同一个模型，避免子 agent 把 claude-* 名字发给 DeepSeek。
  */
+/** 内置 DeepSeek 的上下文长度（token）。 */
+export const CAREER_LLM_CONTEXT_LENGTH = 1_000_000;
+
 export function buildCareerLlmPreset(): Provider {
   const c = getCareerBuildConstants();
   return {
@@ -1606,7 +1609,9 @@ export function buildCareerLlmPreset(): Provider {
         model: c.llmModel,
         modelName: c.llmModel,
         modelSeries: 'career',
-        contextLength: 128_000,
+        // DeepSeek flash 的上下文是 1M（用户 2026-11-04 确认）。超过 200K 时会给 SDK 的模型名加上 [1m]，
+        // 自动压缩才按真实窗口算；按 128K 算的时候一个对话压了 19 次，手上在办的事一次次被压丢
+        contextLength: CAREER_LLM_CONTEXT_LENGTH,
         maxOutputTokens: 8_192,
         // DeepSeek 只有 flash 系列支持图片输入（见官方 vision 文档）；其余模型按纯文本处理。
         inputModalities: /flash|vision/i.test(c.llmModel) ? ['text', 'image'] : ['text'],
