@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'fs
 import { basename, extname, isAbsolute, join, relative, resolve } from 'path';
 
 import { managementApi } from '../utils/management-api-client';
+import { getShellLLM } from './llm';
 
 /** 需要转换的格式；纯文本 / 代码 / html 等 Read 本来就能读，不在此列。 */
 const PDF_EXT = new Set(['.pdf']);
@@ -369,6 +370,8 @@ function layersFor(abs: string, deps: ConvertDeps): Layer[] {
 }
 
 export interface ConvertDeps {
+  /** 当前模型能不能看图；能看图时图片附件让它直接看原图。不传按不能看。 */
+  vision?: () => boolean;
   /** 基座 AnyDoc；不传则跳过（单测）。 */
   anydoc?: (abs: string) => Promise<{ text: string; pages?: number }>;
   ocr: (abs: string) => Promise<{ text: string; pages?: number }>;
@@ -443,10 +446,19 @@ export function looksLikeResume(name: string, text: string): boolean {
 }
 
 /** 拼给模型看的上下文；没有需要转换的附件时返回 null。 */
-export function renderAttachmentContext(files: AttachmentText[]): string | null {
+/** 模型能看图时，图片附件让它直接打开原图看（2026-11-04 用户：DeepSeek V4 Flash 支持视觉）；OCR 文字只作参考。 */
+function imageHint(f: AttachmentText): string {
+  return `这是一张图片，你能直接看图：用 Read 打开 ${f.path} 看原图。${f.ok ? '上面的文字是本地识别出来的，只作参考；图里的表格、版式、照片和非文字信息以原图为准。' : ''}`;
+}
+
+export function renderAttachmentContext(files: AttachmentText[], opts: { vision?: boolean } = {}): string | null {
   if (!files.length) return null;
   let budget = INLINE_CHARS_TOTAL;
   const blocks = files.map(f => {
+    const isImage = IMAGE_EXT.has(extname(f.name).toLowerCase());
+    if (!f.ok && isImage && opts.vision) {
+      return [`<attached-file name="${f.name}" path="${f.path}" status="image">`, imageHint(f), '</attached-file>'].join('\n');
+    }
     if (!f.ok) {
       return [
         `<attached-file name="${f.name}" path="${f.path}" status="unreadable">`,
@@ -464,6 +476,7 @@ export function renderAttachmentContext(files: AttachmentText[]): string | null 
       `<attached-file ${attrs}>`,
       shown,
       clipped ? `\n…（后面还有约 ${f.text.length - limit} 字没放进来；需要时用 Read 读 ${f.convertedPath}，用 offset/limit 分段）` : '',
+      isImage && opts.vision ? imageHint(f) : '',
       '</attached-file>',
       looksLikeResume(f.name, f.text) ? `这份看起来是用户自己的简历：调用 resume_import(path="${f.path}") 一次收进来（基本信息进私密库、经历进经历库、出一张卡点一下生成主简历）。不要在对话里复述简历内容，也不要追问简历上已有的信息。` : '',
     ].filter(Boolean).join('\n');
@@ -480,7 +493,7 @@ export async function buildAttachmentContext(prompt: string, cwd: string, deps: 
   const refs = findAttachmentRefs(prompt, cwd);
   if (!refs.length) return null;
   const files = await Promise.all(refs.map(abs => convertAttachment(abs, cwd, deps)));
-  return renderAttachmentContext(files);
+  return renderAttachmentContext(files, { vision: deps.vision?.() ?? false });
 }
 
 /** 生产环境依赖：基座 AnyDoc + macOS Vision OCR。 */
@@ -488,6 +501,7 @@ export function defaultConvertDeps(cwd: string): ConvertDeps {
   return {
     anydoc: abs => viaAnydoc(abs, join(cwd, 'keystone_files', '.converted', 'anydoc'), cwd),
     ocr: viaSystemOcr,
+    vision: () => getShellLLM().supportsImages(),
     log: msg => console.log(`[career-attach] ${msg}`),
   };
 }

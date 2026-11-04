@@ -1607,7 +1607,8 @@ export function buildCareerLlmPreset(): Provider {
     models: [
       {
         model: c.llmModel,
-        modelName: c.llmModel,
+        // 接口名 deepseek-flash 指向最新的 V4 Flash（支持看图、1M 上下文）；界面上显示成用户认得的名字
+        modelName: /^deepseek-flash$/i.test(c.llmModel) ? 'DeepSeek V4 Flash' : c.llmModel,
         modelSeries: 'career',
         // DeepSeek flash 的上下文是 1M（用户 2026-11-04 确认）。超过 200K 时会给 SDK 的模型名加上 [1m]，
         // 自动压缩才按真实窗口算；按 128K 算的时候一个对话压了 19 次，手上在办的事一次次被压丢

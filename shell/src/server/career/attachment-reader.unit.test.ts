@@ -145,3 +145,20 @@ describe('buildAttachmentContext', () => {
     expect(context).toMatch(/用 Read 读 keystone_files\/\.converted\/long\.docx\.[0-9a-f]{10}\.md/);
   });
 });
+
+describe('图片附件：模型能看图时直接看原图（2026-11-04 DeepSeek V4 Flash 支持视觉）', () => {
+  const img = { path: 'keystone_files/offer.png', name: 'offer.png', ok: true, text: '薪资 25k', method: '系统 OCR', attempts: [] as string[] };
+  it('能看图：OCR 文字之外，让它用 Read 打开原图，图里的表格版式以原图为准', () => {
+    const context = renderAttachmentContext([img], { vision: true })!;
+    expect(context).toContain('薪资 25k');
+    expect(context).toContain('用 Read 打开 keystone_files/offer.png 看原图');
+  });
+  it('能看图但 OCR 什么都没认出来：不说读不了，直接看原图', () => {
+    const context = renderAttachmentContext([{ ...img, ok: false, text: '', attempts: ['系统 OCR：没有文字'] }], { vision: true })!;
+    expect(context).not.toContain('没能转出文字');
+    expect(context).toContain('用 Read 打开 keystone_files/offer.png 看原图');
+  });
+  it('不能看图：照旧只给 OCR 文字', () => {
+    expect(renderAttachmentContext([img])!).not.toContain('看原图');
+  });
+});
