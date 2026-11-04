@@ -35,9 +35,5 @@ export const gengar: HtmlTemplate = {
 	css: `${SIDE_PANEL_CSS}
 .page { padding: 0; }
 .sidebar, .main { padding-bottom: var(--margin-y); }
-.header .contacts { row-gap: calc(var(--gap-y) * 0.25); }
-.sidebar .section[data-section="skills"] .item-head, .sidebar .section[data-section="skills"] .item-head .row { display: contents; }
-.sidebar .section[data-section="skills"] .level { order: 1; }
-.sidebar .section[data-section="skills"] .aside { order: 2; }
-.sidebar .section[data-section="skills"] .keywords { order: 3; }`,
+.header .contacts { row-gap: calc(var(--gap-y) * 0.25); }`,
 };

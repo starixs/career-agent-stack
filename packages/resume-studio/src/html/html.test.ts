@@ -80,6 +80,36 @@ describe("buildResumeHtml", () => {
 		}
 	});
 
+	it("技能横排成「分组：关键词」，不输出熟练度、等级和条目图标", () => {
+		const data = withTemplate("onyx");
+		data.metadata.page.locale = "zh-CN";
+		data.sections.skills.items = [
+			{ ...data.sections.skills.items[0]!, name: "编程语言", proficiency: "熟练", level: 4, keywords: ["Go", "Java"] },
+		];
+		const html = buildResumeHtml(data) ?? "";
+		// 只看条目区（分区标题图标由「显示分区图标」决定，不在本条范围）
+		const start = html.indexOf('<div class="items', html.indexOf('data-section="skills"'));
+		const skills = html.slice(start, html.indexOf("</section>", start));
+		expect(skills).toContain('class="items compact"');
+		expect(skills).toContain("编程语言</span><span class=\"kw\">：Go、Java</span>");
+		expect(skills).not.toContain("熟练");
+		expect(skills).not.toContain('class="level');
+		expect(skills).not.toContain("<svg");
+	});
+
+	it("奖项无描述时横排成短语，有描述的单独一行展开", () => {
+		const data = withTemplate("onyx");
+		const base = data.sections.awards.items[0]!;
+		data.sections.awards.hidden = false;
+		data.sections.awards.items = [
+			{ ...base, id: "a1", title: "校级一等奖学金", awarder: "", date: "2024.10", description: "" },
+			{ ...base, id: "a2", title: "ACM 区域赛银牌", awarder: "", date: "2023.11", description: "<p>队长，负责图论</p>" },
+		];
+		const html = buildResumeHtml(data) ?? "";
+		expect(html).toMatch(/<div class="item"><span class="primary">校级一等奖学金<\/span><span class="note">2024\.10<\/span><\/div>/);
+		expect(html).toMatch(/<div class="item block">.*ACM 区域赛银牌.*队长，负责图论/);
+	});
+
 	it("姓名等纯文本字段转义，不能注入标签", () => {
 		const data = withTemplate("onyx");
 		data.basics.name = '<img src=x onerror="alert(1)">';

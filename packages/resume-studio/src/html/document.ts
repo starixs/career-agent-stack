@@ -97,15 +97,15 @@ a { color: inherit; text-decoration: ${m.page.hideLinkUnderline ? "none" : "unde
 .aside { text-align: right; margin-left: auto; }
 .secondary, .aside { color: var(--muted); }
 .rich p + p, .rich ul, .rich ol { margin-top: 2pt; }
-.rich ul, .rich ol, ul.keywords { padding-left: 1.2em; }
+.rich ul, .rich ol { padding-left: 1.2em; }
 .rich li { orphans: 2; widows: 2; }
 .roles { display: flex; flex-direction: column; row-gap: calc(var(--gap-y) * 0.6); margin-top: 2pt; }
-.level { display: flex; gap: 3pt; margin-top: 2pt; }
-.level i { display: block; width: 6pt; height: 6pt; border: 1px solid var(--primary); }
-.level.dot i { border-radius: 50%; }
-.level i.on { background: var(--primary); }
-.level.bar { height: 4pt; border: 1px solid var(--primary); }
-.level.bar i { height: 100%; border: 0; background: var(--primary); }
+/* 紧凑分区（技能 / 语言 / 兴趣 / 奖项 / 证书）：一条一个短语，横向排开，排满换行；带描述的奖项单独一行 */
+.items.compact { display: flex; flex-wrap: wrap; column-gap: calc(var(--gap-x) * 5); row-gap: calc(var(--gap-y) * 0.4); }
+.items.compact > .item { display: block; flex: 0 1 auto; max-width: 100%; }
+.items.compact > .item.block { flex-basis: 100%; display: flex; }
+.items.compact .kw { color: var(--text); }
+.items.compact .note { color: var(--muted); margin-left: 0.4em; }
 .photo { object-fit: ${data.picture.fit}; flex-shrink: 0; }
 .icon { width: 1em; height: 1em; flex-shrink: 0; vertical-align: -0.125em; }
 .contact { display: inline-flex; align-items: center; column-gap: 0.25em; }
@@ -113,9 +113,6 @@ a { color: inherit; text-decoration: ${m.page.hideLinkUnderline ? "none" : "unde
 .section-title { display: flex; align-items: center; column-gap: 0.35em; }
 .with-icon { display: inline-flex; align-items: center; column-gap: 0.3em; }
 .item-icon { color: var(--primary); }
-.level.icons { gap: 1pt; color: var(--primary); }
-.level.icons span { opacity: 0.35; display: inline-flex; }
-.level.icons span.on { opacity: 1; }
 `;
 }
 
