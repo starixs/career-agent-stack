@@ -5,24 +5,83 @@
 import type { Repos } from '@career/core';
 import type { BrowserContext, Page } from 'playwright';
 
-import { findApplicationPage } from './app-pages';
-import { careerBrowserHost } from './batch-service';
+import { findApplicationPage, pageForApplication } from './app-pages';
+import { loadApplyModule } from '../routes/career-browser';
+import { careerBrowserHost, careerWorkspacePath } from './batch-service';
 import { rememberSessionCookies } from './session-cookies';
-import { journeyRunning, startJourney, type JourneyBrowser, type JourneyPage } from './login-journey';
+import { journeyRunning, startJourney, type JourneyBrowser, type JourneyPage, type SmsState } from './login-journey';
+import { loginWithSavedPassword } from './login-password';
+import { answerPendingImage, autoRegisterByEmail, refreshPendingImage } from './login-register';
 import { onLoginResponse, screenSample } from './login-watch';
 
-function journeyPage(page: Page): JourneyPage {
-  return { url: () => page.url(), onLoginResponse: cb => onLoginResponse(page, cb), screen: () => screenSample(page), closed: () => page.isClosed() };
+/** 本人手机号（私密库，只在 Node 侧解开，写访问日志）；没存就不代办短信登录。 */
+async function ownPhone(): Promise<string | null> {
+  const { getVault } = await import('./vault');
+  const phone = (await getVault()).profileBasics({ actor: 'login_fill', purpose: '手机验证码登录' }).phone;
+  return phone && /^\d{11}$/.test(phone.replace(/\D/g, '')) ? phone.replace(/\D/g, '') : null;
 }
 
-function browserOf(context: BrowserContext, host: Awaited<ReturnType<typeof careerBrowserHost>>['host'], id: string): JourneyBrowser {
+async function smsFirst(page: Page): Promise<SmsState> {
+  const phone = await ownPhone();
+  if (!phone) return { status: 'no_sms', detail: '资料里没有手机号' };
+  const apply = await loadApplyModule();
+  if (!apply?.prepareSmsLogin) return { status: 'no_sms', detail: '投递引擎版本不支持代办短信登录' };
+  try {
+    const r = await apply.prepareSmsLogin(apply.fromPlaywright(page), phone);
+    return r.status === 'sent' ? { status: 'sent' } : { status: r.status, detail: r.status === 'captcha' ? r.evidence : r.reason };
+  } catch (e) {
+    // 短信这条路出错（点不到、页面跳走）不等于这家登不了：照样往下试邮箱注册
+    console.warn(`[career] login-journey sms prepare FAILED ${page.url()}`, e instanceof Error ? e.message.split('\n')[0] : e);
+    return { status: 'no_sms', detail: '短信登录没办成' };
+  }
+}
+
+function journeyPage(repos: Repos, page: Page): JourneyPage {
+  return {
+    url: () => page.url(), onLoginResponse: cb => onLoginResponse(page, cb), screen: () => screenSample(page), closed: () => page.isClosed(),
+    // 先用邮箱（码从他连着的邮箱自己取，全程不用人）；没有邮箱这条路再用手机短信（要他收码）；
+    // 两条都没有，多半只能扫码——如实说（2026-11-03 用户：能用邮箱账号固定登录的就不用手机验证码）
+    // 顺序（2026-11-03 用户定）：存过账号密码的直接登（记一次以后都不用管）→ 邮箱收码登录 / 注册（注册时设好密码存下）→ 手机短信
+    smsPrepare: async report => {
+      const byPassword = await loginWithSavedPassword(page, report);
+      if (byPassword) return byPassword;
+      const byMail = await autoRegisterByEmail(repos, page, report);
+      if (byMail) return byMail;
+      const sms = await smsFirst(page);
+      if (sms.status === 'no_sms') console.log(`[career] login-journey ${page.url().slice(0, 80)}: 短信这条路没走通（${sms.detail ?? '-'}）`);
+      return sms.status === 'no_sms' ? { status: 'no_sms', detail: '没找到邮箱或手机号能登的方式，多半只能扫码' } : sms;
+    },
+    imageRefresh: () => refreshPendingImage(page),
+    smsSubmit: async code => {
+      if (answerPendingImage(page, code)) return { ok: true }; // 他看图打的字：交给正在等的那一步
+      const apply = await loadApplyModule();
+      return apply?.submitSmsCode ? apply.submitSmsCode(apply.fromPlaywright(page), code) : { ok: false, reason: '投递引擎版本不支持代办短信登录' };
+    },
+  };
+}
+
+/** 登录之旅直接打开一家网址：网申站首屏偶尔慢，等到 DOM 出来即可，再久就交给后台重开。 */
+const OPEN_PAGE_TIMEOUT_MS = 30_000;
+/** 打开后等页面请求停下来的上限：长连接 / 埋点轮询的站永远不 idle，等这么久就够渲染出登录入口了。 */
+const OPEN_PAGE_SETTLE_MS = 8_000;
+
+function browserOf(repos: Repos, context: BrowserContext, host: Awaited<ReturnType<typeof careerBrowserHost>>['host'], id: string): JourneyBrowser {
   const pages = new WeakMap<JourneyPage, Page>();
   return {
     cookies: () => context.cookies(),
     pageFor: appKey => {
       const page = findApplicationPage(context, id, appKey);
       if (!page) return undefined;
-      const jp = journeyPage(page);
+      const jp = journeyPage(repos, page);
+      pages.set(jp, page);
+      return jp;
+    },
+    openPage: async (appKey, url) => {
+      const page = await pageForApplication(context, id, appKey, 'start');
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: OPEN_PAGE_TIMEOUT_MS });
+      // 网申站多是单页应用：DOM 出来时导航上的「登录」还没渲染（2026-11-03 北森：0.3 秒就判成只能扫码）。等请求停下来，等不到也照样往下走
+      await page.waitForLoadState('networkidle', { timeout: OPEN_PAGE_SETTLE_MS }).catch((e: unknown) => console.log(`[career] login-journey: ${url} ${OPEN_PAGE_SETTLE_MS / 1000}s 内没安静下来，照样找登录框`, e instanceof Error ? e.message.split('\n')[0] : e));
+      const jp = journeyPage(repos, page);
       pages.set(jp, page);
       return jp;
     },
@@ -38,8 +97,8 @@ export async function beginLoginJourney(repos: Repos, askId: string, handoffIds:
   if (journeyRunning()) return false;
   const { host, productSessionId: id } = await careerBrowserHost();
   void host.withProductSession(id, async context => {
-    await startJourney({ repos, browser: browserOf(context, host, id), sessionKey: id, changed }, askId, handoffIds);
-  }, { allowHumanControl: true }).then(
+    await startJourney({ repos, browser: browserOf(repos, context, host, id), sessionKey: id, changed }, askId, handoffIds);
+  }, { allowHumanControl: true, create: { workspacePath: careerWorkspacePath() } }).then(
     () => console.log(`[career] login-journey ${askId} 结束`),
     (e: unknown) => console.error(`[career] login-journey FAILED ${askId}`, e instanceof Error ? e.message : e),
   );

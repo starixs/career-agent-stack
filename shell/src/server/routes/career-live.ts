@@ -17,9 +17,11 @@ import type { BrowserChannel } from '../browser-host/runtime-settings';
 import type { BatchRunner, BatchState } from '../career/batch-runner';
 import type { FileChooserBroker, PendingFileChooser, UploadedFile } from '../career/file-chooser';
 import { BatchRunner as BatchRunnerClass } from '../career/batch-runner';
+import { appKeyOfHandoff, handoffsToHandBack, waitingByApp } from '../career/live-handback';
 import type { LiveHub } from '../career/live-hub';
-import { findApplicationPage } from '../career/app-pages';
-import { livePin, userWaitActive } from '../career/live-pin';
+import { findApplicationPage, openApplicationKeys } from '../career/app-pages';
+import { livePin, setViewApp, userWaitActive, viewedApp } from '../career/live-pin';
+import { JOURNEY_EVENT, journeySms, refreshJourneyImage, submitJourneyCode, type SmsState } from '../career/login-journey';
 import { createPageFollower } from '../career/page-follower';
 import { ScreencastHub, fromPlaywrightPage } from '../career/screencast';
 
@@ -30,7 +32,85 @@ const LIVE_EVERY_NTH_FRAME = 1;
 async function pinnedOrActive(context: BrowserContext, productSessionId: string): Promise<Page> {
   const pin = livePin();
   const pinned = pin ? findApplicationPage(context, pin.sessionKey || productSessionId, pin.appKey) : undefined;
-  return pinned ?? activePage(context);
+  const view = viewedApp();
+  const viewed = !pinned && view ? findApplicationPage(context, productSessionId, view) : undefined;
+  return pinned ?? viewed ?? activePage(context);
+}
+
+/** 几家一起投时现场窗能切的那几家：有页面开着的网申（对话里浏览用的那一页不算）。 */
+/** waiting：这一家在等他处理什么（接管原因）；没在等是 null。 */
+export interface LivePage { application_id: string; company: string; title: string; current: boolean; waiting: string | null }
+function livePages(deps: CareerLiveDeps): LivePage[] {
+  const id = deps.productSessionId();
+  if (!id) return [];
+  const current = livePin()?.appKey ?? viewedApp();
+  const waiting = waitingByApp(deps.repos);
+  const pages = openApplicationKeys(id).flatMap(key => {
+    const app = deps.repos.getApplication(key);
+    const job = app ? deps.repos.getJob(app.job_id) : undefined;
+    return job ? [{ application_id: key, company: job.company_name ?? '未知公司', title: job.title, current: key === current, waiting: waiting.get(key) ?? null }] : [];
+  });
+  // 等他的几家排在前面：哪家要他接手，一眼看到、点过去就在那家处理
+  return [...pages.filter(p => p.waiting), ...pages.filter(p => !p.waiting)];
+}
+
+/** 现场窗正看着哪一家：他选过的那家；没选过就是画面所在的那一页属于的那家。 */
+async function viewedAppKey(deps: CareerLiveDeps, id: string): Promise<string | null> {
+  const view = viewedApp();
+  if (view) return view;
+  try {
+    return await deps.host.withProductSession(id, async context => {
+      const active = await activePage(context);
+      return openApplicationKeys(id).find(key => findApplicationPage(context, id, key) === active) ?? null;
+    }, { allowHumanControl: true });
+  } catch (error) {
+    console.warn('[career-live] handback: 认不出画面上是哪一家', error instanceof Error ? error.message : error);
+    return null;
+  }
+}
+
+/**
+ * 他点了一家在等登录的：就只为这一家代办登录（短信码 / 邮箱自动注册），在那家接手，不拉着一长串网站过（2026-11-03）。
+ * 已经有一趟在走就不另起。
+ */
+async function attendLogin(deps: CareerLiveDeps, appKey: string): Promise<void> {
+  const handoff = deps.repos.openHandoffs().find(h => h.reason === 'login' && appKeyOfHandoff(deps.repos, h) === appKey);
+  if (!handoff) return;
+  try {
+    const { beginLoginJourney } = await import('../career/login-journey-host');
+    const started = await beginLoginJourney(deps.repos, `live:${appKey}`, [handoff.id], tables => { const id = deps.productSessionId(); if (id) deps.hub.publish('career:data-changed', { sessionId: id, tables }); });
+    console.log(`[career-live] attend login ${appKey} started=${started}`);
+  } catch (error) {
+    console.warn(`[career-live] attend login ${appKey} FAILED`, error instanceof Error ? error.message : error);
+  }
+}
+
+async function handleViewRoutes(pathname: string, method: string, request: Request, deps: CareerLiveDeps): Promise<Response | null> {
+  if (pathname === `${CAREER_LIVE_PREFIX}sms-code` && method === 'POST') {
+    // 他报上来的短信验证码：替他填进这一家的登录框并点登录（登录之旅接着判断登上没有）
+    const body = await readBody(request);
+    const code = typeof body.code === 'string' ? body.code.replace(/\s+/g, '') : '';
+    // 图形码是他看图打的字母数字；短信码只有数字
+    const imageCode = journeySms()?.status === 'image_code';
+    if (imageCode ? !/^[A-Za-z0-9]{3,8}$/.test(code) : !/^\d{4,8}$/.test(code)) return fail(imageCode ? '图上的字是 3 到 8 位字母或数字' : '验证码是 4 到 8 位数字');
+    const r = await submitJourneyCode(code);
+    return r.ok ? ok({}) : fail(r.reason ?? '没填上', 409);
+  }
+  if (pathname === `${CAREER_LIVE_PREFIX}image-refresh` && method === 'POST') {
+    // 图形码看不清：他点了那张图，网站上换一张
+    const r = await refreshJourneyImage();
+    return r.ok ? ok({}) : fail(r.reason ?? '没换成', 409);
+  }
+  if (pathname === `${CAREER_LIVE_PREFIX}pages` && method === 'GET') return ok({ pages: livePages(deps) });
+  if (pathname === `${CAREER_LIVE_PREFIX}view` && method === 'POST') {
+    const body = await readBody(request);
+    const app = typeof body.application_id === 'string' && body.application_id ? body.application_id : null;
+    if (app && !livePages(deps).some(p => p.application_id === app)) return fail('这一家的页面已经关了', 404);
+    setViewApp(app);
+    if (app) await attendLogin(deps, app);
+    return ok({ pages: livePages(deps) });
+  }
+  return null;
 }
 
 export const CAREER_LIVE_PREFIX = '/api/career/live/';
@@ -89,6 +169,8 @@ export interface LiveSnapshot {
   journey: { index: number; total: number } | null;
   /** 助理正在 browser_wait_user 里等你：交还时等待自己会接着办，不用再往对话里补一句。 */
   waitingUser: boolean;
+  /** 登录之旅里这一家的短信码代办：已经发码（他报码就行）/ 弹了拼图要他先过 / 这家没有短信登录。 */
+  sms: SmsState | null;
 }
 
 function journeyOf(pin: ReturnType<typeof livePin>): LiveSnapshot['journey'] {
@@ -118,6 +200,7 @@ export async function liveSnapshot(deps: CareerLiveDeps): Promise<LiveSnapshot> 
     fileChooser: deps.files?.current() ?? null,
     journey: journeyOf(livePin()),
     waitingUser: userWaitActive(),
+    sms: journeySms(),
   };
 }
 
@@ -129,6 +212,9 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
   if (pathname === `${CAREER_LIVE_PREFIX}state` && method === 'GET') return ok({ ...(await liveSnapshot(deps)) });
 
   if (pathname === `${CAREER_LIVE_PREFIX}stream` && method === 'GET') return liveStream(request, deps);
+
+  const view = await handleViewRoutes(pathname, method, request, deps);
+  if (view) return view;
 
   if (pathname === `${CAREER_LIVE_PREFIX}control` && method === 'POST') {
     const body = await readBody(request);
@@ -147,13 +233,15 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
       }
       deps.hub.publish('career:takeover', { sessionId: id, runId: 'live', state: 'human_active', message: '你正在操作浏览器' });
     } else {
-      // 交回：关掉等用户处理的填表接管，批量运行器据此从当前页继续
+      // 交回：只关他眼前这一家的接管（登录之旅钉住的，或现场窗正看着的），批量运行器据此从那一页接着填；
+      // 别的网站还在等他的，不能被一起当成处理完（2026-11-03：一交还整批重跑、又一起撞回来）
       let closed = 0;
-      // 登录之旅里交还的只是当前带你过的这一家；别的网站还没登录、缺信息的那批也不能被一起当成处理完
       const pinned = livePin();
-      for (const h of deps.repos.openHandoffs().filter(x => !pinned || x.id === pinned.handoffId)) {
-        const action = h.action_id ? deps.repos.getAction(h.action_id) : undefined;
-        if (!action || action.kind === 'fill_form') { try { deps.repos.closeHandoff(h.id, 'live_handback'); closed++; } catch { /* ignore */ } }
+      const appKey = pinned ? null : await viewedAppKey(deps, id);
+      for (const h of handoffsToHandBack(deps.repos, { pinnedHandoffId: pinned?.handoffId, appKey })) {
+        try { deps.repos.closeHandoff(h.id, 'live_handback'); closed++; } catch (error) {
+          console.warn(`[career-live] handback: 关接管 ${h.id} FAILED`, error instanceof Error ? error.message : error);
+        }
       }
       deps.hub.publish('career:takeover', { sessionId: id, runId: 'live', state: 'resuming', message: closed ? `已交回，继续填写（关闭 ${closed} 个接管）` : '已交回' });
       if (closed) deps.hub.publish('career:data-changed', { sessionId: id, tables: ['handoff', 'action_queue', 'task'] });
@@ -297,7 +385,8 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
       // 浏览器开 / 关会改变「能不能接管」：连上时推一次，画面接上或断开时再推，渲染层的接管入口才不会停在旧状态
       const pushSnapshot = () => { void liveSnapshot(deps).then(snapshot => write({ type: 'snapshot', ts: Date.now(), ...snapshot })).catch(e => write({ type: 'error', error: e instanceof Error ? e.message : String(e) })); };
       pushSnapshot();
-      const unsub = deps.hub.subscribe(ev => write(ev));
+      // 登录之旅变了：推一份新快照（验证码那一格、钉在哪一家都在快照里）
+      const unsub = deps.hub.subscribe(ev => { if (ev.type === JOURNEY_EVENT) pushSnapshot(); else write(ev); });
       const heartbeat = setInterval(() => write({ type: 'heartbeat', ts: Date.now() }), deps.heartbeatMs ?? 10_000);
 
       let unsubFrames: (() => void) | null = null;
@@ -328,7 +417,10 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
             const follower = createPageFollower<Page>(() => pinnedOrActive(context, id));
             const hub = new ScreencastHub(async () => fromPlaywrightPage(await follower.pick()), { quality: 55, maxWidth: 1280, maxHeight: 900, everyNthFrame: LIVE_EVERY_NTH_FRAME, surfaceless: () => deps.host.surfacelessCapture?.(id) ?? false, log: msg => { console.warn(`[career-live] ${msg}`); if (/失败/.test(msg)) write({ type: 'frame-error', error: msg }); } });
             unsubFrames = hub.subscribe(frame => write({ type: 'frame', ...frame }));
-            const onPage = (page: Page) => { void follower.follow(page).then(() => hub.refresh()).catch(() => {}); };
+            const onPage = (page: Page) => {
+              void page.opener().then(opener => follower.follow(page, opener)).then(followed => { if (followed) void hub.refresh(); })
+                .catch((e: unknown) => console.warn('[career-live] 跟随新页面 FAILED', e instanceof Error ? e.message : e));
+            };
             context.on('page', onPage);
             // 多份网申各有页面：选中页切换（focusPage）时画面跟过去
             const follow = setInterval(() => { void hub.refresh(); }, 1500);

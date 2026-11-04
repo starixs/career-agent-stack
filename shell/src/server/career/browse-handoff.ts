@@ -34,12 +34,16 @@ const POLL_MS = 1500;
 const CLEAR_STREAK = 2;
 
 /** 页内：判提示要用的那几样。不能引用外部变量。 */
-export function hintSampleInPage(): Pick<RawObservation, 'url' | 'hasPassword' | 'bodySample'> & { loginForm: boolean } {
+export function hintSampleInPage(): Pick<RawObservation, 'url' | 'hasPassword' | 'bodySample'> & { loginForm: boolean; loggedIn: boolean } {
   const bodySample = (document.body?.innerText || '').slice(0, 3000);
   // 登录表单还开着：看得见的手机号 / 验证码 / 密码 / 账号输入框，而且页面上写着「登录」（只剩角落一个「扫码登录」字样不算）
   const visible = (el: Element) => { const r = (el as HTMLElement).getBoundingClientRect(); return r.width > 0 && r.height > 0; };
   const loginInput = Array.from(document.querySelectorAll('input')).some(i => visible(i) && (i.type === 'password' || /(手机号|验证码|密码|账号|用户名)/.test(`${i.placeholder} ${i.getAttribute('aria-label') ?? ''}`)));
-  return { url: location.href, hasPassword: !!document.querySelector('input[type=password]'), bodySample, loginForm: loginInput && /登录/.test(bodySample) };
+  // 只算看得见的密码框：登录框关了还留在页面里（2026-11-03 中国中车：登上了，藏着的登录框里的密码框让人一直以为还没登）
+  const hasPassword = Array.from(document.querySelectorAll('input[type=password]')).some(visible);
+  // 登上之后才有的入口：「退出」「注销」（中车登上后右上角「你好，xxx 退出」）
+  const loggedIn = Array.from(document.querySelectorAll('a, button, span, div, li')).some(n => visible(n) && /^(退出|退出登录|注销|安全退出|登出)$/.test((n.textContent || '').trim()));
+  return { url: location.href, hasPassword, bodySample, loginForm: loginInput && /登录/.test(bodySample), loggedIn };
 }
 
 export async function waitForUser(page: Page, opts: WaitOptions): Promise<WaitOutcome> {

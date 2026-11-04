@@ -25,3 +25,11 @@ export function beginUserWait(): () => void {
   return () => { if (!ended) { ended = true; userWaits--; } };
 }
 export const userWaitActive = (): boolean => userWaits > 0;
+
+/**
+ * 他在现场窗里点了某一家（几家一起投时在它们之间切换，用户 2026-11-02「只能看到美团这一家」）：
+ * 画面和他的操作都落在这一家的页面上，直到他换一家或这一家的页面关了。登录之旅的钉选优先。
+ */
+let viewApp: string | null = null;
+export function setViewApp(appKey: string | null): void { viewApp = appKey; }
+export function viewedApp(): string | null { return viewApp; }

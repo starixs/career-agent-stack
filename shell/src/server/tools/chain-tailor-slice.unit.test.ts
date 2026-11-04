@@ -114,8 +114,9 @@ describe('主链路切面 · 交简历 → 按岗位定制', () => {
     expect(vault.reveal(vault.list().find(i => i.field === 'email')!.id, { actor: 'test', purpose: 'test' })).toBe('mine@qq.com');
     expect(vault.reveal(vault.list().find(i => i.field === 'graduation')!.id, { actor: 'test', purpose: 'test' })).toBe('2027-06');
 
-    // 两段经历各一条，不再是一条以文件名命名的经历；说法待确认
-    expect(repos.listExperiences().map(e => e.title).sort()).toEqual(['校园二手交易小程序', '美团 · 数据分析实习生']);
+    // 两段经历各一条，不再是一条以文件名命名的经历；说法待确认。教育也进经历库（网申的在校时间、教育分区从这里填）
+    expect(repos.listExperiences().map(e => e.title).sort()).toEqual(['北京大学 · 硕士', '校园二手交易小程序', '美团 · 数据分析实习生']);
+    expect(repos.listExperiences().find(e => e.type === 'education')).toMatchObject({ org: '北京大学', role: '硕士（计算机科学与技术）', start_date: '2024-09', end_date: '2027-06' });
     expect(repos.listClaims().every(c => c.status === 'pending')).toBe(true);
 
     const intake = cards().filter(c => c.kind === 'resume_intake');
@@ -131,6 +132,22 @@ describe('主链路切面 · 交简历 → 按岗位定制', () => {
     expect(res.raw).not.toContain('13812345678');
     expect(res.raw).not.toContain('xiaoming@pku.edu.cn');
     expect(res.json.note).not.toMatch(LABOR_RX);
+  });
+
+  it('简历上的英语六级进私密库的英语水平（网申的语言类型 / 英语水平用它；2026-11-02 美团）', async () => {
+    const { englishLevelOf } = await import('../career/resume-intake');
+    expect(englishLevelOf('技能：SQL、Python、英语六级 560', { skills: [], certifications: [] })).toBe('英语六级 560');
+    expect(englishLevelOf('', { skills: [{ name: '语言', keywords: ['CET-6'] }], certifications: [] })).toBe('CET-6');
+    expect(englishLevelOf('', { skills: [], certifications: [{ title: '雅思 7.0', date: '' }] })).toBe('雅思 7.0');
+    expect(englishLevelOf('熟练使用 Excel', { skills: [], certifications: [] })).toBe('');
+  });
+
+  it('修复前导入的简历（教育只在草稿里）：填表前补进经历库，只补一次（2026-11-02 周子航）', async () => {
+    const { backfillEducationExperiences } = await import('../career/resume-intake');
+    repos.kvSet('resume_intake:rin_old', { id: 'rin_old', source: '旧简历.docx', education: [{ school: '北京邮电大学', degree: '硕士', major: '计算机科学与技术', start: '2024.09', end: '2027.06' }, { school: '杭州电子科技大学', degree: '本科', major: '软件工程', start: '2020.09', end: '2024.06' }], entries: [] });
+    expect(backfillEducationExperiences(repos)).toBe(2);
+    expect(repos.listExperiences().filter(e => e.type === 'education').map(e => [e.org, e.role, e.start_date])).toEqual([['北京邮电大学', '硕士（计算机科学与技术）', '2024-09'], ['杭州电子科技大学', '本科（软件工程）', '2020-09']]);
+    expect(backfillEducationExperiences(repos)).toBe(0);
   });
 
   it('简历上没写的核心项，就在同一张卡里带输入框（不另出一张，也不在对话里问）', async () => {
@@ -257,7 +274,7 @@ describe('主链路切面 · 交简历 → 按岗位定制', () => {
     const res = await handleCareerRoute(`/api/career/resume-intake/${intakeId}/clear-oral`, new Request('http://x', { method: 'POST', body: '{}' }),
       { repos, vault, llm: null, broadcast: () => undefined, sessionId: () => 'sess-1' });
     expect(await res!.json()).toMatchObject({ cleared: 1 });
-    expect(repos.listExperiences().map(e => e.title).sort()).toEqual(['校园二手交易小程序', '美团 · 数据分析实习生']);
+    expect(repos.listExperiences().map(e => e.title).sort()).toEqual(['北京大学 · 硕士', '校园二手交易小程序', '美团 · 数据分析实习生']); // 教育没有口述说法，不算旧经历
     expect(repos.listClaims().some(c => c.text === '口述里说过的一件事')).toBe(false);
   });
 

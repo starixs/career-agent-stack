@@ -6,7 +6,7 @@ import type { Repos } from '@career/core';
 
 import { BATCH_COMMAND_KEY } from './batch-runner';
 import { livePin, setLivePin } from './live-pin';
-import { startJourney, type JourneyBrowser, type JourneyPage } from './login-journey';
+import { journeySms, skipJourneyStep, startJourney, submitJourneyCode, type JourneyBrowser, type JourneyPage } from './login-journey';
 import { authCookies, knownLoggedIn, learnLoginMarks, LoginJudge, newCredentials, responseVerdict, type CookieLike, type ResponseVerdict, type ScreenSample } from './login-signal';
 import { createMemoryRepos } from './test-db';
 
@@ -171,6 +171,39 @@ describe('登录之旅', () => {
     expect(repos.kvGet<{ ids: string[] }>(BATCH_COMMAND_KEY)?.ids).toContain(a.action.id); // a 交给后台重开
   });
 
+  it('画面上已经登上了（看得见「退出」、没有登录表单）：直接放行、交后台接着填，不找登录框不干等（2026-11-03 中国中车）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    let prepared = false;
+    const { browser } = fakeBrowser({ cookies: () => [], screen: () => ({ loginShown: false, errorShown: false, loggedIn: true }) });
+    const pageFor = browser.pageFor;
+    browser.pageFor = key => { const p = pageFor(key); return p && { ...p, smsPrepare: async () => { prepared = true; return { status: 'no_sms' as const }; } }; };
+    const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, ...fast }, a.handoff.id, [a.handoff.id]);
+    expect(out?.steps.map(s => s.outcome)).toEqual(['known']);
+    expect(prepared).toBe(false);
+    expect(repos.openHandoffs()).toHaveLength(0);
+    expect(repos.kvGet<{ ids: string[] }>(BATCH_COMMAND_KEY)?.ids).toContain(a.action.id);
+  });
+
+  it('登录框出现过，登上后藏起来、右上角出现「退出」：算登上（signal=screen）', () => {
+    const j = new LoginJudge(new Map());
+    expect(j.observe(new Map(), { loginShown: true, errorShown: false, formShown: true }).state).toBe('waiting');
+    expect(j.observe(new Map(), { loginShown: false, errorShown: false, loggedIn: true })).toMatchObject({ state: 'logged_in', signal: 'screen' });
+  });
+
+  it('App 重启过、页面都没了：直接打开这一家的网址，就在这一家登录，不交后台整批重开（2026-11-03）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const { browser } = fakeBrowser({ cookies: n => [{ domain: '.a.com', name: 'sid', value: n >= 3 ? 'user' : 'guest' }] });
+    const opened: string[] = [];
+    const pageFor = browser.pageFor;
+    browser.pageFor = () => undefined;
+    browser.openPage = async (key, url) => { opened.push(url); return pageFor(key); };
+    const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, ...fast }, a.handoff.id, [a.handoff.id]);
+    expect(opened).toEqual(['https://jobs.a.com/apply/1']);
+    expect(out?.steps.map(s => s.outcome)).toEqual(['logged_in']);
+  });
+
   it('登录接口返回失败（密码错）时凭证变了也不算，继续等', async () => {
     const repos = createMemoryRepos();
     const a = waitingLogin(repos, 'a.com');
@@ -191,6 +224,37 @@ describe('登录之旅', () => {
     const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, timeoutMs: 100, sleep, now: () => t }, a.handoff.id, [a.handoff.id, b.handoff.id]);
     expect(out?.steps.map(s => s.outcome)).toEqual(['handed_back', 'timeout']);
     expect(repos.openHandoffs().map(h => h.id)).toEqual([b.handoff.id]);
+  });
+
+  it('「这家先跳过」：这一家留在等你里，接着带你过下一家（2026-11-02 腾讯校招只能 QQ / 微信登录）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const b = waitingLogin(repos, 'b.com');
+    const { browser } = fakeBrowser({ cookies: n => [{ domain: '.b.com', name: 'token', value: n >= 6 ? 'user' : '' }] });
+    let polls = 0;
+    const sleep = async () => { if (++polls === 2) skipJourneyStep(); };
+    const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, sleep }, a.handoff.id, [a.handoff.id, b.handoff.id]);
+    expect(out?.steps.map(s => s.outcome)).toEqual(['skipped', 'logged_in']);
+    expect(repos.openHandoffs().map(h => h.id)).toEqual([a.handoff.id]);
+  });
+
+  it('短信码代办：切到这一家先替他发码，他报的码填进这一家，登上了清掉（2026-11-03 他只管收验证码）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const submitted: string[] = [];
+    let loggedIn = false;
+    const { browser } = fakeBrowser({ cookies: () => [{ domain: '.a.com', name: 'token', value: loggedIn ? 'user' : '' }] });
+    const pageFor = browser.pageFor;
+    browser.pageFor = key => { const p = pageFor(key); return p && { ...p, smsPrepare: async () => ({ status: 'sent' as const }), smsSubmit: async (code: string) => { submitted.push(code); loggedIn = true; return { ok: true }; } }; };
+    let seen: unknown = null;
+    const sleep = async () => { if (!seen) { seen = journeySms(); expect(await submitJourneyCode('123456')).toEqual({ ok: true }); } };
+    const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, sleep }, a.handoff.id, [a.handoff.id]);
+    // 每一步都说是哪一家；填上码先显示「正在确认」，登上了显示「已登录」留一会儿（2026-11-03 反馈感）
+    expect(seen).toEqual({ status: 'sent', site: 'a.com' });
+    expect(submitted).toEqual(['123456']);
+    expect(out?.steps.map(s => s.outcome)).toEqual(['logged_in']);
+    expect(journeySms()).toEqual({ status: 'logged_in', site: 'a.com' });
+    expect(await submitJourneyCode('123456')).toMatchObject({ ok: false });
   });
 
   it('凭证名认不出、但画面上登录提示稳定消失：也算登上（signal=screen）', async () => {

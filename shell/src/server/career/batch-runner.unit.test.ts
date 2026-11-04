@@ -196,7 +196,7 @@ describe('BatchRunner', () => {
     const { runner, calls } = makeRunner(repos, () => {
       round++;
       return round === 1
-        ? [result('handoff', { reason: 'login', userAction: '请登录' })]
+        ? [result('handoff', { reason: 'captcha', userAction: '请过一下验证' })]
         : [result('stopped_before_submit', { submitButton: '提交' })];
     }, { hasBrowser: () => browserOpen });
     runner.start();
@@ -224,7 +224,7 @@ describe('BatchRunner', () => {
     const { runner, calls } = makeRunner(repos, () => {
       round++;
       return round === 1
-        ? [result('handoff', { reason: 'login', userAction: '请登录' })]
+        ? [result('handoff', { reason: 'captcha', userAction: '请过一下验证' })]
         : [result('stopped_before_submit', { submitButton: '提交' })];
     }, { hasBrowser: () => true, pageGone: () => gone });
     runner.start();
@@ -237,6 +237,36 @@ describe('BatchRunner', () => {
     expect(calls[1]).toMatchObject({ mode: 'start' });
     expect(calls[1].action.id).toBe(id);
     expect(repos.openHandoffs()).toHaveLength(0);
+  });
+
+  it('只填那几份时，浏览器关了只放回那几份，别家页面已关的接管不动（2026-11-03）', async () => {
+    const repos = createMemoryRepos();
+    const [a, b] = seed(repos, 2);
+    repos.setActionStatus(b, 'needs_user'); repos.openHandoff('captcha', { actionId: b });
+    let browserOpen = true;
+    const { runner } = makeRunner(repos, () => [result('handoff', { reason: 'captcha', userAction: '请过一下验证' })], { hasBrowser: () => browserOpen });
+    runner.run([a]);
+    for (let i = 0; i < 50 && runner.state().phase !== 'waiting_user'; i++) await settle();
+    browserOpen = false;
+    runner.requeueStaleHandoffs();
+    expect(repos.openHandoffs().map(h => h.action_id)).toContain(b);
+    expect(repos.getAction(b)?.status).toBe('needs_user');
+    runner.stop();
+  });
+
+  it('等登录的不随重启 / 关页整批重开：接管留着，等登录之旅轮到它时自己打开（2026-11-03 每次重启几十家被重填）', async () => {
+    const repos = createMemoryRepos();
+    seed(repos, 1);
+    let browserOpen = true;
+    const { runner, calls } = makeRunner(repos, () => [result('handoff', { reason: 'login', userAction: '请登录' })], { hasBrowser: () => browserOpen, pageGone: () => true });
+    runner.start();
+    for (let i = 0; i < 50 && runner.state().phase !== 'waiting_user'; i++) await settle();
+    browserOpen = false;
+    for (let i = 0; i < 10; i++) await settle();
+    expect(calls).toHaveLength(1);
+    expect(repos.openHandoffs()).toHaveLength(1);
+    expect(runner.state().phase).toBe('waiting_user');
+    runner.stop();
   });
 
   it('并行：不同网站同时填，同一网站严格串行，并发数封顶', async () => {

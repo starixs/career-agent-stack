@@ -299,14 +299,19 @@ export class BatchRunner {
 
   /**
    * 浏览器已经不在时，等用户处理的接管页面也没了：关掉这些接管，把动作放回队列（approved），
-   * 下一轮按 start 模式从岗位网址重新打开；遇到登录 / 验证码会生成新的、页面还在的接管。
+   * 下一轮按 start 模式从岗位网址重新打开；遇到验证码会生成新的、页面还在的接管。等登录的留着，由登录之旅打开。
    */
   requeueStaleHandoffs(pageGone?: NonNullable<BatchRunnerDeps['pageGone']>): number {
     const stale = this.repos.db.all<{ action_id: string; application_id: string | null; handoff_id: string; reason: string }>(
       `SELECT a.id AS action_id, a.application_id, h.id AS handoff_id, h.reason FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.kind='fill_form' AND a.status='needs_user' AND h.resumed_at IS NULL`,
     );
     const actions = new Set<string>();
+    // 只填那几份时只动那几份（2026-11-03：「只跑中车」时把别家 11 份页面已关的接管也放回队列，之后批量一开全量就整批重开）
+    const only = this.only();
     for (const row of stale) {
+      if (only && !only.has(row.action_id)) continue;
+      // 等登录的不重开：登录之旅轮到它时自己打开那一家（2026-11-03：每次重启几十家等登录的被整批重开重填，撞同一面登录墙）
+      if (row.reason === 'login') continue;
       // 只看页面没了的那几份；缺信息的不靠页面（在等你条里填），页面关了也不用重开
       if (pageGone && (row.reason === 'missing_info' || !pageGone({ id: row.action_id, application_id: row.application_id }))) continue;
       try { this.repos.closeHandoff(row.handoff_id, pageGone ? 'page_closed' : 'browser_closed'); } catch { /* 已关闭 */ }

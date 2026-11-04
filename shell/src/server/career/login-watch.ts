@@ -34,7 +34,9 @@ export function onLoginResponse(page: Page, cb: (v: ResponseVerdict) => void): (
 export async function screenSample(page: Page): Promise<ScreenSample | null> {
   try {
     const sample = await inPage(page, hintSampleInPage, null);
-    return { loginShown: detectHints(sample, []).includes('login'), errorShown: LOGIN_ERROR_TEXT.test(sample.bodySample), formShown: sample.loginForm };
+    // 看得见「退出」又没有开着的登录表单：登上了，导航里剩个「登录/注册」字样不算还要登录
+    const loginShown = !(sample.loggedIn && !sample.loginForm) && detectHints(sample, []).includes('login');
+    return { loginShown, errorShown: LOGIN_ERROR_TEXT.test(sample.bodySample), formShown: sample.loginForm, loggedIn: sample.loggedIn };
   } catch (e) {
     console.warn(`[career] login-watch: 这次读不到画面（${page.url()}）`, e instanceof Error ? e.message : e);
     return null;

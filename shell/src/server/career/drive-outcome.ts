@@ -167,7 +167,7 @@ export function summarizeDriveResult(result: Record<string, unknown>): Record<st
   return {
     status: result.status, reason: result.reason, message: result.message, userAction: result.userAction, finalUrl: result.finalUrl, adapter: result.adapterId,
     filled: result.filled, needsUser: result.needsUser, drafts: result.drafts, mismatches: result.mismatches, uploads: result.uploads,
-    escalations: result.escalations, layersUsed: result.layersUsed, submitButton: result.submitButton, loginFilled: result.loginFilled,
+    escalations: result.escalations, layersUsed: result.layersUsed, submitButton: result.submitButton, loginFilled: result.loginFilled, loginMethods: result.loginMethods,
     review: result.review,
     sections: Array.isArray(result.pages) ? (result.pages as Array<{ sections?: unknown }>).flatMap(p => (Array.isArray(p.sections) ? p.sections : [])) : undefined,
   };

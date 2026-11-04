@@ -64,7 +64,7 @@ export function responseVerdict(url: string, status: number, body: string | null
 }
 
 /** 画面上看到的：还有没有登录框 / 登录提示，有没有登录报错；formShown = 登录表单（手机号 / 验证码 / 密码输入框）还开着。 */
-export interface ScreenSample { loginShown: boolean; errorShown: boolean; formShown?: boolean }
+export interface ScreenSample { loginShown: boolean; errorShown: boolean; formShown?: boolean; /** 看得见「退出」这类登上后才有的入口 */ loggedIn?: boolean }
 /** 画面上的登录报错。 */
 export const LOGIN_ERROR_TEXT = /(密码错误|密码不正确|验证码错误|验证码不正确|账号或密码|用户名或密码|登录失败|账号不存在)/;
 /** 登录提示连续这么多次不在才算消失（登录跳转途中会闪一下）。 */
@@ -96,7 +96,8 @@ export class LoginJudge {
     if (this.last === 'fail' || screen?.errorShown) return { state: 'failed', credentials: fresh };
     // 登录表单还开着时，新冒出来的 Cookie 只是访客 / 风控凭证（美团点「获取验证码」就发了一批），要有登录接口返回成功才算
     const data = fresh.length > 0 && (!screen?.formShown || this.last === 'ok');
-    const seen = this.streak >= SCREEN_CLEAR_STREAK;
+    // 画面上直接看得到登上了（「退出」在、登录表单不在）：不用等登录框出现再消失
+    const seen = this.streak >= SCREEN_CLEAR_STREAK || (!!screen?.loggedIn && !screen.formShown && !screen.loginShown);
     if (!data && !seen) return { state: 'waiting', credentials: fresh };
     return { state: 'logged_in', signal: data && seen ? 'both' : data ? 'credentials' : 'screen', credentials: fresh };
   }

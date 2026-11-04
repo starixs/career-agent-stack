@@ -43,6 +43,23 @@ export interface CareerBrowserHost {
 /** 只依赖 `@career/apply` 公开 API 的最小形状；包本体按需动态加载。 */
 export interface ApplyEngineModule {
   fromPlaywright(page: Page): ApplyPageLike;
+  /** 手机验证码登录：替他填号、勾协议、点获取验证码 / 填上他报的码点登录（旧版本的包没有就不代办）。 */
+  prepareSmsLogin?: (page: ApplyPageLike, phone: string) => Promise<{ status: 'sent'; agreed: boolean } | { status: 'captcha'; evidence: string } | { status: 'no_sms'; reason: string }>;
+  submitSmsCode?: (page: ApplyPageLike, code: string) => Promise<{ ok: boolean; reason?: string }>;
+  /** 邮箱验证码登录 / 注册：切掉扫码框、填邮箱（注册再填密码）、点获取验证码 / 填上码点登录或注册（旧版本的包没有就不代办）。 */
+  prepareEmailRegister?: (page: ApplyPageLike, account: { email: string; password: string }) => Promise<{ status: 'sent'; agreed: boolean; withPassword: boolean } | { status: 'captcha'; evidence: string } | { status: 'image_code'; withPassword: boolean } | { status: 'no_register'; reason: string }>;
+  /** 存过的账号密码登录：填上点登录；弹图形码就报 image_code，他打的字由 submitPasswordLogin 填回去再点登录。 */
+  preparePasswordLogin?: (page: ApplyPageLike, cred: { username: string; password: string }) => Promise<{ status: 'submitted' } | { status: 'image_code' } | { status: 'captcha'; evidence: string } | { status: 'no_form'; reason: string }>;
+  submitPasswordLogin?: (page: ApplyPageLike, imageText: string) => Promise<{ status: 'submitted' } | { status: 'image_code' } | { status: 'captcha'; evidence: string } | { status: 'no_form'; reason: string }>;
+  /** 图形码：图给他看、他打的字填回去点确认（不识别、不代填）。 */
+  imageCodeDataUrl?: (page: ApplyPageLike) => Promise<string | null>;
+  findImageCode?: (page: ApplyPageLike) => Promise<{ input: string; image: string } | null>;
+  refreshImageCode?: (page: ApplyPageLike) => Promise<string | null | undefined>;
+  imageCodeGone?: (page: ApplyPageLike) => Promise<boolean>;
+  answerImageCode?: (page: ApplyPageLike, text: string) => Promise<{ status: 'sent' } | { status: 'captcha'; evidence: string } | { status: 'image_code' } | { status: 'unseen' }>;
+  submitRegisterCode?: (page: ApplyPageLike, code: string) => Promise<{ ok: boolean; reason?: string }>;
+  /** 收码登录后网站要「首次登录 · 设置密码」：填上生成的密码点确定（没有这个框返回 false）。 */
+  setFirstPassword?: (page: ApplyPageLike, password: string) => Promise<boolean>;
   diagnosePage(page: ApplyPageLike, options?: { url?: string }): Promise<unknown>;
   driveApplication(
     page: ApplyPageLike,
@@ -152,11 +169,12 @@ export async function defaultPerceiver(apply: ApplyEngineModule, page: ApplyPage
 /** 缺省资料组装：basics 来自私密库（兜底 kv:profile.basics），经历 / 答案库来自 Repos；三个钩子都绑到私密库。 */
 export async function defaultDriveProfile(body: Record<string, unknown>, apply: ApplyEngineModule, llm: LlmLike): Promise<DriveProfileBundle | null> {
   if (typeof apply.ApplyService !== 'function') return null;
-  const [{ getRepos }, { getVault }, { loadCore }, { CareerStore }, { educationFromMaster, educationRows, withResumeEducation }, { backfillExperienceKinds }] = await Promise.all([
+  const [{ getRepos }, { getVault }, { loadCore }, { CareerStore }, { educationFromMaster, educationRows, withResumeEducation }, { backfillExperienceKinds, backfillEducationExperiences }] = await Promise.all([
     import('../career/db'), import('../career/vault'), import('../career/core-module'), import('../career/store'), import('../career/resume-education'), import('../career/resume-intake'),
   ]);
   const [repos, vault, core] = await Promise.all([getRepos(), getVault(), loadCore()]);
   backfillExperienceKinds(repos);
+  backfillEducationExperiences(repos);
   const resumePath = typeof body.resumePath === 'string' && body.resumePath.trim() ? body.resumePath.trim() : undefined;
   const profile = new apply.ApplyService(repos, llm, { vault }).buildProfile(resumePath);
   // 教育经历的起止时间只在主简历里：按学校补齐（resume-education.ts）
@@ -208,7 +226,7 @@ function applyModuleSpecifiers(): string[] {
 
 let applyModulePromise: Promise<ApplyEngineModule | null> | null = null;
 
-async function loadApplyModule(): Promise<ApplyEngineModule | null> {
+export async function loadApplyModule(): Promise<ApplyEngineModule | null> {
   if (!applyModulePromise) {
     applyModulePromise = (async () => {
       for (const specifier of applyModuleSpecifiers()) {

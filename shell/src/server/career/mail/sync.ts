@@ -53,7 +53,7 @@ export function isLikelyJobMail(m: Pick<FetchedMail, 'from' | 'subject' | 'text'
 
 type ImapClient = InstanceType<typeof import('imapflow').ImapFlow>;
 
-async function withInbox<T>(account: MailAccount, password: string, fn: (client: ImapClient) => Promise<T>): Promise<T> {
+export async function withInbox<T>(account: MailAccount, password: string, fn: (client: ImapClient) => Promise<T>): Promise<T> {
   const { ImapFlow } = await import('imapflow');
   const client = new ImapFlow({ host: account.imap_host, port: account.imap_port, secure: true, auth: { user: account.address, pass: password }, logger: false });
   await client.connect();
@@ -63,7 +63,7 @@ async function withInbox<T>(account: MailAccount, password: string, fn: (client:
   } finally { await client.logout().catch(() => undefined); }
 }
 
-async function fetchBodies(client: ImapClient, uids: number[]): Promise<FetchedMail[]> {
+export async function fetchBodies(client: ImapClient, uids: number[]): Promise<FetchedMail[]> {
   const { simpleParser } = await import('mailparser');
   const out: FetchedMail[] = [];
   if (!uids.length) return out;

@@ -5,6 +5,7 @@ import type { Repos } from '@career/core';
 import { adoptApplicationPage, resetApplicationPages } from '../career/app-pages';
 import { FileChooserBroker, type FileChooserLike } from '../career/file-chooser';
 import { LiveHub } from '../career/live-hub';
+import { JOURNEY_EVENT } from '../career/login-journey';
 import { beginUserWait, setLivePin } from '../career/live-pin';
 import { createMemoryRepos } from '../career/test-db';
 import { handleCareerLiveRoute, type CareerLiveDeps, type CareerLiveHost } from './career-live';
@@ -65,6 +66,23 @@ describe('career live route', () => {
     expect(d.hub.size).toBe(0);
   });
 
+  it('stream：登录之旅变了（发码 / 要看图）就再推一份快照，画面先开着也能看到验证码那一格（2026-11-03 中车）', async () => {
+    const repos = createMemoryRepos();
+    const d = deps(repos);
+    const controller = new AbortController();
+    const res = await handleCareerLiveRoute('/api/career/live/stream', new Request('http://local/api/career/live/stream?frames=0', { signal: controller.signal }), d);
+    const reader = res!.body!.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    const readLines = async (n: number) => { while (buf.split('\n').filter(Boolean).length < n) { const { value, done } = await reader.read(); if (done) break; buf += decoder.decode(value); } return buf.split('\n').filter(Boolean).map(l => JSON.parse(l) as Record<string, unknown>); };
+    await readLines(1);
+    d.hub.publish(JOURNEY_EVENT);
+    const lines = await readLines(2);
+    expect(lines.filter(l => l.type === 'snapshot')).toHaveLength(2);
+    expect(lines.some(l => l.type === JOURNEY_EVENT)).toBe(false);
+    controller.abort();
+  });
+
   it('control：human 前置窗口并广播；agent 关闭等待中的填表接管并广播数据变更', async () => {
     const repos = createMemoryRepos();
     const host = fakeHost();
@@ -97,6 +115,39 @@ describe('career live route', () => {
       expect(await state()).toMatchObject({ journey: { index: 1, total: 3 }, waitingUser: true });
     } finally { end(); end(); setLivePin(null); }
     expect((await state()).waitingUser).toBe(false);
+  });
+
+  it('几家一起投：列出有页面开着的几家，点一家画面和操作就落在那一家（用户 2026-11-02「只能看到美团这一家」）', async () => {
+    resetApplicationPages();
+    const repos = createMemoryRepos();
+    const appOf = (company: string) => repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: company, title: '数据分析', company_name: company }).id).id;
+    const [mt, sd] = [appOf('美团'), appOf('斯达半导体')];
+    const mk = (url: string) => { const frame = {}; return { url: () => url, title: async () => url, isClosed: () => false, mainFrame: () => frame, once: () => {} }; };
+    const [mtPage, sdPage] = [mk('https://zhaopin.meituan.com/apply'), mk('https://v.wjx.cn/vm/x.aspx')];
+    const host = { ...fakeHost(), withProductSession: async <T,>(_id: string, fn: (ctx: never) => Promise<T>) => fn({ pages: () => [mtPage, sdPage] } as never) };
+    adoptApplicationPage('sess-career', mt, mtPage as never);
+    adoptApplicationPage('sess-career', sd, sdPage as never);
+    const d = deps(repos, host as never);
+    const pages = async () => ((await (await handleCareerLiveRoute('/api/career/live/pages', req('/api/career/live/pages'), d))!.json()) as { pages: Array<{ company: string; current: boolean }> }).pages;
+    expect((await pages()).map(p => p.company).sort()).toEqual(['斯达半导体', '美团']);
+    const switched = await handleCareerLiveRoute('/api/career/live/view', req('/api/career/live/view', { application_id: sd }), d);
+    expect(switched!.status).toBe(200);
+    expect((await pages()).find(p => p.current)?.company).toBe('斯达半导体');
+    const state = (await (await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), d))!.json()) as { browser: { url: string } };
+    expect(state.browser.url).toBe('https://v.wjx.cn/vm/x.aspx');
+    const gone = await handleCareerLiveRoute('/api/career/live/view', req('/api/career/live/view', { application_id: 'app_closed' }), d);
+    expect(gone!.status).toBe(404);
+    await handleCareerLiveRoute('/api/career/live/view', req('/api/career/live/view', { application_id: null }), d);
+    resetApplicationPages();
+  });
+
+  it('sms-code：只收 4–8 位数字；没有在等验证码的网站就如实说', async () => {
+    const d = deps(createMemoryRepos());
+    const bad = await handleCareerLiveRoute('/api/career/live/sms-code', req('/api/career/live/sms-code', { code: 'abc' }), d);
+    expect(bad!.status).toBe(400);
+    const none = await handleCareerLiveRoute('/api/career/live/sms-code', req('/api/career/live/sms-code', { code: '123456' }), d);
+    expect(none!.status).toBe(409);
+    expect(((await (await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), d))!.json()) as { sms: unknown }).sms).toBeNull();
   });
 
   it('state：登录之旅里状态行的网址是钉住的那一家，不是后台正在填的另一页', async () => {

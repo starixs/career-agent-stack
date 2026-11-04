@@ -154,7 +154,22 @@ function profileValues(text: string, parsed: ResumeParse): Record<string, string
     degree: p.degree || edu?.degree || '',
     graduation: toYearMonth(p.graduation || edu?.end || ''),
     city: p.city ?? '',
+    englishLevel: englishLevelOf(text, parsed),
   };
+}
+
+/**
+ * 英语等级：简历上写的「英语六级 560」「CET-6」——网申的语言类型 / 英语水平都要它（2026-11-02 美团：简历写了六级，
+ * 语言类型却推给了用户，因为导入时只把它存成了技能草稿）。只认四六级 / 专四专八 / 雅思托福，原文带分数就带上。
+ */
+const ENGLISH_LEVEL_RX = /(英语\s*[四六]级|CET\s*-?\s*[46]|大学英语[四六]级|专业英语[四八]级|TEM\s*-?\s*[48]|雅思|IELTS|托福|TOEFL)\s*[:：]?\s*(\d{1,3}(?:\.\d)?)?/i
+export function englishLevelOf(text: string, parsed: Pick<ResumeParse, 'skills' | 'certifications'>): string {
+  const pool = [...parsed.certifications.map(c => c.title), ...parsed.skills.flatMap(x => [x.name, ...x.keywords]), text]
+  for (const t of pool) {
+    const m = typeof t === 'string' ? t.match(ENGLISH_LEVEL_RX) : null
+    if (m) return m[2] ? `${m[1].replace(/\s+/g, '')} ${m[2]}` : m[1].replace(/\s+/g, '')
+  }
+  return ''
 }
 
 /**
@@ -186,6 +201,30 @@ export function backfillExperienceKinds(repos: Repos): number {
   return changed;
 }
 
+/** 一段教育进经历库（type=education），格式和 apply 的 parseEducation 对上：org=学校、role=学位（专业）。 */
+function addEducationExperience(repos: Repos, ed: Pick<IntakeEducation, 'school' | 'degree' | 'major' | 'start' | 'end'>, source: string): void {
+  repos.createExperience({ title: [ed.school, ed.degree].filter(Boolean).join(' · '), org: ed.school, role: ed.degree ? `${ed.degree}${ed.major ? `（${ed.major}）` : ''}` : ed.major || null, start_date: toYearMonth(ed.start) || null, end_date: toYearMonth(ed.end) || null, type: 'education', summary: `由简历《${source}》导入` });
+}
+
+/**
+ * 修复之前导入的简历，教育只在导入草稿里（经历库里一段教育都没有）：按最近一次导入补进经历库。
+ * 已经有教育经历的不动（用户自己加过 / 新导入已经建了）。
+ */
+export function backfillEducationExperiences(repos: Repos): number {
+  if (repos.experienceTree().some(e => e.type === 'education')) return 0;
+  const drafts = repos.db.all<{ value_json: string }>('SELECT value_json FROM kv WHERE key LIKE ? ORDER BY updated_at DESC', [`${INTAKE_KV_PREFIX}%`]);
+  for (const row of drafts) {
+    let draft: Partial<IntakeDraft>;
+    try { draft = JSON.parse(row.value_json) as Partial<IntakeDraft>; } catch (e) { console.warn('[career] intake draft unreadable for education backfill', e instanceof Error ? e.message : e); continue; }
+    const rows = (draft.education ?? []).filter(ed => ed && ed.school);
+    if (!rows.length) continue;
+    for (const ed of rows) addEducationExperience(repos, ed, draft.source ?? '简历');
+    console.log(`[career] education experiences backfilled from intake draft: ${rows.length}`);
+    return rows.length;
+  }
+  return 0;
+}
+
 export function importResume(deps: IntakeDeps, input: { text: string; source: string; locator: string; parsed: ResumeParse }): IntakeResult {
   const { repos, vault } = deps;
   const now = deps.now?.() ?? new Date().toISOString();
@@ -200,6 +239,9 @@ export function importResume(deps: IntakeDeps, input: { text: string; source: st
     });
     return { experience, claims };
   });
+  // 教育经历也进经历库（type=education）：网申的教育分区、在校时间、本科那一段都从这里填；之前只存进草稿，
+  // 填表时只剩私密库里的一所学校、没有入学时间（2026-11-02 美团在校时间、本科杭电整段丢了）
+  for (const ed of input.parsed.education) if (ed.school) addEducationExperience(repos, ed, input.source);
   const draft: IntakeDraft = {
     id, source: input.source, direction: input.parsed.direction, education: input.parsed.education,
     entries: input.parsed.entries.map((e, i) => ({ experience_id: experiences[i].experience.id, section: e.section, title: e.title, org: e.org, role: e.role, start: e.start, end: e.end })),

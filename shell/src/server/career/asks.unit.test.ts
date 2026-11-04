@@ -65,6 +65,18 @@ describe('AskView：一个动作能解决的才合并', () => {
     expect(ask.fields?.map(f => [f.label, f.text])).toEqual([['3.您的年龄', '您的年龄'], ['4.您所在或者毕业的高校名称：', '您所在或者毕业的高校名称']]);
   });
 
+  it('灰着在等前一格的（专业等学院）不问他：只问前一格，定了续填自动接上（2026-11-02 美团）', () => {
+    const repos = createMemoryRepos();
+    const a = repos.enqueueAction('fill_form', { job: 'x' }, app(repos, '美团').id, true);
+    repos.openHandoff('missing_info', { actionId: a.id, message: '还差 2 项' });
+    repos.setActionStatus(a.id, 'needs_user', {
+      needsUser: [{ label: '学院名称' }, { label: '专业名称', code: 'field_disabled', waitsFor: '学院名称' }],
+      gate: { gaps: ['学院名称', '专业名称'].map(label => ({ label, status: 'needs_user', required: true })) },
+    });
+    const [ask] = buildAsks(repos, NOW);
+    expect(ask.fields?.map(f => f.label)).toEqual(['学院名称']);
+  });
+
   it('缺的字段不一样就不合并：填了证件号码解决不了缺生源地的那家', () => {
     const repos = createMemoryRepos();
     stuckOnFields(repos, app(repos, '甲').id, ['证件号码']);
@@ -137,6 +149,14 @@ describe('AskView：按外部期限排序', () => {
     expect(buildAsks(repos, NOW).map(a => a.kind + ':' + a.title)).toEqual([
       'deadline:九方云 · 在线测评', 'deadline:讯飞 · 笔试', 'info:证件号码', 'login:智元 · 要登录', 'attendance:美团 · 笔试：考了吗？',
     ]);
+  });
+
+  it('没期限的里面，填好等投前过目的排最前：点一下就投出去，不被一大批登录压在后面（2026-11-03 找不到过目的那几家）', () => {
+    const repos = createMemoryRepos();
+    for (const c of ['甲', '乙', '丙']) stuckOnLogin(repos, app(repos, c).id);
+    const a = app(repos, '陌陌');
+    repos.enqueueAction('submit', { review: { rows: [{ label: '姓名', status: 'ok' }, { label: '作品集', status: 'upload_unconfirmed' }], requiredFilled: 12, requiredTotal: 12 } }, a.id);
+    expect(buildAsks(repos, NOW)[0]).toMatchObject({ kind: 'review', title: '陌陌 · 投前过目' });
   });
 
   it('没有自己期限的事，挡住的网申有截止日：用最早那个当外部期限', () => {
