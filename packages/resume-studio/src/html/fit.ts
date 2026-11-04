@@ -9,10 +9,12 @@ export type Measure = (scales: FitScales) => number | Promise<number>;
 
 /** 字号最多缩到 0.8 倍：再小正文低于约 8pt，HR 读起来吃力（实测 10pt 正文缩到 0.82 仍清楚）。 */
 export const MIN_FONT = 0.8;
-/** 内容少时字号最多放大到 1.12 倍：再大会显得字大空洞（实测 1.3 倍已明显过大）。 */
-export const MAX_FONT = 1.12;
-/** 间距最多拉到 2.2 倍：超过后分区之间断开感太强。 */
-export const MAX_SPACE = 2.2;
+/**
+ * 内容少时只做小幅放大：字号最多 1.08 倍、间距最多 1.5 倍；还填不满就让页底留白，不把整页撑松。
+ * 11-04 实测间距拉到 1.9–2.2 倍时分区之间断开，整页显得稀疏，正是用户最早嫌的样子（技能横排后尤其明显）。
+ */
+export const MAX_FONT = 1.08;
+export const MAX_SPACE = 1.5;
 /** 填到可用高度的 97% 即视为排满；留 3% 吸收预览与打印引擎的断行差异，避免溢出一行到第二页。 */
 export const FILL_TARGET = 0.97;
 /** 二分步数：区间宽度 ≤ 0.6，8 步后误差 < 0.003。 */

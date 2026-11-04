@@ -24,9 +24,11 @@ describe("fitOnePage", () => {
 	});
 
 	it("不满一页时先拉开间距，不动字号", async () => {
-		const measure = fakeMeasure(700, 150);
+		// 自然高 940 不满一页；间距拉到上限 1.5 倍会到 1000（超过 970），所以只调间距就够
+		const measure = fakeMeasure(820, 120);
 		const s = await fitOnePage(measure, 1000);
 		expect(s.font).toBe(1);
+		expect(s.space).toBeLessThan(MAX_SPACE);
 		expect(s.space).toBeGreaterThan(1);
 		expect(measure(s)).toBeLessThanOrEqual(1000 * FILL_TARGET);
 	});
