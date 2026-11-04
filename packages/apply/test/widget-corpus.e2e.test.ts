@@ -327,6 +327,155 @@ describe('问卷星地区浮层（真实 Chrome）', () => {
   }, 30_000)
 })
 
+describe('锁定的格子（真实 Chrome）', () => {
+  it('网站锁着、里面已有值：算填好了、记页面真值，不推给他；锁着又是空的才是灰格子（2026-11-02 美团手机号码 / 区号）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/locked-field.html')
+    const ok = await fill(page, '手机号码', '15500001234')
+    expect(ok.att).toMatchObject({ verified: true, strategy: 'locked-prefilled' })
+    // 锁着的是网站自己的值（区号锁成 86、别的号码）：他也改不了，不算缺项，记页面上的值
+    const other = await fill(page, '紧急联系人电话', '15500001234')
+    expect(other.att).toMatchObject({ verified: true, strategy: 'locked-prefilled', display: '13800000000' })
+    // 锁着又是空的：才是灰格子（在等前面的格子）
+    const empty = await fill(page, '专业名称', '计算机科学与技术')
+    expect(empty.att).toMatchObject({ verified: false, code: 'field_disabled' })
+    await page.context().close()
+  }, 60_000)
+})
+
+describe('手机验证码登录（真实 Chrome）', () => {
+  it('他只管收验证码：切到手机号登录、填号、勾协议、点获取验证码；他报码后填上点登录；点了弹拼图如实报 captcha（2026-11-03 用户定）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/sms-login.html')
+    const P = engine.fromPlaywright(page)
+    const sent = await engine.prepareSmsLogin(P, '15500001234', { sleep: async () => {} })
+    expect(sent).toEqual({ status: 'sent', agreed: true })
+    expect(await page.evaluate(() => (window as unknown as { __sent: boolean }).__sent)).toBe(true)
+    expect(await page.evaluate(() => (window as unknown as { __leftPage: boolean }).__leftPage)).toBe(false) // 没点到协议链接
+    expect(await engine.submitSmsCode(P, '123456')).toEqual({ ok: true })
+    expect(await page.evaluate(() => (window as unknown as { __loggedIn: boolean }).__loggedIn)).toBe(true)
+    const cap = await open('corpus/sms-login.html#captcha')
+    expect(await engine.prepareSmsLogin(engine.fromPlaywright(cap), '15500001234', { sleep: async () => {} })).toMatchObject({ status: 'captcha' })
+    // 岗位详情页：先点页面上的「登录」打开登录框，再照常发码
+    const detail = await open('corpus/sms-login.html#detail')
+    expect(await engine.prepareSmsLogin(engine.fromPlaywright(detail), '15500001234', { sleep: async () => {} })).toEqual({ status: 'sent', agreed: true })
+    // 详情页「登录」过一会儿跳到独立登录页（2026-11-03 网易、理想）：等新页出来再找格子，不判成没有短信登录
+    const nav = await open('corpus/nav-login.html')
+    expect(await engine.prepareSmsLogin(engine.fromPlaywright(nav), '15500001234', { sleep: ms => nav.waitForTimeout(ms) })).toMatchObject({ status: 'sent' })
+    expect(await nav.evaluate(() => (window as unknown as { __sentTo: string }).__sentTo)).toBe('15500001234')
+    await nav.context().close()
+    // 协议勾选只是画出来的小圆圈（2026-11-03 理想）：点圆圈勾上再发码；角上的二维码小图标不碰
+    const icon = await open('corpus/icon-agree.html')
+    expect(await engine.prepareSmsLogin(engine.fromPlaywright(icon), '15500001234', { sleep: async () => {} })).toEqual({ status: 'sent', agreed: true })
+    expect(await icon.evaluate(() => (window as unknown as { __sentTo: string }).__sentTo)).toBe('15500001234')
+    await icon.context().close()
+    // 一层滑块盖住获取验证码：报要他过一下，不当成没有短信登录
+    const covered = await open('corpus/sms-login.html#overlay')
+    expect(await engine.prepareSmsLogin(engine.fromPlaywright(covered), '15500001234', { sleep: async () => {} })).toMatchObject({ status: 'captcha' })
+    await page.context().close(); await cap.context().close(); await detail.context().close(); await covered.context().close()
+  }, 90_000)
+})
+
+describe('邮箱验证码登录 / 注册（真实 Chrome）', () => {
+  it('登录框只给扫码：点角标切账号登录 → 验证码登录（首次登录自动建号），填邮箱点获取验证码；码填上点登录（2026-11-03 中国中车）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/email-register.html')
+    const P = engine.fromPlaywright(page)
+    const account = { email: '15500001234@163.com', password: 'Abc2027abcd' }
+    expect(await engine.prepareEmailRegister(P, account, { sleep: async () => {} })).toMatchObject({ status: 'sent', withPassword: false })
+    expect(await page.evaluate(() => (window as unknown as { __sentTo: string }).__sentTo)).toBe('15500001234@163.com')
+    expect(await engine.submitRegisterCode(P, '483920')).toEqual({ ok: true })
+    expect(await page.evaluate(() => (window as unknown as { __registered: unknown }).__registered)).toEqual({ email: account.email, password: null })
+    // 没有验证码登录、只能注册：填邮箱和密码、点获取激活码，激活码填上点注册
+    const reg = await open('corpus/email-register.html#regonly')
+    const R = engine.fromPlaywright(reg)
+    expect(await engine.prepareEmailRegister(R, account, { sleep: async () => {} })).toMatchObject({ status: 'sent', withPassword: true })
+    expect(await engine.submitRegisterCode(R, '483920')).toEqual({ ok: true })
+    expect(await reg.evaluate(() => (window as unknown as { __registered: unknown }).__registered)).toEqual(account)
+    // 框已经弹着、遮罩挡住导航上的「登录/注册」：短信那条路点不到也不报错，如实说没有短信登录；邮箱这条照样走通
+    const open2 = await open('corpus/email-register.html#open')
+    const P2 = engine.fromPlaywright(open2)
+    expect(await engine.prepareSmsLogin(P2, '15500001234', { sleep: async () => {} })).toMatchObject({ status: 'no_sms' })
+    expect(await engine.prepareEmailRegister(P2, account, { sleep: async () => {} })).toMatchObject({ status: 'sent' })
+    // 点获取验证码弹出图形码：报 image_code，不碰它；他打错一次换一张，打对了发码，码照样填上登录
+    const img = await open('corpus/email-register.html#imgcode')
+    const I = engine.fromPlaywright(img)
+    expect(await engine.prepareEmailRegister(I, account, { sleep: async () => {} })).toEqual({ status: 'image_code', withPassword: false })
+    expect(await img.evaluate(() => (window as unknown as { __sentTo: string | null }).__sentTo)).toBeNull()
+    expect(await engine.findImageCode(I)).toMatchObject({ image: '[data-career-imgcode="img"]' })
+    // 看不清点图：网站上换一张，拿回来的是新图
+    const oldImage = await engine.imageCodeDataUrl(I)
+    const fresh = await engine.refreshImageCode(I, { sleep: ms => img.waitForTimeout(ms) })
+    expect(fresh).toMatch(/^data:image\/png/)
+    expect(fresh).not.toBe(oldImage)
+    expect(await engine.answerImageCode(I, 'K7mP', { sleep: async () => {} })).toEqual({ status: 'image_code' }) // 旧图的字不对了
+    // 他在网页上自己打字时（格子里有字）不算答完；还挂着图
+    await img.fill('#i-code', 'Q3')
+    expect(await engine.imageCodeGone(I)).toBe(false)
+    await img.fill('#i-code', '')
+    expect(await engine.answerImageCode(I, 'Q3zX', { sleep: async () => {} })).toEqual({ status: 'sent' })
+    // 答对了那一行收起来：看得出他答完了（他直接在网页上答，产品那一格没收到字，2026-11-03 中国中车）
+    expect(await engine.imageCodeGone(I)).toBe(true)
+    expect(await engine.submitRegisterCode(I, '483920')).toEqual({ ok: true })
+    expect(await img.evaluate(() => (window as unknown as { __registered: unknown }).__registered)).toEqual({ email: account.email, password: null })
+    // 手机号 / 邮箱两个标签、默认在手机号（2026-11-03 畅游 Moka）：切到「邮箱登录」，不去点已经开着的「手机号登录」；
+    // 点获取验证码弹拼图：报 captcha，由他拖，码照样发到邮箱
+    const moka = await open('corpus/moka-login.html')
+    const M = engine.fromPlaywright(moka)
+    expect(await engine.prepareEmailRegister(M, account, { sleep: async () => {} })).toMatchObject({ status: 'captcha' })
+    expect(await moka.inputValue('#m-mail')).toBe(account.email)
+    await moka.context().close()
+    // 扫码框没有角标、只有「其他登录方式」：也找得到账号登录，不在扫码那儿停
+    const link = await open('corpus/email-register.html#qrlink')
+    expect(await engine.prepareEmailRegister(engine.fromPlaywright(link), account, { sleep: async () => {} })).toMatchObject({ status: 'sent' })
+    await link.context().close()
+    // 存过账号密码：切到密码登录填上；密码登录也带图形码——报 image_code，他打的字填回去再点登录
+    const pwd = await open('corpus/email-register.html')
+    const W = engine.fromPlaywright(pwd)
+    expect(await engine.preparePasswordLogin(W, { username: account.email, password: account.password }, { sleep: async () => {} })).toEqual({ status: 'image_code' })
+    expect(await engine.submitPasswordLogin(W, 'ab12')).toEqual({ status: 'submitted' })
+    expect(await pwd.evaluate(() => (window as unknown as { __pwdLogin: unknown }).__pwdLogin)).toEqual({ email: account.email, password: account.password, captcha: 'ab12' })
+    await pwd.context().close()
+    // 收码登录后弹「首次登录」只要设密码：填上生成的密码点确定；没有这个框就不动
+    expect(await engine.setFirstPassword(P, 'Abc2027abcd')).toBe(false)
+    const first = await open('corpus/email-register.html#firstpwd')
+    const F = engine.fromPlaywright(first)
+    expect(await engine.prepareEmailRegister(F, account, { sleep: async () => {} })).toMatchObject({ status: 'sent', withPassword: false })
+    expect(await engine.submitRegisterCode(F, '483920')).toEqual({ ok: true })
+    expect(await engine.setFirstPassword(F, 'Abc2027abcd')).toBe(true)
+    expect(await first.evaluate(() => (window as unknown as { __registered: unknown }).__registered)).toEqual(account)
+    await page.context().close(); await reg.context().close(); await open2.context().close(); await img.context().close(); await first.context().close()
+  }, 90_000)
+})
+
+describe('固定顶栏挡住按钮（真实 Chrome）', () => {
+  it('按钮停在固定顶栏下面：先滚到中间再点，不被顶栏挡住点到超时（2026-11-03 中国中车「立即投递」）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/fixed-header.html')
+    await engine.fromPlaywright(page).click('#deliver')
+    expect(await page.evaluate(() => (window as unknown as { __clicked: boolean }).__clicked)).toBe(true)
+    await page.context().close()
+  }, 30_000)
+})
+
+describe('字段编号稳定（真实 Chrome）', () => {
+  it('页面顶上多出一格再抽一次：原来的格子号不变，新格子拿新号（2026-11-03 库洛游戏值全串到下一格）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/reflow-form.html')
+    const P = engine.fromPlaywright(page)
+    const before = Object.fromEntries((await engine.extractFields(P)).map(f => [f.label, f.id]))
+    await page.click('#grow')
+    const after = Object.fromEntries((await engine.extractFields(P)).map(f => [f.label, f.id]))
+    expect(after['姓名']).toBe(before['姓名'])
+    expect(after['邮箱']).toBe(before['邮箱'])
+    expect(new Set(Object.values(after)).size).toBe(3)
+    await P.fill(`[data-career-field="${after['姓名']}"]`, '周子航')
+    expect(await page.inputValue('#name')).toBe('周子航')
+    expect(await page.inputValue('#ref')).toBe('')
+    await page.context().close()
+  }, 30_000)
+})
+
 describe('问卷星上传（真实 Chrome）', () => {
   it('传完 input 被清空、文件名只在上传区：提交前不把已传好的简历报成必填空着（2026-11-02 中兵通信）', async ({ skip }) => {
     if (!engine || !browser) return skip()

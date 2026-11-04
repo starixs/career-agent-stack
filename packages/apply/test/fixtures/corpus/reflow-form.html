@@ -1,0 +1,16 @@
+<!doctype html>
+<!--
+  上传简历后页面顶上多出一格（取自 2026-11-03 库洛游戏 · 飞书招聘）：再抽一次字段，原来的格子号不能变，
+  不然按号填的值全串到下一格（姓名里填了邮箱、证件里填了毕业时间）。#tabs：切登录标签，藏起来的旧格子和新格子不能同号。
+-->
+<html><head><meta charset="utf-8"><title>投递简历</title></head><body>
+<div id="top"></div>
+<label for="name">姓名</label><input id="name">
+<label for="email">邮箱</label><input id="email">
+<button id="grow" type="button">上传简历</button>
+<script>
+document.querySelector('#grow').onclick = () => {
+  document.querySelector('#top').innerHTML = '<label for="ref">推荐方式</label><input id="ref">'
+}
+</script>
+</body></html>

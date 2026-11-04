@@ -1,0 +1,17 @@
+<!doctype html>
+<!--
+  固定顶栏盖住按钮（取自 2026-11-03 中国中车岗位详情页）：顶栏 position:fixed、80px 高，右上是头像链接；
+  页面已经滚到「立即投递」正好在顶栏下面——看得见、但点它会被顶栏挡住。
+-->
+<html><head><meta charset="utf-8"><title>岗位详情</title>
+<style>body{margin:0}.header{position:fixed;top:0;left:0;right:0;height:80px;background:#fff;z-index:10}.header a{display:block;width:100%;height:80px}</style></head><body>
+<div class="header"><a href="#" class="user-box">你好，15500001234@163.com 退出</a></div>
+<div style="height:600px"></div>
+<button id="deliver" class="deliver">立即投递</button>
+<div style="height:2000px"></div>
+<script>
+window.__clicked = false
+document.querySelector('#deliver').onclick = () => { window.__clicked = true }
+const b = document.querySelector('#deliver'); window.scrollTo(0, b.getBoundingClientRect().top + scrollY - 30)
+</script>
+</body></html>

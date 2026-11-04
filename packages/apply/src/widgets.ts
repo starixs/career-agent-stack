@@ -29,6 +29,12 @@ export const WIDGET_SCRIPT_IDS = {
   widgetSignature: 'career.widgetSignature',
   semanticContext: 'career.semanticContext',
   select2Pick: 'career.select2Pick',
+  markByText: 'career.markByText',
+  cornerSwitch: 'career.cornerSwitch',
+  imageCode: 'career.imageCode',
+  imageCodeData: 'career.imageCodeData',
+  reachable: 'career.reachable',
+  imageCodeGone: 'career.imageCodeGone',
 } as const
 
 // ---------------------------------------------------------------------------
@@ -1043,5 +1049,77 @@ export const select2PickScript: PageScript<{ selector: string }, { ok: boolean; 
     if (s2?.select2) s2.select2('close')
     else document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     return { ok: true, label: text }
+  },
+}
+
+/**
+ * 按看得见的文字找一个可点的东西（获取验证码 / 手机号登录 / 登录 / 协议勾选框），打上 data-career-mark 返回选择器。
+ * 登录弹窗里这些常常是 span / div（不是 button），按钮清单收不到。只认最内层、看得见、文字完全对上的那个。
+ */
+export const markByTextScript: PageScript<{ pattern: string; checkbox?: boolean; near?: string }, { selector: string | null; text?: string }> = {
+  id: WIDGET_SCRIPT_IDS.markByText,
+  fn: ({ pattern, checkbox, near }) => {
+    const rx = new RegExp(pattern)
+    const seen = (n: Element) => { const r = n.getBoundingClientRect(); const s = getComputedStyle(n); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' }
+    for (const n of Array.from(document.querySelectorAll('[data-career-mark]'))) n.removeAttribute('data-career-mark')
+    if (checkbox) {
+      // 协议勾选框：文字在旁边的 label / span 里，框本身常是隐藏的 input，点它外面那层
+      for (const box of Array.from(document.querySelectorAll('input[type=checkbox], [role=checkbox], [class*="checkbox" i]'))) {
+        // 协议文字常在外面好几层（Moka：勾选框自己的那层 div 里没有字）：往上找到第一层带协议字样的
+        let holder: Element | null = box
+        for (let i = 0; holder && i < 5 && !rx.test((holder.textContent || '').replace(/\s+/g, '')); i++) holder = holder.parentElement
+        const text = (holder?.textContent || '').replace(/\s+/g, '')
+        if (!holder || !rx.test(text) || (box as HTMLInputElement).checked || box.getAttribute('aria-checked') === 'true' || /checked/.test(typeof box.className === 'string' ? box.className : '')) continue
+        // 点那个小方框本身（或包着它的那层），不点整段文字——文字里有《隐私协议》链接，点了会跳走（2026-11-03 Moka 没勾上，网站拒发验证码）
+        const square = [box, box.parentElement, box.parentElement?.parentElement].find(n => !!n && seen(n) && n.getBoundingClientRect().width <= 40)
+        const target = square ?? (seen(holder) ? holder : null)
+        if (!target) continue
+        target.setAttribute('data-career-mark', '1')
+        return { selector: '[data-career-mark="1"]', text: text.slice(0, 40) }
+      }
+      // 没有 checkbox，只画了一个小圆圈 / 方框（2026-11-03 理想：svg 圆圈 + 「我已阅读并同意 用户协议 和 隐私条款」）：
+      // 找协议那段字，点它前面那个小图标；图标里已经画了对勾（path）或带 checked / active 的算勾过了
+      const iconOf = (wrap: Element) => Array.from(wrap.querySelectorAll('svg, i, img, span, div')).find(n => {
+        const r = n.getBoundingClientRect()
+        return seen(n) && r.width >= 8 && r.width <= 30 && Math.abs(r.width - r.height) <= 6 && !(n.textContent || '').trim()
+      })
+      const flat = (n: Element) => (n.textContent || '').replace(/\s+/g, '')
+      // 字最少的那层先看：外层大容器里的别的小图标（登录卡角上的二维码）不能当成勾选框
+      const agreeTexts = Array.from(document.querySelectorAll('div, label, p, span')).filter(t => { const x = flat(t); return x.length <= 80 && /(已阅读|阅读并同意|同意)/.test(x) && /(协议|条款|政策)/.test(x) && seen(t) }).sort((a, b) => flat(a).length - flat(b).length)
+      for (const t of agreeTexts) {
+        const text = flat(t)
+        const icon = iconOf(t)
+        if (!icon) continue
+        const done = !!icon.querySelector('path') || /(checked|active|selected)/i.test(`${icon.getAttribute('class') ?? ''} ${t.getAttribute('class') ?? ''}`)
+        if (done) return { selector: null }
+        icon.setAttribute('data-career-mark', '1')
+        return { selector: '[data-career-mark="1"]', text: text.slice(0, 40) }
+      }
+      return { selector: null }
+    }
+    const all = Array.from(document.querySelectorAll('button, a, span, div, li, p, label, [role=button], [role=tab]'))
+    const matched = all.filter(n => {
+      const t = (n.textContent || '').replace(/\s+/g, '')
+      return t.length <= 20 && rx.test(t) && seen(n) && !Array.from(n.children).some(c => rx.test((c.textContent || '').replace(/\s+/g, '')))
+    })
+    // 被别的东西盖着的不先点（2026-11-03 理想：登录卡正反两面叠着，背面的字点下去是正面挨了一下，或者等到超时）。
+    // 都被盖着时照旧挑（一层滑块盖住「获取验证码」：点不到才看得出要人过）
+    const onTop = (n: Element) => { const r = n.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) return true; const e = document.elementFromPoint(x, y); return !e || n === e || n.contains(e) || (e.contains(n) && !!e.closest('button, a, [role=button], label')) }
+    const uncovered = matched.filter(onTop)
+    const hits = uncovered.length ? uncovered : matched
+    // 同样的字页面上不止一处（导航栏的「登录」和登录框里的「登录」按钮）：挑离 near（验证码格子）最近的——
+    // 公共祖先最深的，同深度再比屏幕距离
+    const anchor = near ? document.querySelector(near) : null
+    const depth = (n: Element) => { let d = 0; for (let a: Element | null = n; a; a = a.parentElement) d++; return d }
+    const shared = (n: Element) => { for (let a: Element | null = n; a; a = a.parentElement) if (a.contains(anchor)) return depth(a); return 0 }
+    const dist = (n: Element) => { const r = n.getBoundingClientRect(), q = anchor!.getBoundingClientRect(); return Math.hypot(r.x - q.x, r.y - q.y) }
+    // 同一层里标题和按钮同字（注册框的标题「注册」和按钮「注册」，2026-11-03 中国中车）：按钮优先
+    const clickable = (n: Element) => (n.closest('button, a, [role=button]') ? 1 : 0)
+    const hit = anchor && hits.length > 1 ? [...hits].sort((x, y) => shared(y) - shared(x) || clickable(y) - clickable(x) || dist(x) - dist(y))[0] : hits[0]
+    if (!hit) return { selector: null }
+    // 字在 button 里面的 span 上（飞书招聘「获取验证码」）：点 span 会被外面的 button 「挡住」，一直等到超时——标在可点的那一层上
+    const target = hit.closest('button, a, [role=button]') ?? hit
+    target.setAttribute('data-career-mark', '1')
+    return { selector: '[data-career-mark="1"]', text: (hit.textContent || '').trim().slice(0, 20) }
   },
 }

@@ -2,9 +2,9 @@ import { handoffReasonLabel, type LLM, type HandoffReason } from '@career/core'
 import { basename } from 'node:path'
 import type { PageLike } from './page.js'
 import { extractFields, formFingerprint, type FormField } from './extract.js'
-import { interpretForm, normKey, type FieldPlan, type Profile, type InterpretOptions } from './interpret.js'
+import { chooseFromEvidence, interpretForm, normKey, type FieldPlan, type Profile, type InterpretOptions } from './interpret.js'
 import { pageSignalsScript, type PageSignals, type ButtonInfo } from './scripts.js'
-import { detectObstacle, findFinalSubmit, isDetailEntryText, isEntryText, isNextText, isSubmitText, type Obstacle } from './guards.js'
+import { detectObstacle, findFinalSubmit, isDetailEntryText, isEntryText, isNextText, isSubmitText, loginMethodsOf, type LoginMethod, type Obstacle } from './guards.js'
 import { navigateToPosition, positionLinksScript, type PositionLink, type PositionTarget } from './navigate.js'
 import { pickAdapter, type SiteAdapter } from './adapters/index.js'
 import type { RiskGuard } from './safety.js'
@@ -24,7 +24,7 @@ import { displayMatches, fillAndVerify, type FieldAttempt } from './fill.js'
 import { classifyError, reasonText, withWatchdog, type FieldReasonCode } from './codes.js'
 import { isSensitiveLabel, noopRecorder, RunRecorder, type Recorder, type TelemetryOptions } from './telemetry.js'
 import { snapshotNeedsUser } from './diag.js'
-import { attachOptions, settleNeedsUser } from './needs.js'
+import { attachOptions, explainWaiting, settleNeedsUser } from './needs.js'
 import { clearHighlightScript, libraryFingerprintScript, maskSensitiveScript, prepareEntryClickScript, readDisplayScript, uploadAreaScript, type UploadAreaResult } from './widgets.js'
 
 /**
@@ -106,6 +106,9 @@ export interface PageRecord {
   blockers?: HandledBlocker[]
   fields?: FieldOutcome[]
 }
+/** 网址本身就是某一个岗位：/position/123/detail、/job/abc123、#/job/uuid、/jobs/12345。 */
+export const POSITION_URL_RX = /(\/position\/\d{5,}|\/(job|jobs|post|position)[/-]?(detail|info)?\/[\w-]{6,}|[?&](post_?id|job_?id|positionId|jobUnionId)=)/i
+
 export interface DriveResult {
   status: DriveStatus
   /** handoff 时的原因；blocked 时可能是 missing_info。 */
@@ -113,6 +116,8 @@ export interface DriveResult {
   message: string
   /** handoff 时：用户具体该做什么（给接管条展示）。 */
   userAction?: string
+  /** 登录接管时页面上给了哪几种登法（guards.loginMethodsOf）。 */
+  loginMethods?: LoginMethod[]
   captchaKind?: CaptchaKind
   pages: PageRecord[]
   filled: FilledRecord[]
@@ -279,7 +284,12 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   }
   const telemetryRef = recorder.dir && recorder.runId ? { dir: recorder.dir, runId: recorder.runId } : undefined
   const finish = async (status: DriveStatus, message: string, extra: Partial<DriveResult> = {}): Promise<DriveResult> => {
-    all.needsUser = await attachOptions(page, settleNeedsUser(all.needsUser, all.filled), log)
+    // 一格都没填、停在的「提交」其实是详情页的申请入口（投递简历 / 立即投递 / 申请职位）：这不是填好的网申表，
+    // 绝不报「已填完，停在提交前」——他一批准就会按下可能是一键投递的按钮（2026-11-02 小红书：岗位描述被视觉层当成格子）
+    if (status === 'stopped_before_submit' && !all.filled.length && extra.submitButton && isDetailEntryText(extra.submitButton, adapter)) {
+      return entryHandoff(extra.submitButton)
+    }
+    all.needsUser = await attachOptions(page, explainWaiting(settleNeedsUser(all.needsUser, all.filled)), log)
     let screenshot: Uint8Array | undefined
     try { await page.evaluate(clearHighlightScript) } catch { /* ignore */ }
     try { screenshot = await page.screenshot() } catch { /* 截图失败不影响结果 */ }
@@ -295,7 +305,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   }
   const handoff = (reason: HandoffReason, sig: PageSignals, evidence: string, prefix: string, extra: Partial<DriveResult> = {}) => {
     const d = describeObstacle(reason, sig, evidence, { loginFilled: extra.loginFilled })
-    return finish('handoff', `${prefix}${handoffReasonLabel(reason)}（${evidence}）。${d.userAction}`, { reason, userAction: d.userAction, captchaKind: d.kind, ...extra })
+    return finish('handoff', `${prefix}${handoffReasonLabel(reason)}（${evidence}）。${d.userAction}`, { reason, userAction: d.userAction, captchaKind: d.kind, ...(reason === 'login' ? { loginMethods: loginMethodsOf(sig) } : {}), ...extra })
   }
   const blockerHandoff = (u: { text: string; buttons: string[]; reason: string }) => finish('handoff', `页面弹出了一个对话框，我没把握该点哪个：「${u.text.slice(0, 80)}」（${u.reason}）`, {
     reason: 'user_request', userAction: `页面上有个弹窗「${u.text.slice(0, 60)}」（按钮：${u.buttons.slice(0, 4).join(' / ') || '无'}），请你在浏览器里处理掉它，然后点"交还"，我接着填`,
@@ -373,7 +383,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       // 列表页例外：飞书首页的「立即投递」点进去是招聘项目的岗位列表，还得再挑岗位
       // 详情页 = 只有一个申请入口，或网址本身就是岗位详情；列表页每张岗位卡上都有「立即投递」（Moka），不能当详情页
       const entries = sig.buttons.filter(b => !b.disabled && isDetailEntryText(b.text, adapter))
-      const looksDetail = entries.length === 1 || !!adapter.hints.positionLink?.test(page.url())
+      // 详情页上下各放一个同样的申请按钮（滴滴「申请职位」、字节「投递」）：按网址认，网址就是某一个岗位的就是详情页（2026-11-02 真实站点被当成列表页、去站内乱找）
+      const looksDetail = entries.length === 1 || !!adapter.hints.positionLink?.test(page.url()) || (new Set(entries.map(b => b.text.replace(/\s+/g, ''))).size === 1 && POSITION_URL_RX.test(page.url()))
       if (index === 1 && navHops === 0 && !looksDetail) {
         const here = page.url()
         const atHome = !entryClicked && !!adapter.positionSearchUrl?.(here, '') && !adapter.hints.positionLink?.test(here)
@@ -520,7 +531,9 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       const record = (f: FormField, value: string, source: FieldPlan['source'], att: FieldAttempt, stage: string) => {
         if (!att.verified && (att.code === 'field_disabled' || att.code === 'options_empty') && (stage === 'field' || stage === 'section')) disabledQueue.push({ f, value, source })
         written.set(slotOf(f), { value, stage })
-        if (att.verified) { rec.filled.push({ fieldId: f.id, label: f.label, value, source, layer: att.strategy === 'vision' ? 'vision' : 'dom', verified: true, strategy: att.strategy, display: att.display }); fieldOf.set(rec.filled[rec.filled.length - 1], f) }
+        // 网站锁定的格子记页面上的真值，不记我们打算填的（提交前比对改动时才不会误报）
+        const kept = att.verified && att.strategy === 'locked-prefilled' && att.display ? att.display : value
+        if (att.verified) { rec.filled.push({ fieldId: f.id, label: f.label, value: kept, source, layer: att.strategy === 'vision' ? 'vision' : 'dom', verified: true, strategy: att.strategy, display: att.display }); fieldOf.set(rec.filled[rec.filled.length - 1], f) }
         else if (att.rollback === 'failed') { rec.mismatches.push({ fieldId: f.id, label: f.label, expected: value, actual: att.display, code: att.code ?? 'readback_mismatch', reason: att.reason ?? reasonText(att.code) }); fieldOf.set(rec.mismatches[rec.mismatches.length - 1], f) }
         else { rec.needsUser.push({ fieldId: f.id, label: f.label, status: 'needs_user', source, confidence: 0, note: att.reason ?? reasonText(att.code), code: att.code ?? 'readback_mismatch' }); fieldOf.set(rec.needsUser[rec.needsUser.length - 1], f) }
       }
@@ -611,12 +624,36 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         for (const q of queue) {
           const idx = rec.needsUser.findIndex(r => fieldOf.get(r) === q.f)
           const att = await fillAndVerify(fillDeps, q.f, q.value, 'field-retry')
-          if (!att.verified) { recorder.trace({ stage: 'field-retry', field: q.f.id, label: q.f.label, result: 'fail', code: att.code, detail: '联动后重试仍未成功' }); continue }
+          if (!att.verified) {
+            recorder.trace({ stage: 'field-retry', field: q.f.id, label: q.f.label, result: 'fail', code: att.code, detail: '联动后重试仍未成功' })
+            // 还灰着：留着等后面那几轮（按资料挑了学院、分区加了行之后）再试；重试只在固定的几处跑，不会打转
+            if (att.code === 'field_disabled' || att.code === 'options_empty') disabledQueue.push(q)
+            continue
+          }
           if (idx >= 0) rec.needsUser.splice(idx, 1)
           record(q.f, q.value, q.source, att, 'field-retry')
         }
       }
       await retryDisabled()
+
+      // 5.2b 自定义下拉在解释时还没有选项（要点开才出现）：现在点开读选项，按资料依据挑（专业 → 学院），填上后再解锁后面的格子
+      //（2026-11-02 美团：学院名称有「计算机学院」却整格推给用户，专业名称因此一直是灰的）
+      const unknownSelects = rec.needsUser.filter(n => n.note === '无法从资料确定' && byId.get(n.fieldId)?.type === 'select')
+      if (unknownSelects.length && layer === 'dom') {
+        const withOptions = (await attachOptions(page, unknownSelects, log)).filter(n => n.options?.length)
+        const asFields = withOptions.flatMap(n => { const f = byId.get(n.fieldId); return f ? [{ ...f, options: n.options! }] : [] })
+        for (const p of asFields.length ? await chooseFromEvidence(llm, asFields, profile) : []) {
+          const f = byId.get(p.fieldId)
+          if (!f || p.status !== 'fill' || !p.value) continue
+          const att = await fillAndVerify(fillDeps, f, p.value, 'evidence')
+          if (!att.verified) continue
+          const idx = rec.needsUser.findIndex(n => n.fieldId === p.fieldId && n.label === p.label)
+          if (idx >= 0) rec.needsUser.splice(idx, 1)
+          record(f, p.value, 'profile', att, 'evidence')
+          log(`「${f.label}」按资料选了「${p.value}」（${p.note ?? ''}）`)
+        }
+        await retryDisabled()
+      }
 
       // 5.3 前面的选择让页面多出了格子（选了「英语」才出现「语言考试 / 分数」）：重新抽取，只解释、填写之前没规划过的格子，最多两轮
       if (layer === 'dom') {
@@ -726,6 +763,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           for (const p of plans) {
             const f = byId.get(p.fieldId)
             if (!f || !p.key || p.status !== 'fill' || !good.has(p.fieldId)) continue
+            // 这一格现在的标题得和规划时是同一个：格子号错过位的话，读回「对上」的其实是别的格（2026-11-03 库洛游戏把「游戏经历 = 学历」记进了站点记忆）
+            if (normKey(f.label) !== normKey(p.label)) { log(`站点记忆跳过：规划时是「${p.label}」，这一格现在是「${f.label}」`); continue }
             opts.siteMemory.remember(host, { name: f.name, xpath: f.xpath, label: f.label }, p.key, p.note === '按站点记忆匹配' ? 'learned' : 'alias')
             all.memorized++
           }

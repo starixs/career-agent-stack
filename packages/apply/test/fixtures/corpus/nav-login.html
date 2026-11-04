@@ -1,0 +1,21 @@
+<!doctype html>
+<!--
+  岗位详情页的「登录/注册」切到登录页（取自 2026-11-03 网易校招，单页应用）：网址立刻变成 #login，
+  手机号 + 验证码要过一会儿才渲染出来；刚点完马上看，页面上什么格子都没有。
+-->
+<html><head><meta charset="utf-8"><title>岗位详情</title></head><body>
+<div id="nav"><a id="nav-login" href="#" style="cursor:pointer">登录/注册</a></div>
+<div id="main"><h1>数据分析师</h1></div>
+<script>
+window.__sentTo = null
+document.querySelector('#nav-login').onclick = e => {
+  e.preventDefault()
+  history.pushState({}, '', '#login')
+  document.querySelector('#main').innerHTML = '<p>加载中</p>'
+  setTimeout(() => {
+    document.querySelector('#main').innerHTML = '<input id="phone" placeholder="请填写手机号码"><input id="code" placeholder="请输入验证码"><button type="button" id="send">获取验证码</button>'
+    document.querySelector('#send').onclick = () => { window.__sentTo = document.querySelector('#phone').value; document.querySelector('#send').textContent = '59s后重新获取' }
+  }, 800)
+}
+</script>
+</body></html>

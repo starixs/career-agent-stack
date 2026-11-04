@@ -119,6 +119,23 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
   id: SCRIPT_IDS.extractFields,
   fn: () => {
     for (const n of Array.from(document.querySelectorAll('[data-career-proxy]'))) { n.removeAttribute('data-career-proxy'); n.removeAttribute('data-career-proxy-option') }
+    // 字段编号在这一页上只增不复用：同一个格子再抽一次还是原来的号，新冒出来的格子拿新号。
+    // 不能每次重编：上传简历后页面顶上多出一格「推荐方式」，重编后所有格子号往后错一位，按号填的值全串到了下一格（2026-11-03 库洛游戏）；
+    // 也不能留着旧号再编新号：切了登录标签，藏起来的旧格子和新格子同号，选择器先命中看不见的那个（2026-11-03 手机号填进了藏起来的邮箱框）
+    const seq = window as unknown as { __careerFieldSeq?: number }
+    const taken = new Set<string>()
+    const idFor = (el: Element) => {
+      const old = el.getAttribute('data-career-field')
+      if (old && !taken.has(old)) { taken.add(old); return old }
+      // 第一次编号（或页面脚本状态丢了）：接着页面上已有的最大号往后编
+      if (seq.__careerFieldSeq === undefined) {
+        const nums = Array.from(document.querySelectorAll('[data-career-field]')).map(x => Number((x.getAttribute('data-career-field') || '').slice(1))).filter(Number.isFinite)
+        seq.__careerFieldSeq = nums.length ? Math.max(...nums) + 1 : 0
+      }
+      const id = `f${seq.__careerFieldSeq++}`
+      taken.add(id)
+      return id
+    }
     const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim().slice(0, 160)
     const stripStar = (s: string) => s.replace(/^[\s*＊]+|[\s*＊:：]+$/g, '').trim()
     const isGeneric = (s: string) => /^(请选择|请输入|选择|输入|搜索|search|select|choose|type|--|please select|e\.?g\.?)/i.test(s.trim())
@@ -412,7 +429,6 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
     const out: RawField[] = []
     const meta: Record<string, { xpath: string; framework: string }> = {}
     const seenRadio = new Set<Element>()
-    let n = 0
     const els = Array.from(document.querySelectorAll('input, textarea, select, [contenteditable="true"], [role="combobox"]'))
     for (const el of els) {
       const tag = el.tagName.toLowerCase()
@@ -440,7 +456,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         const box = rn ? null : el.closest('[role=radiogroup], fieldset, [class*="radio-group" i], [data-form-field-id]')
         const group = rn ? Array.from(document.querySelectorAll(`input[type=radio][name="${CSS.escape(rn)}"]`)) : box ? Array.from(box.querySelectorAll('input[type=radio]')).filter(r => !(r as HTMLInputElement).name) : [el]
         group.forEach(r => seenRadio.add(r))
-        const id = `f${n++}`
+        const id = idFor(el)
         meta[id] = { xpath: xpathOf(el), framework: frameworkOf(el) }
         const options = group.map(r => clean(labelFor(r) || (r as HTMLInputElement).value)).filter(Boolean)
         let value: string | undefined
@@ -453,7 +469,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         out.push({ id, label: clean(groupLabel(el, options)) || rn || '', name: rn, type: 'radio', options, required, value, requiredVia: req.via })
         continue
       }
-      const id = `f${n++}`
+      const id = idFor(el)
       el.setAttribute('data-career-field', id)
       meta[id] = { xpath: xpathOf(el), framework: frameworkOf(el) }
       if (tag === 'select') {
@@ -515,7 +531,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       else value = input.value || undefined
       const ml = input.maxLength
       const label = clean(labelFor(el))
-      out.push({ id, label, name, type, required, value, maxLength: ml && ml > 0 ? ml : undefined, placeholder: ok(input.placeholder) || undefined, readonly: input.readOnly || undefined, requiredVia: req.via, labelUncertain: type === 'file' || type === 'checkbox' ? undefined : suspicious(label, labelVia) || undefined })
+      out.push({ id, label, name, type, required, value, maxLength: ml && ml > 0 ? ml : undefined, placeholder: (input.placeholder || "").trim() || undefined, readonly: input.readOnly || undefined, requiredVia: req.via, labelUncertain: type === 'file' || type === 'checkbox' ? undefined : suspicious(label, labelVia) || undefined })
     }
     for (const f of out) { const m = meta[f.id]; if (m) { f.xpath = m.xpath; f.framework = m.framework } }
     return out

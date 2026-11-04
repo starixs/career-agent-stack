@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  手机号 / 邮箱两个标签的登录框（取自 2026-11-03 搜狐畅游 Moka 校招）：
+  - 岗位详情页导航上「登录」弹框，默认在「手机号登录」；旁边「邮箱登录」标签切到 邮箱 + 验证码 + 「获取验证码」；
+  - 「首次登录会自动创建新账号」，没有密码；
+  - 点获取验证码先弹「请完成安全验证」拼图（网易易盾），拖好才发码。
+-->
+<html><head><meta charset="utf-8"><title>搜狐畅游 - 校园招聘</title>
+<style>.modal{position:fixed;left:200px;top:100px;width:480px;height:400px;background:#fff;border:1px solid #ccc}
+.tab{display:inline-block;margin:10px;cursor:pointer}input{display:block;margin:8px 20px;width:300px;height:30px}</style></head><body>
+<div id="nav"><button id="nav-login">登录</button></div>
+<h1>【2027届秋招】数据分析与用研</h1><button>申请职位</button>
+<div id="modal" class="modal" role="dialog" style="display:none">
+  <div><div class="tab" id="tab-phone"><span>手机号登录</span></div><div class="tab" id="tab-mail"><span>邮箱登录</span></div></div>
+  <div id="phone"><input placeholder="请输入手机号"><input placeholder="请输入验证码"><button type="button">获取验证码</button></div>
+  <div id="mail" style="display:none"><input id="m-mail" placeholder="请输入邮箱"><input id="m-code" placeholder="请输入验证码"><button type="button" id="m-send">获取验证码</button></div>
+  <button type="button">登录</button>
+  <label><input type="checkbox" checked style="width:auto;display:inline">首次登录会自动创建新账号，且阅读并同意《隐私协议》</label>
+</div>
+<div id="captcha" style="display:none;position:fixed;left:260px;top:140px;width:320px;height:240px;background:#fff;border:1px solid #999">
+  <p>请完成安全验证</p><div class="yidun_slider">向右拖动滑块填充拼图</div>
+</div>
+<script>
+window.__sentTo = null
+const $ = s => document.querySelector(s)
+$('#nav-login').onclick = () => { $('#modal').style.display = 'block' }
+$('#tab-mail').onclick = () => { $('#phone').style.display = 'none'; $('#mail').style.display = 'block' }
+$('#tab-phone').onclick = () => { $('#phone').style.display = 'block'; $('#mail').style.display = 'none' }
+$('#m-send').onclick = () => { if ($('#m-mail').value) $('#captcha').style.display = 'block' }
+</script>
+</body></html>

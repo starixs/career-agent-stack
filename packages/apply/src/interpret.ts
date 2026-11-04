@@ -47,6 +47,8 @@ export interface FieldPlan {
   code?: import('./codes.js').FieldReasonCode
   /** needs_user 的下拉 / 单选：网页上的可选项（问学生时让他点选，不用猜网站的写法），见 needs.ts attachOptions。 */
   options?: string[]
+  /** 灰着的格子在等哪一格先定（needs.ts explainWaiting）；有值时这一格不问他，前一格定了自动接着填。 */
+  waitsFor?: string
 }
 
 export interface InterpretOptions {
@@ -97,16 +99,32 @@ export const OPEN_QUESTION_RX = /(为什么|为何|请描述|请简述|请介绍
 
 export { normKey } from './text.js'
 
-function matchBasic(label: string, aliases: Record<string, string[]>): string | null {
-  const l = normKey(label)
+/**
+ * 别名算不算命中这个标签：先去掉括号里的补充说明，别名得占剩下说法的一块像样的部分。
+ * 长问题里顺带提到的词不算（2026-11-03 库洛游戏：「是否曾在游戏公司实习过（若有请填写具体公司&具体岗位）」被当成公司名、
+ * 「最擅长的美术风格（投递美术岗位的同学必填）」被当成职位名）。
+ */
+const ALIAS_MIN_COVER = 0.3
+/** 标签的核心说法：去掉题号、括号里的补充说明和「请 / 您的」这类虚词（问卷星「4.您所在或者毕业的高校名称：」→「所在或者毕业高校名称」）。 */
+export function labelCore(label: string): string {
+  return questionCore(label.replace(/^\s*\d+\s*[.、．)）]\s*/, '')) || normKey(label)
+}
+export function aliasCovers(core: string, alias: string): boolean {
+  const na = normKey(alias)
+  return !!na && core.includes(na) && na.length >= ALIAS_MIN_COVER * core.length
+}
+
+/** label → 资料键（命中的别名里最长的那个）。 */
+export function matchAlias(label: string, aliases: Record<string, readonly string[]>): string | null {
+  const l = labelCore(label)
   if (!l) return null
   let best: { key: string; len: number } | null = null
   for (const [key, list] of Object.entries(aliases)) for (const a of list) {
-    const na = normKey(a)
-    if (na && l.includes(na) && (!best || na.length > best.len)) best = { key, len: na.length }
+    if (aliasCovers(l, a) && (!best || normKey(a).length > best.len)) best = { key, len: normKey(a).length }
   }
   return best?.key ?? null
 }
+const matchBasic = matchAlias
 
 /** 18 位（末位可为 X）的居民身份证号 → 身份证；其他格式看不出来就不猜。 */
 export function idDocumentKind(id: string): string | undefined {
@@ -182,6 +200,7 @@ export async function interpretForm(llm: LLM, fields: FormField[], profile: Prof
   const confirmed = opts.confirmedDrafts ?? {}
   const plans: FieldPlan[] = []
   const toDraft: FormField[] = []
+  const toChoose: FormField[] = []
 
   for (const f of fields) {
     const label = f.label || f.name || ''
@@ -255,12 +274,51 @@ export async function interpretForm(llm: LLM, fields: FormField[], profile: Prof
     if (f.type === 'checkbox') { plans.push({ ...base, status: 'skip', source: 'none', confidence: 0, note: '复选框需用户自行勾选' }); continue }
     // 资料里没有、但页面上已经有值（账号预填 / 默认区号「86」）：保留页面原值，不当成要补
     if (f.value && f.value.trim()) { plans.push({ ...base, status: 'skip', source: 'none', confidence: 0, note: '页面已有值，保留' }); continue }
+    // 选择题：资料里没有同名的项，但能从资料推出来（专业 → 学院、六级 → 语言类型英语）——交给模型按依据从选项里挑
+    if (f.options.length && (f.type === 'select' || f.type === 'radio')) { toChoose.push(f); continue }
     plans.push({ ...base, status: f.required ? 'needs_user' : 'skip', source: 'none', confidence: 0, note: '无法从资料确定' })
   }
 
   if (toDraft.length) plans.push(...await draftOpenQuestions(llm, toDraft, profile, opts))
+  if (toChoose.length) plans.push(...await chooseFromEvidence(llm, toChoose, profile))
   const order = new Map(fields.map((f, i) => [f.id, i]))
   return plans.sort((a, b) => (order.get(a.fieldId) ?? 0) - (order.get(b.fieldId) ?? 0))
+}
+
+/** 给模型看的资料（不含姓名 / 联系方式 / 证件这类私密项）。 */
+const EVIDENCE_KEYS = ['school', 'major', 'degree', 'graduation', 'englishLevel', 'city', 'hometown', 'politics', 'ethnicity', 'gender'] as const
+
+/**
+ * 选择题按资料里的依据挑选项（2026-11-02 美团：学院名称有「计算机学院」、专业是计算机科学与技术，却整格推给用户，
+ * 后面「专业名称」因此一直是灰的）。只在资料明确推得出时选，偏好 / 意向 / 排名这类一律不选；只认原样的选项文本。
+ */
+export async function chooseFromEvidence(llm: LLM, fields: FormField[], profile: Profile): Promise<FieldPlan[]> {
+  const system = `你是求职者本人的网申助手。下面每道选择题，只在求职者资料里有明确依据时，从它的选项里选出那一项。
+规则：
+1. 只能原样返回某个选项的文字；资料推不出来就给 null。
+2. 可以推：专业 → 所属学院、英语六级 → 语言类型「英语」、学历 → 学历层次、学校所在城市 → 城市。
+3. 不能推、一律 null：意向 / 偏好 / 期望（部门、城市、岗位）、成绩排名、是否全日制、实验室级别、导师、任何资料里没写的事实。
+4. 只输出 JSON：{"answers":[{"id":"f3","option":"计算机学院","because":"专业是计算机科学与技术"}]}`
+  const basics = Object.fromEntries(EVIDENCE_KEYS.flatMap(k => (profile.basics[k] ? [[k, profile.basics[k]]] : [])))
+  const user = JSON.stringify({
+    basics,
+    education: profile.education ?? [],
+    experiences: profile.experiences.slice(0, 6).map(e => ({ title: e.title, org: e.org, role: e.role, claims: e.claims.slice(0, 4) })),
+    questions: fields.map(f => ({ id: f.id, label: f.label, options: f.options.slice(0, 60) })),
+  })
+  let answers: Array<{ id?: string; option?: string | null; because?: string }> = []
+  try {
+    const res = await llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: 0 })
+    const parsed = extractJson<{ answers?: typeof answers } | typeof answers>(res.text)
+    answers = Array.isArray(parsed) ? parsed : parsed.answers ?? []
+  } catch (e) { console.warn(`[apply-interpret] 选择题按资料挑选项失败：${e instanceof Error ? e.message : String(e)}`) }
+  return fields.map(f => {
+    const base = { fieldId: f.id, label: f.label }
+    const a = answers.find(x => x.id === f.id)
+    const option = typeof a?.option === 'string' ? f.options.find(o => o === a.option!.trim()) : undefined
+    if (option) return { ...base, status: 'fill' as const, source: 'profile' as const, confidence: 0.7, value: option, note: `按资料推断：${(a?.because ?? '').slice(0, 60)}` }
+    return { ...base, status: f.required ? 'needs_user' as const : 'skip' as const, source: 'none' as const, confidence: 0, note: '无法从资料确定' }
+  })
 }
 
 async function draftOpenQuestions(llm: LLM, fields: FormField[], profile: Profile, opts: InterpretOptions): Promise<FieldPlan[]> {

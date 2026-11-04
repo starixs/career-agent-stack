@@ -1,0 +1,18 @@
+<!doctype html>
+<!--
+  协议勾选是一个画出来的小圆圈（取自 2026-11-03 理想汽车）：没有 checkbox，svg 圆圈 + 「我已阅读并同意 用户协议 和 隐私条款」；
+  勾上后圆圈里画一个对勾（path）。没勾时点「获取验证码」不发码。卡片角上还有一个二维码小图标（不能当成勾选框）。
+-->
+<html><head><meta charset="utf-8"><title>登录</title></head><body>
+<div class="card"><svg id="qr" width="26" height="26" style="cursor:pointer"><rect width="26" height="26" fill="#eee"></rect></svg>
+<div class="tabs"><span>验证码登录</span> <span>密码登录</span></div>
+<label for="phone">手机号</label><input id="phone" placeholder="请输入手机号"><label for="code">验证码</label><input id="code" placeholder="请输入验证码"><span id="send" style="cursor:pointer">获取验证码</span>
+<div class="agree-wrap"><svg id="agree" width="20" height="20" style="cursor:pointer"><rect x="1" y="1" width="18" height="18" rx="9" fill="none" stroke="#ccc"></rect></svg><div><span>我已阅读并同意 </span><a href="#">用户协议</a> 和 <a href="#">隐私条款</a></div></div>
+<button type="button">登录/注册</button></div>
+<script>
+window.__sentTo = null; window.__agreed = false
+const $ = s => document.querySelector(s)
+$('#agree').onclick = () => { window.__agreed = !window.__agreed; $('#agree').innerHTML = window.__agreed ? '<rect width="20" height="20" rx="10" fill="#1a1a1a"></rect><path d="M4.5 10L8.5 14L15.5 6" stroke="white"></path>' : '<rect x="1" y="1" width="18" height="18" rx="9" fill="none" stroke="#ccc"></rect>' }
+$('#send').onclick = () => { if (!window.__agreed) return; window.__sentTo = $('#phone').value; $('#send').textContent = '59s后重新获取' }
+</script>
+</body></html>

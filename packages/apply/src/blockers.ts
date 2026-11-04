@@ -91,6 +91,27 @@ async function decideByLlm(llm: LLM, d: DialogInfo): Promise<{ index: number | n
  * 扫一遍并处理挡路的弹窗。返回处理记录；有处理不了的模态弹窗时 unresolved 说明原因（调用方交给用户）。
  * 非模态的横幅只在有已知规则时处理，不调用模型、不阻塞。
  */
+/** 网站在忙的弹窗：解析 / 上传 / 加载 / 处理中。 */
+const LOADING_RX = /(解析中|正在解析|上传中|正在上传|加载中|正在加载|处理中|正在处理|识别中|正在识别|请稍候|请稍等|提交中|正在提交|loading)/i
+/** 只认短的提示：长段文字里带「处理中」多半是须知、公告。 */
+const LOADING_TEXT_MAX = 40
+/** 简历解析一般十几秒；等半分钟还没好就交给人。 */
+const LOADING_WAIT_MS = 30_000
+const LOADING_POLL_MS = 1_000
+
+async function waitLoadingGone(page: PageLike, key: string): Promise<boolean> {
+  for (let waited = 0; waited < LOADING_WAIT_MS; waited += LOADING_POLL_MS) {
+    await page.waitForTimeout(LOADING_POLL_MS)
+    try {
+      if (!(await page.evaluate(scanDialogsScript)).dialogs.some(x => x.text.slice(0, 80) === key)) return true
+    } catch (e) {
+      console.warn(`[apply-blocker] 等加载弹窗时页面读不到了，当它已消失：${e instanceof Error ? e.message : String(e)}`)
+      return true
+    }
+  }
+  return false
+}
+
 export async function clearBlockers(page: PageLike, ctx: BlockerContext = {}): Promise<BlockerOutcome> {
   const handled: HandledBlocker[] = []
   const tried = new Map<string, number>()
@@ -109,6 +130,14 @@ export async function clearBlockers(page: PageLike, ctx: BlockerContext = {}): P
       return d.modal ? { handled, unresolved: { text: d.text, buttons: d.buttons.map(b => b.text), reason: '点了安全按钮之后弹窗仍然没有消失' } } : { handled }
     }
     tried.set(key, attempts + 1)
+    // 网站自己在忙的弹窗（「解析中…… 取消」：上传简历后在解析）：等它自己消失，绝不点「取消」（2026-11-03 库洛游戏被交给了人）
+    if (LOADING_RX.test(d.text.replace(/\s+/g, '')) && d.text.length <= LOADING_TEXT_MAX) {
+      const gone = await waitLoadingGone(page, key)
+      handled.push({ text: d.text, by: 'rule', rule: 'loading_wait', resolved: gone })
+      ctx.recorder?.trace({ stage: ctx.stage ?? 'blocker', action: 'dialog', result: gone ? 'ok' : 'fail', code: gone ? 'blocker_loading_done' : 'blocker_loading_stuck', detail: d.text })
+      if (gone) continue
+      return { handled, unresolved: { text: d.text, buttons: d.buttons.map(b => b.text), reason: `网站一直在「${d.text.slice(0, 20)}」，等了 ${LOADING_WAIT_MS / 1000} 秒还没好` } }
+    }
     let choice: DialogButton | undefined
     let by: HandledBlocker['by'] = 'none'
     let rule: string | undefined

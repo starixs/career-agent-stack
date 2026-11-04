@@ -47,13 +47,33 @@ export interface PageLike {
   /** 没有 mouse 的实现无法走视觉兜底层。 */
   mouse?: MouseLike
   viewportSize?(): Promise<{ width: number; height: number } | null>
+  /** 点了之后跳到了别的页（详情页「登录」→ 独立登录页）：等新页加载、请求停下来；没有就只按固定间隔等。 */
+  waitForLoad?(): Promise<void>
 }
 
 /** 把 playwright-core 的 Page 适配成 PageLike。未在真实登录态下的国内站验证。 */
+/** 跳页后等新页 DOM 的上限、等请求停下来的上限（单页应用渲染出登录框要一两秒）。 */
+const NAV_LOAD_TIMEOUT_MS = 15_000
+const NAV_SETTLE_MS = 5_000
+
+/** 一次点击最多等多久（元素可见、可点）；点之前滚到中间最多等多久。 */
+const CLICK_TIMEOUT_MS = 8000
+const CENTER_TIMEOUT_MS = 2000
+
+/**
+ * 先把它滚到屏幕中间再点：只「滚到看得见」会让按钮停在最上沿，被固定顶栏盖住，点到超时
+ * （2026-11-03 中国中车：「立即投递」被顶栏里的头像 user-box 挡住）。滚不动不要紧，照常点。
+ */
+async function clickCentered(loc: ReturnType<Page['locator']>): Promise<void> {
+  await loc.evaluate(el => el.scrollIntoView({ block: 'center', inline: 'nearest' }), undefined, { timeout: CENTER_TIMEOUT_MS })
+    .catch((e: unknown) => console.warn('[apply-page] 点之前没滚到中间，照常点', e instanceof Error ? e.message.split('\n')[0] : e))
+  await loc.click({ timeout: CLICK_TIMEOUT_MS })
+}
+
 export function fromPlaywright(page: Page): PageLike {
   const wrapLocator = (loc: ReturnType<Page['locator']>): LocatorLike => ({
     fill: v => loc.fill(v),
-    click: () => loc.click({ timeout: 8000 }),
+    click: () => clickCentered(loc),
     selectOption: v => loc.selectOption(v as string),
     setInputFiles: f => loc.setInputFiles(f),
     count: () => loc.count(),
@@ -64,11 +84,15 @@ export function fromPlaywright(page: Page): PageLike {
   return {
     goto: async url => { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 }); await page.waitForLoadState('load', { timeout: 8000 }).catch(() => {}) },
     url: () => page.url(),
+    waitForLoad: async () => {
+      await page.waitForLoadState('domcontentloaded', { timeout: NAV_LOAD_TIMEOUT_MS }).catch((e: unknown) => console.warn('[apply-page] 新页面没加载完，照样往下走', e instanceof Error ? e.message.split('\n')[0] : e))
+      await page.waitForLoadState('networkidle', { timeout: NAV_SETTLE_MS }).catch(() => console.log(`[apply-page] ${page.url()} ${NAV_SETTLE_MS / 1000}s 内请求没停（长连接 / 轮询的站），照样往下走`))
+    },
     title: () => page.title(),
     content: () => page.content(),
     evaluate: <A, R>(script: PageScript<A, R>, arg?: A) => (page.evaluate as unknown as (fn: unknown, arg: unknown) => Promise<R>)(script.fn, arg),
     fill: (s, v) => page.fill(s, v, { timeout: 8000 }),
-    click: s => page.click(s, { timeout: 8000 }),
+    click: s => clickCentered(page.locator(s).first()),
     selectOption: async (s, v) => { await page.selectOption(s, v as string) },
     setInputFiles: (s, f) => page.setInputFiles(s, f),
     waitForTimeout: ms => page.waitForTimeout(ms),
@@ -335,6 +359,7 @@ export class FakePage {
       case 'career.positionLinks': return (this.current.spec.links ?? []).map((l, i) => ({ selector: `poslink:${i}`, href: l.href, text: l.text })) as unknown as R
       case 'career.positionSearchBox': return null as unknown as R
       case 'career.positionSection': return (this.current.spec.section ? 'section:0' : null) as unknown as R
+      case WIDGET_SCRIPT_IDS.reachable: return arg as unknown as R // 假页面没有叠层：都点得到
       default: throw new Error(`FakePage 不支持脚本 ${script.id}`)
     }
   }

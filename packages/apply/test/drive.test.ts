@@ -130,3 +130,11 @@ describe('driveApplication', () => {
     expect(r.status).toBe('blocked'); expect(r.message).toContain('captcha')
   })
 })
+
+describe('网址就是某一个岗位：详情页上下两个同样的申请按钮也不当列表页（2026-11-02 滴滴、字节）', () => {
+  it('岗位网址认得出，列表 / 首页网址不算', async () => {
+    const { POSITION_URL_RX } = await import('../src/drive.js')
+    for (const u of ['https://jobs.bytedance.com/campus/position/7682681391491025205/detail', 'https://campus.didiglobal.com/campus_apply/didiglobal/96064#/job/b1122e51-227a', 'https://join.qq.com/post_detail.html?postid=1282707405033302017', 'https://zhaopin.meituan.com/web/position/detail?jobUnionId=4694982338']) expect(POSITION_URL_RX.test(u)).toBe(true)
+    for (const u of ['https://app.mokahr.com/campus-recruitment/abc/12345#/jobs', 'https://app.mokahr.com/campus_apply/xx/123#/jobs?page=1', 'https://jobs.bytedance.com/campus/position?keywords=数据分析']) expect(POSITION_URL_RX.test(u)).toBe(false)
+  })
+})

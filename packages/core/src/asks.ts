@@ -235,10 +235,12 @@ function missingFields(action: ActionQueueItem | undefined): AskField[] {
   const optionsOf = new Map(records(result.needsUser).map(p => [strOf(p.label), Array.isArray(p.options) ? p.options.filter((o): o is string => typeof o === 'string' && !!o.trim()) : []]))
   const files = new Set(records(result.fields).filter(f => f.type === 'file').map(f => strOf(f.label)))
   const draftOf = new Map(records(result.drafts).filter(d => typeof d.value === 'string' && d.value.trim()).map(d => [strOf(d.label), String(d.value)]))
+  // 灰着、在等前一格的（专业等学院）：前一格定了续填会自动接上，不问他（引擎 needs.explainWaiting 标的 waitsFor）
+  const waiting = new Set(records(result.needsUser).filter(p => strOf(p.waitsFor)).map(p => strOf(p.label)))
   const fields: AskField[] = []
   for (const g of records(gate?.gaps)) {
     const label = strOf(g.label)
-    if (!label || g.required === false || fields.some(f => f.label === label)) continue
+    if (!label || g.required === false || waiting.has(label) || fields.some(f => f.label === label)) continue
     const def = PROFILE_BY_KEY.get(keyOf.get(label) ?? '')
     const options = optionsOf.get(label) ?? []
     const draft = draftOf.get(label)
@@ -335,7 +337,9 @@ export function compareAsks(a: AskView, b: AskView): number {
   const ga = group(a); const gb = group(b)
   if (ga !== gb) return ga - gb
   if (ga === 0) return Date.parse(a.due_at!) - Date.parse(b.due_at!)
-  if (ga === 1) return b.application_ids.length - a.application_ids.length || a.title.localeCompare(b.title)
+  // 没期限的里面，填好等投前过目的排最前：点一下就投出去，是他最想办完的事（2026-11-03：两份过目被「48 个网站等你登录」压在后面，找不到）
+  const ready = (x: AskView) => (x.kind === 'review' ? 0 : 1)
+  if (ga === 1) return ready(a) - ready(b) || b.application_ids.length - a.application_ids.length || a.title.localeCompare(b.title)
   return (b.due_at ?? '').localeCompare(a.due_at ?? '')
 }
 

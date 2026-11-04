@@ -133,6 +133,13 @@ describe('driveApplication 分层降级', () => {
     expect(r.message).not.toContain('表单已填完')
     expect(r.filled).toEqual([])
   })
+  it('详情页：截图里「像格子」的是岗位描述，一格没填上、页面上只有「投递简历」：报这是详情页，绝不报已填完停在提交前（2026-11-02 小红书）', async () => {
+    const page = new FakePage({ url: 'https://x.com/jd', text: '体验运营 工作地点 上海 岗位职责 任职要求', buttons: [{ text: '投递简历', submit: true }] })
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, perceiver: new FakePerceiver(formFrame([el('button', '投递简历', [40, 600, 120, 36])])) })
+    expect(r.status).not.toBe('stopped_before_submit')
+    expect(r.filled).toEqual([])
+    expect(page.submitted).toBe(false)
+  })
   it('截图感知也看不到表单 → blocked，记录 no_fields failed', async () => {
     const page = new FakePage({ url: 'https://x.com/jd', text: '职位介绍' })
     const r = await driveApplication(page, noLLM(), profile, { ...quiet, perceiver: new FakePerceiver({ source: 'fake', viewport: vp, elements: [el('text', '职位介绍', [0, 0, 100, 20])] }) })

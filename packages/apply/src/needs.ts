@@ -52,3 +52,20 @@ export async function attachOptions(page: PageLike, needs: readonly FieldPlan[],
   }
   return out
 }
+
+const fieldNo = (id: string) => Number(id.replace(/\D/g, '')) || 0
+
+/**
+ * 灰着的格子是在等前面的格子（先选学院才能选专业、先选意向部门才能选城市）：说清在等哪一格，
+ * 这一格不问他——前一格一定，续填时自动接上（2026-11-02 美团：专业名称、意向城市都以「这一格是灰的」推给了用户）。
+ * 前面没有还空着的格子（网站锁定了），照旧报灰。
+ */
+export function explainWaiting(needs: FieldPlan[]): FieldPlan[] {
+  const sorted = [...needs].sort((a, b) => fieldNo(a.fieldId) - fieldNo(b.fieldId))
+  return needs.map(n => {
+    if (n.code !== 'field_disabled') return n
+    const before = sorted.filter(o => o.code !== 'field_disabled' && fieldNo(o.fieldId) < fieldNo(n.fieldId))
+    const parent = before[before.length - 1]
+    return parent ? { ...n, waitsFor: parent.label, note: `要先定「${parent.label}」，定了我接着填` } : n
+  })
+}

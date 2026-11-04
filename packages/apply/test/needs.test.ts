@@ -18,3 +18,18 @@ describe('收尾整理「要你补」', () => {
     expect(settleNeedsUser([need('f3', '学历'), need('f8', '学历')], []).length).toBe(2)
   })
 })
+
+describe('灰着的格子在等前一格（2026-11-02 美团：专业名称、意向城市都以「这一格是灰的」推给了用户）', () => {
+  it('说清在等哪一格并标上 waitsFor；前面没有空着的格子（网站锁定）就照旧报灰', async () => {
+    const { explainWaiting } = await import('../src/needs.js')
+    const out = explainWaiting([
+      { fieldId: 'f2', label: '意向部门', status: 'needs_user', source: 'none', confidence: 0 },
+      { fieldId: 'f3', label: '意向城市', status: 'needs_user', source: 'profile', confidence: 0, code: 'field_disabled' },
+      { fieldId: 'f9', label: '学院名称', status: 'needs_user', source: 'none', confidence: 0 },
+      { fieldId: 'f10', label: '专业名称', status: 'needs_user', source: 'profile', confidence: 0, code: 'field_disabled' },
+      { fieldId: 'f0', label: '手机号码', status: 'needs_user', source: 'profile', confidence: 0, code: 'field_disabled' },
+    ])
+    expect(out.map(n => [n.label, n.waitsFor ?? null])).toEqual([['意向部门', null], ['意向城市', '意向部门'], ['学院名称', null], ['专业名称', '学院名称'], ['手机号码', null]])
+    expect(out[3].note).toBe('要先定「学院名称」，定了我接着填')
+  })
+})

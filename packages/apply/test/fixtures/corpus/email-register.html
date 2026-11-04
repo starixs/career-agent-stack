@@ -1,0 +1,92 @@
+<!doctype html>
+<!--
+  扫码登录框 → 角标切到账号登录 → 邮箱注册（取自 2026-11-03 中国中车 HotJob）：
+  - 详情页点「登录/注册」弹框，默认只有「微信扫码」二维码，没有任何输入框；
+  - 右上角一个折角图标（svg，cursor:pointer，旁边是关闭按钮）切到邮箱登录：邮箱 + 密码 + 图形验证码，底下「没有账号？立即注册」；
+  - 注册：邮箱、激活码（「获取邮箱激活码」在格子里面）、密码（8-20 位、字母加数字）；三格都填了「注册」才可点；
+  - 获取激活码后按钮变「60s 后重新获取」；注册成功关框，导航显示「退出登录」。
+  - 账号登录里有「密码登录 / 验证码登录」：验证码登录只要邮箱 + 「获取验证码」，「首次登录将自动创建账号」（真机就是这样，连密码都不用设）；
+  - #imgcode：点获取验证码后那一行换成「图形码图片 + 请输入验证码 + 确认发送」（真机如此），填对 K7mP 才发码，填错换一张；点图换成 Q3zX；
+  - #firstpwd：验证码登录成功后再弹「首次登录」框，只有一格密码 + 确定（真机如此）；
+  - #qrlink：扫码框没有角标，底下一行「其他登录方式」才切到账号登录（另一类常见写法）；
+  - #regonly：没有验证码登录这个标签，只能走「立即注册」；
+  - #open：框一打开就在、外面一层全屏遮罩挡住导航上的「登录/注册」（后台撞到登录时框已经弹出来了）。
+-->
+<html><head><meta charset="utf-8"><title>中国中车招聘官网</title>
+<style>.wrap{position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:5}
+.modal{z-index:6;position:fixed;left:200px;top:100px;width:480px;height:460px;background:#fff;border:1px solid #ccc}
+.corner{position:absolute;right:0;top:0;width:100px;height:100px;cursor:pointer}
+.close{position:absolute;right:-50px;top:0;width:36px;height:36px;cursor:pointer}
+input{display:block;margin:8px 20px;width:300px;height:30px}</style></head><body>
+<div id="nav"><span id="nav-login" style="cursor:pointer">登录/注册</span></div>
+<h1>数据分析工程师</h1><button id="apply">立即投递</button>
+<div id="wrap" class="wrap" style="display:none"></div>
+<div id="modal" class="modal" role="dialog" style="display:none">
+  <button class="close" aria-label="Close" id="close">×</button>
+  <svg class="corner" id="corner" viewBox="0 0 100 100"><path d="M0 0H100V100Z" fill="#f5dede"/></svg>
+  <div id="qr"><p>微信扫码</p><canvas width="160" height="160"></canvas><span>刷新</span><span id="qr-other" style="display:none;cursor:pointer">其他登录方式</span></div>
+  <div id="login" style="display:none">
+    <div><span class="tab" id="tab-pwd">密码登录</span><span class="tab" id="tab-code">验证码登录</span></div>
+    <div id="pwd-login"><input id="l-mail" placeholder="请输入邮箱"><input id="l-pwd" type="password" placeholder="请输入密码">
+    <input id="l-captcha" placeholder="请输入验证码"><img alt="" width="80" height="30">
+    <button type="button" id="l-btn">登录</button></div>
+    <div id="code-login" style="display:none"><input id="c-mail" placeholder="请输入邮箱">
+    <div style="position:relative"><input id="c-code" placeholder="请输入验证码"><span id="c-send" style="position:absolute;right:120px;top:14px;cursor:pointer">获取验证码</span></div>
+    <div id="img-row" style="display:none"><input id="i-code" placeholder="请输入验证码"><img id="i-img" alt="" width="100" height="32" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='32'><text x='10' y='22'>K7mP</text></svg>"><span id="i-ok" style="cursor:pointer">确认发送</span></div>
+    <button type="button" id="c-btn">登录</button><p>首次登录将自动创建账号</p></div>
+    <div>没有账号？<span id="to-reg" style="cursor:pointer">立即注册</span></div>
+  </div>
+  <div id="reg" style="display:none">
+    <p><span>注册</span></p>
+    <input id="r-mail" placeholder="请输入邮箱">
+    <div style="position:relative"><input id="r-code" placeholder="请输入激活码"><span id="send" style="position:absolute;right:120px;top:14px;cursor:pointer">获取邮箱激活码</span></div>
+    <input id="r-pwd" type="password" placeholder="请输入密码（8-20位，必须包含字母和数字）">
+    <button type="submit" id="r-btn" disabled><span>注册</span></button>
+    <div>已有账号？<span id="to-login" style="cursor:pointer">立即登录</span></div>
+  </div>
+</div>
+<div id="first" class="modal" style="display:none"><p>首次登录</p><input id="f-pwd" type="password" placeholder="请输入密码（8-20位，必须包含字母和数字）"><button type="button" id="f-ok">确定</button></div>
+<script>
+window.__sentTo = null; window.__registered = null
+const $ = s => document.querySelector(s)
+const show = id => { for (const x of ['qr', 'login', 'reg']) $('#' + x).style.display = x === id ? 'block' : 'none' }
+$('#nav-login').onclick = () => { $('#modal').style.display = 'block'; show('qr') }
+if (location.hash === '#open') { $('#wrap').style.display = 'block'; $('#modal').style.display = 'block'; show('qr') }
+$('#close').onclick = () => { $('#modal').style.display = 'none' }
+$('#corner').onclick = () => show($('#qr').style.display === 'none' ? 'qr' : 'login')
+$('#to-reg').onclick = () => show('reg')
+if (location.hash === '#qrlink') { $('#corner').style.display = 'none'; $('#qr-other').style.display = 'inline' }
+$('#qr-other').onclick = () => show('login')
+window.__pwdLogin = null
+$('#l-btn').onclick = () => { window.__pwdLogin = { email: $('#l-mail').value, password: $('#l-pwd').value, captcha: $('#l-captcha').value } }
+if (location.hash === '#regonly') $('#tab-code').style.display = 'none'
+$('#tab-code').onclick = () => { $('#pwd-login').style.display = 'none'; $('#code-login').style.display = 'block' }
+$('#tab-pwd').onclick = () => { $('#pwd-login').style.display = 'block'; $('#code-login').style.display = 'none' }
+const sendCode = () => { window.__sentTo = $('#c-mail').value; $('#c-send').textContent = '59s' }
+$('#c-send').onclick = () => {
+  if (!$('#c-mail').value) return
+  if (location.hash !== '#imgcode') return sendCode()
+  $('#c-code').parentElement.style.display = 'none'; $('#img-row').style.display = 'block'
+}
+window.__imgTries = 0
+window.__imgAnswer = 'K7mP'
+// 点图换一张（真机如此）
+$('#i-img').onclick = () => { window.__imgAnswer = 'Q3zX'; $('#i-img').src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='32'><text x='10' y='22'>Q3zX</text></svg>" }
+$('#i-ok').onclick = () => {
+  window.__imgTries++
+  if ($('#i-code').value !== window.__imgAnswer) { $('#i-code').value = ''; return }
+  $('#img-row').style.display = 'none'; $('#c-code').parentElement.style.display = 'block'; sendCode()
+}
+$('#c-btn').onclick = () => { if ($('#c-code').value !== '483920') return; window.__registered = { email: $('#c-mail').value, password: null }; $('#modal').style.display = 'none'; $('#wrap').style.display = 'none'; if (location.hash === '#firstpwd') $('#first').style.display = 'block' }
+$('#f-ok').onclick = () => { window.__registered.password = $('#f-pwd').value; $('#first').style.display = 'none' }
+$('#to-login').onclick = () => show('login')
+const ready = () => { $('#r-btn').disabled = !($('#r-mail').value && $('#r-code').value && $('#r-pwd').value) }
+for (const s of ['#r-mail', '#r-code', '#r-pwd']) $(s).addEventListener('input', ready)
+$('#send').onclick = () => { if (!$('#r-mail').value) return; window.__sentTo = $('#r-mail').value; $('#send').textContent = '60s后重新获取' }
+$('#r-btn').onclick = () => {
+  if ($('#r-code').value !== '483920') return
+  window.__registered = { email: $('#r-mail').value, password: $('#r-pwd').value }
+  $('#modal').style.display = 'none'; $('#nav').textContent = '15500001234@163.com 退出登录'
+}
+</script>
+</body></html>

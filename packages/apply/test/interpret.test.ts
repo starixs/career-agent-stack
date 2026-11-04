@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { FakeLLM } from '@career/core'
-import { FakePage, extractFields, interpretForm, findBankAnswer, beisen, noneExperiencePlan } from '../src/index.js'
+import { FakePage, extractFields, interpretForm, findBankAnswer, beisen, noneExperiencePlan, matchAlias, matchRowField, SECTIONS, BASIC_ALIASES } from '../src/index.js'
 import { profile, noLLM, draftLLM } from './helpers.js'
 
 async function fieldsOf(spec: Parameters<typeof FakePage.prototype.evaluate>[0] extends never ? never : ConstructorParameters<typeof FakePage>[0]) { return extractFields(new FakePage(spec)) }
@@ -16,6 +16,33 @@ describe('interpret', () => {
     const fields = await fieldsOf({ url: 'u', fields: [{ label: '4.您所在或者毕业的高校名称：' }, { label: '8.现居住地' }] })
     const plans = await interpretForm(noLLM(), fields, profile)
     expect(plans.map(p => [p.status, p.source, p.key])).toEqual([['fill', 'profile', 'school'], ['fill', 'profile', 'city']])
+  })
+  it('长问题里顺带提到的词不算命中：游戏公司实习过（写公司&岗位）不是公司名、美术风格（美术岗位必填）不是职位（2026-11-03 库洛游戏）', () => {
+    const exp = SECTIONS.find(x => x.key === 'experience')!
+    expect(matchRowField('请问你是否曾在游戏公司实习过（若有请填写具体公司&具体岗位，若没有请写无）', exp)).toBeNull()
+    expect(matchRowField('请填写你最擅长的美术风格（投递美术岗位的同学必填，其余同学请写无）', exp)).toBeNull()
+    expect(matchRowField('公司名称', exp)).toBe('org')
+    expect(matchRowField('职位名称', exp)).toBe('role')
+    expect(matchAlias('请填写你的游戏经历，包括游戏名称、游戏时长、最高等级或周目', BASIC_ALIASES)).toBeNull()
+    expect(matchAlias('最高学历', BASIC_ALIASES)).toBe('degree')
+  })
+  it('选择题资料里没有同名项：按资料依据从选项里挑（专业 → 学院）；编出来的选项不认、没依据的留给他；私密项不进提示词（2026-11-02 美团学院名称）', async () => {
+    const fields = await fieldsOf({ url: 'u', fields: [
+      { label: '学院名称', type: 'select', options: ['集成电路学院', '计算机学院', '人工智能学院'] },
+      { label: '语言类型', type: 'select', options: ['英语', '德语'], required: true },
+      { label: '成绩排名', type: 'select', options: ['前5%', '前10%'], required: true },
+    ] })
+    const prompts: string[] = []
+    const llm = new FakeLLM([req => {
+      prompts.push(String(req.messages[0].content))
+      const q = JSON.parse(String(req.messages[0].content)) as { questions: Array<{ id: string; label: string }> }
+      const pick: Record<string, string | null> = { 学院名称: '计算机学院', 语言类型: '英语语言', 成绩排名: null }
+      return JSON.stringify({ answers: q.questions.map(x => ({ id: x.id, option: pick[x.label], because: '专业是计算机科学' })) })
+    }])
+    const plans = await interpretForm(llm, fields, profile)
+    expect(plans.map(p => [p.label, p.status, p.value ?? null])).toEqual([['学院名称', 'fill', '计算机学院'], ['语言类型', 'needs_user', null], ['成绩排名', 'needs_user', null]])
+    expect(plans[0].note).toContain('按资料推断')
+    expect(prompts.join('')).not.toMatch(/张三|13800000000|zhangsan@/)
   })
   it('高影响问题没有答案库原话 → needs_user，不调用模型', async () => {
     const llm = noLLM()

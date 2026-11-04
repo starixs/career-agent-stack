@@ -96,3 +96,24 @@ export function detectObstacle(sig: Pick<PageSignals, 'url' | 'title' | 'text' |
 /** 限流 / 封禁提示（不属于 HandoffReason，但要立刻停）。 */
 export const RATE_LIMIT_RX = /(访问过于频繁|操作过于频繁|请求过于频繁|请稍后再试|访问受限|异常访问|too many requests|rate limit|\b429\b|账号异常|账号存在风险)/i
 export function detectRateLimit(text: string): string | null { const m = text.match(RATE_LIMIT_RX); return m ? m[0] : null }
+
+/**
+ * 登录页上给了哪几种登法（只看页面文字和输入框，不点）：大量网申时决定人要做什么——
+ * 短信码能自动接，扫码 / 微信 / QQ 得他本人。记进每次登录接管的结果，批量统计用（2026-11-02 用户要的埋点）。
+ */
+export type LoginMethod = 'sms' | 'password' | 'wechat' | 'qq' | 'qr' | 'email' | 'other_sso'
+const LOGIN_METHOD_RX: Array<[LoginMethod, RegExp]> = [
+  ['sms', /(验证码登录|短信登录|手机号登录|手机登录|获取验证码|发送验证码|获取短信|动态码登录|短信验证码)/],
+  ['password', /(密码登录|账号密码|账密登录|忘记密码)/],
+  ['wechat', /微信/],
+  ['qq', /QQ/],
+  ['qr', /(扫码|二维码)/],
+  ['email', /(邮箱登录|邮箱验证码|使用邮箱)/],
+  ['other_sso', /(钉钉|飞书登录|支付宝|LinkedIn|领英|Google|谷歌账号|Apple)/i],
+]
+export function loginMethodsOf(sig: Pick<PageSignals, 'text' | 'title' | 'hasPasswordInput'>): LoginMethod[] {
+  const text = `${sig.title} ${sig.text}`
+  const out = LOGIN_METHOD_RX.filter(([, rx]) => rx.test(text)).map(([m]) => m)
+  if (sig.hasPasswordInput && !out.includes('password')) out.push('password')
+  return out
+}

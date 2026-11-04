@@ -1,6 +1,6 @@
 import type { PageLike } from './page.js'
 import { extractFields, type FormField } from './extract.js'
-import { isProjectExperience, isWorkExperience, normKey, type Profile } from './interpret.js'
+import { isProjectExperience, isWorkExperience, matchAlias, normKey, type Profile } from './interpret.js'
 import { pageSignalsScript, type ButtonInfo } from './scripts.js'
 import { isSubmitText } from './guards.js'
 import { normalizeValueForField } from './normalize.js'
@@ -44,14 +44,7 @@ export function rangeFieldIds(fields: readonly FormField[]): Set<string> {
 
 /** label → 行内字段键（最长别名优先）。 */
 export function matchRowField(label: string, spec: SectionSpec): string | null {
-  const l = normKey(label)
-  if (!l) return null
-  let best: { key: string; len: number } | null = null
-  for (const [key, list] of Object.entries(spec.rowAliases)) for (const a of list) {
-    const na = normKey(a)
-    if (na && l.includes(na) && (!best || na.length > best.len)) best = { key, len: na.length }
-  }
-  return best?.key ?? null
+  return matchAlias(label, spec.rowAliases)
 }
 
 /**

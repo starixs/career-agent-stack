@@ -26,3 +26,12 @@ describe('guards', () => {
     expect(detectRateLimit('一切正常')).toBeNull()
   })
 })
+
+describe('登录页给了哪几种登法（批量网申的埋点，2026-11-02）', () => {
+  it('美团：手机验证码 + 微信快捷 + 扫码；腾讯校招：QQ / 微信 / 领英 / Google，没有短信', async () => {
+    const { loginMethodsOf } = await import('../src/guards.js')
+    expect(loginMethodsOf({ title: '美团招聘', text: '手机登录 +86 获取验证码 立即登录 微信快捷登录 扫码登录', hasPasswordInput: false })).toEqual(['sms', 'wechat', 'qr'])
+    expect(loginMethodsOf({ title: '登录 | 腾讯校招', text: '使用社交账号一键登录 QQ账号登录 微信账号登录 或 LinkedIn Google', hasPasswordInput: false })).toEqual(['wechat', 'qq', 'other_sso'])
+    expect(loginMethodsOf({ title: '北森', text: '账号 请输入密码 登录', hasPasswordInput: true })).toEqual(['password'])
+  })
+})

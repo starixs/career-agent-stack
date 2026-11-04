@@ -319,7 +319,13 @@ async function fillOnce(d: FillDeps, f: FormField, value: string, sig: string): 
     await page.waitForTimeout(250)
     probe = await page.evaluate(probeTargetScript, { selector: f.selector })
   }
-  if (probe.disabled) return fail('probe', 'field_disabled')
+  if (probe.disabled) {
+    // 网站锁着、里面已经有值（账号带出的手机号、锁成「86」的区号）：谁也改不了，不算缺项、不推给他，记页面上的真值
+    // （2026-11-02 美团「手机号码」那一行的区号下拉锁成 86，被当成灰格子推给了用户）
+    const shown = await readDisplay(page, f).catch(() => '')
+    if (shown.trim()) return { verified: true, strategy: 'locked-prefilled', display: shown }
+    return fail('probe', 'field_disabled')
+  }
   if (probe.blocked && probe.overlay) {
     const cleared = d.clearBlockers ? await d.clearBlockers() : false
     const again = cleared ? await page.evaluate(probeTargetScript, { selector: f.selector }) : probe
