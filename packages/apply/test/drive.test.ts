@@ -147,3 +147,11 @@ describe('libraryList', () => {
     expect(libraryList(null)).toEqual([])
   })
 })
+
+describe('extractFields', () => {
+  it('桥接回的不是数组：当作没有格子，不崩（2026-11-05 raw.map is not a function）', async () => {
+    const { extractFields } = await import('../src/extract.js')
+    const page = { evaluate: async () => 'undefined', url: () => 'https://x.jobs.feishu.cn/login' } as unknown as Parameters<typeof extractFields>[0]
+    expect(await extractFields(page)).toEqual([])
+  })
+})
