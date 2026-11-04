@@ -141,6 +141,36 @@ describe('career live route', () => {
     resetApplicationPages();
   });
 
+  it('登录之旅钉着一家时，他点别家画面也跟过去；没人选过时按画面所在页标出当前这家（2026-11-05「切换画面不会跟着切换」）', async () => {
+    resetApplicationPages();
+    const repos = createMemoryRepos();
+    const appOf = (company: string) => repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: company, title: '数据分析', company_name: company }).id).id;
+    const [crrc, wjx] = [appOf('中国中车'), appOf('斯达半导体')];
+    // 桥接代理：每次借用都是新的 Page 对象，只有 mainFrame 稳定
+    const frames = { crrc: {}, wjx: {} };
+    const proxy = (frame: object, url: string) => ({ url: () => url, title: async () => url, isClosed: () => false, mainFrame: () => frame, once: () => {} });
+    const ctx = () => ({ pages: () => [proxy(frames.crrc, 'https://crrc.example/login'), proxy(frames.wjx, 'https://v.wjx.cn/vm/x.aspx')] });
+    const host = { ...fakeHost(), withProductSession: async <T,>(_id: string, fn: (c: never) => Promise<T>) => fn(ctx() as never) };
+    adoptApplicationPage('sess-career', crrc, proxy(frames.crrc, 'https://crrc.example/login') as never);
+    adoptApplicationPage('sess-career', wjx, proxy(frames.wjx, 'https://v.wjx.cn/vm/x.aspx') as never);
+    const d = deps(repos, host as never);
+    const pages = async () => ((await (await handleCareerLiveRoute('/api/career/live/pages', req('/api/career/live/pages'), d))!.json()) as { pages: Array<{ company: string; current: boolean }> }).pages;
+    const url = async () => ((await (await handleCareerLiveRoute('/api/career/live/state', req('/api/career/live/state'), d))!.json()) as { browser: { url: string } }).browser.url;
+    try {
+      // 没人点过、也没在登录：画面在第一页（中车），列表就标中车，不再「请选择」
+      expect((await pages()).find(p => p.current)?.company).toBe('中国中车');
+      setLivePin({ sessionKey: 'sess-career', appKey: crrc, askId: 'a', handoffId: 'h', index: 0, total: 1 });
+      expect(await url()).toBe('https://crrc.example/login');
+      await handleCareerLiveRoute('/api/career/live/view', req('/api/career/live/view', { application_id: wjx }), d);
+      expect(await url()).toBe('https://v.wjx.cn/vm/x.aspx');
+      expect((await pages()).find(p => p.current)?.company).toBe('斯达半导体');
+      // 登录之旅换到下一家：放下他刚才的选择，画面跟到要他登录的那家
+      setLivePin({ sessionKey: 'sess-career', appKey: wjx, askId: 'a', handoffId: 'h2', index: 1, total: 2 });
+      setLivePin({ sessionKey: 'sess-career', appKey: crrc, askId: 'a', handoffId: 'h3', index: 1, total: 2 });
+      expect(await url()).toBe('https://crrc.example/login');
+    } finally { setLivePin(null); resetApplicationPages(); }
+  });
+
   it('sms-code：只收 4–8 位数字；没有在等验证码的网站就如实说', async () => {
     const d = deps(createMemoryRepos());
     const bad = await handleCareerLiveRoute('/api/career/live/sms-code', req('/api/career/live/sms-code', { code: 'abc' }), d);

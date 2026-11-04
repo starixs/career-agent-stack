@@ -20,7 +20,7 @@ import { BatchRunner as BatchRunnerClass } from '../career/batch-runner';
 import { appKeyOfHandoff, handoffsToHandBack, waitingByApp } from '../career/live-handback';
 import type { LiveHub } from '../career/live-hub';
 import { findApplicationPage, openApplicationKeys } from '../career/app-pages';
-import { livePin, setViewApp, userWaitActive, viewedApp } from '../career/live-pin';
+import { livePin, liveTarget, setViewApp, userWaitActive, viewedApp } from '../career/live-pin';
 import { JOURNEY_EVENT, journeySms, refreshJourneyImage, submitJourneyCode, type SmsState } from '../career/login-journey';
 import { createPageFollower } from '../career/page-follower';
 import { ScreencastHub, fromPlaywrightPage } from '../career/screencast';
@@ -30,22 +30,24 @@ import { productBrowserWaitingMessage } from '../browser-host/extension-bridge/b
 /** 现场画面每一帧都发（原来隔帧）：人帮一下留在产品里要跟手，画面一动就推（face-ga-port 1b）。静止页面本来就不出帧。 */
 const LIVE_EVERY_NTH_FRAME = 1;
 
-/** 登录之旅钉住的那一页优先（后台并行时画面和你的操作都不被切走）；没钉或那页没了就看选中页。 */
+/**
+ * 他点的那一家优先，其次登录之旅钉住的那一家（后台并行时画面和你的操作都不被切走）；都没有或那页没了就看选中页。
+ */
 async function pinnedOrActive(context: BrowserContext, productSessionId: string): Promise<Page> {
-  const pin = livePin();
-  const pinned = pin ? findApplicationPage(context, pin.sessionKey || productSessionId, pin.appKey) : undefined;
   const view = viewedApp();
-  const viewed = !pinned && view ? findApplicationPage(context, productSessionId, view) : undefined;
-  return pinned ?? viewed ?? activePage(context);
+  const viewed = view ? findApplicationPage(context, productSessionId, view) : undefined;
+  const pin = livePin();
+  const pinned = !viewed && pin ? findApplicationPage(context, pin.sessionKey || productSessionId, pin.appKey) : undefined;
+  return viewed ?? pinned ?? activePage(context);
 }
 
 /** 几家一起投时现场窗能切的那几家：有页面开着的网申（对话里浏览用的那一页不算）。 */
 /** waiting：这一家在等他处理什么（接管原因）；没在等是 null。 */
 export interface LivePage { application_id: string; company: string; title: string; current: boolean; waiting: string | null }
-function livePages(deps: CareerLiveDeps): LivePage[] {
+function livePages(deps: CareerLiveDeps, shown: string | null = liveTarget()?.appKey ?? null): LivePage[] {
   const id = deps.productSessionId();
   if (!id) return [];
-  const current = livePin()?.appKey ?? viewedApp();
+  const current = shown;
   const waiting = waitingByApp(deps.repos);
   const pages = openApplicationKeys(id).flatMap(key => {
     const app = deps.repos.getApplication(key);
@@ -56,14 +58,25 @@ function livePages(deps: CareerLiveDeps): LivePage[] {
   return [...pages.filter(p => p.waiting), ...pages.filter(p => !p.waiting)];
 }
 
+/** 列表里标出画面正看着的那一家：没人点过、也没在登录时，按画面所在的页面认（原来这时一家都不标，下拉框显示「请选择」）。 */
+async function shownPages(deps: CareerLiveDeps): Promise<LivePage[]> {
+  const pages = livePages(deps);
+  const id = deps.productSessionId();
+  if (!id || pages.length < 2 || pages.some(p => p.current)) return pages;
+  const shown = await viewedAppKey(deps, id);
+  return shown ? livePages(deps, shown) : pages;
+}
+
 /** 现场窗正看着哪一家：他选过的那家；没选过就是画面所在的那一页属于的那家。 */
 async function viewedAppKey(deps: CareerLiveDeps, id: string): Promise<string | null> {
   const view = viewedApp();
   if (view) return view;
   try {
     return await deps.host.withProductSession(id, async context => {
-      const active = await activePage(context);
-      return openApplicationKeys(id).find(key => findApplicationPage(context, id, key) === active) ?? null;
+      // 桥接代理每次借用都是新对象：按 mainFrame 认页面
+      const frameOf = (p: Page | undefined) => (p && typeof p.mainFrame === 'function' ? p.mainFrame() : p);
+      const active = frameOf(await activePage(context));
+      return openApplicationKeys(id).find(key => frameOf(findApplicationPage(context, id, key)) === active) ?? null;
     }, { allowHumanControl: true });
   } catch (error) {
     console.warn('[career-live] handback: 认不出画面上是哪一家', error instanceof Error ? error.message : error);
@@ -103,14 +116,16 @@ async function handleViewRoutes(pathname: string, method: string, request: Reque
     const r = await refreshJourneyImage();
     return r.ok ? ok({}) : fail(r.reason ?? '没换成', 409);
   }
-  if (pathname === `${CAREER_LIVE_PREFIX}pages` && method === 'GET') return ok({ pages: livePages(deps) });
+  if (pathname === `${CAREER_LIVE_PREFIX}pages` && method === 'GET') return ok({ pages: await shownPages(deps) });
   if (pathname === `${CAREER_LIVE_PREFIX}view` && method === 'POST') {
     const body = await readBody(request);
     const app = typeof body.application_id === 'string' && body.application_id ? body.application_id : null;
     if (app && !livePages(deps).some(p => p.application_id === app)) return fail('这一家的页面已经关了', 404);
     setViewApp(app);
+    const id = deps.productSessionId();
+    if (id) deps.hub.publish('career:data-changed', { sessionId: id, tables: ['live_view'] });
     if (app) await attendLogin(deps, app);
-    return ok({ pages: livePages(deps) });
+    return ok({ pages: await shownPages(deps) });
   }
   return null;
 }
@@ -238,7 +253,9 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
       // 交回：只关他眼前这一家的接管（登录之旅钉住的，或现场窗正看着的），批量运行器据此从那一页接着填；
       // 别的网站还在等他的，不能被一起当成处理完（2026-11-03：一交还整批重跑、又一起撞回来）
       let closed = 0;
-      const pinned = livePin();
+      // 他切到了别家（不是登录之旅钉住的那家）：交还的是他眼前那一家
+      const viewing = viewedApp();
+      const pinned = livePin() && (!viewing || viewing === livePin()?.appKey) ? livePin() : null;
       const appKey = pinned ? null : await viewedAppKey(deps, id);
       for (const h of handoffsToHandBack(deps.repos, { pinnedHandoffId: pinned?.handoffId, appKey })) {
         try { deps.repos.closeHandoff(h.id, 'live_handback'); closed++; } catch (error) {

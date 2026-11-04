@@ -24,7 +24,7 @@ export function parseLivePages(raw: unknown): LivePage[] {
 }
 
 export function LivePageTabs() {
-  const { data, reload } = useCareerQuery(async () => parseLivePages(await apiGetJson<unknown>('/api/career/live/pages')), ['action_queue', 'handoff']);
+  const { data, reload } = useCareerQuery(async () => parseLivePages(await apiGetJson<unknown>('/api/career/live/pages')), ['action_queue', 'handoff', 'live_view']);
   const pages = data ?? [];
   if (pages.length < 2) return null;
   const show = (id: string) => {

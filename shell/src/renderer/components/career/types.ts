@@ -132,6 +132,8 @@ export interface CareerProgressEvent {
   /** 网申浏览器卡片的步骤条与对象（打开网页 → 登录 → 填表 → 传简历 → 提交）——待后端。 */
   steps?: Array<{ label: string; state: 'done' | 'current' | 'todo' | 'failed' }>;
   company?: string; job_title?: string;
+  /** 批量网申：这条进度属于哪份网申（现场窗按它切到那一家的页面）。 */
+  application_id?: string;
 }
 export interface CareerTakeoverEvent {
   sessionId?: string | null; runId: string;

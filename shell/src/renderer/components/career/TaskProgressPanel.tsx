@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { useWorkSurfaces, type ProgressRun } from '@/features/career-shell/workSurfaceStore';
 import { Badge } from './CareerPrimitives';
-import { parseLivePages } from './LivePageTabs';
+import { parseLivePages, type LivePage } from './LivePageTabs';
+import { useCareerQuery } from './useCareerData';
 import type { BatchState, CareerTakeoverEvent } from './types';
 
 const timeOf = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
@@ -16,11 +17,24 @@ function runTitle(run: ProgressRun | undefined, batch?: BatchState | null): stri
   return batch?.currentTitle ?? '网申任务';
 }
 
+/** 任务对应开着的哪一页：按网申 id 认；旧事件没带 id 时退回岗位名 + 公司都对上才算（同一家公司投几份不能认错）。 */
+export function livePageOfRun(pages: readonly LivePage[], run: Pick<ProgressRun, 'applicationId' | 'company' | 'jobTitle'>): LivePage | undefined {
+  if (run.applicationId) return pages.find(p => p.application_id === run.applicationId);
+  return pages.find(p => !!run.jobTitle && p.title === run.jobTitle && (!run.company || p.company === run.company));
+}
+
 /** 单个岗位的事件流；多个 run 时先选岗位，再只看它的事件，避免 50 份进度混在一起。 */
 export function TaskProgressPanel({ title, batch, takeover }: { title?: string | null; batch?: BatchState | null; takeover?: CareerTakeoverEvent | null }) {
   const { runs } = useWorkSurfaces();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const run = (selectedKey ? runs.find(item => item.key === selectedKey) : undefined) ?? runs.find(item => !item.finished) ?? runs[0];
+  // 和顶上的下拉框 / 小签共用「画面正看着哪一家」：哪边切，两边和画面都跟着（2026-11-05）
+  const { data: pages, reload: reloadPages } = useCareerQuery(async () => parseLivePages(await apiGetJson<unknown>('/api/career/live/pages')), ['action_queue', 'handoff', 'live_view']);
+  const selected = selectedKey ? runs.find(item => item.key === selectedKey) : undefined;
+  const shownApp = pages?.find(p => p.current)?.application_id;
+  const shown = shownApp ? runs.find(item => item.applicationId === shownApp) : undefined;
+  // 点的这份没有页面开着（已填完 / 失败）：画面切不过去，面板仍显示它的事件
+  const selectedOffscreen = selected && !(pages ?? []).some(p => p.application_id === selected.applicationId) ? selected : undefined;
+  const run = selectedOffscreen ?? shown ?? selected ?? runs.find(item => !item.finished) ?? runs[0];
   const latest = run?.steps.at(-1);
   const takeoverHere = !!takeover && (!run || takeover.runId === run.key);
   const waiting = takeoverHere && takeover?.state === 'paused';
@@ -33,10 +47,10 @@ export function TaskProgressPanel({ title, batch, takeover }: { title?: string |
   const events = run?.steps.slice(-5).reverse() ?? [];
   const select = (next: ProgressRun) => {
     setSelectedKey(next.key);
-    void apiGetJson<unknown>('/api/career/live/pages').then(raw => {
-      const page = parseLivePages(raw).find(p => (next.jobTitle && p.title === next.jobTitle) || (next.company && p.company === next.company));
-      return page ? apiPostJson<unknown>('/api/career/live/view', { application_id: page.application_id }) : undefined;
-    }).catch((error: unknown) => console.error('[career-live] 切换任务现场 FAILED', error instanceof Error ? error.message : error));
+    const page = livePageOfRun(pages ?? [], next);
+    if (!page) return;
+    void apiPostJson<unknown>('/api/career/live/view', { application_id: page.application_id })
+      .then(reloadPages, (error: unknown) => { console.error('[career-live] 切换任务现场 FAILED', error instanceof Error ? error.message : error); reloadPages(); });
   };
   return (
     <section aria-label="当前任务" aria-live="polite" className="mt-3 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-4 py-3">

@@ -380,7 +380,7 @@ export class BatchRunner {
       }
       await this.deps.drive({ action, payload, mode, resumePath, ...(learnFrom?.length ? { learnFrom } : {}) }, ev => {
         events.push(ev);
-        if (ev.type === 'progress') this.deps.broadcast('career:progress', { sessionId: this.deps.sessionId?.() ?? 'global', runId, taskId: task.id, phase: 'apply_batch', message: String(ev.message ?? ''), company: job?.company_name ?? undefined, job_title: job?.title ?? undefined, ...(typeof ev.progress === 'number' ? { progress: ev.progress } : {}) });
+        if (ev.type === 'progress') this.deps.broadcast('career:progress', { sessionId: this.deps.sessionId?.() ?? 'global', runId, taskId: task.id, phase: 'apply_batch', message: String(ev.message ?? ''), company: job?.company_name ?? undefined, job_title: job?.title ?? undefined, ...(action.application_id ? { application_id: action.application_id } : {}), ...(typeof ev.progress === 'number' ? { progress: ev.progress } : {}) });
       });
     } catch (e) {
       // 保留错误名（code）：接管冲突 / 宿主停机 / 会话消失要靠它分诊成"暂时不可用"，而不是判死这份网申
