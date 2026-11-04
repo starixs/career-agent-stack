@@ -14,6 +14,7 @@ import { openLoginCodeSource, openPhoneCodeSource } from './login-code-source';
 import { loginWithSavedPassword } from './login-password';
 import { answerPendingImage, autoRegisterByEmail, refreshPendingImage } from './login-register';
 import { onLoginResponse, screenSample } from './login-watch';
+import { logSlowCalls } from './slow-calls';
 
 /** 本人手机号（私密库，只在 Node 侧解开，写访问日志）；没存就不代办短信登录。 */
 async function ownPhone(): Promise<string | null> {
@@ -28,7 +29,7 @@ async function smsFirst(page: Page): Promise<SmsState> {
   const apply = await loadApplyModule();
   if (!apply?.prepareSmsLogin) return { status: 'no_sms', detail: '投递引擎版本不支持代办短信登录' };
   try {
-    const r = await apply.prepareSmsLogin(apply.fromPlaywright(page), phone);
+    const r = await apply.prepareSmsLogin(logSlowCalls(apply.fromPlaywright(page), 'sms'), phone);
     return r.status === 'sent' ? { status: 'sent' } : { status: r.status, detail: r.status === 'captcha' ? r.evidence : r.reason };
   } catch (e) {
     // 短信这条路出错（点不到、页面跳走）不等于这家登不了：照样往下试邮箱注册
