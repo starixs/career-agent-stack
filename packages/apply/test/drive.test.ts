@@ -138,3 +138,12 @@ describe('网址就是某一个岗位：详情页上下两个同样的申请按�
     for (const u of ['https://app.mokahr.com/campus-recruitment/abc/12345#/jobs', 'https://app.mokahr.com/campus_apply/xx/123#/jobs?page=1', 'https://jobs.bytedance.com/campus/position?keywords=数据分析']) expect(POSITION_URL_RX.test(u)).toBe(false)
   })
 })
+
+describe('libraryList', () => {
+  it('只收字符串数组：桥接回成字符串 "undefined" 时不拆成字母（2026-11-05）', async () => {
+    const { libraryList } = await import('../src/drive.js')
+    expect(libraryList(['antd', 'element'])).toEqual(['antd', 'element'])
+    expect(libraryList('undefined')).toEqual([])
+    expect(libraryList(null)).toEqual([])
+  })
+})

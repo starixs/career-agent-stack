@@ -110,6 +110,14 @@ export interface PageRecord {
 /** 网址本身就是某一个岗位：/position/123/detail、/job/abc123、#/job/uuid、/jobs/12345。 */
 export const POSITION_URL_RX = /(\/position\/\d{5,}|\/(job|jobs|post|position)[/-]?(detail|info)?\/[\w-]{6,}|[?&](post_?id|job_?id|positionId|jobUnionId)=)/i
 
+/**
+ * 组件库指纹只收字符串数组。真实 Chrome 桥接在个别页面上把脚本结果回成字符串 "undefined"，
+ * 直接展开会变成 u,n,d,e,f,i 记进埋点（2026-11-05 jdjianli.com）。
+ */
+export function libraryList(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string' && x.length > 0) : []
+}
+
 export interface DriveResult {
   status: DriveStatus
   /** handoff 时的原因；blocked 时可能是 missing_info。 */
@@ -340,7 +348,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   }
 
   try {
-    try { libraries = await page.evaluate(libraryFingerprintScript) } catch { /* ignore */ }
+    try { libraries = libraryList(await page.evaluate(libraryFingerprintScript)) } catch { /* ignore */ }
     recorder.trace({ stage: 'start', result: 'info', detail: `${page.url()} | 组件库：${libraries.join(',') || '未识别'} | 适配器：${adapter.id}` })
     if (adapter.preprocess) await adapter.preprocess(page).catch(e => log(`预处理失败：${e instanceof Error ? e.message : e}`))
     for (let index = 1; index <= maxPages; index++) {
@@ -500,7 +508,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       layersUsed.add(layer)
       sensitive = fields.filter(f => isSensitiveLabel(f.label) && f.layer !== 'vision').map(f => f.selector)
       // 组件库指纹按页累积（详情页和表单页往往不一样）
-      try { libraries = [...new Set([...libraries, ...(await page.evaluate(libraryFingerprintScript)), ...fields.map(f => f.framework).filter((x): x is string => !!x && x !== 'native')])] } catch { /* ignore */ }
+      try { libraries = [...new Set([...libraries, ...libraryList(await page.evaluate(libraryFingerprintScript)), ...fields.map(f => f.framework).filter((x): x is string => !!x && x !== 'native')])] } catch { /* ignore */ }
       progress(`第 ${index} 页：找到 ${fields.length} 个要看的格子`, 'page')
       log(`第 ${index} 页：${fields.length} 个字段（${layer}）`)
       recorder.trace({ stage: 'page', result: 'info', detail: `第 ${index} 页 ${page.url()}：${fields.map(f => `${f.id}:${f.label}${f.required ? '*' : ''}${f.labelUncertain ? '?' : ''}`).join(' | ')}` })
