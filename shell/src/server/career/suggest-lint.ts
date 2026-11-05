@@ -16,6 +16,9 @@ export type LintRule = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7' | 'L8' | '
 /** L12：和上一轮某格二字组重合到这个比例就算重样。 */
 export const REPEAT_OVERLAP = 0.7;
 
+/** L8：同一条里两格整句二字组重合到这个比例就算一回事（真机 r6「看我这个月的数 / 先看我这月的数」0.67；访谈几种说法约 0.5）。 */
+export const NEAR_DUP_OVERLAP = 0.6;
+
 /** 一格最少几个字：一个字点不出对象。 */
 const MIN_CHARS = 2;
 /** 从对话里抽的词最短几个字。 */
@@ -191,7 +194,7 @@ const actionKey = (c: SuggestChip): string | null => {
 /** L8 同轮去重：同字或整句很像（真机 r3「先出一版简历看看 / 直接出一版简历看看」）、同动作、两个退出口、两个起头（S26 除外）只留先来的。 */
 function duplicateOf(chip: SuggestChip, kept: readonly SuggestChip[], scene: SceneId): boolean {
   const key = actionKey(chip);
-  if (kept.some(k => k.text === chip.text || wholeOverlap(k.text, chip.text) >= REPEAT_OVERLAP || (key !== null && actionKey(k) === key))) return true;
+  if (kept.some(k => k.text === chip.text || wholeOverlap(k.text, chip.text) >= NEAR_DUP_OVERLAP || (key !== null && actionKey(k) === key))) return true;
   if (chip.mode === 'exit' && kept.some(k => k.mode === 'exit')) return true;
   return scene !== 'S26' && isFeatureStart(chip) && kept.some(isFeatureStart);
 }

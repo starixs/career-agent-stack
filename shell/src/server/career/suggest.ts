@@ -154,11 +154,18 @@ function safeClassify(s: SuggestState, x: SuggestInput): SceneResult {
   }
 }
 
+/** 只因和上一轮重样（L12）被丢的格。 */
+const repeatsOf = (res: LintResult): SuggestChip[] => res.dropped.filter(d => d.rule === 'L12').map(d => d.chip);
+/** 只因最近出过被丢的：和上一轮重样（L12）或功能起头还在冷却（L9）。 */
+const RECENT_RULES: ReadonlySet<string> = new Set(['L12', 'L9']);
+/** 补不满四格时能放回的：只放配方里的固定入口（有 seed），模型写的具体话不重样。 */
+const stableRepeatsOf = (res: LintResult): SuggestChip[] =>
+  res.dropped.filter(d => RECENT_RULES.has(d.rule) && d.chip.seed_id !== null).map(d => d.chip);
+
 /** 过线后留下的；不够两格时把只因和上一轮重样被丢的放回来。 */
 function keptOf(res: LintResult): SuggestChip[] {
   if (res.kept.length >= MIN_BAR_CHIPS) return res.kept;
-  const back = res.dropped.filter(d => d.rule === 'L12').map(d => d.chip);
-  return [...res.kept, ...back];
+  return [...res.kept, ...repeatsOf(res)];
 }
 
 /** 从过了线的候选里定这一条：截 4 → 回应格 → 能办格 → 卡的主动作 → 类型多样 → 低谷 → 排序。 */
@@ -207,18 +214,24 @@ function exampleChips(guide: SceneGuide): ModelChip[] {
   });
 }
 
-interface RefillAsk { kept: SuggestChip[]; guide: SceneGuide; scene: SceneId; ctx: RecipeCtx; lint: LintCtx; replyMode: SuggestMode }
+interface RefillAsk {
+  kept: SuggestChip[]; guide: SceneGuide; scene: SceneId; ctx: RecipeCtx; lint: LintCtx; replyMode: SuggestMode;
+  /** 只因上一轮出过被丢的：示例和兜底都补不满四格时最后放回（真机 r6：S29 停在三格）。 */
+  repeats: readonly SuggestChip[];
+}
 
 /** 补位的通用兜底：一般幕拿 S29 的；S29 自己再拿 S29 等于重复，改拿 S26 按阶段的起头（真机 r2：S29 只剩两格）。 */
 const REFILL_FALLBACK_OF = (scene: SceneId): SceneId => (scene === 'S29' ? 'S26' : 'S29');
 
 /** 过线后不到四格：先拿这一幕示例里的说 / 填空，再拿通用兜底补到四格；补的也要过线、不和已有的重复。 */
-function refill({ kept, guide, scene, ctx, lint, replyMode }: RefillAsk): SuggestChip[] {
+function refill({ kept, guide, scene, ctx, lint, replyMode, repeats }: RefillAsk): SuggestChip[] {
   if (kept.length >= SUGGEST_MAX_CHIPS) return kept;
   const fromGuide = resolveIntents(exampleChips(guide), { s: ctx.s, allowed: REFILL_EXAMPLE_INTENTS, replyMode });
   const from = REFILL_FALLBACK_OF(scene);
   const generic = present(recipeFor(from).fallback({ ...ctx, scene: from }));
-  const more = lintChips([...fromGuide, ...generic], lint, kept).kept;
+  const fresh = lintChips([...fromGuide, ...generic], lint, kept);
+  const again = lintChips([...repeats, ...stableRepeatsOf(fresh)], { ...lint, lastShown: undefined, recent: new Set() }, [...kept, ...fresh.kept]).kept;
+  const more = [...fresh.kept, ...again]
   const out = [...kept, ...more.slice(0, SUGGEST_MAX_CHIPS - kept.length)];
   if (out.length > kept.length) console.log(`[career-suggest] refill +${out.length - kept.length} scene=${scene}`);
   return out;
@@ -248,8 +261,10 @@ export async function suggestFor(base: SuggestState, rawReq: SuggestRequest, llm
     buttons: starterVisible(scene, x) ? STARTER_BUTTONS : undefined,
     lastUser: x.lastUser,
   };
-  const kept = refill({ kept: keptOf(lintChips(pool, lint)), guide, scene, ctx, lint, replyMode: replyModeOf(order) });
-  const chosen = pickBar(kept, x, scene, low, order);
+  const first = lintChips(pool, lint);
+  const firstKept = keptOf(first);
+  const kept = refill({ kept: firstKept, guide, scene, ctx, lint, replyMode: replyModeOf(order), repeats: stableRepeatsOf(first).filter(c => !firstKept.includes(c)) });
+  const chosen = pickBar(kept, x, scene, low, order)
   const degraded = chosen.filter(c => model.includes(c)).length < MIN_MODEL_CHIPS;
   if (run.asked) console.log(`[career-suggest] model ms=${run.ms} chips=${run.raw?.length ?? 0} degraded=${degraded} scene=${scene}`);
   if (opts.isStale?.()) console.log(`[career-suggest] stale result not remembered scene=${scene}`);

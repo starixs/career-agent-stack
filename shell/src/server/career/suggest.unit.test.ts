@@ -55,7 +55,8 @@ describe('下一步条 · 按幕出四格', () => {
     const llm = llmReturning([{ text: '是几个人一组的课程作业' }, { text: '老师布置的数据库大作业' }, { text: '我也不太清楚' }]);
     const { chips, scene } = await bar(interviewing(), { last_assistant: '这个课程项目做的是什么？' }, llm);
     expect(scene).toBe('S3');
-    expect(texts(chips)).toEqual(['是几个人一组的课程作业', '老师布置的数据库大作业', '老师布置的期末大作业', '这段先跳过，聊别的']);
+    // 「老师布置的期末大作业」和第二格整句很像（L8），换成另一种说法
+    expect(texts(chips)).toEqual(['是几个人一组的课程作业', '老师布置的数据库大作业', '自己做的小东西，没人布置', '这段先跳过，聊别的']);
     expect(modes(chips)).toEqual(['option', 'option', 'option', 'exit']);
   });
 
@@ -238,6 +239,15 @@ describe('下一步条 · 按幕出四格', () => {
     expect(scene).toBe('S29');
     expect(chips).toHaveLength(4);
     expect(texts(chips)).not.toContain('大厂现在还招后端吗');
+  });
+
+  it('S29 新格补不满时，放回上一轮出过的，仍是四格（真机 r6：停在三格）', async () => {
+    const s = state({ stage: 'profile', resume: { has: false, name: null, tailored: 0, experiences: 1 }, mailConnected: false });
+    const req = { last_user: '大厂现在还卷吗', last_assistant: '还在招，只是更看重项目。' };
+    await bar(s, req, null);
+    const again = await bar(s, req, null);
+    expect(again.scene).toBe('S29');
+    expect(again.chips).toHaveLength(4);
   });
 
   it('模型出错不抛；开发词 / 撞卡按钮 / 没对象的格被丢', async () => {

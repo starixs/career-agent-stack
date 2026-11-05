@@ -23,6 +23,10 @@ describe('lint', () => {
     expect(near.dropped[0]?.rule).toBe('L8');
     const options = lintChips([model('数据库和接口都是我自己写的'), model('接口是我写的，数据库也管了一部分')], c);
     expect(options.kept).toHaveLength(2);
+    const month = lintChips([model('看我这个月的数'), model('先看我这月的数')], ctx({ entities: ['这个月'] }));
+    expect(month.kept.map(k => k.text)).toEqual(['看我这个月的数']);
+    const stacks = lintChips([model('后端用 Node，数据库 MySQL'), model('后端用 Java，数据库是 MySQL')], ctx({ entities: ['后端'] }));
+    expect(stacks.kept).toHaveLength(2);
   });
 
   it('L14 不复述他刚说的那句（真机 r2：「接口是我写的，数据库也管了一部分」原样回到条上）', () => {
