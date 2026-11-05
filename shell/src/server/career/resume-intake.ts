@@ -129,7 +129,15 @@ const norm = (field: string, v: string) => (field === 'graduation' ? toYearMonth
 /**
  * 简历上的基本信息对照私密库：空着的直接补；已有且一致的不动；已有但不一样的记成冲突，交给卡片选（不在对话里对账）。
  */
-function reconcileProfile(vault: Vault, values: Record<string, string>): { filled: string[]; conflicts: Record<string, string> } {
+/**
+ * 冲突卡里选过「以资料为准」的简历值（按字段记，归一化后）：同一份简历再导入、或换个文件名再拖进来时，
+ * 这些值不再算冲突——身份只解一次（真实会话里「本科/经济学 vs 硕士/计算机」从 10-10 问到 11-04 至少五次）。
+ * 选「以简历为准」的不用记：私密库已经改成简历上的值，下次自然一致。
+ */
+export const PROFILE_KEPT_KV = 'resume_intake:profile_kept';
+type KeptValues = Record<string, string[]>;
+
+function reconcileProfile(vault: Vault, values: Record<string, string>, kept: KeptValues = {}): { filled: string[]; conflicts: Record<string, string> } {
   const existing = new Map(vault.list().filter(i => i.scope === 'profile').map(i => [i.field, i.id]));
   const filled: string[] = [];
   const conflicts: Record<string, string> = {};
@@ -138,7 +146,7 @@ function reconcileProfile(vault: Vault, values: Record<string, string>): { fille
     const id = existing.get(field);
     if (!id) { vault.set({ scope: 'profile', field, value }); filled.push(field); continue; }
     const current = vault.reveal(id, { actor: 'resolve', purpose: '交简历：比对上传的简历和基本资料是否一致' }) ?? '';
-    if (norm(field, current) !== norm(field, value)) conflicts[field] = value;
+    if (norm(field, current) !== norm(field, value) && !(kept[field] ?? []).includes(norm(field, value))) conflicts[field] = value;
   }
   return { filled, conflicts };
 }
@@ -229,7 +237,7 @@ export function importResume(deps: IntakeDeps, input: { text: string; source: st
   const { repos, vault } = deps;
   const now = deps.now?.() ?? new Date().toISOString();
   const id = deps.newId?.() ?? `rin_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  const { filled, conflicts } = reconcileProfile(vault, profileValues(input.text, input.parsed));
+  const { filled, conflicts } = reconcileProfile(vault, profileValues(input.text, input.parsed), repos.kvGet<KeptValues>(PROFILE_KEPT_KV) ?? {});
   const experiences = input.parsed.entries.map(e => {
     const experience = repos.createExperience({ title: e.title, org: e.org || null, role: e.role || null, start_date: toYearMonth(e.start) || null, end_date: toYearMonth(e.end) || null, type: KIND_OF_SECTION[e.section], summary: `由简历《${input.source}》导入` });
     const claims = e.claims.map(c => {
@@ -317,14 +325,20 @@ function currentMasterId(store: CareerStore): string | null {
  */
 export type ProfileChoice = Record<string, 'resume' | 'vault'>;
 
-/** 冲突字段按用户选的写回：缺省以刚上传的简历为准（选一下全部同步）；返回选了「以资料为准」的字段。 */
-function applyProfileChoice(vault: Vault, draft: IntakeDraft, choice: ProfileChoice): Set<string> {
+/** 冲突字段按用户选的写回：缺省以刚上传的简历为准（选一下全部同步）；返回选了「以资料为准」的字段，并记下被放弃的简历值。 */
+function applyProfileChoice(repos: Repos, vault: Vault, draft: IntakeDraft, choice: ProfileChoice): Set<string> {
   const kept = new Set<string>();
+  const remembered = repos.kvGet<KeptValues>(PROFILE_KEPT_KV) ?? {};
   for (const field of draft.conflicts ?? []) {
     const value = draft.pending_profile?.[field];
-    if (choice[field] === 'vault' || !value) { kept.add(field); continue; }
+    if (choice[field] === 'vault' || !value) {
+      kept.add(field);
+      if (value) remembered[field] = [...new Set([...(remembered[field] ?? []), norm(field, value)])];
+      continue;
+    }
     vault.set({ scope: 'profile', field, value });
   }
+  if (kept.size) repos.kvSet(PROFILE_KEPT_KV, remembered);
   return kept;
 }
 
@@ -340,7 +354,7 @@ export async function confirmIntake(deps: ConfirmDeps, id: string, claimIds: str
   const pick = new Set(claimIds);
   let confirmed = 0;
   for (const c of repos.listClaims()) if (own.has(c.experience_id) && pick.has(c.id) && c.status === 'pending') { repos.confirmClaim(c.id); confirmed++; }
-  const kept = applyProfileChoice(deps.vault, draft, choice);
+  const kept = applyProfileChoice(repos, deps.vault, draft, choice);
   const filled = new Set(deps.vault.status().profile.filled.map(f => f.field));
   const schema = await deps.normalize(buildMasterSchema(draft, repos.listClaims().filter(c => own.has(c.experience_id)), filled, deps.placeholder, kept));
   const reuse = draft.master_id && store.getResume(draft.master_id)?.kind === 'master' ? draft.master_id : currentMasterId(store);

@@ -258,6 +258,12 @@ describe('主链路切面 · 交简历 → 按岗位定制', () => {
     expect(vault.reveal(vault.list().find(i => i.field === 'school')!.id, { actor: 'test', purpose: 'test' })).toBe('华东某大学');
     const master = new CareerStore(repos, await loadCore()).getResume(out.master_id)!;
     expect(JSON.parse(master.row.schema_json).education[0].school).toBe('{{vault:profile.school}}');
+
+    // 身份只解一次：同一份简历再拖进来，已选「以资料为准」的学校不再算冲突、不再弹卡问
+    llm.push(JSON.stringify(PARSED));
+    const again = await call('resume_import', { path: '张小明-简历.pdf' });
+    const draft = repos.kvGet<{ conflicts?: string[] }>(`resume_intake:${again.json.intake_id as string}`)!;
+    expect(draft.conflicts ?? []).not.toContain('school');
   });
 
   it('口述建的旧经历：不进主简历、留在库里标出来；点「清掉这些」才删，简历导入的经历不动', async () => {
