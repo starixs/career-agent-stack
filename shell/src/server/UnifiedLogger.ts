@@ -64,7 +64,7 @@ const queue: string[] = [];
 let dropped = 0;
 let lastDropWarnAt = 0;
 
-let flushTimer: ReturnType<typeof setInterval> | null = null;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let exitHookInstalled = false;
 
 /** Tail ring buffer for crash dumps (kept separate from the flush queue). */
@@ -218,9 +218,14 @@ function maybeWarnDrop(): void {
   dropped = 0;
 }
 
+/**
+ * 有日志入队时排一次 FLUSH_INTERVAL_MS 后的冲刷（批量语义和延迟上限与原来的常驻 setInterval 相同），
+ * 队列空着时不再每 100ms 唤醒一次——每个侧车进程都有一份，空闲耗电和 App Nap 都受影响。
+ */
 function ensureFlusher(): void {
   if (flushTimer) return;
-  flushTimer = setInterval(() => {
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
     flushNow();
     maybeWarnDrop();
   }, FLUSH_INTERVAL_MS);
@@ -259,7 +264,7 @@ function installExitHooks(): void {
 
 /**
  * Append a log entry — non-blocking. Enqueues to an in-memory buffer
- * drained by the 100ms flusher. Drops on overflow with a counter.
+ * drained by a flush scheduled at most 100ms later. Drops on overflow with a counter.
  */
 export function appendUnifiedLog(entry: LogEntry): void {
   const line = formatLogEntry(entry) + '\n';

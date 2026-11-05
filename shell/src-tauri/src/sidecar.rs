@@ -292,6 +292,9 @@ fn configure_session_delete_authority(
     Some(token)
 }
 
+/// Per-user temp subdirectory for Node's on-disk compile cache of the sidecar bundle.
+const SIDECAR_NODE_COMPILE_CACHE_DIR: &str = "keystone-node-compile-cache";
+
 /// Append the shared Node entrypoint argv used by both generic/global and
 /// Session-centric spawn paths. Keeping role serialization in this production
 /// builder makes a missing role impossible in either caller.
@@ -303,6 +306,14 @@ fn append_sidecar_entrypoint_args(
 ) {
     if script_path.extension().and_then(|s| s.to_str()) == Some("ts") {
         cmd.arg("--import").arg("tsx/esm");
+    } else {
+        // server-dist.js 是约 15MB 的单文件 bundle，Global 和每个 Session 侧车都要重新编译一遍。
+        // Node 的编译缓存按文件内容校验、过期自动失效；单文件 bundle 只能在进程启动前用环境变量打开
+        // （入口里调 module.enableCompileCache() 时 bundle 已经编译完了）。
+        cmd.env(
+            "NODE_COMPILE_CACHE",
+            std::env::temp_dir().join(SIDECAR_NODE_COMPILE_CACHE_DIR),
+        );
     }
     cmd.arg(script_path)
         .arg("--port")
@@ -364,6 +375,26 @@ mod sidecar_process_role_tests {
             role_args(SidecarProcessRole::Session),
             vec!["--sidecar-role", "session"]
         );
+    }
+
+    #[test]
+    fn bundled_entrypoint_enables_node_compile_cache_but_dev_ts_does_not() {
+        let compile_cache = |script: &str| {
+            let mut command = crate::process_cmd::new("node");
+            append_sidecar_entrypoint_args(
+                &mut command,
+                Path::new(script),
+                31415,
+                SidecarProcessRole::Global,
+            );
+            command
+                .get_envs()
+                .find(|(key, _)| *key == "NODE_COMPILE_CACHE")
+                .and_then(|(_, value)| value.map(|v| v.to_os_string()))
+        };
+        let bundled = compile_cache("server-dist.js").expect("bundle gets a compile cache dir");
+        assert!(std::path::Path::new(&bundled).ends_with(super::SIDECAR_NODE_COMPILE_CACHE_DIR));
+        assert!(compile_cache("src/server/index.ts").is_none());
     }
 
     #[test]

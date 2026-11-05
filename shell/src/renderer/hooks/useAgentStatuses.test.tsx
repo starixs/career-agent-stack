@@ -76,4 +76,22 @@ describe('useAgentStatuses', () => {
     expect(screen.getByTestId('name')).toHaveTextContent('new');
     expect(screen.getByTestId('loading')).toHaveTextContent('false');
   });
+
+  it('keeps the same statuses object when a poll returns identical content (no idle re-render)', async () => {
+    const seen: AgentStatusMap[] = [];
+    function Identity() {
+      const { statuses, refresh } = useAgentStatuses(true);
+      if (!seen.includes(statuses)) seen.push(statuses);
+      return <button type="button" onClick={refresh}>refresh</button>;
+    }
+    invokeMock.mockResolvedValue(status('same'));
+
+    render(<Identity />);
+    await waitFor(() => expect(seen).toHaveLength(2)); // initial {} + first result
+    fireEvent.click(screen.getByText('refresh'));
+    await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(2));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(seen).toHaveLength(2);
+  });
 });

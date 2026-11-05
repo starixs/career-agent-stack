@@ -51,6 +51,9 @@ export function useAgentStatuses(enabled = true) {
   const requestSeqRef = useRef(0);
   // Keep latest fetch fn in a ref so interval always calls current version
   const fetchRef = useRef<() => void>(() => {});
+  // 上一次结果的序列化：内容没变就不 setStatuses。轮询每 5 秒返回一个新对象，
+  // 直接 set 会让整个 Chat 页每 5 秒重渲染一次（求职场景没有 IM 频道，结果永远一样）。
+  const lastJsonRef = useRef<string | null>(null);
 
   const refresh = useCallback(() => {
     fetchRef.current();
@@ -69,7 +72,11 @@ export function useAgentStatuses(enabled = true) {
         const { invoke } = await import('@tauri-apps/api/core');
         const result = await invoke<AgentStatusMap>('cmd_all_agents_status');
         if (isMountedRef.current && requestSeq === requestSeqRef.current) {
-          setStatuses(result);
+          const json = JSON.stringify(result);
+          if (json !== lastJsonRef.current) {
+            lastJsonRef.current = json;
+            setStatuses(result);
+          }
           setLoading(false);
         }
       } catch {

@@ -1767,13 +1767,6 @@ async function main() {
   let currentAgentDir = await ensureAgentDir(agentDir);
   startupBeacon('ensureAgentDir done');
 
-  // 求职产品：邮箱轮询只在 Global 侧车跑一份（收到面试邀请 / 测评 / 拒信自动进收件箱与卷宗）。
-  if (hasSidecarCapability(sidecarComposition, 'global')) {
-    startCareerMailPoller();
-    // 手机连接（蓝牙读短信收验证码）同样只在 Global 侧车跑一份
-    startCareerPhoneLink();
-  }
-
   // Initialize unified logging system (intercepts console.log and sends to SSE)
   // PRD — wire the stdio-broken probe + marker so the logger wrapper
   // stops calling originalConsole.* once a stdio EPIPE has marked the sink
@@ -1782,6 +1775,14 @@ async function main() {
   initLogger(getClients);
   subscribeTranscriptSaveStatus(status => getSessionEngine().publishTranscriptSaveStatus(status));
   startupBeacon('initLogger done — switching to console.log');
+
+  // 求职产品：邮箱轮询只在 Global 侧车跑一份（收到面试邀请 / 测评 / 拒信自动进收件箱与卷宗）。
+  // 放在 initLogger 之后，启动时的日志才进统一日志。
+  if (hasSidecarCapability(sidecarComposition, 'global')) {
+    startCareerMailPoller();
+    // 手机连接（蓝牙读短信收验证码）同样只在 Global 侧车跑一份
+    startCareerPhoneLink();
+  }
 
   // Store sidecar port BEFORE initializeAgent() so that:
   //   1. pre-warm's buildClaudeSessionEnv() reads the correct sidecarPort
@@ -1930,9 +1931,18 @@ async function main() {
     .then(async ([{ ensureExtensionBridge }, liveHub]) => {
       const bridge = await ensureExtensionBridge()
       if (!bridge) return
-      bridge.onTabsChange(tabs => liveHub?.publish('career:bridge-tabs', { connected: bridge.isConnected(), count: tabs.length }))
+      // 扩展桥每 3 秒心跳一次 onTabsChange；只有连接状态或标签数变了才发，
+      // 否则这条事件会每 3 秒唤醒一次前端，还会把 LiveHub 50 条回放缓冲里的真事件挤掉。
+      let lastBridgeTabs = ''
+      const publishBridgeTabs = (connected: boolean, count: number) => {
+        const key = `${connected}:${count}`
+        if (key === lastBridgeTabs) return
+        lastBridgeTabs = key
+        liveHub?.publish('career:bridge-tabs', { connected, count })
+      }
+      bridge.onTabsChange(tabs => publishBridgeTabs(bridge.isConnected(), tabs.length))
       // 帧仅经 /live/stream?frames=1 输出；不把 base64 广播到普通事件订阅者。
-      bridge.onDisconnect(() => liveHub?.publish('career:bridge-tabs', { connected: false, count: 0 }))
+      bridge.onDisconnect(() => publishBridgeTabs(false, 0))
       console.log('[startup] extension-bridge listening; product browser prepares automatically')
     })
     .catch(error => console.warn(`[startup] extension-bridge=start-failed error=${error instanceof Error ? error.message : String(error)}`));

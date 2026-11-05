@@ -53,7 +53,7 @@ import TerminalReasonBanner from '@/components/TerminalReasonBanner';
 import RuntimeDiagnosticsBanner from '@/components/RuntimeDiagnosticsBanner';
 import { UnifiedLogsPanel } from '@/components/UnifiedLogsPanel';
 import { useSendAnchor } from '@/hooks/useSendAnchor';
-import WorkspaceConfigPanel, { type Tab as WorkspaceTab } from '@/components/WorkspaceConfigPanel';
+import type { Tab as WorkspaceTab } from '@/components/WorkspaceConfigPanel';
 import CronTaskSettingsModal, {
   GOAL_SLASH_PRESET,
   type CronInitialConfig,
@@ -94,7 +94,6 @@ import type { SessionGoal, SessionGoalDraftConfig } from '@/types/sessionGoal';
 import { isTerminalGoalStatus } from '@/types/sessionGoal';
 import { formatCronScheduleDescription } from '@/utils/cronTaskI18n';
 import CronTaskCard from '@/components/scheduled-tasks/CronTaskCard';
-import CronTaskDetailPanel from '@/components/CronTaskDetailPanel';
 import { projectTaskExecutionOverrides } from '@/utils/taskProviderProjection';
 import { isTauriEnvironment } from '@/utils/browserMock';
 import { isDebugMode } from '@/utils/debug';
@@ -273,6 +272,11 @@ const FilePreviewModal = lazy(() => import('@/components/FilePreviewModal'));
 const LazyTerminalPanel = lazy(() => import('@/components/TerminalPanel').then(m => ({ default: m.TerminalPanel })));
 // Lazy load BrowserPanel for embedded browser
 const LazyBrowserPanel = lazy(() => import('@/components/BrowserPanel'));
+// 工作区设置面板只在点开时渲染，但它连带 Agent / Skill / 提示词详情页和整个 Monaco 编辑器（约 3.8MB）；
+// 静态导入会让每次打开对话都解析这些代码，所以按需加载。
+const LazyWorkspaceConfigPanel = lazy(() => import('@/components/WorkspaceConfigPanel'));
+// 定时任务详情（keystone 通用功能，求职界面几乎打不开）同理按需加载。
+const LazyCronTaskDetailPanel = lazy(() => import('@/components/CronTaskDetailPanel'));
 // Lazy load IntroductionOverlay for empty session welcome content
 const LazyIntroductionOverlay = lazy(() => import('@/components/IntroductionOverlay'));
 // Terminal chrome now uses CSS tokens that auto-switch with light/dark theme.
@@ -6086,7 +6090,8 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
 
       {/* Workspace Config Panel */}
       {showWorkspaceConfig && (
-        <WorkspaceConfigPanel
+        <Suspense fallback={null}>
+        <LazyWorkspaceConfigPanel
           agentDir={agentDir}
           onClose={() => {
             setShowWorkspaceConfig(false);
@@ -6101,6 +6106,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
           initialSelect={workspaceConfigInitialSelect}
           onRequestInit={handleRequestInitFromSettings}
         />
+        </Suspense>
       )}
 
       {/* Cross-Runtime Session Confirm Dialog */}
@@ -6313,7 +6319,8 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
 
       {/* Cron task detail panel */}
       {cronDetailTask && (
-        <CronTaskDetailPanel
+        <Suspense fallback={null}>
+        <LazyCronTaskDetailPanel
           task={cronDetailTask}
           onClose={() => setCronDetailTask(null)}
           onDelete={async (taskId) => {
@@ -6339,6 +6346,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
           }}
           onOpenSession={(id) => handleSelectSession(id, '', 'task_run_history')}
         />
+        </Suspense>
       )}
     </div>
           </FileActionProvider>
