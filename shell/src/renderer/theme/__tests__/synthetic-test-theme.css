@@ -113,7 +113,7 @@ html[data-theme-id='synthetic-test-theme'][data-color-scheme='dark'] {
   --inset: #090009;
   --on-primary: #120012;
   --primary-hover: #ffffff;
-  --bg: #ffe8ff;
+  --bg: #120012;
   --toggle-thumb: #120012;
   --primary: #dd00dd;
 }

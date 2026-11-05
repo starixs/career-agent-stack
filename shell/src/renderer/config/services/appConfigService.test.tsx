@@ -5,6 +5,7 @@ import {
   ensureManagedCodexProviderDevGateDefault,
   loadAppConfig,
 } from './appConfigService';
+import { DEFAULT_THEME_ID } from '../../../shared/theme';
 
 // Issue #303: env-only edits (e.g. user saves MINERU_API_KEY via Settings) used
 // to land on disk silently. ConfigProvider's React state never refreshed, so
@@ -127,12 +128,12 @@ describe('atomicModifyConfig — CONFIG_CHANGED_EVENT dispatch (issue #303)', ()
     }));
 
     expect(result.appearanceMode).toBe(legacyMode);
-    expect(result.themeId).toBe('keystone-light');
+    expect(result.themeId).toBe(DEFAULT_THEME_ID);
     expect(result.themeSelectionExplicit).toBe(false);
     const stored = JSON.parse(localStorage.getItem('keystone:config') ?? '{}') as Record<string, unknown>;
     expect(stored.theme).toBeUndefined();
     expect(stored.appearanceMode).toBe(legacyMode);
-    expect(stored.themeId).toBe('keystone-light');
+    expect(stored.themeId).toBe(DEFAULT_THEME_ID);
     expect(stored.themeSelectionExplicit).toBe(false);
   });
 });
@@ -154,7 +155,7 @@ describe('ensureManagedCodexProviderDevGateDefault', () => {
 
     const stored = JSON.parse(localStorage.getItem('keystone:config') ?? '{}') as Record<string, unknown>;
     expect(stored.theme).toBeUndefined();
-    expect(stored.themeId).toBe('keystone-light');
+    expect(stored.themeId).toBe(DEFAULT_THEME_ID);
     expect(stored.themeSelectionExplicit).toBe(false);
     expect(stored.appearanceMode).toBe('dark');
     expect(stored.managedCodexProviderDevGate).toBe(true);

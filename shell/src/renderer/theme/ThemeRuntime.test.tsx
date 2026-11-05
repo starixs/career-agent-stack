@@ -93,18 +93,19 @@ describe('ThemeRuntimeProvider', () => {
   it('primes a validated optional package before the first React paint', () => {
     localStorage.setItem(THEME_BOOTSTRAP_KEY, JSON.stringify({
       version: 1,
-      themeId: 'linear',
+      themeId: SYNTHETIC_THEME_ID,
       appearanceMode: 'dark',
     }));
 
-    const resolved = primeThemeRuntimeFromBootstrap(localStorage, themeRegistry);
+    // 求职产品只内置一个主题（07e2dab3）；可选主题包的预热用合成主题验证。
+    const resolved = primeThemeRuntimeFromBootstrap(localStorage, registry);
 
-    expect(resolved.key).toBe('linear:dark');
-    expect(document.documentElement.dataset.themeId).toBe('linear');
+    expect(resolved.key).toBe(`${SYNTHETIC_THEME_ID}:dark`);
+    expect(document.documentElement.dataset.themeId).toBe(SYNTHETIC_THEME_ID);
     expect(document.documentElement.dataset.colorScheme).toBe('dark');
     expect(document.getElementById('keystone-active-theme-stylesheet')).toHaveAttribute(
       'data-theme-id',
-      'linear',
+      SYNTHETIC_THEME_ID,
     );
   });
 
