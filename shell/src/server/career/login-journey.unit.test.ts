@@ -220,6 +220,23 @@ describe('登录之旅', () => {
     expect(out?.steps.map(s => s.outcome)).toEqual(['logged_in']);
   });
 
+  it('他在这一家登录时，下一家的网页先在后台打开：过完一家马上是下一家（2026-11-05 人机验证排成一串过）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const b = waitingLogin(repos, 'b.com');
+    let loggedA = false;
+    const { browser } = fakeBrowser({ cookies: () => [{ domain: '.a.com', name: 'sid', value: loggedA ? 'user' : 'guest' }, { domain: '.b.com', name: 'sid', value: 'user' }] });
+    const events: string[] = [];
+    const pageFor = browser.pageFor;
+    browser.pageFor = () => undefined;
+    browser.openPage = async (key, url) => { events.push(`open ${new URL(url).hostname}`); return pageFor(key); };
+    let t = 0;
+    const sleep = async () => { t += 10; if (!loggedA) { events.push('a 还在登录'); loggedA = true; } };
+    await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, timeoutMs: 50, sleep, now: () => t }, a.handoff.id, [a.handoff.id, b.handoff.id]);
+    expect(events.slice(0, 3)).toEqual(['open jobs.a.com', 'open jobs.b.com', 'a 还在登录']);
+    expect(events.filter(e => e === 'open jobs.b.com')).toHaveLength(1);
+  });
+
   it('打开网页那十几秒里也算在登录：钉住这一家，「去登录」不会以为上一趟已经结束（2026-11-05）', async () => {
     const repos = createMemoryRepos();
     const a = waitingLogin(repos, 'a.com');

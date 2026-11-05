@@ -241,8 +241,20 @@ async function waitForLogin(deps: JourneyDeps, step: Step, page: JourneyPage): P
   } finally { off(); }
 }
 
+/**
+ * 他在这一家扫码、拖拼图时，下一家的网页先在后台打开（开一页要十几秒）：过完一家马上是下一家，接力不用等
+ * （2026-11-05 用户：人机验证排成一串过）。只提前开一家，开不了到时候照常再开。
+ */
+function prefetchNext(deps: JourneyDeps, handoffIds: readonly string[], index: number, ahead: Map<string, Promise<JourneyPage | undefined>>): void {
+  const next = handoffIds[index + 1];
+  const step = next ? stepOf(deps.repos, next) : null;
+  if (!step || ahead.has(step.appKey) || deps.browser.pageFor(step.appKey)) return;
+  ahead.set(step.appKey, openStepPage(deps, step));
+}
+
 async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly string[]): Promise<JourneyResult> {
   const result: JourneyResult = { steps: [] };
+  const ahead = new Map<string, Promise<JourneyPage | undefined>>();
   for (const [index, id] of handoffIds.entries()) {
     const step = stepOf(deps.repos, id);
     if (!step) continue; // 别处已经处理了
@@ -250,7 +262,8 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
     // 接着点的几十家全被悄悄拒掉）
     setLivePin({ sessionKey: deps.sessionKey, appKey: step.appKey, askId, handoffId: id, index, total: handoffIds.length });
     journeyChanged();
-    const page = deps.browser.pageFor(step.appKey) ?? await openStepPage(deps, step);
+    const page = deps.browser.pageFor(step.appKey) ?? await (ahead.get(step.appKey) ?? openStepPage(deps, step));
+    ahead.delete(step.appKey);
     if (!page) { reopen(deps, step); result.steps.push({ handoff_id: id, outcome: 'no_page' }); continue; } // 开不了：交给后台重新打开
     if (step.site && knownLoggedIn(deps.repos, await deps.browser.cookies(), step.site)) {
       // 学过的凭证在，但页面上登录框还开着：那是学错了（2026-11-02 美团：滑块发的风控 Cookie 被当成登录凭证记下，
@@ -268,6 +281,7 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
     deps.browser.focus(page);
     deps.changed(['handoff']);
     smsSite = step.company ?? step.site ?? undefined;
+    prefetchNext(deps, handoffIds, index, ahead);
     // 这一家走完（登上 / 跳过 / 超时）就收掉它在后台盯手机的那一路，不占着手机等下一家
     const stepDone = new AbortController();
     const early = await prepareOrSkip(deps, page, stepDone.signal).finally(() => { if (cancelled || skipRequested) stepDone.abort(); });
