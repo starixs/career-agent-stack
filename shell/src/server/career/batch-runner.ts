@@ -365,8 +365,9 @@ export class BatchRunner {
 
   private payloadOf(a: ActionQueueItem): Record<string, unknown> { try { return JSON.parse(a.payload_json) as Record<string, unknown>; } catch { return {}; } }
 
-  private taskFor(action: ActionQueueItem, payload: Record<string, unknown>, mode: 'start' | 'continue'): Task {
-    const existing = mode === 'continue' ? this.repos.db.get<Task>('SELECT * FROM task WHERE kind=? AND payload_json LIKE ? ORDER BY created_at DESC LIMIT 1', ['apply', `%"action_id":"${action.id}"%`]) : undefined;
+  private taskFor(action: ActionQueueItem, payload: Record<string, unknown>): Task {
+    // 一份网申一条任务：被占用放回队列、失败自动再试、接管后续跑都接着用原来那条，不再另起一条同名任务（2026-11-05 同一家出现两条一模一样的）
+    const existing = this.repos.db.get<Task>('SELECT * FROM task WHERE kind=? AND payload_json LIKE ? ORDER BY created_at DESC LIMIT 1', ['apply', `%"action_id":"${action.id}"%`]);
     return existing ?? this.repos.createTask({ title: applyTaskTitle(typeof payload.job_id === 'string' ? this.repos.getJob(payload.job_id) : undefined), kind: 'apply', sessionId: this.deps.sessionId?.() ?? null, payload: { ...payload, action_id: action.id, batch: true } });
   }
 
@@ -391,7 +392,7 @@ export class BatchRunner {
         return { kind: 'failed', blocked: false, message: claim.reason === 'content_changed' ? '批准后内容有变化，已退回待审' : '已被其他执行者认领' };
       }
     }
-    const task = this.taskFor(action, payload, mode);
+    const task = this.taskFor(action, payload);
     r.updateTask(task.id, { status: 'running' });
     if (mode === 'continue') r.setActionStatus(action.id, 'executing');
     if (action.application_id) { try { r.transition(action.application_id, 'pending', mode === 'start' ? '批量投递开始' : '批量投递续跑'); } catch { /* 已在执行态 */ } }
@@ -412,8 +413,24 @@ export class BatchRunner {
       events.push(ev);
       // 浏览器起来了才会有填表事件（准备浏览器在 withProductSession 里，那时没有事件）
       if (fromDrive && ev.type !== 'error') this.markBrowserReady();
-      if (ev.type === 'progress') this.deps.broadcast('career:progress', { sessionId: this.deps.sessionId?.() ?? 'global', runId: run.runId, taskId: run.task.id, phase: 'apply_batch', message: String(ev.message ?? ''), company: run.job?.company_name ?? undefined, job_title: run.job?.title ?? undefined, ...(run.action.application_id ? { application_id: run.action.application_id } : {}), ...(typeof ev.progress === 'number' ? { progress: ev.progress } : {}) });
+      if (ev.type === 'progress') this.broadcastProgress(run, String(ev.message ?? ''), 'apply_batch', typeof ev.progress === 'number' ? ev.progress : undefined);
     };
+  }
+
+  /**
+   * 这一份跑完了：给面板发最后一条进展（done / failed 让它收尾，不再一直「进行中」；等你处理的不收尾，由接管状态说话）。
+   * 2026-11-05：滴滴提交完了，面板还停在「正在提交网申 · 进行中」。
+   */
+  private closeProgress(run: Run, outcome: DriveOutcome): void {
+    const phase = outcome.kind === 'done' ? 'apply_batch_done' : outcome.kind === 'failed' ? 'apply_batch_failed' : 'apply_batch';
+    const message = outcome.kind === 'done' ? `${outcome.headline}，${outcome.autoApproved ? '正在提交' : '等你过目后投出'}`
+      : outcome.kind === 'handoff' ? (outcome.userAction ?? outcome.message)
+        : outcome.kind === 'transient' ? '浏览器被占用，排队稍后继续' : outcome.message;
+    this.broadcastProgress(run, message, phase);
+  }
+
+  private broadcastProgress(run: Run, message: string, phase: string, progress?: number): void {
+    this.deps.broadcast('career:progress', { sessionId: this.deps.sessionId?.() ?? 'global', runId: run.runId, taskId: run.task.id, phase, message, company: run.job?.company_name ?? undefined, job_title: run.job?.title ?? undefined, ...(run.action.application_id ? { application_id: run.action.application_id } : {}), ...(progress !== undefined ? { progress } : {}) });
   }
 
   /** 这一份用的材料包：start 开跑前备（定制 + 冻结），continue 用开跑时备下的那份。 */
@@ -475,6 +492,7 @@ export class BatchRunner {
   private reportOutcome(run: Run, outcome: DriveOutcome): void {
     const { action, title } = run;
     const s = this.state();
+    this.closeProgress(run, outcome);
     if (outcome.kind === 'handoff') {
       run.takeover('paused', { reason: outcome.reason, handoffId: outcome.handoffId, url: outcome.finalUrl, message: outcome.userAction ?? outcome.message });
       this.setState({ handoffs: s.handoffs + 1, phase: 'waiting_user', message: `「${title}」需要你处理：${outcome.userAction ?? outcome.message}` });

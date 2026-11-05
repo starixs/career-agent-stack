@@ -92,6 +92,14 @@ export function dataChanged(deps: Pick<IntakeDeps, 'broadcast' | 'sessionId'>, t
   deps.broadcast('career:data-changed', { sessionId: deps.sessionId(), tables });
 }
 
+/** 浏览器标签页标题像「快手校招 - 职位详情」：那是网站名，不是岗位名。有 JD 里解析出的岗位名就用它。 */
+const PAGE_TITLE_RX = /(职位详情|岗位详情|招聘官网|官方网站|校园招聘|社会招聘|加入我们|join us|careers?\b)|\s[-|｜_]\s/i;
+export function jobTitleOf(given: string | undefined, parsed: string | undefined): string | undefined {
+  const g = given?.trim(); const p = parsed?.trim();
+  if (g && p && PAGE_TITLE_RX.test(g) && !PAGE_TITLE_RX.test(p)) return p;
+  return g || p || undefined;
+}
+
 // ---------- JD 解析入库（原 career-tools.parseAndStoreJd） ----------
 export async function parseAndStoreJd(
   deps: IntakeDeps,
@@ -104,7 +112,7 @@ export async function parseAndStoreJd(
   if (!jdRaw) throw new Error('这个岗位还没有 JD 正文：有链接就用 browser_open 打开读（要登录就 browser_wait_user 请用户登录一下），读到后 browser_capture_job 收录；不要让用户复制粘贴 JD。');
   const digest = r.experienceTree().map(e => `## ${e.title}\n${e.claims.filter(c => c.status !== 'pending').map(c => `- ${c.text}`).join('\n')}`).join('\n\n') || '（经历库为空）';
   const parsed = await askSkill<JdParsed>(deps, 'jd-parse', `公司：${input.company_name ?? job?.company_name ?? '未知'}\n岗位：${input.title ?? job?.title ?? '未知'}\n\nJD 原文：\n${jdRaw}\n\n经历库摘要：\n${digest}`);
-  const title = input.title ?? job?.title ?? parsed.title ?? jdRaw.split('\n').map(l => l.trim()).find(Boolean)?.slice(0, 60) ?? '未命名岗位';
+  const title = jobTitleOf(input.title, parsed.title) ?? job?.title ?? jdRaw.split('\n').map(l => l.trim()).find(Boolean)?.slice(0, 60) ?? '未命名岗位';
   // 汇总表维度：只取解析结果的显式字段 + 原文里字面出现的批次 / 企业性质词（见 core jobs.ts JobBoardMeta），拿不到就不写
   const board = deps.core.serializeBoardMeta(deps.core.boardMetaFromJd(parsed, title, jdRaw));
   if (!job) {
@@ -114,9 +122,12 @@ export async function parseAndStoreJd(
   // 投递邮箱：库里为空时先按规则从原文认，认不出再用解析结果（结构先走、模型兜底）
   const applyEmail = job.apply_email ? null : deps.core.extractApplyEmail(jdRaw)?.email ?? (parsed.apply_email && deps.core.isEmailAddress(parsed.apply_email) ? parsed.apply_email.trim() : null);
   r.db.update('job', job.id, { jd_parsed_json: JSON.stringify(parsed), ...(mergedBoard ? { board_json: mergedBoard } : {}), ...(parsed.deadline && !job.deadline ? { deadline: parsed.deadline } : {}), ...(applyEmail ? { apply_email: applyEmail } : {}), updated_at: new Date().toISOString() });
-  if (parsed.deadline && !r.listDeadlines({ status: 'open' }).some(d => d.job_id === job!.id && d.kind === 'application_deadline')) {
-    const due = normalizeIso(parsed.deadline, deps.now?.() ?? new Date().toISOString());
-    if (due) r.createDeadline({ kind: 'application_deadline', title: `${job.company_name ?? ''} ${job.title} 网申截止`.trim(), due_at: due, job_id: job.id, source: 'job' });
+  // 同一岗位只记一条网申截止（不管 open 还是已错过：过期的被标成 missed 后再收录一次，就成了两张一模一样的卡，2026-11-05 快手）；
+  // 收录时已经过了的截止不记——网申已经关了，提醒他「去处理」没有意义
+  const nowIso = deps.now?.() ?? new Date().toISOString();
+  if (parsed.deadline && !r.listDeadlines().some(d => d.job_id === job!.id && d.kind === 'application_deadline')) {
+    const due = normalizeIso(parsed.deadline, nowIso);
+    if (due && Date.parse(due) >= Date.parse(nowIso)) r.createDeadline({ kind: 'application_deadline', title: `${job.company_name ?? ''} ${job.title} 网申截止`.trim(), due_at: due, job_id: job.id, source: 'job' });
   }
   dataChanged(deps, ['job', 'deadline']);
   return { job: r.getJob(job.id)!, parsed };

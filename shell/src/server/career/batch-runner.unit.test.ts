@@ -75,6 +75,18 @@ describe('BatchRunner', () => {
     expect(repos.getAction(id)?.status).toBe('approved');
   });
 
+  it('一份网申一条任务：被占用放回队列后再跑，用原来那条，不另起一条同名的；跑完发收尾进展（2026-11-05 同一家两条、投完还在进行中）', async () => {
+    const repos = createMemoryRepos();
+    const [id] = seed(repos, 1);
+    let round = 0;
+    const { runner, events } = makeRunner(repos, () => (round++ === 0 ? [{ type: 'error', status: 500, error: 'BROWSER_PREPARATION_FAILED（HTTP 500）' }] : [result('stopped_before_submit', { submitButton: '提交' })]));
+    expect((await runner.runOne(repos.getAction(id)!, 'start')).kind).toBe('transient');
+    expect((await runner.runOne(repos.getAction(id)!, 'start')).kind).toBe('done');
+    expect(repos.listTasks().filter(t => t.kind === 'apply')).toHaveLength(1);
+    const last = events.filter(e => e.event === 'career:progress').at(-1)?.data as Record<string, unknown>;
+    expect(last).toMatchObject({ phase: 'apply_batch_done', application_id: repos.getAction(id)!.application_id });
+  });
+
   it('浏览器还没准备好：状态写明第一次要等；浏览器起来过一次以后照常说稍后重试（风险 E#2）', async () => {
     const repos = createMemoryRepos();
     const [a, b] = seed(repos, 2);

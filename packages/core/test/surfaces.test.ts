@@ -120,7 +120,7 @@ describe('收件箱 / 截止 / 今日队列', () => {
 })
 
 describe('过了时间的笔试 / 面试：问一句「考了吗」', () => {
-  it('过了时间没打勾的笔试在队尾问「考了吗」；别的已过期事项照旧；答完从队列消失、卷宗记一笔', () => {
+  it('过了时间没打勾的笔试在队尾问「考了吗」；过期的网申截止不再挂；答完从队列消失、卷宗记一笔', () => {
     const r = mem()
     const job = r.upsertJob({ source_platform: 'campus', source_job_id: 'mt', title: '后端', company_name: '美团' })
     const app = r.createApplication(job.id)
@@ -129,7 +129,8 @@ describe('过了时间的笔试 / 面试：问一句「考了吗」', () => {
 
     const asked = r.today(NOW).items.find(i => i.deadline_id === exam.id)!
     expect(asked).toMatchObject({ title: '美团笔试：考了吗？', ask: 'attendance' })
-    expect(r.today(NOW).items.find(i => i.title === '乙公司网申截止')?.ask).toBeUndefined()
+    // 网申截止过了：网申已经关了，不再挂「去处理」（2026-11-05 快手）
+    expect(r.today(NOW).items.find(i => i.title === '乙公司网申截止')).toBeUndefined()
 
     expect(r.answerAttendance(exam.id, false).status).toBe('skipped')
     expect(r.today(NOW).items.map(i => i.deadline_id)).not.toContain(exam.id)

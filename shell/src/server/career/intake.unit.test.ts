@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { FakeLLM } from '@career/core';
 
 import { loadCore } from './core-module';
-import { captureIntake, captureLink, normalizeIso, recordExam } from './intake';
+import { captureIntake, captureLink, normalizeIso, parseAndStoreJd, recordExam } from './intake';
 import { CareerStore } from './store';
 import { createMemoryRepos } from './test-db';
 
@@ -201,5 +201,30 @@ describe('recordExam', () => {
   it('公司为空时报错', async () => {
     const d = await deps(null);
     expect(() => recordExam(d, { company_name: '  ', kind: 'written_test', due_at: '2026-10-21T06:00:00.000Z' })).toThrow('公司');
+  });
+});
+
+describe('parseAndStoreJd：岗位名与网申截止（2026-11-05 快手两张一模一样的过期截止卡）', () => {
+  const jd = (deadline: string) => JSON.stringify({ title: '数据分析师', company: '快手', deadline, location: ['北京'] });
+
+  it('标签页标题不当岗位名；同一岗位只记一条截止，已错过的那条也算', async () => {
+    const llm = new FakeLLM();
+    const d = await deps(llm);
+    llm.push(() => jd('2026-10-20'));
+    const first = await parseAndStoreJd(d, { jd_raw: '快手数据分析师 JD', title: '快手校招 - 职位详情', company_name: '快手', url: 'https://campus.kuaishou.cn/job/1' });
+    expect(first.job.title).toBe('数据分析师');
+    const [ddl] = d.repos.listDeadlines();
+    d.repos.setDeadlineStatus(ddl.id, 'missed');
+    llm.push(() => jd('2026-10-20'));
+    await parseAndStoreJd(d, { job_id: first.job.id });
+    expect(d.repos.listDeadlines().filter(x => x.job_id === first.job.id)).toHaveLength(1);
+  });
+
+  it('收录时网申截止已经过了：不记截止', async () => {
+    const llm = new FakeLLM();
+    const d = await deps(llm);
+    llm.push(() => jd('2026-09-27'));
+    const { job } = await parseAndStoreJd(d, { jd_raw: '快手数据分析师 JD', company_name: '快手' });
+    expect(d.repos.listDeadlines().filter(x => x.job_id === job.id)).toHaveLength(0);
   });
 });

@@ -119,6 +119,8 @@ export function deadlineToToday(d: Deadline & { due_at: string }, nowIso: string
   const days = daysBetween(nowIso, d.due_at)
   if (days > 3) return null
   const overdue = Date.parse(d.due_at) < Date.parse(nowIso)
+  // 网申截止已过：网申关了，没有什么可「去处理」的（2026-11-05 快手 10/27 截止的卡 11/05 还挂着）
+  if (overdue && d.kind === 'application_deadline') return null
   if (overdue && asksAttendance(d, nowIso)) {
     return {
       kind: 'deadline', priority: OVERDUE_PRIORITY, title: `${d.title}：${ATTENDANCE_QUESTION[d.kind]}`, detail: '答一下就收进卷宗', due_at: d.due_at,
