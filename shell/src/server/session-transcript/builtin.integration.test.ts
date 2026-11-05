@@ -392,10 +392,10 @@ describe('builtin V2 execution independent of product storage', () => {
     expect(agent.getMessages().map(row => row.id)).toEqual(rows.map(row => row.id));
   });
 
-  // e8b5da94: a rewind anchor that a successful native chain read does not
-  // contain (e.g. compacted away) is refused before anything is aborted or
-  // truncated, instead of being committed as an unresumable boundary.
-  it('refuses a rewind anchor absent from the SDK chain without touching history', async () => {
+  // Only a compacted-away anchor is refused (see isRewindAnchorCompactedAway).
+  // An answer orphaned by an earlier retry is merely off the single-chain
+  // projection of an uncompacted chain, so native resume still adjudicates it.
+  it('does not treat absence from the SDK single-chain projection as an invalid rewind boundary', async () => {
     const workspace = join(state.home, 'workspace');
     await mkdir(workspace);
     const metadata = await store.createSession(workspace, { runtime: 'builtin' });
@@ -410,6 +410,34 @@ describe('builtin V2 execution independent of product storage', () => {
     state.sdkRead.mockResolvedValue([
       { type: 'user', uuid: 'native-u1' },
       { type: 'assistant', uuid: 'native-current-a2' },
+    ]);
+    await agent.initializeAgent(workspace, null, metadata.id, { preWarmDisabled: true });
+
+    const result = await agent.rewindSession('u2');
+
+    expect(result).toMatchObject({ success: true });
+    expect(state.rewindFiles).not.toHaveBeenCalled();
+    expect(agent.getMessages().map(row => row.id)).toEqual(['u1', 'a1']);
+    expect(store.getSessionMetadata(metadata.id)?.sdkResumeSessionAt).toBe('native-orphan-a1');
+  });
+
+  it('refuses a rewind anchor that compaction removed, without touching history', async () => {
+    const workspace = join(state.home, 'workspace');
+    await mkdir(workspace);
+    const metadata = await store.createSession(workspace, { runtime: 'builtin' });
+    const rows = [
+      { id: 'u1', role: 'user' as const, content: 'first', timestamp: '2026-11-05T01:00:00.000Z', sdkUuid: 'native-u1' },
+      { id: 'a1', role: 'assistant' as const, content: 'old answer', timestamp: '2026-11-05T01:01:00.000Z', sdkUuid: 'native-a1' },
+      { id: 'u2', role: 'user' as const, content: 'second', timestamp: '2026-11-05T03:00:00.000Z', sdkUuid: 'native-u2' },
+      { id: 'a2', role: 'assistant' as const, content: 'current answer', timestamp: '2026-11-05T03:01:00.000Z', sdkUuid: 'native-a2' },
+    ];
+    const snapshot = await store.loadSessionTranscript(metadata.id);
+    expect(await store.appendSessionMessages(metadata.id, snapshot.cursor, rows)).toMatchObject({ ok: true });
+    state.sdkRead.mockResolvedValue([
+      { type: 'system', uuid: 'compact-boundary', timestamp: '2026-11-05T02:00:00.000Z' },
+      { type: 'user', uuid: 'compact-summary' },
+      { type: 'user', uuid: 'native-u2' },
+      { type: 'assistant', uuid: 'native-a2' },
     ]);
     await agent.initializeAgent(workspace, null, metadata.id, { preWarmDisabled: true });
 

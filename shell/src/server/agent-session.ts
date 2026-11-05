@@ -10522,11 +10522,22 @@ export function retryBuiltinUserMessage(
   });
 }
 
-/** True only when the native chain was read and the anchor is not on it (e.g. compacted away). */
-async function isRewindAnchorOffNativeChain(sdkSessionId: string, anchorUuid: string, dir: string): Promise<boolean> {
+/**
+ * True only when compaction removed the anchor: the native chain was read, it is
+ * re-rooted at a compact_boundary system entry, and the anchor is not on it and
+ * predates that boundary. An anchor that is merely off the single-chain
+ * projection without compaction (e.g. an orphaned answer left by an earlier
+ * retry) is still left to native resume to adjudicate, as before e8b5da94.
+ */
+async function isRewindAnchorCompactedAway(sdkSessionId: string, anchorUuid: string, anchorTimestamp: string | undefined, dir: string): Promise<boolean> {
   try {
-    const chain = await sdkGetSessionMessages(sdkSessionId, { dir });
-    return chain.length > 0 && !chain.some(m => m.uuid === anchorUuid);
+    const chain = await sdkGetSessionMessages(sdkSessionId, { dir, includeSystemMessages: true });
+    const root = chain[0];
+    if (!root || root.type !== 'system' || chain.some(m => m.uuid === anchorUuid)) return false;
+    const boundaryAt = 'timestamp' in root && typeof root.timestamp === 'string' ? Date.parse(root.timestamp) : NaN;
+    const anchorAt = anchorTimestamp ? Date.parse(anchorTimestamp) : NaN;
+    // Without comparable times, a compacted chain that lacks the anchor is refused (the e8b5da94 behavior).
+    return Number.isFinite(boundaryAt) && Number.isFinite(anchorAt) ? anchorAt < boundaryAt : true;
   } catch (e) {
     console.warn(`[agent] rewind anchor probe failed, leaving the decision to native resume: ${e instanceof Error ? e.message : String(e)}`);
     return false;
@@ -10566,9 +10577,10 @@ export async function rewindSession(userMessageId: string): Promise<{
     // pre-compact anchor is never resumable, and native resume keeps the
     // boundary for retry, so committing it would brick the session in a
     // "No message found with message.uuid" loop. Refuse before anything is
-    // aborted or truncated. A failed probe keeps the old behavior.
+    // aborted or truncated. Only a compacted-away anchor is refused; a failed
+    // probe or an uncompacted chain keeps the old behavior.
     if (resumeSessionAt && sourceSdkSessionId && sourceMeta?.agentDir
-      && await isRewindAnchorOffNativeChain(sourceSdkSessionId, resumeSessionAt, sourceMeta.agentDir)) {
+      && await isRewindAnchorCompactedAway(sourceSdkSessionId, resumeSessionAt, retainedTail?.timestamp, sourceMeta.agentDir)) {
       return { success: false as const, error: '这条消息在上下文压缩之前，压缩后无法再回退到这里；直接发新消息继续即可' };
     }
     const targetUserUuid = targetMessage.sdkUuid;
