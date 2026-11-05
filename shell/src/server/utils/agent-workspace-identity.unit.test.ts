@@ -138,7 +138,8 @@ describe('persisted Agent workspace identity', () => {
     expect(state.config.agents!.filter(a => a.id === independentId)).toHaveLength(1);
     expect(state.projects[1].agentId).toBe(independentId);
     expect(state.config.agents!.find(a => a.id === independentId)?.channels).toEqual([]);
-    expect(state.config.agents!.find(a => a.id === independentId)?.heartbeat?.enabled).toBe(true);
+    // 求职产品把基座心跳一律关掉（8200b1a2 / careerMemoryPolicy.ts），模板默认开着也会被撤掉。
+    expect(state.config.agents!.find(a => a.id === independentId)?.heartbeat?.enabled).toBe(false);
   });
 
   it('does not write Agent config when the Project write fails', async () => {

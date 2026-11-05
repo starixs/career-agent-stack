@@ -17,6 +17,8 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   browser_open: '打开网页',
   browser_observe: '看一眼网页',
   browser_act: '在网页上操作',
+  browser_cdp: '在网页上操作',
+  browser_sop: '想想网页怎么操作',
   browser_read: '读网页内容',
   browser_capture_job: '收录这个岗位',
   apply_prepare: '准备材料并开始填网申',

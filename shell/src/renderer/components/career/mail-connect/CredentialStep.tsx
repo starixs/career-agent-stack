@@ -156,7 +156,7 @@ function ConnectSuccess({ connector, result, from, onManage, onClose }: {
 }) {
   return (
     <div className="grid justify-items-start gap-3" role="status">
-      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--success)] text-white"><Check className="h-5 w-5" /></span>
+      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[var(--success)] text-[var(--on-primary)]"><Check className="h-5 w-5" /></span>
       <div className="font-human text-lg font-semibold text-[var(--ink)]">{connector.name}已连接</div>
       <p className="text-sm text-[var(--ink-2)]">{result.account.address} 近半年的求职邮件正在后台收进来，收好后出现在通知中心。可以关掉这里去做别的。</p>
       {!result.smtp_ok && <p className="text-xs text-[var(--warning)]">发信验证没通过，暂时不能代发邮件；收信不受影响。</p>}
