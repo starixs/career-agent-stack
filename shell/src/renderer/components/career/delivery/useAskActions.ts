@@ -52,6 +52,7 @@ async function go(ask: AskView, respond: Respond, values: Record<string, string>
   switch (ask.kind) {
     case 'start': case 'review': return decideReview(respond, ask);
     case 'info': return fillFields(ask, values);
+    case 'choice': if (!values.choice) return 'kept'; await deliveryApi.choose(ask.id, values.choice); return 'resolved';
     // 登录之旅：服务端把画面钉在第一家，登上了（数据层判断）或你点交还就切下一家
     case 'login': await deliveryApi.loginJourney(ask.id); openLiveDrawer(); return 'kept';
     case 'confirm': return confirmSent(ask, true);

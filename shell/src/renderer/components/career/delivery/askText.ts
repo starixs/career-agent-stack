@@ -51,6 +51,7 @@ const GO: Partial<Record<string, string>> = { assessment: '去做测评', writte
 export function actionLabels(ask: AskView): { go: string; later: string } {
   switch (ask.kind) {
     case 'info': return { go: '填好', later: '这批先跳过' };
+    case 'choice': return { go: '选好', later: '晚点' };
     case 'login': return { go: '去登录', later: '晚点' };
     case 'start': return { go: '都开始投', later: '晚点' };
     case 'review': return { go: ask.application_ids.length > 1 ? '一键投出' : '投出', later: '去看' };

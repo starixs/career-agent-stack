@@ -69,7 +69,7 @@ function FieldInputs({ ask, values, onChange }: { ask: AskView; values: Record<s
 }
 
 /** 这几类卡都要能「去看」那一家的页面：过目、补信息（他得知道问的是页面上哪一格）、投出了吗。 */
-const LOOKABLE = new Set(['review', 'info', 'confirm']);
+const LOOKABLE = new Set(['review', 'info', 'confirm', 'choice']);
 
 export function AskCard({ ask, busy, error, onGo, onLater }: {
   ask: AskView; busy: boolean; error: string | null;
@@ -82,7 +82,7 @@ export function AskCard({ ask, busy, error, onGo, onLater }: {
   const src = sourceText(ask);
   const sub = subText(ask);
   const fillable = (ask.fields ?? []).filter(f => f.fillable);
-  const blocked = ask.kind === 'info' && fillable.length > 0 && !fillable.some(f => values[f.label]?.trim());
+  const blocked = (ask.kind === 'info' && fillable.length > 0 && !fillable.some(f => values[f.label]?.trim())) || (ask.kind === 'choice' && !values.choice);
   // 投前过目只要两个动作：投出、去看（2026-11-05 用户：必填 0/0、先不投、撤不回这些字太多，过目却没地方看）
   const look = LOOKABLE.has(ask.kind);
   return (
@@ -94,6 +94,11 @@ export function AskCard({ ask, busy, error, onGo, onLater }: {
         {due && <p className="cd-due">{due}</p>}
         {src && <p className="cd-src">{src}</p>}
         {ask.kind === 'info' && <FieldInputs ask={ask} values={values} onChange={(l, v) => setValues(s => ({ ...s, [l]: v }))} />}
+        {ask.kind === 'choice' && ask.choice && (
+          <div className="cd-choices" role="radiogroup" aria-label={ask.choice.question}>
+            {ask.choice.options.map(o => <button key={o} type="button" role="radio" aria-checked={values.choice === o} className={`cd-choice${values.choice === o ? ' cd-choice-on' : ''}`} onClick={() => setValues(s => ({ ...s, choice: o }))}>{o}</button>)}
+          </div>
+        )}
         <div className="cd-acts">
           <button type="button" className="cd-go" disabled={busy || blocked} onClick={() => void onGo(values)}>{labels.go}</button>
           {ask.kind === 'review'

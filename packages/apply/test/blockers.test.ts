@@ -34,3 +34,15 @@ describe('网站在忙的弹窗（2026-11-03 库洛游戏「解析中…… 取�
     expect(clicked).toEqual([])
   })
 })
+
+describe('学生在卡上替弹窗选过的按钮（2026-11-05 阿里「请选择意向部门」）', () => {
+  const dept: DialogInfo = { id: 'd2', text: '该职位有以下部门在招，请选择意向部门', buttons: [{ text: '阿里国际站', selector: '#a' }, { text: '速卖通', selector: '#b' }], modal: true, kind: 'dialog' } as DialogInfo
+  it('选过就替他点那一个；没选过、又没规则和模型，照旧交给人', async () => {
+    const chosen = dialogPage(dept, 1)
+    const r = await clearBlockers(chosen.page, { presetChoice: t => (t.includes('意向部门') ? '速卖通' : undefined) })
+    expect(chosen.clicked).toEqual(['#b'])
+    expect(r.handled[0]).toMatchObject({ choice: '速卖通', by: 'user', resolved: true })
+    const fresh = dialogPage(dept, 5)
+    expect((await clearBlockers(fresh.page)).unresolved?.buttons).toEqual(['阿里国际站', '速卖通'])
+  })
+})

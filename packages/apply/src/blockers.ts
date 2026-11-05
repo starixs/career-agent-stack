@@ -10,7 +10,7 @@ import type { Recorder } from './telemetry.js'
  *  第二重（兜底）：任何涉及提交、同意协议、授权、付费、删除、覆盖资料的按钮都不点，模型选了也不点，交给用户；
  *                  点完必须核验弹窗真的消失了。
  */
-export interface HandledBlocker { text: string; choice?: string; by: 'rule' | 'llm' | 'none'; rule?: string; resolved: boolean; reason?: string }
+export interface HandledBlocker { text: string; choice?: string; by: 'rule' | 'llm' | 'user' | 'none'; rule?: string; resolved: boolean; reason?: string }
 export interface BlockerOutcome { handled: HandledBlocker[]; unresolved?: { text: string; buttons: string[]; reason: string } }
 export interface BlockerContext {
   llm?: LLM
@@ -21,6 +21,8 @@ export interface BlockerContext {
   settleMs?: number
   maxRounds?: number
   stage?: string
+  /** 学生在卡上替这个弹窗选过的按钮文字（选择题类弹窗：意向部门、意向城市）。 */
+  presetChoice?: (dialogText: string) => string | undefined
 }
 
 /** 永不自动点的按钮文案（以及模型选了也不点）。 */
@@ -142,8 +144,11 @@ export async function clearBlockers(page: PageLike, ctx: BlockerContext = {}): P
     let by: HandledBlocker['by'] = 'none'
     let rule: string | undefined
     let why = ''
-    const r = decideByRule(d)
-    if (r && isSafeChoice(d, r.button, r.rule)) { choice = r.button; by = 'rule'; rule = r.rule }
+    const preset = ctx.presetChoice?.(d.text)
+    const picked = preset ? d.buttons.find(b => b.text.replace(/\s+/g, '') === preset.replace(/\s+/g, '')) : undefined
+    const r = picked ? null : decideByRule(d)
+    if (picked && !isUnsafeButton(picked.text)) { choice = picked; by = 'user' }
+    else if (r && isSafeChoice(d, r.button, r.rule)) { choice = r.button; by = 'rule'; rule = r.rule }
     else if (d.modal && ctx.llm && d.buttons.length) {
       const pick = await decideByLlm(ctx.llm, d)
       why = pick.reason

@@ -1,3 +1,4 @@
+import { recallDialogChoice } from '@career/core'
 import { normKey } from './text.js'
 
 /**
@@ -29,6 +30,8 @@ export function fieldSignatures(f: FieldSignatureInput): string[] {
 export class SiteMemory {
   constructor(private readonly store: SiteMemoryStore) {}
   mapFor(host: string): Record<string, SiteMapping> { return this.store.kvGet<Record<string, SiteMapping>>(siteMapKey(host)) ?? {} }
+  /** 这个弹窗学生选过哪个按钮；没选过 undefined。 */
+  dialogChoice(host: string, text: string): string | undefined { return recallDialogChoice(this.store, host, text) }
   recall(host: string, field: FieldSignatureInput): SiteMapping | undefined {
     const map = this.mapFor(host)
     for (const sig of fieldSignatures(field)) { const m = map[sig]; if (m) return m }

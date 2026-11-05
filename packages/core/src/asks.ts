@@ -26,7 +26,7 @@ import { PROFILE_FIELDS, vaultTokensToMarks } from './vault.js'
  * 规范五类 + 已经在今日队列里的四类（过了时间问「考了吗」、面完复盘、不确定是否投出、还没开始填的）。
  * 出错面预留（2026-10-30，等用户定，现在不派生）：failed「N 家没投成」、unsure「这几封我不太确定」。
  */
-export type AskKind = 'info' | 'login' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure'
+export type AskKind = 'info' | 'login' | 'choice' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure'
 export type AskSourceType = 'deadline' | 'action' | 'handoff'
 export interface AskSource { type: AskSourceType; id: string }
 export interface AskField {
@@ -66,6 +66,8 @@ export interface AskView {
   fields?: AskField[]
   /** review：填后检查的数字 */
   review?: { required_filled: number | null; required_total: number | null; gaps: number }
+  /** choice：网页弹窗问的话和它的按钮，卡上直接点选 */
+  choice?: { question: string; options: string[] }
   /** 对话里接着办时发给助理的话（带对象 id） */
   suggest?: string
 }
@@ -331,13 +333,36 @@ function handoffAsks(repos: Repos, ctx: Ctx): AskView[] {
     const action = h.action_id ? repos.getAction(h.action_id) : undefined
     return { h, action, appId: action?.application_id ?? null }
   })
-  const login = loginAsk(ctx, rows.filter(r => LOGIN_REASONS.has(r.h.reason)))
+  const choices = rows.filter(r => r.h.reason === 'user_request' && dialogOf(r.action))
+  const login = loginAsk(ctx, rows.filter(r => LOGIN_REASONS.has(r.h.reason) && !choices.includes(r)))
   return [
     ...infoAsks(ctx, rows.filter(r => r.h.reason === 'missing_info')),
+    ...choices.map(r => choiceAsk(ctx, r, dialogOf(r.action)!)),
     ...(login ? [login] : []),
     ...rows.filter(r => r.h.reason === 'assessment').map(r => singleHandoffAsk(ctx, r, 'deadline')),
     ...rows.filter(r => r.h.reason === 'submit_confirm').map(r => singleHandoffAsk(ctx, r, 'confirm')),
   ]
+}
+
+/** 填表停在一个拿不准的弹窗上（引擎带回了它问的话和按钮）。 */
+function dialogOf(action: ActionQueueItem | undefined): { text: string; buttons: string[] } | null {
+  const d = parseObj(action?.result_json ?? null).dialog as { text?: unknown; buttons?: unknown } | undefined
+  const text = strOf(d?.text)
+  const buttons = Array.isArray(d?.buttons) ? d.buttons.filter((b): b is string => typeof b === 'string' && !!b.trim()) : []
+  return text && buttons.length ? { text, buttons } : null
+}
+
+/** 弹窗的第一句话当问题（后面常是长长的选项列表）。 */
+const QUESTION_MAX = 40
+function choiceAsk(ctx: Ctx, r: HandoffRow, dialog: { text: string; buttons: string[] }): AskView {
+  const appIds = uniq([r.appId])
+  const company = appIds.length ? ctx.apps.get(appIds[0])?.company.name : undefined
+  const question = (dialog.text.split(/[。？?！!\n]/)[0] ?? dialog.text).replace(/\s+/g, ' ').trim().slice(0, QUESTION_MAX)
+  return {
+    id: r.h.id, kind: 'choice', title: company ? `${shortName(company)} · ${question}` : question,
+    application_ids: appIds, companies: companiesOf(ctx, appIds), sources: [{ type: 'handoff', id: r.h.id }], action_ids: uniq([r.h.action_id]),
+    due_at: earliestJobDeadline(ctx, appIds), overdue: false, choice: { question: dialog.text, options: dialog.buttons },
+  }
 }
 
 /** 网申里卡在测评的接管，和同一份申请上已经记下的测评截止是同一件事：并进那件，不另出一件。 */

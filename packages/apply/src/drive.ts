@@ -122,6 +122,8 @@ export interface DriveResult {
   status: DriveStatus
   /** handoff 时的原因；blocked 时可能是 missing_info。 */
   reason?: HandoffReason
+  /** 停在一个拿不准的弹窗上：它问的话和按钮，等你卡上让学生直接选（选完存进站点记忆，续跑时引擎替他点）。 */
+  dialog?: { text: string; buttons: string[] }
   message: string
   /** handoff 时：用户具体该做什么（给接管条展示）。 */
   userAction?: string
@@ -269,7 +271,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   /** 障碍层；返回 false 表示有处理不了的模态弹窗。 */
   let unresolvedBlocker: { text: string; buttons: string[]; reason: string } | undefined
   const blockers = async (stage: string, rec?: PageRecord): Promise<boolean> => {
-    const r = await clearBlockers(page, { llm: widgetLlm, recorder, progress: m => progress(m, 'blocker'), log, settleMs: Math.min(opts.settleMs ?? 400, 600) || 0, stage })
+    const r = await clearBlockers(page, { llm: widgetLlm, recorder, progress: m => progress(m, 'blocker'), log, settleMs: Math.min(opts.settleMs ?? 400, 600) || 0, stage, ...(opts.siteMemory ? { presetChoice: (text: string) => opts.siteMemory?.dialogChoice(host, text) } : {}) })
     if (r.handled.length) { allBlockers.push(...r.handled); if (rec) (rec.blockers ??= []).push(...r.handled) }
     unresolvedBlocker = r.unresolved
     return !r.unresolved
@@ -320,6 +322,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   }
   const blockerHandoff = (u: { text: string; buttons: string[]; reason: string }) => finish('handoff', `页面弹出了一个对话框，我没把握该点哪个：「${u.text.slice(0, 80)}」（${u.reason}）`, {
     reason: 'user_request', userAction: `页面上有个弹窗「${u.text.slice(0, 60)}」（按钮：${u.buttons.slice(0, 4).join(' / ') || '无'}），请你在浏览器里处理掉它，然后点"交还"，我接着填`,
+    ...(u.buttons.length ? { dialog: { text: u.text, buttons: u.buttons } } : {}),
   })
   /** 一路下来没碰到任何表单项。 */
   const untouched = () => !all.filled.length && !all.needsUser.length && !all.drafts.length && !all.uploads.length && !all.mismatches.length

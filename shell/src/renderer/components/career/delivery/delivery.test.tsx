@@ -174,6 +174,21 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     off();
   });
 
+  it('网页弹窗的选择题（阿里「请选择意向部门」）：卡上直接点选，选好交给后台接着填，不用去浏览器里点（2026-11-05）', async () => {
+    const pick: AskView = { id: 'hnd_ali', kind: 'choice', title: '阿里巴巴 · 请选择意向部门', application_ids: ['a1'], companies: [mark('阿里巴巴')],
+      sources: [{ type: 'handoff', id: 'hnd_ali' }], action_ids: ['act_ali'], due_at: null, overdue: false,
+      choice: { question: '该职位有以下部门在招，请选择意向部门', options: ['阿里国际站', '速卖通'] } };
+    serve([pick], null);
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    const go = screen.getByRole('button', { name: '选好' });
+    expect(go).toBeDisabled();
+    fireEvent.click(screen.getByRole('radio', { name: '速卖通' }));
+    serve([], null);
+    fireEvent.click(go);
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/asks/hnd_ali/choose', { choice: '速卖通' }));
+  });
+
   it('「投出了吗」：看过页面一键回答，不用在对话里说；没投出去的回到待审', async () => {
     const confirm: AskView = { id: 'hnd_c', kind: 'confirm', title: '大疆 · 投出了吗', application_ids: ['a1'], companies: [mark('大疆')],
       sources: [{ type: 'handoff', id: 'hnd_c' }], action_ids: ['act_sub'], due_at: null, overdue: false };
