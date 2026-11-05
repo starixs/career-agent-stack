@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
-import { KeepAwake } from './keep-awake';
+import { KeepAwake, KEEP_AWAKE_KEY, keepAwakeEnabled } from './keep-awake';
 
 function fakeSpawn() {
   const calls: string[][] = [];
@@ -31,5 +31,15 @@ describe('KeepAwake（2026-11-05 屏幕睡了托管浏览器每次点击要 50 �
     const f = fakeSpawn();
     new KeepAwake({ platform: 'win32', spawn: f.spawn, pid: 1 }).follow(true);
     expect(f.calls).toEqual([]);
+  });
+});
+
+describe('设置开关', () => {
+  it('没设过算开；存了 false 才算关', () => {
+    const kv = new Map<string, unknown>();
+    const store = { kvGet: <T,>(k: string) => kv.get(k) as T | undefined };
+    expect(keepAwakeEnabled(store)).toBe(true);
+    kv.set(KEEP_AWAKE_KEY, false);
+    expect(keepAwakeEnabled(store)).toBe(false);
   });
 });

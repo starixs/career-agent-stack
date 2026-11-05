@@ -24,6 +24,7 @@ import { livePin, liveTarget, setViewApp, userWaitActive, viewedApp } from '../c
 import { JOURNEY_EVENT, journeySms, refreshJourneyImage, submitJourneyCode, type SmsState } from '../career/login-journey';
 import { createPageFollower } from '../career/page-follower';
 import { ScreencastHub, fromPlaywrightPage } from '../career/screencast';
+import { followBatch, KEEP_AWAKE_KEY, keepAwakeEnabled } from '../career/keep-awake';
 import { livePageViewport } from '../browser-host/extension-bridge/extension-browser-host';
 import { productBrowserWaitingMessage } from '../browser-host/extension-bridge/bridge-host';
 
@@ -373,6 +374,15 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
   }
 
   if (pathname === `${CAREER_BATCH_PREFIX}state` && method === 'GET') return ok({ batch: deps.runner?.state() ?? null });
+  // 设置里「投递时保持屏幕常亮」：改了马上按当前批量状态生效
+  if (pathname === `${CAREER_BATCH_PREFIX}keep-awake` && method === 'GET') return ok({ enabled: keepAwakeEnabled(deps.repos) });
+  if (pathname === `${CAREER_BATCH_PREFIX}keep-awake` && method === 'POST') {
+    const body = await readBody(request);
+    if (typeof body.enabled !== 'boolean') return fail('enabled 必须是 true | false');
+    deps.repos.kvSet(KEEP_AWAKE_KEY, body.enabled);
+    followBatch(deps.repos, deps.runner?.state().status);
+    return ok({ enabled: body.enabled });
+  }
   if (pathname === `${CAREER_BATCH_PREFIX}command` && method === 'POST') {
     const body = await readBody(request);
     const cmd = body.cmd === 'start' || body.cmd === 'pause' || body.cmd === 'stop' ? body.cmd : null;

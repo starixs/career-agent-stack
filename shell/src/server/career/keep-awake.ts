@@ -38,3 +38,15 @@ export class KeepAwake {
     console.log('[career] keep-awake: 批量投递停了，屏幕照常睡');
   }
 }
+
+/** 设置里的开关（缺省开）：career kv 里存 false 才算关。 */
+export const KEEP_AWAKE_KEY = 'career:keep_awake';
+interface FlagStore { kvGet<T = unknown>(key: string): T | undefined }
+export const keepAwakeEnabled = (repos: FlagStore) => repos.kvGet<boolean>(KEEP_AWAKE_KEY) !== false;
+
+/** 整个侧车一份。 */
+export const keepAwake = new KeepAwake();
+/** 批量状态变了 / 开关变了都走这里：在投且开着才常亮。 */
+export function followBatch(repos: FlagStore, status: unknown): void {
+  keepAwake.follow(status === 'running' && keepAwakeEnabled(repos));
+}

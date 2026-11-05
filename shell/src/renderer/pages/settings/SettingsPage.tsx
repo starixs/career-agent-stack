@@ -1,6 +1,7 @@
 import { getPlatformHiddenProviderIds, isLinuxDesktop } from '@/utils/desktopPlatform';
 import { CareerKeysPanel } from '@/components/career/CareerKeysPanel';
 import { CareerServerPanel } from '@/components/career/CareerServerPanel';
+import { CareerKeepAwakeSwitch } from '@/components/career/CareerKeepAwakeSwitch';
 import { isImeComposingEvent } from '@/utils/imeKeyboard';
 import {
   Check,
@@ -5468,6 +5469,10 @@ export default function Settings({
                 <h3 className="text-base font-medium text-[var(--ink)]">求职助理：服务端</h3>
                 <p className="mt-1 mb-4 text-xs text-[var(--muted)]">共享的校招 / 实习岗位库，以及答案改动回传（个人信息只传「有改动」，不带内容）。不填就只用本机数据。</p>
                 <CareerServerPanel />
+              </div>
+
+              <div data-testid="settings-career-keep-awake" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
+                <CareerKeepAwakeSwitch />
               </div>
 
               <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
