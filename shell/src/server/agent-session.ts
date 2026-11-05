@@ -10523,26 +10523,31 @@ export function retryBuiltinUserMessage(
 }
 
 /**
- * True only when compaction removed the anchor: the native chain was read, it is
- * re-rooted at a compact_boundary system entry, and the anchor is not on it and
- * predates that boundary. An anchor that is merely off the single-chain
- * projection without compaction (e.g. an orphaned answer left by an earlier
- * retry) is still left to native resume to adjudicate, as before e8b5da94.
+ * Why the anchor cannot be resumed, or null when it is on the native chain (or
+ * the probe failed and native resume should decide). Native resume walks a
+ * single parentUuid chain and exits with "No message found with message.uuid"
+ * for any uuid off it, while an explicit rewind boundary is kept for retry — so
+ * every off-chain anchor must be refused up front (e8b5da94). The reason only
+ * picks the wording: compaction (the chain holds an isCompactSummary entry) vs.
+ * an answer left on another branch, e.g. by an earlier retry.
  */
-async function isRewindAnchorCompactedAway(sdkSessionId: string, anchorUuid: string, anchorTimestamp: string | undefined, dir: string): Promise<boolean> {
+type RewindAnchorRefusal = 'compacted' | 'off-branch';
+async function rewindAnchorRefusal(sdkSessionId: string, anchorUuid: string, dir: string): Promise<RewindAnchorRefusal | null> {
   try {
-    const chain = await sdkGetSessionMessages(sdkSessionId, { dir, includeSystemMessages: true });
-    const root = chain[0];
-    if (!root || root.type !== 'system' || chain.some(m => m.uuid === anchorUuid)) return false;
-    const boundaryAt = 'timestamp' in root && typeof root.timestamp === 'string' ? Date.parse(root.timestamp) : NaN;
-    const anchorAt = anchorTimestamp ? Date.parse(anchorTimestamp) : NaN;
-    // Without comparable times, a compacted chain that lacks the anchor is refused (the e8b5da94 behavior).
-    return Number.isFinite(boundaryAt) && Number.isFinite(anchorAt) ? anchorAt < boundaryAt : true;
+    const chain = await sdkGetSessionMessages(sdkSessionId, { dir });
+    if (chain.length === 0 || chain.some(m => m.uuid === anchorUuid)) return null;
+    const compacted = chain.some(m => 'isCompactSummary' in m && m.isCompactSummary === true);
+    return compacted ? 'compacted' : 'off-branch';
   } catch (e) {
     console.warn(`[agent] rewind anchor probe failed, leaving the decision to native resume: ${e instanceof Error ? e.message : String(e)}`);
-    return false;
+    return null;
   }
 }
+
+const REWIND_REFUSAL_MESSAGES: Record<RewindAnchorRefusal, string> = {
+  compacted: '这条消息在上下文压缩之前，压缩后无法再回退到这里；直接发新消息继续即可',
+  'off-branch': '这条消息已不在当前对话分支上，无法回退到这里；直接发新消息继续即可',
+};
 
 /** Rewind native history and product history while retaining workspace checkpoints. */
 export async function rewindSession(userMessageId: string): Promise<{
@@ -10577,12 +10582,12 @@ export async function rewindSession(userMessageId: string): Promise<{
     // pre-compact anchor is never resumable, and native resume keeps the
     // boundary for retry, so committing it would brick the session in a
     // "No message found with message.uuid" loop. Refuse before anything is
-    // aborted or truncated. Only a compacted-away anchor is refused; a failed
-    // probe or an uncompacted chain keeps the old behavior.
-    if (resumeSessionAt && sourceSdkSessionId && sourceMeta?.agentDir
-      && await isRewindAnchorCompactedAway(sourceSdkSessionId, resumeSessionAt, retainedTail?.timestamp, sourceMeta.agentDir)) {
-      return { success: false as const, error: '这条消息在上下文压缩之前，压缩后无法再回退到这里；直接发新消息继续即可' };
-    }
+    // aborted or truncated. The same holds for any anchor off the native chain
+    // (see rewindAnchorRefusal). A failed probe keeps the old behavior.
+    const refusal = resumeSessionAt && sourceSdkSessionId && sourceMeta?.agentDir
+      ? await rewindAnchorRefusal(sourceSdkSessionId, resumeSessionAt, sourceMeta.agentDir)
+      : null;
+    if (refusal) return { success: false as const, error: REWIND_REFUSAL_MESSAGES[refusal] };
     const targetUserUuid = targetMessage.sdkUuid;
     const sourceFailure = await prepareSessionTranscriptMutation(productSessionId);
     if (sourceFailure) throw new Error(`${sourceFailure.reason}: ${sourceFailure.error}`);

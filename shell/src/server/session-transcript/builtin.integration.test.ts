@@ -392,10 +392,10 @@ describe('builtin V2 execution independent of product storage', () => {
     expect(agent.getMessages().map(row => row.id)).toEqual(rows.map(row => row.id));
   });
 
-  // Only a compacted-away anchor is refused (see isRewindAnchorCompactedAway).
-  // An answer orphaned by an earlier retry is merely off the single-chain
-  // projection of an uncompacted chain, so native resume still adjudicates it.
-  it('does not treat absence from the SDK single-chain projection as an invalid rewind boundary', async () => {
+  // Native resume walks one parentUuid chain and exits with "No message found"
+  // for any uuid off it (CLI 0.3.284), so an answer orphaned by an earlier retry
+  // is refused up front like a compacted one — only the wording differs.
+  it('refuses a rewind anchor left on another branch, without touching history', async () => {
     const workspace = join(state.home, 'workspace');
     await mkdir(workspace);
     const metadata = await store.createSession(workspace, { runtime: 'builtin' });
@@ -415,10 +415,10 @@ describe('builtin V2 execution independent of product storage', () => {
 
     const result = await agent.rewindSession('u2');
 
-    expect(result).toMatchObject({ success: true });
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining('不在当前对话分支上') });
     expect(state.rewindFiles).not.toHaveBeenCalled();
-    expect(agent.getMessages().map(row => row.id)).toEqual(['u1', 'a1']);
-    expect(store.getSessionMetadata(metadata.id)?.sdkResumeSessionAt).toBe('native-orphan-a1');
+    expect(agent.getMessages().map(row => row.id)).toEqual(['u1', 'a1', 'u2', 'a2']);
+    expect(store.getSessionMetadata(metadata.id)?.sdkResumeSessionAt).toBeUndefined();
   });
 
   it('refuses a rewind anchor that compaction removed, without touching history', async () => {
@@ -434,8 +434,7 @@ describe('builtin V2 execution independent of product storage', () => {
     const snapshot = await store.loadSessionTranscript(metadata.id);
     expect(await store.appendSessionMessages(metadata.id, snapshot.cursor, rows)).toMatchObject({ ok: true });
     state.sdkRead.mockResolvedValue([
-      { type: 'system', uuid: 'compact-boundary', timestamp: '2026-11-05T02:00:00.000Z' },
-      { type: 'user', uuid: 'compact-summary' },
+      { type: 'user', uuid: 'compact-summary', isCompactSummary: true },
       { type: 'user', uuid: 'native-u2' },
       { type: 'assistant', uuid: 'native-a2' },
     ]);
@@ -443,7 +442,7 @@ describe('builtin V2 execution independent of product storage', () => {
 
     const result = await agent.rewindSession('u2');
 
-    expect(result).toMatchObject({ success: false, error: expect.stringContaining('压缩') });
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining('上下文压缩之前') });
     expect(state.rewindFiles).not.toHaveBeenCalled();
     expect(agent.getMessages().map(row => row.id)).toEqual(['u1', 'a1', 'u2', 'a2']);
     expect(store.getSessionMetadata(metadata.id)?.sdkResumeSessionAt).toBeUndefined();

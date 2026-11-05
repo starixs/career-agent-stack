@@ -676,18 +676,17 @@ describe('materializePendingDesktopSession rollback guard', () => {
     ], { persistedMessageCount: 3 } as TranscriptWriteCursor);
     vi.clearAllMocks();
     mockedGetSessionMetadata.mockImplementation(id => id === productSessionId ? metadata : null);
-    // After /compact the native chain is re-rooted at a compact_boundary system
-    // entry (real shape from getSessionMessages with includeSystemMessages).
+    // After /compact the native chain starts at the compact summary, which the
+    // SDK projection marks isCompactSummary (verified on a real transcript).
     sdkMocks.getSessionMessages.mockImplementation(async () => [
-      { type: 'system', uuid: 'compact-boundary', session_id: metadata.sdkSessionId, parent_tool_use_id: null, parent_agent_id: null, timestamp: '2026-10-10T12:00:00.000Z' },
-      { type: 'user', uuid: 'compact-summary', session_id: metadata.sdkSessionId, message: {}, parent_tool_use_id: null },
+      { type: 'user', uuid: 'compact-summary', session_id: metadata.sdkSessionId, message: {}, parent_tool_use_id: null, isCompactSummary: true },
     ]);
     try {
       await expect(rewindSession('user-1')).resolves.toMatchObject({
         success: false,
         error: expect.stringContaining('上下文压缩之前'),
       });
-      expect(sdkMocks.getSessionMessages).toHaveBeenCalledWith(metadata.sdkSessionId, { dir: '/tmp/workspace', includeSystemMessages: true });
+      expect(sdkMocks.getSessionMessages).toHaveBeenCalledWith(metadata.sdkSessionId, { dir: '/tmp/workspace' });
       expect(mockedCommitBuiltinConversationRewind).not.toHaveBeenCalled();
       expect(mockedUpdateSessionMetadata).not.toHaveBeenCalledWith(productSessionId, expect.objectContaining({ sdkResumeSessionAt: expect.anything() }), expect.anything());
     } finally {
