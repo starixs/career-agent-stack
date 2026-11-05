@@ -1144,7 +1144,6 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const hits: unknown[] = [];
         try {
           const provider = await search();
-          if (!provider) card('search_setup', 'search_setup', '配置搜索 Key（建议）', { reason: 'company_research' });
           if (provider) {
             progress('company_research', `正在搜索 ${args.company_name}`);
             const queries = [`${args.company_name} 公司 招聘 评价`, `${args.company_name} 工商 信息 风险`, `${args.company_name} 面试 经验`];
@@ -1158,17 +1157,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const trafficLight = typeof out.traffic_light === 'string' ? out.traffic_light : null;
         const company = store().upsertCompany(args.company_name, { dd_report_json: out, traffic_light: trafficLight, manual_checks: out.manual_checks ?? [] });
         changed('company');
-        return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实；搜索没配置时对话里会出现「配置搜索 Key」卡片。' }) });
+        return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实。' }) });
       })()),
 
       tool('web_search', 'Web 搜索（博查 / Tavily / Serper）：查公司、行情、面经、笔试时间。要读结果里的某一页先 web_fetch，拿不到再 browser_open。', {
         query: z.string(), count: z.number().int().min(1).max(20).optional(),
       }, async (args) => wrap(async () => {
         const provider = await search();
-        if (!provider) {
-          card('search_setup', 'search_setup', '配置搜索 Key（建议）', { reason: 'web_search' });
-          return err(SEARCH_NOT_CONFIGURED_MESSAGE);
-        }
+        if (!provider) return err(SEARCH_NOT_CONFIGURED_MESSAGE);
         progress('web_search', `搜索：${args.query}`);
         return text(await provider.search(args.query, { count: args.count ?? 8 }));
       })()),

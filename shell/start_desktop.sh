@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 # 求职助理：一键启动桌面开发模式（Tauri）。
 # 用法：./start_desktop.sh
-# 模型 Key / 搜索 Key 在 App 里配置（设置 → 通用 → 求职助理：模型与搜索，或对话里的配置卡片）；
-# 也仍可用 CAREER_LLM_API_KEY / CAREER_SEARCH_API_KEY 环境变量临时注入（App 里保存的优先）。
-# 内置模型走 DeepSeek 的 Anthropic 兼容原生协议（${CAREER_LLM_BASE_URL}/v1/messages，Bearer 鉴权），不经 OpenAI 翻译桥。
+# 用户不能在 App 里配 Key（2026-11-05 定）：产品只认构建期注入的 CAREER_LLM_API_KEY / CAREER_SEARCH_API_KEY，
+# 开发态用同名环境变量。没设时，这个开发脚本从本机 ~/.keystone/config.json 里以前存过的 Key 读出来注入（只为开发方便，不打印 Key）。
+# 内置模型走 DeepSeek 的 Anthropic 兼容入口（${CAREER_LLM_BASE_URL}/v1/messages，Bearer 鉴权），不经 OpenAI 翻译桥。
 # 说明：不走 npm run tauri:dev 的两个资源准备脚本（CLIProxy / 语音模型），产品不需要它们。
 set -euo pipefail
 cd "$(dirname "$0")"
+legacy_key() { node -e 'try{const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String((c.providerApiKeys||{})[process.argv[2]]||c[process.argv[2]]||""))}catch{}' "$HOME/.keystone/config.json" "$1"; }
 if [ -z "${CAREER_LLM_API_KEY:-}" ]; then
-  echo "ℹ 未通过环境变量提供 CAREER_LLM_API_KEY：使用 App 里保存的模型 Key（没有的话，打开对话会提示配置）。"
+  CAREER_LLM_API_KEY="$(legacy_key career-llm)"; export CAREER_LLM_API_KEY
+  [ -n "$CAREER_LLM_API_KEY" ] && echo "ℹ 用本机 config.json 里存过的模型 Key 注入 CAREER_LLM_API_KEY" || echo "⚠ 没有 CAREER_LLM_API_KEY：内置模型不可用"
+fi
+if [ -z "${CAREER_SEARCH_API_KEY:-}" ]; then
+  CAREER_SEARCH_API_KEY="$(legacy_key career-search)"; export CAREER_SEARCH_API_KEY
+  if [ -n "$CAREER_SEARCH_API_KEY" ] && [ -z "${CAREER_SEARCH_PROVIDER:-}" ]; then
+    CAREER_SEARCH_PROVIDER="$(legacy_key careerSearchProvider)"; export CAREER_SEARCH_PROVIDER="${CAREER_SEARCH_PROVIDER:-bocha}"
+  fi
 fi
 export CAREER_LLM_BASE_URL="${CAREER_LLM_BASE_URL:-https://api.deepseek.com/anthropic}"
 export CAREER_LLM_MODEL="${CAREER_LLM_MODEL:-deepseek-flash}"

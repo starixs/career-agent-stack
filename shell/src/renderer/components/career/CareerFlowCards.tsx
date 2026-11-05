@@ -20,13 +20,12 @@
  * 卡片由 SSE `career:card` 推来（TabProvider.careerCards），按 id 去重；完成或忽略后从对话里移除。
  * 写入走产品自己的接口；完成后用 suggestToChat 告诉助理"做完了，继续"，助理据此接着干。
  */
-import { CheckCircle2, ClipboardCheck, Search, KeyRound, ListTodo, Mail, PenLine, Play, UserRound } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, KeyRound, ListTodo, Mail, PenLine, Play, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { onEvent } from '@/api/eventBus';
 
 import { careerApi } from './careerApi';
-import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
@@ -247,14 +246,6 @@ export function MailBindCard({ card, onDone, onDismiss }: CardProps) {
   );
 }
 
-// ---------- 配置搜索 Key（web_search / company_research 发现没配置时推出） ----------
-export function SearchSetupCard({ card, onDone, onDismiss }: CardProps) {
-  return (
-    <CardShell testId="career-card-search_setup" icon={<Search className="size-4" />} title={card.title} badge={<Badge tone="info">建议</Badge>} onDismiss={onDismiss}>
-      <CareerKeysPanel show="search" onSaved={() => { onDone(); suggestToChat('搜索 Key 已在卡片里配好了，请重新搜索'); }} />
-    </CardShell>
-  );
-}
 
 // ---------- 批量投递进度（来自 Global 事件桥） ----------
 export function useBatchState(): BatchState | null {
@@ -295,7 +286,6 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   tailor_diff: props => <TailorDiffCard {...props} />,
   site_login: props => <SiteLoginCard {...props} />,
   mail_bind: props => <MailBindCard {...props} />,
-  search_setup: props => <SearchSetupCard {...props} />,
   review: props => (str(props.card.data.kind) === 'fill_form'
     ? <BatchWallCard cardId={props.card.id} actionIds={strIds(props.card.data.action_ids)} />
     : <ReviewCard {...props} />),

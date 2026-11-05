@@ -67,7 +67,7 @@ export class ShellLLM implements LLM {
     let env = this.resolveEnv(providerId);
     if (!env && providerId !== CAREER_LLM_PROVIDER_ID) env = this.resolveEnv(CAREER_LLM_PROVIDER_ID);
     if (!env) {
-      throw new LlmUnavailableError('内置模型还没有 API Key：请在「设置 → 通用 → 求职助理：模型与搜索」或对话里的「配置模型 Key」卡片填写');
+      throw new LlmUnavailableError('内置模型暂时不可用（安装包里没有模型凭证），请联系我们');
     }
     if (env.apiProtocol && env.apiProtocol !== 'anthropic') {
       throw new LlmUnavailableError(`求职助理只支持 Anthropic Messages 协议，当前 provider（${env.providerId ?? providerId}）协议为 ${env.apiProtocol}`);
@@ -77,7 +77,7 @@ export class ShellLLM implements LLM {
     }
     const baseUrl = (env.baseUrl ?? '').replace(/\/+$/, '');
     if (!baseUrl) throw new LlmUnavailableError('模型 baseUrl 为空');
-    if (!env.apiKey?.trim()) throw new LlmUnavailableError('模型 API Key 为空：请在「设置 → 通用 → 求职助理：模型与搜索」填写');
+    if (!env.apiKey?.trim()) throw new LlmUnavailableError('内置模型暂时不可用（模型凭证为空），请联系我们');
     const model = this.options.model ?? env.modelAliases?.sonnet ?? env.modelAliases?.opus ?? env.modelAliases?.haiku;
     if (!model) throw new LlmUnavailableError('无法确定模型名');
     return { env, model, baseUrl };

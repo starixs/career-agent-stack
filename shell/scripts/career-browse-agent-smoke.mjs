@@ -1,7 +1,7 @@
 // 模型在环的浏览冒烟（浏览器面切面，2026-10-30）：产品内置模型 + 真实 Chrome + 真实网站，多步把事办完。
 // 运行：cd app/shell && node --import tsx/esm scripts/career-browse-agent-smoke.mjs [--headed] [--only=url,search,company,login,article,pdf,captcha] [--max-steps=14]
 // --headed 时遇到扫码登录，脚本会真的等你在弹出的 Chrome 里扫（最多 2 分钟），扫完模型接着办。
-// 模型与搜索用产品自己的配置（~/.keystone/config.json 里的内置模型、搜索 Key；脚本不打印任何 Key），没配搜索时 web_search 返回「搜索不可用」，和产品一致。
+// 模型与搜索 Key 和产品一致：只认 CAREER_LLM_API_KEY / CAREER_SEARCH_API_KEY 环境变量（脚本不打印任何 Key），没有搜索 Key 时 web_search 返回「暂时不可用」。
 // 外网、真实模型：不进默认测试。结果写到 $OUT_DIR（缺省系统临时目录）下的 browse-agent-<时间>.json，人看结论。
 //
 // 模型协议：每轮只输出一个 JSON 工具调用 {"tool","args","reason"}，用 finish{answer} 交卷、handoff{what} 交给用户。

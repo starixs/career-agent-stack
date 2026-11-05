@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { getAllMcpServers, resolveWorkspaceConfig } from './admin-config';
+import { getAllMcpServers, resolveProviderEnv, resolveWorkspaceConfig } from './admin-config';
 
 const scratchDirs: string[] = [];
 
@@ -90,5 +90,18 @@ describe('server MCP catalogue merge', () => {
     const resolved = resolveWorkspaceConfig('/workspace', { configSnapshotAt: '2026-11-02T00:00:00.000Z' } as never, { includeMcp: false });
     expect(resolved.providerRoute).toEqual(expect.objectContaining({ providerId: 'career-llm' }));
     expect(resolved.model).toBe('deepseek-flash');
+  });
+
+  it('求职产品：内置模型只用打包注入的 Key，config.json 里用户存过的 Key 不用', () => {
+    const scratch = mkdtempSync(join(tmpdir(), 'keystone-admin-config-'));
+    scratchDirs.push(scratch);
+    const configDir = join(scratch, '.keystone');
+    mkdirSync(configDir, { recursive: true });
+    vi.stubEnv(process.platform === 'win32' ? 'USERPROFILE' : 'HOME', scratch);
+    writeFileSync(join(configDir, 'config.json'), JSON.stringify({ defaultProviderId: 'career-llm', providerApiKeys: { 'career-llm': 'sk-user-saved' } }), 'utf8');
+    vi.stubEnv('CAREER_LLM_API_KEY', '');
+    expect(resolveProviderEnv('career-llm')).toBeUndefined();
+    vi.stubEnv('CAREER_LLM_API_KEY', 'sk-build');
+    expect(resolveProviderEnv('career-llm')?.apiKey).toBe('sk-build');
   });
 });
