@@ -22,10 +22,13 @@ export interface QuestionAnswer {
 }
 
 export interface ExamSearchRecord {
-  id: string; company_name: string | null; role_title: string | null; input_kind: 'image' | 'text'; input_text: string | null;
+  id: string; session_id: string; company_name: string | null; role_title: string | null; input_kind: 'image' | 'text'; input_text: string | null; material: string | null;
   questions: SearchQuestion[]; answers: QuestionAnswer[]; status: 'recognized' | 'answered' | 'failed'; error: string | null;
   created_at: string; updated_at: string;
 }
+
+export interface ExamSession { id: string; company_name: string | null; role_title: string | null; created_at: string; updated_at: string }
+export interface ExamSessionSummary extends ExamSession { search_count: number; question_count: number; first_stem: string | null }
 
 export interface ExamBank {
   id: string; name: string; origin: 'builtin' | 'user'; company_name: string | null; role_title: string | null; year: number | null;
@@ -39,11 +42,14 @@ export interface ScreenshotInput { data: string; mediaType: 'image/png' | 'image
 const path = (p: string) => careerPath(`/exam-search${p}`);
 
 export const examSearchApi = {
-  recognize: (body: { image?: ScreenshotInput; text?: string; company_name?: string; role_title?: string }) =>
-    apiPostJson<unknown>(path('/recognize'), body).then(r => pickObject<ExamSearchRecord>(r, 'search')),
+  recognize: (body: { session_id?: string; image?: ScreenshotInput; text?: string; company_name?: string; role_title?: string }) =>
+    apiPostJson<unknown>(path('/recognize'), body)
+      .then(r => ({ search: pickObject<ExamSearchRecord>(r, 'search'), session: pickObject<ExamSession>(r, 'session') })),
   answer: (id: string) => apiPostJson<unknown>(path(`/${encodeURIComponent(id)}/answer`), {}).then(r => pickObject<ExamSearchRecord>(r, 'search')),
-  history: () => apiGetJson<unknown>(path('/history')).then(r => pickList<ExamSearchRecord>(r, 'searches')),
-  removeSearch: (id: string) => apiDelete<unknown>(path(`/${encodeURIComponent(id)}`)),
+  sessions: () => apiGetJson<unknown>(path('/sessions')).then(r => pickList<ExamSessionSummary>(r, 'sessions')),
+  session: (id: string) => apiGetJson<unknown>(path(`/sessions/${encodeURIComponent(id)}`))
+    .then(r => ({ session: pickObject<ExamSession>(r, 'session'), searches: pickList<ExamSearchRecord>(r, 'searches') })),
+  removeSession: (id: string) => apiDelete<unknown>(path(`/sessions/${encodeURIComponent(id)}`)),
   contexts: () => apiGetJson<unknown>(path('/contexts')).then(r => pickList<ExamContext>(r, 'contexts')),
   banks: () => apiGetJson<unknown>(path('/banks')).then(r => pickList<ExamBank>(r, 'banks')),
   importBank: (body: { file_name: string; data: string; name?: string; company_name?: string; role_title?: string; year?: number }) =>

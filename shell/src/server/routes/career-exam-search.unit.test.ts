@@ -14,7 +14,7 @@ async function call(request: Request, deps: Parameters<typeof handleCareerRoute>
 }
 
 describe('/api/career/exam-search', () => {
-  it('粘贴文字 → 识别 → 作答 → 出现在历史里', async () => {
+  it('粘贴文字 → 识别 → 作答 → 出现在这场的记录里', async () => {
     const repos = createMemoryRepos();
     const llm = new FakeLLM([
       JSON.stringify({ questions: [{ stem: '数列 2, 4, 8, ? 下一项是', options: [], qtype: 'fill' }] }),
@@ -26,8 +26,13 @@ describe('/api/career/exam-search', () => {
     const id = (recognized.body.search as { id: string }).id;
     const answered = await call(post(`/api/career/exam-search/${id}/answer`, {}), deps);
     expect(answered.body.search).toMatchObject({ status: 'answered', answers: [{ answer: '16', source: 'model' }] });
-    const history = await call(get('/api/career/exam-search/history'), deps);
-    expect((history.body.searches as unknown[]).length).toBe(1);
+    const sessionId = (recognized.body.session as { id: string }).id;
+    const sessions = await call(get('/api/career/exam-search/sessions'), deps);
+    expect(sessions.body.sessions).toEqual([expect.objectContaining({ id: sessionId, search_count: 1, question_count: 1 })]);
+    const session = await call(get(`/api/career/exam-search/sessions/${sessionId}`), deps);
+    expect(session.body.searches).toEqual([expect.objectContaining({ id, status: 'answered' })]);
+    expect((await call(new Request(`http://localhost/api/career/exam-search/sessions/${sessionId}`, { method: 'DELETE' }), deps)).status).toBe(200);
+    expect((await call(get(`/api/career/exam-search/sessions/${sessionId}`), deps)).status).toBe(404);
   });
 
   it('既没截图也没文字、截图格式不对都直接拒绝，不调模型', async () => {

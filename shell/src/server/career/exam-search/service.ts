@@ -13,21 +13,22 @@ import { ExamBankStore, type BankMatch } from './bank';
 import { answerQuestions, recognizeQuestions, type QuestionAnswer, type RecognizedQuestion } from './llm-steps';
 import type { SearchContext } from './match';
 import { ensureExamSearchSchema } from './schema';
+import { ExamSessionStore, type ExamSession } from './sessions';
 
 /** 每道题带回界面的候选数：第一条可能是原题，其余当类似题展示。 */
 const MATCHES_PER_QUESTION = 4;
-/** 历史列表默认条数。 */
-export const HISTORY_LIMIT = 50;
 
 export type SearchQuestion = RecognizedQuestion & { matches: BankMatch[] };
 export type SearchStatus = 'recognized' | 'answered' | 'failed';
 
 export interface ExamSearchRecord {
   id: string;
+  session_id: string;
   company_name: string | null;
   role_title: string | null;
   input_kind: 'image' | 'text';
   input_text: string | null;
+  material: string | null;
   questions: SearchQuestion[];
   answers: QuestionAnswer[];
   status: SearchStatus;
@@ -38,7 +39,7 @@ export interface ExamSearchRecord {
 
 interface ExamSearchRow extends Omit<ExamSearchRecord, 'questions' | 'answers'> { questions_json: string; answers_json: string }
 
-export interface RecognizeInput { image?: LlmImage; text?: string; companyName?: string | null; roleTitle?: string | null }
+export interface RecognizeInput { sessionId?: string | null; image?: LlmImage; text?: string; companyName?: string | null; roleTitle?: string | null }
 
 export function questionText(q: Pick<RecognizedQuestion, 'stem' | 'options'>): string {
   return [q.stem, ...q.options].join(' ');
@@ -53,30 +54,36 @@ export function bankAnswer(q: SearchQuestion): QuestionAnswer | null {
 
 export class ExamSearchService {
   readonly bank: ExamBankStore;
+  readonly sessions: ExamSessionStore;
   constructor(private readonly db: Db, private readonly ids: CoreIds, private readonly llm: LLM) {
     ensureExamSearchSchema(db);
     this.bank = new ExamBankStore(db, ids);
+    this.sessions = new ExamSessionStore(db, ids);
   }
 
-  async recognize(input: RecognizeInput): Promise<ExamSearchRecord> {
+  /** 认题并记进这场笔试（没带 sessionId 就开新的一场）。公司岗位：填了的优先，其次这场记着的，再次画面里认出的。 */
+  async recognize(input: RecognizeInput): Promise<{ search: ExamSearchRecord; session: ExamSession }> {
+    const known = input.sessionId ? this.sessions.get(input.sessionId) : undefined;
+    if (input.sessionId && !known) throw new Error(`这场笔试不存在：${input.sessionId}`);
     const recognition = await recognizeQuestions(this.llm, { image: input.image, text: input.text });
     const ctx: SearchContext = {
-      companyName: input.companyName?.trim() || recognition.company_hint,
-      roleTitle: input.roleTitle?.trim() || recognition.role_hint,
+      companyName: input.companyName?.trim() || known?.company_name || recognition.company_hint,
+      roleTitle: input.roleTitle?.trim() || known?.role_title || recognition.role_hint,
     };
+    const session = this.sessions.enter(input.sessionId ?? null, ctx);
     const questions = recognition.questions.map(q => ({ ...q, matches: this.bank.search(questionText(q), ctx, MATCHES_PER_QUESTION) }));
     const answers = questions.map(bankAnswer).filter((a): a is QuestionAnswer => a !== null);
     const done = answers.length === questions.length;
     const t = this.ids.now();
     const id = this.ids.newId('exs');
     this.db.insert('exam_search', {
-      id, company_name: ctx.companyName, role_title: ctx.roleTitle,
-      input_kind: input.image ? 'image' : 'text', input_text: input.text?.trim() || null,
+      id, session_id: session.id, company_name: ctx.companyName, role_title: ctx.roleTitle,
+      input_kind: input.image ? 'image' : 'text', input_text: input.text?.trim() || null, material: recognition.material,
       questions_json: JSON.stringify(questions), answers_json: JSON.stringify(answers),
       status: done ? 'answered' : 'recognized', created_at: t, updated_at: t,
     });
-    console.log(`[exam-search] recognized ${id}: ${questions.length} 题，题库原题 ${answers.length}`);
-    return this.get(id)!;
+    console.log(`[exam-search] recognized ${id} (${session.id}): ${questions.length} 题，题库原题 ${answers.length}`);
+    return { search: this.get(id)!, session };
   }
 
   /** 给还没答案的题作答；模型失败时把原因写进记录再抛出，界面能看到哪一步坏了。 */
@@ -88,7 +95,7 @@ export class ExamSearchService {
     if (pending.length === 0) return record;
     const ctx: SearchContext = { companyName: record.company_name, roleTitle: record.role_title };
     try {
-      const fresh = await this.answerAll(pending, ctx);
+      const fresh = await this.answerAll(pending, ctx, record.material);
       const answers = [...record.answers, ...fresh].sort((a, b) => a.index - b.index);
       this.db.update('exam_search', id, { answers_json: JSON.stringify(answers), status: 'answered', error: null, updated_at: this.ids.now() });
       console.log(`[exam-search] answered ${id}: 模型作答 ${fresh.length} / ${pending.length}`);
@@ -102,13 +109,13 @@ export class ExamSearchService {
   }
 
   /** 模型偶尔漏答几道：漏掉的再问一次，还漏就如实留空（界面显示「没有答案」）。 */
-  private async answerAll(pending: SearchQuestion[], ctx: SearchContext): Promise<QuestionAnswer[]> {
-    const first = await answerQuestions(this.llm, pending, ctx);
+  private async answerAll(pending: SearchQuestion[], ctx: SearchContext, material: string | null): Promise<QuestionAnswer[]> {
+    const first = await answerQuestions(this.llm, pending, ctx, material);
     const got = new Set(first.map(a => a.index));
     const missing = pending.filter(q => !got.has(q.index));
     if (missing.length === 0) return first;
     console.warn(`[exam-search] 模型漏答 ${missing.length} 题，重问一次`);
-    return [...first, ...await answerQuestions(this.llm, missing, ctx)];
+    return [...first, ...await answerQuestions(this.llm, missing, ctx, material)];
   }
 
   get(id: string): ExamSearchRecord | undefined {
@@ -116,8 +123,9 @@ export class ExamSearchService {
     return row ? toRecord(row) : undefined;
   }
 
-  list(limit = HISTORY_LIMIT): ExamSearchRecord[] {
-    return this.db.all<ExamSearchRow>('SELECT * FROM exam_search ORDER BY created_at DESC LIMIT ?', [limit]).map(toRecord);
+  /** 一场里的每次粘贴，按先后排，前后翻看用。 */
+  searchesOf(sessionId: string): ExamSearchRecord[] {
+    return this.db.all<ExamSearchRow>('SELECT * FROM exam_search WHERE session_id=? ORDER BY created_at, rowid', [sessionId]).map(toRecord);
   }
 
   remove(id: string): boolean {

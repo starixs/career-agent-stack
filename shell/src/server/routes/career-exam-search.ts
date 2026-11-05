@@ -1,5 +1,5 @@
 /**
- * Global 路由 `/api/career/exam-search/*`：笔试搜题（截图 / 文字 → 题库检索 → 答案）与题库管理。
+ * Global 路由 `/api/career/exam-search/*`：笔试搜题（截图 / 文字 → 题库检索 → 答案，按场记录）与题库管理。
  * 由 handleCareerRoute 转进来，响应格式与 /api/career/* 一致：`{ ok: true, ... }` / `{ ok: false, error }`。
  */
 import type { LLM, LlmImage, Repos } from '@career/core';
@@ -64,8 +64,10 @@ async function recognize(service: ExamSearchService, body: Json): Promise<Respon
   if (!image && !text) return fail('粘贴一张截图或一段题目文字');
   if (image && base64Bytes(image.data) > MAX_IMAGE_BYTES) return fail('截图太大了，截小一点再试');
   if (text && text.length > MAX_TEXT_CHARS) return fail(`文字太长了（超过 ${MAX_TEXT_CHARS} 字），分几次粘贴`);
-  const search = await service.recognize({ image: image ?? undefined, text: text ?? undefined, companyName: str(body.company_name), roleTitle: str(body.role_title) });
-  return ok({ search });
+  const result = await service.recognize({
+    sessionId: str(body.session_id), image: image ?? undefined, text: text ?? undefined, companyName: str(body.company_name), roleTitle: str(body.role_title),
+  });
+  return ok({ search: result.search, session: result.session });
 }
 
 function importBank(service: ExamSearchService, body: Json, deps: Required<Pick<ExamSearchRouteDeps, 'llm' | 'dataDir' | 'broadcast'>>): Response {
@@ -80,9 +82,19 @@ function importBank(service: ExamSearchService, body: Json, deps: Required<Pick<
   return ok({ bank });
 }
 
+function sessionRoute(method: string, service: ExamSearchService, id: string): Response | null {
+  const session = service.sessions.get(id);
+  if (!session) return fail('这场笔试的记录不存在', 404);
+  if (method === 'GET') return ok({ session, searches: service.searchesOf(id) });
+  if (method === 'DELETE') return service.sessions.remove(id) ? ok() : fail('这场笔试的记录不存在', 404);
+  return null;
+}
+
 async function dispatch(rest: string, method: string, request: Request, service: ExamSearchService, deps: Required<Pick<ExamSearchRouteDeps, 'llm' | 'dataDir' | 'broadcast' | 'repos'>>): Promise<Response | null> {
   if (method === 'POST' && rest === 'recognize') return recognize(service, await readJson(request));
-  if (method === 'GET' && rest === 'history') return ok({ searches: service.list() });
+  if (method === 'GET' && rest === 'sessions') return ok({ sessions: service.sessions.list() });
+  const sessionId = /^sessions\/([^/]+)$/.exec(rest)?.[1];
+  if (sessionId) return sessionRoute(method, service, decodeURIComponent(sessionId));
   if (method === 'GET' && rest === 'contexts') return ok({ contexts: upcomingExamContexts(deps.repos.db) });
   if (method === 'GET' && rest === 'banks') return ok({ banks: service.bank.listBanks(), item_count: service.bank.itemCount() });
   if (method === 'POST' && rest === 'banks') return importBank(service, await readJson(request), deps);
