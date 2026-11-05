@@ -190,7 +190,7 @@ export interface TridentProcessOptions {
 /** 根据环境变量/选项算出启动命令（纯函数，便于测试）。 */
 export function tridentCommand(opts: TridentProcessOptions = {}): { command: string; args: string[]; cwd: string; baseUrl: string } {
   const env = opts.env ?? process.env
-  const cwd = opts.dir ?? envStr('TRIDENT_DIR', moduleDir('trident-scanner'), env)
+  const cwd = opts.dir ?? envStr('TRIDENT_DIR', moduleDir('trident-scanner', env), env)
   const host = opts.host ?? '127.0.0.1'
   const port = opts.port ?? Number(new URL(envStr('TRIDENT_BASE_URL', TRIDENT_DEFAULT_URL, env)).port || 8686)
   const runner = opts.runner ?? (env.TRIDENT_CMD ? 'custom' : (envStr('TRIDENT_RUNNER', 'uv', env) as 'uv' | 'python'))

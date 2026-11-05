@@ -146,7 +146,7 @@ export interface IntelCompassProcessOptions {
 /** 纯函数：算出启动命令与环境（含 DD_BRAND_MAP 修正）。 */
 export function intelCompassCommand(opts: IntelCompassProcessOptions = {}): { command: string; args: string[]; cwd: string; env: Record<string, string>; baseUrl: string } {
   const env = opts.env ?? process.env
-  const cwd = opts.dir ?? envStr('INTEL_COMPASS_DIR', moduleDir('intel-compass'), env)
+  const cwd = opts.dir ?? envStr('INTEL_COMPASS_DIR', moduleDir('intel-compass', env), env)
   const host = opts.host ?? '127.0.0.1'
   const port = opts.port ?? Number(new URL(envStr('INTEL_COMPASS_BASE_URL', INTEL_COMPASS_DEFAULT_URL, env)).port || 8765)
   const command = opts.pythonBin ?? envStr('PYTHON_BIN', 'python3', env)

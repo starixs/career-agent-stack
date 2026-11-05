@@ -65,15 +65,25 @@ export async function fetchText(fetchImpl: FetchLike, url: string, init: JsonReq
 export const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
 /**
- * 仓库根目录（career-agent-stack/），modules/ 与 app/ 的父目录。
- * 发布包里本包部署在 Resources/node_modules/@career/bridges/dist，同样上溯四级 = Resources；
- * 只给仍需外部检出的旧模块（trident-scanner、intel-compass）做默认目录；随包数据放在各包自己的 data/ 里。
+ * 仓库根目录（career-agent-stack/），app/ 的父目录。
+ * src/common.ts 与 dist/common.js 深度相同：app/packages/bridges/{src|dist}。
  */
 export function stackRoot(): string {
-  // src/common.ts 与 dist/common.js 深度相同：app/packages/bridges/{src|dist}
   return resolve(fileURLToPath(new URL('../../../../', import.meta.url)))
 }
-export function moduleDir(name: string): string { return resolve(stackRoot(), 'modules', name) }
+
+/** 模块归档默认放在仓库旁边（2026-11-05 从仓库根 modules/ 移出，见归档里的 README）。 */
+const MODULES_ARCHIVE_DIRNAME = 'career-agent-modules-archive'
+
+/**
+ * 旧参考模块（trident-scanner、intel-compass 这类要外部起进程的）的默认目录：
+ * `CAREER_MODULES_DIR` 优先，否则 `<仓库旁>/career-agent-modules-archive/modules/<name>`。
+ * 随包数据不走这里，放在各包自己的 data/ 里。
+ */
+export function moduleDir(name: string, env: NodeJS.ProcessEnv = process.env): string {
+  const root = env.CAREER_MODULES_DIR?.trim() || resolve(stackRoot(), '..', MODULES_ARCHIVE_DIRNAME, 'modules')
+  return resolve(root, name)
+}
 
 export interface ManagedProcessOptions {
   command: string

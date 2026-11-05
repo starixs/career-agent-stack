@@ -117,7 +117,8 @@ describe('tridentCommand（子进程启动命令）', () => {
   it('默认 uv run，端口来自 TRIDENT_BASE_URL，目录来自 TRIDENT_DIR', () => {
     const c = tridentCommand({ env: { TRIDENT_BASE_URL: 'http://127.0.0.1:9000', TRIDENT_DIR: '/tmp/ts' } })
     expect(c).toMatchObject({ command: 'uv', args: ['run', 'trident-scanner', 'web', '--port', '9000', '--no-open'], cwd: '/tmp/ts', baseUrl: 'http://127.0.0.1:9000' })
-    expect(tridentCommand({ env: {} }).cwd).toMatch(/modules\/trident-scanner$/)
+    expect(tridentCommand({ env: {} }).cwd).toMatch(/career-agent-modules-archive\/modules\/trident-scanner$/)
+    expect(tridentCommand({ env: { CAREER_MODULES_DIR: '/arch' } }).cwd).toBe('/arch/trident-scanner')
   })
   it('TRIDENT_RUNNER=python 用 PYTHON_BIN -m；TRIDENT_CMD 完全自定义；--config 透传', () => {
     expect(tridentCommand({ env: { TRIDENT_RUNNER: 'python', PYTHON_BIN: '/opt/py', TRIDENT_CONFIG: '/c.yaml' } })).toMatchObject({ command: '/opt/py', args: ['-m', 'trident-scanner.main', '--config', '/c.yaml', 'web', '--port', '8686', '--no-open'] })
