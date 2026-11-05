@@ -7,8 +7,10 @@
  * `json: true` 时在 system 末尾追加"只输出 JSON"的指令（不依赖 response_format），
  * 调用方仍应用 `extractJson` 容错解析。
  */
-import type { LLM, LlmRequest, LlmResponse } from '@career/core';
+import { randomUUID } from 'crypto';
+import type { LLM, LlmRequest, LlmResponse, LlmUsage } from '@career/core';
 import { CAREER_LLM_PROVIDER_ID } from '../../shared/career-build-constants';
+import { fireUsageMeterHook } from '../turn-hooks';
 import { resolveProviderEnv, loadConfig, type ResolvedProviderEnv } from '../utils/admin-config';
 
 export const ANTHROPIC_VERSION = '2023-06-01';
@@ -32,7 +34,8 @@ export interface ShellLlmOptions {
 /** Anthropic Messages API 响应中本实现用到的字段。 */
 interface MessagesResponse {
   content?: Array<{ type?: string; text?: string }>;
-  usage?: { input_tokens?: number; output_tokens?: number };
+  model?: string;
+  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
   stop_reason?: string;
   error?: { type?: string; message?: string } | string;
 }
@@ -150,13 +153,29 @@ export class ShellLLM implements LLM {
         ? `模型输出被截断（只返回了 ${kinds}，没有正文）：请重试或换用更大输出上限的模型`
         : `模型没有返回正文（stop_reason=${parsed.stop_reason ?? '未知'}，内容块：${kinds}）`);
     }
-    return {
-      text: outText,
-      usage: {
-        input_tokens: parsed.usage?.input_tokens ?? 0,
-        output_tokens: parsed.usage?.output_tokens ?? 0,
-      },
+    const usage = {
+      input_tokens: parsed.usage?.input_tokens ?? 0,
+      output_tokens: parsed.usage?.output_tokens ?? 0,
+      cache_read_input_tokens: parsed.usage?.cache_read_input_tokens ?? 0,
+      cache_creation_input_tokens: parsed.usage?.cache_creation_input_tokens ?? 0,
+      model: parsed.model ?? model,
     };
+    this.meter(usage, env.providerId);
+    return { text: outText, usage };
+  }
+
+  /** 后台模型调用（定制简历、填表、搜题、邮件归档……）不进主对话的轮次用量，在这里单独记账。 */
+  private meter(usage: Required<LlmUsage>, providerId: string | undefined): void {
+    fireUsageMeterHook({
+      key: `llm:${randomUUID()}`,
+      origin: 'background',
+      model: usage.model,
+      providerId,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      cacheReadTokens: usage.cache_read_input_tokens,
+      cacheCreationTokens: usage.cache_creation_input_tokens,
+    });
   }
 }
 

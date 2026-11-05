@@ -1059,6 +1059,10 @@ export async function handleCareerRoute(pathname: string, request: Request, deps
     const { handleExamSearchRoute } = await import('./career-exam-search');
     return handleExamSearchRoute(pathname, request, { repos: deps.repos, llm: deps.llm ?? undefined, broadcast: deps.broadcast });
   }
+  if (pathname.startsWith('/api/career/billing/')) {
+    const { handleBillingRoute } = await import('./career-billing');
+    return handleBillingRoute(pathname, request, { repos: deps.repos });
+  }
   const method = request.method.toUpperCase();
   for (const r of ROUTES) {
     if (r.method !== method) continue;

@@ -211,6 +211,7 @@ import { SkillsAgentsSection } from './sections/SkillsAgentsSection';
 import { ToolboxSection } from './sections/ToolboxSection';
 import { ExternalCliSettingsSection } from './sections/ExternalCliSettingsSection';
 import { FeedbackSection } from './sections/ShellEntriesSections';
+import { AccountSection } from '@/components/career/account/AccountSection';
 import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import codexModelSelectorOnboarding from '@/assets/onboarding/codex-model-selector.png';
 
@@ -5063,6 +5064,8 @@ export default function Settings({
         {activeSection === 'external-cli' && <ExternalCliSettingsSection />}
 
         {activeSection === 'feedback' && <FeedbackSection />}
+
+        {activeSection === 'account' && <AccountSection />}
 
         {/* Providers section uses wider layout */}
         {activeSection === 'providers' && (

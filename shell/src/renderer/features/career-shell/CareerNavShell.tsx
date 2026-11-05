@@ -8,6 +8,7 @@ import {
   Info,
   Keyboard,
   LifeBuoy,
+  Wallet,
   SlidersHorizontal,
   Wrench,
   Briefcase,
@@ -70,6 +71,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   wrench: Wrench,
   help: LifeBuoy,
   info: Info,
+  wallet: Wallet,
 };
 
 const COLLAPSE_KEY = 'career:subnav-collapsed';

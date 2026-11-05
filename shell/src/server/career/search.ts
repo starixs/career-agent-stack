@@ -3,6 +3,7 @@
  * （CAREER_SEARCH_API_KEY / CAREER_SEARCH_PROVIDER），也接受 @career/bridges 认的环境变量
  * （SEARCH_PROVIDER / SEARCH_API_KEY / BOCHA_API_KEY / TAVILY_API_KEY / SERPER_API_KEY）。
  */
+import { meterToolUsageInBackground } from './billing-service';
 import { loadBridges } from './domain';
 import { resolveCareerSearchConfig } from './setup';
 
@@ -25,7 +26,20 @@ export async function getSearchProvider(): Promise<CareerSearchProvider | null> 
     if (cfg.provider && !env.SEARCH_PROVIDER) env.SEARCH_PROVIDER = cfg.provider;
     if (!env.SEARCH_API_KEY) env.SEARCH_API_KEY = cfg.apiKey;
   }
-  return bridges.tryCreateSearchProvider(env);
+  const provider = bridges.tryCreateSearchProvider(env);
+  return provider ? meteredSearch(provider) : null;
+}
+
+/** 每次搜索按次计价（价目 `search:<供应商>`，见 @career/core billing/pricing.ts）；搜失败不记。 */
+export function meteredSearch(provider: CareerSearchProvider): CareerSearchProvider {
+  return {
+    name: provider.name,
+    async search(query, opts) {
+      const hits = await provider.search(query, opts);
+      meterToolUsageInBackground(`search:${provider.name}`);
+      return hits;
+    },
+  };
 }
 
 /** 测试注入：null = 明确不可用。 */
