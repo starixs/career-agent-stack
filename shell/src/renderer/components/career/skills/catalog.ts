@@ -40,9 +40,7 @@ export interface Workbench {
  *  - open：自己在做的，点了去看结果；
  *  - 都没有：点了把 ask 那句话预填进对话输入框。
  */
-export type SkillPointId =
-  | 'resume-import' | 'experience-interview' | 'resume-tailor' | 'job-evaluate' | 'direction-explore' | 'gap-plan'
-  | 'material-draft' | 'derivatives' | 'greeting' | 'inbox-triage' | 'campus-timeline';
+export type SkillPointId = 'experience-interview' | 'job-evaluate' | 'direction-explore' | 'gap-plan' | 'material-draft';
 
 export interface SkillPoint {
   id: SkillPointId;
@@ -80,12 +78,7 @@ export const MATERIAL_TOPICS = [
 const topicLabel = (value: string | undefined): string => MATERIAL_TOPICS.find(t => t.value === value)?.label ?? MATERIAL_TOPICS[0].label;
 
 export const SKILL_POINTS: readonly SkillPoint[] = [
-  { id: 'resume-import', name: '读简历', gives: '资料、经历一次收好', skills: ['resume-import'], ask: '这是我的简历，帮我收一下' },
   { id: 'experience-interview', name: '聊经历', gives: '口述一段，写成简历里的话', skills: ['experience-interview'], ask: '我先口述一段实习，帮我整理进简历' },
-  {
-    id: 'resume-tailor', name: '按岗位改简历', gives: '改动逐条列出', skills: ['resume-tailor'], ask: '按这个岗位把简历改一版',
-    start: { label: '改一版', inputs: ['job'], say: pick => withJob(pick, '按', '把简历改一版') },
-  },
   {
     id: 'job-evaluate', name: '岗位评估', gives: '硬门槛和五项评分', skills: ['job-evaluate', 'jd-parse'], ask: '帮我评估这个岗位，JD 是：',
     start: { label: '评估', inputs: ['job'], say: pick => withJob(pick, '帮我评估', '值不值得投') },
@@ -109,20 +102,14 @@ export const SKILL_POINTS: readonly SkillPoint[] = [
     },
     results: 'materials',
   },
-  {
-    id: 'derivatives', name: '投递邮件', gives: '标题、正文、附件', skills: ['derivatives'], ask: '帮我给这个岗位写投递邮件，附上简历 PDF',
-    start: { label: '写邮件', inputs: ['job'], say: pick => withJob(pick, '帮我给', '写投递邮件，附上简历 PDF') },
-  },
-  {
-    id: 'greeting', name: '招呼语', gives: '120 字以内的第一句话', skills: ['greeting'], ask: '帮我给这个岗位写一句招呼语',
-    start: { label: '写一句', inputs: ['job'], say: pick => withJob(pick, '帮我给', '写一句招呼语') },
-  },
-  { id: 'inbox-triage', name: '回音归类', gives: '邀请、笔试、拒信自动认出来', skills: ['inbox-triage'], ask: '帮我看看这封邮件是什么：', open: { kind: 'career-inbox' } },
-  { id: 'campus-timeline', name: '校招节奏', gives: '现在走到哪一步', skills: ['campus-timeline'], ask: '现在校招到哪个阶段了，我该做什么' },
 ];
 
-/** 不单独摆出来的技能：总控，决定小芽怎么说话、什么时候用哪个技能。 */
-export const INTERNAL_SKILLS: readonly string[] = ['assistant-core'];
+/**
+ * 不单独摆出来的技能（2026-11-05 用户定：不是独立页面、不值得拉出来的就不放市场）：
+ *   总控 assistant-core；主链路里自动在跑的——读简历、按岗位改简历、招呼语、投递邮件、回音归类；
+ *   用不上的——校招节奏。它们照常在对话和后台里工作，只是不占功能市场的位置。
+ */
+export const INTERNAL_SKILLS: readonly string[] = ['assistant-core', 'resume-import', 'resume-tailor', 'greeting', 'derivatives', 'inbox-triage', 'campus-timeline'];
 
 export function findSkillPoint(id: string | undefined): SkillPoint | undefined {
   return SKILL_POINTS.find(point => point.id === id);

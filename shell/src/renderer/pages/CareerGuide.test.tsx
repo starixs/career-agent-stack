@@ -71,15 +71,13 @@ describe('CareerGuide（功能市场）', () => {
     expect(apiGetJson).not.toHaveBeenCalled();
   });
 
-  it('技能点：不用选东西的点了把那句话预填进对话；自己在做的点了去看结果', () => {
+  it('技能点：不用选东西的点了把那句话预填进对话；主链路里自动在跑的和用不上的不上市场', () => {
     const chat = capture('career:chat-suggest');
-    const nav = capture(CAREER_NAVIGATE_EVENT);
     renderGuide();
     fireEvent.click(point('聊经历'));
-    fireEvent.click(point('回音归类'));
     expect(chat.seen).toEqual([expect.objectContaining({ text: '我先口述一段实习，帮我整理进简历', mode: 'prefill' })]);
-    expect(nav.seen).toEqual([{ kind: 'career-inbox' }]);
-    chat.off(); nav.off();
+    for (const name of ['读简历', '按岗位改简历', '招呼语', '投递邮件', '回音归类', '校招节奏']) expect(screen.queryByRole('button', { name: new RegExp(`^${name}`) })).toBeNull();
+    chat.off();
   });
 
   it('要选东西或有成果的技能点点开原地换成详情，左上角返回', () => {

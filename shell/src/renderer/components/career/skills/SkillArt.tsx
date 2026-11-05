@@ -127,15 +127,6 @@ const ART: Record<ArtId, ReactNode> = {
       <Stroke d="M46 54h28l-6 14H52z" fill={BLUE} />
     </>
   ),
-  // 一份文件拆成几条
-  'resume-import': (
-    <>
-      <Slab x={12} y={14} w={34} h={50} />
-      <Rule x={19} y={26} w={18} /><Rule x={19} y={35} w={20} faint /><Rule x={19} y={44} w={14} faint /><Rule x={19} y={53} w={18} faint />
-      <Stroke d="M54 40h12m-4-5 5 5-5 5" />
-      <rect x={74} y={14} width={34} height={13} rx={6.5} fill={NOTE} {...PEN} /><rect x={74} y={33} width={34} height={13} rx={6.5} fill={MINT} {...PEN} /><rect x={74} y={52} width={34} height={13} rx={6.5} fill={PAPER} {...PEN} />
-    </>
-  ),
   // 一支话筒
   'experience-interview': (
     <>
@@ -144,18 +135,6 @@ const ART: Record<ArtId, ReactNode> = {
       <Rule x={56} y={22} w={8} /><Rule x={56} y={29} w={8} /><Rule x={56} y={36} w={8} />
       <Stroke d="M40 38a20 20 0 0 0 40 0M60 58v10M48 68h24" />
       <Stroke d="M28 30q-5 8 0 16M92 30q5 8 0 16" />
-    </>
-  ),
-  // 一页简历上划一道荧光笔，旁边一支笔
-  'resume-tailor': (
-    <>
-      <Slab x={18} y={10} w={52} h={60} />
-      <rect x={25} y={30} width={38} height={9} rx={2} fill="var(--mark)" />
-      <Rule x={27} y={23} w={30} faint /><Rule x={27} y={34.5} w={34} /><Rule x={27} y={46} w={26} faint /><Rule x={27} y={57} w={32} faint />
-      <g transform="rotate(32 92 40)">
-        <rect x={87} y={14} width={10} height={36} fill={BLUE} {...PEN} />
-        <Stroke d="M87 50h10l-3 12h-4z" fill="var(--mark)" />
-      </g>
     </>
   ),
   // 五边形雷达图：五项评分
@@ -197,47 +176,6 @@ const ART: Record<ArtId, ReactNode> = {
       <path d="M27 33a6 6 0 1 1 6 6l-2 6h-5zM43 33a6 6 0 1 1 6 6l-2 6h-5z" fill={BLUE} />
       <Rule x={62} y={28} w={32} /><Rule x={62} y={37} w={24} faint />
       <Rule x={26} y={52} w={66} faint /><Rule x={26} y={60} w={44} faint />
-    </>
-  ),
-  // 一个信封，里面露出一页纸
-  derivatives: (
-    <>
-      <rect x={36} y={8} width={48} height={30} rx={3} fill={NOTE} {...PEN} />
-      <Rule x={44} y={17} w={24} /><Rule x={44} y={24} w={16} faint />
-      <Slab x={20} y={26} w={80} h={44} r={4} />
-      <Stroke d="M20 28l40 24 40-24" />
-    </>
-  ),
-  // 一个打招呼的气泡，旁边闪一下
-  greeting: (
-    <>
-      <path d="M26 14h56a8 8 0 0 1 8 8v22a8 8 0 0 1-8 8H44L32 64V52h-6a8 8 0 0 1-8-8V22a8 8 0 0 1 8-8z" fill={INK} transform={`translate(${DROP} ${DROP})`} />
-      <Stroke d="M26 14h56a8 8 0 0 1 8 8v22a8 8 0 0 1-8 8H44L32 64V52h-6a8 8 0 0 1-8-8V22a8 8 0 0 1 8-8z" fill={NOTE} />
-      <Rule x={30} y={27} w={46} /><Rule x={30} y={38} w={28} />
-      <path d="M103 8l2.5 7 7 2.5-7 2.5-2.5 7-2.5-7-7-2.5 7-2.5z" fill={BLUE} />
-    </>
-  ),
-  // 进来的信按类别分成三摞，每摞一个颜色的标签
-  'inbox-triage': (
-    <>
-      {[[12, RED], [32, NOTE], [52, MINT]].map(([y, tag]) => (
-        <g key={String(y)}>
-          <rect x={18} y={Number(y)} width={84} height={16} rx={4} fill={PAPER} {...PEN} />
-          <rect x={18} y={Number(y)} width={16} height={16} rx={4} fill={String(tag)} {...PEN} />
-          <Rule x={42} y={Number(y) + 8} w={Number(y) === 32 ? 34 : 48} faint={Number(y) !== 12} />
-        </g>
-      ))}
-    </>
-  ),
-  // 一页月历，圈出今天
-  'campus-timeline': (
-    <>
-      <Slab x={24} y={16} w={72} h={54} r={5} />
-      <path d="M24 30V21a5 5 0 0 1 5-5h62a5 5 0 0 1 5 5v9z" fill={NOTE} {...PEN} />
-      <line x1={42} y1={10} x2={42} y2={21} stroke={INK} strokeWidth={3} strokeLinecap="round" /><line x1={78} y1={10} x2={78} y2={21} stroke={INK} strokeWidth={3} strokeLinecap="round" />
-      {[42, 56].flatMap(cy => [36, 50, 64, 78].map(cx => (cx === 64 && cy === 42
-        ? <circle key={`${cx}:${cy}`} cx={cx + 3} cy={cy + 2} r={6.5} fill={BLUE} />
-        : <rect key={`${cx}:${cy}`} x={cx} y={cy} width={6} height={5} rx={1.5} fill={FAINT} />)))}
     </>
   ),
 };
