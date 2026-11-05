@@ -1140,7 +1140,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         // TODO(intel-compass)：接入 @career/bridges 的 IntelCompassClient（本地 HTTP），有服务时优先使用其九段报告。
         const out = await askSkill<Record<string, unknown>>('company-research', `公司名：${args.company_name}\n消歧信息：${args.hints ?? '无'}\n\nWeb Search 结果（${hits.length} 条）：\n${JSON.stringify(hits).slice(0, 20_000)}`, { refs: ['红线与风险信号'], temperature: 0.2 });
         const trafficLight = typeof out.traffic_light === 'string' ? out.traffic_light : null;
-        const company = store().upsertCompany(args.company_name, { dd_report_json: out, traffic_light: trafficLight, manual_checks: out.manual_checks ?? [] });
+        // 技能输出里人工核实清单叫 manual_required（旧报告里是 manual_checks）；读错名字会让清单永远是空的
+        const company = store().upsertCompany(args.company_name, { dd_report_json: out, traffic_light: trafficLight, manual_checks: out.manual_required ?? out.manual_checks ?? [] });
         changed('company');
         return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实；搜索没配置时对话里会出现「配置搜索 Key」卡片。' }) });
       })()),

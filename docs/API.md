@@ -52,6 +52,8 @@
 | POST | `/api/career/interviews` | 新建面试记录 |
 | PUT | `/api/career/interviews/:id` | 更新（transcript / tags / retro / result / result_source） |
 | GET | `/api/career/mock-interviews` | mock_interview[] |
+| GET | `/api/career/probe-predictions` | probe_prediction[]（`interview_predict` 写的追问预测，含按主简历预测的） |
+| GET | `/api/career/job-evaluations` | 评估过的岗位：`{job_id, company_name, title, url, score_json, prefilter_json, updated_at}[]`（`job_evaluate` 的整份输出，不带 JD 原文） |
 | GET | `/api/career/directions` | direction[] |
 | POST | `/api/career/directions/:id/status` | `{status}` |
 | GET | `/api/career/gap-plans` | gap_plan[] |
