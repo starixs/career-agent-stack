@@ -1,5 +1,6 @@
 import { getPlatformHiddenProviderIds, isLinuxDesktop } from '@/utils/desktopPlatform';
 import { CareerServerPanel } from '@/components/career/CareerServerPanel';
+import { CareerKeepAwakeSwitch } from '@/components/career/CareerKeepAwakeSwitch';
 import { isImeComposingEvent } from '@/utils/imeKeyboard';
 import {
   Check,
@@ -5481,6 +5482,10 @@ export default function Settings({
                 </div>
               )}
 
+              <div data-testid="settings-career-keep-awake" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
+                <CareerKeepAwakeSwitch />
+              </div>
+
               <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.appearanceTitle')}
@@ -5657,6 +5662,8 @@ export default function Settings({
                                     合盖即睡是固件强制,不说=误导。
                                     ConfigProvider.updateConfig 特化分支会路由到
                                     cmd_set_force_wake_lock,本组件保持和 minimizeToTray 同构。 */}
+                {/* 求职壳里由「投递时保持屏幕常亮」（只在批量进行时生效）承担，这个通用的「一直不睡」不露，免得两个开关打架。 */}
+                {!careerShell && (
                 <div className="mt-4 flex items-center justify-between">
                   <div className="flex-1 pr-4">
                     <p className="text-sm font-medium text-[var(--ink)]">
@@ -5689,6 +5696,7 @@ export default function Settings({
                     />
                   </button>
                 </div>
+                )}
 
                 {/* 启动时打开的工作区：求职壳固定一个工作区，不露。 */}
                 {!careerShell && (

@@ -11,7 +11,7 @@
  */
 import type { Repos, Vault } from '@career/core';
 
-import { AskFillError, fillAsk } from '../career/ask-fill';
+import { AskFillError, chooseAsk, fillAsk } from '../career/ask-fill';
 import { FailedAskError, retryFailedAsk, takeOverFailedAsk } from '../career/fill-failures';
 import { cancelJourney, skipJourneyStep } from '../career/login-journey';
 import { asksFor, buildAway, buildRun } from '../career/delivery';
@@ -56,6 +56,17 @@ export function deliveryRoutes(): Array<[string, string, Handler]> {
         const out = fillAsk(repos, vault, params.id, values);
         dataChanged(['vault', 'answer_bank', 'handoff', 'action_queue', 'task']);
         return ok({ saved: out.saved, resumed: out.resumed, still_waiting: out.still_waiting });
+      } catch (error) {
+        if (error instanceof AskFillError) return fail(error.message, 409);
+        throw error;
+      }
+    }],
+    ['POST', '/api/career/asks/:id/choose', ({ repos, params, body, dataChanged }) => {
+      if (typeof body.choice !== 'string' || !body.choice.trim()) return fail('choice 必须是选项文字');
+      try {
+        const out = chooseAsk(repos, params.id, body.choice);
+        dataChanged(['handoff', 'action_queue', 'task']);
+        return ok({ resumed: out.resumed });
       } catch (error) {
         if (error instanceof AskFillError) return fail(error.message, 409);
         throw error;

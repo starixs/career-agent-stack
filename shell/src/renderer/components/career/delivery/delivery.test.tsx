@@ -80,7 +80,7 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     expect(within(deck).getByText(/来自邮件/)).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(within(screen.getByTestId('waiting-deck')).getByText('证件号码')).toBeInTheDocument();
-    expect(screen.getByText('用于这批 20 家，只存在本机')).toBeInTheDocument();
+    expect(screen.queryByText(/只存在本机/)).toBeNull(); // 规则不常驻在卡上（规范 §6.0）
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByTestId('waiting-deck')).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /等你\s*3/ }));
@@ -137,7 +137,6 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     serve([all], null);
     render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
-    expect(screen.getByText('投出后撤不回')).toBeInTheDocument();
     const sent: unknown[] = [];
     const off = onEvent('career:chat-suggest', p => { sent.push(p); });
     fireEvent.click(screen.getByRole('button', { name: '一键投出' }));
@@ -162,21 +161,36 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     off();
   });
 
-  it('单家投前过目点「先不投」：展开「在页面上改 / 这家不投了 / 晚点再说」，不预填对话让你打字', async () => {
+  it('单家投前过目只有两个动作：「投出」和「去看」；去看把画面切到这一家并打开浏览器栏（2026-11-05 途游：过目却找不到页面）', async () => {
     const one: AskView = { id: 'act_mt', kind: 'review', title: '美团 · 投前过目', application_ids: ['a1'], companies: [mark('美团')],
-      sources: [{ type: 'action', id: 'act_mt' }], due_at: null, overdue: false, review: { required_filled: 12, required_total: 12, gaps: 0 } };
+      sources: [{ type: 'action', id: 'act_mt' }], due_at: null, overdue: false, review: { required_filled: 0, required_total: 0, gaps: 1 } };
     serve([one], null);
-    const sent: unknown[] = [];
-    const off = onEvent('career:chat-suggest', p => { sent.push(p); });
+    const opened: unknown[] = [];
+    const off = onEvent('career:live-drawer', p => { opened.push(p); });
     render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
-    fireEvent.click(screen.getByRole('button', { name: '先不投' }));
-    const options = screen.getByRole('group', { name: '先不投，那就' });
-    serve([], null);
-    fireEvent.click(within(options).getByRole('button', { name: '这家不投了' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', { ids: ['act_mt'], decision: 'rejected', drop: true }));
-    expect(sent).toEqual([]);
+    const card = screen.getByTestId('ask-card-review');
+    expect(within(card).getAllByRole('button').map(b => b.textContent)).toEqual(['投出', '去看']);
+    expect(within(card).queryByText(/必填|撤不回/)).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: '去看' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/view', { application_id: 'a1' }));
+    await waitFor(() => expect(opened.length).toBe(1));
     off();
+  });
+
+  it('网页弹窗的选择题（阿里「请选择意向部门」）：卡上直接点选，选好交给后台接着填，不用去浏览器里点（2026-11-05）', async () => {
+    const pick: AskView = { id: 'hnd_ali', kind: 'choice', title: '阿里巴巴 · 请选择意向部门', application_ids: ['a1'], companies: [mark('阿里巴巴')],
+      sources: [{ type: 'handoff', id: 'hnd_ali' }], action_ids: ['act_ali'], due_at: null, overdue: false,
+      choice: { question: '该职位有以下部门在招，请选择意向部门', options: ['阿里国际站', '速卖通'] } };
+    serve([pick], null);
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    const go = screen.getByRole('button', { name: '选好' });
+    expect(go).toBeDisabled();
+    fireEvent.click(screen.getByRole('radio', { name: '速卖通' }));
+    serve([], null);
+    fireEvent.click(go);
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/asks/hnd_ali/choose', { choice: '速卖通' }));
   });
 
   it('「投出了吗」：看过页面一键回答，不用在对话里说；没投出去的回到待审', async () => {
@@ -185,7 +199,7 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     serve([confirm], null);
     const first = render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
-    expect(screen.getByRole('button', { name: '去页面上看' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '去看' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '投出了' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/act_sub/confirm-submit', { submitted: true }));
     first.unmount();
@@ -200,7 +214,6 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     serve([ASK_LOGIN], null);
     render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
-    expect(screen.getByText('一家一家带你过，登上了自动切下一家')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '去登录' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/asks/hnd_login/login-journey', {}));
   });
@@ -246,7 +259,7 @@ describe('情景 C · 两天没开，回来', () => {
     expect(card).toHaveTextContent('还有 1 件等你');
     expect(card).toHaveTextContent('面试邀请');
     expect(card).toHaveTextContent('其余 13 家还没回音。');
-    expect(within(card).getByTestId('return-held')).toHaveTextContent('替你挡下 3 份：都填好了，停在提交前，没你点头不交。');
+    expect(within(card).getByTestId('return-held')).toHaveTextContent('3 份填好了，等你投出');
     fireEvent.click(screen.getByRole('button', { name: '从最急的开始' }));
     expect(opened).toEqual(['ddl_jfy']);
     off();

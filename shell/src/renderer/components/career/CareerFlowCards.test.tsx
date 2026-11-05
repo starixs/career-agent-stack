@@ -133,7 +133,6 @@ describe('对话内流程卡片', () => {
     const { seen, off } = captureSuggest();
     renderCards([card('claims_confirm', { experience_id: 'e1', experience_title: '美团实习', source: 'interview_retro', interview_id: 'itv1', claims: [{ id: 'c9', text: '召回负样本按曝光未点击采样' }], gaps: ['线上 A/B 收益说不清'] })]);
     expect(screen.getByTestId('career-card-claims_confirm')).toHaveTextContent('这场面试里没答上来、还要补的事实');
-    expect(screen.getByTestId('career-card-claims_confirm')).toHaveTextContent('下次定制时才会用上');
     fireEvent.click(screen.getByRole('button', { name: '去补这几处' }));
     off();
     expect(seen).toEqual(['帮我把「美团实习」补上：线上 A/B 收益说不清']);

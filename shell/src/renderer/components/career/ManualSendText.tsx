@@ -28,9 +28,7 @@ export function ManualSendText({ text, actionId, onSent }: { text: string; actio
           {state === 'copied' ? '已复制' : '复制'}
         </Button>
         <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void markSent()}>我已发送</Button>
-        <span role="status" className="text-xs text-[var(--muted)]">
-          {state === 'failed' ? '复制没成功，请手动选中上面的文字' : '复制后到招聘平台上发出去'}
-        </span>
+        {state === 'failed' && <span role="status" className="text-xs text-[var(--muted)]">复制没成功，请手动选中上面的文字</span>}
       </div>
       {act.error && <ErrorRow message={act.error} />}
     </div>

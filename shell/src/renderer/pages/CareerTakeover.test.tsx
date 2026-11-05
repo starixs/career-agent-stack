@@ -70,7 +70,7 @@ describe('接管简报', () => {
     const onOpenChat = vi.fn();
     render(<CareerTakeover isActive onOpenChat={onOpenChat} />);
     expect(await screen.findByRole('heading', { name: '你还在准备期，邮箱里还没有求职邮件' })).toBeInTheDocument();
-    expect(screen.getByText('（往年规律，具体以公告为准）')).toBeInTheDocument();
+    expect(screen.queryByText(/具体以公告为准/)).toBeNull();
     expect(await screen.findByText(/经历库还是空的/)).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: '现在要你的事' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '去对话里拖简历' }));

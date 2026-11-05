@@ -115,8 +115,7 @@ export function CareerTakeoverCard({ takeover, onAction }: {
             <Badge tone={tone}>{stateLabel}</Badge>
           </div>
           <div className="mt-1 text-xs text-[var(--muted)]">
-            {reason ? `原因：${reason}` : '原因：未知'}
-            {takeover.message ? ` · ${takeover.message}` : ''}
+            {[reason, takeover.message].filter(Boolean).join(' · ')}
           </div>
           {takeover.url && <div className="mt-0.5 truncate text-xs text-[var(--subtle)]">{takeover.url}</div>}
         </div>

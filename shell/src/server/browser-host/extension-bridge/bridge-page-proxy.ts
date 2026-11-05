@@ -258,13 +258,25 @@ export class BridgePageProxy {
     // Activate before measuring, not after obtaining coordinates. Only switch the tab inside its window:
     // CDP Page.bringToFront also raises Chrome over whatever the user is doing (2026-11-04: the browser
     // kept jumping to the front during background applying). Focus emulation keeps the page "focused".
-    await this.activateInWindow()
-    await this.ensureCdp().send('Emulation.setFocusEmulationEnabled', { enabled: true })
-    const rect = await this.rectOf(selector)
-    if (!rect) throw new Error(`找不到要点的元素: ${selector}`)
-    await this.scrollIntoViewIfNeeded(selector)
-    const fresh = (await this.rectOf(selector)) ?? rect
-    await this.mouse.click(fresh.x + fresh.width / 2, fresh.y + fresh.height / 2)
+    // 分步计时：一次点击偶尔要 77 秒（2026-11-05 登录准备阶段），超过 5 秒就把各步耗时记下来
+    const marks: Array<[string, number]> = []
+    const t0 = Date.now()
+    const mark = (name: string) => marks.push([name, Date.now()])
+    try {
+      await this.activateInWindow(); mark('activate')
+      await this.ensureCdp().send('Emulation.setFocusEmulationEnabled', { enabled: true }); mark('focus')
+      const rect = await this.rectOf(selector); mark('rect')
+      if (!rect) throw new Error(`找不到要点的元素: ${selector}`)
+      await this.scrollIntoViewIfNeeded(selector); mark('scroll')
+      const fresh = (await this.rectOf(selector)) ?? rect; mark('rect2')
+      await this.mouse.click(fresh.x + fresh.width / 2, fresh.y + fresh.height / 2); mark('mouse')
+    } finally {
+      const total = Date.now() - t0
+      if (total > 5000) {
+        let prev = t0
+        console.warn(`[bridge-page] slow click ${selector.slice(0, 60)} ${total}ms: ${marks.map(([n, at]) => { const d = at - prev; prev = at; return `${n}=${d}`; }).join(' ')}`)
+      }
+    }
   }
 
   async selectOption(selector: string, value: string | { label: string }): Promise<void> {

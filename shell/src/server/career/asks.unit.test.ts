@@ -3,7 +3,9 @@
  * 合并只在「一个动作能同时解决」时发生；不另造 id，合并的条目能追溯到每个源 id。
  */
 import { describe, expect, it } from 'vitest';
-import { buildAsks, companyMarkOf, type Repos } from '@career/core';
+import { buildAsks, companyMarkOf, recallDialogChoice, vaultMarksToTokens, type Repos } from '@career/core';
+
+import { chooseAsk } from './ask-fill';
 
 import { createMemoryRepos } from './test-db';
 
@@ -55,6 +57,44 @@ describe('AskView：一个动作能解决的才合并', () => {
     });
     const [ask] = buildAsks(repos, NOW);
     expect(ask.fields).toEqual([{ label: '你为什么选择我们？', text: '你为什么选择我们？', vault_field: null, sensitive: false, fillable: true, draft: '我在社团做过三次宣传活动……' }]);
+  });
+
+  it('认不出问的是什么的格子（题号「03」、导航栏、别的网站标题）不让他对着猜：只能去页面上看；草稿里的资料占位符换成能读的字（2026-11-05 字节、得润、上汽）', () => {
+    const repos = createMemoryRepos();
+    const a = repos.enqueueAction('fill_form', { job: 'x' }, app(repos, '字节跳动').id, true);
+    repos.openHandoff('missing_info', { actionId: a.id, message: '还差 4 项' });
+    const labels = ['03', '没认出名字的字段', '企业招聘 博客 关于offer求索', 'offer 求索 offerseek .ai 让每个人都能找到适合自己的机会', '自我介绍'];
+    repos.setActionStatus(a.id, 'needs_user', {
+      needsUser: labels.map(label => ({ label })),
+      drafts: [{ label: '自我介绍', value: '我本科就读于{{vault:profile.school}}计算机专业' }, { label: '03', value: '草稿' }],
+      gate: { gaps: labels.map(label => ({ label, status: 'needs_user', required: true })) },
+    });
+    const [ask] = buildAsks(repos, NOW);
+    expect(ask.title).toBe('自我介绍');
+    expect(ask.detail).toBeUndefined();
+    expect(ask.fields?.filter(f => f.fillable).map(f => [f.text, f.draft])).toEqual([['自我介绍', '我本科就读于【毕业院校】计算机专业']]);
+    expect(vaultMarksToTokens('我本科就读于【毕业院校】，【不认识】')).toBe('我本科就读于{{vault:profile.school}}，【不认识】');
+  });
+
+  it('一格都认不出：标题说这家页面上有几处要看，不写「03 等 4 项」', () => {
+    const repos = createMemoryRepos();
+    stuckOnFields(repos, app(repos, '字节跳动').id, ['03', '04']);
+    const [ask] = buildAsks(repos, NOW);
+    expect(ask.title).toBe('字节跳动 · 页面上有 2 处要你看');
+    expect(ask.fields?.every(f => !f.fillable)).toBe(true);
+  });
+
+  it('停在拿不准的弹窗上（带回了问题和按钮）：单独出一张选择卡，不混进「N 个网站要你登录」（2026-11-05 阿里）', () => {
+    const repos = createMemoryRepos();
+    const a = repos.enqueueAction('fill_form', { url: 'https://talent.alibaba.com/x' }, app(repos, '阿里巴巴').id, true);
+    const h = repos.openHandoff('user_request', { actionId: a.id, message: '弹窗' });
+    repos.setActionStatus(a.id, 'needs_user', { status: 'handoff', finalUrl: 'https://talent.alibaba.com/apply', dialog: { text: '该职位有以下部门在招，请选择意向部门 阿里国际站 速卖通', buttons: ['阿里国际站', '速卖通'] } });
+    const [ask] = buildAsks(repos, NOW);
+    expect(ask).toMatchObject({ kind: 'choice', id: h.id, title: '阿里巴巴 · 该职位有以下部门在招，请选择意向部门 阿里国际站 速卖通', choice: { options: ['阿里国际站', '速卖通'] } });
+    const out = chooseAsk(repos, h.id, '速卖通', NOW);
+    expect(out.resumed).toEqual([a.id]);
+    expect(recallDialogChoice(repos, 'talent.alibaba.com', '该职位有以下部门在招，请选择意向部门 阿里国际站 速卖通')).toBe('速卖通');
+    expect(() => chooseAsk(repos, h.id, '速卖通', NOW)).toThrow();
   });
 
   it('问卷题目的题号和冒号不给人看：标题「您的年龄等 2 项」，回填仍按页面原题（2026-11-02 斯达半导体）', () => {

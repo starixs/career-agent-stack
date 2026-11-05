@@ -34,8 +34,14 @@ export interface FormField {
 
 /** 确定性抽取：在页面里跑一段纯 DOM 脚本（FakePage 用内存模型回答）。 */
 export async function extractFields(page: PageLike): Promise<FormField[]> {
-  const raw = await page.evaluate(extractFieldsScript)
-  return raw.map(normalizeField)
+  const raw: unknown = await page.evaluate(extractFieldsScript)
+  // 真实 Chrome 桥接在页面跳转 / 脚本没跑成时回的不是数组（2026-11-05 小鹏飞书招聘：raw.map is not a function）：
+  // 当成这一刻页面上没有格子，调用方会再看一次
+  if (!Array.isArray(raw)) {
+    console.warn(`[apply-extract] 抽字段没拿到数组（${typeof raw}），当作没有格子：${page.url()}`)
+    return []
+  }
+  return (raw as Parameters<typeof normalizeField>[0][]).map(normalizeField)
 }
 
 export function normalizeField(r: RawField): FormField {

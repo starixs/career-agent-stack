@@ -72,6 +72,19 @@ async function clickCentered(loc: ReturnType<Page['locator']>): Promise<void> {
   await loc.click({ timeout: CLICK_TIMEOUT_MS })
 }
 
+/** 一定返回对象的读页面脚本：拿回空值说明脚本跑到一半页面跳走了。 */
+const VALUE_SCRIPT_IDS: ReadonlySet<string> = new Set([SCRIPT_IDS.pageSignals])
+/**
+ * 真实 Chrome 桥接在页面跳转时会回 undefined / "undefined"，原样往下传会在后面读 .buttons.filter 时崩成
+ * 「填写时出错了」（2026-11-05 快手、91wllm）。按导航中断报错，交给读页面的重试（NAV_RACE_RX）去等一下再读。
+ */
+export function expectValue<A, R>(script: PageScript<A, R>, value: R): R {
+  if (VALUE_SCRIPT_IDS.has(script.id) && (value === null || typeof value !== 'object')) {
+    throw new Error(`Execution context was destroyed: ${script.id} 没拿到结果（${typeof value}），页面可能在跳转`)
+  }
+  return value
+}
+
 export function fromPlaywright(page: Page): PageLike {
   const wrapLocator = (loc: ReturnType<Page['locator']>): LocatorLike => ({
     fill: v => loc.fill(v),
@@ -92,7 +105,7 @@ export function fromPlaywright(page: Page): PageLike {
     },
     title: () => page.title(),
     content: () => page.content(),
-    evaluate: <A, R>(script: PageScript<A, R>, arg?: A) => (page.evaluate as unknown as (fn: unknown, arg: unknown) => Promise<R>)(script.fn, arg),
+    evaluate: async <A, R>(script: PageScript<A, R>, arg?: A) => expectValue(script, await (page.evaluate as unknown as (fn: unknown, arg: unknown) => Promise<R>)(script.fn, arg)),
     fill: (s, v) => page.fill(s, v, { timeout: 8000 }),
     click: s => clickCentered(page.locator(s).first()),
     selectOption: async (s, v) => { await page.selectOption(s, v as string) },

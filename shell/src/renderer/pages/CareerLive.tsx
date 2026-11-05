@@ -15,7 +15,7 @@ import type { BatchState, CareerTakeoverEvent, LiveFrame, LiveSnapshot, LiveStre
 import { liveStatusText } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { useLiveStream } from '@/components/career/useGlobalLive';
-import { CareerLiveViewport } from '@/components/career/CareerLiveViewport';
+import { CareerLiveViewport, liveHumanActive } from '@/components/career/CareerLiveViewport';
 import { applicationStats, BATCH_ERROR_TEXT, hasBatchWork } from './CareerLiveModel';
 
 export default function CareerLive() {
@@ -42,19 +42,18 @@ export default function CareerLive() {
   const stream = useLiveStream(true, onEvent);
 
   const control = snapshot?.browser.control ?? 'none';
-  const humanActive = control === 'human' || takeover?.state === 'human_active';
+  const humanActive = liveHumanActive(snapshot?.browser.control, takeover?.state);
   const stats = useMemo(() => applicationStats(applications.data ?? [], handoffs.data ?? 0), [applications.data, handoffs.data]);
   const take = () => action.run(async () => { await careerApi.liveControl('human', 'user_request'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'human' } } : s)); });
   const handback = () => action.run(async () => { await careerApi.liveControl('agent'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'agent' } } : s)); setTakeover(null); handoffs.reload(); });
   const batchCmd = (cmd: 'start' | 'pause' | 'stop') => action.run(async () => { const b = await careerApi.batchCommand(cmd); if (b) setBatch(b); });
   const lastError = batch?.lastError;
   useEffect(() => { if (lastError) console.warn('[career-live] batch lastError', lastError); }, [lastError]);
-  const connLabel = stream.status === 'open' ? (frame ? '直播中' : '已连接，等待画面') : stream.status === 'connecting' ? '连接中…' : '连接断开，自动重连';
+  const connLabel = stream.status === 'open' ? null : stream.status === 'connecting' ? '连接中…' : '连接断开，自动重连';
 
   return (
     <CareerPage
       title="网申进展"
-      subtitle="看正在投的每一家，进度和要你处理的事"
       actions={(
         <>
           <Button variant="ghost" onClick={() => suggestToChat('帮我准备这个岗位的网申，链接是：', { surface: 'live' }, 'prefill')}>粘贴岗位链接</Button>
@@ -78,7 +77,7 @@ export default function CareerLive() {
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
             <Eye className="h-3.5 w-3.5" />
-            <span>{connLabel}</span>
+            {connLabel && <span>{connLabel}</span>}
             <span className={control === 'human' ? 'text-[var(--primary)]' : 'text-[var(--success)]'}>{control === 'human' ? '你在操作' : control === 'agent' ? '助理在操作' : '浏览器未打开'}</span>
             {takeover?.state === 'paused' && <span className="text-[var(--warning)]">等你处理：{(takeover.reason && HANDOFF_REASON_LABELS[takeover.reason]) ?? takeover.reason ?? ''}</span>}
             {snapshot?.browser.url && <span className="min-w-0 flex-1 truncate" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
@@ -88,7 +87,7 @@ export default function CareerLive() {
             interactive={humanActive}
             onRequestControl={snapshot?.browser.hasBrowser ? async () => { await take(); return true; } : undefined}
             onInputError={msg => action.run(async () => { throw new Error(msg); })}
-            placeholder={frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开。粘贴岗位链接后，画面会在这里出现。' : '等待画面…')}
+            placeholder={frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开' : '等待画面…')}
           />
           {takeover?.message && takeover.state === 'paused' && (
             <div role="status" className="mt-2 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-bg)] px-3 py-2 text-xs text-[var(--ink)]">{takeover.message}</div>

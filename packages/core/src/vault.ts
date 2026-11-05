@@ -107,6 +107,22 @@ export function vaultPlaceholder(scope: VaultScope, ref_id: string, field: strin
   if (scope === 'profile') return `{{vault:profile.${field}}}`
   return `{{vault:${scope === 'experience' ? 'exp' : 'site'}.${ref_id}.${field}}}`
 }
+/**
+ * 给人看的草稿里，资料占位符换成「【毕业院校】」这样的字（渲染层拿不到明文，也不该看到 {{vault:…}}——2026-11-05 字节开放题草稿）；
+ * 他改完交回来时用 vaultMarksToTokens 换回占位符，填表时照常在本机替换。只换资料字段，经历 / 网站的占位符没有可读名字，原样留着。
+ */
+export function vaultTokensToMarks(text: string): string {
+  return text.replace(VAULT_PLACEHOLDER_RX, (token, kind: string, rest: string) => {
+    const def = kind === 'profile' ? profileDef(rest) : undefined
+    return def ? `【${def.label}】` : token
+  })
+}
+export function vaultMarksToTokens(text: string): string {
+  return text.replace(/【([^【】]{1,20})】/g, (mark, label: string) => {
+    const def = PROFILE_FIELDS.find(f => f.label === label)
+    return def ? vaultPlaceholder('profile', '', def.field) : mark
+  })
+}
 export function parseVaultPlaceholder(token: string): { scope: VaultScope; ref_id: string; field: string } | null {
   const m = new RegExp(VAULT_PLACEHOLDER_RX.source).exec(token)
   if (!m) return null

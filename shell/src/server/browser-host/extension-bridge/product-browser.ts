@@ -27,7 +27,10 @@ interface Dependencies {
 }
 
 export function productBrowserArgs(profile: string, extension: string): string[] {
-  return [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
+  // --use-mock-keychain：不读 macOS 钥匙串。否则每换一次浏览器路径（首次安装、浏览器更新）Chrome 都卡在
+  // 「允许访问钥匙串」系统对话框上等人点，扩展连不上、产品浏览器起不来（2026-11-05：每次 45 秒超时，整批网申失败）。
+  // 代价：这份产品专用资料里的 Cookie 只做固定密钥混淆，不用钥匙串密钥加密；资料只装求职网站的登录。
+  return [`--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--use-mock-keychain',
     ...chromiumExtensionArgs(extension), 'about:blank']
 }
 

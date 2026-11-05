@@ -46,7 +46,7 @@ export default function CareerTakeover({ embedded = false, onOpenChat }: CareerP
         {q.error && <ErrorRow message={q.error} onRetry={q.reload} />}
         {!q.loading && !b && !q.error && (
           <section className="grid gap-3">
-            <p className="text-sm text-[var(--muted)]">还没有接管简报。连上邮箱后，近半年的求职邮件收好了，这里会告诉你替你接管了什么。</p>
+            <p className="text-sm text-[var(--muted)]">还没有接管简报，连上邮箱后生成。</p>
             <MailConnectCenter />
           </section>
         )}
@@ -64,7 +64,7 @@ function Briefing({ b }: { b: TakeoverBriefing }) {
       <header className="grid gap-1">
         <h2 className="font-human text-2xl font-semibold text-[var(--ink)]">替你接管了 {b.applications} 家公司的申请</h2>
         <p className="text-sm text-[var(--muted)]">
-          来自 {report.address}{report.span.from ? ` ${day(report.span.from)}～${day(report.span.to)}` : ''} 的 {report.mails} 封求职邮件。以后的新邮件也会自动识别。
+          来自 {report.address}{report.span.from ? ` ${day(report.span.from)}～${day(report.span.to)}` : ''} 的 {report.mails} 封求职邮件。
         </p>
       </header>
       <NeedsYou b={b} />
@@ -80,7 +80,7 @@ function NeedsYou({ b }: { b: TakeoverBriefing }) {
   return (
     <section aria-labelledby="takeover-needs" className="grid gap-2">
       <H3 id="takeover-needs">现在要你的事</H3>
-      {!first && <p className="text-sm text-[var(--ink-2)]">暂时没有要你马上处理的。笔试、面试、Offer 期限一到，会出现在招聘概览和通知中心。</p>}
+      {!first && <p className="text-sm text-[var(--ink-2)]">暂时没有要你处理的。</p>}
       {first && (
         <button type="button" onClick={() => openApplication(first.application_id)} className="rounded-[10px] text-left hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]">
           <UrgentNeed b={b} />
@@ -171,7 +171,6 @@ function Unclassified({ items }: { items: TakeoverBriefing['unclassified'] }) {
   return (
     <section aria-labelledby="takeover-unknown" className="grid gap-2 border-t border-[var(--line)] pt-4">
       <H3 id="takeover-unknown">{`没认出来的 ${items.length} 封`}</H3>
-      <p className="text-sm text-[var(--ink-2)]">看着像求职邮件，但认不出是哪家、到了哪一步。不管它也行，那家以后再来信会自动补上。</p>
       <ul className="grid gap-1 text-sm text-[var(--subtle)]">
         {subjects.map((s, i) => <li key={i} className="truncate">{s}</li>)}
       </ul>
@@ -198,14 +197,13 @@ function PrepBriefing({ b, onOpenChat }: { b: TakeoverBriefing; onOpenChat: () =
     <>
       <header className="grid gap-1">
         <h2 className="font-human text-2xl font-semibold text-[var(--ink)]">{b.season.id === 'prep' ? '你还在准备期，邮箱里还没有求职邮件' : '邮箱连好了，还没有求职邮件'}</h2>
-        <p className="text-sm text-[var(--muted)]">{b.report.address} 已经连好，以后一有网申、笔试、面试邮件就会自动收进来，不用再管它。</p>
       </header>
       <SeasonRow season={b.season} seasons={b.seasons} />
       <section aria-labelledby="takeover-next" className="grid gap-2">
         <H3 id="takeover-next">接下来</H3>
         <div className="grid gap-2 text-sm text-[var(--ink-2)]">
-          <p>{nextWindow()} <span className="text-xs text-[var(--subtle)]">（往年规律，具体以公告为准）</span></p>
-          {emptyExperience && <p>经历库还是空的。把简历拖进对话，或者说说你做过的一件事，我来整理成能写进简历的话。</p>}
+          <p>{nextWindow()}</p>
+          {emptyExperience && <p>经历库还是空的。</p>}
         </div>
         <div className="mt-1 flex flex-wrap gap-2">
           <Button variant="secondary" onClick={onOpenChat}>去对话里拖简历</Button>

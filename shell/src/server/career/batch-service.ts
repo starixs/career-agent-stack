@@ -11,6 +11,7 @@ import { BatchRunner } from './batch-runner';
 import { careerExportsDir, getRepos } from './db';
 import { FileChooserBroker } from './file-chooser';
 import { liveHub } from './live-hub';
+import { followBatch } from './keep-awake';
 import { careerProductSessionId } from './product-session';
 import { loginJourneyActive } from './live-pin';
 import { packetResumeFile } from './packets';
@@ -80,7 +81,10 @@ export async function getBatchRunner(): Promise<BatchRunner> {
       };
       return new BatchRunner({
         repos,
-        broadcast: (event, data) => { liveHub.publish(event, data as Record<string, unknown>); },
+        broadcast: (event, data) => {
+          if (event === 'career:batch') followBatch(repos, (data as { status?: unknown }).status);
+          liveHub.publish(event, data as Record<string, unknown>);
+        },
         sessionId,
         riskLocked,
         // 同时填几份（不同网站）；同一网站永远串行。CAREER_BATCH_CONCURRENCY=1 退回逐份执行。

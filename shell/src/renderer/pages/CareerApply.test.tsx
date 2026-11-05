@@ -226,7 +226,7 @@ describe('CareerApply · 岗位库', () => {
     act(() => {
       emitEvent('career:takeover', { sessionId: 's1', runId: 'run1', state: 'paused', reason: 'captcha', url: 'https://example.com/apply' });
     });
-    expect(screen.getByText('原因：验证码')).toBeInTheDocument();
+    expect(screen.getByText('验证码')).toBeInTheDocument();
     const seen: Array<{ requestId: string; runId: string; action: string }> = [];
     const off = onEvent<{ requestId: string; runId: string; action: string }>('career:takeover-action', p => {
       seen.push(p);

@@ -28,12 +28,12 @@ describe('ApplyConfirm', () => {
       : { ok: true, started: ['a1', 'a2', 'a3', 'a4', 'a5'], skipped: [] }));
     const onStarted = vi.fn();
     render(<ApplyConfirm jobIds={['j1', 'j2', 'j3', 'j4', 'j5', 'j6', 'j7']} onStarted={onStarted} onCancel={() => {}} />);
-    expect(await screen.findByText(/投 5 家：填到提交前停下，标星的 2 家填好后先给你看/)).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '开始投 5 家' })).toBeInTheDocument();
     expect(screen.getByText('跳过 已经投过 1 · 没有网申链接 1')).toBeInTheDocument();
     expect(screen.getByText(/3 家没有定制版/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '开始投 5 家' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/jobs/apply', { job_ids: PLAN.ready, resume_id: 'r_ai' }));
-    await waitFor(() => expect(onStarted).toHaveBeenCalledWith(expect.stringContaining('「等你」')));
+    await waitFor(() => expect(onStarted).toHaveBeenCalledWith(expect.stringContaining('已开始投 5 家')));
     expect(onStarted.mock.calls[0][0]).toContain('跳过：已经投过 1 · 没有网申链接 1');
   });
 
@@ -64,6 +64,6 @@ describe('ApplyConfirm', () => {
 
   it('文字：同一原因合在一起数；开始后指向等你条', () => {
     expect(skippedText([{ job_id: 'a', reason: '已在投' }, { job_id: 'b', reason: '已在投' }])).toBe('已在投 2');
-    expect(startedText(3, [])).toBe('已开始投 3 家，在后台填到提交前；要你的事会出现在下面的「等你」里。');
+    expect(startedText(3, [])).toBe('已开始投 3 家。');
   });
 });

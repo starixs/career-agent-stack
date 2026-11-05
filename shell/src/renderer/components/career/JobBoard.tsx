@@ -229,7 +229,7 @@ function PrefsSummary({ prefs, editing, onEdit }: { prefs: JobPrefs; editing: bo
   const summary = [prefs.cohort, prefs.degree, (prefs.cities ?? []).join('/'), (prefs.employment_types ?? []).map(t => TYPE_LABEL[t]).join('/')].filter(Boolean).join(' · ');
   return (
     <span className="ml-auto flex min-w-0 items-center gap-1">
-      <span className="truncate" title="匹配按这些条件算；推荐不会违反">{`我的条件：${summary || '还没设置（匹配只看经历，不按届别 / 城市过滤）'}`}</span>
+      <span className="truncate">{`我的条件：${summary || '还没设置'}`}</span>
       <Button size="sm" variant="ghost" aria-pressed={editing} onClick={onEdit}>修改</Button>
     </span>
   );

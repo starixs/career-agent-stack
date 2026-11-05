@@ -173,9 +173,10 @@ describe("求职壳里的设置页（beta-polish ⑥）", () => {
     expect(await screen.findByText(String(i18n.t("titlebar.helper", { ns: "app" })))).toBeInTheDocument();
   });
 
-  it("通用设置不露服务端、工作区和队列模式；预置了模型 Key 就不露 Key 面板", async () => {
+  it("通用设置不露服务端、工作区、队列模式和通用「一直不睡」；预置了模型 Key 就不露 Key 面板", async () => {
     renderSettings("general");
-    expect(await screen.findByText(zh("general.forceWakeTitle"))).toHaveTextContent("别让电脑睡着");
+    expect(await screen.findByRole("switch", { name: "投递时保持屏幕常亮" })).toBeInTheDocument();
+    expect(screen.queryByText(zh("general.forceWakeTitle"))).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByTestId("settings-career-keys")).not.toBeInTheDocument());
     expect(screen.queryByTestId("settings-career-server")).not.toBeInTheDocument();
     expect(screen.queryByText(zh("general.defaultWorkspaceTitle"))).not.toBeInTheDocument();

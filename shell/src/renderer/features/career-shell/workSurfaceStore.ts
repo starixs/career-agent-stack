@@ -29,6 +29,7 @@ export interface ProgressRun {
   /** 批量网申的岗位身份；同一事件流里按 run 分开，不能把不同岗位合成一条。 */
   company?: string;
   jobTitle?: string;
+  applicationId?: string;
 }
 
 interface WorkSurfaceState {
@@ -102,7 +103,7 @@ export function recordProgress(event: CareerProgressEvent, now = Date.now()): vo
   const step: ProgressStep = { message: event.message, phase: event.phase, at: now };
   const finished = (typeof event.progress === 'number' && event.progress >= 1) || FINISHED_PHASES.test(event.phase ?? '');
   const base: ProgressRun = existing ?? { key, steps: [], progress: null, finished: false, updatedAt: now };
-  const identity = { company: event.company ?? base.company, jobTitle: event.job_title ?? base.jobTitle };
+  const identity = { company: event.company ?? base.company, jobTitle: event.job_title ?? base.jobTitle, applicationId: event.application_id ?? base.applicationId };
   const lastStep = base.steps[base.steps.length - 1];
   const steps = lastStep?.message === step.message ? base.steps : [...base.steps, step].slice(-MAX_STEPS);
   const run: ProgressRun = {
