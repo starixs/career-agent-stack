@@ -47,6 +47,25 @@ export class Repos {
     return this.db.get<Evidence>('SELECT * FROM evidence WHERE id=?', [id])!
   }
   confirmClaim(id: string): void { this.db.update('claim', id, { status: 'user_confirmed', updated_at: now() }) }
+  /** 删一条主张（连同证据）；返回是否真的删了。用户说「这条不是我做的 / 写错了」时用。 */
+  deleteClaim(id: string): boolean {
+    let removed = false
+    this.db.transaction(() => {
+      this.db.run('DELETE FROM evidence WHERE claim_id=?', [id])
+      removed = this.db.run('DELETE FROM claim WHERE id=?', [id]).changes > 0
+    })
+    return removed
+  }
+  /** 删一段经历（连同主张和证据）；返回是否真的删了。 */
+  deleteExperience(id: string): boolean {
+    let removed = false
+    this.db.transaction(() => {
+      this.db.run('DELETE FROM evidence WHERE claim_id IN (SELECT id FROM claim WHERE experience_id=?)', [id])
+      this.db.run('DELETE FROM claim WHERE experience_id=?', [id])
+      removed = this.db.run('DELETE FROM experience WHERE id=?', [id]).changes > 0
+    })
+    return removed
+  }
   listExperiences(): Experience[] { return this.db.all<Experience>(`SELECT * FROM experience ORDER BY COALESCE(end_date, '9999') DESC, start_date DESC`) }
   listClaims(experienceId?: string): Claim[] {
     return experienceId ? this.db.all<Claim>('SELECT * FROM claim WHERE experience_id=? ORDER BY created_at', [experienceId]) : this.db.all<Claim>('SELECT * FROM claim ORDER BY created_at')

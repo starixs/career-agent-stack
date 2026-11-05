@@ -366,13 +366,8 @@ export function clearOralExperiences(repos: Repos, id: string): number {
   const draft = getIntakeDraft(repos, id);
   if (!draft) throw new Error(`导入记录不存在：${id}`);
   const ids = oralExperienceIds(repos, draft);
-  repos.db.transaction(() => {
-    for (const expId of ids) {
-      repos.db.run('DELETE FROM evidence WHERE claim_id IN (SELECT id FROM claim WHERE experience_id=?)', [expId]);
-      repos.db.run('DELETE FROM claim WHERE experience_id=?', [expId]);
-      repos.db.run('DELETE FROM experience WHERE id=?', [expId]);
-    }
-  });
+  // 每段经历连同说法和证据在一个事务里删（Repos.deleteExperience，与对话里的 experience_remove 同一条路径）
+  for (const expId of ids) repos.deleteExperience(expId);
   console.log(`[resume-intake] cleared ${ids.length} oral experiences after intake=${id}`);
   return ids.length;
 }

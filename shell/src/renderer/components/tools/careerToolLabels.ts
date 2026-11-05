@@ -17,6 +17,8 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   browser_open: '打开网页',
   browser_observe: '看一眼网页',
   browser_act: '在网页上操作',
+  experience_remove: '删掉一段经历',
+  claim_remove: '删掉一条说法',
   browser_cdp: '在网页上操作',
   browser_sop: '想想网页怎么操作',
   browser_read: '读网页内容',

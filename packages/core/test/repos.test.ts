@@ -105,3 +105,30 @@ describe('今天做过', () => {
     expect(r.activitySince('2999-01-01T00:00:00.000Z')).toEqual([])
   })
 })
+
+describe('删除经历与说法（对话里 experience_remove / claim_remove）', () => {
+  it('删一条说法连同证据，别的说法不动', () => {
+    const r = mem()
+    const exp = r.createExperience({ title: '点餐小程序' })
+    const keep = r.addClaim({ experience_id: exp.id, text: '负责前端' })
+    const drop = r.addClaim({ experience_id: exp.id, text: '日活一万' })
+    r.addEvidence({ claim_id: drop.id, kind: 'doc', locator: 'cv.pdf' })
+    expect(r.deleteClaim(drop.id)).toBe(true)
+    expect(r.listClaims(exp.id).map(c => c.id)).toEqual([keep.id])
+    expect(r.db.all('SELECT * FROM evidence WHERE claim_id=?', [drop.id])).toEqual([])
+    expect(r.deleteClaim(drop.id)).toBe(false)
+  })
+
+  it('删一段经历连同说法和证据', () => {
+    const r = mem()
+    const exp = r.createExperience({ title: '错写的实习' })
+    const other = r.createExperience({ title: '真实项目' })
+    const claim = r.addClaim({ experience_id: exp.id, text: '带了三个人' })
+    r.addEvidence({ claim_id: claim.id, kind: 'doc', locator: 'cv.pdf' })
+    expect(r.deleteExperience(exp.id)).toBe(true)
+    expect(r.listExperiences().map(e => e.id)).toEqual([other.id])
+    expect(r.listClaims()).toEqual([])
+    expect(r.db.all('SELECT * FROM evidence')).toEqual([])
+    expect(r.deleteExperience(exp.id)).toBe(false)
+  })
+})

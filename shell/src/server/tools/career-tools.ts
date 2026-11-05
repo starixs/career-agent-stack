@@ -949,6 +949,20 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
 
       tool('experience_list', '返回整棵经历树（经历 → 主张 → 证据）。', {}, wrap(() => text(repos().experienceTree()))),
 
+      tool('experience_remove', '他说某段经历不要了、写错了、不是他的时调用：连同这段下面的说法一起删掉。删之前不用再问一遍；删完一句话告诉他删了哪段。', { experience_id: z.string() }, async (args) => wrap(() => {
+        const exp = repos().getExperience(args.experience_id);
+        if (!exp) return err(`经历不存在：${args.experience_id}`);
+        repos().deleteExperience(args.experience_id);
+        changed('experience');
+        return text({ ok: true, removed: exp.title });
+      })()),
+      tool('claim_remove', '他说某条说法不对、不是他做的、数字记错了时调用：删掉这一条（要改成别的说法就删完再用 experience_add 补上）。', { claim_id: z.string() }, async (args) => wrap(() => {
+        const claim = repos().listClaims().find(c => c.id === args.claim_id);
+        if (!claim) return err(`说法不存在：${args.claim_id}`);
+        repos().deleteClaim(args.claim_id);
+        changed('claim');
+        return text({ ok: true, removed: claim.text });
+      })()),
       tool('claim_confirm', '用户口头确认某条主张后调用，把 claim 置为 user_confirmed。', { claim_id: z.string() }, async (args) => wrap(() => {
         const claim = repos().listClaims().find(c => c.id === args.claim_id);
         if (!claim) return err(`主张不存在：${args.claim_id}`);
