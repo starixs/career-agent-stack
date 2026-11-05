@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Repos } from '@career/core';
 
-import { handoffsToHandBack, waitingByApp } from './live-handback';
+import { handoffsToHandBack, recheckAfterHandback, waitingByApp } from './live-handback';
 import { createMemoryRepos } from './test-db';
 
 function waiting(repos: Repos, company: string, reason: 'login' | 'captcha' = 'login') {
@@ -39,5 +39,21 @@ describe('交还哪几家', () => {
     const repos = createMemoryRepos();
     const crrc = waiting(repos, 'crrc'); const mi = waiting(repos, 'xiaomi', 'captcha');
     expect(Object.fromEntries(waitingByApp(repos))).toEqual({ [crrc.app.id]: 'login', [mi.app.id]: 'captcha' });
+  });
+});
+
+describe('交还时眼前这家已经填好、在等投前过目（2026-11-05 滴滴：他点到了确认提交页，交还后没人看）', () => {
+  it('作废旧的过目，把填表以「接管后续跑」放回：批量运行器会从当前页重新看一遍', () => {
+    const repos = createMemoryRepos();
+    const app = repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: 'dd', title: '数据分析', company_name: '滴滴' }).id).id;
+    const fill = repos.enqueueAction('fill_form', {}, app, true);
+    repos.setActionStatus(fill.id, 'done');
+    const submit = repos.enqueueAction('submit', { submitButton: '预览并提交' }, app);
+    expect(recheckAfterHandback(repos, app)).toBe(fill.id);
+    expect(repos.getAction(submit.id)!.status).toBe('rejected');
+    expect(repos.getAction(fill.id)!.status).toBe('executing');
+    const resumable = repos.db.all<{ id: string }>(`SELECT a.id FROM action_queue a JOIN handoff h ON h.action_id=a.id WHERE a.status IN ('needs_user','executing') AND h.resumed_at IS NOT NULL`);
+    expect(resumable.map(r => r.id)).toEqual([fill.id]);
+    expect(recheckAfterHandback(repos, app)).toBeNull();
   });
 });

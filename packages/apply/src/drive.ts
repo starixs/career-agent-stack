@@ -211,6 +211,11 @@ export interface DriveOptions extends PacingOptions {
   semanticFallback?: boolean
   /** 续跑时：这些标签上次是 needs_user，若现在页面上已有值（用户自己填的），回传给调用方存进答案库。 */
   learnFrom?: string[]
+  /**
+   * 接管交回后从当前页续跑：这一页之前已经填过、他也动过。没有格子、只有提交类按钮的是确认页（他点了「预览并提交」到了「确认提交」），
+   * 不是岗位详情页的申请入口——停在提交前等他确认，不报「这是岗位详情页」（2026-11-05 滴滴）。
+   */
+  resumed?: boolean
   onPage?: (rec: PageRecord) => void
   /** 内部调试日志（不要广播给界面；会同时写进遥测）。 */
   log?: (msg: string) => void
@@ -357,7 +362,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   let lastFingerprint = ''
   /** 去站里找对口岗位（navigate.ts）；找到了返回 true，调用方重读这一页。 */
   const seek = async (why: string): Promise<boolean> => {
-    if (!opts.target || !untouched() || navHops >= MAX_NAV_HOPS) return false
+    if (!opts.target || opts.resumed || !untouched() || navHops >= MAX_NAV_HOPS) return false
     navHops++
     const nav = await navigateToPosition(page, adapter, opts.target, { settleMs: Math.max(opts.settleMs ?? 800, 0) * 2, log })
     recorder.trace({ stage: 'entry', action: 'navigate', result: nav.moved ? 'info' : 'fail', detail: `${why}｜${nav.moved ? `${nav.via}：${nav.picked}` : `没找到对口岗位（试了 ${nav.tried.join('、') || '页面链接'}）`}` })
@@ -523,6 +528,9 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       lastFingerprint = fp
       if (!fields.length) {
         if (index === 1 || untouched()) {
+          // 接管交回后续跑、他已经点到了确认页（没有格子只剩「确认提交」）：停在提交前等他，不当详情页的入口
+          const confirmBtn = opts.resumed ? findFinalSubmit(sig.buttons, adapter) : undefined
+          if (confirmBtn && !isDetailEntryText(confirmBtn.text, adapter)) { pages.push(rec); return finish('stopped_before_submit', `停在「${confirmBtn.text}」前，等你确认后再提交`, { submitButton: confirmBtn.text, reason: 'submit_confirm' }) }
           // 首页 / 合集页：先去找对口的具体岗位，进了详情页再走上面的申请入口
           if (await seek('没有表单')) { index--; continue }
           pages.push(rec); all.escalations.push(...rec.escalations)
@@ -860,7 +868,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       if (!next) {
         pushPage()
-        if (untouched()) return submit ? entryHandoff(submit.text) : finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮', { pageText: sig.text.slice(0, PAGE_TEXT_MAX) })
+        const confirmPage = !!opts.resumed && !!submit && !isDetailEntryText(submit.text, adapter)
+        if (untouched() && !confirmPage) return submit ? entryHandoff(submit.text) : finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮', { pageText: sig.text.slice(0, PAGE_TEXT_MAX) })
         // 一格都没填成、要补的全是截图识字层点不进去的「格子」、也没有提交按钮：这不是网申表（多是岗位列表），
         // 如实报找路的结论，不说「表单已填完」（2026-10-31 阿斯麦：岗位卡片上的字被当成输入框）
         if (!submit && visionOnlyMisses()) return finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮', { pageText: sig.text.slice(0, PAGE_TEXT_MAX) })

@@ -22,6 +22,17 @@ describe('停在提交前的那句话（2026-11-05 滴滴：大半必填没填�
   })
 })
 
+describe('接管交回后续跑（2026-11-05 滴滴：他点到了「确认提交」页，交还后没人看）', () => {
+  it('没有格子只剩「确认提交」：续跑时是确认页，停在提交前等他；不续跑时照旧当成详情页的入口', async () => {
+    const confirm = () => new FakePage({ url: 'https://x.com/apply/confirm', fields: [], buttons: ['返回修改', { text: '确认提交', submit: true }] })
+    const resumed = await driveApplication(confirm(), noLLM(), profile, { ...quiet, resumed: true })
+    expect(resumed.status, resumed.message).toBe('stopped_before_submit')
+    expect(resumed.submitButton).toBe('确认提交')
+    const fresh = await driveApplication(confirm(), noLLM(), profile, quiet)
+    expect(fresh.status).toBe('handoff')
+  })
+})
+
 describe('driveApplication', () => {
   it('遇到提交按钮前停止，绝不点击，并截图', async () => {
     const page = new FakePage({ url: 'https://x.com/apply', fields: basics, buttons: ['保存', { text: '提交申请', submit: true }] })

@@ -17,7 +17,7 @@ import type { BrowserChannel } from '../browser-host/runtime-settings';
 import type { BatchRunner, BatchState } from '../career/batch-runner';
 import type { FileChooserBroker, PendingFileChooser, UploadedFile } from '../career/file-chooser';
 import { BatchRunner as BatchRunnerClass } from '../career/batch-runner';
-import { appKeyOfHandoff, handoffsToHandBack, waitingByApp } from '../career/live-handback';
+import { appKeyOfHandoff, handoffsToHandBack, recheckAfterHandback, waitingByApp } from '../career/live-handback';
 import type { LiveHub } from '../career/live-hub';
 import { findApplicationPage, openApplicationKeys } from '../career/app-pages';
 import { refillLostPage } from '../career/page-refill';
@@ -274,7 +274,10 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
           console.warn(`[career-live] handback: 关接管 ${h.id} FAILED`, error instanceof Error ? error.message : error);
         }
       }
-      deps.hub.publish('career:takeover', { sessionId: id, runId: 'live', state: 'resuming', message: closed ? `已交回，继续填写（关闭 ${closed} 个接管）` : '已交回' });
+      // 他接手的是已经填好、在等投前过目的那家：交还后从当前页重新看一遍（他改过页面 / 点到了确认页）
+      const recheck = !closed && !pinned && appKey ? recheckAfterHandback(deps.repos, appKey) : null;
+      if (recheck) { closed++; deps.runner?.run([recheck]); }
+      deps.hub.publish('career:takeover', { sessionId: id, runId: 'live', state: 'resuming', message: recheck ? '已交回，重新看一遍这一页' : closed ? `已交回，继续填写（关闭 ${closed} 个接管）` : '已交回' });
       if (closed) deps.hub.publish('career:data-changed', { sessionId: id, tables: ['handoff', 'action_queue', 'task'] });
     }
     return ok({ control: state, ...(warning ? { warning } : {}) });

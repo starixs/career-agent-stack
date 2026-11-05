@@ -822,6 +822,8 @@ export async function runOperation(
       ...(target ? { target } : {}),
       ...(pathfinder ? { pathfinder } : {}),
       ...(Array.isArray(body.learnFrom) ? { learnFrom: (body.learnFrom as unknown[]).filter((x): x is string => typeof x === 'string') } : {}),
+      // 接管交回后从当前页续跑（没有 url、只有 siteUrl）：他可能已经点到了确认页
+      ...(typeof body.siteUrl === 'string' && !(typeof body.url === 'string' && body.url.trim()) ? { resumed: true } : {}),
       // 内部调试日志只进运行记录（引擎写 trace.jsonl），不广播给界面；界面只收人话进度
       // kind='jd' 时带上岗位介绍正文（脱敏），批量服务据此把 JD 存回岗位，给下一次定制用；不进界面进度
       onProgress: (p: { message: string; kind?: string; label?: string; text?: string }) => out.emit({ type: 'progress', phase: 'drive', message: redact(p.message), ...(p.kind ? { kind: p.kind } : {}), ...(p.text ? { text: redact(p.text) } : {}) }),

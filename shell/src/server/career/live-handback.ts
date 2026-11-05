@@ -35,3 +35,22 @@ export function waitingByApp(repos: Repos): Map<string, string> {
   }
   return out;
 }
+
+/**
+ * 他接手的这一家已经填好、在等投前过目：他在页面上动过（补了格子、点到了「确认提交」页），交还后要重新看一遍这一页，
+ * 不能还挂着交还前那句「已填完，停在预览并提交前」（2026-11-05 滴滴）。
+ * 做法：作废那张旧的投前过目，把这一家最近填完的填表以「接管后续跑」放回（开一个立刻交回的接管），
+ * 批量运行器从当前页接着看——他改过的值记进答案库，到了确认页就重新出一张停在「确认提交」前的过目。
+ * 返回放回续跑的填表动作 id；这一家没有在等过目的提交就返回 null。
+ */
+export function recheckAfterHandback(repos: Repos, appKey: string): string | null {
+  const submit = repos.listActions('pending_review').find(a => a.kind === 'submit' && a.application_id === appKey);
+  if (!submit) return null;
+  const fill = repos.db.get<{ id: string }>(`SELECT id FROM action_queue WHERE kind='fill_form' AND application_id=? AND status='done' ORDER BY updated_at DESC LIMIT 1`, [appKey]);
+  if (!fill) return null;
+  repos.setActionStatus(submit.id, 'rejected', { status: 'superseded', message: '你接手改过页面，交还后重新检查' });
+  repos.setActionStatus(fill.id, 'needs_user');
+  const h = repos.openHandoff('user_request', { actionId: fill.id, message: '你接手改过页面' });
+  repos.closeHandoff(h.id, 'live_handback_recheck');
+  return fill.id;
+}
