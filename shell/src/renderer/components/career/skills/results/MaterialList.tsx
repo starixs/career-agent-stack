@@ -2,8 +2,10 @@
  * 开放题和自我介绍（material-draft）的成果：写过、存下来的每一篇；点开看全文。
  * 标出只给哪家公司用、你确认过没有——对同一家前后说法要一致，靠的就是这些存下来的版本。
  */
-import { Badge, formatDate } from '../../CareerPrimitives';
+import { formatDate } from '../../CareerPrimitives';
 import type { Material, MaterialKind } from '../../types';
+
+import { Tag } from '../visual';
 
 import { Disclosure, ResultList } from './parts';
 
@@ -24,7 +26,7 @@ function MaterialRow({ material }: { material: Material }) {
             <span className="block truncate text-sm font-semibold text-[var(--ink)]">{material.title}</span>
             <span className="block truncate text-xs text-[var(--muted)]">{meta}</span>
           </span>
-          {material.confirmed ? <Badge tone="success">你确认过</Badge> : <Badge>草稿</Badge>}
+          {material.confirmed ? <Tag tone="success">你确认过</Tag> : <Tag>草稿</Tag>}
           <span className="shrink-0 text-xs tabular-nums text-[var(--subtle)]">{formatDate(material.updated_at)}</span>
         </span>
       )}

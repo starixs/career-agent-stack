@@ -9,14 +9,13 @@ import { useState } from 'react';
 import { BookInterviewForm } from '../BookInterviewForm';
 import { careerApi, safeJson } from '../careerApi';
 import { INTERVIEW_RESULT_LABELS, INTERVIEW_RESULT_SOURCE_LABELS, INTERVIEW_ROUND_LABELS } from '../careerConstants';
-import { Badge, Button, Card, Field, Select, StructuredJson, TextArea, TextInput, formatDate, textOrUnknown, type BadgeTone } from '../CareerPrimitives';
+import { Button, Card, Field, Select, StructuredJson, TextArea, TextInput, formatDate, textOrUnknown } from '../CareerPrimitives';
 import { InterviewRetroBox } from '../InterviewRetroBox';
 import { RetroView, isRetro } from '../skills/results/RetroView';
-import { DateBlock, Stamp, type Tone } from '../skills/visual';
+import { DateBlock, Stamp, Tag, type Tone } from '../skills/visual';
 import type { Interview } from '../types';
 import { useCareerAction } from '../useCareerData';
 
-const RESULT_TONE: Record<string, BadgeTone> = { none: 'neutral', rejected: 'error', advanced: 'success', no_feedback_inferred: 'warning' };
 const RESULT_STAMP: Record<string, Tone> = { rejected: 'danger', advanced: 'success', no_feedback_inferred: 'warning' };
 const optionsOf = (labels: Record<string, string>) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const ROUND_OPTIONS = optionsOf(INTERVIEW_ROUND_LABELS);
@@ -43,7 +42,7 @@ function InterviewList({ interviews, activeId, onSelect }: { interviews: Intervi
                 <span className="block truncate text-sm font-medium text-[var(--ink)]">{titleOf(interview)}</span>
                 <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[var(--muted)]">
                   <span>{roundOf(interview)}</span>
-                  {hasResult(interview) && <Badge tone={RESULT_TONE[interview.result] ?? 'neutral'}>{INTERVIEW_RESULT_LABELS[interview.result] ?? interview.result}</Badge>}
+                  {hasResult(interview) && <Tag tone={RESULT_STAMP[interview.result] ?? 'neutral'}>{INTERVIEW_RESULT_LABELS[interview.result] ?? interview.result}</Tag>}
                 </span>
               </span>
             </span>

@@ -1,9 +1,10 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn() }));
 
 import { apiGetJson } from '@/api/apiFetch';
+import { onEvent } from '@/api/eventBus';
 
 import { QuestionBankPanel } from '../../QuestionBankPanel';
 import type { GapPlan, QuestionItem } from '../../types';
@@ -56,22 +57,33 @@ describe('差距计划', () => {
 describe('题库', () => {
   beforeEach(() => { vi.mocked(apiGetJson).mockReset(); });
 
-  it('题干在前；练得怎样是分数环，没练过是空圈；不把内部分类名摆出来', async () => {
+  it('练和看分开：上面一根比例条加「开始练」，不让人一道道挑；下面的题只有题干和分数环，点开才看考察点', async () => {
     const base: QuestionItem = {
-      id: 'q1', question_key: 'k1', kind: 'interview', category: 'project', content: '讲一个你做过的最复杂的项目', reference: null, probe_points_json: JSON.stringify(['职责边界']), jd_requirement: null,
+      id: 'q1', question_key: 'k1', kind: 'interview', category: 'project', content: '讲一个你做过的最复杂的项目', reference: '先讲背景再讲你拍板的部分', probe_points_json: JSON.stringify(['职责边界']), jd_requirement: null,
       company_name: '甲公司', title: null, job_id: null, source: 'generated', sources_json: '[]', tags_json: '[]',
       seen_count: 0, attempt_count: 2, last_attempt_score: 52, best_attempt_score: 70, first_seen_at: null, last_seen_at: null, updated_at: '2026-11-01',
     };
-    const fresh: QuestionItem = { ...base, id: 'q2', question_key: 'k2', content: '为什么想来我们公司', attempt_count: 0, last_attempt_score: null, best_attempt_score: null, probe_points_json: '[]' };
-    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, questions: [base, fresh] });
+    const fresh: QuestionItem = { ...base, id: 'q2', question_key: 'k2', content: '为什么想来我们公司', source: 'seen', attempt_count: 0, last_attempt_score: null, best_attempt_score: null, probe_points_json: '[]' };
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => (path.includes('/attempts') ? { ok: true, attempts: [] } : { ok: true, questions: [base, fresh] }));
+    const said: Array<{ text: string }> = [];
+    const off = onEvent('career:chat-suggest', (event: { text: string }) => { said.push(event); });
     render(<QuestionBankPanel />);
-    const first = (await screen.findByText('讲一个你做过的最复杂的项目')).closest('li');
-    if (!first) throw new Error('题目行没渲染出来');
+    const first = await screen.findByRole('button', { name: /讲一个你做过的最复杂的项目/ });
+    expect(screen.getByRole('img', { name: '练习情况：没过关 1，没练过 1' })).toBeInTheDocument();
     expect(within(first).getByRole('img', { name: '上次 52 分' })).toBeInTheDocument();
-    expect(within(first).getByText('面试 · 甲公司')).toBeInTheDocument();
-    expect(within(first).getByText('职责边界')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: '没练过' })).toBeInTheDocument();
-    expect(screen.queryByText(/project/)).toBeNull();
-    expect(screen.queryByText(/题库（/)).toBeNull();
+    // 题目行上没有「练这道」、没有来源标签、没有内部分类名，也没有「只看没练」的筛选
+    expect(screen.queryByRole('button', { name: /练这道/ })).toBeNull();
+    expect(screen.queryByText(/project|按 JD 出的|只看没练/)).toBeNull();
+    expect(screen.queryByText('职责边界')).toBeNull();
+    fireEvent.click(first);
+    expect(screen.getByText('职责边界')).toBeInTheDocument();
+    expect(screen.getByRole('note', { name: '参考答案' })).toHaveTextContent('先讲背景再讲你拍板的部分');
+    // 切到「我见过的」，开始练就在这个范围里发题
+    fireEvent.click(screen.getByRole('button', { name: '我见过的' }));
+    expect(screen.queryByText('讲一个你做过的最复杂的项目')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '开始练' }));
+    expect(said.map(event => event.text)).toEqual(['从我见过的题里挑题考我，先考没练过的和分数低的']);
+    off();
   });
 });

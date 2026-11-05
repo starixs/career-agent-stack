@@ -39,6 +39,11 @@ export function Stamp({ tone, children, dashed = false }: { tone: Tone; children
   );
 }
 
+/** 小标签：一块同色浅底的圆角字，不带竖杠。 */
+export function Tag({ tone = 'neutral', children }: { tone?: Tone; children: ReactNode }) {
+  return <span className="inline-flex shrink-0 items-center rounded-full px-2 text-xs leading-5" style={{ color: tone === 'neutral' ? 'var(--ink-2)' : TONE_COLOR[tone], background: TONE_BG[tone] }}>{children}</span>;
+}
+
 /** 大数字块：一个量和它的名字。 */
 export function StatTile({ value, label, tone }: { value: ReactNode; label: string; tone?: Tone }) {
   return (
@@ -51,8 +56,8 @@ export function StatTile({ value, label, tone }: { value: ReactNode; label: stri
 
 export interface Segment { label: string; value: number; tone: Tone }
 
-/** 分段条：几类各占多少，一眼看出哪类最多。下面一行图例带数。 */
-export function SegmentBar({ segments, label }: { segments: Segment[]; label: string }) {
+/** 分段条：几类各占多少，一眼看出哪类最多。下面一行图例带数；颜色在旁边已经有交代时用 legend={false} 只留条。 */
+export function SegmentBar({ segments, label, legend = true }: { segments: Segment[]; label: string; legend?: boolean }) {
   const shown = segments.filter(segment => segment.value > 0);
   const total = shown.reduce((sum, segment) => sum + segment.value, 0);
   if (total === 0) return null;
@@ -61,14 +66,16 @@ export function SegmentBar({ segments, label }: { segments: Segment[]; label: st
       <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
         {shown.map(segment => <span key={segment.label} style={{ flexGrow: segment.value, background: segmentColor(segment.tone) }} />)}
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-[var(--muted)]">
-        {shown.map(segment => (
-          <span key={segment.label} className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-full" style={{ background: segmentColor(segment.tone) }} aria-hidden />
-            {segment.label}<span className="tabular-nums text-[var(--ink-2)]">{segment.value}</span>
-          </span>
-        ))}
-      </div>
+      {legend && (
+        <div className="mt-1.5 flex flex-wrap gap-x-3 text-xs text-[var(--muted)]">
+          {shown.map(segment => (
+            <span key={segment.label} className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full" style={{ background: segmentColor(segment.tone) }} aria-hidden />
+              {segment.label}<span className="tabular-nums text-[var(--ink-2)]">{segment.value}</span>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -159,13 +166,13 @@ export function DepthBars({ depth, tone, label }: { depth: number; tone: Tone; l
 export const PASS_SCORE = 60;
 
 /** 分数环：一道题练得怎样。没练过是虚线空圈，练过是带上次得分的圈，不到过关线用提醒色。 */
-export function ScoreRing({ score }: { score: number | null }) {
-  if (score === null) return <span className="h-8 w-8 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--line-2)]" role="img" aria-label="没练过" />;
+export function ScoreRing({ score, label }: { score: number | null; label?: string }) {
+  if (score === null) return <span className="block h-8 w-8 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--line-2)]" role="img" aria-label={label ?? '没练过'} />;
   const tone: Tone = score < PASS_SCORE ? 'warning' : 'success';
   return (
     <span
       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-[1.5px] text-xs font-semibold tabular-nums"
-      style={{ borderColor: toneColor(tone), color: toneColor(tone) }} role="img" aria-label={`上次 ${score} 分`}
+      style={{ borderColor: toneColor(tone), color: toneColor(tone) }} role="img" aria-label={label ?? `上次 ${score} 分`}
     >
       {score}
     </span>

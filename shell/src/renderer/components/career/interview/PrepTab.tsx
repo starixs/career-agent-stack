@@ -106,21 +106,19 @@ function pickQuestions(questions: QuestionItem[], target: PrepTarget | null): Qu
   return [...pool].sort((a, b) => (a.last_attempt_score ?? -1) - (b.last_attempt_score ?? -1)).slice(0, TOP_QUESTIONS);
 }
 
-function Questions({ questions, onGenerate, onOpenBank }: { questions: QuestionItem[]; onGenerate: () => void; onOpenBank: () => void }) {
-  const suggest = useSuggestToChat();
+/** 先练几道：不让他一道道挑，一个「开始练」由小芽按这几道发题；下面的题只是给他看练到哪了。 */
+function Questions({ questions, onStart, onGenerate, onOpenBank }: { questions: QuestionItem[]; onStart: () => void; onGenerate: () => void; onOpenBank: () => void }) {
   return (
-    <Panel actions={<><Button size="sm" variant="ghost" onClick={onGenerate}>出一组题</Button><Button size="sm" variant="ghost" onClick={onOpenBank}>题库</Button></>}>
+    <Panel
+      top={questions.length > 0 ? <Button onClick={onStart}>开始练</Button> : undefined}
+      actions={<><Button size="sm" variant="ghost" onClick={onGenerate}>出一组题</Button><Button size="sm" variant="ghost" onClick={onOpenBank}>题库</Button></>}
+    >
       {questions.length > 0 && (
-        <ul className="max-w-3xl divide-y divide-[var(--line)]">
+        <ul aria-label="这一场的题" className="max-w-3xl divide-y divide-[var(--line)]">
           {questions.map(question => (
-            <li key={question.id}>
-              <button
-                type="button" aria-label={`练这道：${question.content}`} className={ROW}
-                onClick={() => suggest(`用这道题考我：${question.content}`, { surface: SURFACE, refs: { question_id: question.id } })}
-              >
-                <ScoreRing score={question.attempt_count ? question.last_attempt_score : null} />
-                <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-relaxed text-[var(--ink)]">{question.content}</span>
-              </button>
+            <li key={question.id} className="flex items-center gap-3 py-2.5">
+              <ScoreRing score={question.attempt_count ? question.last_attempt_score : null} />
+              <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-relaxed text-[var(--ink)]">{question.content}</span>
             </li>
           ))}
         </ul>
@@ -200,7 +198,10 @@ export function PrepTab({ data, onOpenBank }: { data: PrepData; onOpenBank: () =
   const highRisk = risks.filter(risk => risk.order === 0).length;
   const questions = pickQuestions(data.questions, target);
   const practiced = questions.filter(q => q.attempt_count > 0).length;
-  const lastVerdict = data.mocks[0] ? verdictOf(data.mocks[0]) : null;
+  // 模拟按这一场算：只看给这个岗位练的和没指定岗位的；换一场，章跟着换
+  const jobId = target?.refs.job_id;
+  const mocks = jobId ? data.mocks.filter(mock => mock.job_id === jobId || mock.job_id === null) : data.mocks;
+  const lastVerdict = mocks[0] ? verdictOf(mocks[0]) : null;
   // 每一步的块上是一个小图形：一条预测一颗按风险上色的方块、一道题一颗圆点、上次模拟的那枚章
   const steps: TileTab[] = [
     {
@@ -217,14 +218,20 @@ export function PrepTab({ data, onOpenBank }: { data: PrepData; onOpenBank: () =
     {
       id: 'practice', label: '先练几道', summary: questions.length ? `练过 ${practiced} 道，共 ${questions.length} 道` : '还没有题',
       value: <Marks shape="ring" marks={questions.length ? questions.map(practiceTone) : EMPTY_MARK} label={questions.length ? `${questions.length} 道题，练过 ${practiced} 道` : '还没有题'} />,
-      body: <Questions questions={questions} onGenerate={() => send(`按${target?.label ?? '我投的岗位'}出一组面试题`)} onOpenBank={onOpenBank} />,
+      body: (
+        <Questions
+          questions={questions} onOpenBank={onOpenBank}
+          onStart={() => send(`用${company ? `${company}的` : '这几道'}面试题考我，先考没练过的和分数低的`)}
+          onGenerate={() => send(`按${target?.label ?? '我投的岗位'}出一组面试题`)}
+        />
+      ),
     },
     {
       id: 'mock', label: '模拟一场', summary: lastVerdict ? `上次${lastVerdict.label}` : '还没练过',
       value: lastVerdict ? <Stamp tone={lastVerdict.tone}>{lastVerdict.label}</Stamp> : <Marks shape="ring" marks={EMPTY_MARK} label="还没练过" />,
       body: (
         <Mocks
-          mocks={data.mocks} target={target}
+          mocks={mocks} target={target}
           onStart={round => send(`开始模拟${company}${INTERVIEW_ROUND_LABELS[round] ?? '面试'}，先从高风险的深挖点问起`, { round })}
           onStory={() => send('我想练一下讲项目，听完按结构、时长和数据可信度帮我打分')}
         />

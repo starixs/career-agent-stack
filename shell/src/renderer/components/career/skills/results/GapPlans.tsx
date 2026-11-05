@@ -4,15 +4,15 @@
  * 第二层：三栏逐条列出，加一张可验收的小任务表。
  */
 import { GAP_CATEGORY_LABELS } from '../../careerConstants';
-import { Badge, formatDate, type BadgeTone } from '../../CareerPrimitives';
+import { formatDate } from '../../CareerPrimitives';
 import type { Direction, GapPlan } from '../../types';
 import { dict, list, num, parseJson, pickText, texts, type Dict } from '../read';
-import { SegmentBar, StatTile, type Tone } from '../visual';
+import { SegmentBar, StatTile, Tag, type Tone } from '../visual';
 
 import { Block, Disclosure, ResultList } from './parts';
 
-const CATEGORIES: ReadonlyArray<{ key: keyof typeof GAP_CATEGORY_LABELS; tone: BadgeTone; bar: Tone }> = [
-  { key: 'have', tone: 'success', bar: 'success' }, { key: 'need_evidence', tone: 'warning', bar: 'warning' }, { key: 'missing', tone: 'error', bar: 'danger' },
+const CATEGORIES: ReadonlyArray<{ key: keyof typeof GAP_CATEGORY_LABELS; bar: Tone }> = [
+  { key: 'have', bar: 'success' }, { key: 'need_evidence', bar: 'warning' }, { key: 'missing', bar: 'danger' },
 ];
 
 const gapItems = (gaps: Dict, key: string): string[] => texts(gaps[key], 'requirement', 'text', 'item');
@@ -45,12 +45,12 @@ function targetName(plan: GapPlan, targets: GapTargets): string {
 function GapColumns({ gaps }: { gaps: Dict }) {
   return (
     <div className="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-3">
-      {CATEGORIES.map(({ key, tone }) => {
+      {CATEGORIES.map(({ key, bar }) => {
         const items = gapItems(gaps, key);
         if (items.length === 0) return null;
         return (
           <div key={key}>
-            <Badge tone={tone}>{GAP_CATEGORY_LABELS[key]}</Badge>
+            <Tag tone={bar}>{GAP_CATEGORY_LABELS[key]}</Tag>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-[var(--ink-2)]">
               {items.map((item, index) => <li key={`${index}:${item}`}>{item}</li>)}
             </ul>

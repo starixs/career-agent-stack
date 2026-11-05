@@ -133,17 +133,19 @@ describe('面试助力 · 准备', () => {
     chat.off();
   });
 
-  it('先练几道：这个岗位的题，没练过的是空圈；整行点了就练，带着题目 id', async () => {
+  it('先练几道：不让人一道道挑，一个「开始练」带着这份投递发进对话；下面的题只看练到哪了（没练过的是空圈）', async () => {
     mockGet();
     const chat = captureChat();
     render(<CareerInterview />);
     await openTab('准备');
     fireEvent.click(await screen.findByRole('tab', { name: /^先练几道/ }));
     const section = screen.getByRole('tabpanel', { name: '先练几道' });
-    const row = within(section).getByRole('button', { name: '练这道：讲讲限流怎么做' });
-    expect(within(row).getByRole('img', { name: '没练过' })).toBeInTheDocument();
-    fireEvent.click(row);
-    expect(chat.said[0]).toMatchObject({ text: '用这道题考我：讲讲限流怎么做', context: { refs: { question_id: 'q1' } } });
+    const list = within(section).getByRole('list', { name: '这一场的题' });
+    expect(within(list).getByText('讲讲限流怎么做')).toBeInTheDocument();
+    expect(within(list).getByRole('img', { name: '没练过' })).toBeInTheDocument();
+    expect(within(list).queryByRole('button')).toBeNull();
+    fireEvent.click(within(section).getByRole('button', { name: '开始练' }));
+    expect(chat.said[0]).toMatchObject({ text: '用甲公司的面试题考我，先考没练过的和分数低的', context: { refs: { application_id: 'a1', job_id: 'j1' } } });
     chat.off();
   });
 
