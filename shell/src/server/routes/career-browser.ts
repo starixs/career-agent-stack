@@ -598,7 +598,7 @@ async function runSolveCaptcha(page: Page, out: RunEmitter, deps: CareerBrowserR
   const gate = captchaPolicy.canAttempt(site);
   if (!gate.ok) {
     captchaPolicy.record(site, kind as never, 'gave_up');
-    return finish({ status: 'needs_user', attempts: 0, steps: [gate.reason === 'cooldown' ? '这个站刚连败过，冷却 10 分钟内先请用户帮一下' : '这个站今天自动过码次数用完，先请用户帮一下'] });
+    return finish({ status: 'needs_user', attempts: 0, steps: [gate.reason === 'cooldown' ? '这个站刚连败过，冷却 10 分钟内先请用户帮一下' : gate.reason === 'rate_limit' ? '刚验证过，等几秒再继续，避免高频重复' : '这个站今天自动过码次数用完，先请用户帮一下'] });
   }
   if (kind === 'browser_check') {
     const cap = await import('@career/captcha');

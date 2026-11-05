@@ -55,6 +55,7 @@ export const DETECT_CAPTCHA_EXPR = `(() => {
   let kind = 'unknown';
   if (/checking your browser|just a moment|verify you are human|not a robot|我是人类|点击进行验证|点击上方按钮验证/.test(all)) kind = 'browser_check';
   else if (vendor === 'turnstile' || vendor === 'recaptcha' || vendor === 'hcaptcha') kind = 'browser_check';
+  else if (/使图片为正|旋转|摆正|rotate/i.test(all)) kind = 'rotation';
   else if (sliderEl) kind = 'slider';
   else if (/拖动滑块|滑动验证|滑块|滑动完成拼图|向右滑动|geetest|nc_wrapper|slide to verify/i.test(all)) kind = 'slider';
   else if (clickPromptEl || /点选|按顺序点击|点击图中|依次点击|请点击.*(文字|图片)|select all images/i.test(all)) kind = 'image_click';
@@ -90,7 +91,7 @@ export async function detectCaptcha(page: CaptchaPage): Promise<CaptchaTarget | 
   return { kind, vendor, rect: hit.rect ?? undefined, prompt: hit.prompt || undefined }
 }
 
-const KINDS: CaptchaKind[] = ['slider', 'image_click', 'image_text', 'browser_check', 'sms', 'unknown']
+const KINDS: CaptchaKind[] = ['slider', 'rotation', 'image_click', 'image_text', 'browser_check', 'sms', 'unknown']
 const VENDORS: CaptchaVendor[] = ['geetest', 'yidun', 'tencent', 'hcaptcha', 'recaptcha', 'turnstile', 'aliyun', 'unknown']
 const normalizeKind = (k: string): CaptchaKind => (KINDS as string[]).includes(k) ? (k as CaptchaKind) : 'unknown'
 const normalizeVendor = (v: string): CaptchaVendor => (VENDORS as string[]).includes(v) ? (v as CaptchaVendor) : 'unknown'
