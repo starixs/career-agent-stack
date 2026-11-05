@@ -84,6 +84,7 @@ const JSON_EVENTS = new Set([
     'career:data-changed', // 数据表变更（coalescible）→ 各求职页面刷新
     'career:focus', // 工具完成后面板聚焦到对象（critical）→ TabProvider 转发 eventBus
     'career:card', // 对话内流程卡片（critical）→ TabProvider careerCards
+    'career:suggest', // 轮末下一步四格（critical）→ TabProvider 转发 eventBus → suggestStore
     'chat:mcp-effective-snapshot', // Runtime-neutral desired/effective MCP state
     'plugin:install-progress', // PRD 0.2.17 — Claude plugin install progress phases
     'plugins:changed', // PRD 0.2.17 — plugin install/uninstall/toggle invalidation signal

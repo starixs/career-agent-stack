@@ -35,16 +35,22 @@ const NUMBER_FILLS: ReadonlyArray<{ test: RegExp; text: string; id: string }> = 
   { test: /占比|百分|提升|增长|降低|减少/, text: '提升了大约 ＿＿%：', id: 'pct' },
   { test: /团队|几个人一起/, text: '团队大概 ＿＿ 人：', id: 'team' },
   { test: /人|规模|参加|用户/, text: '大概 ＿＿ 人参加：', id: 'people' },
-  { test: /多久|几周|几天|几个月|多长|时长/, text: '做了约 ＿＿ 周：', id: 'weeks' },
+  // 「多久以前」问的是哪年的事，不是时长（verify-r3 P2-10）。
+  { test: /多久(?!以前|之前)|几周|几天|几个月|多长|时长/, text: '做了约 ＿＿ 周：', id: 'weeks' },
 ];
 const TIME_FILL = NUMBER_FILLS[NUMBER_FILLS.length - 1];
 const PEOPLE_FILL = NUMBER_FILLS[NUMBER_FILLS.length - 2];
 
-function numberFills(question: string): SuggestChip[] {
-  const first = NUMBER_FILLS.find(f => f.test.test(question)) ?? PEOPLE_FILL;
-  const second = first === TIME_FILL ? PEOPLE_FILL : TIME_FILL;
+/** 两个半句都按问句挑：第一个命中的、第二个命中的；只命中一个时再退到时长 / 人数（verify-r3 P2-10）。 */
+export function numberFills(question: string): SuggestChip[] {
+  const hits = NUMBER_FILLS.filter(f => f.test.test(question));
+  const first = hits[0] ?? PEOPLE_FILL;
+  const second = hits[1] ?? (first === TIME_FILL ? PEOPLE_FILL : TIME_FILL);
   return [first, second].map(f => fillChip(f.text, 'option', `s4_${f.id}`));
 }
+
+/** 届别是真填空：猜的届别写进去他点了还得按 Enter，猜错还得删（verify-r3 P2-18）。 */
+export const COHORT_FILL = '我是 ＿＿ 届，找校招';
 
 const PROMPT_S2 = '简历刚读进来，小芽在核对识别结果或问一处冲突（如入学时间写哪个）。替他写 2 条直接回答：照抄小芽给的两个选项各一条（如「用 2023.09」），或「都对」「有一处不对：」。';
 const PROMPT_S3 = '小芽在访谈他的经历，这一轮聊的是「{round}」{title}。他可能知道该说什么但不会组织。按这一类经历常见的几种情况，各写一条他可以直接选的说法（如课程项目：几人一组的大作业 / 自己做的小东西 / 实习里的一个活），不要问他问题，要替他答；不编具体数字和名字。';
@@ -59,7 +65,7 @@ const S1: Recipe = {
     sayChip('有简历，我拖进来', 'answer', 's1_has'),
     sayChip('还没有，先聊聊', 'answer', 's1_none'),
     s.mailConnected ? featureChip('job_evaluate') : featureChip('mail_bind'),
-    s.prefs.cohort ? sayChip('提交前我能先看吗', 'option', 's1_trust') : fillChip(`我是 ${s.cohortGuess} 届，找校招`, 'option', 's1_cohort'),
+    s.prefs.cohort ? sayChip('提交前我能先看吗', 'option', 's1_trust') : fillChip(COHORT_FILL, 'option', 's1_cohort'),
   ],
   fallback: c => S1.rules(c),
 };

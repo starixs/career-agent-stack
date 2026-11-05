@@ -50,7 +50,13 @@ export interface SuggestHeld {
   askId: string | null;
 }
 
-export interface SuggestJob { job_id: string; company: string; known: boolean }
+export interface SuggestJob {
+  job_id: string;
+  company: string;
+  known: boolean;
+  /** 岗位名（给模型点名用；旧夹具可缺）。 */
+  title?: string;
+}
 
 export interface SuggestPool {
   /** 现在就能开始投的家数（表内 + 表外）。 */
@@ -107,7 +113,13 @@ export interface SuggestInterview {
 }
 
 /** 3 天内的截止（笔试 / 测评 / 面试 …）。 */
-export interface SuggestDue { kind: string; company: string; at: string }
+export interface SuggestDue {
+  kind: string;
+  company: string;
+  at: string;
+  /** 离截止还有几天（按自然日，今天 = 0；给模型说"后天笔试"用）。 */
+  daysLeft?: number;
+}
 
 /** 旧名：路由里按这个名字传进 buildSuggestions。 */
 export type SuggestContext = SuggestState;

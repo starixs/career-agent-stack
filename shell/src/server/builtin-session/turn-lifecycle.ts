@@ -68,6 +68,7 @@ import {
   buildImErrorPayload,
 } from '../utils/im-terminal-payload';
 import { formatTextPreviewForLog } from '../utils/log-summary';
+import { dispatchSuggestHook, snapshotSuggestContext, type FirePostTurnSuggestHook } from './suggest-hook-context';
 
 export type BuiltinTurnTraceSnapshot = {
   turnId: string;
@@ -160,6 +161,11 @@ export type BuiltinTurnLifecycleDeps = {
     model: string | undefined,
     providerEnv: ProviderEnv | undefined,
   ) => Promise<void> | void;
+  /**
+   * 求职下一步条的轮末钩子（plan-r4 §2.1）：成功轮在落盘前触发，上下文在挂点同步取齐；
+   * isSuperseded 回答"这之后他是否又说了一句"（新一轮已开始）。实现必须不阻塞、不抛出。
+   */
+  firePostTurnSuggestHook?: FirePostTurnSuggestHook;
   appendTextChunk: (chunk: string) => boolean;
   stageAssistantChannelBlock: (text: string) => void;
   localizeImError: (rawError: string) => string;
@@ -821,6 +827,12 @@ export function createBuiltinTurnLifecycle(deps: BuiltinTurnLifecycleDeps): Buil
       const capturedCompletionTerminal = product
         ? recordCompletionTerminal(isAbortResult ? 'stopped' : terminalError ? 'error' : 'complete')
         : null;
+      const wantsSuggest = !!deps.firePostTurnSuggestHook && terminalDisposition === 'complete'
+        && !isAbortResult && !terminalError && scenario.type === 'desktop'
+        && finalTurnHasOutput && !successfulCompactControlTurn;
+      const suggestCtx = wantsSuggest
+        ? snapshotSuggestContext(deps.getSessionId(), composedAssistantText, lastAssistant?.id ?? null)
+        : null;
       forceSurfaced = completeTurn(
         durationMs,
         terminalError,
@@ -852,6 +864,9 @@ export function createBuiltinTurnLifecycle(deps: BuiltinTurnLifecycleDeps): Buil
         },
         isAbortResult ? 'cancelled' : 'complete',
       );
+
+      // 不等落盘（plan-r4 §8-1），但排到下一拍：handleSdkResult 先返回，前端按 assistant_message_id 存着等收尾。
+      if (suggestCtx && deps.firePostTurnSuggestHook) dispatchSuggestHook(deps.firePostTurnSuggestHook, suggestCtx);
 
       if (terminalDisposition === 'complete' && !isAbortResult
         && shouldTitleCompletedTurn(resultMessage.is_error === true, resultMessage.terminal_reason)) {

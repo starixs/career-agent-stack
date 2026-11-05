@@ -140,7 +140,8 @@ const S20: Recipe = {
       featureChip('exam_search'),
       sayChip(co ? fit(`先练几道${co}的题`, '先练几道笔试题') : '先练几道笔试题', 'answer', 's20_practice'),
       sayChip(co ? fit(`${co}往年考什么`, '这家往年考什么') : '这家往年考什么', 'answer', 's20_past'),
-      sayChip('考完跟你说结果', 'answer', 's20_after'),
+      // 收尾是一句约定，不是回答也不是退出（verify-r3 P2-11）。
+      sayChip('考完跟你说结果', 'option', 's20_after'),
     ];
   },
   fallback: c => S20.rules(c),
@@ -155,7 +156,8 @@ const S21: Recipe = {
     const feature: FeatureId = hasPrep ? 'interview_probe' : 'interview_prep';
     return [
       featureChip(feature, co),
-      sayChip(co ? fit(`${co}会深挖我简历哪里`, '这家会深挖我简历哪里') : '这家会深挖我简历哪里', 'answer', 's21_predict'),
+      // 没有公司时「这家」无指代，不出（verify-r3 P2-11）。
+      co ? sayChip(fit(`${co}会深挖我简历哪里`, '会深挖我简历哪里'), 'answer', 's21_predict') : null,
       hasPrep ? sayChip('一分钟自我介绍先备一版', 'answer', 's21_intro') : sayChip('来一遍模拟面试', 'answer', 's21_probe'),
       sayChip('面完我来复盘', 'answer', 's21_retro'),
     ];
@@ -205,11 +207,15 @@ const S24: Recipe = {
 const S25: Recipe = {
   order: ORDER_TALK,
   prompt: PROMPT_S25,
-  rules: c => [
-    doChip('再投几家别的', 'advance', { type: 'propose_batch' }, 's25_more'),
-    sayChip('继续聊刚才的', 'answer', 's25_back'),
-    exitOf(c.s),
-  ],
+  // 「继续聊刚才的」无对象、点了无结果（verify-r3 P2-11）：换成按状态说得出的下一步。
+  rules: c => {
+    const next = nextChip(c.s, { lastUser: c.x.lastUser, lastAssistant: c.x.lastAssistant });
+    return [
+      next ? withMode(next, 'answer') : null,
+      doChip('再投几家别的', 'advance', { type: 'propose_batch' }, 's25_more'),
+      exitOf(c.s),
+    ];
+  },
   fallback: ({ s, x }) => {
     const co = companyIn(x.lastUser, s);
     return [co ? sayChip(fit(`帮我看看${co}这份`, '帮我看看这份'), 'answer', 's25_look') : null, fillChip('我想问点别的：', 'option', 's25_other')];

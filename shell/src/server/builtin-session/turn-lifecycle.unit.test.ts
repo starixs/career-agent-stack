@@ -1039,4 +1039,110 @@ describe('turn-lifecycle owner', () => {
     );
     expect(deps.dropInFlightQueueItem).not.toHaveBeenCalled();
   });
+
+  describe('career suggest hook (plan-r4 §2.1)', () => {
+    const nextTick = () => new Promise<void>(resolve => setImmediate(resolve));
+
+    function seedCompletedTurn(): void {
+      appendMessage({ id: 'u1', role: 'user', content: '帮我投招商银行', timestamp: '2026-11-05T10:00:00.000Z' });
+      appendMessage({
+        id: 'a1',
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', tool: { id: 'tu1', name: 'mcp__career__job_search', input: {}, streamIndex: 0 } },
+          { type: 'text', text: '好，我先看看。' },
+        ],
+        timestamp: '2026-11-05T10:00:03.000Z',
+      });
+      markCurrentTurnHasOutput();
+      appendCurrentTurnTextBlock('好，我先看看。');
+      setCurrentTurnStartTime(90);
+    }
+
+    it('fires once on the next tick after a successful turn (not inside handleSdkResult), before persistence settles', async () => {
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const persist = deferred();
+      const hook = vi.fn();
+      const { deps } = makeDeps({ persistTranscript: vi.fn(() => persist.promise), firePostTurnSuggestHook: hook });
+      const lifecycle = createBuiltinTurnLifecycle(deps);
+      seedCompletedTurn();
+
+      lifecycle.handleSdkResult(makeResult({ result: '好，我先看看。' }));
+
+      expect(hook).not.toHaveBeenCalled();
+      await nextTick();
+      expect(hook).toHaveBeenCalledOnce();
+      const [ctx, isSuperseded] = hook.mock.calls[0] ?? [];
+      expect(ctx).toMatchObject({
+        sessionId: 'session-1',
+        assistantMessageId: 'a1',
+        rootUserMessageId: 'u1',
+        assistantText: '好，我先看看。',
+        startedAt: 90,
+      });
+      expect(ctx.messages.map((m: { id: string }) => m.id)).toEqual(['u1', 'a1']);
+      expect(ctx.messages[1].content[0]).toEqual({ type: 'tool_use', tool: { name: 'mcp__career__job_search' } });
+      expect(isSuperseded()).toBe(false);
+      appendMessage({ id: 'u2', role: 'user', content: '再看看平安', timestamp: '2026-11-05T10:01:00.000Z' });
+      expect(isSuperseded()).toBe(true);
+
+      persist.resolve();
+      await lifecycle.getLastTurnEndPersist();
+      expect(hook).toHaveBeenCalledOnce();
+    });
+
+    it('does not fire for stopped, failed, or non-desktop turns', async () => {
+      const hook = vi.fn();
+      const stopped = makeDeps({ firePostTurnSuggestHook: hook });
+      createBuiltinTurnLifecycle(stopped.deps).stopTurn();
+
+      const failed = makeDeps({ firePostTurnSuggestHook: hook });
+      markCurrentTurnHasOutput();
+      const failedLifecycle = createBuiltinTurnLifecycle(failed.deps);
+      failedLifecycle.handleSdkResult(makeResult({ result: 'partial', terminal_reason: 'turn_setup_failed' }));
+      await failedLifecycle.getLastTurnEndPersist();
+
+      const cron = makeDeps({
+        firePostTurnSuggestHook: hook,
+        getCurrentScenario: () => ({ type: 'cron', taskId: 'task-1', intervalMinutes: 5, aiCanExit: false }),
+      });
+      seedCompletedTurn();
+      createBuiltinTurnLifecycle(cron.deps).handleSdkResult(makeResult({ result: '好，我先看看。' }));
+
+      await nextTick();
+      expect(hook).not.toHaveBeenCalled();
+    });
+
+    it('does not fire for compaction-only control turns (no visible output)', async () => {
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const hook = vi.fn();
+      const { deps, broadcasts } = makeDeps({ firePostTurnSuggestHook: hook });
+      const lifecycle = createBuiltinTurnLifecycle(deps);
+      setCurrentTurnCompactResult('success');
+      setSawCompactBoundary(true);
+
+      lifecycle.handleSdkResult(makeResult());
+      await lifecycle.getLastTurnEndPersist();
+      await nextTick();
+
+      expect(broadcasts.map(item => item.event)).toContain('chat:message-complete');
+      expect(hook).not.toHaveBeenCalled();
+    });
+
+    it('a throwing hook never affects completion', async () => {
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const { deps, broadcasts } = makeDeps({ firePostTurnSuggestHook: () => { throw new Error('boom'); } });
+      const lifecycle = createBuiltinTurnLifecycle(deps);
+      seedCompletedTurn();
+
+      lifecycle.handleSdkResult(makeResult({ result: '好，我先看看。' }));
+      await lifecycle.getLastTurnEndPersist();
+      await waitForCurrentTurnTerminalObserver();
+      await nextTick();
+
+      expect(broadcasts.map(item => item.event)).toContain('chat:message-complete');
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('[career-suggest] hook dispatch failed session=session-1'), 'boom');
+    });
+  });
 });

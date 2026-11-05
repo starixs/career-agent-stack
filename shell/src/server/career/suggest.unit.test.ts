@@ -9,13 +9,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseSuggest, SUGGEST_MAX_CHARS, type SuggestChip, type SuggestRequest } from '../../shared/careerSuggest';
 import { prePick } from './batch-propose';
 import { buildSuggestions, resetSuggestMemory, SUGGEST_LLM_TIMEOUT_MS, suggestFor } from './suggest';
+import { guideFor } from './suggest-recipes';
 import { ask, card, interviewing, jobs, state } from './suggest-fixtures';
 import { resetExitRotation } from './suggest-seeds';
 import { namesPhrase, shortCompany } from './suggest-text';
 import type { SuggestState } from './suggest-types';
 
-const llmReturning = (chips: Array<{ text: string; kind?: string; mode?: string }>): LLM =>
-  ({ complete: vi.fn(async () => ({ text: JSON.stringify({ chips }), usage: { input_tokens: 1, output_tokens: 1 } })) });
+/** 模型按紧凑行回：[文字, intent?, target?]（mode 由服务端推）。 */
+const llmReturning = (chips: Array<{ text: string; intent?: string; target?: string }>): LLM => {
+  const c = chips.map(({ text, intent, target }) => (target ? [text, intent ?? 'say', target] : intent ? [text, intent] : [text]));
+  return { complete: vi.fn(async () => ({ text: JSON.stringify({ c }), usage: { input_tokens: 1, output_tokens: 1 } })) };
+};
 const texts = (chips: SuggestChip[]) => chips.map(c => c.text);
 const modes = (chips: SuggestChip[]) => chips.map(c => c.mode);
 const starts = (chips: SuggestChip[]) => chips.filter(c => c.action?.type === 'start_feature');
@@ -42,13 +46,13 @@ describe('下一步条 · 按幕出四格', () => {
     const s = state({ stage: 'profile', resume: { has: false, name: null, tailored: 0, experiences: 0 }, prefs: { keywords: [], cities: [], cohort: null }, mailConnected: false });
     const { chips, scene } = await bar(s, { last_assistant: '手上有简历吗？' });
     expect(scene).toBe('S1');
-    expect(texts(chips)).toEqual(['有简历，我拖进来', '还没有，先聊聊', '我是 2027 届，找校招', '手投过的从邮箱接过来']);
+    expect(texts(chips)).toEqual(['有简历，我拖进来', '还没有，先聊聊', '我是 ＿＿ 届，找校招', '手投过的从邮箱接过来']);
     expect(modes(chips)).toEqual(['answer', 'answer', 'option', 'start']);
     expect(chips[3].action).toEqual({ type: 'start_feature', feature_id: 'mail_bind' });
   });
 
   it('S3 访谈·开放问：模型按经历类型替他组织三种说法 + 先跳过', async () => {
-    const llm = llmReturning([{ text: '是几个人一组的课程作业', mode: 'option' }, { text: '老师布置的数据库大作业', mode: 'option' }, { text: '我也不太清楚', mode: 'option' }]);
+    const llm = llmReturning([{ text: '是几个人一组的课程作业' }, { text: '老师布置的数据库大作业' }, { text: '我也不太清楚' }]);
     const { chips, scene } = await bar(interviewing(), { last_assistant: '这个课程项目做的是什么？' }, llm);
     expect(scene).toBe('S3');
     expect(texts(chips)).toEqual(['是几个人一组的课程作业', '老师布置的数据库大作业', '老师布置的期末大作业', '这段先跳过，聊别的']);
@@ -66,10 +70,10 @@ describe('下一步条 · 按幕出四格', () => {
     expect(texts(chips)).toEqual(['是几个人一组的课程作业', '老师布置的期末大作业', '自己做的小东西，没人布置', '这段先跳过，聊别的']);
   });
 
-  it('S4 追数字：带单位的半句只补一个数，不叫模型', async () => {
-    const llm = llmReturning([{ text: '不该被叫到' }]);
+  it('S4 追数字：也叫模型；模型给的格没点到这一轮就丢，兜底是带单位的半句', async () => {
+    const llm = llmReturning([{ text: '这句和这一轮无关' }]);
     const { chips } = await bar(interviewing(), { last_assistant: '大概有多少人参加？' }, llm);
-    expect(llm.complete).not.toHaveBeenCalled();
+    expect(llm.complete).toHaveBeenCalledTimes(1);
     expect(texts(chips)).toEqual(['大概 ＿＿ 人参加：', '做了约 ＿＿ 周：', '没统计过，只能估个大概', '这个数记不清了，先跳过']);
     expect(chips.slice(0, 2).every(c => c.kind === 'fill')).toBe(true);
   });
@@ -112,7 +116,7 @@ describe('下一步条 · 按幕出四格', () => {
   });
 
   it('S9 方向咨询：替他说出在意什么 + 两类都投几家（do）', async () => {
-    const llm = llmReturning([{ text: '我更想要稳定的财务', mode: 'option' }, { text: '运营以后好跨行吗', mode: 'option' }, { text: '帮我登录一下', mode: 'option' }]);
+    const llm = llmReturning([{ text: '我更想要稳定的财务' }, { text: '运营以后好跨行吗' }, { text: '帮我登录一下' }]);
     const { chips, scene } = await bar(state({ stage: 'direction' }), { last_user: '财务好还是运营好？' }, llm);
     expect(scene).toBe('S9');
     expect(texts(chips)).toEqual(['我更想要稳定的财务', '运营以后好跨行吗', '我更想稳定一点', '财务、运营都先投几家看看']);
@@ -126,11 +130,11 @@ describe('下一步条 · 按幕出四格', () => {
     expect(starts(chips)[0].action).toEqual({ type: 'start_feature', feature_id: 'company_research', args: { company: '平安银行' } });
   });
 
-  it('S13 勾选表：就这 5 家 / 全投 / 换一批 / 放着（不撞卡上的先不投），不叫模型', async () => {
-    const llm = llmReturning([{ text: '不该被叫到' }]);
+  it('S13 勾选表：卡幕也叫模型；模型格被丢时兜底就这 5 家 / 全投 / 换一批 / 放着', async () => {
+    const llm = llmReturning([{ text: '这句和这一轮无关' }]);
     const s = state({ openCard: card({ id: 'batch-pick:1', kind: 'batch_pick', picked: ['招商银行'], pickedIds: ['j1', 'j2', 'j3', 'j4', 'j5'], allIds: Array.from({ length: 18 }, (_, i) => `j${i + 1}`) }) });
     const { chips } = await bar(s, { last_assistant: '先投这 5 家？' }, llm);
-    expect(llm.complete).not.toHaveBeenCalled();
+    expect(llm.complete).toHaveBeenCalledTimes(1);
     expect(texts(chips)).toEqual(['就这 5 家', '全投，18 家都投', '换一批', '这批先放着，我去忙']);
     expect(chips[0].action).toEqual({ type: 'start_card', card_id: 'batch-pick:1', job_ids: ['j1', 'j2', 'j3', 'j4', 'j5'] });
     expect(chips[3]).toMatchObject({ mode: 'exit', action: { type: 'dismiss_card', card_id: 'batch-pick:1' } });
@@ -146,6 +150,7 @@ describe('下一步条 · 按幕出四格', () => {
     expect(scene).toBe('S15');
     const running = await bar({ ...s, asks: [s.asks[0]] }, {});
     expect(running.scene).toBe('S18');
+    resetSuggestMemory(); // 上两次出过"看招商那份"，L12 会挡掉；这里看的是 S14 本身的兜底
     const plain = await bar({ ...s, asks: [] }, {});
     expect(plain.scene).toBe('S14');
     // 开现场与起头「网申进展」同落点，只留一格（L8），起头换成下一个
@@ -213,7 +218,7 @@ describe('下一步条 · 按幕出四格', () => {
   });
 
   it('S29 兜底：下一批（do）、一个起头、模型接一句；问句时保底有回应格', async () => {
-    const llm = llmReturning([{ text: '平安那份我先看看', mode: 'answer' }]);
+    const llm = llmReturning([{ text: '平安那份我先看看' }]);
     const s = state({ nextJobs: jobs('平安', '美的') });
     const { chips, scene } = await bar(s, { last_assistant: '要不要先看看平安？' }, llm);
     expect(scene).toBe('S29');
@@ -247,6 +252,142 @@ describe('下一步条 · 按幕出四格', () => {
   it('旧接口 buildSuggestions 仍只返回格子', async () => {
     const chips = await buildSuggestions(state({ nextJobs: jobs('平安') }), {}, null);
     wellFormed(chips);
+  });
+});
+
+/** 回声模型：从 user 提示词里读"这一轮"，把他说的、小芽说的拼进四格（真模型会这样随上下文变）。 */
+function echoLlm(): LLM {
+  return {
+    complete: vi.fn(async (req: { messages: Array<{ content: string }> }) => {
+      const prompt = req.messages[0]?.content ?? '';
+      const u = /他说「([^」]*)」/.exec(prompt)?.[1] ?? '';
+      const a = /小芽说「([^」]*)」/.exec(prompt)?.[1] ?? '';
+      const c = [[`${u.slice(0, 8)}，就这样`], [`${u.slice(0, 6)}，大概 ＿＿ 个：`, 'fill'], [`${a.slice(0, 8)}，然后呢`], ['先投下一批', 'propose_batch', 'next']];
+      return { text: JSON.stringify({ c }), usage: { input_tokens: 1, output_tokens: 1 } };
+    }),
+  };
+}
+
+const turn = (user: string, assistant: string, tools: string[] = [], cards: string[] = []): SuggestRequest =>
+  ({ this_turn: { user, assistant, tools, cards } });
+
+const SAME_SCENE_CASES: ReadonlyArray<{ scene: string; s: SuggestState; a: SuggestRequest; b: SuggestRequest }> = [
+  { scene: 'S1', s: state({ stage: 'profile', resume: { has: false, name: null, tailored: 0, experiences: 0 } }),
+    a: turn('我是会计专业的大三学生', '手上有简历吗？'), b: turn('之前投了很多都没回音', '想找什么方向？') },
+  { scene: 'S4', s: interviewing(), a: turn('我们做了一个选课系统', '大概有多少人参加？'), b: turn('那次比赛是学校组织的', '大概有多少人参加？') },
+  { scene: 'S10', s: state({ nextJobs: jobs('平安银行') }), a: turn('平安这个岗位怎么样', '匹配度 72，差两条。', ['job_evaluate']), b: turn('帮我看看这个财务岗', '匹配度 55，缺证书。', ['job_evaluate']) },
+  { scene: 'S13', s: state({ openCard: card({ id: 'bp', kind: 'batch_pick', picked: ['招商银行'], pickedIds: ['j1'], allIds: ['j1', 'j2'] }) }),
+    a: turn('外包的我都不要', '挑了 5 家，先投这些？', [], ['batch_pick']), b: turn('只想投上海的岗位', '挑了 3 家，先投这些？', [], ['batch_pick']) },
+  { scene: 'S14', s: state({ batch: { status: 'running', running: ['招商银行'], runningAppId: 'a1', done: 2, queued: 5 } }),
+    a: turn('现在投到哪一家了', '正在填招商银行。'), b: turn('我晚上再来看结果', '好，我接着填。') },
+  { scene: 'S20', s: state({ dueSoon: [{ kind: 'written_test', company: '字节跳动', at: '2026-11-07', daysLeft: 2 }] }),
+    a: turn('字节笔试考些什么', '一般考行测和专业题。'), b: turn('我有点怕考不好', '后天就考，先练几道。') },
+  { scene: 'S22', s: state(), a: turn('今天面完了感觉一般', '哪题最卡？'), b: turn('刚面完群面没说上话', '群面谁主导的？') },
+  { scene: 'S24', s: state({ nextJobs: jobs('平安') }), a: turn('是不是我不行啊又被拒', '这周拒信多是常态。'), b: turn('投了没用不想投了', '先歇一下也行。') },
+];
+
+describe('r4 · 模型优先：同幕不同上下文出不同格', () => {
+  beforeEach(() => { resetSuggestMemory(); resetExitRotation(); });
+
+  for (const c of SAME_SCENE_CASES) {
+    it(`${c.scene}：两轮说的不一样，四格就不一样，且点到这一轮的话`, async () => {
+      const llm = echoLlm();
+      const ra = await bar(c.s, c.a, llm);
+      const rb = await bar(c.s, c.b, llm);
+      expect([ra.scene, rb.scene]).toEqual([c.scene, c.scene]);
+      expect(llm.complete).toHaveBeenCalledTimes(2);
+      expect(texts(ra.chips)).not.toEqual(texts(rb.chips));
+      expect(texts(ra.chips).some(t => t.includes(c.a.this_turn?.user.slice(0, 6) ?? '?'))).toBe(true);
+      expect(texts(rb.chips).some(t => t.includes(c.b.this_turn?.user.slice(0, 6) ?? '?'))).toBe(true);
+    });
+  }
+
+  it('卡幕：模型没写出卡的主动作时从兜底补"就这 N 家"', async () => {
+    const c = SAME_SCENE_CASES[3];
+    const { chips } = await bar(c.s, c.a, echoLlm());
+    expect(chips.some(ch => ch.action?.type === 'start_card')).toBe(true);
+  });
+
+  it('模型拿到这一幕的思路与这一轮', async () => {
+    const llm = echoLlm();
+    await suggestFor(SAME_SCENE_CASES[3].s, SAME_SCENE_CASES[3].a, llm);
+    const arg = vi.mocked(llm.complete).mock.calls[0]?.[0];
+    expect(arg?.system).toContain(guideFor('S13')?.text ?? '?');
+    expect(arg?.messages[0]?.content).toContain('外包的我都不要');
+  });
+
+  it('意图换成真 id；换不出的丢', async () => {
+    const llm = llmReturning([
+      { text: '先投平安、美的', intent: 'propose_batch', target: '平安、美的' },
+      { text: '查查腾讯靠谱吗', intent: 'start_feature', target: 'nope_feature' },
+    ]);
+    const { chips } = await bar(state({ nextJobs: jobs('平安', '美的') }), turn('平安和美的先投吧', '好的。'), llm);
+    expect(chips.find(c => c.text === '先投平安、美的')?.action).toEqual({ type: 'propose_batch', job_ids: ['job-0', 'job-1'] });
+    expect(texts(chips)).not.toContain('查查腾讯靠谱吗');
+  });
+
+  it('L12：下一轮不和上一轮出过的重样', async () => {
+    const llm = llmReturning([{ text: '平安那份我先看看', intent: 'say' }, { text: '平安面试什么时候', intent: 'say' }]);
+    const s = state({ nextJobs: jobs('平安') });
+    const first = await bar(s, turn('平安怎么样', '平安还在等。'), llm);
+    const second = await suggestFor(s, turn('平安怎么样', '平安还在等。'), llm);
+    expect(texts(first.chips)).toContain('平安那份我先看看');
+    expect(texts(second.chips)).not.toContain('平安那份我先看看');
+  });
+
+  it('P1-2 loose 幕（S5 替他说处境）跳过 L11：本轮没提"家教"的模型格也留；strict 幕（S3）同一句被丢', async () => {
+    const llm = () => llmReturning([{ text: '做过家教，算吗' }]);
+    const loose = await bar(interviewing(), { this_turn: { user: '没做过啥项目', assistant: '那有没有帮社团做过事？', tools: [], cards: [] } }, llm());
+    expect(loose.scene).toBe('S5');
+    expect(texts(loose.chips)).toContain('做过家教，算吗');
+    resetSuggestMemory();
+    const strict = await bar(interviewing(), { this_turn: { user: '', assistant: '这个课程项目做的是什么？', tools: [], cards: [] } }, llm());
+    expect(strict.scene).toBe('S3');
+    expect(texts(strict.chips)).not.toContain('做过家教，算吗');
+  });
+
+  it('stale 结果（钩子超时 / 被新一轮顶掉）不记上一轮，下一轮不会因 L12 少格', async () => {
+    const llm = llmReturning([{ text: '平安那份我先看看' }, { text: '平安面试什么时候' }]);
+    const s = state({ nextJobs: jobs('平安') });
+    await suggestFor(s, turn('平安怎么样', '平安还在等。'), llm, { isStale: () => true });
+    const next = await suggestFor(s, turn('平安怎么样', '平安还在等。'), llm);
+    expect(texts(next.chips)).toContain('平安那份我先看看');
+  });
+
+  it('日志锚点：[career-suggest] model ms= chips= degraded=', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await bar(state({ nextJobs: jobs('平安') }), turn('平安怎么样', '平安还在等。'), echoLlm());
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/^\[career-suggest\] model ms=\d+ chips=4 degraded=false scene=S\d+$/));
+    log.mockRestore();
+  });
+
+  it('L13：模型四格全是 say 时换一格能办的进来', async () => {
+    const llm = llmReturning(['平安一', '平安二', '平安三', '平安四'].map(t => ({ text: `${t}再看看`, intent: 'say' })));
+    const { chips } = await bar(state({ nextJobs: jobs('平安') }), turn('平安怎么样', '平安还在等。'), llm);
+    expect(new Set(chips.map(c => c.kind)).size).toBeGreaterThan(1);
+  });
+
+  it('兜底：模型超时 3s → 旧配方 ≥2 格含能办的，degraded', async () => {
+    vi.useFakeTimers();
+    const llm: LLM = { complete: vi.fn(() => new Promise<never>(() => {})) };
+    const pending = suggestFor(state({ nextJobs: jobs('平安') }), turn('平安怎么样', '平安还在等。'), llm);
+    await vi.advanceTimersByTimeAsync(3_000 + 10);
+    const res = await pending;
+    vi.useRealTimers();
+    expect(SUGGEST_LLM_TIMEOUT_MS).toBe(3_000);
+    wellFormed(res.chips);
+    expect(res.chips.some(c => c.kind === 'do')).toBe(true);
+    expect(res.degraded).toBe(true);
+  });
+
+  it('兜底：模型 8 条全换不出 → 旧配方，degraded；正常时 degraded=false', async () => {
+    const bad = llmReturning(Array.from({ length: 8 }, (_, i) => ({ text: `去第${i}个地方`, intent: 'open', target: 'nowhere' })));
+    const s = state({ nextJobs: jobs('平安') });
+    const res = await bar(s, turn('平安怎么样', '平安还在等。'), bad);
+    expect(res.degraded).toBe(true);
+    expect(res.chips.some(c => c.kind === 'do')).toBe(true);
+    resetSuggestMemory();
+    expect((await bar(s, turn('平安怎么样', '平安还在等。'), echoLlm())).degraded).toBe(false);
   });
 });
 

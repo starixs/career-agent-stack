@@ -4,7 +4,7 @@
 import { z } from 'zod';
 
 import {
-  SUGGEST_MAX_TOOLS, SUGGEST_MAX_TURNS, SUGGEST_TURN_CHARS, type SuggestRequest, type SuggestTurn,
+  SUGGEST_MAX_TOOLS, SUGGEST_MAX_TURNS, SUGGEST_TURN_CHARS, type SuggestRequest, type SuggestThisTurn, type SuggestTurn,
 } from '../../shared/careerSuggest';
 
 /** 工具名只留小写加下划线（前端已去掉 mcp__xx__ 前缀）。 */
@@ -33,6 +33,19 @@ function awayOf(raw: unknown): number | null {
   return typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 && raw <= AWAY_HOURS_MAX ? raw : null;
 }
 
+/** 一轮最多放几张卡（种类名）：再多就是坏数据。 */
+const MAX_TURN_CARDS = 8;
+const CARD_KIND = /^[a-z_]+$/;
+
+/** 这一轮：他说的、小芽说的、工具、卡（plan-r4 §2.3）；不是对象就当没有。 */
+function thisTurnOf(raw: unknown): SuggestThisTurn | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const r = Object.fromEntries(Object.entries(raw));
+  const text = (v: unknown): string => (typeof v === 'string' ? v.slice(0, SUGGEST_TURN_CHARS) : '');
+  const cards = Array.isArray(r.cards) ? r.cards.filter((c): c is string => typeof c === 'string' && CARD_KIND.test(c)).slice(0, MAX_TURN_CARDS) : [];
+  return { user: text(r.user), assistant: text(r.assistant), tools: toolsOf(r.tools), cards };
+}
+
 const textOrNull = (raw: unknown): string | null => (typeof raw === 'string' && raw.trim() ? raw.slice(0, SUGGEST_TURN_CHARS) : null);
 
 export function parseSuggestRequest(body: Record<string, unknown>): SuggestRequest {
@@ -44,5 +57,7 @@ export function parseSuggestRequest(body: Record<string, unknown>): SuggestReque
     turns: turnsOf(body.turns),
     last_tools: toolsOf(body.last_tools),
     away_hours: awayOf(body.away_hours),
+    this_turn: thisTurnOf(body.this_turn),
+    source: body.source === 'hook' ? 'hook' : 'poll',
   };
 }

@@ -1,12 +1,12 @@
 /**
- * 自动质量线 L1–L9 正反例（L10 回应性在 suggest.unit.test.ts 端到端测）。
+ * 自动质量线 L1–L9、L11、L12 正反例（L10 回应性、L13 类型多样在 suggest.unit.test.ts 端到端测）。
  */
 import { describe, expect, it } from 'vitest';
 
 import type { SuggestChip } from '../../shared/careerSuggest';
 import { doChip, featureChip, sayChip } from './suggest-chip';
 import { state } from './suggest-fixtures';
-import { entitiesOf, lintChip, lintChips, type LintCtx } from './suggest-lint';
+import { anchorsOf, entitiesOf, lintChip, lintChips, overlapRatio, type LintCtx } from './suggest-lint';
 
 const model = (text: string): SuggestChip => ({ text, slot: 'act', kind: 'say', mode: 'answer', seed_id: null });
 const rule = (text: string) => sayChip(text, 'answer', 't');
@@ -81,5 +81,27 @@ describe('lint', () => {
     const recent = new Set(['feat_exam_search']);
     expect(lintChip(featureChip('exam_search'), ctx({ recent }))).toBe('L9');
     expect(lintChip(featureChip('exam_search'), ctx({ recent, scene: 'S26' }))).toBeNull();
+  });
+
+  it('L11 模型格要点到这一轮或状态；更早的历史词不算锚；规则模板与能办格不查；S26 例外', () => {
+    const s = state({ nextJobs: [{ job_id: 'j', company: '招商银行', known: true }] });
+    const anchors = anchorsOf(s, ['这次笔试考了什么']);
+    const withHistory = ctx({ entities: entitiesOf(s, ['数据库课设做了三周', '这次笔试考了什么']), anchors });
+    expect(lintChip(model('数据库课设我再补一点'), withHistory)).toBe('L11');
+    expect(lintChip(model('笔试主要考行测'), withHistory)).toBeNull();
+    expect(lintChip(model('先投招商银行'), withHistory)).toBeNull();
+    expect(lintChip(rule('数据库课设我再补一点'), withHistory)).toBeNull();
+    expect(lintChip({ ...model('数据库课设我再补一点'), kind: 'do', action: { type: 'propose_batch' } }, withHistory)).toBeNull();
+    expect(lintChip(model('数据库课设我再补一点'), { ...withHistory, scene: 'S26' })).toBeNull();
+  });
+
+  it('L12 和上一轮同字或很像就丢；卡的主动作放行', () => {
+    const lastShown = [rule('先投招商银行这 5 家'), rule('我先去忙')];
+    expect(lintChip(rule('我先去忙'), ctx({ lastShown }))).toBe('L12');
+    expect(lintChip(rule('先投招商银行这 5 家吧'), ctx({ lastShown }))).toBe('L12');
+    expect(overlapRatio('先投招商银行这 5 家', '先投招商银行这 5 家吧')).toBeGreaterThanOrEqual(0.7);
+    expect(lintChip(rule('看招商银行那份'), ctx({ lastShown }))).toBeNull();
+    const main = doChip('先投招商银行这 5 家', 'advance', { type: 'start_card', card_id: 'c', job_ids: ['j'] }, 's13');
+    expect(lintChip(main, ctx({ lastShown }))).toBeNull();
   });
 });

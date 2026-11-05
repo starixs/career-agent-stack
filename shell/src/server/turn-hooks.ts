@@ -24,6 +24,39 @@
 import type { RuntimeType } from '../shared/types/runtime';
 import type { ProviderEnv } from './provider-types';
 
+/**
+ * 求职下一步条的轮末钩子上下文（plan-r4 §2.1）：在挂点处同步取齐，钩子异步跑时
+ * 不再碰 turn 状态。只放类型；实现由 agent-session 动态导入 career/suggest-hook。
+ * 消息形状是 builtin-session MessageWire 的结构等价子集（不引 builtin-session 类型）。
+ */
+export interface PostTurnSuggestBlock {
+  type: string;
+  text?: string;
+  tool?: { name: string };
+}
+
+export interface PostTurnSuggestMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  timestamp: string;
+  content: string | ReadonlyArray<PostTurnSuggestBlock>;
+}
+
+export interface PostTurnSuggestContext {
+  sessionId: string;
+  turnId: string | null;
+  assistantMessageId: string | null;
+  rootUserMessageId: string | null;
+  /** 这一轮小芽的最终回复文本（composedAssistantText）。 */
+  assistantText: string;
+  /** getCurrentTurnStartTime()；取不到为 null。 */
+  startedAt: number | null;
+  /** 最近 ≤14 条消息（投影 messages 的 values 或旧路径 getMessages()）。 */
+  messages: ReadonlyArray<PostTurnSuggestMessage>;
+}
+
+export type PostTurnSuggestHook = (ctx: PostTurnSuggestContext) => void;
+
 export type PostTurnTitleHook = (
   sessionId: string,
   runtime: RuntimeType,

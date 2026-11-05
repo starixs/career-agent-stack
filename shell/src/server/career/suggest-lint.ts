@@ -1,7 +1,8 @@
 /**
  * 下一步条 · 自动质量线（plan-r3-suggest §3）：每格都要"接得上、具体、顺手种下、点了也不坏"。
  * 不过的丢弃并留日志 `[career-suggest] lint drop <rule> <text>`；条上不够时由配方兜底补（suggest.ts）。
- * L10（回应性）不是丢弃规则，是补格规则，在 suggest.ts 里做。
+ * L10（回应性）不是丢弃规则，是补格规则，在 suggest.ts 里做；L13（类型多样）同。
+ * r4（plan-r4-suggest §3.4）：L11 模型格要点到这一轮或状态里的真东西（历史词不算）；L12 不和上一轮出过的重样。
  */
 import { SUGGEST_MAX_CHARS, type SuggestChip } from '../../shared/careerSuggest';
 import { isFeatureStart } from './suggest-chip';
@@ -9,7 +10,10 @@ import type { SceneId } from './suggest-scene';
 import { shortCompany } from './suggest-text';
 import type { SuggestState } from './suggest-types';
 
-export type LintRule = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7' | 'L8' | 'L9';
+export type LintRule = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7' | 'L8' | 'L9' | 'L11' | 'L12';
+
+/** L12：和上一轮某格二字组重合到这个比例就算重样。 */
+export const REPEAT_OVERLAP = 0.7;
 
 /** 一格最少几个字：一个字点不出对象。 */
 const MIN_CHARS = 2;
@@ -46,6 +50,10 @@ export interface LintCtx {
   cardKind: string | null;
   /** 冷却中的 seed（功能起头）。 */
   recent: ReadonlySet<string>;
+  /** L11：这一轮 + 状态里的对象（anchorsOf）；缺省不查。 */
+  anchors?: readonly string[];
+  /** L12：上一轮出过的四格；缺省不查。 */
+  lastShown?: readonly SuggestChip[];
 }
 
 function stateEntities(s: SuggestState): string[] {
@@ -82,9 +90,43 @@ export function entitiesOf(s: SuggestState, texts: readonly string[]): string[] 
   return [...new Set(all)];
 }
 
+/** L11 用的锚：状态里的名字 + 这一轮（他说的、小芽说的、放的卡）里的词；不含更早的历史与领域泛词。 */
+export function anchorsOf(s: SuggestState, thisTurn: readonly string[]): string[] {
+  const thread = [s.interview?.experienceTitle ?? '', ...(s.interview?.followUps ?? [])];
+  const all = [...stateEntities(s), ...talkEntities([...thisTurn, ...thread])].map(e => e.trim()).filter(e => e.length >= ENTITY_MIN);
+  return [...new Set(all)];
+}
+
+const bigrams = (t: string): Set<string> => {
+  const out = new Set<string>();
+  const clean = t.replace(/\s/g, '');
+  for (let i = 0; i + 2 <= clean.length; i += 1) out.add(clean.slice(i, i + 2));
+  return out;
+};
+
+/** 两句话二字组重合比例（按较短一句算）。 */
+export function overlapRatio(a: string, b: string): number {
+  const x = bigrams(a);
+  const y = bigrams(b);
+  const small = Math.min(x.size, y.size);
+  if (!small) return a === b ? 1 : 0;
+  let hit = 0;
+  for (const g of x) if (y.has(g)) hit += 1;
+  return hit / small;
+}
+
+/** 卡的主动作（就这 N 家 / 先放着）：卡还在就该一直在，不算重样。 */
+const isCardMain = (c: SuggestChip) => c.action?.type === 'start_card' || c.action?.type === 'dismiss_card';
+
+/** L12：与上一轮同字或很像（≥70% 二字组重合）。 */
+export function repeatsLast(chip: SuggestChip, last: readonly SuggestChip[]): boolean {
+  if (isCardMain(chip)) return false;
+  return last.some(l => l.text === chip.text || overlapRatio(l.text, chip.text) >= REPEAT_OVERLAP);
+}
+
 const collides = (text: string, button: string) => text === button || text.startsWith(button) || button.startsWith(text);
 
-/** 单格规则（L1–L7、L9）：返回第一条不过的规则，过了返回 null。 */
+/** 单格规则（L1–L7、L9、L11、L12）：返回第一条不过的规则，过了返回 null。 */
 export function lintChip(chip: SuggestChip, ctx: LintCtx): LintRule | null {
   const t = chip.text.trim();
   if (t.length < MIN_CHARS || t.length > SUGGEST_MAX_CHARS) return 'L1';
@@ -95,6 +137,8 @@ export function lintChip(chip: SuggestChip, ctx: LintCtx): LintRule | null {
   if (PROMISES.test(t)) return 'L6';
   if (SEND_ME.test(t)) return 'L7';
   if (ctx.scene !== 'S26' && chip.seed_id !== null && ctx.recent.has(chip.seed_id)) return 'L9';
+  if (ctx.anchors && ctx.scene !== 'S26' && chip.seed_id === null && chip.kind !== 'do' && !ctx.anchors.some(e => t.includes(e))) return 'L11';
+  if (ctx.lastShown && repeatsLast(chip, ctx.lastShown)) return 'L12';
   return null;
 }
 

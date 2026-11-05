@@ -4,7 +4,7 @@
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createRef } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const tabState = vi.hoisted(() => ({ current: null as null | Record<string, unknown> }));
 vi.mock('@/context/TabContext', () => ({ useTabStateOptional: () => tabState.current }));
@@ -18,7 +18,10 @@ vi.mock('./delivery/deliveryApi', () => ({ deliveryApi: { choose: vi.fn() } }));
 vi.mock('./BatchPickCard', () => ({ openBatchPick: vi.fn() }));
 vi.mock('@/features/career-shell/navModel', () => ({ JOB_BOARD_TARGET: { kind: 'career-jobs' }, requestNavigation: vi.fn() }));
 
+import { emitEvent } from '@/api/eventBus';
+import { track } from '@/analytics';
 import { careerApi } from './careerApi';
+import { resetSuggestStore } from './suggestStore';
 import { suggestToChat } from './CareerPrimitives';
 import { runAskPrimary } from './delivery/askPrimary';
 import { deliveryApi } from './delivery/deliveryApi';
@@ -26,7 +29,7 @@ import { requestOpenDeck } from './delivery/WaitingDock';
 import { requestNavigation } from '@/features/career-shell/navModel';
 import { CareerSuggestBar, visibleText } from './SuggestChips';
 import type { Message } from '@/types/chat';
-import type { SuggestChip } from '../../../shared/careerSuggest';
+import { CAREER_SUGGEST_EVENT, type SuggestChip } from '../../../shared/careerSuggest';
 
 const msg = (id: string, role: Message['role'], content: Message['content']): Message => ({ id, role, content, timestamp: new Date(0) });
 const CHIPS: SuggestChip[] = [
@@ -40,8 +43,13 @@ const FOUR: SuggestChip[] = [
   { text: '先不投，我去忙', slot: 'exit', mode: 'exit', kind: 'say', seed_id: null },
 ];
 
+/** 兜底请求的回答（{ chips, scene }）。 */
+function answer(chips: SuggestChip[], scene: string | null = 'S29') {
+  vi.mocked(careerApi.suggest).mockResolvedValue({ chips, scene });
+}
+
 function mount(over: Record<string, unknown> = {}) {
-  tabState.current = { messages: [msg('u1', 'user', '你好'), msg('a1', 'assistant', '你想先投哪类？')], isLoading: false, sessionState: 'idle', ...over };
+  tabState.current = { messages: [msg('u1', 'user', '你好'), msg('a1', 'assistant', '你想先投哪类？')], isLoading: false, sessionState: 'idle', sessionId: 's1', ...over };
   const inputRef = createRef<HTMLTextAreaElement>();
   const view = render(<><CareerSuggestBar inputRef={inputRef} /><textarea ref={inputRef} aria-label="输入" /></>);
   return { ...view, input: screen.getByLabelText('输入') as HTMLTextAreaElement };
@@ -49,7 +57,10 @@ function mount(over: Record<string, unknown> = {}) {
 
 describe('建议条', () => {
   beforeEach(() => {
-    vi.mocked(careerApi.suggest).mockReset().mockResolvedValue(CHIPS);
+    resetSuggestStore();
+    vi.mocked(track).mockReset();
+    vi.mocked(careerApi.suggest).mockReset();
+    answer(CHIPS);
     vi.mocked(suggestToChat).mockReset();
     vi.mocked(careerApi.proposeBatch).mockReset().mockResolvedValue({ posted: true, card_id: 'c2' });
     vi.mocked(careerApi.startBatchPick).mockReset();
@@ -89,7 +100,7 @@ describe('建议条', () => {
   });
 
   it('四条排成两列，不折行', async () => {
-    vi.mocked(careerApi.suggest).mockResolvedValue(FOUR);
+    answer(FOUR);
     mount();
     const bar = await screen.findByTestId('career-suggest-chips');
     expect(bar.className).toMatch(/grid-cols-2/);
@@ -124,7 +135,7 @@ describe('建议条', () => {
   });
 
   it('↑ 进条、Enter 执行、Esc 回输入框', async () => {
-    vi.mocked(careerApi.suggest).mockResolvedValue(FOUR);
+    answer(FOUR);
     const { input } = mount();
     const bar = await screen.findByTestId('career-suggest-chips');
     const cells = within(bar).getAllByRole('button');
@@ -146,7 +157,7 @@ describe('建议条', () => {
 
   it('ask_primary：点了就跑那件事的主动作，不只打开卡组', async () => {
     vi.mocked(runAskPrimary).mockReset().mockResolvedValue('resolved');
-    vi.mocked(careerApi.suggest).mockResolvedValue([{ text: '备好的 3 家都投出', slot: 'next', mode: 'advance', kind: 'do', action: { type: 'ask_primary', ask_id: 'rev_1' }, seed_id: null }]);
+    answer([{ text: '备好的 3 家都投出', slot: 'next', mode: 'advance', kind: 'do', action: { type: 'ask_primary', ask_id: 'rev_1' }, seed_id: null }]);
     mount();
     fireEvent.click(await screen.findByRole('button', { name: /备好的 3 家都投出/ }));
     await waitFor(() => expect(runAskPrimary).toHaveBeenCalledWith('rev_1'));
@@ -155,7 +166,7 @@ describe('建议条', () => {
   });
 
   it('fill 类填进输入框', async () => {
-    vi.mocked(careerApi.suggest).mockResolvedValue([{ text: '我对城市有要求：', slot: 'shape', mode: 'option', kind: 'fill', seed_id: 'city' }]);
+    answer([{ text: '我对城市有要求：', slot: 'shape', mode: 'option', kind: 'fill', seed_id: 'city' }]);
     mount();
     fireEvent.click(await screen.findByRole('button', { name: /我对城市有要求/ }));
     expect(suggestToChat).toHaveBeenCalledWith('我对城市有要求：', undefined, 'prefill');
@@ -163,7 +174,7 @@ describe('建议条', () => {
 
   it('不认识的 action 退回发话', async () => {
     const odd = JSON.parse('{"text":"去火星","slot":"next","kind":"do","action":{"type":"fly_to_mars"},"seed_id":null}') as SuggestChip;
-    vi.mocked(careerApi.suggest).mockResolvedValue([odd]);
+    answer([odd]);
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     mount();
     fireEvent.click(await screen.findByRole('button', { name: /去火星/ }));
@@ -200,7 +211,7 @@ describe('建议条', () => {
 
   it('start_feature：和功能市场那张卡同一个起头，不发话', async () => {
     vi.mocked(requestNavigation).mockReset();
-    vi.mocked(careerApi.suggest).mockResolvedValue([
+    answer([
       { text: '考试时截图给你搜题', slot: 'shape', mode: 'start', kind: 'do', action: { type: 'start_feature', feature_id: 'exam_search' }, seed_id: null },
     ]);
     mount();
@@ -212,7 +223,7 @@ describe('建议条', () => {
   });
 
   it('start_feature 带公司：句子完整，点名后直接发出', async () => {
-    vi.mocked(careerApi.suggest).mockResolvedValue([
+    answer([
       { text: '字节会深挖我简历哪里', slot: 'shape', mode: 'start', kind: 'do', action: { type: 'start_feature', feature_id: 'interview_predict', args: { company: '字节' } }, seed_id: null },
     ]);
     mount();
@@ -221,7 +232,7 @@ describe('建议条', () => {
   });
 
   it('start_feature 预填句冒号收尾：只填进输入框等他补', async () => {
-    vi.mocked(careerApi.suggest).mockResolvedValue([
+    answer([
       { text: '丢个岗位给你看值不值得投', slot: 'shape', mode: 'start', kind: 'do', action: { type: 'start_feature', feature_id: 'job_evaluate' }, seed_id: null },
     ]);
     mount();
@@ -231,7 +242,7 @@ describe('建议条', () => {
 
   it('ask_choose：直接替他选，不发话', async () => {
     vi.mocked(deliveryApi.choose).mockReset().mockResolvedValue({});
-    vi.mocked(careerApi.suggest).mockResolvedValue([
+    answer([
       { text: '选「接受调剂」', slot: 'act', mode: 'answer', kind: 'do', action: { type: 'ask_choose', ask_id: 'a1', choice: '接受调剂' }, seed_id: 's19_opt_0' },
     ]);
     mount();
@@ -242,7 +253,7 @@ describe('建议条', () => {
 
   it('不在清单里的功能退回发话', async () => {
     const odd = JSON.parse('{"text":"开飞船","slot":"shape","mode":"start","kind":"do","action":{"type":"start_feature","feature_id":"spaceship"},"seed_id":null}') as SuggestChip;
-    vi.mocked(careerApi.suggest).mockResolvedValue([odd]);
+    answer([odd]);
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     mount();
     fireEvent.click(await screen.findByRole('button', { name: /开飞船/ }));
@@ -250,7 +261,7 @@ describe('建议条', () => {
   });
 
   it('填空格：空看得见；点了预填，光标选中空', async () => {
-    vi.mocked(careerApi.suggest).mockResolvedValue([{ text: '大概 __ 人参加：', slot: 'shape', mode: 'option', kind: 'fill', seed_id: null }]);
+    answer([{ text: '大概 __ 人参加：', slot: 'shape', mode: 'option', kind: 'fill', seed_id: null }]);
     const { input } = mount();
     vi.mocked(suggestToChat).mockImplementation((text: string) => { input.value = text; });
     const cell = await screen.findByRole('button', { name: /人参加/ });
@@ -261,5 +272,92 @@ describe('建议条', () => {
     expect(suggestToChat).toHaveBeenCalledWith('大概 ＿＿ 人参加：', undefined, 'prefill');
     await waitFor(() => expect(document.activeElement).toBe(input));
     expect([input.selectionStart, input.selectionEnd]).toEqual([3, 5]);
+  });
+
+  describe('轮末推送（career:suggest）', () => {
+    const fresh = () => [{ ...msg('u1', 'user', '你好'), timestamp: new Date() }, { ...msg('a1', 'assistant', '你想先投哪类？'), timestamp: new Date() }];
+    const push = (over: Record<string, unknown> = {}) => emitEvent(CAREER_SUGGEST_EVENT, {
+      sessionId: 's1', turn_id: 't1', assistant_message_id: 'a1', chips: FOUR, scene: 'S13', source: 'hook', degraded: false, ts: Date.now(), ...over,
+    });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('对得上最后一条消息：直接出四格，不再请求；埋点带 scene 和 source', async () => {
+      push();
+      mount({ messages: fresh() });
+      expect(await screen.findByRole('button', { name: /换一批/ })).toBeInTheDocument();
+      await act(async () => {});
+      expect(careerApi.suggest).not.toHaveBeenCalled();
+      expect(track).toHaveBeenCalledWith('career_suggest_shown', expect.objectContaining({ scene: 'S13', source: 'hook' }));
+      fireEvent.click(screen.getByRole('button', { name: /先不投/ }));
+      expect(track).toHaveBeenCalledWith('career_suggest_used', expect.objectContaining({ scene: 'S13', source: 'hook' }));
+      expect(screen.queryByTestId('career-suggest-chips')).toBeNull();
+    });
+
+    it('早到：id 对不上先不出，消息更新到这一条再出', async () => {
+      vi.useFakeTimers();
+      const { rerender } = mount({ messages: fresh().slice(0, 1) });
+      push();
+      await act(async () => {});
+      expect(screen.queryByTestId('career-suggest-chips')).toBeNull();
+      tabState.current = { ...tabState.current, messages: fresh() };
+      rerender(<><CareerSuggestBar inputRef={createRef()} /><textarea aria-label="输入" /></>);
+      await act(async () => {});
+      expect(screen.getByRole('button', { name: /换一批/ })).toBeInTheDocument();
+      await act(async () => { vi.advanceTimersByTime(5_000); });
+      expect(careerApi.suggest).not.toHaveBeenCalled();
+    });
+
+    it('旧推送（ts 更早）不盖新的', async () => {
+      push({ chips: CHIPS, ts: 2_000 });
+      push({ chips: FOUR, ts: 1_000 });
+      mount({ messages: fresh() });
+      expect(await screen.findByRole('button', { name: /财务类/ })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /换一批/ })).toBeNull();
+    });
+
+    it('别的会话的推送不认；宽限期过了兜底请求', async () => {
+      vi.useFakeTimers();
+      push({ sessionId: 's2' });
+      mount({ messages: fresh() });
+      await act(async () => { vi.advanceTimersByTime(3_700); });
+      expect(screen.queryByTestId('career-suggest-chips')).toBeNull();
+      expect(careerApi.suggest).not.toHaveBeenCalled();
+      await act(async () => { vi.advanceTimersByTime(100); });
+      expect(careerApi.suggest).toHaveBeenCalledWith(expect.objectContaining({
+        source: 'poll', this_turn: { user: '你好', assistant: '你想先投哪类？', tools: [], cards: [] },
+      }));
+      expect(screen.getByRole('button', { name: /财务类/ })).toBeInTheDocument();
+    });
+
+    it('宽限期内推送到了：不再请求', async () => {
+      vi.useFakeTimers();
+      mount({ messages: fresh() });
+      await act(async () => { vi.advanceTimersByTime(1_000); });
+      await act(async () => { push(); });
+      await act(async () => { vi.advanceTimersByTime(5_000); });
+      expect(careerApi.suggest).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: /换一批/ })).toBeInTheDocument();
+    });
+
+    it('初次打开（最后一条早就说完）：立刻请求', async () => {
+      mount();
+      await screen.findByTestId('career-suggest-chips');
+      expect(careerApi.suggest).toHaveBeenCalledWith(expect.objectContaining({ source: 'poll' }));
+    });
+
+    it('推送没有格子（降级也空）：照样兜底请求', async () => {
+      vi.useFakeTimers();
+      push({ chips: [], degraded: true });
+      mount({ messages: fresh() });
+      await act(async () => { vi.advanceTimersByTime(3_800); });
+      expect(careerApi.suggest).toHaveBeenCalledTimes(1);
+    });
+
+    it('小芽在说话时推送到了也不出', async () => {
+      push();
+      mount({ messages: fresh(), isLoading: true });
+      await act(async () => {});
+      expect(screen.queryByTestId('career-suggest-chips')).toBeNull();
+    });
   });
 });

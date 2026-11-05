@@ -1,10 +1,14 @@
 /**
  * 配方的公共形状与小积木（plan-r3-suggest §4.2）：每一幕一个配方——
- * rules 出规则格（do / 功能起头 / 固定说法），prompt 是给模型的幕段（null = 这一幕不叫模型），
- * fallback 是模型没回来或被 lint 丢光时的兜底（≥2 格），order 是这一幕四格的排法（按 mode）。
+ * rules 出规则格（do / 功能起头 / 固定说法），fallback 是模型没回来或被 lint 丢光时的兜底（≥2 格），
+ * order 是这一幕四格的排法（按 mode）。
+ * r4（plan-r4-suggest §3.1）：每一幕都叫模型写全部四格；rules + fallback 整体退成兜底。
+ * 给模型的"思路 + 示例 + 允许意图"在 guide（缺省由 suggest-recipes.ts 的 guideFor 从 GUIDES 表取）；
+ * prompt 是 r3 的旧幕段，guide 没写时当思路用。
  */
 import type { SuggestChip, SuggestMode } from '../../shared/careerSuggest';
 import { sayChip } from './suggest-chip';
+import type { SceneGuide } from './suggest-guide-types';
 import type { SceneId, SuggestInput } from './suggest-scene';
 import { fitText, shortCompany } from './suggest-text';
 import type { SuggestState } from './suggest-types';
@@ -19,7 +23,10 @@ export interface RecipeCtx {
 
 export interface Recipe {
   rules(c: RecipeCtx): Array<SuggestChip | null>;
-  prompt: string | null;
+  /** r3 旧幕段：guide 没写时当给模型的思路。 */
+  prompt?: string | null;
+  /** r4 给模型的思路 + 示例 + 允许意图；缺省从 GUIDES 表取。 */
+  guide?: SceneGuide;
   fallback(c: RecipeCtx): Array<SuggestChip | null>;
   order: readonly SuggestMode[];
 }

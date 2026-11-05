@@ -112,7 +112,7 @@ function openCardOf(repos: Repos, sessionId: string | null): { card: SuggestCard
 
 function jobsAndPool(repos: Repos, store: CareerStore): { nextJobs: SuggestJob[]; pool: SuggestPool } {
   const proposal = proposeBatch(repos, store);
-  const nextJobs = proposal.rows.filter(r => r.picked).slice(0, NEXT_JOBS_MAX).map(r => ({ job_id: r.job_id, company: r.company, known: r.known }));
+  const nextJobs = proposal.rows.filter(r => r.picked).slice(0, NEXT_JOBS_MAX).map(r => ({ job_id: r.job_id, company: r.company, known: r.known, title: r.title }));
   const open = jobBoard(repos, { open_only: true });
   const ready = new Set(proposal.rows.map(r => r.job_id));
   const outsourced = open.filter(r => ready.has(r.job.id) && OUTSOURCED.test(`${r.job.title} ${r.job.company_name ?? ''} ${(r.meta.type_tags ?? []).join(' ')}`)).length;
@@ -153,7 +153,12 @@ function dueSoonOf(repos: Repos, now: Date): SuggestDue[] {
   const until = new Date(now.getTime() + DUE_SOON_DAYS * DAY_MS).toISOString();
   return repos.listDeadlines({ status: 'open', until })
     .filter(d => d.due_at !== null && d.due_at >= nowIso)
-    .map(d => ({ kind: d.kind, company: companyOfApplication(repos, d.application_id) ?? d.title, at: d.due_at ?? '' }));
+    .map(d => ({
+      kind: d.kind,
+      company: companyOfApplication(repos, d.application_id) ?? d.title,
+      at: d.due_at ?? '',
+      daysLeft: Math.max(0, Math.floor((Date.parse(d.due_at ?? nowIso) - Date.parse(startOfDay(now))) / DAY_MS)),
+    }));
 }
 
 function rejectionsOf(repos: Repos, now: Date): number {

@@ -7349,6 +7349,7 @@ const builtinTurnLifecycle = createBuiltinTurnLifecycle({
   clearApiRetryStatus,
   trackServer,
   firePostTurnTitleHook,
+  firePostTurnSuggestHook: (ctx, isSuperseded) => { void import('./career/suggest-hook').then(m => m.onCareerTurnComplete(ctx, isSuperseded)).catch((e: unknown) => console.warn('[career-suggest] hook import failed:', e instanceof Error ? e.message : e)); },
   appendTextChunk,
   stageAssistantChannelBlock: stageSessionBoundAssistantBlock,
   localizeImError,

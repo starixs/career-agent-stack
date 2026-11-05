@@ -13,7 +13,7 @@ import { useCareerCards } from '@/context/CareerCardsContext';
 import { useTabStateOptional } from '@/context/TabContext';
 
 import { BLANK, FILL_BLANK, fillText, prefillChip, runSuggestion } from './suggestActions';
-import { buildSuggestRequest, useCareerSuggestions } from './useCareerSuggestions';
+import { buildSuggestRequest, lastOf, useCareerSuggestions } from './useCareerSuggestions';
 import type { SuggestAction, SuggestChip } from '../../../shared/careerSuggest';
 
 export { visibleText } from './useCareerSuggestions';
@@ -137,11 +137,17 @@ export function CareerSuggestBar({ inputRef }: { inputRef: RefObject<HTMLTextAre
   const turnKey = messages.at(-1)?.id ?? 'empty';
   const [typedAt, setTypedAt] = useState<string | null>(null);
   const pending = cards.filter(c => (c.state ?? 'pending') === 'pending').map(c => c.kind);
+  const last = messages.at(-1);
+  const lastAt = last ? new Date(last.timestamp).getTime() : null;
+  const turnStart = lastOf(messages, 'user');
+  const turnFrom = turnStart ? new Date(turnStart.timestamp).getTime() : 0;
   const { chips, used } = useCareerSuggestions({
     enabled: !!tab,
     streaming,
     turnKey,
-    request: () => buildSuggestRequest(messages, pending),
+    sessionId: tab?.sessionId ?? null,
+    lastAt: Number.isFinite(lastAt) ? lastAt : null,
+    request: () => buildSuggestRequest(messages, pending, cards.filter(c => Date.parse(c.createdAt) >= turnFrom).map(c => c.kind)),
   });
   const visible = typedAt === turnKey ? [] : chips;
   const barRef = useRef<HTMLDivElement>(null);

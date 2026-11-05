@@ -61,12 +61,39 @@ export interface SuggestRequest {
   last_tools?: string[];
   /** 离他上一次说话过了几小时（前端从消息时间戳算）；没说过为 null。 */
   away_hours?: number | null;
+  /** 这一轮：他说的、小芽说的、小芽用的工具（去前缀）、这一轮放的卡种类（plan-r4 §2.3）。 */
+  this_turn?: SuggestThisTurn;
+  /** 谁发起的：轮末钩子（服务端自己算）还是前端兜底请求。 */
+  source?: SuggestSource;
 }
+
+export interface SuggestThisTurn { user: string; assistant: string; tools: string[]; cards: string[] }
+
+export type SuggestSource = 'hook' | 'poll';
 
 export interface SuggestTurn { role: 'user' | 'assistant'; text: string }
 
 /** scene 是服务端判出的幕（S1–S29 的 id，见 server/career/suggest-scene.ts），埋点用。 */
-export interface SuggestResponse { chips: SuggestChip[]; scene?: string }
+export interface SuggestResponse { chips: SuggestChip[]; scene: string | null }
+
+/** 轮末钩子经本会话 SSE 推的事件名（plan-r4 §2.3；sse.ts 与 SseConnection.ts 白名单都要登记）。 */
+export const CAREER_SUGGEST_EVENT = 'career:suggest';
+
+/**
+ * career:suggest 的载荷：小芽这一轮说完时服务端算好的四格。
+ * assistant_message_id 与前端消息 id 相同；前端只在它等于当前 turnKey 时显示（早到就先存着）。
+ */
+export interface SuggestPush {
+  sessionId: string;
+  turn_id: string | null;
+  assistant_message_id: string | null;
+  chips: SuggestChip[];
+  scene: string;
+  source: 'hook';
+  /** 模型没回来 / 超时，走的是兜底配方。 */
+  degraded: boolean;
+  ts: number;
+}
 
 /** 请求里最多带几轮对话。 */
 export const SUGGEST_MAX_TURNS = 6;
@@ -79,6 +106,13 @@ export const SUGGEST_MAX_TOOLS = 12;
 export const SUGGEST_MAX_CHARS = 22;
 /** 每轮最多几条。 */
 export const SUGGEST_MAX_CHIPS = 4;
+
+/** 等模型写四格多久（服务端生成器）。下面两个时限都从它推出来，只改这一处。 */
+export const SUGGEST_MODEL_TIMEOUT_MS = 3_000;
+/** 轮末钩子总预算：模型 + 状态快照与发布的余量。 */
+export const SUGGEST_HOOK_BUDGET_MS = SUGGEST_MODEL_TIMEOUT_MS + 500;
+/** 前端等钩子推送多久再自己拉（比钩子预算多一点在路上的时间）。 */
+export const SUGGEST_HOOK_GRACE_MS = SUGGEST_HOOK_BUDGET_MS + 300;
 
 const SLOTS: readonly SuggestSlot[] = ['act', 'next', 'shape', 'exit'];
 const KINDS: readonly SuggestKind[] = ['say', 'fill', 'do'];
@@ -167,4 +201,21 @@ export function parseSuggest(raw: unknown): SuggestChip[] {
     if (chip) chips.push(chip);
   }
   return chips.slice(0, SUGGEST_MAX_CHIPS);
+}
+
+const idOrNull = (v: unknown): string | null => (nonEmpty(v) ? v : null);
+
+/** 跨边界校验：career:suggest 载荷。缺 sessionId / scene 返回 null；chips 只留形状对的。 */
+export function parseSuggestPush(raw: unknown): SuggestPush | null {
+  if (!isRecord(raw) || !nonEmpty(raw.sessionId) || !nonEmpty(raw.scene)) return null;
+  return {
+    sessionId: raw.sessionId,
+    turn_id: idOrNull(raw.turn_id),
+    assistant_message_id: idOrNull(raw.assistant_message_id),
+    chips: parseSuggest(raw),
+    scene: raw.scene,
+    source: 'hook',
+    degraded: raw.degraded === true,
+    ts: typeof raw.ts === 'number' && Number.isFinite(raw.ts) ? raw.ts : Date.now(),
+  };
 }

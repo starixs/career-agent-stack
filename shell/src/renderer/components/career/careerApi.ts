@@ -6,7 +6,7 @@ import type { ResumeData as StudioResumeData } from '@career/resume-studio/schem
 
 import { apiDelete, apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 import type { RailSnapshot } from '../../../shared/careerRail';
-import { parseSuggest, type SuggestRequest } from '../../../shared/careerSuggest';
+import { parseSuggest, parseSuggestScene, type SuggestRequest, type SuggestResponse } from '../../../shared/careerSuggest';
 import { parsePairedPhones, parsePhoneStatus, type PairedPhone } from '../../../shared/careerPhone';
 
 import type {
@@ -143,7 +143,8 @@ export const careerApi = {
   startBatchPick: (cardId: string, jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/propose/start'), { card_id: cardId, job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
     .then(r => ({ started: strings(asDict(r).started), skipped: parseSkipped(asDict(r).skipped) })),
   /** 建议条：一轮说完后输入框上方的几个小框。 */
-  suggest: (req: SuggestRequest) => apiPostJson<unknown>(careerPath('/suggest'), req).then(parseSuggest),
+  suggest: (req: SuggestRequest): Promise<SuggestResponse> => apiPostJson<unknown>(careerPath('/suggest'), req)
+    .then(raw => ({ chips: parseSuggest(raw), scene: parseSuggestScene(raw) })),
   questions: (f: { kind?: string; source?: string; company?: string; q?: string; weak_only?: boolean } = {}) => {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== '' && v !== false) p.set(k, v === true ? '1' : String(v));

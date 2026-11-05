@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { FEATURE_IDS, FEATURES, featureChipText, featuresInGroup, resolveFeatureStart } from './careerFeatures';
-import { parseSuggest, parseSuggestAction, parseSuggestScene } from './careerSuggest';
+import { CAREER_SUGGEST_EVENT, parseSuggest, parseSuggestAction, parseSuggestPush, parseSuggestScene } from './careerSuggest';
 
 describe('careerSuggest contracts (r3)', () => {
   it('keeps a legal start_feature action with args', () => {
@@ -27,6 +27,27 @@ describe('careerSuggest contracts (r3)', () => {
     expect(chip.mode).toBe('exit');
     expect(parseSuggestScene({ chips: [], scene: 'S13' })).toBe('S13');
     expect(parseSuggestScene({ chips: [] })).toBeNull();
+  });
+
+  it('parseSuggestPush keeps a legal career:suggest payload', () => {
+    const chip = { text: '就这 5 家', slot: 'next', kind: 'do', mode: 'advance', action: { type: 'open_deck' }, seed_id: null };
+    expect(CAREER_SUGGEST_EVENT).toBe('career:suggest');
+    expect(parseSuggestPush({ sessionId: 's1', turn_id: 't1', assistant_message_id: 'm1', chips: [chip], scene: 'S14', source: 'hook', degraded: false, ts: 42 }))
+      .toEqual({ sessionId: 's1', turn_id: 't1', assistant_message_id: 'm1', chips: [chip], scene: 'S14', source: 'hook', degraded: false, ts: 42 });
+  });
+
+  it('parseSuggestPush drops bad chips and nulls missing ids', () => {
+    const push = parseSuggestPush({ sessionId: 's1', scene: 'S3', degraded: true, chips: [{ text: '' , slot: 'act' }, { text: '对，就是这个', slot: 'act', kind: 'say', seed_id: null }, 'x'] });
+    expect(push?.chips).toEqual([{ text: '对，就是这个', slot: 'act', kind: 'say', mode: 'answer', seed_id: null }]);
+    expect(push?.turn_id).toBeNull();
+    expect(push?.assistant_message_id).toBeNull();
+    expect(push?.degraded).toBe(true);
+  });
+
+  it('parseSuggestPush returns null without sessionId or scene', () => {
+    expect(parseSuggestPush({ scene: 'S1', chips: [] })).toBeNull();
+    expect(parseSuggestPush({ sessionId: 's1', chips: [] })).toBeNull();
+    expect(parseSuggestPush(null)).toBeNull();
   });
 
   it('features: every id defined, chips fit, company token resolved', () => {

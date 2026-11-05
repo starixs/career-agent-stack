@@ -484,7 +484,7 @@ const ROUTES: Route[] = [
   }),
   // 建议条：一轮说完后输入框上方的几个小框（规则 + 一次小模型调用，超时只出规则那两格）
   route('POST', '/api/career/suggest', async (ctx) => {
-    const res = await suggestFor(suggestContextOf(ctx.repos, ctx.store), parseSuggestRequest(ctx.body), getShellLLM());
+    const res = await suggestFor(suggestContextOf(ctx.repos, ctx.store), { ...parseSuggestRequest(ctx.body), source: 'poll' }, getShellLLM());
     return ok({ chips: res.chips, scene: res.scene });
   }),
   route('POST', '/api/career/export/workbook', async (ctx) => {
