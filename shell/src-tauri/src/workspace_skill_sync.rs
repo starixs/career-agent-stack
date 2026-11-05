@@ -112,6 +112,28 @@ fn replace_skill(src: &Path, dst: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
+fn stamp_path(dest_skills: &Path) -> PathBuf {
+    dest_skills
+        .parent()
+        .unwrap_or(dest_skills)
+        .join(BUNDLED_SKILLS_STAMP)
+}
+
+/// Record that `dest_skills` already matches the template (a fresh full copy),
+/// so the next open does not rewrite every skill dir again.
+pub fn record_bundled_workspace_skills(
+    template_skills: &Path,
+    dest_skills: &Path,
+) -> Result<(), String> {
+    if !template_skills.is_dir() {
+        return Ok(());
+    }
+    let fingerprint = skills_fingerprint(template_skills)
+        .map_err(|e| format!("fingerprint {}: {}", template_skills.display(), e))?;
+    let stamp = stamp_path(dest_skills);
+    fs::write(&stamp, &fingerprint).map_err(|e| format!("write {}: {}", stamp.display(), e))
+}
+
 /// Sync template skills into `dest_skills` when the template fingerprint
 /// changed. Returns how many skill dirs were (re)written; 0 when up to date.
 pub fn sync_bundled_workspace_skills(
@@ -123,10 +145,7 @@ pub fn sync_bundled_workspace_skills(
     }
     let fingerprint = skills_fingerprint(template_skills)
         .map_err(|e| format!("fingerprint {}: {}", template_skills.display(), e))?;
-    let stamp = dest_skills
-        .parent()
-        .unwrap_or(dest_skills)
-        .join(BUNDLED_SKILLS_STAMP);
+    let stamp = stamp_path(dest_skills);
     if fs::read_to_string(&stamp)
         .map(|s| s.trim() == fingerprint)
         .unwrap_or(false)
@@ -203,6 +222,17 @@ mod tests {
             .join(".claude")
             .join(BUNDLED_SKILLS_STAMP)
             .exists());
+    }
+
+    #[test]
+    fn recording_a_fresh_copy_makes_the_next_sync_a_no_op() {
+        let tmp = tempfile::tempdir().unwrap();
+        let template = tmp.path().join("t");
+        let dest = tmp.path().join("ws/.claude/skills");
+        write(&template.join("a/SKILL.md"), "v1");
+        write(&dest.join("a/SKILL.md"), "v1");
+        record_bundled_workspace_skills(&template, &dest).unwrap();
+        assert_eq!(sync_bundled_workspace_skills(&template, &dest).unwrap(), 0);
     }
 
     #[test]

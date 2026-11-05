@@ -456,6 +456,13 @@ function imageHint(f: AttachmentText): string {
   return `这是一张图片，你能直接看图：用 Read 打开 ${f.path} 看原图。${f.ok ? '上面的文字是本地识别出来的，只作参考；图里的表格、版式、照片和非文字信息以原图为准。' : ''}`;
 }
 
+function clippedHint(f: AttachmentText, shown: number): string {
+  const where = f.convertedPath ?? f.path;
+  return shown === 0
+    ? `（这份约 ${f.text.length} 字，这次没放进来；需要时用 Read 读 ${where}，用 offset/limit 分段）`
+    : `\n…（后面还有约 ${f.text.length - shown} 字没放进来；需要时用 Read 读 ${where}，用 offset/limit 分段）`;
+}
+
 export function renderAttachmentContext(files: AttachmentText[], opts: { vision?: boolean } = {}): string | null {
   if (!files.length) return null;
   let budget = INLINE_CHARS_TOTAL;
@@ -472,7 +479,8 @@ export function renderAttachmentContext(files: AttachmentText[], opts: { vision?
         '</attached-file>',
       ].join('\n');
     }
-    const limit = budget >= INLINE_CHARS_MIN_PER_FILE ? budget : 0;
+    // 放得下就整份放；放不下且剩余预算还够认出开头才截一段；否则只给路径。
+    const limit = f.text.length <= budget ? f.text.length : budget >= INLINE_CHARS_MIN_PER_FILE ? budget : 0;
     const clipped = f.text.length > limit;
     const shown = clipped ? f.text.slice(0, limit) : f.text;
     budget -= shown.length;
@@ -480,7 +488,7 @@ export function renderAttachmentContext(files: AttachmentText[], opts: { vision?
     return [
       `<attached-file ${attrs}>`,
       shown,
-      clipped ? `\n…（后面还有约 ${f.text.length - limit} 字没放进来；需要时用 Read 读 ${f.convertedPath ?? f.path}，用 offset/limit 分段）` : '',
+      clipped ? clippedHint(f, limit) : '',
       isImage && opts.vision ? imageHint(f) : '',
       '</attached-file>',
       looksLikeResume(f.name, f.text) ? `这份看起来是用户自己的简历：调用 resume_import(path="${f.path}") 一次收进来（基本信息进私密库、经历进经历库、出一张卡点一下生成主简历）。不要在对话里复述简历内容，也不要追问简历上已有的信息。` : '',

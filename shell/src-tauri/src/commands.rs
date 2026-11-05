@@ -480,6 +480,15 @@ pub fn cmd_initialize_bundled_workspace<R: Runtime>(
         let _ = fs::remove_dir_all(&mino_dest);
         return Err("Bundled mino copy produced incomplete workspace".to_string());
     }
+    // A fresh full copy already matches the template; stamp it so the next
+    // open does not rewrite every skill dir (see workspace_skill_sync).
+    let skills = Path::new(".claude").join("skills");
+    if let Err(e) = crate::workspace_skill_sync::record_bundled_workspace_skills(
+        &mino_src.join(&skills),
+        &mino_dest.join(&skills),
+    ) {
+        ulog_warn!("[workspace] skill stamp failed for {}: {}", mino_dest.display(), e);
+    }
 
     Ok(InitBundledWorkspaceResult {
         path: mino_dest.to_string_lossy().to_string(),

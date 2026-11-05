@@ -175,6 +175,15 @@ describe('附件注入预算：Claude Code 把超过约 1 万字的钩子输出�
     expect(context).toContain('Read 读 .career/converted/b.pdf.md');
   });
 
+  it('前一份用掉大半预算后，放得下的短附件仍整份放入；放不下的只给路径和总字数', () => {
+    const first = { ...big('a.pdf', '甲'), text: '甲'.repeat(7_900) };
+    const short = { ...big('b.docx', '乙'), text: '乙'.repeat(50) };
+    const context = renderAttachmentContext([first, short, big('c.pdf', '丙')])!;
+    expect(context).toContain('乙'.repeat(50));
+    expect(context).toContain('这份约 20000 字，这次没放进来；需要时用 Read 读 .career/converted/c.pdf.md');
+    expect(context.length).toBeLessThan(10_000);
+  });
+
   it('短附件原样全文注入', () => {
     const context = renderAttachmentContext([{ ...big('c.docx', '丙'), text: '一段简历正文' }])!;
     expect(context).toContain('一段简历正文');
