@@ -2,8 +2,9 @@
  * 面试助力 ·「准备」。他用到这页时是收到了面试通知、心里没底，最想知道的是：我准备到哪了、最可能在哪出事。
  * 两层（见 skills/layers.tsx）：
  *   第一层：一张「面试票」——哪一场、哪天、还有几天、「帮我准备这一场」（这页唯一的实心按钮）；
- *           票下面三块是准备的三步，各一个量：① 会被问什么（高风险几条）② 先练几道（练过几道）③ 模拟一场（上次的结论）。
- *   第二层：点哪一步，下面摊开哪一步的细节。要读的文字只有简历里的那句话和面试官会问的问题，其余是图形。
+ *           票下面三块是准备的三步，块上各一个小图形：① 一条预测一颗按风险上色的方块 ② 一道题一颗圆点（练没练、过没过）③ 上次模拟的那枚章。
+ *   第二层：点哪一步，下面摊开哪一步的细节。要读的文字只有简历里的那句话和面试官会问的问题；
+ *           风险、深度、练没练都用颜色和图形说，不写「高风险」「练过 2 道」这类字，也不放图例。
  * 每个动作都带着这场面试的 id 发进对话，不用打字。
  */
 import { useState, type ReactNode } from 'react';
@@ -15,8 +16,8 @@ import { INTERVIEW_ROUND_LABELS, MOCK_MODE_LABELS } from '../careerConstants';
 import { Button, Select, StructuredJson, formatDate, useSuggestToChat } from '../CareerPrimitives';
 import { TileTabs, type TileTab } from '../skills/layers';
 import { MockReport, isMockReport, mockVerdict } from '../skills/results/MockReport';
-import { PredictionList, riskOf, riskSegments, sortByRisk } from '../skills/results/PredictionList';
-import { DateBlock, ScoreRing, SegmentBar, Stamp, daysUntil, type Tone } from '../skills/visual';
+import { PredictionList, riskOf, sortByRisk } from '../skills/results/PredictionList';
+import { DateBlock, Marks, PASS_SCORE, ScoreRing, Stamp, daysUntil, type Tone } from '../skills/visual';
 import type { DossierSummary, Interview, MockInterview, ProbePrediction, QuestionItem } from '../types';
 
 import { buildPrepTargets, type PrepTarget } from './prepTargets';
@@ -69,31 +70,30 @@ function Ticket({ targets, target, onChange, onPrepare }: { targets: PrepTarget[
   );
 }
 
-/** 一步的细节：上面一行是这一步的图形摘要和它自己的动作，下面是条目。 */
-function Panel({ summary, actions, children }: { summary?: ReactNode; actions: ReactNode; children?: ReactNode }) {
+/** 一步的细节：最上面是这一步的主动作（有才放），中间是条目，最下面一行是它的次要动作。 */
+function Panel({ top, actions, children }: { top?: ReactNode; actions: ReactNode; children?: ReactNode }) {
   return (
-    <div className="max-w-3xl space-y-4">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <div className="min-w-48 flex-1">{summary}</div>
-        <div className="flex items-center gap-1">{actions}</div>
-      </div>
+    <div className="space-y-4">
+      {top}
       {children}
+      <div className="-ml-3 flex items-center gap-1">{actions}</div>
     </div>
   );
 }
 
-function Predictions({ predictions, onPredict }: { predictions: ProbePrediction[]; onPredict: () => void }) {
+function Predictions({ predictions, onPredict, onPractice }: { predictions: ProbePrediction[]; onPredict: () => void; onPractice: (prediction: ProbePrediction) => void }) {
   const [showAll, setShowAll] = useState(false);
   const sorted = sortByRisk(predictions);
   return (
     <Panel
-      summary={<SegmentBar label="风险分布" segments={riskSegments(predictions)} />}
-      actions={<Button size="sm" variant="ghost" onClick={onPredict}>{predictions.length ? '重新预测' : '预测追问'}</Button>}
-    >
-      {sorted.length > 0 && <PredictionList predictions={showAll ? sorted : sorted.slice(0, TOP_PREDICTIONS)} />}
-      {sorted.length > TOP_PREDICTIONS && (
-        <Button size="sm" variant="ghost" className="-ml-3" onClick={() => setShowAll(value => !value)}>{showAll ? '只看最要紧的' : `看全部 ${sorted.length} 条`}</Button>
+      actions={(
+        <>
+          {sorted.length > TOP_PREDICTIONS && <Button size="sm" variant="ghost" onClick={() => setShowAll(value => !value)}>{showAll ? '只看最要紧的' : `看全部 ${sorted.length} 条`}</Button>}
+          <Button size="sm" variant="ghost" onClick={onPredict}>{predictions.length ? '重新预测' : '预测追问'}</Button>
+        </>
       )}
+    >
+      {sorted.length > 0 && <PredictionList predictions={showAll ? sorted : sorted.slice(0, TOP_PREDICTIONS)} onPractice={onPractice} />}
     </Panel>
   );
 }
@@ -108,14 +108,10 @@ function pickQuestions(questions: QuestionItem[], target: PrepTarget | null): Qu
 
 function Questions({ questions, onGenerate, onOpenBank }: { questions: QuestionItem[]; onGenerate: () => void; onOpenBank: () => void }) {
   const suggest = useSuggestToChat();
-  const practiced = questions.filter(q => q.attempt_count > 0).length;
   return (
-    <Panel
-      summary={<SegmentBar label="练习情况" segments={[{ label: '练过', value: practiced, tone: 'success' }, { label: '没练', value: questions.length - practiced, tone: 'neutral' }]} />}
-      actions={<><Button size="sm" variant="ghost" onClick={onOpenBank}>题库</Button><Button size="sm" variant="ghost" onClick={onGenerate}>出一组题</Button></>}
-    >
+    <Panel actions={<><Button size="sm" variant="ghost" onClick={onGenerate}>出一组题</Button><Button size="sm" variant="ghost" onClick={onOpenBank}>题库</Button></>}>
       {questions.length > 0 && (
-        <ul className="divide-y divide-[var(--line)]">
+        <ul className="max-w-3xl divide-y divide-[var(--line)]">
           {questions.map(question => (
             <li key={question.id}>
               <button
@@ -170,7 +166,7 @@ function Mocks({ mocks, target, onStart, onStory }: { mocks: MockInterview[]; ta
   const round = picked && picked.target === target?.key ? picked.round : target?.round ?? 'first';
   return (
     <Panel
-      summary={(
+      top={(
         <div className="flex items-center gap-2">
           <div className="w-24"><Select ariaLabel="轮次" value={round} onChange={value => setPicked({ target: target?.key, round: value })} options={ROUND_OPTIONS} /></div>
           <Button onClick={() => onStart(round)}>开始模拟</Button>
@@ -178,12 +174,19 @@ function Mocks({ mocks, target, onStart, onStory }: { mocks: MockInterview[]; ta
       )}
       actions={<Button size="sm" variant="ghost" onClick={onStory}>讲一遍项目</Button>}
     >
-      {mocks.length > 0 && <ul className="divide-y divide-[var(--line)]">{mocks.map(mock => <MockRow key={mock.id} mock={mock} />)}</ul>}
+      {mocks.length > 0 && <ul className="max-w-3xl divide-y divide-[var(--line)]">{mocks.map(mock => <MockRow key={mock.id} mock={mock} />)}</ul>}
     </Panel>
   );
 }
 
-const DASH = <span className="text-[var(--subtle)]">—</span>;
+/** 一道题练得怎样，给点阵用：没练过是空的，练过按过没过关上色。 */
+const practiceTone = (question: QuestionItem): Tone | null => {
+  if (!question.attempt_count || question.last_attempt_score === null) return null;
+  return question.last_attempt_score < PASS_SCORE ? 'warning' : 'success';
+};
+
+/** 这一步还什么都没有：一颗空的。 */
+const EMPTY_MARK: Array<Tone | null> = [null];
 
 export function PrepTab({ data, onOpenBank }: { data: PrepData; onOpenBank: () => void }) {
   const suggest = useSuggestToChat();
@@ -193,24 +196,32 @@ export function PrepTab({ data, onOpenBank }: { data: PrepData; onOpenBank: () =
   const company = target?.company ?? '';
   const send = (text: string, extra: Record<string, string | undefined> = {}) => suggest(text, { surface: SURFACE, refs: { ...target?.refs, ...extra } });
 
-  const highRisk = data.predictions.filter(p => riskOf(p).order === 0).length;
+  const risks = sortByRisk(data.predictions).map(riskOf);
+  const highRisk = risks.filter(risk => risk.order === 0).length;
   const questions = pickQuestions(data.questions, target);
   const practiced = questions.filter(q => q.attempt_count > 0).length;
   const lastVerdict = data.mocks[0] ? verdictOf(data.mocks[0]) : null;
+  // 每一步的块上是一个小图形：一条预测一颗按风险上色的方块、一道题一颗圆点、上次模拟的那枚章
   const steps: TileTab[] = [
     {
-      id: 'predict', label: '会被问什么', summary: data.predictions.length ? `高风险 ${highRisk} 条` : '还没预测',
-      value: data.predictions.length ? highRisk : DASH, tone: highRisk > 0 ? 'danger' : undefined,
-      body: <Predictions predictions={data.predictions} onPredict={() => send(`预测一下${company}面试会深挖我简历哪里`)} />,
+      id: 'predict', label: '会被问什么', summary: risks.length ? `高风险 ${highRisk} 条` : '还没预测',
+      value: <Marks marks={risks.length ? risks.map(risk => risk.tone) : EMPTY_MARK} label={risks.length ? `${risks.length} 条预测，高风险 ${highRisk} 条` : '还没预测'} />,
+      body: (
+        <Predictions
+          predictions={data.predictions}
+          onPredict={() => send(`预测一下${company}面试会深挖我简历哪里`)}
+          onPractice={prediction => send(`就简历里这句话深挖我：${prediction.statement}`, { prediction_id: prediction.id })}
+        />
+      ),
     },
     {
       id: 'practice', label: '先练几道', summary: questions.length ? `练过 ${practiced} 道，共 ${questions.length} 道` : '还没有题',
-      value: questions.length ? `${practiced}/${questions.length}` : DASH,
+      value: <Marks shape="ring" marks={questions.length ? questions.map(practiceTone) : EMPTY_MARK} label={questions.length ? `${questions.length} 道题，练过 ${practiced} 道` : '还没有题'} />,
       body: <Questions questions={questions} onGenerate={() => send(`按${target?.label ?? '我投的岗位'}出一组面试题`)} onOpenBank={onOpenBank} />,
     },
     {
       id: 'mock', label: '模拟一场', summary: lastVerdict ? `上次${lastVerdict.label}` : '还没练过',
-      value: lastVerdict ? <Stamp tone={lastVerdict.tone}>{lastVerdict.label}</Stamp> : DASH,
+      value: lastVerdict ? <Stamp tone={lastVerdict.tone}>{lastVerdict.label}</Stamp> : <Marks shape="ring" marks={EMPTY_MARK} label="还没练过" />,
       body: (
         <Mocks
           mocks={data.mocks} target={target}

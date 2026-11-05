@@ -2,6 +2,7 @@
  * 工作台页共用的视觉部件：把「多少、多深、到哪天、亮什么灯、结论是什么」画出来，而不是写成一行字。
  * 沿用产品自己的笔触（CAREER_DESIGN）：文楷大数字、带圈数字、内嵌底色的数字块、墨线描边、状态色只表状态。
  */
+import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 export type Tone = 'danger' | 'warning' | 'success' | 'info' | 'neutral';
@@ -26,11 +27,11 @@ export function StepCircle({ n }: { n: number }) {
   );
 }
 
-/** 印章：一个结论。描边加同色字，像盖在纸上的章。 */
-export function Stamp({ tone, children }: { tone: Tone; children: ReactNode }) {
+/** 印章：一个结论。描边加同色字，像盖在纸上的章；dashed 是推测出来的结论（虚线框）。 */
+export function Stamp({ tone, children, dashed = false }: { tone: Tone; children: ReactNode; dashed?: boolean }) {
   return (
     <span
-      className="inline-flex shrink-0 items-center rounded-md border-[1.5px] px-2 py-0.5 font-human text-sm font-semibold"
+      className={`inline-flex shrink-0 items-center rounded-md border-[1.5px] px-2 py-0.5 font-human text-sm font-semibold ${dashed ? 'border-dashed' : ''}`}
       style={{ color: TONE_COLOR[tone], borderColor: TONE_COLOR[tone], background: TONE_BG[tone] }}
     >
       {children}
@@ -72,19 +73,6 @@ export function SegmentBar({ segments, label }: { segments: Segment[]; label: st
   );
 }
 
-/** 深度圆点：一共几层、走到第几层；stuck 那一层标红，表示卡在这。 */
-export function Pips({ total, reached, stuck, label }: { total: number; reached: number; stuck?: number; label: string }) {
-  return (
-    <span className="inline-flex shrink-0 items-center gap-1" role="img" aria-label={label}>
-      {Array.from({ length: total }, (_, index) => {
-        const layer = index + 1;
-        const color = layer === stuck ? 'var(--danger)' : layer <= reached ? 'var(--ink)' : 'var(--line-2)';
-        return <span key={layer} className="h-2 w-2 rounded-full" style={{ background: color }} />;
-      })}
-    </span>
-  );
-}
-
 /** 红黄绿灯：三盏并排，亮的那一盏有颜色。 */
 export function Lamps({ light, size = 'md' }: { light: string | null; size?: 'sm' | 'md' }) {
   const lamps: Array<{ id: string; color: string }> = [
@@ -106,6 +94,63 @@ export function DateBlock({ iso }: { iso: string | null }) {
     <span className="flex w-12 shrink-0 flex-col items-center">
       <span className="font-human text-2xl font-semibold tabular-nums leading-8 text-[var(--ink)]">{valid ? date.getDate() : '—'}</span>
       <span className="text-xs text-[var(--muted)]">{valid ? `${date.getMonth() + 1} 月` : '时间待定'}</span>
+    </span>
+  );
+}
+
+/** 点阵最多画这么多颗：再多就数不过来了，也撑破数字块。 */
+const MAX_MARKS = 12;
+
+/**
+ * 点阵：一件东西一颗，颜色是它的状态，null 是还空着的（虚线）。有几件、各是什么状态一眼可数，不用读数字和图例。
+ * 方的用在「条目」（一条预测一颗），圆的用在「练习」（一道题一颗）。
+ */
+export function Marks({ marks, shape = 'square', label }: { marks: Array<Tone | null>; shape?: 'square' | 'ring'; label: string }) {
+  return (
+    <span role="img" aria-label={label} className="inline-flex flex-wrap items-center justify-center gap-1">
+      {marks.slice(0, MAX_MARKS).map((tone, index) => (
+        <span
+          key={index} className={`h-3.5 w-3.5 ${shape === 'ring' ? 'rounded-full' : 'rounded-sm'} ${tone === null ? 'border-[1.5px] border-dashed border-[var(--line-2)]' : ''}`}
+          style={tone === null ? undefined : { background: TONE_COLOR[tone] }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/** 追问轨道：一层一个站。走过的是实心，卡住的那站是红底的叉，没走到的是虚线空圈。 */
+export function DepthTrack({ total, stuck, label }: { total: number; stuck: number; label: string }) {
+  return (
+    <span role="img" aria-label={label} className="inline-flex items-center">
+      {Array.from({ length: total }, (_, index) => {
+        const layer = index + 1;
+        const ahead = layer > stuck;
+        return (
+          <span key={layer} className="flex items-center">
+            {index > 0 && <span className={`w-4 border-t-[1.5px] ${ahead ? 'border-dashed border-[var(--line-2)]' : 'border-[var(--hard)]'}`} />}
+            <span
+              className={`flex h-5 w-5 items-center justify-center rounded-full text-xs font-semibold tabular-nums ${ahead ? 'border-[1.5px] border-dashed border-[var(--line-2)] text-[var(--subtle)]' : 'text-[var(--paper)]'}`}
+              style={ahead ? undefined : { background: layer === stuck ? TONE_COLOR.danger : 'var(--hard)' }}
+            >
+              {layer === stuck ? <X className="h-3 w-3" strokeWidth={3} /> : layer}
+            </span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+/** 深度格最多画这么多格（技能约定追问 4–6 层）。 */
+const MAX_DEPTH_BARS = 6;
+
+/** 深度格：像信号格，一层一格、一格比一格高；颜色是这条的风险。 */
+export function DepthBars({ depth, tone, label }: { depth: number; tone: Tone; label: string }) {
+  const bars = Math.min(depth, MAX_DEPTH_BARS);
+  if (bars <= 0) return null;
+  return (
+    <span role="img" aria-label={label} className="inline-flex shrink-0 items-end gap-0.5">
+      {Array.from({ length: bars }, (_, index) => <span key={index} className="w-1.5 rounded-sm" style={{ height: 6 + index * 3, background: TONE_COLOR[tone] }} />)}
     </span>
   );
 }

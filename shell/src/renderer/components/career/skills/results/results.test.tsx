@@ -23,11 +23,13 @@ describe('模拟面试报告', () => {
         { claim: '别的话', answer: '这句没有对应的卡' },
       ],
     }} />);
-    const cards = within(screen.getByRole('list', { name: '卡在哪' })).getAllByRole('listitem');
+    const list = screen.getByRole('list', { name: '卡在哪' });
+    const cards = within(list).getAllByRole('listitem').filter(item => item.parentElement === list);
     expect(cards).toHaveLength(2);
     expect(within(cards[0]).getByRole('img', { name: '追到第 3 层卡住' })).toBeInTheDocument();
     expect(within(cards[0]).getByRole('note', { name: '可以这样答' })).toHaveTextContent('我负责规则配置层');
-    expect(within(cards[0]).getByText('先核实：上线时间')).toBeInTheDocument();
+    expect(within(cards[0]).getByRole('img', { name: '面试官怎么想' })).toBeInTheDocument();
+    expect(within(cards[0]).getByLabelText('先核实：上线时间')).toBeInTheDocument();
     expect(within(cards[1]).queryByRole('note')).toBeNull();
     // 没配上的那条不丢，也不重复
     expect(screen.getAllByRole('note', { name: '可以这样答' })).toHaveLength(2);

@@ -86,22 +86,32 @@ describe('面试助力 · 准备', () => {
     expect(screen.queryByText(/还有 \d+ 天|就是今天/)).toBeNull();
   });
 
-  it('三步各一块：高风险几条、练过几道、上次模拟的结论；第一步默认摊开：风险分布条，条目按风险排，点开才看追问链', async () => {
+  it('三步各一块，块上是点阵不是数字；第一步默认摊开：左边是句子（风险只用颜色、深度是一组格子），右边是选中那句的追问阶梯', async () => {
     mockGet();
+    const chat = captureChat();
     render(<CareerInterview />);
     await openTab('准备');
-    expect(await screen.findByRole('tab', { name: '会被问什么：高风险 1 条' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: '先练几道：练过 0 道，共 1 道' })).toBeInTheDocument();
+    const first = await screen.findByRole('tab', { name: '会被问什么：高风险 1 条' });
+    expect(first).toHaveAttribute('aria-selected', 'true');
+    expect(within(first).getByRole('img', { name: '2 条预测，高风险 1 条' })).toBeInTheDocument();
+    expect(within(screen.getByRole('tab', { name: '先练几道：练过 0 道，共 1 道' })).getByRole('img', { name: '1 道题，练过 0 道' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '模拟一场：上次有点悬' })).toBeInTheDocument();
     const section = screen.getByRole('tabpanel', { name: '会被问什么' });
-    expect(within(section).getByRole('img', { name: '风险分布：高风险 1，低风险 1' })).toBeInTheDocument();
-    const rows = within(section).getAllByRole('button').filter(button => button.hasAttribute('aria-expanded'));
-    expect(rows[0]).toHaveTextContent('P99 从 800ms 到 200ms 的具体手段');
-    expect(within(rows[0]).getByRole('img', { name: '会追问 2 层' })).toBeInTheDocument();
-    expect(within(section).queryByText('怎么测的')).toBeNull();
-    fireEvent.click(rows[0]);
-    expect(within(section).getByText('怎么测的')).toBeInTheDocument();
+    // 风险不写成字，也没有图例
+    expect(within(section).queryByText(/高风险|中风险|低风险/)).toBeNull();
+    const claims = within(within(section).getByRole('tablist', { name: '会被深挖的句子' })).getAllByRole('tab');
+    expect(claims[0]).toHaveTextContent('P99 从 800ms 到 200ms 的具体手段');
+    expect(claims[0]).toHaveAttribute('aria-selected', 'true');
+    expect(within(claims[0]).getByRole('img', { name: '高风险，会追问 2 层' })).toBeInTheDocument();
+    // 右边是风险最高那句的追问阶梯；点别的句子换成它的
+    expect(within(within(section).getByRole('list', { name: '会怎么追问' })).getByText('怎么测的')).toBeInTheDocument();
     expect(within(section).queryByText('权限模型怎么设计')).toBeNull();
+    fireEvent.click(within(section).getByRole('button', { name: '练这一句' }));
+    expect(chat.said[0]).toMatchObject({ text: '就简历里这句话深挖我：P99 从 800ms 到 200ms 的具体手段', context: { refs: { application_id: 'a1' } } });
+    fireEvent.click(claims[1]);
+    expect(within(section).getByText('权限模型怎么设计')).toBeInTheDocument();
+    expect(within(section).queryByText('怎么测的')).toBeNull();
+    chat.off();
   });
 
   it('准备的是哪一场，预测、出题、模拟就带着这份投递的 id 发进对话', async () => {
@@ -130,7 +140,6 @@ describe('面试助力 · 准备', () => {
     await openTab('准备');
     fireEvent.click(await screen.findByRole('tab', { name: /^先练几道/ }));
     const section = screen.getByRole('tabpanel', { name: '先练几道' });
-    expect(within(section).getByRole('img', { name: '练习情况：没练 1' })).toBeInTheDocument();
     const row = within(section).getByRole('button', { name: '练这道：讲讲限流怎么做' });
     expect(within(row).getByRole('img', { name: '没练过' })).toBeInTheDocument();
     fireEvent.click(row);
@@ -149,7 +158,9 @@ describe('面试助力 · 准备', () => {
     fireEvent.click(done);
     expect(screen.getByRole('img', { name: '追到第 3 层卡住' })).toBeInTheDocument();
     expect(screen.getByText('说不清哪些是自己拍板的')).toBeInTheDocument();
-    expect(screen.getByText('先核实：上线时间')).toBeInTheDocument();
+    // 面试官的看法是带人像的气泡；要先核实的事是便签里的空方框
+    expect(screen.getByRole('img', { name: '面试官怎么想' })).toBeInTheDocument();
+    expect(screen.getByLabelText('先核实：上线时间')).toBeInTheDocument();
     const unfinished = screen.getByRole('button', { name: /二面/ });
     expect(within(unfinished).getByText('没练完')).toBeInTheDocument();
     fireEvent.click(unfinished);
@@ -175,14 +186,15 @@ describe('面试助力 · 复盘', () => {
     mockGet();
     render(<CareerInterview />);
     expect((await screen.findAllByText('无反馈（推测）')).length).toBeGreaterThan(0);
-    expect(screen.getByText('推测')).toBeInTheDocument();
+    // 结果是哪来的不占一行字：推测出来的章是虚线框，悬停看得到来源
+    expect(screen.getByTitle('推测')).toBeInTheDocument();
     expect(screen.getByText('进入下一轮')).toBeInTheDocument();
     expect(screen.getByText('问了限流的实现')).toBeInTheDocument();
     expect(screen.getByText('表达清晰')).toBeInTheDocument();
     expect(screen.getByText('限流')).toBeInTheDocument();
   });
 
-  it('技能约定结构的复盘：一排数字块分项，每道题一排圆点标出卡在第几层，重答是便签，要补的是待办', async () => {
+  it('技能约定结构的复盘：一排点阵块分项，每道题一张追问卡（轨道标出卡在第几层、重答是卡里的便签），要补的是待办', async () => {
     const retro = {
       focus_this_round: '数字的口径',
       questions: [{ quote: '30% 是怎么统计的？', intent: '核对数字来源', stuck_layer: 2, interviewer_doubt: { evidence: '没说统计周期', alternative: '' } }],
@@ -196,15 +208,18 @@ describe('面试助力 · 复盘', () => {
     });
     render(<CareerInterview />);
     await openTab('复盘');
-    expect(await screen.findByText('这一轮在看：数字的口径')).toBeInTheDocument();
+    expect(await screen.findByText('数字的口径')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '这一轮在看' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: '追到第 2 层卡住' })).toBeInTheDocument();
     expect(screen.getByText('没说统计周期')).toBeInTheDocument();
-    // 分项一次只看一项：点哪块看哪项
-    expect(screen.getByRole('tab', { name: /卡住/ })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByText('按工单工时算')).toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: /重答/ }));
-    expect(screen.getByText('按工单工时算')).toBeInTheDocument();
-    expect(screen.getByText('先核实：前后各四周的工时')).toBeInTheDocument();
+    // 分项一次只看一项；同一道题的重答贴在这道题的卡里，不再另开一项
+    const stuck = screen.getByRole('tab', { name: '卡住：1 处' });
+    expect(stuck).toHaveAttribute('aria-selected', 'true');
+    expect(within(stuck).getByRole('img', { name: '问了 1 道，卡住 1 处' })).toBeInTheDocument();
+    expect(screen.getByRole('note', { name: '可以这样答' })).toHaveTextContent('按工单工时算');
+    expect(screen.getByLabelText('先核实：前后各四周的工时')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /重答/ })).toBeNull();
+    expect(screen.queryByText('把口径写下来')).toBeNull();
     fireEvent.click(screen.getByRole('tab', { name: /回去要补/ }));
     expect(screen.getByText('把口径写下来')).toBeInTheDocument();
   });
@@ -260,7 +275,9 @@ describe('面试助力 · 复盘', () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, recording: { id: 'r1', interview_id: 'i1', name: '一面.m4a', mime: 'audio/mp4', size: 5, status: 'awaiting_asr', uploaded_at: '2026-11-06' } });
     render(<CareerInterview />);
-    fireEvent.click(await screen.findByRole('button', { name: '传录音' }));
+    // 这场已经复盘过，输入框收着，点开再传
+    fireEvent.click(await screen.findByRole('button', { name: '再补几句' }));
+    fireEvent.click(screen.getByRole('button', { name: '传录音' }));
     const file = new File(['audio'], '一面.m4a', { type: 'audio/mp4' });
     fireEvent.change(screen.getByLabelText('选择录音文件'), { target: { files: [file] } });
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledTimes(1));

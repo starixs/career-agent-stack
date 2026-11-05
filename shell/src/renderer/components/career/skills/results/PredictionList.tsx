@@ -1,12 +1,13 @@
 /**
  * 预测追问（probe-predict）的成果：简历里哪句话会被深挖、会被追到第几层。
- * 每条左边一道风险色、下面一排圆点表示追问有几层；点开才看一层层会怎么问。风险高的排前面。
+ * 左右两栏：左边是句子（一道风险色 + 一组深度格），右边是选中那句的追问阶梯。风险高的排前面。
  */
 import { useState } from 'react';
 
+import { Button } from '../../CareerPrimitives';
 import type { ProbePrediction } from '../../types';
 import { parseJson, texts } from '../read';
-import { Pips, toneColor, type Segment, type Tone } from '../visual';
+import { DepthBars, StepCircle, toneColor, type Tone } from '../visual';
 
 interface RiskLevel { label: string; tone: Tone; order: number }
 const RISK_LEVELS: Record<string, RiskLevel> = {
@@ -18,8 +19,6 @@ const RISK_LEVELS: Record<string, RiskLevel> = {
 };
 const UNKNOWN_RISK: RiskLevel = { label: '未评级', tone: 'neutral', order: 3 };
 
-const TARGET_LABELS: Record<string, string> = { data: '数字', project: '项目', industry: '行业判断', method: '方法' };
-
 export function riskOf(prediction: Pick<ProbePrediction, 'risk'>): RiskLevel {
   return RISK_LEVELS[prediction.risk] ?? UNKNOWN_RISK;
 }
@@ -29,55 +28,70 @@ export function sortByRisk<T extends Pick<ProbePrediction, 'risk'>>(predictions:
   return [...predictions].sort((a, b) => riskOf(a).order - riskOf(b).order);
 }
 
-/** 高、中、低各几条，给分段条用。 */
-export function riskSegments(predictions: Array<Pick<ProbePrediction, 'risk'>>): Segment[] {
-  const counts = new Map<string, Segment>();
-  for (const prediction of sortByRisk(predictions)) {
-    const { label, tone } = riskOf(prediction);
-    const current = counts.get(label);
-    counts.set(label, { label, tone, value: (current?.value ?? 0) + 1 });
-  }
-  return [...counts.values()];
-}
+const chainOf = (prediction: ProbePrediction): string[] => texts(parseJson(prediction.expected_chain_json, `probe_prediction ${prediction.id}.expected_chain_json`));
 
-function PredictionCard({ prediction }: { prediction: ProbePrediction }) {
-  const [open, setOpen] = useState(false);
+/** 阶梯每下一层往里缩这么多像素；缩到第几层为止（再深也不再缩，免得挤出去）。 */
+const STEP_INDENT_PX = 20;
+const MAX_INDENT_STEPS = 5;
+
+/** 左栏的一句话：左边一道风险色，右边一组深度格。选中的描墨线、带硬投影。 */
+function ClaimTab({ prediction, selected, onPick }: { prediction: ProbePrediction; selected: boolean; onPick: () => void }) {
   const risk = riskOf(prediction);
-  const chain = texts(parseJson(prediction.expected_chain_json, `probe_prediction ${prediction.id}.expected_chain_json`));
+  const depth = chainOf(prediction).length;
   return (
-    <li>
-      <button
-        type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}
-        className="flex w-full gap-3 rounded-md py-2.5 pr-2 text-left transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-      >
-        <span className="w-1 shrink-0 self-stretch rounded-full" style={{ background: toneColor(risk.tone) }} aria-hidden />
-        <span className="min-w-0 flex-1">
-          <span className={`block text-sm leading-relaxed text-[var(--ink)] ${open ? '' : 'line-clamp-2'}`}>{prediction.statement}</span>
-          <span className="mt-1.5 flex items-center gap-2 text-xs text-[var(--muted)]">
-            <span style={{ color: toneColor(risk.tone) }}>{risk.label}</span>
-            <span>{TARGET_LABELS[prediction.target_type] ?? prediction.target_type}</span>
-            {chain.length > 0 && <Pips total={chain.length} reached={chain.length} label={`会追问 ${chain.length} 层`} />}
-          </span>
-        </span>
-      </button>
-      {open && chain.length > 0 && (
-        <ol className="mb-3 ml-4 space-y-2 border-l border-dashed border-[var(--line-2)] pl-4">
-          {chain.map((step, index) => (
-            <li key={`${index}:${step}`} className="relative text-sm leading-relaxed text-[var(--ink-2)]">
-              <span className="absolute -left-[21px] top-2 h-2 w-2 rounded-full border-[1.5px] border-[var(--hard)] bg-[var(--paper)]" aria-hidden />
-              {step}
-            </li>
-          ))}
-        </ol>
-      )}
-    </li>
+    <button
+      type="button" role="tab" aria-selected={selected} onClick={onPick}
+      className={`flex w-full items-stretch gap-3 rounded-lg border-[1.5px] p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${selected ? 'border-[var(--hard)] bg-[var(--paper)] shadow-hard' : 'border-transparent hover:bg-[var(--hover)]'}`}
+    >
+      <span className="w-1.5 shrink-0 rounded-full" style={{ background: toneColor(risk.tone) }} aria-hidden />
+      <span className="line-clamp-2 min-w-0 flex-1 text-sm leading-relaxed text-[var(--ink)]">{prediction.statement}</span>
+      <span className="flex items-center"><DepthBars depth={depth} tone={risk.tone} label={depth > 0 ? `${risk.label}，会追问 ${depth} 层` : risk.label} /></span>
+    </button>
   );
 }
 
-export function PredictionList({ predictions }: { predictions: ProbePrediction[] }) {
+/** 右栏：这句话用荧光笔划出来，下面是一级级往里走的追问阶梯，最深的那一级描风险色。 */
+function ProbeLadder({ prediction, onPractice }: { prediction: ProbePrediction; onPractice?: (prediction: ProbePrediction) => void }) {
+  const risk = riskOf(prediction);
+  const chain = chainOf(prediction);
   return (
-    <ul className="divide-y divide-[var(--line)]">
-      {sortByRisk(predictions).map(prediction => <PredictionCard key={prediction.id} prediction={prediction} />)}
-    </ul>
+    <div role="tabpanel" aria-label={prediction.statement} className="min-w-0 space-y-4">
+      <p className="font-human text-lg font-semibold leading-relaxed text-[var(--ink)]">
+        <mark className="box-decoration-clone rounded-sm bg-[var(--mark)] px-1 text-inherit">{prediction.statement}</mark>
+      </p>
+      <ol aria-label="会怎么追问" className="space-y-2">
+        {chain.map((step, index) => (
+          <li key={`${index}:${step}`} className="flex items-start gap-2.5" style={{ marginLeft: Math.min(index, MAX_INDENT_STEPS) * STEP_INDENT_PX }}>
+            <StepCircle n={index + 1} />
+            <span
+              className="min-w-0 rounded-lg rounded-tl-sm border-[1.5px] bg-[var(--paper)] px-3 py-1.5 text-sm leading-relaxed text-[var(--ink)]"
+              style={{ borderColor: index === chain.length - 1 ? toneColor(risk.tone) : 'var(--line)' }}
+            >
+              {step}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {onPractice && <Button size="sm" onClick={() => onPractice(prediction)}>练这一句</Button>}
+    </div>
+  );
+}
+
+/**
+ * 两栏：左边是简历里会被深挖的句子（风险高的在前），右边是选中那句的追问阶梯。
+ * 风险只用颜色说（红 / 橙 / 绿），深度用一组格子说，不再写「高风险」「追问 5 层」这些字。
+ */
+export function PredictionList({ predictions, onPractice }: { predictions: ProbePrediction[]; onPractice?: (prediction: ProbePrediction) => void }) {
+  const sorted = sortByRisk(predictions);
+  const [picked, setPicked] = useState<string | null>(null);
+  const active = sorted.find(prediction => prediction.id === picked) ?? sorted[0];
+  if (!active) return null;
+  return (
+    <div className="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <div role="tablist" aria-label="会被深挖的句子" aria-orientation="vertical" className="space-y-1">
+        {sorted.map(prediction => <ClaimTab key={prediction.id} prediction={prediction} selected={prediction.id === active.id} onPick={() => setPicked(prediction.id)} />)}
+      </div>
+      <ProbeLadder prediction={active} onPractice={onPractice} />
+    </div>
   );
 }

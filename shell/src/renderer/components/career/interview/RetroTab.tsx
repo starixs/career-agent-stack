@@ -3,6 +3,7 @@
  * 面完了说几句或传一段录音，就在这一页复盘（面后复盘技能），不绕到对话。
  * 电话约的面试邮箱里没有记录，所以留着「我约了一场面试」和「补记一场」两个入口。
  */
+import { UserRound } from 'lucide-react';
 import { useState } from 'react';
 
 import { BookInterviewForm } from '../BookInterviewForm';
@@ -16,7 +17,6 @@ import type { Interview } from '../types';
 import { useCareerAction } from '../useCareerData';
 
 const RESULT_TONE: Record<string, BadgeTone> = { none: 'neutral', rejected: 'error', advanced: 'success', no_feedback_inferred: 'warning' };
-const SOURCE_TONE: Record<string, BadgeTone> = { none: 'neutral', official: 'success', inferred: 'warning' };
 const RESULT_STAMP: Record<string, Tone> = { rejected: 'danger', advanced: 'success', no_feedback_inferred: 'warning' };
 const optionsOf = (labels: Record<string, string>) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const ROUND_OPTIONS = optionsOf(INTERVIEW_ROUND_LABELS);
@@ -57,25 +57,38 @@ function InterviewList({ interviews, activeId, onSelect }: { interviews: Intervi
 function InterviewDetail({ interview }: { interview: Interview }) {
   const tags = safeJson<unknown[]>(interview.tags_json, []);
   const retro = safeJson<unknown>(interview.retro_json, null);
+  const [adding, setAdding] = useState(false);
   return (
     <div className="min-w-0 max-w-3xl space-y-6">
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1">
           <h2 className="truncate font-human text-2xl font-semibold text-[var(--ink)]">{titleOf(interview)}</h2>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
-            <span>{roundOf(interview)} · {formatDate(interview.date)}</span>
-            {interview.interviewer_role_guess && <span>面试官可能是{interview.interviewer_role_guess}</span>}
-            {hasResult(interview) && <Badge tone={SOURCE_TONE[interview.result_source] ?? 'neutral'} title="结果来源">{INTERVIEW_RESULT_SOURCE_LABELS[interview.result_source] ?? interview.result_source}</Badge>}
-            {tags.map((tag, index) => <span key={index} className="rounded-full border border-[var(--line-2)] px-2">{typeof tag === 'string' ? tag : JSON.stringify(tag)}</span>)}
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+            <span className="rounded-full bg-[var(--inset)] px-2 py-0.5 text-[var(--ink-2)]">{roundOf(interview)}</span>
+            <span className="tabular-nums">{formatDate(interview.date)}</span>
+            {interview.interviewer_role_guess && (
+              <span className="inline-flex items-center gap-1">
+                <UserRound className="h-3.5 w-3.5" role="img" aria-label="面试官可能是" />
+                {interview.interviewer_role_guess}
+              </span>
+            )}
+            {tags.map((tag, index) => <span key={index} className="rounded-full border border-[var(--line-2)] px-2 py-0.5">{typeof tag === 'string' ? tag : JSON.stringify(tag)}</span>)}
           </div>
         </div>
-        {hasResult(interview) && <Stamp tone={RESULT_STAMP[interview.result] ?? 'neutral'}>{INTERVIEW_RESULT_LABELS[interview.result] ?? interview.result}</Stamp>}
+        {hasResult(interview) && (
+          <span title={INTERVIEW_RESULT_SOURCE_LABELS[interview.result_source] ?? interview.result_source}>
+            <Stamp tone={RESULT_STAMP[interview.result] ?? 'neutral'} dashed={interview.result_source === 'inferred'}>{INTERVIEW_RESULT_LABELS[interview.result] ?? interview.result}</Stamp>
+          </span>
+        )}
       </header>
       {interview.transcript && (
         <pre className="max-h-64 overflow-auto whitespace-pre-wrap border-l-2 border-[var(--line-2)] pl-3 font-[var(--font-sans)] text-sm leading-relaxed text-[var(--ink-2)]" aria-label="过程记录">{interview.transcript}</pre>
       )}
       {retro !== null && (isRetro(retro) ? <RetroView retro={retro} /> : <StructuredJson value={retro} />)}
-      <InterviewRetroBox interview={interview} />
+      {/* 已经复盘过的：输入框先收着，要补再点开；还没复盘的直接摆出来 */}
+      {retro === null || adding
+        ? <InterviewRetroBox interview={interview} />
+        : <Button size="sm" variant="ghost" className="-ml-3" onClick={() => setAdding(true)}>再补几句</Button>}
     </div>
   );
 }
