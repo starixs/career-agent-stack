@@ -622,7 +622,10 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     }
     if (outcome.kind === 'failed') {
       registry.finish(runId);
-      return err(`填表${outcome.blocked ? '被阻塞' : '执行失败'}：${outcome.message}`);
+      // 失败一次先自动再试一次（后台接着填）；再失败会出现在右边「等你」的「N 家没填成」里
+      const { scheduleFillRetry } = await import('../career/fill-failures');
+      const retry = scheduleFillRetry(r, action.id);
+      return err(`填表${outcome.blocked ? '被阻塞' : '执行失败'}：${outcome.message}。${retry === 'retrying' ? '已自动放回后台再试一次，不用你再调工具。' : '已经自动重试过；这份会出现在右边「等你」里，让用户选再试一次或自己来。'}`);
     }
     if (outcome.kind === 'handoff') {
       try { registry.pause(runId, outcome.reason, { handoffId: outcome.handoffId, url: outcome.finalUrl, message: outcome.userAction ?? outcome.message }); } catch { /* 已是暂停态 */ }
@@ -1128,7 +1131,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const hits: unknown[] = [];
         try {
           const provider = await search();
-          if (!provider) card('search_setup', 'search_setup', '配置搜索 Key（建议）', { reason: 'company_research' });
+          // 搜索和模型共用 DeepSeek Key：没有提供方只可能是模型 Key 也没配，不再单独要搜索 Key
+          if (!provider) console.warn('[career] company_research: 没有可用的搜索提供方（模型 Key 未配置）');
           if (provider) {
             progress('company_research', `正在搜索 ${args.company_name}`);
             const queries = [`${args.company_name} 公司 招聘 评价`, `${args.company_name} 工商 信息 风险`, `${args.company_name} 面试 经验`];
@@ -1142,17 +1146,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const trafficLight = typeof out.traffic_light === 'string' ? out.traffic_light : null;
         const company = store().upsertCompany(args.company_name, { dd_report_json: out, traffic_light: trafficLight, manual_checks: out.manual_checks ?? [] });
         changed('company');
-        return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实；搜索没配置时对话里会出现「配置搜索 Key」卡片。' }) });
+        return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实。' }) });
       })()),
 
-      tool('web_search', 'Web 搜索（博查 / Tavily / Serper）：查公司、行情、面经、笔试时间。要读结果里的某一页先 web_fetch，拿不到再 browser_open。', {
+      tool('web_search', 'Web 搜索：查公司、行情、面经、笔试时间。要读结果里的某一页先 web_fetch，拿不到再 browser_open。', {
         query: z.string(), count: z.number().int().min(1).max(20).optional(),
       }, async (args) => wrap(async () => {
         const provider = await search();
-        if (!provider) {
-          card('search_setup', 'search_setup', '配置搜索 Key（建议）', { reason: 'web_search' });
-          return err(SEARCH_NOT_CONFIGURED_MESSAGE);
-        }
+        if (!provider) return err(SEARCH_NOT_CONFIGURED_MESSAGE);
         progress('web_search', `搜索：${args.query}`);
         return text(await provider.search(args.query, { count: args.count ?? 8 }));
       })()),
@@ -1221,7 +1222,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         source: z.enum(['campus', 'server']),
       }, async (args) => wrap(async () => {
         const r = repos();
-        const { computeMatches } = await import('../career/job-board');
+        const { computeMatches, campusLibraryFilter } = await import('../career/job-board');
         let result: { fetched: number; stored: number };
         if (args.source === 'server') {
           const { serverConfig, RemoteJobSource, syncJobSource } = await import('../career/server-api');
@@ -1231,7 +1232,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
           r.kvSet('jobs:server:synced_at', new Date().toISOString());
         } else {
           const bridges = await loadBridges();
-          const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), { excludeExpired: false });
+          const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), campusLibraryFilter());
           result = { fetched: items.length, stored: bridges.importCampusJobs(r, items).length };
         }
         const matched = computeMatches(r, store());
@@ -1264,6 +1265,13 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         // 对话里留一张批次卡（海报墙，只看状态、没有按钮）：这批投到哪了一眼可见
         if (res.started.length) review(res.started, 'fill_form', `投 ${res.started.length} 家`);
         return text({ started: res.started.length, skipped: res.skipped, ...(resume ? { resume: masters.find(m => m.id === resume)?.name ?? resume } : {}) });
+      })()),
+
+      tool('jobs_propose', '在对话里放一张「先投这几家？」的勾选表（他说「再投一批」「再投几家」「批量投」而没指定是哪几家时用）：按他的方向挑现在就能投的岗位，默认勾前几家、一家公司只勾一个岗，他在表上点「投这 N 家」才开始。不要再用文字列一遍岗位；回复一句「挑好了，在下面，看看要不要改」就停。他已经点名具体哪几家时直接用 jobs_apply。', {}, async () => wrap(async () => {
+        const { proposeBatch, proposalTitle, BATCH_PICK_CARD_KIND } = await import('../career/batch-propose');
+        const p = proposeBatch(repos(), store());
+        card(`batch-pick:${Date.now()}`, BATCH_PICK_CARD_KIND, proposalTitle(p), { ...p });
+        return text({ rows: p.rows.length, picked: p.rows.filter(r => r.picked).length, more: p.more });
       })()),
 
       tool('apply_run', '在托管浏览器上执行一份已经排进队列的填表动作（不提交）。新开一份网申用 apply_prepare（准备好会直接开始填）；apply_run 用于队列里已批准的（如浏览器忙时放回队列的），也可以直接重试之前因暂时性问题失败的那份。遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {

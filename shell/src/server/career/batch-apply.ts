@@ -11,6 +11,7 @@
  */
 import type { ActionQueueItem, Repos } from '@career/core';
 
+import { isSubmittedStage } from '../../shared/careerStages';
 import { BatchRunner } from './batch-runner';
 import { getJobPrefs, jobBoard, prepareJobs } from './job-board';
 import { pickResumeForJob, type PacketDeps } from './packets';
@@ -21,8 +22,6 @@ type Deps = PacketDeps & { store: CareerStore };
 
 /** 还在投的投递上挂着这些状态的动作，就算「已在投」。 */
 const ACTIVE_ACTION = new Set(['pending_review', 'approved', 'executing', 'needs_user']);
-/** 投出去过的阶段（放弃 / 跳过的不算），与 job-board.prepareJobs 同口径。 */
-const SENT = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'hired']);
 
 export interface JobPlan {
   /** 确认后会开始的岗位。 */
@@ -39,7 +38,7 @@ function skipReason(repos: Repos, store: CareerStore, jobId: string, busyApps: R
   const job = repos.getJob(jobId);
   if (!job) return '岗位不存在';
   const apps = repos.listApplications().filter(a => a.job_id === jobId);
-  if (apps.some(a => SENT.has(a.stage))) return '已经投过';
+  if (apps.some(a => isSubmittedStage(a.stage))) return '已经投过';
   if (apps.some(a => busyApps.has(a.id))) return '已在投';
   if (!job.url) return '没有网申链接';
   if (!store.listResumeMasters().length && !pickResumeForJob(store, jobId)) return '还没有简历';

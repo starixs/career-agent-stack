@@ -54,6 +54,7 @@ function careerBuildDefines() {
     __CAREER_LLM_MODEL__: pick('CAREER_LLM_MODEL'),
     __CAREER_SEARCH_API_KEY__: pick('CAREER_SEARCH_API_KEY'),
     __CAREER_SEARCH_PROVIDER__: pick('CAREER_SEARCH_PROVIDER'),
+    __CAREER_SEARCH_BASE_URL__: pick('CAREER_SEARCH_BASE_URL'),
   };
 }
 

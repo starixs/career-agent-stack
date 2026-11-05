@@ -19,7 +19,7 @@ export const XIAOYA_TOOLS: ReadonlySet<string> = new Set([
   // 简历与方向
   'resume_list', 'resume_get', 'resume_master_create', 'resume_tailor', 'job_prefs',
   // 岗位与投出
-  'jobs_board', 'jobs_apply', 'apply_continue', 'review_queue',
+  'jobs_board', 'jobs_propose', 'jobs_apply', 'apply_continue', 'review_queue',
   // 回来、看全局、打开页面
   'today_queue', 'dossier_get', 'ui_open',
   // 读外面的东西

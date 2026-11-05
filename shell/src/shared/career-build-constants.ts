@@ -5,7 +5,7 @@
  *   - Node 侧车：scripts/esbuild-bundle.mjs 的 `define`
  *   - 前端：vite.config.ts 的 `define`
  * 环境变量（构建机）：CAREER_LLM_API_KEY / CAREER_LLM_BASE_URL / CAREER_LLM_MODEL /
- *   CAREER_SEARCH_API_KEY / CAREER_SEARCH_PROVIDER
+ *   CAREER_SEARCH_API_KEY / CAREER_SEARCH_PROVIDER / CAREER_SEARCH_BASE_URL（DeepSeek 搜索地址，缺省取模型地址的 origin）
  *
  * 开发态（tsx / vitest 没有 define）直接读 process.env 同名变量，前端没有 process 时为空串。
  * 这个模块是 renderer / server 共用的纯逻辑，不要引入任何 Node 专属依赖。
@@ -16,6 +16,7 @@ declare const __CAREER_LLM_BASE_URL__: string | undefined;
 declare const __CAREER_LLM_MODEL__: string | undefined;
 declare const __CAREER_SEARCH_API_KEY__: string | undefined;
 declare const __CAREER_SEARCH_PROVIDER__: string | undefined;
+declare const __CAREER_SEARCH_BASE_URL__: string | undefined;
 
 /** 内置国内模型的 provider id（用户不可见、不可配置）。 */
 export const CAREER_LLM_PROVIDER_ID = 'career-llm';
@@ -44,6 +45,8 @@ export interface CareerBuildConstants {
   llmModel: string;
   searchApiKey: string;
   searchProvider: string;
+  /** DeepSeek 搜索的地址覆盖（自建网关路径不同时用）；空 = 取模型地址的 origin。 */
+  searchBaseUrl: string;
 }
 
 /** 每次调用都重新读取，便于测试通过 process.env 覆盖。 */
@@ -54,5 +57,6 @@ export function getCareerBuildConstants(): CareerBuildConstants {
     llmModel: pick(typeof __CAREER_LLM_MODEL__ !== 'undefined' ? __CAREER_LLM_MODEL__ : undefined, 'CAREER_LLM_MODEL') || CAREER_LLM_DEFAULT_MODEL,
     searchApiKey: pick(typeof __CAREER_SEARCH_API_KEY__ !== 'undefined' ? __CAREER_SEARCH_API_KEY__ : undefined, 'CAREER_SEARCH_API_KEY'),
     searchProvider: pick(typeof __CAREER_SEARCH_PROVIDER__ !== 'undefined' ? __CAREER_SEARCH_PROVIDER__ : undefined, 'CAREER_SEARCH_PROVIDER'),
+    searchBaseUrl: pick(typeof __CAREER_SEARCH_BASE_URL__ !== 'undefined' ? __CAREER_SEARCH_BASE_URL__ : undefined, 'CAREER_SEARCH_BASE_URL'),
   };
 }

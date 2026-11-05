@@ -92,8 +92,8 @@ describe('career 题库与岗位工具', () => {
   it('job_prefs 设置后重算匹配；jobs_board 只给可解释结果', async () => {
     const exp = repos.createExperience({ title: '数据实习', org: '某厂' });
     const c = repos.addClaim({ experience_id: exp.id, text: '用 SQL 做留存分析' }); repos.confirmClaim(c.id);
-    repos.upsertJob({ source_platform: 'manual', title: '数据分析实习生', company_name: '丙', location: '上海', jd_raw: '熟练 SQL', employment_type: 'intern', cohort: '2027届' });
-    repos.upsertJob({ source_platform: 'manual', title: '数据分析（2026届）', company_name: '丁', location: '上海', jd_raw: '熟练 SQL', employment_type: 'campus', cohort: '2026届' });
+    repos.upsertJob({ source_platform: 'manual', title: '数据分析实习生', company_name: '丙', url: 'https://bing.test/apply', location: '上海', jd_raw: '熟练 SQL', employment_type: 'intern', cohort: '2027届' });
+    repos.upsertJob({ source_platform: 'manual', title: '数据分析（2026届）', company_name: '丁', url: 'https://ding.test/apply', location: '上海', jd_raw: '熟练 SQL', employment_type: 'campus', cohort: '2026届' });
     await call('job_prefs', { cohort: '2027届', cities: ['上海'] });
     const board = (await call('jobs_board', { fits_only: true })).json() as { rows: Array<{ company: string; fits: boolean; covered: string[] }> };
     expect(board.rows.map(r => r.company)).toEqual(['丙']);

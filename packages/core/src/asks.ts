@@ -17,6 +17,7 @@
  * 「考了吗」的放最后（和 today() 的 OVERDUE_PRIORITY 同一个判断）。
  */
 import { companyMarkOf, type CompanyMark } from './company-mark.js'
+import { fillFailReason } from './fill-retry.js'
 import type { Repos } from './repos.js'
 import { deadlineToToday, type TodayItem } from './surfaces.js'
 import type { ActionQueueItem, Deadline, Handoff, InboxItem } from './types.js'
@@ -24,7 +25,8 @@ import { PROFILE_FIELDS } from './vault.js'
 
 /**
  * 规范五类 + 已经在今日队列里的四类（过了时间问「考了吗」、面完复盘、不确定是否投出、还没开始填的）。
- * 出错面预留（2026-10-30，等用户定，现在不派生）：failed「N 家没投成」、unsure「这几封我不太确定」。
+ * 出错面：failed「N 家没填成」——填表失败、自动再试一次也没成的（fill-retry.ts），合成一件，「再试一次」一起放回队列。
+ * unsure「这几封我不太确定」仍是预留，现在不派生。
  */
 export type AskKind = 'info' | 'login' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure'
 export type AskSourceType = 'deadline' | 'action' | 'handoff'
@@ -329,6 +331,38 @@ function foldAssessmentHandoffs(asks: AskView[]): AskView[] {
   return out
 }
 
+// ---------- 没填成 ----------
+
+/** 理由最多并列几种：多了卡上一行放不下，看清一两种就够他决定再试还是自己来。 */
+const MAX_FAIL_REASONS = 2
+
+/** 每份投递最近一次填表动作是失败的、投递还停在 blocked（没被重试、接管或改道）的那几个动作。 */
+function failedFills(repos: Repos): ActionQueueItem[] {
+  const latest = new Map<string, ActionQueueItem>()
+  for (const a of repos.listActions()) {
+    if (a.kind !== 'fill_form' || !a.application_id) continue
+    const prev = latest.get(a.application_id)
+    if (!prev || prev.updated_at < a.updated_at) latest.set(a.application_id, a)
+  }
+  return [...latest].filter(([appId, a]) => a.status === 'failed' && repos.getApplication(appId)?.stage === 'blocked').map(([, a]) => a)
+    .sort((x, y) => x.created_at.localeCompare(y.created_at))
+}
+
+/** 填表失败、自动再试一次也没成的：合成一件（「再试一次」一个动作就能把它们全放回队列）。 */
+function failedAsk(repos: Repos, ctx: Ctx): AskView | null {
+  const actions = failedFills(repos)
+  if (!actions.length) return null
+  const appIds = uniq(actions.map(a => a.application_id))
+  const reasons = uniq(actions.map(fillFailReason))
+  const one = actions.length === 1 ? strOf(parseObj(actions[0].payload_json).url) : undefined
+  return {
+    id: actions[0].id, kind: 'failed', title: `${appIds.length} 家没填成`, detail: reasons.slice(0, MAX_FAIL_REASONS).join('、'),
+    application_ids: appIds, companies: companiesOf(ctx, appIds), sources: actions.map(a => ({ type: 'action' as const, id: a.id })),
+    action_ids: actions.map(a => a.id), due_at: earliestJobDeadline(ctx, appIds), overdue: false,
+    ...(one ? { url: one } : {}),
+  }
+}
+
 // ---------- 排序与入口 ----------
 
 /** 有期限的在前（越急越前），没期限的按挡住的申请数，已经过了时间的放最后。 */
@@ -346,7 +380,8 @@ export function compareAsks(a: AskView, b: AskView): number {
 /** 现在要你的事（已合并、已排序）。 */
 export function buildAsks(repos: Repos, nowIso: string, opts: AskOptions = {}): AskView[] {
   const ctx: Ctx = { apps: appContext(repos), nowIso, isTarget: opts.isTarget ?? (() => false) }
-  const asks = foldAssessmentHandoffs([...deadlineAsks(repos, ctx), ...actionAsks(repos, ctx), ...handoffAsks(repos, ctx)])
+  const failed = failedAsk(repos, ctx)
+  const asks = foldAssessmentHandoffs([...deadlineAsks(repos, ctx), ...actionAsks(repos, ctx), ...handoffAsks(repos, ctx), ...(failed ? [failed] : [])])
   for (const a of asks) if (a.application_ids.length === 1) a.role = ctx.apps.get(a.application_ids[0])?.role
   return asks.sort(compareAsks)
 }

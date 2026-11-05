@@ -5,22 +5,23 @@
  * 信任账本里「学会了」的几类、今天的三个数。只读现有的权威数据（经历、简历、投递、动作队列、
  * 批量运行器状态、邮箱、信任账本），不另存一份；前端按表变化重新拉。
  */
-import type { Repos } from '@career/core';
+import { isFillRetrying, type Repos } from '@career/core';
 
 import type { CoreModule } from './core-module';
 
 import type { CareerStore } from './store';
 import { BATCH_STATE_KEY, type BatchState } from './batch-runner';
+import { asksFor } from './delivery';
 import { getJobPrefs, jobBoard } from './job-board';
 import { resumeMasterOf } from './packets';
 import { readLedger, shouldProposeDelegate } from './trust-ledger';
+import { SUBMITTED_STAGES } from '../../shared/careerStages';
 import type { MainlineStage, RailBlock, RailPool, RailReceipt, RailSnapshot, RailWaiting, TrustEntry } from '../../shared/careerRail';
 
 export type { MainlineStage, RailSnapshot } from '../../shared/careerRail';
 
 /** 回执最多列几张：右栏是扫一眼的地方，完整记录在漏斗页。 */
 const RECEIPT_LIMIT = 30;
-const SENT_STAGES = ['applied', 'responded', 'interview', 'offer', 'rejected', 'hired'];
 const WAITING_STATUSES = new Set(['needs_user', 'pending_review']);
 
 function startOfToday(): string {
@@ -58,17 +59,19 @@ function applyBlock(repos: Repos, sent: number): RailBlock {
   const batch = repos.kvGet<BatchState>(BATCH_STATE_KEY);
   const actions = repos.listActions().filter(a => a.kind === 'fill_form');
   const waiting = actions.filter(a => a.status === 'needs_user').length;
-  const failed = actions.filter(a => a.status === 'failed').length;
+  const retrying = actions.filter(a => isFillRetrying(repos, a)).length;
   const held = repos.listActions('pending_review').filter(a => a.kind === 'submit').length;
   const running = batch?.status === 'running' ? (batch.running ?? []) : [];
   const total = actions.length;
   const base = { id: 'apply' as const, label: '网申', done: sent, total };
-  if (running.length) return { ...base, status: 'working', line: `在填：${running.map(r => r.title).join('、')}` };
+  // 没填成的先自动再试一次：如实说在再试（2026-11-02 实例 A：失败曾显示成「投出 0 份」）；再试也没成的进「等你」，这里不再说
+  const retryLine = retrying ? `${retrying} 份没填成，正在再试一次` : '';
+  if (running.length) return { ...base, status: 'working', line: [`在填：${running.map(r => r.title).join('、')}`, retryLine].filter(Boolean).join('；') };
+  if (retrying) return { ...base, status: 'working', line: retryLine };
   if (waiting) return { ...base, status: 'waiting', line: `${waiting} 份等你一下` };
   if (held) return { ...base, status: 'waiting', line: `${held} 份填好了，停在提交前等你点头` };
-  // 填表没成：如实说，不当成完成（2026-11-02 实例 A：失败曾显示成「投出 0 份」）
-  if (failed) return { ...base, status: 'waiting', line: `${failed} 份没填成，我在查原因${sent ? `；已投出 ${sent} 份` : ''}` };
-  if (total) return { ...base, status: 'done', line: `投出 ${sent} 份` };
+  if (sent) return { ...base, status: 'done', line: `投出 ${sent} 份` };
+  if (total) return { ...base, status: 'idle', line: '还没投出' };
   return { id: 'apply', label: '网申', status: 'idle', line: '简历和方向好了就开始' };
 }
 
@@ -79,14 +82,14 @@ function mailBlock(repos: Repos): RailBlock {
 }
 
 export function receipts(repos: Repos): RailReceipt[] {
-  const placeholders = SENT_STAGES.map(() => '?').join(',');
+  const placeholders = SUBMITTED_STAGES.map(() => '?').join(',');
   const rows = repos.db.all<{ application_id: string; company: string | null; title: string; at: string; payload_json: string | null }>(
     `SELECT a.id AS application_id, j.company_name AS company, j.title AS title, MIN(h.created_at) AS at,
             (SELECT q.payload_json FROM action_queue q WHERE q.application_id = a.id AND q.kind = 'submit' AND q.status = 'done' ORDER BY q.updated_at DESC LIMIT 1) AS payload_json
        FROM application a JOIN job j ON j.id = a.job_id
        JOIN application_history h ON h.application_id = a.id AND h.to_stage = 'applied'
       WHERE a.stage IN (${placeholders})
-      GROUP BY a.id ORDER BY at DESC LIMIT ?`, [...SENT_STAGES, RECEIPT_LIMIT]);
+      GROUP BY a.id ORDER BY at DESC LIMIT ?`, [...SUBMITTED_STAGES, RECEIPT_LIMIT]);
   return rows.map(r => ({ application_id: r.application_id, company: r.company ?? '未知公司', title: r.title, at: r.at, ...submitSummary(repos, r.payload_json) }));
 }
 
@@ -138,7 +141,8 @@ export function railSnapshot(repos: Repos, store: CareerStore, core: CoreModule)
     waiting: wait,
     receipts: list,
     learned: ledger.map(e => ({ ...e, propose: shouldProposeDelegate(e) })),
-    today: { prepared, sent: list.filter(r => r.at >= since).length, waiting: wait.count },
+    // 「等你」和输入框上沿的等你条同一个来源（asksFor），两处的数永远对得上
+    today: { prepared, sent: list.filter(r => r.at >= since).length, waiting: asksFor(repos).length },
     pool: pool(repos),
   };
 }

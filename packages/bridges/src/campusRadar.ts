@@ -71,8 +71,15 @@ export interface CampusFilter {
   batch?: string
   location?: string
   campusOnly?: boolean
+  /** 只留有网申链接（apply_url 非空）的条目；默认 false（不改变老调用方的行为）。 */
+  requireApplyUrl?: boolean
   /** 测试用：固定"今天"（YYYY-MM-DD）。 */
   today?: string
+}
+
+/** 有可投的网申链接（去掉首尾空白后非空）。 */
+export function hasApplyUrl(j: Pick<CampusJob, 'apply_url'>): boolean {
+  return !!j.apply_url?.trim()
 }
 
 const dayMs = 86_400_000
@@ -87,6 +94,7 @@ export function filterCampusJobs(items: CampusJob[], f: CampusFilter = {}): Camp
     if (f.cohort && (j.cohort ?? '') !== f.cohort) return false
     if (f.batch && (j.batch ?? '') !== f.batch) return false
     if (f.campusOnly !== undefined && !!j.campus_only !== f.campusOnly) return false
+    if (f.requireApplyUrl && !hasApplyUrl(j)) return false
     if (f.location && !j.locations.some(l => l.includes(f.location!))) return false
     if (kw) {
       const hay = [j.company, j.program, j.industry, j.cohort, j.batch, ...j.positions, ...j.locations].filter(Boolean).join(' ').toLowerCase()

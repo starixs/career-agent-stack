@@ -30,6 +30,7 @@ import { SEASON_KEY, guessSeason, isSeasonId, markTakeoverViewed, takeoverBriefi
 import { withConnection } from '../career/mail/connect-service';
 import { mailBackend } from '../career/mail/backend';
 import { productChatCardPoster, type PostChatCard } from '../career/chat-card-push';
+import { careerProductSessionId } from '../career/product-session';
 import type { VerifyDeps } from '../career/mail/verify';
 import { executeApprovedSendMails } from '../career/mail/send';
 import type { syncMailAccount } from '../career/mail/sync';
@@ -40,7 +41,10 @@ import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../ca
 import { confirmSubmitResult } from '../career/submit-executor';
 import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
 import { applyJobs, planJobs, prepareAhead, startApprovedFills } from '../career/batch-apply';
-import { CAMPUS_SEEDED_KEY, computeMatches, getJobPrefs, jobBoard, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
+import { postProposal, proposeAfterSubmit, startFromCard } from '../career/batch-propose';
+import { buildSuggestions } from '../career/suggest';
+import { suggestContextOf } from '../career/suggest-context';
+import { CAMPUS_SEEDED_KEY, campusLibraryFilter, computeMatches, getJobPrefs, jobBoard, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
 import { exportCareerWorkbook } from '../career/xlsx-export';
 import { scheduleRefresh } from '../career/correction';
@@ -423,7 +427,7 @@ const ROUTES: Route[] = [
         ctx.repos.kvSet('jobs:server:synced_at', new Date().toISOString());
       } else {
         const bridges = await loadBridges();
-        const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), { excludeExpired: false });
+        const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), campusLibraryFilter());
         const stored = bridges.importCampusJobs(ctx.repos, items).length;
         result = { fetched: items.length, stored };
       }
@@ -453,6 +457,29 @@ const ROUTES: Route[] = [
       if (error instanceof DomainUnavailableError) return fail(error.message, 501);
       throw error;
     }
+  }),
+  // 批量勾选表（face-beta-polish）：不在对话里的入口（右栏、功能市场、网申进展）让小芽在对话里放一张
+  route('POST', '/api/career/jobs/propose', (ctx) => ok(postProposal(ctx.repos, ctx.store, ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos)))),
+  // 勾选表点了「投这 N 家」：开始投，并把那张卡收成"已开始投 N 家"
+  route('POST', '/api/career/jobs/propose/start', async (ctx) => {
+    const cardId = str(ctx.body.card_id);
+    const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : [];
+    if (!cardId || !ids.length) return fail('card_id 和 job_ids 都不能为空');
+    try {
+      const res = await startFromCard({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir }, cardId, ids, str(ctx.body.resume_id) ?? null);
+      console.log(`[career] jobs/propose/start card=${cardId} started=${res.started.length} skipped=${res.skipped.length}`);
+      dataChanged(ctx, ['application', 'action_queue']);
+      return ok(res);
+    } catch (error) {
+      if (error instanceof DomainUnavailableError) return fail(error.message, 501);
+      throw error;
+    }
+  }),
+  // 建议条：一轮说完后输入框上方的几个小框（规则 + 一次小模型调用，超时只出规则那两格）
+  route('POST', '/api/career/suggest', async (ctx) => {
+    const pending = Array.isArray(ctx.body.pending_cards) ? ctx.body.pending_cards.filter((x): x is string => typeof x === 'string') : [];
+    const req = { last_user: str(ctx.body.last_user) ?? null, last_assistant: str(ctx.body.last_assistant) ?? null, pending_cards: pending };
+    return ok({ chips: await buildSuggestions(suggestContextOf(ctx.repos, ctx.store), req, getShellLLM()) });
   }),
   route('POST', '/api/career/export/workbook', async (ctx) => {
     const res = await exportCareerWorkbook(ctx.repos, ctx.deps.exportsDir);
@@ -541,7 +568,11 @@ const ROUTES: Route[] = [
     // 他看着一份做通、点了头：后台接着把方向对得上的几家备到提交前（预准备，主线 ⑥）
     if (decision === 'approved' && submits.length) {
       void prepareAhead({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir })
-        .then(ids => { if (ids.length) dataChanged(ctx, ['application', 'action_queue']); })
+        .then(ids => {
+          if (ids.length) dataChanged(ctx, ['application', 'action_queue']);
+          // 备完了，再在对话里放一张"先投这几家？"：已经备好的几家不进表（face-beta-polish 入口 1）
+          proposeAfterSubmit(ctx.repos, ctx.store, ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos), careerProductSessionId() ?? null);
+        })
         .catch((error: unknown) => console.error('[career] prepare-ahead FAILED', error instanceof Error ? error.message : error));
     }
     // 批准填表同样即执行：交给后台批量运行器（命令轮询几秒内接走）

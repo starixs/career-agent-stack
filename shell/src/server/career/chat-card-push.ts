@@ -25,3 +25,23 @@ export function productChatCardPoster(repos: Repos): PostChatCard {
     liveHub.publish('career:card', { sessionId, card: { ...card, createdAt, sessionId, toolUseId: null, state: 'pending' } });
   };
 }
+
+/**
+ * 改写一张已有的卡并定下它的状态（如勾选表点了「投这 N 家」后收成"已开始投 N 家"）：
+ * upsert 会把卡打回 pending，所以先写数据、再定状态、最后按定好的状态推给前端。
+ */
+export function settleChatCard(repos: Repos, id: string, patch: Record<string, unknown>, state: 'completed' | 'dismissed'): boolean {
+  const row = repos.getChatCard(id);
+  if (!row) {
+    console.warn(`[career-card] settle: card ${id} not found`);
+    return false;
+  }
+  const prev: unknown = JSON.parse(row.data_json);
+  const data = { ...(prev && typeof prev === 'object' && !Array.isArray(prev) ? Object.fromEntries(Object.entries(prev)) : {}), ...patch };
+  repos.upsertChatCard({ id, session_id: row.session_id, tool_use_id: row.tool_use_id, kind: row.kind, title: row.title, data });
+  const settled = repos.setChatCardState(id, state);
+  if (row.session_id && settled) {
+    liveHub.publish('career:card', { sessionId: row.session_id, card: { id, kind: row.kind, title: row.title, data, createdAt: settled.created_at, sessionId: row.session_id, toolUseId: row.tool_use_id, state } });
+  }
+  return true;
+}

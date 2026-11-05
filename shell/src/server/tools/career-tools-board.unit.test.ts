@@ -136,7 +136,7 @@ describe('career 岗位表格 / 日历工具', () => {
   });
 
   it('jobs_board 按批次 / 类型 / 地点 / 进度筛选，返回总数、已用条件与表格列', async () => {
-    const mk = (id: string, campus: Record<string, unknown>, extra: Record<string, unknown> = {}) => repos.upsertJob({ source_platform: 'campus', source_job_id: id, title: `岗位${id}`, company_name: `公司${id}`, employment_type: 'campus', prefilter_json: JSON.stringify({ campus }), ...extra });
+    const mk = (id: string, campus: Record<string, unknown>, extra: Record<string, unknown> = {}) => repos.upsertJob({ source_platform: 'campus', source_job_id: id, title: `岗位${id}`, company_name: `公司${id}`, employment_type: 'campus', url: `https://${id}.test/apply`, prefilter_json: JSON.stringify({ campus }), ...extra });
     const a = mk('a', { batch: '正式批', industry: '互联网' }, { location: '北京/上海' });
     mk('b', { batch: '提前批', industry: '互联网' }, { location: '北京' });
     const c = mk('c', { batch: '正式批', industry: '央国企' }, { location: '深圳' });

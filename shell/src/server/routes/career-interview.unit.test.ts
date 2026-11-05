@@ -67,8 +67,8 @@ describe('面试接口', () => {
   });
 
   it('目标岗位：用户标的算目标、取消就不算；进过面试的自动算，系统不替用户认定别的', async () => {
-    const mine = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j1', title: '算法', company_name: '美团' });
-    const other = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j2', title: '后端', company_name: '京东' });
+    const mine = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j1', title: '算法', company_name: '美团', url: 'https://meituan.test/apply' });
+    const other = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j2', title: '后端', company_name: '京东', url: 'https://jd.test/apply' });
     repos.createApplication(mine.id); repos.createApplication(other.id);
     await call('POST', '/api/career/interviews/book', { company_name: '小红书', when: '2026-11-04T15:00:00+08:00' });
     await call('POST', '/api/career/targets', { job_id: mine.id, target: true });
@@ -79,7 +79,7 @@ describe('面试接口', () => {
   });
 
   it('岗位库表里也带目标标记：海投阶段标的岗位还没建申请也算', async () => {
-    const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j3', title: '算法', company_name: '快手' });
+    const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'j3', title: '算法', company_name: '快手', url: 'https://kuaishou.test/apply' });
     await call('POST', '/api/career/targets', { job_id: job.id, target: true });
     const rows = (await call('GET', '/api/career/jobs/board')).json.rows as Array<{ job: { id: string }; target: string | null }>;
     expect(rows.find(r => r.job.id === job.id)?.target).toBe('user');

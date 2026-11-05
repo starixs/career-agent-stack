@@ -10,7 +10,7 @@
  *  - 每次状态变化 broadcast `career:batch`；接管状态同时广播 `career:takeover`，前端接管条 / 现场窗复用。
  */
 import PQueue from 'p-queue';
-import type { ActionQueueItem, Repos, Task } from '@career/core';
+import { autoRetryFailedFill, type ActionQueueItem, type Repos, type Task } from '@career/core';
 import { applyTaskTitle, isTransientDriveError, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
@@ -419,7 +419,11 @@ export class BatchRunner {
       this.setState({ done: s.done + 1, message: `「${title}」${outcome.headline}，${outcome.autoApproved ? '正在提交' : '等你批准提交'}` });
     } else if (outcome.kind === 'failed') {
       takeover('idle');
-      this.setState({ failed: s.failed + 1, lastError: outcome.message, message: `「${title}」${outcome.blocked ? '被阻塞' : '失败'}：${outcome.message}` });
+      // 失败一次先自动再试一次（放回队列，循环还在跑会接着拿到它）；再失败交给等你「N 家没填成」
+      const retry = autoRetryFailedFill(r, action.id);
+      this.log(`fill failed ${action.id}: retry=${retry}`);
+      if (retry === 'retrying') changed('action_queue', 'application');
+      this.setState({ failed: s.failed + 1, lastError: outcome.message, message: `「${title}」${outcome.blocked ? '被阻塞' : '失败'}：${outcome.message}${retry === 'retrying' ? '，稍后再试一次' : ''}` });
     }
     return outcome;
   }

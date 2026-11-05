@@ -100,15 +100,28 @@ describe('BatchRunner', () => {
     seed(repos, 1, 'locked.com'); const [free] = seed(repos, 1, 'free.com');
     const { runner, calls } = makeRunner(repos, () => [{ type: 'error', status: 500, error: '渲染进程崩了' }], { riskLocked: p => p === 'locked.com' });
     runner.start();
-    for (let i = 0; i < 50 && calls.length === 0; i++) await settle();
-    await settle();
-    expect(calls[0].action.id).toBe(free);
+    // 失败一次会自动再试一次：等两次都跑完
+    for (let i = 0; i < 50 && (calls.length < 2 || repos.getAction(free)!.status !== 'failed'); i++) await settle();
+    expect(calls.map(c => c.action.id)).toEqual([free, free]);
     expect(repos.getAction(free)!.status).toBe('failed');
-    expect(runner.state().failed).toBe(1);
+    expect(runner.state().failed).toBe(2);
     for (let i = 0; i < 50 && runner.state().phase !== 'rate_locked'; i++) await settle();
     expect(runner.state().phase).toBe('rate_locked');
     runner.stop();
     for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
+  });
+
+  it('填表失败：自动再试一次；再失败不再试，进等你「1 家没填成」', async () => {
+    const repos = createMemoryRepos();
+    const [id] = seed(repos, 1);
+    const { runner, calls } = makeRunner(repos, () => [{ type: 'error', status: 500, error: 'page.goto: Timeout 30000ms exceeded' }]);
+    runner.start();
+    for (let i = 0; i < 50 && runner.state().status === 'running'; i++) await settle();
+    expect(calls.map(c => c.action.id)).toEqual([id, id]);
+    expect(repos.getAction(id)!.status).toBe('failed');
+    const { asksFor } = await import('./delivery');
+    const failed = asksFor(repos).filter(a => a.kind === 'failed');
+    expect(failed).toEqual([expect.objectContaining({ title: '1 家没填成', detail: '页面一直没打开', action_ids: [id] })]);
   });
 
   it('没有每日上限：今天已经投了 100 份，队列里的照样开始填（用户 2026-10-30「不要做上限」）', async () => {

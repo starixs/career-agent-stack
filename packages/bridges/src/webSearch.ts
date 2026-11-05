@@ -1,8 +1,9 @@
 /**
- * Web Search 提供方：博查 / Tavily / Serper，统一成 {title,url,snippet,publishedAt?}。
+ * Web Search 提供方：DeepSeek（默认，和模型共用一个 Key）/ 博查 / Tavily / Serper，统一成 {title,url,snippet,publishedAt?}。
  * LLM 唯一允许的外部动作就是搜索；这里不做任何页面抓取。
  */
-import { fetchJson, type FetchLike } from './common.js'
+import { z } from 'zod'
+import { HttpError, fetchJson, type FetchLike } from './common.js'
 
 export interface SearchResult { title: string; url: string; snippet: string; publishedAt?: string }
 export interface SearchOptions { count?: number; freshness?: 'day' | 'week' | 'month' | 'year' | 'noLimit'; lang?: string; timeoutMs?: number }
@@ -11,9 +12,9 @@ export interface SearchProvider {
   search(query: string, opts?: SearchOptions): Promise<SearchResult[]>
 }
 
-export type SearchProviderName = 'bocha' | 'tavily' | 'serper'
+export type SearchProviderName = 'bocha' | 'tavily' | 'serper' | 'deepseek'
 
-interface ProviderOptions { fetch?: FetchLike; baseUrl?: string }
+interface ProviderOptions { fetch?: FetchLike; baseUrl?: string; /** 测试用：固定「现在」（DeepSeek 的 freshness 换算成 after: 日期） */ now?: () => Date }
 
 const clampCount = (n: number | undefined, max: number) => Math.min(max, Math.max(1, n ?? 10))
 const str = (v: unknown): string => (typeof v === 'string' ? v : v == null ? '' : String(v))
@@ -94,27 +95,109 @@ export class SerperSearch implements SearchProvider {
   }
 }
 
+/** DeepSeek 搜索的 query / ori_question 上限（官方 /v1/tools/search：1–128 字符）。 */
+export const DEEPSEEK_SEARCH_MAX_QUERY = 128
+/** DeepSeek 一次最多返回几条（官方 count：1–50）。 */
+const DEEPSEEK_SEARCH_MAX_COUNT = 50
+export const DEEPSEEK_SEARCH_DEFAULT_BASE_URL = 'https://api.deepseek.com'
+const DAY_MS = 86_400_000
+const FRESHNESS_DAYS: Record<string, number> = { day: 1, week: 7, month: 31, year: 366 }
+
+const DeepSeekSearchResponseSchema = z.object({
+  results: z.array(z.object({
+    title: z.string().nullish(),
+    url: z.string().nullish(),
+    snippet: z.string().nullish(),
+    summary: z.string().nullish(),
+    date: z.string().nullish(),
+  }).passthrough()),
+}).passthrough()
+const DeepSeekErrorSchema = z.object({ error: z.object({ message: z.string().nullish(), type: z.string().nullish(), code: z.union([z.string(), z.number()]).nullish() }) })
+
+/** DeepSeek 搜索失败：status 为 HTTP 状态（解析失败为 0）；retryable = 408 / 429 / 5xx，可以稍后再试。 */
+export class SearchProviderError extends Error {
+  constructor(message: string, readonly provider: string, readonly status: number, readonly retryable: boolean) {
+    super(message)
+    this.name = 'SearchProviderError'
+  }
+}
+
+const DEEPSEEK_STATUS_TEXT: Record<number, string> = { 401: 'Key 无效', 402: '账户余额不足', 429: '请求太频繁' }
+
+function deepSeekHttpError(e: HttpError, query: string): SearchProviderError {
+  const parsed = DeepSeekErrorSchema.safeParse(e.json())
+  const detail = parsed.success ? parsed.data.error.message ?? parsed.data.error.type ?? '' : e.body.slice(0, 200)
+  const label = DEEPSEEK_STATUS_TEXT[e.status] ?? `HTTP ${e.status}`
+  const retryable = e.status === 408 || e.status === 429 || e.status >= 500
+  return new SearchProviderError(`DeepSeek 搜索失败（${label}）：${detail || '无详情'}；query="${query.slice(0, 40)}"`, 'deepseek', e.status, retryable)
+}
+
 /**
- * 按环境变量选择提供方：SEARCH_PROVIDER=bocha|tavily|serper，SEARCH_API_KEY=<key>。
- * 也接受各自的专用变量 BOCHA_API_KEY / TAVILY_API_KEY / SERPER_API_KEY（未设 SEARCH_PROVIDER 时按此顺序自动挑第一个有 key 的）。
+ * DeepSeek：POST {base}/v1/tools/search，Bearer <DeepSeek Key>（和模型同一个 Key）。
+ * query 最多 128 字符（支持 site: / after: / before:），超了截断；ori_question 放完整问题（同样截到 128）帮它理解意图。
+ */
+export class DeepSeekSearch implements SearchProvider {
+  readonly name = 'deepseek'
+  private readonly fetchImpl: FetchLike
+  private readonly baseUrl: string
+  private readonly now: () => Date
+  constructor(private readonly apiKey: string, opts: ProviderOptions = {}) {
+    if (!apiKey) throw new Error('DeepSeek API key 为空')
+    this.fetchImpl = opts.fetch ?? defaultFetch
+    this.baseUrl = (opts.baseUrl ?? DEEPSEEK_SEARCH_DEFAULT_BASE_URL).replace(/\/+$/, '')
+    this.now = opts.now ?? (() => new Date())
+  }
+  /** freshness 换成 after:YYYY-MM-DD 拼在 query 末尾；总长截到 128，截的是问题本身，日期条件保留。 */
+  private queryOf(query: string, freshness: SearchOptions['freshness']): string {
+    const days = freshness ? FRESHNESS_DAYS[freshness] : undefined
+    const after = days ? ` after:${new Date(this.now().getTime() - days * DAY_MS).toISOString().slice(0, 10)}` : ''
+    return query.trim().slice(0, DEEPSEEK_SEARCH_MAX_QUERY - after.length) + after
+  }
+  async search(query: string, opts: SearchOptions = {}): Promise<SearchResult[]> {
+    const q = this.queryOf(query, opts.freshness)
+    const body = { query: q, count: clampCount(opts.count, DEEPSEEK_SEARCH_MAX_COUNT), ori_question: query.trim().slice(0, DEEPSEEK_SEARCH_MAX_QUERY), need_content: false }
+    let data: unknown
+    try {
+      ({ data } = await fetchJson<unknown>(this.fetchImpl, `${this.baseUrl}/v1/tools/search`, {
+        method: 'POST', headers: { Authorization: `Bearer ${this.apiKey}` }, body, timeoutMs: opts.timeoutMs,
+      }))
+    } catch (e) {
+      if (e instanceof HttpError) throw deepSeekHttpError(e, q)
+      throw e
+    }
+    const parsed = DeepSeekSearchResponseSchema.safeParse(data)
+    if (!parsed.success) throw new SearchProviderError(`DeepSeek 搜索返回的格式不对：${parsed.error.issues[0]?.message ?? '未知'}；query="${q.slice(0, 40)}"`, 'deepseek', 0, false)
+    return parsed.data.results.map(o => ({
+      title: o.title ?? '', url: o.url ?? '', snippet: o.summary || o.snippet || '', ...(o.date ? { publishedAt: o.date } : {}),
+    })).filter(r => r.url)
+  }
+}
+
+/**
+ * 按环境变量选择提供方：SEARCH_PROVIDER=bocha|tavily|serper|deepseek，SEARCH_API_KEY=<key>。
+ * 也接受各自的专用变量 BOCHA_API_KEY / TAVILY_API_KEY / SERPER_API_KEY / DEEPSEEK_API_KEY（未设 SEARCH_PROVIDER 时按此顺序自动挑第一个有 key 的）。
+ * SEARCH_BASE_URL 覆盖所选提供方的地址（如 DeepSeek 走自建网关）；opts.baseUrl 优先。
  */
 export function createSearchProvider(env: NodeJS.ProcessEnv = process.env, opts: ProviderOptions = {}): SearchProvider {
   const p = tryCreateSearchProvider(env, opts)
-  if (!p) throw new Error('未配置搜索提供方：请设置 SEARCH_PROVIDER（bocha|tavily|serper）与 SEARCH_API_KEY')
+  if (!p) throw new Error('未配置搜索提供方：请设置 SEARCH_PROVIDER（bocha|tavily|serper|deepseek）与 SEARCH_API_KEY')
   return p
 }
 
 export function tryCreateSearchProvider(env: NodeJS.ProcessEnv = process.env, opts: ProviderOptions = {}): SearchProvider | null {
-  const specific: Record<SearchProviderName, string | undefined> = { bocha: env.BOCHA_API_KEY, tavily: env.TAVILY_API_KEY, serper: env.SERPER_API_KEY }
+  const specific: Record<SearchProviderName, string | undefined> = { bocha: env.BOCHA_API_KEY, tavily: env.TAVILY_API_KEY, serper: env.SERPER_API_KEY, deepseek: env.DEEPSEEK_API_KEY }
   let name = (env.SEARCH_PROVIDER ?? '').trim().toLowerCase() as SearchProviderName | ''
   if (!name) name = (Object.keys(specific) as SearchProviderName[]).find(k => specific[k]) ?? ''
   if (!name) return null
   const key = (env.SEARCH_API_KEY ?? specific[name] ?? '').trim()
   if (!key) throw new Error(`SEARCH_PROVIDER=${name} 但没有 API key（SEARCH_API_KEY 或 ${name.toUpperCase()}_API_KEY）`)
+  const base = env.SEARCH_BASE_URL?.trim()
+  const withBase: ProviderOptions = { ...opts, ...(opts.baseUrl || !base ? {} : { baseUrl: base }) }
   switch (name) {
-    case 'bocha': return new BochaSearch(key, opts)
-    case 'tavily': return new TavilySearch(key, opts)
-    case 'serper': return new SerperSearch(key, opts)
-    default: throw new Error(`不支持的搜索提供方：${name}（可选 bocha|tavily|serper）`)
+    case 'bocha': return new BochaSearch(key, withBase)
+    case 'tavily': return new TavilySearch(key, withBase)
+    case 'serper': return new SerperSearch(key, withBase)
+    case 'deepseek': return new DeepSeekSearch(key, withBase)
+    default: throw new Error(`不支持的搜索提供方：${name}（可选 bocha|tavily|serper|deepseek）`)
   }
 }

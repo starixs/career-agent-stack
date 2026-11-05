@@ -10,6 +10,7 @@
  */
 import { buildAsks, companyMarkOf, type ActionQueueItem, type AskView, type CompanyMark, type InboxItem, type Repos } from '@career/core';
 
+import { isSubmittedStage } from '../../shared/careerStages';
 import { isTargetApplication, markedTargetJobs } from './targets';
 
 /** 现在要你的事：core 的合并规则 + 目标星（目标岗位的提交不并进「一键投出」）。壳层一律用它，不直接调 buildAsks。 */
@@ -23,8 +24,6 @@ export type PosterState = 'wait' | 'run' | 'done' | 'ask' | 'failed';
 export interface RunPoster { application_id: string; job_id: string; role: string; company: CompanyMark; star: boolean; state: PosterState }
 export interface RunView { total: number; done: number; running: number; asking: number; failed: number; items: RunPoster[] }
 
-/** 投出之后的阶段：都算「已投出」（之后被拒也是投出过）。 */
-const SENT_STAGES = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'hired']);
 const TARGET_STAGES = new Set(['interview', 'offer', 'hired']);
 
 function fillActions(repos: Repos, by: { since?: string; actionIds?: readonly string[] }): ActionQueueItem[] {
@@ -37,7 +36,7 @@ function fillActions(repos: Repos, by: { since?: string; actionIds?: readonly st
 }
 
 function posterState(stage: string, actions: readonly ActionQueueItem[], asking: boolean): PosterState {
-  if (SENT_STAGES.has(stage)) return 'done';
+  if (isSubmittedStage(stage)) return 'done';
   if (asking) return 'ask';
   if (actions.some(a => a.status === 'executing' || (a.kind === 'submit' && a.status === 'approved'))) return 'run';
   if (stage === 'blocked' || actions.some(a => a.kind === 'fill_form' && a.status === 'failed')) return 'failed';

@@ -46,6 +46,15 @@ describe('filterCampusJobs', () => {
     expect(withNone.length).toBeGreaterThanOrEqual(soon.length)
     expect(filterCampusJobs(jobs, { today: '2030-01-01' }).every(j => !j.deadline)).toBe(true)
   })
+
+  it('requireApplyUrl：只留有网申链接的（空白链接不算）；默认不筛', () => {
+    const withLink = filterCampusJobs(jobs, { excludeExpired: false, requireApplyUrl: true })
+    expect(withLink.length).toBeGreaterThan(0)
+    expect(withLink.length).toBeLessThan(jobs.length)
+    expect(withLink.every(j => !!j.apply_url?.trim())).toBe(true)
+    expect(filterCampusJobs(jobs, { excludeExpired: false }).length).toBe(jobs.length)
+    expect(filterCampusJobs([{ company: '甲', positions: [], locations: [], apply_url: '  ' }], { requireApplyUrl: true })).toEqual([])
+  })
 })
 
 describe('importCampusJobs → job 表', () => {

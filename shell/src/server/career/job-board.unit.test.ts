@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { JobListing } from '@career/core';
 
 import { loadCore } from './core-module';
-import { CAMPUS_SEEDED_KEY, boardMeta, computeMatches, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from './job-board';
+import { BETA_LIBRARY_REQUIRES_APPLY_LINK, CAMPUS_SEEDED_KEY, boardMeta, campusLibraryFilter, computeMatches, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from './job-board';
 import { RemoteJobSource, syncJobSource, uploadAnswerEvents, upsertListings } from './server-api';
 import { CareerStore } from './store';
 import { createMemoryRepos } from './test-db';
@@ -28,7 +28,7 @@ async function setup() {
   return { repos, store };
 }
 
-const listing = (over: Partial<JobListing>): JobListing => ({ job_key: 'srv:1', remote_id: 'r1', source_platform: 'moka', company_name: '甲', title: '数据分析实习生', employment_type: 'intern', cohort: '2027届', location: '上海', jd_raw: '熟练 SQL，了解深度学习', version: 1, ...over });
+const listing = (over: Partial<JobListing>): JobListing => ({ job_key: 'srv:1', remote_id: 'r1', source_platform: 'moka', company_name: '甲', title: '数据分析实习生', employment_type: 'intern', cohort: '2027届', location: '上海', jd_raw: '熟练 SQL，了解深度学习', url: 'https://a.com/apply', version: 1, ...over });
 
 describe('岗位汇总表与匹配', () => {
   it('只用已确认的主张当证据；违反条件的排在后面、可筛掉；我的进度并入', async () => {
@@ -159,7 +159,7 @@ describe('多维表格维度与投递记录摘要', () => {
     const bridges = {
       loadCampusJobs: () => { loads++; return [{ company: '甲', positions: ['研发'], locations: ['上海'], batch: '正式批', industry: '互联网' }]; },
       filterCampusJobs: (items: never[]) => items,
-      importCampusJobs: (r: typeof repos, items: Array<{ company: string; positions: string[] }>) => items.map(i => r.upsertJob({ source_platform: 'campus', source_job_id: i.company, title: i.positions.join('/'), company_name: i.company, board_json: core.serializeBoardMeta({ batch: '正式批', industry: '互联网' }) })),
+      importCampusJobs: (r: typeof repos, items: Array<{ company: string; positions: string[] }>) => items.map(i => r.upsertJob({ source_platform: 'campus', source_job_id: i.company, title: i.positions.join('/'), company_name: i.company, url: 'https://a.com/campus', board_json: core.serializeBoardMeta({ batch: '正式批', industry: '互联网' }) })),
     } as unknown as Parameters<typeof seedCampusJobsIfEmpty>[2];
     expect(seedCampusJobsIfEmpty(repos, store, bridges)).toEqual({ stored: 1 });
     expect(repos.kvGet(CAMPUS_SEEDED_KEY)).toBeTruthy();
@@ -177,9 +177,30 @@ describe('多维表格维度与投递记录摘要', () => {
     expect(fresh.repos.kvGet(CAMPUS_SEEDED_KEY)).toBeFalsy();
   });
 
+  it('内测期岗位库只收有链接、没过期的：首次导入与手动同步同一套筛选；库里已有的无链接岗位不显示，已建投递的照常显示', async () => {
+    expect(BETA_LIBRARY_REQUIRES_APPLY_LINK).toBe(true);
+    expect(campusLibraryFilter()).toEqual({ excludeExpired: true, requireApplyUrl: true });
+    const { filterCampusJobs } = await import('@career/bridges');
+    const items = [
+      { company: '有链接', positions: [], locations: [], apply_url: 'https://a.com/x', deadline: '2026-12-01' },
+      { company: '空白链接', positions: [], locations: [], apply_url: '  ', deadline: '2026-12-01' },
+      { company: '没链接', positions: [], locations: [], deadline: '2026-12-01' },
+      { company: '过期', positions: [], locations: [], apply_url: 'https://a.com/y', deadline: '2026-01-01' },
+    ];
+    expect(filterCampusJobs(items, { ...campusLibraryFilter(), today: '2026-11-05' }).map(j => j.company)).toEqual(['有链接']);
+
+    const { repos } = await setup();
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'with', title: '有链接', url: 'https://a.com/x' });
+    const bare = repos.upsertJob({ source_platform: 'campus', source_job_id: 'bare', title: '老数据没链接' });
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'blank', title: '空白链接', url: ' ' });
+    expect(jobBoard(repos).map(r => r.job.title)).toEqual(['有链接']);
+    repos.createApplication(bare.id);
+    expect(jobBoard(repos).map(r => r.job.title).sort()).toEqual(['有链接', '老数据没链接'].sort());
+  });
+
   it('jobBoard 每行带 meta', async () => {
     const { repos } = await setup();
-    repos.upsertJob({ source_platform: 'campus', source_job_id: 'c1', title: '后端', company_name: '甲', prefilter_json: JSON.stringify({ campus: { batch: '正式批', industry: '外企' } }) });
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'c1', title: '后端', company_name: '甲', url: 'https://a.com/c1', prefilter_json: JSON.stringify({ campus: { batch: '正式批', industry: '外企' } }) });
     expect(jobBoard(repos)[0].meta).toEqual({ batch: '正式批', industry: null, type_tags: ['外企'] });
   });
 

@@ -17,6 +17,7 @@
  */
 import { JOB_PREFS_KEY, matchJob, normalizeBoardMeta, parseBoardJson, type Job, type JobBoardMeta, type JobMatch, type JobPrefs, type MatchEvidence, type Repos } from '@career/core';
 
+import { isSubmittedStage } from '../../shared/careerStages';
 import { freezePacket, pickResumeForJob, type PacketDeps } from './packets';
 import type { CareerStore } from './store';
 import { markedTargetJobs, targetSourceOf, type TargetSource } from './targets';
@@ -104,6 +105,23 @@ export function boardMeta(job: Pick<Job, 'prefilter_json'> & { board_json?: stri
   return normalizeBoardMeta(campus ? { batch: campus.batch, industry: campus.industry } : null);
 }
 
+/**
+ * 内测期岗位库只收、只显示有网申链接的岗位（立场：岗位库里能找到的岗位就一定能投）。
+ * 这是接上自爬云端岗位库之前的临时过滤：内置校招汇总 443 条里只有约 121 条带 apply_url，
+ * 没链接的条目既投不了也不该出现在库里。云端库接通后（每条都有可投入口）可把它关掉。
+ */
+export const BETA_LIBRARY_REQUIRES_APPLY_LINK = true;
+
+/** 内置校招数据进库的统一筛选：首次自动导入与手动「同步校招汇总」共用——不收已过期的、内测期不收没链接的。 */
+export function campusLibraryFilter(): { excludeExpired: true; requireApplyUrl: boolean } {
+  return { excludeExpired: true, requireApplyUrl: BETA_LIBRARY_REQUIRES_APPLY_LINK };
+}
+
+/** 汇总表里这一行能不能出现：内测期没链接的岗位不显示；已经建了投递的照常显示（那是用户自己的进度）。 */
+function shownInLibrary(job: Job, application: BoardRow['application']): boolean {
+  return !BETA_LIBRARY_REQUIRES_APPLY_LINK || !!job.url?.trim() || !!application;
+}
+
 /** 首次自动导入只用到 bridges 里校招数据的三个函数（测试可注入）。 */
 export type CampusSeedBridges = Pick<typeof import('@career/bridges'), 'loadCampusJobs' | 'filterCampusJobs' | 'importCampusJobs'>;
 export const CAMPUS_SEEDED_KEY = 'jobs:campus:auto_seeded_at';
@@ -117,7 +135,7 @@ export function seedCampusJobsIfEmpty(repos: Repos, store: CareerStore, bridges:
   if (repos.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM job')?.n) return null;
   let stored: number;
   try {
-    const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), { excludeExpired: true });
+    const items = bridges.filterCampusJobs(bridges.loadCampusJobs(), campusLibraryFilter());
     stored = bridges.importCampusJobs(repos, items).length;
   } catch (error) {
     console.warn('[career] 首次自动导入校招数据失败:', error instanceof Error ? error.message : error);
@@ -129,8 +147,6 @@ export function seedCampusJobsIfEmpty(repos: Repos, store: CareerStore, bridges:
 }
 
 const DONE = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired', 'skip']);
-/** 投出去过的阶段（放弃 / 跳过的不算）。 */
-const SENT = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'hired']);
 
 export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().toISOString().slice(0, 10)): BoardRow[] {
   const apps = new Map<string, BoardRow['application']>();
@@ -142,6 +158,7 @@ export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().t
   const targetOf = (job: Job, app: BoardRow['application']) => targetSourceOf({ job_id: job.id, stage: app?.stage ?? '' }, app ? reached.get(app.id) ?? [] : [], marked);
   let rows: BoardRow[] = repos.listJobs().filter(j => j.source_status !== 'merged').map(job => ({ job, match: parseMatch(job.match_json), application: apps.get(job.id) ?? null, meta: boardMeta(job), target: targetOf(job, apps.get(job.id) ?? null) }));
   rows = rows.filter(({ job, match, application }) => {
+    if (!shownInLibrary(job, application)) return false;
     if (q && !`${job.company_name ?? ''} ${job.title} ${job.location ?? ''}`.toLowerCase().includes(q)) return false;
     if (f.employment_type && job.employment_type !== f.employment_type) return false;
     if (f.city && !(job.location ?? '').includes(f.city)) return false;
@@ -170,7 +187,7 @@ export async function prepareJobs(deps: PacketDeps & { store: CareerStore }, job
     if (!job) { out.push({ job_id: jobId, ok: false, reason: '岗位不存在' }); continue; }
     const apps = deps.repos.listApplications().filter(a => a.job_id === jobId);
     // 已经投出去的岗位不再投第二次（框选时常会连带勾上已投的那几行）
-    if (apps.some(a => SENT.has(a.stage))) { out.push({ job_id: jobId, ok: false, reason: '已经投过' }); continue; }
+    if (apps.some(a => isSubmittedStage(a.stage))) { out.push({ job_id: jobId, ok: false, reason: '已经投过' }); continue; }
     const existing = apps.find(a => !DONE.has(a.stage));
     if (existing && deps.repos.listActions().some(a => a.application_id === existing.id && ['pending_review', 'approved', 'executing', 'needs_user'].includes(a.status))) { out.push({ job_id: jobId, ok: false, reason: '已在投' }); continue; }
     if (!job.url) { out.push({ job_id: jobId, ok: false, reason: '没有网申链接' }); continue; }

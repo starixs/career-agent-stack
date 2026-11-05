@@ -5,11 +5,14 @@
  * - GET /api/career/away?since=ISO：回来卡（since = 上次离开的时间）。
  * - POST /api/career/asks/:id/login-journey：「N 个网站要你登录」——一家一家带你登录（career/login-journey.ts）；{ cancel: true } 停下；{ skip: true } 这家先跳过。
  * - POST /api/career/asks/:id/fill：缺信息填一次，存进私密库 / 答案库后整批交给后台接着填（career/ask-fill.ts）。
+ * - POST /api/career/asks/:id/retry：「N 家没填成」再试一次——整件放回队列，后台只填这几份（career/fill-failures.ts）。
+ * - POST /api/career/asks/:id/self：「N 家没填成」我自己来——开接管、现场画面切到那一家；{ application_id } 只接这一家。
  * 时区由客户端给，服务端不猜。其余要你的事走各源已有的接口（截止、审批、接管）。
  */
 import type { Repos, Vault } from '@career/core';
 
 import { AskFillError, fillAsk } from '../career/ask-fill';
+import { FailedAskError, retryFailedAsk, takeOverFailedAsk } from '../career/fill-failures';
 import { cancelJourney, skipJourneyStep } from '../career/login-journey';
 import { asksFor, buildAway, buildRun } from '../career/delivery';
 
@@ -24,6 +27,14 @@ const isoParam = (url: URL, key: string): string | null => {
 };
 /** 一张批次卡最多几份：jobs_apply 一次最多 50 个岗位。 */
 const MAX_RUN_IDS = 50;
+
+/** 「没填成」那件已经不在 / 没法重跑：409 带原因，其余照常抛出。 */
+function failedAskRoute(fn: () => Response): Response {
+  try { return fn(); } catch (error) {
+    if (error instanceof FailedAskError) return fail(error.message, 409);
+    throw error;
+  }
+}
 
 export function deliveryRoutes(): Array<[string, string, Handler]> {
   return [
@@ -68,6 +79,16 @@ export function deliveryRoutes(): Array<[string, string, Handler]> {
         return fail(error instanceof Error ? error.message : '浏览器还没就绪', 503);
       }
     }],
+    ['POST', '/api/career/asks/:id/retry', ({ repos, params, dataChanged }) => failedAskRoute(() => {
+      const retried = retryFailedAsk(repos, params.id);
+      dataChanged(['action_queue', 'application']);
+      return ok({ retried });
+    })],
+    ['POST', '/api/career/asks/:id/self', ({ repos, params, body, dataChanged }) => failedAskRoute(() => {
+      const apps = takeOverFailedAsk(repos, params.id, typeof body.application_id === 'string' ? body.application_id : undefined);
+      dataChanged(['handoff', 'action_queue', 'application', 'task']);
+      return ok({ application_ids: apps });
+    })],
     ['GET', '/api/career/away', ({ repos, url }) => {
       const since = isoParam(url, 'since');
       if (!since) return fail('需要 since（ISO 时间）');

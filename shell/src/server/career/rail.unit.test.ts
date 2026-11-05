@@ -54,8 +54,8 @@ describe('岗位池当场收窄', () => {
     const core = await loadCore();
     const repos = createMemoryRepos();
     const store = new CareerStore(repos, core);
-    repos.upsertJob({ source_platform: 'campus', source_job_id: 'a', title: '新媒体运营', company_name: '甲' });
-    repos.upsertJob({ source_platform: 'campus', source_job_id: 'b', title: '财务专员', company_name: '乙' });
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'a', title: '新媒体运营', company_name: '甲', url: 'https://a.com/1' });
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'b', title: '财务专员', company_name: '乙', url: 'https://b.com/1' });
     expect(railSnapshot(repos, store, core).pool).toEqual({ total: 2, fits: 2, conditions: [] });
     setJobPrefs(repos, { keywords: ['运营'] });
     expect(railSnapshot(repos, store, core).pool).toEqual({ total: 2, fits: 1, conditions: ['运营'] });
@@ -63,14 +63,21 @@ describe('岗位池当场收窄', () => {
 });
 
 describe('右栏的网申块说真话', () => {
-  it('填表失败不算完成：如实说没填成；投出几份按真的投出算', async () => {
+  it('填表失败不算完成：自动再试时说正在再试一次；再试也没成交给等你，这里不再说、也不说投出 0 份', async () => {
     const core = await loadCore();
     const repos = createMemoryRepos();
     const store = new CareerStore(repos, core);
-    const fill = repos.enqueueAction('fill_form', { url: 'https://x.zhiye.com/apply' });
+    const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'x', title: '产品', company_name: '甲', url: 'https://x.zhiye.com/apply' });
+    const app = repos.createApplication(job.id);
+    repos.jumpTo(app.id, 'pending');
+    const fill = repos.enqueueAction('fill_form', { url: 'https://x.zhiye.com/apply' }, app.id, true);
     repos.setActionStatus(fill.id, 'failed', { error: '浏览器没有返回填表结果' });
-    const apply = railSnapshot(repos, store, core).blocks.find(b => b.id === 'apply')!;
-    expect(apply).toMatchObject({ status: 'waiting', line: '1 份没填成，我在查原因', done: 0 });
+    repos.transition(app.id, 'blocked');
+    const apply = () => railSnapshot(repos, store, core).blocks.find(b => b.id === 'apply')!;
+    expect(core.autoRetryFailedFill(repos, fill.id)).toBe('retrying');
+    expect(apply()).toMatchObject({ status: 'working', line: '1 份没填成，正在再试一次', done: 0 });
+    repos.setActionStatus(fill.id, 'failed', { error: '浏览器没有返回填表结果' });
+    expect(apply()).toMatchObject({ status: 'idle', line: '还没投出', done: 0 });
   });
 });
 
