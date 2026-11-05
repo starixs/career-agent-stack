@@ -20,7 +20,7 @@ import { companyMarkOf, type CompanyMark } from './company-mark.js'
 import type { Repos } from './repos.js'
 import { deadlineToToday, type TodayItem } from './surfaces.js'
 import type { ActionQueueItem, Deadline, Handoff, InboxItem } from './types.js'
-import { PROFILE_FIELDS } from './vault.js'
+import { PROFILE_FIELDS, vaultTokensToMarks } from './vault.js'
 
 /**
  * 规范五类 + 已经在今日队列里的四类（过了时间问「考了吗」、面完复盘、不确定是否投出、还没开始填的）。
@@ -237,16 +237,38 @@ function missingFields(action: ActionQueueItem | undefined): AskField[] {
   const draftOf = new Map(records(result.drafts).filter(d => typeof d.value === 'string' && d.value.trim()).map(d => [strOf(d.label), String(d.value)]))
   // 灰着、在等前一格的（专业等学院）：前一格定了续填会自动接上，不问他（引擎 needs.explainWaiting 标的 waitsFor）
   const waiting = new Set(records(result.needsUser).filter(p => strOf(p.waitsFor)).map(p => strOf(p.label)))
+  const uncertain = new Set(records(result.needsUser).filter(p => ENGINE_UNSURE_CODES.has(String(p.code))).map(p => strOf(p.label)))
   const fields: AskField[] = []
   for (const g of records(gate?.gaps)) {
     const label = strOf(g.label)
     if (!label || g.required === false || waiting.has(label) || fields.some(f => f.label === label)) continue
     const def = PROFILE_BY_KEY.get(keyOf.get(label) ?? '')
     const options = optionsOf.get(label) ?? []
-    const draft = draftOf.get(label)
-    fields.push({ label, text: askFieldText(label), vault_field: def?.field ?? null, sensitive: def?.sensitive ?? false, fillable: !files.has(label) && !UNFILLABLE.has(String(g.status)), ...(options.length && !def?.sensitive ? { options } : {}), ...(draft && !def?.sensitive ? { draft } : {}) })
+    const rawDraft = draftOf.get(label)
+    const draft = rawDraft ? vaultTokensToMarks(rawDraft) : undefined
+    const text = askFieldText(label)
+    // 认不出这一格问的是什么（题号「03」、导航栏、别的网站的标题）：是我们的识别问题，不让他对着「03」猜，只能去页面上看
+    const readable = isReadableLabel(text) && !uncertain.has(label)
+    fields.push({ label, text: readable ? text : UNREADABLE_TEXT, vault_field: readable ? def?.field ?? null : null, sensitive: def?.sensitive ?? false, fillable: readable && !files.has(label) && !UNFILLABLE.has(String(g.status)), ...(readable && options.length && !def?.sensitive ? { options } : {}), ...(readable && draft && !def?.sensitive ? { draft } : {}) })
   }
   return fields
+}
+
+/** 认不出名字的格子给人看的说法。 */
+export const UNREADABLE_TEXT = '网页上没写清是什么的一格'
+/** 引擎自己报的「这格的标签不可靠」。 */
+const ENGINE_UNSURE_CODES = new Set(['label_uncertain'])
+/** 引擎兜底时给的占位名、或者 drive-outcome 的「没认出名字的字段」：都不是给人看的名字。 */
+const PLACEHOLDER_LABELS = new Set(['没认出名字的字段', '填后检查', '必填项核对'])
+/** 一格的名字能不能直接给人看：有至少两个字、不是题号 / 区号、不像整排导航或别的网站标题。 */
+export function isReadableLabel(text: string): boolean {
+  const t = text.trim()
+  if (!t || PLACEHOLDER_LABELS.has(t)) return false
+  if (!/[\p{L}]{2,}/u.test(t.replace(/\d+/g, ''))) return false
+  if (/\b[a-z0-9-]+\.(ai|com|cn|net|io|org)\b/i.test(t)) return false
+  // 一排用空格隔开的中文短词（「企业招聘 博客 关于offer求索」「首页 招聘职位 …」）是导航栏，不是一格的名字；英文标签「Date of Birth」不算
+  if (t.split(/\s+/).filter(w => /\p{Script=Han}/u.test(w)).length >= 3 || t.split(/\s+/).length >= 5) return false
+  return t.length <= 40
 }
 
 /** 问卷题目带的题号和结尾冒号（「3.您的年龄」「4、学校名称：」）不给人看（2026-11-02 等你卡标题成了「3.您的年龄等 4 项」）。 */
@@ -267,11 +289,13 @@ function infoAsks(ctx: Ctx, rows: readonly HandoffRow[]): AskView[] {
   }
   return [...groups.values()].map(({ rows: rs, fields }) => {
     const appIds = uniq(rs.map(r => r.appId))
-    const names = fields.map(f => f.text)
+    const names = fields.filter(f => f.text !== UNREADABLE_TEXT).map(f => f.text)
+    const unreadable = fields.length - names.length
+    const one = appIds.length === 1 ? ctx.apps.get(appIds[0])?.company.name : undefined
     return {
       id: rs[0].h.id, kind: 'info' as const,
-      title: names.length ? (names.length > 1 ? `${names[0]}等 ${names.length} 项` : names[0]) : '还差几项要你补',
-      detail: names.length ? undefined : rs[0].h.message ?? undefined,
+      title: names.length ? (names.length > 1 ? `${names[0]}等 ${names.length} 项` : names[0]) : unreadable ? `${one ? `${shortName(one)} · ` : ''}页面上有 ${unreadable} 处要你看` : '还差几项要你补',
+      detail: unreadable ? `${names.length ? `另有 ${unreadable} 处` : '这几处'}网页上没写清问的是什么，点「去看」在页面上填` : names.length ? undefined : rs[0].h.message ?? undefined,
       application_ids: appIds, companies: companiesOf(ctx, appIds), sources: rs.map(r => ({ type: 'handoff' as const, id: r.h.id })),
       action_ids: uniq(rs.map(r => r.h.action_id)), due_at: earliestJobDeadline(ctx, appIds), overdue: false, fields,
     }

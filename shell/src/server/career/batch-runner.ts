@@ -10,7 +10,7 @@
  *  - 每次状态变化 broadcast `career:batch`；接管状态同时广播 `career:takeover`，前端接管条 / 现场窗复用。
  */
 import PQueue from 'p-queue';
-import type { ActionQueueItem, Repos, Task } from '@career/core';
+import { aggregatorHostOf, type ActionQueueItem, type Repos, type Task } from '@career/core';
 import { applyTaskTitle, isTransientDriveError, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
@@ -371,6 +371,9 @@ export class BatchRunner {
     takeover('running', { url: payload.url });
     const events: DriveEvent[] = [];
     try {
+      // 链接是聚合站的岗位页（不是官网）：不在那上面「填表」，如实记失败，不把站点标语当缺项推给他
+      const aggregator = mode === 'start' ? aggregatorHostOf(typeof payload.url === 'string' ? payload.url : null) : null;
+      if (aggregator) { this.log(`aggregator-link ${action.id}: ${aggregator}`); throw new Error(`岗位链接是招聘聚合站 ${aggregator} 的页面，不是公司官网的投递入口`); }
       const file = await this.deps.resumeFileFor?.(payload);
       if (file?.error) throw new Error(file.error);
       const resumePath = file?.path;

@@ -56,6 +56,16 @@ describe('BatchRunner', () => {
     expect(events.filter(e => e.event === 'career:batch').length).toBeGreaterThan(3);
   });
 
+  it('岗位链接是聚合站（offerseek.ai）：不打开去填，记失败，不开「缺信息」接管（2026-11-05 上汽集团）', async () => {
+    const repos = createMemoryRepos();
+    const [id] = seed(repos, 1, 'offerseek.ai');
+    const { runner, calls } = makeRunner(repos, () => [result('stopped_before_submit', { submitButton: '提交' })]);
+    await runner.runOne(repos.getAction(id)!, 'start');
+    expect(calls).toHaveLength(0);
+    expect(repos.getAction(id)?.status).toBe('failed');
+    expect(repos.openHandoffs()).toHaveLength(0);
+  });
+
   it('接管：停下等用户，交回（handoff 被关闭）后以 continue 模式从当前页续跑', async () => {
     const repos = createMemoryRepos();
     const [id] = seed(repos, 1);

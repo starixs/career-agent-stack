@@ -5,7 +5,7 @@
  * 运行器从各自的当前页接着填（和登录「交回」走同一条路：handoff.resumed_at + BatchRunner run）。
  * 不发话给助理，不要用户再点。只有页面上才能看的项（上传、读回不一致）还在时，那几份不放行，接管留着。
  */
-import type { Repos, Vault } from '@career/core';
+import { vaultMarksToTokens, type Repos, type Vault } from '@career/core';
 
 import { BatchRunner } from './batch-runner';
 import { asksFor } from './delivery';
@@ -21,7 +21,7 @@ export function fillAsk(repos: Repos, vault: Vault, askId: string, values: Recor
   const filled = fields.filter(f => f.fillable && values[f.label]?.trim());
   if (!filled.length) throw new AskFillError('没有填任何一项');
   for (const f of filled) {
-    const value = values[f.label].trim();
+    const value = vaultMarksToTokens(values[f.label].trim()); // 草稿里的「【毕业院校】」换回占位符，填表时本机替换
     if (f.vault_field) vault.set({ scope: 'profile', field: f.vault_field, value });
     else repos.saveAnswer({ question_key: f.label, question_text: f.label, answer: value, confirmed: true, source: 'user' });
   }

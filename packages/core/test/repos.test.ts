@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { Db, Repos, canTransition, extractJson, FakeLLM, parseFrontmatter } from '../src/index.js'
+import { Db, Repos, aggregatorHostOf, canTransition, extractJson, FakeLLM, parseFrontmatter } from '../src/index.js'
 
 function mem() { const db = new Db(':memory:'); db.migrate(); return new Repos(db) }
 
@@ -103,5 +103,14 @@ describe('今天做过', () => {
     expect(stage).toMatchObject({ status: 'ready', title: '星河科技 产品经理', detail: '材料齐了' })
     expect(entries.find(e => e.kind === 'task')).toMatchObject({ title: '填写星河科技网申', status: 'running', detail: '在填教育经历' })
     expect(r.activitySince('2999-01-01T00:00:00.000Z')).toEqual([])
+  })
+})
+
+describe('聚合站链接', () => {
+  it('认得出聚合站（含子域名），官网和能投递的招聘平台不算', () => {
+    expect(aggregatorHostOf('https://offerseek.ai/jobs/171169')).toBe('offerseek.ai')
+    expect(aggregatorHostOf('https://www.givemeoc.com/x')).toBe('givemeoc.com')
+    expect(aggregatorHostOf('https://app.mokahr.com/campus-recruitment/x')).toBeNull()
+    expect(aggregatorHostOf('not a url')).toBeNull()
   })
 })
