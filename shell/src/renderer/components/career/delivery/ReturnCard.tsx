@@ -83,7 +83,7 @@ export function ReturnCard({ away, onStart, onClose }: { away: AwayView; onStart
           ))}
         </div>
       )}
-      {away.held > 0 && <p className="cd-return-quiet" data-testid="return-held">替你挡下 {away.held} 份：都填好了，停在提交前，没你点头不交。</p>}
+      {away.held > 0 && <p className="cd-return-quiet" data-testid="return-held">{away.held} 份填好了，等你投出</p>}
       {away.quiet > 0 && <p className="cd-return-quiet">其余 {away.quiet} 家还没回音。</p>}
     </article>
   );

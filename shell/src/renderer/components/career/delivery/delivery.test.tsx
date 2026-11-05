@@ -240,7 +240,7 @@ describe('情景 C · 两天没开，回来', () => {
     expect(card).toHaveTextContent('还有 1 件等你');
     expect(card).toHaveTextContent('面试邀请');
     expect(card).toHaveTextContent('其余 13 家还没回音。');
-    expect(within(card).getByTestId('return-held')).toHaveTextContent('替你挡下 3 份：都填好了，停在提交前，没你点头不交。');
+    expect(within(card).getByTestId('return-held')).toHaveTextContent('3 份填好了，等你投出');
     fireEvent.click(screen.getByRole('button', { name: '从最急的开始' }));
     expect(opened).toEqual(['ddl_jfy']);
     off();

@@ -32,7 +32,7 @@ import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
 import { TakeoverCard } from './ColdStartCards';
 import { MailConnectCenter } from './mail-connect/MailConnectCenter';
-import { CardShell, ErrorLine, PrivacyNote, list, str, useSubmit, type CardProps } from './FlowCardShell';
+import { CardShell, ErrorLine, list, str, useSubmit, type CardProps } from './FlowCardShell';
 import { ResumeIntakeCard, TailorDiffCard } from './ResumeChainCards';
 import { ApplicationCard } from './delivery/ApplicationCard';
 import { BatchWallCard } from './delivery/BatchWall';
@@ -68,7 +68,6 @@ export function VaultMissingCard({ card, onDone, onDismiss }: CardProps) {
           </label>
         ))}
       </div>
-      <PrivacyNote />
       <ErrorLine error={error} />
       <div className="mt-3 flex items-center gap-2">
         <Button variant="primary" busy={busy} disabled={!filled.length} onClick={() => void save()}>保存{filled.length ? ` ${filled.length} 项` : ''}</Button>
@@ -105,7 +104,6 @@ export function NeedsUserCard({ card, onDone, onDismiss }: CardProps) {
           </label>
         ))}
       </div>
-      {items.some(i => i.vaultField) && <PrivacyNote />}
       <ErrorLine error={error} />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button variant="primary" busy={busy} disabled={!filled.length} onClick={() => void save()}>保存并继续填表</Button>
@@ -187,7 +185,6 @@ export function ClaimsConfirmCard({ card, onDone, onDismiss }: CardProps) {
           <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-[var(--ink-2)]">{gaps.map(g => <li key={g}>{g}</li>)}</ul>
         </div>
       )}
-      {claims.length > 0 && <p className="mt-2 text-xs text-[var(--subtle)]">只有确认过的说法才会写进简历和网申回答{fromRetro ? '；已经投出去的那版不会变，下次定制时才会用上' : ''}。</p>}
       <ErrorLine error={error} />
       <div className="mt-3 flex items-center gap-2">
         {gaps.length > 0 && <Button variant={claims.length ? 'ghost' : 'primary'} onClick={() => { suggestToChat(`帮我把「${title}」补上：${gaps.join('；')}`); if (!claims.length) onDone(); }}>去补这几处</Button>}
@@ -226,9 +223,8 @@ export function SiteLoginCard({ card, onDone, onDismiss }: CardProps) {
       </div>
       <label className="mt-2 flex items-center gap-2 text-xs text-[var(--muted)]">
         <input type="checkbox" checked={autofill} onChange={e => setAutofill(e.target.checked)} />
-        以后在 {host} 的登录页自动代填（点登录、验证码仍由你来）
+        以后在 {host} 自动代填账号密码
       </label>
-      <PrivacyNote />
       <ErrorLine error={error} />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button variant="primary" busy={busy} disabled={!password} onClick={() => void save()}>保存并去登录</Button>

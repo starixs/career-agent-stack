@@ -89,7 +89,7 @@ export function BrowserStatusBar({ hideWhenIdle = false }: { hideWhenIdle?: bool
       <Globe className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
       <span>浏览器</span>
       <Badge tone={STATE_TONES[state] ?? 'neutral'}>{TAKEOVER_STATE_LABELS[state] ?? state}</Badge>
-      {state === 'paused' && <span>原因：{reason ?? '未知'}</span>}
+      {state === 'paused' && reason && <span>{reason}</span>}
       {takeover?.message && <span className="truncate">{takeover.message}</span>}
       {state === 'idle' && <span className="text-[var(--subtle)]">没有进行中的浏览器任务</span>}
       {notice && <span role="alert" className="text-[var(--danger)]">{notice}</span>}

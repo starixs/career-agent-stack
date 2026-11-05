@@ -13,7 +13,7 @@ import { requestNavigation } from '@/features/career-shell/navModel';
 import { careerApi } from './careerApi';
 import { Badge, Button, TextInput, suggestToChat } from './CareerPrimitives';
 import { openResumeDrawer } from './CareerResumeDrawer';
-import { CardShell, ErrorLine, PrivacyNote, list, str, useSubmit, type CardProps } from './FlowCardShell';
+import { CardShell, ErrorLine, list, str, useSubmit, type CardProps } from './FlowCardShell';
 import { PickTable, allPicked, pickedIds, type PickGroup, type Picked } from './PickTable';
 
 const span = (start: string | null, end: string | null) => [start, end].filter(Boolean).join(' – ');
@@ -49,13 +49,12 @@ function OralLeftover({ intakeId, count }: { intakeId: string | null; count: num
 function IntakeDone({ masterId, intakeId, oral, onDone }: { masterId: string | null; intakeId: string | null; oral: number; onDone: () => void }) {
   return (
     <div className="grid gap-2" data-testid="career-card-resume_intake-done">
-      <p className="text-sm text-[var(--ink)]">主简历好了。下一步：给一个岗位，按它定制一份。</p>
+      <p className="text-sm text-[var(--ink)]">主简历好了。</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={() => { requestNavigation({ kind: 'career-dossier', view: 'apply' }); onDone(); }}>去岗位库挑一个</Button>
         <Button variant="secondary" onClick={() => openResumeDrawer(masterId)}>看看主简历</Button>
       </div>
       <OralLeftover intakeId={intakeId} count={oral} />
-      <p className="text-xs text-[var(--subtle)]">也可以直接把岗位链接或 JD 拖进下面的输入框。</p>
     </div>
   );
 }
@@ -64,7 +63,7 @@ function MissingInputs({ missing, values, onChange }: { missing: ReturnType<type
   if (!missing.length) return null;
   return (
     <div>
-      <div className="text-xs text-[var(--muted)]">简历上没写的，补一下（不填也能先生成）</div>
+      <div className="text-xs text-[var(--muted)]">简历上没写的</div>
       <div className="mt-1 grid gap-2 sm:grid-cols-2">
         {missing.map(m => (
           <label key={m.field} className="flex flex-col gap-1 text-xs text-[var(--muted)]">
@@ -73,7 +72,6 @@ function MissingInputs({ missing, values, onChange }: { missing: ReturnType<type
           </label>
         ))}
       </div>
-      <PrivacyNote />
     </div>
   );
 }
@@ -89,7 +87,7 @@ function ConflictTable({ rows, choice, onChange }: { rows: ReturnType<typeof par
   );
   return (
     <div data-testid="intake-conflicts" className="overflow-hidden rounded-lg border border-[var(--line)]">
-      <div className="px-2 py-1.5 text-xs text-[var(--muted)]">这份简历和基本资料有 {rows.length} 项不一样，以哪份为准？选完一处改，处处同步。</div>
+      <div className="px-2 py-1.5 text-xs text-[var(--muted)]">这份简历和基本资料有 {rows.length} 项不一样，以哪份为准？</div>
       <table className="w-full text-sm">
         <thead><tr className="border-t border-[var(--line)] text-left"><th className="px-2 py-1 font-normal text-[var(--muted)]" />
           <th className="px-2 py-1">{col('resume', '全部以简历为准')}</th><th className="px-2 py-1">{col('vault', '全部保留资料里的')}</th></tr></thead>
@@ -157,7 +155,6 @@ export function ResumeIntakeCard({ card, onDone, onDismiss }: CardProps) {
           {groups.length > 0
             ? <PickTable groups={groups} picked={picked} onChange={setPicked} actions={actions} />
             : <div className="flex justify-end">{actions}</div>}
-          <p className="text-xs text-[var(--subtle)]">只有勾上的说法会写进简历；不对的去掉勾就行。</p>
           <ErrorLine error={error} />
         </div>
       )}
@@ -190,13 +187,13 @@ export function TailorDiffCard({ card, onDismiss }: CardProps) {
       {total > changes.length && <p className="mt-2 text-xs text-[var(--subtle)]">其余 {total - changes.length} 处在整份里看。</p>}
       {blocked.length > 0 && (
         <div className="mt-3" data-testid="tailor-blocked">
-          <div className="text-xs text-[var(--muted)]">拦下了 {blocked.length} 处没依据的改动（没写进简历）</div>
+          <div className="text-xs text-[var(--muted)]">拦下了 {blocked.length} 处没依据的改动</div>
           <ul className="mt-1 space-y-1">{blocked.map((b, i) => <li key={`${b.place}-${i}`} className="text-xs text-[var(--subtle)]">{b.place}：{b.why}{b.after ? `（「${b.after.slice(0, 40)}」）` : ''}</li>)}</ul>
         </div>
       )}
       {needs.length > 0 && (
         <div className="mt-3">
-          <div className="text-xs text-[var(--muted)]">岗位要、你的经历里还没写到的（没写进简历，不编）</div>
+          <div className="text-xs text-[var(--muted)]">岗位要、你的经历里还没写到的</div>
           <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-[var(--ink-2)]">{needs.map(n => <li key={n}>{n}</li>)}</ul>
         </div>
       )}

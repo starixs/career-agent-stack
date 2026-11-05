@@ -25,15 +25,13 @@ export function skippedText(skipped: JobPlan['skipped']): string {
 
 /** 开始后的一行：投了几家、跳过的原因、下一步在哪。 */
 export function startedText(started: number, skipped: JobPlan['skipped']): string {
-  const head = started > 0 ? `已开始投 ${started} 家，在后台填到提交前；要你的事会出现在下面的「等你」里。` : '这一批没有能开始的。';
+  const head = started > 0 ? `已开始投 ${started} 家。` : '这一批没有能开始的。';
   return skipped.length ? `${head}跳过：${skippedText(skipped)}。` : head;
 }
 
-function planLine(plan: JobPlan): string {
-  const n = plan.ready.length;
-  if (!n) return '这一批都不能投';
-  const star = plan.targets > 0 ? `标星的 ${plan.targets} 家填好后先给你看，` : '';
-  return `投 ${n} 家：填到提交前停下，${star}其余检查全过的合成「一键投出」。`;
+/** 能投的家数按钮上已经写了：这一行只在一家都投不了时说。 */
+function planLine(plan: JobPlan): string | null {
+  return plan.ready.length ? null : '这一批都不能投';
 }
 
 export function ApplyConfirm({ jobIds, onStarted, onCancel }: { jobIds: string[]; onStarted: (msg: string) => void; onCancel: () => void }) {
@@ -61,7 +59,7 @@ export function ApplyConfirm({ jobIds, onStarted, onCancel }: { jobIds: string[]
   return (
     <div data-testid="apply-confirm" className="mx-6 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-l-2 border-[var(--primary)] py-1 pl-3 text-sm">
       {!plan && load.busy && <LoadingRow />}
-      {plan && <span className="text-[var(--ink)]">{planLine(plan)}</span>}
+      {plan && planLine(plan) && <span className="text-[var(--ink)]">{planLine(plan)}</span>}
       {plan && plan.skipped.length > 0 && <span className="text-xs text-[var(--muted)]">跳过 {skippedText(plan.skipped)}</span>}
       {noResume && (
         <Button size="sm" variant="secondary" onClick={() => suggestToChat(NO_RESUME_ASK)}>先做一份简历</Button>

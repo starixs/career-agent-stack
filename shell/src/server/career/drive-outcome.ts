@@ -289,7 +289,6 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     if (!decision.approve) {
       deps.review?.([submitAction.id], 'submit', `「${jobLabel(job)}」${headline}`, {
         job: jobLabel(job), headline, submit_button: submitButton ?? null, review: reviewSummary,
-        note: '看一遍下面的清单，批准后产品替你点提交；没批准之前不会提交。',
       });
     }
     deps.changed('task', 'action_queue', 'application');

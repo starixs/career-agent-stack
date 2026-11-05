@@ -337,7 +337,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
               onInputError={setNotice}
               onRequestControl={canTake ? () => act('take') : undefined}
               style={viewportStyle}
-              placeholder={frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开。小芽开始填表后画面会出现。' : '等待画面…')}
+              placeholder={frameError ?? (snapshot && !snapshot.browser.hasBrowser ? '浏览器还没有打开' : '等待画面…')}
             />
           </div>
           {chooser && <FileChooserPanel key={chooser.id} chooser={chooser} onDone={msg => { setChooser(null); setInfo(msg); }} />}
