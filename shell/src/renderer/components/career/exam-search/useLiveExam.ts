@@ -11,6 +11,7 @@ import { useConfig } from '@/hooks/useConfig';
 
 import { examSearchApi, type ExamSession, type LiveExam } from './examSearchApi';
 import { notifyPet } from './petBridge';
+import { PASTE_KEY } from './SourcePane';
 
 export interface DataChanged { tables?: string[] }
 
@@ -30,7 +31,7 @@ export function useLiveExam() {
   useEffect(reload, [reload]);
   useEffect(() => onEvent<DataChanged>('career:data-changed', payload => { if (touchesExamSearch(payload)) reload(); }), [reload]);
 
-  /** 宠物没开就打开；打不开（系统不支持）不挡开考，截图后在页面里 ⌘V 照样能用。 */
+  /** 宠物没开就打开；打不开（系统不支持）不挡开考，截图后在页面里粘贴照样能用。 */
   const ensurePet = useCallback(async (): Promise<string | null> => {
     if (config.floatingBallDevGate !== false && config.floatingBallEnabled === true) return null;
     try {
@@ -42,7 +43,7 @@ export function useLiveExam() {
       return null;
     } catch (err) {
       console.warn('[exam-search] 打开宠物失败', err);
-      return `宠物打不开（${message(err)}），截图后在这里按 ⌘V 也行`;
+      return `宠物打不开（${message(err)}），截图后在这里按 ${PASTE_KEY} 也行`;
     }
   }, [config.floatingBallDevGate, config.floatingBallEnabled, updateConfig]);
 

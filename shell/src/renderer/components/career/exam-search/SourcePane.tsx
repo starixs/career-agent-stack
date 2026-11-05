@@ -1,5 +1,5 @@
 /**
- * 左栏：复制题目（文字或截图）后按 ⌘V，粘进来就搜，不用点按钮（现场答题要快）。
+ * 左栏：复制题目（文字或截图）后粘贴（Mac ⌘V / Windows Ctrl+V），粘进来就搜，不用点按钮（现场答题要快）。
  * 页面在时整页监听粘贴；焦点在输入框里粘贴文字不拦（那是在填公司 / 岗位），粘贴图片照样接住。
  * 左栏不放原图：认完题后按模型抄下的材料、题干、选项统一排版（记录里也只存这份文字），
  * 截图和粘贴的文字看起来一样，题号和右栏答案对得上。还在认题时先显示粘进来的原样。
@@ -8,6 +8,8 @@ import { ClipboardPaste } from 'lucide-react';
 import { useEffect, useRef, useState, type DragEvent } from 'react';
 
 import Markdown from '@/components/Markdown';
+
+import { formatAccelerator } from '@/utils/formatAccelerator';
 
 import type { ExamSearchRecord, QuestionType, ScreenshotInput } from './examSearchApi';
 import type { ExamStep } from './useExamSession';
@@ -38,7 +40,10 @@ function imageFrom(items: DataTransferItemList | null | undefined): File | null 
 
 const isTypingTarget = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 
-/** 整页接住 ⌘V：图片、文字都算一次粘贴。 */
+/** 粘贴键按系统显示：Mac「⌘V」、Windows「Ctrl+V」。 */
+export const PASTE_KEY = formatAccelerator('CmdOrCtrl+V');
+
+/** 整页接住粘贴：图片、文字都算一次粘贴。 */
 export function usePasteListener(onImage: (image: Blob) => void, onText: (text: string) => void): void {
   const handlers = useRef({ onImage, onText });
   useEffect(() => { handlers.current = { onImage, onText }; });
@@ -106,7 +111,7 @@ export function SourcePane({ step, onImage, onError }: {
     setDragging(false);
     const file = Array.from(event.dataTransfer.files).find(f => f.type.startsWith('image/'));
     if (file) onImage(file);
-    else onError('只能拖图片进来；文字复制后按 ⌘V 就行');
+    else onError(`只能拖图片进来；文字复制后按 ${PASTE_KEY} 就行`);
   };
   return (
     <section
@@ -119,7 +124,7 @@ export function SourcePane({ step, onImage, onError }: {
       {step ? <StepSource step={step} /> : (
         <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
           <ClipboardPaste className="h-8 w-8 text-[var(--subtle)]" strokeWidth={1.5} aria-hidden />
-          <div className="font-human text-base font-semibold text-[var(--ink)]">复制题目，按 ⌘V</div>
+          <div className="font-human text-base font-semibold text-[var(--ink)]">复制题目，按 {PASTE_KEY}</div>
           <div className="text-xs text-[var(--muted)]">文字、截图都行，一次几道题也行</div>
         </div>
       )}
