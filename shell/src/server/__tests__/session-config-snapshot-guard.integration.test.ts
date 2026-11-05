@@ -84,6 +84,23 @@ afterEach(() => {
 });
 
 describe('#327 — snapshot authority for IM config sync (setSessionModel)', () => {
+  // 求职产品在内置 Provider（或没有 Provider）下把模型锁成构建常量；快照权威只在第三方 Provider 下有意义。
+  async function useThirdPartyProvider(): Promise<void> {
+    const metadata = {
+      id: 'snapshot-guard-session',
+      runtime: 'builtin' as const,
+      sdkSessionId: '22222222-2222-4222-8222-222222222222',
+      unifiedSession: false,
+      agentDir: '/tmp/workspace',
+      title: 'Stable session',
+      createdAt: '2026-08-14T00:00:00.000Z',
+      lastActiveAt: '2026-08-14T00:00:00.000Z',
+    };
+    getMeta.mockReturnValue(metadata);
+    updateMeta.mockImplementation(async (_id, updates) => ({ ...metadata, ...updates }));
+    await setSessionProviderEnv({ providerId: 'third-party', baseUrl: 'https://third-party.example.com', apiKey: 'k' });
+  }
+
   it('ignores an IM-config-sync model override on a snapshotted session', async () => {
     markSnapshotted(true);
     const before = getSessionModel();
@@ -93,6 +110,7 @@ describe('#327 — snapshot authority for IM config sync (setSessionModel)', () 
   });
 
   it('applies a desktop (non-imConfigSync) model push even on a snapshotted session', async () => {
+    await useThirdPartyProvider();
     markSnapshotted(true);
     // Desktop picker is authoritative — it updates the snapshot itself, so its
     // push (no imConfigSync flag) MUST still reach the live session.
@@ -101,7 +119,7 @@ describe('#327 — snapshot authority for IM config sync (setSessionModel)', () 
   });
 
   it('applies an IM-config-sync model override on a NON-snapshotted (pure IM) session', async () => {
-    markSnapshotted(false);
+    await useThirdPartyProvider();
     await setSessionModel('pure-im-live-follow-model', { imConfigSync: true });
     expect(getSessionModel()).toBe('pure-im-live-follow-model');
   });

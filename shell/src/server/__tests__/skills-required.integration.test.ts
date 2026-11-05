@@ -358,9 +358,9 @@ describe('required system skill API contract', () => {
       expect(projectSystemNameSave.ok).toBe(true);
       expect(readFileSync(join(projectSkills, 'keystone-cli', 'SKILL.md'), 'utf8')).toContain('Project-local edit.');
 
-      // Cuse is maintained by the app but its discovery remains user-controlled.
+      // 求职助理不随产品发布 cuse（commands.rs SYSTEM_SKILLS），磁盘上残留的 cuse 只是普通用户技能，照样可开关。
       expect(byFolder(userBody.skills, 'cuse')).toMatchObject({
-        systemOwned: true, required: false, enabled: true,
+        systemOwned: false, required: false, enabled: true,
       });
       for (const enabled of [false, true]) {
         const response = await fetch(`${baseUrl}/api/skill/toggle-enable`, {
@@ -369,7 +369,7 @@ describe('required system skill API contract', () => {
         });
         expect(response.ok).toBe(true);
         const listed = await (await fetch(`${baseUrl}/api/skills?scope=user`)).json() as SkillsListResponse;
-        expect(byFolder(listed.skills, 'cuse')).toMatchObject({ systemOwned: true, required: false, enabled });
+        expect(byFolder(listed.skills, 'cuse')).toMatchObject({ systemOwned: false, required: false, enabled });
         const persisted = JSON.parse(readFileSync(configPath, 'utf8')) as { disabled: string[] };
         expect(persisted.disabled.includes('cuse')).toBe(!enabled);
       }
