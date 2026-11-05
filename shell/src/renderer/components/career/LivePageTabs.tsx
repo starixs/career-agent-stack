@@ -1,5 +1,5 @@
 /**
- * 几家一起投时，浏览器会话顶上的一排公司小签：点一家，画面和你的操作就落在那一家的页面上。
+ * 几家一起投时，网申现场顶上的一排公司小签：点一家，画面和你的操作就落在那一家的页面上。
  * 只有一家开着页面时不出现（用户 2026-11-02：「投 3 家，实际上只能看到美团这一家」）。
  * 在等你的几家排前面、带「等你」：哪家要你接手就点过去在那家处理，交还也只交那一家，别的照常填（2026-11-03）。
  */
@@ -34,9 +34,10 @@ export function LivePageTabs() {
   if (pages.length > 4) {
     return (
       <div className="flex shrink-0 items-center gap-2 border-b border-[var(--line)] px-5 py-2" data-testid="live-page-tabs">
-        <span className="shrink-0 text-xs text-[var(--muted)]">{pages.length} 个任务</span>
+        <span className="shrink-0 text-xs text-[var(--muted)]">正在投 {pages.length} 份</span>
         <CustomSelect
           ariaLabel="选择网申任务"
+          placeholder="选一份看"
           className="min-w-0 flex-1"
           size="toolbar"
           value={pages.find(p => p.current)?.application_id ?? ''}

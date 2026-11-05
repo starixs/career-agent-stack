@@ -1,5 +1,4 @@
 import { getPlatformHiddenProviderIds, isLinuxDesktop } from '@/utils/desktopPlatform';
-import { CareerKeysPanel } from '@/components/career/CareerKeysPanel';
 import { CareerServerPanel } from '@/components/career/CareerServerPanel';
 import { isImeComposingEvent } from '@/utils/imeKeyboard';
 import {
@@ -210,6 +209,7 @@ import { SkillsAgentsSection } from './sections/SkillsAgentsSection';
 import { ToolboxSection } from './sections/ToolboxSection';
 import { ExternalCliSettingsSection } from './sections/ExternalCliSettingsSection';
 import { FeedbackSection } from './sections/ShellEntriesSections';
+import { CareerAboutExtras, CareerModelKeyBlock } from './sections/CareerSettingsBlocks';
 import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import codexModelSelectorOnboarding from '@/assets/onboarding/codex-model-selector.png';
 
@@ -346,8 +346,11 @@ export default function Settings({
   updatePreparing,
   onCheckForUpdate,
   onRestartAndUpdate,
+  shell = 'career',
 }: SettingsProps) {
   const linuxDesktop = isLinuxDesktop();
+  // 求职壳只露求职用得上的条目；keystone 的条目代码不删（face-slim：撤出不等于删代码）。
+  const careerShell = shell === 'career';
   const cliProxy = useCliProxyStatus();
   const {
     apiKeys,
@@ -517,7 +520,8 @@ export default function Settings({
     initialSection:
       mode === 'capabilities' ? (initialSection ?? 'skills') : initialSection,
     navigationNonce,
-    floatingBallDevGate: linuxDesktop ? false : config.floatingBallDevGate,
+    // 桌面宠物在求职壳里内测先隐藏（等产品定），复用平台不支持时的同一条重定向。
+    floatingBallDevGate: linuxDesktop || careerShell ? false : config.floatingBallDevGate,
     onSectionChange,
   });
 
@@ -5266,9 +5270,12 @@ export default function Settings({
                 <h2 className="text-lg font-semibold text-[var(--ink)]">
                   {tSettings('shortcuts.title')}
                 </h2>
-                <p className="mt-1 text-xs text-[var(--muted)]">
-                  {tSettings('shortcuts.description')}
-                </p>
+                {/* 「消息发送与全局唤起」——求职壳只剩发送键，这句不露。 */}
+                {!careerShell && (
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    {tSettings('shortcuts.description')}
+                  </p>
+                )}
               </div>
 
               {/* 消息发送 — applies to every "AI conversation" composer:
@@ -5321,6 +5328,9 @@ export default function Settings({
                 </div>
               </div>
 
+              {/* 求职壳的快捷键页只留发送键：全局唤起与应用快捷键（新建 / 切换标签页等）是多 Tab 壳的，不露。 */}
+              {!careerShell && (
+              <>
               {/* Global Summon Shortcut (PRD 0.2.16) — relocated here from
                                 通用设置 in 0.2.29 so all keyboard shortcuts live together. */}
               <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
@@ -5443,6 +5453,8 @@ export default function Settings({
                   ))}
                 </div>
               </div>
+              </>
+              )}
             </div>
           )}
 
@@ -5457,18 +5469,17 @@ export default function Settings({
                 </p>
               </div>
 
-              {/* 求职助理：模型 Key（必需）与搜索 Key（建议）。放在通用页最上面，不用去命令行注入 */}
-              <div data-testid="settings-career-keys" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-                <h3 className="text-base font-medium text-[var(--ink)]">求职助理：模型与搜索</h3>
-                <p className="mt-1 mb-4 text-xs text-[var(--muted)]">模型 Key 必需，搜索 Key 建议配置。保存在本机，助理看不到。</p>
-                <CareerKeysPanel />
-              </div>
+              {/* 模型 Key：只在真的缺 Key 时出现（内测包预置了就整组不露）。 */}
+              <CareerModelKeyBlock />
 
-              <div data-testid="settings-career-server" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-                <h3 className="text-base font-medium text-[var(--ink)]">求职助理：服务端</h3>
-                <p className="mt-1 mb-4 text-xs text-[var(--muted)]">共享的校招 / 实习岗位库，以及答案改动回传（个人信息只传「有改动」，不带内容）。不填就只用本机数据。</p>
-                <CareerServerPanel />
-              </div>
+              {/* 服务端地址 / 令牌是开发配置，求职壳不露。 */}
+              {!careerShell && (
+                <div data-testid="settings-career-server" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
+                  <h3 className="text-base font-medium text-[var(--ink)]">求职助理：服务端</h3>
+                  <p className="mt-1 mb-4 text-xs text-[var(--muted)]">共享的校招 / 实习岗位库，以及答案改动回传（个人信息只传「有改动」，不带内容）。不填就只用本机数据。</p>
+                  <CareerServerPanel />
+                </div>
+              )}
 
               <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
@@ -5679,7 +5690,8 @@ export default function Settings({
                   </button>
                 </div>
 
-                {/* Default Workspace */}
+                {/* 启动时打开的工作区：求职壳固定一个工作区，不露。 */}
+                {!careerShell && (
                 <div className="mt-4 flex items-center justify-between">
                   <div className="flex-1 pr-4">
                     <p className="text-sm font-medium text-[var(--ink)]">
@@ -5755,9 +5767,11 @@ export default function Settings({
                     }}
                   />
                 </div>
+                )}
               </div>
 
-              {/* Chat Queue Response Mode */}
+              {/* 消息队列响应模式是 keystone 多轮对话的开关，求职壳不露。 */}
+              {!careerShell && (
               <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <h3 className="text-base font-medium text-[var(--ink)]">
                   {tSettings('general.queueTitle')}
@@ -5816,6 +5830,7 @@ export default function Settings({
                   </div>
                 </div>
               </div>
+              )}
 
               {/* Notification Settings */}
               <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
@@ -6247,7 +6262,9 @@ export default function Settings({
                     className="theme-product-wordmark theme-launcher-hero-title cursor-default select-none"
                     onClick={handleLogoTap}
                   >
-                    keystone
+                    {careerShell
+                      ? tSettings('globalSidebar.brandName', { ns: 'app' })
+                      : 'keystone'}
                   </h1>
                   <div className="mt-1 flex items-center gap-2">
                     <p className="text-sm font-medium text-[var(--muted)]">
@@ -6283,16 +6300,20 @@ export default function Settings({
                         )}
                       </button>
                     )}
-                    <ExternalLink
-                      href={KEYSTONE_RELEASES_URL}
-                      className="rounded-lg bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--ink-2)] transition-colors hover:bg-[var(--paper)]"
-                    >
-                      {tSettings('about.releaseNotes')}
-                    </ExternalLink>
+                    {!careerShell && (
+                      <ExternalLink
+                        href={KEYSTONE_RELEASES_URL}
+                        className="rounded-lg bg-[var(--inset)] px-2 py-0.5 text-xs text-[var(--ink-2)] transition-colors hover:bg-[var(--paper)]"
+                      >
+                        {tSettings('about.releaseNotes')}
+                      </ExternalLink>
+                    )}
                   </div>
-                  <p className="mt-3 text-base text-[var(--ink-2)]">
-                    {tSettings('about.slogan')}
-                  </p>
+                  {!careerShell && (
+                    <p className="mt-3 text-base text-[var(--ink-2)]">
+                      {tSettings('about.slogan')}
+                    </p>
+                  )}
                   {linuxDesktop && (
                     <p className="mt-3 text-sm text-[var(--muted)]">
                       {tSettings('about.manualLinuxUpdate')}
@@ -6349,6 +6370,12 @@ export default function Settings({
                 </div>
               </div>
 
+              {/* 求职壳的关于页：产品名、版本号（页头）、反馈入口、一句隐私说明。
+                  keystone 的开发者自述、实验室、联系方式与许可留给 keystone 壳。 */}
+              {careerShell ? (
+                <CareerAboutExtras onOpenFeedback={() => setActiveSection('feedback')} />
+              ) : (
+              <>
               {/* Product Description — Developer Letter */}
               <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-7 py-6">
                 <p className="text-xs font-medium uppercase tracking-widest text-[var(--muted)]/50">
@@ -6624,6 +6651,8 @@ export default function Settings({
               <p className="text-center text-xs text-[var(--muted)]">
                 {tSettings('about.licensingCopyright')}
               </p>
+              </>
+              )}
 
               {/* Developer Section - Hidden by default, unlocked by tapping logo 5 times */}
               {devSectionVisible && (

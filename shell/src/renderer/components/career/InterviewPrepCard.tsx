@@ -32,7 +32,8 @@ export function InterviewPrepCard({ card, onDismiss }: CardProps) {
   const predictions = list(d.predictions).map(p => ({ statement: str(p.statement) ?? '', risk: str(p.risk) ?? 'mid', chain: strings(p.chain) })).filter(p => p.statement);
   const questions = list(d.questions).map(q => ({ id: str(q.id) ?? '', content: str(q.content) ?? '' })).filter(q => q.content);
   const jobId = str(d.job_id);
-  const start = () => suggestToChat(`开始模拟 ${company} ${roundLabel ?? '面试'}（job_id=${jobId ?? ''}${round ? `，round=${round}` : ''}），先从高风险的深挖点问起`);
+  // 对象 id 走隐藏上下文（career-context system-reminder），不进学生看到的那句话。
+  const start = () => suggestToChat(`开始模拟${company}${roundLabel ?? '面试'}，先从高风险的深挖点问起`, { surface: 'interview', refs: { job_id: jobId, round } });
   return (
     <CardShell testId="career-card-interview_prep" icon={<CalendarClock className="size-4" />} title={card.title} badge={roundLabel ? <Badge tone="accent">{roundLabel}</Badge> : undefined} onDismiss={onDismiss}>
       {when && <div className="font-human text-base text-[var(--ink)]">{when}</div>}

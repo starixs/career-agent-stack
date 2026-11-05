@@ -78,10 +78,10 @@ describe('spaceCloud API errors', () => {
     };
     mocks.invoke.mockRejectedValueOnce(envelope);
 
-    await expect(spaceCommentIssue('iss_123', 'hello')).rejects.toThrow('评论发送失败：请重新登录 求职助理 社区');
+    await expect(spaceCommentIssue('iss_123', 'hello')).rejects.toThrow('评论发送失败：请重新登录求职助理社区');
 
     const normalized = normalizeSpaceError(envelope, { method: 'POST', path: '/api/issues/iss_123/comments' });
-    expect(normalized.userMessage).toBe('评论发送失败：请重新登录 求职助理 社区');
+    expect(normalized.userMessage).toBe('评论发送失败：请重新登录求职助理社区');
     expect(normalized.debugMessage).toContain('NOT_AUTHENTICATED');
     expect(normalized.debugMessage).toContain('req_123');
   });
@@ -114,7 +114,7 @@ describe('spaceCloud API errors', () => {
     expect(spaceErrorSessionBindingId(thrown)).toBe('binding-old');
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).toBe(
-      'Space 请求失败：请重新登录 求职助理 社区',
+      'Space 请求失败：请重新登录求职助理社区',
     );
     expect(thrown).toMatchObject({
       spaceCode: 'SPACE_REAUTH_REQUIRED',

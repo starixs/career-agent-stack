@@ -42,10 +42,12 @@ function GroupBox({ group, picked, onSet }: { group: PickGroup; picked: Picked; 
   );
 }
 
-export function PickTable({ groups, picked, onChange, actions }: {
+export function PickTable({ groups, picked, onChange, actions, unpicked = 'strike' }: {
   groups: PickGroup[]; picked: Picked; onChange: (next: Picked) => void;
   /** 表头右侧的两层按钮（全部通过 / 确定所选）。 */
   actions: ReactNode;
+  /** 没勾的行怎么显示：strike = 划掉（"这条不要"，如确认说法）；dim = 变淡（"这家先不投"，如批量勾选）。 */
+  unpicked?: 'strike' | 'dim';
 }) {
   const order = groups.flatMap(g => g.rows.map(r => r.id));
   const last = useRef<string | null>(null);
@@ -81,7 +83,7 @@ export function PickTable({ groups, picked, onChange, actions }: {
                 data-testid={`pick-row-${r.id}`}
                 onPointerDown={e => onRowDown(e, r.id)} onPointerEnter={() => drag.enter(r.id)}
                 onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); set([r.id], !picked[r.id]); } }}
-                className={`flex cursor-pointer items-start gap-2 border-t border-[var(--line)] px-2 py-1 pl-7 text-sm ${picked[r.id] ? 'text-[var(--ink)]' : 'text-[var(--subtle)] line-through'}`}
+                className={`flex cursor-pointer items-start gap-2 border-t border-[var(--line)] px-2 py-1 pl-7 text-sm ${picked[r.id] ? 'text-[var(--ink)]' : unpicked === 'strike' ? 'text-[var(--subtle)] line-through' : 'text-[var(--subtle)]'}`}
               >
                 <input type="checkbox" tabIndex={-1} readOnly checked={!!picked[r.id]} className="pointer-events-none mt-0.5" aria-hidden />
                 <span className="min-w-0 flex-1">{r.text}{r.note && <span className="ml-1 text-xs text-[var(--muted)]">{r.note}</span>}</span>

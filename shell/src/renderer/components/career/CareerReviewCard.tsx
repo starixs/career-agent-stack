@@ -112,7 +112,7 @@ export function ReviewCard({ card, onDone, onDismiss }: CardProps) {
         </div>
       </div>
       {isSubmit && <SubmitReviewList review={review} />}
-      <div className="mt-3 text-xs text-[var(--muted)]">{str(card.data.note) ?? (isSubmit ? '批准后产品替你点提交；没批准之前不会提交。' : '提交与发送都要你批准后才会执行。')}</div>
+      <div className="mt-3 text-xs text-[var(--muted)]">{str(card.data.note) ?? (isSubmit ? '你点头后，小芽替你点提交；没点头之前不会提交。' : '提交和发送都要你点头才会做。')}</div>
       {error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button variant="primary" busy={busy === 'approved'} disabled={busy !== null} onClick={() => void decide('approved')}>{isSubmit ? '批准提交' : kind === 'fill_form' ? '开始填写' : '批准'}</Button>

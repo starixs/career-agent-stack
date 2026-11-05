@@ -10,6 +10,7 @@ import { PermissionPrompt, type PermissionRequest } from '@/components/Permissio
 import { AskUserQuestionPrompt, type AskUserQuestionRequest } from '@/components/AskUserQuestionPrompt';
 import { ExitPlanModePrompt } from '@/components/ExitPlanModePrompt';
 import { CareerChatCards } from '@/components/career/CareerChatCards';
+import { hasIncompleteWorkBlocks, QuietWorkLine } from '@/components/chat/AssistantSpeech';
 import { PageReturnCard, pageReturnTargets } from '@/features/career-shell/PageReturnCard';
 import type { ExitPlanModeRequest } from '../../shared/types/planMode';
 import type { Message as MessageType } from '@/types/chat';
@@ -147,6 +148,19 @@ function resolveSystemStatus(status: string, t: TFunction<'chat'>): string {
   }
   return status;
 }
+/**
+ * 求职壳只留一个「在想」（beta-polish 全量清单 P1）：随机的「苦思冥想中…（N 秒）」计时不给学生看。
+ * 回复里已经露出安静工作行时底部不再叠一行；还没有时底部用同款安静工作行说「在想」。
+ * 启动中、压缩、重试这类具体状态照旧走 StatusTimer。
+ */
+const CAREER_QUIET_STATUS = true;
+
+/** 正在流式的回复里，Message 是否已经露出安静工作行（与 Message 的 isAssistantStreaming 同一判断）。 */
+function isQuietWorkVisible(message: MessageType | null, isLoading: boolean): boolean {
+  if (!isLoading || !message || message.role !== 'assistant' || typeof message.content === 'string') return false;
+  return hasIncompleteWorkBlocks(message.content);
+}
+
 function getRandomStreamingMessage(t: TFunction<'chat'>): string {
   const index = Math.floor(Math.random() * STREAMING_MESSAGE_COUNT);
   return t(`shell.messageList.streaming.${index}`);
@@ -229,6 +243,8 @@ type FooterProps = {
   onAskUserQuestionCancel?: (requestId: string) => Promise<void>;
   showStatus: boolean;
   statusMessage: string;
+  /** 求职壳：通用「在想」用安静工作行，不用随机文案加计时。 */
+  quietThinking?: boolean;
   getQueryElapsedSeconds: () => number;
   systemNotice?: SystemNotice | null;
   onDismissSystemNotice?: () => void;
@@ -243,7 +259,7 @@ interface MessageListContext extends MessageActionContext {
 const VirtuosoFooter = memo(function VirtuosoFooter({
   pendingPermission, onPermissionDecision,
   pendingAskUserQuestion, onAskUserQuestionSubmit, onAskUserQuestionCancel,
-  showStatus, statusMessage, getQueryElapsedSeconds,
+  showStatus, statusMessage, quietThinking = false, getQueryElapsedSeconds,
   systemNotice, onDismissSystemNotice,
   bottomSpacerPx,
   anchorTailPx = 0,
@@ -267,7 +283,8 @@ const VirtuosoFooter = memo(function VirtuosoFooter({
           <AskUserQuestionPrompt request={pendingAskUserQuestion} onSubmit={onAskUserQuestionSubmit} onCancel={onAskUserQuestionCancel} />
         </div>
       )}
-      {showStatus && <StatusTimer message={statusMessage} getElapsedSeconds={getQueryElapsedSeconds} />}
+      {showStatus && quietThinking && <QuietWorkLine blocks={[]} />}
+      {showStatus && !quietThinking && <StatusTimer message={statusMessage} getElapsedSeconds={getQueryElapsedSeconds} />}
       {!showStatus && systemNotice && (
         <SystemNoticeRow notice={systemNotice} onDismiss={onDismissSystemNotice} />
       )}
@@ -400,7 +417,9 @@ const MessageList = memo(function MessageList({
     );
   }, [pendingExitPlanMode, onExitPlanModeApprove, onExitPlanModeReject]);
 
-  const showStatus = isLoading || !!systemStatus;
+  const quietThinking = CAREER_QUIET_STATUS && !systemStatus && sessionState !== 'starting';
+  const showStatus = (isLoading || !!systemStatus)
+    && !(quietThinking && isQuietWorkVisible(streamingMessage, isLoading));
   // (issue) During 'starting' the SDK subprocess is alive but hasn't
   // sent system_init — the random "苦思冥想中…" line would falsely imply the
   // model is already thinking. Surface a startup-specific hint instead.
@@ -607,10 +626,10 @@ const MessageList = memo(function MessageList({
     footer: {
       pendingPermission, onPermissionDecision,
       pendingAskUserQuestion, onAskUserQuestionSubmit, onAskUserQuestionCancel,
-      showStatus, statusMessage, getQueryElapsedSeconds,
+      showStatus, statusMessage, quietThinking, getQueryElapsedSeconds,
       systemNotice, onDismissSystemNotice, bottomSpacerPx, anchorTailPx,
     },
-  }), [messageActionContext, pendingPermission, onPermissionDecision, pendingAskUserQuestion, onAskUserQuestionSubmit, onAskUserQuestionCancel, showStatus, statusMessage, getQueryElapsedSeconds, systemNotice, onDismissSystemNotice, bottomSpacerPx, anchorTailPx]);
+  }), [messageActionContext, pendingPermission, onPermissionDecision, pendingAskUserQuestion, onAskUserQuestionSubmit, onAskUserQuestionCancel, showStatus, statusMessage, quietThinking, getQueryElapsedSeconds, systemNotice, onDismissSystemNotice, bottomSpacerPx, anchorTailPx]);
 
   // ── Freeze the data fed to Virtuoso while the internal Tab is inactive ──────
   // An inactive internal Tab is wrapped in `content-visibility: hidden`, so any

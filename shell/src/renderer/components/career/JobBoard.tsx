@@ -101,7 +101,7 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
             <Select ariaLabel="排序" value={filter.sort} onChange={v => patch({ sort: v as BoardSort })} options={[{ value: 'match', label: '按匹配' }, { value: 'deadline', label: '按截止' }, { value: 'updated', label: '按更新' }]} />
           </div>
           <Button size="sm" variant="ghost" aria-pressed={panel === 'import'} onClick={() => setPanel(p => (p === 'import' ? null : 'import'))}><Link2 className="h-4 w-4" />导入岗位</Button>
-          <IconAction label="同步校招汇总" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.syncJobs('campus'); return `已同步校招汇总 ${r.stored ?? 0} 条，匹配已重算`; })}><RefreshCw className="h-4 w-4" /></IconAction>
+          <IconAction label="同步校招汇总" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.syncJobs('campus'); return `岗位库更新了 ${r.stored ?? 0} 条`; })}><RefreshCw className="h-4 w-4" /></IconAction>
           {query.data?.server && <IconAction label="同步服务端岗位库" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.syncJobs('server'); return `已从服务端同步 ${r.stored ?? 0} 条`; })}><RefreshCw className="h-4 w-4" /><span className="text-xs">服务端</span></IconAction>}
           <IconAction label="导出表格" busy={act.busy} onClick={() => void run(async () => { const r = await careerApi.exportWorkbook(); return r.path ? `已导出：${r.path}` : '已导出'; })}><Download className="h-4 w-4" /></IconAction>
         </div>
@@ -113,7 +113,7 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-6 pb-2 text-xs text-[var(--muted)]">
         <span className="tabular-nums">{query.data ? `${rows.length} 个岗位${rows.length !== allRows.length ? `（共 ${allRows.length}）` : ''}` : ''}</span>
         {picked.length > 0 && <span className="tabular-nums">已选 {picked.length}{hiddenPicked > 0 ? `（${hiddenPicked} 个在别的搜索里）` : ''}</span>}
-        <Button size="sm" variant={picked.length > 0 ? 'primary' : 'ghost'} disabled={picked.length === 0} aria-pressed={panel === 'apply'} onClick={() => setPanel(p => (p === 'apply' ? null : 'apply'))}>{picked.length > 0 ? `投这 ${picked.length} 家` : '勾选岗位后一键投'}</Button>
+        <Button size="sm" variant={picked.length > 0 ? 'primary' : 'ghost'} disabled={picked.length === 0} aria-pressed={panel === 'apply'} onClick={() => setPanel(p => (p === 'apply' ? null : 'apply'))}>{picked.length > 0 ? `投这 ${picked.length} 家` : '点行勾选，Shift 可连选'}</Button>
         {bulkExtra}
         {query.data && <PrefsSummary prefs={query.data.prefs} editing={panel === 'prefs'} onEdit={() => setPanel(p => (p === 'prefs' ? null : 'prefs'))} />}
       </div>
@@ -125,7 +125,9 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
         {act.error && <ErrorRow message={act.error} />}
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !query.data && <LoadingRow />}
-        {query.data && rows.length === 0 && <EmptyState title="没有符合筛选的岗位" hint="点右上角的同步拉取校招 / 实习网申信息，或放宽筛选。" example="帮我找符合我条件的实习" />}
+        {query.data && rows.length === 0 && (allRows.length === 0
+          ? <EmptyState title="岗位正在更新" />
+          : <EmptyState title="没有符合筛选的岗位" hint="放宽筛选，或点右上角的同步拉取新的校招 / 实习网申信息。" example="帮我找符合我条件的实习" />)}
       </div>
 
       {rows.length > 0 && (

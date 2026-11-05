@@ -37,6 +37,8 @@ describe('模型 / 搜索 Key 配置', () => {
 
   it('模型 Key 存到内置 provider career-llm', async () => {
     render(<CareerKeysPanel />);
+    // 搜索改用模型 Key：默认不再单独要搜索 Key
+    expect(screen.queryByLabelText('搜索 API Key')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('模型 API Key'), { target: { value: ' sk-abc ' } });
     fireEvent.click(screen.getAllByRole('button', { name: '保存' })[0]);
     await waitFor(() => expect(cfg.saveApiKey).toHaveBeenCalledWith('career-llm', 'sk-abc'));

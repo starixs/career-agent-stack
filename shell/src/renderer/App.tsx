@@ -53,6 +53,7 @@ import BugReportOverlay from '@/components/BugReportOverlay';
 import { DispatchTaskDialog } from '@/components/task-center/DispatchTaskDialog';
 import CustomTitleBar from '@/components/CustomTitleBar';
 import { CareerNavShell } from '@/features/career-shell/CareerNavShell';
+import { requestOpenDeck } from '@/components/career/delivery/WaitingDock';
 import { CAREER_NAVIGATE_EVENT, requestNavigation, type NavTarget } from '@/features/career-shell/navModel';
 import type { CareerFocusEvent } from '@/components/career/types';
 import { stashCareerFocus } from '@/features/career-shell/pendingFocus';
@@ -1272,12 +1273,13 @@ export default function App() {
         listenerAc.signal,
       );
 
-      // 悬浮球的「回工作台」：五步引导已退役（冷启动做法二），回到招聘概览，那里有「从你手里有的开始」。
+      // 悬浮球的提醒：回到对话，打开输入框上沿的等你卡组（要你的事只在那一处，规范 §5.2）。
       void listenWithCleanup(
         'fb:open-onboarding',
         () => {
           if (!mountedRef.current) return;
-          requestNavigation({ kind: 'career-today' });
+          requestNavigation({ kind: 'chat' });
+          requestOpenDeck();
         },
         listenerAc.signal,
       );

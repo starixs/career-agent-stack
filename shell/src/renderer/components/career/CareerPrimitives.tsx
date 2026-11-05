@@ -9,6 +9,8 @@ import { emitEvent } from '@/api/eventBus';
 import CustomSelect from '@/components/CustomSelect';
 import { useToastOptional } from '@/components/Toast';
 
+import { isHiddenKey, structuredKeyLabel, structuredValueText } from './structuredLabels';
+
 // ─── 由对话指挥 ───
 
 export interface ChatContext { surface?: string; refs?: Record<string, string | null | undefined>; note?: string }
@@ -101,7 +103,7 @@ export function Card({ title, extra, children, className = '', variant = 'plain'
   );
 }
 
-export function EmptyState({ title, hint, example }: { title: string; hint?: string; example?: string }) {
+export function EmptyState({ title, hint, example, action }: { title: string; hint?: string; example?: string; action?: ReactNode }) {
   const suggest = useSuggestToChat();
   return (
     <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
@@ -110,6 +112,7 @@ export function EmptyState({ title, hint, example }: { title: string; hint?: str
       {example && (
         <Button variant="secondary" onClick={() => suggest(example)}>在对话里说「{example}」</Button>
       )}
+      {action}
     </div>
   );
 }
@@ -238,11 +241,23 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 
-/** 把任意 JSON 渲染成可读的键值 / 列表，用于复盘、报告、理由等字段。 */
+/** 对象里能显示的条目：认得的键换中文；不认得的英文键，对象 / 列表略过，单个值归到「其他」。 */
+function visibleEntries(value: Record<string, unknown>): Array<[string, string, unknown]> {
+  const out: Array<[string, string, unknown]> = [];
+  for (const [k, v] of Object.entries(value)) {
+    if (isHiddenKey(k) || v == null || v === '') continue;
+    const label = structuredKeyLabel(k);
+    if (label) out.push([k, label, v]);
+    else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') out.push([k, '其他', v]);
+  }
+  return out;
+}
+
+/** 把技能产出的 JSON 渲染成可读的键值 / 列表，用于复盘、报告、理由等字段；不露原始 JSON 和英文键名。 */
 export function StructuredJson({ value, depth = 0 }: { value: unknown; depth?: number }) {
   if (value == null || value === '') return <span className="text-[var(--subtle)]">未知</span>;
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return <span className="whitespace-pre-wrap break-words">{String(value)}</span>;
+    return <span className="whitespace-pre-wrap break-words">{structuredValueText(value)}</span>;
   }
   if (Array.isArray(value)) {
     if (value.length === 0) return <span className="text-[var(--subtle)]">（空）</span>;
@@ -253,20 +268,20 @@ export function StructuredJson({ value, depth = 0 }: { value: unknown; depth?: n
     );
   }
   if (isPlainObject(value)) {
-    const entries = Object.entries(value);
+    const entries = visibleEntries(value);
     if (entries.length === 0) return <span className="text-[var(--subtle)]">（空）</span>;
     return (
       <dl className={`grid grid-cols-[minmax(80px,auto)_1fr] gap-x-3 gap-y-1 ${depth > 0 ? 'mt-1' : ''}`}>
-        {entries.map(([k, v]) => (
+        {entries.map(([k, label, v]) => (
           <div key={k} className="contents">
-            <dt className="text-xs text-[var(--muted)]">{k}</dt>
+            <dt className="text-xs text-[var(--muted)]">{label}</dt>
             <dd className="min-w-0 text-sm"><StructuredJson value={v} depth={depth + 1} /></dd>
           </div>
         ))}
       </dl>
     );
   }
-  return <span>{String(value)}</span>;
+  return <span className="text-[var(--subtle)]">未知</span>;
 }
 
 // ─── 小工具 ───

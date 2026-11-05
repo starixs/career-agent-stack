@@ -183,8 +183,8 @@ describe('ExternalCliSettingsSection', () => {
 
     const copied = mocks.copyPlainText.mock.calls.at(-1)?.[0] as string;
     expect(copied).toBe(
-      '请先阅读本机文件 "/Users/test/.keystone/external-keystone-cli/SKILL.md"，并严格按照其中的公开 CLI 契约操作 求职助理。\n\n' +
-        '本机 求职助理 CLI 完整路径是："/Users/test/.keystone/bin/keystone"\n\n' +
+      '请先阅读本机文件 "/Users/test/.keystone/external-keystone-cli/SKILL.md"，并严格按照其中的公开 CLI 契约操作求职助理。\n\n' +
+        '本机求职助理 CLI 完整路径是："/Users/test/.keystone/bin/keystone"\n\n' +
         '请将 KEYSTONE_API_TOKEN 注入到环境变量：`export KEYSTONE_API_TOKEN="mae_real_secret_must_not_leak"`',
     );
     expect(copied).not.toContain('<token>');

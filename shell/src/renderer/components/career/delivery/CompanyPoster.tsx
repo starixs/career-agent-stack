@@ -35,7 +35,7 @@ export function CompanyPoster({ company, size, state = 'done', role, over, star 
   );
 }
 
-/** 一件事涉及多家时，等你条里的数字小签。 */
+/** 一件事涉及多家时，等你条里的小签：写「N 家」，不留一个光秃秃的数。 */
 export function CountTag({ n }: { n: number }) {
-  return <span className="cd-poster cd-p-xs cd-s-ask cd-p-num" title={`用于 ${n} 家`}><span className="cd-p-co">{n}</span></span>;
+  return <span className="cd-poster cd-p-xs cd-s-ask cd-p-num" role="img" aria-label={`这件事涉及 ${n} 家`} title={`这件事涉及 ${n} 家`}><span className="cd-p-co">{n} 家</span></span>;
 }

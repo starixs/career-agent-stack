@@ -68,6 +68,8 @@ export function actionLabels(ask: AskView): { go: string; later: string } {
     case 'confirm': return { go: '投出了', later: '没投出去' };
     case 'attendance': return ask.deadline_kind === 'assessment' ? { go: '做了', later: '没做' } : { go: '考了', later: '没去' };
     case 'retro': return { go: '说几句复盘', later: '不复盘了' };
+    // 自动重试过一次还没填成：再试一次 / 我自己来（打开那一家的网申现场）
+    case 'failed': return { go: '再试一次', later: '我自己来' };
     default: return { go: GO[ask.deadline_kind ?? ''] ?? '去处理', later: ask.deadline_kind === 'interview' ? '晚点' : '做完了' };
   }
 }

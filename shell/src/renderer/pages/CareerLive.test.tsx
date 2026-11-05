@@ -11,8 +11,10 @@ vi.mock('@/components/career/useGlobalLive', () => ({
 }));
 
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
+import { onEvent } from '@/api/eventBus';
+import { CAREER_NAVIGATE_EVENT } from '@/features/career-shell/navModel';
 import CareerLive from './CareerLive';
-import { applicationStats } from './CareerLiveModel';
+import { applicationStats, hasBatchWork } from './CareerLiveModel';
 
 const push = (ev: unknown) => { live.handler?.(ev); };
 const snapshot = { type: 'snapshot', ts: 1, productSessionId: 's', browser: { hasBrowser: true, control: 'agent', reason: null, url: 'https://x.com/apply', title: '网申', channel: 'chrome' }, batch: { status: 'running', updatedAt: '', done: 2, failed: 0, handoffs: 1, queued: 3, todayCount: 2, phase: 'driving', message: '正在填写：B 公司 算法实习生', currentTitle: 'B 公司 算法实习生' }, openHandoffs: 1 };
@@ -61,6 +63,44 @@ describe('CareerLive', () => {
       { stage: 'rejected' }, { stage: 'discarded' }, { stage: 'skip' },
     ] as never, 1)).toEqual({ total: 6, active: 1, waiting: 1, submitted: 2, closed: 2 });
   });
+  it('还在填的（pending）算进行中，不算已投出；已投出与服务端 SENT 同口径', () => {
+    expect(applicationStats([
+      { stage: 'pending' }, { stage: 'applied' }, { stage: 'responded' }, { stage: 'interview' },
+      { stage: 'offer' }, { stage: 'hired' }, { stage: 'rejected' },
+    ] as never)).toMatchObject({ total: 7, active: 1, submitted: 6 });
+  });
+
+  it('hasBatchWork：在跑 / 暂停 / 还排着才算有在投的', () => {
+    const base = { status: 'idle', updatedAt: '', done: 0, failed: 0, handoffs: 0, queued: 0, todayCount: 0 } as const;
+    expect(hasBatchWork(null)).toBe(false);
+    expect(hasBatchWork({ ...base })).toBe(false);
+    expect(hasBatchWork({ ...base, queued: 2 })).toBe(true);
+    expect(hasBatchWork({ ...base, status: 'paused' })).toBe(true);
+  });
+
+  it('没有在投的：不给「开始 / 继续」，给「去挑一批」：回对话、让小芽放一张勾选表', async () => {
+    const nav: unknown[] = [];
+    const off = onEvent(CAREER_NAVIGATE_EVENT, p => nav.push(p));
+    render(<CareerLive />);
+    await waitFor(() => expect(live.handler).not.toBeNull());
+    push({ ...snapshot, batch: { ...snapshot.batch, status: 'idle', queued: 0, lastError: 'Error: driver timeout' } });
+    expect(await screen.findByText('现在没有在投的。')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '开始 / 继续' })).toBeNull();
+    expect(screen.queryByText(/driver timeout/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '去挑一批' }));
+    expect(nav).toEqual([{ kind: 'chat' }]);
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/jobs/propose', {}));
+    off();
+  });
+
+  it('批量出过错：只给一句人话，不露原始错误', async () => {
+    render(<CareerLive />);
+    await waitFor(() => expect(live.handler).not.toBeNull());
+    push({ ...snapshot, batch: { ...snapshot.batch, lastError: 'TypeError: cannot read x' } });
+    expect(await screen.findByText('上一批有一家没填成，我会再试')).toBeInTheDocument();
+    expect(screen.queryByText(/TypeError/)).toBeNull();
+  });
+
   it('没有浏览器时给出引导文案，不显示批量噪声', async () => {
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());

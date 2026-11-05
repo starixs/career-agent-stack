@@ -58,6 +58,7 @@ async function go(ask: AskView, respond: Respond, values: Record<string, string>
     case 'confirm': return confirmSent(ask, true);
     case 'attendance': await careerApi.answerAttendance(firstDeadline(ask), true); return 'resolved';
     case 'retro': suggestToChat(ask.suggest ?? `复盘一下${ask.title}`); return 'kept';
+    case 'failed': await deliveryApi.retryFailed(ask.id); return 'resolved';
     default: return goDeadline(ask);
   }
 }
@@ -71,6 +72,8 @@ async function later(ask: AskView): Promise<AskOutcome> {
       await careerApi.setDeadlineStatus(firstDeadline(ask), 'done'); return 'resolved';
     case 'login': await deliveryApi.loginJourney(ask.id, true); return 'snoozed';
     case 'confirm': return confirmSent(ask, false);
+    // 我自己来：服务端开接管、画面切到那一家，这里把现场窗打开；交还后这件变成「等你过一下」
+    case 'failed': await deliveryApi.takeOverFailed(ask.id); openLiveDrawer(); return 'kept';
     default: return 'snoozed';
   }
 }

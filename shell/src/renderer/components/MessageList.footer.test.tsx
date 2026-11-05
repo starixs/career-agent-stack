@@ -34,11 +34,22 @@ function msg(id: string, content: string, role: 'user' | 'assistant' = 'assistan
   return { id, role, content, timestamp: new Date() } as MessageType;
 }
 
+function streamingToolMessage(): MessageType {
+  return {
+    id: 'a1',
+    role: 'assistant',
+    timestamp: new Date(),
+    content: [{ type: 'tool_use', tool: { id: 't1', name: 'mcp__career__job_search', input: {}, isLoading: true } }],
+  } as MessageType;
+}
+
 function createBaseProps(overrides: Partial<React.ComponentProps<typeof MessageList>> = {}) {
   return {
     messages: [msg('h1', 'hello', 'user')],
     streamingMessage: null,
     isLoading: false,
+    // 计时行只在具体状态（启动中 / 压缩 / 重试）出现；求职壳的通用「在想」不计时，见下面 career 用例。
+    sessionState: 'starting' as const,
     sessionId: 's1',
     isActive: true,
     firstItemIndex: 1_000_000,
@@ -167,6 +178,24 @@ describe('MessageList footer status positioning', () => {
     if (!spacer) throw new Error('expected footer spacer');
     expect(spacer).toHaveStyle({ height: '193px' });
     expect(row.compareDocumentPosition(spacer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('career shell: shows one quiet "在想" line instead of the random timed thinking line', () => {
+    renderList({ isLoading: true, sessionState: 'running' });
+    expect(document.querySelector('[data-chat-status-row]')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('[data-testid="quiet-work-line"]')).toHaveLength(1);
+    expect(document.body).toHaveTextContent('在想');
+  });
+
+  it('career shell: drops the footer indicator while the reply already shows its quiet work line', () => {
+    renderList({ isLoading: true, sessionState: 'running', streamingMessage: streamingToolMessage() });
+    expect(document.querySelector('[data-chat-status-row]')).not.toBeInTheDocument();
+    expect(document.querySelector('[data-testid="quiet-work-line"]')).not.toBeInTheDocument();
+  });
+
+  it('career shell: specific statuses such as compacting still use the status row', () => {
+    renderList({ isLoading: true, sessionState: 'running', systemStatus: 'compacting', streamingMessage: streamingToolMessage() });
+    expect(document.querySelector('[data-chat-status-row]')).toBeInTheDocument();
   });
 
   it('uses the same footer slot for idle system notices', () => {

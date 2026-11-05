@@ -47,7 +47,8 @@ describe('CareerApply · 岗位库', () => {
   it('空状态：表格是主体，不再有「等你批准」和投递概况；浏览器空闲时不占位；底部是页面输入框，没有灰着的「即将上线」按钮', async () => {
     mockGet(true);
     render(<CareerApply />);
-    expect(await screen.findByText('没有符合筛选的岗位')).toBeInTheDocument();
+    expect(await screen.findByText('岗位正在更新')).toBeInTheDocument();
+    expect(screen.queryByText(/筛选/)).not.toBeInTheDocument();
     expect(screen.queryByText(/等你批准/)).not.toBeInTheDocument();
     expect(screen.queryByText('投递概况')).not.toBeInTheDocument();
     expect(screen.queryByTestId('browser-status-bar')).not.toBeInTheDocument();
@@ -55,6 +56,21 @@ describe('CareerApply · 岗位库', () => {
     expect(screen.queryByRole('button', { name: /AI 找工作/ })).not.toBeInTheDocument();
     // 不调用旧的看板 / 待审接口
     expect(vi.mocked(apiGetJson).mock.calls.some(([p]) => String(p).startsWith('/api/career/board'))).toBe(false);
+  });
+
+  it('库里有岗位、只是筛选全挡掉了：才说「没有符合筛选的岗位」', async () => {
+    mockGet();
+    render(<CareerApply />);
+    expect(await screen.findByText('后端工程师')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('搜索岗位'), { target: { value: '不存在的公司' } });
+    expect(await screen.findByText('没有符合筛选的岗位')).toBeInTheDocument();
+    expect(screen.queryByText('岗位正在更新')).not.toBeInTheDocument();
+  });
+
+  it('没勾选时投递按钮告诉他怎么选', async () => {
+    mockGet();
+    render(<CareerApply />);
+    expect(await screen.findByRole('button', { name: '点行勾选，Shift 可连选' })).toBeDisabled();
   });
 
   it('多维表格：批次带届别、行业、类型标签、截止；默认只看没截止；匹配分展开看证据', async () => {
@@ -118,7 +134,7 @@ describe('CareerApply · 岗位库', () => {
     expect(await screen.findByText('点了提交，但没等到成功提示')).toBeInTheDocument();
     expect(screen.getByText('丙公司 · 后端工程师')).toBeInTheDocument();
     expect(screen.getByText('（自学习免确认）')).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('auto 模式'));
+    fireEvent.click(screen.getByLabelText('检查都过了就直接交'));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/apply/settings', { auto_mode: true }));
     fireEvent.click(screen.getByRole('button', { name: '已投递成功' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/act9/confirm-submit', { submitted: true }));

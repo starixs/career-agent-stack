@@ -57,6 +57,12 @@ vi.mock('@/config/useConfigData', () => ({
   useConfigData: () => ({ config: { chatSendShortcut: 'enter' } }),
 }));
 
+// 这些用例覆盖 keystone 通用输入框（＋菜单、权限模式、/ @ 弹层），求职壳默认关掉的控件在这里全部打开；
+// 求职壳的收口见 SimpleChatInput.careerChrome.test.tsx。
+vi.mock('./chat-input/composerChrome', () => ({
+  COMPOSER_CHROME: { plusMenu: true, permissionMode: true, tools: true, contextUsage: true, inlinePickers: true },
+}));
+
 vi.mock('@/hooks/useWorkspaceFileService', () => ({
   useWorkspaceFileService: () => workspaceMocks.service,
 }));

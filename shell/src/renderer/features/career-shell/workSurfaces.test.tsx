@@ -15,6 +15,7 @@ vi.mock('@/components/career/careerApi', () => ({
 vi.mock('@/components/career/useGlobalLive', () => ({ useLiveStream: () => ({ status: 'open', detail: null }), globalBaseUrl: async () => '' }));
 vi.mock('@/pages/CareerResume', () => ({ default: () => <div data-testid="resume-editor" /> }));
 
+import { onEvent } from '@/api/eventBus';
 import type { ExamPractice } from '@/components/career/types';
 import type { ToolUseSimple } from '@/types/chat';
 
@@ -152,6 +153,19 @@ describe('expanded panels', () => {
     render(<MockInterviewSurfacePanel />);
     expect(screen.getByText('轮到你回答', { selector: 'div' })).toBeInTheDocument();
     expect(await screen.findByText(/做了校园二手交易小程序/)).toBeInTheDocument();
+  });
+
+  it('resuming a mock interview sends plain words and keeps the id in hidden context', async () => {
+    const sent: Array<{ text?: string; context?: { refs?: Record<string, string | null | undefined> } }> = [];
+    const off = onEvent<{ text?: string; context?: { refs?: Record<string, string | null | undefined> } }>('career:chat-suggest', payload => { sent.push(payload); });
+    act(() => expandWorkSurface('mock-interview', { refId: 'mok_1' }));
+    render(<MockInterviewSurfacePanel />);
+    fireEvent.click(await screen.findByRole('button', { name: /接着练/ }));
+    off();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toBe('接着练这场模拟面试');
+    expect(sent[0].text).not.toMatch(/_id=/);
+    expect(sent[0].context?.refs).toEqual({ mock_interview_id: 'mok_1' });
   });
 
   it('mock clock: 计这场练了多久和这一问想了多久；换题重新计，结束停表', () => {

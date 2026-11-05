@@ -1,15 +1,17 @@
 /**
  * 等你条与卡组（规范 §3、§5.2、§6.3）：要你的事唯一会主动出声的落点，固定在输入框上沿，不随对话滚走。
  *
- *  - 左边「等你 N」+ 前三件的公司小签 + 最急那件的期限（钢笔蓝）；右边今天这批「投出 x / y」和进度格。
+ *  - 左边「等你 N」+ 前三件的公司小签 + 最急那件的期限（钢笔蓝）；右边今天这批「已投出 x / y」，只写字不画格。
  *  - 点开卡组：一次一张，← → 切换，Esc 收起（焦点回到等你条）；新事进来重排后，仍停在正在看的那张。
+ *    卡组开着时条上不再写「等你 N」（卡组头已经写了「等你 i / N」），两行不叠着说同一件事。
+ *  - 别处（右栏、悬浮球）要打开卡组用 requestOpenDeck：等你条还没挂上时先记下，挂上后打开。
  *  - 卡组只在一种情况下自己弹出：这件事是你刚说的话引出的（这一轮还在跑），而且你没在输入框里打字。
  *  - 新的要你的事进来时 aria-live 播报一句。
  *  - 没有要你的事、今天也没在投：整条不出现。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { onEvent } from '@/api/eventBus';
+import { emitEvent, onEvent } from '@/api/eventBus';
 import { useTabStateOptional } from '@/context/TabContext';
 
 import { AskCard } from './AskCard';
@@ -25,22 +27,28 @@ import './delivery.css';
 
 /** 等你条上最多几个小签（规范 §5.2）。 */
 const DOCK_THUMBS = 3;
-/** 进度格最多画几格：一批几百份时一份一格会把整条挤成竖排方块（2026-11-03 实测）。 */
-export const METER_MAX_CELLS = 20;
+/** 等等你条挂上再打开的那一次（id 为空＝从最急的开始）；undefined＝没有待打开的。 */
+let pendingDeck: { id: string | null } | undefined;
 
-/** 进度格：份数少时一份一格，多了按比例点亮。 */
-export function meterCells(done: number, total: number): boolean[] {
-  const n = Math.min(Math.max(total, 0), METER_MAX_CELLS);
-  const lit = total > 0 ? Math.round((Math.min(done, total) / total) * n) : 0;
-  return Array.from({ length: n }, (_, i) => i < lit);
+/** 打开等你卡组（右栏「去处理」、悬浮球提醒）。等你条没挂上时记下，挂上后打开一次。 */
+export function requestOpenDeck(id: string | null = null): void {
+  pendingDeck = { id };
+  emitEvent(OPEN_DECK_EVENT, { id: id ?? undefined });
 }
 
-function DockBar({ asks, run, onDeck, onRun, dockRef }: { asks: AskView[]; run: RunView | null; onDeck: () => void; onRun: () => void; dockRef: React.RefObject<HTMLButtonElement | null> }) {
+function clearPendingDeck(): void {
+  pendingDeck = undefined;
+}
+
+function DockBar({ asks, run, deckOpen, onDeck, onRun, dockRef }: {
+  asks: AskView[]; run: RunView | null; deckOpen: boolean; onDeck: () => void; onRun: () => void; dockRef: React.RefObject<HTMLButtonElement | null>;
+}) {
   const first = asks[0];
   const due = first ? dueText(first) : null;
+  if (deckOpen && first && !run) return null;
   return (
     <div className="cd-dock" data-testid="waiting-dock">
-      {first ? (
+      {deckOpen && first ? null : first ? (
         <button ref={dockRef} type="button" className="cd-dock-ask" onClick={onDeck} aria-haspopup="dialog">
           <span>等你 <b>{asks.length}</b></span>
           <span className="cd-dock-thumbs">{asks.slice(0, DOCK_THUMBS).map(a => (a.application_ids.length > 1
@@ -50,9 +58,8 @@ function DockBar({ asks, run, onDeck, onRun, dockRef }: { asks: AskView[]; run: 
         </button>
       ) : <span className="cd-dock-none">没有要你的事</span>}
       {run && (
-        <button type="button" className="cd-dock-run" onClick={onRun} aria-label={`今天投出 ${run.done} / ${run.total}，点开看这批`}>
-          <span>投出 {run.done} / {run.total}</span>
-          <span className="cd-meter" aria-hidden>{meterCells(run.done, run.total).map((on, i) => <i key={i} className={on ? 'on' : ''} />)}</span>
+        <button type="button" className="cd-dock-run" onClick={onRun} aria-label={`今天已投出 ${run.done} / ${run.total}，点开看这批`}>
+          <span>已投出 {run.done} / {run.total}</span>
         </button>
       )}
     </div>
@@ -123,19 +130,26 @@ function useArrivals(asks: AskView[], turnRunning: boolean, openAt: (id: string)
 export function WaitingDock() {
   const tab = useTabStateOptional();
   const { asks, run, resolve, snooze } = useWaitingAsks();
-  const [deckOpen, setDeckOpen] = useState(false);
+  // 挂上之前别处已经要求打开卡组：一挂上就开着
+  const [deckOpen, setDeckOpen] = useState(() => pendingDeck !== undefined);
   const [popOpen, setPopOpen] = useState(false);
   // 按 id 记住正在看哪张：重排后仍停在它上面
-  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [currentId, setCurrentId] = useState<string | null>(() => pendingDeck?.id ?? null);
   const dockRef = useRef<HTMLButtonElement>(null);
-  const openAt = useCallback((id: string) => { setCurrentId(id); setDeckOpen(true); setPopOpen(false); }, []);
+  const refocus = useRef(false);
+  const openAt = useCallback((id: string | null) => { setCurrentId(id); setDeckOpen(true); setPopOpen(false); }, []);
   const announce = useArrivals(asks, !!tab?.isLoading, openAt);
-  // 回来卡「从最急的开始」：打开卡组并定位到那件
-  useEffect(() => onEvent<{ id?: string }>(OPEN_DECK_EVENT, p => { if (p?.id) openAt(p.id); }), [openAt]);
+  // 回来卡「从最急的开始」、右栏「去处理」、悬浮球提醒：打开卡组，带 id 就定位到那件，不带从最急的开始
+  useEffect(() => {
+    clearPendingDeck();
+    return onEvent<{ id?: string } | null>(OPEN_DECK_EVENT, p => { clearPendingDeck(); openAt(p?.id ?? null); });
+  }, [openAt]);
+  // 收起卡组后条上的「等你 N」才重新出现，焦点要等它渲染出来再还回去
+  useEffect(() => { if (refocus.current && !deckOpen) { refocus.current = false; dockRef.current?.focus(); } }, [deckOpen]);
   const found = asks.findIndex(a => a.id === currentId);
   const index = found >= 0 ? found : 0;
   if (!asks.length && !run) return <span className="cd-sr" aria-live="polite">{announce}</span>;
-  const close = () => { setDeckOpen(false); dockRef.current?.focus(); };
+  const close = () => { refocus.current = true; setDeckOpen(false); };
   return (
     <div className="cd-dock-wrap cd-root">
       {deckOpen && asks.length > 0 && (
@@ -146,7 +160,7 @@ export function WaitingDock() {
       {popOpen && run && (
         <div className="cd-pop"><BatchWall run={run} compact /><button type="button" className="cd-deck-close" onClick={() => setPopOpen(false)}>收起</button></div>
       )}
-      <DockBar asks={asks} run={run} dockRef={dockRef}
+      <DockBar asks={asks} run={run} deckOpen={deckOpen && asks.length > 0} dockRef={dockRef}
         onDeck={() => { setDeckOpen(o => !o); setPopOpen(false); setCurrentId(asks[0]?.id ?? null); }}
         onRun={() => { setPopOpen(o => !o); setDeckOpen(false); }} />
       <span className="cd-sr" aria-live="polite">{announce}</span>

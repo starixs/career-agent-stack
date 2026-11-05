@@ -16,6 +16,7 @@ import {
   formatDate, textOrUnknown,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
+import { briefText, structuredValueText } from '@/components/career/structuredLabels';
 import type { Interview, MockInterview, ProbePrediction } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 
@@ -116,7 +117,7 @@ function InterviewDetail({ interview }: { interview: Interview }) {
         </div>
         {tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
-            {tags.map((t, i) => <Badge key={i}>{typeof t === 'string' ? t : JSON.stringify(t)}</Badge>)}
+            {tags.map(briefText).filter((t): t is string => t !== null).map((t, i) => <Badge key={i}>{t}</Badge>)}
           </div>
         )}
       </Card>
@@ -217,13 +218,13 @@ function PredictionSection({ predictions }: { predictions: ProbePrediction[] }) 
           return (
             <li key={p.id} className="py-2">
               <div className="flex flex-wrap items-center gap-1.5">
-                <Badge tone={RISK_TONE[p.risk] ?? 'neutral'}>风险 {p.risk}</Badge>
+                <Badge tone={RISK_TONE[p.risk] ?? 'neutral'}>风险{structuredValueText(p.risk)}</Badge>
                 <Badge>{TARGET_LABELS[p.target_type] ?? p.target_type}</Badge>
                 <span className="text-sm text-[var(--ink)]">{p.statement}</span>
               </div>
               {chain.length > 0 && (
                 <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs text-[var(--muted)]">
-                  {chain.map((c, i) => <li key={i}>{typeof c === 'string' ? c : JSON.stringify(c)}</li>)}
+                  {chain.map(briefText).filter((c): c is string => c !== null).map((c, i) => <li key={i}>{c}</li>)}
                 </ol>
               )}
             </li>

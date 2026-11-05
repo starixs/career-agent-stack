@@ -70,6 +70,7 @@ import {
   LINE_HEIGHT,
   MAX_LINES,
 } from './constants';
+import { COMPOSER_CHROME } from './composerChrome';
 import { imageAttachmentName } from './attachmentNames';
 import { MentionTabButton } from './components/MentionTabButton';
 import { ThoughtPickerRow } from './components/ThoughtPickerRow';
@@ -147,6 +148,12 @@ function getFileSearchParentPath(path: string, name: string, workspaceRootLabel:
  * 因此输入框上的模型下拉与运行时切换整块不渲染。
  */
 const MODEL_CONTROLS_VISIBLE = false;
+
+/**
+ * 求职助理收口（face-slim，11-01 定「技能与工具收起」）：工具 / MCP / 插件由产品内置管理，
+ * 用户端不开关，输入框上的工具下拉整块不渲染（也就不再从这里跳进通用的 MCP / 插件设置）。
+ */
+const TOOL_CONTROLS_VISIBLE = COMPOSER_CHROME.tools;
 
 const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputProps>(function SimpleChatInput({
   value: externalValue,
@@ -964,7 +971,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
     // PRD 0.2.7: previously gated by `!isLauncherMode` because launcher had no
     // sidecar HTTP, so `@`/`/` would silently do nothing. Now both pickers run
     // off the workspace_files Rust commands and work in either mode.
-    if (newValue.length > inputValue.length) {
+    // 求职助理不弹 / 命令和 @ 工作区文件（见 composerChrome）。
+    if (COMPOSER_CHROME.inlinePickers && newValue.length > inputValue.length) {
       const addedChar = newValue[cursorPos - 1];
       if (addedChar === '@') {
         currentShowFileSearch = true;
@@ -1783,7 +1791,25 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
               {/* Optional prefix (e.g., workspace selector in launcher mode) */}
               {toolbarPrefix}
 
+              {/* 求职助理：＋菜单收成一个回形针，就是「上传文件」（见 composerChrome）。 */}
+              {!COMPOSER_CHROME.plusMenu && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleUploadButtonClick();
+                  }}
+                  className="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
+                  title={t('input.uploadFile')}
+                  aria-label={t('input.uploadFile')}
+                >
+                  <Paperclip className="h-4 w-4" />
+                </button>
+              )}
+
               {/* Plus menu */}
+              {COMPOSER_CHROME.plusMenu && (
+              <>
               <button
                 ref={plusBtnRef}
                 type="button"
@@ -1900,6 +1926,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   </button>
                 )}
               </Popover>
+              </>
+              )}
 
               {/* Hidden file input */}
               <input
@@ -1924,7 +1952,9 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 />
               )}
 
-              {/* Mode Dropdown */}
+              {/* Mode Dropdown — 求职助理固定产品默认的权限模式，不渲染（见 composerChrome）。 */}
+              {COMPOSER_CHROME.permissionMode && (
+              <>
               <button
                 ref={modeBtnRef}
                 type="button"
@@ -1977,8 +2007,11 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   }}
                 />
               </Popover>
+              </>
+              )}
 
-              {/* Tool/MCP Dropdown */}
+              {/* Tool/MCP Dropdown — 求职助理不渲染（见 TOOL_CONTROLS_VISIBLE）。 */}
+              {TOOL_CONTROLS_VISIBLE && (
               <>
               <button
                 ref={toolBtnRef}
@@ -2261,13 +2294,14 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     )}
               </Popover>
               </>
+              )}
 
             </div>
 
             {/* Right side - model selector + send/stop button */}
             <div className="ml-auto flex items-center gap-2 shrink-0">
               {/* PRD 0.2.32 — context 用量指示器（自取数 slot，model 按钮左侧） */}
-              {contextIndicator}
+              {COMPOSER_CHROME.contextUsage && contextIndicator}
               {/* Model Dropdown with Provider Selector — 求职助理内置模型零配置，整块不渲染。 */}
               {MODEL_CONTROLS_VISIBLE && (
               <>

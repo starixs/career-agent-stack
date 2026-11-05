@@ -13,6 +13,7 @@ import { Minus, Square, X, RefreshCw, RotateCcw, Copy } from 'lucide-react';
 import { type CSSProperties, type ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from '@/api/tauriClient';
+import { TITLE_BAR_CHROME } from './titleBarChrome';
 
 interface CustomTitleBarProps {
     children: ReactNode;  // TabBar component
@@ -181,7 +182,7 @@ export default function CustomTitleBar({
                     pill: the body restores, the trailing ✕ dismisses. Lower
                     emphasis than the green update pill (a soft terracotta tint,
                     not a call-to-action) since it's optional and dismissable. */}
-                {restoreCount > 0 && (
+                {TITLE_BAR_CHROME.restorePill && restoreCount > 0 && (
                     <>
                         <div
                             className="flex h-7 items-center rounded-full border border-[var(--primary-muted)] bg-[var(--primary-soft)] shadow-sm"

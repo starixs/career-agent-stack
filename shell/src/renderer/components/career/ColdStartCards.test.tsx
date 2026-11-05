@@ -51,6 +51,11 @@ describe('冷启动的对话卡片', () => {
     vi.mocked(apiGetJson).mockResolvedValue({ ok: true, checklist: { has_master_resume: false, has_experience: false } });
     const { unmount } = render(<StarterCard />);
     const section = await screen.findByRole('region', { name: '起步卡' });
+    // 开场是小芽的三条短话（对话里她说话的样式），不是卡片标题
+    expect(within(section).getAllByTestId('speech-block').map(b => b.textContent)).toEqual([
+      '我是小芽。我帮你把网申从写简历一路做到投出去。', '每一步你都看得见，提交之前一定先给你看。', '你手上有简历吗？',
+    ]);
+    expect(within(section).queryByRole('heading')).not.toBeInTheDocument();
     const sent: unknown[] = [];
     const picks: unknown[] = [];
     const offSend = onEvent('career:chat-suggest', p => sent.push(p));

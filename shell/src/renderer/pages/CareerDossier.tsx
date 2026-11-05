@@ -15,14 +15,14 @@ import { AssistRecords } from '@/components/career/AssistRecords';
 import { applicationStepper } from '@/components/career/applicationSteps';
 import { careerApi } from '@/components/career/careerApi';
 import { STAGE_LABELS, STAGE_TONES } from '@/components/career/careerConstants';
-import { Badge, CareerPage, EmptyState, ErrorRow, LoadingRow, TextInput, formatDate } from '@/components/career/CareerPrimitives';
+import { Badge, Button, CareerPage, EmptyState, ErrorRow, LoadingRow, TextInput, formatDate } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { TargetStar } from '@/components/career/TargetStar';
 import type { ApplicationStage, CareerFocusEvent, DossierSummary } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
-import { DEFAULT_SUB_VIEWS } from '@/features/career-shell/navModel';
+import { DEFAULT_SUB_VIEWS, JOB_BOARD_TARGET, requestNavigation } from '@/features/career-shell/navModel';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { takeCareerFocus } from '@/features/career-shell/pendingFocus';
 import { useCareerSubView } from '@/features/career-shell/subViewStore';
@@ -161,7 +161,7 @@ function DossierLine({ focus, onClearFilter }: { focus: FocusRequest | null; onC
         {query.loading && !summaries && <LoadingRow />}
         {summaries && summaries.length === 0 && (
           <>
-            <EmptyState title="还没有投递" hint="投出去之后每条投递都会列在这里：投到哪一步、有没有面试和截止。" example="这个月投了多少、几个进了面试" />
+            <EmptyState title="还没有投递。" action={<Button variant="primary" onClick={() => requestNavigation(JOB_BOARD_TARGET)}>去投第一家</Button>} />
             <QuoteNote scene="start" seed="dossier" className="mt-2 text-center text-xl" />
           </>
         )}

@@ -7,6 +7,9 @@ vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), ap
 vi.mock('@/components/resume-workbench/StudioPreview', () => ({ StudioPreview: () => <div data-testid="preview-stub" /> }));
 
 import { apiGetJson } from '@/api/apiFetch';
+import { onEvent } from '@/api/eventBus';
+import { NO_RESUME_OPENER } from '@/components/career/ColdStartCards';
+import { PICK_RESUME_EVENT } from '@/components/chat-input/hooks/useResumePickSend';
 
 import CareerResume from './CareerResume';
 
@@ -18,10 +21,20 @@ describe('CareerResume', () => {
     globalThis.ResizeObserver = class { observe() {} disconnect() {} unobserve() {} } as never;
   });
 
-  it('还没有简历：提示在对话里生成', async () => {
+  it('还没有简历：给两条路（跟小芽聊聊 / 上传一份），不再指向已下线的「经历」页', async () => {
     vi.mocked(apiGetJson).mockImplementation(async (path: string) => (path.endsWith('/resumes') ? { ok: true, masters: [], tailored: [] } : { ok: true, jobs: [] }));
+    const chat: unknown[] = [];
+    const picks: unknown[] = [];
+    const offChat = onEvent('career:chat-suggest', p => chat.push(p));
+    const offPick = onEvent(PICK_RESUME_EVENT, p => picks.push(p));
     render(<CareerResume embedded />);
-    expect(await screen.findByText(/帮我生成主简历/)).toBeInTheDocument();
+    expect(await screen.findByText('还没有简历。')).toBeInTheDocument();
+    expect(screen.queryByText(/「经历」/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '跟小芽聊聊做过的事' }));
+    fireEvent.click(screen.getByRole('button', { name: '上传一份' }));
+    expect(chat).toEqual([expect.objectContaining({ text: NO_RESUME_OPENER, mode: 'send' })]);
+    expect(picks).toHaveLength(1);
+    offChat(); offPick();
   });
 
   it('有简历：先看到汇总，点开进入编辑页', async () => {

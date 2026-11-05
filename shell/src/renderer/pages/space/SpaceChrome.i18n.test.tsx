@@ -51,7 +51,7 @@ describe("SpaceChrome i18n", () => {
     expect(
       screen.getByRole("button", { name: "Continue with Google" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("求职助理 社区")).not.toBeInTheDocument();
+    expect(screen.queryByText("求职助理社区")).not.toBeInTheDocument();
     expect(screen.queryByText("继续使用 Google")).not.toBeInTheDocument();
   });
 

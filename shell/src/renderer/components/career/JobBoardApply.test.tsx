@@ -8,6 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
 
 import { apiPostJson } from '@/api/apiFetch';
+import { onEvent } from '@/api/eventBus';
+import { CAREER_NAVIGATE_EVENT } from '@/features/career-shell/navModel';
 
 import { ApplyConfirm, skippedText, startedText } from './JobBoardApply';
 
@@ -41,6 +43,23 @@ describe('ApplyConfirm', () => {
     expect(await screen.findByText('这一批都不能投')).toBeInTheDocument();
     expect(screen.queryByText(/没有定制版/)).toBeNull();
     expect(screen.getByRole('button', { name: /开始投/ })).toBeDisabled();
+  });
+
+  it('跳过里有「已在投」：给「看进展」，点了打开网申进展页', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, plan: { ready: ['j1'], targets: 0, skipped: [{ job_id: 'j6', reason: '已在投' }], needs_resume: [], resumes: [] } });
+    const nav: unknown[] = [];
+    const off = onEvent(CAREER_NAVIGATE_EVENT, p => nav.push(p));
+    render(<ApplyConfirm jobIds={['j1', 'j6']} onStarted={() => {}} onCancel={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: '看进展' }));
+    expect(nav).toEqual([{ kind: 'career-live' }]);
+    off();
+  });
+
+  it('跳过里没有「已在投」：不出「看进展」', async () => {
+    vi.mocked(apiPostJson).mockResolvedValue({ ok: true, plan: PLAN });
+    render(<ApplyConfirm jobIds={PLAN.ready} onStarted={() => {}} onCancel={() => {}} />);
+    expect(await screen.findByRole('button', { name: '开始投 5 家' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '看进展' })).toBeNull();
   });
 
   it('文字：同一原因合在一起数；开始后指向等你条', () => {

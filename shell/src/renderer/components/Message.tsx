@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { track } from '@/analytics';
 import AttachmentPreviewList from '@/components/AttachmentPreviewList';
-import { QuietWorkLine, SpeechBlocks } from '@/components/chat/AssistantSpeech';
+import { hasIncompleteWorkBlocks, QuietWorkLine, SpeechBlocks } from '@/components/chat/AssistantSpeech';
 import { unwrapCareerTool } from '@/components/tools/careerToolLabels';
 import Markdown from '@/components/Markdown';
 import { useToastOptional } from '@/components/Toast';
@@ -465,18 +465,7 @@ const Message = memo(function Message({ message, isLoading = false, onRewind, on
   const lastBlockGroupIndex = groupedBlocks.findLastIndex((item) => Array.isArray(item));
 
   // Check if there are any incomplete blocks (still streaming)
-  const hasIncompleteBlocks = message.content.some((block) => {
-    if (block.type === 'thinking') {
-      return !block.isComplete;
-    }
-    if (block.type === 'tool_use' || block.type === 'server_tool_use') {
-      // Tool is incomplete if it doesn't have a result yet
-      // server_tool_use is treated the same as tool_use for streaming state
-      const subagentRunning = block.tool?.subagentCalls?.some((call) => call.isLoading);
-      return Boolean(block.tool?.isLoading) || Boolean(subagentRunning) || !block.tool?.result;
-    }
-    return false;
-  });
+  const hasIncompleteBlocks = hasIncompleteWorkBlocks(message.content);
 
   const isAssistantStreaming = isLoading && hasIncompleteBlocks;
 

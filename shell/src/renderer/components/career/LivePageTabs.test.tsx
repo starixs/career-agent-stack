@@ -45,7 +45,7 @@ describe('浏览器会话里切换正在投的几家（用户 2026-11-02「只�
     render(<LivePageTabs />);
     const select = await screen.findByRole('button', { name: '选择网申任务' });
     expect(screen.queryAllByRole('tab')).toHaveLength(0);
-    expect(screen.getByText('50 个任务')).toBeInTheDocument();
+    expect(screen.getByText('正在投 50 份')).toBeInTheDocument();
     fireEvent.click(select);
     fireEvent.click(await screen.findByRole('button', { name: /公司 49/ }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/view', { application_id: 'a49' }));

@@ -248,7 +248,10 @@ export type EventName =
   | 'floating_ball_expand'
   | 'floating_ball_pet_select'
   // 服务端统一 AI turn 事件。由 trackServer() 上报，但仍属于同一事件契约。
-  | 'ai_turn_complete';
+  | 'ai_turn_complete'
+  // 求职：建议条（输入框上方四个小框）出现 / 被用（点发出或 Tab 填入），按槽位看哪类引导有人用
+  | 'career_suggest_shown'
+  | 'career_suggest_used';
 
 /**
  * session_new 事件参数

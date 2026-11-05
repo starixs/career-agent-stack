@@ -3,19 +3,20 @@
  * 页面只保留当前任务需要的信息；业务约束由控件、校验、审批与失败反馈承担。
  */
 import { Eye, Pause, Play, Square } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { emitEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
 import { HANDOFF_REASON_LABELS } from '@/components/career/careerConstants';
 import { Button, CareerPage, Card, suggestToChat } from '@/components/career/CareerPrimitives';
+import { openBatchPick } from '@/components/career/BatchPickCard';
 import { TaskProgressPanel } from '@/components/career/TaskProgressPanel';
 import type { BatchState, CareerTakeoverEvent, LiveFrame, LiveSnapshot, LiveStreamEvent, LiveFrameStatus } from '@/components/career/types';
 import { liveStatusText } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { useLiveStream } from '@/components/career/useGlobalLive';
 import { CareerLiveViewport } from '@/components/career/CareerLiveViewport';
-import { applicationStats } from './CareerLiveModel';
+import { applicationStats, BATCH_ERROR_TEXT, hasBatchWork } from './CareerLiveModel';
 
 export default function CareerLive() {
   const [frame, setFrame] = useState<LiveFrame | null>(null);
@@ -46,24 +47,26 @@ export default function CareerLive() {
   const take = () => action.run(async () => { await careerApi.liveControl('human', 'user_request'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'human' } } : s)); });
   const handback = () => action.run(async () => { await careerApi.liveControl('agent'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'agent' } } : s)); setTakeover(null); handoffs.reload(); });
   const batchCmd = (cmd: 'start' | 'pause' | 'stop') => action.run(async () => { const b = await careerApi.batchCommand(cmd); if (b) setBatch(b); });
+  const lastError = batch?.lastError;
+  useEffect(() => { if (lastError) console.warn('[career-live] batch lastError', lastError); }, [lastError]);
   const connLabel = stream.status === 'open' ? (frame ? '直播中' : '已连接，等待画面') : stream.status === 'connecting' ? '连接中…' : '连接断开，自动重连';
 
   return (
     <CareerPage
-      title="网申助手"
-      subtitle="查看投递进展，处理需要你接手的步骤"
+      title="网申进展"
+      subtitle="看正在投的每一家，进度和要你处理的事"
       actions={(
         <>
           <Button variant="ghost" onClick={() => suggestToChat('帮我准备这个岗位的网申，链接是：', { surface: 'live' }, 'prefill')}>粘贴岗位链接</Button>
           {!humanActive && <Button variant="primary" busy={action.busy} disabled={!snapshot?.browser.hasBrowser} onClick={() => void take()}>接管</Button>}
           {humanActive && <Button variant="primary" busy={action.busy} onClick={() => void handback()}>交回，继续</Button>}
-          <Button variant="ghost" onClick={() => emitEvent('career:focus', { surface: 'today' })}>今日</Button>
+          <Button variant="ghost" onClick={() => emitEvent('career:focus', { surface: 'today' })}>招聘概览</Button>
         </>
       )}
     >
       <div className="grid grid-cols-2 gap-3 px-4 pt-3 sm:grid-cols-5" aria-label="投递总览">
         {[
-          ['总任务', stats.total], ['进行中', stats.active], ['等你处理', stats.waiting], ['已投出', stats.submitted], ['已关闭', stats.closed],
+          ['一共', stats.total], ['进行中', stats.active], ['等你处理', stats.waiting], ['已投出', stats.submitted], ['已关闭', stats.closed],
         ].map(([label, value]) => (
           <div key={label} className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-3 py-2">
             <div className="text-xs text-[var(--muted)]">{label}</div>
@@ -94,13 +97,22 @@ export default function CareerLive() {
         </div>
         <div className="space-y-3">
           <Card>
-            <TaskProgressPanel batch={batch} takeover={takeover} />
-            {batch?.lastError && <div className="mt-2 text-xs text-[var(--danger)]">{batch.lastError}</div>}
-            <div className="mt-3 flex flex-wrap gap-2">
-              {batch?.status !== 'running' && <Button variant="primary" busy={action.busy} onClick={() => void batchCmd('start')}><Play className="h-3.5 w-3.5" />开始 / 继续</Button>}
-              {batch?.status === 'running' && <Button busy={action.busy} onClick={() => void batchCmd('pause')}><Pause className="h-3.5 w-3.5" />暂停</Button>}
-              {(batch?.status === 'running' || batch?.status === 'paused') && <Button variant="danger" busy={action.busy} onClick={() => void batchCmd('stop')}><Square className="h-3.5 w-3.5" />停止</Button>}
-            </div>
+            {hasBatchWork(batch) ? (
+              <>
+                <TaskProgressPanel batch={batch} takeover={takeover} />
+                {batch?.lastError && <div className="mt-2 text-xs text-[var(--danger)]">{BATCH_ERROR_TEXT}</div>}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {batch?.status !== 'running' && <Button variant="primary" busy={action.busy} onClick={() => void batchCmd('start')}><Play className="h-3.5 w-3.5" />开始 / 继续</Button>}
+                  {batch?.status === 'running' && <Button busy={action.busy} onClick={() => void batchCmd('pause')}><Pause className="h-3.5 w-3.5" />暂停</Button>}
+                  {(batch?.status === 'running' || batch?.status === 'paused') && <Button variant="danger" busy={action.busy} onClick={() => void batchCmd('stop')}><Square className="h-3.5 w-3.5" />停止</Button>}
+                </div>
+              </>
+            ) : (
+              <div data-testid="career-live-empty" className="grid gap-3">
+                <p className="text-sm text-[var(--ink)]">现在没有在投的。</p>
+                <div><Button variant="primary" onClick={() => void openBatchPick()}>去挑一批</Button></div>
+              </div>
+            )}
           </Card>
         </div>
       </div>

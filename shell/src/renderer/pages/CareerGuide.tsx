@@ -5,31 +5,33 @@
  * - 原来的教程挪进下面的「点子」，一行一个，先统一展示，以后再按用户情况推荐。
  */
 import {
-  BarChart3, Building2, ChevronRight, Compass, Crosshair, FileText, History, Library, Mail, MessageSquareQuote, Mic, PenLine, Scale, Send, Target, Users,
+  BarChart3, Building2, ChevronRight, Compass, Crosshair, FileText, History, Layers, Mail, MessageSquareQuote, Mic, PenLine, Scale, Send, Target, Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
+import { openBatchPick } from '@/components/career/BatchPickCard';
 import { CareerPage, SectionTitle, suggestToChat } from '@/components/career/CareerPrimitives';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { requestNavigation, type NavTarget } from '@/features/career-shell/navModel';
 
 /** 点了做什么：去一个页面，或把一句话预填进对话输入框。 */
-type MarketAction = { open: NavTarget } | { prefill: string };
+/** open = 打开一页；prefill = 在输入框预填一句；batch = 回对话让小芽放一张批量勾选表。 */
+type MarketAction = { open: NavTarget } | { prefill: string } | { batch: true };
 
 export interface MarketItem { name: string; what: string; icon: LucideIcon; action: MarketAction }
 
 export const WORKBENCHES: MarketItem[] = [
-  { name: '面试助力', what: '面试记录、题库刷题、模拟面试和深挖点预测都在这里', icon: Users, action: { open: { kind: 'career-dossier', view: 'interview' } } },
+  { name: '面试助力', what: '面试记录、模拟面试、深挖点预测，还能挑题库刷题', icon: Users, action: { open: { kind: 'career-dossier', view: 'interview' } } },
   { name: '笔试助力', what: '截图粘贴就出答案，先查同公司同岗位的往年题', icon: PenLine, action: { open: { kind: 'career-dossier', view: 'exam-search' } } },
   { name: '简历编辑', what: '直接看成品，哪里不对说一句就改', icon: FileText, action: { open: { kind: 'career-material', view: 'resume' } } },
-  { name: '题库刷题', what: '挑一个题库练，答完给你点评', icon: Library, action: { open: { kind: 'career-dossier', view: 'interview' } } },
   { name: 'Offer 对比', what: '薪资、城市、成长一项项比', icon: Scale, action: { open: { kind: 'career-dossier', view: 'offer' } } },
   { name: '求职漏斗与复盘', what: '投了多少、回了多少、卡在哪一环', icon: BarChart3, action: { open: { kind: 'career-review', view: 'funnel' } } },
   { name: '公司调研与方向', what: '投之前查查这家公司，也看看还有哪些方向', icon: Building2, action: { open: { kind: 'career-review', view: 'research' } } },
 ];
 
 export const CHAT_TOOLS: MarketItem[] = [
-  { name: '网申助手', what: '查看投递进展，继续填写或处理验证', icon: Send, action: { open: { kind: 'career-live' } } },
+  { name: '批量投递', what: '按你的方向挑一批，填到提交前给你看', icon: Layers, action: { batch: true } },
+  { name: '网申进展', what: '看正在投的每一家，进度和要你处理的事', icon: Send, action: { open: { kind: 'career-live' } } },
   { name: '岗位评估', what: '贴一段 JD，看匹配度、缺口和值不值得投', icon: Target, action: { prefill: '帮我评估这个岗位，JD 是：' } },
   { name: '投递邮件', what: '起草邮件、附上简历，你批准了才发', icon: Mail, action: { prefill: '帮我给这个岗位写投递邮件，附上简历 PDF' } },
   { name: '开放题答案', what: '「为什么选我们」这类题按公司写，前后口径一致', icon: MessageSquareQuote, action: { prefill: '帮我写「为什么选择我们」，300 字，给这家公司：' } },
@@ -53,6 +55,10 @@ export const IDEAS: Idea[] = [
 export function runMarketAction(action: MarketAction, note: string): void {
   if ('prefill' in action) {
     suggestToChat(action.prefill, { surface: 'guide', note }, 'prefill');
+    return;
+  }
+  if ('batch' in action) {
+    void openBatchPick();
     return;
   }
   requestNavigation(action.open);

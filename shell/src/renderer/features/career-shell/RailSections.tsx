@@ -1,20 +1,29 @@
 /**
  * 右栏的几块（主线体验 §6.1a / §6.5，11-02 定）：后台在做什么全在右栏，不进对话。
- *  - 主线进度：建档 → 方向 → 当面投 → 一小批 → 放手，只告诉他走到哪、还剩几步，不能点。
- *  - 等你：一次只亮一件在最上。
+ *  - 主线进度：说说你 → 定方向 → 先投一家 → 再投一批，告诉他走到哪、还剩几步；先投一家之后下面常驻「再投一批」按钮。
+ *    服务端还有第五个阶段 released（放手），界面上算「再投一批」也做完了。
+ *  - 要他的事不在右栏：唯一落点是输入框上沿的等你条（规范 §5.2），右栏只在头部写一句「有 N 件等你」。
+ *  - 刚投出：最近三张回执提到此刻；全部回执在足迹。
  *  - 正在做：几个预设岗位（写简历、定制、网申、盯邮箱），每个一行人话。
  *  - 今天：备好 · 投出 · 等你 三个真数。
  *  - 简历草稿：建档时边聊边长，每行标来源（来自你说的）。
  *  - 回执、学会了：一份份攒下来；学会了的那一类，做通够数时他可以盖章「以后同类直接投」。
  */
 import { emitEvent } from '@/api/eventBus';
+import { openBatchPick } from '@/components/career/BatchPickCard';
 import { careerApi } from '@/components/career/careerApi';
 import type { ExperienceNode } from '@/components/career/types';
-import { MAINLINE_STAGE_ORDER, type MainlineStage, type RailBlock, type RailPool, type RailReceipt, type RailSnapshot, type TrustEntry } from '../../../shared/careerRail';
+import { requestOpenDeck } from '@/components/career/delivery/WaitingDock';
+import type { MainlineStage, RailBlock, RailPool, RailReceipt, RailSnapshot, TrustEntry } from '../../../shared/careerRail';
 
-import { requestNavigation } from './navModel';
-
-const STAGE_LABELS: Record<MainlineStage, string> = { profile: '建档', direction: '方向', first: '当面投', batch: '一小批', released: '放手' };
+/** 界面上的四步（用他的话）；服务端阶段 id 不变，released 落在最后一步之后＝四步都做完。 */
+export const MAINLINE_STEPS: ReadonlyArray<{ stage: MainlineStage; label: string }> = [
+  { stage: 'profile', label: '说说你' }, { stage: 'direction', label: '定方向' }, { stage: 'first', label: '先投一家' }, { stage: 'batch', label: '再投一批' },
+];
+/** 第一份当面投完之后（走到「再投一批」或四步都做完），进度下面常驻「再投一批」按钮。 */
+const BATCH_STEP = MAINLINE_STEPS.findIndex(s => s.stage === 'batch');
+/** 此刻里「刚投出」放几张回执，其余在足迹。 */
+export const RECENT_RECEIPTS = 3;
 const DOT: Record<RailBlock['status'], string> = {
   working: 'bg-[var(--success)] animate-pulse', waiting: 'bg-[var(--warning)]', done: 'bg-[var(--line-2)]', idle: 'bg-[var(--line)]',
 };
@@ -28,41 +37,55 @@ export function RailHeading({ children, count }: { children: string; count?: num
   );
 }
 
+/** 当前在第几步（0 起）；released 返回步数，表示四步都做完。 */
+export function mainlineStepIndex(stage: MainlineStage): number {
+  const at = MAINLINE_STEPS.findIndex(s => s.stage === stage);
+  return at >= 0 ? at : MAINLINE_STEPS.length;
+}
+
+function stepsLeftText(at: number): string {
+  const left = MAINLINE_STEPS.length - 1 - at;
+  if (left > 0) return `还剩 ${left} 步`;
+  return left === 0 ? '最后一步' : '后面的交给我，有动静叫你';
+}
+
 export function MainlineProgress({ stage }: { stage: MainlineStage }) {
-  const at = MAINLINE_STAGE_ORDER.indexOf(stage);
-  const left = MAINLINE_STAGE_ORDER.length - 1 - at;
+  const at = mainlineStepIndex(stage);
   return (
     <section aria-label="主线进度" data-testid="rail-mainline" className="mx-1 mt-3">
       <ol className="flex items-center gap-1">
-        {MAINLINE_STAGE_ORDER.map((id, i) => (
+        {MAINLINE_STEPS.map(({ stage: id, label }, i) => (
           <li key={id} className="flex min-w-0 flex-1 flex-col items-center gap-1" aria-current={i === at ? 'step' : undefined}>
             <span className={`h-1.5 w-full rounded-full transition-colors duration-300 ${i <= at ? 'bg-[var(--primary)]' : 'bg-[var(--line)]'}`} />
-            <span className={`text-xs ${i === at ? 'font-semibold text-[var(--ink)]' : 'text-[var(--muted)]'}`}>{STAGE_LABELS[id]}</span>
+            <span className={`whitespace-nowrap text-xs ${i === at ? 'font-semibold text-[var(--ink)]' : 'text-[var(--muted)]'}`}>{i < at ? `✓ ${label}` : label}</span>
           </li>
         ))}
       </ol>
-      <p className="mt-1 text-center text-xs text-[var(--subtle)]">{left > 0 ? `还剩 ${left} 步` : '后面的交给我，有动静叫你'}</p>
+      <p className="mt-1 text-center text-xs text-[var(--subtle)]">{stepsLeftText(at)}</p>
+      {at >= BATCH_STEP && (
+        <button
+          type="button" data-testid="rail-batch-pick" onClick={() => void openBatchPick()}
+          className="mt-2 w-full rounded-lg border-[1.5px] border-[var(--primary)] bg-[var(--paper)] py-1 text-sm font-semibold text-[var(--primary)] transition-colors hover:bg-[var(--hover)]"
+        >再投一批</button>
+      )}
     </section>
   );
 }
 
-export function WaitingTop({ waiting }: { waiting: RailSnapshot['waiting'] }) {
-  if (!waiting.count || !waiting.first) return null;
-  const open = () => requestNavigation({ kind: 'career-dossier', view: 'apply' });
-  return (
-    <button type="button" onClick={open} data-testid="rail-waiting"
-      className="mt-3 flex w-full items-start gap-2 rounded-lg border-l-[3px] border-[var(--warning)] bg-[var(--paper)] px-3 py-2 text-left transition-colors hover:bg-[var(--hover)]">
-      <span className="min-w-0 flex-1">
-        <span className="block font-human text-sm font-semibold text-[var(--ink)]">{waiting.first.title}</span>
-        {waiting.first.detail && <span className="block truncate text-xs text-[var(--muted)]">{waiting.first.detail}</span>}
-      </span>
-      {waiting.count > 1 && <span className="shrink-0 text-xs text-[var(--muted)]">还有 {waiting.count - 1} 件</span>}
-    </button>
-  );
+/** 打开浏览器现场（看一眼在填的那家，或者那一步要他本人来）。 */
+const openLive = () => emitEvent('career:focus', { surface: 'live_drawer' });
+
+/**
+ * 网申那一行在等你时的「去处理」：浏览器停在要他本人来的一步 → 打开浏览器现场；
+ * 其余要他的事 → 打开输入框上沿的等你卡组。从不跳岗位库。
+ */
+export function handleWaiting(handoff: boolean): void {
+  if (handoff) openLive();
+  else requestOpenDeck();
 }
 
-function BlockRow({ block }: { block: RailBlock }) {
-  const look = () => emitEvent('career:focus', { surface: 'live_drawer' });
+function BlockRow({ block, handoff }: { block: RailBlock; handoff: boolean }) {
+  const look = () => (block.status === 'waiting' ? handleWaiting(handoff) : openLive());
   return (
     <li className="flex items-start gap-2.5 px-1 py-1.5" data-testid={`rail-block-${block.id}`}>
       <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${DOT[block.status]}`} aria-hidden="true" />
@@ -82,8 +105,8 @@ function BlockRow({ block }: { block: RailBlock }) {
   );
 }
 
-export function BlockRows({ blocks }: { blocks: readonly RailBlock[] }) {
-  return <ul className="flex flex-col" aria-label="正在做">{blocks.map(b => <BlockRow key={b.id} block={b} />)}</ul>;
+export function BlockRows({ blocks, handoff = false }: { blocks: readonly RailBlock[]; handoff?: boolean }) {
+  return <ul className="flex flex-col" aria-label="正在做">{blocks.map(b => <BlockRow key={b.id} block={b} handoff={handoff} />)}</ul>;
 }
 
 export function TodayStrip({ today }: { today: RailSnapshot['today'] }) {
@@ -154,14 +177,37 @@ function receiptTime(iso: string): string {
   return Number.isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+const openReceipt = (id: string) => emitEvent('career:focus', { surface: 'dossier', application_id: id });
+
+/** 此刻里的「刚投出」：最近三张，一行一家（公司 · 岗位 · 时间）；没投过就不出这块。 */
+export function RecentReceipts({ receipts }: { receipts: readonly RailReceipt[] }) {
+  if (!receipts.length) return null;
+  return (
+    <>
+      <RailHeading>刚投出</RailHeading>
+      <ul className="flex flex-col" data-testid="rail-recent-receipts">
+        {receipts.slice(0, RECENT_RECEIPTS).map(r => (
+          <li key={r.application_id}>
+            <button type="button" onClick={() => openReceipt(r.application_id)}
+              className="flex w-full items-baseline gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-[var(--hover)]">
+              <span className="shrink-0 text-xs text-[var(--success)]" aria-hidden="true">✓</span>
+              <span className="min-w-0 flex-1 truncate font-human text-sm text-[var(--ink)]">{r.company} · {r.title}</span>
+              <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">{receiptTime(r.at)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 export function Receipts({ receipts }: { receipts: readonly RailReceipt[] }) {
   if (!receipts.length) return <p className="mx-1 text-xs text-[var(--subtle)]">投出去的每一份都会在这里留一张回执。</p>;
-  const open = (id: string) => emitEvent('career:focus', { surface: 'dossier', application_id: id });
   return (
     <ul className="flex flex-col" data-testid="rail-receipts">
       {receipts.map(r => (
         <li key={r.application_id}>
-          <button type="button" onClick={() => open(r.application_id)}
+          <button type="button" onClick={() => openReceipt(r.application_id)}
             className="speech-block flex w-full items-start gap-2 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-[var(--hover)]">
             <span className="mt-0.5 shrink-0 text-xs text-[var(--success)]">✓</span>
             <span className="min-w-0 flex-1">

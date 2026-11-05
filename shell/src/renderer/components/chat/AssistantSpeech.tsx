@@ -24,6 +24,19 @@ export function SpeechBlocks({ text, streaming }: { text: string; streaming: boo
   );
 }
 
+/** 还有没收尾的思考 / 工具块：Message 在这时露出安静工作行，MessageList 据此不再叠一行「在想」。 */
+export function hasIncompleteWorkBlocks(blocks: ContentBlock[]): boolean {
+  return blocks.some((block) => {
+    if (block.type === 'thinking') return !block.isComplete;
+    if (block.type === 'tool_use' || block.type === 'server_tool_use') {
+      // server_tool_use is treated the same as tool_use for streaming state
+      const subagentRunning = block.tool?.subagentCalls?.some((call) => call.isLoading);
+      return Boolean(block.tool?.isLoading) || Boolean(subagentRunning) || !block.tool?.result;
+    }
+    return false;
+  });
+}
+
 /** 一组工具 / 思考块里最后一个工具的人话；不是求职工具就只说"在想"。 */
 export function quietWorkLabel(blocks: ContentBlock[]): string {
   for (let i = blocks.length - 1; i >= 0; i -= 1) {

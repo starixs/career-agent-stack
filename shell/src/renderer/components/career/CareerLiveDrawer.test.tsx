@@ -149,7 +149,7 @@ describe('CareerLiveDrawer', () => {
     expect(screen.queryByText('正在等待 B 的登录验证')).not.toBeInTheDocument();
   });
 
-  it('交接时显示「这一步要你本人来」，主按钮是控制浏览器', async () => {
+  it('交接时显示「这一步要你本人来」，主按钮是我来操作', async () => {
     render(<Harness />);
     act(() => emitEvent('career:takeover', { runId: 'run1', state: 'paused', reason: 'captcha', message: '输入手机收到的验证码' }));
     expect(await screen.findByTestId('career-live-drawer')).toBeInTheDocument();
@@ -157,7 +157,7 @@ describe('CareerLiveDrawer', () => {
     push(snapshot());
     expect(screen.getByText(/这一步要你本人来/)).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('输入手机收到的验证码');
-    expect(screen.getByRole('button', { name: '控制浏览器' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '我来操作' })).toBeInTheDocument();
   });
 
   it('后台的事只把栏备好、不把他从别的页面拽回对话页；他自己点去看才跳（2026-11-03 连邮箱时被一次次顶回去）', () => {

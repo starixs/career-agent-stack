@@ -2,7 +2,7 @@
  * 浏览器工作面（specs/CAREER_DESIGN.md §5.7 收起 / 展开 / 交接）：
  *  - `CareerLiveDrawer` 挂在 App 根上，只负责把事件变成状态：打开请求、助理 ui_open(live)、
  *    交接暂停、页面请求选文件 → 展开对话页右侧的浏览器栏并切到对话；同时记录接管与进度。
- *  - `BrowserSessionPanel` 是展开后的右侧栏：实时画面、停止、控制浏览器 / 交还给小芽、全屏、
+ *  - `BrowserSessionPanel` 是展开后的右侧栏：实时画面、停止、我来操作 / 交还给小芽、全屏、
  *    选文件、当前任务与分组进度。关闭只是收起，后台填表 / 批量不受影响。
  * 浏览器只在产品里出现，不弹真实 Chrome 窗口。
  */
@@ -199,7 +199,7 @@ export function journeyText(journey: LiveSnapshot['journey']): string {
   return journey && journey.total > 1 ? ` · 登录第 ${journey.index + 1} / ${journey.total} 家` : '';
 }
 
-/** 展开态：对话页右侧的浏览器会话栏。 */
+/** 展开态：对话页右侧的网申现场栏。 */
 export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
   const { takeover, fullscreen } = useWorkSurfaces();
   const [frame, setFrame] = useState<LiveFrame | null>(null);
@@ -274,7 +274,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
   const host = hostOf(snapshot?.browser.url);
   const handoffHint = revealed
     ? '那一页已经弹到你面前（真实浏览器窗口），直接在那个窗口里扫码、拖滑块、输验证码；登上了会自动接着办。'
-    : takeover?.message ?? (humanActive ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。' : '点画面或「控制浏览器」接手，完成后交还给小芽。');
+    : takeover?.message ?? (humanActive ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。' : '点画面或「我来操作」接手，完成后交还给小芽。');
   const statusTone = handoff || humanActive ? 'bg-[var(--warning)]' : control === 'agent' ? 'bg-[var(--success)]' : 'bg-[var(--subtle)]';
   const statusText = handoff
     ? `等你处理${reason ? `：${reason}` : ''}`
@@ -292,14 +292,14 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     <section
       data-testid="career-live-drawer"
       data-fullscreen={fullscreen ? 'true' : 'false'}
-      aria-label="浏览器会话"
+      aria-label="网申现场"
       className={fullscreen
         ? 'fixed inset-0 z-40 flex flex-col bg-[var(--side)]'
         : 'flex h-full min-w-0 flex-1 flex-col border-l border-[var(--line)] bg-[var(--side)]'}
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-[var(--line)] px-5 pb-3 pt-4">
         <div className="min-w-0 flex-1">
-          <div className="font-human text-lg font-semibold text-[var(--ink)]">浏览器会话</div>
+          <div className="font-human text-lg font-semibold text-[var(--ink)]">网申现场</div>
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
             <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
             <span className="truncate">{statusText}{journeyText(snapshot?.journey)}{host ? ` · ${host}` : ''}</span>
@@ -315,7 +315,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
           // 登录之旅里这一家登不了（只能 QQ / 微信、手边没账号）：先跳过，留在等你里，接着下一家
           <Button variant="ghost" onClick={() => { void apiPostJson<unknown>('/api/career/asks/current/login-journey', { skip: true }).catch((e: unknown) => console.error('[career-live] 跳过这家 FAILED', e)); }}>这家先跳过</Button>
         )}
-        {!humanActive && <Button variant="primary" busy={busy === 'take'} disabled={!canTake} onClick={() => void act('take')}>控制浏览器</Button>}
+        {!humanActive && <Button variant="primary" busy={busy === 'take'} disabled={!canTake} onClick={() => void act('take')}>我来操作</Button>}
         {humanActive && <Button variant="primary" busy={busy === 'handback'} disabled={busy !== null} onClick={() => void act('handback')}>交还给小芽</Button>}
         <Button variant="ghost" onClick={() => setWorkSurfaceFullscreen(!fullscreen)} aria-label={fullscreen ? '退出全屏' : '全屏'} title={fullscreen ? '退出全屏，回到侧栏' : '全屏操作'}>
           {fullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}

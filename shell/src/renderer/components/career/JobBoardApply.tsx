@@ -8,12 +8,15 @@
 import { useEffect, useState } from 'react';
 
 import { careerApi } from './careerApi';
+import { requestNavigation } from '@/features/career-shell/navModel';
+
 import { Button, ErrorRow, LoadingRow, Select, suggestToChat } from './CareerPrimitives';
 import type { JobPlan } from './types';
 import { useCareerAction } from './useCareerData';
 
 /** 和服务端 batch-apply.ts skipReason 的文案一致。 */
 const NO_RESUME_REASON = '还没有简历';
+const BUSY_REASON = '已在投';
 const NO_RESUME_ASK = '我想投这几家，但还没有简历，先帮我做一份';
 
 /** 「已经投过 2 · 没有网申链接 1」：同一原因合在一起数。 */
@@ -57,12 +60,16 @@ export function ApplyConfirm({ jobIds, onStarted, onCancel }: { jobIds: string[]
   });
   // 没有简历时这一批全被跳过：不留死路，一键回对话先把简历做出来（主线体验 §2 信任杀手）
   const noResume = !!plan && plan.skipped.some(x => x.reason === NO_RESUME_REASON);
+  const busy = !!plan && plan.skipped.some(x => x.reason === BUSY_REASON);
   const askResume = !!plan && plan.needs_resume.length > 0 && plan.resumes.length > 1;
   return (
     <div data-testid="apply-confirm" className="mx-6 mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 border-l-2 border-[var(--primary)] py-1 pl-3 text-sm">
       {!plan && load.busy && <LoadingRow />}
       {plan && <span className="text-[var(--ink)]">{planLine(plan)}</span>}
       {plan && plan.skipped.length > 0 && <span className="text-xs text-[var(--muted)]">跳过 {skippedText(plan.skipped)}</span>}
+      {busy && (
+        <Button size="sm" variant="ghost" onClick={() => requestNavigation({ kind: 'career-live' })}>看进展</Button>
+      )}
       {noResume && (
         <Button size="sm" variant="secondary" onClick={() => suggestToChat(NO_RESUME_ASK)}>先做一份简历</Button>
       )}

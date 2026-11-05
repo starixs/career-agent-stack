@@ -873,6 +873,11 @@
       "expandWorkspace": "Expand workspace"
     },
     "currentChatFallback": "This chat",
+    "career": {
+      "dropZone": "Drop it here to hand your resume to Xiaoya",
+      "errorLine": "That step didn't work.",
+      "retry": "Let me try again"
+    },
     "dropZone": {
       "message": "Release to add files to the workspace",
       "subtitle": "Non-image files will be copied to keystone_files and referenced automatically."

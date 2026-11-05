@@ -28,6 +28,7 @@ import { onEvent } from '@/api/eventBus';
 import { careerApi } from './careerApi';
 import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
+import { BatchPickCard } from './BatchPickCard';
 import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
 import { TakeoverCard } from './ColdStartCards';
@@ -295,6 +296,7 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   needs_user: props => <NeedsUserCard {...props} />,
   drafts: props => <DraftsCard {...props} />,
   claims_confirm: props => <ClaimsConfirmCard {...props} />,
+  batch_pick: props => <BatchPickCard {...props} />,
   resume_intake: props => <ResumeIntakeCard {...props} />,
   tailor_diff: props => <TailorDiffCard {...props} />,
   site_login: props => <SiteLoginCard {...props} />,
@@ -332,13 +334,20 @@ const isBatchWallCard = (c: CareerCard) => c.kind === 'review' && str(c.data.kin
 
 export const isRenderableCard = (c: CareerCard): boolean => !!RENDERERS[c.kind] && !isDockOwnedCard(c);
 
+/** 收起后那一行：服务端写回了结果（done_line，如"已开始投 5 家"）就说结果，否则说"已完成 / 已跳过：标题"。 */
+function collapsedText(card: CareerCard, done: boolean): string {
+  const line = done ? str(card.data.done_line) : null;
+  return line ?? `${done ? '已完成' : '已跳过'}：${card.title}`;
+}
+
 /** 已处理的卡片折叠成一行：完成显示"已完成"，忽略的可以重新打开。 */
 function CollapsedCardRow({ card, onReopen }: { card: CareerCard; onReopen: () => void }) {
   const done = card.state === 'completed';
   return (
     <div data-testid={`career-card-collapsed-${card.kind}`} className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-3 py-1.5 text-xs text-[var(--muted)]">
       {done ? <CheckCircle2 className="size-3.5 text-[var(--success)]" /> : <ListTodo className="size-3.5" />}
-      <span className="min-w-0 flex-1 truncate">{done ? '已完成' : '已跳过'}：{card.title}</span>
+      <span className="min-w-0 flex-1 truncate">{collapsedText(card, done)}</span>
+      {done && card.kind === 'batch_pick' && <Button variant="ghost" onClick={() => openLiveDrawer()}>看进展</Button>}
       {!done && <Button variant="ghost" onClick={onReopen}>重新打开</Button>}
     </div>
   );

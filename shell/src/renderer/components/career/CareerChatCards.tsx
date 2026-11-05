@@ -1,12 +1,13 @@
 /**
- * 对话内求职卡片（对话底部）：没有锚点的流程卡片 / 可折叠进度行 / 回来卡（离开超过半天）。
+ * 对话内求职卡片（对话底部）：开场（小芽先开口，排在最前）/ 没有锚点的流程卡片 / 回来卡（离开超过半天）。
+ * 进度不在对话里出行，只在右栏「正在做」（内测收口 11-05）。
  * 浏览器现场与它的交接不在对话里出卡，在右栏「网申」那一行（主线体验 §6.6 三选一）。
  * 要你的事（待审核、缺项）不在这里，在输入框上沿的等你条。
  * 状态来自 TabContext（TabProvider 处理 career:* SSE），回传走 Session 路由。
  * 待审核动作是 kind=review 的流程卡片（CareerReviewCard.tsx），有锚点时挂在那次工具调用下面。
  * 在 TabProvider 之外渲染时返回 null，MessageList 的既有测试不受影响。
  */
-import { ChevronDown, ChevronRight, Globe, Loader2 } from 'lucide-react';
+import { Globe } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { useTabStateOptional } from '@/context/TabContext';
@@ -20,7 +21,7 @@ import { openLiveDrawer } from './CareerLiveDrawer';
 
 import { HANDOFF_REASON_LABELS, TAKEOVER_STATE_LABELS } from './careerConstants';
 import { Badge, Button } from './CareerPrimitives';
-import type { CareerProgressEvent, CareerTakeoverEvent } from './types';
+import type { CareerTakeoverEvent } from './types';
 
 export { reviewDecisionMessage } from './CareerReviewCard';
 
@@ -31,16 +32,14 @@ export function CareerChatCards() {
 }
 
 function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useTabStateOptional>> }) {
-  const { careerProgress } = tab;
   // 底部只放"无处可挂"的待处理卡片：没有锚点（后台批量等），或锚点那次工具调用不在已加载的消息里。
   // 有锚点的卡片渲染在对应回复下面（Message.tsx），处理完折叠，不在底部堆叠。
   const anchoredIds = useMemo(() => collectToolUseIds(tab.messages ?? []), [tab.messages]);
   const cards = useMemo(() => (tab.careerCards ?? []).filter(c => (c.state ?? 'pending') === 'pending' && (!c.toolUseId || !anchoredIds.has(c.toolUseId))), [tab.careerCards, anchoredIds]);
   return (
     <div className="space-y-2 py-2">
-      <CareerSetupCards />
       <StarterCard />
-      {careerProgress && <CareerProgressRow progress={careerProgress} onDismiss={tab.dismissCareerProgress} />}
+      <CareerSetupCards />
       <CareerFlowCards cards={cards} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
       <ReturnBriefing messageCount={tab.messages?.length ?? 0} />
     </div>
@@ -132,46 +131,6 @@ export function CareerTakeoverCard({ takeover, onAction }: {
           <Button busy={busy === 'handback'} disabled={busy !== null} onClick={() => void act('handback')}>交回</Button>
         )}
       </div>
-    </div>
-  );
-}
-
-/**
- * 进度行左侧的"在做什么"：服务端的 phase 是内部名字（工具名 / 技能 id），只显示翻译过的；
- * 没登记的内部名字不显示，免得露出 apply_run 这类技术名。已经是中文的原样显示。
- */
-const PHASE_LABELS: Record<string, string> = {
-  fill_form: '填表', apply_run: '填表', apply_continue: '填表', apply_batch: '批量投递', apply_prepare: '准备材料', jobs_apply: '开始投',
-  web_search: '搜索', resume_export: '导出简历', submit: '提交',
-};
-export function phaseLabel(phase: string | undefined): string | null {
-  if (!phase) return null;
-  if (PHASE_LABELS[phase]) return PHASE_LABELS[phase];
-  return /^[A-Za-z0-9_.:-]+$/.test(phase) ? null : phase;
-}
-
-export function CareerProgressRow({ progress, onDismiss }: { progress: CareerProgressEvent; onDismiss?: () => void }) {
-  const [open, setOpen] = useState(false);
-  const pct = typeof progress.progress === 'number' ? Math.round(Math.max(0, Math.min(1, progress.progress)) * 100) : null;
-  return (
-    <div data-testid="career-progress-row" className="rounded-lg border border-[var(--line)] bg-[var(--inset)] px-3 py-1.5 text-xs text-[var(--muted)]">
-      <button type="button" onClick={() => setOpen(v => !v)} className="flex w-full items-center gap-2 text-left">
-        {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[var(--primary)]" />
-        {phaseLabel(progress.phase) && <span className="shrink-0 font-medium text-[var(--ink)]">{phaseLabel(progress.phase)}</span>}
-        <span className="min-w-0 flex-1 truncate">{progress.message}</span>
-        {pct !== null && <span className="shrink-0 tabular-nums">{pct}%</span>}
-      </button>
-      {open && (
-        <div className="mt-1.5 flex items-center gap-3 pl-5 text-xs text-[var(--subtle)]">
-          {pct !== null && (
-            <span className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--line)]">
-              <span className="block h-full bg-[var(--primary)]" style={{ width: `${pct}%` }} />
-            </span>
-          )}
-          {onDismiss && <button type="button" onClick={onDismiss} className="underline underline-offset-2">隐藏</button>}
-        </div>
-      )}
     </div>
   );
 }

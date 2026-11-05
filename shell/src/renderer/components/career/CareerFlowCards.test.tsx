@@ -145,8 +145,8 @@ describe('对话内流程卡片', () => {
     expect(screen.getByRole('button', { name: '去补这几处' })).toBeInTheDocument();
   });
 
-  it('面试准备卡：时间、上次卡点、高风险深挖点、题，点「开始模拟」交给助理', () => {
-    const { seen, off } = captureSuggest();
+  it('面试准备卡：时间、上次卡点、高风险深挖点、题，点「开始模拟」交给助理（id 走隐藏上下文，不进他看到的话）', () => {
+    const { seen, refs, off } = captureSuggest();
     renderCards([card('interview_prep', {
       company: '百度', title: '算法', job_id: 'j1', round: 'second', at: '2026-11-05T06:00:00.000Z',
       carried: [{ company: '百度', round: 'first', same_application: true, points: ['线上 A/B 收益'] }],
@@ -160,7 +160,8 @@ describe('对话内流程卡片', () => {
     expect(el).toHaveTextContent('负样本怎么采？');
     fireEvent.click(screen.getByRole('button', { name: '开始模拟' }));
     off();
-    expect(seen[0]).toBe('开始模拟 百度 二面（job_id=j1，round=second），先从高风险的深挖点问起');
+    expect(seen[0]).toBe('开始模拟百度二面，先从高风险的深挖点问起');
+    expect(refs[0]).toEqual({ job_id: 'j1', round: 'second' });
   });
 
   it('批量投递进行中：对话里不再单独出进度卡（数字在等你条「投出 x / y」）', () => {

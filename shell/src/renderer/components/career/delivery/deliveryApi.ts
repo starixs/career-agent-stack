@@ -66,6 +66,10 @@ export const deliveryApi = {
     .then(r => ({ stillWaiting: typeof field(r, 'still_waiting') === 'number' ? field(r, 'still_waiting') as number : 0 })),
   /** 一家一家带你登录（服务端按 Cookie / 登录接口返回判断登上没有）；cancel 停下，剩下的留在等你条里。 */
   loginJourney: (askId: string, cancel = false) => apiPostJson<unknown>(`/api/career/asks/${encodeURIComponent(askId)}/login-journey`, cancel ? { cancel: true } : {}),
+  /** 「N 家没填成」再试一次：整件放回队列，后台只填这几份。 */
+  retryFailed: (askId: string) => apiPostJson<unknown>(`/api/career/asks/${encodeURIComponent(askId)}/retry`, {}),
+  /** 「N 家没填成」我自己来：开接管，现场画面切到那一家（不传就是第一家）。 */
+  takeOverFailed: (askId: string, applicationId?: string) => apiPostJson<unknown>(`/api/career/asks/${encodeURIComponent(askId)}/self`, applicationId ? { application_id: applicationId } : {}),
   away: (since: string) => apiGetJson<unknown>(`/api/career/away?since=${encodeURIComponent(since)}`).then(r => parseAway(field(r, 'away'))),
 };
 

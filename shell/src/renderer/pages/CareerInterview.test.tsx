@@ -63,6 +63,7 @@ describe('CareerInterview', () => {
     expect(screen.getByText('7')).toBeInTheDocument();
     expect(screen.getByText('P99 从 800ms 到 200ms 的具体手段')).toBeInTheDocument();
     expect(screen.getByText('怎么测的')).toBeInTheDocument();
+    expect(screen.getByText('风险高')).toBeInTheDocument();
   });
 
   it('新建记录调用 POST /api/career/interviews', async () => {

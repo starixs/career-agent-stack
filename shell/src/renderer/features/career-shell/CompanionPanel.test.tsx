@@ -33,10 +33,15 @@ let railSnapshot: Record<string, unknown> = {
 };
 
 let onboardingChecklist: Record<string, boolean> = { has_experience: true, has_confirmed_claim: true, has_master_resume: true, has_mail_account: true, has_job: true, has_application: true, has_material: true };
+const memoryStorage = new Map<string, string>();
+vi.stubGlobal('localStorage', { getItem: (k: string) => memoryStorage.get(k) ?? null, setItem: (k: string, v: string) => { memoryStorage.set(k, v); } });
+let waitingAsks: Array<{ id: string; title: string }> = [];
+vi.mock('@/components/career/delivery/useWaitingAsks', () => ({ useWaitingAsks: () => ({ asks: waitingAsks, run: null, error: null, resolve: vi.fn(), snooze: vi.fn() }) }));
 vi.mock('@/config/useConfigData', () => ({ useConfigData: () => ({ config: { floatingBallPetId: null } }) }));
 vi.mock('@/floating-ball/petPackLibrary', () => ({ resolveSelectedPetPack: async () => (await import('@/floating-ball/defaultPetPack')).MINO_DEFAULT_PET_PACK }));
 
-import { CompanionPanel, deadlineLabel, openTodoItem } from './CompanionPanel';
+import { CompanionPanel, companionDay, deadlineLabel, openTodoItem } from './CompanionPanel';
+import { OPEN_DECK_EVENT } from '@/components/career/delivery/ReturnCard';
 import { CAREER_NAVIGATE_EVENT } from './navModel';
 import { stashCareerFocus, takeCareerFocus } from './pendingFocus';
 import { emitEvent, onEvent } from '@/api/eventBus';
@@ -112,9 +117,14 @@ describe('CompanionPanel', () => {
   it('此刻：主线进度、正在做的几个岗位、今天三个数；建档时简历草稿是主角，每行标来源', async () => {
     act(() => recordProgress({ runId: 'r1', phase: 'apply_run', message: '在填教育经历' }));
     render(<CompanionPanel />);
-    expect(screen.getByText('Mino')).toBeInTheDocument();
+    // 名字固定「小芽」，不跟形象包（Mino）走
+    expect(screen.getByTestId('companion-name')).toHaveTextContent('小芽');
+    expect(screen.queryByText('Mino')).not.toBeInTheDocument();
+    expect(screen.getByText(/陪你第 1 天/)).toBeInTheDocument();
     expect(screen.getAllByText('在填教育经历').length).toBeGreaterThan(0);
-    expect(await screen.findByTestId('rail-mainline')).toHaveTextContent('还剩 4 步');
+    const mainline = await screen.findByTestId('rail-mainline');
+    expect(within(mainline).getAllByRole('listitem').map(li => li.textContent)).toEqual(['说说你', '定方向', '先投一家', '再投一批']);
+    expect(mainline).toHaveTextContent('还剩 3 步');
     expect(screen.getByTestId('rail-block-resume')).toHaveTextContent('边聊边写，已经有 1 段经历');
     expect(await screen.findByTestId('rail-resume-draft')).toHaveTextContent('问卷回收 200 多份来自你说的');
     expect(screen.getByTestId('rail-today')).toHaveTextContent('备好');
@@ -123,16 +133,69 @@ describe('CompanionPanel', () => {
     expect(screen.getByText(/剩 \d+ 小时/)).toBeInTheDocument();
   });
 
-  it('网申那一行在等你时给「去处理」，点了打开浏览器现场（对话里不再出浏览器卡）', async () => {
-    railSnapshot = { ...railSnapshot, blocks: blocks.map(b => (b.id === 'apply' ? { ...b, status: 'waiting', line: '2 份等你一下' } : b)) };
-    const seen: unknown[] = [];
-    const off = onEvent('career:focus', p => seen.push(p));
+  it('头部只数要你的事，和等你条同一个数；没有就说没有', async () => {
+    waitingAsks = [{ id: 'a1', title: '东北证券 · 要登录' }, { id: 'a2', title: '杭州城投 · 开放题' }];
+    const { unmount } = render(<CompanionPanel />);
+    expect(screen.getByTestId('companion-summary')).toHaveTextContent('有 2 件等你');
+    expect(screen.queryByText(/今天 \d+ 件事/)).not.toBeInTheDocument();
+    unmount();
+    waitingAsks = [];
     render(<CompanionPanel />);
-    const row = await screen.findByTestId('rail-block-apply');
-    fireEvent.click(within(row).getByRole('button', { name: '去处理' }));
-    off();
-    expect(seen).toContainEqual({ surface: 'live_drawer' });
+    expect(screen.getByTestId('companion-summary')).toHaveTextContent('没有要你的事');
+  });
+
+  it('右栏此刻不再列「等你」那一块（唯一落点是等你条）；待办里也不列交接和待审', async () => {
+    railSnapshot = { ...railSnapshot, waiting: { count: 1, first: { title: '这一步要你本人来', detail: '东北证券要登录' } } };
+    vi.mocked(careerApi.today).mockResolvedValueOnce({
+      items: [
+        { kind: 'handoff', priority: 0, title: '浏览器要你接手', ref: { type: 'handoff', id: 'h1' } },
+        { kind: 'review', priority: 1, title: '网申等你确认', ref: { type: 'action', id: 'act_1' } },
+        { kind: 'interview_today', priority: 4, title: '准备星河科技二面', ref: { type: 'interview', id: 'i1' } },
+      ],
+      waiting: { count: 0, by_stage: [] }, inbox_new: 0, pending_review: 0,
+    });
+    render(<CompanionPanel />);
+    await screen.findByTestId('rail-mainline');
+    expect(screen.queryByTestId('rail-waiting')).not.toBeInTheDocument();
+    expect(screen.queryByText('这一步要你本人来')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /待办/ }));
+    expect(await screen.findByText('准备星河科技二面')).toBeInTheDocument();
+    expect(screen.queryByText('浏览器要你接手')).not.toBeInTheDocument();
+    expect(screen.queryByText('网申等你确认')).not.toBeInTheDocument();
+    railSnapshot = { ...railSnapshot, waiting: { count: 0, first: null } };
+  });
+
+  it('数据还没到时此刻不是一片空白', () => {
+    vi.mocked(careerApi.rail).mockImplementationOnce(() => new Promise(() => {}));
+    render(<CompanionPanel />);
+    expect(screen.getByTestId('rail-placeholder')).toHaveTextContent('在准备…');
+  });
+
+  it('网申那一行在等你时给「去处理」：要你本人来 → 浏览器现场；其余 → 等你卡组；从不跳岗位库', async () => {
+    railSnapshot = { ...railSnapshot, blocks: blocks.map(b => (b.id === 'apply' ? { ...b, status: 'waiting', line: '2 份等你一下' } : b)) };
+    const focus: unknown[] = [];
+    const decks: unknown[] = [];
+    const nav: unknown[] = [];
+    const offs = [onEvent('career:focus', p => focus.push(p)), onEvent(OPEN_DECK_EVENT, p => decks.push(p)), onEvent(CAREER_NAVIGATE_EVENT, p => nav.push(p))];
+    const { unmount } = render(<CompanionPanel />);
+    fireEvent.click(within(await screen.findByTestId('rail-block-apply')).getByRole('button', { name: '去处理' }));
+    expect(decks).toHaveLength(1);
+    expect(focus).toEqual([]);
+    unmount();
+    act(() => recordTakeover({ runId: 'r1', state: 'paused', reason: 'login' }));
+    render(<CompanionPanel />);
+    fireEvent.click(within(await screen.findByTestId('rail-block-apply')).getByRole('button', { name: '去处理' }));
+    offs.forEach(off => off());
+    expect(focus).toContainEqual({ surface: 'live_drawer' });
+    expect(nav).toEqual([]);
     railSnapshot = { ...railSnapshot, blocks };
+  });
+
+  it('陪你第几天按本地日历日算，同一天是第 1 天', () => {
+    const first = new Date(2026, 10, 3, 23, 50).getTime();
+    expect(companionDay(first, new Date(2026, 10, 3, 23, 59).getTime())).toBe(1);
+    expect(companionDay(first, new Date(2026, 10, 5, 0, 10).getTime())).toBe(3);
+    expect(companionDay(null)).toBeNull();
   });
 
   it('定方向时岗位池是主角：符合的数和条件小签', async () => {
@@ -151,6 +214,8 @@ describe('CompanionPanel', () => {
     expect(await screen.findByTestId('rail-resume-chip')).toHaveTextContent('简历 · 1 段 ✓');
     expect(screen.queryByTestId('rail-pool')).not.toBeInTheDocument();
     expect(screen.queryByTestId('rail-resume-draft')).not.toBeInTheDocument();
+    // 最近的回执提到此刻「刚投出」，完整的在足迹
+    expect(await screen.findByTestId('rail-recent-receipts')).toHaveTextContent('招商银行 · 财务管培');
     fireEvent.click(screen.getByRole('tab', { name: /足迹/ }));
     expect(await screen.findByTestId('rail-receipts')).toHaveTextContent('填了 43 格');
     fireEvent.click(screen.getByRole('button', { name: '以后同类直接投' }));
@@ -169,9 +234,13 @@ describe('CompanionPanel', () => {
     expect(nav.at(-1)).toEqual({ kind: 'career-today' });
     openTodoItem({ kind: 'interview_today', priority: 1, title: '字节二面', ref: { type: 'application', id: 'app_1' } });
     expect(focus.at(-1)).toEqual({ surface: 'dossier', application_id: 'app_1' });
+    const decks: unknown[] = [];
+    const offDeck = onEvent(OPEN_DECK_EVENT, p => decks.push(p));
+    const navBefore = nav.length;
     openTodoItem({ kind: 'review', priority: 1, title: '网申等你确认', ref: { type: 'action', id: 'act_1' } });
-    expect(nav.at(-1)).toEqual({ kind: 'career-dossier', view: 'apply' });
-    offFocus(); offNav();
+    expect(decks).toHaveLength(1);
+    expect(nav).toHaveLength(navBefore);
+    offFocus(); offNav(); offDeck();
   });
 
   it('a focus sent before the page mounts is kept for that page once', () => {

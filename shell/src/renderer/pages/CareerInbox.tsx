@@ -13,6 +13,7 @@ import {
   Badge, Button, CareerPage, Card, ChatActionButton, DueLabel, ErrorRow, LoadingRow, Select, TextArea, formatDate,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
+import { briefText } from '@/components/career/structuredLabels';
 import { PageAskBar } from '@/features/career-shell/PageAskBar';
 import { requestNavigation } from '@/features/career-shell/navModel';
 import { takeCareerFocus } from '@/features/career-shell/pendingFocus';
@@ -53,12 +54,12 @@ const PREVIEW_LIMIT = 160;
 /** 待批准动作的一句话摘要（与投递页同一套取字段顺序）。 */
 export function actionSummary(action: ActionQueueItem): string {
   const payload = safeJson<Record<string, unknown>>(action.payload_json, {});
-  if (action.kind === 'submit') return `停在「${typeof payload.submitButton === 'string' ? payload.submitButton : '提交'}」前，批准后产品替你点提交`;
+  if (action.kind === 'submit') return `停在「${typeof payload.submitButton === 'string' ? payload.submitButton : '提交'}」前，你点头后，小芽替你点提交`;
   if (typeof payload.summary === 'string') return payload.summary;
   if (typeof payload.subject === 'string') return `${payload.subject}${typeof payload.to === 'string' ? ` → ${payload.to}` : ''}`;
   if (typeof payload.text === 'string') return payload.text;
   if (typeof payload.message === 'string') return payload.message;
-  return Object.keys(payload).length ? JSON.stringify(payload).slice(0, 160) : '（无摘要）';
+  return briefText(payload)?.slice(0, PREVIEW_LIMIT) ?? '（无摘要）';
 }
 
 /** 截止是否该进通知流：没做完，且已经过了或 REMIND_WITHIN_DAYS 天内到期。 */

@@ -288,6 +288,11 @@ Floating ball:
 - `floating_ball_expand`
 - `floating_ball_pet_select`
 
+Career suggestion bar (the up-to-four reply chips above the chat input, face-beta-polish 2026-11-05):
+
+- `career_suggest_shown` — a set of chips appeared after a turn; `slots` lists the slot of each chip in order (`reply` / `mainline` / `seed`).
+- `career_suggest_used` — the user sent a chip (`how=click`) or pulled the first chip into the input with Tab (`how=tab`); carries `slot` and `seed_id` (empty for non-seed chips). Used to see which kind of guidance actually gets picked up.
+
 Server-side AI turn:
 
 - `ai_turn_complete`

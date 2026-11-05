@@ -22,13 +22,13 @@
     "careerMaterial": "素材",
     "careerReview": "复盘",
     "careerGuide": "指南",
-    "careerLive": "浏览器现场",
+    "careerLive": "网申进展",
     "careerVault": "私密信息",
     "careerTakeover": "接管简报"
   },
   "globalSidebar": {
     "navigation": "全局导航",
-    "openWebsite": "打开 求职助理 官网",
+    "openWebsite": "打开求职助理官网",
     "collapse": "收起侧边栏",
     "expand": "展开侧边栏",
     "newChat": "新对话",
@@ -58,7 +58,7 @@
     "careerMaterial": "素材",
     "careerReview": "复盘",
     "careerGuide": "指南",
-    "careerLive": "浏览器现场",
+    "careerLive": "网申进展",
     "careerVault": "私密信息",
     "careerTakeover": "接管简报"
   },
@@ -142,7 +142,7 @@
     "replyFailed": "回复出错了",
     "agentErrorOpenMainWindow": "Agent 出错了，点 ↗ 去主窗口查看",
     "sessionExpiredNewChat": "上一条会话已失效，已为你开启新对话",
-    "noWorkspace": "没有可用的工作区——请先在 求职助理 中完成初始化",
+    "noWorkspace": "没有可用的工作区——请先在求职助理中完成初始化",
     "switchWorkspaceFailed": "切换工作区失败，请重试",
     "newConversationFailed": "新建对话失败，请重试",
     "engineNotReady": "AI 引擎尚未就绪，稍等片刻再试",
@@ -411,7 +411,7 @@
     "copyFailed": "复制失败",
     "reference": "引用",
     "openContainingFolder": "打开所在文件夹",
-    "openkeystonePreview": "打开 求职助理 预览",
+    "openkeystonePreview": "打开求职助理预览",
     "preview": "预览",
     "open": "打开",
     "revealInTree": "在文件目录中展示",
@@ -524,7 +524,7 @@
         "request": "Space 请求"
       },
       "templates": {
-        "relogin": "{{operation}}失败：请重新登录 求职助理 社区",
+        "relogin": "{{operation}}失败：请重新登录求职助理社区",
         "permissionDenied": "{{operation}}失败：权限不足",
         "serviceUnavailable": "{{operation}}失败：服务暂时不可用，请稍后重试",
         "withDetail": "{{operation}}失败：{{detail}}",
@@ -548,13 +548,13 @@
     },
     "login": {
       "eyebrow": "Official Space",
-      "title": "求职助理 社区",
+      "title": "求职助理社区",
       "description": "使用 Google 账号进入官方 Space",
       "reauthDescription": "{{name}} 的登录已失效，请重新登录以继续使用团队空间。",
       "forgetAccount": "退出并清除本机账户",
       "waiting": "等待浏览器授权完成",
       "continueWithGoogle": "继续使用 Google",
-      "returnHint": "授权完成后会自动回到 求职助理。"
+      "returnHint": "授权完成后会自动回到求职助理。"
     },
     "sidebar": {
       "issues": "议题 Issue",
@@ -655,7 +655,7 @@
       "closeIssue": "关闭 Issue"
     },
     "toasts": {
-      "loginSuccess": "已登录 求职助理 社区",
+      "loginSuccess": "已登录求职助理社区",
       "loginFailed": "登录失败",
       "loginSlow": "登录状态同步较慢，正在继续重试",
       "loginTimeout": "登录等待超时，请重新发起 Google 登录",
@@ -1005,12 +1005,12 @@
       "offline": "离线",
       "disabled": "已停用",
       "connecting": "连接中",
-      "clientOnline": "求职助理 客户端在线",
+      "clientOnline": "求职助理客户端在线",
       "lastOnline": "最后在线",
       "lastOnlineAt": "最后在线：{{time}}",
       "neverOnline": "尚未在线",
-      "offlineTroubleshooting": "请确认 求职助理 客户端正在运行并能访问 Space Cloud。",
-      "connectingHint": "正在等待 求职助理 客户端连接",
+      "offlineTroubleshooting": "请确认求职助理客户端正在运行并能访问 Space Cloud。",
+      "connectingHint": "正在等待求职助理客户端连接",
       "presenceMayBeStale": "在线状态可能不是最新，请检查网络后重试。",
       "workspace": "工作区",
       "localAgentWorkspace": "本地 Agent 工作区",
@@ -1082,7 +1082,7 @@
       "inviteEmailPlaceholder": "输入用户的 Google 邮箱",
       "inviteRoleLabel": "选择用户身份",
       "addMember": "添加",
-      "joinByShortSlug": "邀请用户使用短链加入 求职助理：",
+      "joinByShortSlug": "邀请用户使用短链加入求职助理：",
       "loadingMembers": "加载中...",
       "joinRequests": "申请加入",
       "pendingInvitations": "待接受邀请",

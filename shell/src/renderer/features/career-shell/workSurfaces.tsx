@@ -297,7 +297,7 @@ export function MockInterviewSurfacePanel() {
         {record && !report && !context && (
           <div className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-sm text-[var(--ink-2)]">
             <span className="flex-1">这场还没练完，可以接着从上次停下的地方练。</span>
-            <ChatActionButton size="sm" variant="primary" text={`接着练这场模拟面试（mock_interview_id=${record.id}）`}>接着练</ChatActionButton>
+            <ChatActionButton size="sm" variant="primary" text="接着练这场模拟面试" context={{ surface: 'interview', refs: { mock_interview_id: record.id } }}>接着练</ChatActionButton>
           </div>
         )}
         {context && (
@@ -326,7 +326,7 @@ export function MockInterviewSurfacePanel() {
           </div>
         )}
         {report !== null && record && (
-          <ChatActionButton size="sm" variant="ghost" text={`按这次复盘的卡点再练一场${record.job_id ? `（job_id=${record.job_id}）` : ''}`}>按卡点再练一场</ChatActionButton>
+          <ChatActionButton size="sm" variant="ghost" text="按这次复盘的卡点再练一场" context={{ surface: 'interview', refs: { mock_interview_id: record.id, job_id: record.job_id } }}>按卡点再练一场</ChatActionButton>
         )}
         {!query.loading && !record && !context && <p className="text-sm text-[var(--subtle)]">还没有这场模拟面试的记录。</p>}
       </div>

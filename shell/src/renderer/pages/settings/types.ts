@@ -43,4 +43,11 @@ export interface SettingsProps {
   updatePreparing?: boolean;
   onCheckForUpdate?: () => Promise<'up-to-date' | 'downloading' | 'error'>;
   onRestartAndUpdate?: () => void;
+  /**
+   * 哪个壳在用设置页。求职壳（默认，App.tsx 无条件挂 CareerNavShell）按 careerSettingsScope
+   * 过滤 keystone 的条目；'keystone' 保留底座原样。撤出不等于删代码（face-slim）。
+   */
+  shell?: SettingsShell;
 }
+
+export type SettingsShell = 'career' | 'keystone';

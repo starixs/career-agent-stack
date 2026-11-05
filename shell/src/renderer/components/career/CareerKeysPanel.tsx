@@ -2,6 +2,7 @@
  * 求职助理的模型 / 搜索 Key 配置：设置页「通用」和对话里的配置卡片共用。
  *  - 模型 Key（必需）存到内置 provider `career-llm` 的 providerApiKeys，侧车 resolveProviderEnv 优先读它；
  *  - 搜索 Key（建议）存到 providerApiKeys['career-search'] + careerSearchProvider，search.ts 优先读它；
+ *    搜索改用模型 Key 之后不再默认露出：只有调用方明确要 show="search" / "all" 时才显示；
  *  - 启动时用环境变量注入的仍然有效（兜底），这里会显示"来自启动环境"。
  * Key 只写本机 config.json，不经过模型。
  */
@@ -38,7 +39,7 @@ export function useCareerSetupStatus(): { status: CareerSetupStatus | null; relo
 
 const mask = (key: string | undefined) => (key ? `${key.slice(0, 3)}****${key.slice(-4)}` : '');
 
-export function CareerKeysPanel({ show = 'all', onSaved }: { show?: 'all' | 'llm' | 'search'; onSaved?: (what: 'llm' | 'search') => void }) {
+export function CareerKeysPanel({ show = 'llm', onSaved }: { show?: 'all' | 'llm' | 'search'; onSaved?: (what: 'llm' | 'search') => void }) {
   const { apiKeys, config, saveApiKey, updateConfig } = useConfig();
   const { status } = useCareerSetupStatus();
   const [llmKey, setLlmKey] = useState('');

@@ -96,6 +96,19 @@ describe('CareerDossier · 投递记录', () => {
     mockGet();
   });
 
+  it('还没有投递：不举例子，给「去投第一家」去岗位库', async () => {
+    const base = vi.mocked(apiGetJson).getMockImplementation()!;
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => (path === '/api/career/dossiers' || path.startsWith('/api/career/dossiers?') ? { ok: true, dossiers: [] } : base(path)));
+    const nav: unknown[] = [];
+    const off = onEvent(CAREER_NAVIGATE_EVENT, p => nav.push(p));
+    render(<CareerDossier isActive onOpenChat={vi.fn()} />);
+    expect(await screen.findByText('还没有投递。')).toBeInTheDocument();
+    expect(screen.queryByText(/这个月投了多少/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '去投第一家' }));
+    expect(nav).toEqual([{ kind: 'career-dossier', view: 'apply' }]);
+    off();
+  });
+
   it('默认是一张普通列表：公司 / 岗位 / 投递时间 / 状态，按投递时间倒序；不分组、不自动摊开档案', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');

@@ -30,6 +30,12 @@ describe('CareerGuide（功能市场）', () => {
     nav.off();
   });
 
+  it('题库刷题并进面试助力，不再单列一张打开同一页的卡', () => {
+    render(<CareerGuide isActive onOpenChat={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /^题库刷题/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /面试助力/ })).toHaveTextContent('题库');
+  });
+
   it('笔试助力：直接打开搜题页', () => {
     const nav = capture(CAREER_NAVIGATE_EVENT);
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
@@ -50,10 +56,10 @@ describe('CareerGuide（功能市场）', () => {
     chat.off();
   });
 
-  it('网申助手直接打开投递控制页，不再只预填一句话', () => {
+  it('网申进展直接打开投递控制页，不再只预填一句话', () => {
     const nav = capture(CAREER_NAVIGATE_EVENT);
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: /网申助手/ }));
+    fireEvent.click(screen.getByRole('button', { name: /网申进展/ }));
     expect(nav.seen).toEqual([{ kind: 'career-live' }]);
     nav.off();
   });

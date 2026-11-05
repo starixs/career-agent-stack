@@ -51,11 +51,12 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     vi.mocked(apiPutJson).mockReset().mockResolvedValue({ ok: true, item: {} });
   });
 
-  it('没有要你的事、这批在投：等你条只写「没有要你的事」和「投出 0 / 20」', async () => {
+  it('没有要你的事、这批在投：等你条只写「没有要你的事」和「已投出 0 / 20」，不画进度格', async () => {
     serve([], run(0));
     render(<WaitingDock />);
-    expect(await screen.findByText('投出 0 / 20')).toBeInTheDocument();
+    expect(await screen.findByText('已投出 0 / 20')).toBeInTheDocument();
     expect(screen.getByText('没有要你的事')).toBeInTheDocument();
+    expect(screen.getByTestId('waiting-dock').querySelector('.cd-meter')).toBeNull();
   });
 
   it('什么都没有：整条不出现', async () => {
@@ -73,6 +74,9 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     fireEvent.click(open);
     const deck = screen.getByTestId('waiting-deck');
     expect(within(deck).getByText('九方云 · 在线测评')).toBeInTheDocument();
+    // 卡组头写「等你 1 / 3」，条上的「等你 3」收起，不叠两行
+    expect(screen.queryByRole('button', { name: /等你\s*3/ })).toBeNull();
+    expect(screen.getByText('已投出 3 / 20')).toBeInTheDocument();
     expect(within(deck).getByText(/来自邮件/)).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(within(screen.getByTestId('waiting-deck')).getByText('证件号码')).toBeInTheDocument();
@@ -256,6 +260,18 @@ describe('情景 C · 两天没开，回来', () => {
     expect(within(screen.getByTestId('waiting-deck')).getByText('九方云 · 在线测评')).toBeInTheDocument();
   });
 
+  it('等你条还没挂上时别处要打开卡组（悬浮球、右栏）：挂上后从最急的开始打开一次', async () => {
+    const { requestOpenDeck } = await import('./WaitingDock');
+    requestOpenDeck();
+    serve([ASK_JFY, ASK_LOGIN], null);
+    const { unmount } = render(<WaitingDock />);
+    expect(await within(await screen.findByTestId('waiting-deck')).findByText('九方云 · 在线测评')).toBeInTheDocument();
+    unmount();
+    render(<WaitingDock />);
+    await screen.findByRole('button', { name: /等你\s*2/ });
+    expect(screen.queryByTestId('waiting-deck')).toBeNull();
+  });
+
   it('没有要你的事：只说一句', () => {
     render(<ReturnCard away={{ ...AWAY, asks: [], sent: [], replies: [], quiet: 5 }} />);
     expect(screen.getByText('没有要你做的事')).toBeInTheDocument();
@@ -291,12 +307,18 @@ describe('等你卡 · 开放题带着小芽写好的一版', () => {
   });
 });
 
-describe('等你条进度格', () => {
-  it('一批几百份时最多画 20 格、按比例点亮；份数少时一份一格（2026-11-03 一批 1000+ 份把整条挤成竖排方块）', async () => {
-    const { meterCells, METER_MAX_CELLS } = await import('./WaitingDock');
-    expect(meterCells(250, 1000)).toHaveLength(METER_MAX_CELLS);
-    expect(meterCells(250, 1000).filter(Boolean)).toHaveLength(5);
-    expect(meterCells(2, 3)).toEqual([true, true, false]);
-    expect(meterCells(0, 0)).toEqual([]);
+describe('等你条小签', () => {
+  it('一件事涉及多家：小签写「N 家」并带读屏说明，不留一个光秃秃的数', async () => {
+    const { CountTag } = await import('./CompanyPoster');
+    render(<CountTag n={40} />);
+    expect(screen.getByRole('img', { name: '这件事涉及 40 家' })).toHaveTextContent('40 家');
+  });
+});
+
+describe('「N 家没填成」（自动重试过一次还没成）', () => {
+  it('两个按钮：再试一次 / 我自己来', async () => {
+    const { actionLabels } = await import('./askText');
+    const failed: AskView = { id: 'failed', kind: 'failed', title: '2 家没填成', detail: '页面一直没打开', application_ids: ['a1', 'a2'], companies: [mark('平安'), mark('美的')], sources: [{ type: 'action', id: 'f1' }, { type: 'action', id: 'f2' }], due_at: null, overdue: false };
+    expect(actionLabels(failed)).toEqual({ go: '再试一次', later: '我自己来' });
   });
 });

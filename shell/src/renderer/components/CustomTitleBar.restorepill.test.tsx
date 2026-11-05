@@ -7,7 +7,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
     isTauri: vi.fn(() => false),
+    chrome: { restorePill: true },
 }));
+
+// keystone 通用行为：打开胶囊开关来测；求职壳默认关（见最后一条用例）。
+vi.mock('./titleBarChrome', () => ({ TITLE_BAR_CHROME: mocks.chrome }));
 
 vi.mock('@/api/tauriClient', () => ({ isTauri: () => mocks.isTauri() }));
 vi.mock('@tauri-apps/api/window', () => ({
@@ -42,7 +46,16 @@ function renderBar(over: Partial<React.ComponentProps<typeof CustomTitleBar>> = 
 describe('CustomTitleBar — 恢复标签页 pill (Issue #309)', () => {
     beforeEach(async () => {
         mocks.isTauri.mockReturnValue(false);
+        mocks.chrome.restorePill = true;
         await i18n.changeLanguage('zh-CN');
+    });
+
+    it('career shell: never shows the pill, even after a non-clean exit', async () => {
+        const actual = await vi.importActual<typeof import('./titleBarChrome')>('./titleBarChrome');
+        expect(actual.TITLE_BAR_CHROME.restorePill).toBe(false);
+        mocks.chrome.restorePill = false;
+        renderBar({ restoreCount: 2 });
+        expect(screen.queryByText('恢复上次标签页')).toBeNull();
     });
 
     it('is hidden when restoreCount is 0 (clean quit → no nag)', () => {

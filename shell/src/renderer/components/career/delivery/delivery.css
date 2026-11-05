@@ -47,7 +47,7 @@
 .cd-p-xs .cd-p-co { font-size: 11.5px; white-space: nowrap; }
 .cd-p-long.cd-p-xs .cd-p-co { font-size: 10.5px; }
 .cd-p-xs::after { content: none; }
-.cd-p-num { width: 28px; align-items: center; justify-content: center; color: var(--primary); }
+.cd-p-num { width: auto; padding: 0 6px; align-items: center; justify-content: center; color: var(--primary); }
 .cd-p-num .cd-p-co { font-family: inherit; font-size: 11px; font-weight: 700; }
 
 /* ---------- 共用文字和按钮 ---------- */
@@ -111,9 +111,6 @@
 .cd-dock-none { padding: 0 10px; font-size: 13px; color: var(--subtle); }
 .cd-dock-run { display: inline-flex; align-items: center; gap: 10px; height: 32px; margin-left: auto; white-space: nowrap; flex-shrink: 0; padding: 0 10px; border-radius: 8px; color: var(--ink-2); font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums; }
 .cd-dock-run:hover { background: var(--inset); }
-.cd-meter { display: inline-flex; gap: 2px; flex-shrink: 0; }
-.cd-meter i { width: 6px; height: 12px; border-radius: 1.5px; box-shadow: inset 0 0 0 1px var(--ink); }
-.cd-meter i.on { background: var(--ink); }
 
 /* ---------- 批次卡 ---------- */
 .cd-batch { margin: 18px 0 26px; }

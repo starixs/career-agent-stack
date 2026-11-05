@@ -2,14 +2,17 @@
  * 简历汇总：打开「我的资料 › 简历」先看到已经做好的每一份（成品缩略图 + 投给谁 + 模板 + 更新时间），
  * 点开一份再进入编辑页（内容 / 版式）。
  */
-import { MessageSquareText, Plus } from 'lucide-react';
+import { MessageSquareText, Plus, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import type { ResumeData } from '@career/resume-studio/schema';
 
+import { emitEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
 import { Badge, Button, ErrorRow, LoadingRow, formatDate, suggestToChat } from '@/components/career/CareerPrimitives';
+import { NO_RESUME_OPENER } from '@/components/career/ColdStartCards';
 import type { Job, ResumeMaster, ResumeTailored } from '@/components/career/types';
+import { PICK_RESUME_EVENT } from '@/components/chat-input/hooks/useResumePickSend';
 
 import { StudioPreview } from './StudioPreview';
 import { templateLabel } from './templateCatalog';
@@ -75,7 +78,7 @@ export function ResumeGallery({ onOpen }: { onOpen: (id: string) => void }) {
     <div data-testid="resume-gallery" className="h-full overflow-auto px-6 py-6">
       <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
         <p className="font-human text-2xl font-semibold text-[var(--ink)]">
-          {entries.length > 0 ? `${entries.length} 份简历` : '还没有简历'}
+          {entries.length > 0 ? `${entries.length} 份简历` : '还没有简历。'}
           {entries.length > 0 && <span className="text-[var(--muted)]">{`，主简历 ${masters} 份 · 岗位版 ${tailored} 份`}</span>}
         </p>
         <div className="ml-auto flex items-center gap-2">
@@ -89,7 +92,10 @@ export function ResumeGallery({ onOpen }: { onOpen: (id: string) => void }) {
       </div>
 
       {entries.length === 0 && (
-        <p className="max-w-xl text-sm text-[var(--muted)]">简历由小芽从你的经历生成：先在「经历」里讲清楚做过的事，再说「帮我生成主简历」。生成后每一份都会出现在这里，点开可以改内容、换版式。</p>
+        <div data-testid="resume-gallery-empty" className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => suggestToChat(NO_RESUME_OPENER)}><MessageSquareText className="h-4 w-4" />跟小芽聊聊做过的事</Button>
+          <Button variant="secondary" onClick={() => emitEvent(PICK_RESUME_EVENT, null)}><Upload className="h-4 w-4" />上传一份</Button>
+        </div>
       )}
 
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-x-8 gap-y-10">

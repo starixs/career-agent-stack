@@ -10,6 +10,7 @@ import {
   Badge, Button, CareerPage, Card, EmptyState, ErrorRow, LoadingRow, SectionTitle, StructuredJson, formatDate,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
+import { briefText, structuredKeyLabel } from '@/components/career/structuredLabels';
 import type { Company, Direction, GapPlan, Job } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 
@@ -59,11 +60,6 @@ function CompaniesColumn({ companies }: { companies: Company[] }) {
   );
 }
 
-const REPORT_SECTION_LABELS: Record<string, string> = {
-  overview: '概览', business: '业务', finance: '财务', team: '团队', culture: '文化', compensation: '薪酬', risk: '风险',
-  reviews: '评价', hiring: '招聘', summary: '总结', legal: '法律', news: '新闻', competition: '竞争', growth: '成长',
-};
-
 function CompanyCard({ company }: { company: Company }) {
   const [open, setOpen] = useState(false);
   const [checked, setChecked] = useState<Set<number>>(new Set());
@@ -72,14 +68,14 @@ function CompanyCard({ company }: { company: Company }) {
   const checks = safeJson<Array<string | { item?: string; text?: string; done?: boolean }>>(company.manual_checks, []);
   const light = company.traffic_light;
   const name = company.legal_name ?? brands[0] ?? '未知公司';
-  const reportEntries = report && typeof report === 'object' && !Array.isArray(report) ? Object.entries(report as Record<string, unknown>) : null;
+  const reportEntries = report && typeof report === 'object' && !Array.isArray(report) ? Object.entries(report as Record<string, unknown>).filter(([k, v]) => structuredKeyLabel(k) !== null && v != null) : null;
   return (
     <Card
       title={name}
       extra={light ? <Badge tone={LIGHT_TONE[light] ?? 'neutral'}>{TRAFFIC_LIGHT_LABELS[light] ?? light}</Badge> : <Badge>未评级</Badge>}
     >
       <div className="text-xs text-[var(--muted)]">
-        法定名：{company.legal_name ?? '未知'}{brands.length > 0 ? ` · 品牌：${brands.join(' / ')}` : ''} · 更新 {formatDate(company.updated_at)}
+        公司全称：{company.legal_name ?? '未知'}{brands.length > 0 ? ` · 品牌：${brands.join(' / ')}` : ''} · 更新 {formatDate(company.updated_at)}
       </div>
       <button type="button" onClick={() => setOpen(v => !v)} className="mt-2 flex items-center gap-1 text-xs font-medium text-[var(--ink)]">
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -90,7 +86,7 @@ function CompanyCard({ company }: { company: Company }) {
           {!report && <div className="text-xs text-[var(--subtle)]">暂无报告</div>}
           {reportEntries && reportEntries.map(([k, v]) => (
             <div key={k}>
-              <div className="text-xs font-semibold text-[var(--muted)]">{REPORT_SECTION_LABELS[k] ?? k}</div>
+              <div className="text-xs font-semibold text-[var(--muted)]">{structuredKeyLabel(k)}</div>
               <div className="mt-0.5"><StructuredJson value={v} /></div>
             </div>
           ))}
@@ -102,7 +98,8 @@ function CompanyCard({ company }: { company: Company }) {
           <div className="text-xs font-medium text-[var(--muted)]">人工核实清单</div>
           <ul className="mt-1 space-y-1">
             {checks.map((item, i) => {
-              const text = typeof item === 'string' ? item : item.item ?? item.text ?? JSON.stringify(item);
+              const text = typeof item === 'string' ? item : item.item ?? item.text ?? briefText(item);
+              if (!text) return null;
               const done = checked.has(i) || (typeof item !== 'string' && item.done === true);
               return (
                 <li key={i} className="flex items-start gap-2 text-xs">
@@ -192,7 +189,7 @@ function GapPlansSection({ plans, jobs, directions }: { plans: GapPlan[]; jobs: 
                     <div key={cat} className="rounded-lg border border-[var(--line)] p-2">
                       <Badge tone={tone}>{GAP_CATEGORY_LABELS[cat]}（{items.length}）</Badge>
                       <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-xs text-[var(--ink)]">
-                        {items.map((it, i) => <li key={i}>{typeof it === 'string' ? it : JSON.stringify(it)}</li>)}
+                        {items.map(briefText).filter((it): it is string => it !== null).map((it, i) => <li key={i}>{it}</li>)}
                         {items.length === 0 && <li className="list-none text-[var(--subtle)]">无</li>}
                       </ul>
                     </div>

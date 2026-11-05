@@ -50,6 +50,8 @@ import { useChatSearch, isHighlightApiSupported } from '@/hooks/useChatSearch';
 import { useBrowserResourceReady } from '@/hooks/useBrowserResourceReady';
 import SelectionCommentMenu from '@/components/SelectionCommentMenu';
 import TerminalReasonBanner from '@/components/TerminalReasonBanner';
+import { CareerErrorLine, careerTerminalReasonDetail } from '@/components/chat/CareerErrorLine';
+import { CAREER_PLAIN_COPY, dropZoneCopy } from '@/components/chat/careerChatCopy';
 import RuntimeDiagnosticsBanner from '@/components/RuntimeDiagnosticsBanner';
 import { UnifiedLogsPanel } from '@/components/UnifiedLogsPanel';
 import { useSendAnchor } from '@/hooks/useSendAnchor';
@@ -63,7 +65,8 @@ import { transitionChannelBoundSession } from '@/pages/chatChannelSession';
 import { useTabState, useTabActive } from '@/context/TabContext';
 import { BrowserSessionPanel } from '@/components/career/CareerLiveDrawer';
 import { WaitingDock } from '@/components/career/delivery/WaitingDock';
-import { CompanionChip, CompanionPanel } from '@/features/career-shell/CompanionPanel';
+import { CareerSuggestBar } from '@/components/career/SuggestChips';
+import { CompanionPanel } from '@/features/career-shell/CompanionPanel';
 import { ExpandedWorkSurfacePanel, SURFACE_META } from '@/features/career-shell/workSurfaces';
 import WaitingArcade from '@/features/waiting-arcade/WaitingArcade';
 import { collapseWorkSurface, useWorkSurfaces } from '@/features/career-shell/workSurfaceStore';
@@ -4678,7 +4681,8 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
   // 等待街机自取 TabState 订阅，slot 本身恒定，不打穿 SimpleChatInput 的 React.memo。
   const waitingArcadeSlot = useMemo(() => <WaitingArcade />, []);
   // 等你条自取数（/api/career/asks + career:data-changed），slot 恒定，不打穿 SimpleChatInput 的 React.memo。
-  const waitingDockSlot = useMemo(() => <WaitingDock />, []);
+  // 建议条（每轮四个小框）同理自取 TabState，放在等你条下面、紧贴输入框。
+  const waitingDockSlot = useMemo(() => <><WaitingDock /><CareerSuggestBar inputRef={inputRef} /></>, []);
 
   // PRD 0.2.32 — context 用量指示器 slot。自取数（内部 useTabState 订阅 contextUsage），
   // 数据不经 SimpleChatInput props；useMemo 让 slot identity 在流式期间稳定，不打穿
@@ -5162,7 +5166,6 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
   // 右侧只有一个侧栏：工作面、文件预览、浏览器都是分屏侧栏里的标签页。
   // 小芽伙伴面板只在侧栏和工作区面板都没占用右侧时出现；占用时它缩成对话底部的小条。
   const showCompanionPanel = !isNarrowLayout && !splitPanelVisible && !(showWorkspace && !shouldUseWorkspaceOverlay);
-  const showCompanionChip = !showCompanionPanel && surfaceInSplit && !workSurfaces.fullscreen;
 
   return (
           <BrowserPanelContext.Provider value={browserPanelCtx}>
@@ -5197,7 +5200,6 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
         className="relative flex min-w-0 flex-1 flex-col overflow-hidden [container-name:chat-conversation] [container-type:inline-size]"
         data-chat-conversation
       >
-        {showCompanionChip && <CompanionChip />}
         {/* Compact header - single row. 单一对话壳不显示：项目名和「新对话」对单一对话没有信息量，纵向高度留给正文。 */}
         {SINGLE_SESSION_SHELL && config.showDevTools && (
           <button
@@ -5363,8 +5365,7 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
           {/* Drop zone overlay for file drag */}
           <DropZoneOverlay
             isVisible={isAnyDragActive && (!isTauriDragging || activeZoneId === 'chat-content' || activeZoneId === null)}
-            message={t('shell.dropZone.message')}
-            subtitle={t('shell.dropZone.subtitle')}
+            {...dropZoneCopy(t)}
           />
 
           {/* Unified boot overlay — same component App renders as the lazy-Chat
@@ -5387,8 +5388,14 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
               would just duplicate it. notice/info-severity reasons (max_turns,
               prompt_too_long, etc.) still render alongside agentError since they
               carry actionable signals agentError doesn't. */}
+          {CAREER_PLAIN_COPY && !agentError && careerTerminalReasonDetail(lastTerminalReason) && (
+            <CareerErrorLine
+              detail={careerTerminalReasonDetail(lastTerminalReason) ?? ''}
+              onDismiss={() => setLastTerminalReason(null)}
+            />
+          )}
           <TerminalReasonBanner
-            reason={agentError ? null : lastTerminalReason}
+            reason={agentError || CAREER_PLAIN_COPY ? null : lastTerminalReason}
             onDismiss={() => setLastTerminalReason(null)}
             onNewSession={handleNewSession}
             onDiagnose={handleDiagnoseTerminalReason}
@@ -5411,6 +5418,15 @@ export default function Chat({ registerFileEditSubmitter, windowPresentation, on
               if (msgs[i].role === 'user' && !msgs[i].id.startsWith('task-notification-')) { lastUserMsg = msgs[i]; break; }
             }
             const canRetry = !!lastUserMsg && !isLoading;
+            if (CAREER_PLAIN_COPY) {
+              return (
+                <CareerErrorLine
+                  detail={agentError}
+                  onRetry={canRetry ? handleRetryLastUserMessage : undefined}
+                  onDismiss={() => setAgentError(null)}
+                />
+              );
+            }
             return (
             <div className="relative z-10 flex-shrink-0 border-b border-[var(--line)] bg-[var(--inset)] px-4 py-2 text-xs text-[var(--ink)]">
               <div className="mx-auto flex max-w-[820px] items-start gap-2">

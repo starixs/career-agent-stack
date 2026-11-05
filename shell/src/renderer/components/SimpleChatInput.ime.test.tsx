@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ImagePreviewProvider } from '@/context/ImagePreviewContext';
 
+// 斜杠命令弹层是 keystone 通用行为，求职壳默认关掉；这里打开它来覆盖输入法回车守卫。
+vi.mock('./chat-input/composerChrome', () => ({
+  COMPOSER_CHROME: { plusMenu: true, permissionMode: true, tools: true, contextUsage: true, inlinePickers: true },
+}));
+
 vi.mock('@/config/useConfigData', () => ({
   useConfigData: () => ({ config: { chatSendShortcut: 'enter' } }),
 }));

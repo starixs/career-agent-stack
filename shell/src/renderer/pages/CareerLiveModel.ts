@@ -1,4 +1,4 @@
-import type { Application, ApplicationStage } from '@/components/career/types';
+import type { Application, ApplicationStage, BatchState } from '@/components/career/types';
 
 export interface ApplicationStats {
   total: number;
@@ -8,7 +8,8 @@ export interface ApplicationStats {
   closed: number;
 }
 
-const SUBMITTED = new Set<ApplicationStage>(['applied', 'responded', 'interview', 'pending', 'offer', 'hired', 'rejected']);
+/** 投出去过的阶段，与服务端 batch-apply 的 SENT 同口径；pending（还在填）算进行中。 */
+const SUBMITTED = new Set<ApplicationStage>(['applied', 'responded', 'interview', 'offer', 'rejected', 'hired']);
 const CLOSED = new Set<ApplicationStage>(['discarded', 'skip']);
 const WAITING = new Set<ApplicationStage>(['needs_user', 'blocked']);
 
@@ -23,3 +24,13 @@ export function applicationStats(applications: readonly Pick<Application, 'stage
     closed: applications.filter(app => CLOSED.has(app.stage)).length,
   };
 }
+
+/** 批量里还有没有要投的：在跑、暂停着，或者还排着 / 正在填的。都没有就给空状态，不给一点就说「全部处理完」的开始按钮。 */
+export function hasBatchWork(batch: BatchState | null): boolean {
+  if (!batch) return false;
+  if (batch.status === 'running' || batch.status === 'paused') return true;
+  return batch.queued > 0 || (batch.running?.length ?? 0) > 0;
+}
+
+/** 上一批出过错时给他看的一句话；原始错误只进日志。 */
+export const BATCH_ERROR_TEXT = '上一批有一家没填成，我会再试';

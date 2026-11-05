@@ -48,8 +48,8 @@ describe('CareerVault', () => {
     render(<CareerVault />);
     expect(await screen.findByText('138****8000')).toBeInTheDocument();
     expect(screen.getByTestId('vault-preview-name')).toHaveTextContent('未填');
-    expect(screen.getAllByText('不进模型').length).toBeGreaterThan(0);
-    expect(screen.getByText('可给模型')).toBeInTheDocument();
+    expect(screen.getAllByText('只存在你电脑上').length).toBeGreaterThan(0);
+    expect(screen.getByText('小芽能看到')).toBeInTheDocument();
   });
 
   it('只显示身份和联系方式：教育、求职偏好、民族这些不再让用户填', async () => {
@@ -62,7 +62,7 @@ describe('CareerVault', () => {
     expect(screen.queryByText('民族')).toBeNull();
   });
 
-  it('绑定账号：GitHub 填主页后存进私密库（可给模型），并让助理抓一次', async () => {
+  it('绑定账号：GitHub 填主页后存进私密库（小芽能看到），并让助理抓一次', async () => {
     mockGet([]);
     vi.mocked(apiPutJson).mockResolvedValue({ ok: true, item: null });
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, state: { status: 'requested' } });

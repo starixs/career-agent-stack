@@ -24,9 +24,9 @@ import { VaultExperienceFields } from '@/components/career/VaultExperienceFields
 
 const IDENTITY_FIELDS = ['name', 'gender', 'birthday', 'idNumber'] as const;
 const CONTACT_FIELDS = ['phone', 'email', 'wechat'] as const;
-const ACTOR_LABELS: Record<string, string> = { ui: '你在本页查看', form_fill: '网申填表', login_fill: '登录页代填', resume_export: '导出简历', resolve: '替换占位符', test: '测试' };
+const ACTOR_LABELS: Record<string, string> = { ui: '你在本页查看', form_fill: '网申填表', login_fill: '登录页代填', resume_export: '导出简历', resolve: '填进真实内容', test: '测试' };
 
-/** 可绑定的账号。值存在私密库的 profile 字段里（不敏感，可给模型），绑定后让助理抓一次。 */
+/** 可绑定的账号。值存在私密库的 profile 字段里（不敏感，小芽能看到），绑定后让助理抓一次。 */
 export interface AccountDef {
   field: string; label: string;
   /** 绑定时要用户填的东西；没有就只是授权一次（如学信网）。 */
@@ -80,13 +80,13 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
   return (
     <CareerPage
       title="基本资料"
-      subtitle="加密保存在本机，不进入模型对话"
+      subtitle="加密保存，只存在你电脑上"
       actions={<Button variant="ghost" onClick={() => setShowLog(v => !v)}>{showLog ? '收起访问记录' : '访问记录'}</Button>}
     >
       <div className="max-w-4xl space-y-6 px-6 py-6">
         <div className="flex items-start gap-2 border-l-2 border-[var(--line-2)] pl-3 text-xs text-[var(--muted)]">
           <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>只需要填这几项。学校、专业这些不用填：小芽会从你的简历和对话里拿，网申用到时再问你。这一页的内容不会进入对话，填网申、登录、导出简历时由产品在本机替换。</span>
+          <span>只需要填这几项。学校、专业这些不用填：小芽会从你的简历和对话里拿，网申用到时再问你。这一页的内容不会发进对话，填网申、登录、导出简历时在你电脑上直接填进去。</span>
         </div>
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !data && <LoadingRow />}
@@ -108,7 +108,8 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
             <MoreSection open={!!focusExperienceId}>
               <AnswerBankPanel />
               <SitesSection data={data} onChanged={query.reload} />
-              <ExperienceSection data={data} experiences={experiences.data ?? []} focusExperienceId={focusExperienceId} onChanged={query.reload} />
+              {/* 内测先收起：经历库页已下线，只在被直接定位到某段经历时才出现 */}
+              {focusExperienceId && <ExperienceSection data={data} experiences={experiences.data ?? []} focusExperienceId={focusExperienceId} onChanged={query.reload} />}
             </MoreSection>
           </>
         )}
@@ -165,7 +166,7 @@ function ProfileFieldRow({ def, item, onChanged }: { def: VaultProfileFieldDef; 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-sm text-[var(--ink)]">
             <span>{def.label}</span>
-            <Badge tone={def.sensitive ? 'accent' : 'neutral'} title={def.sensitive ? '模型只能看到占位符' : '可以明文给模型（用于起草）'}>{def.sensitive ? '不进模型' : '可给模型'}</Badge>
+            <Badge tone={def.sensitive ? 'accent' : 'neutral'} title={def.sensitive ? '小芽只知道你填了，看不到内容' : '小芽写材料时会用到'}>{def.sensitive ? '只存在你电脑上' : '小芽能看到'}</Badge>
           </div>
           {!editing && (
             <div className="mt-0.5 text-xs text-[var(--muted)]" data-testid={`vault-preview-${def.field}`}>
@@ -334,7 +335,7 @@ function SitesSection({ data, onChanged }: { data: VaultOverview; onChanged: () 
         投递网站账号（{sites.length}）
       </SectionTitle>
       <p className="mb-2 text-xs text-[var(--muted)]">
-        遇到登录页时，产品可以在本机把账号密码填进输入框（需要你打开「自动代填」），但登录按钮、验证码、短信码仍由你本人完成。密码不会给助理，也不会出现在对话里。
+        遇到登录页时，小芽可以在你电脑上把账号密码填进输入框（需要你打开「自动代填」），但登录按钮、验证码、短信码仍由你本人完成。密码不会给助理，也不会出现在对话里。
       </p>
       {adding && <SiteForm onDone={() => { setAdding(false); onChanged(); }} onCancel={() => setAdding(false)} />}
       {sites.length === 0 && !adding && <EmptyState title="还没有保存网站账号" hint="例如智联、前程无忧、牛客、各公司官网的网申账号。" />}
@@ -417,7 +418,7 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
     for (const i of data.items) if (i.scope === 'experience') map.set(i.ref_id, [...(map.get(i.ref_id) ?? []), i]);
     return map;
   }, [data.items]);
-  // 初始展开从经历库跳过来的那一段；之后由用户点击控制
+  // 初始展开被定位到的那一段；之后由用户点击控制
   const [openId, setOpenId] = useState<string | null>(focusExperienceId ?? null);
   const focusRef = useRef<HTMLLIElement | null>(null);
   useEffect(() => {
@@ -429,9 +430,9 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
     <section>
       <SectionTitle>经历的保密补充</SectionTitle>
       <p className="mb-2 text-xs text-[var(--muted)]">
-        经历库里只写脱敏说法（如「某头部电商」），真实公司名、客户名、保密数据放这里。助理只能看到占位符，导出简历或填网申时产品会替换成真实值。
+        简历里只写脱敏说法（如「某头部电商」），真实公司名、客户名、保密数据放这里。小芽看不到这些内容，导出简历或填网申时会在你电脑上填成真实的。
       </p>
-      {list.length === 0 && <EmptyState title="经历库还是空的" hint="先在「经历库」添加经历，再回来补充它的保密信息。" />}
+      {list.length === 0 && <EmptyState title="还没有经历" hint="先跟小芽聊聊做过的事，再回来补充保密信息。" />}
       <ul className="divide-y divide-[var(--line)]">
         {list.map(e => {
           const items = byExp.get(e.id) ?? [];

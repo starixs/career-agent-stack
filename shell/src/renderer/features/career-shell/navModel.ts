@@ -68,7 +68,7 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
     // 小助理暂时停放在设置里；网络代理与通知已移除（2026-10-13）；技能与工具收起（2026-11-01，收口面）。
     id: 'settings', label: '设置', icon: 'settings', footer: true, items: [
       { id: 'general', label: '通用设置', icon: 'sliders', target: { kind: 'settings', section: 'general' } },
-      { id: 'desktop-pet', label: '桌面宠物', icon: 'pet', target: { kind: 'settings', section: 'desktop-pet' } },
+      // 桌面宠物内测先隐藏（face-slim 里还等产品定）；设置页的宠物分区代码保留。
       { id: 'shortcuts', label: '快捷键', icon: 'keyboard', target: { kind: 'settings', section: 'shortcuts' } },
       { id: 'feedback', label: '小助理与反馈', icon: 'help', target: { kind: 'settings', section: 'feedback' } },
       { id: 'about', label: '关于', icon: 'info', target: { kind: 'settings', section: 'about' } },
@@ -132,6 +132,9 @@ export function locateNav(
 
 /** Event pages emit to navigate elsewhere; App.tsx owns tabs and turns it into a real open. */
 export const CAREER_NAVIGATE_EVENT = 'career:navigate';
+
+/** 岗位库（挑岗位、勾选一批去投）。 */
+export const JOB_BOARD_TARGET: NavTarget = { kind: 'career-dossier', view: 'apply' };
 
 export function requestNavigation(target: NavTarget): void {
   emitEvent(CAREER_NAVIGATE_EVENT, target);
