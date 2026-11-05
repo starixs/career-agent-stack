@@ -76,7 +76,6 @@ import { ThoughtPickerRow } from './components/ThoughtPickerRow';
 import { McpStatusNotice } from './components/McpStatusNotice';
 import { useAttachmentHandling } from './hooks/useAttachmentHandling';
 import { PermissionModeIcon, PermissionModeMenuContent } from '../PermissionModeMenu';
-import { VoiceInputButton } from './VoiceInputButton';
 
 // ===== Module-level pure helpers (extracted from render body) =====
 
@@ -1038,7 +1037,6 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
   // Builtin: auto → plan → fullAgency → auto
   // External: cycle through runtimePermissionModes (CC or Codex specific modes)
   const cyclePermissionMode = useCallback(() => {
-    if (!MODEL_CONTROLS_VISIBLE) return; // 求职助理不切权限模式（快捷键也不切）
     if (showConfigLockedReason()) return;
     const modeOrder: string[] = runtimePermissionModes?.length
       ? runtimePermissionModes.map(m => m.value)
@@ -1795,13 +1793,10 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                   setShowModeMenu(false);
                   setShowModelMenu(false);
                   setShowToolMenu(false);
-                  // 求职助理：「+」就是放文件（简历、截图），不摆引用 / 技能 / 定时这些开发者入口
-                  if (!MODEL_CONTROLS_VISIBLE) { void handleUploadButtonClick(); return; }
                   setShowPlusMenu(!showPlusMenu);
                 }}
                 className="rounded-lg p-2 text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--ink)]"
-                aria-label={MODEL_CONTROLS_VISIBLE ? t('input.addContext') : t('input.uploadFile')}
-                title={MODEL_CONTROLS_VISIBLE ? t('input.addContext') : t('input.uploadFile')}
+                title={t('input.addContext')}
               >
                 <Plus className="h-4 w-4" />
               </button>
@@ -1929,9 +1924,6 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 />
               )}
 
-              {/* 权限模式、工具开关：求职助理是一个场景里的 Agent，学生不管它自不自主、用哪个工具（2026-11-05 用户），整块不渲染。 */}
-              {MODEL_CONTROLS_VISIBLE && (
-              <>
               {/* Mode Dropdown */}
               <button
                 ref={modeBtnRef}
@@ -2269,16 +2261,13 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     )}
               </Popover>
               </>
-              </>
-              )}
 
             </div>
 
             {/* Right side - model selector + send/stop button */}
             <div className="ml-auto flex items-center gap-2 shrink-0">
               {/* PRD 0.2.32 — context 用量指示器（自取数 slot，model 按钮左侧） */}
-              {MODEL_CONTROLS_VISIBLE && contextIndicator}
-              <VoiceInputButton disabled={isLoading} onText={text => setInputValue(v => (v.trim() ? `${v} ${text}` : text))} />
+              {contextIndicator}
               {/* Model Dropdown with Provider Selector — 求职助理内置模型零配置，整块不渲染。 */}
               {MODEL_CONTROLS_VISIBLE && (
               <>
