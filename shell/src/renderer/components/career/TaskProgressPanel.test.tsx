@@ -26,6 +26,14 @@ describe('浏览器会话下方的状态区（2026-11-05 切到腾讯下面还�
     expect(screen.getByText('这一家还在排队，轮到它就开始填')).toBeInTheDocument();
   });
 
+  it('填好了停在提交前：说「等你投出」，不说「已完成」也不说整批的「已暂停」', async () => {
+    pages.list = [{ ...didi, current: true }];
+    act(() => { recordProgress({ runId: 'run_fill', phase: 'apply_batch_ready', message: '必填 12/12 已填好并核对过，停在「预览并提交」前，等你过目后投出', company: '滴滴', job_title: '数据分析师', application_id: 'a_didi' }); });
+    render(<TaskProgressPanel batch={{ status: 'paused', done: 1, failed: 0, handoffs: 0, queued: 0, message: '' } as never} />);
+    expect(await screen.findByText('等你投出')).toBeInTheDocument();
+    expect(screen.queryByText('已暂停')).not.toBeInTheDocument();
+  });
+
   it('提交这一步并进同一家那一条：投出后收尾成「已完成」，不再多出一条「网申任务 · 进行中」', async () => {
     pages.list = [{ ...didi, current: true }];
     act(() => {

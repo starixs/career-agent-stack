@@ -49,8 +49,8 @@ export function TaskProgressPanel({ title, batch, takeover }: { title?: string |
   const waiting = takeoverHere && takeover?.state === 'paused';
   const human = takeoverHere && takeover?.state === 'human_active';
   // 状态说的是这一家，不是整批：批量「已暂停」只是不再开新的一家，正在填的这家照样在跑
-  const status = waiting ? '等你处理' : human ? '你在操作' : run?.finished ? (run.failed ? '没填成' : '已完成') : run ? (batch?.status === 'stopped' ? '已停止' : '进行中') : shownApp ? '排队中' : batch?.status === 'running' ? '进行中' : '等待开始';
-  const tone = waiting || run?.failed ? 'warning' : run?.finished || batch?.status === 'stopped' || (!run && shownApp) ? 'neutral' : 'success';
+  const status = waiting ? '等你处理' : human ? '你在操作' : run?.finished ? (run.failed ? '没填成' : run.ready ? '等你投出' : '已完成') : run ? (batch?.status === 'stopped' ? '已停止' : '进行中') : shownApp ? '排队中' : batch?.status === 'running' ? '进行中' : '等待开始';
+  const tone = waiting || run?.failed || run?.ready ? 'warning' : run?.finished || batch?.status === 'stopped' || (!run && shownApp) ? 'neutral' : 'success';
   const message = !run && shownApp && !takeoverHere ? '这一家还在排队，轮到它就开始填' : progressMessage(takeoverHere ? takeover?.message : undefined, latest?.message, batch);
   const total = batch ? batch.done + batch.failed + batch.handoffs + batch.queued + (batch.running?.length ?? 0) : 0;
   const ratio = run ? run.progress : shownApp ? null : total > 0 && batch ? Math.min(1, (batch.done + batch.failed) / total) : null;
@@ -82,7 +82,7 @@ export function TaskProgressPanel({ title, batch, takeover }: { title?: string |
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${item.key === run?.key ? 'bg-[var(--paper)] text-[var(--ink)]' : 'text-[var(--muted)] hover:bg-[var(--hover)]'}`}>
                 <span className={`h-2 w-2 shrink-0 rounded-full ${item.failed ? 'bg-[var(--warning)]' : item.finished ? 'bg-[var(--success)]' : 'bg-[var(--primary)]'}`} aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{runTitle(item, null)}</span>
-                <span className="shrink-0">{item.failed ? '没填成' : item.finished ? '已完成' : '进行中'}</span>
+                <span className="shrink-0">{item.failed ? '没填成' : item.ready ? '等你投出' : item.finished ? '已完成' : '进行中'}</span>
               </button>
             ))}
           </div>

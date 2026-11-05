@@ -84,7 +84,7 @@ describe('BatchRunner', () => {
     expect((await runner.runOne(repos.getAction(id)!, 'start')).kind).toBe('done');
     expect(repos.listTasks().filter(t => t.kind === 'apply')).toHaveLength(1);
     const last = events.filter(e => e.event === 'career:progress').at(-1)?.data as Record<string, unknown>;
-    expect(last).toMatchObject({ phase: 'apply_batch_done', application_id: repos.getAction(id)!.application_id });
+    expect(last).toMatchObject({ phase: 'apply_batch_ready', application_id: repos.getAction(id)!.application_id });
   });
 
   it('浏览器还没准备好：状态写明第一次要等；浏览器起来过一次以后照常说稍后重试（风险 E#2）', async () => {

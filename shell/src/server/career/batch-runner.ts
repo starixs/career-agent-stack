@@ -422,7 +422,8 @@ export class BatchRunner {
    * 2026-11-05：滴滴提交完了，面板还停在「正在提交网申 · 进行中」。
    */
   private closeProgress(run: Run, outcome: DriveOutcome): void {
-    const phase = outcome.kind === 'done' ? 'apply_batch_done' : outcome.kind === 'failed' ? 'apply_batch_failed' : 'apply_batch';
+    // done 分两种：已经放权直接提交（_done），还是填好了等他投出（_ready）
+    const phase = outcome.kind === 'done' ? (outcome.autoApproved ? 'apply_batch_done' : 'apply_batch_ready') : outcome.kind === 'failed' ? 'apply_batch_failed' : 'apply_batch';
     const message = outcome.kind === 'done' ? `${outcome.headline}，${outcome.autoApproved ? '正在提交' : '等你过目后投出'}`
       : outcome.kind === 'handoff' ? (outcome.userAction ?? outcome.message)
         : outcome.kind === 'transient' ? '浏览器被占用，排队稍后继续' : outcome.message;

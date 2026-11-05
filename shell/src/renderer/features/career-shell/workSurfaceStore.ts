@@ -27,6 +27,8 @@ export interface ProgressRun {
   finished: boolean;
   /** 结束在失败上（phase 以 failed / error / cancelled 结尾）。 */
   failed?: boolean;
+  /** 填好了、停在提交前等他投出（phase 以 _ready 结尾）。 */
+  ready?: boolean;
   updatedAt: number;
   /** 批量网申的岗位身份；同一事件流里按 run 分开，不能把不同岗位合成一条。 */
   company?: string;
@@ -50,8 +52,9 @@ interface WorkSurfaceState {
 
 const MAX_RUNS = 50;
 const MAX_STEPS = 12;
-const FINISHED_PHASES = /(?:^|[_:-])(done|finished|complete|completed|failed|error|cancelled)$/i;
+const FINISHED_PHASES = /(?:^|[_:-])(done|ready|finished|complete|completed|failed|error|cancelled)$/i;
 const FAILED_PHASES = /(?:^|[_:-])(failed|error|cancelled)$/i;
+const READY_PHASE = /_ready$/i;
 
 let state: WorkSurfaceState = { expanded: null, refId: null, nonce: 0, context: null, fullscreen: false, takeover: null, runs: [] };
 const listeners = new Set<() => void>();
@@ -117,6 +120,7 @@ export function recordProgress(event: CareerProgressEvent, now = Date.now()): vo
     progress: typeof event.progress === 'number' ? event.progress : base.progress,
     finished,
     failed: FAILED_PHASES.test(event.phase ?? ''),
+    ready: READY_PHASE.test(event.phase ?? ''),
     updatedAt: now,
     ...identity,
   };
