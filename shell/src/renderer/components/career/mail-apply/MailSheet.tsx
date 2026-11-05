@@ -1,6 +1,6 @@
 /**
  * 一封待发邮件的整张预览（face-mail-apply §3.1）：看到的就是发出去的。
- * 自上而下：到岗点选（实习且没说全时）· 收件人 · 「接着那封」· 标题 · 正文 · 附件 · 发件。每格都能就地改，失焦即存。
+ * 自上而下：到岗点选（实习且没说全时）·（回信）对方那封 · 收件人 · 「接着那封」· 标题 · 正文 · 附件 · 发件。每格都能就地改，失焦即存。
  * 不写规则说明（规范 §6.0）；还不能发的原因只体现在主按钮和标红的那一格上。
  */
 import { Paperclip } from 'lucide-react';
@@ -10,6 +10,7 @@ import type { InternAvailability, MailDraftPatch, MailDraftView } from '../../..
 import { Select } from '../CareerPrimitives';
 import { openResumeDrawer } from '../CareerResumeDrawer';
 import { AvailabilityRow, availabilityComplete, TextField, useFieldSave } from './MailFields';
+import { MailQuote } from './MailQuote';
 
 import './mail-apply.css';
 
@@ -33,7 +34,7 @@ function AttachmentRow({ draft, onPatch }: { draft: MailDraftView; onPatch: (p: 
     <Row label="附件">
       <div className="cm-files">
         {draft.attachments.map(a => (
-          <button key={a.filename} type="button" className="cm-file" disabled={!a.resume_id} onClick={() => openResumeDrawer(a.resume_id)}
+          <button key={a.filename} type="button" className="cm-file" title={a.filename} disabled={!a.resume_id} onClick={() => openResumeDrawer(a.resume_id)}
             aria-label={`看附件 ${a.filename}`}>
             <Paperclip className="cm-file-icon" aria-hidden />
             <span className="cm-file-name">{a.filename}</span>
@@ -79,10 +80,12 @@ export function MailSheet({ draft, onPatch, onAvailability }: {
   return (
     <div className={`cm-sheet${askAvailability ? ' has-avail' : ''}`} data-testid={`mail-sheet-${draft.action_id}`}>
       {draft.availability && askAvailability && <AvailabilityRow value={draft.availability} onSave={onAvailability} />}
+      {draft.incoming && <MailQuote incoming={draft.incoming} />}
       <Row label="收件人">
         <TextField label="收件人" value={draft.to} invalid={draft.blockers.includes('bad_recipient')} onSave={to => onPatch({ to })} />
       </Row>
-      {draft.thread && <p className="cm-thread">接着 {threadDate(draft.thread.sent_at)} 那封</p>}
+      {/* 回信顶上已经引了对方那封，「接着哪封」不再重复说 */}
+      {draft.thread && !draft.incoming && <p className="cm-thread">接着 {threadDate(draft.thread.sent_at)} 那封</p>}
       <Row label="标题">
         <TextField label="标题" value={draft.subject} invalid={unresolved && UNRESOLVED.test(draft.subject)} onSave={subject => onPatch({ subject })} />
       </Row>

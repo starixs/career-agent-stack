@@ -64,6 +64,8 @@ export interface Application {
   page_url: string | null; created_at: string; updated_at: string;
   /** GET /api/career/applications 会 join job 的这几个字段 */
   title?: string | null; company_name?: string | null; deadline?: string | null;
+  /** 岗位的投递邮箱（有 = 走邮件投递）。假设服务端随 title 一起 join（邮件投递 P2.8，待服务端对齐）。 */
+  apply_email?: string | null;
 }
 export interface ActionQueueItem {
   id: string; application_id: string | null; kind: ActionKind; payload_json: string; status: ActionStatus;
@@ -227,7 +229,7 @@ export interface CareerTakeoverActionRequest {
 }
 
 // ===== 五个面：收件箱 / 今日 / 卷宗 / 素材 / 复盘 + 邮箱 =====
-export type InboxKind = 'jd' | 'interview_invite' | 'assessment' | 'written_test' | 'rejection' | 'offer' | 'referral' | 'deadline' | 'other';
+export type InboxKind = 'jd' | 'application_received' | 'interview_invite' | 'assessment' | 'written_test' | 'rejection' | 'offer' | 'referral' | 'deadline' | 'other';
 export interface InboxItem {
   id: string; source: 'paste' | 'mail' | 'file' | 'url' | 'chat'; raw_text: string; kind: InboxKind | null;
   status: 'new' | 'processed' | 'dismissed'; parsed_json: string | null; linked_type: string | null; linked_id: string | null;

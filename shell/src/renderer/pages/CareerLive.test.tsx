@@ -101,6 +101,35 @@ describe('CareerLive', () => {
     expect(screen.queryByText(/TypeError/)).toBeNull();
   });
 
+  it('邮件申请也在这页：带「邮件」小签；选中时画面的位置换成它的邮件往来，回到画面再换回来', async () => {
+    const mailApp = { id: 'app_jd', job_id: 'j1', resume_tailored_id: 'r1', stage: 'responded', next_action: null, next_action_due: null, blocker_reason: null,
+      retry_strategy: null, submission_evidence: 'mail:mm_out', answers_used_json: '[]', page_url: null, created_at: '', updated_at: '2026-11-05T00:00:00.000Z',
+      title: '用户运营实习生', company_name: '京东', apply_email: 'jdcampus@jd.example' };
+    const webApp = { ...mailApp, id: 'app_web', submission_evidence: null, apply_email: null, company_name: '小鹏' };
+    const thread = { application_id: 'app_jd', company: '京东', role: '用户运营实习生', items: [
+      { id: 'o1', direction: 'out', purpose: 'apply', counterpart: 'jdcampus@jd.example', subject: '周子航-北邮-用户运营', body: '您好', attachments: [], at: '2026-10-29T02:00:00.000Z', action_id: null, kind: null },
+      { id: 'i1', direction: 'in', purpose: null, counterpart: '王莉 <wangli@jd.example>', subject: 'Re', body: '想确认到岗时间', attachments: [], at: '2026-11-05T02:00:00.000Z', action_id: null, kind: null },
+    ] };
+    vi.mocked(apiGetJson).mockImplementation(async (url: string) => {
+      if (url === '/api/career/applications') return { ok: true, applications: [mailApp, webApp] };
+      if (url.startsWith('/api/career/mail-apply/thread')) return { ok: true, thread };
+      return { ok: true, openHandoffs: 0 };
+    });
+    render(<CareerLive />);
+    await waitFor(() => expect(live.handler).not.toBeNull());
+    push(snapshot);
+    const list = await screen.findByRole('list', { name: '邮件投递' });
+    expect(list).toHaveTextContent('邮件');
+    expect(list).not.toHaveTextContent('小鹏');
+    fireEvent.click(screen.getByRole('button', { name: /京东 · 用户运营实习生/ }));
+    const pane = await screen.findByTestId('mail-live-pane');
+    expect(await screen.findByTestId('mail-thread')).toHaveTextContent('想确认到岗时间');
+    expect(pane).toHaveTextContent('已发出');
+    expect(apiGetJson).toHaveBeenCalledWith('/api/career/mail-apply/thread?application_id=app_jd');
+    fireEvent.click(screen.getByRole('button', { name: '回到画面' }));
+    expect(screen.queryByTestId('mail-live-pane')).toBeNull();
+  });
+
   it('没有浏览器时给出引导文案，不显示批量噪声', async () => {
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());

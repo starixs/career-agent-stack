@@ -5,6 +5,7 @@
 import { useState } from 'react';
 
 import { MailAskCard, type MailAct } from '../mail-apply/MailAskCard';
+import { MailFailedCard } from '../mail-apply/MailFailedCard';
 import { actionLabels, dueText, sourceText, subText } from './askText';
 import { CompanyPoster } from './CompanyPoster';
 import type { AskField, AskView } from './deliveryApi';
@@ -82,6 +83,8 @@ export function AskCard({ ask, busy, error, onGo, onLater, onAct }: {
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((ask.fields ?? []).filter(f => f.fillable && f.draft).map(f => [f.label, f.draft!])));
   // 发邮件前过目：整封邮件的预览，不走通用布局
   if (ask.mail && onAct) return <MailAskCard ask={ask} mail={ask.mail} busy={busy} error={error} onAct={onAct} />;
+  // 邮件没写成 / 没发出去：邮件自己的两个按钮（再写一次 / 再发一次 / 重新连邮箱 · 晚点）
+  if (ask.mail_failed && onAct) return <MailFailedCard ask={ask} failed={ask.mail_failed} busy={busy} error={error} onAct={onAct} />;
   const labels = actionLabels(ask);
   const due = dueText(ask);
   const src = sourceText(ask);

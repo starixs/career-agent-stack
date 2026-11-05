@@ -4,7 +4,7 @@
  */
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 
-import { isAskMail, type AskMail } from '../../../../shared/careerMailApply';
+import { isAskMail, isAskMailFailed, type AskMail, type AskMailFailed } from '../../../../shared/careerMailApply';
 
 export interface CompanyMark { company_id: string | null; name: string; logo?: string; fill?: string }
 export type AskKind = 'info' | 'login' | 'choice' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure';
@@ -19,6 +19,8 @@ export interface AskView {
   choice?: { question: string; options: string[] };
   /** 发邮件前过目：这件事里每封邮件的动作 id 和用途（邮件内容只走 mail-apply 接口，不在这里）。 */
   mail?: AskMail;
+  /** kind 为 failed 且是邮件没写成 / 没发出去：按钮换成邮件的（再写一次 / 再发一次 / 重新连邮箱）。 */
+  mail_failed?: AskMailFailed;
 }
 export type PosterState = 'wait' | 'run' | 'done' | 'ask' | 'failed' | 'next';
 export interface RunPoster { application_id: string; job_id: string; role: string; company: CompanyMark; star: boolean; state: PosterState }
@@ -39,7 +41,8 @@ export function isAskView(v: unknown): v is AskView {
     && Array.isArray(v.application_ids) && Array.isArray(v.sources) && Array.isArray(v.companies) && v.companies.every(isCompanyMark)
     && (v.due_at === null || isStr(v.due_at)) && typeof v.overdue === 'boolean'
     && (v.kind !== 'choice' || (isDict(v.choice) && isStr(v.choice.question) && Array.isArray(v.choice.options) && v.choice.options.every(isStr)))
-    && (v.mail === undefined || isAskMail(v.mail));
+    && (v.mail === undefined || isAskMail(v.mail))
+    && (v.mail_failed === undefined || isAskMailFailed(v.mail_failed));
 }
 function isRunView(v: unknown): v is RunView {
   return isDict(v) && typeof v.total === 'number' && typeof v.done === 'number' && Array.isArray(v.items)

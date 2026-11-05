@@ -8,6 +8,7 @@ import {
   INTERN_DAYS_OPTIONS, INTERN_MONTHS_OPTIONS, INTERN_START_OPTIONS,
   type InternAvailability,
 } from '../../../../shared/careerMailApply';
+import { useAutoGrow } from './useAutoGrow';
 
 /** 一格的保存：成功返回 true；失败记下原因（带哪一格），不吞。 */
 export function useFieldSave(field: string) {
@@ -43,6 +44,7 @@ export function TextField({ label, value, invalid, multiline, onSave }: {
   const { text, setText, hold } = useSyncedText(value);
   const save = useFieldSave(label);
   const errId = useId();
+  const growRef = useAutoGrow(text);
   const commit = async () => {
     if (text === value) return;
     const ok = await save.run(() => onSave(text));
@@ -55,7 +57,7 @@ export function TextField({ label, value, invalid, multiline, onSave }: {
   return (
     <div className={`cm-field${multiline ? ' cm-field-body' : ''}${invalid ? ' cm-bad' : ''}`}>
       {multiline
-        ? <textarea className="cm-body" {...common} onChange={e => setText(e.target.value)} />
+        ? <textarea ref={growRef} className="cm-body" {...common} onChange={e => setText(e.target.value)} />
         : <input className="cm-line" type="text" autoComplete="off" {...common} onChange={e => setText(e.target.value)} />}
       {save.error && <p id={errId} role="alert" className="cd-err">{save.error}</p>}
     </div>

@@ -2,7 +2,7 @@
  * 卡组外直接跑一件事的主动作（建议条「备好的 3 家都投出」「再试一次这 3 家」「这 N 家都开始」）：
  * 取当前要你的事，找到那一件，按卡组主按钮同一套落库（goAsk），再通知各处重取。
  * 已经处理掉的（找不到）、或要他先填 / 先选 / 先看一眼的，打开卡组停在那一件，让他在卡组里办。
- * 邮件「都发出」：不差东西的直接发；剩下还差东西的，发完再打开卡组停在那一件。
+ * 邮件（写好了待发、授权失效要重连）：一律打开卡组停在那一件——不看预览不发信（2026-11-05 用户定）。
  */
 import { emitEvent } from '@/api/eventBus';
 
@@ -24,14 +24,12 @@ const respondDirect: Respond = async (ids, decision) => {
 export async function runAskPrimary(askId: string): Promise<AskOutcome | 'deck'> {
   const { asks } = await deliveryApi.asks(localMidnightIso());
   const ask = asks.find(a => a.id === askId);
-  if (!ask || NEEDS_DECK.has(ask.kind)) {
+  if (!ask || NEEDS_DECK.has(ask.kind) || ask.mail || ask.mail_failed?.reauth) {
     requestOpenDeck(ask ? askId : null);
     return 'deck';
   }
   const outcome = await goAsk(ask, respondDirect, {});
   console.info(`[career-suggest] ask_primary ${ask.kind} ${askId} -> ${outcome}`);
-  // 邮件「都发出」：有还差东西的（没连邮箱、到岗没说）留在卡组里给他补
-  if (ask.mail && outcome === 'kept') requestOpenDeck(askId);
   // 等你条 / 右栏 / 各页按 data-changed 重取，刚办掉的那件自然消失
   emitEvent('career:data-changed', { tables: [] });
   return outcome;

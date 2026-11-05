@@ -16,6 +16,8 @@ import { liveStatusText } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { useLiveStream } from '@/components/career/useGlobalLive';
 import { CareerLiveViewport, liveHumanActive } from '@/components/career/CareerLiveViewport';
+import { mailApplicationsOf } from '@/components/career/mail-apply/liveMail';
+import { MailLiveList, MailLivePane } from '@/components/career/mail-apply/MailLive';
 import { applicationStats, BATCH_ERROR_TEXT, hasBatchWork } from './CareerLiveModel';
 
 export default function CareerLive() {
@@ -44,6 +46,10 @@ export default function CareerLive() {
   const control = snapshot?.browser.control ?? 'none';
   const humanActive = liveHumanActive(snapshot?.browser.control, takeover?.state);
   const stats = useMemo(() => applicationStats(applications.data ?? [], handoffs.data ?? 0), [applications.data, handoffs.data]);
+  // 邮件投递的申请也在这页：选中一份时画面的位置换成它的邮件（不占浏览器）
+  const mailApps = useMemo(() => mailApplicationsOf(applications.data ?? []), [applications.data]);
+  const [mailAppId, setMailAppId] = useState<string | null>(null);
+  const mailApp = mailApps.find(a => a.id === mailAppId) ?? null;
   const take = () => action.run(async () => { await careerApi.liveControl('human', 'user_request'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'human' } } : s)); });
   const handback = () => action.run(async () => { await careerApi.liveControl('agent'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'agent' } } : s)); setTakeover(null); handoffs.reload(); });
   const batchCmd = (cmd: 'start' | 'pause' | 'stop') => action.run(async () => { const b = await careerApi.batchCommand(cmd); if (b) setBatch(b); });
@@ -74,6 +80,7 @@ export default function CareerLive() {
         ))}
       </div>
       <div className="grid grid-cols-1 gap-4 px-4 py-3 lg:grid-cols-[1fr_340px]">
+        {mailApp ? <MailLivePane key={mailApp.id} app={mailApp} onBack={() => setMailAppId(null)} /> : (
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
             <Eye className="h-3.5 w-3.5" />
@@ -94,8 +101,10 @@ export default function CareerLive() {
           )}
           {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
         </div>
+        )}
         <div className="space-y-3">
-          <Card>
+          {/* 只有邮件在办、批量空着时，不再说「现在没有在投的」 */}
+          {(hasBatchWork(batch) || mailApps.length === 0) && <Card>
             {hasBatchWork(batch) ? (
               <>
                 <TaskProgressPanel batch={batch} takeover={takeover} />
@@ -112,7 +121,8 @@ export default function CareerLive() {
                 <div><Button variant="primary" onClick={() => void openBatchPick()}>去挑一批</Button></div>
               </div>
             )}
-          </Card>
+          </Card>}
+          {mailApps.length > 0 && <Card><MailLiveList apps={mailApps} selected={mailApp?.id ?? null} onSelect={setMailAppId} /></Card>}
         </div>
       </div>
     </CareerPage>

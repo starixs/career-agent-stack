@@ -3,12 +3,12 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import { mailLabels } from '../delivery/askText';
+import { actionLabels, mailFailedLabels, mailLabels } from '../delivery/askText';
 import { parseAsks } from '../delivery/deliveryApi';
 import { needsMailbox, sendableIds } from './mailActions';
 import { parseDrafts } from './mailApplyApi';
 import { mergeDrafts } from './useMailDrafts';
-import { BLOCKED, MULTI, mailAsk, SINGLE } from './testFixtures';
+import { BLOCKED, bouncedAsk, failedMailAsk, MULTI, mailAsk, SINGLE } from './testFixtures';
 
 describe('邮件预览的跨边界校验', () => {
   it('形状不对的那封丢掉，日志只带动作 id、不带邮件内容', () => {
@@ -44,6 +44,21 @@ describe('按钮字与能发出的封数', () => {
     expect(mailLabels('apply', 2, 3)).toEqual({ go: '发出 2 封', later: '先收起' });
     expect(mailLabels('followup', 1, 1)).toEqual({ go: '发出', later: '不跟了' });
     expect(mailLabels('reply', 1, 1)).toEqual({ go: '发出', later: '我自己回' });
+  });
+
+  it('退信重发「改好了，重发 · 不投这家」；邮件失败没有「我自己来」', () => {
+    expect(actionLabels(bouncedAsk())).toEqual({ go: '改好了，重发', later: '不投这家' });
+    expect(mailFailedLabels({ stage: 'draft', reauth: false })).toEqual({ go: '再写一次', later: '晚点' });
+    expect(mailFailedLabels({ stage: 'send', reauth: false })).toEqual({ go: '再发一次', later: '晚点' });
+    expect(actionLabels(failedMailAsk({ stage: 'send', reauth: true }))).toEqual({ go: '重新连邮箱', later: '晚点' });
+  });
+
+  it('AskView.mail_failed 形状不对：整件丢掉', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const good = failedMailAsk({ stage: 'send', reauth: true });
+    const bad = { ...good, id: 'bad_fail', mail_failed: { stage: 'send' } };
+    expect(parseAsks([good, bad]).map(a => a.id)).toEqual([good.id]);
+    warn.mockRestore();
   });
 
   it('只算勾了且不差东西的；没连邮箱时先连邮箱', () => {

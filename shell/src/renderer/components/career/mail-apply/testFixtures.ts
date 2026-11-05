@@ -2,7 +2,7 @@
  * 测试与组件预览用的邮件夹具（按 shared/careerMailApply.ts 合同造，服务端没好之前前端照它写）。
  * 只给测试和预览 import，产品代码不引用。
  */
-import type { MailDraftView } from '../../../../shared/careerMailApply';
+import type { AskMailFailed, MailDraftView, MailThreadView } from '../../../../shared/careerMailApply';
 import type { AskView, CompanyMark } from '../delivery/deliveryApi';
 
 export const MARKS: Record<string, CompanyMark> = {
@@ -72,3 +72,54 @@ export function mailAsk(drafts: readonly MailDraftView[], title?: string): AskVi
     mail: { purpose: drafts[0]?.purpose ?? 'apply', action_ids: drafts.map(d => d.action_id) },
   };
 }
+
+/** 回信：京东 HR 用另一个主题问到岗时间，回信写好了（不带附件）。 */
+export const REPLY = draft({
+  action_id: 'm_re', company: '京东', role: '用户运营实习生', purpose: 'reply', to: 'wangli@jd.example',
+  subject: 'Re: 关于用户运营实习生岗位的到岗时间',
+  body: '王老师您好：\n\n谢谢您的回复。我最早两周内可以到岗，每周可实习 4 天，能连续实习 6 个月。\n\n周子航',
+  attachments: [], availability: null,
+  thread: { subject: '周子航-北京邮电大学-用户运营实习生-每周4天-实习6个月', sent_at: '2026-10-29T02:00:00.000Z' },
+  incoming: {
+    from: '王莉 <wangli@jd.example>',
+    text: '周同学你好，简历收到了，我们这边觉得比较合适。想确认一下：你最早什么时候能到岗？每周能来几天、能实习多久？方便的话今天回复一下，我们安排下一轮沟通。\n\n京东零售 · 用户增长部 王莉',
+    received_at: '2026-11-05T03:12:00.000Z',
+  },
+});
+
+/** 退信：大疆那封收件地址不存在，照抄一封等他改收件人重发。 */
+export const BOUNCED = draft({
+  action_id: 'm_bo', company: '大疆', role: '市场策划实习生', to: 'dji-hr@dji.example', blockers: ['bad_recipient'],
+});
+
+export function bouncedAsk(d: MailDraftView = BOUNCED): AskView {
+  return { ...mailAsk([d], `${d.company} · 邮件被退回`), mail: { purpose: 'apply', action_ids: [d.action_id], bounced: true } };
+}
+
+/** 等你条上「N 封没发出去 / 没写成」那件。 */
+export function failedMailAsk(failed: AskMailFailed, ids: string[] = ['m_jd', 'm_mt']): AskView {
+  const title = failed.stage === 'draft' ? `${ids.length} 封没写成` : `${ids.length} 封没发出去`;
+  return {
+    id: `fail_mail_${failed.stage}_${failed.reauth ? 'auth' : 'other'}`, kind: 'failed', title,
+    detail: failed.reauth ? '邮箱授权失效了' : undefined,
+    application_ids: ids.map(id => `app_${id}`), companies: [MARKS.京东, MARKS.美团].slice(0, ids.length),
+    sources: ids.map(id => ({ type: 'action' as const, id })), action_ids: ids,
+    due_at: null, overdue: false, mail_failed: failed,
+  };
+}
+
+/** 京东那份的邮件往来：发出的投递邮件 → 对方回信 → 写好待发的回信。 */
+export const THREAD: MailThreadView = {
+  application_id: 'app_m_re', company: '京东', role: '用户运营实习生',
+  items: [
+    { id: 'mm_out', direction: 'out', purpose: 'apply', counterpart: 'jdcampus@jd.example', subject: '周子航-北京邮电大学-用户运营实习生-每周4天-实习6个月',
+      body: '您好：\n\n我是北京邮电大学信息管理与信息系统专业 2027 届本科生周子航，想应聘贵司的用户运营实习生岗位。', attachments: ['北京邮电大学-周子航-信息管理-2027届.pdf'],
+      at: '2026-10-29T02:00:00.000Z', action_id: null, kind: null },
+    { id: 'mm_auto', direction: 'in', purpose: null, counterpart: 'jdcampus@jd.example', subject: '自动回复：已收到您的邮件', body: '您好，您的邮件已收到，我们会尽快处理。', attachments: [],
+      at: '2026-10-29T02:01:00.000Z', action_id: null, kind: 'application_received' },
+    { id: 'mm_in', direction: 'in', purpose: null, counterpart: '王莉 <wangli@jd.example>', subject: '关于用户运营实习生岗位的到岗时间', body: REPLY.incoming?.text ?? '', attachments: [],
+      at: '2026-11-05T03:12:00.000Z', action_id: null, kind: null },
+    { id: 'mm_pending', direction: 'pending', purpose: 'reply', counterpart: 'wangli@jd.example', subject: REPLY.subject, body: REPLY.body,
+      attachments: [], at: '2026-11-05T03:20:00.000Z', action_id: 'm_re', kind: null },
+  ],
+};

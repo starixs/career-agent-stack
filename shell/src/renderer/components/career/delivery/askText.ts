@@ -1,7 +1,7 @@
 /**
  * 要你的事上的字：期限大字、来源一行、按钮。只管措辞，不做取舍（取舍在服务端 buildAsks）。
  */
-import type { MailPurpose } from '../../../../shared/careerMailApply';
+import type { AskMailFailed, MailPurpose } from '../../../../shared/careerMailApply';
 import type { AskView } from './deliveryApi';
 
 /** 晚上几点以后说「今晚」而不是「今天」。 */
@@ -51,17 +51,26 @@ const GO: Partial<Record<string, string>> = { assessment: '去做测评', writte
 /**
  * 发邮件前过目的两个按钮：n = 这一下能发出的封数（勾选且不差东西的）。
  * 投递：一封「发出 / 不投这家」，几封「发出 n 封 / 先收起」；跟进「发出 / 不跟了」；回 HR「发出 / 我自己回」。
+ * 被退回的那封：「改好了，重发 / 不投这家」。
  */
-export function mailLabels(purpose: MailPurpose, n: number, total: number): { go: string; later: string } {
+export function mailLabels(purpose: MailPurpose, n: number, total: number, bounced = false): { go: string; later: string } {
+  if (bounced) return { go: '改好了，重发', later: '不投这家' };
   const go = total > 1 ? `发出 ${n} 封` : '发出';
   if (purpose === 'followup') return { go, later: '不跟了' };
   if (purpose === 'reply') return { go, later: '我自己回' };
   return { go, later: total > 1 ? '先收起' : '不投这家' };
 }
 
+/** 邮件没写成 / 没发出去：没有「我自己来」（那是去浏览器接手网申）。 */
+export function mailFailedLabels(f: AskMailFailed): { go: string; later: string } {
+  if (f.stage === 'draft') return { go: '再写一次', later: '晚点' };
+  return { go: f.reauth ? '重新连邮箱' : '再发一次', later: '晚点' };
+}
+
 /** 主按钮 / 次按钮的字（≤ 2 个动作，规范 §5.3）。 */
 export function actionLabels(ask: AskView): { go: string; later: string } {
-  if (ask.mail) return mailLabels(ask.mail.purpose, ask.mail.action_ids.length, ask.mail.action_ids.length);
+  if (ask.mail) return mailLabels(ask.mail.purpose, ask.mail.action_ids.length, ask.mail.action_ids.length, ask.mail.bounced);
+  if (ask.mail_failed) return mailFailedLabels(ask.mail_failed);
   switch (ask.kind) {
     case 'info': return { go: '填好', later: '这批先跳过' };
     case 'choice': return { go: '选好', later: '晚点' };

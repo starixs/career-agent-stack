@@ -2,13 +2,11 @@
  * 卡组里「邮件写好了」这一张（face-mail-apply §3.2）：左图右字。
  *  - 一封：左边公司大海报，右边整封邮件（MailSheet）；
  *  - 几封：左边一列可勾选的行（默认全勾），点哪行右边就是哪封。
- * 两个动作：发出（勾了且不差东西的那几封）· 不投这家 / 先收起 / 不跟了 / 我自己回。
+ * 两个动作：发出（勾了且不差东西的那几封）· 不投这家 / 先收起 / 不跟了 / 我自己回；
+ * 被退回的那封：改好了，重发 · 不投这家（收件人那格标红，改掉才可点）。
  * 还没连邮箱时主按钮是「连邮箱」，打开现有的邮箱连接，连上后重取，按钮变回「发出」。
  */
 import { useState } from 'react';
-
-import OverlayBackdrop from '@/components/OverlayBackdrop';
-import { useCloseLayer } from '@/hooks/useCloseLayer';
 
 import type { AskMail, InternAvailability, MailDraftPatch, MailDraftView } from '../../../../shared/careerMailApply';
 import { ErrorRow, LoadingRow } from '../CareerPrimitives';
@@ -16,7 +14,7 @@ import { mailLabels } from '../delivery/askText';
 import { CompanyPoster } from '../delivery/CompanyPoster';
 import type { AskView } from '../delivery/deliveryApi';
 import type { AskOutcome, Respond } from '../delivery/useAskActions';
-import { MailConnectCenter } from '../mail-connect/MailConnectCenter';
+import { ConnectMailbox } from './ConnectMailbox';
 import { declineMails, needsMailbox, sendableIds, sendMails } from './mailActions';
 import { mailApplyApi } from './mailApplyApi';
 import { MailPickList } from './MailPickList';
@@ -24,21 +22,6 @@ import { MailSheet } from './MailSheet';
 import { useMailDrafts } from './useMailDrafts';
 
 export type MailAct = (fn: (respond: Respond) => Promise<AskOutcome>) => Promise<AskOutcome | null>;
-
-/** 与 className 里的 z-[60] 一致：在卡组之上、邮箱连接弹窗（70）之下。 */
-const CONNECT_Z = 60;
-
-function ConnectMailbox({ onClose, onConnected }: { onClose: () => void; onConnected: () => void }) {
-  useCloseLayer(() => { onClose(); return true; }, CONNECT_Z);
-  return (
-    <OverlayBackdrop onClose={onClose} className="z-[60] px-4" portal>
-      <div role="dialog" aria-modal="true" aria-label="连邮箱" className="cm-connect">
-        <MailConnectCenter from="chat" onConnected={onConnected} />
-        <button type="button" className="cd-later cm-connect-close" onClick={onClose}>收起</button>
-      </div>
-    </OverlayBackdrop>
-  );
-}
 
 function useMailSelection(drafts: readonly MailDraftView[], allIds: readonly string[]) {
   const [picked, setPicked] = useState<Set<string>>(() => new Set(allIds));
@@ -52,7 +35,7 @@ function MailActions({ ask, mail, drafts, picked, busy, onAct, onSent, onConnect
   onAct: MailAct; onSent: (ids: string[]) => void; onConnect: () => void;
 }) {
   const ready = sendableIds(drafts, picked);
-  const labels = mailLabels(mail.purpose, ready.length, drafts.length);
+  const labels = mailLabels(mail.purpose, ready.length, drafts.length, mail.bounced);
   const snooze = mail.purpose === 'apply' && drafts.length > 1;
   const send = async () => {
     const outcome = await onAct(respond => sendMails(respond, ready, drafts.length));

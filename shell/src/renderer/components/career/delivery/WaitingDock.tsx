@@ -11,7 +11,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { emitEvent, onEvent } from '@/api/eventBus';
+import { onEvent } from '@/api/eventBus';
 import { useTabStateOptional } from '@/context/TabContext';
 
 import { AskCard } from './AskCard';
@@ -19,6 +19,7 @@ import { dueText } from './askText';
 import { BatchWall } from './BatchWall';
 import { CompanyPoster, CountTag } from './CompanyPoster';
 import type { AskView, RunView } from './deliveryApi';
+import { clearPendingDeck, peekPendingDeck, requestOpenDeck } from './openDeck';
 import { OPEN_DECK_EVENT } from './ReturnCard';
 import { useAskActions } from './useAskActions';
 import { useWaitingAsks } from './useWaitingAsks';
@@ -27,18 +28,8 @@ import './delivery.css';
 
 /** 等你条上最多几个小签（规范 §5.2）。 */
 const DOCK_THUMBS = 3;
-/** 等等你条挂上再打开的那一次（id 为空＝从最急的开始）；undefined＝没有待打开的。 */
-let pendingDeck: { id: string | null } | undefined;
 
-/** 打开等你卡组（右栏「去处理」、悬浮球提醒）。等你条没挂上时记下，挂上后打开一次。 */
-export function requestOpenDeck(id: string | null = null): void {
-  pendingDeck = { id };
-  emitEvent(OPEN_DECK_EVENT, { id: id ?? undefined });
-}
-
-function clearPendingDeck(): void {
-  pendingDeck = undefined;
-}
+export { requestOpenDeck };
 
 function DockBar({ asks, run, deckOpen, onDeck, onRun, dockRef }: {
   asks: AskView[]; run: RunView | null; deckOpen: boolean; onDeck: () => void; onRun: () => void; dockRef: React.RefObject<HTMLButtonElement | null>;
@@ -73,6 +64,8 @@ function Deck({ asks, index, setIndex, onClose, onResolved, onSnoozed }: {
   const ask = asks[index];
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // 卡组上面还开着一层（连邮箱）：Esc 只关那一层，它会先把这次按键标成已处理
+      if (e.defaultPrevented) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === 'ArrowRight') setIndex(Math.min(asks.length - 1, index + 1));
       else if (e.key === 'ArrowLeft') setIndex(Math.max(0, index - 1));
@@ -131,10 +124,10 @@ export function WaitingDock() {
   const tab = useTabStateOptional();
   const { asks, run, resolve, snooze } = useWaitingAsks();
   // 挂上之前别处已经要求打开卡组：一挂上就开着
-  const [deckOpen, setDeckOpen] = useState(() => pendingDeck !== undefined);
+  const [deckOpen, setDeckOpen] = useState(() => peekPendingDeck() !== undefined);
   const [popOpen, setPopOpen] = useState(false);
   // 按 id 记住正在看哪张：重排后仍停在它上面
-  const [currentId, setCurrentId] = useState<string | null>(() => pendingDeck?.id ?? null);
+  const [currentId, setCurrentId] = useState<string | null>(() => peekPendingDeck()?.id ?? null);
   const dockRef = useRef<HTMLButtonElement>(null);
   const refocus = useRef(false);
   const openAt = useCallback((id: string | null) => { setCurrentId(id); setDeckOpen(true); setPopOpen(false); }, []);

@@ -10,10 +10,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
 
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
+import { onEvent } from '@/api/eventBus';
 
 import type { MailDraftView } from '../../../../shared/careerMailApply';
 import { runAskPrimary } from '../delivery/askPrimary';
 import type { AskView } from '../delivery/deliveryApi';
+import { OPEN_DECK_EVENT } from '../delivery/ReturnCard';
+import { goAsk } from '../delivery/useAskActions';
 import { WaitingDock } from '../delivery/WaitingDock';
 import { BLOCKED, draft, mailAsk, MULTI, SINGLE } from './testFixtures';
 
@@ -207,22 +210,36 @@ describe('邮件写好了 · 发前过目', () => {
   });
 });
 
-describe('建议条「都发出」', () => {
+describe('卡组外的入口：不看预览不发（F4）', () => {
   beforeEach(() => {
     vi.mocked(apiPostJson).mockReset().mockResolvedValue({ ok: true });
     vi.spyOn(console, 'info').mockImplementation(() => {});
   });
 
-  it('都不差东西：直接发出全部', async () => {
+  it('建议条点邮件那件：都不差东西也只打开卡组定位到它，没有调用发出', async () => {
     serve([mailAsk(MULTI)], MULTI);
-    await expect(runAskPrimary(mailAsk(MULTI).id)).resolves.toBe('resolved');
-    expect(apiPostJson).toHaveBeenCalledWith(REVIEW, { ids: ['m_jd', 'm_mt', 'm_dj'], decision: 'approved' });
+    const opened = vi.fn();
+    const off = onEvent<{ id?: string }>(OPEN_DECK_EVENT, p => opened(p?.id));
+    await expect(runAskPrimary(mailAsk(MULTI).id)).resolves.toBe('deck');
+    off();
+    expect(opened).toHaveBeenCalledWith(mailAsk(MULTI).id);
+    expect(apiPostJson).not.toHaveBeenCalled();
   });
 
-  it('有一封还差东西：先发不差的，剩下那封留在卡组里', async () => {
+  it('有一封还差东西：同样只打开卡组，一封也不发', async () => {
     const list = [MULTI[0], { ...MULTI[1], blockers: ['bad_recipient' as const] }];
     serve([mailAsk(list)], list);
-    await expect(runAskPrimary(mailAsk(list).id)).resolves.toBe('kept');
-    expect(apiPostJson).toHaveBeenCalledWith(REVIEW, { ids: ['m_jd'], decision: 'approved' });
+    await expect(runAskPrimary(mailAsk(list).id)).resolves.toBe('deck');
+    expect(apiPostJson).not.toHaveBeenCalled();
+  });
+
+  it('卡组主按钮那条路（goAsk）遇到邮件也只打开卡组', async () => {
+    const opened = vi.fn();
+    const off = onEvent<{ id?: string }>(OPEN_DECK_EVENT, p => opened(p?.id));
+    const respond = vi.fn(async () => true);
+    await expect(goAsk(mailAsk([SINGLE]), respond, {})).resolves.toBe('kept');
+    off();
+    expect(respond).not.toHaveBeenCalled();
+    expect(opened).toHaveBeenCalledWith(mailAsk([SINGLE]).id);
   });
 });

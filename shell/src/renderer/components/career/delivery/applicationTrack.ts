@@ -1,7 +1,9 @@
 /**
  * 申请对象卡上那条路（规范 §5.8）：投出 → 笔试 / 面试的各个时间点 → 结果。
  * 发生过的为墨色（on），等你的那一节为钢笔蓝（ask，来自同一份要你的事），没到的为灰。
+ * 邮件投递的申请：第一节叫「邮件发出」，跟进发出、对方回信各加一节（来自卷宗里的邮件），等你的跟进 / 回信 / 重发是钢笔蓝。
  */
+import { isMailApplication, isSentStage, mailAskNodes, mailTrackNodes, pendingApplyAsk } from '../mail-apply/liveMail';
 import type { Dossier } from '../types';
 import { whenText } from './askText';
 import type { AskView } from './deliveryApi';
@@ -18,11 +20,23 @@ function deadlineLabel(title: string, kind: string): string {
   return round ?? KIND_LABEL[kind] ?? title;
 }
 
-export function applicationTrack(d: Pick<Dossier, 'application' | 'history' | 'deadlines'>, asks: readonly AskView[], now = new Date()): TrackNode[] {
-  const askOf = new Map(asks.flatMap(a => a.sources.map(s => [s.id, a] as const)));
-  const nodes: TrackNode[] = [];
+type TrackSource = Pick<Dossier, 'application' | 'history' | 'deadlines'> & Partial<Pick<Dossier, 'job' | 'mails'>>;
+
+/** 第一节（投出 / 邮件发出）以及邮件申请多出的几节。 */
+function sentNodes(d: TrackSource, asks: readonly AskView[]): TrackNode[] {
   const sent = d.history.find(h => h.to_stage === 'applied');
-  nodes.push({ key: 'sent', label: '投出', date: sent ? dateOnly(sent.created_at) : undefined, on: !!sent || d.application.stage !== 'evaluated' });
+  const mail = isMailApplication({ submission_evidence: d.application.submission_evidence, apply_email: d.job?.apply_email });
+  const on = !!sent || (mail ? isSentStage(d.application.stage) : d.application.stage !== 'evaluated');
+  const first: TrackNode = { key: 'sent', label: mail ? '邮件发出' : '投出', date: sent ? dateOnly(sent.created_at) : undefined, on };
+  if (!mail) return [first];
+  const waiting = on ? undefined : pendingApplyAsk(asks);
+  const head = waiting?.sources[0] ? { ...first, key: waiting.sources[0].id, ask: true } : first;
+  return [head, ...mailTrackNodes(d.mails ?? []), ...mailAskNodes(asks)];
+}
+
+export function applicationTrack(d: TrackSource, asks: readonly AskView[], now = new Date()): TrackNode[] {
+  const askOf = new Map(asks.flatMap(a => a.sources.map(s => [s.id, a] as const)));
+  const nodes: TrackNode[] = sentNodes(d, asks);
   const points = d.deadlines.filter(x => x.status !== 'cancelled' && KIND_LABEL[x.kind]).sort((a, b) => (a.due_at ?? '').localeCompare(b.due_at ?? ''));
   for (const p of points) {
     const ask = askOf.get(p.id);

@@ -10,8 +10,9 @@ import { careerApi } from '../careerApi';
 import { openLiveDrawer } from '../CareerLiveDrawer';
 import { suggestToChat } from '../CareerPrimitives';
 import { useRespondReview } from '../CareerReviewCard';
-import { sendReadyMails } from '../mail-apply/mailActions';
+import { retryMailFailed } from '../mail-apply/mailActions';
 import { deliveryApi, type AskView } from './deliveryApi';
+import { requestOpenDeck } from './openDeck';
 
 export type AskOutcome = 'resolved' | 'snoozed' | 'kept';
 export type Respond = ReturnType<typeof useRespondReview>;
@@ -51,8 +52,10 @@ async function goDeadline(ask: AskView): Promise<AskOutcome> {
 
 /** 卡组主按钮做的事；建议条「都投出 / 再试一次」也走这里（askPrimary.ts），两处同一套落库。 */
 export async function goAsk(ask: AskView, respond: Respond, values: Record<string, string>): Promise<AskOutcome> {
-  // 发邮件前过目：卡组里由邮件卡按勾选发；卡组外（建议条）发出所有不差东西的
-  if (ask.mail) return sendReadyMails(ask, respond);
+  // 邮件只在卡组里看过整封再发（邮件卡自己按勾选发）；卡组外到这里的只打开卡组定位到它，不发信。
+  // 邮箱授权失效那件要先连邮箱，连邮箱的浮层也在卡组里。
+  if (ask.mail || ask.mail_failed?.reauth) { requestOpenDeck(ask.id); return 'kept'; }
+  if (ask.mail_failed) return retryMailFailed(ask);
   switch (ask.kind) {
     case 'start': case 'review': return decideReview(respond, ask);
     case 'info': return fillFields(ask, values);
@@ -68,6 +71,8 @@ export async function goAsk(ask: AskView, respond: Respond, values: Record<strin
 }
 
 async function later(ask: AskView): Promise<AskOutcome> {
+  // 邮件没写成 / 没发出去：「晚点」只是挪后（没有「我自己来」）
+  if (ask.mail_failed) return 'snoozed';
   switch (ask.kind) {
     case 'attendance': await careerApi.answerAttendance(firstDeadline(ask), false); return 'resolved';
     case 'retro': await careerApi.setDeadlineStatus(firstDeadline(ask), 'done'); return 'resolved';
