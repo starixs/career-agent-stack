@@ -14,7 +14,7 @@ import type { BatchState, CareerTakeoverEvent, LiveFrame, LiveSnapshot, LiveStre
 import { liveStatusText } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { useLiveStream } from '@/components/career/useGlobalLive';
-import { CareerLiveViewport } from '@/components/career/CareerLiveViewport';
+import { CareerLiveViewport, liveHumanActive } from '@/components/career/CareerLiveViewport';
 import { applicationStats } from './CareerLiveModel';
 
 export default function CareerLive() {
@@ -41,7 +41,7 @@ export default function CareerLive() {
   const stream = useLiveStream(true, onEvent);
 
   const control = snapshot?.browser.control ?? 'none';
-  const humanActive = control === 'human' || takeover?.state === 'human_active';
+  const humanActive = liveHumanActive(snapshot?.browser.control, takeover?.state);
   const stats = useMemo(() => applicationStats(applications.data ?? [], handoffs.data ?? 0), [applications.data, handoffs.data]);
   const take = () => action.run(async () => { await careerApi.liveControl('human', 'user_request'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'human' } } : s)); });
   const handback = () => action.run(async () => { await careerApi.liveControl('agent'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'agent' } } : s)); setTakeover(null); handoffs.reload(); });

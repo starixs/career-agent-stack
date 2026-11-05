@@ -80,6 +80,17 @@ function useSteadyFrame(incoming: LiveFrame | null): LiveFrame | null {
   return CAN_DECODE ? shown ?? incoming : incoming;
 }
 
+/** 服务端说「先点接管」：控制权已经不在他手上。 */
+export const isControlLost = (message: string) => message.includes('先点「接管」');
+
+/**
+ * 画面是否由他操作：有服务端快照就只信快照（登录之旅结束等后台动作会收回控制权，本地的接管事件会过时）；
+ * 快照还没到时才看接管事件。
+ */
+export function liveHumanActive(control: string | null | undefined, takeoverState: string | null | undefined): boolean {
+  return control ? control === 'human' : takeoverState === 'human_active';
+}
+
 export function CareerLiveViewport({ frame: incoming, interactive, placeholder, onInputError, onRequestControl, className = '', style }: {
   frame: LiveFrame | null;
   /** 用户已接管：允许转发输入。 */
@@ -102,8 +113,15 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
   if (nextAspect !== aspect) setAspect(nextAspect);
 
   const send = useCallback(async (input: Parameters<typeof careerApi.liveInput>[0], label: string) => {
-    try { await careerApi.liveInput(input); setLastAction(label); } catch (error) { onInputError?.(error instanceof Error ? error.message : String(error)); }
-  }, [onInputError]);
+    try { await careerApi.liveInput(input); setLastAction(label); } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // 控制权被后台收走了（画面还以为是他在操作）：他手上的这一下就是要接着操作，重新接管、再发一次
+      if (isControlLost(message) && onRequestControl && await onRequestControl()) {
+        try { await careerApi.liveInput(input); setLastAction(label); return; } catch (retry) { onInputError?.(retry instanceof Error ? retry.message : String(retry)); return; }
+      }
+      onInputError?.(message);
+    }
+  }, [onInputError, onRequestControl]);
 
   const frameCoords = (ev: MouseEvent<HTMLElement>) => {
     const el = boxRef.current; if (!el || !frame) return null;

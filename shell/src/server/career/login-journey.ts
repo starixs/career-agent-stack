@@ -294,11 +294,13 @@ export function startJourney(deps: JourneyDeps, askId: string, handoffIds: reado
   cancelled = false;
   skipRequested = false;
   smsChanged = deps.changed;
+  // 他在登录之旅开始前就接管着（正在页面上操作）：旅程结束不收回，不然他手下的画面突然不听使唤（2026-11-05 汉高滚不动）
+  const heldByUser = deps.browser.control() === 'human';
   running = runSteps(deps, askId, handoffIds).finally(() => {
     setLivePin(null);
     journeyChanged();
     if (sms?.state.status !== 'logged_in') sms = null; // 「X 已登录」留一会儿让他看到
-    if (deps.browser.control() === 'human') deps.browser.releaseControl();
+    if (!heldByUser && deps.browser.control() === 'human') deps.browser.releaseControl();
     running = null;
     deps.changed(['handoff']);
   });

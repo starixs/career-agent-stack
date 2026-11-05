@@ -47,7 +47,7 @@ describe('登录信号（数据层）', () => {
 const ON_LOGIN: ScreenSample = { loginShown: true, errorShown: false };
 
 /** 假浏览器：每家一个页面；cookies、画面按「第几次读」由脚本决定，登录接口返回由脚本推。 */
-function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; responses?: Record<string, ResponseVerdict[]>; screen?: (key: string, call: number) => ScreenSample | null; closed?: (key: string) => boolean }) {
+function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; responses?: Record<string, ResponseVerdict[]>; screen?: (key: string, call: number) => ScreenSample | null; closed?: (key: string) => boolean; control?: { now: 'agent' | 'human' } }) {
   let screenCall = 0;
   let call = 0;
   const focused: string[] = [];
@@ -61,8 +61,8 @@ function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; response
       return pages.get(key);
     },
     focus: p => { focused.push((p as JourneyPage & { key: string }).key); },
-    control: () => 'agent',
-    releaseControl: () => undefined,
+    control: () => script.control?.now ?? 'agent',
+    releaseControl: () => { if (script.control) script.control.now = 'agent'; },
   };
   return { browser, focused };
 }
@@ -252,6 +252,21 @@ describe('登录之旅', () => {
     const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, timeoutMs: 100, sleep, now: () => t }, a.handoff.id, [a.handoff.id, b.handoff.id]);
     expect(out?.steps.map(s => s.outcome)).toEqual(['handed_back', 'timeout']);
     expect(repos.openHandoffs().map(h => h.id)).toEqual([b.handoff.id]);
+  });
+
+  it('旅程开始前他就接管着页面：旅程结束不把控制权收回去；旅程中途才接管的，结束时交还给助理（2026-11-05 汉高滚不动）', async () => {
+    const repos = createMemoryRepos();
+    const run = async (start: 'agent' | 'human') => {
+      const control = { now: start };
+      const a = waitingLogin(repos, `${start}.com`);
+      let t = 0;
+      const { browser } = fakeBrowser({ cookies: () => [], control });
+      const sleep = async () => { t += 10; control.now = 'human'; };
+      await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, timeoutMs: 30, sleep, now: () => t }, a.handoff.id, [a.handoff.id]);
+      return control.now;
+    };
+    expect(await run('human')).toBe('human');
+    expect(await run('agent')).toBe('agent');
   });
 
   it('「这家先跳过」：这一家留在等你里，接着带你过下一家（2026-11-02 腾讯校招只能 QQ / 微信登录）', async () => {

@@ -26,7 +26,7 @@ import { dispatchTakeoverAction } from './BrowserStatusBar';
 import { careerApi } from './careerApi';
 import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
-import { CareerLiveViewport } from './CareerLiveViewport';
+import { CareerLiveViewport, liveHumanActive } from './CareerLiveViewport';
 import { LivePageTabs } from './LivePageTabs';
 import { TaskProgressPanel } from './TaskProgressPanel';
 import { SmsCodeBar } from './SmsCodeBar';
@@ -242,7 +242,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
   useLiveViewportSync(frameHostRef, snapshot?.browser.hasBrowser === true, fullscreen);
 
   const control = snapshot?.browser.control ?? 'none';
-  const humanActive = control === 'human' || takeover?.state === 'human_active';
+  const humanActive = liveHumanActive(snapshot?.browser.control, takeover?.state);
 
   const act = async (action: 'take' | 'handback'): Promise<boolean> => {
     setBusy(action); setNotice(null);
