@@ -112,7 +112,6 @@ export function ReviewCard({ card, onDone, onDismiss }: CardProps) {
         </div>
       </div>
       {isSubmit && <SubmitReviewList review={review} />}
-      <div className="mt-3 text-xs text-[var(--muted)]">{str(card.data.note) ?? (isSubmit ? '批准后产品替你点提交；没批准之前不会提交。' : '提交与发送都要你批准后才会执行。')}</div>
       {error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button variant="primary" busy={busy === 'approved'} disabled={busy !== null} onClick={() => void decide('approved')}>{isSubmit ? '批准提交' : kind === 'fill_form' ? '开始填写' : '批准'}</Button>
@@ -178,7 +177,6 @@ export function ApplyGapsCard({ card, onDone, onDismiss }: CardProps) {
             <span className="text-sm font-medium text-[var(--ink)]">{card.title}</span>
             {total !== null && total > 0 && <Badge tone="warning">必填 {filled ?? 0}/{total}</Badge>}
           </div>
-          <div className="mt-0.5 text-xs text-[var(--muted)]">还没提交。补好之后我从当前页接着检查，全部过关才会请你批准提交。</div>
         </div>
         <Button variant="ghost" onClick={onDismiss} aria-label="稍后再说">稍后</Button>
       </div>
@@ -195,7 +193,6 @@ export function ApplyGapsCard({ card, onDone, onDismiss }: CardProps) {
           </li>
         ))}
       </ul>
-      {items.some(i => i.input?.vaultField) && <p className="mt-2 text-xs text-[var(--subtle)]">私密项只存进本机私密库，填表时在本地替换，助理看不到原文。</p>}
       {error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{error}</div>}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button onClick={() => openLiveDrawer()}>在旁边打开页面</Button>

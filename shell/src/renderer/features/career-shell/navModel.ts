@@ -27,7 +27,7 @@ export interface NavItem {
 export type NavIconName =
   | 'dashboard' | 'chat' | 'briefcase' | 'grid' | 'folder' | 'settings'
   | 'sun' | 'list' | 'inbox' | 'star' | 'library' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote' | 'award'
-  | 'sliders' | 'pet' | 'keyboard' | 'wrench' | 'help' | 'info';
+  | 'sliders' | 'pet' | 'keyboard' | 'wrench' | 'help' | 'info' | 'wallet';
 
 export interface NavAreaDefinition {
   id: NavArea;
@@ -67,6 +67,7 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
   {
     // 小助理暂时停放在设置里；网络代理与通知已移除（2026-10-13）；技能与工具收起（2026-11-01，收口面）。
     id: 'settings', label: '设置', icon: 'settings', footer: true, items: [
+      { id: 'account', label: '账号与用量', icon: 'wallet', target: { kind: 'settings', section: 'account' } },
       { id: 'general', label: '通用设置', icon: 'sliders', target: { kind: 'settings', section: 'general' } },
       { id: 'desktop-pet', label: '桌面宠物', icon: 'pet', target: { kind: 'settings', section: 'desktop-pet' } },
       { id: 'shortcuts', label: '快捷键', icon: 'keyboard', target: { kind: 'settings', section: 'shortcuts' } },

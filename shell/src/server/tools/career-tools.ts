@@ -24,6 +24,7 @@ import { buildInterviewPrep } from '../career/interview-prep';
 import { applicationForInterview, bookInterview, interviewResume } from '../career/interview-link';
 import { runInterviewRetro } from '../career/interview-retro-run';
 import { getShellLLM } from '../career/llm';
+import { recordToolEvent } from '../career/billing-service';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
 import { draftMaterial } from '../career/materials';
@@ -189,6 +190,22 @@ export function mergeEvaluatePrefilter(existing: string | null | undefined, pref
 
 // ============= 岗位库表格的筛选维度（与渲染端 jobBoardFilters.ts 同义） =============
 // 页面上的「批次 / 行业 / 类型 / 地点 / 进度」多选 + 搜索：jobs_board 用同一套语义，保证助理看到的就是页面那一批。
+/** review_queue 默认回几条：够助理判断，又不超出工具输出上限。 */
+const REVIEW_QUEUE_DEFAULT_LIMIT = 50;
+/** 队列里一条动作的精简视图：公司、岗位、状态、出错原因、网申域名。 */
+export function reviewRow(r: Repos, a: ActionQueueItem): Record<string, unknown> {
+  const payload = parseJson<{ url?: string }>(a.payload_json) ?? {};
+  const result = parseJson<{ error?: string; status?: string; reason?: string; message?: string }>(a.result_json) ?? {};
+  const app = a.application_id ? r.getApplication(a.application_id) : undefined;
+  const job = app ? r.getJob(app.job_id) : undefined;
+  let host: string | undefined;
+  try { host = payload.url ? new URL(payload.url).hostname : undefined; } catch { host = payload.url; }
+  return {
+    id: a.id, kind: a.kind, status: a.status, application_id: a.application_id, company: job?.company_name, title: job?.title, host,
+    result: result.error ?? result.reason ?? result.status, message: result.message?.slice(0, 160), updated_at: a.updated_at,
+  };
+}
+
 const EMPLOYMENT_LABELS: Record<string, string> = { campus: '校招', intern: '实习', social: '社招' };
 /** 与 job-board.ts 的 DONE 一致：投出去之后的阶段。 */
 const BOARD_DONE_STAGES: ReadonlySet<string> = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired', 'skip']);
@@ -273,8 +290,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
    * 放进 AsyncLocalStorage，card() 据此把卡片锚定到产生它的那次工具调用（渲染在那条回复下面）。
    */
   const tool = ((name: string, description: string, schema: unknown, handler: (args: never, extra: unknown) => Promise<CallToolResult>) =>
-    (sdkTool as (...a: unknown[]) => unknown)(name, description, schema, (args: never, extra: unknown) =>
-      toolCallContext.run({ toolUseId: toolUseIdFrom(extra) }, () => handler(args, extra)))) as unknown as typeof sdkTool;
+    (sdkTool as (...a: unknown[]) => unknown)(name, description, schema, (args: never, extra: unknown) => {
+      const toolUseId = toolUseIdFrom(extra);
+      return toolCallContext.run({ toolUseId }, async () => {
+        const res = await handler(args, extra);
+        // 场景卖点埋点（定制简历、公司调研、面试准备……）：工具成功才算做成一件
+        recordToolEvent(name, toolUseId, res.isError, sharedRepos.db);
+        return res;
+      });
+    })) as unknown as typeof sdkTool;
   const { z } = await import('zod/v4');
   // 数据层：core 惰性加载；Repos 在 server 构建时打开一次（Session 内共享）。
   const core = await loadCore();
@@ -1142,7 +1166,6 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const hits: unknown[] = [];
         try {
           const provider = await search();
-          if (!provider) card('search_setup', 'search_setup', '配置搜索 Key（建议）', { reason: 'company_research' });
           if (provider) {
             progress('company_research', `正在搜索 ${args.company_name}`);
             const queries = [`${args.company_name} 公司 招聘 评价`, `${args.company_name} 工商 信息 风险`, `${args.company_name} 面试 经验`];
@@ -1156,17 +1179,14 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const trafficLight = typeof out.traffic_light === 'string' ? out.traffic_light : null;
         const company = store().upsertCompany(args.company_name, { dd_report_json: out, traffic_light: trafficLight, manual_checks: out.manual_checks ?? [] });
         changed('company');
-        return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实；搜索没配置时对话里会出现「配置搜索 Key」卡片。' }) });
+        return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实。' }) });
       })()),
 
       tool('web_search', 'Web 搜索（博查 / Tavily / Serper）：查公司、行情、面经、笔试时间。要读结果里的某一页先 web_fetch，拿不到再 browser_open。', {
         query: z.string(), count: z.number().int().min(1).max(20).optional(),
       }, async (args) => wrap(async () => {
         const provider = await search();
-        if (!provider) {
-          card('search_setup', 'search_setup', '配置搜索 Key（建议）', { reason: 'web_search' });
-          return err(SEARCH_NOT_CONFIGURED_MESSAGE);
-        }
+        if (!provider) return err(SEARCH_NOT_CONFIGURED_MESSAGE);
         progress('web_search', `搜索：${args.query}`);
         return text(await provider.search(args.query, { count: args.count ?? 8 }));
       })()),
@@ -1444,9 +1464,16 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ job: { id: job.id, title: job.title, company_name: job.company_name, url: job.url }, parsed_title: (parsed as { title?: string }).title ?? null, note: '已收录。接下来可以 job_evaluate；用户决定投递就 apply_prepare（会让用户批准）。' });
       })()),
 
-      tool('review_queue', '看等他批准的那几件事（填好待提交的网申、写好待发的招呼语等），默认只列还没批的。跟他说时只用公司和岗位名。', {
+      tool('review_queue', '看等他批准的那几件事（填好待提交的网申、写好待发的招呼语等），默认只列还没批的：每条只回公司、岗位、进度、出错原因和网申域名，最多 50 条（total 是总数）。跟他说时只用公司和岗位名。', {
         status: z.enum(['pending_review', 'approved', 'executing', 'needs_user', 'done', 'failed', 'rejected']).optional(),
-      }, async (args) => wrap(() => text(repos().listActions(args.status ?? 'pending_review')))()),
+        limit: z.number().int().min(1).max(200).optional(),
+      }, async (args) => wrap(() => {
+        // 原样吐整条记录（payload / result 全文）几十条就超出工具输出上限，助理只能去翻落盘文件（2026-11-05 批量重投时）
+        const r = repos();
+        const all = r.listActions(args.status ?? 'pending_review');
+        const items = all.slice(0, args.limit ?? REVIEW_QUEUE_DEFAULT_LIMIT).map(a => reviewRow(r, a));
+        return text({ total: all.length, returned: items.length, items });
+      })()),
 
       // ---------- 面试 ----------
       tool('interview_questions', '按岗位与 JD 出一组带追问点的面试题（九类题型），不给标准答案。', {

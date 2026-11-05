@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { Db, Repos, canTransition, extractJson, FakeLLM, parseFrontmatter } from '../src/index.js'
+import { Db, Repos, aggregatorHostOf, canTransition, extractJson, FakeLLM, parseFrontmatter } from '../src/index.js'
 
 function mem() { const db = new Db(':memory:'); db.migrate(); return new Repos(db) }
 
@@ -130,5 +130,14 @@ describe('删除经历与说法（对话里 experience_remove / claim_remove）'
     expect(r.listClaims()).toEqual([])
     expect(r.db.all('SELECT * FROM evidence')).toEqual([])
     expect(r.deleteExperience(exp.id)).toBe(false)
+  })
+})
+
+describe('聚合站链接', () => {
+  it('认得出聚合站（含子域名），官网和能投递的招聘平台不算', () => {
+    expect(aggregatorHostOf('https://offerseek.ai/jobs/171169')).toBe('offerseek.ai')
+    expect(aggregatorHostOf('https://www.givemeoc.com/x')).toBe('givemeoc.com')
+    expect(aggregatorHostOf('https://app.mokahr.com/campus-recruitment/x')).toBeNull()
+    expect(aggregatorHostOf('not a url')).toBeNull()
   })
 })

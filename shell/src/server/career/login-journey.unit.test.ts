@@ -47,7 +47,7 @@ describe('登录信号（数据层）', () => {
 const ON_LOGIN: ScreenSample = { loginShown: true, errorShown: false };
 
 /** 假浏览器：每家一个页面；cookies、画面按「第几次读」由脚本决定，登录接口返回由脚本推。 */
-function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; responses?: Record<string, ResponseVerdict[]>; screen?: (key: string, call: number) => ScreenSample | null; closed?: (key: string) => boolean }) {
+function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; responses?: Record<string, ResponseVerdict[]>; screen?: (key: string, call: number) => ScreenSample | null; closed?: (key: string) => boolean; control?: { now: 'agent' | 'human' } }) {
   let screenCall = 0;
   let call = 0;
   const focused: string[] = [];
@@ -61,8 +61,8 @@ function fakeBrowser(script: { cookies: (call: number) => CookieLike[]; response
       return pages.get(key);
     },
     focus: p => { focused.push((p as JourneyPage & { key: string }).key); },
-    control: () => 'agent',
-    releaseControl: () => undefined,
+    control: () => script.control?.now ?? 'agent',
+    releaseControl: () => { if (script.control) script.control.now = 'agent'; },
   };
   return { browser, focused };
 }
@@ -191,6 +191,22 @@ describe('登录之旅', () => {
     expect(j.observe(new Map(), { loginShown: false, errorShown: false, loggedIn: true })).toMatchObject({ state: 'logged_in', signal: 'screen' });
   });
 
+  it('准备阶段（等图形码 / 拼图后的邮件）点「这家先跳过」：马上换下一家，不等准备做完（2026-11-05）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const b = waitingLogin(repos, 'b.com');
+    const { browser } = fakeBrowser({ cookies: n => [{ domain: '.b.com', name: 'sid', value: n >= 3 ? 'user' : 'guest' }] });
+    const pageFor = browser.pageFor;
+    let hang: (() => void) | undefined;
+    browser.pageFor = key => { const p = pageFor(key); return p && key === a.app.id ? { ...p, smsPrepare: () => new Promise(r => { hang = () => r({ status: 'no_sms' as const }); }) } : p; };
+    const run = startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, sleep: () => new Promise(r => setTimeout(r, 1)) }, a.handoff.id, [a.handoff.id, b.handoff.id]);
+    await new Promise(r => setTimeout(r, 10));
+    skipJourneyStep();
+    const out = await run;
+    expect(out?.steps.map(s => s.outcome)).toEqual(['skipped', 'logged_in']);
+    hang?.(); // 被丢下的准备工作后来才做完：不影响结果
+  });
+
   it('App 重启过、页面都没了：直接打开这一家的网址，就在这一家登录，不交后台整批重开（2026-11-03）', async () => {
     const repos = createMemoryRepos();
     const a = waitingLogin(repos, 'a.com');
@@ -202,6 +218,35 @@ describe('登录之旅', () => {
     const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, ...fast }, a.handoff.id, [a.handoff.id]);
     expect(opened).toEqual(['https://jobs.a.com/apply/1']);
     expect(out?.steps.map(s => s.outcome)).toEqual(['logged_in']);
+  });
+
+  it('他在这一家登录时，下一家的网页先在后台打开：过完一家马上是下一家（2026-11-05 人机验证排成一串过）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const b = waitingLogin(repos, 'b.com');
+    let loggedA = false;
+    const { browser } = fakeBrowser({ cookies: () => [{ domain: '.a.com', name: 'sid', value: loggedA ? 'user' : 'guest' }, { domain: '.b.com', name: 'sid', value: 'user' }] });
+    const events: string[] = [];
+    const pageFor = browser.pageFor;
+    browser.pageFor = () => undefined;
+    browser.openPage = async (key, url) => { events.push(`open ${new URL(url).hostname}`); return pageFor(key); };
+    let t = 0;
+    const sleep = async () => { t += 10; if (!loggedA) { events.push('a 还在登录'); loggedA = true; } };
+    await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, timeoutMs: 50, sleep, now: () => t }, a.handoff.id, [a.handoff.id, b.handoff.id]);
+    expect(events.slice(0, 3)).toEqual(['open jobs.a.com', 'open jobs.b.com', 'a 还在登录']);
+    expect(events.filter(e => e === 'open jobs.b.com')).toHaveLength(1);
+  });
+
+  it('打开网页那十几秒里也算在登录：钉住这一家，「去登录」不会以为上一趟已经结束（2026-11-05）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    const { browser } = fakeBrowser({ cookies: n => [{ domain: '.a.com', name: 'sid', value: n >= 3 ? 'user' : 'guest' }] });
+    const pageFor = browser.pageFor;
+    let pinWhileOpening: string | undefined;
+    browser.pageFor = () => undefined;
+    browser.openPage = async key => { pinWhileOpening = livePin()?.appKey; return pageFor(key); };
+    await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, ...fast }, a.handoff.id, [a.handoff.id]);
+    expect(pinWhileOpening).toBe(a.app.id);
   });
 
   it('登录接口返回失败（密码错）时凭证变了也不算，继续等', async () => {
@@ -226,6 +271,21 @@ describe('登录之旅', () => {
     expect(repos.openHandoffs().map(h => h.id)).toEqual([b.handoff.id]);
   });
 
+  it('旅程开始前他就接管着页面：旅程结束不把控制权收回去；旅程中途才接管的，结束时交还给助理（2026-11-05 汉高滚不动）', async () => {
+    const repos = createMemoryRepos();
+    const run = async (start: 'agent' | 'human') => {
+      const control = { now: start };
+      const a = waitingLogin(repos, `${start}.com`);
+      let t = 0;
+      const { browser } = fakeBrowser({ cookies: () => [], control });
+      const sleep = async () => { t += 10; control.now = 'human'; };
+      await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, timeoutMs: 30, sleep, now: () => t }, a.handoff.id, [a.handoff.id]);
+      return control.now;
+    };
+    expect(await run('human')).toBe('human');
+    expect(await run('agent')).toBe('agent');
+  });
+
   it('「这家先跳过」：这一家留在等你里，接着带你过下一家（2026-11-02 腾讯校招只能 QQ / 微信登录）', async () => {
     const repos = createMemoryRepos();
     const a = waitingLogin(repos, 'a.com');
@@ -236,6 +296,18 @@ describe('登录之旅', () => {
     const out = await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, sleep }, a.handoff.id, [a.handoff.id, b.handoff.id]);
     expect(out?.steps.map(s => s.outcome)).toEqual(['skipped', 'logged_in']);
     expect(repos.openHandoffs().map(h => h.id)).toEqual([a.handoff.id]);
+  });
+
+  it('拼图后在后台盯手机的那一路：这一家走完（登上 / 超时）就收掉，不占着手机等下一家（2026-11-05）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    let given: AbortSignal | undefined;
+    let t = 0;
+    const { browser } = fakeBrowser({ cookies: () => [] });
+    const pageFor = browser.pageFor;
+    browser.pageFor = key => { const p = pageFor(key); return p && { ...p, smsPrepare: async (_report, signal) => { given = signal; return { status: 'captcha' as const }; } }; };
+    await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, timeoutMs: 30, sleep: async () => { t += 10; expect(given?.aborted).toBe(false); }, now: () => t }, a.handoff.id, [a.handoff.id]);
+    expect(given?.aborted).toBe(true);
   });
 
   it('短信码代办：切到这一家先替他发码，他报的码填进这一家，登上了清掉（2026-11-03 他只管收验证码）', async () => {

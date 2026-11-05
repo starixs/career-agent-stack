@@ -84,7 +84,7 @@ describe('搜题流程', () => {
     const { service } = await makeService(llm);
     service.bank.createBank(NETEASE_BANK, [{ stem: '以下哪项不属于尼尔森十大可用性原则', options: ['A. 系统状态可见', 'B. 防错', 'C. 美观至上'], answer: 'C', explanation: '美观不是十大原则之一' }]);
 
-    const recognized = await service.recognize({ text: '1. 以下哪项…', roleTitle: '交互设计师' });
+    const { search: recognized } = await service.recognize({ text: '1. 以下哪项…', roleTitle: '交互设计师' });
     expect(recognized.company_name).toBe('网易');
     expect(recognized.status).toBe('recognized');
     expect(recognized.answers).toEqual([expect.objectContaining({ index: 0, answer: 'C', source: 'bank' })]);
@@ -95,7 +95,7 @@ describe('搜题流程', () => {
     expect(llm.calls).toHaveLength(2);
     expect(llm.calls[1].messages[0].content).toContain('<题 index="1"');
     expect(llm.calls[1].messages[0].content).not.toContain('<题 index="0"');
-    expect(service.list().map(s => s.id)).toEqual([recognized.id]);
+    expect(service.searchesOf(recognized.session_id).map(s => s.id)).toEqual([recognized.id]);
   });
 
   it('模型漏答的题重问一次', async () => {
@@ -105,17 +105,30 @@ describe('搜题流程', () => {
       JSON.stringify({ answers: [{ index: 1, answer: 'B', confidence: 'medium' }] }),
     ]);
     const { service } = await makeService(llm);
-    const recognized = await service.recognize({ text: '题一 题二' });
+    const { search: recognized } = await service.recognize({ text: '题一 题二' });
     const answered = await service.answer(recognized.id);
     expect(answered.answers.map(a => a.answer)).toEqual(['A', 'B']);
     expect(llm.calls[2].messages[0].content).toContain('<题 index="1"');
     expect(llm.calls[2].messages[0].content).not.toContain('<题 index="0"');
   });
 
+  it('共用材料存进记录（不存截图），作答时带给模型', async () => {
+    const material = '| 年份 | 营收 |\n| --- | --- |\n| 2023 | 100 |\n| 2024 | 120 |';
+    const llm = new FakeLLM([
+      JSON.stringify({ material, questions: [{ stem: '2024 年营收同比增长多少', options: ['A. 10%', 'B. 20%'], qtype: 'single' }] }),
+      JSON.stringify({ answers: [{ index: 0, answer: 'B', confidence: 'high' }] }),
+    ]);
+    const { service } = await makeService(llm);
+    const { search } = await service.recognize({ images: [{ mediaType: 'image/png', data: 'AAAA' }] });
+    expect(search).toMatchObject({ input_kind: 'image', input_text: null, material });
+    await service.answer(search.id);
+    expect(llm.calls[1].messages[0].content).toContain(`<材料>\n${material}\n</材料>`);
+  });
+
   it('作答失败时记录标成 failed 并带上原因', async () => {
     const llm = new FakeLLM([JSON.stringify({ questions: [{ stem: '数列 2, 4, 8, ? 下一项是', options: [], qtype: 'fill' }] }), '不是 JSON']);
     const { service } = await makeService(llm);
-    const recognized = await service.recognize({ text: '数列 2, 4, 8, ?' });
+    const { search: recognized } = await service.recognize({ text: '数列 2, 4, 8, ?' });
     await expect(service.answer(recognized.id)).rejects.toThrow();
     expect(service.get(recognized.id)).toMatchObject({ status: 'failed', error: expect.stringContaining('JSON') });
   });
@@ -133,6 +146,50 @@ describe('搜题流程', () => {
     expect(parseRecognition({ questions: [{ stem: '' }, { stem: '题', qtype: 'essay', options: ['A. 1', 2] }] }).questions)
       .toEqual([{ index: 0, stem: '题', options: ['A. 1'], qtype: null }]);
     expect(() => parseRecognition({})).toThrow('questions');
+  });
+});
+
+describe('按场记录', () => {
+  it('同一场的几次粘贴归在一起、按先后排；没带场就开新的一场', async () => {
+    const llm = new FakeLLM([
+      JSON.stringify({ company_hint: '网易', questions: [{ stem: '题一', options: [] }] }),
+      JSON.stringify({ questions: [{ stem: '题二', options: [] }, { stem: '题三', options: [] }] }),
+      JSON.stringify({ questions: [{ stem: '别场的题', options: [] }] }),
+    ]);
+    const { service } = await makeService(llm);
+    const first = await service.recognize({ text: '题一', roleTitle: '交互设计师' });
+    const second = await service.recognize({ sessionId: first.session.id, text: '题二 题三' });
+    const other = await service.recognize({ text: '别场的题' });
+
+    expect(second.session.id).toBe(first.session.id);
+    expect(second.search).toMatchObject({ company_name: '网易', role_title: '交互设计师' });
+    expect(other.session.id).not.toBe(first.session.id);
+    expect(service.searchesOf(first.session.id).map(s => s.id)).toEqual([first.search.id, second.search.id]);
+    const summary = service.sessions.list().find(s => s.id === first.session.id);
+    expect(summary).toMatchObject({ company_name: '网易', role_title: '交互设计师', search_count: 2, question_count: 3, first_stem: '题一' });
+  });
+
+  it('带了不存在的场直接报错，不调模型；删一场连同它的记录一起删', async () => {
+    const llm = new FakeLLM([JSON.stringify({ questions: [{ stem: '题', options: [] }] })]);
+    const { service } = await makeService(llm);
+    await expect(service.recognize({ sessionId: 'exm_nope', text: '题' })).rejects.toThrow('不存在');
+    expect(llm.calls).toHaveLength(0);
+    const { session } = await service.recognize({ text: '题' });
+    expect(service.sessions.remove(session.id)).toBe(true);
+    expect(service.searchesOf(session.id)).toEqual([]);
+    expect(service.sessions.list()).toEqual([]);
+  });
+
+  it('旧表没有场：补列后旧记录各自成一场', async () => {
+    const repos = createMemoryRepos();
+    repos.db.raw.exec(`CREATE TABLE exam_search (id TEXT PRIMARY KEY, company_name TEXT, role_title TEXT, input_kind TEXT NOT NULL, input_text TEXT,
+      questions_json TEXT NOT NULL DEFAULT '[]', answers_json TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL DEFAULT 'recognized', error TEXT,
+      created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`);
+    const t = '2026-10-30T12:00:00.000Z';
+    repos.db.insert('exam_search', { id: 'exs_old', company_name: '网易', input_kind: 'text', questions_json: '[{"index":0,"stem":"老题","options":[]}]', created_at: t, updated_at: t });
+    const service = new ExamSearchService(repos.db, await loadCore(), new FakeLLM());
+    expect(service.sessions.list()).toEqual([expect.objectContaining({ id: 'exm_exs_old', company_name: '网易', search_count: 1, first_stem: '老题' })]);
+    expect(service.searchesOf('exm_exs_old').map(s => s.id)).toEqual(['exs_old']);
   });
 });
 

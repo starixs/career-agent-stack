@@ -20,7 +20,7 @@ describe('navModel', () => {
     expect(NAV_AREAS.find(area => area.id === 'assets')!.items.map(item => item.label))
       .toEqual(['基本资料', '简历']);
     expect(NAV_AREAS.find(area => area.id === 'settings')!.items.map(item => item.id))
-      .toEqual(['general', 'desktop-pet', 'shortcuts', 'feedback', 'about']);
+      .toEqual(['account', 'general', 'desktop-pet', 'shortcuts', 'feedback', 'about']);
   });
 
   it('locates the area and item from the active tab and the page sub-view', () => {

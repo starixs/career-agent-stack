@@ -62,7 +62,14 @@ export class BridgeCdp {
           this.lastAck = { id: params?.sessionId, result }
           return result
         }
-        return this.bridge.sendCommand({ cmd: 'cdp', tabId: this.tabId, method, params: params ?? {} })
+        const started = Date.now()
+        const note = () => {
+          const ms = Date.now() - started
+          if (ms > 3000) console.warn(`[bridge-cdp] slow ${method}${typeof params?.type === 'string' ? `:${params.type}` : ''} ${ms}ms`)
+        }
+        const sent = this.bridge.sendCommand({ cmd: 'cdp', tabId: this.tabId, method, params: params ?? {} })
+        sent.then(note, note)
+        return sent
       },
       on: (method: string, listener: (...args: never[]) => void) => {
         if (released || !this.bridge.onCdpEvent) return

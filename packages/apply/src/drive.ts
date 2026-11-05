@@ -110,10 +110,20 @@ export interface PageRecord {
 /** 网址本身就是某一个岗位：/position/123/detail、/job/abc123、#/job/uuid、/jobs/12345。 */
 export const POSITION_URL_RX = /(\/position\/\d{5,}|\/(job|jobs|post|position)[/-]?(detail|info)?\/[\w-]{6,}|[?&](post_?id|job_?id|positionId|jobUnionId)=)/i
 
+/**
+ * 组件库指纹只收字符串数组。真实 Chrome 桥接在个别页面上把脚本结果回成字符串 "undefined"，
+ * 直接展开会变成 u,n,d,e,f,i 记进埋点（2026-11-05 jdjianli.com）。
+ */
+export function libraryList(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.filter((x): x is string => typeof x === 'string' && x.length > 0) : []
+}
+
 export interface DriveResult {
   status: DriveStatus
   /** handoff 时的原因；blocked 时可能是 missing_info。 */
   reason?: HandoffReason
+  /** 停在一个拿不准的弹窗上：它问的话和按钮，等你卡上让学生直接选（选完存进站点记忆，续跑时引擎替他点）。 */
+  dialog?: { text: string; buttons: string[] }
   message: string
   /** handoff 时：用户具体该做什么（给接管条展示）。 */
   userAction?: string
@@ -261,7 +271,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   /** 障碍层；返回 false 表示有处理不了的模态弹窗。 */
   let unresolvedBlocker: { text: string; buttons: string[]; reason: string } | undefined
   const blockers = async (stage: string, rec?: PageRecord): Promise<boolean> => {
-    const r = await clearBlockers(page, { llm: widgetLlm, recorder, progress: m => progress(m, 'blocker'), log, settleMs: Math.min(opts.settleMs ?? 400, 600) || 0, stage })
+    const r = await clearBlockers(page, { llm: widgetLlm, recorder, progress: m => progress(m, 'blocker'), log, settleMs: Math.min(opts.settleMs ?? 400, 600) || 0, stage, ...(opts.siteMemory ? { presetChoice: (text: string) => opts.siteMemory?.dialogChoice(host, text) } : {}) })
     if (r.handled.length) { allBlockers.push(...r.handled); if (rec) (rec.blockers ??= []).push(...r.handled) }
     unresolvedBlocker = r.unresolved
     return !r.unresolved
@@ -312,6 +322,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   }
   const blockerHandoff = (u: { text: string; buttons: string[]; reason: string }) => finish('handoff', `页面弹出了一个对话框，我没把握该点哪个：「${u.text.slice(0, 80)}」（${u.reason}）`, {
     reason: 'user_request', userAction: `页面上有个弹窗「${u.text.slice(0, 60)}」（按钮：${u.buttons.slice(0, 4).join(' / ') || '无'}），请你在浏览器里处理掉它，然后点"交还"，我接着填`,
+    ...(u.buttons.length ? { dialog: { text: u.text, buttons: u.buttons } } : {}),
   })
   /** 一路下来没碰到任何表单项。 */
   const untouched = () => !all.filled.length && !all.needsUser.length && !all.drafts.length && !all.uploads.length && !all.mismatches.length
@@ -340,7 +351,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   }
 
   try {
-    try { libraries = await page.evaluate(libraryFingerprintScript) } catch { /* ignore */ }
+    try { libraries = libraryList(await page.evaluate(libraryFingerprintScript)) } catch { /* ignore */ }
     recorder.trace({ stage: 'start', result: 'info', detail: `${page.url()} | 组件库：${libraries.join(',') || '未识别'} | 适配器：${adapter.id}` })
     if (adapter.preprocess) await adapter.preprocess(page).catch(e => log(`预处理失败：${e instanceof Error ? e.message : e}`))
     for (let index = 1; index <= maxPages; index++) {
@@ -500,7 +511,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       layersUsed.add(layer)
       sensitive = fields.filter(f => isSensitiveLabel(f.label) && f.layer !== 'vision').map(f => f.selector)
       // 组件库指纹按页累积（详情页和表单页往往不一样）
-      try { libraries = [...new Set([...libraries, ...(await page.evaluate(libraryFingerprintScript)), ...fields.map(f => f.framework).filter((x): x is string => !!x && x !== 'native')])] } catch { /* ignore */ }
+      try { libraries = [...new Set([...libraries, ...libraryList(await page.evaluate(libraryFingerprintScript)), ...fields.map(f => f.framework).filter((x): x is string => !!x && x !== 'native')])] } catch { /* ignore */ }
       progress(`第 ${index} 页：找到 ${fields.length} 个要看的格子`, 'page')
       log(`第 ${index} 页：${fields.length} 个字段（${layer}）`)
       recorder.trace({ stage: 'page', result: 'info', detail: `第 ${index} 页 ${page.url()}：${fields.map(f => `${f.id}:${f.label}${f.required ? '*' : ''}${f.labelUncertain ? '?' : ''}`).join(' | ')}` })
@@ -860,6 +871,8 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   } catch (e) {
     const c = classifyError(e)
     recorder.trace({ stage: 'crash', result: 'fail', code: c.code, detail: c.raw })
+    // 运行记录没落盘时（遥测关着 / 目录没建）原始报错会只剩一句「填写时出错了」：日志里也留一份
+    console.warn(`[apply-drive] crash url=${page.url()} code=${c.code}: ${String(c.raw).slice(0, 400)}${e instanceof Error && e.stack ? `\n${e.stack.split('\n').slice(1, 5).join('\n')}` : ''}`)
     const screenshot = await page.screenshot().catch(() => undefined)
     const result: DriveResult = { status: 'failed', message: `网申填写中断：${c.text}`, failureCode: c.code, pages, ...all, layersUsed: [...layersUsed], fields: allFields, blockers: allBlockers, entryClicked, libraries, ...(telemetryRef ? { telemetry: telemetryRef } : {}), screenshot, finalUrl: page.url(), adapterId: adapter.id }
     summarize('failed', result)

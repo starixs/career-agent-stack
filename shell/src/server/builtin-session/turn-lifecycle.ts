@@ -18,6 +18,7 @@ import {
 } from '../session-core/turn-result-policy';
 import { decideInFlightActionOnResult } from '../utils/inflight-terminal';
 import type { ProviderEnv } from '../provider-types';
+import type { MeteredModelUsage } from '../turn-hooks';
 import type { InFlightMetadata, TurnProviderAnalytics } from './types';
 import {
   getCurrentTurnText,
@@ -160,6 +161,8 @@ export type BuiltinTurnLifecycleDeps = {
     model: string | undefined,
     providerEnv: ProviderEnv | undefined,
   ) => Promise<void> | void;
+  /** Billing meter (turn-hooks.ts slot). Optional so lifecycle tests can omit it. */
+  fireUsageMeterHook?: (usage: MeteredModelUsage) => void;
   appendTextChunk: (chunk: string) => boolean;
   stageAssistantChannelBlock: (text: string) => void;
   localizeImError: (rawError: string) => string;
@@ -634,6 +637,20 @@ export function createBuiltinTurnLifecycle(deps: BuiltinTurnLifecycleDeps): Buil
       toolCount: currentTurnToolCount,
       durationMs: durationMs || undefined,
       providerId: providerAnalytics.provider_id ?? undefined,
+    });
+    // Billing: tokens were spent whether the turn completed, failed or was stopped,
+    // so meter every terminal result (unlike ai_turn_complete analytics below).
+    // Keyed by the SDK result uuid so a replayed result is never charged twice.
+    deps.fireUsageMeterHook?.({
+      key: `chat:${deps.getSessionId()}:${resultMessage.uuid}`,
+      scope: `chat:${deps.getSessionId()}`,
+      origin: 'chat',
+      model: currentTurnUsage.model,
+      providerId: providerAnalytics.provider_id ?? undefined,
+      inputTokens: currentTurnUsage.inputTokens,
+      outputTokens: currentTurnUsage.outputTokens,
+      cacheReadTokens: currentTurnUsage.cacheReadTokens,
+      cacheCreationTokens: currentTurnUsage.cacheCreationTokens,
     });
 
     const hasResultText = resultText.trim().length > 0;

@@ -11,7 +11,6 @@ import { openLiveDrawer } from '../CareerLiveDrawer';
 import { suggestToChat } from '../CareerPrimitives';
 import { useRespondReview } from '../CareerReviewCard';
 import { deliveryApi, type AskView } from './deliveryApi';
-import { holdSubmit, type HoldChoice } from './holdSubmit';
 
 export type AskOutcome = 'resolved' | 'snoozed' | 'kept';
 type Respond = ReturnType<typeof useRespondReview>;
@@ -53,6 +52,7 @@ async function go(ask: AskView, respond: Respond, values: Record<string, string>
   switch (ask.kind) {
     case 'start': case 'review': return decideReview(respond, ask);
     case 'info': return fillFields(ask, values);
+    case 'choice': if (!values.choice) return 'kept'; await deliveryApi.choose(ask.id, values.choice); return 'resolved';
     // 登录之旅：服务端把画面钉在第一家，登上了（数据层判断）或你点交还就切下一家
     case 'login': await deliveryApi.loginJourney(ask.id); openLiveDrawer(); return 'kept';
     case 'confirm': return confirmSent(ask, true);
@@ -92,6 +92,5 @@ export function useAskActions() {
     busy, error,
     go: (ask: AskView, values: Record<string, string> = {}) => run(() => go(ask, respond, values)),
     later: (ask: AskView) => run(() => later(ask)),
-    hold: (ask: AskView, choice: HoldChoice) => run(() => holdSubmit(sourceIds(ask, 'action'), choice)),
   };
 }

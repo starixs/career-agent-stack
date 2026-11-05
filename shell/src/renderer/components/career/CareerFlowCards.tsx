@@ -20,19 +20,18 @@
  * 卡片由 SSE `career:card` 推来（TabProvider.careerCards），按 id 去重；完成或忽略后从对话里移除。
  * 写入走产品自己的接口；完成后用 suggestToChat 告诉助理"做完了，继续"，助理据此接着干。
  */
-import { CheckCircle2, ClipboardCheck, Search, KeyRound, ListTodo, Mail, PenLine, Play, UserRound } from 'lucide-react';
+import { CheckCircle2, ClipboardCheck, KeyRound, ListTodo, Mail, PenLine, Play, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { onEvent } from '@/api/eventBus';
 
 import { careerApi } from './careerApi';
-import { CareerKeysPanel } from './CareerKeysPanel';
 import { openLiveDrawer } from './CareerLiveDrawer';
 import { ApplyGapsCard, ReviewCard } from './CareerReviewCard';
 import { Badge, Button, TextArea, TextInput, suggestToChat } from './CareerPrimitives';
 import { TakeoverCard } from './ColdStartCards';
 import { MailConnectCenter } from './mail-connect/MailConnectCenter';
-import { CardShell, ErrorLine, PrivacyNote, list, str, useSubmit, type CardProps } from './FlowCardShell';
+import { CardShell, ErrorLine, list, str, useSubmit, type CardProps } from './FlowCardShell';
 import { ResumeIntakeCard, TailorDiffCard } from './ResumeChainCards';
 import { ApplicationCard } from './delivery/ApplicationCard';
 import { BatchWallCard } from './delivery/BatchWall';
@@ -68,7 +67,6 @@ export function VaultMissingCard({ card, onDone, onDismiss }: CardProps) {
           </label>
         ))}
       </div>
-      <PrivacyNote />
       <ErrorLine error={error} />
       <div className="mt-3 flex items-center gap-2">
         <Button variant="primary" busy={busy} disabled={!filled.length} onClick={() => void save()}>保存{filled.length ? ` ${filled.length} 项` : ''}</Button>
@@ -105,7 +103,6 @@ export function NeedsUserCard({ card, onDone, onDismiss }: CardProps) {
           </label>
         ))}
       </div>
-      {items.some(i => i.vaultField) && <PrivacyNote />}
       <ErrorLine error={error} />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button variant="primary" busy={busy} disabled={!filled.length} onClick={() => void save()}>保存并继续填表</Button>
@@ -187,7 +184,6 @@ export function ClaimsConfirmCard({ card, onDone, onDismiss }: CardProps) {
           <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-[var(--ink-2)]">{gaps.map(g => <li key={g}>{g}</li>)}</ul>
         </div>
       )}
-      {claims.length > 0 && <p className="mt-2 text-xs text-[var(--subtle)]">只有确认过的说法才会写进简历和网申回答{fromRetro ? '；已经投出去的那版不会变，下次定制时才会用上' : ''}。</p>}
       <ErrorLine error={error} />
       <div className="mt-3 flex items-center gap-2">
         {gaps.length > 0 && <Button variant={claims.length ? 'ghost' : 'primary'} onClick={() => { suggestToChat(`帮我把「${title}」补上：${gaps.join('；')}`); if (!claims.length) onDone(); }}>去补这几处</Button>}
@@ -226,9 +222,8 @@ export function SiteLoginCard({ card, onDone, onDismiss }: CardProps) {
       </div>
       <label className="mt-2 flex items-center gap-2 text-xs text-[var(--muted)]">
         <input type="checkbox" checked={autofill} onChange={e => setAutofill(e.target.checked)} />
-        以后在 {host} 的登录页自动代填（点登录、验证码仍由你来）
+        以后在 {host} 自动代填账号密码
       </label>
-      <PrivacyNote />
       <ErrorLine error={error} />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button variant="primary" busy={busy} disabled={!password} onClick={() => void save()}>保存并去登录</Button>
@@ -251,14 +246,6 @@ export function MailBindCard({ card, onDone, onDismiss }: CardProps) {
   );
 }
 
-// ---------- 配置搜索 Key（web_search / company_research 发现没配置时推出） ----------
-export function SearchSetupCard({ card, onDone, onDismiss }: CardProps) {
-  return (
-    <CardShell testId="career-card-search_setup" icon={<Search className="size-4" />} title={card.title} badge={<Badge tone="info">建议</Badge>} onDismiss={onDismiss}>
-      <CareerKeysPanel show="search" onSaved={() => { onDone(); suggestToChat('搜索 Key 已在卡片里配好了，请重新搜索'); }} />
-    </CardShell>
-  );
-}
 
 // ---------- 批量投递进度（来自 Global 事件桥） ----------
 export function useBatchState(): BatchState | null {
@@ -299,7 +286,6 @@ const RENDERERS: Record<string, (props: CardProps) => ReactNode> = {
   tailor_diff: props => <TailorDiffCard {...props} />,
   site_login: props => <SiteLoginCard {...props} />,
   mail_bind: props => <MailBindCard {...props} />,
-  search_setup: props => <SearchSetupCard {...props} />,
   review: props => (str(props.card.data.kind) === 'fill_form'
     ? <BatchWallCard cardId={props.card.id} actionIds={strIds(props.card.data.action_ids)} />
     : <ReviewCard {...props} />),

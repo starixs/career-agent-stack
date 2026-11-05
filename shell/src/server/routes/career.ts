@@ -645,7 +645,7 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 外部依赖配置状态（模型 Key 必需 / 搜索 Key 建议）：只回状态，不回 Key ----------
-  route('GET', '/api/career/setup', () => ok({ setup: careerSetupStatus() })),
+  route('GET', '/api/career/setup', () => ok({ setup: careerSetupStatus(process.env) })),
 
   // ---------- 对话内流程卡片（持久化；锚定在产生它的工具调用下面） ----------
   route('GET', '/api/career/cards', ({ repos, url }) => {
@@ -1058,6 +1058,10 @@ export async function handleCareerRoute(pathname: string, request: Request, deps
   if (pathname.startsWith('/api/career/exam-search/')) {
     const { handleExamSearchRoute } = await import('./career-exam-search');
     return handleExamSearchRoute(pathname, request, { repos: deps.repos, llm: deps.llm ?? undefined, broadcast: deps.broadcast });
+  }
+  if (pathname.startsWith('/api/career/billing/')) {
+    const { handleBillingRoute } = await import('./career-billing');
+    return handleBillingRoute(pathname, request, { repos: deps.repos });
   }
   const method = request.method.toUpperCase();
   for (const r of ROUTES) {

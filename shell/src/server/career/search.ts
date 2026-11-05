@@ -1,8 +1,9 @@
 /**
- * Web Search 提供方：LLM 唯一允许的外部动作。优先用用户在设置页 / 对话卡片保存的 Key（setup.ts），其次构建常量
- * （CAREER_SEARCH_API_KEY / CAREER_SEARCH_PROVIDER），也接受 @career/bridges 认的环境变量
+ * Web Search 提供方：LLM 唯一允许的外部动作。Key 只来自构建常量（CAREER_SEARCH_API_KEY / CAREER_SEARCH_PROVIDER，
+ * 用户不能自己配，见 setup.ts），也接受 @career/bridges 认的环境变量
  * （SEARCH_PROVIDER / SEARCH_API_KEY / BOCHA_API_KEY / TAVILY_API_KEY / SERPER_API_KEY）。
  */
+import { meterToolUsageInBackground } from './billing-service';
 import { loadBridges } from './domain';
 import { resolveCareerSearchConfig } from './setup';
 
@@ -17,15 +18,24 @@ export async function getSearchProvider(): Promise<CareerSearchProvider | null> 
   const bridges = await loadBridges();
   const cfg = resolveCareerSearchConfig();
   const env: NodeJS.ProcessEnv = { ...process.env };
-  if (cfg.source === 'settings') {
-    // 用户在产品里保存的配置覆盖一切环境变量
-    env.SEARCH_PROVIDER = cfg.provider ?? 'bocha';
-    env.SEARCH_API_KEY = cfg.apiKey;
-  } else if (cfg.source === 'build') {
+  if (cfg.source === 'build') {
     if (cfg.provider && !env.SEARCH_PROVIDER) env.SEARCH_PROVIDER = cfg.provider;
     if (!env.SEARCH_API_KEY) env.SEARCH_API_KEY = cfg.apiKey;
   }
-  return bridges.tryCreateSearchProvider(env);
+  const provider = bridges.tryCreateSearchProvider(env);
+  return provider ? meteredSearch(provider) : null;
+}
+
+/** 每次搜索按次计价（价目 `search:<供应商>`，见 @career/core billing/pricing.ts）；搜失败不记。 */
+export function meteredSearch(provider: CareerSearchProvider): CareerSearchProvider {
+  return {
+    name: provider.name,
+    async search(query, opts) {
+      const hits = await provider.search(query, opts);
+      meterToolUsageInBackground(`search:${provider.name}`);
+      return hits;
+    },
+  };
 }
 
 /** 测试注入：null = 明确不可用。 */

@@ -11,6 +11,7 @@ export {
 export { CaptchaPolicy, siteKeyOf, type AttemptRecord, type CaptchaPolicyOptions } from './policy.js'
 export { solveCaptcha } from './solvers/index.js'
 export { solveSlider, estimateGapFromColumns } from './solvers/slider.js'
+export { solveRotation } from './solvers/rotation.js'
 export { solveImageClick } from './solvers/image-click.js'
 export { solveImageText } from './solvers/image-text.js'
 export { solveBrowserCheck } from './solvers/browser-check.js'

@@ -24,17 +24,17 @@ const BAR = 'flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--l
 /** 不用他动手的几步：只说进展。 */
 function progressOf(sms: Sms, site: string): string | null {
   switch (sms.status) {
-    case 'checking': return sms.detail === 'image' ? `已填进${site}，正在确认图上的字对不对…` : `已填进${site}的登录框，正在确认登上没有…`;
-    case 'registering': return `${site}：${sms.detail ?? '正在用你的邮箱登录（没账号就注册），验证码我从邮箱里自己取，你不用管'}`;
-    case 'registered': return `${site}：${sms.detail ?? '验证码填好了，正在确认登上没有…'}`;
+    case 'checking': return `已填进${site}，正在确认登录…`;
+    case 'registering': return `${site}：${sms.detail ?? '正在用邮箱登录…'}`;
+    case 'registered': return `${site}：${sms.detail ?? '正在确认登录…'}`;
     default: return null;
   }
 }
 
 function promptOf(sms: Sms, site: string): string {
-  if (sms.status === 'image_code') return sms.detail ? `${site}：${sms.detail}，照着图上的字再打一下` : `${site}要看图打几个字（看不清点图换一张），打完验证码我从邮箱里自己取`;
-  if (sms.status === 'captcha') return `${site}：先在画面上拖一下拼图，验证码发出来后填这里`;
-  return sms.detail ? `${site}：${sms.detail}` : `${site}的验证码已经发到你手机上，收到填这里`;
+  if (sms.status === 'image_code') return sms.detail ? `${site}：${sms.detail}` : `${site}：输入图上的字`;
+  if (sms.status === 'captcha') return `${site}：先在画面上拖拼图`;
+  return sms.detail ? `${site}：${sms.detail}` : `${site}：验证码已发到手机`;
 }
 
 export function SmsCodeBar({ sms }: { sms: LiveSnapshot['sms'] }) {
@@ -46,14 +46,14 @@ export function SmsCodeBar({ sms }: { sms: LiveSnapshot['sms'] }) {
   const site = sms.site ?? '这一家';
   if (sms.status === 'no_sms') {
     // 替他登不了也要说清楚：为什么、他能怎么办
-    return <div data-testid="sms-code-bar" role="status" className={BAR}>{site}：{sms.detail ?? '没找到能替你登录的方式'}。在画面上登录（扫码等），或点「这家先跳过」</div>;
+    return <div data-testid="sms-code-bar" role="status" className={BAR}>{site}：{sms.detail ?? '要在画面上登录'}</div>;
   }
   if (sms.status === 'mail_captcha') {
     // 码会发到他邮箱、我们自己取：只要他拖一下拼图，不给填码的格子
-    return <div data-testid="sms-code-bar" role="status" className={BAR}><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />{site}：在画面上拖一下拼图就行，验证码会发到你邮箱，我自己取、自己填</div>;
+    return <div data-testid="sms-code-bar" role="status" className={BAR}><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />{site}：在画面上拖一下拼图</div>;
   }
   if (sms.status === 'logged_in') {
-    return <div data-testid="sms-code-bar" role="status" className={BAR}><Check className="h-4 w-4 text-[var(--success)]" aria-hidden="true" />{site}已登录，接着填表</div>;
+    return <div data-testid="sms-code-bar" role="status" className={BAR}><Check className="h-4 w-4 text-[var(--success)]" aria-hidden="true" />{site}已登录</div>;
   }
   const progress = progressOf(sms, site);
   if (progress) {

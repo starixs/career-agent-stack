@@ -5,7 +5,7 @@
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 
 export interface CompanyMark { company_id: string | null; name: string; logo?: string; fill?: string }
-export type AskKind = 'info' | 'login' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure';
+export type AskKind = 'info' | 'login' | 'choice' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure';
 export interface AskField { label: string; /** 给人看的说法（去掉问卷题号）；老数据没有就用 label */ text?: string; vault_field: string | null; sensitive: boolean; fillable: boolean; /** 网页上的可选项（下拉 / 单选） */ options?: string[]; /** 小芽写好的一版（开放题），卡片里预填 */ draft?: string }
 export interface AskView {
   id: string; kind: AskKind; title: string; detail?: string; role?: string;
@@ -13,6 +13,8 @@ export interface AskView {
   due_at: string | null; overdue: boolean; deadline_kind?: string; url?: string | null;
   source?: { inbox_item_id: string; received_at: string };
   fields?: AskField[]; review?: { required_filled: number | null; required_total: number | null; gaps: number }; suggest?: string;
+  /** choice：网页弹窗问的话和它的按钮 */
+  choice?: { question: string; options: string[] };
 }
 export type PosterState = 'wait' | 'run' | 'done' | 'ask' | 'failed' | 'next';
 export interface RunPoster { application_id: string; job_id: string; role: string; company: CompanyMark; star: boolean; state: PosterState }
@@ -23,7 +25,7 @@ export interface AwayView { since: string; asks: AskView[]; sent: CompanyMark[];
 type Dict = Record<string, unknown>;
 const isDict = (v: unknown): v is Dict => !!v && typeof v === 'object' && !Array.isArray(v);
 const isStr = (v: unknown): v is string => typeof v === 'string';
-const ASK_KINDS: ReadonlySet<string> = new Set(['info', 'login', 'deadline', 'slot', 'review', 'start', 'confirm', 'attendance', 'retro', 'failed', 'unsure']);
+const ASK_KINDS: ReadonlySet<string> = new Set(['info', 'login', 'choice', 'deadline', 'slot', 'review', 'start', 'confirm', 'attendance', 'retro', 'failed', 'unsure']);
 
 export function isCompanyMark(v: unknown): v is CompanyMark {
   return isDict(v) && isStr(v.name) && (v.logo === undefined || isStr(v.logo)) && (v.fill === undefined || isStr(v.fill));
@@ -31,7 +33,8 @@ export function isCompanyMark(v: unknown): v is CompanyMark {
 export function isAskView(v: unknown): v is AskView {
   return isDict(v) && isStr(v.id) && isStr(v.kind) && ASK_KINDS.has(v.kind) && isStr(v.title)
     && Array.isArray(v.application_ids) && Array.isArray(v.sources) && Array.isArray(v.companies) && v.companies.every(isCompanyMark)
-    && (v.due_at === null || isStr(v.due_at)) && typeof v.overdue === 'boolean';
+    && (v.due_at === null || isStr(v.due_at)) && typeof v.overdue === 'boolean'
+    && (v.kind !== 'choice' || (isDict(v.choice) && isStr(v.choice.question) && Array.isArray(v.choice.options) && v.choice.options.every(isStr)));
 }
 function isRunView(v: unknown): v is RunView {
   return isDict(v) && typeof v.total === 'number' && typeof v.done === 'number' && Array.isArray(v.items)
@@ -65,6 +68,8 @@ export const deliveryApi = {
   fill: (askId: string, values: Record<string, string>) => apiPostJson<unknown>(`/api/career/asks/${encodeURIComponent(askId)}/fill`, { values })
     .then(r => ({ stillWaiting: typeof field(r, 'still_waiting') === 'number' ? field(r, 'still_waiting') as number : 0 })),
   /** 一家一家带你登录（服务端按 Cookie / 登录接口返回判断登上没有）；cancel 停下，剩下的留在等你条里。 */
+  /** 网页弹窗的选择题：选一次，记在站点名下，后台从当前页接着填。 */
+  choose: (askId: string, choice: string) => apiPostJson<unknown>(`/api/career/asks/${encodeURIComponent(askId)}/choose`, { choice }),
   loginJourney: (askId: string, cancel = false) => apiPostJson<unknown>(`/api/career/asks/${encodeURIComponent(askId)}/login-journey`, cancel ? { cancel: true } : {}),
   away: (since: string) => apiGetJson<unknown>(`/api/career/away?since=${encodeURIComponent(since)}`).then(r => parseAway(field(r, 'away'))),
 };

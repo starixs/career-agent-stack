@@ -29,7 +29,7 @@ describe('CareerLive', () => {
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());
     push(snapshot);
-    expect(await screen.findByText('当前任务')).toBeInTheDocument();
+    expect(await screen.findByText('正在填写：B 公司 算法实习生')).toBeInTheDocument();
     expect(screen.queryByText(/已填好 2 · 失败 0/)).not.toBeInTheDocument();
     expect(screen.getByText('正在填写：B 公司 算法实习生')).toBeInTheDocument();
     expect(screen.getByText('助理在操作')).toBeInTheDocument();

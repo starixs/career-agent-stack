@@ -33,6 +33,8 @@ describe('product-owned browser bootstrap', () => {
     expect(f.deps.stage).toHaveBeenCalledWith(f.root, { url: 'ws://127.0.0.1:18775', token: 'x'.repeat(64) })
     expect(f.deps.launch.mock.calls[0]).toEqual(['/official/browser', productBrowserArgs(join(f.root, 'browser-profile/product'), join(f.root, 'extension'))])
     expect(productBrowserArgs('/profile', '/bridge').join(' ')).not.toMatch(/headless|remote-debugging|enable-automation/)
+    // 不卡在 macOS 钥匙串对话框上（2026-11-05）
+    expect(productBrowserArgs('/profile', '/bridge')).toContain('--use-mock-keychain')
     const marker = join(f.root, 'browser-profile/product/login-state')
     await writeFile(marker, 'retain')
     await f.browser.stop()

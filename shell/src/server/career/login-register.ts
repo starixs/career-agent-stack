@@ -13,6 +13,7 @@ import type { SmsState } from './login-journey';
 import { openLoginCodeSource } from './login-code-source';
 import { MAIL_CODE_TIMEOUT_MS, mailboxFor, waitForMailCode } from './mail/code';
 import { loadApplyModule } from '../routes/career-browser';
+import { logSlowCalls } from './slow-calls';
 
 /** 站点密码：多数网申站要 8-20 位、字母加数字；12 位、去掉易混的 0/O/1/l/I。 */
 const SITE_PASSWORD_LENGTH = 12;
@@ -86,7 +87,7 @@ export type ImageAnswerOutcome = 'ok' | 'again' | SmsState;
 /** 图形码：把图给他看、等他打字、交给 answer 填回去；打错了换一张再给他看。过了返回 null，否则返回要报的状态。 */
 export async function passImageCode(apply: Apply, page: Page, report: (s: SmsState) => void, answer: (text: string) => Promise<ImageAnswerOutcome>): Promise<SmsState | null> {
   if (!apply.imageCodeDataUrl) return { status: 'no_sms', detail: '投递引擎版本不支持图形码' };
-  const P = apply.fromPlaywright(page);
+  const P = logSlowCalls(apply.fromPlaywright(page), 'register');
   for (let i = 0; i < IMAGE_TRIES; i++) {
     const image = await apply.imageCodeDataUrl(P);
     report({ status: 'image_code', ...(image ? { image } : {}), ...(i ? { detail: '上一张没对上，换了一张' } : {}) });
@@ -137,7 +138,7 @@ export async function autoRegisterByEmail(repos: Repos, page: Page, report: (s: 
   if (!email) return null;
   if (!mailbox) { console.log(`[career] login-register ${host}: 邮箱还没连上，走手机号`); return null; } // 邮箱没连：让手机短信那条路接着试
   const password = generateSitePassword();
-  const P = apply.fromPlaywright(page);
+  const P = logSlowCalls(apply.fromPlaywright(page), 'register');
   const codes = await mailCodeWaiter(repos, page, mailbox, email);
   try { return await registerWithMail({ apply, P, page, report, codes, host, email, password, vault }); } finally { await codes.close(); }
 }

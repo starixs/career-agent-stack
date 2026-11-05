@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { gateFrame, stableAspect, type FrameGate } from './CareerLiveViewport';
+import { gateFrame, isControlLost, liveHumanActive, stableAspect, type FrameGate } from './CareerLiveViewport';
 
 describe('stableAspect', () => {
   it('keeps the frame box still when live and still frames differ by a few pixels', () => {
@@ -40,5 +40,14 @@ describe('gateFrame', () => {
     g = { aspect: 1.5, pending: null };
     expect(step(1.2, 0)).toBe(false);
     expect(step(1.2, 1200)).toBe(true);                // 静止页每 2 秒一张补帧：等满 1 秒也认
+  });
+});
+
+describe('liveHumanActive', () => {
+  it('有服务端快照只信快照：后台收回了控制权，本地「你在操作」的接管事件过时了，画面不再假装能操作（2026-11-05 汉高滚不动）', () => {
+    expect(liveHumanActive('agent', 'human_active')).toBe(false);
+    expect(liveHumanActive('human', null)).toBe(true);
+    expect(liveHumanActive(undefined, 'human_active')).toBe(true);
+    expect(isControlLost('先点「接管」再直接操作画面')).toBe(true);
   });
 });

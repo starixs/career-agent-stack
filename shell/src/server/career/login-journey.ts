@@ -21,7 +21,7 @@ import { authCookies, forgetLoginMarks, knownLoggedIn, learnLoginMarks, LoginJud
 export interface JourneyPage {
   url(): string; onLoginResponse(cb: (verdict: ResponseVerdict) => void): () => void; /** 画面这一路；读不到给 null */ screen(): Promise<ScreenSample | null>;
   /** 替他填号、勾协议、点获取验证码；没有就不代办。 */
-  smsPrepare?(report: (state: SmsState) => void): Promise<SmsState>;
+  smsPrepare?(report: (state: SmsState) => void, signal?: AbortSignal): Promise<SmsState>;
   /** 他报上来的验证码：填上并点登录。 */
   smsSubmit?(code: string): Promise<{ ok: boolean; reason?: string }>;
   /** 图形码看不清：在网站上换一张，返回新图（取不到图返回 null）。 */
@@ -99,7 +99,10 @@ const CHECK_GRACE_MS = 20_000;
 /** 「X 已登录」留多久。 */
 const DONE_SHOW_MS = 8_000;
 export function journeySms(): SmsState | null { return sms?.state ?? null; }
+/** 跳过 / 取消后被丢下的那一页：它的准备工作还在后台跑完，跑完报上来的状态不能冲掉下一家的那一格。 */
+const abandoned = new WeakSet<JourneyPage>();
 function setSms(page: JourneyPage, state: SmsState, extra: { checkingAt?: number } = {}): void {
+  if (abandoned.has(page)) return;
   sms = { page, state: { ...state, ...(smsSite ? { site: smsSite } : {}) }, ...extra };
   smsChanged?.(['handoff']);
   journeyChanged();
@@ -134,11 +137,11 @@ function showDone(page: JourneyPage): void {
   const shown = sms;
   setTimeout(() => { if (sms === shown) { sms = null; smsChanged?.(['handoff']); journeyChanged(); } }, DONE_SHOW_MS);
 }
-async function prepareSms(deps: JourneyDeps, page: JourneyPage): Promise<void> {
+async function prepareSms(deps: JourneyDeps, page: JourneyPage, signal: AbortSignal): Promise<void> {
   if (!page.smsPrepare) return;
   try {
     const report = (state: SmsState) => setSms(page, state);
-    const state = await page.smsPrepare(report);
+    const state = await page.smsPrepare(report, signal);
     setSms(page, state);
     console.log(`[career] login-journey sms ${state.status}${state.detail ? ` (${state.detail})` : ''}`);
   } catch (e) {
@@ -146,6 +149,24 @@ async function prepareSms(deps: JourneyDeps, page: JourneyPage): Promise<void> {
     console.warn('[career] login-journey sms prepare FAILED', e instanceof Error ? e.message : e);
   }
   deps.changed(['handoff']);
+}
+
+/**
+ * 准备阶段（等他看图打字、等拼图后的邮件）最长要等几分钟：期间点「这家先跳过」/ 取消也要马上生效
+ * （2026-11-05：邮箱那条路弹拼图时点了跳过，3 分钟没反应，后面几十家「去登录」全被拒）。
+ */
+async function prepareOrSkip(deps: JourneyDeps, page: JourneyPage, signal: AbortSignal): Promise<'skipped' | 'cancelled' | null> {
+  const sleep = deps.sleep ?? (ms => new Promise<void>(r => setTimeout(r, ms)));
+  let done = false;
+  const prep = prepareSms(deps, page, signal).finally(() => { done = true; });
+  // 马上就能做完的准备（多数情况）不进轮询
+  await Promise.race([prep, new Promise<void>(r => setImmediate(r))]);
+  while (!done) {
+    if (cancelled) { abandoned.add(page); return 'cancelled'; }
+    if (skipRequested) { skipRequested = false; abandoned.add(page); return 'skipped'; }
+    await Promise.race([prep, sleep(deps.pollMs ?? POLL_MS)]);
+  }
+  return null;
 }
 
 interface Step { h: Handoff; actionId: string; appKey: string; site: string | null; url?: string; company?: string }
@@ -220,12 +241,29 @@ async function waitForLogin(deps: JourneyDeps, step: Step, page: JourneyPage): P
   } finally { off(); }
 }
 
+/**
+ * 他在这一家扫码、拖拼图时，下一家的网页先在后台打开（开一页要十几秒）：过完一家马上是下一家，接力不用等
+ * （2026-11-05 用户：人机验证排成一串过）。只提前开一家，开不了到时候照常再开。
+ */
+function prefetchNext(deps: JourneyDeps, handoffIds: readonly string[], index: number, ahead: Map<string, Promise<JourneyPage | undefined>>): void {
+  const next = handoffIds[index + 1];
+  const step = next ? stepOf(deps.repos, next) : null;
+  if (!step || ahead.has(step.appKey) || deps.browser.pageFor(step.appKey)) return;
+  ahead.set(step.appKey, openStepPage(deps, step));
+}
+
 async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly string[]): Promise<JourneyResult> {
   const result: JourneyResult = { steps: [] };
+  const ahead = new Map<string, Promise<JourneyPage | undefined>>();
   for (const [index, id] of handoffIds.entries()) {
     const step = stepOf(deps.repos, id);
     if (!step) continue; // 别处已经处理了
-    const page = deps.browser.pageFor(step.appKey) ?? await openStepPage(deps, step);
+    // 先钉住再开网页：开页要十几秒，这期间界面和「去登录」都要知道有一趟在走（2026-11-05：没钉住时状态报「没在登录」，
+    // 接着点的几十家全被悄悄拒掉）
+    setLivePin({ sessionKey: deps.sessionKey, appKey: step.appKey, askId, handoffId: id, index, total: handoffIds.length });
+    journeyChanged();
+    const page = deps.browser.pageFor(step.appKey) ?? await (ahead.get(step.appKey) ?? openStepPage(deps, step));
+    ahead.delete(step.appKey);
     if (!page) { reopen(deps, step); result.steps.push({ handoff_id: id, outcome: 'no_page' }); continue; } // 开不了：交给后台重新打开
     if (step.site && knownLoggedIn(deps.repos, await deps.browser.cookies(), step.site)) {
       // 学过的凭证在，但页面上登录框还开着：那是学错了（2026-11-02 美团：滑块发的风控 Cookie 被当成登录凭证记下，
@@ -243,8 +281,19 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
     deps.browser.focus(page);
     deps.changed(['handoff']);
     smsSite = step.company ?? step.site ?? undefined;
-    await prepareSms(deps, page);
-    const { outcome, credentials, signal } = await waitForLogin(deps, step, page);
+    prefetchNext(deps, handoffIds, index, ahead);
+    // 这一家走完（登上 / 跳过 / 超时）就收掉它在后台盯手机的那一路，不占着手机等下一家
+    const stepDone = new AbortController();
+    const early = await prepareOrSkip(deps, page, stepDone.signal).finally(() => { if (cancelled || skipRequested) stepDone.abort(); });
+    if (early) {
+      stepDone.abort();
+      sms = null;
+      result.steps.push({ handoff_id: id, outcome: early });
+      console.log(`[career] login-journey step ${id} outcome=${early}（准备阶段）`);
+      if (early === 'skipped') continue;
+      break;
+    }
+    const { outcome, credentials, signal } = await waitForLogin(deps, step, page).finally(() => stepDone.abort());
     if (outcome === 'logged_in' || outcome === 'handed_back') showDone(page); else sms = null;
     result.steps.push({ handoff_id: id, outcome, credentials, ...(signal ? { signal } : {}) });
     console.log(`[career] login-journey step ${id} outcome=${outcome} signal=${signal ?? '-'}`);
@@ -262,11 +311,13 @@ export function startJourney(deps: JourneyDeps, askId: string, handoffIds: reado
   cancelled = false;
   skipRequested = false;
   smsChanged = deps.changed;
+  // 他在登录之旅开始前就接管着（正在页面上操作）：旅程结束不收回，不然他手下的画面突然不听使唤（2026-11-05 汉高滚不动）
+  const heldByUser = deps.browser.control() === 'human';
   running = runSteps(deps, askId, handoffIds).finally(() => {
     setLivePin(null);
     journeyChanged();
     if (sms?.state.status !== 'logged_in') sms = null; // 「X 已登录」留一会儿让他看到
-    if (deps.browser.control() === 'human') deps.browser.releaseControl();
+    if (!heldByUser && deps.browser.control() === 'human') deps.browser.releaseControl();
     running = null;
     deps.changed(['handoff']);
   });

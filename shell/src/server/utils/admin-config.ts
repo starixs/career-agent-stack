@@ -1139,12 +1139,11 @@ export function resolveProviderEnv(
   // (Codex review): a value like `"  "` is truthy and would silently be
   // sent to the upstream as the Authorization header, producing an opaque
   // 401 instead of an actionable "no API key" error.
-  // 求职产品内置模型：用户没有填 key 时回退到构建常量（CAREER_LLM_API_KEY），
-  // 仍为空则视为不可用（打包机没注入 key）。
-  const configuredApiKey = isManagedOauth ? undefined : (c.providerApiKeys ?? {})[providerId];
-  const apiKey = !isManagedOauth && providerId === CAREER_LLM_PROVIDER_ID && !configuredApiKey?.trim()
+  // 求职产品内置模型：用户不能自己配 Key（2026-11-05 定），只认构建常量（CAREER_LLM_API_KEY），
+  // config.json 里存过的值一律不用；为空视为不可用（打包机没注入 key）。以后改为账号认证下发。
+  const apiKey = isManagedOauth ? undefined : providerId === CAREER_LLM_PROVIDER_ID
     ? (getCareerBuildConstants().llmApiKey || undefined)
-    : configuredApiKey;
+    : (c.providerApiKeys ?? {})[providerId];
   if (!isManagedOauth && (!apiKey || !apiKey.trim())) return undefined;
 
   // Extract provider config fields (same shape as frontend Chat.tsx builds)

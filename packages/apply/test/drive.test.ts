@@ -138,3 +138,31 @@ describe('网址就是某一个岗位：详情页上下两个同样的申请按�
     for (const u of ['https://app.mokahr.com/campus-recruitment/abc/12345#/jobs', 'https://app.mokahr.com/campus_apply/xx/123#/jobs?page=1', 'https://jobs.bytedance.com/campus/position?keywords=数据分析']) expect(POSITION_URL_RX.test(u)).toBe(false)
   })
 })
+
+describe('libraryList', () => {
+  it('只收字符串数组：桥接回成字符串 "undefined" 时不拆成字母（2026-11-05）', async () => {
+    const { libraryList } = await import('../src/drive.js')
+    expect(libraryList(['antd', 'element'])).toEqual(['antd', 'element'])
+    expect(libraryList('undefined')).toEqual([])
+    expect(libraryList(null)).toEqual([])
+  })
+})
+
+describe('extractFields', () => {
+  it('桥接回的不是数组：当作没有格子，不崩（2026-11-05 raw.map is not a function）', async () => {
+    const { extractFields } = await import('../src/extract.js')
+    const page = { evaluate: async () => 'undefined', url: () => 'https://x.jobs.feishu.cn/login' } as unknown as Parameters<typeof extractFields>[0]
+    expect(await extractFields(page)).toEqual([])
+  })
+})
+
+describe('expectValue', () => {
+  it('读页面信号拿回空值：按导航中断报错，让读页面的重试接住，不往下崩成「填写时出错了」（2026-11-05 快手）', async () => {
+    const { expectValue } = await import('../src/page.js')
+    const { pageSignalsScript, extractFieldsScript } = await import('../src/scripts.js')
+    expect(() => expectValue(pageSignalsScript, 'undefined' as never)).toThrow(/Execution context was destroyed/)
+    expect(() => expectValue(pageSignalsScript, undefined as never)).toThrow(/Execution context was destroyed/)
+    expect(expectValue(pageSignalsScript, { buttons: [] } as never)).toEqual({ buttons: [] })
+    expect(expectValue(extractFieldsScript, undefined as never)).toBeUndefined()
+  })
+})
