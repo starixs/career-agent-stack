@@ -16,11 +16,11 @@ vi.mock('./verification-source', () => ({
   prepareCodeSource: async (...args: unknown[]) => { prepared.calls.push(args); return { wait: prepared.wait, close: prepared.close }; },
   acquireCodeLease: async () => () => undefined,
 }));
-const phone = vi.hoisted(() => ({ connected: true, waits: [] as unknown[] }));
+const phone = vi.hoisted(() => ({ connected: true, waits: [] as unknown[], reply: (_o: { signature?: string | null }): { code: string; signature: string } | null => ({ code: '654321', signature: '美团' }) }));
 vi.mock('./phone', () => ({
   phoneLink: async () => ({
     ensureConnected: async () => phone.connected,
-    waitForCode: async (opts: unknown) => { phone.waits.push(opts); return { code: '654321' }; },
+    waitForCode: async (opts: { signature?: string | null }) => { phone.waits.push(opts); return phone.reply(opts); },
   }),
 }));
 
@@ -71,5 +71,25 @@ describe('openPhoneCodeSource', () => {
   it('手机没连上：返回 null，调用方再请他填', async () => {
     phone.connected = false;
     expect(await openPhoneCodeSource()).toBeNull();
+  });
+});
+
+describe('通用收码自己学签名（2026-11-05）', () => {
+  it('陌生网站不带签名收第一条；填上后记下签名，下次只认它；按签名等不到就忘掉', async () => {
+    const kv = new Map<string, unknown>();
+    const store = { kvGet: (k: string) => kv.get(k), kvSet: (k: string, v: unknown) => { kv.set(k, v); } } as unknown as Repos;
+    phone.waits.length = 0;
+    phone.connected = true;
+    phone.reply = () => ({ code: '654321', signature: '美团' });
+    const first = await openPhoneCodeSource(store, 'meituan.com');
+    expect(await first?.wait(0, 1000)).toBe('654321');
+    first?.confirm?.();
+    await first?.close();
+    expect(kv.get('sms_signature:meituan.com')).toBe('美团');
+    phone.reply = () => null;
+    const second = await openPhoneCodeSource(store, 'meituan.com');
+    expect(await second?.wait(0, 1000)).toBeNull();
+    expect(phone.waits.map(w => (w as { signature?: string | null }).signature)).toEqual([null, '美团']);
+    expect(kv.get('sms_signature:meituan.com')).toBeNull();
   });
 });

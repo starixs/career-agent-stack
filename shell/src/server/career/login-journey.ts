@@ -21,7 +21,7 @@ import { authCookies, forgetLoginMarks, knownLoggedIn, learnLoginMarks, LoginJud
 export interface JourneyPage {
   url(): string; onLoginResponse(cb: (verdict: ResponseVerdict) => void): () => void; /** 画面这一路；读不到给 null */ screen(): Promise<ScreenSample | null>;
   /** 替他填号、勾协议、点获取验证码；没有就不代办。 */
-  smsPrepare?(report: (state: SmsState) => void): Promise<SmsState>;
+  smsPrepare?(report: (state: SmsState) => void, signal?: AbortSignal): Promise<SmsState>;
   /** 他报上来的验证码：填上并点登录。 */
   smsSubmit?(code: string): Promise<{ ok: boolean; reason?: string }>;
   /** 图形码看不清：在网站上换一张，返回新图（取不到图返回 null）。 */
@@ -137,11 +137,11 @@ function showDone(page: JourneyPage): void {
   const shown = sms;
   setTimeout(() => { if (sms === shown) { sms = null; smsChanged?.(['handoff']); journeyChanged(); } }, DONE_SHOW_MS);
 }
-async function prepareSms(deps: JourneyDeps, page: JourneyPage): Promise<void> {
+async function prepareSms(deps: JourneyDeps, page: JourneyPage, signal: AbortSignal): Promise<void> {
   if (!page.smsPrepare) return;
   try {
     const report = (state: SmsState) => setSms(page, state);
-    const state = await page.smsPrepare(report);
+    const state = await page.smsPrepare(report, signal);
     setSms(page, state);
     console.log(`[career] login-journey sms ${state.status}${state.detail ? ` (${state.detail})` : ''}`);
   } catch (e) {
@@ -155,10 +155,10 @@ async function prepareSms(deps: JourneyDeps, page: JourneyPage): Promise<void> {
  * 准备阶段（等他看图打字、等拼图后的邮件）最长要等几分钟：期间点「这家先跳过」/ 取消也要马上生效
  * （2026-11-05：邮箱那条路弹拼图时点了跳过，3 分钟没反应，后面几十家「去登录」全被拒）。
  */
-async function prepareOrSkip(deps: JourneyDeps, page: JourneyPage): Promise<'skipped' | 'cancelled' | null> {
+async function prepareOrSkip(deps: JourneyDeps, page: JourneyPage, signal: AbortSignal): Promise<'skipped' | 'cancelled' | null> {
   const sleep = deps.sleep ?? (ms => new Promise<void>(r => setTimeout(r, ms)));
   let done = false;
-  const prep = prepareSms(deps, page).finally(() => { done = true; });
+  const prep = prepareSms(deps, page, signal).finally(() => { done = true; });
   // 马上就能做完的准备（多数情况）不进轮询
   await Promise.race([prep, new Promise<void>(r => setImmediate(r))]);
   while (!done) {
@@ -268,15 +268,18 @@ async function runSteps(deps: JourneyDeps, askId: string, handoffIds: readonly s
     deps.browser.focus(page);
     deps.changed(['handoff']);
     smsSite = step.company ?? step.site ?? undefined;
-    const early = await prepareOrSkip(deps, page);
+    // 这一家走完（登上 / 跳过 / 超时）就收掉它在后台盯手机的那一路，不占着手机等下一家
+    const stepDone = new AbortController();
+    const early = await prepareOrSkip(deps, page, stepDone.signal).finally(() => { if (cancelled || skipRequested) stepDone.abort(); });
     if (early) {
+      stepDone.abort();
       sms = null;
       result.steps.push({ handoff_id: id, outcome: early });
       console.log(`[career] login-journey step ${id} outcome=${early}（准备阶段）`);
       if (early === 'skipped') continue;
       break;
     }
-    const { outcome, credentials, signal } = await waitForLogin(deps, step, page);
+    const { outcome, credentials, signal } = await waitForLogin(deps, step, page).finally(() => stepDone.abort());
     if (outcome === 'logged_in' || outcome === 'handed_back') showDone(page); else sms = null;
     result.steps.push({ handoff_id: id, outcome, credentials, ...(signal ? { signal } : {}) });
     console.log(`[career] login-journey step ${id} outcome=${outcome} signal=${signal ?? '-'}`);

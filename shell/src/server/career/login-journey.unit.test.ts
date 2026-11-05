@@ -281,6 +281,18 @@ describe('登录之旅', () => {
     expect(repos.openHandoffs().map(h => h.id)).toEqual([a.handoff.id]);
   });
 
+  it('拼图后在后台盯手机的那一路：这一家走完（登上 / 超时）就收掉，不占着手机等下一家（2026-11-05）', async () => {
+    const repos = createMemoryRepos();
+    const a = waitingLogin(repos, 'a.com');
+    let given: AbortSignal | undefined;
+    let t = 0;
+    const { browser } = fakeBrowser({ cookies: () => [] });
+    const pageFor = browser.pageFor;
+    browser.pageFor = key => { const p = pageFor(key); return p && { ...p, smsPrepare: async (_report, signal) => { given = signal; return { status: 'captcha' as const }; } }; };
+    await startJourney({ repos, browser, sessionKey: 's', changed: () => undefined, pollMs: 1, timeoutMs: 30, sleep: async () => { t += 10; expect(given?.aborted).toBe(false); }, now: () => t }, a.handoff.id, [a.handoff.id]);
+    expect(given?.aborted).toBe(true);
+  });
+
   it('短信码代办：切到这一家先替他发码，他报的码填进这一家，登上了清掉（2026-11-03 他只管收验证码）', async () => {
     const repos = createMemoryRepos();
     const a = waitingLogin(repos, 'a.com');
