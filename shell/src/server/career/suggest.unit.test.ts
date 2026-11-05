@@ -44,7 +44,7 @@ describe('下一步条 · 按幕出四格', () => {
 
   it('S1 冷启动：有 / 没有简历、邮箱接手投、届别填空', async () => {
     const s = state({ stage: 'profile', resume: { has: false, name: null, tailored: 0, experiences: 0 }, prefs: { keywords: [], cities: [], cohort: null }, mailConnected: false });
-    const { chips, scene } = await bar(s, { last_assistant: '手上有简历吗？' });
+    const { chips, scene } = await bar(s, { last_user: '你好', last_assistant: '手上有简历吗？' });
     expect(scene).toBe('S1');
     expect(texts(chips)).toEqual(['有简历，我拖进来', '还没有，先聊聊', '我是 ＿＿ 届，找校招', '手投过的从邮箱接过来']);
     expect(modes(chips)).toEqual(['answer', 'answer', 'option', 'start']);
@@ -102,7 +102,8 @@ describe('下一步条 · 按幕出四格', () => {
     const s = state({ stage: 'profile', resume: { has: false, name: null, tailored: 0, experiences: 0 }, mailConnected: true });
     const { chips, scene } = await bar(s, { last_user: '你还能帮我做什么？' });
     expect(scene).toBe('S26');
-    expect(texts(chips)).toEqual(['有简历，我拖进来', '先口述一段实习']);
+    // 本幕兜底只有两格：用通用兜底补到第三格（不到四格时补位）
+    expect(texts(chips)).toEqual(['有简历，我拖进来', '先口述一段实习', '我想问点别的：']);
     const noMail = await bar({ ...s, mailConnected: false }, { last_user: '你还能帮我做什么？' });
     expect(texts(noMail.chips)).toContain('手投过的从邮箱接过来');
   });
@@ -154,7 +155,7 @@ describe('下一步条 · 按幕出四格', () => {
     const plain = await bar({ ...s, asks: [] }, {});
     expect(plain.scene).toBe('S14');
     // 开现场与起头「网申进展」同落点，只留一格（L8），起头换成下一个
-    expect(texts(plain.chips)).toEqual(['把招商银行那份给我看看', '查一家公司靠不靠谱', '我先去忙，你接着投']);
+    expect(texts(plain.chips)).toEqual(['把招商银行那份给我看看', '查一家公司靠不靠谱', '我想问点别的：', '我先去忙，你接着投']);
     expect(chips.some(c => c.text === '连上手机自动收验证码')).toBe(true);
   });
 
@@ -230,6 +231,15 @@ describe('下一步条 · 按幕出四格', () => {
     expect(noModel.chips.some(c => c.kind === 'do')).toBe(true);
   });
 
+  it('S29 过线后不到四格时用 S26 按阶段的起头补满（真机 r2：S29 只剩两格）', async () => {
+    const llm = llmReturning([{ text: '后端名额缩了？那我还投吗' }, { text: '大厂现在还招后端吗' }]);
+    const s = state({ stage: 'profile', resume: { has: false, name: null, tailored: 0, experiences: 1 }, mailConnected: false });
+    const { chips, scene } = await bar(s, { last_user: '大厂现在还招后端吗', last_assistant: '后端名额缩了一些，但还在招。' }, llm);
+    expect(scene).toBe('S29');
+    expect(chips).toHaveLength(4);
+    expect(texts(chips)).not.toContain('大厂现在还招后端吗');
+  });
+
   it('模型出错不抛；开发词 / 撞卡按钮 / 没对象的格被丢', async () => {
     const boom: LLM = { complete: vi.fn(async () => { throw new Error('boom'); }) };
     const err = await bar(state({ nextJobs: jobs('平安') }), { last_assistant: '好的' }, boom);
@@ -285,6 +295,37 @@ const SAME_SCENE_CASES: ReadonlyArray<{ scene: string; s: SuggestState; a: Sugge
   { scene: 'S22', s: state(), a: turn('今天面完了感觉一般', '哪题最卡？'), b: turn('刚面完群面没说上话', '群面谁主导的？') },
   { scene: 'S24', s: state({ nextJobs: jobs('平安') }), a: turn('是不是我不行啊又被拒', '这周拒信多是常态。'), b: turn('投了没用不想投了', '先歇一下也行。') },
 ];
+
+describe('真跑回归（11-05）', () => {
+  beforeEach(() => { resetSuggestMemory(); resetExitRotation(); });
+
+  it('开场两扇门还在（还没说过话）：条上不重复门上的话，给门给不了的', async () => {
+    const s = state({ stage: 'profile', resume: { has: false, name: null, tailored: 0, experiences: 0 }, prefs: { keywords: [], cities: [], cohort: null }, mailConnected: false });
+    const { chips, scene } = await bar(s, {});
+    expect(scene).toBe('S1');
+    expect(chips).toHaveLength(4);
+    const t = texts(chips);
+    expect(t.some(x => x.includes('有简历') || x === '还没有，先聊聊')).toBe(false);
+    expect(t).toEqual(expect.arrayContaining(['我是 ＿＿ 届，找校招', '手投过的从邮箱接过来', '我做过的一件事是：']));
+  });
+
+  it('门还在时模型 / 示例写了门上的话也被 L5 挡下', async () => {
+    const llm = llmReturning([{ text: '有简历，我拖进来' }, { text: '还没有，先聊聊' }, { text: '我是 ＿＿ 届，找校招', intent: 'fill' }]);
+    const s = state({ stage: 'profile', resume: { has: false, name: null, tailored: 0, experiences: 0 }, mailConnected: false });
+    const { chips } = await bar(s, { turns: [{ role: 'assistant', text: '你手上有简历吗？' }] }, llm);
+    expect(texts(chips).some(x => x.includes('有简历') || x === '还没有，先聊聊')).toBe(false);
+  });
+
+  it('过线后不到四格时补到四格（本幕示例的说 / 填空，再通用兜底）', async () => {
+    const s = state({
+      batch: { status: 'running', running: ['招商银行'], runningAppId: 'app-1', done: 4, queued: 8 },
+      held: { count: 3, companies: ['美的'], askId: 'ask-review' }, phoneLinked: false,
+    });
+    const { chips, scene } = await bar(s, {});
+    expect(scene).toBe('S14');
+    expect(chips).toHaveLength(4);
+  });
+});
 
 describe('r4 · 模型优先：同幕不同上下文出不同格', () => {
   beforeEach(() => { resetSuggestMemory(); resetExitRotation(); });

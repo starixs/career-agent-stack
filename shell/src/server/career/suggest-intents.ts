@@ -6,7 +6,7 @@
 import type { AskKind } from '@career/core';
 import { z } from 'zod';
 
-import { isFeatureId } from '../../shared/careerFeatures';
+import { featureIdFrom } from '../../shared/careerFeatures';
 import {
   SUGGEST_MAX_CHIPS, type SuggestAction, type SuggestChip, type SuggestMode, type SuggestSurface,
 } from '../../shared/careerSuggest';
@@ -45,8 +45,10 @@ export const ModelOut = z.object({ c: z.array(z.unknown()) }).transform(o => ({
 
 /** 退出口的词表：say 文字命中才算退出口（mode 由服务端推，不让普通的话被当成退出口）。 */
 const EXIT_WORDS = /我先去忙|我先忙|先到这|稍后|等下再|先跳过|先放着|明天(再|接着)/;
-/** fill 要留给他补的地方：冒号收尾或 ＿＿。 */
-const FILL_SLOT = /[：:]\s*$|＿/;
+/** fill 要留给他补的地方：冒号收尾或空（＿＿ / __）。 */
+const FILL_SLOT = /[：:]\s*$|＿|_{2,}/;
+/** 文字里有空（＿＿ / __ / ____）：不管模型写的什么意图，都只能填进输入框等他补，不能直接发。 */
+const BLANK = /＿|_{2,}/;
 /** ask_primary 只接这几类（与 renderer askPrimary.ts 的 NEEDS_DECK 互补：其余要开卡组）。 */
 const PRIMARY_KINDS: readonly AskKind[] = ['review', 'failed', 'start'];
 const SURFACES: readonly SuggestSurface[] = ['live', 'dossier', 'jobs', 'resume'];
@@ -135,8 +137,9 @@ function openSurface(s: SuggestState, target: string): SuggestAction | null {
 }
 
 function startFeature(s: SuggestState, target: string): SuggestAction | null {
-  const [id, rest] = target.split(/[:：]/, 2).map(norm);
-  if (!isFeatureId(id)) return null;
+  const [rawId, rest] = target.split(/[:：]/, 2).map(norm);
+  const id = featureIdFrom(rawId);
+  if (!id) return null;
   const company = rest ? companyMentioned(rest, s) : null;
   return company ? { type: 'start_feature', feature_id: id, args: { company } } : { type: 'start_feature', feature_id: id };
 }
@@ -176,7 +179,8 @@ export function modeOf(intent: SuggestIntent, text: string, replyMode: SuggestMo
 export function resolveChip(raw: ModelChip, { s, allowed, replyMode }: ResolveCtx): SuggestChip | null {
   const text = stripQuotes(raw.text);
   if (!text) return null;
-  const intent: SuggestIntent = !allowed.length || allowed.includes(raw.intent) ? raw.intent : 'say';
+  const inScope = !allowed.length || allowed.includes(raw.intent);
+  const intent: SuggestIntent = BLANK.test(text) ? 'fill' : (inScope ? raw.intent : 'say');
   const target = norm(raw.target);
   const action = actionOf(intent, target, text, s);
   if (action === null) {

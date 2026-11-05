@@ -1,8 +1,9 @@
 /**
  * 下一步条 · 自动质量线（plan-r3-suggest §3）：每格都要"接得上、具体、顺手种下、点了也不坏"。
- * 不过的丢弃并留日志 `[career-suggest] lint drop <rule> <text>`；条上不够时由配方兜底补（suggest.ts）。
+ * 不过的丢弃并留日志 `[career-suggest] lint drop <rule> kind=<kind> mode=<mode>`（不记正文）；条上不够时由配方兜底补（suggest.ts）。
  * L10（回应性）不是丢弃规则，是补格规则，在 suggest.ts 里做；L13（类型多样）同。
- * r4（plan-r4-suggest §3.4）：L11 模型格要点到这一轮或状态里的真东西（历史词不算）；L12 不和上一轮出过的重样。
+ * r4（plan-r4-suggest §3.4）：L11 模型格要点到这一轮或状态里的真东西（历史词不算）；L12 不和上一轮出过的重样；
+ * L14 不复述他刚说的那句（真机 r2：条上出现他原话）。
  */
 import { SUGGEST_MAX_CHARS, type SuggestChip } from '../../shared/careerSuggest';
 import { isFeatureStart } from './suggest-chip';
@@ -10,7 +11,7 @@ import type { SceneId } from './suggest-scene';
 import { shortCompany } from './suggest-text';
 import type { SuggestState } from './suggest-types';
 
-export type LintRule = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7' | 'L8' | 'L9' | 'L11' | 'L12';
+export type LintRule = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7' | 'L8' | 'L9' | 'L11' | 'L12' | 'L14';
 
 /** L12：和上一轮某格二字组重合到这个比例就算重样。 */
 export const REPEAT_OVERLAP = 0.7;
@@ -35,6 +36,12 @@ export const CARD_BUTTONS: Readonly<Record<string, readonly string[]>> = {
   resume_intake: ['全部通过，生成主简历', '只用所选'],
 };
 
+/**
+ * 开场两扇门（ColdStartCards StarterCard）的按钮，连同条上常见的同义说法：门还在时条上不再出"有 / 没有简历"。
+ * 门在 = 冷启动幕、他还一句话没说（门在第一句用户消息后收起）。
+ */
+export const STARTER_BUTTONS: readonly string[] = ['有，选个文件给我', '还没有，先聊聊', '有简历', '没有简历', '还没有简历', '我有简历'];
+
 /** 常见虚词二字组：不算"对象"。 */
 const STOP = new Set(('我们 你们 他们 可以 什么 这个 那个 一个 没有 就是 还是 怎么 一下 现在 已经 如果 因为 所以 但是 然后 知道 觉得 时候 不是 这样 那样 '
   + '好的 可能 需要 帮我 给我 我想 我的 你的 一些 有点 这些 那些 比较 自己 其实 而且 或者 还有 一点 不过 先聊 接着 我先 是不 不是 有没 没什 么样 这次 '
@@ -54,6 +61,10 @@ export interface LintCtx {
   anchors?: readonly string[];
   /** L12：上一轮出过的四格；缺省不查。 */
   lastShown?: readonly SuggestChip[];
+  /** L5：卡之外此刻屏幕上还在的按钮（开场两扇门）。 */
+  buttons?: readonly string[];
+  /** L14：他刚说的那句；缺省不查。 */
+  lastUser?: string;
 }
 
 function stateEntities(s: SuggestState): string[] {
@@ -124,21 +135,38 @@ export function repeatsLast(chip: SuggestChip, last: readonly SuggestChip[]): bo
   return last.some(l => l.text === chip.text || overlapRatio(l.text, chip.text) >= REPEAT_OVERLAP);
 }
 
+/** 两句话二字组重合占较长一句的比例：整句复述才高，引半句接着说不算。 */
+function wholeOverlap(a: string, b: string): number {
+  const x = bigrams(a);
+  const y = bigrams(b);
+  const big = Math.max(x.size, y.size);
+  if (!big) return 0;
+  return [...x].filter(g => y.has(g)).length / big;
+}
+
+/** L14：把他刚说的整句又放回条上——他已经说过了，再点一次等于复读；引他半句接着回应（"外包不要，其余都投"）不算。 */
+export function echoesUser(chip: SuggestChip, lastUser: string): boolean {
+  const said = lastUser.trim();
+  if (!said || isCardMain(chip)) return false;
+  return said === chip.text.trim() || wholeOverlap(said, chip.text) >= REPEAT_OVERLAP;
+}
+
 const collides = (text: string, button: string) => text === button || text.startsWith(button) || button.startsWith(text);
 
-/** 单格规则（L1–L7、L9、L11、L12）：返回第一条不过的规则，过了返回 null。 */
+/** 单格规则（L1–L7、L9、L11、L12、L14）：返回第一条不过的规则，过了返回 null。 */
 export function lintChip(chip: SuggestChip, ctx: LintCtx): LintRule | null {
   const t = chip.text.trim();
   if (t.length < MIN_CHARS || t.length > SUGGEST_MAX_CHARS) return 'L1';
   if (DEV_WORDS.test(t)) return 'L2';
   if (RESIDUE.test(t) || LEADING_PUNCT.test(t) || DOUBLE_PUNCT.test(t)) return 'L3';
   if (chip.seed_id === null && !ctx.entities.some(e => t.includes(e))) return 'L4';
-  if ((CARD_BUTTONS[ctx.cardKind ?? ''] ?? []).some(b => collides(t, b))) return 'L5';
+  if ([...(CARD_BUTTONS[ctx.cardKind ?? ''] ?? []), ...(ctx.buttons ?? [])].some(b => collides(t, b))) return 'L5';
   if (PROMISES.test(t)) return 'L6';
   if (SEND_ME.test(t)) return 'L7';
   if (ctx.scene !== 'S26' && chip.seed_id !== null && ctx.recent.has(chip.seed_id)) return 'L9';
   if (ctx.anchors && ctx.scene !== 'S26' && chip.seed_id === null && chip.kind !== 'do' && !ctx.anchors.some(e => t.includes(e))) return 'L11';
   if (ctx.lastShown && repeatsLast(chip, ctx.lastShown)) return 'L12';
+  if (ctx.lastUser && echoesUser(chip, ctx.lastUser)) return 'L14';
   return null;
 }
 
@@ -160,25 +188,28 @@ const actionKey = (c: SuggestChip): string | null => {
   return `${a.type}:${'ask_id' in a ? a.ask_id ?? '' : ''}${'card_id' in a ? a.card_id : ''}`;
 };
 
-/** L8 同轮去重：同字、同动作、两个退出口、两个起头（S26 除外）只留先来的。 */
+/** L8 同轮去重：同字或整句很像（真机 r3「先出一版简历看看 / 直接出一版简历看看」）、同动作、两个退出口、两个起头（S26 除外）只留先来的。 */
 function duplicateOf(chip: SuggestChip, kept: readonly SuggestChip[], scene: SceneId): boolean {
   const key = actionKey(chip);
-  if (kept.some(k => k.text === chip.text || (key !== null && actionKey(k) === key))) return true;
+  if (kept.some(k => k.text === chip.text || wholeOverlap(k.text, chip.text) >= REPEAT_OVERLAP || (key !== null && actionKey(k) === key))) return true;
   if (chip.mode === 'exit' && kept.some(k => k.mode === 'exit')) return true;
   return scene !== 'S26' && isFeatureStart(chip) && kept.some(isFeatureStart);
 }
 
 export interface LintResult { kept: SuggestChip[]; dropped: Array<{ chip: SuggestChip; rule: LintRule }> }
 
-/** 整条过线：按传入顺序（规则格 → 模型格 → 兜底格）保留，不过的丢弃并记日志。 */
-export function lintChips(chips: readonly SuggestChip[], ctx: LintCtx): LintResult {
+/**
+ * 整条过线：按传入顺序（规则格 → 模型格 → 兜底格）保留，不过的丢弃并记日志。
+ * already：已经在条上的格（补位时传），新格和它们重复也算 L8；返回的 kept 不含它们。
+ */
+export function lintChips(chips: readonly SuggestChip[], ctx: LintCtx, already: readonly SuggestChip[] = []): LintResult {
   const kept: SuggestChip[] = [];
   const dropped: LintResult['dropped'] = [];
   for (const chip of chips) {
-    const rule = lintChip(chip, ctx) ?? (duplicateOf(chip, kept, ctx.scene) ? 'L8' : null);
+    const rule = lintChip(chip, ctx) ?? (duplicateOf(chip, [...already, ...kept], ctx.scene) ? 'L8' : null);
     if (!rule) { kept.push(chip); continue; }
     dropped.push({ chip, rule });
-    if (rule !== 'L8') console.info(`[career-suggest] lint drop ${rule} ${chip.text}`);
+    if (rule !== 'L8') console.log(`[career-suggest] lint drop ${rule} kind=${chip.kind} mode=${chip.mode}`);
   }
   return { kept, dropped };
 }

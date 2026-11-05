@@ -4,6 +4,7 @@
  * system = 公共要求 + 这一幕的思路 + 允许意图 + 示例（标"示例，别照抄"）；
  * user = 状态快照（去 id）+ 这一轮（他说的 / 小芽说的 / 用了什么 / 放了什么卡）+ 最近几轮 + 上一轮出过的四格。
  */
+import { featureCatalogLine } from '../../shared/careerFeatures';
 import { SUGGEST_MAX_CHARS, SUGGEST_MAX_CHIPS, type SuggestThisTurn } from '../../shared/careerSuggest';
 import { ASK_KIND_NAMES } from './suggest-intents';
 import type { SceneGuide, SuggestIntent } from './suggest-guide-types';
@@ -41,7 +42,7 @@ const INTENT_HELP: Readonly<Record<SuggestIntent, string>> = {
   ask_primary: 'ask_primary：直接办掉一件事（过目投出/没填成再试），target 写种类或公司名',
   ask_choose: 'ask_choose：替他选网页上的一项，target 写选项原文',
   open: 'open：打开一页，target 写 live / resume / resume:tailored / jobs / dossier / dossier:公司',
-  start_feature: 'start_feature：直接进一个功能，target 写功能 id 或 功能id:公司',
+  start_feature: `start_feature：直接进一个功能，target 写功能 id 或 功能id:公司；id 只能是这些（id=名字）：${featureCatalogLine()}`,
 };
 
 const COMMON = [

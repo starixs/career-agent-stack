@@ -92,6 +92,38 @@ export function isFeatureId(v: unknown): v is FeatureId {
   return FEATURE_IDS.some(id => id === v);
 }
 
+/**
+ * 模型常写错的功能 id（真跑日志 11-05：explore / resume_build / resume_review）→ 清单里的 id。
+ * 只收"一看就知道指哪个"的近似说法；指不出的不猜。
+ */
+const FEATURE_ALIASES: Readonly<Record<string, FeatureId>> = {
+  explore: 'direction_explore', direction: 'direction_explore', career_explore: 'direction_explore',
+  resume: 'resume_editor', resume_edit: 'resume_editor', resume_build: 'resume_editor', resume_review: 'resume_editor',
+  resume_draft: 'resume_editor', research: 'company_research', company: 'company_research',
+  exam: 'exam_search', interview_mock: 'interview_probe', mock_interview: 'interview_probe', retro: 'interview_retro',
+  mail: 'mail_bind', email: 'mail_bind', phone: 'phone_link', apply: 'batch', batch_apply: 'batch',
+};
+
+/** 按名字模糊对时至少几个字：一个字（"面"）会对上一串功能。 */
+const FEATURE_NAME_MIN = 2;
+
+/** 模型写的功能 id / 名字 → 清单里的 id：原样 → 别名表 → 市场名字（含或被含）；都不中 null。 */
+export function featureIdFrom(raw: string): FeatureId | null {
+  const key = raw.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (!key) return null;
+  if (isFeatureId(key)) return key;
+  if (FEATURE_ALIASES[key]) return FEATURE_ALIASES[key];
+  const name = raw.trim();
+  return FEATURE_IDS.find(id => FEATURES[id].name === name)
+    ?? (name.length >= FEATURE_NAME_MIN ? FEATURE_IDS.find(id => name.includes(FEATURES[id].name) || FEATURES[id].name.includes(name)) : undefined)
+    ?? null;
+}
+
+/** 提示词用：全部功能 id=名字，一行。 */
+export function featureCatalogLine(): string {
+  return FEATURE_IDS.map(id => `${id}=${FEATURES[id].name}`).join(' ');
+}
+
 const COMPANY_TOKEN = '{company}';
 
 /** 起头时真正要做的事：有公司且有 prefillWith 时换进公司名，否则原样（市场里的原句）。 */

@@ -14,12 +14,12 @@ import {
   SUGGEST_MAX_CHIPS, SUGGEST_MODEL_TIMEOUT_MS, type SuggestChip, type SuggestMode, type SuggestRequest, type SuggestThisTurn,
 } from '../../shared/careerSuggest';
 import { FEATURE_SEED_PREFIX, isActionable } from './suggest-chip';
-import { SUGGEST_INTENTS, type SceneGuide } from './suggest-guide-types';
+import { SUGGEST_INTENTS, type SceneGuide, type SuggestIntent } from './suggest-guide-types';
 import { ModelOut, resolveIntents, type ModelChip } from './suggest-intents';
-import { anchorsOf, entitiesOf, lintChips, type LintResult } from './suggest-lint';
+import { anchorsOf, entitiesOf, lintChips, STARTER_BUTTONS, type LintCtx, type LintResult } from './suggest-lint';
 import { buildPrompt } from './suggest-prompt';
 import { guideFor, LOW_CHIP, recipeFor, type Recipe, type RecipeCtx } from './suggest-recipes';
-import { classifyScene, inputOf, SCENE_NAMES, type SceneId, type SceneResult, type SuggestInput } from './suggest-scene';
+import { classifyScene, inputOf, SCENE_NAMES, starterVisible, type SceneId, type SceneResult, type SuggestInput } from './suggest-scene';
 import { careerProductSessionId } from './product-session';
 import type { SuggestState } from './suggest-types';
 
@@ -195,6 +195,35 @@ async function runModel(llm: LLM | null, x: SuggestInput, ask: Omit<ModelAsk, 'l
   return { raw, ms: Date.now() - t0, asked: true };
 }
 
+/** 补位只用示例里的这两种：不带动作，名字不对的会被 L4 / L11 挡下。 */
+const REFILL_EXAMPLE_INTENTS: readonly SuggestIntent[] = ['say', 'fill'];
+
+/** 这一幕思路里的示例行 'text|intent|target' → 模型格（只留说 / 填空）。 */
+function exampleChips(guide: SceneGuide): ModelChip[] {
+  return guide.examples.flat().flatMap(row => {
+    const [text = '', intent = 'say'] = row.split('|').map(p => p.trim());
+    const known = REFILL_EXAMPLE_INTENTS.find(i => i === intent);
+    return text && known ? [{ text, intent: known, target: null }] : [];
+  });
+}
+
+interface RefillAsk { kept: SuggestChip[]; guide: SceneGuide; scene: SceneId; ctx: RecipeCtx; lint: LintCtx; replyMode: SuggestMode }
+
+/** 补位的通用兜底：一般幕拿 S29 的；S29 自己再拿 S29 等于重复，改拿 S26 按阶段的起头（真机 r2：S29 只剩两格）。 */
+const REFILL_FALLBACK_OF = (scene: SceneId): SceneId => (scene === 'S29' ? 'S26' : 'S29');
+
+/** 过线后不到四格：先拿这一幕示例里的说 / 填空，再拿通用兜底补到四格；补的也要过线、不和已有的重复。 */
+function refill({ kept, guide, scene, ctx, lint, replyMode }: RefillAsk): SuggestChip[] {
+  if (kept.length >= SUGGEST_MAX_CHIPS) return kept;
+  const fromGuide = resolveIntents(exampleChips(guide), { s: ctx.s, allowed: REFILL_EXAMPLE_INTENTS, replyMode });
+  const from = REFILL_FALLBACK_OF(scene);
+  const generic = present(recipeFor(from).fallback({ ...ctx, scene: from }));
+  const more = lintChips([...fromGuide, ...generic], lint, kept).kept;
+  const out = [...kept, ...more.slice(0, SUGGEST_MAX_CHIPS - kept.length)];
+  if (out.length > kept.length) console.log(`[career-suggest] refill +${out.length - kept.length} scene=${scene}`);
+  return out;
+}
+
 /** 一整条：判幕 → 模型写四格 → 意图解析 → 兜底补位 → lint → 保底 → 低谷叠加 → 排序截 4。 */
 export async function suggestFor(base: SuggestState, rawReq: SuggestRequest, llm: LLM | null, opts: SuggestOptions = {}): Promise<SuggestResult> {
   const req = withThisTurn(rawReq);
@@ -212,12 +241,15 @@ export async function suggestFor(base: SuggestState, rawReq: SuggestRequest, llm
   const run = await runModel(llm, x, { ...prompt, scene });
   const model = run.raw ? resolveIntents(run.raw, { s, allowed: guide.intents, replyMode: replyModeOf(order) }) : [];
   const pool = [...model, ...present(recipe.rules(ctx)), ...present(recipe.fallback(ctx))];
-  const linted = lintChips(pool, {
+  const lint: LintCtx = {
     scene, cardKind: s.openCard?.kind ?? null, recent: ctx.recent, lastShown: last,
     entities: entitiesOf(s, [x.lastUser, x.lastAssistant, ...x.turns.map(t => t.text)]),
     anchors: guide.anchor === 'strict' ? anchorsOf(s, [thisTurn.user, thisTurn.assistant, ...thisTurn.cards]) : undefined,
-  });
-  const chosen = pickBar(keptOf(linted), x, scene, low, order);
+    buttons: starterVisible(scene, x) ? STARTER_BUTTONS : undefined,
+    lastUser: x.lastUser,
+  };
+  const kept = refill({ kept: keptOf(lintChips(pool, lint)), guide, scene, ctx, lint, replyMode: replyModeOf(order) });
+  const chosen = pickBar(kept, x, scene, low, order);
   const degraded = chosen.filter(c => model.includes(c)).length < MIN_MODEL_CHIPS;
   if (run.asked) console.log(`[career-suggest] model ms=${run.ms} chips=${run.raw?.length ?? 0} degraded=${degraded} scene=${scene}`);
   if (opts.isStale?.()) console.log(`[career-suggest] stale result not remembered scene=${scene}`);

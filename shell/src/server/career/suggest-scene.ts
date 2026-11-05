@@ -39,6 +39,11 @@ export interface SuggestInput {
 
 export interface SceneResult { scene: SceneId; low: boolean }
 
+/** 开场两扇门还在对话底部：冷启动幕、他还一句话没说（与 StarterCard 收起条件一致）。 */
+export function starterVisible(scene: SceneId, x: SuggestInput): boolean {
+  return scene === 'S1' && !x.lastUser && !x.turns.some(t => t.role === 'user');
+}
+
 const TOOL_NAME = /^[a-z_]+$/;
 const lastOf = (turns: readonly SuggestTurn[], role: SuggestTurn['role']) => [...turns].reverse().find(t => t.role === role)?.text ?? '';
 

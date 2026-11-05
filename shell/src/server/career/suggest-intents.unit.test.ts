@@ -16,6 +16,24 @@ const pickCard = card({ id: 'bp1', kind: 'batch_pick', picked: ['招商银行'],
 describe('意图 → 动作', () => {
   afterEach(() => { vi.restoreAllMocks(); });
 
+  it('文字里有空（＿＿ / __ / ____）一律是填空格，不管模型写的什么意图', () => {
+    for (const [text, intent] of [['做过的事我挑两段说：＿＿', 'say'], ['我是 __ 届，找校招', 'start_feature'], ['大概投了 ____ 家', 'open']] as const) {
+      const c = resolve(chip({ text, intent, target: 'live' }), state());
+      expect(c?.kind).toBe('fill');
+      expect(c?.action).toBeUndefined();
+    }
+  });
+
+  it('start_feature：模型编的近似 id（explore / resume_build / resume_review）对到清单里；对不上的照旧丢', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const s = state();
+    expect(resolve(chip({ intent: 'start_feature', target: 'explore' }), s)?.action).toEqual({ type: 'start_feature', feature_id: 'direction_explore' });
+    expect(resolve(chip({ intent: 'start_feature', target: 'resume_build' }), s)?.action).toEqual({ type: 'start_feature', feature_id: 'resume_editor' });
+    expect(resolve(chip({ intent: 'start_feature', target: 'resume_review' }), s)?.action).toEqual({ type: 'start_feature', feature_id: 'resume_editor' });
+    expect(resolve(chip({ intent: 'start_feature', target: '方向探索' }), s)?.action).toEqual({ type: 'start_feature', feature_id: 'direction_explore' });
+    expect(resolve(chip({ intent: 'start_feature', target: 'teleport' }), s)).toBeNull();
+  });
+
   it('start_card picked / all；没有勾选表就丢', () => {
     const s = state({ openCard: pickCard });
     expect(resolve(chip({ intent: 'start_card', target: 'picked' }), s)?.action).toEqual({ type: 'start_card', card_id: 'bp1', job_ids: ['j1', 'j2'] });

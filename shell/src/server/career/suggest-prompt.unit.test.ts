@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { FEATURE_IDS, FEATURES } from '../../shared/careerFeatures';
 import type { SuggestTurn } from '../../shared/careerSuggest';
 import { ask, card, jobs, state } from './suggest-fixtures';
 import type { SceneGuide } from './suggest-guide-types';
@@ -45,6 +46,12 @@ describe('buildPrompt', () => {
     expect(system).toContain('就这 5 家，先投招商｜start_card｜picked');
     expect(system).toContain('start_card：');
     expect(system).not.toContain('ask_choose：');
+  });
+
+  it('允许 start_feature 时列出全部功能 id 和名字（模型别自己编 id）', () => {
+    const { system } = buildPrompt({ guide: { ...guide, intents: ['say', 'start_feature'] }, s, x: inputOf({}), thisTurn, lastShown: [] });
+    for (const id of FEATURE_IDS) expect(system).toContain(`${id}=${FEATURES[id].name}`);
+    expect(buildPrompt({ guide, s, x: inputOf({}), thisTurn, lastShown: [] }).system).not.toContain('direction_explore=');
   });
 
   it('超预算先丢最早的历史轮', () => {

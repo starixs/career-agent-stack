@@ -1,12 +1,12 @@
 /**
- * 自动质量线 L1–L9、L11、L12 正反例（L10 回应性、L13 类型多样在 suggest.unit.test.ts 端到端测）。
+ * 自动质量线 L1–L9、L11、L12、L14 正反例（L10 回应性、L13 类型多样在 suggest.unit.test.ts 端到端测）。
  */
 import { describe, expect, it } from 'vitest';
 
 import type { SuggestChip } from '../../shared/careerSuggest';
 import { doChip, featureChip, sayChip } from './suggest-chip';
 import { state } from './suggest-fixtures';
-import { anchorsOf, entitiesOf, lintChip, lintChips, overlapRatio, type LintCtx } from './suggest-lint';
+import { anchorsOf, echoesUser, entitiesOf, lintChip, lintChips, overlapRatio, type LintCtx } from './suggest-lint';
 
 const model = (text: string): SuggestChip => ({ text, slot: 'act', kind: 'say', mode: 'answer', seed_id: null });
 const rule = (text: string) => sayChip(text, 'answer', 't');
@@ -16,6 +16,23 @@ const ctx = (over: Partial<LintCtx> = {}): LintCtx => ({
 });
 
 describe('lint', () => {
+  it('L8 同一条里整句很像的只留先来的，几种不同说法都留', () => {
+    const c = ctx({ entities: ['简历', '接口', '数据库'] });
+    const near = lintChips([model('先出一版简历看看'), model('直接出一版简历看看')], c);
+    expect(near.kept.map(k => k.text)).toEqual(['先出一版简历看看']);
+    expect(near.dropped[0]?.rule).toBe('L8');
+    const options = lintChips([model('数据库和接口都是我自己写的'), model('接口是我写的，数据库也管了一部分')], c);
+    expect(options.kept).toHaveLength(2);
+  });
+
+  it('L14 不复述他刚说的那句（真机 r2：「接口是我写的，数据库也管了一部分」原样回到条上）', () => {
+    const said = '接口是我写的，数据库也管了一部分';
+    expect(lintChip(model('接口是我写的，数据库也管了一部分'), ctx({ lastUser: said, entities: ['接口'] }))).toBe('L14');
+    expect(lintChip(rule('还没有，先聊聊'), ctx({ lastUser: '还没有，先聊聊' }))).toBe('L14');
+    expect(lintChip(model('接口用的 Node，库是 MySQL'), ctx({ lastUser: said, entities: ['接口'] }))).toBeNull();
+    expect(echoesUser(rule('先投招商银行'), '')).toBe(false);
+  });
+
   it('L1 长度', () => {
     expect(lintChip(rule('好'), ctx())).toBe('L1');
     expect(lintChip(rule('这是一句明显超过二十二个字上限的很长很长很长的回复'), ctx())).toBe('L1');

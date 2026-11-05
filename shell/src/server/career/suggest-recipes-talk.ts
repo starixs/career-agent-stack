@@ -9,7 +9,7 @@ import { doChip, featureChip, fillChip, sayChip, withMode } from './suggest-chip
 import {
   cityText, companyIn, exitSay, fit, ORDER_DO, ORDER_TALK, type Recipe,
 } from './suggest-recipe-kit';
-import { nextRound, roundLabel, type SceneId } from './suggest-scene';
+import { nextRound, roundLabel, starterVisible, type SceneId } from './suggest-scene';
 import { cardActs } from './suggest-seeds';
 import { shortCompany } from './suggest-text';
 
@@ -58,12 +58,21 @@ const PROMPT_S5 = '他刚说"没有 / 没做过"，小芽在换更小的场景�
 const PROMPT_S8 = '小芽刚提了 2–3 类方向并问他行不行。替他写 2 条回答：一条同意（点到小芽说的方向名），一条只要其中一类（点名）。';
 const PROMPT_S9 = '他在问方向怎么选（A 好还是 B 好 / 我适合什么）。替他写几条"他其实在意什么"的说法，选了就等于说清了（如更想稳定、想以后能跨行、按经历哪个更容易进），要点到他问的那几个方向名。';
 
+/** 门还在时替"有 / 没有简历"的两格：门管不了的事（先说一段经历、还没想好方向）。 */
+const S1_BESIDE_DOORS: readonly SuggestChip[] = [
+  fillChip('我做过的一件事是：', 'answer', 's1_story'),
+  sayChip('还没想好投什么方向', 'answer', 's1_lost'),
+];
+
 const S1: Recipe = {
   order: ORDER_TALK,
   prompt: null,
-  rules: ({ s }) => [
-    sayChip('有简历，我拖进来', 'answer', 's1_has'),
-    sayChip('还没有，先聊聊', 'answer', 's1_none'),
+  rules: ({ s, x, scene }) => [
+    // 开场两扇门还在底下时，条上不再重复门上的话（L5），换成门给不了的。
+    ...(starterVisible(scene, x) ? S1_BESIDE_DOORS : [
+      sayChip('有简历，我拖进来', 'answer', 's1_has'),
+      sayChip('还没有，先聊聊', 'answer', 's1_none'),
+    ]),
     s.mailConnected ? featureChip('job_evaluate') : featureChip('mail_bind'),
     s.prefs.cohort ? sayChip('提交前我能先看吗', 'option', 's1_trust') : fillChip(COHORT_FILL, 'option', 's1_cohort'),
   ],
