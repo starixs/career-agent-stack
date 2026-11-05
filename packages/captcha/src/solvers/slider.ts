@@ -1,6 +1,8 @@
 import { extractJson } from '@career/core'
 import { capturePngBase64, toLlmImage } from '../capture.js'
 import { humanDrag } from '../human-input.js'
+import { estimateGapFromImage } from '../image-analysis.js'
+import { waitForVerification } from '../verification.js'
 import type { SolveResult, SolverDeps } from '../types.js'
 
 /**
@@ -86,6 +88,16 @@ async function distanceFromVision(deps: SolverDeps, track: { x: number; y: numbe
   return parsed.distance
 }
 
+/** 视觉读不准时用验证码区域的像素边缘估距；解码失败或低置信度仍返回 null。 */
+async function distanceFromEdges(deps: SolverDeps, track: { x: number; y: number; width: number; height: number }): Promise<{ distance: number; confidence: number } | null> {
+  const region = { x: Math.max(0, track.x), y: Math.max(0, track.y - 160), width: track.width, height: track.height + 160 };
+  try {
+    const shot = await capturePngBase64(deps.page, region);
+    const hit = await estimateGapFromImage(Uint8Array.from(atob(shot), ch => ch.charCodeAt(0)), track.width);
+    return hit && hit.confidence >= 0.35 ? hit : null;
+  } catch { return null; }
+}
+
 export async function solveSlider(deps: SolverDeps): Promise<SolveResult> {
   const cdp = deps.page.cdp()
   if (!cdp) return { outcome: 'needs_cdp', detail: '没有 CDP 会话，滑块需要可信拖动事件', attempts: 0 }
@@ -101,15 +113,19 @@ export async function solveSlider(deps: SolverDeps): Promise<SolveResult> {
     // 轨道探不到时用常见滑块轨道宽度兜底（视觉模型以截图为准，这里只定截图范围）
     const track = probe.track ?? { x: probe.handle.x, y: probe.handle.y - 20, width: 280, height: probe.handle.height + 40 }
     let distance: number | null = null
-    try { distance = await distanceFromVision(deps, track) } catch (e) { lastErr = `视觉估距失败: ${String(e)}` }
+    const edge = await distanceFromEdges(deps, track)
+    if (edge && edge.confidence >= 0.75) distance = edge.distance
+    if (distance == null) {
+      try { distance = await distanceFromVision(deps, track) } catch (e) { lastErr = `视觉估距失败: ${String(e)}` }
+    }
+    if (distance == null) distance = edge?.distance ?? null
     if (distance == null) return { outcome: 'failed', detail: lastErr || '视觉估距不可用或置信度低，留给人工', attempts: attempt - 1 }
 
     const from = { x: probe.handle.x + probe.handle.width / 2, y: probe.handle.y + probe.handle.height / 2 }
     // 第 2 轮起带随机校正（第 1 轮失败常见原因是缺口判定偏移）
     const adjust = attempt === 1 ? 0 : (rand() - 0.5) * 24
     await humanDrag({ cdp, rand, sleep }, from, Math.max(6, distance + adjust))
-    await sleep(900 + rand() * 600)
-    if (await verifyPassed(deps)) return { outcome: 'passed', detail: `拖动 ${Math.round(distance + adjust)}px 后通过`, attempts: attempt }
+    if (await waitForVerification(() => verifyPassed(deps), sleep, 1500)) return { outcome: 'passed', detail: `拖动 ${Math.round(distance + adjust)}px 后通过`, attempts: attempt }
     lastErr = `拖动 ${Math.round(distance)}px 未通过`
   }
   return { outcome: 'failed', detail: lastErr, attempts: maxAttempts }

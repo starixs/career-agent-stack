@@ -79,9 +79,10 @@ describe('humanDrag（滑块轨迹）', () => {
     const cdp = new FakeCdp()
     await humanDrag({ cdp, rand: midRand, sleep: noSleep }, { x: 100, y: 300 }, 220, { durationMs: 10 })
     const types = cdp.mouseTypes()
-    expect(types[0]).toBe('mousePressed')
+    expect(types).toContain('mousePressed')
+    expect(types.indexOf('mousePressed')).toBeLessThan(types.indexOf('mouseReleased'))
     expect(types[types.length - 1]).toBe('mouseReleased')
-    const moves = types.slice(1, -1)
+    const moves = types.filter(t => t === 'mouseMoved')
     expect(moves.length).toBeGreaterThan(10)
     expect(moves.every(t => t === 'mouseMoved')).toBe(true)
     const release = cdp.mouseEvents().find(e => e.params.type === 'mouseReleased')!
@@ -93,7 +94,8 @@ describe('humanDrag（滑块轨迹）', () => {
   it('移动事件全程按住（buttons=1）', async () => {
     const cdp = new FakeCdp()
     await humanDrag({ cdp, rand: midRand, sleep: noSleep }, { x: 0, y: 0 }, 50, { durationMs: 5 })
-    const move = cdp.mouseEvents().find(e => e.params.type === 'mouseMoved')!
+    const pressed = cdp.mouseEvents().findIndex(e => e.params.type === 'mousePressed')
+    const move = cdp.mouseEvents().slice(pressed).find(e => e.params.type === 'mouseMoved')!
     expect(move.params.buttons).toBe(1)
   })
   it('随机抖动不把端点拖飞（rand 全 0.99 也在容差内）', async () => {
@@ -102,5 +104,33 @@ describe('humanDrag（滑块轨迹）', () => {
     await humanDrag({ cdp, rand: r, sleep: noSleep }, { x: 10, y: 10 }, 100, { durationMs: 5 })
     const release = cdp.mouseEvents().find(e => e.params.type === 'mouseReleased')!
     expect(release.params.x).toBeCloseTo(110, 1)
+  })
+})
+
+describe('human input 升级边界', () => {
+  it('同一会话第一次点击/拖动前只预热一次，松开时 buttons=0', async () => {
+    const cdp = new FakeCdp()
+    await humanClick({ cdp, rand: midRand, sleep: noSleep }, 100, 60)
+    await humanDrag({ cdp, rand: midRand, sleep: noSleep }, { x: 10, y: 10 }, 80, { durationMs: 5 })
+    const moves = cdp.mouseEvents().filter(e => e.params.x === 0 && e.params.y === 0)
+    expect(moves).toHaveLength(1)
+    const release = cdp.mouseEvents().filter(e => e.params.type === 'mouseReleased').at(-1)!
+    expect(release.params.buttons).toBe(0)
+  })
+
+  it('偶尔删错字再改正，但输入最终顺序不变', async () => {
+    const cdp = new FakeCdp()
+    await humanType({ cdp, rand: seqRand([0.5, 0.5, 0.5, 0.01]), sleep: noSleep }, 'ab')
+    const keys = cdp.keyEvents()
+    expect(keys.some(e => e.params.windowsVirtualKeyCode === 8)).toBe(true)
+    expect(keys.filter(e => e.params.type === 'keyDown' && e.params.text === 'b').length).toBeGreaterThan(0)
+  })
+
+  it('反向拖动的过冲也朝目标方向，不把轨迹拖到另一边', async () => {
+    const cdp = new FakeCdp()
+    await humanDrag({ cdp, rand: midRand, sleep: noSleep }, { x: 300, y: 100 }, -100, { durationMs: 5 })
+    const minX = Math.min(...cdp.mouseEvents().map(e => e.params.x as number))
+    expect(minX).toBeLessThan(200)
+    expect(cdp.mouseEvents().at(-1)!.params.x).toBeCloseTo(200, 1)
   })
 })

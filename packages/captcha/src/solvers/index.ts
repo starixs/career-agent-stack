@@ -3,6 +3,7 @@ import { solveBrowserCheck } from './browser-check.js'
 import { solveImageClick } from './image-click.js'
 import { solveImageText } from './image-text.js'
 import { solveSlider } from './slider.js'
+import { solveRotation } from './rotation.js'
 
 /**
  * 求解调度：按验证码种类分流。
@@ -13,6 +14,7 @@ import { solveSlider } from './slider.js'
 export async function solveCaptcha(deps: SolverDeps, target: Pick<CaptchaTarget, 'kind' | 'vendor'>): Promise<SolveResult> {
   switch (target.kind) {
     case 'slider': return solveSlider(deps)
+    case 'rotation': return solveRotation(deps)
     case 'image_click': return solveImageClick(deps)
     case 'image_text': return solveImageText(deps)
     case 'browser_check': return solveBrowserCheck(deps)
