@@ -33,6 +33,14 @@ describe('BatchPickCard', () => {
     expect(rowNote(row('c', 'C', { target: true }))).toBe('上海 · ★ 先给你看');
   });
 
+  it('邮件岗位：系统一栏写「邮件」，不说「新系统 · 先停给你看」（face-mail-apply §3.3）', () => {
+    expect(rowNote(row('m', 'M', { system: '邮件', known: true, channel: 'mail' }))).toBe('上海 · 邮件');
+    expect(rowNote(row('n', 'N', { system: '邮件', known: true, channel: 'mail', target: true }))).toBe('上海 · 邮件');
+    render(<BatchPickCard card={card({ rows: [row('j1', '京东', { system: '邮件', channel: 'mail' })] })} onDone={() => {}} onDismiss={() => {}} />);
+    expect(screen.getByText('上海 · 邮件')).toBeInTheDocument();
+    expect(screen.queryByText(/先停给你看/)).toBeNull();
+  });
+
   it('只投勾上的，带上卡片 id 和简历', async () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, started: ['x'], skipped: [] });
     const onDone = vi.fn();

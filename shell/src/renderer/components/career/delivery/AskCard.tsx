@@ -4,6 +4,7 @@
  */
 import { useState } from 'react';
 
+import { MailAskCard, type MailAct } from '../mail-apply/MailAskCard';
 import { actionLabels, dueText, sourceText, subText } from './askText';
 import { CompanyPoster } from './CompanyPoster';
 import type { AskField, AskView } from './deliveryApi';
@@ -71,12 +72,16 @@ function FieldInputs({ ask, values, onChange }: { ask: AskView; values: Record<s
 /** 这几类卡都要能「去看」那一家的页面：过目、补信息（他得知道问的是页面上哪一格）、投出了吗。 */
 const LOOKABLE = new Set(['review', 'info', 'confirm', 'choice']);
 
-export function AskCard({ ask, busy, error, onGo, onLater }: {
+export function AskCard({ ask, busy, error, onGo, onLater, onAct }: {
   ask: AskView; busy: boolean; error: string | null;
   onGo: (values: Record<string, string>) => Promise<unknown> | void; onLater: () => Promise<unknown> | void;
+  /** 卡片自己决定落什么（邮件卡按勾选发出）；卡组给，结果照样交回卡组。 */
+  onAct?: MailAct;
 }) {
   // 开放题小芽已经写好一版：预填进去，他看一眼确认或改几个字
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((ask.fields ?? []).filter(f => f.fillable && f.draft).map(f => [f.label, f.draft!])));
+  // 发邮件前过目：整封邮件的预览，不走通用布局
+  if (ask.mail && onAct) return <MailAskCard ask={ask} mail={ask.mail} busy={busy} error={error} onAct={onAct} />;
   const labels = actionLabels(ask);
   const due = dueText(ask);
   const src = sourceText(ask);

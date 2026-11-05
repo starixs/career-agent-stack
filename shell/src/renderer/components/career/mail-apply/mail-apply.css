@@ -1,0 +1,57 @@
+/* 发邮件前过目（face-mail-apply §3.1–3.2）：和 delivery.css 同一套变量与规则。
+   没有卡片外壳；钢笔蓝只给主按钮和要你点的点选；字段标签是灰小字；红只在收件人不对 / 资料没填上时。 */
+
+/* ---------- 几封一起：左边一列 ---------- */
+.cm-ask-multi .cd-ask-img { flex: 0 0 216px; }
+.cm-picks { display: flex; flex-direction: column; width: 216px; max-height: 420px; margin: 0; padding: 0; overflow: auto; list-style: none; }
+.cm-pick { display: flex; align-items: center; gap: 4px; border-radius: 6px; }
+.cm-pick.is-current { background: var(--inset); }
+.cm-pick-box { display: flex; align-items: center; padding: 10px 4px 10px 8px; cursor: pointer; user-select: none; }
+.cm-pick-name { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-width: 0; padding: 7px 8px 7px 2px; text-align: left; cursor: pointer; }
+.cm-pick-co { font-size: 14px; color: var(--ink); }
+.cm-pick-role { flex-basis: 100%; overflow: hidden; font-size: 12px; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; }
+.cm-pick.is-off .cm-pick-co, .cm-pick.is-off .cm-pick-role { color: var(--subtle); }
+.cm-star { font-size: 11px; font-style: normal; color: var(--ink-2); }
+.cm-dot { width: 6px; height: 6px; margin-left: auto; align-self: center; border-radius: 50%; background: var(--primary); }
+
+/* ---------- 一封邮件 ---------- */
+.cm-sheet { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
+.cm-row { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+.cm-label { font-size: 12px; color: var(--subtle); white-space: nowrap; }
+.cm-val { min-width: 0; }
+.cm-field { min-width: 0; }
+.cm-line { width: 100%; padding: 4px 0; border: 0; border-bottom: 1px solid transparent; background: transparent; color: var(--ink); font-size: 14px; outline: none; }
+.cm-line:hover { border-bottom-color: var(--line-2); }
+.cm-line:focus { border-bottom-color: var(--ink-2); }
+.cm-bad .cm-line { color: var(--danger); border-bottom-color: var(--danger); }
+.cm-thread { margin: 4px 0 0; font-size: 12.5px; color: var(--subtle); }
+.cm-field-body { margin: 6px 0 4px; }
+.cm-body { display: block; width: 100%; height: clamp(110px, 24vh, 168px); padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font-size: 14px; line-height: 1.6; white-space: pre-wrap; resize: vertical; outline: none; overflow: auto; }
+/* 顶上多了到岗点选：正文框矮一点，整封仍在卡组 520px 里看得全 */
+.cm-sheet.has-avail .cm-body { height: clamp(90px, 15vh, 112px); }
+.cm-body:focus { border-color: var(--ink-2); }
+.cm-bad .cm-body { border-color: var(--danger); }
+
+.cm-files { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cm-file { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 10px; border: 1px solid var(--line-2); border-radius: 6px; color: var(--ink); font-size: 13px; cursor: pointer; }
+.cm-file:hover:not(:disabled) { background: var(--inset); }
+.cm-file:disabled { cursor: default; }
+.cm-file-icon { width: 14px; height: 14px; flex: none; color: var(--muted); }
+.cm-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-file-note { flex: none; font-size: 12px; color: var(--muted); }
+.cm-swap { width: 120px; }
+.cm-from { font-size: 12px; color: var(--muted); }
+.cm-from-pick { display: inline-block; width: 240px; }
+
+/* ---------- 到岗信息：三组点选 ---------- */
+.cm-avail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin-bottom: 6px; }
+.cm-avail-group { display: flex; align-items: center; gap: 8px; }
+.cm-avail .cd-choice { padding: 3px 9px; font-size: 12.5px; }
+.cm-avail .cd-choices { gap: 4px; }
+
+/* ---------- 连邮箱 ---------- */
+.cm-connect { position: relative; width: 100%; max-width: 560px; max-height: 90vh; overflow: auto; padding: 22px 22px 18px; border-radius: 16px; background: var(--paper); }
+.cm-connect-close { display: block; margin: 12px 0 0 auto; }
+
+/* 卡组最高 520：正文在自己框里滚，按钮那一行贴底（delivery.css .cd-deck .cd-acts） */
+.cm-ask .cd-acts { margin-top: 12px; }

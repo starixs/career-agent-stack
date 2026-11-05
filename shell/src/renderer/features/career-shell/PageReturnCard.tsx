@@ -44,7 +44,7 @@ const WRITE_TOOLS: Record<string, string> = {
   application_set_stage: '推进了投递阶段',
   material_save: '存了一段素材',
   material_use_record: '记了一次说法',
-  mail_compose: '起草了一封投递邮件，等你批准',
+  mail_compose: '邮件在后台写，写好在等你里',
   mail_sync: '同步了邮箱',
   experience_add: '写入了一段经历',
   claim_confirm: '确认了一条主张',

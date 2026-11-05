@@ -30,6 +30,8 @@ const Row = z.object({
   system: z.string().nullable(), known: z.boolean(), target: z.boolean(), picked: z.boolean(),
   delegated: z.boolean().default(false), deadline: z.string().nullable().default(null),
   group: z.string().default('all'), resume_plan: ResumePlan.nullable().default(null),
+  /** 投递方式：邮件岗位写好邮件停给你过目（老数据没有 = 网申）。 */
+  channel: z.enum(['web', 'mail']).optional(),
 });
 const Group = z.object({ id: z.string(), title: z.string(), collapsed: z.boolean().default(false) });
 const Data = z.object({
@@ -48,9 +50,9 @@ export type BatchPickData = z.infer<typeof Data>;
 type RowData = z.infer<typeof Row>;
 const EMPTY: BatchPickData = Data.parse({});
 
-/** 行尾小签：这家投出去之前会怎样。 */
-export function rowNote(r: Pick<RowData, 'city' | 'system' | 'known' | 'target'>): string {
-  const how = r.target ? '★ 先给你看' : r.known ? `${r.system ?? '这类网申'} · 我会了` : `${r.system ? `${r.system} · ` : ''}先停给你看`;
+/** 行尾小签：这家投出去之前会怎样。邮件岗位只写「邮件」（每封都会先给你过目，不用再说）。 */
+export function rowNote(r: Pick<RowData, 'city' | 'system' | 'known' | 'target'> & { channel?: RowData['channel'] }): string {
+  const how = r.channel === 'mail' ? (r.system ?? '邮件') : r.target ? '★ 先给你看' : r.known ? `${r.system ?? '这类网申'} · 我会了` : `${r.system ? `${r.system} · ` : ''}先停给你看`;
   return [r.city, how].filter(Boolean).join(' · ');
 }
 

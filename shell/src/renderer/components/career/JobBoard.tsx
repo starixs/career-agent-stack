@@ -47,7 +47,7 @@ const COLUMNS: Array<{ key: string; label: string; className?: string }> = [
   { key: 'deadline', label: '截止', className: 'w-[112px]' },
   { key: 'match', label: '匹配', className: 'w-[72px]' },
   { key: 'progress', label: '我的进度', className: 'w-[148px]' },
-  { key: 'link', label: '链接', className: 'w-[64px]' },
+  { key: 'link', label: '链接', className: 'w-[80px]' },
 ];
 
 export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bulkExtra?: ReactNode }) {
@@ -338,7 +338,10 @@ function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked
           {stageAction.error && <div role="alert" className="text-xs text-[var(--danger)]">{stageAction.error}</div>}
         </td>
         <td className="px-2 py-2">
-          {job.url
+          {/* JD 写了投递邮箱的走邮件投递（服务端 applyChannelOf：有邮箱就是邮件），「投这 N 家」照样能选 */}
+          {job.apply_email
+            ? <Pill>邮件投递</Pill>
+            : job.url
             ? <ExternalLink href={job.url} title={`打开网申页面：${job.url}`} className="inline-flex items-center gap-1 text-xs text-[var(--primary)] hover:underline"><ExternalLinkIcon className="h-3.5 w-3.5" strokeWidth={1.75} />网申</ExternalLink>
             : <Dash />}
         </td>

@@ -4,6 +4,8 @@
  */
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 
+import { isAskMail, type AskMail } from '../../../../shared/careerMailApply';
+
 export interface CompanyMark { company_id: string | null; name: string; logo?: string; fill?: string }
 export type AskKind = 'info' | 'login' | 'choice' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure';
 export interface AskField { label: string; /** 给人看的说法（去掉问卷题号）；老数据没有就用 label */ text?: string; vault_field: string | null; sensitive: boolean; fillable: boolean; /** 网页上的可选项（下拉 / 单选） */ options?: string[]; /** 小芽写好的一版（开放题），卡片里预填 */ draft?: string }
@@ -15,6 +17,8 @@ export interface AskView {
   fields?: AskField[]; review?: { required_filled: number | null; required_total: number | null; gaps: number }; suggest?: string;
   /** choice：网页弹窗问的话和它的按钮 */
   choice?: { question: string; options: string[] };
+  /** 发邮件前过目：这件事里每封邮件的动作 id 和用途（邮件内容只走 mail-apply 接口，不在这里）。 */
+  mail?: AskMail;
 }
 export type PosterState = 'wait' | 'run' | 'done' | 'ask' | 'failed' | 'next';
 export interface RunPoster { application_id: string; job_id: string; role: string; company: CompanyMark; star: boolean; state: PosterState }
@@ -34,7 +38,8 @@ export function isAskView(v: unknown): v is AskView {
   return isDict(v) && isStr(v.id) && isStr(v.kind) && ASK_KINDS.has(v.kind) && isStr(v.title)
     && Array.isArray(v.application_ids) && Array.isArray(v.sources) && Array.isArray(v.companies) && v.companies.every(isCompanyMark)
     && (v.due_at === null || isStr(v.due_at)) && typeof v.overdue === 'boolean'
-    && (v.kind !== 'choice' || (isDict(v.choice) && isStr(v.choice.question) && Array.isArray(v.choice.options) && v.choice.options.every(isStr)));
+    && (v.kind !== 'choice' || (isDict(v.choice) && isStr(v.choice.question) && Array.isArray(v.choice.options) && v.choice.options.every(isStr)))
+    && (v.mail === undefined || isAskMail(v.mail));
 }
 function isRunView(v: unknown): v is RunView {
   return isDict(v) && typeof v.total === 'number' && typeof v.done === 'number' && Array.isArray(v.items)

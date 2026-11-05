@@ -19,7 +19,7 @@ const NO_RESUME_REASON = '还没有简历';
 const BUSY_REASON = '已在投';
 const NO_RESUME_ASK = '我想投这几家，但还没有简历，先帮我做一份';
 
-/** 「已经投过 2 · 没有网申链接 1」：同一原因合在一起数。 */
+/** 「已经投过 2 · 没写怎么投 1」：同一原因合在一起数。 */
 export function skippedText(skipped: JobPlan['skipped']): string {
   const counts = new Map<string, number>();
   for (const s of skipped) counts.set(s.reason, (counts.get(s.reason) ?? 0) + 1);

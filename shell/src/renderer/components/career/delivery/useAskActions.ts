@@ -10,6 +10,7 @@ import { careerApi } from '../careerApi';
 import { openLiveDrawer } from '../CareerLiveDrawer';
 import { suggestToChat } from '../CareerPrimitives';
 import { useRespondReview } from '../CareerReviewCard';
+import { sendReadyMails } from '../mail-apply/mailActions';
 import { deliveryApi, type AskView } from './deliveryApi';
 
 export type AskOutcome = 'resolved' | 'snoozed' | 'kept';
@@ -50,6 +51,8 @@ async function goDeadline(ask: AskView): Promise<AskOutcome> {
 
 /** 卡组主按钮做的事；建议条「都投出 / 再试一次」也走这里（askPrimary.ts），两处同一套落库。 */
 export async function goAsk(ask: AskView, respond: Respond, values: Record<string, string>): Promise<AskOutcome> {
+  // 发邮件前过目：卡组里由邮件卡按勾选发；卡组外（建议条）发出所有不差东西的
+  if (ask.mail) return sendReadyMails(ask, respond);
   switch (ask.kind) {
     case 'start': case 'review': return decideReview(respond, ask);
     case 'info': return fillFields(ask, values);
@@ -96,5 +99,7 @@ export function useAskActions() {
     busy, error,
     go: (ask: AskView, values: Record<string, string> = {}) => run(() => goAsk(ask, respond, values)),
     later: (ask: AskView) => run(() => later(ask)),
+    /** 卡片自己决定落什么（邮件卡按勾选发出 / 不投），忙碌与报错仍归这里。 */
+    act: (fn: (respond: Respond) => Promise<AskOutcome>) => run(() => fn(respond)),
   };
 }

@@ -64,7 +64,7 @@ export const CAREER_TOOL_LABELS: Record<string, string> = {
   jobs_propose: '挑一批给你勾',
   jobs_sync: '同步岗位库',
   mail_accounts: '看绑定的邮箱',
-  mail_compose: '写投递邮件',
+  mail_compose: '在写投递邮件',
   mail_list: '看邮件',
   mail_sync: '收邮件',
   material_draft: '起草材料',

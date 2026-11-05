@@ -7,7 +7,7 @@ export type ApplicationStage =
   | 'evaluated' | 'ready' | 'approved' | 'applied' | 'responded' | 'interview' | 'offer'
   | 'rejected' | 'discarded' | 'skip' | 'hired' | 'blocked' | 'needs_user' | 'pending';
 
-export type ActionKind = 'fill_form' | 'submit' | 'send_greeting' | 'upload' | 'answer_open_q' | 'collect' | 'research' | 'send_mail';
+export type ActionKind = 'fill_form' | 'submit' | 'send_greeting' | 'upload' | 'answer_open_q' | 'collect' | 'research' | 'send_mail' | 'draft_mail';
 export type ActionStatus = 'pending_review' | 'approved' | 'executing' | 'needs_user' | 'done' | 'failed' | 'rejected';
 export type HandoffReason = 'captcha' | 'login' | '2fa' | 'assessment' | 'submit_confirm' | 'missing_info' | 'user_request';
 export type BrowserControlState = 'idle' | 'running' | 'paused' | 'human_active' | 'resuming';
@@ -54,6 +54,8 @@ export interface Job {
   salary: string | null; jd_raw: string | null; jd_parsed_json: string | null; prefilter_json: string | null;
   score_json: string | null; deadline: string | null; deadline_verified_at: string | null;
   created_at: string; updated_at: string;
+  /** 投递邮箱：JD 写了「简历发至 …」的岗位走邮件投递（老数据没有）。 */
+  apply_email?: string | null;
 }
 export interface Application {
   id: string; job_id: string; resume_tailored_id: string | null; stage: ApplicationStage;
