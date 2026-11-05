@@ -272,11 +272,16 @@ export async function syncHandoffHold(deps: { repos?: { openHandoffs(): unknown[
   const id = deps.sessionId ?? careerProductSessionId();
   const host = deps.host !== undefined ? deps.host : (hostCache ?? (hostResolver ? hostCache = await hostResolver() : null));
   if (!id || !host) return false;
+  // 浏览器不在就不持有（stale 接管由批量运行器重新排队）。先看浏览器：Chrome 改成首次用到才拉起后，
+  // 空闲时多半没开，这时不必每 3 秒查一遍接管和待提交。
+  if (!host.hasContext(id)) {
+    host.setHandoffHold(id, false);
+    return false;
+  }
   const repos = deps.repos ?? await getRepos();
-  // 浏览器不在就不持有（stale 接管由批量运行器重新排队）；接管全部关闭后释放
-  // 等提交的网申（填好了停在提交前、待审或已批准待执行）也要持有：它们的页面就在这个浏览器里
+  // 接管全部关闭后释放；等提交的网申（填好了停在提交前、待审或已批准待执行）也要持有：它们的页面就在这个浏览器里
   const pendingSubmits = ['pending_review', 'approved', 'executing'].some(status => repos.listActions?.(status).some(a => a.kind === 'submit'));
-  const held = (repos.openHandoffs().length > 0 || !!pendingSubmits) && host.hasContext(id);
+  const held = repos.openHandoffs().length > 0 || !!pendingSubmits;
   host.setHandoffHold(id, held);
   return held;
 }

@@ -24,6 +24,16 @@ describe('syncHandoffHold', () => {
     expect(gone.setHandoffHold).toHaveBeenCalledWith('s', false);
   });
 
+  it('浏览器没开时不查接管和待提交（Chrome 首次用到才拉起，空闲时多半不在）', async () => {
+    const openHandoffs = vi.fn(() => [{}]);
+    const listActions = vi.fn(() => []);
+    const gone = host(false);
+    expect(await syncHandoffHold({ repos: { openHandoffs, listActions }, host: gone, sessionId: 's' })).toBe(false);
+    expect(openHandoffs).not.toHaveBeenCalled();
+    expect(listActions).not.toHaveBeenCalled();
+    expect(gone.setHandoffHold).toHaveBeenCalledWith('s', false);
+  });
+
   it('还没有会话或宿主：什么都不做', async () => {
     expect(await syncHandoffHold({ repos: { openHandoffs: () => [{}] }, host: null, sessionId: 's' })).toBe(false);
   });
