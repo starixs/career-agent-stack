@@ -1,7 +1,7 @@
 import type { LLM } from '@career/core'
 
 /** 验证码种类（与 @career/apply obstacles.ts 的分类保持兼容，独立维护避免包环）。 */
-export type CaptchaKind = 'slider' | 'image_click' | 'image_text' | 'browser_check' | 'sms' | 'unknown'
+export type CaptchaKind = 'slider' | 'rotation' | 'image_click' | 'image_text' | 'browser_check' | 'sms' | 'unknown'
 
 /** 能识别的验证码厂商（决定选择器与核验方式）。 */
 export type CaptchaVendor =

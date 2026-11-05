@@ -13,6 +13,7 @@
 import type { BrowserContext, Page } from 'playwright';
 
 import { VERIFICATION_URL_RX, humanDrag, pointTargetInPage } from './browse-pointer';
+import { actionDelayMs } from './browse-pacing';
 
 // ---------- 页面内脚本（序列化后在浏览器里执行，不能引用外部变量） ----------
 export interface RawElement { ref: number; kind: string; text: string; href?: string; inputType?: string; value?: string; checked?: boolean; disabled?: boolean; options?: string[]; inViewport: boolean; isPassword?: boolean }
@@ -200,6 +201,7 @@ export interface BrowseDeps {
 }
 
 const lastActionAt = new Map<string, number>();
+const actionBursts = new Map<string, { key: string; count: number }>();
 const hostOf = (url: string) => { try { return new URL(url).hostname; } catch { return ''; } };
 
 async function tabsOf(context: BrowserContext, current: Page): Promise<Observation['tabs']> {
@@ -308,11 +310,16 @@ export async function act(context: BrowserContext, page: Page, req: ActRequest, 
   if (pointerRefusal) return pointerRefusal;
   if (req.action === 'navigate' && !/^https?:\/\//i.test(req.url ?? '')) return refuse(page, req.action, 'bad_request', 'navigate 需要 http(s) 网址');
 
-  // 同站拟人停顿
+  // 同站拟人停顿：随机间隔、重复动作降速、连续操作后的短停顿
   const host = hostOf(page.url());
   const [lo, hi] = deps.pacingMs ?? [700, 1500];
   const last = lastActionAt.get(host) ?? 0;
-  const gap = lo + Math.random() * (hi - lo);
+  const key = `${req.action}:${req.ref ?? req.url ?? ''}`;
+  const burst = actionBursts.get(host);
+  const repeated = burst?.key === key;
+  const count = (burst?.count ?? 0) + 1;
+  actionBursts.set(host, { key, count });
+  const gap = actionDelayMs({ baseMs: lo + Math.random() * (hi - lo), repeated, burstCount: count });
   if (host && now() - last < gap) await sleep(gap - (now() - last));
 
   const urlBefore = page.url();
@@ -484,4 +491,4 @@ export async function read(page: Page, offset = 0, length = 4000): Promise<{ tex
 }
 
 /** 仅测试用。 */
-export function resetBrowseState(): void { lastActionAt.clear(); }
+export function resetBrowseState(): void { lastActionAt.clear(); actionBursts.clear(); }

@@ -1,4 +1,5 @@
 import { humanClick } from '../human-input.js'
+import { waitForVerification } from '../verification.js'
 import type { SolveResult, SolverDeps } from '../types.js'
 
 /**
@@ -45,21 +46,18 @@ export async function solveBrowserCheck(deps: SolverDeps): Promise<SolveResult> 
   const cdp = deps.page.cdp()
   if (!cdp) return { outcome: 'needs_cdp', detail: '没有 CDP 会话，复选框需要可信点击', attempts: 0 }
   const sleep = deps.sleep ?? ((ms: number) => new Promise(r => setTimeout(r, ms)))
-  const rand = deps.rand ?? Math.random
   const maxAttempts = deps.maxAttempts ?? 2
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const probe = await deps.page.evalJson<{ rect: { x: number; y: number; width: number; height: number }; kind: string } | null>(PROBE_EXPR)
     if (!probe) {
       // 隐形检查（无框可点）：多半在跑行为分，等一拍再核验
-      await sleep(2500 + rand() * 1500)
-      if (await verifyPassed(deps)) return { outcome: 'passed', detail: '隐形检查等待后通过', attempts: attempt - 1 }
+      if (await waitForVerification(() => verifyPassed(deps), sleep, 4000, 250)) return { outcome: 'passed', detail: '隐形检查等待后通过', attempts: attempt - 1 }
       return { outcome: 'unsupported', detail: '没有可点击的验证框（隐形检查未放行），留给人工', attempts: attempt - 1 }
     }
     // 先点击页面任意无害处再点框（人类常见节奏，也顺便给 hover 依赖组件预热）
-    await humanClick({ cdp, rand, sleep }, probe.rect.x + probe.rect.width / 2, probe.rect.y + probe.rect.height / 2)
-    await sleep(2200 + rand() * 2000)
-    if (await verifyPassed(deps)) return { outcome: 'passed', detail: `点击验证框（${probe.kind}）后通过`, attempts: attempt }
+    await humanClick({ cdp, sleep }, probe.rect.x + probe.rect.width / 2, probe.rect.y + probe.rect.height / 2)
+    if (await waitForVerification(() => verifyPassed(deps), sleep, 4200, 200)) return { outcome: 'passed', detail: `点击验证框（${probe.kind}）后通过`, attempts: attempt }
   }
   return { outcome: 'failed', detail: '点击验证框后仍未放行', attempts: maxAttempts }
 }
