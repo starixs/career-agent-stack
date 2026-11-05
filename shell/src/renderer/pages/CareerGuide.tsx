@@ -9,7 +9,6 @@ import { CareerPage, SectionTitle, suggestToChat } from '@/components/career/Car
 import { SKILL_POINTS, WORKBENCHES, expands, findSkillPoint, type SkillPoint } from '@/components/career/skills/catalog';
 import { SkillPointCard, WorkbenchCard } from '@/components/career/skills/SkillCards';
 import { SkillPointDetail } from '@/components/career/skills/SkillPointDetail';
-import { useMarketCounts } from '@/components/career/skills/useMarketCounts';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { requestNavigation } from '@/features/career-shell/navModel';
 import { useCareerSubView } from '@/features/career-shell/subViewStore';
@@ -24,14 +23,13 @@ function activatePoint(point: SkillPoint, onOpenDetail: (id: string) => void): v
 }
 
 function MarketHome({ onOpenDetail }: { onOpenDetail: (id: string) => void }) {
-  const counts = useMarketCounts();
   return (
     <div className="max-w-5xl space-y-10 px-6 py-6">
       <section aria-label="工作台">
         <SectionTitle>工作台</SectionTitle>
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {WORKBENCHES.map(item => (
-            <li key={item.id}><WorkbenchCard item={item} count={counts[item.id]} onOpen={() => requestNavigation(item.open)} /></li>
+            <li key={item.id}><WorkbenchCard item={item} onOpen={() => requestNavigation(item.open)} /></li>
           ))}
         </ul>
       </section>
@@ -39,7 +37,7 @@ function MarketHome({ onOpenDetail }: { onOpenDetail: (id: string) => void }) {
         <SectionTitle>交给小芽</SectionTitle>
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {SKILL_POINTS.map(item => (
-            <li key={item.id}><SkillPointCard item={item} count={counts[item.id]} onOpen={() => activatePoint(item, onOpenDetail)} /></li>
+            <li key={item.id}><SkillPointCard item={item} onOpen={() => activatePoint(item, onOpenDetail)} /></li>
           ))}
         </ul>
       </section>

@@ -5,7 +5,7 @@ vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), ap
 
 import { apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 import { onEvent } from '@/api/eventBus';
-import { annualOf, formatMoney } from '@/components/career/offer/OfferBoard';
+import { annualOf, formatMoney, offerPoints } from '@/components/career/offer/OfferBoard';
 import CareerOffer from './CareerOffer';
 import type { Offer } from '@/components/career/types';
 
@@ -40,6 +40,17 @@ describe('CareerOffer', () => {
     // 其余事实一个 Offer 一张卡；没填的留一道虚线
     expect(screen.getByText('方向一致')).toBeInTheDocument();
     expect(screen.getAllByRole('img', { name: '未知' }).length).toBeGreaterThan(0);
+  });
+
+  it('要点由他填的数算出来：谁最先要答复、谁一年多多少、谁的钱还算不出；不说选哪个', () => {
+    const now = new Date('2026-11-05T08:00:00+08:00');
+    const base = offers[0];
+    const a = { ...base, id: 'a', company_name: '甲公司', comp_json: JSON.stringify({ base: 22000, months: 15, signing: 20000 }), deadline: '2026-11-07T10:00:00+08:00' };
+    const b = { ...base, id: 'b', company_name: '乙公司', comp_json: JSON.stringify({ base: 25000, months: 13 }), deadline: '2026-11-14T10:00:00+08:00' };
+    const c = { ...base, id: 'c', company_name: '丙公司', comp_json: '{}', deadline: null };
+    expect(offerPoints([b, a, c], now)).toEqual(['甲公司最先要答复：剩 2 天', '甲公司一年多 2.5 万', '丙公司的钱还算不出']);
+    expect(offerPoints([c], now)).toEqual(['丙公司的钱还算不出']);
+    expect(offerPoints([a], now)).toEqual(['甲公司最先要答复：剩 2 天']);
   });
 
   it('一年的钱只用他填的数：有年包合计用它，否则月薪 × 月数加签字费，不够就算不出', () => {

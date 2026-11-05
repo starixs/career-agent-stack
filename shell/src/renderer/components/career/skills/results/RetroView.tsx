@@ -1,23 +1,22 @@
 /**
  * 面后复盘（interview-retro）的成果。他要看见的是：每道题被追到第几层卡住、下一轮会接着问什么、
  * 这道题重答该怎么说、回去要补什么。
- *   每道题一排圆点，红的那颗是卡住的那一层；下一轮可能问的是一排小标签；重答是一张便签；要补的是待办方框。
+ * 两层（见 skills/layers.tsx）：上面一句「这一轮在看什么」，下面一排数字块——卡住几处、下一轮会问几个、重答几道、
+ * 回去要补几件——点哪块看哪项。每道题一排圆点，红的那颗是卡住的那一层；重答是便签；要补的是待办方框。
  * 证据和推断分开（技能约束）：看到的事实一行，「也可能是」另起一行、用淡色。
  * 旧数据不是这个结构：调用方先用 isRetro 判断，认不出就退回通用展示。
  */
 import { dict, dicts, num, pickText, texts, type Dict } from '../read';
+import { TileTabs, type TileTab } from '../layers';
 import { Pips } from '../visual';
 
-import { TodoList } from './MockReport';
-import { Block } from './parts';
+import { TodoItems } from './MockReport';
 
 /** 追问一般钻到五层左右，圆点至少画这么多颗。 */
 const USUAL_DEPTH = 5;
 
 function Questions({ items }: { items: Dict[] }) {
-  if (items.length === 0) return null;
   return (
-    <Block level="section" label="问了什么、卡在哪">
       <ul className="divide-y divide-[var(--line)]">
         {items.map((item, index) => {
           const layer = num(item.stuck_layer) ?? 0;
@@ -34,25 +33,19 @@ function Questions({ items }: { items: Dict[] }) {
           );
         })}
       </ul>
-    </Block>
   );
 }
 
-function Chips({ label, items }: { label: string; items: string[] }) {
-  if (items.length === 0) return null;
+function Chips({ items }: { items: string[] }) {
   return (
-    <Block level="section" label={label}>
-      <ul className="flex flex-wrap gap-2">
-        {items.map((item, index) => <li key={`${index}:${item}`} className="rounded-full border border-[var(--line-2)] bg-[var(--paper)] px-3 py-1 text-sm text-[var(--ink-2)]">{item}</li>)}
-      </ul>
-    </Block>
+    <ul className="flex flex-wrap gap-2">
+      {items.map((item, index) => <li key={`${index}:${item}`} className="rounded-full border border-[var(--line-2)] bg-[var(--paper)] px-3 py-1 text-sm text-[var(--ink-2)]">{item}</li>)}
+    </ul>
   );
 }
 
 function Retakes({ items }: { items: Dict[] }) {
-  if (items.length === 0) return null;
   return (
-    <Block level="section" label="重答一遍">
       <ul className="space-y-2">
         {items.map((item, index) => {
           const verify = texts(item.needs_verification);
@@ -65,7 +58,6 @@ function Retakes({ items }: { items: Dict[] }) {
           );
         })}
       </ul>
-    </Block>
   );
 }
 
@@ -87,14 +79,23 @@ export function RetroView({ retro }: { retro: unknown }) {
   const data = dict(retro);
   const todo = dict(data.todo);
   const focus = pickText(data, 'focus_this_round');
+  const questions = dicts(data.questions);
+  const stuck = questions.filter(item => (num(item.stuck_layer) ?? 0) > 0).length;
+  const probes = texts(data.next_round_probes);
+  const retakes = dicts(data.retakes);
+  const todos = [...texts(todo.facts), ...texts(todo.delivery)];
+  const signals = dicts(data.signals).map(signalLine).filter((line): line is string => line !== null);
+  const all: Array<TileTab & { present: boolean }> = [
+    { id: 'stuck', label: '卡住', value: stuck, tone: stuck ? 'danger' : undefined, present: questions.length > 0, body: <Questions items={questions} /> },
+    { id: 'next', label: '下一轮会问', value: probes.length, present: probes.length > 0, body: <Chips items={probes} /> },
+    { id: 'retake', label: '重答', value: retakes.length, present: retakes.length > 0, body: <Retakes items={retakes} /> },
+    { id: 'todo', label: '回去要补', value: todos.length, present: todos.length > 0, body: <TodoItems items={todos} /> },
+    { id: 'signals', label: '现场信号', value: signals.length, present: signals.length > 0, body: <Chips items={signals} /> },
+  ];
   return (
-    <div className="space-y-6">
-      {focus && <p className="rounded-md bg-[var(--inset)] px-4 py-3 font-human text-base leading-relaxed text-[var(--ink)]">这一轮在看：{focus}</p>}
-      <Questions items={dicts(data.questions)} />
-      <Chips label="下一轮可能接着问" items={texts(data.next_round_probes)} />
-      <Retakes items={dicts(data.retakes)} />
-      <TodoList level="section" label="回去要补的" items={[...texts(todo.facts), ...texts(todo.delivery)]} />
-      <Chips label="现场的信号" items={dicts(data.signals).map(signalLine).filter((line): line is string => line !== null)} />
+    <div className="space-y-5">
+      {focus && <p className="font-human text-lg font-semibold leading-relaxed text-[var(--ink)]">这一轮在看：{focus}</p>}
+      <TileTabs label="复盘分项" tabs={all.filter(tab => tab.present).map(({ present: _present, ...tab }) => tab)} />
     </div>
   );
 }

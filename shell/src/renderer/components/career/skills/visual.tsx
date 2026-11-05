@@ -110,6 +110,23 @@ export function DateBlock({ iso }: { iso: string | null }) {
   );
 }
 
+/** 练习得分到这个数算过关（题库筛选「不到 60 分」的同一条线）。 */
+export const PASS_SCORE = 60;
+
+/** 分数环：一道题练得怎样。没练过是虚线空圈，练过是带上次得分的圈，不到过关线用提醒色。 */
+export function ScoreRing({ score }: { score: number | null }) {
+  if (score === null) return <span className="h-8 w-8 shrink-0 rounded-full border-[1.5px] border-dashed border-[var(--line-2)]" role="img" aria-label="没练过" />;
+  const tone: Tone = score < PASS_SCORE ? 'warning' : 'success';
+  return (
+    <span
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-[1.5px] text-xs font-semibold tabular-nums"
+      style={{ borderColor: toneColor(tone), color: toneColor(tone) }} role="img" aria-label={`上次 ${score} 分`}
+    >
+      {score}
+    </span>
+  );
+}
+
 /** 离某天还有几天（按天算，当天是 0）；没有日期或解析不了返回 null。 */
 export function daysUntil(iso: string | null, now: Date = new Date()): number | null {
   if (!iso) return null;

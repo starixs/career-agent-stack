@@ -86,11 +86,14 @@ describe('面试助力 · 准备', () => {
     expect(screen.queryByText(/还有 \d+ 天|就是今天/)).toBeNull();
   });
 
-  it('会被问什么：风险分布画成分段条；条目按风险从高到低排，点开才看追问链', async () => {
+  it('三步各一块：高风险几条、练过几道、上次模拟的结论；第一步默认摊开：风险分布条，条目按风险排，点开才看追问链', async () => {
     mockGet();
     render(<CareerInterview />);
     await openTab('准备');
-    const section = await screen.findByRole('region', { name: '会被问什么' });
+    expect(await screen.findByRole('tab', { name: '会被问什么：高风险 1 条' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: '先练几道：练过 0 道，共 1 道' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '模拟一场：上次有点悬' })).toBeInTheDocument();
+    const section = screen.getByRole('tabpanel', { name: '会被问什么' });
     expect(within(section).getByRole('img', { name: '风险分布：高风险 1，低风险 1' })).toBeInTheDocument();
     const rows = within(section).getAllByRole('button').filter(button => button.hasAttribute('aria-expanded'));
     expect(rows[0]).toHaveTextContent('P99 从 800ms 到 200ms 的具体手段');
@@ -108,7 +111,9 @@ describe('面试助力 · 准备', () => {
     await openTab('准备');
     fireEvent.click(await screen.findByRole('button', { name: '帮我准备这一场' }));
     fireEvent.click(screen.getByRole('button', { name: '重新预测' }));
+    fireEvent.click(screen.getByRole('tab', { name: /^先练几道/ }));
     fireEvent.click(screen.getByRole('button', { name: '出一组题' }));
+    fireEvent.click(screen.getByRole('tab', { name: /^模拟一场/ }));
     fireEvent.click(screen.getByRole('button', { name: '开始模拟' }));
     expect(chat.said.map(event => event.text)).toEqual([
       '帮我准备甲公司的面试', '预测一下甲公司面试会深挖我简历哪里', '按甲公司 · 后端开发出一组面试题', '开始模拟甲公司一面，先从高风险的深挖点问起',
@@ -123,7 +128,8 @@ describe('面试助力 · 准备', () => {
     const chat = captureChat();
     render(<CareerInterview />);
     await openTab('准备');
-    const section = await screen.findByRole('region', { name: '先练几道' });
+    fireEvent.click(await screen.findByRole('tab', { name: /^先练几道/ }));
+    const section = screen.getByRole('tabpanel', { name: '先练几道' });
     expect(within(section).getByRole('img', { name: '练习情况：没练 1' })).toBeInTheDocument();
     const row = within(section).getByRole('button', { name: '练这道：讲讲限流怎么做' });
     expect(within(row).getByRole('img', { name: '没练过' })).toBeInTheDocument();
@@ -137,7 +143,8 @@ describe('面试助力 · 准备', () => {
     const chat = captureChat();
     render(<CareerInterview />);
     await openTab('准备');
-    const done = await screen.findByRole('button', { name: /一面 · 大厂/ });
+    fireEvent.click(await screen.findByRole('tab', { name: /^模拟一场/ }));
+    const done = screen.getByRole('button', { name: /一面 · 大厂/ });
     expect(within(done).getByText('有点悬')).toBeInTheDocument();
     fireEvent.click(done);
     expect(screen.getByRole('img', { name: '追到第 3 层卡住' })).toBeInTheDocument();
@@ -175,7 +182,7 @@ describe('面试助力 · 复盘', () => {
     expect(screen.getByText('限流')).toBeInTheDocument();
   });
 
-  it('技能约定结构的复盘：每道题一排圆点标出卡在第几层，重答是便签，要补的是待办', async () => {
+  it('技能约定结构的复盘：一排数字块分项，每道题一排圆点标出卡在第几层，重答是便签，要补的是待办', async () => {
     const retro = {
       focus_this_round: '数字的口径',
       questions: [{ quote: '30% 是怎么统计的？', intent: '核对数字来源', stuck_layer: 2, interviewer_doubt: { evidence: '没说统计周期', alternative: '' } }],
@@ -192,8 +199,13 @@ describe('面试助力 · 复盘', () => {
     expect(await screen.findByText('这一轮在看：数字的口径')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: '追到第 2 层卡住' })).toBeInTheDocument();
     expect(screen.getByText('没说统计周期')).toBeInTheDocument();
+    // 分项一次只看一项：点哪块看哪项
+    expect(screen.getByRole('tab', { name: /卡住/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('按工单工时算')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: /重答/ }));
     expect(screen.getByText('按工单工时算')).toBeInTheDocument();
     expect(screen.getByText('先核实：前后各四周的工时')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /回去要补/ }));
     expect(screen.getByText('把口径写下来')).toBeInTheDocument();
   });
 

@@ -58,20 +58,42 @@ describe('CareerResearch（公司调研工作台）', () => {
     expect(screen.getByText(/成立于 2014 年 · 存续/)).toBeInTheDocument();
     expect(screen.getByText('校招岗位可能挂在子公司签约')).toBeInTheDocument();
     expect(screen.getByText('劳动合同和哪家主体签？')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /面试时问/ }));
     expect(screen.getByText('团队现在有多少人？')).toBeInTheDocument();
+  });
+
+  it('两层：上面是一句话结论、要点和科普（公司是做什么的、岗位来了做什么），下面的分项一次只看一项', async () => {
+    const full = {
+      ...report,
+      summary: { one_line: '可以投，签约主体要问清楚', points: ['主体清楚', '可能挂在子公司签约'] },
+      intro: { business: '做企业用的数据平台，按年收订阅费', sources: [{ title: '公司官网', url: 'https://example.com/about' }], role: '在平台团队写后端接口' },
+    };
+    mockGet([{ ...companies[0], dd_report_json: JSON.stringify(full) }]);
+    render(<CareerResearch />);
+    expect(await screen.findByText('可以投，签约主体要问清楚')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: '要点' })).getAllByRole('listitem')).toHaveLength(2);
+    const intro = screen.getByRole('region', { name: '科普' });
+    expect(within(intro).getByRole('heading', { name: '这家公司是做什么的' })).toBeInTheDocument();
+    expect(within(intro).getByText('做企业用的数据平台，按年收订阅费')).toBeInTheDocument();
+    expect(within(intro).getByRole('link', { name: '公司官网' })).toHaveAttribute('href', 'https://example.com/about');
+    expect(within(intro).getByRole('heading', { name: '这个岗位来了做什么' })).toBeInTheDocument();
+    expect(within(intro).getByText('在平台团队写后端接口')).toBeInTheDocument();
+    // 第二层默认摊开第一项；别的项点了才出现
+    expect(screen.getByRole('tab', { name: /要留意/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('团队现在有多少人？')).toBeNull();
   });
 
   it('红线核验：命中带出处；查不了的写「没法确认」，搜不到的写「没查到记录」，都不写成没问题', async () => {
     mockGet();
     render(<CareerResearch />);
-    expect(await screen.findByText('命中')).toBeInTheDocument();
-    // 三个数字块：命中 1、没查到记录 1、没法确认 1；每条红线前一个同名的状态记号
-    for (const label of ['命中', '没查到记录', '没法确认']) {
-      expect(screen.getByText(label).previousElementSibling).toHaveTextContent('1');
-      expect(screen.getByRole('img', { name: label })).toBeInTheDocument();
-    }
+    const tab = await screen.findByRole('tab', { name: /红线命中/ });
+    expect(tab).toHaveTextContent('1');
+    fireEvent.click(tab);
+    // 每条红线前一个状态记号
+    for (const label of ['命中', '没查到记录', '没法确认']) expect(screen.getByRole('img', { name: label })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '裁判文书公开记录' })).toHaveAttribute('href', 'https://example.com/case');
     // 风险信号只列有命中的
+    fireEvent.click(screen.getByRole('tab', { name: /风险信号/ }));
     expect(screen.getByText('经营恶化（裁员）')).toBeInTheDocument();
     expect(screen.queryByText(/欠薪/)).toBeNull();
   });
@@ -79,7 +101,8 @@ describe('CareerResearch（公司调研工作台）', () => {
   it('人工核实清单从报告的 manual_required 里读出来（回归：以前读错字段，这一栏永远是空的）', async () => {
     mockGet();
     render(<CareerResearch />);
-    expect(await screen.findByRole('link', { name: '在企业信用公示系统核对经营状态' })).toHaveAttribute('href', 'https://www.gsxt.gov.cn');
+    fireEvent.click(await screen.findByRole('tab', { name: /自己核实/ }));
+    expect(screen.getByRole('link', { name: '在企业信用公示系统核对经营状态' })).toHaveAttribute('href', 'https://www.gsxt.gov.cn');
     expect(screen.getByText('官方渠道要验证码')).toBeInTheDocument();
   });
 

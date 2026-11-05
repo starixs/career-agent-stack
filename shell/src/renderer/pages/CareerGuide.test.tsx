@@ -63,15 +63,12 @@ describe('CareerGuide（功能市场）', () => {
     nav.off();
   });
 
-  it('卡片上的计数是库里的真数；没有就不显示', async () => {
-    mockData({
-      '/api/career/probe-predictions': { predictions: [{ id: 'p1' }, { id: 'p2' }] },
-      '/api/career/companies': { companies: [{ id: 'c1' }] },
-    });
+  it('卡片上不放「做过几次」这类计数：有数据也只有名字', async () => {
+    mockData({ '/api/career/probe-predictions': { predictions: [{ id: 'p1' }, { id: 'p2' }] }, '/api/career/companies': { companies: [{ id: 'c1' }] } });
     renderGuide();
-    expect(await screen.findByText('2 条预测')).toBeInTheDocument();
-    expect(screen.getByText('查过 1 家')).toBeInTheDocument();
-    expect(screen.queryByText(/^\d+ 个$/)).toBeNull();
+    expect(bench('面试助力')).toHaveTextContent(/^面试助力$/);
+    expect(bench('公司调研')).toHaveTextContent(/^公司调研$/);
+    expect(apiGetJson).not.toHaveBeenCalled();
   });
 
   it('技能点：不用选东西的点了把那句话预填进对话；自己在做的点了去看结果', () => {
@@ -132,7 +129,10 @@ describe('CareerGuide（功能市场）', () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true });
     setCareerSubView('career-guide', 'direction-explore');
     renderGuide();
-    fireEvent.click(await screen.findByRole('button', { name: /后端基础设施/ }));
+    // 方向并排成路牌，第一个默认摊开；对得上几条是一排圆点
+    const card = await screen.findByRole('tab', { name: '后端基础设施：候选' });
+    expect(card).toHaveAttribute('aria-selected', 'true');
+    expect(within(card).getByRole('img', { name: '对得上 1 条' })).toBeInTheDocument();
     expect(screen.getByText('做过权限模块')).toBeInTheDocument();
     expect(screen.getByText('岗位数量少')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '设为已选' }));

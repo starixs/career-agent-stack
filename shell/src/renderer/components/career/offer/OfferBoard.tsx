@@ -1,5 +1,6 @@
 /**
- * Offer 对比的看板。他在这页要看见的是：哪个答复期限先到、钱谁多谁少，然后才是其余的事实。
+ * Offer 对比的看板。他用到这页时手上有了 Offer、在做决定，最想知道的是：哪个要先回、钱差多少、还缺什么信息。
+ * 第一层：两三个要点（最先要答复的、一年多多少、谁的钱还算不出），全部由他填的数算出来；第二层：
  *   答复期限：每个 Offer 一根从今天伸到期限的条，同一把尺子，短的先到；
  *   一年的钱：每个 Offer 一根按金额比例画的条，下面一行小字是怎么算的；
  *   其余（地点、内容匹配、风险）：一个 Offer 一张卡并排，缺的留一道虚线。
@@ -9,6 +10,7 @@ import type { ReactNode } from 'react';
 
 import { safeJson } from '../careerApi';
 import { Button, textOrUnknown } from '../CareerPrimitives';
+import { PointRow } from '../skills/layers';
 import { num, text, type Dict } from '../skills/read';
 import { daysUntil, toneColor, type Tone } from '../skills/visual';
 import type { Offer } from '../types';
@@ -142,9 +144,31 @@ function OfferCard({ offer, onEdit }: { offer: Offer; onEdit: (offer: Offer) => 
   );
 }
 
+/**
+ * 宏观的几个点，全部由他填的数算出来：哪个最先要答复、谁一年的钱多（多多少）、谁的钱还算不出。
+ * 只摆事实，不说选哪个。
+ */
+export function offerPoints(offers: Offer[], now: Date = new Date()): string[] {
+  const points: string[] = [];
+  const due = offers
+    .map(offer => ({ offer, days: daysUntil(offer.deadline, now) }))
+    .filter((row): row is { offer: Offer; days: number } => row.days !== null && row.days >= 0 && !!row.offer.deadline)
+    .sort((a, b) => a.days - b.days)[0];
+  if (due?.offer.deadline) points.push(`${textOrUnknown(due.offer.company_name)}最先要答复：${dueText(due.days, due.offer.deadline)}`);
+  const paid = offers.map(offer => ({ offer, annual: annualOf(compOf(offer)) }));
+  const known = paid.filter((row): row is { offer: Offer; annual: number } => row.annual !== null).sort((a, b) => b.annual - a.annual);
+  if (known.length >= 2 && known[0].annual > known[1].annual) {
+    points.push(`${textOrUnknown(known[0].offer.company_name)}一年多 ${formatMoney(known[0].annual - known[1].annual)}`);
+  }
+  const unknown = paid.filter(row => row.annual === null).map(row => textOrUnknown(row.offer.company_name));
+  if (unknown.length > 0) points.push(`${unknown.join('、')}的钱还算不出`);
+  return points;
+}
+
 export function OfferBoard({ offers, onEdit }: { offers: Offer[]; onEdit: (offer: Offer) => void }) {
   return (
     <div className="space-y-8">
+      <PointRow label="要点" points={offerPoints(offers)} />
       <div className="grid grid-cols-1 gap-x-12 gap-y-8 lg:grid-cols-2">
         <Deadlines offers={offers} />
         <Pay offers={offers} />

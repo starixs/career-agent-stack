@@ -1,16 +1,37 @@
 /**
- * 差距计划（gap-plan）的成果：对着一个岗位或方向，已经有的 / 缺证据的 / 真没有的三栏，加一张可验收的小任务表。
+ * 差距计划（gap-plan）的成果。他是想投一个够不太着的岗位时来的，最想知道的是「差多少、补齐要多久」。
+ * 第一层：一根比例条（已经有的 / 缺证据的 / 真没有的各占多少）加一个数（补齐大概要几小时）；
+ * 第二层：三栏逐条列出，加一张可验收的小任务表。
  */
 import { GAP_CATEGORY_LABELS } from '../../careerConstants';
 import { Badge, formatDate, type BadgeTone } from '../../CareerPrimitives';
 import type { Direction, GapPlan } from '../../types';
 import { dict, list, num, parseJson, pickText, texts, type Dict } from '../read';
+import { SegmentBar, StatTile, type Tone } from '../visual';
 
 import { Block, Disclosure, ResultList } from './parts';
 
-const CATEGORIES: ReadonlyArray<{ key: keyof typeof GAP_CATEGORY_LABELS; tone: BadgeTone }> = [
-  { key: 'have', tone: 'success' }, { key: 'need_evidence', tone: 'warning' }, { key: 'missing', tone: 'error' },
+const CATEGORIES: ReadonlyArray<{ key: keyof typeof GAP_CATEGORY_LABELS; tone: BadgeTone; bar: Tone }> = [
+  { key: 'have', tone: 'success', bar: 'success' }, { key: 'need_evidence', tone: 'warning', bar: 'warning' }, { key: 'missing', tone: 'error', bar: 'danger' },
 ];
+
+const gapItems = (gaps: Dict, key: string): string[] => texts(gaps[key], 'requirement', 'text', 'item');
+/** 任务有时是一句话，有时是 {title, acceptance, est_hours…}。 */
+const taskRows = (tasks: unknown[]): Dict[] => tasks.map(task => (typeof task === 'string' ? { title: task } : dict(task)));
+const taskHours = (row: Dict): number | null => num(row.est_hours) ?? num(row.hours);
+
+/** 第一层：岗位要求里已经有的、缺证据的、真没有的各占多少（一根比例条），补齐大概要几个小时。 */
+function GapOverview({ gaps, tasks }: { gaps: Dict; tasks: Dict[] }) {
+  const hours = tasks.reduce((sum, row) => sum + (taskHours(row) ?? 0), 0);
+  return (
+    <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+      <div className="min-w-48 flex-1">
+        <SegmentBar label="岗位要求" segments={CATEGORIES.map(({ key, bar }) => ({ label: GAP_CATEGORY_LABELS[key], value: gapItems(gaps, key).length, tone: bar }))} />
+      </div>
+      {hours > 0 && <div className="flex w-28 shrink-0"><StatTile value={hours} label="小时补齐" /></div>}
+    </div>
+  );
+}
 
 export interface GapTargets { jobs: Array<{ job_id: string; company_name: string | null; title: string }>; directions: Direction[] }
 
@@ -25,10 +46,11 @@ function GapColumns({ gaps }: { gaps: Dict }) {
   return (
     <div className="grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-3">
       {CATEGORIES.map(({ key, tone }) => {
-        const items = texts(gaps[key], 'requirement', 'text', 'item');
+        const items = gapItems(gaps, key);
+        if (items.length === 0) return null;
         return (
           <div key={key}>
-            <Badge tone={tone}>{GAP_CATEGORY_LABELS[key]} {items.length}</Badge>
+            <Badge tone={tone}>{GAP_CATEGORY_LABELS[key]}</Badge>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-sm leading-relaxed text-[var(--ink-2)]">
               {items.map((item, index) => <li key={`${index}:${item}`}>{item}</li>)}
             </ul>
@@ -39,10 +61,8 @@ function GapColumns({ gaps }: { gaps: Dict }) {
   );
 }
 
-function TaskTable({ tasks }: { tasks: unknown[] }) {
-  if (tasks.length === 0) return null;
-  // 任务有时是一句话，有时是 {title, acceptance, est_hours…}
-  const rows = tasks.map(task => (typeof task === 'string' ? { title: task } : dict(task)));
+function TaskTable({ rows }: { rows: Dict[] }) {
+  if (rows.length === 0) return null;
   return (
     <Block label="小任务">
       <table className="w-full border-collapse text-sm">
@@ -51,7 +71,7 @@ function TaskTable({ tasks }: { tasks: unknown[] }) {
         </thead>
         <tbody>
           {rows.map((row, index) => {
-            const hours = num(row.est_hours) ?? num(row.hours);
+            const hours = taskHours(row);
             return (
               <tr key={`${index}:${pickText(row, 'title')}`} className="border-t border-[var(--line)] align-top">
                 <td className="py-2 pr-4 text-[var(--ink)]">{pickText(row, 'title', 'task', 'name') ?? '—'}</td>
@@ -63,6 +83,18 @@ function TaskTable({ tasks }: { tasks: unknown[] }) {
         </tbody>
       </table>
     </Block>
+  );
+}
+
+function PlanBody({ plan }: { plan: GapPlan }) {
+  const gaps = dict(parseJson(plan.gaps_json, `gap_plan ${plan.id}.gaps_json`));
+  const tasks = taskRows(list(parseJson(plan.actions_json, `gap_plan ${plan.id}.actions_json`)));
+  return (
+    <>
+      <GapOverview gaps={gaps} tasks={tasks} />
+      <GapColumns gaps={gaps} />
+      <TaskTable rows={tasks} />
+    </>
   );
 }
 
@@ -79,8 +111,7 @@ export function GapPlans({ plans, targets }: { plans: GapPlan[]; targets: GapTar
             </span>
           )}
         >
-          <GapColumns gaps={dict(parseJson(plan.gaps_json, `gap_plan ${plan.id}.gaps_json`))} />
-          <TaskTable tasks={list(parseJson(plan.actions_json, `gap_plan ${plan.id}.actions_json`))} />
+          <PlanBody plan={plan} />
         </Disclosure>
       ))}
     </ResultList>

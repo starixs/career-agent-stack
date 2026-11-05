@@ -1,13 +1,15 @@
 /**
  * 题库（R09）：总题库 + 我见过的题 + 按 JD 出的题；笔试 / 测评题也在这里。
- * 每道题看得到见过几次、练过几次、最近 / 最好得分；点开看每次作答的分数变化（绑定当时的简历与岗位）。
+ * 题干是这页要读的字，排在最前；练得怎样是左边一个分数环（没练过是虚线空圈）；来源、公司、考察点是下面一行小标签。
+ * 点「作答记录」看每次作答的分数变化（绑定当时的简历与岗位）。
  * 练习与打分在对话里做（"用这道题考我"），这里负责查看、筛选、补录自己见过的题。
  */
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { careerApi } from './careerApi';
-import { Badge, Button, ChatActionButton, ErrorRow, LoadingRow, SectionTitle, Select, TextArea, TextInput, formatDate, type BadgeTone } from './CareerPrimitives';
+import { PASS_SCORE, ScoreRing } from './skills/visual';
+import { Badge, Button, ChatActionButton, ErrorRow, LoadingRow, Select, TextArea, TextInput, formatDate, type BadgeTone } from './CareerPrimitives';
 import type { QuestionItem } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
@@ -23,16 +25,15 @@ export function QuestionBankPanel() {
   const list = query.data ?? [];
   return (
     <section>
-      <SectionTitle extra={<Button size="sm" onClick={() => setAdding(v => !v)}><Plus className="h-3.5 w-3.5" />补录见过的题</Button>}>
-        题库（{list.length}）
-      </SectionTitle>
-      {adding && <AddQuestion onDone={() => { setAdding(false); query.reload(); }} />}
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-        <TextInput aria-label="搜索题目" placeholder="搜题干 / 题型 / 标签" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') set({ q }); }} className="w-48" />
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+        <div className="w-64"><TextInput aria-label="搜索题目" placeholder="搜题干 / 题型 / 标签" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') set({ q }); }} /></div>
         <Select ariaLabel="题目类型" value={f.kind ?? ''} placeholder="全部类型" onChange={v => set({ kind: v || undefined })} options={[{ value: '', label: '全部类型' }, { value: 'interview', label: '面试' }, { value: 'written', label: '笔试' }, { value: 'assessment', label: '测评' }]} />
         <Select ariaLabel="题目来源" value={f.source ?? ''} placeholder="全部来源" onChange={v => set({ source: v || undefined })} options={[{ value: '', label: '全部来源' }, { value: 'seen', label: '我见过' }, { value: 'public', label: '公共题库' }, { value: 'generated', label: '按 JD 出的' }]} />
-        <label className="flex items-center gap-1 text-[var(--muted)]"><input type="checkbox" checked={!!f.weak_only} onChange={e => set({ weak_only: e.target.checked })} />只看没练 / 不到 60 分</label>
+        <label className="flex items-center gap-1 text-[var(--muted)]"><input type="checkbox" checked={!!f.weak_only} onChange={e => set({ weak_only: e.target.checked })} />只看没练 / 不到 {PASS_SCORE} 分</label>
+        <span className="flex-1" />
+        <Button size="sm" onClick={() => setAdding(v => !v)}><Plus className="h-3.5 w-3.5" />补录见过的题</Button>
       </div>
+      {adding && <AddQuestion onDone={() => { setAdding(false); query.reload(); }} />}
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       {query.loading && !query.data && <LoadingRow />}
       {query.data && list.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有题目</div>}
@@ -47,21 +48,28 @@ function QuestionRowView({ item, onChanged }: { item: QuestionItem; onChanged: (
   const act = useCareerAction();
   const probe = safeList(item.probe_points_json);
   return (
-    <li className="py-3">
-      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <Badge tone={SOURCE[item.source].tone}>{SOURCE[item.source].label}</Badge>
-        <span className="text-[var(--muted)]">{KIND[item.kind]}{item.category ? ` · ${item.category}` : ''}{item.company_name ? ` · ${item.company_name}` : ''}</span>
-        {item.seen_count > 0 && <span className="text-[var(--subtle)]">见过 {item.seen_count} 次</span>}
-        <span className="text-[var(--subtle)]">{item.attempt_count ? `练过 ${item.attempt_count} 次 · 最近 ${item.last_attempt_score ?? '—'} · 最好 ${item.best_attempt_score ?? '—'}` : '还没练过'}</span>
-        <span className="flex-1" />
-        <ChatActionButton variant="ghost" text={`用这道题考我：${item.content}`} context={{ surface: 'review', refs: { question_id: item.id } }}>练这道</ChatActionButton>
-        <Button size="sm" variant="ghost" onClick={() => { setOpen(v => !v); attempts.reload(); }}>{open ? '收起' : '作答记录'}</Button>
-        <Button size="sm" variant="ghost" aria-label="删除题目" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.deleteQuestion(item.id); onChanged(); })}><Trash2 className="h-3.5 w-3.5" /></Button>
+    <li className="group py-3">
+      <div className="flex items-start gap-3">
+        <ScoreRing score={item.attempt_count ? item.last_attempt_score : null} />
+        <div className="min-w-0 flex-1">
+          <div className="whitespace-pre-wrap text-base leading-relaxed text-[var(--ink)]">{item.content}</div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--muted)]">
+            <Badge tone={SOURCE[item.source].tone}>{SOURCE[item.source].label}</Badge>
+            <span>{[KIND[item.kind], item.company_name].filter(Boolean).join(' · ')}</span>
+            {item.seen_count > 0 && <span className="text-[var(--subtle)]">见过 {item.seen_count} 次</span>}
+            {probe.map(point => <span key={point} className="rounded bg-[var(--inset)] px-1.5 leading-5">{point}</span>)}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center">
+          <ChatActionButton variant="ghost" text={`用这道题考我：${item.content}`} context={{ surface: 'review', refs: { question_id: item.id } }}>练这道</ChatActionButton>
+          <span className="flex items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+            <Button size="sm" variant="ghost" onClick={() => { setOpen(v => !v); attempts.reload(); }}>{open ? '收起' : '作答记录'}</Button>
+            <Button size="sm" variant="ghost" aria-label="删除题目" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.deleteQuestion(item.id); onChanged(); })}><Trash2 className="h-3.5 w-3.5" /></Button>
+          </span>
+        </div>
       </div>
-      <div className="mt-0.5 whitespace-pre-wrap text-sm text-[var(--ink)]">{item.content}</div>
-      {probe.length > 0 && <div className="mt-0.5 text-xs text-[var(--muted)]">考察点：{probe.join('；')}</div>}
       {open && (
-        <div className="mt-1.5 border-t border-[var(--line)] pt-1.5 text-xs">
+        <div className="ml-11 mt-2 border-t border-[var(--line)] pt-2 text-xs">
           {(attempts.data ?? []).length === 0 && <div className="text-[var(--subtle)]">还没有作答记录。</div>}
           <ul className="space-y-1">
             {(attempts.data ?? []).map(a => (
