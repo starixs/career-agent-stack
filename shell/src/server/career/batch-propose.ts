@@ -2,14 +2,15 @@
  * 「今天这批」勾选表的候选（face-beta-polish 2026-11-05；plan-r2 §C 改为撑得住一天几十份）。
  *
  * 所有入口（第一份投出之后、建议条、右栏「再投一批」、功能市场、网申进展空状态）都汇到这里，
- * 出的是同一张 `batch_pick` 卡。只挑「现在就能开始」的岗位（planJobs 过一遍：没网申链接、已在投、已投过的不进表），
+ * 出的是同一张 `batch_pick` 卡。只挑「现在就能开始」的岗位（planJobs 过一遍：没写怎么投、已在投、已投过的不进表；只收邮件的岗位照样进表），
  * 届别和他不符的不进表；方向内能投的全部列出（不设上限），分组可折叠；
  * 默认勾选：投出不到 5 份时只勾一小批，之后勾满方向内全部，一家公司只勾一个岗（怕同一家投多个岗被锁）；
  * 上次没勾的收在最后一组、不勾。每行带网申系统在信任账本里的状态、截止、这家会用哪份简历。
  */
-import { normalizeCohort, type Repos } from '@career/core';
+import { applyChannelOf, normalizeCohort, type Repos } from '@career/core';
 import { z } from 'zod';
 
+import { isDraftingMail, isHeldAction } from './apply-actions';
 import { applyJobs, planJobs } from './batch-apply';
 import {
   assignGroups, chooseGroupBy, defaultPickCount, prePick, readUnpicked, rememberUnpicked,
@@ -35,8 +36,10 @@ export interface BatchPickRow {
   company: string;
   title: string;
   city: string | null;
-  /** 网申系统的名字（北森、Moka…；认不出时按网站）。 */
+  /** 网申系统的名字（北森、Moka…；认不出时按网站）；邮件投递的写「邮件」。 */
   system: string | null;
+  /** 投递通道：网申填表 / 发邮件（JD 写明发邮箱的）。 */
+  channel: 'web' | 'mail';
   /** 这一类在他这儿投通过（shown / delegated）= true；没投过 = false，会先停给他看。 */
   known: boolean;
   /** 这一类他盖过章：填好直接投出，不停。 */
@@ -84,17 +87,22 @@ export interface ProposeOptions {
   exclude?: string[];
 }
 
+/** 邮件投递的行：系统一栏写「邮件」；写好了一律先给他过目（发送永远过人），不是「新系统 · 先停给你看」。 */
+const MAIL_SYSTEM_LABEL = '邮件';
+
 function toRow(r: BoardRow, marked: Set<string>, ledger: TrustLedger, plan: (id: string) => ResumePlan): Omit<BatchPickRow, 'picked' | 'group'> {
-  const sys = r.job.url ? systemOfSync(r.job.url) : null;
+  const mail = applyChannelOf(r.job) === 'mail';
+  const sys = !mail && r.job.url ? systemOfSync(r.job.url) : null;
   const trust = sys ? ledger[sys.key]?.state ?? 'new' : 'new';
   return {
     job_id: r.job.id,
     company: r.job.company_name ?? '',
     title: r.job.title,
     city: r.job.location,
-    system: sys?.label ?? null,
-    known: trust !== 'new',
-    delegated: trust === 'delegated',
+    system: mail ? MAIL_SYSTEM_LABEL : sys?.label ?? null,
+    channel: mail ? 'mail' : 'web',
+    known: mail || trust !== 'new',
+    delegated: !mail && trust === 'delegated',
     target: marked.has(r.job.id) || r.target !== null,
     deadline: r.job.deadline ? r.job.deadline.slice(0, 10) : null,
     resume_plan: plan(r.job.id),
@@ -117,14 +125,15 @@ function candidates(repos: Repos, jobIds?: string[], exclude: readonly string[] 
     .filter(r => named ? named.has(r.job.id) : mentions(r, keywords));
 }
 
-/** 表头的今天三个数：今天投出、在填（已批准还没填完的）、备好（停在提交前的）。 */
+/** 表头的今天三个数：今天投出、在填（已批准还没填完的网申 + 在写的邮件）、备好（停在提交前的网申 + 写好待发的邮件）。 */
 function todayNumbers(repos: Repos, sentList: Array<{ at: string }>): BatchProposal['today'] {
   const since = new Date(); since.setHours(0, 0, 0, 0);
   const iso = since.toISOString();
   const running = repos.kvGet<BatchState>(BATCH_STATE_KEY)?.running?.length ?? 0;
   const queued = repos.listActions('approved').filter(a => a.kind === 'fill_form').length;
-  const prepared = repos.listActions('pending_review').filter(a => a.kind === 'submit').length;
-  return { sent: sentList.filter(r => r.at >= iso).length, filling: running + queued, prepared };
+  const drafting = repos.listActions().filter(isDraftingMail).length;
+  const prepared = repos.listActions('pending_review').filter(isHeldAction).length;
+  return { sent: sentList.filter(r => r.at >= iso).length, filling: running + queued + drafting, prepared };
 }
 
 /** 排序：会了的系统先跑、新网站后跑（E#7，新网站要登录的攒在后面一起叫他）。 */
@@ -212,9 +221,9 @@ const REASON_MAX = 14;
 /** done_line 里最多列几条不同的原因，再多说"另有 n 家"。 */
 const REASONS_SHOWN = 2;
 
-/** 收起那一行：开始了几家，没开始的说前两条原因（如"简历里缺手机号"），他知道去补什么。 */
-export function startDoneLine(started: number, skipped: Array<{ reason: string }>): string {
-  const head = started ? `已开始投 ${started} 家` : '这批一家都没能开始';
+/** 收起那一行：开始了几家（其中几封邮件在写），没开始的说前两条原因（如"简历里缺手机号"），他知道去补什么。 */
+export function startDoneLine(started: number, skipped: Array<{ reason: string }>, mails = 0): string {
+  const head = started ? `已开始投 ${started} 家${mails ? ` · 其中 ${mails} 封邮件在写` : ''}` : '这批一家都没能开始';
   if (!skipped.length) return head;
   const counts = new Map<string, number>();
   for (const s of skipped) counts.set(s.reason, (counts.get(s.reason) ?? 0) + 1);
@@ -233,7 +242,7 @@ export async function startFromCard(deps: PacketDeps & { store: CareerStore }, c
   const res = await applyJobs(deps, jobIds, resumeId);
   const left = rememberUnpicked(deps.repos, defaultPicked, jobIds);
   console.log(`[career] batch-pick start card=${cardId} picked=${jobIds.length} started=${res.started.length} skipped=${res.skipped.length} unpicked_kept=${left}`);
-  settleChatCard(deps.repos, cardId, { done_line: startDoneLine(res.started.length, res.skipped), started: res.started.length }, 'completed');
+  settleChatCard(deps.repos, cardId, { done_line: startDoneLine(res.started.length, res.skipped, res.mails), started: res.started.length }, 'completed');
   return res;
 }
 

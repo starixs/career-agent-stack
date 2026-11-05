@@ -8,7 +8,7 @@ export interface ResumeMaster { id: string; name: string; direction: string | nu
 export interface ResumeTailored { id: string; master_id: string; job_id: string | null; schema_json: string; strength: 'nudge' | 'keywords' | 'full'; diff_confirmed_at: string | null; export_pdf: string | null; export_docx: string | null; export_png: string | null; created_at: string; updated_at: string }
 
 export interface Company { id: string; legal_name: string | null; brand_names: string; dd_report_json: string | null; traffic_light: string | null; manual_checks: string; updated_at: string }
-export interface Job { id: string; source_platform: string; source_job_id: string | null; url: string | null; company_id: string | null; company_name: string | null; title: string; location: string | null; salary: string | null; jd_raw: string | null; jd_parsed_json: string | null; prefilter_json: string | null; board_json?: string | null; score_json: string | null; deadline: string | null; deadline_verified_at: string | null; job_key: string | null; remote_id: string | null; employment_type?: string; cohort?: string | null; source_version?: number | null; source_status?: string; match_json?: string | null; match_score?: number | null; created_at: string; updated_at: string }
+export interface Job { id: string; source_platform: string; source_job_id: string | null; url: string | null; company_id: string | null; company_name: string | null; title: string; location: string | null; salary: string | null; jd_raw: string | null; jd_parsed_json: string | null; prefilter_json: string | null; board_json?: string | null; score_json: string | null; deadline: string | null; deadline_verified_at: string | null; job_key: string | null; remote_id: string | null; employment_type?: string; cohort?: string | null; source_version?: number | null; source_status?: string; match_json?: string | null; match_score?: number | null; /** 投递邮箱（JD 写明发邮件投递；迁移 v10）；null = 没写 */ apply_email?: string | null; created_at: string; updated_at: string }
 
 export interface Application { id: string; job_id: string; resume_tailored_id: string | null; stage: ApplicationStage; next_action: string | null; next_action_due: string | null; blocker_reason: string | null; retry_strategy: string | null; submission_evidence: string | null; answers_used_json: string; page_url: string | null; packet_id: string | null; created_at: string; updated_at: string }
 export interface ActionQueueItem { id: string; application_id: string | null; kind: ActionKind; payload_json: string; status: ActionStatus; result_json: string | null; reviewed_at: string | null; content_hash: string | null; approved_hash: string | null; approved_by: string | null; packet_id: string | null; created_at: string; updated_at: string }
@@ -32,6 +32,12 @@ export interface JdParsed {
   keywords: { covered: string[]; diggable: string[]; missing: string[] }
   deadline?: string
   notes?: string[]
+  /** JD 写明的投递邮箱（没写不给）。 */
+  apply_email?: string
+  /** JD 指定的邮件标题格式，原话（没写不给）。 */
+  mail_subject_format?: string
+  /** JD 指定的附件 / 简历命名格式，原话（没写不给）。 */
+  mail_attachment_format?: string
 }
 
 // ===== 五个面 =====

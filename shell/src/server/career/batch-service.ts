@@ -261,7 +261,7 @@ export function startAnswerSync(intervalMs = 10 * 60_000): void {
   answerSyncTimer.unref?.();
 }
 
-/** bootstrap（global）：上次还在跑就续上；同时启动接管守护、提交执行器与答案回传。 */
+/** bootstrap（global）：上次还在跑就续上；同时启动接管守护、提交执行器、答案回传与邮件起草器。 */
 export async function resumeBatchIfRunning(): Promise<void> {
   void import('./legacy-memory-cleanup').then(m => m.removePristineLegacyMemoryRules(careerWorkspacePath()))
     .then(removed => { if (removed.length) console.log(`[career] 已撤掉基座记忆的默认规则文件：${removed.join('、')}`); })
@@ -271,6 +271,8 @@ export async function resumeBatchIfRunning(): Promise<void> {
   try { (await getSubmitExecutor()).start(); } catch (error) { console.warn('[career] 提交执行器启动失败：', error instanceof Error ? error.message : error); }
   try { (await getBatchRunner()).resumeIfRunning(); } catch (error) { console.warn('[career] 批量运行器恢复失败：', error instanceof Error ? error.message : error); }
   startBatchCommandPoll();
+  // 邮件起草器：和批量运行器并排、不占浏览器（mail-apply/runner.ts）
+  try { await (await import('./mail-apply/service')).startMailDrafterService(globalPacketDeps); } catch (error) { console.warn('[career] 邮件起草器启动失败：', error instanceof Error ? error.message : error); }
 }
 
 /**

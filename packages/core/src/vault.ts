@@ -93,6 +93,9 @@ export const PROFILE_FIELDS: readonly ProfileFieldDef[] = [
   { field: 'englishLevel', label: '英语水平', sensitive: false, group: 'education' },
   { field: 'city', label: '现居 / 期望城市', sensitive: false, group: 'preference' },
   { field: 'availableDate', label: '到岗时间', sensitive: false, group: 'preference' },
+  // 实习到岗信息（邮件投递问一次，标题与到岗那句由代码拼，不让模型写）
+  { field: 'internDaysPerWeek', label: '每周可实习天数', sensitive: false, group: 'preference', hint: '如 4' },
+  { field: 'internMonths', label: '可实习时长（月）', sensitive: false, group: 'preference', hint: '如 6' },
   { field: 'linkedin', label: '领英', sensitive: false, group: 'preference' },
   { field: 'github', label: 'GitHub', sensitive: false, group: 'preference' },
   { field: 'portfolio', label: '作品集 / 个人网站', sensitive: false, group: 'preference' },

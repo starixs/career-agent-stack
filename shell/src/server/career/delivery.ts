@@ -11,6 +11,7 @@
 import { buildAsks, companyMarkOf, type ActionQueueItem, type AskView, type CompanyMark, type InboxItem, type Repos } from '@career/core';
 
 import { isSubmittedStage } from '../../shared/careerStages';
+import { isHeldAction, isStartAction, START_KINDS } from './apply-actions';
 import { isTargetApplication, markedTargetJobs } from './targets';
 
 /** 现在要你的事：core 的合并规则 + 目标星（目标岗位的提交不并进「一键投出」）。壳层一律用它，不直接调 buildAsks。 */
@@ -32,14 +33,21 @@ function fillActions(repos: Repos, by: { since?: string; actionIds?: readonly st
     return repos.db.all<ActionQueueItem>(`SELECT * FROM action_queue WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY created_at`, [...ids]);
   }
   if (!by.since) return [];
-  return repos.db.all<ActionQueueItem>(`SELECT * FROM action_queue WHERE kind='fill_form' AND created_at >= ? ORDER BY created_at`, [by.since]);
+  // 今天开始投的：网申填表与写投递邮件都算（apply-actions.ts START_KINDS）
+  const kinds = [...START_KINDS];
+  return repos.db.all<ActionQueueItem>(`SELECT * FROM action_queue WHERE kind IN (${kinds.map(() => '?').join(',')}) AND created_at >= ? ORDER BY created_at`, [...kinds, by.since]);
 }
+
+/** 交出去那一步正在进行：提交 / 发邮件已批准、在执行。 */
+const isSending = (a: ActionQueueItem) => (a.kind === 'submit' || a.kind === 'send_mail') && a.status === 'approved';
+/** 这份投递的在办动作失败了：填表、写邮件、发邮件。 */
+const isFailedStep = (a: ActionQueueItem) => (isStartAction(a) || a.kind === 'send_mail') && a.status === 'failed';
 
 function posterState(stage: string, actions: readonly ActionQueueItem[], asking: boolean): PosterState {
   if (isSubmittedStage(stage)) return 'done';
   if (asking) return 'ask';
-  if (actions.some(a => a.status === 'executing' || (a.kind === 'submit' && a.status === 'approved'))) return 'run';
-  if (stage === 'blocked' || actions.some(a => a.kind === 'fill_form' && a.status === 'failed')) return 'failed';
+  if (actions.some(a => a.status === 'executing' || isSending(a))) return 'run';
+  if (stage === 'blocked' || actions.some(isFailedStep)) return 'failed';
   return 'wait';
 }
 
@@ -126,6 +134,6 @@ export function buildAway(repos: Repos, since: string, nowIso = new Date().toISO
   const heard = new Set([...repos.listInbox().map(i => inboxApplication(repos, i)), ...repos.listDeadlines().map(d => d.application_id)]);
   const quiet = repos.db.all<{ id: string }>(`SELECT id FROM application WHERE stage = 'applied'`).filter(a => !heard.has(a.id)).length;
   // 替你挡掉的（主线体验 §6.8，X 调研：让他看见闸门在起作用）：你不在时填好、停在提交前、没你点头不交的
-  const held = repos.listActions('pending_review').filter(a => a.kind === 'submit' && a.created_at >= since).length;
+  const held = repos.listActions('pending_review').filter(a => isHeldAction(a) && a.created_at >= since).length;
   return { since, asks: asksFor(repos, nowIso), sent: sent.map(s => companyMarkOf(s.company_name, s.company_id)), replies: replyFacts(repos, since), quiet, held };
 }

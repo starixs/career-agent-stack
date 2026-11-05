@@ -3,7 +3,8 @@
  * `exports/packets/<sha256>.pdf`（同内容只存一份、永不覆盖），JD 原文进 application_packet.jd_snapshot_json。
  *
  * 什么时候冻结：入队（apply_prepare / prepareJobs）不再冻结；fill_form 开跑前由运行器冻结一次（packet-prepare.ts：
- * 按岗位定制 → 导 PDF → 建材料包），fill 与 submit 共用同一材料包；邮件投递（mail_compose）仍在入队时冻结。
+ * 按岗位定制 → 导 PDF → 建材料包），fill 与 submit 共用同一材料包；邮件投递同样在后台写邮件前冻结（mail-apply/drafter.ts），
+ * draft_mail 与它排出的 send_mail 共用同一材料包。
  *  - fill_form 的批准 = 「按 payload.resume_plan 开始填」（不提交），内容哈希覆盖 resume_plan、resume_id；
  *  - submit 的批准覆盖 packet_id（冻结的 PDF 哈希 + 简历快照）与 resumeSha：上传与提交核对的是同一份。
  * 执行时（对话 apply_run、后台批量、邮件发送）一律从材料包取文件，并核对文件哈希。
@@ -16,7 +17,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { dirname, join } from 'path';
-import { parseVaultPlaceholder, PROFILE_FIELDS, type ApplicationPacket, type Job, type Repos } from '@career/core';
+import { extractApplyEmail, parseVaultPlaceholder, PROFILE_FIELDS, type ApplicationPacket, type Job, type Repos } from '@career/core';
 import { z } from 'zod';
 
 import type { ResumePlan, ResumePlanKind } from '../../shared/careerRail';
@@ -341,7 +342,8 @@ export function saveCapturedJd(repos: Repos, jobId: string, text: string): boole
   const job = repos.getJob(jobId);
   const jd = text.trim().slice(0, CAPTURED_JD_MAX_CHARS);
   if (!job || hasRealJd(job) || !hasRealJd({ jd_raw: jd })) return false;
-  repos.db.update('job', jobId, { jd_raw: jd, jd_parsed_json: null, updated_at: new Date().toISOString() });
+  const applyEmail = job.apply_email ? null : extractApplyEmail(jd)?.email ?? null;
+  repos.db.update('job', jobId, { jd_raw: jd, jd_parsed_json: null, ...(applyEmail ? { apply_email: applyEmail } : {}), updated_at: new Date().toISOString() });
   console.log(`[career] jd captured job=${jobId} chars=${jd.length}`);
   return true;
 }

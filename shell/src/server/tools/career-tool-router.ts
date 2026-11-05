@@ -20,6 +20,8 @@ export const XIAOYA_TOOLS: ReadonlySet<string> = new Set([
   'resume_list', 'resume_get', 'resume_master_create', 'resume_tailor', 'job_prefs',
   // 岗位与投出
   'jobs_board', 'jobs_propose', 'jobs_apply', 'apply_continue', 'review_queue',
+  // 邮件投递（实习是主线：很多实习岗只收邮件）
+  'mail_compose',
   // 回来、看全局、打开页面
   'today_queue', 'dossier_get', 'ui_open',
   // 读外面的东西

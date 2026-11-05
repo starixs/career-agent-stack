@@ -16,66 +16,17 @@
  * 排序（§5.2.2）：有外部期限的按期限先后；没有的排在后面，按挡住的申请数多少；已经过了时间、只问
  * 「考了吗」的放最后（和 today() 的 OVERDUE_PRIORITY 同一个判断）。
  */
-import { companyMarkOf, type CompanyMark } from './company-mark.js'
+import { appContext, companiesOf, earliestJobDeadline, parseObj, records, shortName, strOf, uniq, type AskField, type AskKind, type AskView, type Ctx } from './ask-context.js'
+import { failedMailAsk, isMailReviewKind, mailReviewAsks } from './asks-mail.js'
+import { companyMarkOf } from './company-mark.js'
 import { fillFailReason, isJobClosedFailure } from './fill-retry.js'
 import type { Repos } from './repos.js'
 import { deadlineToToday, type TodayItem } from './surfaces.js'
 import type { ActionQueueItem, Deadline, Handoff, InboxItem } from './types.js'
 import { PROFILE_FIELDS, vaultTokensToMarks } from './vault.js'
 
-/**
- * 规范五类 + 已经在今日队列里的四类（过了时间问「考了吗」、面完复盘、不确定是否投出、还没开始填的）。
- * 出错面：failed「N 家没填成」——填表失败、自动再试一次也没成的（fill-retry.ts），合成一件，「再试一次」一起放回队列。
- * unsure「这几封我不太确定」仍是预留，现在不派生。
- */
-export type AskKind = 'info' | 'login' | 'choice' | 'deadline' | 'slot' | 'review' | 'start' | 'confirm' | 'attendance' | 'retro' | 'failed' | 'unsure'
-export type AskSourceType = 'deadline' | 'action' | 'handoff'
-export interface AskSource { type: AskSourceType; id: string }
-export interface AskField {
-  label: string; /** 给人看的说法：去掉问卷题号「3.」和结尾冒号（label 仍是回填页面用的键） */ text: string; /** 能在卡片里填时写进私密库的字段；null = 写答案库 */ vault_field: string | null; sensitive: boolean; /** 上传类、读回不一致等只能去页面上看的项 */ fillable: boolean
-  /** 网页上这一格的可选项（下拉 / 单选）：卡片里让他点选，不用猜网站的写法 */
-  options?: string[]
-  /** 小芽已经写好的一版（开放题草稿）：卡片里预填，他看一眼确认或改几个字，不从空白开始写 */
-  draft?: string
-}
-
-export interface AskView {
-  id: string
-  kind: AskKind
-  /** ≤ 12 字左右，如「证件号码」「九方云 · 在线测评」 */
-  title: string
-  detail?: string
-  /** 一个动作能解决的所有申请 */
-  application_ids: string[]
-  /** 只涉及一份申请时的岗位名（大海报下半写它） */
-  role?: string
-  /** 涉及的公司（与 application_ids 同序去重；没有申请的截止按标题里的公司名） */
-  companies: CompanyMark[]
-  /** 合并前的每个源；处理时逐个落库 */
-  sources: AskSource[]
-  /** 接管类：停下来的那些填表动作，补完后助理按它们从当前页接着填（apply_continue） */
-  action_ids?: string[]
-  /** 外部期限；null = 没有 */
-  due_at: string | null
-  /** 已经过了时间（只问考了没有） */
-  overdue: boolean
-  /** deadline 类：截止的种类（assessment / written_test / interview …） */
-  deadline_kind?: string
-  url?: string | null
-  /** 来自哪封邮件 */
-  source?: { inbox_item_id: string; received_at: string }
-  /** info：缺的字段（明文只在本机，不进模型上下文） */
-  fields?: AskField[]
-  /** review：填后检查的数字 */
-  review?: { required_filled: number | null; required_total: number | null; gaps: number }
-  /** choice：网页弹窗问的话和它的按钮，卡上直接点选 */
-  choice?: { question: string; options: string[] }
-  /** 对话里接着办时发给助理的话（带对象 id） */
-  suggest?: string
-}
-
-interface AppCtx { company: CompanyMark; jobDeadline: string | null; label: string; role: string }
-type Ctx = { apps: Map<string, AppCtx>; nowIso: string; isTarget: (applicationId: string) => boolean }
+export type { AskField, AskKind, AskMail, AskMailPurpose, AskSource, AskSourceType, AskView } from './ask-context.js'
+export { ASK_MAIL_PURPOSES } from './ask-context.js'
 
 export interface AskOptions {
   /** 目标岗位（进过面试 / 用户标的）：投前一家一家给你看，不并进「一键投出」。由壳层按目标星判断。 */
@@ -83,47 +34,6 @@ export interface AskOptions {
 }
 
 const LOGIN_REASONS = new Set(['login', 'captcha', '2fa', 'user_request'])
-const NAME_MAX = 6
-const shortName = (s: string) => (s.length > NAME_MAX ? s.slice(0, NAME_MAX) : s)
-const parseObj = (raw: string | null): Record<string, unknown> => {
-  if (!raw) return {}
-  try { const v: unknown = JSON.parse(raw); return v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {} } catch (e) {
-    console.warn(`[career] asks: result_json 解析失败：${e instanceof Error ? e.message : String(e)}`); return {}
-  }
-}
-const records = (v: unknown): Array<Record<string, unknown>> => (Array.isArray(v) ? v.filter((x): x is Record<string, unknown> => !!x && typeof x === 'object') : [])
-const strOf = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined)
-
-function appContext(repos: Repos): Map<string, AppCtx> {
-  const map = new Map<string, AppCtx>()
-  for (const a of repos.applicationsWithJob()) {
-    map.set(a.id, { company: companyMarkOf(a.job.company_name, a.job.company_id), jobDeadline: a.job.deadline, label: `${a.job.company_name ?? ''} ${a.job.title}`.trim(), role: a.job.title })
-  }
-  return map
-}
-
-function companiesOf(ctx: Ctx, appIds: readonly string[]): CompanyMark[] {
-  const seen = new Set<string>()
-  const out: CompanyMark[] = []
-  for (const id of appIds) {
-    const c = ctx.apps.get(id)?.company
-    if (c && !seen.has(c.name)) { seen.add(c.name); out.push(c) }
-  }
-  return out
-}
-
-/** 没有自己期限的事（缺信息、登录、待投）：挡住的申请里最早、还没过的网申截止就是它的外部期限。 */
-function earliestJobDeadline(ctx: Ctx, appIds: readonly string[]): string | null {
-  const now = Date.parse(ctx.nowIso)
-  let best: number | null = null
-  for (const id of appIds) {
-    const t = Date.parse(ctx.apps.get(id)?.jobDeadline ?? '')
-    if (!Number.isNaN(t) && t > now && (best === null || t < best)) best = t
-  }
-  return best === null ? null : new Date(best).toISOString()
-}
-
-const uniq = (xs: Array<string | null | undefined>): string[] => [...new Set(xs.filter((x): x is string => !!x))]
 
 // ---------- 截止 ----------
 
@@ -173,7 +83,7 @@ function deadlineAsks(repos: Repos, ctx: Ctx): AskView[] {
 
 // ---------- 待批准动作 ----------
 
-const ACTION_TITLE: Partial<Record<ActionQueueItem['kind'], string>> = { submit: '投前过目', send_greeting: '发招呼前过目', send_mail: '发邮件前过目', upload: '上传前过目', answer_open_q: '开放题过目' }
+const ACTION_TITLE: Partial<Record<ActionQueueItem['kind'], string>> = { submit: '投前过目', send_greeting: '发招呼前过目', upload: '上传前过目', answer_open_q: '开放题过目' }
 
 function reviewAsk(ctx: Ctx, a: ActionQueueItem): AskView {
   const appIds = uniq([a.application_id])
@@ -216,14 +126,18 @@ function sendAllAsk(ctx: Ctx, reviews: readonly AskView[]): AskView {
   }
 }
 
+/** 还没开始的那一步：网申的填表、邮件投递的写邮件（都是批准即开始；批准后退回待审才会出现在这里）。 */
+const NOT_STARTED_KINDS: ReadonlySet<ActionQueueItem['kind']> = new Set(['fill_form', 'draft_mail'])
+
 function actionAsks(repos: Repos, ctx: Ctx): AskView[] {
   const pending = repos.listActions('pending_review')
-  const start = startAsk(ctx, pending.filter(a => a.kind === 'fill_form'))
-  const reviews = pending.filter(a => a.kind !== 'fill_form').map(a => reviewAsk(ctx, a))
+  const start = startAsk(ctx, pending.filter(a => NOT_STARTED_KINDS.has(a.kind)))
+  // 发邮件前过目按用途分组（asks-mail.ts），不走通用的一封一件
+  const reviews = pending.filter(a => !NOT_STARTED_KINDS.has(a.kind) && !isMailReviewKind(a)).map(a => reviewAsk(ctx, a))
   const clean = reviews.filter(r => pending.find(a => a.id === r.id)?.kind === 'submit' && isCleanSubmit(ctx, r))
   const merged = clean.length > 1 ? [sendAllAsk(ctx, clean)] : []
   const rest = merged.length ? reviews.filter(r => !clean.includes(r)) : reviews
-  return [...(start ? [start] : []), ...merged, ...rest]
+  return [...(start ? [start] : []), ...merged, ...rest, ...mailReviewAsks(ctx, pending)]
 }
 
 // ---------- 接管 ----------
@@ -439,7 +353,7 @@ export function compareAsks(a: AskView, b: AskView): number {
 export function buildAsks(repos: Repos, nowIso: string, opts: AskOptions = {}): AskView[] {
   const ctx: Ctx = { apps: appContext(repos), nowIso, isTarget: opts.isTarget ?? (() => false) }
   const failed = failedAsk(repos, ctx)
-  const asks = foldAssessmentHandoffs([...deadlineAsks(repos, ctx), ...actionAsks(repos, ctx), ...handoffAsks(repos, ctx), ...(failed ? [failed] : [])])
+  const asks = foldAssessmentHandoffs([...deadlineAsks(repos, ctx), ...actionAsks(repos, ctx), ...handoffAsks(repos, ctx), ...(failed ? [failed] : []), ...failedMailAsk(repos, ctx)])
   for (const a of asks) if (a.application_ids.length === 1) a.role = ctx.apps.get(a.application_ids[0])?.role
   return asks.sort(compareAsks)
 }

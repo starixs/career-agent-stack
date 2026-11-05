@@ -68,7 +68,7 @@ function toWire(e: AnswerEventRow) {
  * 把一页岗位写进本地库（按 job_key upsert；服务端下架 / 合并的保留但标记）。
  * 服务端带了 batch / industry / type_tags 就写进 job.board_json（见 job-board.ts 顶部约定），没带不覆盖本地已有的。
  */
-export function upsertListings(repos: Repos, items: JobListing[], core: Pick<CoreModule, 'serializeBoardMeta'>): number {
+export function upsertListings(repos: Repos, items: JobListing[], core: Pick<CoreModule, 'serializeBoardMeta' | 'isEmailAddress'>): number {
   let n = 0;
   repos.db.transaction(() => {
     for (const it of items) {
@@ -81,6 +81,8 @@ export function upsertListings(repos: Repos, items: JobListing[], core: Pick<Cor
         jd_raw: it.jd_raw ?? null, deadline: it.deadline ?? null, deadline_verified_at: it.deadline_verified_at ?? null,
         employment_type: it.employment_type ?? 'unknown', cohort: it.cohort ?? null, source_version: it.version ?? null, source_status: it.status ?? 'open',
         board_json: core.serializeBoardMeta({ batch: it.batch, industry: it.industry, type_tags: it.type_tags }),
+        // 云端岗位库带了投递邮箱就透传；没带交给 upsertJob 按 JD 原文认一次
+        ...(typeof it.apply_email === 'string' && core.isEmailAddress(it.apply_email) ? { apply_email: it.apply_email.trim() } : {}),
       });
       n++;
     }

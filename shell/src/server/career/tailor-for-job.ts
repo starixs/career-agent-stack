@@ -91,9 +91,10 @@ export interface TailorJobsOptions { timeoutMs?: number; concurrency?: number }
 
 class TailorTimeout extends Error { constructor(ms: number) { super(`定制超过 ${ms}ms`); this.name = 'TailorTimeout'; } }
 
-function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+/** 等 work 最多 ms 毫秒，超时按 makeError 抛错（work 本身不会被中止）。邮件起草也用这一份。 */
+export function withTimeout<T>(work: Promise<T>, ms: number, makeError: () => Error = () => new TailorTimeout(ms)): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new TailorTimeout(ms)), ms); });
+  const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(makeError()), ms); });
   return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }
 
@@ -126,12 +127,9 @@ export async function tailorJobs(runner: TailorRunner, items: ReadonlyArray<{ jo
 /** 批量投时默认的定制：用壳里的共享模型（和对话里的工具同一个）跑 tailorForJob，不出卡。 */
 export function defaultTailorRunner(repos: Repos, store: CareerStore): TailorRunner {
   return async ({ jobId, masterId }) => {
-    const [{ getShellLLM }, { loadSkillPrompt }, { loadCore }, { parseAndStoreJd }] = await Promise.all([import('./llm'), import('./skills'), import('./core-module'), import('./intake')]);
+    const [{ getShellLLM }, { backgroundAskSkill }, { loadCore }, { parseAndStoreJd }] = await Promise.all([import('./llm'), import('./skills'), import('./core-module'), import('./intake')]);
     const [core, llm] = [await loadCore(), getShellLLM()];
-    const askSkill = async <T>(skill: string, user: string, o: { refs?: string[]; temperature?: number } = {}): Promise<T> => {
-      const res = await llm.complete({ system: await loadSkillPrompt(skill, o.refs ?? []), messages: [{ role: 'user', content: user }], json: true, temperature: o.temperature ?? 0.3 });
-      return core.extractJson<T>(res.text);
-    };
+    const askSkill = backgroundAskSkill(llm, core);
     const parseJd = async (id: string) => (await parseAndStoreJd({ repos, core, llm, broadcast: () => undefined, sessionId: () => 'batch' }, { job_id: id })).parsed;
     const master = store.getResume(masterId);
     const job = repos.getJob(jobId);

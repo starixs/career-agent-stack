@@ -35,6 +35,8 @@ export interface JobListing {
   batch?: string | null
   industry?: string | null
   type_tags?: string[] | null
+  /** 投递邮箱（服务端有就带，JD 写明发邮件投递的岗位）。 */
+  apply_email?: string | null
 }
 
 export interface JobQuery {

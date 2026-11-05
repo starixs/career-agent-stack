@@ -15,6 +15,7 @@ JD 原文（公司名、岗位名一起）；可选：经历库摘要（经历�
 2. 按出现频次与位置排序（标题 > 职责首条 > 任职要求），取 Top 10 关键词。
 3. 三分类：covered＝经历库里有已确认主张能直接证明；diggable＝做过但没写出来或表达不到位；missing＝没做过。没有经历库时全部放 diggable，并在 notes 写"未对照经历库"。
 4. 截止时间、地点、届别、学历单独抽出；JD 没写就留空。
+5. 投递方式：JD 写明「简历发送至 / 投递邮箱」的，把那个邮箱放进 apply_email（客服、商务合作、举报邮箱不算）；写了邮件标题格式、附件 / 简历命名格式的，原话放进 mail_subject_format、mail_attachment_format。没写就不给这三项。
 
 # 输出
 ```json
@@ -22,7 +23,8 @@ JD 原文（公司名、岗位名一起）；可选：经历库摘要（经历�
   "company":"", "title":"", "location":[], "degree":"", "cohort":"",
   "hard_requirements":[], "responsibilities":[], "nice_to_have":[],
   "keywords":{"covered":[],"diggable":[],"missing":[]},
-  "deadline":"", "notes":[]
+  "deadline":"", "notes":[],
+  "apply_email":"", "mail_subject_format":"", "mail_attachment_format":""
 }
 ```
 notes 放：文件命名要求、公司性质与读者、行业与研究对象、风格信号、JD 中含糊需要人工确认的点。

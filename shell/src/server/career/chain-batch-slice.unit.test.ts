@@ -57,7 +57,7 @@ describe('链路 · 框选一批、确认投出', () => {
     const plan = planJobs(repos, store, repos.listJobs().map(j => j.id));
     expect(plan.ready).toHaveLength(5);
     expect(plan.targets).toBe(2);
-    expect(plan.skipped.map(s => s.reason).sort()).toEqual(['已经投过', '没有网申链接']);
+    expect(plan.skipped.map(s => s.reason).sort()).toEqual(['已经投过', '没写怎么投']);
     expect(plan.needs_resume).toHaveLength(5);
     expect(plan.resumes.map(r => r.name).sort()).toEqual(['AI 方向', '通用版']);
   });
@@ -66,7 +66,7 @@ describe('链路 · 框选一批、确认投出', () => {
     const [ai] = [store.createResumeMaster({ name: 'AI 方向', schema_json: { basics: {} } }), store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } })];
     const res = await applyJobs(deps, repos.listJobs().map(j => j.id), ai.id);
     expect(res.started).toHaveLength(5);
-    expect(res.skipped.map(s => s.reason).sort()).toEqual(['已经投过', '没有网申链接']);
+    expect(res.skipped.map(s => s.reason).sort()).toEqual(['已经投过', '没写怎么投']);
     expect(repos.listActions('approved').filter(a => a.kind === 'fill_form')).toHaveLength(5);
     expect(repos.kvGet<{ cmd: string; ids: string[] }>(BATCH_COMMAND_KEY)).toMatchObject({ cmd: 'run', ids: res.started });
     expect(asksFor(repos).map(a => a.kind)).not.toContain('start');

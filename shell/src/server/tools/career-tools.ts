@@ -24,8 +24,6 @@ import { buildInterviewPrep } from '../career/interview-prep';
 import { applicationForInterview, bookInterview, interviewResume } from '../career/interview-link';
 import { runInterviewRetro } from '../career/interview-retro-run';
 import { getShellLLM } from '../career/llm';
-import { MAIL_PRESETS } from '../career/mail/providers';
-import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
 import { draftMaterial } from '../career/materials';
 import { getRunRegistry, type RunRegistry } from '../career/runs';
 import { getSearchProvider, type CareerSearchProvider } from '../career/search';
@@ -49,6 +47,7 @@ import { getCurrentTurnSignal } from '../utils/turn-abort';
 import { REVIEW_CARD_KIND, reviewCardId } from '../../shared/careerReviewCard';
 import { jobMatchesQuery } from '../../shared/jobSearch';
 
+import { createMailTools } from './mail-tools';
 import { createOfferTools } from './offer-tools';
 import { createResumeChainTools } from './resume-chain-tools';
 
@@ -883,62 +882,6 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ month: board.month.key, counts: board.counts, note: '卡片已在对话里，点开就是「我的求职月」；回复一两句。' });
       })),
 
-      // ---------- 邮箱 ----------
-      tool('mail_accounts', '已绑定的邮箱与各家邮箱的绑定说明。还没绑定时对话里会出现「绑定邮箱」卡片，用户在卡片里填地址和授权码（不经过你），不要让用户把授权码发到对话里。', {}, wrap(() => {
-        const accounts = repos().listMailAccounts();
-        const presets = Object.values(MAIL_PRESETS).map(p => ({ provider: p.provider, label: p.label, help: p.help }));
-        if (!accounts.length) card('mail_bind', 'mail_bind', '绑定求职邮箱', { presets });
-        return text({ accounts: accounts.map(a => ({ id: a.id, provider: a.provider, address: a.address, status: a.status, last_sync_at: a.last_sync_at, last_error: a.last_error })), presets });
-      })),
-
-      tool('mail_sync', '立刻同步邮箱：新邮件里的面试邀请 / 测评 / 拒信 / Offer 会自动归档到收件箱与卷宗。', { account_id: z.string().optional() }, async (args) => wrap(async () => {
-        progress('mail_sync', '正在同步邮箱');
-        const deps = intakeDeps();
-        if (args.account_id) {
-          const account = repos().getMailAccount(args.account_id);
-          if (!account) return err(`邮箱账号不存在：${args.account_id}`);
-          return text({ results: [await syncMailAccount(deps, account)] });
-        }
-        if (repos().listMailAccounts().length === 0) return err('还没有绑定邮箱，请让用户在「收件箱」面板绑定（QQ / 163 / Gmail 等填授权码即可）。');
-        return text({ results: await syncAllMailAccounts(deps) });
-      })()),
-
-      tool('mail_list', '列出与求职相关的邮件（可按投递过滤）；发出去的投递邮件也在这里。', { application_id: z.string().optional(), direction: z.enum(['in', 'out']).optional(), limit: z.number().int().min(1).max(100).optional() }, async (args) => wrap(() => text({ messages: repos().listMailMessages({ application_id: args.application_id, direction: args.direction, relevance: args.application_id ? undefined : 'job', limit: args.limit ?? 30 }).map(m => ({ id: m.id, direction: m.direction, from: m.from_addr, to: m.to_addr, subject: m.subject, snippet: m.snippet, received_at: m.received_at, kind: m.kind, application_id: m.application_id })) }))()),
-
-      tool('mail_compose', '起草投递邮件（derivatives 技能：标题规范、三段正文、附件命名）并入待审队列；用户在面板批准后才会真正发送。resume_id 给定时自动导出 PDF 作为附件。', {
-        to: z.string().describe('收件邮箱'), job_id: z.string().optional(), application_id: z.string().optional(), resume_id: z.string().optional(), account_id: z.string().optional(), notes: z.string().optional().describe('用户对邮件的要求'),
-      }, async (args) => wrap(async () => {
-        const accounts = repos().listMailAccounts();
-        const account = args.account_id ? accounts.find(a => a.id === args.account_id) : accounts[0];
-        if (!account) return err('还没有绑定邮箱，请让用户在「收件箱」面板绑定后再发投递邮件。');
-        let app = args.application_id ? repos().getApplication(args.application_id) : undefined;
-        const job = args.job_id ? requireJob(args.job_id) : app ? repos().getJob(app.job_id) : undefined;
-        if (!job) return err('需要 job_id 或 application_id');
-        if (!app) app = repos().listApplications().find(a => a.job_id === job.id) ?? repos().createApplication(job.id, args.resume_id && store().getResume(args.resume_id)?.kind === 'tailored' ? args.resume_id : null);
-        const resume = args.resume_id ? store().getResume(args.resume_id) : undefined;
-        let attachment: { path: string; filename: string } | null = null;
-        let packetId: string | null = null;
-        if (resume) {
-          progress('mail_compose', '正在备好简历附件');
-          // 附件按内容哈希冻结：批准后再导出 / 改简历，发出去的仍是批准时那一份
-          const { packet, warning } = await freezePacket(packetDeps(), { applicationId: app.id, jobId: job.id, resumeId: resume.row.id });
-          if (warning || !packet.resume_pdf_path) return err(warning ?? '简历 PDF 导出失败');
-          packetId = packet.id;
-          attachment = { path: packet.resume_pdf_path, filename: `${resume.kind === 'master' ? (resume.row as { name?: string }).name ?? '简历' : '简历'}.pdf` };
-        }
-        progress('mail_compose', '正在起草邮件');
-        const basics = resume ? (parseJson<{ basics?: Record<string, string> }>(resume.row.schema_json)?.basics ?? {}) : {};
-        const out = await askSkill<{ email?: { subject?: string; body?: string; signature?: string }; attachment_name?: string; matches_used?: unknown; unresolved?: unknown }>('derivatives', `${jobDigest(job)}\n\n用户基本信息：${JSON.stringify(basics)}\n\n已确认主张：\n${experienceDigest()}\n\n附件实际文件名：${attachment?.filename ?? '（无附件）'}\n用户要求：${args.notes ?? '无'}`, { temperature: 0.3 });
-        if (attachment && out.attachment_name && /\.pdf$/i.test(out.attachment_name)) attachment = { ...attachment, filename: out.attachment_name };
-        const subject = out.email?.subject ?? `应聘 ${job.title}`;
-        const body = [out.email?.body ?? '', out.email?.signature ?? ''].filter(Boolean).join('\n\n');
-        const action = repos().enqueueAction('send_mail', { account_id: account.id, to: args.to, subject, body, attachments: attachment ? [{ ...attachment, sha256: packetId ? repos().getPacket(packetId)?.resume_pdf_sha256 ?? undefined : undefined }] : [], application_id: app.id, job_id: job.id, context: '邮件', ...(packetId ? { packet_id: packetId } : {}) }, app.id);
-        changed('action_queue', 'application');
-        review([action.id], 'send_mail', `发送投递邮件给 ${args.to}：${subject}`);
-        focus({ surface: 'today' });
-        return text({ action_id: action.id, subject, body, attachment: attachment?.filename ?? null, unresolved: out.unresolved ?? [], note: '邮件已进入待审核队列，用户在「今日」或卷宗里批准后才会发送；请把主题与正文给用户确认。' });
-      })()),
-
       tool('experience_add', '写入一段他口述的经历，并附带若干主张（claims）；他亲口说的直接算确认，能进简历。接着补一段已有的经历时传 experience_id，主张加到原经历上，不另建。', {
         experience_id: z.string().optional().describe('接着补已有经历时传；缺省新建'),
         title: z.string().describe('经历标题'), role: z.string().optional(), org: z.string().optional(),
@@ -1272,7 +1215,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ prefs, rematched: n });
       })()),
 
-      tool('jobs_apply', '投这几个岗位（用户说「这些都投了」「投这 20 个」时用）：一次就开始——逐个冻结材料包、交给后台批量运行器填到提交前停下；标星的填好后先给他看，其余检查全过的合成「一键投出」。已在投、已投过、没有网申链接的跳过并给原因。没有定制版又有好几份主简历时，默认用最近改过的那份（结果里 resume 写明用了哪份）。不用你逐份 apply_run；回复一两句：开始了几家、跳过几家，要他做的事会出现在右边的「等你」里，进展也在右边。不要让他回话确认。', {
+      tool('jobs_apply', '投这几个岗位（用户说「这些都投了」「投这 20 个」时用）：一次就开始——逐个冻结材料包、交给后台批量运行器填到提交前停下；标星的填好后先给他看，其余检查全过的合成「一键投出」。只收邮件的岗位（JD 写明发邮箱）也走这里，会在后台写好邮件等他过目。已在投、已投过、没写怎么投的跳过并给原因。没有定制版又有好几份主简历时，默认用最近改过的那份（结果里 resume 写明用了哪份）。不用你逐份 apply_run；回复一两句：开始了几家、跳过几家，要他做的事会出现在右边的「等你」里，进展也在右边。不要让他回话确认。', {
         job_ids: z.array(z.string()).min(1).max(50), resume_id: z.string().optional().describe('统一用这份简历（定制版仍优先）；不传则用最近改过的主简历'),
       }, async (args) => wrap(async () => {
         const { applyJobs, planJobs } = await import('../career/batch-apply');
@@ -1283,7 +1226,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         changed('application', 'action_queue');
         // 对话里留一张批次卡（海报墙，只看状态、没有按钮）：这批投到哪了一眼可见
         if (res.started.length) review(res.started, 'fill_form', `投 ${res.started.length} 家`);
-        return text({ started: res.started.length, skipped: res.skipped, ...(resume ? { resume: masters.find(m => m.id === resume)?.name ?? resume } : {}) });
+        return text({ started: res.started.length, mails: res.mails, skipped: res.skipped, ...(resume ? { resume: masters.find(m => m.id === resume)?.name ?? resume } : {}) });
       })()),
 
       tool('jobs_propose', '在对话里放一张「今天这批」勾选表（他说「再投一批」「再投几家」「批量投」而没指定是哪几家时用）：按他的方向列出现在就能投的全部岗位（届别不符的不列），按截止或方向分组；投出不到 5 份时默认勾 5 家，之后默认勾满、一家公司只勾一个岗；上次没勾的收在最后一组。他在表上点「投这 N 家」才开始。不要再用文字列一遍岗位；回复一句「挑好了，在下面，看看要不要改」就停。他已经点名具体哪几家时直接用 jobs_apply。', {
@@ -1704,6 +1647,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         parseJd: async jobId => (await parseAndStoreJd({ job_id: jobId })).parsed, confirmedClaims,
       }),
       ...createOfferTools({ tool, z, repos, store, wrap, text, err, changed, askSkill: (skill, user, opts) => askSkill(skill, user, opts), userContext: () => `用户经历与偏好：\n${experienceDigest()}\n${JSON.stringify(prefs())}` }),
+      ...createMailTools({ tool, z, repos, store, wrap, text, err, changed, card, progress, intakeDeps, packetDeps }),
   ];
   return createSdkMcpServer({
     name: 'career',

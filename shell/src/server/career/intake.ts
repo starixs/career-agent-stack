@@ -109,7 +109,9 @@ export async function parseAndStoreJd(
     job = r.upsertJob({ source_platform: input.source_platform ?? 'manual', title, url: input.url ?? null, jd_raw: jdRaw, company_name: input.company_name ?? parsed.company ?? null, location: parsed.location?.join('/') ?? null, deadline: parsed.deadline || null, board_json: board });
   }
   const mergedBoard = board ? JSON.stringify(deps.core.mergeBoardMeta(deps.core.parseBoardJson(job.board_json), deps.core.parseBoardJson(board))) : undefined;
-  r.db.update('job', job.id, { jd_parsed_json: JSON.stringify(parsed), ...(mergedBoard ? { board_json: mergedBoard } : {}), ...(parsed.deadline && !job.deadline ? { deadline: parsed.deadline } : {}), updated_at: new Date().toISOString() });
+  // 投递邮箱：库里为空时先按规则从原文认，认不出再用解析结果（结构先走、模型兜底）
+  const applyEmail = job.apply_email ? null : deps.core.extractApplyEmail(jdRaw)?.email ?? (parsed.apply_email && deps.core.isEmailAddress(parsed.apply_email) ? parsed.apply_email.trim() : null);
+  r.db.update('job', job.id, { jd_parsed_json: JSON.stringify(parsed), ...(mergedBoard ? { board_json: mergedBoard } : {}), ...(parsed.deadline && !job.deadline ? { deadline: parsed.deadline } : {}), ...(applyEmail ? { apply_email: applyEmail } : {}), updated_at: new Date().toISOString() });
   if (parsed.deadline && !r.listDeadlines({ status: 'open' }).some(d => d.job_id === job!.id && d.kind === 'application_deadline')) {
     const due = normalizeIso(parsed.deadline, deps.now?.() ?? new Date().toISOString());
     if (due) r.createDeadline({ kind: 'application_deadline', title: `${job.company_name ?? ''} ${job.title} 网申截止`.trim(), due_at: due, job_id: job.id, source: 'job' });

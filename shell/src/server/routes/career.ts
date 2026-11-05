@@ -8,7 +8,7 @@
  */
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import type { Repos, ApplicationStage, JobPrefs, LLM, Vault, VaultScope } from '@career/core';
+import type { ActionQueueItem, Repos, ApplicationStage, JobPrefs, LLM, Vault, VaultScope } from '@career/core';
 
 import { CareerStore, DIRECTION_STATUSES } from '../career/store';
 import { railSnapshot } from '../career/rail';
@@ -40,7 +40,8 @@ import { getVault, vaultForRepos } from '../career/vault';
 import { LEARN_THRESHOLD, getAutoMode, resetPageTrust, setAutoMode } from '../career/submit-policy';
 import { confirmSubmitResult } from '../career/submit-executor';
 import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
-import { applyJobs, planJobs, prepareAhead, startApprovedFills } from '../career/batch-apply';
+import { applyJobs, planJobs, prepareAhead, startApprovedDrafts, startApprovedFills } from '../career/batch-apply';
+import type { PacketDeps } from '../career/packets';
 import { postProposal, proposeAfterSubmit, startFromCard } from '../career/batch-propose';
 import { buildSuggestions } from '../career/suggest';
 import { suggestContextOf } from '../career/suggest-context';
@@ -52,6 +53,7 @@ import { broadcast as sseBroadcast } from '../sse';
 
 import { careerJson, fail, ok, str, strOrNull, type Json } from './career-http';
 import { deliveryRoutes } from './career-delivery';
+import { mailApplyRoutes } from './career-mail-apply';
 import { interviewRoutes } from './career-interview';
 import { phoneRoutes } from './career-phone';
 import { phoneLink } from '../career/phone';
@@ -91,6 +93,18 @@ function parseJsonObj(raw: string | null | undefined): Json {
 function dropApplication(repos: Repos, applicationId: string): void {
   try { repos.transition(applicationId, 'skip', '你说这家不投了'); } catch (error) {
     console.warn(`[career] drop application ${applicationId} FAILED`, error instanceof Error ? error.message : error);
+  }
+}
+
+/** 邮件投递「不投这家」：被拒的 send_mail 所在申请标成跳过，同一份投递上还没写完的 draft_mail 作废（不再写一封出来）。 */
+function dropMailApplications(repos: Repos, rejected: readonly ActionQueueItem[]): void {
+  for (const a of rejected) {
+    if (a.kind !== 'send_mail' || !a.application_id) continue;
+    dropApplication(repos, a.application_id);
+    for (const d of repos.listActions().filter(x => x.kind === 'draft_mail' && x.application_id === a.application_id && ['pending_review', 'approved', 'needs_user'].includes(x.status))) {
+      repos.setActionStatus(d.id, 'rejected', { reason: '你说这家不投了' });
+    }
+    console.log(`[career] mail-apply dropped app=${a.application_id} action=${a.id}`);
   }
 }
 
@@ -168,6 +182,11 @@ function refreshAfterEdit(ctx: Ctx, resumeId: string): void {
     r => { if (r) dataChanged(ctx, ['action_queue', 'application_packet']); });
 }
 
+/** 导 PDF / 建材料包用的依赖（批量投、邮件换简历）。 */
+function packetDepsOf(ctx: Ctx): PacketDeps {
+  return { repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir };
+}
+
 function exportResume(ctx: Ctx, id: string, format: ExportFormat): Promise<string> {
   // 占位符 → 明文只在渲染这一刻发生；落库 JSON 与模型看到的仍是 {{vault:...}}
   return exportResumeFile(ctx.store, id, format, ctx.deps.exportsDir, ctx.deps.resumeModule, schema => ctx.vault.resolveDeep(schema, { actor: 'resume_export', purpose: `导出简历 ${id} ${format}` }), ctx.deps.studioExport === false ? null : { repos: ctx.repos });
@@ -185,6 +204,7 @@ const ROUTES: Route[] = [
   }))),
 
   ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url, params: ctx.params, body: ctx.body, vault: ctx.vault, dataChanged: tables => dataChanged(ctx, tables) }))),
+  ...mailApplyRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, store: ctx.store, vault: ctx.vault, url: ctx.url, params: ctx.params, body: ctx.body, packetDeps: () => packetDepsOf(ctx), dataChanged: tables => dataChanged(ctx, tables) }))),
   // ---------- 手机连接（蓝牙读短信收验证码，见 career/phone） ----------
   ...phoneRoutes(phoneLink).map(([method, path, handler]) => route(method, path, ctx => handler({ body: ctx.body }))),
 
@@ -449,7 +469,7 @@ const ROUTES: Route[] = [
     const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : [];
     if (!ids.length) return fail('job_ids 不能为空');
     try {
-      const res = await applyJobs({ repos: ctx.repos, store: ctx.store, exportPdf: id => exportResume(ctx, id, 'pdf'), exportsDir: ctx.deps.exportsDir }, ids, str(ctx.body.resume_id) ?? null);
+      const res = await applyJobs(packetDepsOf(ctx), ids, str(ctx.body.resume_id) ?? null);
       console.log(`[career] jobs/apply started=${res.started.length} skipped=${res.skipped.length}`);
       dataChanged(ctx, ['application', 'action_queue']);
       return ok(res);
@@ -566,10 +586,12 @@ const ROUTES: Route[] = [
         if (a.application_id) void releasePage(a.application_id);
         if (a.application_id && ctx.body.drop === true) dropApplication(ctx.repos, a.application_id);
       }
-      if (ctx.body.drop === true) dataChanged(ctx, ['application']);
+      // 不发这封投递邮件（drop）：申请同样标成跳过，这份投递还挂着的写邮件一并作废
+      if (ctx.body.drop === true) dropMailApplications(ctx.repos, actions);
+      if (ctx.body.drop === true) dataChanged(ctx, ['application', 'action_queue']);
     }
-    // 批准即执行：发送投递邮件；提交交给提交执行器（立即踢一轮，不等轮询）；填表交给批量运行器
-    const sent = decision === 'approved' ? await executeApprovedSendMails(intakeDeps(ctx), ids) : [];
+    // 批准即执行：发送投递邮件（逐封发，单封失败不影响其余）；提交交给提交执行器（立即踢一轮，不等轮询）；填表交给批量运行器
+    const sent = decision === 'approved' ? await executeApprovedSendMails({ ...intakeDeps(ctx), vault: ctx.vault }, ids) : [];
     if (decision === 'approved' && submits.length) void kickSubmit();
     // 他看着一份做通、点了头：后台接着把方向对得上的几家备到提交前（预准备，主线 ⑥）
     if (decision === 'approved' && submits.length) {
@@ -583,6 +605,8 @@ const ROUTES: Route[] = [
     }
     // 批准填表同样即执行：交给后台批量运行器（命令轮询几秒内接走）
     const filling = decision === 'approved' ? startApprovedFills(ctx.repos, actions, 'approval') : [];
+    // 批准写邮件（「N 家等你说开始」里退回待审的）同样即开始：交给邮件起草器
+    if (decision === 'approved') filling.push(...startApprovedDrafts(actions));
     // 招呼语 / 开放题答案没有执行器（平台私信、网申开放题都只能本人操作）：批准 = 内容定稿，
     // 交给用户本人去发，动作停在 needs_user 并带上要发的文字，不能显示成「已完成」。
     const handedToUser = decision === 'approved' ? handOverUserSentActions(ctx.repos, actions) : [];

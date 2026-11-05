@@ -177,27 +177,39 @@ describe('career 五个面的工具', () => {
     expect(missing.isError).toBe(true);
   });
 
-  it('material_save 落库并推 focus；mail_compose 只入待审队列，不发送', async () => {
+  it('material_save 落库并推 focus；mail_compose 不在这一轮起草：建投递、排后台写邮件，结果只给收件域名', async () => {
     const saved = (await call('material_save', { kind: 'why_company', title: '为什么选甲', content: '因为……' })).json();
     expect((saved.material as { confirmed: number }).confirmed).toBe(1);
     expect(events.some(e => e.event === 'career:focus' && (e.data as { surface: string }).surface === 'material')).toBe(true);
 
-    const noAccount = await call('mail_compose', { to: 'hr@a.com', job_id: 'job_x' });
-    expect(noAccount.isError).toBe(true);
-    expect(noAccount.content[0].text).toContain('绑定邮箱');
+    // 收件人不像邮箱：直接说，不开始
+    const bad = await call('mail_compose', { to: 'hr', job_id: 'job_x' });
+    expect(bad.isError).toBe(true);
+    // 岗位没写投递邮箱、也没给收件人：问他发到哪
+    await call('resume_master_create', { name: '通用版', basics: {} });
+    const webJob = repos.upsertJob({ source_platform: 'manual', title: '后端', company_name: '乙公司', url: 'https://b.com/apply' });
+    const noTo = await call('mail_compose', { job_id: webJob.id });
+    expect(noTo.isError).toBe(true);
+    expect(noTo.content[0].text).toContain('投递邮箱');
 
-    repos.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' });
+    // 没连邮箱也照样开始（过目时再请他连）；不调模型、不发信
     const job = repos.upsertJob({ source_platform: 'manual', title: '数据分析', company_name: '甲公司', jd_raw: 'JD' });
-    llm.push(JSON.stringify({ email: { subject: '应聘【数据分析】-某校-张三', body: '您好……', signature: '张三' }, attachment_name: '', short_message: '' }));
-    const out = (await call('mail_compose', { to: 'hr@a.com', job_id: job.id })).json();
-    expect(out.subject).toContain('应聘');
+    const out = (await call('mail_compose', { to: 'hr@a.com', job_id: job.id, notes: '语气正式一点' })).json();
+    expect(out).toMatchObject({ company: '甲公司', title: '数据分析', to_domain: 'a.com', started: true });
+    expect(JSON.stringify(out)).not.toContain('hr@a.com');
     const action = repos.getAction(out.action_id as string)!;
-    expect(action.kind).toBe('send_mail');
-    expect(action.status).toBe('pending_review');
-    expect(JSON.parse(action.payload_json).to).toBe('hr@a.com');
+    expect(action.kind).toBe('draft_mail');
+    expect(action.status).toBe('approved');
+    expect(JSON.parse(action.payload_json)).toMatchObject({ to: 'hr@a.com', notes: '语气正式一点', job_id: job.id });
+    expect(repos.getJob(job.id)!.apply_email).toBe('hr@a.com');
+    expect(llm.calls).toHaveLength(0);
+    expect(repos.listActions().some(a => a.kind === 'send_mail')).toBe(false);
     expect(repos.listMailMessages({ direction: 'out' })).toHaveLength(0);
-    // 待审动作是一张对话内审核卡片（每个动作一张，落库可读回）
-    expect(events.some(e => e.event === 'career:card' && (e.data as { card: { kind: string } }).card.kind === 'review')).toBe(true);
+
+    // 只说了公司和岗位名：建一条手动岗位再走同一条路
+    const manual = (await call('mail_compose', { to: 'campus@c.cn', company: '丙公司', title: '产品实习生' })).json();
+    expect(manual).toMatchObject({ company: '丙公司', title: '产品实习生', started: true, to_domain: 'c.cn' });
+    expect(repos.listJobs().find(j => j.company_name === '丙公司')).toMatchObject({ source_platform: 'manual', apply_email: 'campus@c.cn' });
   });
 });
 

@@ -2,6 +2,7 @@ import { Db, now } from './db/db.js'
 import { newId } from './ids.js'
 import { MemoryRepo } from './memories.js'
 import { canonicalJson, jobKey, sha256 } from './keys.js'
+import { extractApplyEmail } from './apply-channel.js'
 import { inferEmploymentType, mergeBoardMeta, normalizeCohort, parseBoardJson } from './jobs.js'
 import { questionKey, type AttemptMode, type QuestionAttemptRow, type QuestionKind, type QuestionRow, type QuestionSource } from './questions.js'
 import { classifyAnswerSensitivity, normalizeQuestionKey, type AnswerEventKind, type AnswerSensitivity, type AnswerStatus } from './answers.js'
@@ -66,11 +67,13 @@ export class Repos {
     if (existing) {
       // 汇总表维度按字段合并：后来的来源只补 / 覆盖它明确给出的字段，不把别的来源写的批次 / 行业抹掉。
       const board = j.board_json ? JSON.stringify(mergeBoardMeta(parseBoardJson(existing.board_json), parseBoardJson(j.board_json))) : undefined
-      this.db.update('job', existing.id, { ...stripUndefined({ ...j, board_json: board }), job_key: existing.job_key ?? key, updated_at: t })
+      // 投递邮箱：来源没给、库里也没有时，从这次带来的 JD 原文里按规则认一次（认不出不写）
+      const applyEmail = j.apply_email === undefined && !existing.apply_email && j.jd_raw ? extractApplyEmail(j.jd_raw)?.email : undefined
+      this.db.update('job', existing.id, { ...stripUndefined({ ...j, board_json: board, apply_email: j.apply_email ?? applyEmail }), job_key: existing.job_key ?? key, updated_at: t })
       return this.db.get<Job>('SELECT * FROM job WHERE id=?', [existing.id])!
     }
     const id = newId('job')
-    this.db.insert('job', { id, source_platform: j.source_platform, source_job_id: j.source_job_id ?? null, url: j.url ?? null, company_id: j.company_id ?? null, company_name: j.company_name ?? null, title: j.title, location: j.location ?? null, salary: j.salary ?? null, jd_raw: j.jd_raw ?? null, jd_parsed_json: j.jd_parsed_json ?? null, prefilter_json: j.prefilter_json ?? null, board_json: j.board_json ?? null, score_json: j.score_json ?? null, deadline: j.deadline ?? null, deadline_verified_at: j.deadline_verified_at ?? null, job_key: key, remote_id: j.remote_id ?? null,
+    this.db.insert('job', { id, source_platform: j.source_platform, source_job_id: j.source_job_id ?? null, url: j.url ?? null, company_id: j.company_id ?? null, company_name: j.company_name ?? null, title: j.title, location: j.location ?? null, salary: j.salary ?? null, jd_raw: j.jd_raw ?? null, jd_parsed_json: j.jd_parsed_json ?? null, prefilter_json: j.prefilter_json ?? null, board_json: j.board_json ?? null, score_json: j.score_json ?? null, deadline: j.deadline ?? null, deadline_verified_at: j.deadline_verified_at ?? null, job_key: key, remote_id: j.remote_id ?? null, apply_email: j.apply_email ?? (j.jd_raw ? extractApplyEmail(j.jd_raw)?.email ?? null : null),
       employment_type: j.employment_type ?? inferEmploymentType(j.title, (j.jd_raw ?? '').slice(0, 400)), cohort: j.cohort ?? normalizeCohort(j.jd_raw), source_version: j.source_version ?? null, source_status: j.source_status ?? 'open', created_at: t, updated_at: t })
     return this.db.get<Job>('SELECT * FROM job WHERE id=?', [id])!
   }
@@ -237,6 +240,10 @@ export class Repos {
    */
   retryFailedFill(id: string): boolean {
     return this.db.run(`UPDATE action_queue SET status='approved', updated_at=? WHERE id=? AND status='failed' AND kind='fill_form' AND approved_hash IS NOT NULL`, [now(), id]).changes > 0
+  }
+  /** 邮件没写成（「N 封没写成」再试一次）：failed 的 draft_mail 放回 approved 重新写；写邮件不发信，原批准仍有效。 */
+  retryFailedDraft(id: string): boolean {
+    return this.db.run(`UPDATE action_queue SET status='approved', updated_at=? WHERE id=? AND status='failed' AND kind='draft_mail' AND approved_hash IS NOT NULL`, [now(), id]).changes > 0
   }
   /**
    * 提交时填好的页面已丢失（浏览器被关 / 重启过）：重新批准也提交不了（页面不存在），退回待审只会死循环。
@@ -856,7 +863,7 @@ export class Repos {
 }
 
 function actionLabel(kind: ActionKind): string {
-  const map: Record<ActionKind, string> = { fill_form: '网申填表', submit: '提交网申', send_greeting: '发送招呼语', upload: '上传附件', answer_open_q: '回答开放题', collect: '采集岗位', research: '公司调研', send_mail: '发送投递邮件' }
+  const map: Record<ActionKind, string> = { fill_form: '网申填表', submit: '提交网申', send_greeting: '发送招呼语', upload: '上传附件', answer_open_q: '回答开放题', collect: '采集岗位', research: '公司调研', send_mail: '发送投递邮件', draft_mail: '写投递邮件' }
   return map[kind] ?? kind
 }
 

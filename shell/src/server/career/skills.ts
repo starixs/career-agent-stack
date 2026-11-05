@@ -2,8 +2,8 @@
  * 技能提示词加载：`loadSkill/skillPrompt` 来自 @career/core，根目录由 skills-dir.ts 解析。
  * 失败时抛中文错误（技能目录缺失 / 技能不存在），由工具层转成 isError 文本。
  */
-import type { Skill } from '@career/core';
-import { loadCore } from './core-module';
+import type { LLM, Skill } from '@career/core';
+import { loadCore, type CoreModule } from './core-module';
 import { resolveCareerSkillsDir } from './skills-dir';
 
 const cache = new Map<string, Skill>();
@@ -33,4 +33,12 @@ export async function loadSkillPrompt(name: string, refs: string[] = []): Promis
 
 export function resetSkillCache(): void {
   cache.clear();
+}
+
+/** 后台（批量定制、邮件起草）调技能：技能提示词 + 共享模型 → JSON。不推进展事件、不出卡。 */
+export function backgroundAskSkill(llm: LLM, core: Pick<CoreModule, 'extractJson'>) {
+  return async <T>(skill: string, user: string, o: { refs?: string[]; temperature?: number } = {}): Promise<T> => {
+    const res = await llm.complete({ system: await loadSkillPrompt(skill, o.refs ?? []), messages: [{ role: 'user', content: user }], json: true, temperature: o.temperature ?? 0.3 });
+    return core.extractJson<T>(res.text);
+  };
 }

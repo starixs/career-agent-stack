@@ -57,7 +57,7 @@ describe('岗位汇总表与匹配', () => {
     const exportPdf = async (id: string) => { const p = join(dir, `${id}.pdf`); writeFileSync(p, `%PDF ${id}`); return p; };
     const deps = { repos, store, exportPdf, exportsDir: dir };
     const first = await prepareJobs(deps, [a.id, b.id]);
-    expect(first).toEqual([expect.objectContaining({ job_id: a.id, ok: true }), expect.objectContaining({ job_id: b.id, ok: false, reason: '没有网申链接' })]);
+    expect(first).toEqual([expect.objectContaining({ job_id: a.id, ok: true }), expect.objectContaining({ job_id: b.id, ok: false, reason: '没写怎么投' })]);
     const action = repos.getAction(first[0].action_id!)!;
     expect(action.status).toBe('pending_review');
     expect(action.packet_id).toBeNull();

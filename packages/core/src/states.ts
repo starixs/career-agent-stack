@@ -40,9 +40,12 @@ export function canReachStage(from: ApplicationStage, to: ApplicationStage): boo
   return false
 }
 
-export const ACTION_KINDS = ['fill_form', 'submit', 'send_greeting', 'upload', 'answer_open_q', 'collect', 'research', 'send_mail'] as const
+/**
+ * draft_mail：后台写投递邮件（邮件投递里对应网申的 fill_form；批准即开始，永远不发信），写好后排一封 send_mail 等他过目。
+ */
+export const ACTION_KINDS = ['fill_form', 'submit', 'send_greeting', 'upload', 'answer_open_q', 'collect', 'research', 'send_mail', 'draft_mail'] as const
 export type ActionKind = typeof ACTION_KINDS[number]
-/** 这些动作永远需要用户审核后才能执行（提交 / 发送永远过人）。 */
+/** 这些动作永远需要用户审核后才能执行（提交 / 发送永远过人）。draft_mail 不在里面：写邮件不发信。 */
 export const ACTIONS_REQUIRING_REVIEW: readonly ActionKind[] = ['submit', 'send_greeting', 'answer_open_q', 'send_mail']
 
 export const ACTION_STATUSES = ['pending_review', 'approved', 'executing', 'needs_user', 'done', 'failed', 'rejected'] as const

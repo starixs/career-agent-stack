@@ -11,6 +11,7 @@ import type { CoreModule } from './core-module';
 
 import type { CareerStore } from './store';
 import { BATCH_STATE_KEY, type BatchState } from './batch-runner';
+import { isDraftingMail, isHeldAction, isHeldMail, isStartAction } from './apply-actions';
 import { asksFor } from './delivery';
 import { getJobPrefs, jobBoard } from './job-board';
 import { packetResumePlan, resumeMasterOf, tailoredChangeCount } from './packets';
@@ -57,12 +58,23 @@ function tailorBlock(repos: Repos, since: string): RailBlock {
   return { id: 'tailor', label: '定制', status: n ? 'done' : 'idle', line: n ? `按岗位改了 ${n} 份 · 今天 ${today}` : '定好方向后，按每个岗位改一版' };
 }
 
+/** 停在发出前等他点头的那一行：全是邮件说邮件，全是网申说提交前，混着说备好了。 */
+function heldLine(repos: Repos): string | null {
+  const held = repos.listActions('pending_review').filter(isHeldAction);
+  if (!held.length) return null;
+  const mails = held.filter(isHeldMail).length;
+  if (mails === held.length) return `${mails} 封邮件写好了，等你过目`;
+  return mails ? `${held.length} 份备好了，等你点头` : `${held.length} 份填好了，停在提交前等你点头`;
+}
+
 function applyBlock(repos: Repos, sent: number): RailBlock {
   const batch = repos.kvGet<BatchState>(BATCH_STATE_KEY);
-  const actions = repos.listActions().filter(a => a.kind === 'fill_form');
+  // 一份投递开始的那一步：网申填表、写投递邮件（apply-actions.ts）
+  const actions = repos.listActions().filter(isStartAction);
   const waiting = actions.filter(a => a.status === 'needs_user').length;
   const retrying = actions.filter(a => isFillRetrying(repos, a)).length;
-  const held = repos.listActions('pending_review').filter(a => a.kind === 'submit').length;
+  const drafting = actions.filter(isDraftingMail).length;
+  const held = heldLine(repos);
   const running = batch?.status === 'running' ? (batch.running ?? []) : [];
   const total = actions.length;
   const base = { id: 'apply' as const, label: '网申', done: sent, total };
@@ -72,8 +84,9 @@ function applyBlock(repos: Repos, sent: number): RailBlock {
   if (batch?.status === 'running' && batch.phase === 'browser_down' && batch.message) return { ...base, status: 'working', line: batch.message };
   if (running.length) return { ...base, status: 'working', line: [`在填：${running.map(r => r.title).join('、')}`, retryLine].filter(Boolean).join('；') };
   if (retrying) return { ...base, status: 'working', line: retryLine };
+  if (drafting) return { ...base, status: 'working', line: `在写 ${drafting} 封投递邮件` };
   if (waiting) return { ...base, status: 'waiting', line: `${waiting} 份等你一下` };
-  if (held) return { ...base, status: 'waiting', line: `${held} 份填好了，停在提交前等你点头` };
+  if (held) return { ...base, status: 'waiting', line: held };
   if (sent) return { ...base, status: 'done', line: `投出 ${sent} 份` };
   if (total) return { ...base, status: 'idle', line: '还没投出' };
   return { id: 'apply', label: '网申', status: 'idle', line: '简历和方向好了就开始' };
@@ -151,8 +164,8 @@ export function railSnapshot(repos: Repos, store: CareerStore, core: CoreModule)
   const list = receipts(repos);
   const since = startOfToday();
   const wait = waiting(repos);
-  // 备好 = 填好了、停在提交前、点一下就交的份数（预准备备出来的也在这里）
-  const prepared = repos.listActions('pending_review').filter(a => a.kind === 'submit').length;
+  // 备好 = 填好了停在提交前 / 邮件写好了等发、点一下就交的份数（预准备备出来的也在这里）
+  const prepared = repos.listActions('pending_review').filter(isHeldAction).length;
   return {
     stage: mainlineStage(repos, store, list.length, ledger),
     blocks: [resumeBlock(repos, store, core), tailorBlock(repos, since), applyBlock(repos, list.length), mailBlock(repos)],

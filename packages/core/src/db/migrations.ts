@@ -256,6 +256,16 @@ export const MIGRATIONS: readonly Migration[] = [
       db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_mail_account_remote ON mail_account(remote_id) WHERE remote_id IS NOT NULL')
     },
   },
+  {
+    version: 10,
+    name: 'mail-apply',
+    up(db) {
+      // 邮件投递（face-mail-apply 2026-11-05）：JD 写明发邮箱投递的岗位记下投递邮箱。老数据不回填：
+      // 批量投判断通道前对 apply_email 为空、有 jd_raw 的岗位懒补（batch-apply.ts）。
+      // action_queue.kind 没有 CHECK 约束，新动作种类 draft_mail 不用改表。
+      addColumn(db, 'job', 'apply_email', 'TEXT')
+    },
+  },
 ]
 
 export function currentVersion(db: DatabaseSync): number {
