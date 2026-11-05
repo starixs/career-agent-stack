@@ -491,3 +491,15 @@ CREATE TABLE IF NOT EXISTS billing_usage (
 );
 CREATE INDEX IF NOT EXISTS idx_billing_usage_scope ON billing_usage(scope);
 CREATE INDEX IF NOT EXISTS idx_billing_usage_time ON billing_usage(created_at);
+-- 场景事件（候选卖点）：投出、定制简历、公司调研…… 一件事一行，只记数不扣积分，定价后再精简。
+CREATE TABLE IF NOT EXISTS billing_event (
+  id TEXT PRIMARY KEY,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  event TEXT NOT NULL,                        -- 见 packages/core/src/billing/events.ts BILLABLE_EVENTS
+  quantity INTEGER NOT NULL DEFAULT 1,
+  ref_type TEXT,                              -- application|action|job|company|resume|exam_search|mail_message…
+  ref_id TEXT,
+  meta_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_billing_event_time ON billing_event(event, created_at);

@@ -17,6 +17,7 @@ const summary = {
     { origin: 'tool', kind: 'tool', name: 'search:bocha', calls: 1, credits: 1, unpricedCalls: 0 },
   ],
   daily: [],
+  events: [{ event: 'application_sent', label: '替你投出', unit: '份', count: 23 }, { event: 'resume_tailored', label: '按岗位定制简历', unit: '份', count: 9 }],
   recent: [{ id: 't1', type: 'earn', amount: 50, balance_after: 50, source_type: 'signup', description: '开户赠送', created_at: '2026-11-05T00:00:00Z' }],
 };
 const priceList = {
@@ -36,6 +37,9 @@ describe('设置 › 账号与用量', () => {
     render(<AccountSection />);
     expect(await screen.findByText('43')).toBeTruthy();
     expect(screen.getByText('最近 30 天用了 7 积分')).toBeTruthy();
+    expect(screen.getByText('最近 30 天替你做了')).toBeTruthy();
+    expect(screen.getByText('23')).toBeTruthy();
+    expect(screen.getByText('替你投出')).toBeTruthy();
     expect(screen.getByText('和小芽对话')).toBeTruthy();
     expect(screen.getByText('联网搜索')).toBeTruthy();
     expect(await screen.findByText('1 元 = 5 积分')).toBeTruthy();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  Db, PRICING_TEMPLATE, asrCredits, backgroundScope, billingSummary, buildPriceList, canonicalizeModelName, ceilCredits,
+  Db, PRICING_TEMPLATE, Repos, asrCredits, countBusinessEvents, recordBusinessEvent, backgroundScope, billingSummary, buildPriceList, canonicalizeModelName, ceilCredits,
   checkin, creditsFromCents, deductCredits, ensureAccount, grantCredits, isFallbackPriced, listTransactions, rawLlmCredits,
   recordLlmUsage, recordToolUsage, toolCredits, type PricingTemplate,
 } from '../src/index.js'
@@ -129,6 +129,40 @@ describe('用量记账', () => {
     expect(s.buckets.map(b => `${b.origin}/${b.name}`).sort()).toEqual(['chat/deepseek-v4-flash', 'tool/search:tavily'])
     expect(s.spentInWindow).toBeGreaterThan(0)
     expect(s.balance).toBe(s.account.credits + s.account.subscription_credits)
+  })
+})
+
+describe('场景卖点', () => {
+  function withApp() {
+    const repos = new Repos(mem())
+    repos.db.insert('job', { id: 'job_1', title: '后端开发', company_name: '美团', source_platform: 'official', created_at: '2026-11-05T00:00:00Z', updated_at: '2026-11-05T00:00:00Z' })
+    const app = repos.createApplication('job_1')
+    return { repos, app }
+  }
+
+  it('动作做完按种类记：提交 / 邮件投递 = 替你投出，填表 = 填好网申表；同一动作重复标 done 只记一次', () => {
+    const { repos, app } = withApp()
+    const fill = repos.enqueueAction('fill_form', { a: 1 }, app.id, true)
+    const submit = repos.enqueueAction('submit', { a: 1 }, app.id, true)
+    const mail = repos.enqueueAction('send_mail', { to: 'hr@x.com' }, app.id, true)
+    const research = repos.enqueueAction('research', {}, app.id, true)
+    for (const a of [fill, submit, mail, research]) repos.setActionStatus(a.id, 'done')
+    repos.setActionStatus(submit.id, 'done')
+    repos.setActionStatus(fill.id, 'executing')
+    const counts = Object.fromEntries(countBusinessEvents(repos.db, '2000-01-01').map(e => [e.event, e.count]))
+    expect(counts).toEqual({ application_sent: 2, form_filled: 1 })
+  })
+
+  it('同一幂等键只记一次；汇总和清单都带上卖点', () => {
+    const db = mem()
+    expect(recordBusinessEvent(db, { event: 'resume_tailored', key: 'tool:resume_tailor:t1' })).toBe(true)
+    expect(recordBusinessEvent(db, { event: 'resume_tailored', key: 'tool:resume_tailor:t1' })).toBe(false)
+    recordBusinessEvent(db, { event: 'exam_answered', key: 'exam:s1:5', quantity: 5 })
+    expect(billingSummary(db).events).toEqual([
+      { event: 'exam_answered', label: '笔试搜题', unit: '道', count: 5 },
+      { event: 'resume_tailored', label: '按岗位定制简历', unit: '份', count: 1 },
+    ])
+    expect(buildPriceList().events.map(e => e.event)).toContain('application_sent')
   })
 })
 

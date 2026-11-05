@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { handleCareerRoute } from '../routes/career';
 import { fireUsageMeterHook, setUsageMeterHook } from '../turn-hooks';
-import { flushBillingWrites, installBillingMeter } from './billing-service';
+import { BILLABLE_EVENTS } from '@career/core';
+
+import { TOOL_EVENTS, flushBillingWrites, installBillingMeter, recordToolEvent } from './billing-service';
 import { setRepos } from './db';
 import { ShellLLM } from './llm';
 import { meteredSearch } from './search';
@@ -75,6 +77,25 @@ describe('计费埋点', () => {
     await flushBillingWrites();
     expect(error).toHaveBeenCalledWith(expect.stringContaining('[billing] FAILED kind=llm key=chat:s1:r9'));
     error.mockRestore();
+  });
+});
+
+describe('场景卖点埋点', () => {
+  const events = (db = repos.db) => db.all<{ event: string; quantity: number }>('SELECT event, quantity FROM billing_event ORDER BY created_at');
+
+  it('工具成功才记，写进调用方的库；同一次调用重报只记一次；不在对照表的工具不记', async () => {
+    const other = createMemoryRepos();
+    recordToolEvent('resume_tailor', 'toolu_1', false, other.db);
+    recordToolEvent('resume_tailor', 'toolu_1', false, other.db);
+    recordToolEvent('company_research', 'toolu_2', true, other.db);
+    recordToolEvent('resume_get', 'toolu_3', false, other.db);
+    await flushBillingWrites();
+    expect(events(other.db)).toEqual([{ event: 'resume_tailored', quantity: 1 }]);
+    expect(events()).toEqual([]);
+  });
+
+  it('对照表里的事件都在卖点目录里', () => {
+    for (const event of Object.values(TOOL_EVENTS)) expect(Object.hasOwn(BILLABLE_EVENTS, event)).toBe(true);
   });
 });
 

@@ -6,6 +6,7 @@
  * 现在这份是本机默认值；云端账户上线后以云端下发的为准（docs/SERVER-API.md「计费」），本机这份退成估算。
  */
 import { ASR_PRICING, MODEL_PRICING, PRICING_TABLE_ANCHOR, TOOL_PRICING } from './pricing.js'
+import { BILLABLE_EVENTS } from './events.js'
 
 export const PRICING_VERSION = 1
 
@@ -146,6 +147,8 @@ export interface PriceList {
   checkinDailyCredits: Record<string, number>
   plans: Plan[]
   topupPackages: TopupPackage[]
+  /** 候选卖点目录（现在只记数、不计价） */
+  events: Array<{ event: string; label: string; unit: string; when: string }>
 }
 
 export function buildPriceList(template: PricingTemplate = PRICING_TEMPLATE): PriceList {
@@ -166,5 +169,6 @@ export function buildPriceList(template: PricingTemplate = PRICING_TEMPLATE): Pr
     checkinDailyCredits: { ...template.checkinDailyCredits },
     plans: buildPlans(template),
     topupPackages: buildTopupPackages(template),
+    events: Object.entries(BILLABLE_EVENTS).map(([event, d]) => ({ event, label: d.label, unit: d.unit, when: d.when })),
   }
 }

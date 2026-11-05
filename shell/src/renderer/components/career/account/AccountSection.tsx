@@ -30,6 +30,7 @@ export function AccountSection() {
         <>
           <BalanceCard data={summary.data} onCheckin={() => void checkin()} busy={act.busy} />
           {act.error && <ErrorRow message={act.error} />}
+          <DoneForYouCard data={summary.data} />
           <UsageCard data={summary.data} />
           <RecentCard rows={summary.data.recent} />
         </>
@@ -51,6 +52,23 @@ function BalanceCard({ data, onCheckin, busy }: { data: BillingSummary; onChecki
         </div>
         <Button variant="primary" busy={busy} onClick={onCheckin}>今日签到</Button>
       </div>
+    </Card>
+  );
+}
+
+/** 替你做成了什么：投出、定制简历、调研……一个卖点一格，数字为主。 */
+function DoneForYouCard({ data }: { data: BillingSummary }) {
+  if (data.events.length === 0) return null;
+  return (
+    <Card title={`最近 ${data.windowDays} 天替你做了`}>
+      <ul className="grid grid-cols-3 gap-3">
+        {data.events.map(e => (
+          <li key={e.event} className="rounded-md bg-[var(--inset)] px-3 py-2">
+            <div className="text-[length:var(--text-xl)] font-semibold tabular-nums text-[var(--ink)]">{e.count}<span className="ml-1 text-[length:var(--text-xs)] font-normal text-[var(--muted)]">{e.unit}</span></div>
+            <div className="text-[length:var(--text-xs)] text-[var(--muted)]">{e.label}</div>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

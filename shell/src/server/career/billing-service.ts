@@ -6,7 +6,7 @@
  * - 现在只记账、不拦截：没有账号和充值前，余额到 0 也不挡用户；云端账户上线后改为上报云端、以云端为准。
  * - 计费失败绝不打断用户的活：只打 `[billing] FAILED` 锚点日志，事后按日志补账。
  */
-import type { MeterResult } from '@career/core';
+import type { BillableEvent, BusinessEventInput, Db, MeterResult } from '@career/core';
 import { setUsageMeterHook, type MeteredModelUsage } from '../turn-hooks';
 import { loadCore } from './core-module';
 import { getRepos } from './db';
@@ -70,4 +70,55 @@ export function installBillingMeter(): void {
 /** 不等结果的工具记账（调用方是用户正在等的路径，记账不能拖慢它）。 */
 export function meterToolUsageInBackground(tool: string, opts: { count?: number; key?: string; scope?: string } = {}): void {
   track(meterToolUsage(tool, opts));
+}
+
+/**
+ * 场景卖点：工具成功返回算做成了一件事（投出 / 填表 / 发招呼不在这里，它们在 Repos.setActionStatus 按动作记）。
+ * 定价后用不上的行直接删。
+ */
+export const TOOL_EVENTS: Readonly<Record<string, BillableEvent>> = {
+  resume_import: 'resume_created',
+  resume_master_create: 'resume_created',
+  resume_tailor: 'resume_tailored',
+  material_draft: 'material_drafted',
+  job_import: 'job_imported',
+  job_evaluate: 'job_evaluated',
+  company_research: 'company_researched',
+  direction_explore: 'career_planned',
+  gap_plan: 'career_planned',
+  interview_questions: 'interview_prepped',
+  interview_prep: 'interview_prepped',
+  interview_predict: 'interview_prepped',
+  interview_probe: 'interview_prepped',
+  interview_project_story: 'interview_prepped',
+  interview_retro: 'interview_reviewed',
+  exam_practice: 'exam_practiced',
+  browser_solve_captcha: 'captcha_solved',
+  mail_compose: 'mail_drafted',
+  offer_compare: 'offer_compared',
+};
+
+/**
+ * 记一件事。db 传调用方正在用的库（工具、路由测试注入的是内存库，不能落到用户真实目录）；不传才用侧车单例。
+ */
+export async function recordBusinessEvent(input: BusinessEventInput, db?: Db): Promise<void> {
+  try {
+    const [core, target] = await Promise.all([loadCore(), db ?? getRepos().then(r => r.db)]);
+    if (core.recordBusinessEvent(target, input)) console.log(`[billing] EVENT event=${input.event} key=${input.key} qty=${input.quantity ?? 1}`);
+  } catch (error) {
+    console.error(`[billing] FAILED kind=event event=${input.event} key=${input.key} err=${String(error)}`);
+  }
+}
+
+/** 不等结果地记一件事（工具、路由里用，不拖慢用户）。 */
+export function recordBusinessEventInBackground(input: BusinessEventInput, db?: Db): void {
+  track(recordBusinessEvent(input, db));
+}
+
+/** 工具包装调：工具成功且在对照表里就记一件。toolUseId 缺失时用一次性 id。 */
+export function recordToolEvent(toolName: string, toolUseId: string | null, isError: boolean | undefined, db: Db): void {
+  if (isError || !Object.hasOwn(TOOL_EVENTS, toolName)) return;
+  const event = TOOL_EVENTS[toolName];
+  if (!event) return;
+  recordBusinessEventInBackground({ event, key: `tool:${toolName}:${toolUseId ?? crypto.randomUUID()}`, meta: { tool: toolName } }, db);
 }

@@ -4,6 +4,7 @@
 import type { Db } from '../db/db.js'
 import { balanceOf, ensureAccount, listTransactions, type CreditAccount, type CreditTransaction } from './ledger.js'
 import type { UsageOrigin } from './meter.js'
+import { countBusinessEvents, type EventCount } from './events.js'
 
 /** 用量页默认看最近 30 天。 */
 export const USAGE_WINDOW_DAYS = 30
@@ -34,6 +35,8 @@ export interface BillingSummary {
   buckets: UsageBucket[]
   daily: DailyUsage[]
   recent: CreditTransaction[]
+  /** 场景卖点：这段时间替用户做成了什么（投出几份、定制几份简历……） */
+  events: EventCount[]
 }
 
 interface BucketRow {
@@ -66,5 +69,6 @@ export function billingSummary(db: Db, opts: { now?: Date; windowDays?: number; 
   return {
     account, balance: balanceOf(account), windowDays, since, spentInWindow: spent?.s ?? 0,
     buckets: buckets(db, since), daily: daily(db, since), recent: listTransactions(db, { limit: opts.recentLimit ?? 20 }),
+    events: countBusinessEvents(db, since),
   }
 }

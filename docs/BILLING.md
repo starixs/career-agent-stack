@@ -51,11 +51,42 @@
 
 **不在埋点里的**：外部运行时（Claude Code / Codex 等，求职产品不用）、`provider-verify`（填 Key 时的一次验证）。
 
+## 3.1 场景卖点（按成果记，只记数不计价）
+
+定价还没定（2026-11-05）：先把可能按件 / 按套餐计价的点都埋上，定价后再删用不上的。目录在 `packages/core/src/billing/events.ts` 的 `BILLABLE_EVENTS`，一件事一行 `billing_event`，幂等键保证只记一次。和上面的用量（按成本）是两本账。
+
+| 卖点 | 单位 | 什么时候算一件 | 埋在哪 | 幂等键 |
+|---|---|---|---|---|
+| 替你投出 `application_sent` | 份 | 网申点了提交，或投递邮件发出（产品亲手完成） | `Repos.setActionStatus` 动作 `submit` / `send_mail` 变 done | `action:<动作 id>` |
+| 填好网申表 `form_filled` | 份 | 一份表填完 | 同上，`fill_form` | `action:<动作 id>` |
+| 发出招呼 `greeting_sent` | 条 | 招聘平台打招呼发出 | 同上，`send_greeting` | `action:<动作 id>` |
+| 做好主简历 `resume_created` | 份 | 导入或新写好主简历 | 工具 `resume_import`、`resume_master_create` 成功 | `tool:<工具>:<调用 id>` |
+| 按岗位定制简历 `resume_tailored` | 份 | 为一个岗位改出一版 | 工具 `resume_tailor` | 同上 |
+| 写好材料 `material_drafted` | 份 | 开放题、求职信等起草完成 | 工具 `material_draft` | 同上 |
+| 导入岗位 `job_imported` | 个 | 岗位进库 | 工具 `job_import` | 同上 |
+| 岗位匹配评估 `job_evaluated` | 个 | 评估一个岗位 | 工具 `job_evaluate` | 同上 |
+| 公司调研 `company_researched` | 家 | 出一份调研报告 | 工具 `company_research` | 同上 |
+| 方向与差距规划 `career_planned` | 次 | 方向探索 / 差距规划 | 工具 `direction_explore`、`gap_plan` | 同上 |
+| 面试准备 `interview_prepped` | 次 | 题目预测、追问演练、项目故事等 | 工具 `interview_questions` / `_prep` / `_predict` / `_probe` / `_project_story` | 同上 |
+| 面试复盘 `interview_reviewed` | 场 | 一场复盘完成 | 工具 `interview_retro` | 同上 |
+| 笔试练习 `exam_practiced` | 套 | 出题或批改一套 | 工具 `exam_practice` | 同上 |
+| 笔试搜题 `exam_answered` | 道 | 一道题给出答案 | `career/exam-search/service.ts` 作答后，按答出的题数 | `exam:<搜题 id>:<作答后总题数>` |
+| 过验证码 `captcha_solved` | 次 | 验证码自动通过 | 工具 `browser_solve_captcha` | `tool:…` |
+| 邮件归档 `mail_triaged` | 封 | 一封求职邮件认出并归档（含接管的历史邮件） | `career/mail/sync.ts` | `mail:<邮件 id>` |
+| 起草邮件 `mail_drafted` | 封 | 一封邮件写好待发 | 工具 `mail_compose` | `tool:…` |
+| Offer 对比 `offer_compared` | 次 | 对比出结论 | 工具 `offer_compare` | `tool:…` |
+| 面试录音转写 `recording_transcribed` | 分钟 | 录音转成文字 | 目录已登记，ASR 接上时埋 | — |
+
+工具类卖点的对照表在 `shell/src/server/career/billing-service.ts` 的 `TOOL_EVENTS`，由 `tools/career-tools.ts` 的工具包装统一调（收进 `more_actions` 的工具也经过它）；工具返回错误不算。界面「设置 → 账号与用量」显示最近 30 天每个卖点的件数；`GET /api/career/billing/price-list` 带完整目录。
+
+已知口径：填表引擎内部自动过的验证码不经工具，不计入 `captcha_solved`；批量投递按动作计，和单个投递同一个口径。
+
 ## 4. 数据
 
 - `credit_account`：本机单账户 `local`，永久积分 + 套餐积分 + 到期时间。
 - `credit_transaction`：每笔增减，`(account_id, idempotency_key)` 唯一。
 - `billing_usage`：每次调用的 token / 次数 / 精确成本 / 实扣 / 我方成本（微美元）/ 是否定价。
+- `billing_event`：场景卖点，一件事一行（事件、件数、关联对象、幂等键）。
 
 接口：`GET /api/career/billing/summary`、`GET /api/career/billing/transactions`、`GET /api/career/billing/price-list`、`POST /api/career/billing/checkin`。
 

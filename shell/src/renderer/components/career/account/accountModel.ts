@@ -30,6 +30,8 @@ export interface BillingSummary {
   buckets: UsageBucket[]
   daily: Array<{ day: string; credits: number; calls: number }>
   recent: CreditTxn[]
+  /** 场景卖点计数：替你投出几份、定制几份简历…… */
+  events: Array<{ event: string; label: string; unit: string; count: number }>
 }
 
 export interface PriceList {

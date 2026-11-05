@@ -261,6 +261,7 @@ oauth_sessions (state PK, user_id, provider, code_verifier, expires_at)   -- 预
 现在积分账本只在本机（`packages/core/src/billing/`，计费清单与埋点见 `docs/BILLING.md`）。账号上线后云端是余额的唯一权威，客户端只报用量、不报金额（价目由云端说了算，同 Star AI 桌面端「方案 A」）。
 
 - `POST /v1/billing/usage`：一批用量。body `{ items: [{ idempotency_key, scope, origin, kind: 'llm'|'tool'|'asr', name, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, quantity, created_at }] }`，字段与本机 `billing_usage` 表同构，幂等键原样沿用（`chat:<会话>:<结果 uuid>`、`llm:<uuid>`、`tool:<工具>:<uuid>`…）。响应 `{ credits_charged, balance, unpriced: string[] }`；撞幂等键的条目不再扣。余额不足部分扣减、不返 402，由 `balance` 决定客户端是否拦下一轮。
+- `POST /v1/billing/events`：一批场景卖点。body `{ items: [{ idempotency_key, event, quantity, ref_type, ref_id, created_at }] }`，同本机 `billing_event`；按件计价定下来后由云端按 `event` 扣积分或扣套餐件数。
 - `GET /v1/billing/account`：`{ tier, credits, subscription_credits, subscription_expires_at }`。
 - `GET /v1/billing/transactions?limit=&before=`：流水，字段同本机 `credit_transaction`。
 - `GET /v1/billing/price-list`：结构同本机 `buildPriceList()`，带 `anchor`（`[pricing] version=N`），客户端启动时比对，不一致打告警。

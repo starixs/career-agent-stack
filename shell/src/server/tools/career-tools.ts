@@ -24,6 +24,7 @@ import { buildInterviewPrep } from '../career/interview-prep';
 import { applicationForInterview, bookInterview, interviewResume } from '../career/interview-link';
 import { runInterviewRetro } from '../career/interview-retro-run';
 import { getShellLLM } from '../career/llm';
+import { recordToolEvent } from '../career/billing-service';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
 import { draftMaterial } from '../career/materials';
@@ -289,8 +290,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
    * 放进 AsyncLocalStorage，card() 据此把卡片锚定到产生它的那次工具调用（渲染在那条回复下面）。
    */
   const tool = ((name: string, description: string, schema: unknown, handler: (args: never, extra: unknown) => Promise<CallToolResult>) =>
-    (sdkTool as (...a: unknown[]) => unknown)(name, description, schema, (args: never, extra: unknown) =>
-      toolCallContext.run({ toolUseId: toolUseIdFrom(extra) }, () => handler(args, extra)))) as unknown as typeof sdkTool;
+    (sdkTool as (...a: unknown[]) => unknown)(name, description, schema, (args: never, extra: unknown) => {
+      const toolUseId = toolUseIdFrom(extra);
+      return toolCallContext.run({ toolUseId }, async () => {
+        const res = await handler(args, extra);
+        // 场景卖点埋点（定制简历、公司调研、面试准备……）：工具成功才算做成一件
+        recordToolEvent(name, toolUseId, res.isError, sharedRepos.db);
+        return res;
+      });
+    })) as unknown as typeof sdkTool;
   const { z } = await import('zod/v4');
   // 数据层：core 惰性加载；Repos 在 server 构建时打开一次（Session 内共享）。
   const core = await loadCore();

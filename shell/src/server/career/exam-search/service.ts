@@ -8,6 +8,7 @@
  */
 import type { Db, LLM, LlmImage } from '@career/core';
 
+import { recordBusinessEventInBackground } from '../billing-service';
 import type { CoreIds } from '../store';
 import { ExamBankStore, type BankMatch } from './bank';
 import { answerQuestions, recognizeQuestions, type QuestionAnswer, type RecognizedQuestion } from './llm-steps';
@@ -102,6 +103,9 @@ export class ExamSearchService {
       const answers = [...record.answers, ...fresh].sort((a, b) => a.index - b.index);
       this.db.update('exam_search', id, { answers_json: JSON.stringify(answers), status: 'answered', error: null, updated_at: this.ids.now() });
       console.log(`[exam-search] answered ${id}: 模型作答 ${fresh.length} / ${pending.length}`);
+      // 卖点埋点：按答出来的题数记；键带上作答后的总题数，补答漏题时是另一件，不会重复
+      const solved = fresh.filter(a => a.answer?.trim()).length;
+      if (solved > 0) recordBusinessEventInBackground({ event: 'exam_answered', key: `exam:${id}:${answers.length}`, quantity: solved, refType: 'exam_search', refId: id }, this.db);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.db.update('exam_search', id, { status: 'failed', error: message, updated_at: this.ids.now() });

@@ -1,6 +1,7 @@
 import { FakeLLM } from '@career/core';
 import { describe, expect, it } from 'vitest';
 
+import { flushBillingWrites } from '../career/billing-service';
 import { ShotTray } from '../career/exam-search/tray';
 import { createMemoryRepos } from '../career/test-db';
 import { handleCareerRoute } from './career';
@@ -34,6 +35,9 @@ describe('/api/career/exam-search', () => {
     const id = (recognized.body.search as { id: string }).id;
     const answered = await call(post(`/api/career/exam-search/${id}/answer`, {}), deps);
     expect(answered.body.search).toMatchObject({ status: 'answered', answers: [{ answer: '16', source: 'model' }] });
+    // 卖点埋点：答出一道记一道，写进这次用的库
+    await flushBillingWrites();
+    expect(repos.db.all('SELECT event, quantity FROM billing_event')).toEqual([{ event: 'exam_answered', quantity: 1 }]);
     const sessionId = (recognized.body.session as { id: string }).id;
     const sessions = await call(get('/api/career/exam-search/sessions'), deps);
     expect(sessions.body.sessions).toEqual([expect.objectContaining({ id: sessionId, search_count: 1, question_count: 1 })]);
