@@ -8,7 +8,8 @@ import { BridgePageProxySet } from './bridge-page-proxy'
 
 /**
  * 扩展桥进程内单例：sidecar 启动时拉起（CAREER_BROWSER_EXTENSION_BRIDGE=0 关闭），
- * 供路由 / 批量运行器复用。Global 自动启动产品浏览器并预置扩展，无手工安装步骤。
+ * 供路由 / 批量运行器复用。产品浏览器（预置扩展，无手工安装步骤）在第一次真正要用时才拉起
+ * （ensureProductBrowserReady：投递、填表、登录、打开网页都经过它），开机不再先起一整个 Chrome（11-05 你定）。
  * browse / apply 仍只通过 BridgePageProxy 执行；没有第二套 Playwright 驱动。
  */
 
@@ -33,10 +34,8 @@ export async function ensureExtensionBridge(): Promise<ExtensionBridge | null> {
   }).then(async bridge => {
     if (shuttingDown) { await bridge.stop(); return null }
     instance = bridge
-    if (token) {
-      productBrowser = new ProductBrowser(bridge, token)
-      void productBrowser.start().catch(() => console.warn('[product-browser] startup failed; inspect browser resource status'))
-    }
+    // 只建好对象，不启动：第一次 ensureProductBrowserReady() 时再拉起 Chrome。
+    if (token) productBrowser = new ProductBrowser(bridge, token)
     return bridge
   }).catch(error => {
     console.warn(`[extension-bridge] start-failed error=${error instanceof Error ? error.message : String(error)}`)
@@ -45,13 +44,19 @@ export async function ensureExtensionBridge(): Promise<ExtensionBridge | null> {
   return starting
 }
 
+/** 有没有人要过浏览器：没要过时实时画面的提示是「用到时会自动打开」，而不是「正在准备」。 */
+let productBrowserRequested = false
+
 export async function ensureProductBrowserReady(signal?: AbortSignal): Promise<void> {
   if (!productBrowser) throw new Error('BROWSER_PREPARATION_UNAVAILABLE')
+  if (!productBrowserRequested) console.log('[product-browser] first use — launching on demand')
+  productBrowserRequested = true
   const ready = productBrowser.start()
   await (signal ? raceWithAbortSignal(ready, signal) : ready)
 }
 
 export function productBrowserWaitingMessage(): string {
+  if (productBrowser && !productBrowserRequested) return '开始填表或打开网页时，浏览器会自动打开'
   if (productBrowser?.state === 'failed') return '浏览器自动准备失败，请检查网络或磁盘空间后重启应用；无需手动安装扩展'
   if (productBrowser?.state === 'closed') return '浏览器已关闭；下次执行任务时会自动打开'
   if (productBrowser?.state === 'starting' || productBrowser?.state === 'ready') return '正在自动连接浏览器，连通后画面会自动出现'
@@ -65,7 +70,7 @@ export async function stopExtensionBridge(): Promise<void> {
   finally {
     await instance?.stop()
     proxySet?.dispose(); proxySet = null
-    productBrowser = null; instance = null
+    productBrowser = null; instance = null; productBrowserRequested = false
   }
 }
 

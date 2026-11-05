@@ -1922,7 +1922,7 @@ async function main() {
     });
   // 批量投递运行器（Global 后台）需要免令牌借用浏览器宿主
   void import('./career/batch-service').then(({ registerBatchBrowserHost }) => registerBatchBrowserHost(ensureBrowserHost)).catch(() => {});
-  // Global 自动准备产品浏览器并预置扩展；所有调用仍只经过同一个扩展桥。
+  // Global 启动扩展桥；产品浏览器第一次要用时才拉起（见 bridge-host.ts）。所有调用仍只经过同一个扩展桥。
   // Rust 拥有二进制下载/校验，Global 拥有进程；不修改用户日常 Chrome。
   void Promise.all([
     import('./browser-host/extension-bridge/bridge-host'),
@@ -1943,7 +1943,7 @@ async function main() {
       bridge.onTabsChange(tabs => publishBridgeTabs(bridge.isConnected(), tabs.length))
       // 帧仅经 /live/stream?frames=1 输出；不把 base64 广播到普通事件订阅者。
       bridge.onDisconnect(() => publishBridgeTabs(false, 0))
-      console.log('[startup] extension-bridge listening; product browser prepares automatically')
+      console.log('[startup] extension-bridge listening; product browser launches on first use')
     })
     .catch(error => console.warn(`[startup] extension-bridge=start-failed error=${error instanceof Error ? error.message : String(error)}`));
   gracefulShutdownHook = async () => {
