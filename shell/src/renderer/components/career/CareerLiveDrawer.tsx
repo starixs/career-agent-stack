@@ -272,9 +272,8 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     return () => window.clearInterval(t);
   }, [attending]);
   const host = hostOf(snapshot?.browser.url);
-  const handoffHint = revealed
-    ? '那一页已经弹到你面前（真实浏览器窗口），直接在那个窗口里扫码、拖滑块、输验证码；登上了会自动接着办。'
-    : takeover?.message ?? (humanActive ? '直接在画面里点、输入、滚动；做完点「交还给小芽」。' : '点画面或「控制浏览器」接手，完成后交还给小芽。');
+  // 只说这一家具体要他做什么；按钮自己说得清的（控制、交还）不再复述（规范 §6.0）
+  const handoffHint = revealed ? '页面在真实浏览器窗口里' : takeover?.message ?? null;
   const statusTone = handoff || humanActive ? 'bg-[var(--warning)]' : control === 'agent' ? 'bg-[var(--success)]' : 'bg-[var(--subtle)]';
   const statusText = handoff
     ? `等你处理${reason ? `：${reason}` : ''}`
@@ -303,7 +302,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
             <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
             <span className="truncate">{statusText}{journeyText(snapshot?.journey)}{host ? ` · ${host}` : ''}</span>
-            <span className="ml-2 shrink-0 text-[var(--subtle)]">{stream.status === 'open' ? '直播中' : stream.status === 'connecting' ? '连接中…' : '重连中'}</span>
+            {stream.status !== 'open' && <span className="ml-2 shrink-0 text-[var(--subtle)]">{stream.status === 'connecting' ? '连接中…' : '重连中'}</span>}
           </div>
         </div>
         {(control === 'agent' || batch?.status === 'running') && (
@@ -343,14 +342,12 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
           </div>
           {chooser && <FileChooserPanel key={chooser.id} chooser={chooser} onDone={msg => { setChooser(null); setInfo(msg); }} />}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-            {handoff || humanActive
-              ? (
-                <span role="status" className="flex min-w-0 flex-1 items-center gap-1.5 text-[var(--ink)]" title={handoffHint}>
-                  <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span className="truncate"><span className="font-semibold">这一步要你本人来{reason ? `：${reason}` : ''}</span> · {handoffHint}</span>
-                </span>
-              )
-              : snapshot?.browser.url && <span className="min-w-0 flex-1 truncate text-[var(--subtle)]" title={snapshot.browser.url}>{snapshot.browser.title || snapshot.browser.url}</span>}
+            {(handoff || humanActive) && handoffHint && (
+              <span role="status" className="flex min-w-0 flex-1 items-center gap-1.5 text-[var(--ink)]" title={handoffHint}>
+                <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{handoffHint}</span>
+              </span>
+            )}
             {notice && <span role="alert" className="text-[var(--danger)]">{notice}</span>}
             {!notice && info && <span role="status" className="text-[var(--success)]">{info}</span>}
           </div>

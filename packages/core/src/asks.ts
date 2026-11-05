@@ -295,7 +295,7 @@ function infoAsks(ctx: Ctx, rows: readonly HandoffRow[]): AskView[] {
     return {
       id: rs[0].h.id, kind: 'info' as const,
       title: names.length ? (names.length > 1 ? `${names[0]}等 ${names.length} 项` : names[0]) : unreadable ? `${one ? `${shortName(one)} · ` : ''}页面上有 ${unreadable} 处要你看` : '还差几项要你补',
-      detail: unreadable ? `${names.length ? `另有 ${unreadable} 处` : '这几处'}网页上没写清问的是什么，点「去看」在页面上填` : names.length ? undefined : rs[0].h.message ?? undefined,
+      detail: names.length || unreadable ? undefined : rs[0].h.message ?? undefined,
       application_ids: appIds, companies: companiesOf(ctx, appIds), sources: rs.map(r => ({ type: 'handoff' as const, id: r.h.id })),
       action_ids: uniq(rs.map(r => r.h.action_id)), due_at: earliestJobDeadline(ctx, appIds), overdue: false, fields,
     }

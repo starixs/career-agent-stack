@@ -130,7 +130,6 @@ describe('CareerLiveDrawer', () => {
     expect(screen.queryByRole('button', { name: '收回真实窗口' })).not.toBeInTheDocument();
     expect(await screen.findByText('牛客 Agent 开发')).toBeInTheDocument();
     expect(screen.getAllByText('正在填写教育经历').length).toBeGreaterThan(0);
-    expect(screen.getByText('任务事件')).toBeInTheDocument();
     expect(screen.queryByText(/批量：/)).not.toBeInTheDocument();
   });
 
@@ -149,13 +148,13 @@ describe('CareerLiveDrawer', () => {
     expect(screen.queryByText('正在等待 B 的登录验证')).not.toBeInTheDocument();
   });
 
-  it('交接时显示「这一步要你本人来」，主按钮是控制浏览器', async () => {
+  it('交接时只说这一家具体要他做什么，不复述按钮含义；主按钮是控制浏览器', async () => {
     render(<Harness />);
     act(() => emitEvent('career:takeover', { runId: 'run1', state: 'paused', reason: 'captcha', message: '输入手机收到的验证码' }));
     expect(await screen.findByTestId('career-live-drawer')).toBeInTheDocument();
     await waitFor(() => expect(live.handler).not.toBeNull());
     push(snapshot());
-    expect(screen.getByText(/这一步要你本人来/)).toBeInTheDocument();
+    expect(screen.queryByText(/这一步要你本人来/)).toBeNull();
     expect(screen.getByRole('status')).toHaveTextContent('输入手机收到的验证码');
     expect(screen.getByRole('button', { name: '控制浏览器' })).toBeInTheDocument();
   });

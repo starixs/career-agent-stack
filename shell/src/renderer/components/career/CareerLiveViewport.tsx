@@ -105,19 +105,18 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
   const frame = useSteadyFrame(incoming);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [focused, setFocused] = useState(false);
-  const [lastAction, setLastAction] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [aspect, setAspect] = useState<number | null>(() => stableAspect(null, frame?.width, frame?.height));
   // 渲染时按新帧尺寸校正比例（React 的"根据上一次渲染调整状态"写法），差得不多就不动
   const nextAspect = stableAspect(aspect, frame?.width, frame?.height);
   if (nextAspect !== aspect) setAspect(nextAspect);
 
-  const send = useCallback(async (input: Parameters<typeof careerApi.liveInput>[0], label: string) => {
-    try { await careerApi.liveInput(input); setLastAction(label); } catch (error) {
+  const send = useCallback(async (input: Parameters<typeof careerApi.liveInput>[0]) => {
+    try { await careerApi.liveInput(input); } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       // 控制权被后台收走了（画面还以为是他在操作）：他手上的这一下就是要接着操作，重新接管、再发一次
       if (isControlLost(message) && onRequestControl && await onRequestControl()) {
-        try { await careerApi.liveInput(input); setLastAction(label); return; } catch (retry) { onInputError?.(retry instanceof Error ? retry.message : String(retry)); return; }
+        try { await careerApi.liveInput(input); return; } catch (retry) { onInputError?.(retry instanceof Error ? retry.message : String(retry)); return; }
       }
       onInputError?.(message);
     }
@@ -138,7 +137,7 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
 
   // 接管期间按下 / 移动 / 松开实时转发（useLivePointer）：拖滑块时画面跟着手走
   const pointer = useLivePointer(
-    input => send(input, input.type === 'move' ? '拖动' : input.type === 'down' ? `按下 ${input.x},${input.y}` : '松开'),
+    input => send(input),
     frameCoords,
     () => (frame ? { width: frame.width, height: frame.height } : null),
   );
@@ -152,31 +151,31 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
       const size = { width: frame.width, height: frame.height };
       setClaiming(true);
       void onRequestControl().then(granted => {
-        if (granted && c) void send({ type: 'click', ...c, frame: size }, `接管并点击 ${c.x},${c.y}`);
+        if (granted && c) void send({ type: 'click', ...c, frame: size });
       }).finally(() => setClaiming(false));
       return;
     }
     if (!c) return;
-    void send({ type: 'click', ...c, double: ev.detail >= 2, frame: { width: frame!.width, height: frame!.height } }, `点击 ${c.x},${c.y}`);
+    void send({ type: 'click', ...c, double: ev.detail >= 2, frame: { width: frame!.width, height: frame!.height } });
   };
   const onWheel = (ev: WheelEvent<HTMLDivElement>) => {
     if (!interactive || !frame) return;
     ev.preventDefault();
-    void send({ type: 'wheel', dx: Math.round(ev.deltaX), dy: Math.round(ev.deltaY), frame: { width: frame.width, height: frame.height } }, '滚动');
+    void send({ type: 'wheel', dx: Math.round(ev.deltaX), dy: Math.round(ev.deltaY), frame: { width: frame.width, height: frame.height } });
   };
   const onKeyDown = (ev: KeyboardEvent<HTMLDivElement>) => {
     if (!interactive) return;
     const t = translateKey(ev);
     if (!t) return;
     ev.preventDefault();
-    void send(t.type === 'type' ? { type: 'type', text: t.text } : { type: 'press', key: t.key }, t.type === 'type' ? `输入 ${t.text}` : `按键 ${t.key}`);
+    void send(t.type === 'type' ? { type: 'type', text: t.text } : { type: 'press', key: t.key });
   };
   const onPaste = (ev: ClipboardEvent<HTMLDivElement>) => {
     if (!interactive) return;
     const text = ev.clipboardData.getData('text');
     if (!text) return;
     ev.preventDefault();
-    void send({ type: 'type', text }, `粘贴 ${text.length} 字`);
+    void send({ type: 'type', text });
   };
 
   return (
@@ -202,11 +201,7 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
       {frame
         ? <img alt="浏览器实时画面" src={`data:image/jpeg;base64,${frame.data}`} className="h-full w-full select-none object-contain" draggable={false} />
         : <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-white/70">{placeholder ?? '等待画面…'}</div>}
-      <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-xs text-white/85">
-        {interactive
-          ? (focused ? `你在操作${lastAction ? ` · ${lastAction}` : ''}` : '点一下画面开始操作')
-          : claiming ? '正在接管…' : onRequestControl && frame ? '助理在操作 · 点画面即可接管' : '只看 · 点「接管」后可直接操作'}
-      </div>
+      {claiming && <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-xs text-white/85">正在接管…</div>}
     </div>
   );
 }

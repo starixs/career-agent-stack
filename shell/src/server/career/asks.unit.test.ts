@@ -69,7 +69,7 @@ describe('AskView：一个动作能解决的才合并', () => {
     });
     const [ask] = buildAsks(repos, NOW);
     expect(ask.title).toBe('自我介绍');
-    expect(ask.detail).toBe('另有 4 处网页上没写清问的是什么，点「去看」在页面上填');
+    expect(ask.detail).toBeUndefined();
     expect(ask.fields?.filter(f => f.fillable).map(f => [f.text, f.draft])).toEqual([['自我介绍', '我本科就读于【毕业院校】计算机专业']]);
     expect(vaultMarksToTokens('我本科就读于【毕业院校】，【不认识】')).toBe('我本科就读于{{vault:profile.school}}，【不认识】');
   });

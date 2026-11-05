@@ -75,7 +75,7 @@ function journeyPage(repos: Repos, page: Page): JourneyPage {
       if (byMail) return byMail;
       const sms = await smsWithPhone(repos, page, report);
       if (sms.status === 'no_sms') console.log(`[career] login-journey ${page.url().slice(0, 80)}: 短信这条路没走通（${sms.detail ?? '-'}）`);
-      return sms.status === 'no_sms' ? { status: 'no_sms', detail: '没找到邮箱或手机号能登的方式，多半只能扫码' } : sms;
+      return sms.status === 'no_sms' ? { status: 'no_sms', detail: '要扫码登录' } : sms;
     },
     imageRefresh: () => refreshPendingImage(page),
     smsSubmit: async code => {

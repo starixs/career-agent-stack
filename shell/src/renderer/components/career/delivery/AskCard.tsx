@@ -101,7 +101,6 @@ export function AskCard({ ask, busy, error, onGo, onLater }: {
             : <button type="button" className="cd-later" disabled={busy} onClick={() => void onLater()}>{labels.later}</button>}
           {look && ask.kind !== 'review' && <button type="button" className="cd-later" onClick={() => void showApplicationPage(ask.application_ids[0])}>去看</button>}
         </div>
-        {ask.kind === 'info' && fillable.some(f => f.vault_field) && <p className="cd-warn">只存在本机私密库，填表时在本地替换，助理看不到原文</p>}
         {error && <p role="alert" className="cd-err">{error}</p>}
       </div>
     </article>

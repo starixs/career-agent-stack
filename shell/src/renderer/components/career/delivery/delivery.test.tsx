@@ -76,7 +76,7 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     expect(within(deck).getByText(/来自邮件/)).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(within(screen.getByTestId('waiting-deck')).getByText('证件号码')).toBeInTheDocument();
-    expect(screen.getByText('用于这批 20 家，只存在本机')).toBeInTheDocument();
+    expect(screen.queryByText(/只存在本机/)).toBeNull(); // 规则不常驻在卡上（规范 §6.0）
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByTestId('waiting-deck')).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /等你\s*3/ }));
@@ -195,7 +195,6 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     serve([ASK_LOGIN], null);
     render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
-    expect(screen.getByText('一家一家带你过，登上了自动切下一家')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '去登录' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/asks/hnd_login/login-journey', {}));
   });
