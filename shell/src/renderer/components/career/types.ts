@@ -350,8 +350,8 @@ export interface CareerFocusEvent {
   sessionId?: string | null; surface: 'today' | 'takeover' | 'inbox' | 'dossier' | 'material' | 'review' | 'guide'; id?: string | null; application_id?: string | null; job_id?: string | null; note?: string;
   /** 投递记录按一组投递筛选（从漏斗、甘特跳过去）；label 说明这组是什么。 */
   filter?: { label: string; application_ids: string[] };
-  /** assistant = 小芽在对话里做完事推来的提示：只记下定位，不把用户从对话里带走。 */
-  origin?: 'user' | 'assistant';
+  /** 谁发起的聚焦：user 才跳页；assistant（对话里小芽做完事）/ background（后台批量、提交）只定位不跳页。 */
+  origin?: 'user' | 'assistant' | 'background';
 }
 /** 面板 → 对话：把一句带对象上下文的话真的发进对话。 */
 export interface CareerChatSuggestEvent { text: string; context?: { surface?: string; refs?: Record<string, string | null | undefined>; note?: string }; mode?: 'send' | 'prefill' }

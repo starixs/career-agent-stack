@@ -26,6 +26,8 @@ export function CareerLiveBridge() {
       emitEvent('career:data-changed', { tables: [PHONE_TABLE] });
       return;
     }
+    // 后台（批量 / 提交执行器）推来的聚焦标成 background：只定位、不把他从正在看的页面拽走（2026-11-05 点投出后自动弹到投递记录）
+    if (ev.type === 'career:focus') { emitEvent(ev.type, { ...ev, origin: 'background' }); return; }
     if (typeof ev.type === 'string' && ev.type.startsWith(FORWARD_PREFIX)) emitEvent(ev.type, ev);
   }, []);
   useLiveStream(false, onEvent);

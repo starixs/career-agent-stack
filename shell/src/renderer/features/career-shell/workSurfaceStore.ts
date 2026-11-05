@@ -25,6 +25,8 @@ export interface ProgressRun {
   /** 0–1 when the tool reports it. */
   progress: number | null;
   finished: boolean;
+  /** 结束在失败上（phase 以 failed / error / cancelled 结尾）。 */
+  failed?: boolean;
   updatedAt: number;
   /** 批量网申的岗位身份；同一事件流里按 run 分开，不能把不同岗位合成一条。 */
   company?: string;
@@ -49,6 +51,7 @@ interface WorkSurfaceState {
 const MAX_RUNS = 50;
 const MAX_STEPS = 12;
 const FINISHED_PHASES = /(?:^|[_:-])(done|finished|complete|completed|failed|error|cancelled)$/i;
+const FAILED_PHASES = /(?:^|[_:-])(failed|error|cancelled)$/i;
 
 let state: WorkSurfaceState = { expanded: null, refId: null, nonce: 0, context: null, fullscreen: false, takeover: null, runs: [] };
 const listeners = new Set<() => void>();
@@ -98,7 +101,9 @@ export function recordTakeover(takeover: CareerTakeoverEvent | null): void {
 /** Folds a career:progress event into the run it belongs to. */
 export function recordProgress(event: CareerProgressEvent, now = Date.now()): void {
   if (!event?.message) return;
-  const key = event.runId ?? event.taskId ?? event.phase ?? 'progress';
+  // 同一份网申（填表、续填、提交）是一条：按 application_id 认回原来那条，不按事件来源拆成几条（2026-11-05 滴滴提交后多出一条「网申任务」）
+  const sameApp = event.application_id ? state.runs.find(run => run.applicationId === event.application_id) : undefined;
+  const key = sameApp?.key ?? event.runId ?? event.taskId ?? event.phase ?? 'progress';
   const existing = state.runs.find(run => run.key === key);
   const step: ProgressStep = { message: event.message, phase: event.phase, at: now };
   const finished = (typeof event.progress === 'number' && event.progress >= 1) || FINISHED_PHASES.test(event.phase ?? '');
@@ -111,6 +116,7 @@ export function recordProgress(event: CareerProgressEvent, now = Date.now()): vo
     steps,
     progress: typeof event.progress === 'number' ? event.progress : base.progress,
     finished,
+    failed: FAILED_PHASES.test(event.phase ?? ''),
     updatedAt: now,
     ...identity,
   };

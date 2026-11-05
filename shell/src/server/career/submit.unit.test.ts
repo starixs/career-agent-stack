@@ -223,6 +223,19 @@ describe('提交执行器', () => {
     expect(getPageTrust(repos, SIG)!.streak).toBe(0); // 有改动 → 不算"没改直接通过"
   });
 
+  it('进展挂在这一家填表那条上、带网申 id；投出后发收尾一条（2026-11-05 滴滴投完了面板还卡在「正在提交网申」）', async () => {
+    const repos = createMemoryRepos();
+    const { app, submit } = persist(repos, driveResult({}));
+    repos.reviewActions([submit.id], 'approved', 'user');
+    const sent: Array<{ event: string; data: Record<string, unknown> }> = [];
+    await executeSubmitAction({ repos, broadcast: (event, data) => { sent.push({ event, data: data as Record<string, unknown> }); }, run: async (_b, on) => { const ev = submitResult('submitted'); on(ev); return [ev]; } }, submit.id);
+    const progress = sent.filter(s => s.event === 'career:progress').map(s => s.data);
+    const fillId = JSON.parse(repos.getAction(submit.id)!.payload_json).fill_action_id as string;
+    expect(progress.map(p => [p.phase, p.message])).toEqual([['submit', '正在提交网申'], ['submit_done', '已投出']]);
+    expect(progress.every(p => p.application_id === app.id && p.runId === `run_${fillId}`)).toBe(true);
+    expect(progress[1].progress).toBe(1);
+  });
+
   it('同一个提交只执行一次（执行器轮询与审批路由同时触发）', async () => {
     const repos = createMemoryRepos();
     const { submit } = persist(repos, driveResult({}));

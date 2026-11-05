@@ -29,7 +29,34 @@ export interface SubmitOutcome { actionId: string; status: string; message: stri
 
 const parse = (raw: string | null | undefined): Record<string, unknown> => { try { const v = JSON.parse(raw ?? '{}'); return v && typeof v === 'object' ? v as Record<string, unknown> : {}; } catch { return {}; } };
 
+/** 提交这一步的进展挂在这份网申的填表那条上（同一个 runId / application_id），面板上是一家一条，不另起「网申任务」。 */
+function submitProgress(deps: SubmitExecutorDeps, actionId: string): (message: string, phase: string) => void {
+  const r = deps.repos;
+  const a = r.getAction(actionId);
+  const payload = parse(a?.payload_json);
+  const appId = a?.application_id ?? str(payload.application_id);
+  const app = appId ? r.getApplication(appId) : undefined;
+  const job = app ? r.getJob(app.job_id) : undefined;
+  const fill = str(payload.fill_action_id);
+  const ident = { runId: fill ? `run_${fill}` : `submit_${actionId}`, actionId, ...(appId ? { application_id: appId } : {}), ...(job?.company_name ? { company: job.company_name } : {}), ...(job?.title ? { job_title: job.title } : {}) };
+  return (message, phase) => deps.broadcast('career:progress', { sessionId: deps.sessionId?.() ?? 'global', ...ident, phase, message, ...(SUBMIT_FINAL.test(phase) ? { progress: 1 } : {}) });
+}
+const SUBMIT_FINAL = /_(done|failed)$/;
+/** 提交结果 → 面板最后一条：投出了 / 没投成收尾；等你确认的不收尾（接管条说话）。 */
+const SUBMIT_CLOSING: Record<string, { phase: string; text?: string }> = {
+  submitted: { phase: 'submit_done', text: '已投出' }, failed: { phase: 'submit_failed' }, needs_user: { phase: 'submit_failed' },
+  handoff: { phase: 'submit_waiting' }, uncertain: { phase: 'submit_waiting' }, busy: { phase: 'submit', text: '浏览器被占用，稍后再提交' }, refilled: { phase: 'submit', text: '提交页丢了，重新填写后再提交' },
+};
+
 export async function executeSubmitAction(deps: SubmitExecutorDeps, actionId: string): Promise<SubmitOutcome> {
+  const progress = submitProgress(deps, actionId);
+  const out = await submitOnce(deps, actionId, progress);
+  const closing = SUBMIT_CLOSING[out.status];
+  if (closing) progress(closing.text ?? out.message, closing.phase);
+  return out;
+}
+
+async function submitOnce(deps: SubmitExecutorDeps, actionId: string, progress: (message: string, phase: string) => void): Promise<SubmitOutcome> {
   const r = deps.repos;
   const sid = deps.sessionId?.() ?? 'global';
   const changed = (...tables: string[]) => deps.broadcast('career:data-changed', { sessionId: sid, tables });
@@ -41,7 +68,7 @@ export async function executeSubmitAction(deps: SubmitExecutorDeps, actionId: st
   const action = claim.action;
   const payload = parse(action.payload_json);
   const appId = action.application_id ?? (typeof payload.application_id === 'string' ? payload.application_id : null);
-  deps.broadcast('career:progress', { sessionId: sid, phase: 'submit', message: '正在提交网申', actionId });
+  progress('正在提交网申', 'submit');
   const events: Array<Record<string, unknown>> = [];
   try {
     await deps.run({ op: 'submit', actionId, applicationId: appId, submitButton: payload.submitButton, filled: payload.filled }, ev => { events.push(ev); });

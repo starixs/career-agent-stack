@@ -14,7 +14,8 @@ function runTitle(run: ProgressRun | undefined, batch?: BatchState | null): stri
   const named = [run?.company, run?.jobTitle].filter(Boolean).join(' · ');
   if (named) return named;
   if (run && batch?.currentActionId && run.key === `run_${batch.currentActionId}` && batch.currentTitle) return batch.currentTitle;
-  return batch?.currentTitle ?? '网申任务';
+  // 批量停着（暂停 / 停止）时「当前这份」的标题是上一家留下的，不能拿来顶替：会把这条说成滴滴（2026-11-05）
+  return batch?.status === 'running' && batch.currentTitle ? batch.currentTitle : '网申任务';
 }
 
 /** 任务对应开着的哪一页：按网申 id 认；旧事件没带 id 时退回岗位名 + 公司都对上才算（同一家公司投几份不能认错）。 */
@@ -33,28 +34,30 @@ export function progressMessage(takeoverMessage: string | undefined, latestMessa
 /** 单个岗位的事件流；多个 run 时先选岗位，再只看它的事件，避免 50 份进度混在一起。 */
 export function TaskProgressPanel({ title, batch, takeover }: { title?: string | null; batch?: BatchState | null; takeover?: CareerTakeoverEvent | null }) {
   const { runs } = useWorkSurfaces();
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // 列表里点的那条：只在画面还停在点的时候那一家时算数；顶上小签切了别家，面板就跟着画面走（2026-11-05 切到腾讯下面还是滴滴）
+  const [picked, setPicked] = useState<{ key: string; view: string | undefined } | null>(null);
   // 和顶上的下拉框 / 小签共用「画面正看着哪一家」：哪边切，两边和画面都跟着（2026-11-05）
   const { data: pages, reload: reloadPages } = useCareerQuery(async () => parseLivePages(await apiGetJson<unknown>('/api/career/live/pages')), ['action_queue', 'handoff', 'live_view']);
-  const selected = selectedKey ? runs.find(item => item.key === selectedKey) : undefined;
-  const shownApp = pages?.find(p => p.current)?.application_id;
+  const shownPage = pages?.find(p => p.current);
+  const shownApp = shownPage?.application_id;
+  const selected = picked && picked.view === shownApp ? runs.find(item => item.key === picked.key) : undefined;
   const shown = shownApp ? runs.find(item => item.applicationId === shownApp) : undefined;
-  // 点的这份没有页面开着（已填完 / 失败）：画面切不过去，面板仍显示它的事件
-  const selectedOffscreen = selected && !(pages ?? []).some(p => p.application_id === selected.applicationId) ? selected : undefined;
-  const run = selectedOffscreen ?? shown ?? selected ?? runs.find(item => !item.finished) ?? runs[0];
+  // 画面正看着某一家：只显示这一家的进展；它还没有进展就如实说在排队，不拿别家的顶上
+  const run = selected ?? shown ?? (shownApp ? undefined : runs.find(item => !item.finished) ?? runs[0]);
   const latest = run?.steps.at(-1);
   const takeoverHere = !!takeover && (!run || takeover.runId === run.key);
   const waiting = takeoverHere && takeover?.state === 'paused';
   const human = takeoverHere && takeover?.state === 'human_active';
-  const status = waiting ? '等你处理' : human ? '你在操作' : batch?.status === 'paused' ? '已暂停' : batch?.status === 'stopped' ? '已停止' : run?.finished ? '已完成' : run || batch?.status === 'running' ? '进行中' : '等待开始';
-  const tone = waiting ? 'warning' : run?.finished || batch?.status === 'stopped' ? 'neutral' : 'success';
-  const message = progressMessage(takeoverHere ? takeover?.message : undefined, latest?.message, batch);
+  // 状态说的是这一家，不是整批：批量「已暂停」只是不再开新的一家，正在填的这家照样在跑
+  const status = waiting ? '等你处理' : human ? '你在操作' : run?.finished ? (run.failed ? '没填成' : '已完成') : run ? (batch?.status === 'stopped' ? '已停止' : '进行中') : shownApp ? '排队中' : batch?.status === 'running' ? '进行中' : '等待开始';
+  const tone = waiting || run?.failed ? 'warning' : run?.finished || batch?.status === 'stopped' || (!run && shownApp) ? 'neutral' : 'success';
+  const message = !run && shownApp && !takeoverHere ? '这一家还在排队，轮到它就开始填' : progressMessage(takeoverHere ? takeover?.message : undefined, latest?.message, batch);
   const total = batch ? batch.done + batch.failed + batch.handoffs + batch.queued + (batch.running?.length ?? 0) : 0;
-  const ratio = run?.progress ?? (total > 0 && batch ? Math.min(1, (batch.done + batch.failed) / total) : null);
+  const ratio = run ? run.progress : shownApp ? null : total > 0 && batch ? Math.min(1, (batch.done + batch.failed) / total) : null;
   const events = run?.steps.slice(-5).reverse() ?? [];
   const select = (next: ProgressRun) => {
-    setSelectedKey(next.key);
     const page = livePageOfRun(pages ?? [], next);
+    setPicked({ key: next.key, view: page ? page.application_id : shownApp });
     if (!page) return;
     void apiPostJson<unknown>('/api/career/live/view', { application_id: page.application_id })
       .then(reloadPages, (error: unknown) => { console.error('[career-live] 切换任务现场 FAILED', error instanceof Error ? error.message : error); reloadPages(); });
@@ -62,7 +65,7 @@ export function TaskProgressPanel({ title, batch, takeover }: { title?: string |
   return (
     <section aria-label="当前任务" aria-live="polite" className="mt-3 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-4 py-3">
       <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]" title={runTitle(run, batch)}>{run ? runTitle(run, batch) : title ?? batch?.currentTitle ?? '网申任务'}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]" title={runTitle(run, batch)}>{run ? runTitle(run, batch) : shownPage ? [shownPage.company, shownPage.title].filter(Boolean).join(' · ') || '网申任务' : title ?? batch?.currentTitle ?? '网申任务'}</span>
         <Badge tone={tone}>{status}</Badge>
       </div>
       {!human && <div className="mt-1 text-sm text-[var(--ink-2)]">{message}</div>}
@@ -77,9 +80,9 @@ export function TaskProgressPanel({ title, batch, takeover }: { title?: string |
             {runs.map(item => (
               <button key={item.key} type="button" aria-pressed={item.key === run?.key} onClick={() => select(item)}
                 className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${item.key === run?.key ? 'bg-[var(--paper)] text-[var(--ink)]' : 'text-[var(--muted)] hover:bg-[var(--hover)]'}`}>
-                <span className={`h-2 w-2 shrink-0 rounded-full ${item.finished ? 'bg-[var(--success)]' : 'bg-[var(--primary)]'}`} aria-hidden />
+                <span className={`h-2 w-2 shrink-0 rounded-full ${item.failed ? 'bg-[var(--warning)]' : item.finished ? 'bg-[var(--success)]' : 'bg-[var(--primary)]'}`} aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{runTitle(item, null)}</span>
-                <span className="shrink-0">{item.finished ? '已完成' : '进行中'}</span>
+                <span className="shrink-0">{item.failed ? '没填成' : item.finished ? '已完成' : '进行中'}</span>
               </button>
             ))}
           </div>
