@@ -49,12 +49,12 @@ describe('CareerGuide（功能市场）', () => {
     for (const idea of IDEAS) expect(screen.getByText(idea.text)).toBeInTheDocument();
   });
 
-  it('工作台卡片点了去它那一页：面试助力、笔试助力、网申助手', () => {
+  it('工作台卡片点了去它那一页：面试助力、笔试助力、网申进展', () => {
     const nav = capture(CAREER_NAVIGATE_EVENT);
     renderGuide();
     fireEvent.click(screen.getByRole('button', { name: /^面试助力/ }));
     fireEvent.click(screen.getByRole('button', { name: /^笔试助力/ }));
-    fireEvent.click(screen.getByRole('button', { name: /^网申助手/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^网申进展/ }));
     expect(nav.seen).toEqual([
       { kind: 'career-dossier', view: 'interview' }, { kind: 'career-dossier', view: 'exam-search' }, { kind: 'career-live' },
     ]);

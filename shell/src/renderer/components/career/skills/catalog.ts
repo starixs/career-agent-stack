@@ -74,7 +74,7 @@ export const WORKBENCHES: readonly Workbench[] = [
     skills: ['resume-draft'], icon: FileText, specimen: 'page', open: { kind: 'career-material', view: 'resume' },
   },
   {
-    id: 'apply', name: '网申助手', promise: '选一批岗位，小芽一家家填，填到哪一步都看得见',
+    id: 'apply', name: '网申进展', promise: '选一批岗位，小芽一家家填，填到哪一步都看得见',
     skills: ['apply-playbook'], icon: Send, specimen: 'form', open: { kind: 'career-live' },
   },
   {
