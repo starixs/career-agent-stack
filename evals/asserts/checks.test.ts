@@ -45,12 +45,15 @@ describe('评测断言', () => {
   it('humanToneOk：像学长说话，不像控制台', () => {
     const ok = { text: '开始投了，美团和字节已经在填，有要你的事会出现在右边。' }
     expect(humanToneOk(ok, { vars: { expect_mention: ['美团'] } }).pass).toBe(true)
-    expect(humanToneOk({ text: '服务端返回 200，工具调用成功。' }, { vars: {} }).pass).toBe(false)
+    expect(humanToneOk({ text: '服务端返回了状态码 200，工具调用成功。' }, { vars: {} }).pass).toBe(false)
+    expect(humanToneOk({ text: '这家是服务端开发，要写高并发接口，你的项目对得上。' }, { vars: {} }).pass).toBe(true)
+    expect(humanToneOk({ text: '证件号还没填，补齐卡在右边，你去右边看一眼就行。' }, { vars: {} }).pass).toBe(true)
     expect(humanToneOk({ text: '动作 act_Gl7f2k 已进入待审。' }, { vars: {} }).pass).toBe(false)
     expect(humanToneOk({ text: '你想投哪家？北京还是上海？' }, { vars: {} }).pass).toBe(false)
     expect(humanToneOk({ text: '| 公司 | 状态 |\n|---|---|\n| 美团 | 在填 |' }, { vars: {} }).pass).toBe(false)
     expect(humanToneOk({ text: '还差证件号，填好了跟我说一声。' }, { vars: {} }).pass).toBe(false)
     expect(humanToneOk(ok, { vars: { expect_mention: ['拼多多'] } }).pass).toBe(false)
+    expect(humanToneOk({ text: '五家都开始填了。' }, { vars: { expect_mention: ['5|五'] } }).pass).toBe(true)
   })
 
   it('browseStepOk：经 more_actions 调收起来的工具，等价于直接调', () => {

@@ -76,9 +76,10 @@ export function browseStepOk(output, { vars }) {
 }
 
 /** 开发 / 控制台用语：出现在给求职学生的回复里就是没把他当人看（10-03、10-17 实例）。 */
-const DEV_WORDS = ['工具', '技能', '会话', '队列', '占位符', '数据层', '接口', '服务端', 'JSON', 'MCP', 'API', '参数', '状态码', 'pending', 'more_actions']
+// 只收真正的内部词：「接口测试」「服务端开发」「API 平台」这类是岗位内容，不算
+const DEV_WORDS = ['工具调用', '调用工具', '技能', '会话', '队列', '占位符', '数据层', 'JSON', 'MCP', '状态码', 'pending', 'more_actions', '返回值', '报错码']
 /** 把活推回给他的收尾（真北第 9 条：协作本身不能成为新劳动）。 */
-const HAND_BACK = /(发我|发给我|贴给我|贴过来|告诉我|说一声|回复我|你再发|你去.{0,6}(填|找|看))[。！？!?\s]*$/
+const HAND_BACK = /(发我|发给我|贴给我|贴过来|告诉我|说一声|回复我|你再发|你去(?!右边)[^右]{0,6}(填|找|看))[。！？!?\s]*$/
 
 /**
  * 小芽回给用户的那段话像不像一个靠谱学长：不说开发词、不露内部 id、最多一个问题、
@@ -94,7 +95,8 @@ export function humanToneOk(output, { vars }) {
   if ((text.match(/[?？]/g) ?? []).length > 1) return fail('一次问了不止一个问题')
   if (text.split(/\n\s*\n/).filter(p => p.trim()).length > 4) return fail('超过 4 段')
   if (HAND_BACK.test(text.trim())) return fail('把活推回给他收尾')
-  const missing = [].concat(vars.expect_mention ?? []).filter(w => !text.includes(w))
+  // 每一项可以写「5|五」表示任一说法都算提到
+  const missing = [].concat(vars.expect_mention ?? []).filter(w => !String(w).split('|').some(alt => text.includes(alt)))
   if (missing.length) return fail(`没提到：${missing.join('、')}`)
   return { pass: true, score: 1, reason: text.slice(0, 80) }
 }

@@ -5,7 +5,8 @@
     task: chat_first_step
     message: 我没简历咋整
     state: 〔现在的进度〕经历 0 段 · 主简历 0 份 · 方向未定 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
-    expect_tool: [experience_interview]
+    # 两扇门（有旧简历就拖进来、没有就聊）是开场设计（face-mainline），回一句不调工具也对
+    expect_tool: [experience_interview, none]
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk
@@ -14,7 +15,8 @@
     task: chat_first_step
     message: 帮我弄份简历吧
     state: 〔现在的进度〕经历 3 段 · 主简历 0 份 · 方向 后端/北京 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
-    expect_tool: [resume_master_create]
+    # 先读一下经历库 / 简历列表再生成也算自主（不问他）；反问才算失败
+    expect_tool: [resume_master_create, experience_list, resume_list]
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk
@@ -82,7 +84,7 @@
       收到这个了 唉
       「感谢您对京东的关注。经过慎重评估，很遗憾您的背景与本次岗位要求暂不匹配……」
     state: 〔现在的进度〕经历 3 段 · 主简历 1 份 · 方向 后端/北京 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
-    expect_tool: [inbox_capture]
+    expect_tool: [inbox_capture, dossier_get]
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk

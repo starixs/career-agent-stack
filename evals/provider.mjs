@@ -27,15 +27,16 @@ export function evalLlm(env = process.env, fetchImpl = fetch) {
   const base = (env.CAREER_EVAL_BASE_URL ?? 'https://api.deepseek.com').replace(/\/+$/, '')
   const model = env.CAREER_EVAL_MODEL ?? 'deepseek-flash' // 与产品默认模型一致（shared/career-build-constants.ts）
   return {
-    async complete({ system, messages, json, temperature }) {
+    async complete({ system, messages, json, temperature, tools }) {
       const res = await fetchImpl(`${base}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model, temperature: temperature ?? 0.2, ...(json ? { response_format: { type: 'json_object' } } : {}), messages: [...(system ? [{ role: 'system', content: system }] : []), ...messages] }),
+        body: JSON.stringify({ model, temperature: temperature ?? 0.2, ...(json ? { response_format: { type: 'json_object' } } : {}), ...(tools ? { tools } : {}), messages: [...(system ? [{ role: 'system', content: system }] : []), ...messages] }),
       })
       if (!res.ok) throw new Error(`模型接口 HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`)
       const data = await res.json()
-      return { text: data.choices?.[0]?.message?.content ?? '' }
+      const message = data.choices?.[0]?.message ?? {}
+      return { text: message.content ?? '', toolCalls: message.tool_calls ?? [] }
     },
   }
 }
@@ -66,9 +67,14 @@ export async function runTask(vars, llm) {
       return core.extractJson(res.text)
     }
     case 'chat_first_step': {
-      const system = `${skill('assistant-core')}\n\n${careerToolsBlock()}\n\n# 可用工具（与产品一致：常驻工具原文描述 + more_actions 目录）\n${productToolSurface()}\n\n只输出第一步的一个工具调用：{"tool":"...","args":{...},"reason":"一句话"}；收在 more_actions 里的写成 {"tool":"more_actions","args":{"name":"...","args":{...}}}；不需要工具就输出 {"tool":"none","args":{},"reason":"..."}`
-      const res = await llm.complete({ system, messages: [{ role: 'user', content: userTurn(vars) }], json: true, temperature: 0 })
-      return core.extractJson(res.text)
+      // 与产品一样走原生工具调用（工具描述和参数随 tools 下发），取第一个调用；不调工具就是 none
+      const system = `${skill('assistant-core')}\n\n${careerToolsBlock()}`
+      const res = await llm.complete({ system, messages: [{ role: 'user', content: userTurn(vars) }], tools: productTools(), temperature: 0 })
+      const first = res.toolCalls[0]?.function
+      if (!first) return { tool: 'none', args: {}, reason: res.text.slice(0, 200) }
+      let args = {}
+      try { args = JSON.parse(first.arguments || '{}') } catch { args = { _raw: first.arguments } }
+      return { tool: first.name, args }
     }
     case 'chat_reply': {
       // 工具已经跑完，看小芽写给用户的那段话（拟人性 / 易用性）
@@ -131,6 +137,53 @@ export function productToolSurface() {
   const residentLines = [...resident].filter(n => all.has(n)).map(n => `- ${n}：${all.get(n)}`)
   const more = [...all.keys()].filter(n => !resident.has(n) && !hidden.has(n)).map(n => `  - ${n}：${summary(all.get(n))}`)
   return [...residentLines, `- more_actions：主线之外的能力（面试、笔试、Offer、邮件、截止、卷宗、调研、浏览器等）。name 选下面一个，args 按那个能力要的参数传：\n${more.join('\n')}`].join('\n')
+}
+
+/** 从工具源码的 zod 参数对象里粗略还原 JSON Schema（名字、类型、describe 原文），够模型按产品同样的参数名调用。 */
+function zodShape(block) {
+  const properties = {}
+  for (const m of block.matchAll(/(\w+)\s*:\s*z\.(\w+)\(([\s\S]*?)(?=,\s*\w+\s*:\s*z\.|$)/g)) {
+    const [, key, kind, rest] = m
+    if (properties[key]) continue
+    const type = kind === 'array' ? 'array' : kind === 'number' ? 'number' : kind === 'boolean' ? 'boolean' : (kind === 'record' || kind === 'object') ? 'object' : 'string'
+    const describe = /\.describe\('((?:[^'\\]|\\.)*)'\)/.exec(rest)?.[1]
+    properties[key] = { type, ...(type === 'array' ? { items: { type: 'string' } } : {}), ...(describe ? { description: describe } : {}) }
+  }
+  return { type: 'object', properties }
+}
+
+/** 每个工具：原文描述 + 参数形状（取 tool('name', 'desc', { ... }, 之间的对象）。 */
+function allToolSpecs() {
+  const dir = join(root, 'shell/src/server/tools')
+  const out = new Map()
+  for (const file of readdirSync(dir)) {
+    if (!file.endsWith('.ts') || file.includes('.test.')) continue
+    const src = readFileSync(join(dir, file), 'utf8')
+    for (const m of src.matchAll(/tool\(\s*'([a-z0-9_]+)',\s*'((?:[^'\\]|\\.)*)',\s*\{/g)) {
+      const start = m.index + m[0].length
+      let depth = 1, end = start
+      while (end < src.length && depth > 0) { const c = src[end++]; if (c === '{') depth++; else if (c === '}') depth-- }
+      out.set(m[1], { description: m[2], parameters: zodShape(src.slice(start, end - 1)) })
+    }
+  }
+  return out
+}
+
+/** 产品里小芽挂着的工具（OpenAI tools 格式）：XIAOYA_TOOLS 常驻 + more_actions（目录写进描述），与 career-tool-router.ts 同规则。 */
+export function productTools() {
+  const router = shellSrc('tools/career-tool-router.ts')
+  const setOf = name => new Set([...(new RegExp(`${name}[^=]*=\\s*new Set\\(\\[([\\s\\S]*?)\\]\\)`).exec(router)?.[1] ?? '').matchAll(/'([a-z0-9_]+)'/g)].map(x => x[1]))
+  const resident = setOf('XIAOYA_TOOLS')
+  const hidden = setOf('IN_TURN_APPLY_TOOLS')
+  if (resident.size < 10) throw new Error('career-tool-router.ts 里解析不到 XIAOYA_TOOLS')
+  const specs = allToolSpecs()
+  const summary = d => { const first = d.split(/[。；\n]/)[0] ?? d; return first.length > 48 ? `${first.slice(0, 48)}…` : first }
+  const fn = (name, description, parameters) => ({ type: 'function', function: { name, description, parameters } })
+  const residentTools = [...resident].filter(n => specs.has(n)).map(n => fn(n, specs.get(n).description, specs.get(n).parameters))
+  const catalog = [...specs.keys()].filter(n => !resident.has(n) && !hidden.has(n)).map(n => `- ${n}：${summary(specs.get(n).description)}`).join('\n')
+  const more = fn('more_actions', `主线之外的能力（面试、笔试、Offer、邮件、截止、卷宗、调研、浏览器等）。用户要这些时调用：name 选下面一个，args 按那个能力要的参数传；参数不对会返回它要的字段。\n${catalog}`,
+    { type: 'object', properties: { name: { type: 'string', description: '上面目录里的一个名字' }, args: { type: 'object' } }, required: ['name'] })
+  return [...residentTools, more]
 }
 
 export function toolCatalog(names) {

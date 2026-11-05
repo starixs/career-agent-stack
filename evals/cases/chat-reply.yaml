@@ -16,7 +16,7 @@
     message: 这 6 个都投了
     tool_name: jobs_apply
     tool_result: '{"started":5,"skipped":[{"job_id":"job_xhs_01","company":"小红书","reason":"已经投过"}],"resume":"后端主简历（11-04 改）","asks_posted":1}'
-    expect_mention: ['5']
+    expect_mention: ['5|五']
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:humanToneOk
