@@ -20,6 +20,26 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
   } as unknown as typeof ResizeObserver;
 }
 
+// Node 26 ships its own experimental Web Storage globals. Without
+// `--localstorage-file` the `localStorage` getter returns undefined, and it
+// shadows jsdom's implementation — every `localStorage.clear()` in a test then
+// throws. Install an in-memory Storage only when the global is missing.
+class MemoryStorage implements Storage {
+  private readonly items = new Map<string, string>();
+  get length(): number { return this.items.size; }
+  clear(): void { this.items.clear(); }
+  getItem(key: string): string | null { return this.items.get(key) ?? null; }
+  key(index: number): string | null { return [...this.items.keys()][index] ?? null; }
+  removeItem(key: string): void { this.items.delete(key); }
+  setItem(key: string, value: string): void { this.items.set(key, String(value)); }
+}
+
+for (const name of ['localStorage', 'sessionStorage'] as const) {
+  if (globalThis[name] === undefined) {
+    Object.defineProperty(globalThis, name, { value: new MemoryStorage(), configurable: true, writable: true });
+  }
+}
+
 beforeEach(async () => {
   await i18n.changeLanguage('zh-CN');
 });
