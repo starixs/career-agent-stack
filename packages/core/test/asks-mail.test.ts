@@ -42,7 +42,7 @@ describe('等你条 · 邮件投递', () => {
     const f = pendingMail(r, mailApp(r, '丙').id, 'followup')
     const re = pendingMail(r, mailApp(r, '丁').id, 'reply')
     const asks = buildAsks(r, NOW)
-    expect(asks.map(a => a.title).sort()).toEqual(['2 封邮件写好了', '丁 回信了', '丙 · 一周没回音'].sort())
+    expect(asks.map(a => a.title).sort()).toEqual(['2 封邮件写好了', '丁 回信了', '丙 · 再争取一下'].sort())
     expect(asks.find(a => a.id === f.id)?.mail).toEqual({ purpose: 'followup', action_ids: [f.id] })
     expect(asks.find(a => a.id === re.id)?.mail).toEqual({ purpose: 'reply', action_ids: [re.id] })
   })
@@ -78,6 +78,17 @@ describe('等你条 · 邮件投递', () => {
     asks = buildAsks(r, NOW)
     expect(asks.some(a => a.kind === 'failed')).toBe(false)
     expect(asks.find(a => a.mail)?.title).toBe('3 封邮件写好了')
+  })
+
+  it('跟进合成一件：1 封「{公司} · 再争取一下」，≥2 封「N 家可以再争取一下」，detail 写事实', () => {
+    const r = mem()
+    const one = pendingMail(r, mailApp(r, '甲').id, 'followup')
+    expect(buildAsks(r, NOW).find(a => a.mail?.purpose === 'followup')).toMatchObject({ title: '甲 · 再争取一下', detail: '投出一周没回音', mail: { purpose: 'followup', action_ids: [one.id] } })
+    const more = ['乙', '丙'].map(c => pendingMail(r, mailApp(r, c).id, 'followup').id)
+    const asks = buildAsks(r, NOW).filter(a => a.mail?.purpose === 'followup')
+    expect(asks).toHaveLength(1)
+    expect(asks[0]).toMatchObject({ kind: 'review', title: '3 家可以再争取一下', detail: '投出一周没回音', mail: { purpose: 'followup', action_ids: [one.id, ...more] } })
+    expect(asks[0].companies.map(c => c.name)).toEqual(['甲', '乙', '丙'])
   })
 
   it('退信后待重发的那封单独一件「{公司} · 邮件被退回」，mail.bounced，不并进投递那件', () => {

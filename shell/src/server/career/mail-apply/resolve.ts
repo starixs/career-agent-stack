@@ -7,11 +7,11 @@ import { emailDomain, hasVaultPlaceholder, isEmailAddress, type ActionQueueItem,
 
 import type { MailBlocker } from '../../../shared/careerMailApply';
 import { hasGap, isAvailabilityComplete, isInternJob, readMailProfile } from './compose';
-import { parseSendMailPayload, type SendMailPayload } from './payload';
+import { attachmentsOf, parseSendMailPayload, type SendMailPayload } from './payload';
 
 export interface MailResolveDeps { repos: Repos; vault: Vault | null }
 
-export interface ResolvedAttachment { path: string; filename: string; sha256?: string }
+export interface ResolvedAttachment { id: string; kind: 'resume' | 'file'; file_id?: string; path: string; filename: string; sha256?: string }
 export interface ResolvedMail {
   payload: SendMailPayload;
   account: MailAccount | null;
@@ -74,7 +74,10 @@ export function resolveMail(deps: MailResolveDeps, action: Pick<ActionQueueItem,
     cc: payload.cc?.trim() || null,
     subject: open(payload.subject),
     body: open(payload.body),
-    attachments: (payload.attachments ?? []).map(a => ({ path: a.path, filename: open(a.filename ?? a.path.split(/[\\/]/).pop() ?? '简历.pdf'), ...(a.sha256 ? { sha256: a.sha256 } : {}) })),
+    attachments: attachmentsOf(payload).map(a => ({
+      id: a.id, kind: a.kind, ...(a.file_id ? { file_id: a.file_id } : {}), path: a.path,
+      filename: open(a.filename ?? a.path.split(/[\\/]/).pop() ?? '简历.pdf'), ...(a.sha256 ? { sha256: a.sha256 } : {}),
+    })),
   };
   return { ...base, blockers: blockersOf(deps, base) };
 }

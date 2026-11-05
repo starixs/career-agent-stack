@@ -16,7 +16,28 @@ export const SendMailAttachmentSchema = z.object({
   filename: z.string().optional(),
   /** 批准时冻结的文件哈希（材料包）。 */
   sha256: z.string().optional(),
+  /** 这一个附件的 id（拿掉时用）；老数据没有，读时补上（attachmentsOf）。 */
+  id: z.string().optional(),
+  /** resume = 简历（可换一份）；file = 他存过的文件（作品集、成绩单…）。老数据没有的都是简历。 */
+  kind: z.enum(['resume', 'file']).optional(),
+  /** kind=file：存过的哪个文件（files.ts）。 */
+  file_id: z.string().optional(),
 });
+export type SendMailAttachment = z.infer<typeof SendMailAttachmentSchema>;
+export type NormalizedAttachment = SendMailAttachment & { id: string; kind: 'resume' | 'file' };
+
+/** 简历附件的固定 id（一封最多一份简历）。 */
+export const RESUME_ATTACHMENT_ID = 'resume';
+export const fileAttachmentId = (fileId: string): string => `file:${fileId}`;
+
+/** 附件补齐 id 与 kind：老数据没有的按简历读（第一个叫 resume，其余按位置），不让老动作读不出来。 */
+export function attachmentsOf(p: Pick<SendMailPayload, 'attachments'>): NormalizedAttachment[] {
+  return (p.attachments ?? []).map((a, i) => {
+    const kind = a.kind ?? 'resume';
+    const id = a.id ?? (kind === 'file' && a.file_id ? fileAttachmentId(a.file_id) : i === 0 ? RESUME_ATTACHMENT_ID : `att${i}`);
+    return { ...a, id, kind };
+  });
+}
 
 export const SendMailPayloadSchema = z.object({
   /** 从哪个邮箱发；还没连邮箱时为空串（预览里 blockers 带 no_mailbox）。 */
@@ -48,6 +69,12 @@ export const SendMailPayloadSchema = z.object({
   /** 退信后照抄的一封：被退回的收件地址（收件人还是它 → bad_recipient）与被退回的那封（mail_message id，去重用）。 */
   bounced_from: z.string().optional(),
   bounced_mail_id: z.string().optional(),
+  /** 正文里由代码拼的作品集那一行（带 / 不带按这一整行精确增删；他手改过就找不到、不动）。 */
+  portfolio_line: z.string().optional(),
+  /** 写投递邮件时模型用过的主张 id（跟进时换一条没用过的当新理由）。 */
+  claims_used: z.array(z.string()).optional(),
+  /** 这封带着他在对话里提的专门要求（mail_compose notes）：放权了也先给他看。 */
+  has_notes: z.boolean().optional(),
 }).passthrough();
 export type SendMailPayload = z.infer<typeof SendMailPayloadSchema>;
 

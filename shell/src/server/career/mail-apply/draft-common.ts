@@ -15,6 +15,11 @@ export interface DrafterDeps extends PreparePacketDeps {
   askSkill: AskSkill;
   /** 一次起草最多等多久（测试注入）；缺省 MAIL_DRAFT_TIMEOUT_MS。 */
   draftTimeoutMs?: number;
+  /**
+   * 放权后直接发出一封已批准的 send_mail（Global 里接 executeSendMailAction；测试注入假发送）。
+   * 没给就从不直接发：写好一律留在待审。
+   */
+  sendNow?: (actionId: string) => Promise<unknown>;
 }
 
 /** 一次起草最多等多久：写两段正文 DeepSeek 通常 10–20 秒，给足余量；超了算一次失败。 */

@@ -38,6 +38,15 @@ describe('extractApplyEmail：只认投递语境里的邮箱', () => {
     expect(extractApplyEmail('简历发送至 noreply@x.com')).toBeNull()
     expect(extractApplyEmail('简历投递见官网')).toBeNull()
   })
+  it('明写「发到某邮箱」才走（用户 2026-11-05）：只是联系 / 咨询 / 公司邮箱的不认', () => {
+    expect(extractApplyEmail('岗位职责：负责数据分析。\n有问题可联系 hr@x.com')).toBeNull()
+    expect(extractApplyEmail('任职要求：本科及以上。\n咨询邮箱：ask@x.com')).toBeNull()
+    expect(extractApplyEmail('公司地址：上海市。公司邮箱：info@x.com')).toBeNull()
+  })
+  it('同一份描述既有网申链接说明、又写了「或将简历发送至」：认（明写了）', () => {
+    const jd = '投递方式：请登录 https://jobs.x.com 网申投递，或将简历发送至 a@x.com，邮件标题注明姓名-岗位。'
+    expect(extractApplyEmail(jd)?.email).toBe('a@x.com')
+  })
 })
 
 describe('extractMailFormat：抽得到才给，不猜', () => {

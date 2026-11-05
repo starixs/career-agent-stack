@@ -1,7 +1,8 @@
 /**
  * 邮件投递在「等你」里的几件（face-mail-apply 2026-11-05；规范 CAREER_INTELLIGENT_UI.md §5.2）：
  *  - 写好待发的投递邮件：1 封 →「{公司} · 邮件写好了」；≥2 封合成「N 封邮件写好了」（一次过目、一键发出）。
- *  - 发出之后（阶段二）一封一件，不并进投递那件：回信「{公司} 回信了」、跟进「{公司} · 一周没回音」、
+ *  - 跟进合成一件（第三轮 R3）：1 封「{公司} · 再争取一下」、≥2 封「{N} 家可以再争取一下」，detail「投出一周没回音」。
+ *  - 发出之后另外一封一件，不并进投递那件：回信「{公司} 回信了」、
  *    退信后待重发「{公司} · 邮件被退回」（mail.bounced）。kind 都是 review，AskView.mail 只带用途和动作 id（没有邮件内容）。
  *  - 发送失败：「N 封没发出去」，授权类与其余分两件（一个动作解决不了两种：重新连邮箱 / 再发一次）；
  *    再发一次 = 放回待审让他再点发出，发送永远过人。
@@ -37,24 +38,32 @@ function mailAsk(ctx: Ctx, actions: readonly ActionQueueItem[], purpose: AskMail
 
 const companyOfAction = (ctx: Ctx, a: ActionQueueItem): string | undefined => (a.application_id ? ctx.apps.get(a.application_id)?.company.name : undefined)
 
-/** 一封一件的标题：投递「甲 · 邮件写好了」、回信「甲 回信了」、跟进「甲 · 一周没回音」、退信「甲 · 邮件被退回」。 */
+/** 一封一件的标题：投递「甲 · 邮件写好了」、回信「甲 回信了」、跟进「甲 · 再争取一下」、退信「甲 · 邮件被退回」。 */
 function oneTitle(ctx: Ctx, a: ActionQueueItem, purpose: AskMailPurpose): string {
   const company = companyOfAction(ctx, a)
   const who = company ? shortName(company) : ''
   if (isBouncedResend(a)) return who ? `${who} · 邮件被退回` : '邮件被退回'
   if (purpose === 'reply') return who ? `${who} 回信了` : '对方回信了'
-  if (purpose === 'followup') return who ? `${who} · 一周没回音` : '一周没回音'
+  if (purpose === 'followup') return who ? `${who} · 再争取一下` : '再争取一下'
   return who ? `${who} · 邮件写好了` : '邮件写好了'
 }
 
-/** 待审的 send_mail → 等你里的几件：投递邮件合成一件；退信重发、跟进、回信一封一件。 */
+/** 跟进那件写的事实（不是规则说明）。 */
+export const FOLLOWUP_DETAIL = '投出一周没回音'
+
+/**
+ * 待审的 send_mail → 等你里的几件：投递邮件合成一件；跟进也合成一件（几十份一周后会同时到期，一家一件会刷屏）；
+ * 退信重发、回信一封一件。
+ */
 export function mailReviewAsks(ctx: Ctx, pending: readonly ActionQueueItem[]): AskView[] {
   const mails = pending.filter(isMailReviewKind)
   const apply = mails.filter(a => mailPurposeOf(a) === 'apply' && !isBouncedResend(a))
+  const follow = mails.filter(a => mailPurposeOf(a) === 'followup')
   const out: AskView[] = []
   if (apply.length === 1) out.push(mailAsk(ctx, apply, 'apply', oneTitle(ctx, apply[0], 'apply')))
   if (apply.length > 1) out.push(mailAsk(ctx, apply, 'apply', `${apply.length} 封邮件写好了`))
-  for (const a of mails.filter(m => !apply.includes(m))) {
+  if (follow.length) out.push({ ...mailAsk(ctx, follow, 'followup', follow.length === 1 ? oneTitle(ctx, follow[0], 'followup') : `${follow.length} 家可以再争取一下`), detail: FOLLOWUP_DETAIL })
+  for (const a of mails.filter(m => !apply.includes(m) && !follow.includes(m))) {
     const purpose = mailPurposeOf(a)
     out.push(mailAsk(ctx, [a], purpose, oneTitle(ctx, a, purpose), isBouncedResend(a)))
   }

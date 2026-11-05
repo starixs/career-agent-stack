@@ -41,7 +41,7 @@ function mailNext(a: SuggestAsk): SuggestChip | null {
   const who = namesPhrase(a.companies, a.count);
   if (a.mail.bounced) return open(fitText(`改${who}的收件人`, '改一下收件人') ?? '改一下收件人');
   if (a.mail.purpose === 'reply') return open(fitText(`看给${who}的回信`, '看写好的回信') ?? '看写好的回信');
-  if (a.mail.purpose === 'followup') return open(fitText(`看给${who}的跟进`, '看写好的跟进') ?? '看写好的跟进');
+  if (a.mail.purpose === 'followup') return open(a.mail.count > 1 ? `看给 ${a.mail.count} 家写的跟进` : fitText(`看给${who}写的跟进`, '看写好的跟进') ?? '看写好的跟进');
   return open(a.mail.count > 1 ? `看写好的 ${a.mail.count} 封邮件` : fitText(`看写好的${who}那封邮件`, '看写好的那封邮件') ?? '看写好的那封邮件');
 }
 

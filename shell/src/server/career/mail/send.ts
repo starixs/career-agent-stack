@@ -9,6 +9,9 @@ import { basename } from 'path';
 import { emailDomain, type ActionQueueItem, type MailAccount, type Repos, type Vault } from '@career/core';
 
 import { dataChanged, focus, type IntakeDeps } from '../intake';
+import { MAIL_TOTAL_MAX_BYTES, MAIL_TRUST_KEY, MAIL_TRUST_LABEL } from '../../../shared/careerMailApply';
+import { recordSuccess } from '../trust-ledger';
+import { totalSize } from '../mail-apply/attachments-edit';
 import { resolveMail, type ResolvedMail } from '../mail-apply/resolve';
 import { fileSha256 } from '../packets';
 import { serverConfig } from '../server-api';
@@ -59,7 +62,17 @@ async function resolveOrReopen(deps: MailSendDeps, action: ActionQueueItem): Pro
   throw new Error(`这封邮件还不能发（${mail.blockers.map(b => BLOCKER_TEXT[b] ?? b).join('、')}），已放回待发`);
 }
 
-/** 附件必须是批准时冻结的那一份；对不上记失败。 */
+/** 附件加起来超过上限（对方邮箱收不下、会被退回）：不发，放回待审让他拿掉一个或换成链接。 */
+function checkTotalSize(deps: MailSendDeps, action: ActionQueueItem, mail: ResolvedMail): void {
+  const total = totalSize(mail.payload);
+  if (total <= MAIL_TOTAL_MAX_BYTES) return;
+  deps.repos.reopenAction(action.id, { error: '附件加起来超过 20MB' });
+  dataChanged(deps, ['action_queue']);
+  console.warn(`[career] mail-send BLOCKED action=${action.id} reason=too_large bytes=${total}`);
+  throw new Error('附件加起来超过 20MB，对方邮箱多半收不下，已放回待发：拿掉一个或换成链接');
+}
+
+/** 每个附件都必须是批准时冻结的那一份；对不上记失败。 */
 function checkAttachments(deps: MailSendDeps, actionId: string, mail: ResolvedMail): void {
   for (const a of mail.attachments) {
     const changedFile = !existsSync(a.path) ? '附件文件不见了' : a.sha256 && fileSha256(a.path) !== a.sha256 ? '附件内容与批准时不一致' : '';
@@ -151,6 +164,9 @@ function advanceOnApply(r: Repos, appId: string, mail: ResolvedMail, mailId: str
     r.jumpTo(appId, 'applied', mail.payload.bounced_from ? '退信后重发的投递邮件已发送' : '邮件投递已发送', { submission_evidence: `mail:${mailId}` });
     tables.push('application', 'application_history');
   }
+  // 信任账本：「邮件投递」这一类又做通了一封；做通两封后右栏 / 勾选表提议「以后直接发？」（他点了才放）
+  recordSuccess(r, { key: MAIL_TRUST_KEY, label: MAIL_TRUST_LABEL, kind: 'system' });
+  tables.push('kv');
   if (mail.payload.bounced_from && mail.payload.job_id) {
     r.db.update('job', mail.payload.job_id, { apply_email: mail.to, updated_at: new Date().toISOString() });
     tables.push('job');
@@ -190,6 +206,7 @@ export async function executeSendMailAction(deps: MailSendDeps, action: ActionQu
   if (action.status !== 'approved') throw new Error(`动作 ${action.id} 尚未批准（${action.status}），不能发送`);
   const mail = await resolveOrReopen(deps, action);
   if (alreadySentApply(deps, action, mail.payload)) return { skipped: 'already_sent', application_id: mail.payload.application_id ?? action.application_id ?? null };
+  checkTotalSize(deps, action, mail);
   const creds = credentialsOf(deps, action.id, mail.account);
   claimOrThrow(deps, action.id);
   checkAttachments(deps, action.id, mail);

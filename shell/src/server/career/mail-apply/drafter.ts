@@ -11,8 +11,12 @@ import { extractMailFormat, type ActionQueueItem, type Job } from '@career/core'
 import { z } from 'zod';
 
 import { preparePacketForAction } from '../packet-prepare';
-import { arrivalLine, assembleBody, chooseAttachmentName, defaultSubject, isInternJob, NAME_TOKEN, readMailProfile, signature, type MailProfile } from './compose';
-import { DraftMailPayloadSchema, FollowDraftPayloadSchema, payloadObject, type DraftMailPayload, type SendMailPayload } from './payload';
+import { addLine, arrivalLine, assembleBody, chooseAttachmentName, defaultSubject, isInternJob, NAME_TOKEN, readMailProfile, signature, type MailProfile } from './compose';
+import { sizeOnDisk } from './attachments-edit';
+import { maybeSendNow } from './auto-send';
+import { mailDefaults } from './defaults';
+import { listMailFiles } from './files';
+import { DraftMailPayloadSchema, fileAttachmentId, FollowDraftPayloadSchema, payloadObject, RESUME_ATTACHMENT_ID, type DraftMailPayload, type SendMailPayload } from './payload';
 import { askWithRetry, existingSendOf, failDraft, finishDraft, type DraftOutcome, type DrafterDeps } from './draft-common';
 import { draftFollowMail } from './follow-drafter';
 
@@ -25,8 +29,10 @@ const JD_PROMPT_MAX_CHARS = 6000;
 const DerivativesOut = z.object({
   email: z.object({ subject: z.string().catch(''), body: z.string().catch('') }).catch({ subject: '', body: '' }),
   attachment_name: z.string().catch(''),
+  /** 用过的主张（跟进时换一条没用过的）；坏了当没有。 */
+  matches_used: z.array(z.object({ claim_id: z.string().catch('') }).passthrough()).catch([]),
 }).passthrough();
-type Written = { subject: string; body: string; attachment_name: string };
+type Written = { subject: string; body: string; attachment_name: string; claims_used: string[] };
 
 
 /** jd_parsed_json 里与邮件有关的两项（jd-parse 技能输出；坏了当没有）。 */
@@ -59,7 +65,8 @@ function promptOf(deps: DrafterDeps, job: Job, profile: MailProfile, format: Mai
 
 function parseWritten(raw: unknown): Written | null {
   const out = DerivativesOut.parse(raw);
-  return out.email.body.trim() ? { subject: out.email.subject.trim(), body: out.email.body, attachment_name: out.attachment_name } : null;
+  const claims = [...new Set(out.matches_used.map(m => m.claim_id.trim()).filter(Boolean))];
+  return out.email.body.trim() ? { subject: out.email.subject.trim(), body: out.email.body, attachment_name: out.attachment_name, claims_used: claims } : null;
 }
 
 
@@ -72,13 +79,19 @@ function sendPayloadOf(deps: DrafterDeps, action: ActionQueueItem, p: DraftMailP
   const subjectAuto = !format.subject_format || !written.subject;
   const packet = deps.repos.getPacket(packetId);
   const filename = chooseAttachmentName(written.attachment_name, format.attachment_format, profile, job.title);
+  const resume = packet?.resume_pdf_path ? [{ id: RESUME_ATTACHMENT_ID, kind: 'resume' as const, path: packet.resume_pdf_path, filename, ...(packet.resume_pdf_sha256 ? { sha256: packet.resume_pdf_sha256 } : {}) }] : [];
+  // 岗位描述要作品集 / 成绩单：资料里有链接就带那一行，存过的对应文件默认附上（compose / defaults 纯规则）
+  const extra = mailDefaults({ jd: job.jd_raw, portfolioUrl: profile.portfolio, files: listMailFiles(deps.repos), usedBytes: resume.reduce((n, a) => n + sizeOnDisk(a.path), 0) });
+  const files = extra.files.map(f => ({ id: fileAttachmentId(f.id), kind: 'file' as const, file_id: f.id, path: f.path, filename: f.filename, sha256: f.sha256 }));
+  const body = assembleBody(written.body, arrival, signature(profile));
   return {
     account_id: deps.repos.listMailAccounts()[0]?.id ?? '',
     to: p.to, subject: subjectAuto ? defaultSubject(job.title, intern, profile, availability) : written.subject,
-    body: assembleBody(written.body, arrival, signature(profile)),
-    attachments: packet?.resume_pdf_path ? [{ path: packet.resume_pdf_path, filename, ...(packet.resume_pdf_sha256 ? { sha256: packet.resume_pdf_sha256 } : {}) }] : [],
+    body: extra.portfolioLine ? addLine(body, extra.portfolioLine, arrival) : body,
+    attachments: [...resume, ...files],
     application_id: p.application_id, job_id: p.job_id, context: '邮件',
     purpose: 'apply', packet_id: packetId, subject_auto: subjectAuto, arrival_line: arrival, draft_action_id: action.id,
+    ...(extra.portfolioLine ? { portfolio_line: extra.portfolioLine } : {}), claims_used: written.claims_used, ...(p.notes?.trim() ? { has_notes: true } : {}),
   };
 }
 
@@ -109,6 +122,8 @@ export async function draftMailForAction(deps: DrafterDeps, action: ActionQueueI
     return failDraft(deps, action, '邮件没写成，再试一次', error instanceof Error ? error.message : String(error));
   }
   const send = finishDraft(deps.repos, action, sendPayloadOf(deps, action, parsed.data, job, packet.packetId, written, format), parsed.data.application_id);
+  // 放权了且不差东西：直接发出（send-policy.ts）；否则留在待审给他看
+  await maybeSendNow(deps, send);
   console.log(`[career] mail-apply drafted action=${action.id} app=${parsed.data.application_id} send=${send.id} subject_auto=${!format.subject_format}`);
   return 'drafted';
 }

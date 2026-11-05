@@ -1,14 +1,14 @@
 /**
  * campus-radar 桥接：读取 modules/campus-radar/jobs.json（校招/实习信息，静态数据）。
  * 字段：company 公司 / cohort 届别 / batch 批次 / program 项目名 / industry 行业 / positions 岗位 /
- *       locations 地点 / apply_url 网申链接 / official_wechat 官方公众号 / qr_image 二维码 /
+ *       locations 地点 / apply_url 网申链接 / apply_email 投递邮箱（可选） / official_wechat 官方公众号 / qr_image 二维码 /
  *       deadline 截止日期 / campus_only 是否仅限校招 / first_seen、last_seen 首次/最后收录 / confirmed_by 确认人数
  */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
-import { inferEmploymentType, normalizeCohort, serializeBoardMeta, type EmploymentType, type Repos, type Job } from '@career/core'
+import { inferEmploymentType, isEmailAddress, normalizeCohort, serializeBoardMeta, type EmploymentType, type Repos, type Job } from '@career/core'
 import { moduleDir } from './common.js'
 
 export const CampusJobSchema = z.object({
@@ -20,6 +20,8 @@ export const CampusJobSchema = z.object({
   positions: z.array(z.string()).default([]),
   locations: z.array(z.string()).default([]),
   apply_url: z.string().nullish(),
+  /** 投递邮箱：只收邮件投递的条目（2026-11-05 起岗位库收「有网申链接或有投递邮箱」的）。 */
+  apply_email: z.string().nullish(),
   official_wechat: z.string().nullish(),
   qr_image: z.string().nullish(),
   deadline: z.string().nullish(),
@@ -73,6 +75,8 @@ export interface CampusFilter {
   campusOnly?: boolean
   /** 只留有网申链接（apply_url 非空）的条目；默认 false（不改变老调用方的行为）。 */
   requireApplyUrl?: boolean
+  /** 只留写明怎么投的条目：有网申链接或有合法投递邮箱（2026-11-05 岗位库放开到邮件投递）；默认 false。 */
+  requireApplyWay?: boolean
   /** 测试用：固定"今天"（YYYY-MM-DD）。 */
   today?: string
 }
@@ -80,6 +84,16 @@ export interface CampusFilter {
 /** 有可投的网申链接（去掉首尾空白后非空）。 */
 export function hasApplyUrl(j: Pick<CampusJob, 'apply_url'>): boolean {
   return !!j.apply_url?.trim()
+}
+
+/** 合法的投递邮箱（去空白后是邮箱）。 */
+export function hasApplyEmail(j: Pick<CampusJob, 'apply_email'>): boolean {
+  return !!j.apply_email && isEmailAddress(j.apply_email.trim())
+}
+
+/** 写明了怎么投：有网申链接，或有投递邮箱。 */
+export function hasApplyWay(j: Pick<CampusJob, 'apply_url' | 'apply_email'>): boolean {
+  return hasApplyUrl(j) || hasApplyEmail(j)
 }
 
 const dayMs = 86_400_000
@@ -95,6 +109,7 @@ export function filterCampusJobs(items: CampusJob[], f: CampusFilter = {}): Camp
     if (f.batch && (j.batch ?? '') !== f.batch) return false
     if (f.campusOnly !== undefined && !!j.campus_only !== f.campusOnly) return false
     if (f.requireApplyUrl && !hasApplyUrl(j)) return false
+    if (f.requireApplyWay && !hasApplyWay(j)) return false
     if (f.location && !j.locations.some(l => l.includes(f.location!))) return false
     if (kw) {
       const hay = [j.company, j.program, j.industry, j.cohort, j.batch, ...j.positions, ...j.locations].filter(Boolean).join(' ').toLowerCase()
@@ -126,10 +141,11 @@ export function campusEmploymentType(j: CampusJob): EmploymentType {
 }
 
 export function mapCampusJob(j: CampusJob): Parameters<Repos['upsertJob']>[0] {
+  const email = hasApplyEmail(j) ? (j.apply_email ?? '').trim() : null
   const lines = [
     `公司：${j.company}`, j.industry ? `行业：${j.industry}` : null, j.cohort ? `届别：${j.cohort}` : null, j.batch ? `批次：${j.batch}` : null,
     j.program ? `项目：${j.program}` : null, j.positions.length ? `岗位：${j.positions.join('、')}` : null, j.locations.length ? `地点：${j.locations.join('、')}` : null,
-    j.apply_url ? `网申链接：${j.apply_url}` : null, j.official_wechat ? `官方公众号：${j.official_wechat}` : null, j.qr_image ? `二维码：${j.qr_image}` : null,
+    j.apply_url ? `网申链接：${j.apply_url}` : null, email ? `投递邮箱：${email}` : null, j.official_wechat ? `官方公众号：${j.official_wechat}` : null, j.qr_image ? `二维码：${j.qr_image}` : null,
     j.deadline ? `截止日期：${j.deadline}（未核验）` : '截止日期：未知', j.campus_only != null ? `仅限校招：${j.campus_only ? '是' : '否'}` : null,
     j.first_seen ? `收录：${j.first_seen} ~ ${j.last_seen ?? j.first_seen}，确认人数 ${j.confirmed_by ?? 0}` : null,
   ].filter((s): s is string => !!s)
@@ -138,7 +154,9 @@ export function mapCampusJob(j: CampusJob): Parameters<Repos['upsertJob']>[0] {
     source_job_id: campusJobId(j),
     employment_type: campusEmploymentType(j),
     cohort: normalizeCohort(j.cohort),
-    url: j.apply_url ?? null,
+    url: j.apply_url?.trim() || null,
+    // 只收邮件投递的条目：投递邮箱直接写进岗位（走邮件通道）；没有就交给 upsertJob 按 JD 原文认
+    ...(email ? { apply_email: email } : {}),
     company_name: j.company,
     title: campusJobTitle(j),
     location: j.locations.length ? j.locations.join('/') : null,

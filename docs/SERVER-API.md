@@ -46,6 +46,7 @@
       "source_platform": "moka",
       "source_job_id": "12345",
       "url": "https://app.mokahr.com/…",
+      "apply_email": null,
       "company_name": "某公司",
       "title": "数据分析实习生",
       "location": "上海/北京",
@@ -68,6 +69,8 @@
 - `employment_type` 取值 `campus | intern | social | unknown`；`cohort` 统一写成 `20xx届`。
 - `deadline_verified_at`：截止日期在官方页面核对过的时间；没核对过给 `null`（客户端会标"未核实"）。
 - 客户端按 `updated_since` 增量拉取（记录上次同步时间），最多翻 20 页。
+- `apply_email`（可选，字符串或 `null`）：岗位描述明写「简历发送至 xx@xx.com」的投递邮箱。只在原文明确写了投递邮箱时给；「联系我们」「咨询邮箱」「公司邮箱」这类不是投递邮箱，不要填。客户端收到合法邮箱就把岗位走邮件投递；没给时客户端会按 `jd_raw` 再认一次。
+- 入库条件（2026-11-05 起）：写明了怎么投——有网申链接 `url`，**或**有投递邮箱（`apply_email`，或 `jd_raw` 里明写了投递邮箱）。只有投递邮箱、没有 `url` 的条目照常下发，`url` 给 `null`；`job_key` 按上面的规则（这类条目多半走「有原站岗位号」或 `hash:`），不依赖 `url`。两样都没有的条目客户端岗位库不显示（已有投递的照常显示）。
 
 ## POST /v1/answer-events
 

@@ -6,7 +6,22 @@
  *
  * 明文边界：整封邮件（收件人、标题、正文、附件名）只经 /api/career/mail-apply/* 给渲染层，
  * 不进 AskView、不进对话卡片数据、不进模型上下文、不进日志。AskView 上只带 AskMail（没有邮件内容）。
+ *
+ * 发前过目是默认；放权和网申同一套（用户 2026-11-05「默认看预览确认，想全自动也要支持，跟网申一样」）：
+ * 「自动投递」总开关开着，或「邮件投递」这一类他盖过章（信任账本 MAIL_TRUST_KEY），写好且不差东西的**投递邮件**直接发出。
+ * 目标岗位、跟进、回信、退信重发永远先给他看。
  */
+
+/** 信任账本里「邮件投递」这一类（和一种网申系统并列：做通两封后提议「以后直接发」，他点了才放）。 */
+export const MAIL_TRUST_KEY = 'channel:mail';
+export const MAIL_TRUST_LABEL = '邮件投递';
+
+/** 单个附件最大多少字节：作品集 PDF 常见几 MB，10MB 以上多半该给链接。 */
+export const MAIL_FILE_MAX_BYTES = 10 * 1024 * 1024;
+/** 一封邮件全部附件加起来最大多少字节：不少企业邮箱收件上限在 20–25MB，超了会被直接退回。 */
+export const MAIL_TOTAL_MAX_BYTES = 20 * 1024 * 1024;
+/** 能当附件的文件类型（按扩展名）。 */
+export const MAIL_FILE_EXTENSIONS = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'png', 'jpg', 'jpeg', 'zip'] as const;
 
 /** 这封邮件是干什么的：投递、没回音的跟进、回 HR 的信。 */
 export type MailPurpose = 'apply' | 'followup' | 'reply';
@@ -58,14 +73,28 @@ export const INTERN_MONTHS_OPTIONS = ['3', '4', '6'] as const;
 export const INTERN_START_OPTIONS = ['随时', '一周内', '两周内', '下个月'] as const;
 
 export interface MailAttachmentView {
+  /** 这一个附件的 id（拿掉时用）。 */
+  id: string;
+  /** resume = 简历（可换一份）；file = 他存过的别的文件（作品集、成绩单…，可拿掉）。 */
+  kind: 'resume' | 'file';
   /** 对方收到的文件名。 */
   filename: string;
   resume_id: string | null;
-  /** 给他看的简历名（「产品方向主简历」）。 */
+  /** 给他看的名字：简历是简历名（「产品方向主简历」），文件是他存的名字（「作品集」）。 */
   resume_label: string;
-  /** 按这个岗位改了几处；null = 用的主简历，没定制。 */
+  /** 按这个岗位改了几处；null = 用的主简历或不是简历。 */
   tailored_changes: number | null;
 }
+
+/** 他存过、能当附件的一个文件（作品集、成绩单、证书…）。存一次，以后每封都能点一下附上。 */
+export interface MailFileOption {
+  id: string;
+  label: string;
+}
+
+/** 岗位描述里要、而这封还没带上的东西：预览里用一个可点的小签提示加上，不拦发出。 */
+export type MailWanted = 'portfolio' | 'transcript';
+export const MAIL_WANTED: readonly MailWanted[] = ['portfolio', 'transcript'];
 
 /** 一封待发邮件的完整预览（明文，只走专用接口）。 */
 export interface MailDraftView {
@@ -88,6 +117,12 @@ export interface MailDraftView {
   attachments: MailAttachmentView[];
   /** 可换的简历（这个岗位的定制版 + 各份主简历）。 */
   resume_options: Array<{ id: string; label: string }>;
+  /** 存过的文件里这封还没附上的（点一下附上）。 */
+  file_options: MailFileOption[];
+  /** 作品集链接：url 为 null = 资料里还没有；included = 正文里带着「作品集：…」这一行。 */
+  portfolio: { url: string | null; included: boolean };
+  /** 岗位描述里要、这封还没带上的。 */
+  wanted: MailWanted[];
   blockers: MailBlocker[];
   /** 只有实习岗位的投递邮件才有；其余为 null（不问）。 */
   availability: InternAvailability | null;
@@ -141,6 +176,25 @@ export interface MailDraftPatch {
   /** 换一份简历当附件（重新冻结）。 */
   resume_id?: string;
   account_id?: string;
+  /** 附上一个存过的文件。 */
+  add_file_id?: string;
+  /** 拿掉一个附件（简历也能拿掉；回信默认就没有）。 */
+  remove_attachment_id?: string;
+  /** 正文里带不带作品集链接那一行。 */
+  include_portfolio?: boolean;
+  /** 填 / 改作品集链接：存进基本资料（以后每封都用它），并带进这封。 */
+  portfolio_url?: string;
+}
+
+/** POST /api/career/mail-apply/files ← 存一个文件；带 action_id 时顺手附到那封上。→ { file, draft } */
+export interface MailFileUpload {
+  /** 原文件名（带扩展名）。 */
+  name: string;
+  /** 文件内容 base64（不带 data: 前缀）。 */
+  base64: string;
+  /** 给他看的名字，如「作品集」；不给就用文件名去掉扩展名。 */
+  label?: string;
+  action_id?: string;
 }
 
 /**
@@ -154,6 +208,7 @@ export const MAIL_APPLY_API = {
   drafts: '/api/career/mail-apply/drafts',
   draft: (actionId: string) => `/api/career/mail-apply/drafts/${encodeURIComponent(actionId)}`,
   availability: '/api/career/mail-apply/availability',
+  files: '/api/career/mail-apply/files',
   thread: (applicationId: string) => `/api/career/mail-apply/thread?application_id=${encodeURIComponent(applicationId)}`,
 } as const;
 
@@ -185,7 +240,10 @@ export function isMailThreadView(v: unknown): v is MailThreadView {
 
 const isAccount = (v: unknown): v is { account_id: string; address: string } => isDict(v) && isStr(v.account_id) && isStr(v.address);
 const isAttachment = (v: unknown): v is MailAttachmentView =>
-  isDict(v) && isStr(v.filename) && strOrNull(v.resume_id) && isStr(v.resume_label) && (v.tailored_changes === null || typeof v.tailored_changes === 'number');
+  isDict(v) && isStr(v.id) && (v.kind === 'resume' || v.kind === 'file') && isStr(v.filename) && strOrNull(v.resume_id) && isStr(v.resume_label)
+  && (v.tailored_changes === null || typeof v.tailored_changes === 'number');
+export const isMailFileOption = (v: unknown): v is MailFileOption => isDict(v) && isStr(v.id) && isStr(v.label);
+const isPortfolio = (v: unknown): v is MailDraftView['portfolio'] => isDict(v) && strOrNull(v.url) && typeof v.included === 'boolean';
 const isAvailability = (v: unknown): v is InternAvailability => isDict(v) && strOrNull(v.days_per_week) && strOrNull(v.months) && strOrNull(v.start);
 
 /** 跨边界校验：形状不对就不是一封能给人看的邮件。 */
@@ -196,6 +254,8 @@ export function isMailDraftView(v: unknown): v is MailDraftView {
     && (v.from === null || isAccount(v.from)) && Array.isArray(v.accounts) && v.accounts.every(isAccount)
     && Array.isArray(v.attachments) && v.attachments.every(isAttachment)
     && Array.isArray(v.resume_options) && v.resume_options.every(o => isDict(o) && isStr(o.id) && isStr(o.label))
+    && Array.isArray(v.file_options) && v.file_options.every(isMailFileOption) && isPortfolio(v.portfolio)
+    && Array.isArray(v.wanted) && v.wanted.every(w => isStr(w) && (MAIL_WANTED as readonly string[]).includes(w))
     && Array.isArray(v.blockers) && v.blockers.every(b => isStr(b) && (MAIL_BLOCKERS as readonly string[]).includes(b))
     && (v.availability === null || isAvailability(v.availability))
     && (v.thread === null || (isDict(v.thread) && isStr(v.thread.subject) && isStr(v.thread.sent_at)))

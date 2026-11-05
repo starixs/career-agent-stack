@@ -104,7 +104,11 @@ describe('下一步条', () => {
     expect(by(reply, 'next')).toMatchObject({ text: '看给甲科技的回信', action: { type: 'open_deck', ask_id: 'ask-re' } });
     const bounced = await buildSuggestions(state({ asks: [ask({ id: 'ask-b', kind: 'review', title: '乙 · 邮件被退回', companies: ['乙数据'], mail: { purpose: 'apply', count: 1, bounced: true } })] }), {}, null);
     expect(by(bounced, 'next')).toMatchObject({ text: '改乙数据的收件人', action: { type: 'open_deck', ask_id: 'ask-b' } });
-    for (const chips of [many, one, reply, bounced]) expect(chips.some(c => c.action?.type === 'ask_primary')).toBe(false);
+    const follow = await buildSuggestions(state({ asks: [ask({ id: 'ask-fu', kind: 'review', title: '3 家可以再争取一下', count: 3, mail: { purpose: 'followup', count: 3, bounced: false } })] }), {}, null);
+    expect(by(follow, 'next')).toMatchObject({ text: '看给 3 家写的跟进', action: { type: 'open_deck', ask_id: 'ask-fu' } });
+    const followOne = await buildSuggestions(state({ asks: [ask({ id: 'ask-f1', kind: 'review', title: '丙 · 再争取一下', companies: ['丙智能'], mail: { purpose: 'followup', count: 1, bounced: false } })] }), {}, null);
+    expect(by(followOne, 'next')).toMatchObject({ text: '看给丙智能写的跟进', action: { type: 'open_deck', ask_id: 'ask-f1' } });
+    for (const chips of [many, one, reply, bounced, follow, followOne]) expect(chips.some(c => c.action?.type === 'ask_primary')).toBe(false);
   });
 
   it('邮件没发出去：打开卡组（再发也要他点）；没写成：再写一次', async () => {

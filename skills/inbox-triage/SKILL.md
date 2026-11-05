@@ -17,7 +17,7 @@ triggers: 收件箱,归档,这是什么邮件,帮我看看这封邮件,面试邀
 4. 给动作：按类型输出 actions，每条动作都要能直接落库——jd 建岗位；application_received 建投递（已投递）；interview_invite 建面试记录加面试时间事件；assessment / written_test 建截止事件；rejection 关闭投递；offer 建 Offer 加回复截止事件；referral 建内推过期事件；deadline 建截止事件。
 5. 标紧急度：24 小时内到期标 urgent，3 天内标 soon，其余 normal。
 6. 邮件场景额外判定 relevance：是否与求职有关；广告、订阅、验证码一律 ignored。
-7. 判定 needs_reply：这封信是否在等求职者回话（问到岗时间、要补材料、问是否仍有意向、让回复确认……）为 true；只是告知、拒信、系统通知、自动回复为 false。
+7. 判定 needs_reply：对方是一个人、在向求职者要一个答复或材料（问到岗时间、要补材料、问是否仍有意向、让回复确认……）才是 true；系统通知、群发、只是告知、拒信、自动回复都是 false。
 
 # 输出
 ```json

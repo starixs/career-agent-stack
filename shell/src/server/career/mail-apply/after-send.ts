@@ -10,7 +10,7 @@
 import type { ActionQueueItem, MailAccount, MailMessage, Repos } from '@career/core';
 
 import { dataChanged, type IntakeDeps, type TriageResult } from '../intake';
-import { isBounce, locateBounced } from '../mail/reply-link';
+import { isBounce, isNotificationMail, locateBounced } from '../mail/reply-link';
 import type { FetchedMail } from '../mail/sync';
 import { cancelPendingFollowUps } from './followup';
 import { parseSendMailPayload } from './payload';
@@ -81,10 +81,14 @@ export function enqueueReplyDraft(repos: Repos, input: { application_id: string;
   return action;
 }
 
-/** 认回的回音（非自动回复）落库后：撤回挂着的跟进 / 回信；对方在等回话就排一封回信。 */
+/**
+ * 认回的回音（非自动回复）落库后：撤回挂着的跟进 / 回信；对方（一个人）在等回话就排一封回信。
+ * 通知型来信（noreply、招聘系统代发、「请勿回复」）规则先挡：哪怕模型判了要回也不起草（第三轮 R4）。
+ */
 export function afterLinkedReply(deps: IntakeDeps, applicationId: string, row: MailMessage, triage: TriageResult | null): void {
   const cancelled = cancelPendingFollowUps(deps.repos, applicationId, '对方回信了');
-  const wantsReply = triage?.needs_reply === true && !OWN_ASK_KINDS.has(String(triage.kind ?? ''));
+  const notification = isNotificationMail({ from: row.from_addr, text: row.body_text });
+  const wantsReply = !notification && triage?.needs_reply === true && !OWN_ASK_KINDS.has(String(triage.kind ?? ''));
   const queued = wantsReply ? enqueueReplyDraft(deps.repos, { application_id: applicationId, mail: row }) : null;
   if (cancelled.length || (queued && typeof queued !== 'string')) dataChanged(deps, ['action_queue']);
 }

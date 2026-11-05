@@ -10,6 +10,9 @@
  *  ③ 第 3 天丙自动回复 → 归为确认信、阶段不动、不调模型。拨到第 8 天扫一次 → 只有丙出跟进草稿（甲有回音、乙重发不满 7 天）；
  *     再扫不重复；点「不跟了」→ 以后再扫也不出。
  *  ④ 另起一份丁：跟进草稿待审时丁来了回信 → 那封跟进被系统作废。
+ *  ⑤ 甲同域名另一个地址发来面试安排 → 挂回甲、到面试、有期限；
+ *  ⑥ noreply@mokahr.com「【丙智能】笔试通知」→ 挂到丙、归为笔试、有期限与等你那件、往来带种类、不起草回信；
+ *  ⑦ 公共邮箱域名的陌生人来信 → 不因域名挂到任何申请。
  */
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
@@ -185,7 +188,7 @@ describe('链路 · 邮件投递（发出之后）', () => {
     f.llm.push(req => { expect(req.messages[0].content).toContain('模式：跟进'); return JSON.stringify({ body: '您好！上周我投递了贵司产品实习生岗位，做过三次竞品调研，想了解一下目前的进展。' }); });
     await drain();
     const followAsk = asksFor(f.repos).find(a => a.mail?.purpose === 'followup')!;
-    expect(followAsk).toMatchObject({ title: '丙智能 · 一周没回音', application_ids: [bing.id] });
+    expect(followAsk).toMatchObject({ title: '丙智能 · 再争取一下', detail: '投出一周没回音', application_ids: [bing.id] });
     const follow = await preview(followAsk.mail!.action_ids[0]);
     expect(follow).toMatchObject({ purpose: 'followup', to: 'hr@bing.com', blockers: [], incoming: null });
     expect(follow.subject.startsWith('Re: 应聘【产品实习生】')).toBe(true);
@@ -215,10 +218,43 @@ describe('链路 · 邮件投递（发出之后）', () => {
     await drain();
     const pendingFollow = pendingFor('丁网络');
     expect(pendingFollow).toHaveLength(1);
+    // 乙（第 30 天那封）和丁的跟进合成一件（第三轮 R3：几十份同时到期不刷屏）
+    const merged = asksFor(f.repos).filter(a => a.mail?.purpose === 'followup');
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ title: '2 家可以再争取一下', detail: '投出一周没回音' });
+    expect(merged[0].application_ids.sort()).toEqual([yi.id, ding.id].sort());
     f.llm.push(JSON.stringify({ kind: 'other', relevance: 'job', needs_reply: false, fields: { company: '丁网络' }, summary: '简历已转给业务部门' }));
     await receive({ from: 'hr@ding.com', subject: '简历已转给业务部门', text: '同学你好，简历已转给业务部门，有消息会通知你。' });
     expect(f.repos.getAction(pendingFollow[0].id)).toMatchObject({ status: 'rejected' });
     expect(JSON.parse(f.repos.getAction(pendingFollow[0].id)!.result_json!)).toMatchObject({ by: 'system' });
     expect(asksFor(f.repos).some(a => a.mail?.purpose === 'followup' && a.application_ids.includes(ding.id))).toBe(false);
+
+    // ⑤ 同公司另一个地址（同域名、另起主题、没有 In-Reply-To）发来面试安排 → 挂回甲、到面试、有期限
+    day(40);
+    const interviewAt = new Date(T0 + 45 * DAY).toISOString();
+    f.llm.push(JSON.stringify({ kind: 'interview_invite', relevance: 'job', needs_reply: false, fields: { company: '甲科技', title: '产品实习生', when: interviewAt }, summary: '一面安排' }));
+    await receive({ from: '业务面试官 <interview@jia.com>', subject: '面试安排', text: '同学你好，邀请你参加一面，时间见下。' });
+    const interviewMail = f.repos.listMailMessages({ direction: 'in' }).find(m => m.subject === '面试安排')!;
+    expect(interviewMail).toMatchObject({ application_id: jia.id, kind: 'interview_invite' });
+    expect(f.repos.getApplication(jia.id)!.stage).toBe('interview');
+    expect(f.repos.listDeadlines({ application_id: jia.id }).some(d => d.kind === 'interview')).toBe(true);
+
+    // ⑥ 招聘系统代发（noreply@mokahr.com）「【丙智能】笔试通知」→ 按公司挂到丙、归为笔试、建期限、等你条有那件、往来带种类；不起草回信
+    const testDue = new Date(T0 + 43 * DAY).toISOString();
+    f.llm.push(JSON.stringify({ kind: 'written_test', relevance: 'job', needs_reply: true, fields: { company: '丙智能', title: '产品实习生', due_at: testDue }, summary: '丙智能笔试' }));
+    await receive({ from: '丙智能校园招聘 <noreply@mokahr.com>', subject: '【丙智能】笔试通知', text: '请于截止前完成在线笔试。此邮件由系统自动发送，请勿回复。' });
+    const testMail = f.repos.listMailMessages({ direction: 'in' }).find(m => m.subject === '【丙智能】笔试通知')!;
+    expect(testMail).toMatchObject({ application_id: bing.id, kind: 'written_test' });
+    expect(f.repos.listDeadlines({ application_id: bing.id }).some(d => d.kind === 'written_test')).toBe(true);
+    expect(asksFor(f.repos).some(a => a.application_ids.includes(bing.id) && a.kind === 'deadline')).toBe(true);
+    const bingItems = (await route('GET', `/api/career/mail-apply/thread?application_id=${bing.id}`)).thread;
+    expect(isMailThreadView(bingItems) && bingItems.items.find(i => i.subject === '【丙智能】笔试通知')?.kind).toBe('written_test');
+    expect(f.repos.listActions().some(a => a.kind === 'draft_mail' && a.application_id === bing.id && JSON.parse(a.payload_json).purpose === 'reply')).toBe(false);
+
+    // ⑦ 公共邮箱域名、和任何已发收件人都不同的人发来不相干的信 → 不会因为域名被挂到任何申请
+    const llmCalls = f.llm.calls.length;
+    await receive({ from: '张同学 <zhang@qq.com>', subject: '周末一起吃饭吗', text: '好久不见，周末有空吗？' });
+    expect(f.repos.listMailMessages({ direction: 'in' }).find(m => m.subject === '周末一起吃饭吗')?.application_id ?? null).toBeNull();
+    expect(f.llm.calls.length).toBe(llmCalls);
   });
 });

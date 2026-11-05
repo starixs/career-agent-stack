@@ -6,7 +6,7 @@
 import { mailPurposeOf, type MailMessage } from '@career/core';
 
 import type { MailThreadItem, MailThreadView } from '../../../shared/careerMailApply';
-import { bareAddress } from '../mail/reply-link';
+import { bareAddress, isBounce } from '../mail/reply-link';
 import { parseSendMailPayload } from './payload';
 import { resolveMail } from './resolve';
 import { isPendingDraft, type MailViewDeps } from './view';
@@ -24,6 +24,9 @@ function sentAttachments(deps: MailViewDeps, m: MailMessage): string[] {
   return (p.attachments ?? []).map(a => open(deps, a.filename ?? a.path.split(/[\\/]/).pop() ?? ''));
 }
 
+/** 来信的种类：退信通知统一叫 bounced（前端显示「被退回」；只在视图层，不改落库的 kind）。 */
+const inKind = (m: MailMessage): string | null => (isBounce({ from: m.from_addr, subject: m.subject }) ? 'bounced' : m.kind);
+
 function mailItem(deps: MailViewDeps, m: MailMessage): MailThreadItem {
   const out = m.direction === 'out';
   const action = out && m.action_id ? deps.repos.getAction(m.action_id) : undefined;
@@ -31,7 +34,7 @@ function mailItem(deps: MailViewDeps, m: MailMessage): MailThreadItem {
     id: m.id, direction: m.direction, purpose: out ? (action ? mailPurposeOf(action) : 'apply') : null,
     counterpart: out ? (m.to_addr ?? '') : (bareAddress(m.from_addr) ?? m.from_addr ?? ''),
     subject: m.subject ?? '', body: m.body_text ?? m.snippet ?? '',
-    attachments: out ? sentAttachments(deps, m) : [], at: m.received_at ?? m.created_at, action_id: null, kind: out ? null : m.kind,
+    attachments: out ? sentAttachments(deps, m) : [], at: m.received_at ?? m.created_at, action_id: null, kind: out ? null : inKind(m),
   };
 }
 

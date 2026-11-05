@@ -12,6 +12,7 @@ import { getMailPassword } from './credentials';
 import { isExpired, recordMailFailure, recordMailSuccess } from './health';
 import { afterLinkedReply, handleBounceMail } from '../mail-apply/after-send';
 import { linkReply } from './reply-link';
+import { ATS_SENDER_RX } from './senders';
 import { autoReplyTriage, classifyByRules, isAutoReply } from './rules';
 import { recordTakeover } from './takeover';
 import { extractCode } from '../phone/sms-code';
@@ -37,6 +38,9 @@ export interface FetchedMail { uid: number; message_id: string | null; in_reply_
 export interface MailSyncResult {
   account_id: string; fetched: number; stored: number; job_related: number; ignored: number;
   archived: Array<{ mail_id: string; inbox_item_id: string; kind: string | null; summary: string }>;
+  /** 认回到我们发出的信上的封数（回复关系 / 发件人 / 同公司域名）与这一轮各种归类的封数（日志锚点用，只有计数）。 */
+  linked?: number;
+  kinds?: Record<string, number>;
   /** 历史导入：规则直接收下的、调了模型的、认不出留着没动的。 */
   /** 历史导入：规则直接收下的、调了模型的、认不出留着没动的，以及接管到的申请（接管简报用）。 */
   history?: { by_rules: number; by_model: number; unclassified: number; application_ids: string[] };
@@ -45,7 +49,9 @@ export interface MailSyncResult {
 
 /** 求职相关的粗筛：主题 / 正文 / 发件人命中任一规则才调模型，广告与验证码不进模型。 */
 const JOB_RE = /面试|笔试|测评|offer|录用|应聘|投递|简历|招聘|校招|秋招|春招|实习|人才|三方|签约|内推|hr|人力|interview|assessment|recruit|career|hiring|application|candidate|job/i;
-const SENDER_RE = /mokahr|beisen|moka|zhaopin|51job|liepin|nowcoder|yingjiesheng|zhipin|lagou|hr@|hr-|talent|campus|recruit|careers|jobs|hire|workday|greenhouse|lever\.co|successfactors|teamtailor|ashby/i;
+/** 招聘系统域名（senders.ts 共用）之外，发件串里像招聘方的词。 */
+const SENDER_WORDS_RE = /hr@|hr-|talent|campus|recruit|careers|jobs|hire/i;
+const isRecruiterSender = (from: string): boolean => ATS_SENDER_RX.test(from) || SENDER_WORDS_RE.test(from);
 const NOISE_RE = /验证码|verification code|unsubscribe|退订|账单|invoice|订单|促销|优惠|newsletter|digest|security alert|登录提醒/i;
 
 const OTP_RE = /验证码|校验码|动态码|one[- ]time (?:code|password)|verification code|security code|\botp\b/i;
@@ -58,7 +64,7 @@ export function isLikelyJobMail(m: Pick<FetchedMail, 'from' | 'subject' | 'text'
   if (isVerificationMail(m)) return false;
   const head = `${m.subject ?? ''}\n${(m.text ?? '').slice(0, 600)}`;
   if (NOISE_RE.test(m.subject ?? '') && !JOB_RE.test(m.subject ?? '')) return false;
-  return JOB_RE.test(head) || SENDER_RE.test(m.from ?? '');
+  return JOB_RE.test(head) || isRecruiterSender(m.from ?? '');
 }
 
 type ImapClient = InstanceType<typeof import('imapflow').ImapFlow>;
@@ -219,6 +225,7 @@ async function archiveMail(deps: MailSyncDeps, account: MailAccount, m: FetchedM
   const likely = !!link || isLikelyJobMail(m);
   // 历史导入不存无关邮件：几个月的私人邮件没必要进库
   if (result.history && !likely) { result.ignored++; return; }
+  if (link) result.linked = (result.linked ?? 0) + 1;
   const row = storeIncoming(r, account, m, likely ? 'unknown' : 'ignored', link?.application_id ?? null);
   if (!row) return;
   result.stored++;
@@ -251,6 +258,8 @@ function recordArchived(deps: MailSyncDeps, m: FetchedMail, row: MailMessage, in
   if (jobRelated && appId && result.history && !result.history.application_ids.includes(appId)) result.history.application_ids.push(appId);
   if (jobRelated) {
     result.job_related++;
+    const kind = intake.item.kind ?? 'other';
+    result.kinds = { ...result.kinds, [kind]: (result.kinds?.[kind] ?? 0) + 1 };
     if (!input.history) result.archived.push({ mail_id: row.id, inbox_item_id: intake.item.id, kind: intake.item.kind, summary: intake.summary });
     if (appId) r.addDossierNote({ application_id: appId, kind: 'mail', content: `收到邮件《${m.subject ?? '(无主题)'}》：${intake.summary}` });
   } else {

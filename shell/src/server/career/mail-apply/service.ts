@@ -10,11 +10,17 @@ import { installMailDrafter, MailDrafter } from './runner';
 let started = false;
 
 async function drafterDeps(packetDeps: () => Promise<PacketDeps>): Promise<DrafterDeps> {
-  const [base, { getVault }, { getShellLLM }, { backgroundAskSkill }, { loadCore }] = await Promise.all([
-    packetDeps(), import('../vault'), import('../llm'), import('../skills'), import('../core-module'),
+  const [base, { getVault }, { getShellLLM }, { backgroundAskSkill }, { loadCore }, { executeSendMailAction }, { broadcast }, { careerProductSessionId }] = await Promise.all([
+    packetDeps(), import('../vault'), import('../llm'), import('../skills'), import('../core-module'), import('../mail/send'), import('../../sse'), import('../product-session'),
   ]);
   const [vault, core] = await Promise.all([getVault(), loadCore()]);
-  return { ...base, vault, askSkill: backgroundAskSkill(getShellLLM(), core) };
+  // 放权后写好的投递邮件在这里直接发出（auto-send.ts 先落 approved，再交给它；没找到动作就不发）
+  const sendNow = async (actionId: string) => {
+    const action = base.repos.getAction(actionId);
+    if (!action) throw new Error(`动作不在了：${actionId}`);
+    return executeSendMailAction({ repos: base.repos, core, llm: null, broadcast, sessionId: () => careerProductSessionId() ?? 'global', vault }, action);
+  };
+  return { ...base, vault, askSkill: backgroundAskSkill(getShellLLM(), core), sendNow };
 }
 
 /** 启动邮件起草器（幂等）。 */

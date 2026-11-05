@@ -11,14 +11,17 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { isMailDraftView, isMailThreadView, type MailDraftView } from '../../shared/careerMailApply';
+import { isMailDraftView, isMailFileOption, isMailThreadView, MAIL_TRUST_KEY, type MailDraftView } from '../../shared/careerMailApply';
 import { handleCareerRoute } from '../routes/career';
 import { applyJobs } from './batch-apply';
 import { loadCore } from './core-module';
 import { proposeBatch, startDoneLine } from './batch-propose';
 import { asksFor, buildRun } from './delivery';
 import { setMailCredentialsPath, setMailPassword } from './mail/credentials';
-import { executeApprovedSendMails, type SendMailPayload } from './mail/send';
+import { executeApprovedSendMails, executeSendMailAction, type SendMailPayload } from './mail/send';
+import { setAutoMode } from './submit-policy';
+import { setTargetJob } from './targets';
+import { delegate, readLedger, shouldProposeDelegate, trustOf } from './trust-ledger';
 import { draftMailForAction } from './mail-apply/drafter';
 import { MailDrafter } from './mail-apply/runner';
 import { railSnapshot } from './rail';
@@ -51,7 +54,7 @@ describe('链路 · 邮件投递（投出之前）', () => {
     for (const c of MAIL_COMPANIES) f.repos.upsertJob({ source_platform: 'manual', source_job_id: c, title: '产品实习生', company_name: c, jd_raw: internJd(c, MAIL_DOMAINS[c]) });
     for (const c of WEB_COMPANIES) f.repos.upsertJob({ source_platform: 'campus', source_job_id: c, title: '后端开发', company_name: c, url: `https://jobs.${c}.test/apply` });
   });
-  afterEach(() => { setMailCredentialsPath(null); rmSync(dir, { recursive: true, force: true }); });
+  afterEach(() => { delete process.env.CAREER_DATA_DIR; setMailCredentialsPath(null); rmSync(dir, { recursive: true, force: true }); });
 
   it('从开始投到发出，邮件和网申同一条路', async () => {
     const ids = f.repos.listJobs().map(j => j.id);
@@ -140,6 +143,19 @@ describe('链路 · 邮件投递（投出之前）', () => {
     expect(stored).not.toContain(PERSON.name);
     expect(stored).not.toContain(PERSON.phone);
     views = drafts((await route('GET', query)).drafts);
+    for (const v of views) expect(v).toMatchObject({ file_options: [], wanted: [], portfolio: { url: null, included: false } });
+
+    // 6b. 存一个作品集文件、顺手附到第一封上 → 那封带两个附件；其余几封的可选里都有它（存一次，以后每封都能点一下附上）
+    process.env.CAREER_DATA_DIR = dir;
+    const first = views[0];
+    const up = await route('POST', '/api/career/mail-apply/files', { name: '作品集.pdf', base64: Buffer.from('%PDF portfolio').toString('base64'), label: '作品集', action_id: first.action_id });
+    expect(isMailFileOption(up.file) && up.file.label).toBe('作品集');
+    expect(isMailDraftView(up.draft) && up.draft.attachments.map(a => [a.kind, a.filename])).toEqual([['resume', first.attachments[0].filename], ['file', '作品集.pdf']]);
+    views = drafts((await route('GET', query)).drafts);
+    for (const v of views) expect(v.file_options).toEqual(v.action_id === first.action_id ? [] : [up.file]);
+    // 不合格的说人话（前端原样显示在附件行下面）
+    expect(await route('POST', '/api/career/mail-apply/files', { name: 'run.exe', base64: Buffer.from('x').toString('base64') })).toMatchObject({ ok: false, error: '这种文件发不了，换成 PDF、Word、PPT、图片或压缩包' });
+    expect(await route('POST', `/api/career/mail-apply/drafts/${first.action_id}`, { portfolio_url: 'not a url' })).toMatchObject({ ok: false, error: '这不像一个网址' });
 
     // 7. 全部批准 → 发出去的 3 封与预览一模一样（含改过的那封）
     const sent: SendMailPayload[] = [];
@@ -151,6 +167,7 @@ describe('链路 · 邮件投递（投出之前）', () => {
     const byTo = (xs: Array<ReturnType<typeof shape>>) => [...xs].sort((a, b) => a.to.localeCompare(b.to));
     expect(byTo(sent.map(shape))).toEqual(byTo(views.map(v => shape({ ...v, attachments: v.attachments }))));
     expect(sent.find(m => m.to === edited.to)?.body).toBe(newBody);
+    expect(sent.find(m => m.to === first.to)?.attachments?.map(a => a.filename)).toEqual([first.attachments[0].filename, '作品集.pdf']);
 
     // 8. 3 份申请都已投出，证据指向发出的邮件
     for (const j of mailJobs) {
@@ -165,5 +182,58 @@ describe('链路 · 邮件投递（投出之前）', () => {
     const reasonOf = (c: string) => again.skipped.find(s => s.job_id === f.repos.listJobs().find(j => j.company_name === c)!.id)?.reason;
     for (const c of MAIL_COMPANIES) expect(reasonOf(c)).toBe('已经投过');
     for (const c of WEB_COMPANIES) expect(reasonOf(c)).toBe('已在投');
+  });
+
+  it('放权（第三轮 R2）：总开关开着写好且不差东西的直接发出、标星的留给他看；盖章后同样直接发；有 blocker 时即使放权也停下', async () => {
+    const sent: SendMailPayload[] = [];
+    const sendDeps = { repos: f.repos, core, llm: null, broadcast: () => undefined, sessionId: () => 'global', vault: f.vault, transport: async (_a: unknown, _p: string, m: SendMailPayload) => { sent.push(m); return { messageId: `<a${sent.length}@x>` }; } };
+    const deps = { ...f.deps, sendNow: async (id: string) => executeSendMailAction(sendDeps, f.repos.getAction(id)!) };
+    const drain = () => new MailDrafter({ repos: f.repos, draft: a => draftMailForAction(deps, a) }).drain();
+    const jobOf = (c: string) => f.repos.listJobs().find(j => j.company_name === c)!;
+    const appOf = (c: string) => f.repos.listApplications().find(a => a.job_id === jobOf(c).id)!;
+    const sendOf = (c: string) => f.repos.listActions().find(a => a.kind === 'send_mail' && a.application_id === appOf(c).id)!;
+    for (const [field, value] of [['internDaysPerWeek', '4'], ['internMonths', '6'], ['availableDate', '随时']]) f.vault.set({ scope: 'profile', field, value, sensitive: false });
+    const since = new Date(Date.now() - 60_000).toISOString();
+
+    // 1. 开总开关、标星甲科技 → 投 3 个邮件岗位 → 乙、丙直接发出（批准人 auto），甲留给他看
+    setAutoMode(f.repos, true);
+    setTargetJob(f.repos, jobOf('甲科技').id, true);
+    await applyJobs(f.deps, MAIL_COMPANIES.map(c => jobOf(c).id));
+    for (let i = 0; i < 3; i++) f.llm.push(modelMail());
+    await drain();
+    expect(sent.map(m => m.to).sort()).toEqual(['hr@bing.com', 'hr@yi.com']);
+    for (const c of ['乙数据', '丙智能']) {
+      expect(sendOf(c)).toMatchObject({ status: 'done', approved_by: 'auto' });
+      expect(appOf(c).stage).toBe('applied');
+    }
+    expect(sendOf('甲科技')).toMatchObject({ status: 'pending_review' });
+    const mailAsks = asksFor(f.repos).filter(a => a.mail);
+    expect(mailAsks.map(a => a.title)).toEqual(['甲科技 · 邮件写好了']);
+    // 计数：直接发出的不经过「等你」直接算已投出
+    const run = buildRun(f.repos, { since })!;
+    expect(run.items.filter(i => i.state === 'done').map(i => i.company.name).sort()).toEqual(['丙智能', '乙数据']);
+    expect(railSnapshot(f.repos, f.store, core).today.prepared).toBe(1);
+    // 做通两封：信任账本里「邮件投递」这一类到了提议放权的时候（他点了才放）
+    expect(shouldProposeDelegate(readLedger(f.repos)[MAIL_TRUST_KEY])).toBe(true);
+    expect(trustOf(f.repos, MAIL_TRUST_KEY)).toBe('shown');
+
+    // 2. 关总开关、给邮件类盖章 → 再投 1 个 → 直接发出，批准人 delegated
+    setAutoMode(f.repos, false);
+    expect(delegate(f.repos, MAIL_TRUST_KEY)?.state).toBe('delegated');
+    f.repos.upsertJob({ source_platform: 'manual', source_job_id: '庚', title: '产品实习生', company_name: '庚教育', jd_raw: internJd('庚教育', 'geng') });
+    await applyJobs(f.deps, [jobOf('庚教育').id]);
+    f.llm.push(modelMail());
+    await drain();
+    expect(sendOf('庚教育')).toMatchObject({ status: 'done', approved_by: 'delegated' });
+    expect(sent.at(-1)!.to).toBe('hr@geng.com');
+
+    // 3. 到岗信息没了（blocker）：放权也停下
+    f.repos.db.run(`DELETE FROM vault_item WHERE field='internDaysPerWeek'`);
+    f.repos.upsertJob({ source_platform: 'manual', source_job_id: '辛', title: '产品实习生', company_name: '辛医疗', jd_raw: internJd('辛医疗', 'xin') });
+    await applyJobs(f.deps, [jobOf('辛医疗').id]);
+    f.llm.push(modelMail());
+    await drain();
+    expect(sendOf('辛医疗')).toMatchObject({ status: 'pending_review', approved_by: null });
+    expect(sent).toHaveLength(3);
   });
 });

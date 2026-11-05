@@ -109,20 +109,20 @@ export function boardMeta(job: Pick<Job, 'prefilter_json'> & { board_json?: stri
 }
 
 /**
- * 内测期岗位库只收、只显示有网申链接的岗位（立场：岗位库里能找到的岗位就一定能投）。
- * 这是接上自爬云端岗位库之前的临时过滤：内置校招汇总 443 条里只有约 121 条带 apply_url，
- * 没链接的条目既投不了也不该出现在库里。云端库接通后（每条都有可投入口）可把它关掉。
+ * 内测期岗位库只收、只显示写明了怎么投的岗位（立场：岗位库里能找到的岗位就一定能投）。
+ * 2026-11-05 决定：从「只收有网申链接的」放开为「有网申链接或有投递邮箱」——只收邮件投递的岗位（实习主流）
+ * 走邮件通道一样能投。这是接上自爬云端岗位库之前的临时过滤；云端库接通后（每条都有可投入口）可把它关掉。
  */
-export const BETA_LIBRARY_REQUIRES_APPLY_LINK = true;
+export const BETA_LIBRARY_REQUIRES_APPLY_WAY = true;
 
-/** 内置校招数据进库的统一筛选：首次自动导入与手动「同步校招汇总」共用——不收已过期的、内测期不收没链接的。 */
-export function campusLibraryFilter(): { excludeExpired: true; requireApplyUrl: boolean } {
-  return { excludeExpired: true, requireApplyUrl: BETA_LIBRARY_REQUIRES_APPLY_LINK };
+/** 内置校招数据进库的统一筛选：首次自动导入与手动「同步校招汇总」共用——不收已过期的、内测期不收没写怎么投的。 */
+export function campusLibraryFilter(): { excludeExpired: true; requireApplyWay: boolean } {
+  return { excludeExpired: true, requireApplyWay: BETA_LIBRARY_REQUIRES_APPLY_WAY };
 }
 
 /** 汇总表里这一行能不能出现：内测期没写怎么投（既没链接也没投递邮箱）的不显示；已经建了投递的照常显示（那是用户自己的进度）。 */
 function shownInLibrary(job: Job, application: BoardRow['application']): boolean {
-  return !BETA_LIBRARY_REQUIRES_APPLY_LINK || !!applyChannelOf(job) || !!application;
+  return !BETA_LIBRARY_REQUIRES_APPLY_WAY || !!applyChannelOf(job) || !!application;
 }
 
 /** 首次自动导入只用到 bridges 里校招数据的三个函数（测试可注入）。 */

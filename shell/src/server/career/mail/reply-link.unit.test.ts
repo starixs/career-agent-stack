@@ -5,7 +5,7 @@ import type { Repos } from '@career/core';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createMemoryRepos } from '../test-db';
-import { bareAddress, isBounce, linkReply, locateBounced, pickBySubject, reSubject } from './reply-link';
+import { bareAddress, isBounce, isNotificationMail, linkReply, locateBounced, pickBySubject, reSubject } from './reply-link';
 import { isAutoReply } from './rules';
 
 const NOW = '2026-11-10T08:00:00.000Z';
@@ -88,5 +88,28 @@ describe('来信认回', () => {
     expect(isAutoReply({ subject: 'Re: 应聘', text: '您好，已收到您的邮件，我们会尽快处理。' })).toBe(true);
     expect(isAutoReply({ subject: 'Out of Office', text: '' })).toBe(true);
     expect(isAutoReply({ subject: 'Re: 应聘', text: '同学你好，想问一下你最早什么时候能到岗？' })).toBe(false);
+  });
+
+  it('②′ 同公司另一个地址：发件域名 = 已发收件人的域名就认回；同域名多份按主题挑', () => {
+    const product = sent('甲', '产品实习生', 'hr@jia.com', ago(5));
+    const ops = sent('甲', '运营实习生', 'campus@jia.com', ago(1));
+    expect(linkReply(r, { in_reply_to: null, from: '面试官 <interview@JIA.com>', subject: '产品实习生一面安排' })).toMatchObject({ application_id: product.app.id, via: 'domain' });
+    expect(linkReply(r, { in_reply_to: null, from: 'boss@jia.com', subject: '面试安排' })).toMatchObject({ application_id: ops.app.id, via: 'domain' });
+  });
+
+  it('②′ 公共邮箱域名、招聘系统代发域名不按域名认回', () => {
+    sent('小作坊', '产品实习生', 'boss123@qq.com', ago(1));
+    sent('乙', '产品实习生', 'campus@mokahr.com', ago(1));
+    expect(linkReply(r, { in_reply_to: null, from: 'zhang@qq.com', subject: '你好' })).toBeNull();
+    expect(linkReply(r, { in_reply_to: null, from: 'noreply@mokahr.com', subject: '【丙】笔试通知' })).toBeNull();
+    expect(linkReply(r, { in_reply_to: null, from: 'boss123@qq.com', subject: '你好' })).toMatchObject({ via: 'sender' });
+  });
+
+  it('通知型来信：noreply 一类地址、招聘系统代发、正文写着系统自动发送；真人不算', () => {
+    expect(isNotificationMail({ from: 'noreply@jia.com', text: '面试通知' })).toBe(true);
+    expect(isNotificationMail({ from: 'Notifications <notification@jia.com>', text: '' })).toBe(true);
+    expect(isNotificationMail({ from: '甲科技 <hr@mokahr.com>', text: '面试通知' })).toBe(true);
+    expect(isNotificationMail({ from: 'hr@jia.com', text: '此邮件由系统自动发送，请勿回复。' })).toBe(true);
+    expect(isNotificationMail({ from: '王老师 <wang@jia.com>', text: '同学你好，你最早什么时候能到岗？' })).toBe(false);
   });
 });

@@ -5,17 +5,19 @@
  *  S3 起草幂等：排完 send_mail、还没置 done 进程就没了，重跑认那一封，不写第二封；
  *  S4 发送最后一道关：同一份投递已经发出过投递邮件，第二封不发（rejected，不算失败）。
  */
-import { mkdtempSync, rmSync } from 'fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { buildAsks, MAIL_AUTH_FAILED_REASON, MAIL_SEND_INTERRUPTED_REASON, type MailAccount } from '@career/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { MAIL_TOTAL_MAX_BYTES } from '../../../shared/careerMailApply';
 import { applyJobs } from '../batch-apply';
 import { loadCore } from '../core-module';
 import { setMailCredentialsPath, setMailPassword } from '../mail/credentials';
 import { executeApprovedSendMails, MISSING_PASSWORD_ERROR, type SendMailPayload } from '../mail/send';
 import { draftMailForAction } from './drafter';
+import { parseSendMailPayload } from './payload';
 import { recoverInterruptedSends, STALE_SEND_MS } from './runner';
 import { internJd, mailFixture, modelMail, type MailFixture } from './test-fixture';
 
@@ -108,5 +110,19 @@ describe('发信的几道保险', () => {
     expect(results).toEqual([expect.objectContaining({ action_id: one.id, ok: true }), { action_id: twin.id, ok: true, skipped: 'already_sent' }]);
     expect(f.repos.getAction(twin.id)!.status).toBe('rejected');
     expect(buildAsks(f.repos, new Date().toISOString()).some(a => a.kind === 'failed')).toBe(false);
+  });
+
+  it('附件加起来超过 20MB（第三轮 R1）：发送前再查一遍，不发、放回待审', async () => {
+    setMailPassword(account.id, 'code');
+    const one = await pendingSend();
+    const p = parseSendMailPayload(one.id, one.payload_json);
+    const big = join(dir, 'big.zip');
+    writeFileSync(big, Buffer.alloc(MAIL_TOTAL_MAX_BYTES + 1));
+    f.repos.updateActionPayload(one.id, { ...p, attachments: [...(p.attachments ?? []), { id: 'file:big', kind: 'file', file_id: 'big', path: big, filename: 'big.zip' }] });
+    f.repos.reviewActions([one.id], 'approved', 'user');
+    const [res] = await executeApprovedSendMails(sendDeps(), [one.id]);
+    expect(res).toMatchObject({ ok: false, error: expect.stringContaining('20MB') });
+    expect(sent).toHaveLength(0);
+    expect(f.repos.getAction(one.id)!.status).toBe('pending_review');
   });
 });

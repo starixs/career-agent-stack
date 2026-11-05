@@ -20,6 +20,15 @@ export const MAIL_POLL_INTERVAL_MS = 60_000;
 const LOCAL_SYNC_INTERVAL_MS = 5 * 60_000;
 let lastLocalSync = 0;
 
+/** 每轮同步一行（只有计数，不含地址和主题）：监听在跑的证据。 */
+function logRound(results: readonly MailSyncResult[]): void {
+  const fetched = results.reduce((n, r) => n + r.fetched, 0);
+  const linked = results.reduce((n, r) => n + (r.linked ?? 0), 0);
+  const kinds: Record<string, number> = {};
+  for (const r of results) for (const [k, v] of Object.entries(r.kinds ?? {})) kinds[k] = (kinds[k] ?? 0) + v;
+  console.log(`[career-mail] sync fetched=${fetched} linked=${linked} kinds=${Object.entries(kinds).map(([k, v]) => `${k}:${v}`).join(',') || '-'}`);
+}
+
 export async function runMailSyncOnce(): Promise<MailSyncResult[]> {
   if (running) return running;
   running = (async () => {
@@ -33,6 +42,7 @@ export async function runMailSyncOnce(): Promise<MailSyncResult[]> {
       lastLocalSync = Date.now();
     }
     const results = await backend.poll();
+    logRound(results);
     // 拉完新邮件再看跟进：刚来的回音先认回，免得给刚回过信的人排一封跟进（最多每小时扫一次）
     maybeRunFollowupSweep(repos);
     return results;

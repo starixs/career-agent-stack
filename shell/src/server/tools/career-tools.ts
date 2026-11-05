@@ -1215,10 +1215,10 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ prefs, rematched: n });
       })()),
 
-      tool('jobs_apply', '投这几个岗位（用户说「这些都投了」「投这 20 个」时用）：一次就开始——逐个冻结材料包、交给后台批量运行器填到提交前停下；标星的填好后先给他看，其余检查全过的合成「一键投出」。只收邮件的岗位（JD 写明发邮箱）也走这里，会在后台写好邮件等他过目。已在投、已投过、没写怎么投的跳过并给原因。没有定制版又有好几份主简历时，默认用最近改过的那份（结果里 resume 写明用了哪份）。不用你逐份 apply_run；回复一两句：开始了几家、跳过几家，要他做的事会出现在右边的「等你」里，进展也在右边。不要让他回话确认。', {
+      tool('jobs_apply', '投这几个岗位（用户说「这些都投了」「投这 20 个」时用）：一次就开始——逐个冻结材料包、交给后台批量运行器填到提交前停下；标星的填好后先给他看，其余检查全过的合成「一键投出」。只收邮件的岗位（JD 写明发邮箱）也走这里，会在后台写好邮件等他过目（他放权了就直接发出，结果里 mail_note 说明）。已在投、已投过、没写怎么投的跳过并给原因。没有定制版又有好几份主简历时，默认用最近改过的那份（结果里 resume 写明用了哪份）。不用你逐份 apply_run；回复一两句：开始了几家、跳过几家，要他做的事会出现在右边的「等你」里，进展也在右边。不要让他回话确认。', {
         job_ids: z.array(z.string()).min(1).max(50), resume_id: z.string().optional().describe('统一用这份简历（定制版仍优先）；不传则用最近改过的主简历'),
       }, async (args) => wrap(async () => {
-        const { applyJobs, planJobs } = await import('../career/batch-apply');
+        const [{ applyJobs, planJobs }, { mailAutoSendOn }] = await Promise.all([import('../career/batch-apply'), import('../career/mail-apply/send-policy')]);
         progress('jobs_apply', `正在为 ${args.job_ids.length} 个岗位准备材料、开始投`);
         const masters = planJobs(repos(), store(), args.job_ids).resumes;
         const resume = args.resume_id ?? masters[0]?.id ?? null;
@@ -1226,7 +1226,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         changed('application', 'action_queue');
         // 对话里留一张批次卡（海报墙，只看状态、没有按钮）：这批投到哪了一眼可见
         if (res.started.length) review(res.started, 'fill_form', `投 ${res.started.length} 家`);
-        return text({ started: res.started.length, mails: res.mails, skipped: res.skipped, ...(resume ? { resume: masters.find(m => m.id === resume)?.name ?? resume } : {}) });
+        return text({ started: res.started.length, mails: res.mails, ...(res.mails ? { mail_note: mailAutoSendOn(repos()) ? '邮件写好且不差东西会直接发出' : '邮件写好后等他过目' } : {}), skipped: res.skipped, ...(resume ? { resume: masters.find(m => m.id === resume)?.name ?? resume } : {}) });
       })()),
 
       tool('jobs_propose', '在对话里放一张「今天这批」勾选表（他说「再投一批」「再投几家」「批量投」而没指定是哪几家时用）：按他的方向列出现在就能投的全部岗位（届别不符的不列），按截止或方向分组；投出不到 5 份时默认勾 5 家，之后默认勾满、一家公司只勾一个岗；上次没勾的收在最后一组。他在表上点「投这 N 家」才开始。不要再用文字列一遍岗位；回复一句「挑好了，在下面，看看要不要改」就停。他已经点名具体哪几家时直接用 jobs_apply。', {
@@ -1291,7 +1291,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ action_id: action.id, greeting: out.greeting, review: out.review, status: action.status });
       })()),
 
-      tool('apply_auto_mode', '查看或切换投递 auto 模式。开启后：填完检查全部通过的网申会直接提交，不再等用户批准；有任何需要人看的项仍会停下。只在用户明确要求时开启 / 关闭。另：某一类网申系统他盖章「以后同类直接投」之后，这一类检查全过也会直接提交（他在右栏「学会了」里点的，不是你替他定）。', {
+      tool('apply_auto_mode', '查看或切换投递 auto 模式。开启后：填完检查全部通过的网申会直接提交，不再等用户批准；有任何需要人看的项仍会停下。只在用户明确要求时开启 / 关闭。另：某一类网申系统他盖章「以后同类直接投」之后，这一类检查全过也会直接提交（他在右栏「学会了」里点的，不是你替他定）。邮件投递同一套：开着、或「邮件投递」这一类他盖过章时，写好且不差东西的投递邮件直接发出；目标岗位、跟进、回信、他提了专门要求的仍先给他看。', {
         enabled: z.boolean().optional().describe('不传只查看'),
       }, async (args) => wrap(async () => {
         const { getAutoMode, setAutoMode, LEARN_THRESHOLD } = await import('../career/submit-policy');

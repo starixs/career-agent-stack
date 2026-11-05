@@ -15,12 +15,14 @@ import { bareAddress, reSubject } from '../mail/reply-link';
 import { assembleBody, gapOf, readMailProfile, signature, NAME_TOKEN } from './compose';
 import { askWithRetry, failDraft, finishDraft, type DraftOutcome, type DrafterDeps } from './draft-common';
 import { heardBackSince } from './followup';
-import { parseSendMailPayload, type FollowDraftPayload, type SendMailPayload } from './payload';
+import { attachmentsOf, parseSendMailPayload, type FollowDraftPayload, type SendMailPayload } from './payload';
 
 /** 给模型的对方原信最多多少字：问话都在最前面，后面多半是引用的原信。 */
 const INCOMING_PROMPT_MAX_CHARS = 3000;
 /** 正文字数上限（技能里也写了；这里只用来告诉模型）：回信直接答问题，跟进一句话问进展。 */
-const BODY_LIMIT: Record<FollowDraftPayload['purpose'], number> = { reply: 120, followup: 80 };
+const BODY_LIMIT: Record<FollowDraftPayload['purpose'], number> = { reply: 120, followup: 120 };
+/** 跟进时给模型的岗位描述最多多少字：要的是一两条具体职责，不用整篇。 */
+const JD_FOLLOWUP_MAX_CHARS = 1500;
 
 const MailReplyOut = z.object({ body: z.string().catch('') }).passthrough();
 const parseBody = (raw: unknown): string | null => {
@@ -38,35 +40,55 @@ export function guardNumbers(body: string, grounded: string): string {
 
 interface FollowCtx { job: Job; source: MailMessage; p: FollowDraftPayload }
 
-function factsOf(deps: DrafterDeps): string {
+const claimLine = (c: { text: string; result_metric?: string | null }) => `- ${c.text}${c.result_metric ? `（${c.result_metric}）` : ''}`;
+
+/**
+ * 已确认主张。跟进时（usedIds 非 null）分成两段：上次投递邮件里用过的、还没用过的——新的理由从没用过的里挑
+ * （第三轮 R3「帮他再争取一下」）；老邮件没记用过哪些就都当没用过。
+ */
+function claimsOf(deps: DrafterDeps, usedIds: ReadonlySet<string> | null): string {
+  const claims = deps.repos.listClaims().filter(c => c.status !== 'pending');
+  if (!usedIds) return `已确认主张：\n${claims.map(claimLine).join('\n') || '（无）'}`;
+  const used = claims.filter(c => usedIds.has(c.id));
+  const fresh = claims.filter(c => !usedIds.has(c.id));
+  return [`上次投递邮件里用过的主张（别再当新理由）：\n${used.map(claimLine).join('\n') || '（无）'}`, `还没用过的主张（新的理由从这里挑）：\n${fresh.map(claimLine).join('\n') || '（无）'}`].join('\n');
+}
+
+function factsOf(deps: DrafterDeps, usedIds: ReadonlySet<string> | null = null): string {
   const { profile, availability: a } = readMailProfile(deps.vault);
-  const claims = deps.repos.listClaims().filter(c => c.status !== 'pending').map(c => `- ${c.text}${c.result_metric ? `（${c.result_metric}）` : ''}`).join('\n') || '（无）';
   return [
     `姓名：${NAME_TOKEN}（署名由系统补，正文里不用写）`,
     `学校：${profile.school ?? '未填'}；专业：${profile.major ?? '未填'}；毕业时间：${profile.graduation ?? '未填'}`,
     `每周可实习：${a.days_per_week ? `${a.days_per_week} 天` : '未填'}；可连续实习：${a.months ? `${a.months} 个月` : '未填'}；最早到岗：${a.start ?? '未填'}`,
-    `已确认主张：\n${claims}`,
+    claimsOf(deps, usedIds),
   ].join('\n');
 }
 
+/** 原投递邮件里模型用过的主张 id（跟进的 source 就是那封）；读不出当没用过。 */
+function usedClaimsOf(repos: Repos, source: MailMessage): Set<string> {
+  const action = source.action_id ? repos.getAction(source.action_id) : undefined;
+  return new Set(action ? parseSendMailPayload(action.id, action.payload_json).claims_used ?? [] : []);
+}
+
 function promptOf(deps: DrafterDeps, c: FollowCtx): string {
-  const head = c.p.purpose === 'reply'
+  const reply = c.p.purpose === 'reply';
+  const head = reply
     ? [`模式：回信（正文不超过 ${BODY_LIMIT.reply} 字）。直接回答对方问的。`, `对方来信（主题：${c.source.subject ?? ''}）：\n${redact(deps.vault, (c.source.body_text ?? c.source.snippet ?? '').slice(0, INCOMING_PROMPT_MAX_CHARS))}`]
-    : [`模式：跟进（正文不超过 ${BODY_LIMIT.followup} 字）。说明哪天投了什么岗、重申一句最强的匹配点、问一下进展；语气平实，不催促不讨好。`, `投递日期：${(c.source.received_at ?? c.source.created_at).slice(0, 10)}`];
+    : [`模式：跟进（正文不超过 ${BODY_LIMIT.followup} 字）。帮他再争取一下：给一个新的理由，不催进度。`, `投递日期：${(c.source.received_at ?? c.source.created_at).slice(0, 10)}`, `岗位描述（挑一条具体职责或要求说一句只属于这家的话）：\n${(c.job.jd_raw ?? '（无）').slice(0, JD_FOLLOWUP_MAX_CHARS)}`];
   return [
     ...head,
     `公司：${c.job.company_name ?? '未知'}\n岗位：${c.job.title}`,
-    `已确认的资料（只能用这些；需要但这里没有的，写成「【待补：缺什么】」，不许编）：\n${factsOf(deps)}`,
+    `已确认的资料（只能用这些；需要但这里没有的，写成「【待补：缺什么】」，不许编）：\n${factsOf(deps, reply ? null : usedClaimsOf(deps.repos, c.source))}`,
     `用户要求：${c.p.notes?.trim() || '无'}`,
   ].join('\n\n');
 }
 
-/** 跟进附同一份冻结的简历：原投递那封的附件与材料包。 */
+/** 跟进只附原来那份冻结的简历（作品集等文件对方已经有了，不再附）。 */
 function originalAttachments(repos: Repos, source: MailMessage): Pick<SendMailPayload, 'attachments' | 'packet_id'> {
   const action = source.action_id ? repos.getAction(source.action_id) : undefined;
   if (!action) return { attachments: [] };
   const p = parseSendMailPayload(action.id, action.payload_json);
-  return { attachments: p.attachments ?? [], ...(p.packet_id ? { packet_id: p.packet_id } : {}) };
+  return { attachments: attachmentsOf(p).filter(a => a.kind === 'resume'), ...(p.packet_id ? { packet_id: p.packet_id } : {}) };
 }
 
 function sendPayloadOf(deps: DrafterDeps, c: FollowCtx, body: string): SendMailPayload {
@@ -85,7 +107,7 @@ function sendPayloadOf(deps: DrafterDeps, c: FollowCtx, body: string): SendMailP
 
 /** 事实底稿（本机比对用，含明文）：资料、到岗信息、对方原信、投递日期、他的要求。 */
 function groundedText(deps: DrafterDeps, c: FollowCtx): string {
-  return [factsOf(deps), c.source.body_text ?? '', c.source.subject ?? '', c.source.received_at ?? '', c.p.notes ?? '', c.job.title, c.job.company_name ?? ''].join('\n');
+  return [factsOf(deps), c.job.jd_raw ?? '', c.source.body_text ?? '', c.source.subject ?? '', c.source.received_at ?? '', c.p.notes ?? '', c.job.title, c.job.company_name ?? ''].join('\n');
 }
 
 /** 写一封跟进或回信（见文件头）。调用方已认领动作。 */

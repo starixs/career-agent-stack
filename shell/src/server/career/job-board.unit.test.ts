@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { JobListing } from '@career/core';
 
 import { loadCore } from './core-module';
-import { BETA_LIBRARY_REQUIRES_APPLY_LINK, CAMPUS_SEEDED_KEY, boardMeta, campusLibraryFilter, computeMatches, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from './job-board';
+import { BETA_LIBRARY_REQUIRES_APPLY_WAY, CAMPUS_SEEDED_KEY, boardMeta, campusLibraryFilter, computeMatches, jobBoard, prepareJobs, seedCampusJobsIfEmpty, setJobPrefs } from './job-board';
 import { RemoteJobSource, syncJobSource, uploadAnswerEvents, upsertListings } from './server-api';
 import { CareerStore } from './store';
 import { createMemoryRepos } from './test-db';
@@ -47,6 +47,26 @@ describe('岗位汇总表与匹配', () => {
     const app = repos.createApplication(rows[0].job.id);
     expect(jobBoard(repos, { progress: 'active' }).map(r => r.application?.id)).toEqual([app.id]);
     expect(jobBoard(repos, { progress: 'none' }).map(r => r.job.job_key)).toEqual(['srv:2']);
+  });
+
+  it('云端同步：没有网申链接、只有投递邮箱（或 JD 写了投递邮箱）的条目照样入库、出现在汇总表、能开始投（走邮件）', async () => {
+    const { repos, store } = await setup();
+    store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } });
+    const n = upsertListings(repos, [
+      listing({ job_key: 'srv:mail', remote_id: 'rm', url: null, apply_email: ' hr@yi.com ' }),
+      listing({ job_key: 'srv:jd', remote_id: 'rj', url: null, title: '产品实习生', jd_raw: '产品实习生\n简历投递至 campus@bing.com' }),
+      listing({ job_key: 'srv:bad', remote_id: 'rb', url: null, apply_email: 'not-an-email', title: '运营实习生' }),
+    ], core);
+    expect(n).toBe(3);
+    const byKey = (k: string) => repos.listJobs().find(j => j.job_key === k)!;
+    expect(byKey('srv:mail')).toMatchObject({ url: null, apply_email: 'hr@yi.com' });
+    expect(byKey('srv:jd').apply_email).toBe('campus@bing.com');
+    expect(byKey('srv:bad').apply_email ?? null).toBeNull();
+    expect(jobBoard(repos).map(r => r.job.job_key).sort()).toEqual(['srv:jd', 'srv:mail']);
+    const exportPdf = async (id: string) => { const p = join(dir, `${id}.pdf`); writeFileSync(p, `%PDF ${id}`); return p; };
+    const res = await prepareJobs({ repos, store, exportPdf, exportsDir: dir }, [byKey('srv:mail').id, byKey('srv:bad').id]);
+    expect(res).toEqual([expect.objectContaining({ job_id: byKey('srv:mail').id, ok: true }), expect.objectContaining({ job_id: byKey('srv:bad').id, ok: false, reason: '没写怎么投' })]);
+    expect(repos.getAction(res[0].action_id!)!.kind).toBe('draft_mail');
   });
 
   it('勾选开始投：建投递、fill_form 待审（不冻结，开跑前才备材料包）；已在投的跳过；没有链接的说明原因', async () => {
@@ -212,25 +232,28 @@ describe('多维表格维度与投递记录摘要', () => {
     expect(fresh.repos.kvGet(CAMPUS_SEEDED_KEY)).toBeFalsy();
   });
 
-  it('内测期岗位库只收有链接、没过期的：首次导入与手动同步同一套筛选；库里已有的无链接岗位不显示，已建投递的照常显示', async () => {
-    expect(BETA_LIBRARY_REQUIRES_APPLY_LINK).toBe(true);
-    expect(campusLibraryFilter()).toEqual({ excludeExpired: true, requireApplyUrl: true });
+  it('内测期岗位库只收写明怎么投（有链接或有投递邮箱）、没过期的：首次导入与手动同步同一套筛选；库里已有的没写怎么投的不显示，已建投递的照常显示', async () => {
+    expect(BETA_LIBRARY_REQUIRES_APPLY_WAY).toBe(true);
+    expect(campusLibraryFilter()).toEqual({ excludeExpired: true, requireApplyWay: true });
     const { filterCampusJobs } = await import('@career/bridges');
     const items = [
       { company: '有链接', positions: [], locations: [], apply_url: 'https://a.com/x', deadline: '2026-12-01' },
       { company: '空白链接', positions: [], locations: [], apply_url: '  ', deadline: '2026-12-01' },
       { company: '没链接', positions: [], locations: [], deadline: '2026-12-01' },
+      { company: '只有投递邮箱', positions: [], locations: [], apply_email: 'hr@yi.com', deadline: '2026-12-01' },
       { company: '过期', positions: [], locations: [], apply_url: 'https://a.com/y', deadline: '2026-01-01' },
     ];
-    expect(filterCampusJobs(items, { ...campusLibraryFilter(), today: '2026-11-05' }).map(j => j.company)).toEqual(['有链接']);
+    expect(filterCampusJobs(items, { ...campusLibraryFilter(), today: '2026-11-05' }).map(j => j.company)).toEqual(['有链接', '只有投递邮箱']);
 
     const { repos } = await setup();
     repos.upsertJob({ source_platform: 'campus', source_job_id: 'with', title: '有链接', url: 'https://a.com/x' });
     const bare = repos.upsertJob({ source_platform: 'campus', source_job_id: 'bare', title: '老数据没链接' });
     repos.upsertJob({ source_platform: 'campus', source_job_id: 'blank', title: '空白链接', url: ' ' });
-    expect(jobBoard(repos).map(r => r.job.title)).toEqual(['有链接']);
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'mail', title: '只有投递邮箱', apply_email: 'hr@yi.com' });
+    repos.upsertJob({ source_platform: 'campus', source_job_id: 'jd-mail', title: 'JD 里写了投递邮箱', jd_raw: '产品实习生\n简历投递至 campus@bing.com' });
+    expect(jobBoard(repos).map(r => r.job.title).sort()).toEqual(['有链接', '只有投递邮箱', 'JD 里写了投递邮箱'].sort());
     repos.createApplication(bare.id);
-    expect(jobBoard(repos).map(r => r.job.title).sort()).toEqual(['有链接', '老数据没链接'].sort());
+    expect(jobBoard(repos).map(r => r.job.title).sort()).toEqual(['有链接', '只有投递邮箱', 'JD 里写了投递邮箱', '老数据没链接'].sort());
   });
 
   it('jobBoard 每行带 meta', async () => {

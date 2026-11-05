@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { join } from 'node:path'
-import { parseBoardJson } from '@career/core'
+import { applyChannelOf, parseBoardJson } from '@career/core'
 import { loadCampusJobs, filterCampusJobs, importCampusJobs, campusJobId, defaultCampusJobsPath, type CampusJob } from '../src/index.js'
 import { memRepos } from './helpers.js'
 
@@ -55,6 +55,17 @@ describe('filterCampusJobs', () => {
     expect(filterCampusJobs(jobs, { excludeExpired: false }).length).toBe(jobs.length)
     expect(filterCampusJobs([{ company: '甲', positions: [], locations: [], apply_url: '  ' }], { requireApplyUrl: true })).toEqual([])
   })
+
+  it('requireApplyWay：有网申链接或有合法投递邮箱都收（2026-11-05 岗位库放开到邮件投递）；都没有、邮箱不合法的不收', () => {
+    const items = [
+      { company: '有链接', positions: [], locations: [], apply_url: 'https://a.com/x' },
+      { company: '只有邮箱', positions: [], locations: [], apply_email: ' hr@yi.com ' },
+      { company: '邮箱不合法', positions: [], locations: [], apply_email: 'hr' },
+      { company: '都没有', positions: [], locations: [], apply_url: ' ' },
+    ]
+    expect(filterCampusJobs(items, { excludeExpired: false, requireApplyWay: true }).map(j => j.company)).toEqual(['有链接', '只有邮箱'])
+    expect(filterCampusJobs(items, { excludeExpired: false, requireApplyUrl: true }).map(j => j.company)).toEqual(['有链接'])
+  })
 })
 
 describe('importCampusJobs → job 表', () => {
@@ -76,6 +87,14 @@ describe('importCampusJobs → job 表', () => {
     expect(row.location).toBe(gs.locations.length ? gs.locations.join('/') : null)
     importCampusJobs(repos, sample)
     expect(repos.listJobs()).toHaveLength(5)
+  })
+
+  it('只有投递邮箱的条目：入库时写进 job.apply_email、走邮件通道，JD 里也写明；没有网申链接不报错', () => {
+    const repos = memRepos()
+    const [row] = importCampusJobs(repos, [{ company: '乙数据', positions: ['产品实习生'], locations: [], batch: '实习', apply_email: ' hr@yi.com ' }])
+    expect(row).toMatchObject({ url: null, apply_email: 'hr@yi.com' })
+    expect(row.jd_raw).toContain('投递邮箱：hr@yi.com')
+    expect(applyChannelOf(row)).toBe('mail')
   })
 
   it('批次 / 行业写进 board_json（企业性质归类型标签），评估重写 prefilter_json 也不丢', () => {

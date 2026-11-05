@@ -14,6 +14,7 @@ import type { z as Zod } from 'zod/v4';
 import type { IntakeDeps } from '../../career/intake';
 import { MAIL_PRESETS } from '../../career/mail/providers';
 import { bareAddress, isBounce } from '../../career/mail/reply-link';
+import { mailAutoSendOn } from '../../career/mail-apply/send-policy';
 import { syncAllMailAccounts, syncMailAccount } from '../../career/mail/sync';
 import type { PacketDeps } from '../../career/packets';
 import type { CareerStore } from '../../career/store';
@@ -106,7 +107,9 @@ export function createMailTools(d: MailToolDeps) {
       const actionId = res.started.find(id => d.repos().getAction(id)?.kind === 'draft_mail');
       const base = { company: job.company_name, title: job.title, to_domain: emailDomain(email) };
       if (!actionId) return d.text({ ...base, started: false, reason: res.skipped[0]?.reason ?? '没能开始', note: '把原因用一句话告诉他；不要复述邮件。' });
-      return d.text({ ...base, started: true, action_id: actionId, note: '邮件在后台写，写好会出现在右边「等你」里给他过目；回复一句短话，不要复述邮件。' });
+      // 他提了专门要求（notes）的这封放权了也先给他看（send-policy.ts）
+      const autoSend = !args.notes?.trim() && mailAutoSendOn(d.repos());
+      return d.text({ ...base, started: true, action_id: actionId, note: autoSend ? '邮件在后台写，写好且不差东西会直接发出；回复一句短话，不要复述邮件。' : '邮件在后台写，写好会出现在右边「等你」里给他过目；回复一句短话，不要复述邮件。' });
     })()),
 
     tool('mail_reply', '回对方的邮件（他说「帮我回一下 X」「跟 X 说我下周一能到岗」时用）：找这份投递最近一封对方来信，回信在后台写（只用已确认的资料，缺的会标出来让他补），写好出现在右边「等你」里给他过目，他点发出才发。不在这一轮里写，立刻返回；回一句短话，不要复述邮件。notes 是他想说的话。', {

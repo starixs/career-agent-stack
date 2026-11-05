@@ -9,6 +9,8 @@ import { packetResumePlan, resumeMasterOf, tailoredChangeCount } from '../packet
 import type { CareerStore } from '../store';
 import { isTargetApplication, markedTargetJobs } from '../targets';
 import { readMailProfile } from './compose';
+import { extrasOf } from './extras';
+import { getMailFile } from './files';
 import { needsAvailability, resolveMail, type ResolvedMail } from './resolve';
 
 export interface MailViewDeps { repos: Repos; store: CareerStore; vault: Vault | null }
@@ -16,13 +18,16 @@ export interface MailViewDeps { repos: Repos; store: CareerStore; vault: Vault |
 /** 预览只给 pending_review 的 send_mail（等他过目的）。 */
 export const isPendingDraft = (a: ActionQueueItem | undefined): a is ActionQueueItem => !!a && a.kind === 'send_mail' && a.status === 'pending_review';
 
+/** 附件签：简历按材料包说它是哪份、改了几处；存过的文件用他起的名字。 */
 function attachmentsOf(deps: MailViewDeps, mail: ResolvedMail): MailAttachmentView[] {
   const packet = mail.payload.packet_id ? deps.repos.getPacket(mail.payload.packet_id) : undefined;
   const resumeId = packet?.resume_id ?? null;
   const tailored = packet?.resume_kind === 'tailored';
   const label = resumeId ? resumeMasterOf(deps.repos, resumeId)?.name ?? '简历' : '简历';
   const changes = tailored && packet ? packetResumePlan(deps.repos, packet.id)?.changes ?? (resumeId ? tailoredChangeCount(deps.repos, resumeId) : null) : null;
-  return mail.attachments.map(a => ({ filename: a.filename, resume_id: resumeId, resume_label: label, tailored_changes: tailored ? changes ?? 0 : null }));
+  return mail.attachments.map((a): MailAttachmentView => (a.kind === 'file'
+    ? { id: a.id, kind: 'file', filename: a.filename, resume_id: null, resume_label: (a.file_id ? getMailFile(deps.repos, a.file_id)?.label : undefined) ?? a.filename, tailored_changes: null }
+    : { id: a.id, kind: 'resume', filename: a.filename, resume_id: resumeId, resume_label: label, tailored_changes: tailored ? changes ?? 0 : null }));
 }
 
 /** 可换的简历：这个岗位的定制版 + 各份主简历。 */
@@ -49,6 +54,7 @@ export function mailDraftView(deps: MailViewDeps, action: ActionQueueItem): Mail
     accounts: deps.repos.listMailAccounts().map(a => ({ account_id: a.id, address: a.address })),
     attachments: attachmentsOf(deps, mail),
     resume_options: resumeOptionsOf(deps, jobId),
+    ...extrasOf(deps, mail, job),
     blockers: mail.blockers,
     availability: needsAvailability(deps.repos, mail.payload) ? readMailProfile(deps.vault).availability : null,
     ...threadOf(deps, mail),

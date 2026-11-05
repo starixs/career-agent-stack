@@ -13,8 +13,8 @@ import type { InternAvailability } from '../../../shared/careerMailApply';
 export const NAME_TOKEN = vaultPlaceholder('profile', '', 'name');
 export const PHONE_TOKEN = vaultPlaceholder('profile', '', 'phone');
 
-/** 私密库里非敏感的几项（明文可以写进邮件、也可以给模型看）。 */
-export interface MailProfile { school?: string; major?: string; graduation?: string }
+/** 私密库里非敏感的几项（明文可以写进邮件、也可以给模型看；作品集链接不给模型，由代码拼进正文）。 */
+export interface MailProfile { school?: string; major?: string; graduation?: string; portfolio?: string }
 
 /** 存到岗信息用的私密库字段（core vault.ts PROFILE_FIELDS）。 */
 export const AVAILABILITY_FIELDS = { days_per_week: 'internDaysPerWeek', months: 'internMonths', start: 'availableDate' } as const;
@@ -25,7 +25,7 @@ const text = (v: string | undefined): string | null => (v && v.trim() ? v.trim()
 export function readMailProfile(vault: Vault | null): { profile: MailProfile; availability: InternAvailability } {
   const basics = vault?.profileSafeBasics() ?? {};
   return {
-    profile: { school: text(basics.school) ?? undefined, major: text(basics.major) ?? undefined, graduation: text(basics.graduation) ?? undefined },
+    profile: { school: text(basics.school) ?? undefined, major: text(basics.major) ?? undefined, graduation: text(basics.graduation) ?? undefined, portfolio: text(basics.portfolio) ?? undefined },
     availability: {
       days_per_week: text(basics[AVAILABILITY_FIELDS.days_per_week]),
       months: text(basics[AVAILABILITY_FIELDS.months]),
@@ -103,3 +103,50 @@ export function chooseAttachmentName(fromModel: string | undefined, jdFormat: st
   const candidates = [jdFormat && fromModel ? fromModel.trim() : '', defaultAttachmentName(profile)];
   return candidates.find(n => n && isValidAttachmentName(n)) ?? fallbackAttachmentName(profile, title);
 }
+
+// ---------- 作品集链接那一行（第三轮 R1） ----------
+
+/** 作品集那一行：代码拼，不让模型写网址。 */
+export const portfolioLine = (url: string): string => `作品集：${url}`;
+
+/** 正文里有没有这一整行。 */
+export const hasLine = (body: string, line: string): boolean => body.split('\n').some(l => l === line);
+
+/** 加上作品集那一行：放在到岗那句之前（单独一段）；找不到到岗那句就放在正文第一段之后。已经有了不重复加。 */
+export function addLine(body: string, line: string, before: string | undefined): string {
+  if (hasLine(body, line)) return body;
+  if (before && body.includes(before)) return body.replace(before, `${line}\n\n${before}`);
+  const paras = body.split('\n\n');
+  return [paras[0], line, ...paras.slice(1)].join('\n\n');
+}
+
+/** 去掉这一整行（连带它后面的空行）；他手改过这一行就找不到，原样返回。 */
+export function removeLine(body: string, line: string): string {
+  const lines = body.split('\n');
+  const i = lines.findIndex(l => l === line);
+  if (i < 0) return body;
+  lines.splice(i, lines[i + 1] === '' ? 2 : 1);
+  return lines.join('\n');
+}
+
+/** 作品集网址合格：http(s) 开头、能解析。 */
+export function isWebUrl(url: string): boolean {
+  try { const u = new URL(url.trim()); return u.protocol === 'http:' || u.protocol === 'https:'; } catch { return false; }
+}
+
+// ---------- 岗位描述里要什么（第三轮 R1：起草默认与预览的「要」） ----------
+
+const WANTS_PORTFOLIO_RX = /作品集|portfolio|作品链接|代表作/i;
+const WANTS_TRANSCRIPT_RX = /成绩单|transcript/i;
+const PORTFOLIO_FILE_RX = /作品集|portfolio/i;
+const TRANSCRIPT_FILE_RX = /成绩单|transcript/i;
+
+/** 岗位描述要作品集 / 成绩单。 */
+export function wantsOf(jd: string | null | undefined): { portfolio: boolean; transcript: boolean } {
+  const t = jd ?? '';
+  return { portfolio: WANTS_PORTFOLIO_RX.test(t), transcript: WANTS_TRANSCRIPT_RX.test(t) };
+}
+
+/** 存过的文件是作品集 / 成绩单（看名字或文件名）。 */
+export const isPortfolioFile = (f: { label: string; filename: string }): boolean => PORTFOLIO_FILE_RX.test(f.label) || PORTFOLIO_FILE_RX.test(f.filename);
+export const isTranscriptFile = (f: { label: string; filename: string }): boolean => TRANSCRIPT_FILE_RX.test(f.label) || TRANSCRIPT_FILE_RX.test(f.filename);

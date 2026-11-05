@@ -8,9 +8,10 @@
  */
 import type { MailMessage, Repos } from '@career/core';
 
+import { isAtsDomain, isCompanyDomain } from './senders';
 import type { FetchedMail } from './sync';
 
-export type ReplyVia = 'in_reply_to' | 'sender';
+export type ReplyVia = 'in_reply_to' | 'sender' | 'domain';
 export interface ReplyLink { application_id: string; sent: MailMessage; via: ReplyVia }
 
 /** 退信只在最近几天发出的信里找：退信通知通常几分钟到一天内回来，3 天足够，再久的多半不是这一封。 */
@@ -52,25 +53,51 @@ function byInReplyTo(repos: Repos, m: Pick<FetchedMail, 'in_reply_to'>): ReplyLi
   return sentOnApplication(sent) ? { application_id: sent.application_id, sent, via: 'in_reply_to' } : null;
 }
 
-/** ② 发件地址 = 某封已发邮件的收件人。 */
-function bySender(repos: Repos, m: Pick<FetchedMail, 'from' | 'subject'>): ReplyLink | null {
-  const from = bareAddress(m.from);
-  if (!from) return null;
+/** 一批已发邮件 → 每份申请最近那封 → 按主题挑一份（主题含岗位名 → 最近发出的）。 */
+function pickSent(repos: Repos, rows: readonly MailMessage[], subject: string | null | undefined): (MailMessage & { application_id: string }) | null {
   const latestPerApp = new Map<string, MailMessage & { application_id: string }>();
-  for (const sent of repos.listMailMessages({ direction: 'out', to_addr: from, limit: SENT_BY_ADDRESS_LIMIT })) {
-    if (sentOnApplication(sent) && !latestPerApp.has(sent.application_id)) latestPerApp.set(sent.application_id, sent);
-  }
+  for (const sent of rows) if (sentOnApplication(sent) && !latestPerApp.has(sent.application_id)) latestPerApp.set(sent.application_id, sent);
   const candidates = [...latestPerApp.values()].map(sent => {
     const app = repos.getApplication(sent.application_id);
     return { sent, title: (app ? repos.getJob(app.job_id)?.title : undefined) ?? '' };
   });
-  const hit = pickBySubject(candidates, m.subject);
-  return hit ? { application_id: hit.sent.application_id, sent: hit.sent, via: 'sender' } : null;
+  return pickBySubject(candidates, subject)?.sent ?? null;
 }
 
-/** 回信认回（① → ②）；都不中返回 null（走原路径的 ③）。 */
+/** ② 发件地址 = 某封已发邮件的收件人。 */
+function bySender(repos: Repos, m: Pick<FetchedMail, 'from' | 'subject'>): ReplyLink | null {
+  const from = bareAddress(m.from);
+  const sent = from ? pickSent(repos, repos.listMailMessages({ direction: 'out', to_addr: from, limit: SENT_BY_ADDRESS_LIMIT }), m.subject) : null;
+  return sent ? { application_id: sent.application_id, sent, via: 'sender' } : null;
+}
+
+/**
+ * ②′ 同公司另一个地址（第三轮 R6）：发件域名 = 某封已发邮件收件人的域名（另一位 HR、业务面试官）。
+ * 公共邮箱域名、招聘系统代发域名不算（域名不代表公司，senders.ts）。
+ */
+function byDomain(repos: Repos, m: Pick<FetchedMail, 'from' | 'subject'>): ReplyLink | null {
+  const domain = bareAddress(m.from)?.split('@')[1] ?? '';
+  if (!isCompanyDomain(domain)) return null;
+  const sent = pickSent(repos, repos.listMailMessages({ direction: 'out', to_domain: domain, limit: SENT_BY_ADDRESS_LIMIT }), m.subject);
+  return sent ? { application_id: sent.application_id, sent, via: 'domain' } : null;
+}
+
+/** 回信认回（① → ② → ②′）；都不中返回 null（走原路径的 ③）。 */
 export function linkReply(repos: Repos, m: Pick<FetchedMail, 'in_reply_to' | 'from' | 'subject'>): ReplyLink | null {
-  return byInReplyTo(repos, m) ?? bySender(repos, m);
+  return byInReplyTo(repos, m) ?? bySender(repos, m) ?? byDomain(repos, m);
+}
+
+const NOTIFY_LOCAL_RX = /^(no-?reply|do-?not-?reply|notifications?|notify|system|mailer|admin|service)([._+-]|$)/i;
+const NOTIFY_TEXT_RX = /系统自动发送|请勿回复|此邮件由系统|do not reply|automatically generated/i;
+
+/**
+ * 通知型来信（第三轮 R4）：不是一个人在等他回话——noreply 一类的发件地址、招聘系统代发、正文写着系统自动发送 / 请勿回复。
+ * 规则说是通知就不起草回信（哪怕模型判了 needs_reply）。
+ */
+export function isNotificationMail(m: { from: string | null; text: string | null }): boolean {
+  const addr = bareAddress(m.from);
+  const [local, domain] = addr ? addr.split('@') : ['', ''];
+  return NOTIFY_LOCAL_RX.test(local) || (!!domain && isAtsDomain(domain)) || NOTIFY_TEXT_RX.test(m.text ?? '');
 }
 
 const BOUNCE_SENDER_RX = /mailer-daemon|postmaster|mail delivery (sub)?system/i;
