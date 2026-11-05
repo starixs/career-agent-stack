@@ -45,7 +45,7 @@ function resumeBlock(repos: Repos, store: CareerStore, core: CoreModule): RailBl
   // 简历一出来就算好了：访谈进度里留着没收尾的轮次，不该让右栏一直说「正在写」（2026-11-02 实例 A）
   if (masters.length) return { id: 'resume', label: '写简历', status: 'done', line: `简历好了：${masters[0].name}` };
   if (interviewing) return { id: 'resume', label: '写简历', status: 'working', line: `边聊边写，已经有 ${experiences} 段经历` };
-  return { id: 'resume', label: '写简历', status: 'idle', line: '等你把简历给我，或者聊聊你做过的事' };
+  return { id: 'resume', label: '写简历', status: 'idle', line: '还没有简历' };
 }
 
 function tailorBlock(repos: Repos, since: string): RailBlock {
@@ -54,7 +54,7 @@ function tailorBlock(repos: Repos, since: string): RailBlock {
   const count = repos.db.get<{ n: number; today: number }>('SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END), 0) AS today FROM resume_tailored', [since]);
   const n = count?.n ?? 0;
   const today = count?.today ?? 0;
-  return { id: 'tailor', label: '定制', status: n ? 'done' : 'idle', line: n ? `按岗位改了 ${n} 份 · 今天 ${today}` : '定好方向后，按每个岗位改一版' };
+  return { id: 'tailor', label: '定制', status: n ? 'done' : 'idle', line: n ? `按岗位改了 ${n} 份 · 今天 ${today}` : '还没改过' };
 }
 
 function applyBlock(repos: Repos, sent: number): RailBlock {
@@ -64,25 +64,24 @@ function applyBlock(repos: Repos, sent: number): RailBlock {
   const retrying = actions.filter(a => isFillRetrying(repos, a)).length;
   const held = repos.listActions('pending_review').filter(a => a.kind === 'submit').length;
   const running = batch?.status === 'running' ? (batch.running ?? []) : [];
-  const total = actions.length;
-  const base = { id: 'apply' as const, label: '网申', done: sent, total };
+  const base = { id: 'apply' as const, label: '网申' };
+  // 不给分数：已投是累计、填表动作是全部，「20/8」读不懂（r3 C4）；今天投出几份在下面那行。
   // 没填成的先自动再试一次：如实说在再试（2026-11-02 实例 A：失败曾显示成「投出 0 份」）；再试也没成的进「等你」，这里不再说
   const retryLine = retrying ? `${retrying} 份没填成，正在再试一次` : '';
   // 第一次要先准备浏览器（下载约 1–2 分钟）：直接说要等多久，不然像卡死（风险 E#2）
   if (batch?.status === 'running' && batch.phase === 'browser_down' && batch.message) return { ...base, status: 'working', line: batch.message };
   if (running.length) return { ...base, status: 'working', line: [`在填：${running.map(r => r.title).join('、')}`, retryLine].filter(Boolean).join('；') };
   if (retrying) return { ...base, status: 'working', line: retryLine };
-  if (waiting) return { ...base, status: 'waiting', line: `${waiting} 份等你一下` };
-  if (held) return { ...base, status: 'waiting', line: `${held} 份填好了，停在提交前等你点头` };
+  if (waiting) return { ...base, status: 'waiting', line: `${waiting} 份要你补一下` };
+  if (held) return { ...base, status: 'waiting', line: `${held} 份填好了，停在提交前` };
   if (sent) return { ...base, status: 'done', line: `投出 ${sent} 份` };
-  if (total) return { ...base, status: 'idle', line: '还没投出' };
-  return { id: 'apply', label: '网申', status: 'idle', line: '简历和方向好了就开始' };
+  return { ...base, status: 'idle', line: actions.length ? '还没投出' : '还没开始' };
 }
 
 function mailBlock(repos: Repos): RailBlock {
   const accounts = repos.listMailAccounts();
-  if (!accounts.length) return { id: 'mail', label: '盯邮箱', status: 'idle', line: '投出去之后，连上邮箱我替你盯回音' };
-  return { id: 'mail', label: '盯邮箱', status: 'working', line: `在盯 ${accounts[0].address}，有动静叫你` };
+  if (!accounts.length) return { id: 'mail', label: '盯邮箱', status: 'idle', line: '还没连邮箱' };
+  return { id: 'mail', label: '盯邮箱', status: 'working', line: `在盯 ${accounts[0].address}` };
 }
 
 export function receipts(repos: Repos): RailReceipt[] {

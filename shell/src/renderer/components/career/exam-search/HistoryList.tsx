@@ -1,5 +1,5 @@
 /**
- * 搜过的题：最近在上，点开回看；只是自己的记录，不进题库。
+ * 搜过的题：最近在上，点开回看；只是自己的记录，不进题库。没有记录时什么都不渲染（页面不留空栏）。
  */
 import { Trash2 } from 'lucide-react';
 
@@ -17,7 +17,7 @@ export function HistoryList({ records, activeId, onOpen, onRemove }: {
   onOpen: (record: ExamSearchRecord) => void;
   onRemove: (record: ExamSearchRecord) => void;
 }) {
-  if (records.length === 0) return <p className="text-xs text-[var(--subtle)]">搜过的题会留在这里，考完可以回看。</p>;
+  if (records.length === 0) return null;
   return (
     <ul className="space-y-0.5">
       {records.map(record => (

@@ -12,10 +12,11 @@ import qqIcon from './assets/qqmail.png';
 
 const ICONS: Record<MailConnectorId, string> = { qq: qqIcon, '163': neteaseIcon, '126': neteaseIcon, gmail: gmailIcon };
 
-export function ConnectorIcon({ id, size = 40 }: { id: MailConnectorId; size?: number }) {
+/** `framed=false`：列表行里的裸图标，不套描边方块（§5.2）。 */
+export function ConnectorIcon({ id, size = 40, framed = true }: { id: MailConnectorId; size?: number; framed?: boolean }) {
   return (
-    <span aria-hidden className="inline-flex shrink-0 items-center justify-center rounded-[10px] border border-[var(--line)] bg-[var(--paper)]" style={{ width: size, height: size }}>
-      <img src={ICONS[id]} alt="" style={{ width: size * 0.7, height: size * 0.7 }} className="object-contain" />
+    <span aria-hidden className={`inline-flex shrink-0 items-center justify-center ${framed ? 'rounded-[10px] border border-[var(--line)] bg-[var(--paper)]' : ''}`} style={{ width: size, height: size }}>
+      <img src={ICONS[id]} alt="" style={{ width: framed ? size * 0.7 : size, height: framed ? size * 0.7 : size }} className="object-contain" />
     </span>
   );
 }
@@ -44,4 +45,3 @@ export function HealthBadge({ account }: { account: MailAccount }) {
   return <Badge tone="success">正常</Badge>;
 }
 
-export const CAPABILITY_LABEL: Record<'receive' | 'send', string> = { receive: '收信：笔试、面试、拒信自动识别', send: '发信：经你批准后代发投递邮件' };

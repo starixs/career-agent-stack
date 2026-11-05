@@ -1,5 +1,4 @@
 import {
-  fireEvent,
   render,
   screen,
   waitFor,
@@ -161,16 +160,21 @@ describe("求职壳里的设置页（beta-polish ⑥）", () => {
     await i18n.changeLanguage("zh-CN");
   });
 
-  it("关于页只有产品名、版本、反馈和隐私说明，没有 keystone 底座的内容", async () => {
+  it("关于页只有产品名、版本和检查更新，没有反馈卡、隐私说明和 keystone 底座的内容", async () => {
     const { container } = renderSettings("about");
-    expect(await screen.findByText(zh("about.careerPrivacy"))).toBeInTheDocument();
-    expect(screen.getByText("求职助理")).toBeInTheDocument();
+    expect(await screen.findByText("求职助理")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: zh("about.checkUpdates") })).toBeInTheDocument();
     const text = container.textContent ?? "";
-    for (const leftover of ["keystone", "Claude Agent SDK", "内部研发", "Your intent, amplified", "Team Space", "dev@internal.local"]) {
+    for (const leftover of ["keystone", "Claude Agent SDK", "内部研发", "Your intent, amplified", "Team Space", "dev@internal.local", "去反馈", "只存在你的电脑上"]) {
       expect(text).not.toContain(leftover);
     }
-    fireEvent.click(screen.getByRole("button", { name: zh("about.careerFeedbackAction") }));
+  });
+
+  it("帮助与反馈：小助理一行，不带解释句", async () => {
+    const { container } = renderSettings("feedback");
     expect(await screen.findByText(String(i18n.t("titlebar.helper", { ns: "app" })))).toBeInTheDocument();
+    expect(screen.getByText(String(i18n.t("titlebar.feedbackTitle", { ns: "app" })))).toBeInTheDocument();
+    expect(container.textContent ?? "").not.toContain("都可以找小助理");
   });
 
   it("通用设置不露服务端、工作区、队列模式和通用「一直不睡」；预置了模型 Key 就不露 Key 面板", async () => {
@@ -181,6 +185,11 @@ describe("求职壳里的设置页（beta-polish ⑥）", () => {
     expect(screen.queryByTestId("settings-career-server")).not.toBeInTheDocument();
     expect(screen.queryByText(zh("general.defaultWorkspaceTitle"))).not.toBeInTheDocument();
     expect(screen.queryByText(zh("general.queueTitle"))).not.toBeInTheDocument();
+    // 设置行只有标题和控件，不逐行解释。
+    for (const key of ["general.description", "general.autostartDescription", "general.minimizeToTrayDescription", "general.languageDescription", "general.appearanceModeDescription", "general.markdownReadingSizeDescription", "general.logsDescription"]) {
+      expect(screen.queryByText(zh(key))).not.toBeInTheDocument();
+    }
+    expect(screen.getByText(zh("general.autostartTitle"))).toBeInTheDocument();
   });
 
   it("缺模型 Key 时才露出 Key 面板，而且只要模型 Key", async () => {
@@ -193,13 +202,15 @@ describe("求职壳里的设置页（beta-polish ⑥）", () => {
 
   it("快捷键只留发送键；桌面宠物分区落到关于", async () => {
     const { unmount } = renderSettings("shortcuts");
-    expect(await screen.findByText(zh("shortcuts.messageSend.title"))).toBeInTheDocument();
+    expect(await screen.findByText(zh("shortcuts.messageSend.shortcutTitle"))).toBeInTheDocument();
+    expect(screen.queryByText(zh("shortcuts.messageSend.title"))).not.toBeInTheDocument();
+    expect(screen.queryByText(zh("shortcuts.messageSend.enterSummary"))).not.toBeInTheDocument();
     expect(screen.queryByText(zh("shortcuts.summon.title"))).not.toBeInTheDocument();
     expect(screen.queryByText(zh("shortcuts.app.items.new-tab"))).not.toBeInTheDocument();
     expect(screen.queryByText(zh("shortcuts.app.items.cycle-tab"))).not.toBeInTheDocument();
     unmount();
     renderSettings("desktop-pet");
-    expect(await screen.findByText(zh("about.careerPrivacy"))).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: zh("about.checkUpdates") })).toBeInTheDocument();
   });
 
   it("keystone 壳保留底座原样的关于页和服务端面板", async () => {
@@ -209,5 +220,6 @@ describe("求职壳里的设置页（beta-polish ⑥）", () => {
     unmount();
     renderSettings("general", "keystone");
     expect(await screen.findByTestId("settings-career-server")).toBeInTheDocument();
+    expect(screen.getByText(zh("general.autostartDescription"))).toBeInTheDocument();
   });
 });

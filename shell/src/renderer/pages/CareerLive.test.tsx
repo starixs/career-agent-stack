@@ -14,7 +14,7 @@ import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { onEvent } from '@/api/eventBus';
 import { CAREER_NAVIGATE_EVENT } from '@/features/career-shell/navModel';
 import CareerLive from './CareerLive';
-import { applicationStats, hasBatchWork } from './CareerLiveModel';
+import { applicationStats, hasBatchWork, statsMeta } from './CareerLiveModel';
 
 const push = (ev: unknown) => { live.handler?.(ev); };
 const snapshot = { type: 'snapshot', ts: 1, productSessionId: 's', browser: { hasBrowser: true, control: 'agent', reason: null, url: 'https://x.com/apply', title: '网申', channel: 'chrome' }, batch: { status: 'running', updatedAt: '', done: 2, failed: 0, handoffs: 1, queued: 3, todayCount: 2, phase: 'driving', message: '正在填写：B 公司 算法实习生', currentTitle: 'B 公司 算法实习生' }, openHandoffs: 1 };
@@ -84,7 +84,7 @@ describe('CareerLive', () => {
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());
     push({ ...snapshot, batch: { ...snapshot.batch, status: 'idle', queued: 0, lastError: 'Error: driver timeout' } });
-    expect(await screen.findByText('现在没有在投的。')).toBeInTheDocument();
+    expect(await screen.findByText('现在没有在投的')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '开始 / 继续' })).toBeNull();
     expect(screen.queryByText(/driver timeout/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '去挑一批' }));
@@ -101,11 +101,21 @@ describe('CareerLive', () => {
     expect(screen.queryByText(/TypeError/)).toBeNull();
   });
 
-  it('没有浏览器时给出引导文案，不显示批量噪声', async () => {
+  it('没有在投、也没有浏览器：整页一句话 + 去挑一批，不摆画面框、没有接管和导航按钮', async () => {
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());
     push({ ...snapshot, browser: { ...snapshot.browser, hasBrowser: false, control: 'none' }, batch: null });
-    expect(await screen.findByText(/浏览器还没有打开/)).toBeInTheDocument();
+    expect(await screen.findByText('现在没有在投的')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '去挑一批' })).toBeInTheDocument();
+    expect(screen.queryByAltText('浏览器实时画面')).toBeNull();
+    expect(screen.queryByText('浏览器未打开')).toBeNull();
+    expect(screen.queryByRole('button', { name: '接管' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '招聘概览' })).toBeNull();
     expect(screen.queryByText(/批量：/)).not.toBeInTheDocument();
+  });
+
+  it('页头数字：0 的项不写', () => {
+    expect(statsMeta({ total: 28, active: 3, waiting: 5, submitted: 20, closed: 0 })).toBe('28 条 · 进行中 3 · 等你 5 · 已投出 20');
+    expect(statsMeta({ total: 0, active: 0, waiting: 0, submitted: 0, closed: 0 })).toBe('');
   });
 });

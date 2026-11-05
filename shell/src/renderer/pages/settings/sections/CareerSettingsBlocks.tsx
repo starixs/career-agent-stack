@@ -8,39 +8,16 @@ import { CareerKeysPanel, useCareerSetupStatus } from '@/components/career/Caree
 
 /**
  * 模型 Key：内测包预置了 Key（来源 build）或已经配好时整组不出现；
- * 只有真的缺 Key 时才露出来，让他填一次。搜索不再单独要 Key。
+ * 只有真的缺 Key 时才露出来，让他填一次。搜索不再单独要 Key。不画框、不带解释句。
  */
 export function CareerModelKeyBlock() {
   const { t } = useTranslation('settings');
   const { status } = useCareerSetupStatus();
   if (!status || status.llm.configured) return null;
   return (
-    <div data-testid="settings-career-keys" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-      <h3 className="text-base font-medium text-[var(--ink)]">{t('general.careerModelKeyTitle')}</h3>
-      <p className="mt-1 mb-4 text-xs text-[var(--muted)]">{t('general.careerModelKeyDescription')}</p>
+    <div data-testid="settings-career-keys">
+      <h3 className="mb-3 text-xs font-medium text-[var(--muted)]">{t('general.careerModelKeyTitle')}</h3>
       <CareerKeysPanel show="llm" />
     </div>
-  );
-}
-
-/** 关于页：反馈入口 + 一句隐私说明。产品名与版本号在页头。 */
-export function CareerAboutExtras({ onOpenFeedback }: { onOpenFeedback: () => void }) {
-  const { t } = useTranslation('settings');
-  return (
-    <>
-      <div data-testid="settings-career-about-feedback" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="text-base font-medium text-[var(--ink)]">{t('about.careerFeedbackTitle')}</h3>
-          <button
-            type="button"
-            onClick={onOpenFeedback}
-            className="shrink-0 rounded-lg bg-[var(--inset)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] transition-colors hover:bg-[var(--paper)]"
-          >
-            {t('about.careerFeedbackAction')}
-          </button>
-        </div>
-      </div>
-      <p className="text-center text-xs text-[var(--muted)]">{t('about.careerPrivacy')}</p>
-    </>
   );
 }

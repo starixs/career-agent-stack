@@ -54,27 +54,25 @@
 
 /* Product Type Scale; Theme-owned values stay in the registered Theme package. */
 @theme {
-  /* Type Scale — 单一真相源（PRD 0.2.34 Part 1-3，档位职责见 DESIGN.md §3.3）。
-     v2.5 终局七档（等距 2px 步进至 18）：12/14/16/18/20/22/28。
-     Part 3 双合并：11(micro)+12(caption)→12；13(ui)+14(dense)→14——
-     text-xs/text-sm 自此回归 Tailwind 官方值，同名异值仅剩两条：text-2xl=22(官方24)、text-3xl=28(官方30)。
-     已删除档位：--text-2xs(10)、--text-2sm(12)、--text-md(14)——类名已死，
-     写了等于没样式（eslint 封禁防静默腐坏）。
+  /* Type Scale — 单一真相源：specs/CAREER_DESIGN.md §3.2（求职产品六档，2026-11-05 接管 keystone 遗留的 11/13/15/17/19/21/26）。
+     字号 12/14/16/18/22/28，行高一律写 px（中英混排时倍数行高会跳）。
+     对话正文 `.chat-reading` 另有 1.65 行高，不受这里影响。
+     已删除档位：--text-2xs(10)、--text-2sm(12)、--text-md(14)——类名已死，写了等于没样式（eslint 封禁防静默腐坏）。
      新场景先归档位，禁止 text-[Npx] 任意字面量（eslint 强制）。 */
-  --text-xs: 11px; /* micro/caption: 时间戳、badge、描述行、hint、分类头(uppercase) */
-  --text-xs--line-height: 1.45;
-  --text-sm: 13px; /* ui/dense: 按钮、菜单、树节点、tab、工具卡、控制台、Markdown 表格 */
-  --text-sm--line-height: 1.5;
-  --text-base: 15px; /* prose: AI 正文、用户气泡、输入框、widget body */
-  --text-base--line-height: 1.7;
-  --text-lg: 17px; /* Markdown H3、弹窗标题 */
-  --text-lg--line-height: 1.5;
-  --text-xl: 19px; /* Markdown H2 */
-  --text-xl--line-height: 1.4;
-  --text-2xl: 21px; /* Markdown H1 */
-  --text-2xl--line-height: 1.3;
-  --text-3xl: 26px; /* stat: 数据大数字（占用率百分比等）、页面大标题 */
-  --text-3xl--line-height: 1.2;
+  --text-xs: 12px; /* 时间、计数、徽标、一级栏标签、分组小标题 */
+  --text-xs--line-height: 18px;
+  --text-sm: 14px; /* 界面默认：列表行、按钮、二级导航、表单、卡片标题 */
+  --text-sm--line-height: 22px;
+  --text-base: 16px; /* 阅读型内容：对话、开放题答案、面经、输入框 */
+  --text-base--line-height: 26px;
+  --text-lg: 18px; /* 页面标题（每页一个）、弹窗标题 */
+  --text-lg--line-height: 26px;
+  --text-xl: 22px; /* 问候与首句、档案页公司名 */
+  --text-xl--line-height: 30px;
+  --text-2xl: 28px; /* 复盘大数字 */
+  --text-2xl--line-height: 36px;
+  --text-3xl: 28px; /* 与 2xl 同值，只为旧用法保留，新代码用 text-2xl */
+  --text-3xl--line-height: 36px;
   --text-brand: 56px; /* 品牌展示（Launcher） */
   --text-brand--line-height: 1.1;
 }

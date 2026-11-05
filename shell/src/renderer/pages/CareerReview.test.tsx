@@ -50,6 +50,8 @@ describe('CareerReview', () => {
     expect(within(section).queryByText('9 月')).not.toBeInTheDocument();
     expect(section.querySelectorAll('path[clip-path]')).toHaveLength(4);
     expect(within(screen.getByLabelText('本月关键数字')).getByLabelText('投出 0')).toBeInTheDocument();
+    // 还没替他投出过：不摆「替你投出 0」
+    expect(screen.queryByText(/替你投出/)).not.toBeInTheDocument();
   });
 
   it('顶部五个大数：本月四层带上月，另有用我们以来替你投出', async () => {

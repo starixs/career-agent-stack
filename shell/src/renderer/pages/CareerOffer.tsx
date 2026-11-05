@@ -1,12 +1,14 @@
 /**
- * Offer：卡片列表（薪酬拆解 / 地点 / 截止）、对比表（列为 Offer，行为薪酬 / 内容匹配 / 地点 / 风险）、
- * 「需要你自己决定的项」、新建 / 编辑表单。
+ * Offer：卡片列表（薪酬拆解 / 地点 / 截止）、对比表（两个以上才有：列为 Offer，行为薪酬 / 内容匹配 / 地点 / 风险）、
+ * 「你来定」（按公司分组，只列有事实依据的项）、新建 / 编辑表单。
  */
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { careerApi, safeJson } from '@/components/career/careerApi';
-import { Button, Card, CareerPage, DueLabel, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, formatDate, textOrUnknown } from '@/components/career/CareerPrimitives';
+import { Button, Card, CareerPage, DueLabel, EMPTY_VALUE, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, formatDate, formatDay, textOrUnknown } from '@/components/career/CareerPrimitives';
+import { structuredKeyLabel } from '@/components/career/structuredLabels';
 import type { Offer } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 
@@ -29,44 +31,60 @@ export function compOf(offer: Offer): Comp {
   return safeJson<Comp>(offer.comp_json, {});
 }
 
+/** 薪酬里按「月薪 × 月数」合成一段的键；其余键各成一段。 */
+const BASE_KEYS = ['base', 'base_monthly'] as const;
+const COMP_ORDER = ['total', 'bonus', 'stock', 'signing', 'sign_on'] as const;
+const COMP_SEGMENT_LABEL: Record<string, string> = { total: '年包', bonus: '奖金', stock: '股票 / 期权', signing: '签字费', sign_on: '签字费' };
+
+function compValue(v: unknown): string {
+  return typeof v === 'number' ? v.toLocaleString('en-US') : String(v);
+}
+function present(v: unknown): boolean {
+  return v != null && v !== '' && typeof v !== 'object';
+}
+
+/** 「26,000 × 16 个月 · 签字费 30,000 · 含期权」：中文标签、千分位，不露接口键名。 */
 export function compSummary(comp: Comp): string {
   const parts: string[] = [];
-  for (const f of COMP_FIELDS) {
-    const v = comp[f.key];
-    if (v != null && v !== '') parts.push(`${f.label} ${String(v)}`);
-  }
+  const baseKey = BASE_KEYS.find(k => present(comp[k]));
+  if (baseKey) parts.push(present(comp.months) ? `${compValue(comp[baseKey])} × ${compValue(comp.months)} 个月` : `月薪 ${compValue(comp[baseKey])}`);
+  else if (present(comp.months)) parts.push(`${compValue(comp.months)} 个月`);
+  for (const k of COMP_ORDER) if (present(comp[k])) parts.push(`${COMP_SEGMENT_LABEL[k]} ${compValue(comp[k])}`);
+  const known = new Set<string>([...BASE_KEYS, 'months', ...COMP_ORDER, 'notes']);
   for (const [k, v] of Object.entries(comp)) {
-    if (!COMP_FIELDS.some(f => f.key === k) && v != null && v !== '' && typeof v !== 'object') parts.push(`${k} ${String(v)}`);
+    const label = structuredKeyLabel(k);
+    if (!known.has(k) && present(v) && label) parts.push(`${label} ${compValue(v)}`);
   }
-  return parts.length ? parts.join(' · ') : '未知';
+  if (present(comp.notes)) parts.push(String(comp.notes));
+  return parts.length ? parts.join(' · ') : EMPTY_VALUE;
 }
 
-/** 需要用户自己判断的项：缺数据标「未知」，不编造。 */
-export function decisionItems(offers: Offer[]): string[] {
-  const items: string[] = [];
+export interface DecisionGroup { name: string; items: string[] }
+
+/** 需要用户自己判断的项：按公司分组，公司名只写一次；没有事实依据的空字段不生成套话。 */
+export function decisionItems(offers: Offer[]): DecisionGroup[] {
+  const groups: DecisionGroup[] = [];
   for (const o of offers) {
-    const name = `${textOrUnknown(o.company_name)} · ${textOrUnknown(o.title)}`;
-    const comp = compOf(o);
-    if (Object.keys(comp).length === 0) items.push(`${name}：薪酬拆解未知，需要你补充`);
-    if (!o.content_match) items.push(`${name}：工作内容是否匹配，需要你判断`);
-    if (o.risk_notes) items.push(`${name}：风险「${o.risk_notes}」是否可接受，需要你决定`);
-    if (o.deadline) items.push(`${name}：${formatDate(o.deadline)} 前要答复`);
+    const items: string[] = [];
+    if (Object.keys(compOf(o)).length === 0) items.push('薪酬拆解还没填');
+    if (o.risk_notes) items.push(`风险：${o.risk_notes}`);
+    if (o.deadline) items.push(`${formatDay(o.deadline)}前答复`);
+    if (items.length) groups.push({ name: `${textOrUnknown(o.company_name)} · ${textOrUnknown(o.title)}`, items });
   }
-  if (offers.length > 1) items.push('多个 Offer 之间的取舍只能由你决定，助理只负责把事实并排摆出来。');
-  return items;
+  return groups;
 }
 
-export default function CareerOffer({ embedded = false }: { embedded?: boolean } = {}) {
+export default function CareerOffer({ embedded = false, actionsSlot = null }: { embedded?: boolean; actionsSlot?: HTMLElement | null } = {}) {
   const query = useCareerQuery(careerApi.offers, ['offer']);
   const offers = useMemo(() => query.data ?? [], [query.data]);
   const [editing, setEditing] = useState<Offer | 'new' | null>(null);
+  const decisions = useMemo(() => decisionItems(offers), [offers]);
+  const action = <Button onClick={() => setEditing(editing === 'new' ? null : 'new')}><Plus className="h-3.5 w-3.5" />新建 Offer</Button>;
+  const hoisted = embedded && actionsSlot;
 
   return (
-    <CareerPage
-      embedded={embedded}
-      title="Offer"
-      actions={<Button onClick={() => setEditing(editing === 'new' ? null : 'new')}><Plus className="h-3.5 w-3.5" />新建 Offer</Button>}
-    >
+    <CareerPage embedded={embedded} title="Offer" actions={hoisted ? undefined : action}>
+      {hoisted && createPortal(action, actionsSlot)}
       <div className="max-w-6xl space-y-8 px-6 py-6">
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {editing && (
@@ -79,12 +97,12 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
         )}
         {query.loading && !query.data && <LoadingRow />}
         {!query.loading && offers.length === 0 && (
-          <EmptyState title="还没有 Offer" hint="拿到 Offer 后录入薪酬拆解、地点和截止日期，助理会把它们并排摆出来。" example="帮我录入一个 Offer" />
+          <EmptyState title="还没有 Offer" />
         )}
         {offers.length > 0 && (
           <>
             <section>
-              <SectionTitle>Offer（{offers.length}）</SectionTitle>
+              <SectionTitle count={offers.length}>Offer</SectionTitle>
               <div className="grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2 xl:grid-cols-3">
                 {offers.map(o => (
                   <Card key={o.id} title={`${textOrUnknown(o.company_name)} · ${textOrUnknown(o.title)}`} extra={<Button variant="ghost" size="sm" onClick={() => setEditing(o)}>编辑</Button>}>
@@ -97,7 +115,7 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
                 ))}
               </div>
             </section>
-            <section>
+            {offers.length > 1 && <section>
               <SectionTitle>对比</SectionTitle>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-sm">
@@ -123,13 +141,18 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
                   </tbody>
                 </table>
               </div>
-            </section>
-            <section>
-              <SectionTitle>需要你自己决定的项</SectionTitle>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--ink)]">
-                {decisionItems(offers).map((item, i) => <li key={i}>{item}</li>)}
-              </ul>
-            </section>
+            </section>}
+            {decisions.length > 0 && <section>
+              <SectionTitle>你来定</SectionTitle>
+              <dl className="space-y-3 text-sm">
+                {decisions.map(g => (
+                  <div key={g.name}>
+                    <dt className="font-medium text-[var(--ink)]">{g.name}</dt>
+                    <dd><ul className="mt-1 list-disc space-y-0.5 pl-5 text-[var(--ink-2)]">{g.items.map(item => <li key={item}>{item}</li>)}</ul></dd>
+                  </div>
+                ))}
+              </dl>
+            </section>}
           </>
         )}
       </div>

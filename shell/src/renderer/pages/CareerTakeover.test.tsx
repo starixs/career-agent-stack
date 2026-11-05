@@ -77,12 +77,14 @@ describe('接管简报', () => {
     expect(onOpenChat).toHaveBeenCalled();
   });
 
-  it('还没有简报：说明会在什么时候出现，并给出连接中心', async () => {
+  it('还没有简报：一行字 + 邮箱列表，不写将来式说明、没有导航按钮', async () => {
     vi.mocked(apiGetJson).mockImplementation(async (path: string) => path.startsWith('/api/career/mail/connectors')
       ? { ok: true, connectors: [{ id: 'qq', name: 'QQ 邮箱', auth_type: 'credential_form', capabilities: ['receive'], open_url: '', open_label: '', help_url: null, guide: [], verify_note: '', fields: [] }], accounts: [] }
       : { ok: true, briefing: null });
     render(<CareerTakeover isActive onOpenChat={vi.fn()} />);
-    expect(await screen.findByText(/还没有接管简报/)).toBeInTheDocument();
+    expect(await screen.findByText('连上邮箱，替你整理近半年的求职邮件')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /QQ 邮箱/ })).toBeInTheDocument();
+    expect(screen.queryByText(/还没有接管简报/)).toBeNull();
+    expect(screen.queryByRole('button', { name: '去招聘概览' })).toBeNull();
   });
 });

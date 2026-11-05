@@ -10,6 +10,7 @@ import { careerApi } from './careerApi';
 import { Badge, Button, ChatActionButton, ErrorRow, LoadingRow, SectionTitle, Select, TextArea, TextInput, formatDate, type BadgeTone } from './CareerPrimitives';
 import type { QuestionItem } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
+import { EmptyLine } from './EmptyLine';
 
 const SOURCE: Record<QuestionItem['source'], { label: string; tone: BadgeTone }> = { seen: { label: '我见过', tone: 'accent' }, public: { label: '公共题库', tone: 'info' }, generated: { label: '按 JD 出的', tone: 'neutral' } };
 const KIND: Record<QuestionItem['kind'], string> = { interview: '面试', written: '笔试', assessment: '测评' };
@@ -21,21 +22,30 @@ export function QuestionBankPanel() {
   const [adding, setAdding] = useState(false);
   const [q, setQ] = useState('');
   const list = query.data ?? [];
+  const addButton = <Button size="sm" variant="ghost" onClick={() => setAdding(v => !v)}><Plus className="h-3.5 w-3.5" />补录见过的题</Button>;
+  const filtered = !!(f.kind || f.source || f.q || f.weak_only);
+  // 题库整个是空的（不是筛选筛空的）：折成一行，只留补录
+  if (query.data && list.length === 0 && !filtered) {
+    return (
+      <div>
+        <EmptyLine label="题库" action={addButton} />
+        {adding && <div className="mt-3"><AddQuestion onDone={() => { setAdding(false); query.reload(); }} /></div>}
+      </div>
+    );
+  }
   return (
     <section>
-      <SectionTitle extra={<Button size="sm" onClick={() => setAdding(v => !v)}><Plus className="h-3.5 w-3.5" />补录见过的题</Button>}>
-        题库（{list.length}）
-      </SectionTitle>
+      <SectionTitle count={list.length} extra={addButton}>题库</SectionTitle>
       {adding && <AddQuestion onDone={() => { setAdding(false); query.reload(); }} />}
       <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
         <TextInput aria-label="搜索题目" placeholder="搜题干 / 题型 / 标签" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') set({ q }); }} className="w-48" />
         <Select ariaLabel="题目类型" value={f.kind ?? ''} placeholder="全部类型" onChange={v => set({ kind: v || undefined })} options={[{ value: '', label: '全部类型' }, { value: 'interview', label: '面试' }, { value: 'written', label: '笔试' }, { value: 'assessment', label: '测评' }]} />
         <Select ariaLabel="题目来源" value={f.source ?? ''} placeholder="全部来源" onChange={v => set({ source: v || undefined })} options={[{ value: '', label: '全部来源' }, { value: 'seen', label: '我见过' }, { value: 'public', label: '公共题库' }, { value: 'generated', label: '按 JD 出的' }]} />
-        <label className="flex items-center gap-1 text-[var(--muted)]"><input type="checkbox" checked={!!f.weak_only} onChange={e => set({ weak_only: e.target.checked })} />只看没练 / 不到 60 分</label>
+        <label className="flex items-center gap-1 text-[var(--muted)]" title="没练过，或最好一次不到 60 分"><input type="checkbox" checked={!!f.weak_only} onChange={e => set({ weak_only: e.target.checked })} />只看没练熟</label>
       </div>
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       {query.loading && !query.data && <LoadingRow />}
-      {query.data && list.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有题目。让助理按岗位出题、复盘一场真实面试，或者补录你见过的题，都会存到这里。</div>}
+      {query.data && list.length === 0 && <div className="py-4 text-sm text-[var(--muted)]">没有符合筛选的题</div>}
       <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">{list.map(item => <QuestionRowView key={item.id} item={item} onChanged={query.reload} />)}</ul>
     </section>
   );

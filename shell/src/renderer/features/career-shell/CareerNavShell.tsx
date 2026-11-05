@@ -286,7 +286,7 @@ function RailGroup({ areas, active, onSelect, onPeek }: {
               aria-current={selected ? 'page' : undefined}
               className={`flex min-h-[58px] w-[62px] flex-col items-center justify-center gap-1 rounded-[10px] font-human text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${
                 selected
-                  ? 'bg-[var(--paper)] text-[var(--ink)] shadow-[0_0_0_1px_var(--line),0_1px_0_var(--line-2)]'
+                  ? 'bg-[var(--paper)] text-[var(--ink)] shadow-[0_0_0_1px_var(--line)]'
                   : 'text-[var(--muted)] hover:bg-[var(--hover)] hover:text-[var(--ink)]'
               }`}
               data-career-rail-item={definition.id}

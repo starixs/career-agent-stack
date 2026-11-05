@@ -5,16 +5,18 @@ import type { MarkdownReadingSize } from '../../../../shared/config-types';
 interface MarkdownReadingSizeControlProps {
   value: MarkdownReadingSize;
   onChange: (size: MarkdownReadingSize) => void;
+  /** 求职壳：设置行不带解释句、不另画分隔线（CAREER_DESIGN §3.4）。 */
+  compact?: boolean;
 }
 
-export function MarkdownReadingSizeControl({ value, onChange }: MarkdownReadingSizeControlProps) {
+export function MarkdownReadingSizeControl({ value, onChange, compact = false }: MarkdownReadingSizeControlProps) {
   const { t } = useTranslation('settings');
 
   return (
-    <div className="mt-4 flex items-center justify-between gap-4 border-t border-[var(--line)] pt-4">
+    <div className={`mt-4 flex items-center justify-between gap-4 ${compact ? '' : 'border-t border-[var(--line)] pt-4'}`}>
       <div className="min-w-0 flex-1 pr-4">
         <p className="text-sm font-medium text-[var(--ink)]">{t('general.markdownReadingSizeTitle')}</p>
-        <p className="mt-0.5 text-xs text-[var(--muted)]">{t('general.markdownReadingSizeDescription')}</p>
+        {!compact && <p className="mt-0.5 text-xs text-[var(--muted)]">{t('general.markdownReadingSizeDescription')}</p>}
       </div>
       <div className="flex shrink-0 gap-0.5 rounded-full bg-[var(--inset)] p-0.5">
         {(['large', 'standard'] as const).map(size => (

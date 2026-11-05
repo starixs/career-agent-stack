@@ -87,7 +87,9 @@ describe('CareerInbox', () => {
     expect(within(row).getByText('面试邀请')).toBeInTheDocument();
     const focus: Array<{ surface: string; application_id?: string | null }> = [];
     const off = onEvent<{ surface: string; application_id?: string | null }>('career:focus', p => { focus.push(p); });
-    fireEvent.click(within(row).getByRole('button', { name: '在投递记录里看' }));
+    // 不写「已归入：投递」；行 hover 出「打开」，点进那条投递
+    expect(within(row).queryByText(/已归入/)).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole('button', { name: '打开' }));
     expect(focus).toEqual([{ surface: 'dossier', application_id: 'a1' }]);
     off();
   });
@@ -123,7 +125,7 @@ describe('CareerInbox', () => {
     expect(screen.queryByTestId('career-card-batch')).not.toBeInTheDocument();
   });
 
-  it('丢进来 → POST /api/career/inbox {text}，显示 summary 与未看懂提示', async () => {
+  it('丢进来 → POST /api/career/inbox {text}，显示 summary', async () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, result: { item: { ...items[0], id: 'i9' }, triage: null, created: { deadline_ids: [] }, focus: { surface: 'inbox', id: 'i9' }, summary: '已收下，暂时没识别出类型' } });
     render(<CareerInbox isActive onOpenChat={vi.fn()} />);
@@ -132,7 +134,6 @@ describe('CareerInbox', () => {
     fireEvent.click(screen.getByRole('button', { name: '丢进来' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/inbox', { text: '某公司 产品实习生 JD' }));
     expect(await screen.findByText('已收下，暂时没识别出类型')).toBeInTheDocument();
-    expect(screen.getByText('助理没完全看懂，可以在下面指定归属或交给对话。')).toBeInTheDocument();
     expect((box as HTMLTextAreaElement).value).toBe('');
   });
 
@@ -144,7 +145,7 @@ describe('CareerInbox', () => {
     expect(card).toHaveTextContent('已连接');
   });
 
-  it('待处理条目：忽略 → POST inbox/:id/dismiss；重新识别可带归属；交给助理带 inbox_id', async () => {
+  it('待处理条目：忽略 → POST inbox/:id/dismiss；选了归属就带着它重新识别；交给助理带 inbox_id', async () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, item: { ...items[0], status: 'dismissed' } });
     render(<CareerInbox isActive onOpenChat={vi.fn()} />);
@@ -157,7 +158,6 @@ describe('CareerInbox', () => {
 
     fireEvent.click(screen.getByLabelText('归属投递 i1'));
     fireEvent.click(screen.getByRole('button', { name: '甲公司 · 后端工程师' }));
-    fireEvent.click(screen.getByRole('button', { name: '重新识别' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/inbox/i1/retry', { application_id: 'a1' }));
 
     fireEvent.click(screen.getByRole('button', { name: '忽略' }));

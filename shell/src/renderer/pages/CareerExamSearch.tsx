@@ -80,8 +80,10 @@ function SearchPane() {
 
   const busy = search.phase === 'recognizing' || search.phase === 'answering';
   const record = search.record;
+  // 没搜过题时不留右栏，主区占满
+  const hasHistory = (history.data ?? []).length > 0 || !!history.error;
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
+    <div className={`grid grid-cols-1 gap-8 ${hasHistory ? 'lg:grid-cols-[minmax(0,1fr)_16rem]' : ''}`}>
       <div className="min-w-0 space-y-4">
         <ContextBar company={context.company} role={context.role} onChange={setContext} />
         <PasteZone busy={busy} preview={preview} onImage={onImage} onText={onText} onError={setLocalError} />
@@ -90,7 +92,7 @@ function SearchPane() {
         {PHASE_TEXT[search.phase] && <LoadingRow text={PHASE_TEXT[search.phase]} />}
         {record && record.questions.length > 0 && <SearchResult questions={record.questions} answers={record.answers} pending={search.phase === 'answering'} />}
       </div>
-      <aside className="min-w-0">
+      {hasHistory && <aside className="min-w-0">
         <SectionTitle>搜过的题</SectionTitle>
         {history.error && <ErrorRow message={history.error} onRetry={history.reload} />}
         {removeAction.error && <ErrorRow message={removeAction.error} />}
@@ -99,7 +101,7 @@ function SearchPane() {
           onOpen={item => { setPreview(null); search.show(item); }}
           onRemove={item => { void removeAction.run(async () => { await examSearchApi.removeSearch(item.id); history.reload(); }); }}
         />
-      </aside>
+      </aside>}
     </div>
   );
 }

@@ -1,11 +1,11 @@
 /**
  * Feedback entry: "AI 小助理" (opens BugReportOverlay) and "加入用户群" (shows QR code).
- * Rendered in Settings › 小助理与反馈.
+ * Rendered in Settings › 帮助与反馈. 无框、裸图标；二维码拿不到或加载失败时整块不出现。
  */
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bot, Loader2, Users } from 'lucide-react';
+import { Bot, ChevronRight, Loader2, Users } from 'lucide-react';
 
 import { apiGetJson } from '@/api/apiFetch';
 import { isTauriEnvironment } from '@/utils/browserMock';
@@ -23,6 +23,7 @@ export function FeedbackPanel({ onOpenBugReport, onBeforeOpenBugReport }: Feedba
     const isTauri = isTauriEnvironment();
     const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(isTauri ? null : QR_CDN_URL);
     const [qrLoading, setQrLoading] = useState(isTauri);
+    const [qrFailed, setQrFailed] = useState(false);
 
     // Load QR code from Sidecar in Tauri mode
     useEffect(() => {
@@ -36,69 +37,53 @@ export function FeedbackPanel({ onOpenBugReport, onBeforeOpenBugReport }: Feedba
                     setQrCodeUrl(result.dataUrl);
                 }
             })
-            .catch(() => { /* silent fail */ })
+            .catch((e: unknown) => { console.warn('[feedback] qr-code load FAILED', e); })
             .finally(() => { if (!cancelled) setQrLoading(false); });
 
         return () => { cancelled = true; };
     }, [isTauri]);
 
-    return (
-        <>
-            {/* AI 小助理 */}
-            <div className="px-3 pb-2">
-                <button
-                    onClick={() => {
-                        onBeforeOpenBugReport?.();
-                        onOpenBugReport();
-                    }}
-                    className="group w-full rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3.5
-                        text-left transition-all hover:border-[var(--line-2)] hover:shadow-sm"
-                >
-                    <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--primary-soft)] transition-colors group-hover:bg-[var(--primary-muted)]">
-                            <Bot className="h-4 w-4 text-[var(--primary)]" />
-                        </div>
-                        <div className="min-w-0">
-                            <p className="text-sm font-medium text-[var(--ink)]">{t('titlebar.helper')}</p>
-                            <p className="mt-0.5 text-xs leading-relaxed text-[var(--muted)]">
-                                {t('titlebar.helperDescription')}
-                            </p>
-                        </div>
-                    </div>
-                </button>
-            </div>
+    const showQr = !qrFailed && (qrLoading || qrCodeUrl !== null);
 
-            {/* 加入用户群 */}
-            {(qrLoading || qrCodeUrl) && (
-                <div className="px-3 pb-3.5">
-                    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3.5">
-                        <div className="flex items-center gap-2.5">
-                            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--primary-soft)]">
-                                <Users className="h-4 w-4 text-[var(--primary)]" />
+    return (
+        <div className="divide-y divide-[var(--line)]">
+            {/* AI 小助理 */}
+            <button
+                type="button"
+                onClick={() => {
+                    onBeforeOpenBugReport?.();
+                    onOpenBugReport();
+                }}
+                className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left transition-colors hover:bg-[var(--hover)]"
+            >
+                <Bot className="h-5 w-5 shrink-0 text-[var(--muted)]" strokeWidth={1.75} aria-hidden="true" />
+                <span className="flex-1 text-sm font-medium text-[var(--ink)]">{t('titlebar.helper')}</span>
+                <ChevronRight className="h-4 w-4 shrink-0 text-[var(--muted)]" aria-hidden="true" />
+            </button>
+
+            {/* 加入用户群：二维码拿不到或加载失败时整块不出现 */}
+            {showQr && (
+                <div className="px-3 py-3">
+                    <div className="flex items-center gap-3">
+                        <Users className="h-5 w-5 shrink-0 text-[var(--muted)]" strokeWidth={1.75} aria-hidden="true" />
+                        <span className="text-sm font-medium text-[var(--ink)]">{t('titlebar.communityTitle')}</span>
+                    </div>
+                    <div className="mt-3 pl-8">
+                        {qrLoading || !qrCodeUrl ? (
+                            <div className="flex h-32 w-32 items-center justify-center">
+                                <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
                             </div>
-                            <div className="min-w-0">
-                                <p className="text-sm font-medium text-[var(--ink)]">{t('titlebar.communityTitle')}</p>
-                                <p className="mt-0.5 text-xs leading-relaxed text-[var(--muted)]">
-                                    {t('titlebar.communityDescription')}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="mt-3 flex justify-center">
-                            {qrLoading ? (
-                                <div className="flex h-32 w-32 items-center justify-center">
-                                    <Loader2 className="h-6 w-6 animate-spin text-[var(--muted)]" />
-                                </div>
-                            ) : (
-                                <img
-                                    src={qrCodeUrl!}
-                                    alt={t('titlebar.communityQrAlt')}
-                                    className="h-32 w-32 rounded-lg"
-                                />
-                            )}
-                        </div>
+                        ) : (
+                            <img
+                                src={qrCodeUrl}
+                                alt={t('titlebar.communityQrAlt')}
+                                onError={() => setQrFailed(true)}
+                                className="h-32 w-32 rounded-md"
+                            />
+                        )}
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }

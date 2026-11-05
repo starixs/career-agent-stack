@@ -47,10 +47,14 @@ export const ATTRIBUTION_LABELS = { self: '本人', team: '团队', unknown: '�
 export const STRENGTH_LABELS = { strong: '强', mid: '中', weak: '弱' } as const;
 export const RESUME_STRENGTH_LABELS = { nudge: '轻调', keywords: '关键词', full: '深改' } as const;
 
+/** 空值不写「未知」（CAREER_DESIGN §3.4）：结果没出来写事实「还没结果」；页面上 none 时可以整枚不渲染。 */
 export const INTERVIEW_RESULT_LABELS: Record<string, string> = {
-  none: '未知', rejected: '未通过', advanced: '进入下一轮', no_feedback_inferred: '无反馈（推测）',
+  none: '还没结果', rejected: '未通过', advanced: '进入下一轮', no_feedback_inferred: '无反馈（推测）',
 };
-export const INTERVIEW_RESULT_SOURCE_LABELS: Record<string, string> = { none: '无来源', official: '官方通知', inferred: '推测' };
+/** 页面显示用：来源为空（none）时文字为空，调用方见到空串就不渲染这一枚。 */
+export const INTERVIEW_RESULT_SOURCE_LABELS: Record<string, string> = { none: '', official: '官方通知', inferred: '推测' };
+/** 下拉选项用：每一项都要有字。 */
+export const INTERVIEW_RESULT_SOURCE_CHOICES: Record<string, string> = { ...INTERVIEW_RESULT_SOURCE_LABELS, none: '还没有' };
 export const INTERVIEW_ROUND_LABELS: Record<string, string> = {
   hr: 'HR 面', first: '一面', second: '二面', final: '终面', group: '群面', other: '其他',
 };

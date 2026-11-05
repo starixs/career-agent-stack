@@ -70,7 +70,7 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
       { id: 'general', label: '通用设置', icon: 'sliders', target: { kind: 'settings', section: 'general' } },
       // 桌面宠物内测先隐藏（face-slim 里还等产品定）；设置页的宠物分区代码保留。
       { id: 'shortcuts', label: '快捷键', icon: 'keyboard', target: { kind: 'settings', section: 'shortcuts' } },
-      { id: 'feedback', label: '小助理与反馈', icon: 'help', target: { kind: 'settings', section: 'feedback' } },
+      { id: 'feedback', label: '帮助与反馈', icon: 'help', target: { kind: 'settings', section: 'feedback' } },
       { id: 'about', label: '关于', icon: 'info', target: { kind: 'settings', section: 'about' } },
     ],
   },

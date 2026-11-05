@@ -210,7 +210,7 @@ import { SkillsAgentsSection } from './sections/SkillsAgentsSection';
 import { ToolboxSection } from './sections/ToolboxSection';
 import { ExternalCliSettingsSection } from './sections/ExternalCliSettingsSection';
 import { FeedbackSection } from './sections/ShellEntriesSections';
-import { CareerAboutExtras, CareerModelKeyBlock } from './sections/CareerSettingsBlocks';
+import { CareerModelKeyBlock } from './sections/CareerSettingsBlocks';
 import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import codexModelSelectorOnboarding from '@/assets/onboarding/codex-model-selector.png';
 
@@ -352,6 +352,13 @@ export default function Settings({
   const linuxDesktop = isLinuxDesktop();
   // 求职壳只露求职用得上的条目；keystone 的条目代码不删（face-slim：撤出不等于删代码）。
   const careerShell = shell === 'career';
+  // 求职壳的设置分组不画框：组名是一枚小标，组与组之间一条细线（CAREER_DESIGN §2.3）。
+  const settingsGroupClass = careerShell
+    ? 'border-t border-[var(--line)] pt-5'
+    : 'rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5';
+  const settingsGroupTitleClass = careerShell
+    ? 'text-xs font-medium text-[var(--muted)]'
+    : 'text-base font-medium text-[var(--ink)]';
   const cliProxy = useCliProxyStatus();
   const {
     apiKeys,
@@ -4930,7 +4937,7 @@ export default function Settings({
                 ref={errorDetailPopoverRef}
                 className="absolute right-0 top-6 z-50 w-80 max-w-[90vw] rounded-lg border border-[var(--line)] bg-[var(--paper)] p-3 shadow-lg"
               >
-                <p className="mb-1 text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+                <p className="mb-1 text-xs font-medium text-[var(--muted)]">
                   {tSettings('providers.verify.errorDetails')}
                 </p>
                 <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-xs text-[var(--ink-2)]">
@@ -4958,7 +4965,8 @@ export default function Settings({
 
       {/* 分区导航由 App Shell 的二级栏承担（features/career-shell/navModel.ts）；
           开发者日志入口留在页面右上角。 */}
-      {mode === 'settings' && config.showDevTools && (
+      {/* 求职壳：开发日志入口只在开发构建出现。 */}
+      {mode === 'settings' && config.showDevTools && (!careerShell || import.meta.env.DEV) && (
         <button
           type="button"
           onClick={() => setShowLogs(true)}
@@ -5281,25 +5289,32 @@ export default function Settings({
 
               {/* 消息发送 — applies to every "AI conversation" composer:
                                 主对话框 / AI 小助理 / 问题反馈 (shared via utils/chatSendKey). */}
-              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-                <h3 className="text-base font-medium text-[var(--ink)]">
-                  {tSettings('shortcuts.messageSend.title')}
-                </h3>
-                <p className="mt-1 text-xs text-[var(--muted)]">
-                  {tSettings('shortcuts.messageSend.description')}
-                </p>
-                <div className="mt-4 flex items-center justify-between">
+              {/* 求职壳只剩这一行：不画框、不要组头、不解释控件值（CAREER_DESIGN §3.4）。 */}
+              <div className={careerShell ? '' : 'rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5'}>
+                {!careerShell && (
+                  <>
+                    <h3 className="text-base font-medium text-[var(--ink)]">
+                      {tSettings('shortcuts.messageSend.title')}
+                    </h3>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      {tSettings('shortcuts.messageSend.description')}
+                    </p>
+                  </>
+                )}
+                <div className={`${careerShell ? '' : 'mt-4 '}flex items-center justify-between`}>
                   <div className="flex-1 pr-4">
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('shortcuts.messageSend.shortcutTitle')}
                     </p>
-                    <p className="text-xs text-[var(--muted)]">
-                      {(config.chatSendShortcut ?? 'enter') === 'modEnter'
-                        ? tSettings('shortcuts.messageSend.modEnterSummary', {
-                            mod: isMac ? '⌘' : 'Ctrl',
-                          })
-                        : tSettings('shortcuts.messageSend.enterSummary')}
-                    </p>
+                    {!careerShell && (
+                      <p className="text-xs text-[var(--muted)]">
+                        {(config.chatSendShortcut ?? 'enter') === 'modEnter'
+                          ? tSettings('shortcuts.messageSend.modEnterSummary', {
+                              mod: isMac ? '⌘' : 'Ctrl',
+                            })
+                          : tSettings('shortcuts.messageSend.enterSummary')}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-0.5 rounded-full bg-[var(--inset)] p-0.5">
                     {(
@@ -5465,9 +5480,11 @@ export default function Settings({
                 <h2 className="text-lg font-semibold text-[var(--ink)]">
                   {tSettings('general.title')}
                 </h2>
+                {!careerShell && (
                 <p className="mt-1 text-xs text-[var(--muted)]">
                   {tSettings('general.description')}
                 </p>
+                )}
               </div>
 
               {/* 模型 Key：只在真的缺 Key 时出现（内测包预置了就整组不露）。 */}
@@ -5475,19 +5492,15 @@ export default function Settings({
 
               {/* 服务端地址 / 令牌是开发配置，求职壳不露。 */}
               {!careerShell && (
-                <div data-testid="settings-career-server" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-                  <h3 className="text-base font-medium text-[var(--ink)]">求职助理：服务端</h3>
+                <div data-testid="settings-career-server" className={settingsGroupClass}>
+                  <h3 className={settingsGroupTitleClass}>求职助理：服务端</h3>
                   <p className="mt-1 mb-4 text-xs text-[var(--muted)]">共享的校招 / 实习岗位库，以及答案改动回传（个人信息只传「有改动」，不带内容）。不填就只用本机数据。</p>
                   <CareerServerPanel />
                 </div>
               )}
 
-              <div data-testid="settings-career-keep-awake" className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-                <CareerKeepAwakeSwitch />
-              </div>
-
-              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-                <h3 className="text-base font-medium text-[var(--ink)]">
+              <div className={settingsGroupClass}>
+                <h3 className={settingsGroupTitleClass}>
                   {tSettings('general.appearanceTitle')}
                 </h3>
 
@@ -5496,9 +5509,11 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.languageTitle')}
                     </p>
+                    {!careerShell && (
                     <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.languageDescription')}
                     </p>
+                    )}
                   </div>
                   <CustomSelect
                     value={config.uiLanguage ?? 'system'}
@@ -5513,6 +5528,7 @@ export default function Settings({
                 </div>
 
                 <AppearanceModeControl
+                  compact={careerShell}
                   value={config.appearanceMode}
                   onChange={(mode) => {
                     void updateConfig({ appearanceMode: mode });
@@ -5520,6 +5536,7 @@ export default function Settings({
                 />
 
                 <MarkdownReadingSizeControl
+                  compact={careerShell}
                   value={config.markdownReadingSize ?? 'large'}
                   onChange={(size) => {
                     void updateConfig({ markdownReadingSize: size })
@@ -5535,10 +5552,15 @@ export default function Settings({
               </div>
 
               {/* Startup Settings */}
-              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-                <h3 className="text-base font-medium text-[var(--ink)]">
+              <div className={settingsGroupClass}>
+                <h3 className={settingsGroupTitleClass}>
                   {tSettings('general.startupTitle')}
                 </h3>
+
+                {/* 投递时保持屏幕常亮：批量投递进行时才生效，归在「启动」一组。 */}
+                <div data-testid="settings-career-keep-awake" className="mt-4">
+                  <CareerKeepAwakeSwitch />
+                </div>
 
                 {/* Auto Start */}
                 <div className="mt-4 flex items-center justify-between">
@@ -5546,9 +5568,11 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.autostartTitle')}
                     </p>
+                    {!careerShell && (
                     <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.autostartDescription')}
                     </p>
+                    )}
                   </div>
                   <button
                     onClick={async () => {
@@ -5588,9 +5612,11 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.minimizeToTrayTitle')}
                     </p>
+                    {!careerShell && (
                     <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.minimizeToTrayDescription')}
                     </p>
+                    )}
                   </div>
                   <button
                     onClick={() => {
@@ -5623,9 +5649,11 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.waitingArcadeTitle')}
                     </p>
+                    {!careerShell && (
                     <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.waitingArcadeDescription')}
                     </p>
+                    )}
                   </div>
                   <button
                     role="switch"
@@ -5669,9 +5697,11 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.forceWakeTitle')}
                     </p>
+                    {!careerShell && (
                     <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.forceWakeDescription')}
                     </p>
+                    )}
                   </div>
                   <button
                     onClick={() => {
@@ -5705,9 +5735,11 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.defaultWorkspaceTitle')}
                     </p>
+                    {!careerShell && (
                     <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.defaultWorkspaceDescription')}
                     </p>
+                    )}
                   </div>
                   <CustomSelect
                     value={config.defaultWorkspacePath ?? ''}
@@ -5780,8 +5812,8 @@ export default function Settings({
 
               {/* 消息队列响应模式是 keystone 多轮对话的开关，求职壳不露。 */}
               {!careerShell && (
-              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-                <h3 className="text-base font-medium text-[var(--ink)]">
+              <div className={settingsGroupClass}>
+                <h3 className={settingsGroupTitleClass}>
                   {tSettings('general.queueTitle')}
                 </h3>
                 <div className="mt-4 flex items-center justify-between gap-4">
@@ -5841,8 +5873,8 @@ export default function Settings({
               )}
 
               {/* Notification Settings */}
-              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
-                <h3 className="text-base font-medium text-[var(--ink)]">
+              <div className={settingsGroupClass}>
+                <h3 className={settingsGroupTitleClass}>
                   {tSettings('general.notificationTitle')}
                 </h3>
 
@@ -5852,9 +5884,11 @@ export default function Settings({
                     <p className="text-sm font-medium text-[var(--ink)]">
                       {tSettings('general.notificationEnableTitle')}
                     </p>
+                    {!careerShell && (
                     <p className="text-xs text-[var(--muted)]">
                       {tSettings('general.notificationEnableDescription')}
                     </p>
+                    )}
                   </div>
                   <button
                     onClick={() => {
@@ -5902,9 +5936,11 @@ export default function Settings({
                         <p className="text-sm font-medium text-[var(--ink)]">
                           {tSettings('general.notificationSoundTitle')}
                         </p>
+                        {!careerShell && (
                         <p className="text-xs text-[var(--muted)]">
                           {tSettings('general.notificationSoundDescription')}
                         </p>
+                        )}
                       </div>
                       <button
                         onClick={() => {
@@ -5938,9 +5974,11 @@ export default function Settings({
                         <p className="text-sm font-medium text-[var(--ink)]">
                           {tSettings('general.notificationBadgeTitle')}
                         </p>
+                        {!careerShell && (
                         <p className="text-xs text-[var(--muted)]">
                           {tSettings('general.notificationBadgeDescription')}
                         </p>
+                        )}
                       </div>
                       <button
                         onClick={() => {
@@ -6203,15 +6241,17 @@ export default function Settings({
           {activeSection === 'general' && (
             <div className="mt-6 space-y-6">
               {/* Log Export */}
-              <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
+              <div className={settingsGroupClass}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-base font-medium text-[var(--ink)]">
+                    <h3 className={careerShell ? 'text-sm font-medium text-[var(--ink)]' : 'text-base font-medium text-[var(--ink)]'}>
                       {tSettings('general.logsTitle')}
                     </h3>
-                    <p className="mt-1 text-xs text-[var(--muted)]">
-                      {tSettings('general.logsDescription')}
-                    </p>
+                    {!careerShell && (
+                      <p className="mt-1 text-xs text-[var(--muted)]">
+                        {tSettings('general.logsDescription')}
+                      </p>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -6264,19 +6304,21 @@ export default function Settings({
           {activeSection === 'about' && (
             <div className="space-y-6">
               {/* Brand Header */}
-              <div className="rounded-2xl border border-[var(--line)] bg-gradient-to-br from-[var(--inset)] to-[var(--bg)] p-8">
-                <div className="flex flex-col items-center text-center">
-                  <h1
-                    className="theme-product-wordmark theme-launcher-hero-title cursor-default select-none"
-                    onClick={handleLogoTap}
-                  >
-                    {careerShell
-                      ? tSettings('globalSidebar.brandName', { ns: 'app' })
-                      : 'keystone'}
-                  </h1>
-                  <div className="mt-1 flex items-center gap-2">
-                    <p className="text-sm font-medium text-[var(--muted)]">
-                      Version {appVersion || '...'}
+              {/* 求职壳：不画框、不铺渐变，名字 + 版本 + 检查更新一行。 */}
+              <div className={careerShell ? '' : 'rounded-2xl border border-[var(--line)] bg-gradient-to-br from-[var(--inset)] to-[var(--bg)] p-8'}>
+                <div className={careerShell ? 'flex flex-wrap items-baseline gap-x-3 gap-y-2' : 'flex flex-col items-center text-center'}>
+                  {careerShell ? (
+                    <h1 className="cursor-default select-none text-lg font-medium text-[var(--ink)]" onClick={handleLogoTap}>
+                      {tSettings('globalSidebar.brandName', { ns: 'app' })}
+                    </h1>
+                  ) : (
+                    <h1 className="theme-product-wordmark theme-launcher-hero-title cursor-default select-none" onClick={handleLogoTap}>
+                      keystone
+                    </h1>
+                  )}
+                  <div className={`${careerShell ? '' : 'mt-1 '}flex items-center gap-2`}>
+                    <p className={careerShell ? 'text-sm tabular-nums text-[var(--muted)]' : 'text-sm font-medium text-[var(--muted)]'}>
+                      {careerShell ? `v${appVersion || '…'}` : `Version ${appVersion || '...'}`}
                     </p>
                     {!linuxDesktop && !propUpdateReady && !updateDownloading && (
                       <button
@@ -6378,15 +6420,13 @@ export default function Settings({
                 </div>
               </div>
 
-              {/* 求职壳的关于页：产品名、版本号（页头）、反馈入口、一句隐私说明。
+              {/* 求职壳的关于页只有名字、版本、检查更新（反馈在「帮助与反馈」）。
                   keystone 的开发者自述、实验室、联系方式与许可留给 keystone 壳。 */}
-              {careerShell ? (
-                <CareerAboutExtras onOpenFeedback={() => setActiveSection('feedback')} />
-              ) : (
+              {careerShell ? null : (
               <>
               {/* Product Description — Developer Letter */}
               <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-7 py-6">
-                <p className="text-xs font-medium uppercase tracking-widest text-[var(--muted)]/50">
+                <p className="text-xs font-medium text-[var(--muted)]/50">
                   {tSettings('about.developerLabel')}
                 </p>
                 <div className="mt-4 space-y-5 text-sm leading-[1.9] text-[var(--ink-2)]">
@@ -6578,13 +6618,13 @@ export default function Settings({
               <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] p-5">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+                    <p className="text-xs font-medium text-[var(--muted)]">
                       Developer
                     </p>
                     <p className="mt-1 text-[var(--ink)]">内部研发</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+                    <p className="text-xs font-medium text-[var(--muted)]">
                       Website
                     </p>
                     <ExternalLink
@@ -6595,7 +6635,7 @@ export default function Settings({
                     </ExternalLink>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+                    <p className="text-xs font-medium text-[var(--muted)]">
                       Contact
                     </p>
                     <ExternalLink
@@ -6606,7 +6646,7 @@ export default function Settings({
                     </ExternalLink>
                   </div>
                   <div>
-                    <p className="text-xs font-medium uppercase tracking-wider text-[var(--muted)]">
+                    <p className="text-xs font-medium text-[var(--muted)]">
                       GitHub
                     </p>
                     <ExternalLink

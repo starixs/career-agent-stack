@@ -1,89 +1,80 @@
 /**
- * 功能市场（2026-10-13 会议定）：照 Codex 插件市场的样式，一行两个工具，点了直接用，没有「添加」按钮。
- * - 大功能有自己的工作台（面试、笔试、简历），点了跳过去；
- * - 小功能跳到对话，把一句话预填进输入框，可以直接发，也可以先改；
- * - 原来的教程挪进下面的「点子」，一行一个，先统一展示，以后再按用户情况推荐。
+ * 功能市场（2026-10-13 会议定，2026-11-05 第 3 轮打磨）：点了直接用，没有「添加」按钮。
+ * - 大功能有自己的工作台（面试、笔试、简历），点了跳过去；小功能回对话起头（整句直接发，带冒号的预填）；
+ * - 按任务分组（找岗位与投递 / 简历与材料 / 笔试面试 / 复盘与选择），不按「跳页还是对话」分；
+ * - 裸图标 + 名字 + 一句说明，一行 48，三列；点子是无框列表。
  */
 import {
-  BarChart3, Building2, ChevronRight, Compass, Crosshair, FileText, History, Layers, Mail, MessageSquareQuote, Mic, PenLine, Scale, Send, Target, Users,
+  BarChart3, Building2, ClipboardList, Compass, Crosshair, FileText, History, Inbox, Layers, Mail, MessageSquareQuote, MessagesSquare, Mic,
+  NotebookPen, PenLine, Scale, Send, Smartphone, Target, Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-import { openBatchPick } from '@/components/career/BatchPickCard';
-import { CareerPage, SectionTitle, suggestToChat } from '@/components/career/CareerPrimitives';
+import { CareerPage, SectionTitle } from '@/components/career/CareerPrimitives';
+import { runFeatureStart } from '@/components/career/runFeatureStart';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
-import { requestNavigation, type NavTarget } from '@/features/career-shell/navModel';
 
-/** 点了做什么：去一个页面，或把一句话预填进对话输入框。 */
-/** open = 打开一页；prefill = 在输入框预填一句；batch = 回对话让小芽放一张批量勾选表。 */
-type MarketAction = { open: NavTarget } | { prefill: string } | { batch: true };
+import { FEATURE_IDEAS, FEATURES, featuresInGroup, resolveFeatureStart, type CareerFeature, type FeatureIcon, type FeatureId, type FeatureStart } from '../../shared/careerFeatures';
 
-export interface MarketItem { name: string; what: string; icon: LucideIcon; action: MarketAction }
+/** 功能清单只有一份（shared/careerFeatures.ts）；图标名在这里映射成组件。 */
+const ICONS: Record<FeatureIcon, LucideIcon> = {
+  Users, PenLine, FileText, Scale, BarChart3, Building2, Layers, Send, Target, Mail, MessageSquareQuote, Mic, Crosshair, History, Compass,
+  Smartphone, Inbox, NotebookPen, ClipboardList, MessagesSquare,
+};
 
-export const WORKBENCHES: MarketItem[] = [
-  { name: '面试助力', what: '面试记录、模拟面试、深挖点预测，还能挑题库刷题', icon: Users, action: { open: { kind: 'career-dossier', view: 'interview' } } },
-  { name: '笔试助力', what: '截图粘贴就出答案，先查同公司同岗位的往年题', icon: PenLine, action: { open: { kind: 'career-dossier', view: 'exam-search' } } },
-  { name: '简历编辑', what: '直接看成品，哪里不对说一句就改', icon: FileText, action: { open: { kind: 'career-material', view: 'resume' } } },
-  { name: 'Offer 对比', what: '薪资、城市、成长一项项比', icon: Scale, action: { open: { kind: 'career-dossier', view: 'offer' } } },
-  { name: '求职漏斗与复盘', what: '投了多少、回了多少、卡在哪一环', icon: BarChart3, action: { open: { kind: 'career-review', view: 'funnel' } } },
-  { name: '公司调研与方向', what: '投之前查查这家公司，也看看还有哪些方向', icon: Building2, action: { open: { kind: 'career-review', view: 'research' } } },
+/** 点了做什么：open 打开一页；prefill 在输入框预填一句；batch 回对话让小芽放一张批量勾选表。 */
+type MarketAction = FeatureStart;
+
+export interface MarketItem { id: FeatureId; name: string; what: string; icon: LucideIcon; action: MarketAction }
+
+const toItem = (f: CareerFeature): MarketItem => ({ id: f.id, name: f.name, what: f.what, icon: ICONS[f.icon], action: resolveFeatureStart(f.id) });
+
+export const WORKBENCHES: MarketItem[] = featuresInGroup('workbench').map(toItem);
+export const CHAT_TOOLS: MarketItem[] = featuresInGroup('chat').map(toItem);
+
+/** 按任务分组；市场里有、这里没列到的功能落进最后一组，不会漏。 */
+const TASK_LAYOUT: { title: string; ids: FeatureId[] }[] = [
+  { title: '找岗位与投递', ids: ['batch', 'job_evaluate', 'company_research', 'live', 'mail_compose'] },
+  { title: '简历与材料', ids: ['resume_editor', 'open_q', 'self_intro'] },
+  { title: '笔试面试', ids: ['exam_search', 'interview', 'interview_predict', 'interview_retro'] },
+  { title: '复盘与选择', ids: ['funnel', 'offer', 'direction_explore'] },
 ];
 
-export const CHAT_TOOLS: MarketItem[] = [
-  { name: '批量投递', what: '按你的方向挑一批，填到提交前给你看', icon: Layers, action: { batch: true } },
-  { name: '网申进展', what: '看正在投的每一家，进度和要你处理的事', icon: Send, action: { open: { kind: 'career-live' } } },
-  { name: '岗位评估', what: '贴一段 JD，看匹配度、缺口和值不值得投', icon: Target, action: { prefill: '帮我评估这个岗位，JD 是：' } },
-  { name: '投递邮件', what: '起草邮件、附上简历，你批准了才发', icon: Mail, action: { prefill: '帮我给这个岗位写投递邮件，附上简历 PDF' } },
-  { name: '开放题答案', what: '「为什么选我们」这类题按公司写，前后口径一致', icon: MessageSquareQuote, action: { prefill: '帮我写「为什么选择我们」，300 字，给这家公司：' } },
-  { name: '自我介绍', what: '一分钟、三分钟两个版本，面试前随时取用', icon: Mic, action: { prefill: '给我一分钟和三分钟两个版本的自我介绍' } },
-  { name: '预测追问', what: '这家公司最可能深挖你简历的哪几处', icon: Crosshair, action: { prefill: '预测一下这家公司会深挖我简历哪里：' } },
-  { name: '面后复盘', what: '口述一遍刚才的面试，下一轮不再踩坑', icon: History, action: { prefill: '帮我复盘刚才的面试：' } },
-  { name: '方向探索', what: '从你的经历和反馈里找更合适的方向', icon: Compass, action: { prefill: '帮我看看还有哪些方向适合我' } },
-];
+export const TASK_GROUPS: { title: string; items: MarketItem[] }[] = (() => {
+  const market = [...WORKBENCHES, ...CHAT_TOOLS];
+  const placed = new Set(TASK_LAYOUT.flatMap(g => g.ids));
+  const groups = TASK_LAYOUT.map(g => ({
+    title: g.title,
+    items: g.ids.filter(id => FEATURES[id].group !== 'hidden').map(id => market.find(m => m.id === id)).filter((m): m is MarketItem => !!m),
+  }));
+  groups[groups.length - 1].items.push(...market.filter(m => !placed.has(m.id)));
+  return groups.filter(g => g.items.length > 0);
+})();
 
 export interface Idea { text: string; button: string; action: MarketAction }
 
-export const IDEAS: Idea[] = [
-  { text: '刚开始用？先口述一段实习或项目，小芽帮你写进简历。', button: '口述一段', action: { prefill: '我先口述一段实习，帮我整理进简历：' } },
-  { text: '丢一个 JD 进来，先看看值不值得投。', button: '评估岗位', action: { prefill: '帮我评估这个岗位，JD 是：' } },
-  { text: '绑定邮箱，面试邀请、笔试和拒信自动进来，不用天天刷。', button: '去绑定', action: { open: { kind: 'career-vault' } } },
-  { text: '投出去两周没动静？让小芽看看哪些线可以关掉，把精力留给别处。', button: '看看', action: { prefill: '帮我看看哪些投递很久没动静了，哪些可以关掉' } },
-  { text: '明天面试？一句话摊开卷宗：投的哪版简历、对这家说过什么。', button: '摊开卷宗', action: { prefill: '我明天面试，把这家公司的卷宗摊开：' } },
-  { text: '隔一阵看一次漏斗就够了：投了多少、卡在哪一环。', button: '看我的求职月', action: { open: { kind: 'career-review' } } },
-];
+export const IDEAS: Idea[] = FEATURE_IDEAS.map(i => ({ text: i.text, button: i.button, action: i.start }));
 
-export function runMarketAction(action: MarketAction, note: string): void {
-  if ('prefill' in action) {
-    suggestToChat(action.prefill, { surface: 'guide', note }, 'prefill');
-    return;
-  }
-  if ('batch' in action) {
-    void openBatchPick();
-    return;
-  }
-  requestNavigation(action.open);
-}
+/** 市场卡和建议条的起头格走同一个执行器（runFeatureStart）。 */
+export const runMarketAction = runFeatureStart;
 
 function ToolGrid({ items }: { items: MarketItem[] }) {
   return (
-    <ul className="grid grid-cols-1 gap-x-6 gap-y-1 md:grid-cols-2">
+    <ul className="grid grid-cols-1 gap-x-6 md:grid-cols-2 lg:grid-cols-3">
       {items.map(item => {
         const Icon = item.icon;
         return (
-          <li key={item.name}>
+          <li key={item.id}>
             <button
               type="button"
               onClick={() => runMarketAction(item.action, `功能市场 · ${item.name}`)}
-              className="group -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+              className="-mx-2 flex min-h-12 w-[calc(100%+1rem)] items-center gap-3 rounded-md px-2 py-1 text-left transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--paper)] text-[var(--ink-2)]">
-                <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />
-              </span>
+              <Icon className="h-5 w-5 shrink-0 text-[var(--muted)]" strokeWidth={1.75} aria-hidden />
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-[var(--ink)]">{item.name}</span>
+                <span className="block text-sm font-medium text-[var(--ink)]">{item.name}</span>
                 <span className="block truncate text-xs text-[var(--muted)]">{item.what}</span>
               </span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-[var(--subtle)] transition-transform group-hover:translate-x-0.5" aria-hidden />
             </button>
           </li>
         );
@@ -94,22 +85,20 @@ function ToolGrid({ items }: { items: MarketItem[] }) {
 
 export default function CareerGuide({ embedded = false }: CareerPageProps) {
   return (
-    <CareerPage embedded={embedded} title="功能市场" subtitle="想做什么，点一下就用">
-      <div className="max-w-4xl space-y-10 px-6 py-6">
-        <section>
-          <SectionTitle>工作台</SectionTitle>
-          <ToolGrid items={WORKBENCHES} />
-        </section>
-        <section>
-          <SectionTitle>交给小芽</SectionTitle>
-          <ToolGrid items={CHAT_TOOLS} />
-        </section>
+    <CareerPage embedded={embedded} title="功能市场">
+      <div className="max-w-[960px] space-y-8 px-6 py-6">
+        {TASK_GROUPS.map(g => (
+          <section key={g.title}>
+            <SectionTitle>{g.title}</SectionTitle>
+            <ToolGrid items={g.items} />
+          </section>
+        ))}
         <section>
           <SectionTitle>点子</SectionTitle>
-          <ul className="space-y-2">
+          <ul>
             {IDEAS.map(idea => (
-              <li key={idea.text} className="flex items-center gap-4 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
-                <span className="min-w-0 flex-1 text-sm text-[var(--ink)]">{idea.text}</span>
+              <li key={idea.text} className="flex min-h-12 items-center gap-4 border-l-2 border-[var(--line)] pl-3">
+                <span className="min-w-0 flex-1 text-sm text-[var(--ink-2)]">{idea.text}</span>
                 <button
                   type="button"
                   onClick={() => runMarketAction(idea.action, `点子 · ${idea.button}`)}

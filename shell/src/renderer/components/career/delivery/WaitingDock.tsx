@@ -1,7 +1,7 @@
 /**
  * 等你条与卡组（规范 §3、§5.2、§6.3）：要你的事唯一会主动出声的落点，固定在输入框上沿，不随对话滚走。
  *
- *  - 左边「等你 N」+ 前三件的公司小签 + 最急那件的期限（钢笔蓝）；右边今天这批「已投出 x / y」，只写字不画格。
+ *  - 左边「等你 N」+ 前三件的公司小签 + 最急那件的期限（钢笔蓝，带上是哪家：「小红书 周六 15:00」）；右边今天这批「已投出 x / y」，只写字不画格。
  *  - 点开卡组：一次一张，← → 切换，Esc 收起（焦点回到等你条）；新事进来重排后，仍停在正在看的那张。
  *    卡组开着时条上不再写「等你 N」（卡组头已经写了「等你 i / N」），两行不叠着说同一件事。
  *  - 别处（右栏、悬浮球）要打开卡组用 requestOpenDeck：等你条还没挂上时先记下，挂上后打开。
@@ -40,11 +40,19 @@ function clearPendingDeck(): void {
   pendingDeck = undefined;
 }
 
+/** 条上的期限带主语：只写「周六 15:00」不知道说的是哪家（r3 C7）。 */
+export function dockDueText(ask: AskView): string | null {
+  const due = dueText(ask);
+  if (!due) return null;
+  const who = ask.companies[0]?.name;
+  return who ? `${who} ${due}` : due;
+}
+
 function DockBar({ asks, run, deckOpen, onDeck, onRun, dockRef }: {
   asks: AskView[]; run: RunView | null; deckOpen: boolean; onDeck: () => void; onRun: () => void; dockRef: React.RefObject<HTMLButtonElement | null>;
 }) {
   const first = asks[0];
-  const due = first ? dueText(first) : null;
+  const due = first ? dockDueText(first) : null;
   if (deckOpen && first && !run) return null;
   return (
     <div className="cd-dock" data-testid="waiting-dock">

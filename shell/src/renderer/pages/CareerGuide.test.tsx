@@ -5,7 +5,8 @@ vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), ap
 
 import { onEvent } from '@/api/eventBus';
 import { CAREER_NAVIGATE_EVENT } from '@/features/career-shell/navModel';
-import CareerGuide, { CHAT_TOOLS, IDEAS, WORKBENCHES } from './CareerGuide';
+import CareerGuide, { CHAT_TOOLS, IDEAS, TASK_GROUPS, WORKBENCHES } from './CareerGuide';
+import { featuresInGroup } from '../../shared/careerFeatures';
 
 function capture(event: string) {
   const seen: unknown[] = [];
@@ -14,12 +15,29 @@ function capture(event: string) {
 }
 
 describe('CareerGuide（功能市场）', () => {
-  it('工具双列排开，没有「添加」按钮；教程变成点子', () => {
+  it('工具按任务分组排开，没有「添加」按钮；教程变成点子', () => {
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
     for (const item of [...WORKBENCHES, ...CHAT_TOOLS]) expect(screen.getByRole('button', { name: new RegExp(`^${item.name}`) })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /添加|安装/ })).toBeNull();
     expect(screen.getByText('点子')).toBeInTheDocument();
     for (const idea of IDEAS) expect(screen.getByText(idea.text)).toBeInTheDocument();
+  });
+
+  it('卡片从共用功能清单生成：工作台和交给小芽两组一张不少', () => {
+    render(<CareerGuide isActive onOpenChat={vi.fn()} />);
+    const listed = [...featuresInGroup('workbench'), ...featuresInGroup('chat')];
+    expect([...WORKBENCHES, ...CHAT_TOOLS].map(i => i.name)).toEqual(listed.map(f => f.name));
+    for (const f of listed) expect(screen.getByRole('button', { name: new RegExp(`^${f.name}`) })).toHaveTextContent(f.what);
+  });
+
+  it('按任务分组：市场里的功能每张恰好出现一次，页头不带副标题', () => {
+    render(<CareerGuide isActive onOpenChat={vi.fn()} />);
+    const grouped = TASK_GROUPS.flatMap(g => g.items.map(i => i.id)).sort();
+    const market = [...featuresInGroup('workbench'), ...featuresInGroup('chat')].map(f => f.id).sort();
+    expect(grouped).toEqual(market);
+    for (const g of TASK_GROUPS) expect(screen.getByText(g.title)).toBeInTheDocument();
+    expect(screen.queryByText('工作台')).toBeNull();
+    expect(screen.queryByText(/点一下就用/)).toBeNull();
   });
 
   it('大功能跳到工作台；面试助力去面试工作台', () => {
@@ -51,7 +69,7 @@ describe('CareerGuide（功能市场）', () => {
     fireEvent.click(screen.getByRole('button', { name: '摊开卷宗' }));
     expect(chat.seen).toEqual([
       expect.objectContaining({ text: '帮我评估这个岗位，JD 是：', mode: 'prefill' }),
-      expect.objectContaining({ text: '我明天面试，把这家公司的卷宗摊开：', mode: 'prefill' }),
+      expect.objectContaining({ text: '我明天面试，摊开这家公司的卷宗：', mode: 'prefill' }),
     ]);
     chat.off();
   });
@@ -67,8 +85,8 @@ describe('CareerGuide（功能市场）', () => {
   it('复盘不走对话：直接打开「我的求职月」', () => {
     const nav = capture(CAREER_NAVIGATE_EVENT);
     render(<CareerGuide isActive onOpenChat={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: '看我的求职月' }));
-    expect(nav.seen).toEqual([{ kind: 'career-review' }]);
+    fireEvent.click(screen.getByRole('button', { name: /^求职漏斗与复盘/ }));
+    expect(nav.seen).toEqual([{ kind: 'career-review', view: 'funnel' }]);
     nav.off();
   });
 });

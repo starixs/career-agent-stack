@@ -7,14 +7,14 @@
  * 这里是产品里唯一能看到明文的地方：值加密存在本机 SQLite（密钥单独保存），
  * 模型工具只能拿到字段名、脱敏预览和占位符 {{vault:...}}；填表 / 登录 / 导出时由产品在本机替换成真实值。
  */
-import { ChevronRight, Eye, EyeOff, LockKeyhole, Plus, Trash2 } from 'lucide-react';
+import { ChevronRight, Eye, EyeOff, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { AnswerBankPanel } from '@/components/career/AnswerBankPanel';
 import { careerApi } from '@/components/career/careerApi';
 import {
-  Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextInput, formatDate, relativeTime, useSuggestToChat,
+  Badge, Button, CareerPage, Card, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, SensitiveFirstEditHint, SensitiveMark, TextInput, formatDate, relativeTime, useSuggestToChat,
 } from '@/components/career/CareerPrimitives';
 import { MailConnectCenter } from '@/components/career/mail-connect/MailConnectCenter';
 import { PhoneConnectCenter } from '@/components/career/phone-link/PhoneConnectCenter';
@@ -80,14 +80,9 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
   return (
     <CareerPage
       title="基本资料"
-      subtitle="加密保存，只存在你电脑上"
       actions={<Button variant="ghost" onClick={() => setShowLog(v => !v)}>{showLog ? '收起访问记录' : '访问记录'}</Button>}
     >
       <div className="max-w-4xl space-y-6 px-6 py-6">
-        <div className="flex items-start gap-2 border-l-2 border-[var(--line-2)] pl-3 text-xs text-[var(--muted)]">
-          <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>只需要填这几项。学校、专业这些不用填：小芽会从你的简历和对话里拿，网申用到时再问你。这一页的内容不会发进对话，填网申、登录、导出简历时在你电脑上直接填进去。</span>
-        </div>
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !data && <LoadingRow />}
         {data && (
@@ -97,7 +92,7 @@ export default function CareerVault({ focusExperienceId }: { focusExperienceId?:
             <Card title="联系方式与账号">
               <FieldGrid fields={CONTACT_FIELDS} data={data} onChanged={query.reload} />
               <div className="mt-4 border-t border-[var(--line)] pt-3">
-                <div className="mb-1 text-xs font-medium text-[var(--muted)]">绑定账号：绑得越多，小芽越懂你，网申要填的也越少</div>
+                <div className="mb-1 text-xs font-medium text-[var(--muted)]">绑定账号</div>
                 <ul className="divide-y divide-[var(--line)]">
                   <MailBindingRow />
                   <PhoneBindingRow />
@@ -161,12 +156,12 @@ function ProfileFieldRow({ def, item, onChanged }: { def: VaultProfileFieldDef; 
   });
 
   return (
-    <div className="border-b border-[var(--line)] py-2">
+    <div className="group border-b border-[var(--line)] py-2">
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-sm text-[var(--ink)]">
+            {def.sensitive && <SensitiveMark />}
             <span>{def.label}</span>
-            <Badge tone={def.sensitive ? 'accent' : 'neutral'} title={def.sensitive ? '小芽只知道你填了，看不到内容' : '小芽写材料时会用到'}>{def.sensitive ? '只存在你电脑上' : '小芽能看到'}</Badge>
           </div>
           {!editing && (
             <div className="mt-0.5 text-xs text-[var(--muted)]" data-testid={`vault-preview-${def.field}`}>
@@ -174,7 +169,7 @@ function ProfileFieldRow({ def, item, onChanged }: { def: VaultProfileFieldDef; 
             </div>
           )}
         </div>
-        {!editing && <Button variant="ghost" busy={action.busy} onClick={() => void startEdit()} aria-label={`编辑${def.label}`}>{item ? '编辑' : '填写'}</Button>}
+        {!editing && <Button variant="ghost" reveal={!!item} busy={action.busy} onClick={() => void startEdit()} aria-label={`编辑${def.label}`}>{item ? '编辑' : '填写'}</Button>}
       </div>
       {editing && (
         <div className="mt-2 space-y-2">
@@ -193,7 +188,7 @@ function ProfileFieldRow({ def, item, onChanged }: { def: VaultProfileFieldDef; 
               </Button>
             )}
           </div>
-          {def.hint && <div className="text-xs text-[var(--subtle)]">{def.hint}</div>}
+          {def.sensitive && <SensitiveFirstEditHint editing={editing} />}
           <div className="flex gap-2">
             <Button variant="primary" busy={action.busy} onClick={() => void save()}>保存</Button>
             <Button variant="ghost" onClick={() => { setEditing(false); setValue(''); }}>取消</Button>
@@ -212,8 +207,7 @@ function MailBindingRow() {
   return (
     <li className="py-2">
       <div className="flex min-h-9 items-center gap-3">
-        <span className="w-20 shrink-0 text-sm text-[var(--ink)]">邮箱同步</span>
-        <span className="min-w-0 flex-1 text-xs text-[var(--muted)]">笔试、面试、拒信邮件自动识别</span>
+        <span className="w-20 shrink-0 text-sm text-[var(--ink)]">邮箱</span>
       </div>
       <div className="mt-2"><MailConnectCenter /></div>
     </li>
@@ -224,8 +218,7 @@ function PhoneBindingRow() {
   return (
     <li className="py-2">
       <div className="flex min-h-9 items-center gap-3">
-        <span className="w-20 shrink-0 text-sm text-[var(--ink)]">手机验证码</span>
-        <span className="min-w-0 flex-1 text-xs text-[var(--muted)]">网申的短信验证码自动填，手机不用装 App</span>
+        <span className="w-20 shrink-0 text-sm text-[var(--ink)]">手机</span>
       </div>
       <div className="mt-2"><PhoneConnectCenter /></div>
     </li>
@@ -285,7 +278,7 @@ function AccountRow({ def, item, fetch, onChanged }: { def: AccountDef; item?: V
             : <span className="text-[var(--subtle)]">未绑定</span>}
           {bound && state && <span className={`ml-2 ${state.expired ? 'text-[var(--warning)]' : 'text-[var(--subtle)]'}`} data-testid={`account-state-${def.field}`}>· {state.text}</span>}
         </span>
-        {!bound && !editing && <Button variant="secondary" size="sm" busy={action.busy} onClick={() => (def.input ? setEditing(true) : void bind())}>绑定</Button>}
+        {!bound && !editing && <Button variant="ghost" size="sm" busy={action.busy} onClick={() => (def.input ? setEditing(true) : void bind())}>绑定</Button>}
         {bound && (
           <>
             <Button variant={state?.expired ? 'secondary' : 'ghost'} size="sm" busy={action.busy} onClick={() => void refetch()}>{state?.expired ? '重新绑定' : '重新抓取'}</Button>
@@ -296,7 +289,7 @@ function AccountRow({ def, item, fetch, onChanged }: { def: AccountDef; item?: V
       {editing && def.input && (
         <div className="mt-2 flex flex-wrap items-end gap-2 pl-[92px]">
           <div className="min-w-[240px] flex-1">
-            <Field label={def.input.label} hint={def.loginUrl ? '绑定后小芽会打开网站，登录由你自己完成，账号密码不经过它' : undefined}>
+            <Field label={def.input.label}>
               <TextInput aria-label={def.input.label} value={value} onChange={e => setValue(e.target.value)} placeholder={def.input.placeholder} />
             </Field>
           </div>
@@ -331,14 +324,11 @@ function SitesSection({ data, onChanged }: { data: VaultOverview; onChanged: () 
   const [adding, setAdding] = useState(false);
   return (
     <section>
-      <SectionTitle extra={<Button onClick={() => setAdding(v => !v)}><Plus className="h-3.5 w-3.5" />添加网站账号</Button>}>
-        投递网站账号（{sites.length}）
+      <SectionTitle count={sites.length} extra={<Button onClick={() => setAdding(v => !v)}><Plus className="h-3.5 w-3.5" />添加网站账号</Button>}>
+        投递网站账号
       </SectionTitle>
-      <p className="mb-2 text-xs text-[var(--muted)]">
-        遇到登录页时，小芽可以在你电脑上把账号密码填进输入框（需要你打开「自动代填」），但登录按钮、验证码、短信码仍由你本人完成。密码不会给助理，也不会出现在对话里。
-      </p>
       {adding && <SiteForm onDone={() => { setAdding(false); onChanged(); }} onCancel={() => setAdding(false)} />}
-      {sites.length === 0 && !adding && <EmptyState title="还没有保存网站账号" hint="例如智联、前程无忧、牛客、各公司官网的网申账号。" />}
+      {sites.length === 0 && !adding && <EmptyState title="还没有保存网站账号" />}
       <ul className="divide-y divide-[var(--line)]">
         {sites.map(site => <SiteRow key={site.host} site={site} onChanged={onChanged} />)}
       </ul>
@@ -399,7 +389,7 @@ function SiteForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => vo
       </div>
       <label className="mt-2 flex items-center gap-2 text-xs text-[var(--muted)]">
         <input type="checkbox" checked={form.autofill} onChange={e => setForm(f => ({ ...f, autofill: e.target.checked }))} />
-        遇到该网站登录页时自动把账号密码填进输入框（不点登录）
+        登录页自动代填
       </label>
       {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
       <div className="mt-3 flex gap-2">
@@ -429,10 +419,7 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
   return (
     <section>
       <SectionTitle>经历的保密补充</SectionTitle>
-      <p className="mb-2 text-xs text-[var(--muted)]">
-        简历里只写脱敏说法（如「某头部电商」），真实公司名、客户名、保密数据放这里。小芽看不到这些内容，导出简历或填网申时会在你电脑上填成真实的。
-      </p>
-      {list.length === 0 && <EmptyState title="还没有经历" hint="先跟小芽聊聊做过的事，再回来补充保密信息。" />}
+      {list.length === 0 && <EmptyState title="还没有经历" />}
       <ul className="divide-y divide-[var(--line)]">
         {list.map(e => {
           const items = byExp.get(e.id) ?? [];
@@ -443,7 +430,7 @@ function ExperienceSection({ data, experiences, focusExperienceId, onChanged }: 
                 <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]">{e.title}</span>
                 {isOralExperience(e) && <Badge tone="neutral">来自口述</Badge>}
                 <span className="text-xs text-[var(--muted)]">{[e.org, e.role].filter(Boolean).join(' · ')}{e.start_date ? ` · ${formatDate(e.start_date)}` : ''}</span>
-                <Badge tone={items.length ? 'accent' : 'neutral'}>{items.length ? `${items.length} 项保密` : '无'}</Badge>
+                {items.length > 0 && <Badge tone="accent">{`${items.length} 项保密`}</Badge>}
               </button>
               {open && <ExperienceFields experienceId={e.id} items={items} onChanged={onChanged} />}
             </li>

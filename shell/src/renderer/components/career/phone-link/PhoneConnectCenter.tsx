@@ -27,11 +27,8 @@ export function PhoneConnectCenter() {
       {status.binding ? <RememberedPhone status={status} busy={action.busy}
         onRetry={() => run(careerApi.reconnectPhone)} onForget={() => run(careerApi.unbindPhone)}
         onRepair={() => setPairing('repair')} /> : (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="primary" onClick={() => setPairing('new')}>连接手机</Button>
-          {phones.map(p => <Button key={p.address} busy={action.busy}
-            onClick={() => run(() => careerApi.bindPhone(p))}>用 {p.name || '这台手机'}</Button>)}
-        </div>
+        // 配对过的手机在弹窗里选（PhonePairFlow 的 PhoneChoices），这里只留一个入口
+        <Button variant="primary" onClick={() => setPairing('new')}>连接手机</Button>
       )}
       {action.error && <div role="alert" className="mt-1 text-xs text-[var(--danger)]">{action.error}</div>}
       {(pairing || status.pairing) && <PhonePairFlow status={status} phones={phones} computerName={computerName}
@@ -49,22 +46,20 @@ function RememberedPhone({ status, busy, onRetry, onForget, onRepair }: Remember
   if (!binding) return null;
   const view = linkStateView(status.state);
   return (
-    <div className="group flex items-center gap-3 rounded-[10px] border border-[var(--line)] bg-[var(--paper)] px-3 py-3">
+    <div className="group flex items-center gap-3 py-1">
       <Smartphone aria-hidden className="h-5 w-5 shrink-0 text-[var(--muted)]" />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
           <span className="text-sm font-semibold text-[var(--ink)]">{binding.name || '手机'}</span>
           <LinkBadge state={status.state} />
         </span>
-        <span className="block text-xs text-[var(--subtle)]">已记住此手机 · {binding.last_connected_at ? '无需重新配对' : '首次需确认消息权限'}</span>
         {status.state === 'connected' && status.latest ? <LatestCode sms={status.latest} />
           : view && <span className="block text-xs text-[var(--muted)]">{view.hint}</span>}
       </span>
       {view?.retry && <Button size="sm" busy={busy} onClick={onRetry}>{status.state === 'paused' ? '重新连接' : '重试'}</Button>}
       {status.state !== 'connected' && <Button size="sm" busy={busy} onClick={onRepair}>
         {status.state === 'unpaired' ? '修复配对' : '连接帮助'}</Button>}
-      <Button size="sm" variant="ghost" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-        busy={busy} onClick={onForget}>不再使用</Button>
+      <Button size="sm" variant="ghost" reveal busy={busy} onClick={onForget}>不再使用</Button>
     </div>
   );
 }

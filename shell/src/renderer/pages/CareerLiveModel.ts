@@ -25,6 +25,16 @@ export function applicationStats(applications: readonly Pick<Application, 'stage
   };
 }
 
+/** 页头一行数字：「28 条 · 进行中 3 · 等你 5 · 已投出 20」，0 的项不写；一条都没有返回空串。 */
+export function statsMeta(stats: ApplicationStats): string {
+  if (stats.total === 0) return '';
+  const parts = [`${stats.total} 条`];
+  for (const [label, n] of [['进行中', stats.active], ['等你', stats.waiting], ['已投出', stats.submitted], ['已关闭', stats.closed]] as const) {
+    if (n > 0) parts.push(`${label} ${n}`);
+  }
+  return parts.join(' · ');
+}
+
 /** 批量里还有没有要投的：在跑、暂停着，或者还排着 / 正在填的。都没有就给空状态，不给一点就说「全部处理完」的开始按钮。 */
 export function hasBatchWork(batch: BatchState | null): boolean {
   if (!batch) return false;

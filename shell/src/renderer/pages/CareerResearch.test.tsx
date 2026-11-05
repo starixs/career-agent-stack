@@ -39,12 +39,14 @@ describe('CareerResearch', () => {
     vi.mocked(apiPostJson).mockReset();
   });
 
-  it('空状态', async () => {
+  it('空状态：三行列表', async () => {
     mockGet(true);
     render(<CareerResearch />);
-    expect(await screen.findByText('还没有公司研究')).toBeInTheDocument();
-    expect(screen.getByText('还没有候选方向')).toBeInTheDocument();
-    expect(screen.getByText('还没有差距计划')).toBeInTheDocument();
+    // 三块各折成一行：块名 + 一个动词按钮，不包「在对话里说」、不写说明
+    expect(await screen.findByRole('button', { name: '研究一家公司' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '探索方向' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '做差距计划' })).toBeInTheDocument();
+    expect(screen.queryByText(/在对话里说|红绿灯只是提示|助理会结合/)).not.toBeInTheDocument();
   });
 
   it('渲染公司（红绿灯 / 报告折叠 / 核实清单）、方向与差距计划', async () => {

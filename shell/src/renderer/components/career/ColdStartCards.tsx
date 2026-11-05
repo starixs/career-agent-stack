@@ -93,7 +93,7 @@ export function TakeoverCard({ card, onDone }: { card: CareerCard; onDone: () =>
       <h4 className="font-human text-lg font-semibold text-[var(--ink)]">
         {b.applications ? `替你接管了 ${b.applications} 家公司的申请` : '邮箱连好了，还没有求职邮件'}
       </h4>
-      {b.applications === 0 && <p className="text-sm text-[var(--ink-2)]">你现在大概在{b.season.label}。以后一有网申、笔试、面试邮件就会自动收进来。</p>}
+      {b.applications === 0 && <p className="text-sm text-[var(--ink-2)]">你现在大概在{b.season.label}。</p>}
       <UrgentNeed b={b} action={<Button variant="primary" className="mt-1.5 justify-self-start" onClick={() => openApplication(b.needs[0]?.application_id ?? null)}>从最急的开始</Button>} />
       <div className="grid gap-2">
         <FactRow n={bucket('interview').length} label="场面试" tags={names(bucket('interview'))} />

@@ -5,15 +5,17 @@ import type { AppearanceMode } from '@/theme';
 interface AppearanceModeControlProps {
   value: AppearanceMode;
   onChange: (mode: AppearanceMode) => void;
+  /** 求职壳：设置行不带解释句（CAREER_DESIGN §3.4）。 */
+  compact?: boolean;
 }
 
-export function AppearanceModeControl({ value, onChange }: AppearanceModeControlProps) {
+export function AppearanceModeControl({ value, onChange, compact = false }: AppearanceModeControlProps) {
   const { t } = useTranslation('settings');
   return (
     <div className="mt-4 flex items-center justify-between gap-4">
       <div className="flex-1 pr-4">
         <p className="text-sm font-medium text-[var(--ink)]">{t('general.appearanceModeTitle')}</p>
-        <p className="mt-0.5 text-xs text-[var(--muted)]">{t('general.appearanceModeDescription')}</p>
+        {!compact && <p className="mt-0.5 text-xs text-[var(--muted)]">{t('general.appearanceModeDescription')}</p>}
       </div>
       <div className="flex shrink-0 gap-0.5 rounded-full bg-[var(--inset)] p-0.5">
         {(['system', 'light', 'dark'] as const).map((mode) => (

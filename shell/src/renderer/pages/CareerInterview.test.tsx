@@ -23,13 +23,13 @@ const interviews = [
 const mocks = [{ id: 'm1', job_id: null, resume_tailored_id: null, mode: 'probe', company_type: '大厂', round: 'first', turns_json: JSON.stringify([{}, {}]), report_json: JSON.stringify({ score: 7 }), created_at: '2026-09-25', updated_at: '2026-09-25' }];
 const predictions = [{ id: 'p1', resume_tailored_id: null, claim_id: null, statement: 'P99 从 800ms 到 200ms 的具体手段', target_type: 'data', expected_chain_json: JSON.stringify(['怎么测的', '基线是什么']), risk: 'high', created_at: '2026-09-25' }];
 
-function mockGet(empty = false) {
+function mockGet(empty = false, predictionsDown = false) {
   vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
     if (path.startsWith('/api/career/interviews')) return { ok: true, interviews: empty ? [] : interviews };
     if (path.startsWith('/api/career/mock-interviews')) return { ok: true, mockInterviews: empty ? [] : mocks };
     if (path.startsWith('/api/career/probe-predictions')) {
-      if (empty) throw new Error('HTTP 404');
-      return { ok: true, predictions };
+      if (predictionsDown) throw new Error('HTTP 404');
+      return { ok: true, predictions: empty ? [] : predictions };
     }
     return { ok: true };
   });
@@ -41,12 +41,33 @@ describe('CareerInterview', () => {
     vi.mocked(apiPostJson).mockReset();
   });
 
-  it('空状态（预测路由 404 也不报错）', async () => {
+  it('空状态：每个分区折成一行（分区名 + 一个动作），不写说明', async () => {
     mockGet(true);
     render(<CareerInterview />);
-    expect(await screen.findByText('还没有面试记录')).toBeInTheDocument();
-    expect(screen.getByText(/还没有预测/)).toBeInTheDocument();
+    expect(await screen.findByText('面试记录')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '预测追问点' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '模拟一场' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /补录见过的题/ })).toBeInTheDocument();
+    expect(screen.queryByText(/在对话里说/)).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('预测取不到时显示出错（可重试），不冒充「还没有预测」', async () => {
+    mockGet(true, true);
+    render(<CareerInterview />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('深挖点预测没取到');
+    expect(screen.queryByRole('button', { name: '预测追问点' })).not.toBeInTheDocument();
+  });
+
+  it('结果还没出来、来源为空：不渲染「未知」「无来源」这类空值文字', async () => {
+    const pending = { ...interviews[1], id: 'i3', result: 'none', result_source: 'none' };
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
+      if (path.startsWith('/api/career/interviews')) return { ok: true, interviews: [pending] };
+      return { ok: true, predictions: [], mockInterviews: [] };
+    });
+    render(<CareerInterview />);
+    expect(await screen.findAllByText('丁公司 · 算法工程师')).not.toHaveLength(0);
+    for (const t of ['未知', '无来源', '还没结果', /来源：/]) expect(screen.queryByText(t)).not.toBeInTheDocument();
   });
 
   it('渲染记录列表（结果与来源徽标）、详情、模拟面试与预测', async () => {

@@ -67,10 +67,15 @@ describe('CareerApply · 岗位库', () => {
     expect(screen.queryByText('岗位正在更新')).not.toBeInTheDocument();
   });
 
-  it('没勾选时投递按钮告诉他怎么选', async () => {
+  it('没勾选时不出现投递按钮，也不写操作说明；勾了才出现「投这 N 家」', async () => {
     mockGet();
     render(<CareerApply />);
-    expect(await screen.findByRole('button', { name: '点行勾选，Shift 可连选' })).toBeDisabled();
+    await screen.findByText('后端工程师');
+    expect(screen.queryByRole('button', { name: /^投这/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Shift/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('检查都过了就直接交')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择岗位 后端工程师' }));
+    expect(screen.getByRole('button', { name: '投这 1 家' })).toBeInTheDocument();
   });
 
   it('多维表格：批次带届别、行业、类型标签、截止；默认只看没截止；匹配分展开看证据', async () => {
@@ -81,7 +86,8 @@ describe('CareerApply · 岗位库', () => {
     expect(screen.queryByText('数据分析')).not.toBeInTheDocument();
     expect(screen.getByText('27届 · 正式批')).toBeInTheDocument();
     expect(screen.getByText('互联网')).toBeInTheDocument();
-    expect(screen.getByText('央国企')).toBeInTheDocument();
+    // 类型是纯文字，多个用「·」连
+    expect(screen.getByText('实习 · 央国企')).toBeInTheDocument();
     expect(screen.getByText('12 月 10 日')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '网申' })).toHaveAttribute('href', 'https://example.com/j1');
     fireEvent.click(screen.getByRole('button', { name: '只看没截止' }));
@@ -127,14 +133,16 @@ describe('CareerApply · 岗位库', () => {
     });
   });
 
-  it('auto 模式开关跟「投这 N 家」放在一起；结果不确定的提交仍要你确认', async () => {
+  it('auto 模式开关在「投这 N 家」的确认区里；结果不确定的提交仍要你确认', async () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true });
     render(<CareerApply />);
     expect(await screen.findByText('点了提交，但没等到成功提示')).toBeInTheDocument();
     expect(screen.getByText('丙公司 · 后端工程师')).toBeInTheDocument();
     expect(screen.getByText('（自学习免确认）')).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('检查都过了就直接交'));
+    fireEvent.click(screen.getByRole('checkbox', { name: '选择岗位 后端工程师' }));
+    fireEvent.click(screen.getByRole('button', { name: '投这 1 家' }));
+    fireEvent.click(within(screen.getByTestId('apply-confirm')).getByLabelText('检查都过了就直接交'));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/apply/settings', { auto_mode: true }));
     fireEvent.click(screen.getByRole('button', { name: '已投递成功' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/act9/confirm-submit', { submitted: true }));
@@ -178,7 +186,7 @@ describe('CareerApply · 岗位库', () => {
     fireEvent.change(search, { target: { value: '丁' } });
     fireEvent.click(screen.getByRole('checkbox', { name: '选择岗位 算法工程师' }));
     expect(screen.getByRole('button', { name: '投这 2 家' })).toBeInTheDocument();
-    expect(screen.getByText('已选 2（1 个在别的搜索里）')).toBeInTheDocument();
+    expect(screen.getByText('另有 1 个在别的搜索里')).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText('全选岗位'));
     expect(screen.getByRole('button', { name: '投这 1 家' })).toBeInTheDocument();
   });

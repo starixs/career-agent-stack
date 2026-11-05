@@ -1,5 +1,6 @@
 /**
- * 粘贴区：⌘V 截图、拖进图片、粘贴文字，进来就搜，不用再点按钮（现场答题要快）。
+ * 粘贴区：一个输入框 + 搜 / 选图片。⌘V 截图、拖进图片、粘贴文字，进来就搜，不用再点按钮（现场答题要快）；
+ * 拖图时整页出一层提示，不给输入框再套一层框。
  * 页面在时整页监听粘贴；焦点在输入框里粘贴文字不拦（那是在填公司 / 岗位），粘贴图片照样接住。
  */
 import { ImagePlus } from 'lucide-react';
@@ -77,31 +78,28 @@ export function PasteZone({ busy, preview, onImage, onText, onError }: {
       onDragOver={event => { event.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
-      className={`rounded-xl border-2 border-dashed px-5 py-5 transition-colors ${dragging ? 'border-[var(--primary)] bg-[var(--mint)]' : 'border-[var(--line)] bg-[var(--paper)]'}`}
+      className="flex items-start gap-3"
     >
-      <div className="flex items-center gap-4">
-        {preview
-          ? <img src={preview} alt="这次搜的截图" className="h-20 max-w-[12rem] shrink-0 rounded-md border border-[var(--line)] object-contain" />
-          : <ImagePlus className="h-8 w-8 shrink-0 text-[var(--subtle)]" strokeWidth={1.5} aria-hidden />}
-        <div className="min-w-0 flex-1">
-          <div className="font-human text-base font-semibold text-[var(--ink)]">截图后按 ⌘V，马上出答案</div>
-          <div className="text-xs text-[var(--muted)]">也可以把图片拖进来，或者在下面粘贴题目文字。一张图里有好几道题也行。</div>
+      {dragging && (
+        <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-[var(--bg)]/85 font-human text-xl text-[var(--ink)]" aria-hidden>
+          松手就搜这张图
         </div>
-        <Button size="sm" disabled={busy} onClick={() => fileInput.current?.click()}>选图片</Button>
-        <input
-          ref={fileInput} type="file" accept="image/*" className="hidden" aria-label="选择题目图片"
-          onChange={event => { const file = event.target.files?.[0]; if (file) onImage(file); event.target.value = ''; }}
-        />
-      </div>
-      <div className="mt-3 flex items-end gap-2">
-        <TextArea
-          aria-label="题目文字" rows={2} value={text} placeholder="粘贴题目文字，回车搜（Shift+回车换行）"
-          onChange={event => setText(event.target.value)}
-          onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submitText(); } }}
-          className="flex-1"
-        />
+      )}
+      {preview && <img src={preview} alt="这次搜的截图" className="h-20 max-w-[12rem] shrink-0 rounded-md border border-[var(--line)] object-contain" />}
+      <TextArea
+        aria-label="题目文字" rows={3} value={text} placeholder="截图后 ⌘V，或粘贴题目文字"
+        onChange={event => setText(event.target.value)}
+        onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submitText(); } }}
+        className="flex-1"
+      />
+      <div className="flex shrink-0 flex-col gap-2">
         <Button variant="primary" busy={busy} disabled={!text.trim()} onClick={submitText}>搜</Button>
+        <Button variant="ghost" disabled={busy} onClick={() => fileInput.current?.click()}><ImagePlus className="h-4 w-4" strokeWidth={1.75} />选图片</Button>
       </div>
+      <input
+        ref={fileInput} type="file" accept="image/*" className="hidden" aria-label="选择题目图片"
+        onChange={event => { const file = event.target.files?.[0]; if (file) onImage(file); event.target.value = ''; }}
+      />
     </div>
   );
 }

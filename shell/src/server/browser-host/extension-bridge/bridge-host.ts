@@ -52,10 +52,10 @@ export async function ensureProductBrowserReady(signal?: AbortSignal): Promise<v
 }
 
 export function productBrowserWaitingMessage(): string {
-  if (productBrowser?.state === 'failed') return '浏览器自动准备失败，请检查网络或磁盘空间后重启应用；无需手动安装扩展'
-  if (productBrowser?.state === 'closed') return '浏览器已关闭；下次执行任务时会自动打开'
-  if (productBrowser?.state === 'starting' || productBrowser?.state === 'ready') return '正在自动连接浏览器，连通后画面会自动出现'
-  return '正在自动准备浏览器，首次可能需要下载；无需安装扩展或配置端口'
+  if (productBrowser?.state === 'failed') return '浏览器没打开，检查网络和磁盘空间后重启应用'
+  if (productBrowser?.state === 'closed') return '浏览器已关闭'
+  if (productBrowser?.state === 'starting' || productBrowser?.state === 'ready') return '正在连接浏览器…'
+  return '正在打开浏览器…'
 }
 
 export async function stopExtensionBridge(): Promise<void> {

@@ -57,9 +57,25 @@ describe('todoCalendar', () => {
     // 待批准按创建日期定位，没做完 → 顺延到今天
     expect(byKey.get('action:act1')).toMatchObject({ category: 'review', date: '2026-10-13', originDate: '2026-10-10' });
     expect(byKey.get('handoff:h1')).toMatchObject({ category: 'handoff', date: '2026-10-13' });
+    // 组头已写类别：标题去掉「待你批准：」「需要你本人处理：」；交接按钮按原因给动词
+    expect(byKey.get('action:act1')?.item.title).toBe('发送投递邮件');
+    expect(byKey.get('handoff:h1')).toMatchObject({ item: { title: '验证码' }, handoffVerb: '去过验证码' });
     expect(byKey.get('application:a1')).toMatchObject({ category: 'remind', date: '2026-10-13' });
     // 活动里执行过的动作：已完成的待批准，放在发生那天
     expect(byKey.get('action:old')).toMatchObject({ category: 'review', date: '2026-10-11', done: true });
+  });
+
+  it('两家都要登录：交接行标题带公司，分得清', () => {
+    const todos = buildTodos({
+      today: [
+        { kind: 'handoff', priority: 3, title: '需要你本人处理：登录 · 京东 推荐算法工程师', detail: '网站要求登录', ref: { type: 'handoff', id: 'h1' } },
+        { kind: 'handoff', priority: 3, title: '需要你本人处理：登录 · 美团 后端开发', detail: '网站要求登录', ref: { type: 'handoff', id: 'h2' } },
+      ],
+      now: NOW,
+    });
+    const titles = todos.map(t => t.item.title);
+    expect(titles).toEqual(['京东 推荐算法工程师 · 网站要求登录', '美团 后端开发 · 网站要求登录']);
+    expect(todos.every(t => t.handoffVerb === '去登录')).toBe(true);
   });
 
   it('面试时间过了：一天内放今天提示复盘，不算过期；更早的留在原日期，不顺延', () => {

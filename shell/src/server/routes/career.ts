@@ -42,7 +42,8 @@ import { confirmSubmitResult } from '../career/submit-executor';
 import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetch } from '../career/accounts';
 import { applyJobs, planJobs, prepareAhead, startApprovedFills } from '../career/batch-apply';
 import { postProposal, proposeAfterSubmit, startFromCard } from '../career/batch-propose';
-import { buildSuggestions } from '../career/suggest';
+import { suggestFor } from '../career/suggest';
+import { parseSuggestRequest } from '../career/suggest-request';
 import { suggestContextOf } from '../career/suggest-context';
 import { CAMPUS_SEEDED_KEY, campusLibraryFilter, computeMatches, getJobPrefs, jobBoard, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
@@ -483,9 +484,8 @@ const ROUTES: Route[] = [
   }),
   // 建议条：一轮说完后输入框上方的几个小框（规则 + 一次小模型调用，超时只出规则那两格）
   route('POST', '/api/career/suggest', async (ctx) => {
-    const pending = Array.isArray(ctx.body.pending_cards) ? ctx.body.pending_cards.filter((x): x is string => typeof x === 'string') : [];
-    const req = { last_user: str(ctx.body.last_user) ?? null, last_assistant: str(ctx.body.last_assistant) ?? null, pending_cards: pending };
-    return ok({ chips: await buildSuggestions(suggestContextOf(ctx.repos, ctx.store), req, getShellLLM()) });
+    const res = await suggestFor(suggestContextOf(ctx.repos, ctx.store), parseSuggestRequest(ctx.body), getShellLLM());
+    return ok({ chips: res.chips, scene: res.scene });
   }),
   route('POST', '/api/career/export/workbook', async (ctx) => {
     const res = await exportCareerWorkbook(ctx.repos, ctx.deps.exportsDir);
@@ -633,6 +633,7 @@ const ROUTES: Route[] = [
 
   // ---------- 面试 ----------
   route('GET', '/api/career/interviews', ({ store }) => ok({ interviews: store.listInterviews() })),
+  route('GET', '/api/career/probe-predictions', ({ store }) => ok({ predictions: store.listProbePredictions() })),
   route('POST', '/api/career/interviews', (ctx) => {
     const interview = ctx.store.createInterview(ctx.body as never);
     dataChanged(ctx, ['interview']);

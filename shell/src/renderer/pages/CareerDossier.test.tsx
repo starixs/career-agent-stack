@@ -113,10 +113,10 @@ describe('CareerDossier · 投递记录', () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');
     expect(screen.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['公司', '岗位', '投递时间', '状态']);
-    // 没投出的按建档时间排在最前，显示「未投出」
+    // 没投出的按建档时间排在最前，投递时间显示「—」
     expect(bodyRows().map(r => r.getAttribute('aria-label'))).toEqual(['己公司 · 运营', '丙公司 · 后端工程师', '丁公司 · 算法工程师', '戊公司 · 数据工程师']);
-    expect(within(bodyRows()[0]).getByText('未投出')).toBeInTheDocument();
-    expect(within(bodyRows()[1]).getByText('2026-09-21')).toBeInTheDocument();
+    expect(within(bodyRows()[0]).getByText('—')).toBeInTheDocument();
+    expect(within(bodyRows()[1]).getByText('9 月 21 日')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '后端工程师' })).not.toBeInTheDocument();
     expect(screen.queryByText(/已关闭（/)).not.toBeInTheDocument();
     // 状态：紧凑步骤条 + 当前步骤文字（被拒停在笔试，不用红色）
@@ -192,7 +192,7 @@ describe('CareerDossier · 投递记录', () => {
     expect(screen.getByRole('heading', { name: '投递记录' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'interview'); });
     expect(await screen.findByTestId('embedded-interview')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '面试工作台' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '面试' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'apply'); });
     expect(await screen.findByTestId('embedded-apply')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '岗位库' })).toBeInTheDocument();
@@ -212,22 +212,21 @@ describe('CareerDossier · 助力记录', () => {
     act(() => { setCareerSubView('career-dossier', 'assist'); });
   });
 
-  it('笔试 / 测评 / 面试 / 模拟面试合成一张表：公司 / 岗位 / 时间 / 类型 / 助力；还没到的按时间在前；已取消的不列', async () => {
+  it('笔试 / 测评 / 面试 / 模拟面试合成一张表：公司 / 岗位 / 时间 / 类型 / 动作；还没到的按时间在前；已取消的不列', async () => {
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');
     expect(screen.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['公司', '岗位', '时间', '类型', '操作']);
     const rows = bodyRows();
     // 没到的按时间正序（明天的笔试、后天的二面），其余按时间倒序（两天前过期的测评、10 月 2 日的模拟面试）
     expect(rows.map(r => within(r).getAllByRole('cell')[0].textContent)).toEqual(['丙公司', '丁公司', '戊公司', '丙公司']);
+    // 类型是纯文字「面试 · 二面」，不用徽标
     expect(within(rows[0]).getByText('笔试')).toBeInTheDocument();
-    expect(within(rows[1]).getByText('面试')).toBeInTheDocument();
-    expect(within(rows[1]).getByText('二面')).toBeInTheDocument();
-    expect(within(rows[2]).getByText('测评')).toBeInTheDocument();
-    expect(within(rows[2]).getByText('已过')).toBeInTheDocument();
-    expect(within(rows[3]).getByText('模拟面试')).toBeInTheDocument();
-    expect(within(rows[3]).getByText('深挖追问 · 一面')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('面试 · 二面')).toBeInTheDocument();
+    expect(within(rows[2]).getByText('测评 · 已过')).toBeInTheDocument();
+    expect(within(rows[3]).getByText('模拟面试 · 深挖追问 · 一面')).toBeInTheDocument();
     expect(screen.queryByText('取消的笔试')).not.toBeInTheDocument();
-    rows.forEach(r => expect(within(r).getByRole('button', { name: '助力' })).toBeInTheDocument());
+    // 行尾动作按类型写动词
+    expect(rows.map(r => within(r).getByRole('button').textContent)).toEqual(['搜题', '准备面试', '搜题', '接着模拟']);
   });
 
   it('按类型筛选；点一行跳到投递记录里对应那一条', async () => {
@@ -243,12 +242,12 @@ describe('CareerDossier · 助力记录', () => {
     await waitFor(() => expect(screen.getByRole('row', { name: '丙公司 · 后端工程师' }).className).toContain('shadow-[inset_3px_0_0_var(--primary)]'));
   });
 
-  it('助力：笔试带着公司和岗位打开搜题页，不发进对话', async () => {
+  it('搜题：笔试带着公司和岗位打开搜题页，不发进对话', async () => {
     const seen: unknown[] = [];
     const offs = ['career:chat-suggest', 'career:exam-search-context', CAREER_NAVIGATE_EVENT].map(event => onEvent(event, p => seen.push([event, p])));
     render(<CareerDossier isActive onOpenChat={vi.fn()} />);
     await screen.findByRole('table');
-    fireEvent.click(within(bodyRows()[0]).getByRole('button', { name: '助力' }));
+    fireEvent.click(within(bodyRows()[0]).getByRole('button', { name: '搜题' }));
     expect(seen).toEqual([
       ['career:exam-search-context', expect.objectContaining({ company: '丙公司' })],
       [CAREER_NAVIGATE_EVENT, { kind: 'career-dossier', view: 'exam-search' }],

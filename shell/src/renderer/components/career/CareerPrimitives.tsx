@@ -2,7 +2,8 @@
  * 求职面板共用的小组件：页面骨架、「交给助理」按钮、徽标、按钮、表单项、空态、结构化 JSON 展示。
  * 视觉规则见 specs/CAREER_DESIGN.md：按钮 7.1、状态标签 6.0、卡片 2.3、字阶 3.2。
  */
-import { AlertCircle, Loader2, MessageSquareText } from 'lucide-react';
+import { AlertCircle, Loader2, LockKeyhole, MessageSquareText } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react';
 
 import { emitEvent } from '@/api/eventBus';
@@ -44,8 +45,16 @@ export function ChatActionButton({ text, context, children, variant = 'secondary
 
 // ─── 页面骨架 ───
 
-export function CareerPage({ title, subtitle, actions, children, embedded = false }: {
-  title: string; subtitle?: string; actions?: ReactNode; children: ReactNode;
+/**
+ * 页面骨架。页标题后不跟解释（§3.4 文案规则）：`meta` 只放数字事实，比如「149 个岗位」。
+ */
+export function CareerPage({ title, meta, actions, children, embedded = false }: {
+  title: string;
+  /** @deprecated 页面副标题已取消（§3.4），传了也不渲染；各页逐个删掉。 */
+  subtitle?: string;
+  /** 页标题旁的数字事实（计数、日期），不写解释句。 */
+  meta?: ReactNode;
+  actions?: ReactNode; children: ReactNode;
   /** 作为别的面的一个视图嵌入时不渲染页头。示例话术统一放在功能市场，不在各页重复。 */
   embedded?: boolean;
 }) {
@@ -62,7 +71,7 @@ export function CareerPage({ title, subtitle, actions, children, embedded = fals
       <div className="flex flex-col gap-3 border-b border-[var(--line)] px-6 pb-4 pt-5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="font-human text-lg font-semibold">{title}</h1>
-          {subtitle && <span className="text-xs text-[var(--muted)]">{subtitle}</span>}
+          {meta != null && meta !== '' && <span className="text-xs tabular-nums text-[var(--muted)]">{meta}</span>}
           {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
         </div>
       </div>
@@ -71,10 +80,12 @@ export function CareerPage({ title, subtitle, actions, children, embedded = fals
   );
 }
 
-export function SectionTitle({ children, extra }: { children: ReactNode; extra?: ReactNode }) {
+/** 分组小标题：12 / 500 / muted，不加字距、不大写（§3.2）。`count` 为 0 或没有时不显示。 */
+export function SectionTitle({ children, count, extra }: { children: ReactNode; count?: number; extra?: ReactNode }) {
   return (
     <div className="mb-2 flex items-center gap-2">
       <span className="text-xs font-medium text-[var(--muted)]">{children}</span>
+      {count != null && count > 0 && <span className="text-xs tabular-nums text-[var(--subtle)]">{count}</span>}
       {extra}
     </div>
   );
@@ -103,14 +114,22 @@ export function Card({ title, extra, children, className = '', variant = 'plain'
   );
 }
 
-export function EmptyState({ title, hint, example, action }: { title: string; hint?: string; example?: string; action?: ReactNode }) {
+/**
+ * 空态 = 一句事实 + 一个动作（§3.4），不写第二句。
+ * `example` 是点按钮后发进对话的话；按钮上写 `exampleLabel`（动词短语，如「研究一家公司」），不包「在对话里说」。
+ */
+export function EmptyState({ title, example, exampleLabel, action }: {
+  title: string;
+  /** @deprecated 空态不写解释句（§3.4），传了也不渲染。 */
+  hint?: string;
+  example?: string; exampleLabel?: string; action?: ReactNode;
+}) {
   const suggest = useSuggestToChat();
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
       <div className="text-sm text-[var(--muted)]">{title}</div>
-      {hint && <div className="max-w-md text-xs text-[var(--subtle)]">{hint}</div>}
       {example && (
-        <Button variant="secondary" onClick={() => suggest(example)}>在对话里说「{example}」</Button>
+        <Button variant="secondary" onClick={() => suggest(example)}>{exampleLabel ?? example}</Button>
       )}
       {action}
     </div>
@@ -163,7 +182,7 @@ export function Badge({ tone = 'neutral', children, title }: { tone?: BadgeTone;
  * 截止紧迫度（6.2）：> 72 小时只写日期；24–72 小时 warning「剩 N 天」；< 24 小时 danger「剩 N 小时」；过了写「已逾期」。
  */
 export function DueLabel({ at, now = new Date(), suffix = '截止' }: { at: string | null | undefined; now?: Date; suffix?: string }) {
-  if (!at) return <span className="text-[var(--muted)]">未知</span>;
+  if (!at) return <span className="text-[var(--muted)]">{EMPTY_VALUE}</span>;
   const due = new Date(at);
   if (Number.isNaN(due.getTime())) return <span className="text-[var(--muted)]">{at}</span>;
   const hours = (due.getTime() - now.getTime()) / 3_600_000;
@@ -183,6 +202,9 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   danger: 'border-[1.5px] border-transparent bg-transparent text-[var(--danger)] hover:bg-[var(--danger-bg)]',
 };
 
+/** 行内动作：平时隐藏，鼠标移到所在行（父元素带 `group`）或键盘聚焦时出现（§7.5）。 */
+const REVEAL_CLASS = 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100';
+
 const BUTTON_SIZES = {
   /** 工作台卡片的唯一主动作（7.4）。 */
   lg: 'h-10 px-4',
@@ -191,12 +213,16 @@ const BUTTON_SIZES = {
   sm: 'h-[30px] px-3',
 } as const;
 
-export function Button({ variant = 'secondary', size = 'md', busy, className = '', children, disabled, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: keyof typeof BUTTON_SIZES; busy?: boolean }) {
+export function Button({ variant = 'secondary', size = 'md', busy, reveal = false, className = '', children, disabled, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant; size?: keyof typeof BUTTON_SIZES; busy?: boolean;
+  /** 行内动作 hover 才出现：父行加 `group`，按钮传 `reveal`。 */
+  reveal?: boolean;
+}) {
   return (
     <button
       type="button"
       disabled={disabled || busy}
-      className={`inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:cursor-not-allowed disabled:text-[var(--subtle)] ${BUTTON_SIZES[size]} ${BUTTON_VARIANTS[variant]} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:cursor-not-allowed disabled:text-[var(--subtle)] ${BUTTON_SIZES[size]} ${BUTTON_VARIANTS[variant]} ${reveal ? REVEAL_CLASS : ''} ${className}`}
       {...rest}
     >
       {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -209,22 +235,80 @@ export function Button({ variant = 'secondary', size = 'md', busy, className = '
 
 const CONTROL_CLASS = 'w-full rounded-md border border-[var(--line-2)] bg-[var(--paper)] px-3 text-sm text-[var(--ink)] placeholder:text-[var(--subtle)] focus:border-[var(--primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-muted)]';
 
-export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+/** 表单项：标签 + 控件。规则不写在字段下面（§3.4），靠占位、校验和失败反馈表达。 */
+export function Field({ label, children }: {
+  label: ReactNode; children: ReactNode;
+  /** @deprecated 字段说明已取消（§3.4），传了也不渲染。 */
+  hint?: string;
+}) {
   return (
     <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
       <span>{label}</span>
       {children}
-      {hint && <span className="text-xs text-[var(--subtle)]">{hint}</span>}
     </label>
   );
 }
 
+/** 同一族的工具类（宽、高、最小高、内边距）只留一个：调用方传的覆盖默认的，不靠 CSS 顺序碰运气。 */
+const OVERRIDABLE_FAMILIES = ['w-', 'h-', 'min-h-', 'px-', 'py-', 'flex-'] as const;
+function utilityFamily(token: string): string | null {
+  const bare = token.slice(token.lastIndexOf(':') + 1);
+  return OVERRIDABLE_FAMILIES.find(f => bare.startsWith(f)) ?? null;
+}
+export function mergeControlClass(base: string, extra: string | undefined): string {
+  if (!extra) return base;
+  const overridden = new Set(extra.split(/\s+/).map(utilityFamily).filter((f): f is NonNullable<typeof f> => f !== null));
+  const kept = base.split(/\s+/).filter(t => { const f = utilityFamily(t); return !f || !overridden.has(f); });
+  return `${kept.join(' ')} ${extra}`;
+}
+
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`${CONTROL_CLASS} h-9 ${props.className ?? ''}`} />;
+  return <input {...props} className={mergeControlClass(`${CONTROL_CLASS} h-9`, props.className)} />;
 }
 
 export function TextArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={`${CONTROL_CLASS} min-h-[72px] py-2 font-[var(--font-sans)] ${props.className ?? ''}`} />;
+  return <textarea {...props} className={mergeControlClass(`${CONTROL_CLASS} min-h-[72px] py-2 font-[var(--font-sans)]`, props.className)} />;
+}
+
+// ─── 敏感字段 ───
+
+/** 敏感字段只在标签前放一把锁（D3）：不写「只存在你电脑上」的徽标和说明段，悬停看 title。 */
+export const SENSITIVE_TITLE = '只存在你电脑上';
+
+export function SensitiveMark({ title = SENSITIVE_TITLE }: { title?: string }) {
+  return (
+    <span title={title} role="img" aria-label={title} className="inline-flex shrink-0 text-[var(--muted)]">
+      <LockKeyhole className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
+    </span>
+  );
+}
+
+const SENSITIVE_HINT_SEEN_KEY = 'career.sensitiveHintSeen';
+
+function readHintSeen(): boolean {
+  try { return window.localStorage.getItem(SENSITIVE_HINT_SEEN_KEY) === '1'; } catch (err) {
+    console.warn('[career-ui] sensitive hint flag unreadable, showing hint', err);
+    return false;
+  }
+}
+
+/**
+ * 第一次编辑敏感字段时，在输入框下出现一次「只存在你电脑上」（D3：隐私声明移进控件级反馈）。
+ * 只在 `editing` 为真时考虑显示；显示过一次就记下，此后任何敏感字段都不再出现。
+ */
+export function SensitiveFirstEditHint({ editing }: { editing: boolean }) {
+  // 第一次进入编辑时读一次标记；同一次编辑里一直显示，编辑结束就收起，之后不再出现。
+  const [phase, setPhase] = useState<'unknown' | 'show' | 'done'>('unknown');
+  if (editing && phase === 'unknown') setPhase(readHintSeen() ? 'done' : 'show');
+  if (!editing && phase === 'show') setPhase('done');
+  useEffect(() => {
+    if (phase !== 'show') return;
+    try { window.localStorage.setItem(SENSITIVE_HINT_SEEN_KEY, '1'); } catch (err) {
+      console.warn('[career-ui] sensitive hint flag not saved', err);
+    }
+  }, [phase]);
+  if (!editing || phase !== 'show') return null;
+  return <span className="text-xs text-[var(--muted)]">{SENSITIVE_TITLE}，不发给任何人</span>;
 }
 
 /** 主题化下拉（壳的 CustomSelect），表单项统一用它；onChange 直接给值。 */
@@ -255,7 +339,7 @@ function visibleEntries(value: Record<string, unknown>): Array<[string, string, 
 
 /** 把技能产出的 JSON 渲染成可读的键值 / 列表，用于复盘、报告、理由等字段；不露原始 JSON 和英文键名。 */
 export function StructuredJson({ value, depth = 0 }: { value: unknown; depth?: number }) {
-  if (value == null || value === '') return <span className="text-[var(--subtle)]">未知</span>;
+  if (value == null || value === '') return <span className="text-[var(--subtle)]">{EMPTY_VALUE}</span>;
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     return <span className="whitespace-pre-wrap break-words">{structuredValueText(value)}</span>;
   }
@@ -281,14 +365,26 @@ export function StructuredJson({ value, depth = 0 }: { value: unknown; depth?: n
       </dl>
     );
   }
-  return <span className="text-[var(--subtle)]">未知</span>;
+  return <span className="text-[var(--subtle)]">{EMPTY_VALUE}</span>;
 }
 
 // ─── 小工具 ───
 
-export function formatDate(value: string | null | undefined, fallback = '未知'): string {
+/** 空值一律显示「—」，不写「未知」（R6）。 */
+export const EMPTY_VALUE = '—';
+
+export function formatDate(value: string | null | undefined, fallback = EMPTY_VALUE): string {
   if (!value) return fallback;
   return value.length > 10 ? value.slice(0, 10) : value;
+}
+
+/** 页面上的日期（和 DueLabel、助力记录一致）：「11 月 7 日」；纯日期按字面取，不受时区影响。 */
+export function formatDay(value: string | null | undefined, fallback = EMPTY_VALUE): string {
+  if (!value) return fallback;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (m) return `${Number(m[2])} 月 ${Number(m[3])} 日`;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
 }
 
 /** 相对时间：刚刚 / x 分钟前 / x 小时前 / x 天前；解析失败退回日期。 */
@@ -305,7 +401,7 @@ export function relativeTime(value: string | null | undefined, now: Date = new D
 }
 
 export function textOrUnknown(value: string | number | null | undefined): string {
-  return value == null || value === '' ? '未知' : String(value);
+  return value == null || value === '' ? EMPTY_VALUE : String(value);
 }
 
 export function fileDirname(path: string): string {

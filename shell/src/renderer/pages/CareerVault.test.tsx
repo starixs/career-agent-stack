@@ -48,8 +48,10 @@ describe('CareerVault', () => {
     render(<CareerVault />);
     expect(await screen.findByText('138****8000')).toBeInTheDocument();
     expect(screen.getByTestId('vault-preview-name')).toHaveTextContent('未填');
-    expect(screen.getAllByText('只存在你电脑上').length).toBeGreaterThan(0);
-    expect(screen.getByText('小芽能看到')).toBeInTheDocument();
+    // 隐私不写成文字：敏感字段名前一把锁，悬停才看到
+    expect(screen.queryByText('只存在你电脑上')).toBeNull();
+    expect(screen.getAllByTitle('只存在你电脑上').length).toBe(2);
+    expect(screen.queryByText('小芽能看到')).toBeNull();
   });
 
   it('只显示身份和联系方式：教育、求职偏好、民族这些不再让用户填', async () => {

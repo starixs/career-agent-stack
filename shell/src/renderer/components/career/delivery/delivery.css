@@ -32,7 +32,7 @@
 .cd-p-long.cd-p-sm .cd-p-co { font-size: 13px; }
 .cd-p-role { font-size: 12px; line-height: 1.4; color: var(--plate-sub); }
 .cd-p-star { position: absolute; top: 6px; right: 8px; font-size: 11px; font-style: normal; color: var(--plate-ink); opacity: 0.55; }
-.cd-p-over { margin-top: auto; font-size: 11.5px; letter-spacing: 0.08em; color: var(--plate-sub); }
+.cd-p-over { margin-top: auto; font-size: 11.5px; color: var(--plate-sub); }
 /* 状态：只有底条 */
 .cd-poster::before { content: ''; position: absolute; left: 0; bottom: 0; width: 100%; height: var(--bar); background: rgba(29, 26, 22, 0.1); }
 .cd-s-run::before, .cd-s-next::before { width: 38%; background: var(--plate-ink); }
@@ -55,8 +55,7 @@
 .cd-due-xl { font-size: 34px; }
 .cd-src { margin: 6px 0 0; font-size: 12.5px; color: var(--subtle); }
 .cd-acts { display: flex; align-items: baseline; gap: 18px; margin-top: 18px; }
-.cd-go { padding: 9px 18px; border-radius: 8px; background: var(--primary); color: #fff; font-size: 14.5px; font-weight: 600; cursor: pointer; }
-.cd-go { color: var(--on-primary); }
+.cd-go { padding: 9px 18px; border-radius: 8px; background: var(--primary); color: var(--on-primary); font-size: 14.5px; font-weight: 600; cursor: pointer; }
 .cd-go:disabled { opacity: 0.35; cursor: not-allowed; }
 .cd-go-text { font-size: 15px; font-weight: 600; color: var(--primary); cursor: pointer; }
 .cd-later { font-size: 14px; color: var(--muted); cursor: pointer; }
@@ -80,7 +79,7 @@
 .cd-page { position: relative; width: 150px; margin: 0; overflow: hidden; border-radius: 6px; box-shadow: 0 0 0 1px var(--line-2); background: #fff; }
 .cd-page img { display: block; width: 100%; }
 .cd-page figcaption { position: absolute; left: 8px; bottom: 8px; padding: 1px 7px; border-radius: 4px; background: var(--ink); color: var(--bg); font-size: 11px; }
-.cd-input { display: block; width: 240px; margin-top: 14px; padding: 8px 12px; border: 1.5px solid var(--primary); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 15px; letter-spacing: 0.1em; }
+.cd-input { display: block; width: 240px; margin-top: 14px; padding: 8px 12px; border: 1.5px solid var(--primary); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 15px; }
 .cd-slots { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .cd-slots button { padding: 7px 12px; border: 1.5px solid var(--line-2); border-radius: 8px; font-size: 13.5px; color: var(--ink-2); cursor: pointer; font-variant-numeric: tabular-nums; }
 .cd-slots button[aria-checked='true'] { border-color: var(--primary); color: var(--primary); font-weight: 600; }
@@ -136,7 +135,7 @@
 
 /* ---------- 回来卡 ---------- */
 .cd-return { margin: 20px 0 28px; }
-.cd-return-span { margin: 0 0 14px; font-size: 13px; letter-spacing: 0.14em; color: var(--subtle); }
+.cd-return-span { margin: 0 0 14px; font-size: 13px; color: var(--subtle); }
 .cd-return-lead { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; align-items: start; }
 .cd-return-lead h3 { margin: 4px 0 0; font-size: 34px; line-height: 1.15; font-weight: 400; color: var(--ink); }
 .cd-return-lead .cd-go { margin-top: 18px; }

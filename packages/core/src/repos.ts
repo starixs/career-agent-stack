@@ -677,7 +677,14 @@ export class Repos {
       if (a.kind === 'fill_form') items.push({ kind: 'review', priority: 2, title: `还没开始填${where}`, detail: '开始后会填到提交前停下，等你确认再提交', ref: { type: 'action', id: a.id } })
       else items.push({ kind: 'review', priority: 2, title: `待你批准：${actionLabel(a.kind)}${where}`, detail: '助理已准备好，批准后才会执行', ref: { type: 'action', id: a.id } })
     }
-    for (const h of this.openHandoffs()) items.push({ kind: 'handoff', priority: 3, title: `需要你本人处理：${handoffReasonLabel(h.reason)}`, detail: h.message ?? undefined, ref: { type: 'handoff', id: h.id } })
+    for (const h of this.openHandoffs()) {
+      // 带上是哪一家：同时有两家要登录时，光写原因分不清
+      const act = h.action_id ? this.getAction(h.action_id) : undefined
+      const app = act?.application_id ? this.getApplication(act.application_id) : undefined
+      const job = app ? this.getJob(app.job_id) : undefined
+      const where = job ? ` · ${[job.company_name, job.title].filter(Boolean).join(' ')}` : ''
+      items.push({ kind: 'handoff', priority: 3, title: `需要你本人处理：${handoffReasonLabel(h.reason)}${where}`, detail: h.message ?? undefined, ref: { type: 'handoff', id: h.id } })
+    }
     const apps = this.applicationsWithJob()
     const activity = this.lastActivityByApp()
     for (const a of apps) { const it = staleToToday({ ...a, updated_at: latestIso(a.updated_at, activity.get(a.id)), title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }

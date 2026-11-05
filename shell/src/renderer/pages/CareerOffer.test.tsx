@@ -25,15 +25,25 @@ describe('CareerOffer', () => {
     expect(await screen.findByText('还没有 Offer')).toBeInTheDocument();
   });
 
-  it('渲染卡片、对比表与需要你决定的项；缺数据标未知', async () => {
+  it('渲染卡片、对比表与需要你决定的项：薪酬用中文与千分位，决定项按公司分组、空字段不生成套话', async () => {
     vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers });
     render(<CareerOffer />);
     expect((await screen.findAllByText('丙公司 · 后端工程师')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/月薪 \/ 基本 25000 · 月数 15 · 年包合计 375000/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('25,000 × 15 个月 · 年包 375,000').length).toBeGreaterThan(0);
     expect(screen.getByText('对比')).toBeInTheDocument();
-    expect(screen.getAllByText('未知').length).toBeGreaterThan(0);
-    expect(screen.getByText('丁公司 · 算法工程师：薪酬拆解未知，需要你补充')).toBeInTheDocument();
-    expect(screen.getByText('丙公司 · 后端工程师：风险「业务线可能调整」是否可接受，需要你决定')).toBeInTheDocument();
+    expect(screen.queryByText('未知')).not.toBeInTheDocument();
+    expect(screen.getByText('薪酬拆解还没填')).toBeInTheDocument();
+    expect(screen.getByText('风险：业务线可能调整')).toBeInTheDocument();
+    expect(screen.queryByText(/工作内容是否匹配/)).not.toBeInTheDocument();
+  });
+
+  it('只有一个 Offer：不渲染对比表；接口键名不出现在薪酬里', async () => {
+    const comp = { base_monthly: 26000, months: 16, sign_on: 30000, notes: '含期权' };
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers: [{ ...offers[0], comp_json: JSON.stringify(comp) }] });
+    render(<CareerOffer />);
+    expect(await screen.findByText('26,000 × 16 个月 · 签字费 30,000 · 含期权')).toBeInTheDocument();
+    expect(screen.queryByText('对比')).not.toBeInTheDocument();
+    expect(screen.queryByText(/base_monthly|sign_on|notes/)).not.toBeInTheDocument();
   });
 
   it('新建 Offer 调用 POST /api/career/offers，薪酬数字转为 number', async () => {
@@ -79,9 +89,10 @@ describe('CareerOffer', () => {
     expect(body.deadline).toBeUndefined();
   });
 
-  it('decisionItems：多个 Offer 时提醒取舍由你决定', () => {
-    const items = decisionItems(offers);
-    expect(items.some(i => i.includes('取舍只能由你决定'))).toBe(true);
-    expect(items.some(i => i.includes('2026-10-15 前要答复'))).toBe(true);
+  it('decisionItems：按公司分组，只列有依据的项', () => {
+    expect(decisionItems(offers)).toEqual([
+      { name: '丙公司 · 后端工程师', items: ['风险：业务线可能调整', '10 月 15 日前答复'] },
+      { name: '丁公司 · 算法工程师', items: ['薪酬拆解还没填'] },
+    ]);
   });
 });

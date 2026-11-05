@@ -48,15 +48,14 @@ function UploadForm({ onDone }: { onDone: () => void }) {
     onDone();
   });
   return (
-    <div className="rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div>
+      <div className="grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
         <Field label="公司（可不填）"><TextInput value={meta.company} placeholder="网易" onChange={e => setMeta(m => ({ ...m, company: e.target.value }))} /></Field>
         <Field label="岗位（可不填）"><TextInput value={meta.role} placeholder="交互设计" onChange={e => setMeta(m => ({ ...m, role: e.target.value }))} /></Field>
         <Field label="年份（可不填）"><TextInput value={meta.year} placeholder="2025" inputMode="numeric" onChange={e => setMeta(m => ({ ...m, year: e.target.value }))} /></Field>
       </div>
       <div className="mt-3 flex items-center gap-3">
         <Button variant="primary" busy={action.busy} onClick={() => fileInput.current?.click()}><Upload className="h-3.5 w-3.5" />选文件上传</Button>
-        <span className="text-xs text-[var(--muted)]">PDF、Word、Excel、图片都行。文件里有答案和解析会一起收进来，没有的不会瞎编。</span>
         <input ref={fileInput} type="file" accept={ACCEPT} className="hidden" aria-label="选择题库文件"
           onChange={e => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = ''; }} />
       </div>
@@ -80,7 +79,7 @@ export function BankManager() {
       {action.error && <ErrorRow message={action.error} />}
       {query.loading && !query.data && <LoadingRow />}
       {query.data && banks.length === 0 && (
-        <p className="text-sm text-[var(--muted)]">还没有题库。上传往年真题或别人整理的笔经，搜题会先在这里找同公司、同岗位的原题。</p>
+        <p className="text-sm text-[var(--muted)]">还没有题库</p>
       )}
       <ul className="divide-y divide-[var(--line)]">
         {banks.map(bank => <BankRow key={bank.id} bank={bank} onRemove={() => remove(bank)} />)}

@@ -4,7 +4,7 @@
  * 「等你批准」的动作队列在通知中心处理，这里不再重复。留下的只有正确性需要的两样：
  *  - 结果不确定的提交（点了提交没等到成功提示）：有才出现一条提示，必须由用户确认，否则这条投递会一直卡着；
  *  - 浏览器在跑 / 停下等你接管时的状态条：空闲时不占位。
- * auto 模式开关跟「投这 N 家」放在一起（它决定加进去的网申是否检查通过直接提交）。
+ * auto 模式开关在「投这 N 家」的确认区里（提交前才需要决定：检查通过的网申是否直接提交），浏览时不出现。
  */
 import { BrowserStatusBar } from '@/components/career/BrowserStatusBar';
 import { careerApi, safeJson } from '@/components/career/careerApi';
@@ -44,7 +44,7 @@ export default function CareerApply({ embedded = false }: { embedded?: boolean }
         {modeAction.error && <div className="px-6 pt-2"><ErrorRow message={modeAction.error} /></div>}
         <JobBoard
           onChanged={query.reload}
-          bulkExtra={data && <AutoModeToggle settings={data.settings} busy={modeAction.busy} onChange={enabled => void setAuto(enabled)} />}
+          confirmExtra={data && <AutoModeToggle settings={data.settings} busy={modeAction.busy} onChange={enabled => void setAuto(enabled)} />}
         />
       </div>
     </CareerPage>
@@ -53,10 +53,7 @@ export default function CareerApply({ embedded = false }: { embedded?: boolean }
 
 function AutoModeToggle({ settings, busy, onChange }: { settings: ApplySettings; busy: boolean; onChange: (enabled: boolean) => void }) {
   return (
-    <label
-      className="flex items-center gap-1.5 text-xs text-[var(--muted)]"
-      title={`开启后：填完检查全部通过的网申直接提交，有需要你看的项仍会停下。另外，同一张表你连续 ${settings.learn_threshold} 次没改直接批准、简历和开放题答案没变时，会自动免确认。`}
-    >
+    <label className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
       <input type="checkbox" aria-label="检查都过了就直接交" checked={settings.auto_mode} disabled={busy} onChange={e => onChange(e.target.checked)} />
       检查都过了就直接交
     </label>

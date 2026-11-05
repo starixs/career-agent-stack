@@ -67,7 +67,6 @@ function PhoneChoices({ phones, busy, onUse, onNew }: {
   phones: PairedPhone[]; busy: boolean; onUse: (phone: PairedPhone) => void; onNew: () => void;
 }) {
   return <div className="space-y-3">
-    <p className="text-sm text-[var(--muted)]">这些手机已经配对过，直接选择，不必重新配对。</p>
     <div className="flex flex-wrap gap-2">{phones.map(phone => <Button key={phone.address} busy={busy}
       onClick={() => onUse(phone)}>用 {phone.name || '这台手机'}</Button>)}</div>
     <Button variant="ghost" busy={busy} onClick={onNew}>连接其他手机</Button>
@@ -114,7 +113,6 @@ function Connected({ status, onDone }: { status: PhoneStatus; onDone: () => void
         <CheckCircle2 aria-hidden className="h-5 w-5 text-[var(--success)]" />
         <b>{status.binding?.name || '手机'}</b> 的短信服务已接通
       </p>
-      <p className="text-sm text-[var(--muted)]">已记住这台手机，无需重新配对。断线恢复最多尝试 2 分钟，之后休眠；需要收码时再唤醒。</p>
       {status.latest && <LatestCode sms={status.latest} />}
       <div className="flex justify-end"><Button variant="primary" onClick={onDone}>好</Button></div>
     </div>

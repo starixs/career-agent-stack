@@ -15,6 +15,29 @@ export const CATEGORY_COLORS: Record<TodoCategory, string> = { review: 'var(--pr
 /** 与服务端 RETRO_PROMPT_HOURS 一致：面试时间过后一天内提示复盘。 */
 export const RETRO_PROMPT_MS = 24 * 3_600_000;
 
+/** 服务端标题带的类别前缀（「待你批准：」「需要你本人处理：」）：组头已经写了类别，行里去掉。 */
+const TITLE_PREFIX = /^(待你批准|需要你本人处理)：/;
+export function stripCategoryPrefix(title: string): string {
+  return title.replace(TITLE_PREFIX, '');
+}
+
+/** 交接行的按钮按原因写动词（标题去前缀后就是原因标签，见 core HANDOFF_REASON_LABELS）。 */
+const HANDOFF_VERBS: Record<string, string> = {
+  验证码: '去过验证码', 登录: '去登录', 两步验证: '去验证', 测评要你本人作答: '去作答',
+  最后提交前确认一下: '去确认', 有几项信息要你补: '去补信息', 你说要自己来: '去接手',
+};
+function handoffVerb(label: string): string {
+  return HANDOFF_VERBS[label] ?? '去处理';
+}
+
+/** 服务端交接标题是「原因 · 公司 岗位」（core today()）：原因定动词，公司放标题前面。 */
+function handoffRow(item: TodayItem, title: string): { verb: string; item: TodayItem } {
+  const [label, ...rest] = title.split(' · ');
+  const where = rest.join(' · ');
+  const said = item.detail || label;
+  return { verb: handoffVerb(label), item: { ...item, title: where ? `${where} · ${said}` : said, detail: undefined } };
+}
+
 export function categoryOf(kind: TodayItemKind): TodoCategory {
   if (kind === 'review') return 'review';
   if (kind === 'handoff' || kind === 'mail_auth') return 'handoff';
@@ -38,6 +61,8 @@ export interface CalendarTodo {
   confirmSubmit?: boolean;
   /** 已批准、等你自己发出去的招呼语 / 开放题回答（status=needs_user），行里摆原文和「复制」。 */
   manualSend?: boolean;
+  /** 交接行的按钮动词（去登录 / 去补信息…）。 */
+  handoffVerb?: string;
   /** 本地划掉时记下怎么处理的（已批准 / 不发了 / 已完成…）。 */
   note?: string;
   /** 过了时间的笔试 / 测评（面试过了时间走复盘，不问）：行里不放「完成」，放「考了 / 没去」（AttendanceButtons）。 */
@@ -100,7 +125,7 @@ export function buildTodos(src: TodoSources): CalendarTodo[] {
     if (past) {
       // 面试时间过了 = 多半面完了：一天内放在今天提示复盘；更早的留在原来那天，不像待办一样顺延成「已过期」
       const fresh = now.getTime() - Date.parse(d.due_at!) <= RETRO_PROMPT_MS;
-      const item: TodayItem = { kind: 'interview_retro', priority: 4, title: `${d.title} 面完了？`, detail: '说几句或传一段录音就能复盘', due_at: d.due_at, ref: { type: 'deadline', id: d.id } };
+      const item: TodayItem = { kind: 'interview_retro', priority: 4, title: `${d.title} 面完了？`, due_at: d.due_at, ref: { type: 'deadline', id: d.id } };
       if (fresh) add({ key: `deadline:${d.id}`, category: 'remind', date: todayKey, originDate: origin, done: false, item, applicationId: d.application_id });
       else add({ key: `deadline:${d.id}`, category: 'remind', date: origin ?? todayKey, originDate: origin, done: true, item: { ...item, title: d.title }, applicationId: d.application_id, note: '没复盘' });
       continue;
@@ -120,7 +145,13 @@ export function buildTodos(src: TodoSources): CalendarTodo[] {
     if (haveDeadlines && (item.kind === 'deadline' || item.kind === 'interview_today' || item.kind === 'interview_retro')) continue;
     const action = item.kind === 'review' ? actionById.get(item.ref.id) : undefined;
     const origin = dateKeyOf(item.due_at) ?? dateKeyOf(action?.created_at);
-    add({ key: `${item.ref.type}:${item.ref.id}`, category: categoryOf(item.kind), date: place(origin, false), originDate: origin, done: false, item, action });
+    const title = stripCategoryPrefix(item.title);
+    // 交接：原因标签只决定按钮动词；标题写「公司 岗位 · 原话」（原话如「网站要求登录」，没有就用原因），不再在下面重复一行
+    const handoff = item.kind === 'handoff' ? handoffRow(item, title) : null;
+    add({
+      key: `${item.ref.type}:${item.ref.id}`, category: categoryOf(item.kind), date: place(origin, false), originDate: origin, done: false,
+      item: handoff?.item ?? { ...item, title }, action, ...(handoff ? { handoffVerb: handoff.verb } : {}),
+    });
   }
 
   for (const a of src.confirming ?? []) {
@@ -128,14 +159,14 @@ export function buildTodos(src: TodoSources): CalendarTodo[] {
     if (isManualSend(a)) {
       add({
         key: `manual:${a.id}`, category: 'handoff', date: place(origin, false), originDate: origin, done: false, manualSend: true, action: a,
-        item: { kind: 'handoff', priority: 3, title: a.kind === 'send_greeting' ? '等你发出去：招呼语' : '等你发出去：开放题回答', detail: '已批准，复制下面的文字到平台上发', ref: { type: 'action', id: a.id } },
+        item: { kind: 'handoff', priority: 3, title: a.kind === 'send_greeting' ? '等你发出去：招呼语' : '等你发出去：开放题回答', ref: { type: 'action', id: a.id } },
       });
       continue;
     }
     if (a.kind !== 'submit') continue;
     add({
       key: `confirm:${a.id}`, category: 'handoff', date: place(origin, false), originDate: origin, done: false, confirmSubmit: true, action: a,
-      item: { kind: 'handoff', priority: 3, title: '等你确认：这条投递交出去了吗', detail: '提交结果不确定，请到页面上看一下', ref: { type: 'action', id: a.id } },
+      item: { kind: 'handoff', priority: 3, title: '等你确认：这条投递交出去了吗', detail: '页面上没看到提交成功', ref: { type: 'action', id: a.id } },
     });
   }
 
