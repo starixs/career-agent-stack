@@ -49,15 +49,15 @@ describe('CareerResearch（公司调研工作台）', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('左边是查过的公司和红黄绿灯，右边是选中那家的报告', async () => {
+  it('左边是查过的公司和红黄绿灯，右边是选中那家的报告：要留意的每条贴着面试时怎么问', async () => {
     mockGet();
     render(<CareerResearch />);
     const list = await screen.findByRole('list', { name: '查过的公司' });
     expect(within(list).getByText('红灯')).toBeInTheDocument();
     expect(within(list).getByText('黄灯')).toBeInTheDocument();
-    expect(screen.getByText('成立于 2014 年 · 存续')).toBeInTheDocument();
+    expect(screen.getByText(/成立于 2014 年 · 存续/)).toBeInTheDocument();
     expect(screen.getByText('校招岗位可能挂在子公司签约')).toBeInTheDocument();
-    expect(screen.getByText('面试时问：劳动合同和哪家主体签？')).toBeInTheDocument();
+    expect(screen.getByText('劳动合同和哪家主体签？')).toBeInTheDocument();
     expect(screen.getByText('团队现在有多少人？')).toBeInTheDocument();
   });
 
@@ -65,9 +65,12 @@ describe('CareerResearch（公司调研工作台）', () => {
     mockGet();
     render(<CareerResearch />);
     expect(await screen.findByText('命中')).toBeInTheDocument();
+    // 三个数字块：命中 1、没查到记录 1、没法确认 1；每条红线前一个同名的状态记号
+    for (const label of ['命中', '没查到记录', '没法确认']) {
+      expect(screen.getByText(label).previousElementSibling).toHaveTextContent('1');
+      expect(screen.getByRole('img', { name: label })).toBeInTheDocument();
+    }
     expect(screen.getByRole('link', { name: '裁判文书公开记录' })).toHaveAttribute('href', 'https://example.com/case');
-    expect(screen.getByText('没法确认')).toBeInTheDocument();
-    expect(screen.getByText('没查到记录')).toBeInTheDocument();
     // 风险信号只列有命中的
     expect(screen.getByText('经营恶化（裁员）')).toBeInTheDocument();
     expect(screen.queryByText(/欠薪/)).toBeNull();

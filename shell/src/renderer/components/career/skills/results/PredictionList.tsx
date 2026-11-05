@@ -1,16 +1,16 @@
 /**
- * 预测追问（probe-predict）的成果：简历里哪句话会被深挖、会怎么一层层问下去。
- * 高风险的排前面，最要紧的那条直接摊开当示范，其余点开再看——面试前一晚要的是最可能出事的那几条。
+ * 预测追问（probe-predict）的成果：简历里哪句话会被深挖、会被追到第几层。
+ * 每条左边一道风险色、下面一排圆点表示追问有几层；点开才看一层层会怎么问。风险高的排前面。
  */
-import { Badge, type BadgeTone } from '../../CareerPrimitives';
+import { useState } from 'react';
+
 import type { ProbePrediction } from '../../types';
 import { parseJson, texts } from '../read';
+import { Pips, toneColor, type Segment, type Tone } from '../visual';
 
-import { Disclosure } from './parts';
-
-interface RiskLevel { label: string; tone: BadgeTone; order: number }
+interface RiskLevel { label: string; tone: Tone; order: number }
 const RISK_LEVELS: Record<string, RiskLevel> = {
-  high: { label: '高风险', tone: 'error', order: 0 },
+  high: { label: '高风险', tone: 'danger', order: 0 },
   // 提示词前后两版分别写成 mid 和 medium，是同一档
   mid: { label: '中风险', tone: 'warning', order: 1 },
   medium: { label: '中风险', tone: 'warning', order: 1 },
@@ -29,53 +29,55 @@ export function sortByRisk<T extends Pick<ProbePrediction, 'risk'>>(predictions:
   return [...predictions].sort((a, b) => riskOf(a).order - riskOf(b).order);
 }
 
-/** 「高风险 10 · 中风险 1 · 低风险 5」。 */
-export function riskSummary(predictions: Array<Pick<ProbePrediction, 'risk'>>): string {
-  const counts = new Map<string, number>();
+/** 高、中、低各几条，给分段条用。 */
+export function riskSegments(predictions: Array<Pick<ProbePrediction, 'risk'>>): Segment[] {
+  const counts = new Map<string, Segment>();
   for (const prediction of sortByRisk(predictions)) {
-    const { label } = riskOf(prediction);
-    counts.set(label, (counts.get(label) ?? 0) + 1);
+    const { label, tone } = riskOf(prediction);
+    const current = counts.get(label);
+    counts.set(label, { label, tone, value: (current?.value ?? 0) + 1 });
   }
-  return [...counts].map(([label, n]) => `${label} ${n}`).join(' · ');
+  return [...counts.values()];
 }
 
-function Chain({ steps }: { steps: string[] }) {
-  if (steps.length === 0) return <div className="text-xs text-[var(--subtle)]">这一条还没有追问链</div>;
+function PredictionCard({ prediction }: { prediction: ProbePrediction }) {
+  const [open, setOpen] = useState(false);
+  const risk = riskOf(prediction);
+  const chain = texts(parseJson(prediction.expected_chain_json, `probe_prediction ${prediction.id}.expected_chain_json`));
   return (
-    <ol className="space-y-2 border-l border-[var(--line-2)] pl-4">
-      {steps.map((step, index) => (
-        <li key={`${index}:${step}`} className="flex gap-2 text-sm leading-relaxed text-[var(--ink-2)]">
-          <span className="w-4 shrink-0 text-xs tabular-nums leading-6 text-[var(--subtle)]">{index + 1}</span>
-          <span>{step}</span>
-        </li>
-      ))}
-    </ol>
+    <li>
+      <button
+        type="button" aria-expanded={open} onClick={() => setOpen(value => !value)}
+        className="flex w-full gap-3 rounded-md py-2.5 pr-2 text-left transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+      >
+        <span className="w-1 shrink-0 self-stretch rounded-full" style={{ background: toneColor(risk.tone) }} aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className={`block text-sm leading-relaxed text-[var(--ink)] ${open ? '' : 'line-clamp-2'}`}>{prediction.statement}</span>
+          <span className="mt-1.5 flex items-center gap-2 text-xs text-[var(--muted)]">
+            <span style={{ color: toneColor(risk.tone) }}>{risk.label}</span>
+            <span>{TARGET_LABELS[prediction.target_type] ?? prediction.target_type}</span>
+            {chain.length > 0 && <Pips total={chain.length} reached={chain.length} label={`会追问 ${chain.length} 层`} />}
+          </span>
+        </span>
+      </button>
+      {open && chain.length > 0 && (
+        <ol className="mb-3 ml-4 space-y-2 border-l border-dashed border-[var(--line-2)] pl-4">
+          {chain.map((step, index) => (
+            <li key={`${index}:${step}`} className="relative text-sm leading-relaxed text-[var(--ink-2)]">
+              <span className="absolute -left-[21px] top-2 h-2 w-2 rounded-full border-[1.5px] border-[var(--hard)] bg-[var(--paper)]" aria-hidden />
+              {step}
+            </li>
+          ))}
+        </ol>
+      )}
+    </li>
   );
 }
 
 export function PredictionList({ predictions }: { predictions: ProbePrediction[] }) {
   return (
-    <div className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
-      {sortByRisk(predictions).map((prediction, index) => {
-        const risk = riskOf(prediction);
-        return (
-          <Disclosure
-            key={prediction.id}
-            defaultOpen={index === 0}
-            summary={(
-              <span className="flex flex-col gap-1">
-                <span className="flex items-center gap-2">
-                  <Badge tone={risk.tone}>{risk.label}</Badge>
-                  <span className="text-xs text-[var(--muted)]">{TARGET_LABELS[prediction.target_type] ?? prediction.target_type}</span>
-                </span>
-                <span className="text-sm leading-relaxed text-[var(--ink)]">{prediction.statement}</span>
-              </span>
-            )}
-          >
-            <Chain steps={texts(parseJson(prediction.expected_chain_json, `probe_prediction ${prediction.id}.expected_chain_json`))} />
-          </Disclosure>
-        );
-      })}
-    </div>
+    <ul className="divide-y divide-[var(--line)]">
+      {sortByRisk(predictions).map(prediction => <PredictionCard key={prediction.id} prediction={prediction} />)}
+    </ul>
   );
 }

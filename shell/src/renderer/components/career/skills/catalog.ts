@@ -40,8 +40,12 @@ export interface Workbench {
  *  - open：自己在做的，点了去看结果；
  *  - 都没有：点了把 ask 那句话预填进对话输入框。
  */
+export type SkillPointId =
+  | 'resume-import' | 'experience-interview' | 'resume-tailor' | 'job-evaluate' | 'direction-explore' | 'gap-plan'
+  | 'material-draft' | 'derivatives' | 'greeting' | 'inbox-triage' | 'campus-timeline';
+
 export interface SkillPoint {
-  id: string;
+  id: SkillPointId;
   name: string;
   /** 它交回来的是什么，十来个字以内。 */
   gives: string;

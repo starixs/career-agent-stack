@@ -5,6 +5,7 @@ vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), ap
 
 import { apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 import { onEvent } from '@/api/eventBus';
+import { annualOf, formatMoney } from '@/components/career/offer/OfferBoard';
 import CareerOffer from './CareerOffer';
 import type { Offer } from '@/components/career/types';
 
@@ -26,17 +27,28 @@ describe('CareerOffer', () => {
     expect(await screen.findByText('还没有 Offer')).toBeInTheDocument();
   });
 
-  it('一张对比表：答复期限排最前，薪酬一项一行（只列有人填了的项），缺数据标未知', async () => {
+  it('看板：答复期限和一年的钱各一组条形，同一把尺子；缺的写未知，不画条', async () => {
     vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers });
     render(<CareerOffer />);
-    const table = within(await screen.findByRole('region', { name: '对比' })).getByRole('table');
-    const rowLabels = within(table).getAllByRole('rowheader').map(cell => cell.textContent);
-    expect(rowLabels).toEqual(['答复期限', '月薪 / 基本', '月数', '年包合计', '地点', '内容匹配', '风险']);
-    expect(within(table).getByRole('columnheader', { name: /丙公司/ })).toHaveTextContent('后端工程师');
-    expect(within(table).getByText('375000')).toBeInTheDocument();
-    expect(within(table).getAllByText('未知').length).toBeGreaterThan(0);
-    // 表里已经看得到的东西，页面上不再用一段话重复一遍
-    expect(screen.queryByText(/需要你/)).toBeNull();
+    const deadlines = await screen.findByRole('region', { name: '答复期限' });
+    expect(within(deadlines).getByText(/已过 \d+ 天/)).toBeInTheDocument();
+    expect(within(deadlines).getByText('未知')).toBeInTheDocument();
+    const pay = screen.getByRole('region', { name: '一年的钱' });
+    expect(within(pay).getByText('37.5 万')).toBeInTheDocument();
+    expect(within(pay).getByText('25000 × 15')).toBeInTheDocument();
+    expect(within(pay).getByText('未知')).toBeInTheDocument();
+    // 其余事实一个 Offer 一张卡；没填的留一道虚线
+    expect(screen.getByText('方向一致')).toBeInTheDocument();
+    expect(screen.getAllByRole('img', { name: '未知' }).length).toBeGreaterThan(0);
+  });
+
+  it('一年的钱只用他填的数：有年包合计用它，否则月薪 × 月数加签字费，不够就算不出', () => {
+    expect(annualOf({ total: 375000, base: 1, months: 1 })).toBe(375000);
+    expect(annualOf({ base: 22000, months: 15, signing: 20000 })).toBe(350000);
+    expect(annualOf({ base: 22000 })).toBeNull();
+    expect(formatMoney(350000)).toBe('35 万');
+    expect(formatMoney(325000)).toBe('32.5 万');
+    expect(formatMoney(8000)).toBe('8000');
   });
 
   it('让小芽拆开比：带着手上所有 Offer 的 id 发进对话', async () => {

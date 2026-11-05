@@ -11,11 +11,13 @@ import { INTERVIEW_RESULT_LABELS, INTERVIEW_RESULT_SOURCE_LABELS, INTERVIEW_ROUN
 import { Badge, Button, Card, Field, Select, StructuredJson, TextArea, TextInput, formatDate, textOrUnknown, type BadgeTone } from '../CareerPrimitives';
 import { InterviewRetroBox } from '../InterviewRetroBox';
 import { RetroView, isRetro } from '../skills/results/RetroView';
+import { DateBlock, Stamp, type Tone } from '../skills/visual';
 import type { Interview } from '../types';
 import { useCareerAction } from '../useCareerData';
 
 const RESULT_TONE: Record<string, BadgeTone> = { none: 'neutral', rejected: 'error', advanced: 'success', no_feedback_inferred: 'warning' };
 const SOURCE_TONE: Record<string, BadgeTone> = { none: 'neutral', official: 'success', inferred: 'warning' };
+const RESULT_STAMP: Record<string, Tone> = { rejected: 'danger', advanced: 'success', no_feedback_inferred: 'warning' };
 const optionsOf = (labels: Record<string, string>) => Object.entries(labels).map(([value, label]) => ({ value, label }));
 const ROUND_OPTIONS = optionsOf(INTERVIEW_ROUND_LABELS);
 const RESULT_OPTIONS = optionsOf(INTERVIEW_RESULT_LABELS);
@@ -35,11 +37,16 @@ function InterviewList({ interviews, activeId, onSelect }: { interviews: Intervi
             type="button" onClick={() => onSelect(interview.id)} aria-current={interview.id === activeId ? 'true' : undefined}
             className={`relative w-full rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${interview.id === activeId ? 'bg-[var(--selected)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-[var(--primary)]' : 'hover:bg-[var(--hover)]'}`}
           >
-            <div className="truncate text-sm font-medium text-[var(--ink)]">{titleOf(interview)}</div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--muted)]">
-              <span>{roundOf(interview)} · {formatDate(interview.date)}</span>
-              {hasResult(interview) && <Badge tone={RESULT_TONE[interview.result] ?? 'neutral'}>{INTERVIEW_RESULT_LABELS[interview.result] ?? interview.result}</Badge>}
-            </div>
+            <span className="flex items-center gap-3">
+              <DateBlock iso={interview.date} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-[var(--ink)]">{titleOf(interview)}</span>
+                <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-[var(--muted)]">
+                  <span>{roundOf(interview)}</span>
+                  {hasResult(interview) && <Badge tone={RESULT_TONE[interview.result] ?? 'neutral'}>{INTERVIEW_RESULT_LABELS[interview.result] ?? interview.result}</Badge>}
+                </span>
+              </span>
+            </span>
           </button>
         </li>
       ))}
@@ -52,21 +59,20 @@ function InterviewDetail({ interview }: { interview: Interview }) {
   const retro = safeJson<unknown>(interview.retro_json, null);
   return (
     <div className="min-w-0 max-w-3xl space-y-6">
-      <div>
-        <h2 className="text-sm font-semibold text-[var(--ink)]">{titleOf(interview)}</h2>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
-          <span>{roundOf(interview)} · {formatDate(interview.date)}</span>
-          {interview.interviewer_role_guess && <span>面试官可能是{interview.interviewer_role_guess}</span>}
-          {hasResult(interview) && <Badge tone={RESULT_TONE[interview.result] ?? 'neutral'}>{INTERVIEW_RESULT_LABELS[interview.result] ?? interview.result}</Badge>}
-          {hasResult(interview) && <Badge tone={SOURCE_TONE[interview.result_source] ?? 'neutral'} title="结果来源">{INTERVIEW_RESULT_SOURCE_LABELS[interview.result_source] ?? interview.result_source}</Badge>}
-          {tags.map((tag, index) => <span key={index}>{typeof tag === 'string' ? tag : JSON.stringify(tag)}</span>)}
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate font-human text-2xl font-semibold text-[var(--ink)]">{titleOf(interview)}</h2>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--muted)]">
+            <span>{roundOf(interview)} · {formatDate(interview.date)}</span>
+            {interview.interviewer_role_guess && <span>面试官可能是{interview.interviewer_role_guess}</span>}
+            {hasResult(interview) && <Badge tone={SOURCE_TONE[interview.result_source] ?? 'neutral'} title="结果来源">{INTERVIEW_RESULT_SOURCE_LABELS[interview.result_source] ?? interview.result_source}</Badge>}
+            {tags.map((tag, index) => <span key={index} className="rounded-full border border-[var(--line-2)] px-2">{typeof tag === 'string' ? tag : JSON.stringify(tag)}</span>)}
+          </div>
         </div>
-      </div>
+        {hasResult(interview) && <Stamp tone={RESULT_STAMP[interview.result] ?? 'neutral'}>{INTERVIEW_RESULT_LABELS[interview.result] ?? interview.result}</Stamp>}
+      </header>
       {interview.transcript && (
-        <section>
-          <div className="mb-1 text-xs font-medium text-[var(--muted)]">过程记录</div>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap font-[var(--font-sans)] text-sm leading-relaxed text-[var(--ink-2)]">{interview.transcript}</pre>
-        </section>
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap border-l-2 border-[var(--line-2)] pl-3 font-[var(--font-sans)] text-sm leading-relaxed text-[var(--ink-2)]" aria-label="过程记录">{interview.transcript}</pre>
       )}
       {retro !== null && (isRetro(retro) ? <RetroView retro={retro} /> : <StructuredJson value={retro} />)}
       <InterviewRetroBox interview={interview} />

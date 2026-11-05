@@ -1,13 +1,14 @@
 /**
- * Offer 对比：一张表（列为 Offer；行先是答复期限，再是拆开的薪酬、地点、内容匹配、风险），缺数据标「未知」，
- * 加新建 / 编辑表单。「让小芽拆开比」把手上的 Offer 交给 Offer 对比技能：
+ * Offer 对比：看板在 components/career/offer/OfferBoard（答复期限条、一年的钱、并排的事实卡），这里是页面壳和
+ * 新建 / 编辑表单。「让小芽拆开比」把手上的 Offer 交给 Offer 对比技能：
  * 薪酬换算成同一口径、房租通勤带出处、期限谁先到，结果在对话里。
  */
 import { Plus } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 
 import { careerApi, safeJson } from '@/components/career/careerApi';
-import { Button, Card, CareerPage, DueLabel, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, textOrUnknown, useSuggestToChat } from '@/components/career/CareerPrimitives';
+import { Button, Card, CareerPage, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, useSuggestToChat } from '@/components/career/CareerPrimitives';
+import { OfferBoard } from '@/components/career/offer/OfferBoard';
 import type { Offer } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { pageSurfaceId } from '@/features/career-shell/pageSurface';
@@ -34,68 +35,6 @@ export function compOf(offer: Offer): Comp {
   return safeJson<Comp>(offer.comp_json, {});
 }
 
-const UNKNOWN = <span className="text-[var(--subtle)]">未知</span>;
-
-/** 拆开的薪酬项以外，来信或对话里记下的其他薪酬说明（补贴、公积金比例……）。 */
-function otherComp(comp: Comp): string | null {
-  const parts = Object.entries(comp)
-    .filter(([key, value]) => !COMP_FIELDS.some(field => field.key === key) && value != null && value !== '' && typeof value !== 'object')
-    .map(([key, value]) => `${key} ${String(value)}`);
-  return parts.length ? parts.join(' · ') : null;
-}
-
-interface CompareRow { label: string; render: (offer: Offer) => ReactNode }
-
-/** 对比表的行：答复期限排最前（哪个先到一眼看清）；薪酬一项一行，只列至少有一个 Offer 填了的项。 */
-function compareRows(offers: Offer[]): CompareRow[] {
-  const comps = new Map(offers.map(offer => [offer.id, compOf(offer)]));
-  const compOfRow = (offer: Offer): Comp => comps.get(offer.id) ?? {};
-  const filled = (key: string) => offers.some(offer => { const value = compOfRow(offer)[key]; return value != null && value !== ''; });
-  const text = (value: string | null | undefined): ReactNode => (value ? value : UNKNOWN);
-  return [
-    { label: '答复期限', render: offer => (offer.deadline ? <DueLabel at={offer.deadline} suffix="前答复" /> : UNKNOWN) },
-    ...COMP_FIELDS.filter(field => filled(field.key)).map(field => ({
-      label: field.label,
-      render: (offer: Offer): ReactNode => { const value = compOfRow(offer)[field.key]; return value == null || value === '' ? UNKNOWN : <span className="tabular-nums">{String(value)}</span>; },
-    })),
-    ...(offers.some(offer => otherComp(compOfRow(offer))) ? [{ label: '其他薪酬', render: (offer: Offer) => text(otherComp(compOfRow(offer))) }] : []),
-    { label: '地点', render: offer => text(offer.location) },
-    { label: '内容匹配', render: offer => text(offer.content_match) },
-    { label: '风险', render: offer => text(offer.risk_notes) },
-  ];
-}
-
-function OfferTable({ offers, onEdit }: { offers: Offer[]; onEdit: (offer: Offer) => void }) {
-  return (
-    <section aria-label="对比" className="overflow-x-auto">
-      <table className="border-collapse text-sm">
-        <thead className="border-b border-[var(--line-2)] text-left">
-          <tr>
-            <th className="w-28 py-2 pr-4" />
-            {offers.map(offer => (
-              <th key={offer.id} className="min-w-56 py-2 pr-8 align-top font-semibold text-[var(--ink)]">
-                <div className="flex items-center gap-1">
-                  <span>{textOrUnknown(offer.company_name)}</span>
-                  <Button variant="ghost" size="sm" onClick={() => onEdit(offer)}>编辑</Button>
-                </div>
-                <div className="font-normal text-[var(--muted)]">{textOrUnknown(offer.title)}</div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {compareRows(offers).map(row => (
-            <tr key={row.label} className="border-b border-[var(--line)] align-top">
-              <th scope="row" className="py-2.5 pr-4 text-left text-xs font-medium text-[var(--muted)]">{row.label}</th>
-              {offers.map(offer => <td key={offer.id} className="max-w-xs py-2.5 pr-8 leading-relaxed text-[var(--ink)]">{row.render(offer)}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-  );
-}
-
 export default function CareerOffer({ embedded = false }: { embedded?: boolean } = {}) {
   const query = useCareerQuery(careerApi.offers, ['offer']);
   const offers = useMemo(() => query.data ?? [], [query.data]);
@@ -107,8 +46,7 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
       embedded={embedded}
       title="Offer"
     >
-      <div className="max-w-6xl space-y-6 px-6 py-5">
-        {/* 动作紧挨着表放在左上：表只占左半边，放到页面右上角就离它太远了 */}
+      <div className="max-w-5xl space-y-8 px-6 py-5">
         <div className="flex flex-wrap items-center gap-2">
           {offers.length > 0 && (
             <Button variant="primary" onClick={() => suggest('把我手上的 Offer 拆开比一比', { surface: SURFACE, refs: { offer_ids: offers.map(o => o.id).join(',') } })}>让小芽拆开比</Button>
@@ -129,9 +67,7 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
           <p className="py-10 text-center text-sm text-[var(--muted)]">还没有 Offer</p>
         )}
         {offers.length > 0 && (
-          <>
-            <OfferTable offers={offers} onEdit={setEditing} />
-          </>
+          <OfferBoard offers={offers} onEdit={setEditing} />
         )}
       </div>
     </CareerPage>

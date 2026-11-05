@@ -5,10 +5,13 @@
 import { ChevronRight } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
-export function Block({ label, children }: { label: string; children: ReactNode }) {
+/** 一段内容和它的小标题。页面上的一大段用 section（文楷、大一号）；嵌在条目里的用默认的小号。 */
+export function Block({ label, children, level = 'sub' }: { label: string; children: ReactNode; level?: 'section' | 'sub' }) {
   return (
     <div>
-      <div className="mb-1 text-xs font-medium text-[var(--muted)]">{label}</div>
+      {level === 'section'
+        ? <h3 className="mb-3 font-human text-base font-semibold text-[var(--ink)]">{label}</h3>
+        : <div className="mb-1.5 text-xs font-medium text-[var(--muted)]">{label}</div>}
       {children}
     </div>
   );

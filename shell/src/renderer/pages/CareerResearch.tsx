@@ -7,24 +7,23 @@ import { useState } from 'react';
 
 import { careerApi, safeJson } from '@/components/career/careerApi';
 import { TRAFFIC_LIGHT_LABELS } from '@/components/career/careerConstants';
-import { Badge, Button, CareerPage, ErrorRow, LoadingRow, formatDate, useSuggestToChat, type BadgeTone } from '@/components/career/CareerPrimitives';
+import { Button, CareerPage, ErrorRow, LoadingRow, formatDate, useSuggestToChat } from '@/components/career/CareerPrimitives';
 import { PickBox, type PickOption } from '@/components/career/skills/PickBox';
-import { CompanyReport } from '@/components/career/skills/results/CompanyReport';
+import { CompanyReport, companyBasics } from '@/components/career/skills/results/CompanyReport';
 import { useMyTargets } from '@/components/career/skills/StartBar';
+import { Lamps, Stamp, type Tone } from '@/components/career/skills/visual';
 import type { Company } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import { pageSurfaceId } from '@/features/career-shell/pageSurface';
 
-const LIGHT_TONE: Record<string, BadgeTone> = { red: 'error', yellow: 'warning', green: 'success' };
+const LIGHT_TONE: Record<string, Tone> = { red: 'danger', yellow: 'warning', green: 'success' };
+const lightLabel = (light: string | null): string => (light ? TRAFFIC_LIGHT_LABELS[light] ?? light : '未评级');
 const SURFACE = pageSurfaceId({ kind: 'career-review', view: 'research' });
 
 function companyName(company: Company): string {
   return company.legal_name ?? safeJson<string[]>(company.brand_names, [])[0] ?? '未知公司';
 }
 
-function Light({ light }: { light: string | null }) {
-  return light ? <Badge tone={LIGHT_TONE[light] ?? 'neutral'}>{TRAFFIC_LIGHT_LABELS[light] ?? light}</Badge> : <Badge>未评级</Badge>;
-}
 
 function StartResearch() {
   const suggest = useSuggestToChat();
@@ -48,7 +47,8 @@ function CompanyList({ companies, activeId, onSelect }: { companies: Company[]; 
             className={`relative flex w-full items-center gap-2 rounded-md px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${company.id === activeId ? 'bg-[var(--selected)] before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-[var(--primary)]' : 'hover:bg-[var(--hover)]'}`}
           >
             <span className="min-w-0 flex-1 truncate text-sm text-[var(--ink)]">{companyName(company)}</span>
-            <Light light={company.traffic_light} />
+            <Lamps light={company.traffic_light} size="sm" />
+            <span className="sr-only">{lightLabel(company.traffic_light)}</span>
           </button>
         </li>
       ))}
@@ -60,14 +60,15 @@ function CompanyDetail({ company }: { company: Company }) {
   const report = safeJson<unknown>(company.dd_report_json, null);
   const brands = safeJson<string[]>(company.brand_names, []).filter(brand => brand !== company.legal_name);
   return (
-    <div className="min-w-0 max-w-3xl space-y-5">
-      <div>
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-sm font-semibold text-[var(--ink)]">{companyName(company)}</h2>
-          <Light light={company.traffic_light} />
+    <div className="min-w-0 max-w-3xl space-y-7">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Lamps light={company.traffic_light} />
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate font-human text-2xl font-semibold text-[var(--ink)]">{companyName(company)}</h2>
+          <div className="text-xs text-[var(--muted)]">{[brands.join(' / '), companyBasics(report), `${formatDate(company.updated_at)} 查的`].filter(Boolean).join(' · ')}</div>
         </div>
-        <div className="mt-1 text-xs text-[var(--muted)]">{brands.length > 0 ? `${brands.join(' / ')} · ` : ''}{formatDate(company.updated_at)} 查的</div>
-      </div>
+        <Stamp tone={LIGHT_TONE[company.traffic_light ?? ''] ?? 'neutral'}>{lightLabel(company.traffic_light)}</Stamp>
+      </header>
       <CompanyReport report={report} legacyChecks={safeJson<unknown[]>(company.manual_checks, [])} />
     </div>
   );
