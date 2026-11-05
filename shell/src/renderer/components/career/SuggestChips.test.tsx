@@ -105,12 +105,19 @@ describe('建议条', () => {
     const bar = await screen.findByTestId('career-suggest-chips');
     expect(bar.className).not.toMatch(/grid/);
     expect(bar.className).toMatch(/flex-nowrap/);
-    expect(bar.className).toMatch(/max-w-\[820px\]/);
+    expect(bar.className).toMatch(/max-w-\[828px\]/);
+    expect(bar.className).toMatch(/overflow-x-auto/);
+    // 压在输入区的渐变遮罩上面，不被洗淡
+    expect(bar.className).toMatch(/\brelative\b/);
     const cells = within(bar).getAllByRole('button');
     expect(cells.map(c => c.dataset.stance)).toEqual(['agree', 'hesitate', 'correct']);
     for (const cell of cells) {
       expect(cell.querySelector('.truncate')).not.toBeNull();
       expect(cell.className).toMatch(/rounded-full/);
+      // 和输入框同一分量：同底色、同阴影、同字号、墨色字
+      expect(cell.className).toMatch(/shadow-md/);
+      expect(cell.className).toMatch(/text-base/);
+      expect(cell.className).toMatch(/text-\[var\(--ink\)\]/);
       expect(cell.className).toMatch(/pointer-events-auto/);
       expect(cell.querySelector('kbd')).toBeNull();
     }

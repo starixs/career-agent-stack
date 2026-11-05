@@ -1,7 +1,7 @@
 /**
  * 建议条（2026-11-05 你定）：一行三条——配合 / 犹豫 / 纠正，浮在输入框上沿，和输入框同宽对齐。
  *
- * 每条一个胶囊，单行，放不下截断（悬停看全文）；直接办事的带小图标。
+ * 每条一个胶囊，和输入框同一分量（同边框、同底色、同阴影、同字号），按内容宽度排开，放不下横向滑；直接办事的带小图标。
  * 点一下或 Enter = 执行（say 发出、fill 填入、do 直接办，见 suggestActions.ts）；
  * 输入框空着：Tab 把第一条填进输入框，↑ 进条，← → 在三条间走，Esc 回输入框。
  * 他一打字、小芽在说话时都不出现。
@@ -28,8 +28,13 @@ function iconOf(chip: SuggestChip): LucideIcon | undefined {
   return chip.mode === 'start' ? ArrowUpRight : undefined;
 }
 
-/** 一条最多占一行的三分之一（减去两道间距），三条总放得下。 */
-const PILL = 'pointer-events-auto flex h-8 min-w-0 max-w-[calc((100%-1rem)/3)] items-center gap-1.5 rounded-full border border-[var(--line-2)] bg-[var(--paper)] px-3 text-left text-sm text-[var(--ink-2)] shadow-[var(--shadow-sm)] transition-colors hover:border-[var(--ink)] hover:text-[var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)]';
+/** 和输入框同一分量：边框 / 底色 / shadow-md / text-base / 墨色都照输入框；按内容宽度，不压缩。 */
+const PILL = 'pointer-events-auto flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--line)] bg-[var(--paper)] px-4 text-left text-base text-[var(--ink)] shadow-md transition-colors hover:border-[var(--ink-2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)]';
+/**
+ * 一行横向滑、不显示滚动条；上下左右留出阴影的位置（负外边距抵回去，不改对齐）。
+ * relative：输入区底部有一层绝对定位的纸色渐变，不定位的行会被它盖住、字和边框发灰（真机 r12）。
+ */
+const ROW = 'pointer-events-auto relative -mx-1 -my-2 mb-0 flex w-[calc(100%+0.5rem)] max-w-[828px] flex-nowrap items-center gap-2 overflow-x-auto px-1 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden';
 
 /** ← → 在一行里走；↓ 回输入框由调用方处理。 */
 function nextIndex(key: string, i: number, n: number): number | null {
@@ -71,7 +76,7 @@ export function SuggestChips({ chips, onSend, onEscape, barRef }: {
   return (
     <div
       ref={barRef} data-testid="career-suggest-chips" role="group" aria-label="可以这样回"
-      className="pointer-events-none mb-2 flex w-full max-w-[820px] flex-nowrap items-center gap-2"
+      className={ROW}
     >
       {chips.map((c, i) => {
         const Icon = iconOf(c);
@@ -84,7 +89,7 @@ export function SuggestChips({ chips, onSend, onEscape, barRef }: {
             onClick={() => onSend(c, 'click')} onKeyDown={e => onKey(e, i)}
             className={PILL}
           >
-            {Icon && <Icon size={12} aria-hidden className="shrink-0" />}
+            {Icon && <Icon size={14} aria-hidden className="shrink-0 text-[var(--muted)]" />}
             <ChipText chip={c} />
           </button>
         );
