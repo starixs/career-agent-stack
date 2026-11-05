@@ -1,3 +1,5 @@
+// 求职助理不渲染权限模式、工具 / MCP、「+」菜单（2026-11-05 用户：学生不管自主与否、用哪个工具）：
+// 覆盖这些底座控件的用例先跳过，底座把 MODEL_CONTROLS_VISIBLE 打开时再恢复。
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
@@ -119,7 +121,7 @@ describe('SimpleChatInput send paths', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it('uses stable line icons for the three builtin permission modes', async () => {
+  it.skip('uses stable line icons for the three builtin permission modes', async () => {
     await i18n.changeLanguage('zh-CN');
     const user = userEvent.setup();
     renderInput({
@@ -139,7 +141,7 @@ describe('SimpleChatInput send paths', () => {
     expect(screen.queryByText(/⚡|📋|🚀/u)).not.toBeInTheDocument();
   });
 
-  it.each([
+  it.skip.each([
     {
       name: 'Claude Code',
       runtime: 'claude-code' as const,
@@ -170,7 +172,7 @@ describe('SimpleChatInput send paths', () => {
     }
   });
 
-  it('describes managed Codex action as automatic review without changing the product mode names', async () => {
+  it.skip('describes managed Codex action as automatic review without changing the product mode names', async () => {
     await i18n.changeLanguage('zh-CN');
     const user = userEvent.setup();
     renderInput({ runtime: 'builtin', provider: { id: 'codex-sub', name: 'Codex' } as Provider, permissionMode: 'auto' });
@@ -180,7 +182,7 @@ describe('SimpleChatInput send paths', () => {
     expect(screen.getByText('自主行动')).toBeInTheDocument();
   });
 
-  it('offers native Codex three choices and keeps the legacy read-only caption truthful', async () => {
+  it.skip('offers native Codex three choices and keeps the legacy read-only caption truthful', async () => {
     await i18n.changeLanguage('zh-CN');
     const user = userEvent.setup();
     const onPermissionModeChange = vi.fn();
@@ -194,7 +196,7 @@ describe('SimpleChatInput send paths', () => {
     expect(onPermissionModeChange).toHaveBeenCalledWith('full-auto');
   });
 
-  it.each(['chat', 'launcher'] as const)('keeps the scheduled-task action inside the animated plus menu in %s mode', async (mode) => {
+  it.skip.each(['chat', 'launcher'] as const)('keeps the scheduled-task action inside the animated plus menu in %s mode', async (mode) => {
     await i18n.changeLanguage('zh-CN');
     const user = userEvent.setup();
     const onCronButtonClick = vi.fn();
@@ -214,7 +216,7 @@ describe('SimpleChatInput send paths', () => {
     expect(screen.queryByRole('button', { name: '定时任务' })).not.toBeInTheDocument();
   });
 
-  it('uses the same upward entry motion for all three left-side toolbar menus', async () => {
+  it.skip('uses the same upward entry motion for all three left-side toolbar menus', async () => {
     await i18n.changeLanguage('zh-CN');
     const user = userEvent.setup();
     renderInput({
@@ -496,7 +498,7 @@ describe('SimpleChatInput send paths', () => {
     expect(onSend).toHaveBeenCalledWith('chat hello', undefined);
   });
 
-  it('shows external runtime MCP servers as a read-only discovered catalog', async () => {
+  it.skip('shows external runtime MCP servers as a read-only discovered catalog', async () => {
     await i18n.changeLanguage('en-US');
     const user = userEvent.setup();
     renderInput({
@@ -520,7 +522,7 @@ describe('SimpleChatInput send paths', () => {
     expect(screen.queryByText('browser_click')).not.toBeInTheDocument();
   });
 
-  it('counts Managed Runtime MCP rows and only shows error status details', async () => {
+  it.skip('counts Managed Runtime MCP rows and only shows error status details', async () => {
     await i18n.changeLanguage('en-US');
     const user = userEvent.setup();
     renderInput({
@@ -558,7 +560,7 @@ describe('SimpleChatInput send paths', () => {
     expect(screen.queryByText('stale')).not.toBeInTheDocument();
   });
 
-  it('counts editable MCP rows and hides healthy child-tool cardinality', async () => {
+  it.skip('counts editable MCP rows and hides healthy child-tool cardinality', async () => {
     await i18n.changeLanguage('en-US');
     const user = userEvent.setup();
     renderInput({
@@ -601,7 +603,7 @@ describe('SimpleChatInput send paths', () => {
     expect(screen.getByText('Unavailable')).toBeInTheDocument();
   });
 
-  it('does not expose generic MCP settings for the fixed managed Browser', async () => {
+  it.skip('does not expose generic MCP settings for the fixed managed Browser', async () => {
     await i18n.changeLanguage('en-US');
     const user = userEvent.setup();
     renderInput({
@@ -779,7 +781,7 @@ describe('SimpleChatInput send paths', () => {
     expect(onSend).toHaveBeenCalledWith('launcher hello', undefined);
   });
 
-  it('renders launcher input chrome in English when the UI language is English', async () => {
+  it.skip('renders launcher input chrome in English when the UI language is English', async () => {
     await i18n.changeLanguage('en-US');
     const user = userEvent.setup();
     renderInput({ mode: 'launcher', providerAvailable: true });
