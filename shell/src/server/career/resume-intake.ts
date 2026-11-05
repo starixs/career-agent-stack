@@ -7,6 +7,7 @@
  *   也不再在对话里问学校全名和起止时间。
  * 立场 9：简历里已有的不问；缺的在同一张卡里一次补完。立场 3：只有用户勾过的说法进主简历。
  */
+import { createHash } from 'node:crypto';
 import type { Claim, Experience, Repos, Vault } from '@career/core';
 
 import type { CareerStore } from './store';
@@ -130,12 +131,14 @@ const norm = (field: string, v: string) => (field === 'graduation' ? toYearMonth
  * 简历上的基本信息对照私密库：空着的直接补；已有且一致的不动；已有但不一样的记成冲突，交给卡片选（不在对话里对账）。
  */
 /**
- * 冲突卡里选过「以资料为准」的简历值（按字段记，归一化后）：同一份简历再导入、或换个文件名再拖进来时，
+ * 冲突卡里选过「以资料为准」的简历值（按字段记，归一化后取哈希）：同一份简历再导入、或换个文件名再拖进来时，
  * 这些值不再算冲突——身份只解一次（真实会话里「本科/经济学 vs 硕士/计算机」从 10-10 问到 11-04 至少五次）。
  * 选「以简历为准」的不用记：私密库已经改成简历上的值，下次自然一致。
  */
 export const PROFILE_KEPT_KV = 'resume_intake:profile_kept';
 type KeptValues = Record<string, string[]>;
+/** 只存哈希：这些值可能是姓名、手机号，私密库里是密文，kv 里不能留明文（与确认后清掉 pending_profile 同一原则）。 */
+const keptDigest = (field: string, value: string) => createHash('sha256').update(`${field}:${norm(field, value)}`).digest('hex');
 
 function reconcileProfile(vault: Vault, values: Record<string, string>, kept: KeptValues = {}): { filled: string[]; conflicts: Record<string, string> } {
   const existing = new Map(vault.list().filter(i => i.scope === 'profile').map(i => [i.field, i.id]));
@@ -146,7 +149,7 @@ function reconcileProfile(vault: Vault, values: Record<string, string>, kept: Ke
     const id = existing.get(field);
     if (!id) { vault.set({ scope: 'profile', field, value }); filled.push(field); continue; }
     const current = vault.reveal(id, { actor: 'resolve', purpose: '交简历：比对上传的简历和基本资料是否一致' }) ?? '';
-    if (norm(field, current) !== norm(field, value) && !(kept[field] ?? []).includes(norm(field, value))) conflicts[field] = value;
+    if (norm(field, current) !== norm(field, value) && !(kept[field] ?? []).includes(keptDigest(field, value))) conflicts[field] = value;
   }
   return { filled, conflicts };
 }
@@ -333,7 +336,7 @@ function applyProfileChoice(repos: Repos, vault: Vault, draft: IntakeDraft, choi
     const value = draft.pending_profile?.[field];
     if (choice[field] === 'vault' || !value) {
       kept.add(field);
-      if (value) remembered[field] = [...new Set([...(remembered[field] ?? []), norm(field, value)])];
+      if (value) remembered[field] = [...new Set([...(remembered[field] ?? []), keptDigest(field, value)])];
       continue;
     }
     vault.set({ scope: 'profile', field, value });

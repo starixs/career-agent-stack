@@ -2,9 +2,9 @@
  * jobs_apply 回执里的「现在已经在等他」：只算这批网申的，给准数和前几件标题。
  */
 import { describe, expect, it } from 'vitest';
-import type { Repos } from '@career/core';
+import { StaticKeyProvider, Vault, type Repos } from '@career/core';
 
-import { waitingOnYou } from './batch-apply';
+import { likelyMissingProfile, waitingOnYou } from './batch-apply';
 import { createMemoryRepos } from './test-db';
 
 const NOW = '2026-11-05T10:00:00.000Z';
@@ -29,6 +29,17 @@ describe('waitingOnYou', () => {
     const out = waitingOnYou(repos, [mine.id], NOW);
     expect(out.count).toBe(1);
     expect(out.titles.length).toBe(1);
+  });
+
+  it('likelyMissingProfile: only the core fields every application form needs', () => {
+    const repos = createMemoryRepos();
+    const vault = new Vault(repos.db, new StaticKeyProvider(Buffer.alloc(32, 7)));
+    vault.set({ scope: 'profile', field: 'name', value: '张三' });
+    vault.set({ scope: 'profile', field: 'phone', value: '13800000000' });
+    const missing = likelyMissingProfile(vault);
+    expect(missing).toContain('身份证号');
+    expect(missing).not.toContain('真实姓名');
+    expect(missing.length).toBeLessThanOrEqual(6);
   });
 
   it('nothing waiting: zero, no titles', () => {

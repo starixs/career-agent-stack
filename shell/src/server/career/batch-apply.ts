@@ -10,7 +10,7 @@
  *    几家先定制、填到提交前停住；他回来看到「备好了 N 家」，点一下就交。提交前一律停，没他点头不交（放过权的那一类除外）。
  */
 import type { ActionQueueItem, Repos } from '@career/core';
-import { buildAsks } from '@career/core';
+import { buildAsks, type Vault } from '@career/core';
 
 import { BatchRunner } from './batch-runner';
 import { getJobPrefs, jobBoard, prepareJobs } from './job-board';
@@ -121,5 +121,17 @@ export function waitingOnYou(repos: Repos, actionIds: readonly string[], nowIso:
   if (!apps.size) return { count: 0, titles: [] };
   const asks = buildAsks(repos, nowIso).filter(a => a.application_ids.some(id => apps.has(id)));
   return { count: asks.length, titles: asks.slice(0, WAITING_TITLES_MAX).map(a => a.title) };
+}
+
+/** 网申表单几乎都要、缺了就会停下来等他的基本资料（私密库字段名）。 */
+const APPLY_CORE_PROFILE_FIELDS = ['name', 'phone', 'email', 'idNumber', 'school', 'major', 'degree', 'graduation'];
+
+/**
+ * 开投这一刻私密库里就缺的核心资料：后台填到这些格子时一定会停下来等他。
+ * 刚开始投时 waitingOnYou 多半还是 0（缺项要填到那一页才发现），这里提前报，助理一次说清、在右边补一次，不让他反复回话。
+ */
+export function likelyMissingProfile(vault: Vault): string[] {
+  const missing = new Map(vault.status().profile.missing.map(m => [m.field, m.label]));
+  return APPLY_CORE_PROFILE_FIELDS.filter(f => missing.has(f)).map(f => missing.get(f)!);
 }
 

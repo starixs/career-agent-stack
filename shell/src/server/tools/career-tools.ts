@@ -1286,10 +1286,10 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ prefs, rematched: n });
       })()),
 
-      tool('jobs_apply', '投这几个岗位（用户说「这些都投了」「投这 20 个」时用）：一次就开始——每家用定好的那版材料，在后台填到提交前停下；标星的填好后先给他看，其余检查全过的合成「一键投出」。已在投、已投过、没有网申链接的跳过并给原因。没有定制版又有好几份主简历时，默认用最近改过的那份（结果里 resume 写明用了哪份）。不用你逐份 apply_run；回复一两句：开始了几家、跳过几家，要他做的事会出现在右边的「等你」里（结果里 waiting_on_you 是现在已经在等他的件数），进展也在右边。不要让他回话确认。', {
+      tool('jobs_apply', '投这几个岗位（用户说「这些都投了」「投这 20 个」时用）：一次就开始——每家用定好的那版材料，在后台填到提交前停下；标星的填好后先给他看，其余检查全过的合成「一键投出」。已在投、已投过、没有网申链接的跳过并给原因。没有定制版又有好几份主简历时，默认用最近改过的那份（结果里 resume 写明用了哪份）。不用你逐份 apply_run；回复一两句：开始了几家、跳过几家，要他做的事会出现在右边的「等你」里（结果里 waiting_on_you 是现在已经在等他的件数，0 不代表后面没有：填到缺项时还会出现；profile_missing 是资料里还缺、填表一定会用到的几项，一句话告诉他在右边补一次就行），进展也在右边。不要让他回话确认。', {
         job_ids: z.array(z.string()).min(1).max(50), resume_id: z.string().optional().describe('统一用这份简历（定制版仍优先）；不传则用最近改过的主简历'),
       }, async (args) => wrap(async () => {
-        const { applyJobs, planJobs, waitingOnYou } = await import('../career/batch-apply');
+        const { applyJobs, likelyMissingProfile, planJobs, waitingOnYou } = await import('../career/batch-apply');
         progress('jobs_apply', `正在为 ${args.job_ids.length} 个岗位准备材料、开始投`);
         const masters = planJobs(repos(), store(), args.job_ids).resumes;
         const resume = args.resume_id ?? masters[0]?.id ?? null;
@@ -1299,7 +1299,8 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         if (res.started.length) review(res.started, 'fill_form', `投 ${res.started.length} 家`);
         // 现在就在等他的事给个准数：回复说「有 N 件在右边等你」，不让他「填完说一声」
         const waiting = waitingOnYou(repos(), res.started, new Date().toISOString());
-        return text({ started: res.started.length, skipped: res.skipped, waiting_on_you: waiting, ...(resume ? { resume: masters.find(m => m.id === resume)?.name ?? resume } : {}) });
+        const missing = res.started.length ? likelyMissingProfile(vault()) : [];
+        return text({ started: res.started.length, skipped: res.skipped, waiting_on_you: waiting, ...(missing.length ? { profile_missing: missing } : {}), ...(resume ? { resume: masters.find(m => m.id === resume)?.name ?? resume } : {}) });
       })()),
 
       tool('apply_run', '在托管浏览器上执行一份已经排进队列的填表动作（不提交）。新开一份网申用 apply_prepare（准备好会直接开始填）；apply_run 用于队列里已批准的（如浏览器忙时放回队列的），也可以直接重试之前因暂时性问题失败的那份。遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {

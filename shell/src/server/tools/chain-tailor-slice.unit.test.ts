@@ -264,6 +264,8 @@ describe('主链路切面 · 交简历 → 按岗位定制', () => {
     const again = await call('resume_import', { path: '张小明-简历.pdf' });
     const draft = repos.kvGet<{ conflicts?: string[] }>(`resume_intake:${again.json.intake_id as string}`)!;
     expect(draft.conflicts ?? []).not.toContain('school');
+    // 记下的是哈希，简历上的原值（可能是姓名、手机号）不以明文留在 kv
+    expect(JSON.stringify(repos.kvGet('resume_intake:profile_kept'))).not.toContain('北京大学');
   });
 
   it('口述建的旧经历：不进主简历、留在库里标出来；点「清掉这些」才删，简历导入的经历不动', async () => {
