@@ -10,7 +10,9 @@ import { captureIntake, captureTriaged, dataChanged, type IntakeDeps, type Intak
 import type { PostChatCard } from '../chat-card-push';
 import { getMailPassword } from './credentials';
 import { isExpired, recordMailFailure, recordMailSuccess } from './health';
-import { classifyByRules } from './rules';
+import { afterLinkedReply, handleBounceMail } from '../mail-apply/after-send';
+import { linkReply } from './reply-link';
+import { autoReplyTriage, classifyByRules, isAutoReply } from './rules';
 import { recordTakeover } from './takeover';
 import { extractCode } from '../phone/sms-code';
 
@@ -197,33 +199,54 @@ export async function archiveBatch(deps: MailSyncDeps, account: MailAccount, mai
   return result;
 }
 
+/** 来信落库（同账号同 uid / Message-ID 只存一次，已存在返回 null）。 */
+function storeIncoming(r: Repos, account: MailAccount, m: FetchedMail, relevance: MailMessage['relevance'], applicationId: string | null): MailMessage | null {
+  return r.insertMailMessage({
+    account_id: account.id, uid: m.uid, message_id: m.message_id, in_reply_to: m.in_reply_to, direction: 'in',
+    from_addr: m.from, to_addr: m.to, subject: m.subject, snippet: m.text.slice(0, 200), body_text: m.text.slice(0, 20_000), received_at: m.received_at,
+    relevance, kind: null, inbox_item_id: null, application_id: applicationId, action_id: null,
+  });
+}
+
 async function archiveMail(deps: MailSyncDeps, account: MailAccount, m: FetchedMail, result: MailSyncResult): Promise<void> {
   const r = deps.repos;
   // 收码只由私有等待通道消费；包括带「招聘」字样的码邮件，不落求职库、不进模型。
   if (isVerificationMail(m)) { result.ignored++; return; }
-  const likely = isLikelyJobMail(m);
+  // 我们发出的投递邮件被退回：撤回投出、排一封待改收件人的重发，不进归档（历史导入不处理：早已过去）
+  if (!result.history && handleBounceMail(deps, account, m)) { result.stored++; result.job_related++; return; }
+  // 我们发出的信的回音（回复关系 / 发件人 = 当初收件人）：跳过粗筛——HR 私人口吻的信未必命中关键词
+  const link = linkReply(r, m);
+  const likely = !!link || isLikelyJobMail(m);
   // 历史导入不存无关邮件：几个月的私人邮件没必要进库
   if (result.history && !likely) { result.ignored++; return; }
-  const row = r.insertMailMessage({
-    account_id: account.id, uid: m.uid, message_id: m.message_id, in_reply_to: m.in_reply_to, direction: 'in',
-    from_addr: m.from, to_addr: m.to, subject: m.subject, snippet: m.text.slice(0, 200), body_text: m.text.slice(0, 20_000), received_at: m.received_at,
-    relevance: likely ? 'unknown' : 'ignored', kind: null, inbox_item_id: null, application_id: null, action_id: null,
-  });
+  const row = storeIncoming(r, account, m, likely ? 'unknown' : 'ignored', link?.application_id ?? null);
   if (!row) return;
   result.stored++;
   if (!likely) { result.ignored++; return; }
-  // 我们自己发出的投递邮件的回复：直接挂到同一条投递
-  const replied = m.in_reply_to ? r.findMailByMessageId(m.in_reply_to) : undefined;
   const input: IntakeInput = {
     text: `主题：${m.subject ?? ''}\n发件人：${m.from ?? ''}\n\n${m.text.slice(0, 12_000)}`,
     source: 'mail', mail_message_id: row.id,
     mail: { subject: m.subject, from: m.from, received_at: m.received_at },
-    application_id: replied?.application_id ?? null,
+    application_id: link?.application_id ?? null,
   };
-  const intake = await triageMail(deps, m, input, result);
+  const auto = !!link && isAutoReply(m);
+  // 认回的自动回复规则直接判成投递确认，不调模型；它不算回音
+  const intake = auto ? await captureTriaged(deps, input, autoReplyTriage(m, companyOfApplication(r, link.application_id))) : await triageMail(deps, m, input, result);
   if (!intake) return;
-  const jobRelated = intake.triage?.relevance !== 'ignored';
-  const appId = intake.created.application_id ?? intake.created.closed_application_id ?? replied?.application_id ?? null;
+  recordArchived(deps, m, row, intake, input, result, link?.application_id ?? null);
+  if (link && !auto && !result.history) afterLinkedReply(deps, link.application_id, r.getMailMessage(row.id) ?? row, intake.triage);
+}
+
+const companyOfApplication = (r: Repos, appId: string): string | null => {
+  const app = r.getApplication(appId);
+  return app ? r.getJob(app.job_id)?.company_name ?? null : null;
+};
+
+/** 归档结果写回这封邮件、计数、卷宗一笔。 */
+function recordArchived(deps: MailSyncDeps, m: FetchedMail, row: MailMessage, intake: IntakeResult, input: IntakeInput, result: MailSyncResult, linkedApp: string | null): void {
+  const r = deps.repos;
+  const jobRelated = linkedApp !== null || intake.triage?.relevance !== 'ignored';
+  const appId = intake.created.application_id ?? intake.created.closed_application_id ?? linkedApp;
   r.updateMailMessage(row.id, { relevance: jobRelated ? 'job' : 'ignored', kind: (intake.item.kind ?? null) as MailMessage['kind'], inbox_item_id: intake.item.id, application_id: appId });
   if (jobRelated && appId && result.history && !result.history.application_ids.includes(appId)) result.history.application_ids.push(appId);
   if (jobRelated) {

@@ -95,6 +95,25 @@ describe('下一步条', () => {
     expect(by(chips, 'next')?.action).toEqual({ type: 'open_deck', ask_id: 'ask-info' });
   });
 
+  it('邮件写好了：建议条只打开卡组定位到这件，不从这里直接发（发前必须看预览）', async () => {
+    const many = await buildSuggestions(state({ asks: [ask({ id: 'ask-mail', kind: 'review', title: '3 封邮件写好了', count: 3, mail: { purpose: 'apply', count: 3, bounced: false } })] }), {}, null);
+    expect(by(many, 'next')).toMatchObject({ text: '看写好的 3 封邮件', action: { type: 'open_deck', ask_id: 'ask-mail' } });
+    const one = await buildSuggestions(state({ asks: [ask({ id: 'ask-one', kind: 'review', title: '甲 · 邮件写好了', companies: ['甲科技'], mail: { purpose: 'apply', count: 1, bounced: false } })] }), {}, null);
+    expect(by(one, 'next')?.action).toEqual({ type: 'open_deck', ask_id: 'ask-one' });
+    const reply = await buildSuggestions(state({ asks: [ask({ id: 'ask-re', kind: 'review', title: '甲 回信了', companies: ['甲科技'], mail: { purpose: 'reply', count: 1, bounced: false } })] }), {}, null);
+    expect(by(reply, 'next')).toMatchObject({ text: '看给甲科技的回信', action: { type: 'open_deck', ask_id: 'ask-re' } });
+    const bounced = await buildSuggestions(state({ asks: [ask({ id: 'ask-b', kind: 'review', title: '乙 · 邮件被退回', companies: ['乙数据'], mail: { purpose: 'apply', count: 1, bounced: true } })] }), {}, null);
+    expect(by(bounced, 'next')).toMatchObject({ text: '改乙数据的收件人', action: { type: 'open_deck', ask_id: 'ask-b' } });
+    for (const chips of [many, one, reply, bounced]) expect(chips.some(c => c.action?.type === 'ask_primary')).toBe(false);
+  });
+
+  it('邮件没发出去：打开卡组（再发也要他点）；没写成：再写一次', async () => {
+    const send = await buildSuggestions(state({ asks: [ask({ id: 'ask-f', kind: 'failed', title: '2 封没发出去', count: 2, mail_failed: { stage: 'send', reauth: true } })] }), {}, null);
+    expect(by(send, 'next')).toMatchObject({ text: '看没发出去的 2 封', action: { type: 'open_deck', ask_id: 'ask-f' } });
+    const draft = await buildSuggestions(state({ asks: [ask({ id: 'ask-d', kind: 'failed', title: '1 封没写成', count: 1, mail_failed: { stage: 'draft', reauth: false } })] }), {}, null);
+    expect(by(draft, 'next')).toMatchObject({ text: '再写一次这 1 封', action: { type: 'ask_primary', ask_id: 'ask-d' } });
+  });
+
   it('有 3 家没填成：next 再试一次，塑形是这 3 家不投了', async () => {
     const s = state({ asks: [ask({ id: 'ask-failed', kind: 'failed', title: '3 家没填成', count: 3 })] });
     const chips = await buildSuggestions(s, {}, null);

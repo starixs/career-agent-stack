@@ -30,7 +30,24 @@ const act = (text: string, slot: SuggestSlot, action: SuggestAction, seed: strin
 
 // ---------- ② 下一步 ----------
 
+/**
+ * 邮件那几件：发前一定要看过预览（用户明确要求），建议条只打开卡组定位到这件，不从这里直接发（不用 ask_primary）。
+ * 没发出去的也一样打开卡组（授权失效要重新连邮箱，其余放回待发后还要他再点发出）；没写成的「再写一次」不发信，可以直接做。
+ */
+function mailNext(a: SuggestAsk): SuggestChip | null {
+  const open = (text: string) => act(text, 'next', { type: 'open_deck', ask_id: a.id });
+  if (a.mail_failed) return a.mail_failed.stage === 'draft' ? act(`再写一次这 ${a.count} 封`, 'next', { type: 'ask_primary', ask_id: a.id }) : open(`看没发出去的 ${a.count} 封`);
+  if (!a.mail) return null;
+  const who = namesPhrase(a.companies, a.count);
+  if (a.mail.bounced) return open(fitText(`改${who}的收件人`, '改一下收件人') ?? '改一下收件人');
+  if (a.mail.purpose === 'reply') return open(fitText(`看给${who}的回信`, '看写好的回信') ?? '看写好的回信');
+  if (a.mail.purpose === 'followup') return open(fitText(`看给${who}的跟进`, '看写好的跟进') ?? '看写好的跟进');
+  return open(a.mail.count > 1 ? `看写好的 ${a.mail.count} 封邮件` : fitText(`看写好的${who}那封邮件`, '看写好的那封邮件') ?? '看写好的那封邮件');
+}
+
 function askNext(a: SuggestAsk): SuggestChip | null {
+  const mail = mailNext(a);
+  if (mail) return mail;
   const who = namesPhrase(a.companies, a.count);
   switch (a.kind) {
     case 'login': {

@@ -7,31 +7,20 @@
  * 没连邮箱不是失败：照样写，发件邮箱留空，预览里 blockers 带 no_mailbox。
  * 日志只记动作与投递 id：`[career] mail-apply drafted action=… app=…`，不记标题、正文、收件人。
  */
-import { extractMailFormat, type ActionQueueItem, type Job, type Vault } from '@career/core';
+import { extractMailFormat, type ActionQueueItem, type Job } from '@career/core';
 import { z } from 'zod';
 
-import { preparePacketForAction, type PreparePacketDeps } from '../packet-prepare';
-import { withTimeout } from '../tailor-for-job';
+import { preparePacketForAction } from '../packet-prepare';
 import { arrivalLine, assembleBody, chooseAttachmentName, defaultSubject, isInternJob, NAME_TOKEN, readMailProfile, signature, type MailProfile } from './compose';
-import { DraftMailPayloadSchema, payloadObject, type DraftMailPayload, type SendMailPayload } from './payload';
+import { DraftMailPayloadSchema, FollowDraftPayloadSchema, payloadObject, type DraftMailPayload, type SendMailPayload } from './payload';
+import { askWithRetry, existingSendOf, failDraft, finishDraft, type DraftOutcome, type DrafterDeps } from './draft-common';
+import { draftFollowMail } from './follow-drafter';
 
-export type AskSkill = <T>(skill: string, user: string, opts?: { refs?: string[]; temperature?: number }) => Promise<T>;
+export { MAIL_DRAFT_TIMEOUT_MS, type AskSkill, type DraftOutcome, type DrafterDeps } from './draft-common';
 
-export interface DrafterDeps extends PreparePacketDeps {
-  vault: Vault | null;
-  askSkill: AskSkill;
-  /** 一次起草最多等多久（测试注入）；缺省 MAIL_DRAFT_TIMEOUT_MS。 */
-  draftTimeoutMs?: number;
-}
 
-/** 一次起草最多等多久：写两段正文 DeepSeek 通常 10–20 秒，给足余量；超了算一次失败。 */
-export const MAIL_DRAFT_TIMEOUT_MS = 60_000;
-/** 模型调用最多几次（第一次 + 重试一次）。 */
-const MAIL_DRAFT_ATTEMPTS = 2;
 /** 喂给模型的 JD 原文最多多少字：一份 JD 远小于此，超长的多半混了别的页面内容。 */
 const JD_PROMPT_MAX_CHARS = 6000;
-
-export type DraftOutcome = 'drafted' | 'failed' | 'skipped';
 
 const DerivativesOut = z.object({
   email: z.object({ subject: z.string().catch(''), body: z.string().catch('') }).catch({ subject: '', body: '' }),
@@ -39,11 +28,6 @@ const DerivativesOut = z.object({
 }).passthrough();
 type Written = { subject: string; body: string; attachment_name: string };
 
-function failDraft(deps: DrafterDeps, action: Pick<ActionQueueItem, 'id' | 'application_id'>, reason: string, detail?: string): DraftOutcome {
-  deps.repos.setActionStatus(action.id, 'failed', { error: reason });
-  console.warn(`[career] mail-apply draft FAILED action=${action.id} app=${action.application_id ?? '-'} reason=${reason}${detail ? ` detail=${detail.slice(0, 200)}` : ''}`);
-  return 'failed';
-}
 
 /** jd_parsed_json 里与邮件有关的两项（jd-parse 技能输出；坏了当没有）。 */
 const JdMailFormat = z.object({ mail_subject_format: z.string().optional().catch(undefined), mail_attachment_format: z.string().optional().catch(undefined) }).passthrough();
@@ -72,22 +56,13 @@ function promptOf(deps: DrafterDeps, job: Job, profile: MailProfile, format: Mai
   ].join('\n\n');
 }
 
-/** 调技能写一次；超时 / 出错 / 正文为空重试一次，仍不成抛最后一次的错。 */
-async function writeWithRetry(deps: DrafterDeps, prompt: string): Promise<Written> {
-  let last: unknown;
-  for (let i = 0; i < MAIL_DRAFT_ATTEMPTS; i++) {
-    try {
-      const raw = await withTimeout(deps.askSkill<unknown>('derivatives', prompt, { temperature: 0.3 }), deps.draftTimeoutMs ?? MAIL_DRAFT_TIMEOUT_MS, () => new Error('写邮件超时'));
-      const out = DerivativesOut.parse(raw);
-      if (out.email.body.trim()) return { subject: out.email.subject.trim(), body: out.email.body, attachment_name: out.attachment_name };
-      last = new Error('模型没给正文');
-    } catch (error) {
-      last = error;
-    }
-    console.warn(`[career] mail-apply write attempt=${i + 1} FAILED detail=${last instanceof Error ? last.message.slice(0, 200) : String(last)}`);
-  }
-  throw last instanceof Error ? last : new Error(String(last));
+
+function parseWritten(raw: unknown): Written | null {
+  const out = DerivativesOut.parse(raw);
+  return out.email.body.trim() ? { subject: out.email.subject.trim(), body: out.email.body, attachment_name: out.attachment_name } : null;
 }
+
+
 
 /** 拼出待发的那封（payload 里存占位符版本，预览与发送时解开）。 */
 function sendPayloadOf(deps: DrafterDeps, action: ActionQueueItem, p: DraftMailPayload, job: Job, packetId: string, written: Written, format: MailFormat): SendMailPayload {
@@ -111,7 +86,15 @@ function sendPayloadOf(deps: DrafterDeps, action: ActionQueueItem, p: DraftMailP
 export async function draftMailForAction(deps: DrafterDeps, action: ActionQueueItem): Promise<DraftOutcome> {
   const claim = deps.repos.claimAction(action.id);
   if (!claim.ok) { console.log(`[career] mail-apply draft skipped action=${action.id} reason=${claim.reason}`); return 'skipped'; }
+  const already = existingSendOf(deps.repos, action.id);
+  if (already) {
+    deps.repos.setActionStatus(action.id, 'done', { send_action_id: already.id });
+    console.log(`[career] mail-apply draft resumed action=${action.id} send=${already.id}`);
+    return 'drafted';
+  }
   const raw = payloadObject(action.id, action.payload_json);
+  const follow = FollowDraftPayloadSchema.safeParse(raw);
+  if (follow.success) return draftFollowMail(deps, action, follow.data);
   const parsed = DraftMailPayloadSchema.safeParse(raw);
   if (!parsed.success) return failDraft(deps, action, '这封邮件的材料不全', parsed.error.message);
   const job = deps.repos.getJob(parsed.data.job_id);
@@ -121,12 +104,11 @@ export async function draftMailForAction(deps: DrafterDeps, action: ActionQueueI
   const format = mailFormatOf(job);
   let written: Written;
   try {
-    written = await writeWithRetry(deps, promptOf(deps, job, readMailProfile(deps.vault).profile, format, parsed.data.notes));
+    written = await askWithRetry(deps, 'derivatives', promptOf(deps, job, readMailProfile(deps.vault).profile, format, parsed.data.notes), parseWritten);
   } catch (error) {
     return failDraft(deps, action, '邮件没写成，再试一次', error instanceof Error ? error.message : String(error));
   }
-  const send = deps.repos.enqueueAction('send_mail', sendPayloadOf(deps, action, parsed.data, job, packet.packetId, written, format), parsed.data.application_id);
-  deps.repos.setActionStatus(action.id, 'done', { send_action_id: send.id });
+  const send = finishDraft(deps.repos, action, sendPayloadOf(deps, action, parsed.data, job, packet.packetId, written, format), parsed.data.application_id);
   console.log(`[career] mail-apply drafted action=${action.id} app=${parsed.data.application_id} send=${send.id} subject_auto=${!format.subject_format}`);
   return 'drafted';
 }

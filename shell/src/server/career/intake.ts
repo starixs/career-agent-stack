@@ -53,6 +53,8 @@ export interface TriageResult {
   actions?: Array<{ type: string; payload?: Record<string, unknown> }>;
   urgency?: 'urgent' | 'soon' | 'normal';
   summary?: string;
+  /** 这封信在等求职者回话（问到岗、要补材料、问意向……）；只是告知、拒信、系统通知为 false。 */
+  needs_reply?: boolean;
 }
 
 export interface IntakeResult {

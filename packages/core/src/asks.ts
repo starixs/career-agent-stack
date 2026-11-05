@@ -25,7 +25,7 @@ import { deadlineToToday, type TodayItem } from './surfaces.js'
 import type { ActionQueueItem, Deadline, Handoff, InboxItem } from './types.js'
 import { PROFILE_FIELDS, vaultTokensToMarks } from './vault.js'
 
-export type { AskField, AskKind, AskMail, AskMailPurpose, AskSource, AskSourceType, AskView } from './ask-context.js'
+export type { AskField, AskKind, AskMail, AskMailFailed, AskMailPurpose, AskSource, AskSourceType, AskView } from './ask-context.js'
 export { ASK_MAIL_PURPOSES } from './ask-context.js'
 
 export interface AskOptions {

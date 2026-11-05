@@ -838,8 +838,10 @@ export class Repos {
   }
   getMailMessage(id: string): MailMessage | undefined { return this.db.get<MailMessage>('SELECT * FROM mail_message WHERE id=?', [id]) }
   updateMailMessage(id: string, patch: Partial<Pick<MailMessage, 'relevance' | 'kind' | 'inbox_item_id' | 'application_id' | 'action_id'>>): void { this.db.update('mail_message', id, stripUndefined(patch)) }
-  listMailMessages(f: { account_id?: string; application_id?: string; direction?: 'in' | 'out'; relevance?: MailMessage['relevance']; limit?: number } = {}): MailMessage[] {
+  /** to_addr：按收件地址找（忽略大小写；回信认回用：发件人 = 当初的收件人）。 */
+  listMailMessages(f: { account_id?: string; application_id?: string; direction?: 'in' | 'out'; relevance?: MailMessage['relevance']; to_addr?: string; limit?: number } = {}): MailMessage[] {
     const where: string[] = []; const params: (string | number)[] = []
+    if (f.to_addr) { where.push('lower(trim(to_addr))=?'); params.push(f.to_addr.trim().toLowerCase()) }
     if (f.account_id) { where.push('account_id=?'); params.push(f.account_id) }
     if (f.application_id) { where.push('application_id=?'); params.push(f.application_id) }
     if (f.direction) { where.push('direction=?'); params.push(f.direction) }

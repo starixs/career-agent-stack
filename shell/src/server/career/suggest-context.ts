@@ -48,7 +48,11 @@ function parseCard<T>(schema: z.ZodType<T>, card: ChatCardRow): T | null {
 }
 
 function askOf(a: AskView): SuggestAsk {
-  return { id: a.id, kind: a.kind, title: a.title, companies: a.companies.map(c => c.name).slice(0, COMPANIES_PER_ITEM), count: Math.max(1, a.application_ids.length) };
+  return {
+    id: a.id, kind: a.kind, title: a.title, companies: a.companies.map(c => c.name).slice(0, COMPANIES_PER_ITEM), count: Math.max(1, a.application_ids.length),
+    ...(a.mail ? { mail: { purpose: a.mail.purpose, count: a.mail.action_ids.length, bounced: a.mail.bounced === true } } : {}),
+    ...(a.mail_failed ? { mail_failed: a.mail_failed } : {}),
+  };
 }
 
 function companyOfApplication(repos: Repos, appId: string | null): string | null {

@@ -3,17 +3,20 @@
  *  - mail_accounts / mail_sync / mail_list：连了哪些邮箱、立刻同步、列求职相关邮件。
  *  - mail_compose：投递邮件走和网申同一条路（face-mail-apply 2026-11-05）——岗位记下投递邮箱 → applyJobs →
  *    后台写邮件（draft_mail）→ 写好进「等你」过目再发。不在这一轮里起草，立刻返回。
+ *  - mail_reply：他说「帮我回一下 X」「跟 X 说我下周一能到岗」时，找这份申请最近一封来信，排一封回信草稿（后台写，写好进等你）。
  * 明文边界（不变量 4）：返回给模型的只有公司、岗位、动作 id、收件域名；不给收件人全址、标题、正文。
+ * 放在 tools/career/ 子目录：它是 career 这一个 MCP server 的一部分，不是独立的懒加载工厂（tools-no-cross-imports 只管顶层）。
  */
 import type { tool as SdkTool } from '@anthropic-ai/claude-agent-sdk';
 import { emailDomain, isEmailAddress, type Job, type MailAccount, type MailMessage, type Repos } from '@career/core';
 import type { z as Zod } from 'zod/v4';
 
-import type { IntakeDeps } from '../career/intake';
-import { MAIL_PRESETS } from '../career/mail/providers';
-import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
-import type { PacketDeps } from '../career/packets';
-import type { CareerStore } from '../career/store';
+import type { IntakeDeps } from '../../career/intake';
+import { MAIL_PRESETS } from '../../career/mail/providers';
+import { bareAddress, isBounce } from '../../career/mail/reply-link';
+import { syncAllMailAccounts, syncMailAccount } from '../../career/mail/sync';
+import type { PacketDeps } from '../../career/packets';
+import type { CareerStore } from '../../career/store';
 
 type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 
@@ -97,7 +100,7 @@ export function createMailTools(d: MailToolDeps) {
       if (to && job.apply_email !== to) d.repos().db.update('job', job.id, { apply_email: to, updated_at: new Date().toISOString() });
       const email = to ?? job.apply_email;
       if (!email) return d.err('这个岗位没写投递邮箱：问他发到哪个邮箱');
-      const { applyJobs } = await import('../career/batch-apply');
+      const { applyJobs } = await import('../../career/batch-apply');
       const res = await applyJobs({ ...d.packetDeps(), store: d.store() }, [job.id], null, { notes: args.notes ?? null });
       d.changed('job', 'application', 'action_queue');
       const actionId = res.started.find(id => d.repos().getAction(id)?.kind === 'draft_mail');
@@ -105,5 +108,28 @@ export function createMailTools(d: MailToolDeps) {
       if (!actionId) return d.text({ ...base, started: false, reason: res.skipped[0]?.reason ?? '没能开始', note: '把原因用一句话告诉他；不要复述邮件。' });
       return d.text({ ...base, started: true, action_id: actionId, note: '邮件在后台写，写好会出现在右边「等你」里给他过目；回复一句短话，不要复述邮件。' });
     })()),
+
+    tool('mail_reply', '回对方的邮件（他说「帮我回一下 X」「跟 X 说我下周一能到岗」时用）：找这份投递最近一封对方来信，回信在后台写（只用已确认的资料，缺的会标出来让他补），写好出现在右边「等你」里给他过目，他点发出才发。不在这一轮里写，立刻返回；回一句短话，不要复述邮件。notes 是他想说的话。', {
+      application_id: z.string(),
+      notes: z.string().optional().describe('他想在回信里说的话'),
+    }, async (args) => d.wrap(async () => replyTool(d, args))()),
   ];
+}
+
+/** mail_reply：找最近一封来信 → 撤掉还挂着的跟进 / 旧回信 → 排一封回信草稿。 */
+async function replyTool(d: MailToolDeps, args: { application_id: string; notes?: string }): Promise<ToolResult> {
+  const r = d.repos();
+  const app = r.getApplication(args.application_id);
+  if (!app) return d.err(`投递不存在：${args.application_id}`);
+  const job = r.getJob(app.job_id);
+  const latest = r.listMailMessages({ application_id: app.id, direction: 'in' }).find(m => !isBounce({ from: m.from_addr, subject: m.subject }));
+  if (!latest) return d.err('这份投递还没收到过对方的邮件；要先发一封投递邮件就用 mail_compose');
+  const { cancelPendingFollowUps } = await import('../../career/mail-apply/followup');
+  const { enqueueReplyDraft } = await import('../../career/mail-apply/after-send');
+  cancelPendingFollowUps(r, app.id, '他要自己回这封');
+  const queued = enqueueReplyDraft(r, { application_id: app.id, mail: latest, notes: args.notes ?? null, force: true });
+  d.changed('action_queue');
+  const base = { company: job?.company_name ?? null, title: job?.title ?? null, to_domain: emailDomain(bareAddress(latest.from_addr) ?? '') || null };
+  if (typeof queued === 'string') return d.text({ ...base, started: false, reason: queued, note: '把原因用一句话告诉他。' });
+  return d.text({ ...base, started: true, action_id: queued.id, note: '回信在后台写，写好会出现在右边「等你」里给他过目；回复一句短话，不要复述邮件。' });
 }

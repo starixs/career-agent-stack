@@ -239,8 +239,11 @@ oauth_sessions (state PK, user_id, provider, code_verifier, expires_at)   -- 预
 
 ```json
 { "connection_id": "conn_…", "to": "hr@x.com", "cc": null, "subject": "应聘产品经理 - 张三", "body": "纯文本",
-  "attachments": [{ "filename": "张三-简历.pdf", "content_base64": "…", "sha256": "…" }], "trigger": "act_…" }
+  "attachments": [{ "filename": "张三-简历.pdf", "content_base64": "…", "sha256": "…" }], "trigger": "act_…",
+  "in_reply_to": null, "references": [] }
 ```
+
+- `in_reply_to` / `references`（2026-11-05 邮件投递阶段二新增，可空）：跟进与回信接在原信下面，服务端照原样写进 `In-Reply-To` / `References` 头。云端未实现前忽略这两项也不报错（信照发，只是对方邮箱里不归进同一会话）。
 
 - 附件总大小上限 10 MB；`sha256` 与内容不符返回 400。
 - 幂等：按 `trigger` 去重（同一个客户端动作只发一次），重复请求返回第一次的结果。

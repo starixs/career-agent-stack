@@ -35,6 +35,9 @@ async function sendViaSmtp(account: MailAccount, password: string, mail: SendMai
   const info = await transporter.sendMail({
     from: account.display_name ? `"${account.display_name}" <${account.address}>` : account.address,
     to: mail.to, cc: mail.cc || undefined, subject: mail.subject, text: mail.body,
+    // 跟进 / 回信接在原信下面：对方的邮箱按这两个头把它归进同一个会话
+    ...(mail.in_reply_to ? { inReplyTo: mail.in_reply_to } : {}),
+    ...(mail.references?.length ? { references: mail.references } : {}),
     attachments: (mail.attachments ?? []).map(a => ({ path: a.path, filename: a.filename ?? basename(a.path) })),
   });
   return { messageId: info.messageId ?? null };
@@ -77,12 +80,38 @@ function claimOrThrow(deps: MailSendDeps, actionId: string): void {
 
 type Credentials = { cloud: ReturnType<typeof serverConfig>; password: string };
 
-/** 云端连接：授权码在云端，经云端代发、云端留痕；本机连接：本机 SMTP 发、本机留痕。认领前查，缺授权码不动动作状态。 */
-function credentialsOf(repos: Repos, account: MailAccount): Credentials {
-  const cloud = account.remote_id ? serverConfig(repos) : null;
+/** 授权码缺失的那句：要能被等你条认成授权问题（core asks-mail AUTH_ERROR_RX），出「邮箱授权失效了」。 */
+export const MISSING_PASSWORD_ERROR = '邮箱授权码没有保存，需要重新授权';
+
+/**
+ * 云端连接：授权码在云端，经云端代发、云端留痕；本机连接：本机 SMTP 发、本机留痕。认领前查。
+ * 缺授权码 → 动作置 failed（等你里「N 封没发出去 · 邮箱授权失效了」），不留在 approved 里没人看得见。
+ */
+function credentialsOf(deps: MailSendDeps, actionId: string, account: MailAccount): Credentials {
+  const cloud = account.remote_id ? serverConfig(deps.repos) : null;
   const password = cloud ? '' : getMailPassword(account.id);
-  if (!cloud && !password) throw new Error(`邮箱 ${account.address} 没有保存授权码，请重新绑定`);
+  if (!cloud && !password) {
+    deps.repos.setActionStatus(actionId, 'failed', { error: MISSING_PASSWORD_ERROR });
+    dataChanged(deps, ['action_queue']);
+    console.warn(`[career] mail-send FAILED action=${actionId} reason=no_password account=${account.id}`);
+    throw new Error(MISSING_PASSWORD_ERROR);
+  }
   return { cloud, password: password ?? '' };
+}
+
+/**
+ * 发送最后一道关（不变量 3 不重复发）：这份投递已经发出过投递邮件（证据 mail:、阶段已投出及之后），
+ * 再来一封投递邮件不发，动作置 rejected——这不是失败，不进「没发出去」。退信后的重发（bounced_from）不受此限。
+ */
+function alreadySentApply(deps: MailSendDeps, action: ActionQueueItem, payload: SendMailPayload): boolean {
+  if ((payload.purpose ?? 'apply') !== 'apply' || payload.bounced_from) return false;
+  const appId = payload.application_id ?? action.application_id;
+  const app = appId ? deps.repos.getApplication(appId) : undefined;
+  if (!app || !app.submission_evidence?.startsWith('mail:') || !SENT_STAGES.has(app.stage)) return false;
+  deps.repos.setActionStatus(action.id, 'rejected', { reason: '这份已经发过投递邮件' });
+  dataChanged(deps, ['action_queue']);
+  console.log(`[career] mail-send skipped action=${action.id} app=${app.id} reason=already_sent`);
+  return true;
 }
 
 /** 交给 SMTP / 云端代发；失败记 failed（等你里出「N 封没发出去」）。本机连接留痕。 */
@@ -109,53 +138,80 @@ async function transmit(deps: MailSendDeps, action: ActionQueueItem, account: Ma
   }
 }
 
-/** 发出之后：邮件记录、卷宗一笔（不写标题与全址）、素材使用（存占位符版，不存明文）、投递推进到 applied。 */
+/** 投出及之后的阶段（发出投递邮件不再往回推；这份已经投过）。 */
+const SENT_STAGES: ReadonlySet<string> = new Set(['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired']);
+/** 卷宗里那一笔（不写标题与全址）。 */
+const SENT_NOTE: Record<NonNullable<SendMailPayload['purpose']>, string> = { apply: '已发出投递邮件', followup: '已发出跟进邮件', reply: '已回信' };
+
+/** 投递邮件发出：推进到 applied（证据 mail:）；退信后重发成功的，把新地址记回岗位。跟进 / 回信不动阶段。 */
+function advanceOnApply(r: Repos, appId: string, mail: ResolvedMail, mailId: string, tables: string[]): void {
+  if ((mail.payload.purpose ?? 'apply') !== 'apply') return;
+  const app = r.getApplication(appId);
+  if (app && !SENT_STAGES.has(app.stage)) {
+    r.jumpTo(appId, 'applied', mail.payload.bounced_from ? '退信后重发的投递邮件已发送' : '邮件投递已发送', { submission_evidence: `mail:${mailId}` });
+    tables.push('application', 'application_history');
+  }
+  if (mail.payload.bounced_from && mail.payload.job_id) {
+    r.db.update('job', mail.payload.job_id, { apply_email: mail.to, updated_at: new Date().toISOString() });
+    tables.push('job');
+  }
+}
+
+/** 发出之后：邮件记录（带线程头）、卷宗一笔、素材使用（存占位符版，不存明文）、投递邮件推进到 applied。 */
 function recordSent(deps: MailSendDeps, action: ActionQueueItem, account: MailAccount, mail: ResolvedMail, messageId: string | null): { mail_id: string; application_id: string | null } {
   const r = deps.repos;
   const appId = mail.payload.application_id ?? action.application_id ?? null;
+  const purpose = mail.payload.purpose ?? 'apply';
   const row = r.insertMailMessage({
-    account_id: account.id, uid: null, message_id: messageId, in_reply_to: null, direction: 'out',
+    account_id: account.id, uid: null, message_id: messageId, in_reply_to: mail.payload.in_reply_to ?? null, direction: 'out',
     from_addr: account.address, to_addr: mail.to, subject: mail.subject, snippet: mail.body.slice(0, 200), body_text: mail.body,
     received_at: new Date().toISOString(), relevance: 'job', kind: null, inbox_item_id: null, application_id: appId, action_id: action.id,
   })!;
   const tables = ['action_queue', 'mail_message'];
-  const app = appId ? r.getApplication(appId) : undefined;
-  if (appId && app) {
-    r.addDossierNote({ application_id: appId, kind: 'mail', content: `已发出投递邮件（收件 @${emailDomain(mail.to)}${mail.attachments.length ? `，附 ${mail.attachments.length} 个附件` : ''}）` });
+  if (appId && r.getApplication(appId)) {
+    r.addDossierNote({ application_id: appId, kind: 'mail', content: `${SENT_NOTE[purpose]}（收件 @${emailDomain(mail.to)}${mail.attachments.length ? `，附 ${mail.attachments.length} 个附件` : ''}）` });
     tables.push('dossier_note');
-    if (!['applied', 'responded', 'interview', 'offer', 'rejected', 'discarded', 'hired'].includes(app.stage)) {
-      r.jumpTo(appId, 'applied', '邮件投递已发送', { submission_evidence: `mail:${row.id}` });
-      tables.push('application', 'application_history');
-    }
+    advanceOnApply(r, appId, mail, row.id, tables);
     r.recordMaterialUse({ application_id: appId, job_id: mail.payload.job_id ?? null, context: mail.payload.context ?? '邮件', content_snapshot: `${mail.payload.subject}\n\n${mail.payload.body}`, material_id: mail.payload.material_ids?.[0] ?? null });
     tables.push('material_use');
   }
   r.setActionStatus(action.id, 'done', { mail_id: row.id, message_id: messageId });
   dataChanged(deps, tables);
-  if (appId) focus(deps, { surface: 'dossier', application_id: appId, note: '投递邮件已发送' });
-  console.log(`[career] mail-send sent action=${action.id} app=${appId ?? '-'} domain=${emailDomain(mail.to)}`);
+  if (appId) focus(deps, { surface: 'dossier', application_id: appId, note: SENT_NOTE[purpose] });
+  console.log(`[career] mail-send sent action=${action.id} app=${appId ?? '-'} purpose=${purpose} domain=${emailDomain(mail.to)}`);
   return { mail_id: row.id, application_id: appId };
 }
 
 /** 校验并发送一条已批准的 send_mail 动作；返回 mail_message id。 */
-export async function executeSendMailAction(deps: MailSendDeps, action: ActionQueueItem): Promise<{ mail_id: string; application_id: string | null }> {
+export type SendOutcome = { mail_id: string; application_id: string | null } | { skipped: 'already_sent'; application_id: string | null };
+
+export async function executeSendMailAction(deps: MailSendDeps, action: ActionQueueItem): Promise<SendOutcome> {
   if (action.kind !== 'send_mail') throw new Error(`动作 ${action.id} 不是 send_mail`);
   if (action.status !== 'approved') throw new Error(`动作 ${action.id} 尚未批准（${action.status}），不能发送`);
   const mail = await resolveOrReopen(deps, action);
-  const creds = credentialsOf(deps.repos, mail.account);
+  if (alreadySentApply(deps, action, mail.payload)) return { skipped: 'already_sent', application_id: mail.payload.application_id ?? action.application_id ?? null };
+  const creds = credentialsOf(deps, action.id, mail.account);
   claimOrThrow(deps, action.id);
   checkAttachments(deps, action.id, mail);
   const messageId = await transmit(deps, action, mail.account, mail, creds);
   return recordSent(deps, action, mail.account, mail, messageId);
 }
 
-/** 审核通过后立即执行所有已批准的 send_mail：逐封发，单封失败不影响其余；返回每条的结果（失败不抛，写进 result）。 */
-export async function executeApprovedSendMails(deps: MailSendDeps, ids: string[]): Promise<Array<{ action_id: string; ok: boolean; error?: string; mail_id?: string }>> {
-  const out: Array<{ action_id: string; ok: boolean; error?: string; mail_id?: string }> = [];
+export type SendResult = { action_id: string; ok: boolean; error?: string; mail_id?: string; skipped?: 'already_sent' };
+
+/**
+ * 审核通过后立即执行所有已批准的 send_mail：逐封发，单封失败不影响其余；返回每条的结果（失败不抛，写进 result）。
+ * 这份已经发过投递邮件的那封不发（ok、skipped: already_sent）。
+ */
+export async function executeApprovedSendMails(deps: MailSendDeps, ids: string[]): Promise<SendResult[]> {
+  const out: SendResult[] = [];
   for (const id of ids) {
     const action = deps.repos.getAction(id);
     if (!action || action.kind !== 'send_mail' || action.status !== 'approved') continue;
-    try { const res = await executeSendMailAction(deps, action); out.push({ action_id: id, ok: true, mail_id: res.mail_id }); }
+    try {
+      const res = await executeSendMailAction(deps, action);
+      out.push('skipped' in res ? { action_id: id, ok: true, skipped: res.skipped } : { action_id: id, ok: true, mail_id: res.mail_id });
+    }
     catch (error) { out.push({ action_id: id, ok: false, error: error instanceof Error ? error.message : String(error) }); }
   }
   return out;

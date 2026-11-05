@@ -211,6 +211,23 @@ describe('career 五个面的工具', () => {
     expect(manual).toMatchObject({ company: '丙公司', title: '产品实习生', started: true, to_domain: 'c.cn' });
     expect(repos.listJobs().find(j => j.company_name === '丙公司')).toMatchObject({ source_platform: 'manual', apply_email: 'campus@c.cn' });
   });
+
+  it('mail_reply：找这份最近一封来信，排一封回信草稿（后台写，不发、不调模型），结果只给收件域名', async () => {
+    const job = repos.upsertJob({ source_platform: 'manual', title: '产品实习生', company_name: '甲公司', apply_email: 'hr@jia.com' });
+    const app = repos.createApplication(job.id);
+    const none = await call('mail_reply', { application_id: app.id });
+    expect(none.isError).toBe(true);
+    const account = repos.upsertMailAccount({ provider: 'qq', address: 'me@qq.com', imap_host: 'imap.qq.com', smtp_host: 'smtp.qq.com' });
+    const mail = repos.insertMailMessage({ account_id: account.id, uid: 1, message_id: '<in1@jia.com>', in_reply_to: null, direction: 'in', from_addr: 'HR <hr@jia.com>', to_addr: 'me@qq.com', subject: '到岗时间', snippet: '', body_text: '你最早什么时候能到岗？', received_at: new Date().toISOString(), relevance: 'job', kind: 'other', inbox_item_id: null, application_id: app.id, action_id: null })!;
+    const out = (await call('mail_reply', { application_id: app.id, notes: '下周一能到岗' })).json();
+    expect(out).toMatchObject({ company: '甲公司', title: '产品实习生', to_domain: 'jia.com', started: true });
+    expect(JSON.stringify(out)).not.toContain('hr@jia.com');
+    const action = repos.getAction(out.action_id as string)!;
+    expect(action).toMatchObject({ kind: 'draft_mail', status: 'approved', application_id: app.id });
+    expect(JSON.parse(action.payload_json)).toMatchObject({ purpose: 'reply', reply_to_mail_id: mail.id, notes: '下周一能到岗' });
+    expect(llm.calls).toHaveLength(0);
+    expect(repos.listActions().some(a => a.kind === 'send_mail')).toBe(false);
+  });
 });
 
 describe('skillProgressMessage', () => {

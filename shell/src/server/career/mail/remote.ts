@@ -133,7 +133,8 @@ export async function pullMailEvents(deps: MailSyncDeps, cfg: ServerConfig, fetc
 /** 经云端代发：附件读成 base64 并带上冻结时的哈希；按客户端动作 id 幂等。 */
 export async function remoteSend(cfg: ServerConfig, remoteId: string, mail: SendMailPayload, trigger: string, fetchImpl: FetchLike = fetch): Promise<{ messageId: string | null }> {
   const attachments = (mail.attachments ?? []).map(a => ({ filename: a.filename ?? basename(a.path), content_base64: readFileSync(a.path).toString('base64'), sha256: a.sha256 ?? fileSha256(a.path) }));
-  const body = { connection_id: remoteId, to: mail.to, cc: mail.cc ?? null, subject: mail.subject, body: mail.body, attachments, trigger };
+  // 跟进 / 回信的线程头（SERVER-API.md POST /v1/mail/send：in_reply_to / references，可空）
+  const body = { connection_id: remoteId, to: mail.to, cc: mail.cc ?? null, subject: mail.subject, body: mail.body, attachments, trigger, in_reply_to: mail.in_reply_to ?? null, references: mail.references ?? [] };
   const r = await serverCall<{ message_id?: string; error_code?: string; message?: string }>(cfg, '/v1/mail/send', { method: 'POST', body: JSON.stringify(body) }, fetchImpl);
   if (r.error_code) throw new Error(r.message ?? r.error_code);
   return { messageId: r.message_id ?? null };

@@ -118,7 +118,13 @@ describe('handleCareerRoute', () => {
     const apps = await call(deps, 'GET', '/api/career/applications');
     const rows = apps.json.applications as Array<{ id: string; title: string; company_name: string }>;
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ id: app.id, title: '后端开发工程师', company_name: '某司' });
+    expect(rows[0]).toMatchObject({ id: app.id, title: '后端开发工程师', company_name: '某司', apply_email: null });
+    // 邮件投递的岗位：每行带上投递邮箱（进展页靠它认出还没发出的邮件申请）
+    const mailJob = repos.upsertJob({ source_platform: 'manual', title: '产品实习生', company_name: '甲科技', apply_email: 'hr@jia.com' });
+    const mailApp = repos.createApplication(mailJob.id);
+    const withMail = (await call(deps, 'GET', '/api/career/applications')).json.applications as Array<{ id: string; apply_email: string | null }>;
+    expect(withMail.find(r => r.id === mailApp.id)?.apply_email).toBe('hr@jia.com');
+    repos.db.run('DELETE FROM application WHERE id=?', [mailApp.id]);
 
     const illegal = await call(deps, 'POST', `/api/career/applications/${app.id}/stage`, { to: 'hired' });
     expect(illegal.status).toBe(409);

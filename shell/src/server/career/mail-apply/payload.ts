@@ -40,6 +40,14 @@ export const SendMailPayloadSchema = z.object({
   arrival_line: z.string().optional(),
   /** 是哪个 draft_mail 写出来的。 */
   draft_action_id: z.string().optional(),
+  /** 线程头（跟进 / 回信接在哪封信下面）：发信时写进 In-Reply-To / References。 */
+  in_reply_to: z.string().nullish(),
+  references: z.array(z.string()).optional(),
+  /** 跟进 / 回信：接的那封信（mail_message id；回信是对方来的那封，跟进是原投递邮件）。 */
+  reply_to_mail_id: z.string().optional(),
+  /** 退信后照抄的一封：被退回的收件地址（收件人还是它 → bad_recipient）与被退回的那封（mail_message id，去重用）。 */
+  bounced_from: z.string().optional(),
+  bounced_mail_id: z.string().optional(),
 }).passthrough();
 export type SendMailPayload = z.infer<typeof SendMailPayloadSchema>;
 
@@ -53,6 +61,17 @@ export const DraftMailPayloadSchema = z.object({
   notes: z.string().optional(),
 }).passthrough();
 export type DraftMailPayload = z.infer<typeof DraftMailPayloadSchema>;
+
+/** 发出之后的两种 draft_mail：跟进（接在原投递邮件下）、回信（回对方那封）。没写 purpose 的都是投递。 */
+export const FollowDraftPayloadSchema = z.object({
+  purpose: z.enum(['followup', 'reply']),
+  job_id: z.string(),
+  application_id: z.string(),
+  /** 接的那封信（mail_message id）。 */
+  reply_to_mail_id: z.string(),
+  notes: z.string().optional(),
+}).passthrough();
+export type FollowDraftPayload = z.infer<typeof FollowDraftPayloadSchema>;
 
 /** action.payload_json → 对象；坏 JSON 抛错（带动作 id），不当成空邮件。 */
 export function payloadObject(actionId: string, raw: string): unknown {

@@ -26,7 +26,14 @@ export interface AskField {
 export type AskMailPurpose = 'apply' | 'followup' | 'reply'
 export const ASK_MAIL_PURPOSES: readonly AskMailPurpose[] = ['apply', 'followup', 'reply']
 /** AskView.mail：这件事是「发邮件前过目」。只有用途和动作 id，没有邮件内容（明文只走专用接口）。 */
-export interface AskMail { purpose: AskMailPurpose; action_ids: string[] }
+export interface AskMail {
+  purpose: AskMailPurpose
+  action_ids: string[]
+  /** 上一封被退回了：改好收件人重发。 */
+  bounced?: boolean
+}
+/** AskView.mail_failed：failed 那件是邮件的失败。draft = 没写成；send = 没发出去（reauth = 邮箱授权失效，要重新连邮箱）。 */
+export interface AskMailFailed { stage: 'draft' | 'send'; reauth: boolean }
 
 export interface AskView {
   id: string
@@ -61,6 +68,8 @@ export interface AskView {
   choice?: { question: string; options: string[] }
   /** review：这件是发邮件前过目（邮件投递）。卡上按动作 id 去专用接口取整封预览。 */
   mail?: AskMail
+  /** failed：这件是邮件没写成 / 没发出去（卡上按钮据此变化）。 */
+  mail_failed?: AskMailFailed
   /** 对话里接着办时发给助理的话（带对象 id） */
   suggest?: string
 }

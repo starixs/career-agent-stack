@@ -2,7 +2,7 @@
  * 下一步条要的状态（plan-r2 §B.2）：全部本地查询，一个函数 `suggestStateOf` 读出（suggest-context.ts）。
  * 规则层（suggest-seeds.ts）只读这一份，模型看到的是它去掉 id 的精简版。
  */
-import type { AskKind } from '@career/core';
+import type { AskKind, AskMailFailed, AskMailPurpose } from '@career/core';
 
 import type { MainlineStage } from '../../shared/careerRail';
 import type { BatchStatus } from './batch-runner';
@@ -15,6 +15,10 @@ export interface SuggestAsk {
   companies: string[];
   /** 这件事挡住几份申请。 */
   count: number;
+  /** 发邮件前过目那件：用途、几封、是不是退信重发（建议条只打开卡组，不从这里直接发）。 */
+  mail?: { purpose: AskMailPurpose; count: number; bounced: boolean };
+  /** 邮件没写成 / 没发出去那件。 */
+  mail_failed?: AskMailFailed;
 }
 
 /** 对话底部还在等他的那张卡。 */

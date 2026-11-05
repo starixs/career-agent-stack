@@ -54,3 +54,17 @@ export function classifyByRules(m: Pick<FetchedMail, 'subject' | 'from' | 'text'
     : undefined;
   return { kind: rule.kind, relevance: 'job', confidence: 0.7, fields: { company, ...(when ? { when } : {}) }, summary: `${company} ${subject}`.slice(0, 80) };
 }
+
+/** 自动回复只看主题和正文开头这么多字：自动回复的话都在最前面，后面多半引用了原信。 */
+const AUTO_REPLY_HEAD_CHARS = 200;
+const AUTO_REPLY_RX = /自动回复|auto(matic)?[- ]?reply|out of office|已收到(您|你)的(邮件|来信)/i;
+
+/** 自动回复（P2.4）：只当投递确认，不算回音（阶段不动、不挡跟进、不起草回信）。 */
+export function isAutoReply(m: Pick<FetchedMail, 'subject' | 'text'>): boolean {
+  return AUTO_REPLY_RX.test(m.subject ?? '') || AUTO_REPLY_RX.test((m.text ?? '').slice(0, AUTO_REPLY_HEAD_CHARS));
+}
+
+/** 认回到我们发出的信上的自动回复：规则直接判成投递确认，不调模型。 */
+export function autoReplyTriage(m: Pick<FetchedMail, 'subject'>, company: string | null): TriageResult {
+  return { kind: 'application_received', relevance: 'job', confidence: 1, fields: company ? { company } : {}, summary: `${company ? `${company} ` : ''}自动回复：${m.subject ?? ''}`.slice(0, 80) };
+}

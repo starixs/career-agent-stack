@@ -19,7 +19,8 @@ export interface MockInterview { id: string; job_id: string | null; resume_tailo
 export interface ExamPractice { id: string; title: string; company_name: string | null; job_id: string | null; kind: string | null; questions_json: string; answers_json: string; review_json: string; summary: string | null; status: 'answering' | 'reviewed'; created_at: string; updated_at: string }
 export interface AnswerBankRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; updated_at: string }
 export interface ProbePrediction { id: string; resume_tailored_id: string | null; claim_id: string | null; statement: string; target_type: string; expected_chain_json: string; risk: string; created_at: string }
-export type ApplicationWithJob = Application & { title: string; company_name: string | null; deadline: string | null };
+/** apply_email：岗位的投递邮箱（有值 = 走邮件投递；进展页据此把还没发出的邮件申请列进来）。 */
+export type ApplicationWithJob = Application & { title: string; company_name: string | null; deadline: string | null; apply_email: string | null };
 
 export const DIRECTION_STATUSES = ['candidate', 'tentative', 'chosen', 'dropped'] as const;
 export const INTERVIEW_ROUNDS = ['hr', 'first', 'second', 'final', 'group', 'other'] as const;
@@ -98,7 +99,7 @@ export class CareerStore {
 
   // ---------- 投递（join 岗位） ----------
   listApplicationsWithJob(): ApplicationWithJob[] {
-    return this.db.all<ApplicationWithJob>('SELECT a.*, j.title, j.company_name, j.deadline FROM application a JOIN job j ON j.id=a.job_id ORDER BY a.updated_at DESC');
+    return this.db.all<ApplicationWithJob>('SELECT a.*, j.title, j.company_name, j.deadline, j.apply_email FROM application a JOIN job j ON j.id=a.job_id ORDER BY a.updated_at DESC');
   }
 
   // ---------- 公司 ----------

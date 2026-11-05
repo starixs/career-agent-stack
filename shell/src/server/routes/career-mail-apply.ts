@@ -3,6 +3,7 @@
  *  - GET  /api/career/mail-apply/drafts?ids=a,b   → { drafts }：只给 pending_review 的 send_mail，id 不存在或状态不对的略过；
  *  - POST /api/career/mail-apply/drafts/:actionId ← MailDraftPatch → { draft }；
  *  - POST /api/career/mail-apply/availability     ← InternAvailability → { drafts }（存资料并重排所有待发邮件）。
+ *  - GET  /api/career/mail-apply/thread?application_id= → { thread }：一份申请的邮件往来（阶段二）；申请不存在 404。
  * 发出 / 不投沿用 POST /api/career/actions/review。整封明文只经这里给渲染层，不进日志。
  */
 import type { Repos, Vault } from '@career/core';
@@ -11,6 +12,7 @@ import { z } from 'zod';
 import type { InternAvailability, MailDraftPatch } from '../../shared/careerMailApply';
 import { saveAvailability } from '../career/mail-apply/availability';
 import { MailDraftError, patchMailDraft } from '../career/mail-apply/edit';
+import { mailThreadView } from '../career/mail-apply/thread';
 import { mailDraftViews } from '../career/mail-apply/view';
 import type { PacketDeps } from '../career/packets';
 import type { CareerStore } from '../career/store';
@@ -56,6 +58,12 @@ export function mailApplyRoutes(): Array<[string, string, Handler]> {
         if (error instanceof MailDraftError) return fail(error.message, 409);
         throw error;
       }
+    }],
+    ['GET', '/api/career/mail-apply/thread', ({ repos, store, vault, url }) => {
+      const applicationId = url.searchParams.get('application_id')?.trim();
+      if (!applicationId) return fail('需要 application_id');
+      const thread = mailThreadView({ repos, store, vault }, applicationId);
+      return thread ? ok({ thread }) : fail(`投递不存在：${applicationId}`, 404);
     }],
     ['POST', '/api/career/mail-apply/availability', ({ repos, store, vault, body, dataChanged }) => {
       const parsed = AvailabilitySchema.safeParse(body);

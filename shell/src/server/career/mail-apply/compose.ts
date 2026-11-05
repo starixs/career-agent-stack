@@ -34,6 +34,14 @@ export function readMailProfile(vault: Vault | null): { profile: MailProfile; av
   };
 }
 
+/**
+ * 回信 / 跟进里需要他补的空（资料里没有、不许编的那一处）：模型写成「【待补：缺什么】」，
+ * 预览里原样给他看，blockers 带 unresolved，他改掉才能发。
+ */
+export const GAP_RX = /【待补[:：][^】]*】/;
+export const hasGap = (text: string): boolean => GAP_RX.test(text);
+export const gapOf = (what: string): string => `【待补：${what}】`;
+
 export const isAvailabilityComplete = (a: InternAvailability): boolean => !!(a.days_per_week && a.months && a.start);
 
 /** 这份投递要不要问到岗信息：实习岗位的投递邮件才问。 */

@@ -14,14 +14,16 @@ export const ACTIVE_ACTION_STATUSES: ReadonlySet<string> = new Set(['pending_rev
 /** 「开始投」的那一步：网申填表 / 写投递邮件。批准即开始，都不会把东西交出去。 */
 export const START_KINDS: ReadonlySet<ActionKind> = new Set<ActionKind>(['fill_form', 'draft_mail']);
 
-export const isStartAction = (a: Pick<ActionQueueItem, 'kind'>): boolean => START_KINDS.has(a.kind);
+/** 开始投的那一步。发出之后写的跟进 / 回信（draft_mail，purpose 不是 apply）不是投递，不算。 */
+export const isStartAction = (a: Pick<ActionQueueItem, 'kind' | 'payload_json'>): boolean =>
+  START_KINDS.has(a.kind) && (a.kind !== 'draft_mail' || mailPurposeOf(a) === 'apply');
 
 /** 在做：已批准还没轮到的、正在填 / 正在写的。 */
-export const isWorkingAction = (a: Pick<ActionQueueItem, 'kind' | 'status'>): boolean =>
+export const isWorkingAction = (a: ActionLike): boolean =>
   isStartAction(a) && (a.status === 'approved' || a.status === 'executing');
 
 /** 后台正在写（或排着要写）的投递邮件。 */
-export const isDraftingMail = (a: Pick<ActionQueueItem, 'kind' | 'status'>): boolean => a.kind === 'draft_mail' && isWorkingAction(a);
+export const isDraftingMail = (a: ActionLike): boolean => a.kind === 'draft_mail' && isWorkingAction(a);
 
 /** 写好待发、等他过目的投递邮件（跟进 / 回信不算投递）。 */
 export const isHeldMail = (a: ActionLike): boolean => a.kind === 'send_mail' && a.status === 'pending_review' && mailPurposeOf(a) === 'apply';

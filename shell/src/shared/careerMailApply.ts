@@ -31,6 +31,18 @@ export interface AskMail {
   bounced?: boolean;
 }
 
+/**
+ * AskView.mail_failed：等你条上 kind 为 failed 的那件是邮件的失败（不是网申没填成）。
+ *  - draft：没写成 → 主按钮「再写一次」（放回队列重写）；
+ *  - send：没发出去 → 主按钮「再发一次」（放回待发，他在预览里再点发出——发送永远过人）；
+ *    reauth 为 true 时是邮箱授权失效 → 主按钮「重新连邮箱」，连上后再放回待发。
+ * 邮件失败没有「我自己来」（那是去浏览器里接手网申）。
+ */
+export interface AskMailFailed {
+  stage: 'draft' | 'send';
+  reauth: boolean;
+}
+
 /** 实习到岗信息（存基本资料，问一次）。null = 还没说。 */
 export interface InternAvailability {
   /** 每周能到几天，如「4」。 */
@@ -154,6 +166,10 @@ const isPurpose = (v: unknown): v is MailPurpose => isStr(v) && (MAIL_PURPOSES a
 export function isAskMail(v: unknown): v is AskMail {
   return isDict(v) && isPurpose(v.purpose) && Array.isArray(v.action_ids) && v.action_ids.every(isStr)
     && (v.bounced === undefined || typeof v.bounced === 'boolean');
+}
+
+export function isAskMailFailed(v: unknown): v is AskMailFailed {
+  return isDict(v) && (v.stage === 'draft' || v.stage === 'send') && typeof v.reauth === 'boolean';
 }
 
 const isIncoming = (v: unknown): v is MailIncoming => isDict(v) && isStr(v.from) && isStr(v.text) && isStr(v.received_at);

@@ -7,6 +7,7 @@ import { getRepos } from '../db';
 import { getShellLLM } from '../llm';
 import { broadcast as sseBroadcast } from '../../sse';
 import { productChatCardPoster } from '../chat-card-push';
+import { maybeRunFollowupSweep } from '../mail-apply/followup';
 import { mailBackend } from './backend';
 import type { MailSyncResult } from './sync';
 
@@ -31,7 +32,10 @@ export async function runMailSyncOnce(): Promise<MailSyncResult[]> {
       if (Date.now() - lastLocalSync < LOCAL_SYNC_INTERVAL_MS) return [];
       lastLocalSync = Date.now();
     }
-    return backend.poll();
+    const results = await backend.poll();
+    // 拉完新邮件再看跟进：刚来的回音先认回，免得给刚回过信的人排一封跟进（最多每小时扫一次）
+    maybeRunFollowupSweep(repos);
+    return results;
   })().catch((error: unknown) => { console.warn('[career-mail] 同步失败:', error instanceof Error ? error.message : error); return [] as MailSyncResult[]; })
     .finally(() => { running = null; });
   return running;

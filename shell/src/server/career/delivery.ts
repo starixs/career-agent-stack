@@ -35,7 +35,7 @@ function fillActions(repos: Repos, by: { since?: string; actionIds?: readonly st
   if (!by.since) return [];
   // 今天开始投的：网申填表与写投递邮件都算（apply-actions.ts START_KINDS）
   const kinds = [...START_KINDS];
-  return repos.db.all<ActionQueueItem>(`SELECT * FROM action_queue WHERE kind IN (${kinds.map(() => '?').join(',')}) AND created_at >= ? ORDER BY created_at`, [...kinds, by.since]);
+  return repos.db.all<ActionQueueItem>(`SELECT * FROM action_queue WHERE kind IN (${kinds.map(() => '?').join(',')}) AND created_at >= ? ORDER BY created_at`, [...kinds, by.since]).filter(isStartAction);
 }
 
 /** 交出去那一步正在进行：提交 / 发邮件已批准、在执行。 */

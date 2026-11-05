@@ -51,7 +51,18 @@ export function mailDraftView(deps: MailViewDeps, action: ActionQueueItem): Mail
     resume_options: resumeOptionsOf(deps, jobId),
     blockers: mail.blockers,
     availability: needsAvailability(deps.repos, mail.payload) ? readMailProfile(deps.vault).availability : null,
-    thread: null,
+    ...threadOf(deps, mail),
+  };
+}
+
+/** 跟进 / 回信接在哪封下面（标题上方「接着 X 那封」）；回信另带对方原信给他对照。投递邮件两项都是 null。 */
+function threadOf(deps: MailViewDeps, mail: ResolvedMail): Pick<MailDraftView, 'thread' | 'incoming'> {
+  const source = mail.payload.reply_to_mail_id ? deps.repos.getMailMessage(mail.payload.reply_to_mail_id) : undefined;
+  if (!source) return { thread: null, incoming: null };
+  const at = source.received_at ?? source.created_at;
+  return {
+    thread: { subject: source.subject ?? '', sent_at: at },
+    incoming: source.direction === 'in' ? { from: source.from_addr ?? '', text: source.body_text ?? source.snippet ?? '', received_at: at } : null,
   };
 }
 

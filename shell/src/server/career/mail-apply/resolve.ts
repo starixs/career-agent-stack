@@ -6,7 +6,7 @@
 import { emailDomain, hasVaultPlaceholder, isEmailAddress, type ActionQueueItem, type MailAccount, type Repos, type Vault, type VaultAccess } from '@career/core';
 
 import type { MailBlocker } from '../../../shared/careerMailApply';
-import { isAvailabilityComplete, isInternJob, readMailProfile } from './compose';
+import { hasGap, isAvailabilityComplete, isInternJob, readMailProfile } from './compose';
 import { parseSendMailPayload, type SendMailPayload } from './payload';
 
 export interface MailResolveDeps { repos: Repos; vault: Vault | null }
@@ -49,13 +49,17 @@ export function needsAvailability(repos: Repos, payload: Pick<SendMailPayload, '
   return payload.purpose === 'apply' && isInternJob(payload.job_id ? repos.getJob(payload.job_id) : undefined);
 }
 
+/** 退信后照抄的那封：收件人还是被退回的那个地址就不能发（改了才行）。 */
+const isBouncedAddress = (payload: Pick<SendMailPayload, 'bounced_from'>, to: string): boolean =>
+  !!payload.bounced_from && payload.bounced_from.trim().toLowerCase() === to.trim().toLowerCase();
+
 function blockersOf(deps: MailResolveDeps, mail: Omit<ResolvedMail, 'blockers'>): MailBlocker[] {
   const out: MailBlocker[] = [];
   if (!mail.account) out.push('no_mailbox');
   if (needsAvailability(deps.repos, mail.payload) && !isAvailabilityComplete(readMailProfile(deps.vault).availability)) out.push('availability');
-  if (isBadRecipient(deps.repos, deps.vault, mail.to)) out.push('bad_recipient');
+  if (isBadRecipient(deps.repos, deps.vault, mail.to) || isBouncedAddress(mail.payload, mail.to)) out.push('bad_recipient');
   const texts = [mail.subject, mail.body, ...mail.attachments.map(a => a.filename)];
-  if (texts.some(t => hasVaultPlaceholder(t)) || mail.attachments.some(a => /[{}]/.test(a.filename))) out.push('unresolved');
+  if (texts.some(t => hasVaultPlaceholder(t) || hasGap(t)) || mail.attachments.some(a => /[{}]/.test(a.filename))) out.push('unresolved');
   return out;
 }
 

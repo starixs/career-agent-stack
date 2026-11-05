@@ -11,7 +11,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { isMailDraftView, type MailDraftView } from '../../shared/careerMailApply';
+import { isMailDraftView, isMailThreadView, type MailDraftView } from '../../shared/careerMailApply';
 import { handleCareerRoute } from '../routes/career';
 import { applyJobs } from './batch-apply';
 import { loadCore } from './core-module';
@@ -100,6 +100,9 @@ describe('链路 · 邮件投递（投出之前）', () => {
     expect(mailAsks[0]).toMatchObject({ kind: 'review', title: '3 封邮件写好了', mail: { purpose: 'apply' } });
     expect([...mailAsks[0].mail!.action_ids].sort()).toEqual(sends.map(a => a.id).sort());
     expect(JSON.stringify(mailAsks[0])).not.toContain('@');
+    // 往来接口：还没发出的那封投递邮件是 pending 项（带用途和动作 id，进展页拿它取预览）
+    const firstThread = (await route('GET', `/api/career/mail-apply/thread?application_id=${sends[0].application_id}`)).thread;
+    expect(isMailThreadView(firstThread) && firstThread.items.map(i => [i.direction, i.purpose, i.action_id])).toEqual([['pending', 'apply', sends[0].id]]);
 
     // 4. 预览：3 封都有收件人、标题、正文、附件；占位符已在本机解开；实习岗位还缺到岗信息
     const query = `/api/career/mail-apply/drafts?ids=${sends.map(a => a.id).join(',')}`;

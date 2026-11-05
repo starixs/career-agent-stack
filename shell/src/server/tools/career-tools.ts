@@ -47,7 +47,7 @@ import { getCurrentTurnSignal } from '../utils/turn-abort';
 import { REVIEW_CARD_KIND, reviewCardId } from '../../shared/careerReviewCard';
 import { jobMatchesQuery } from '../../shared/jobSearch';
 
-import { createMailTools } from './mail-tools';
+import { createMailTools } from './career/mail-tools';
 import { createOfferTools } from './offer-tools';
 import { createResumeChainTools } from './resume-chain-tools';
 

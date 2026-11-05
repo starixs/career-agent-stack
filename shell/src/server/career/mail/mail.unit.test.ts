@@ -120,6 +120,7 @@ describe('executeSendMailAction', () => {
     const res = await executeSendMailAction({ ...d, transport: async (_a, _p, m) => { sent.push(m); return { messageId: '<out1@x>' }; } }, d.repos.getAction(action.id)!);
     expect(sent).toHaveLength(1);
     expect(d.repos.getAction(action.id)!.status).toBe('done');
+    if (!('mail_id' in res)) throw new Error('应当发出而不是跳过');
     expect(d.repos.getMailMessage(res.mail_id)).toMatchObject({ direction: 'out', message_id: '<out1@x>', application_id: app.id });
     expect(d.repos.getApplication(app.id)!.stage).toBe('applied');
     expect(d.repos.listMaterialUses({ application_id: app.id })[0].context).toBe('邮件');

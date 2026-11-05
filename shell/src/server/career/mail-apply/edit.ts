@@ -7,6 +7,7 @@
  */
 import type { MailDraftPatch, MailDraftView } from '../../../shared/careerMailApply';
 import { preparePacketPdf, tailoredChangeCount, type PacketDeps } from '../packets';
+import { defaultAttachmentName, readMailProfile } from './compose';
 import { parseSendMailPayload, type SendMailPayload } from './payload';
 import { resolveMail } from './resolve';
 import { isPendingDraft, mailDraftView, type MailViewDeps } from './view';
@@ -45,11 +46,12 @@ async function swapResume(deps: MailEditDeps, payload: SendMailPayload, resumeId
   if ('failed' in pdf) throw new MailDraftError(pdf.failed);
   const changes = found.kind === 'tailored' ? tailoredChangeCount(deps.repos, resumeId) : null;
   const packet = pdf.commit({ applicationId, jobId, answers: { resume_plan: { kind: found.kind, changes, reason: 'explicit' } } });
-  const filename = payload.attachments?.[0]?.filename;
+  // 原来有附件沿用它的文件名；原来没有（回信默认不带附件，他要附上简历）用代码的默认附件名
+  const filename = payload.attachments?.[0]?.filename ?? defaultAttachmentName(readMailProfile(deps.vault).profile);
   console.log(`[career] mail-apply resume swapped app=${applicationId} packet=${packet.id} kind=${found.kind}`);
   return {
     ...payload, packet_id: packet.id,
-    attachments: packet.resume_pdf_path ? [{ path: packet.resume_pdf_path, ...(filename ? { filename } : {}), ...(packet.resume_pdf_sha256 ? { sha256: packet.resume_pdf_sha256 } : {}) }] : [],
+    attachments: packet.resume_pdf_path ? [{ path: packet.resume_pdf_path, filename, ...(packet.resume_pdf_sha256 ? { sha256: packet.resume_pdf_sha256 } : {}) }] : [],
   };
 }
 
