@@ -103,7 +103,22 @@ describe('意图 → 动作', () => {
       { text: '看现场', intent: 'open', target: null },
     ]);
     expect(ModelOut.safeParse({ chips: [{ text: '旧格式' }] }).success).toBe(false);
-    expect(ModelOut.parse({ c: Array.from({ length: 12 }, (_, i) => [`第${i}条`]) }).chips).toHaveLength(8);
+    expect(ModelOut.parse({ c: Array.from({ length: 12 }, (_, i) => [`第${i}条`]) }).chips).toHaveLength(6);
+  });
+
+  it('按立场分组：配合 / 犹豫 / 纠正各收最多两条，带上 stance，按立场顺序展开；一行或几行都认', () => {
+    const out = ModelOut.parse({
+      纠正: [['不是这样，其实是：', 'fill']],
+      配合: [['就投这 5 家', 'start_card', 'picked'], ['好'], ['多的第三条']],
+      犹豫: ['平安那家靠谱吗'],
+    });
+    expect(out.chips).toEqual([
+      { text: '就投这 5 家', intent: 'start_card', target: 'picked', stance: 'agree' },
+      { text: '好', intent: 'say', target: null, stance: 'agree' },
+      { text: '平安那家靠谱吗', intent: 'say', target: null, stance: 'hesitate' },
+      { text: '不是这样，其实是：', intent: 'fill', target: null, stance: 'correct' },
+    ]);
+    expect(ModelOut.safeParse({ 别的: [['x']] }).success).toBe(false);
   });
 
   it('mode 由服务端按意图推：say 用这一幕的回应 mode、带退出词的 say → exit、fill/ask_choose → option、能办 → advance、起头 → start、先放着 → exit', () => {

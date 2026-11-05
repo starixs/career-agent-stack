@@ -80,9 +80,14 @@ describe('下一步条的状态', () => {
     expect(s.batch).toMatchObject({ status: 'running', running: ['招商银行'], runningAppId: cmb.id, done: 4, queued: 8 });
     expect(s.held).toMatchObject({ count: 1, companies: ['平安'] });
     resetSuggestMemory();
+    // 有待审时配合位先给过目（点名平安）；犹豫位是先去忙
     const chips = await buildSuggestions(s, {}, null);
-    expect(chips.find(c => c.action?.type === 'open' && c.action.surface === 'live')?.text).toBe('把招商银行那份给我看看');
-    expect(chips.find(c => c.slot === 'exit')?.text).toBe('我先去忙，你接着投');
+    expect(chips.find(c => c.stance === 'agree')?.text).toContain('平安');
+    expect(chips.find(c => c.stance === 'hesitate')?.text).toBe('我先去忙，你接着投');
+    // 投递阶段、没有待审时（S14）配合位看在填的那份：公司名与申请 id 都从运行器状态读
+    resetSuggestMemory();
+    const running = await buildSuggestions({ ...s, stage: 'batch', held: { count: 0, companies: [], askId: null }, asks: [] }, {}, null);
+    expect(running.find(c => c.stance === 'agree')).toMatchObject({ text: '把招商银行那份给我看看', action: { type: 'open', surface: 'live', id: cmb.id } });
   });
 
   it('访谈进度：只有当前轮 in_progress 才算在访谈里；三天内截止点名公司', () => {

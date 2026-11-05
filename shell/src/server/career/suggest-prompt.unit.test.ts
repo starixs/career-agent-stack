@@ -1,6 +1,6 @@
 /**
- * 提示词契约（plan-r4-suggest §3.3 / §5.1）：模型看得到这一轮（他说的、小芽说的、工具中文名、放的卡）、
- * 截止"几天后"、近 7 天拒信、离开小时、上一轮四格；system 有幕思路、允许意图、标"别照抄"的示例；总长在预算内。
+ * 提示词契约（2026-11-05 六段版）：system 有角色与任务、立场（配合 / 犹豫 / 纠正）、幕思路、允许意图、标"别照抄"的示例、
+ * 按立场分组的输出格式；user 有画像、场景与状态、最近对话摘要、最后一条回复（连同这一轮工具与卡）、上一轮出过的；总长在预算内。
  */
 import { describe, expect, it } from 'vitest';
 
@@ -8,7 +8,7 @@ import { FEATURE_IDS, FEATURES } from '../../shared/careerFeatures';
 import type { SuggestTurn } from '../../shared/careerSuggest';
 import { ask, card, jobs, state } from './suggest-fixtures';
 import type { SceneGuide } from './suggest-guide-types';
-import { buildPrompt, PROMPT_MAX_CHARS } from './suggest-prompt';
+import { buildPrompt, gistOf, PROMPT_MAX_CHARS } from './suggest-prompt';
 import { guideFor } from './suggest-recipes';
 import { inputOf, SCENES } from './suggest-scene';
 
@@ -31,12 +31,26 @@ const s = state({
 const thisTurn = { user: '外包的我都不要', assistant: '好，先给你挑了 5 家，招商银行排第一，要投吗？', tools: ['batch_propose', 'job_evaluate', 'mystery_tool'], cards: ['batch_pick'] };
 
 describe('buildPrompt', () => {
-  it('user 里有这一轮、工具中文名、卡、截止几天后、拒信、离开小时、上一轮四格', () => {
+  it('user 按画像 → 场景与状态 → 最近对话 → 最后一条回复排；有这一轮、工具中文名、卡、截止几天后、拒信、离开小时、上一轮出过的', () => {
     const { user } = buildPrompt({ guide, s, x: inputOf({ turns: [{ role: 'user', text: '早' }] }), thisTurn, lastShown: ['就这 5 家', '换一批'] });
     for (const want of [thisTurn.user, thisTurn.assistant, '挑一批岗位', '评估岗位', 'mystery_tool', 'batch_pick',
-      '"几天后":2', '"近7天拒信":5', '"离上次说话小时":30', '"岗位":"管培生"', '华为', '"类":"登录"', '["就这 5 家","换一批"]', 'U: 早']) {
+      '"几天后":2', '"近7天拒信":5', '"离上次说话小时":30', '"岗位":"管培生"', '华为', '"类":"登录"', '["就这 5 家","换一批"]', '我: 早']) {
       expect(user).toContain(want);
     }
+    const order = ['【我是谁】', '【场景与状态】', '【最近对话（摘要）】', '【最后一条回复】'].map(h => user.indexOf(h));
+    expect(order.every(i => i >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('system 有第一人称口语的角色、三种立场和按立场分组的输出', () => {
+    const { system } = buildPrompt({ guide, s, x: inputOf({}), thisTurn, lastShown: [] });
+    for (const want of ['【角色与任务】', '第一人称', '口语', '配合：', '犹豫：', '纠正：', '"配合":', '"犹豫":', '"纠正":']) expect(system).toContain(want);
+  });
+
+  it('最近对话每轮只留第一句做摘要', () => {
+    expect(gistOf('好，先给你挑了 5 家。招商银行排第一，要投吗？')).toBe('好，先给你挑了 5 家。');
+    expect(gistOf('没有句号的一句话')).toBe('没有句号的一句话');
+    expect(gistOf('长'.repeat(80)).length).toBeLessThanOrEqual(51);
   });
 
   it('system 有幕思路、只列允许的意图、示例标"别照抄"', () => {
@@ -57,7 +71,7 @@ describe('buildPrompt', () => {
   it('超预算先丢最早的历史轮', () => {
     const turns = Array.from({ length: 6 }, (_, i) => ({ role: 'user' as const, text: `第${i}轮${'很长的一段话'.repeat(40)}` }));
     const long = { ...thisTurn, user: '他'.repeat(400), assistant: '小芽'.repeat(400) };
-    const wordy = { ...guide, text: '思路'.repeat(400) };
+    const wordy = { ...guide, text: '思路'.repeat(490) };
     const { system, user } = buildPrompt({ guide: wordy, s, x: inputOf({ turns }), thisTurn: long, lastShown: [] });
     expect(system.length + user.length).toBeLessThanOrEqual(PROMPT_MAX_CHARS);
     expect(user).toContain('第5轮');

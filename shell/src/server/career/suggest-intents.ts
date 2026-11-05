@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 import { featureIdFrom } from '../../shared/careerFeatures';
 import {
-  SUGGEST_MAX_CHIPS, type SuggestAction, type SuggestChip, type SuggestMode, type SuggestSurface,
+  SUGGEST_MAX_CHIPS, type SuggestAction, type SuggestChip, type SuggestMode, type SuggestStance, type SuggestSurface,
 } from '../../shared/careerSuggest';
 import { FEATURE_SEED_PREFIX, slotOf } from './suggest-chip';
 import { SUGGEST_INTENTS, type SuggestIntent } from './suggest-guide-types';
@@ -23,6 +23,8 @@ export interface ModelChip {
   text: string;
   intent: SuggestIntent;
   target: string | null;
+  /** 模型按立场分组写的（{"配合":[…]}）；旧的 {"c":[…]} 没有。 */
+  stance?: SuggestStance;
 }
 
 const ModelIntent = z.enum(SUGGEST_INTENTS).catch('say');
@@ -33,15 +35,39 @@ const ModelRow = z.array(z.string().nullable()).min(1).max(3).transform((row): M
   return { text, intent: ModelIntent.parse(intent ?? 'say'), target: target ?? null };
 });
 
-/** 最多收几条：要 4 条，多给的留给 lint 丢了以后补位。 */
+/** 最多收几条：每种立场两条备选，多给的留给 lint 丢了以后补位。 */
 const MODEL_CHIPS_MAX = SUGGEST_MAX_CHIPS * 2;
-/** 模型整体输出：{"c":[行, …]}；c 缺了或不是数组 → 解析失败（调用方走兜底）。 */
-export const ModelOut = z.object({ c: z.array(z.unknown()) }).transform(o => ({
-  chips: o.c.slice(0, MODEL_CHIPS_MAX).flatMap(raw => {
-    const r = ModelRow.safeParse(raw);
-    return r.success && r.data ? [r.data] : [];
-  }),
-}));
+/** 每种立场最多收几条备选。 */
+const PER_STANCE_MAX = 2;
+/** 提示词里立场的中文键 → 立场。 */
+export const STANCE_KEYS: Readonly<Record<string, SuggestStance>> = { 配合: 'agree', 犹豫: 'hesitate', 纠正: 'correct' };
+
+const rowOf = (raw: unknown): ModelChip | null => {
+  const r = ModelRow.safeParse(raw);
+  return r.success ? r.data : null;
+};
+
+/** 一种立场下的值：一行（["文字",…]）或几行（[["文字"],["文字"]]）。 */
+function stanceRows(raw: unknown, stance: SuggestStance): ModelChip[] {
+  if (!Array.isArray(raw)) return [];
+  const rows = raw.every(r => Array.isArray(r)) ? raw : [raw];
+  return rows.slice(0, PER_STANCE_MAX).flatMap(r => {
+    const chip = rowOf(r);
+    return chip ? [{ ...chip, stance }] : [];
+  });
+}
+
+/**
+ * 模型整体输出：{"配合":行或几行,"犹豫":…,"纠正":…}（按立场顺序展开）；也认旧的 {"c":[行,…]}。
+ * 两种都没有 → 解析失败（调用方走兜底）。
+ */
+export const ModelOut = z.record(z.string(), z.unknown()).transform((o, ctx) => {
+  const keyed = Object.entries(STANCE_KEYS).flatMap(([key, stance]) => stanceRows(o[key], stance));
+  if (keyed.length) return { chips: keyed.slice(0, MODEL_CHIPS_MAX) };
+  if (Array.isArray(o.c)) return { chips: o.c.slice(0, MODEL_CHIPS_MAX).flatMap(raw => { const c = rowOf(raw); return c ? [c] : []; }) };
+  ctx.addIssue({ code: 'custom', message: 'no stance keys and no c array' });
+  return z.NEVER;
+});
 
 /** 退出口的词表：say 文字命中才算退出口（mode 由服务端推，不让普通的话被当成退出口）。 */
 const EXIT_WORDS = /我先去忙|我先忙|先到这|稍后|等下再|先跳过|先放着|明天(再|接着)/;
@@ -188,12 +214,13 @@ export function resolveChip(raw: ModelChip, { s, allowed, replyMode }: ResolveCt
     return null;
   }
   const mode = modeOf(intent, text, replyMode);
+  const stance = raw.stance ? { stance: raw.stance } : {};
   if (action) {
     const seed = action.type === 'start_feature' ? `${FEATURE_SEED_PREFIX}${action.feature_id}` : null;
-    return { text, slot: slotOf(mode), kind: 'do', mode, action, seed_id: seed };
+    return { text, slot: slotOf(mode), kind: 'do', mode, ...stance, action, seed_id: seed };
   }
   const kind = intent === 'fill' && FILL_SLOT.test(text) ? 'fill' : 'say';
-  return { text, slot: slotOf(mode), kind, mode, seed_id: null };
+  return { text, slot: slotOf(mode), kind, mode, ...stance, seed_id: null };
 }
 
 export function resolveIntents(chips: readonly ModelChip[], ctx: ResolveCtx): SuggestChip[] {

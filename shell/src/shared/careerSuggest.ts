@@ -1,5 +1,8 @@
 /**
- * 下一步条（输入框上方每轮最多四格，plan-r2 §B → plan-r3-suggest 2026-11-05）：前后端共用的形状。
+ * 下一步条（输入框上方一行三条，2026-11-05 你定：配合 / 犹豫 / 纠正各一条）：前后端共用的形状。
+ *
+ * stance（立场）是这一条在这一行里的位置：配合（顺着小芽往下走）· 犹豫（拿不准、想缓缓）· 纠正（小芽说偏了）。
+ * 下面 mode / slot 是更早的分类，留作图标、埋点和 lint 用。
  *
  * r3：服务端先判"他在哪一幕"（scene），再按这一幕的配方出四格；每格带 mode（主要怎么帮他）：
  *  answer 候选回答 · option 推导选项 · advance 直接办 · start 功能起头 · exit 退出口。
@@ -17,6 +20,10 @@ export type SuggestSlot = 'act' | 'next' | 'shape' | 'exit';
 export type SuggestKind = 'say' | 'fill' | 'do';
 export type SuggestSurface = 'live' | 'dossier' | 'jobs' | 'resume';
 export type SuggestMode = 'answer' | 'option' | 'advance' | 'start' | 'exit';
+export type SuggestStance = 'agree' | 'hesitate' | 'correct';
+
+/** 一行里立场的固定顺序（左→右）。 */
+export const SUGGEST_STANCES: readonly SuggestStance[] = ['agree', 'hesitate', 'correct'];
 
 /** 功能起头带进去的对象（公司名拼进预填句；岗位 / 申请 id 备用）。 */
 export interface SuggestFeatureArgs { company?: string; job_id?: string; application_id?: string }
@@ -42,6 +49,8 @@ export interface SuggestChip {
   kind: SuggestKind;
   /** 这一格主要怎么帮他（图标 / 埋点用）；旧数据没有时按 slot 推（modeOfSlot）。 */
   mode: SuggestMode;
+  /** 立场；旧数据没有时按 mode 推（stanceOf）。 */
+  stance?: SuggestStance;
   /** kind 为 do 时必有。 */
   action?: SuggestAction;
   /** 塑形候选的稳定 id（埋点与冷却用）；其余为 null。 */
@@ -80,7 +89,7 @@ export interface SuggestResponse { chips: SuggestChip[]; scene: string | null }
 export const CAREER_SUGGEST_EVENT = 'career:suggest';
 
 /**
- * career:suggest 的载荷：小芽这一轮说完时服务端算好的四格。
+ * career:suggest 的载荷：小芽这一轮说完时服务端算好的三条。
  * assistant_message_id 与前端消息 id 相同；前端只在它等于当前 turnKey 时显示（早到就先存着）。
  */
 export interface SuggestPush {
@@ -104,10 +113,10 @@ export const SUGGEST_MAX_TOOLS = 12;
 
 /** 一条建议最多几个字：装得下"先投招商银行和平安"这种带名字的话，一行放得下（§B.5）。 */
 export const SUGGEST_MAX_CHARS = 22;
-/** 每轮最多几条。 */
-export const SUGGEST_MAX_CHIPS = 4;
+/** 每轮几条：配合 / 犹豫 / 纠正各一条。 */
+export const SUGGEST_MAX_CHIPS = SUGGEST_STANCES.length;
 
-/** 等模型写四格多久（服务端生成器）。下面两个时限都从它推出来，只改这一处。 */
+/** 等模型写三条多久（服务端生成器）。下面两个时限都从它推出来，只改这一处。 */
 export const SUGGEST_MODEL_TIMEOUT_MS = 3_000;
 /** 轮末钩子总预算：模型 + 状态快照与发布的余量。 */
 export const SUGGEST_HOOK_BUDGET_MS = SUGGEST_MODEL_TIMEOUT_MS + 500;
@@ -120,6 +129,11 @@ const SURFACES: readonly SuggestSurface[] = ['live', 'dossier', 'jobs', 'resume'
 const MODES: readonly SuggestMode[] = ['answer', 'option', 'advance', 'start', 'exit'];
 const SLOT_MODE: Readonly<Record<SuggestSlot, SuggestMode>> = { act: 'answer', next: 'advance', shape: 'option', exit: 'exit' };
 
+/** 没标立场的格（兜底配方、旧数据）：退出口算犹豫，其余算配合。 */
+export function stanceOf(chip: Pick<SuggestChip, 'mode' | 'stance'>): SuggestStance {
+  return chip.stance ?? (chip.mode === 'exit' ? 'hesitate' : 'agree');
+}
+
 /** 旧数据没有 mode 时按槽位推。 */
 export function modeOfSlot(slot: SuggestSlot): SuggestMode {
   return SLOT_MODE[slot];
@@ -130,6 +144,7 @@ const isSlot = (v: unknown): v is SuggestSlot => SLOTS.some(s => s === v);
 const isKind = (v: unknown): v is SuggestKind => KINDS.some(k => k === v);
 const isSurface = (v: unknown): v is SuggestSurface => SURFACES.some(s => s === v);
 const isMode = (v: unknown): v is SuggestMode => MODES.some(m => m === v);
+const isStance = (v: unknown): v is SuggestStance => SUGGEST_STANCES.some(m => m === v);
 const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
 const stringList = (v: unknown): string[] | null =>
   Array.isArray(v) && v.every(nonEmpty) ? v.filter(nonEmpty) : null;
@@ -181,10 +196,11 @@ export function parseSuggestChip(item: unknown): SuggestChip | null {
   if (typeof text !== 'string' || !text.trim() || text.length > SUGGEST_MAX_CHARS || !isSlot(slot)) return null;
   const seed = typeof seed_id === 'string' ? seed_id : null;
   const mode = isMode(item.mode) ? item.mode : modeOfSlot(slot);
+  const stance = isStance(item.stance) ? { stance: item.stance } : {};
   const action = parseSuggestAction(item.action);
-  if (action) return { text, slot, kind: 'do', mode, action, seed_id: seed };
+  if (action) return { text, slot, kind: 'do', mode, ...stance, action, seed_id: seed };
   const plain: SuggestKind = isKind(kind) && kind !== 'do' ? kind : 'say';
-  return { text, slot, kind: plain, mode, seed_id: seed };
+  return { text, slot, kind: plain, mode, ...stance, seed_id: seed };
 }
 
 /** 跨边界校验：接口返回的 scene（不是字符串就当没有）。 */

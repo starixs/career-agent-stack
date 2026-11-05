@@ -1,7 +1,8 @@
 /**
- * 功能发现（plan-r3-suggest §4.5）：两表 id 一致、条件、冷却、S26 四格全起头。
+ * 功能发现（plan-r3-suggest §4.5）：两表 id 一致、条件、冷却、S26 起头（一行三条按立场）。
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import type { LLM } from '@career/core';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FEATURE_IDS } from '../../shared/careerFeatures';
 import { buildSuggestions, resetSuggestMemory } from './suggest';
@@ -42,16 +43,25 @@ describe('功能起头', () => {
     expect(ids('S26', s, new Set(['feat_batch']))).toContain('batch');
   });
 
-  it('S26 四格全是起头；同一个起头下一轮不再出（每轮 ≤1）', async () => {
+  it('S26 没模型时配合位是起头；同一个起头下一轮不再出（每轮 ≤1）', async () => {
     const s = state({ nextJobs: jobs('平安') });
-    const four = await buildSuggestions(s, { last_user: '你还能帮我做什么？' }, null);
-    expect(four).toHaveLength(4);
-    expect(four.every(c => c.mode === 'start' && c.action?.type === 'start_feature')).toBe(true);
+    const row = await buildSuggestions(s, { last_user: '你还能帮我做什么？' }, null);
+    expect(row.map(c => c.stance)).toEqual(['agree', 'hesitate', 'correct']);
+    expect(row[0]).toMatchObject({ mode: 'start', action: { type: 'start_feature' } });
     resetSuggestMemory();
     const a = await buildSuggestions(s, { last_assistant: '好的。' }, null);
     expect(a.filter(c => c.action?.type === 'start_feature').length).toBeLessThanOrEqual(1);
     const shown = a.find(c => c.action?.type === 'start_feature')?.seed_id;
     const b = await buildSuggestions(s, { last_assistant: '好的。' }, null);
     expect(b.some(c => c.seed_id === shown)).toBe(false);
+  });
+
+  it('S26 模型按立场各写一个起头时，三条都是起头（S26 不受"两个起头只留一个"限制）', async () => {
+    const row = (text: string, target: string) => [text, 'start_feature', target];
+    const out = { 配合: [row('丢个平安的岗位给你看值不值', 'job_evaluate')], 犹豫: [row('看看哪些方向适合我', 'direction_explore')], 纠正: [row('我是想查平安靠谱吗', 'company_research:平安')] };
+    const llm: LLM = { complete: vi.fn(async () => ({ text: JSON.stringify(out), usage: { input_tokens: 1, output_tokens: 1 } })) };
+    const chips = await buildSuggestions(state({ nextJobs: jobs('平安') }), { last_user: '你还能帮我做什么？', last_assistant: '能帮你投平安这些岗位，也能看方向。' }, llm);
+    expect(chips.map(c => c.stance)).toEqual(['agree', 'hesitate', 'correct']);
+    expect(chips.every(c => c.mode === 'start' && c.action?.type === 'start_feature')).toBe(true);
   });
 });

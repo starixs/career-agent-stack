@@ -1,9 +1,9 @@
 /**
- * 建议条（face-beta-polish 2026-11-05 你定；版式 plan-r2 §B.5）：输入框正上方，最多四格。
+ * 建议条（2026-11-05 你定）：一行三条——配合 / 犹豫 / 纠正，浮在输入框上沿，和输入框同宽对齐。
  *
- * 3–4 条排成两列、1–2 条一行；每格单行，放不下截断（悬停看全文）。
+ * 每条一个胶囊，单行，放不下截断（悬停看全文）；直接办事的带小图标。
  * 点一下或 Enter = 执行（say 发出、fill 填入、do 直接办，见 suggestActions.ts）；
- * 输入框空着：Tab 把第一条填进输入框，↑ 进条，方向键在格间走，Esc 回输入框。
+ * 输入框空着：Tab 把第一条填进输入框，↑ 进条，← → 在三条间走，Esc 回输入框。
  * 他一打字、小芽在说话时都不出现。
  */
 import { ArrowUpRight, Eye, LogIn, Send, type LucideIcon } from 'lucide-react';
@@ -18,10 +18,6 @@ import type { SuggestAction, SuggestChip } from '../../../shared/careerSuggest';
 
 export { visibleText } from './useCareerSuggestions';
 
-/** 几条起排成两列（plan-r2 §B.5）。 */
-const GRID_FROM = 3;
-const GRID_COLS = 2;
-
 const ICONS: Partial<Record<SuggestAction['type'], LucideIcon>> = {
   propose_batch: Send, start_card: Send, ask_primary: Send, open_deck: LogIn, open: Eye, start_feature: ArrowUpRight,
 };
@@ -32,14 +28,12 @@ function iconOf(chip: SuggestChip): LucideIcon | undefined {
   return chip.mode === 'start' ? ArrowUpRight : undefined;
 }
 
-const CELL = 'flex min-w-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)]';
-const BOXED = 'border border-[var(--line-2)] bg-[var(--paper)] text-[var(--ink-2)] hover:border-[var(--ink)] hover:text-[var(--ink)]';
-const BARE = 'border border-transparent text-[var(--muted)] hover:text-[var(--ink)]';
+/** 一条最多占一行的三分之一（减去两道间距），三条总放得下。 */
+const PILL = 'pointer-events-auto flex h-8 min-w-0 max-w-[calc((100%-1rem)/3)] items-center gap-1.5 rounded-full border border-[var(--line-2)] bg-[var(--paper)] px-3 text-left text-sm text-[var(--ink-2)] shadow-[var(--shadow-sm)] transition-colors hover:border-[var(--ink)] hover:text-[var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)]';
 
-/** 方向键在格间走：两列时上下跨一行，一行时只左右。 */
+/** ← → 在一行里走；↓ 回输入框由调用方处理。 */
 function nextIndex(key: string, i: number, n: number): number | null {
-  const cols = n >= GRID_FROM ? GRID_COLS : n;
-  const step = key === 'ArrowLeft' ? -1 : key === 'ArrowRight' ? 1 : key === 'ArrowUp' ? -cols : key === 'ArrowDown' ? cols : 0;
+  const step = key === 'ArrowLeft' ? -1 : key === 'ArrowRight' ? 1 : 0;
   if (!step) return null;
   const to = i + step;
   return to >= 0 && to < n ? to : i;
@@ -66,9 +60,8 @@ export function SuggestChips({ chips, onSend, onEscape, barRef }: {
 }) {
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   if (!chips.length) return null;
-  const grid = chips.length >= GRID_FROM;
   const onKey = (e: ReactKeyboardEvent<HTMLButtonElement>, i: number) => {
-    if (e.key === 'Escape') { e.preventDefault(); onEscape?.(); return; }
+    if (e.key === 'Escape' || e.key === 'ArrowDown') { e.preventDefault(); onEscape?.(); return; }
     if (e.key === 'Enter') { e.preventDefault(); onSend(chips[i], 'key'); return; }
     const to = nextIndex(e.key, i, chips.length);
     if (to === null) return;
@@ -78,20 +71,21 @@ export function SuggestChips({ chips, onSend, onEscape, barRef }: {
   return (
     <div
       ref={barRef} data-testid="career-suggest-chips" role="group" aria-label="可以这样回"
-      className={`w-full pb-2 ${grid ? 'grid grid-cols-2 gap-1.5' : 'flex flex-nowrap gap-1.5 overflow-hidden'}`}
+      className="pointer-events-none mb-2 flex w-full max-w-[820px] flex-nowrap items-center gap-2"
     >
       {chips.map((c, i) => {
         const Icon = iconOf(c);
+        const full = c.kind === 'fill' ? fillText(c.text) : c.text;
         return (
           <button
-            key={`${c.slot}:${c.text}`} ref={el => { refs.current[i] = el; }} type="button" title={c.kind === 'fill' ? fillText(c.text) : c.text}
-            data-slot={c.slot} data-kind={c.kind} data-mode={c.mode}
+            key={`${c.slot}:${c.text}`} ref={el => { refs.current[i] = el; }} type="button"
+            title={i === 0 ? `${full}（Tab 填入）` : full}
+            data-slot={c.slot} data-kind={c.kind} data-mode={c.mode} data-stance={c.stance ?? ''}
             onClick={() => onSend(c, 'click')} onKeyDown={e => onKey(e, i)}
-            className={`${CELL} ${c.mode === 'exit' || c.slot === 'exit' ? BARE : BOXED} ${grid ? '' : 'max-w-full shrink'}`}
+            className={PILL}
           >
             {Icon && <Icon size={12} aria-hidden className="shrink-0" />}
             <ChipText chip={c} />
-            {i === 0 && <kbd className="ml-auto shrink-0 pl-1 font-sans text-xs text-[var(--subtle)]" aria-label="按 Tab 填入">Tab</kbd>}
           </button>
         );
       })}

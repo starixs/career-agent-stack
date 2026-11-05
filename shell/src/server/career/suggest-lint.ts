@@ -162,7 +162,8 @@ export function lintChip(chip: SuggestChip, ctx: LintCtx): LintRule | null {
   if (t.length < MIN_CHARS || t.length > SUGGEST_MAX_CHARS) return 'L1';
   if (DEV_WORDS.test(t)) return 'L2';
   if (RESIDUE.test(t) || LEADING_PUNCT.test(t) || DOUBLE_PUNCT.test(t)) return 'L3';
-  if (chip.seed_id === null && !ctx.entities.some(e => t.includes(e))) return 'L4';
+  // 能直接办的格对象在动作里（「接着投，别管了」= 下一批），文字不必再点名。
+  if (chip.seed_id === null && chip.kind !== 'do' && !ctx.entities.some(e => t.includes(e))) return 'L4';
   if ([...(CARD_BUTTONS[ctx.cardKind ?? ''] ?? []), ...(ctx.buttons ?? [])].some(b => collides(t, b))) return 'L5';
   if (PROMISES.test(t)) return 'L6';
   if (SEND_ME.test(t)) return 'L7';

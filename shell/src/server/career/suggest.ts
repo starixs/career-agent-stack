@@ -1,19 +1,19 @@
 /**
- * 下一步条：每轮小芽说完，拼出输入框上方最多四格（plan-r4-suggest §3.1，2026-11-05）。
+ * 下一步条：每轮小芽说完，拼出输入框上方一行三条——配合 / 犹豫 / 纠正各一条（2026-11-05 你定）。
  *
  * 先判"他在哪一幕"（suggest-scene.ts，规则）→ 取这一幕的思路 + 示例 + 允许意图（guideFor）
- * → 每一幕都叫一次模型写全部四格 {text, intent, target}（喂状态快照、这一轮、最近 6 轮、上一轮出过的，≤3s）
- * → 意图换成带真 id 的动作，换不出的丢（suggest-intents.ts）→ 旧配方的规则格与兜底格排在后面补位
- * → 质量线（suggest-lint.ts，L1–L9 + L11 本轮锚定 + L12 不和上一轮重样）
- * → 保证有回应格、有能办的格、卡的主动作、类型不全相同（L10 / L13）→ 低谷叠加 → 按 mode 排，截 4。
- * 模型超时 / 出错 / 解析后不到 2 格：就是旧配方（规则 + 兜底），条至少两格，degraded = true。整条一次出，不先出后补。
+ * → 叫一次模型按三种立场各写两条备选 {text, intent, target}（喂画像、状态、最近对话摘要、最后一条回复，≤3s）
+ * → 意图换成带真 id 的动作，换不出的丢（suggest-intents.ts）→ 旧配方的规则格与兜底格排在后面
+ * → 质量线（suggest-lint.ts）→ 每种立场一个位置先到先得，空着的依次用示例、通用兜底、最近出过的固定入口、立场兜底补
+ * → 勾选表在等时配合位给卡的主动作 → 低谷时犹豫位换成"看我这个月的数"。
+ * 模型超时 / 出错 / 留下不到 2 条：degraded = true。整条一次出，不先出后补。
  */
 import { extractJson, type LLM } from '@career/core';
 
 import {
-  SUGGEST_MAX_CHIPS, SUGGEST_MODEL_TIMEOUT_MS, type SuggestChip, type SuggestMode, type SuggestRequest, type SuggestThisTurn,
+  SUGGEST_MODEL_TIMEOUT_MS, type SuggestChip, type SuggestMode, type SuggestRequest, type SuggestThisTurn,
 } from '../../shared/careerSuggest';
-import { FEATURE_SEED_PREFIX, isActionable } from './suggest-chip';
+import { FEATURE_SEED_PREFIX } from './suggest-chip';
 import { SUGGEST_INTENTS, type SceneGuide, type SuggestIntent } from './suggest-guide-types';
 import { ModelOut, resolveIntents, type ModelChip } from './suggest-intents';
 import { anchorsOf, entitiesOf, lintChips, STARTER_BUTTONS, type LintCtx, type LintResult } from './suggest-lint';
@@ -21,14 +21,15 @@ import { buildPrompt } from './suggest-prompt';
 import { guideFor, LOW_CHIP, recipeFor, type Recipe, type RecipeCtx } from './suggest-recipes';
 import { classifyScene, inputOf, SCENE_NAMES, starterVisible, type SceneId, type SceneResult, type SuggestInput } from './suggest-scene';
 import { careerProductSessionId } from './product-session';
+import { guessStance, missingStances, rowOf, STANCE_FALLBACK, stanceAt, takeByStance, type StanceSlots } from './suggest-stance';
 import type { SuggestState } from './suggest-types';
 
 /** 等模型多久：唯一来源在 shared（钩子预算、前端等待都由它推出）。 */
 export const SUGGEST_LLM_TIMEOUT_MS = SUGGEST_MODEL_TIMEOUT_MS;
 /** 一个功能起头出过以后，隔多少轮再出（L9）。 */
 export const SEED_COOLDOWN = 10;
-/** 模型输出上限：紧凑行 {"c":[["文字","intent","target"]]}，四条 ≈ 60–90 token；留到八条的余量。 */
-const MODEL_MAX_TOKENS = 180;
+/** 模型输出上限：{"配合":[["文字","intent","target"],…],…} 三种立场各两条 ≈ 90–130 token，留余量。 */
+const MODEL_MAX_TOKENS = 220;
 const MODEL_TEMPERATURE = 0.5;
 /** 模型格留下不到这么多就算走了兜底（degraded）。 */
 const MIN_MODEL_CHIPS = 2;
@@ -36,16 +37,14 @@ const MIN_MODEL_CHIPS = 2;
 const MIN_BAR_CHIPS = 2;
 /** 叠加低谷时不动的幕：底下有卡在等，条只管卡。 */
 const CARD_SCENES: readonly SceneId[] = ['S13', 'S11', 'S7'];
-const ASKS_QUESTION = /[？?]\s*$/;
 /** 没有会话 id 时 lastShown 记在这个键下。 */
 const NO_SESSION = '_';
 
 const recentSeeds: string[] = [];
-/** 每个会话上一轮出过的四格（进程内；重启后第一轮可能重样，plan-r4 §8-5 已接受）。 */
+/** 每个会话上一轮出过的三条（进程内；重启后第一轮可能重样，plan-r4 §8-5 已接受）。 */
 const lastShown = new Map<string, SuggestChip[]>();
 
 const present = (list: ReadonlyArray<SuggestChip | null>): SuggestChip[] => list.filter((c): c is SuggestChip => c !== null);
-const isReply = (c: SuggestChip) => c.mode === 'answer' || c.mode === 'option';
 const isCardMain = (c: SuggestChip) => c.action?.type === 'start_card';
 
 /** 钩子送来的 this_turn 补齐旧字段（判幕只看 last_user / last_assistant / last_tools）。 */
@@ -67,7 +66,7 @@ function thisTurnOf(req: SuggestRequest, x: SuggestInput): SuggestThisTurn {
 /** 这一幕的思路；GUIDES 没写时用旧幕段或幕名顶上，意图全开。 */
 function guideOf(scene: SceneId, recipe: Recipe): SceneGuide {
   return guideFor(scene) ?? {
-    text: recipe.prompt ?? `${SCENE_NAMES[scene]}：按这一轮和状态写最顺手的四条。`,
+    text: recipe.prompt ?? `${SCENE_NAMES[scene]}：按这一轮和状态，配合、犹豫、纠正各写最顺手的一条。`,
     intents: SUGGEST_INTENTS,
     anchor: 'strict',
     examples: [],
@@ -92,43 +91,6 @@ async function askModel({ llm, system, user, scene }: ModelAsk): Promise<ModelCh
   } finally {
     clearTimeout(timer);
   }
-}
-
-/** 条上没有满足 want 的格时，从候选里换一格进来（不满就补，满了按 replaceIndex 换）。 */
-function ensure(chosen: SuggestChip[], pool: readonly SuggestChip[], want: (c: SuggestChip) => boolean): SuggestChip[] {
-  if (chosen.some(want)) return chosen;
-  const extra = pool.find(c => want(c) && !chosen.includes(c));
-  if (!extra) return chosen;
-  if (chosen.length < SUGGEST_MAX_CHIPS) return [...chosen, extra];
-  const i = replaceIndex(chosen);
-  return i < 0 ? chosen : chosen.map((c, j) => (j === i ? extra : c));
-}
-
-/** 换哪一格：先换最后一格"推导 / 填空"，再换最后一格回答；能办的格不换。 */
-function replaceIndex(chosen: readonly SuggestChip[]): number {
-  const soft = chosen.map(c => !isActionable(c) && c.mode !== 'answer').lastIndexOf(true);
-  return soft >= 0 ? soft : chosen.map(c => !isActionable(c)).lastIndexOf(true);
-}
-
-/** L13 类型多样：四格同一种触发（全 say / 全 fill / 全 do）时换一格别的进来。 */
-function ensureVariety(chosen: SuggestChip[], pool: readonly SuggestChip[]): SuggestChip[] {
-  const kind = chosen[0]?.kind;
-  if (chosen.length < SUGGEST_MAX_CHIPS || !chosen.every(c => c.kind === kind)) return chosen;
-  const extra = pool.find(c => c.kind !== kind && !chosen.includes(c));
-  return extra ? [...chosen.slice(0, -1), extra] : chosen;
-}
-
-/** 叠加低谷：把一格（不是能办的、不是退出口）换成"看我这个月的数"。 */
-function overlayLow(chosen: SuggestChip[], scene: SceneId, low: boolean): SuggestChip[] {
-  if (!low || CARD_SCENES.includes(scene) || chosen.some(c => c.text === LOW_CHIP.text)) return chosen;
-  if (chosen.length < SUGGEST_MAX_CHIPS) return [...chosen, LOW_CHIP];
-  const i = chosen.map(c => !isActionable(c) && c.mode !== 'exit').lastIndexOf(true);
-  return i < 0 ? chosen : chosen.map((c, j) => (j === i ? LOW_CHIP : c));
-}
-
-function sortByOrder(chips: SuggestChip[], order: readonly SuggestMode[]): SuggestChip[] {
-  const rank = (m: SuggestMode) => (order.includes(m) ? order.indexOf(m) : order.length);
-  return chips.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c.mode) - rank(b.c.mode) || a.i - b.i).map(({ c }) => c);
 }
 
 /** 这一幕的 say 格记成 answer 还是 option：排序里谁先出现用谁。 */
@@ -158,7 +120,7 @@ function safeClassify(s: SuggestState, x: SuggestInput): SceneResult {
 const repeatsOf = (res: LintResult): SuggestChip[] => res.dropped.filter(d => d.rule === 'L12').map(d => d.chip);
 /** 只因最近出过被丢的：和上一轮重样（L12）或功能起头还在冷却（L9）。 */
 const RECENT_RULES: ReadonlySet<string> = new Set(['L12', 'L9']);
-/** 补不满四格时能放回的：只放配方里的固定入口（有 seed），模型写的具体话不重样。 */
+/** 补不满时能放回的：只放配方里的固定入口（有 seed），模型写的具体话不重样。 */
 const stableRepeatsOf = (res: LintResult): SuggestChip[] =>
   res.dropped.filter(d => RECENT_RULES.has(d.rule) && d.chip.seed_id !== null).map(d => d.chip);
 
@@ -168,20 +130,17 @@ function keptOf(res: LintResult): SuggestChip[] {
   return [...res.kept, ...repeatsOf(res)];
 }
 
-/** 从过了线的候选里定这一条：截 4 → 回应格 → 能办格 → 卡的主动作 → 类型多样 → 低谷 → 排序。 */
-function pickBar(kept: readonly SuggestChip[], x: SuggestInput, scene: SceneId, low: boolean, order: readonly SuggestMode[]): SuggestChip[] {
-  let chosen = kept.slice(0, SUGGEST_MAX_CHIPS);
-  if (ASKS_QUESTION.test(x.lastAssistant)) chosen = ensure(chosen, kept, isReply); // L10 回应性
-  chosen = ensure(chosen, kept, isActionable);
-  if (scene === 'S13') chosen = ensure(chosen, kept, isCardMain);
-  chosen = ensureVariety(chosen, kept);
-  return sortByOrder(overlayLow(chosen, scene, low), order);
+/** 低谷叠加：犹豫位（不是直接办事的）换成"看我这个月的数"；底下有卡在等的幕不动。 */
+function overlayLow(slots: StanceSlots, scene: SceneId, low: boolean): void {
+  if (!low || CARD_SCENES.includes(scene) || rowOf(slots).some(c => c.text === LOW_CHIP.text)) return;
+  if (slots.hesitate?.kind === 'do') return;
+  slots.hesitate = { ...LOW_CHIP, stance: 'hesitate' };
 }
 
 export interface SuggestResult {
   chips: SuggestChip[];
   scene: SceneId;
-  /** 模型没回来 / 被丢得不到 2 格：这一条主要是兜底配方。 */
+  /** 模型没回来 / 留下不到 2 条：这一行主要是兜底。 */
   degraded?: boolean;
 }
 
@@ -205,39 +164,53 @@ async function runModel(llm: LLM | null, x: SuggestInput, ask: Omit<ModelAsk, 'l
 /** 补位只用示例里的这两种：不带动作，名字不对的会被 L4 / L11 挡下。 */
 const REFILL_EXAMPLE_INTENTS: readonly SuggestIntent[] = ['say', 'fill'];
 
-/** 这一幕思路里的示例行 'text|intent|target' → 模型格（只留说 / 填空）。 */
+/** 这一幕思路里的示例行 'text|intent|target' → 模型格（只留说 / 填空；每组第 i 行是第 i 种立场）。 */
 function exampleChips(guide: SceneGuide): ModelChip[] {
-  return guide.examples.flat().flatMap(row => {
+  return guide.examples.flatMap(group => group.flatMap((row, i) => {
     const [text = '', intent = 'say'] = row.split('|').map(p => p.trim());
-    const known = REFILL_EXAMPLE_INTENTS.find(i => i === intent);
-    return text && known ? [{ text, intent: known, target: null }] : [];
-  });
+    const known = REFILL_EXAMPLE_INTENTS.find(k => k === intent);
+    const stance = stanceAt(i);
+    return text && known && stance ? [{ text, intent: known, target: null, stance }] : [];
+  }));
 }
 
-interface RefillAsk {
-  kept: SuggestChip[]; guide: SceneGuide; scene: SceneId; ctx: RecipeCtx; lint: LintCtx; replyMode: SuggestMode;
-  /** 只因上一轮出过被丢的：示例和兜底都补不满四格时最后放回（真机 r6：S29 停在三格）。 */
-  repeats: readonly SuggestChip[];
+interface FillAsk {
+  first: LintResult; guide: SceneGuide; scene: SceneId; ctx: RecipeCtx; lint: LintCtx; replyMode: SuggestMode; low: boolean;
 }
 
 /** 补位的通用兜底：一般幕拿 S29 的；S29 自己再拿 S29 等于重复，改拿 S26 按阶段的起头（真机 r2：S29 只剩两格）。 */
 const REFILL_FALLBACK_OF = (scene: SceneId): SceneId => (scene === 'S29' ? 'S26' : 'S29');
 
-/** 过线后不到四格：先拿这一幕示例里的说 / 填空，再拿通用兜底补到四格；补的也要过线、不和已有的重复。 */
-function refill({ kept, guide, scene, ctx, lint, replyMode, repeats }: RefillAsk): SuggestChip[] {
-  if (kept.length >= SUGGEST_MAX_CHIPS) return kept;
-  const fromGuide = resolveIntents(exampleChips(guide), { s: ctx.s, allowed: REFILL_EXAMPLE_INTENTS, replyMode });
-  const from = REFILL_FALLBACK_OF(scene);
-  const generic = present(recipeFor(from).fallback({ ...ctx, scene: from }));
-  const fresh = lintChips([...fromGuide, ...generic], lint, kept);
-  const again = lintChips([...repeats, ...stableRepeatsOf(fresh)], { ...lint, lastShown: undefined, recent: new Set() }, [...kept, ...fresh.kept]).kept;
-  const more = [...fresh.kept, ...again]
-  const out = [...kept, ...more.slice(0, SUGGEST_MAX_CHIPS - kept.length)];
-  if (out.length > kept.length) console.log(`[career-suggest] refill +${out.length - kept.length} scene=${scene}`);
-  return out;
+/** 勾选表在等：卡的主动作排最前，配合位先给它。 */
+function cardFirst(kept: readonly SuggestChip[], scene: SceneId): SuggestChip[] {
+  if (scene !== 'S13') return [...kept];
+  return [...kept.filter(isCardMain), ...kept.filter(c => !isCardMain(c))];
 }
 
-/** 一整条：判幕 → 模型写四格 → 意图解析 → 兜底补位 → lint → 保底 → 低谷叠加 → 排序截 4。 */
+/**
+ * 配合 / 犹豫 / 纠正各一个位置：先放过了线的模型格和配方格；空着的依次用这一幕示例、通用兜底，
+ * 再放回最近出过的固定入口和立场兜底（这两步不查重样与冷却），都要过线、不和已有的重复。
+ */
+function fillRow({ first, guide, scene, ctx, lint, replyMode, low }: FillAsk): SuggestChip[] {
+  const slots: StanceSlots = {};
+  takeByStance(slots, cardFirst(keptOf(first), scene));
+  const before = rowOf(slots).length;
+  if (missingStances(slots).length) {
+    const examples = resolveIntents(exampleChips(guide), { s: ctx.s, allowed: REFILL_EXAMPLE_INTENTS, replyMode });
+    const from = REFILL_FALLBACK_OF(scene);
+    const fresh = lintChips([...examples, ...present(recipeFor(from).fallback({ ...ctx, scene: from })).map(guessStance)], lint, rowOf(slots));
+    takeByStance(slots, fresh.kept);
+    const relaxed: LintCtx = { ...lint, lastShown: undefined, recent: new Set() };
+    const lastResort = [...stableRepeatsOf(first), ...stableRepeatsOf(fresh), ...missingStances(slots).map(st => STANCE_FALLBACK[st])];
+    takeByStance(slots, lintChips(lastResort, relaxed, rowOf(slots)).kept);
+  }
+  const after = rowOf(slots).length;
+  if (after > before) console.log(`[career-suggest] refill +${after - before} scene=${scene}`);
+  overlayLow(slots, scene, low);
+  return rowOf(slots);
+}
+
+/** 一整条：判幕 → 模型按立场写 → 意图解析 → lint → 按立场填三个位置 → 低谷叠加。 */
 export async function suggestFor(base: SuggestState, rawReq: SuggestRequest, llm: LLM | null, opts: SuggestOptions = {}): Promise<SuggestResult> {
   const req = withThisTurn(rawReq);
   const s = typeof req.away_hours === 'number' ? { ...base, awayHours: req.away_hours } : base;
@@ -249,11 +222,11 @@ export async function suggestFor(base: SuggestState, rawReq: SuggestRequest, llm
   const last = lastShown.get(key) ?? [];
   const thisTurn = thisTurnOf(req, x);
   const ctx: RecipeCtx = { s, x, scene, recent: new Set(recentSeeds) };
-  const order = guide.order ?? recipe.order;
-  const prompt = buildPrompt({ guide, s, x, thisTurn, lastShown: last.map(c => c.text) });
+  const order = recipe.order;
+  const prompt = buildPrompt({ guide, s, x, thisTurn, lastShown: last.map(c => c.text), sceneName: SCENE_NAMES[scene] });
   const run = await runModel(llm, x, { ...prompt, scene });
   const model = run.raw ? resolveIntents(run.raw, { s, allowed: guide.intents, replyMode: replyModeOf(order) }) : [];
-  const pool = [...model, ...present(recipe.rules(ctx)), ...present(recipe.fallback(ctx))];
+  const pool = [...model, ...[...present(recipe.rules(ctx)), ...present(recipe.fallback(ctx))].map(guessStance)];
   const lint: LintCtx = {
     scene, cardKind: s.openCard?.kind ?? null, recent: ctx.recent, lastShown: last,
     entities: entitiesOf(s, [x.lastUser, x.lastAssistant, ...x.turns.map(t => t.text)]),
@@ -262,10 +235,8 @@ export async function suggestFor(base: SuggestState, rawReq: SuggestRequest, llm
     lastUser: x.lastUser,
   };
   const first = lintChips(pool, lint);
-  const firstKept = keptOf(first);
-  const kept = refill({ kept: firstKept, guide, scene, ctx, lint, replyMode: replyModeOf(order), repeats: stableRepeatsOf(first).filter(c => !firstKept.includes(c)) });
-  const chosen = pickBar(kept, x, scene, low, order)
-  const degraded = chosen.filter(c => model.includes(c)).length < MIN_MODEL_CHIPS;
+  const chosen = fillRow({ first, guide, scene, ctx, lint, replyMode: replyModeOf(order), low });
+  const degraded = chosen.filter(c => model.some(m => m.text === c.text)).length < MIN_MODEL_CHIPS;
   if (run.asked) console.log(`[career-suggest] model ms=${run.ms} chips=${run.raw?.length ?? 0} degraded=${degraded} scene=${scene}`);
   if (opts.isStale?.()) console.log(`[career-suggest] stale result not remembered scene=${scene}`);
   else rememberShown(key, chosen);
@@ -277,7 +248,7 @@ export async function buildSuggestions(s: SuggestState, req: SuggestRequest, llm
   return (await suggestFor(s, req, llm)).chips;
 }
 
-/** 测试用：清掉最近出过的功能起头与上一轮四格。 */
+/** 测试用：清掉最近出过的功能起头与上一轮出过的。 */
 export function resetSuggestMemory(): void {
   recentSeeds.length = 0;
   lastShown.clear();

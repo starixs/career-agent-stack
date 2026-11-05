@@ -1,5 +1,5 @@
 /**
- * 29 幕思路与示例（plan-r4-suggest §4 / §5.1 末条）：每幕都有思路、2–3 组各 4 条示例、意图都在白名单里，
+ * 29 幕思路与示例（plan-r4-suggest §4 / §5.1 末条）：每幕都有思路、2–3 组各 3 条示例（配合 / 犹豫 / 纠正）、意图都在白名单里，
  * 示例本身过质量线的字面规则（≤22 字、无开发词、不撞卡按钮、不以"发给我"收尾），target 写法解析得了；
  * 外加 verify-r3 P2-10 / P2-11 / P2-18 三处兜底配方的回归。
  */
@@ -18,8 +18,10 @@ import { SCENES, type SceneId } from './suggest-scene';
 import type { SuggestState } from './suggest-types';
 
 const GUIDES: Readonly<Partial<Record<SceneId, SceneGuide>>> = { ...TALK, ...FLOW };
-/** 思路给模型的幕段上限（plan-r4 §3.3：幕段 ≤300 字）。 */
-const GUIDE_TEXT_MAX = 300;
+/** 思路给模型的幕段上限（三立场改写：幕段 ≤260 字）。 */
+const GUIDE_TEXT_MAX = 260;
+/** 条上固定三格，一格一个立场：配合 / 犹豫 / 纠正。 */
+const STANCES = 3;
 /** 底下有卡的幕：示例不能撞卡自己的按钮（L5）。 */
 const CARD_OF: Partial<Record<SceneId, string>> = { S2: 'resume_intake', S7: 'claims_confirm', S11: 'tailor_diff', S13: 'batch_pick' };
 const OPEN_TARGET = /^(live|resume|jobs|dossier|resume:tailored|dossier:.+)$/;
@@ -61,18 +63,28 @@ describe('29 幕思路与示例', () => {
       const g = GUIDES[id];
       expect(g?.text.trim().length, id).toBeGreaterThan(40);
       expect(g?.text.length, id).toBeLessThanOrEqual(GUIDE_TEXT_MAX);
+      expect(g?.text, id).not.toMatch(/四格|第四格|两格/);
+      for (const stance of ['配合', '犹豫', '纠正']) expect(g?.text, `${id} ${stance}`).toContain(stance);
+      expect(g && 'order' in g, id).toBe(false);
     }
   });
 
-  it('每幕 2–3 组示例、每组 4 条；意图在白名单且在本幕允许内', () => {
+  it('每幕 2–3 组示例、每组 3 条（配合 / 犹豫 / 纠正）；行能拆成 text|intent[|target]；意图在白名单且在本幕允许内', () => {
     for (const id of SCENES) {
       const g = GUIDES[id];
       expect(g?.examples.length, id).toBeGreaterThanOrEqual(2);
       expect(g?.examples.length, id).toBeLessThanOrEqual(3);
-      expect(g?.examples.every(set => set.length === 4), id).toBe(true);
+      expect(g?.examples.every(set => set.length === STANCES), id).toBe(true);
       expect(g?.intents.every(isSuggestIntent), id).toBe(true);
     }
-    each((scene, row, g) => expect(g.intents, `${scene} ${row.text}`).toContain(row.intent));
+    each((scene, row, g) => {
+      expect(row.text.trim().length, `${scene} ${row.text}`).toBeGreaterThan(0);
+      expect(isSuggestIntent(row.intent), `${scene} ${row.text}|${row.intent}`).toBe(true);
+      expect(g.intents, `${scene} ${row.text}`).toContain(row.intent);
+    });
+    for (const id of SCENES) {
+      for (const set of GUIDES[id]?.examples ?? []) for (const r of set) expect(r.split('|').length, `${id} ${r}`).toBeLessThanOrEqual(STANCES);
+    }
   });
 
   it('示例过字面质量线：≤22 字、无开发词、无残渣、不承诺、不撞卡按钮、不"发给我"', () => {

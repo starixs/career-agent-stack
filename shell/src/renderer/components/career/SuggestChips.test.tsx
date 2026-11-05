@@ -1,5 +1,5 @@
 /**
- * 建议条（face-beta-polish）：小芽说完才出，说话时不出；点一下发出原话；
+ * 建议条（face-beta-polish；2026-11-05 改为一行三条：配合 / 犹豫 / 纠正）：小芽说完才出，说话时不出；点一下发出原话；
  * 输入框空着按 Tab 把第一条填进输入框；他打了字就收起；隐藏上下文不算他说的话。
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -36,11 +36,11 @@ const CHIPS: SuggestChip[] = [
   { text: '财务类', slot: 'act', mode: 'answer', kind: 'say', seed_id: null },
   { text: '再投 5 家', slot: 'next', mode: 'advance', kind: 'do', action: { type: 'propose_batch' }, seed_id: null },
 ];
-const FOUR: SuggestChip[] = [
-  { text: '全投，18 家都投', slot: 'act', mode: 'answer', kind: 'do', action: { type: 'start_card', card_id: 'c1', job_ids: ['j1', 'j2'] }, seed_id: null },
-  { text: '换一批', slot: 'act', mode: 'answer', kind: 'do', action: { type: 'propose_batch' }, seed_id: null },
-  { text: '就这 5 家', slot: 'next', mode: 'advance', kind: 'do', action: { type: 'start_card', card_id: 'c1', job_ids: ['j1'] }, seed_id: null },
-  { text: '先不投，我去忙', slot: 'exit', mode: 'exit', kind: 'say', seed_id: null },
+/** 一行三条：配合 / 犹豫 / 纠正。 */
+const THREE: SuggestChip[] = [
+  { text: '就这 5 家', slot: 'next', mode: 'advance', stance: 'agree', kind: 'do', action: { type: 'start_card', card_id: 'c1', job_ids: ['j1'] }, seed_id: null },
+  { text: '先不投，我去忙', slot: 'exit', mode: 'exit', stance: 'hesitate', kind: 'say', seed_id: null },
+  { text: '换一批', slot: 'act', mode: 'answer', stance: 'correct', kind: 'do', action: { type: 'propose_batch' }, seed_id: null },
 ];
 
 /** 兜底请求的回答（{ chips, scene }）。 */
@@ -99,31 +99,25 @@ describe('建议条', () => {
     expect(visibleText(msg('a', 'assistant', [{ type: 'text', text: '好的' }]))).toBe('好的');
   });
 
-  it('四条排成两列，不折行', async () => {
-    answer(FOUR);
-    mount();
-    const bar = await screen.findByTestId('career-suggest-chips');
-    expect(bar.className).toMatch(/grid-cols-2/);
-    expect(bar.className).toMatch(/gap-1\.5/);
-    const cells = within(bar).getAllByRole('button');
-    expect(cells).toHaveLength(4);
-    for (const cell of cells) {
-      expect(cell.querySelector('.truncate')).not.toBeNull();
-      expect(cell.getAttribute('title')).toBeTruthy();
-      expect(cell.className).toMatch(/rounded-lg/);
-      expect(cell.className).not.toMatch(/rounded-full/);
-    }
-    expect(cells[3].className).toMatch(/border-transparent/);
-    expect(cells[3].className).toMatch(/text-\[var\(--muted\)\]/);
-    expect(cells[0].querySelector('svg')).not.toBeNull();
-    expect(cells[3].querySelector('svg')).toBeNull();
-  });
-
-  it('两条一行', async () => {
+  it('三条排成一行浮在输入框上沿：和输入框同宽、胶囊、不折行、按立场标记，第一条提示 Tab', async () => {
+    answer(THREE);
     mount();
     const bar = await screen.findByTestId('career-suggest-chips');
     expect(bar.className).not.toMatch(/grid/);
     expect(bar.className).toMatch(/flex-nowrap/);
+    expect(bar.className).toMatch(/max-w-\[820px\]/);
+    const cells = within(bar).getAllByRole('button');
+    expect(cells.map(c => c.dataset.stance)).toEqual(['agree', 'hesitate', 'correct']);
+    for (const cell of cells) {
+      expect(cell.querySelector('.truncate')).not.toBeNull();
+      expect(cell.className).toMatch(/rounded-full/);
+      expect(cell.className).toMatch(/pointer-events-auto/);
+      expect(cell.querySelector('kbd')).toBeNull();
+    }
+    expect(cells[0].getAttribute('title')).toBe('就这 5 家（Tab 填入）');
+    expect(cells[1].getAttribute('title')).toBe('先不投，我去忙');
+    expect(cells[0].querySelector('svg')).not.toBeNull();
+    expect(cells[1].querySelector('svg')).toBeNull();
   });
 
   it('do 类点了直接出表，不进对话', async () => {
@@ -135,22 +129,27 @@ describe('建议条', () => {
   });
 
   it('↑ 进条、Enter 执行、Esc 回输入框', async () => {
-    answer(FOUR);
+    answer(THREE);
     const { input } = mount();
     const bar = await screen.findByTestId('career-suggest-chips');
     const cells = within(bar).getAllByRole('button');
     input.focus();
     fireEvent.keyDown(input, { key: 'ArrowUp' });
     expect(document.activeElement).toBe(cells[0]);
-    fireEvent.keyDown(cells[0], { key: 'ArrowDown' });
+    fireEvent.keyDown(cells[0], { key: 'ArrowRight' });
+    fireEvent.keyDown(cells[1], { key: 'ArrowRight' });
     expect(document.activeElement).toBe(cells[2]);
     fireEvent.keyDown(cells[2], { key: 'ArrowRight' });
-    expect(document.activeElement).toBe(cells[3]);
-    fireEvent.keyDown(cells[3], { key: 'Escape' });
+    expect(document.activeElement).toBe(cells[2]);
+    fireEvent.keyDown(cells[2], { key: 'Escape' });
+    expect(document.activeElement).toBe(input);
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    fireEvent.keyDown(cells[0], { key: 'ArrowDown' });
     expect(document.activeElement).toBe(input);
     fireEvent.keyDown(input, { key: 'ArrowUp' });
     fireEvent.keyDown(cells[0], { key: 'ArrowRight' });
-    fireEvent.keyDown(cells[1], { key: 'Enter' });
+    fireEvent.keyDown(cells[1], { key: 'ArrowRight' });
+    fireEvent.keyDown(cells[2], { key: 'Enter' });
     await waitFor(() => expect(careerApi.proposeBatch).toHaveBeenCalledTimes(1));
     expect(suggestToChat).not.toHaveBeenCalled();
   });
@@ -277,11 +276,11 @@ describe('建议条', () => {
   describe('轮末推送（career:suggest）', () => {
     const fresh = () => [{ ...msg('u1', 'user', '你好'), timestamp: new Date() }, { ...msg('a1', 'assistant', '你想先投哪类？'), timestamp: new Date() }];
     const push = (over: Record<string, unknown> = {}) => emitEvent(CAREER_SUGGEST_EVENT, {
-      sessionId: 's1', turn_id: 't1', assistant_message_id: 'a1', chips: FOUR, scene: 'S13', source: 'hook', degraded: false, ts: Date.now(), ...over,
+      sessionId: 's1', turn_id: 't1', assistant_message_id: 'a1', chips: THREE, scene: 'S13', source: 'hook', degraded: false, ts: Date.now(), ...over,
     });
     afterEach(() => { vi.useRealTimers(); });
 
-    it('对得上最后一条消息：直接出四格，不再请求；埋点带 scene 和 source', async () => {
+    it('对得上最后一条消息：直接出三条，不再请求；埋点带 scene 和 source', async () => {
       push();
       mount({ messages: fresh() });
       expect(await screen.findByRole('button', { name: /换一批/ })).toBeInTheDocument();
@@ -309,7 +308,7 @@ describe('建议条', () => {
 
     it('旧推送（ts 更早）不盖新的', async () => {
       push({ chips: CHIPS, ts: 2_000 });
-      push({ chips: FOUR, ts: 1_000 });
+      push({ chips: THREE, ts: 1_000 });
       mount({ messages: fresh() });
       expect(await screen.findByRole('button', { name: /财务类/ })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /换一批/ })).toBeNull();
