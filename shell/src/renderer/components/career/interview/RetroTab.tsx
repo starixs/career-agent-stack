@@ -69,10 +69,7 @@ function InterviewDetail({ interview }: { interview: Interview }) {
         </section>
       )}
       {retro !== null && (isRetro(retro) ? <RetroView retro={retro} /> : <StructuredJson value={retro} />)}
-      <section>
-        <div className="mb-2 text-xs font-medium text-[var(--muted)]">{retro === null ? '面完了？说几句，或者传一段自己录的录音' : '再补几句'}</div>
-        <InterviewRetroBox interview={interview} />
-      </section>
+      <InterviewRetroBox interview={interview} />
     </div>
   );
 }

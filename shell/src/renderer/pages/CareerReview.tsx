@@ -27,7 +27,7 @@ const CareerResearch = lazy(() => import('@/pages/CareerResearch'));
 type View = 'funnel' | 'research';
 const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
   funnel: { title: '我的求职月', subtitle: '这个月走了多远' },
-  research: { title: '公司调研', subtitle: '投之前查一查' },
+  research: { title: '公司调研', subtitle: '' },
 };
 
 export default function CareerReview({ embedded = false }: CareerPageProps) {

@@ -70,7 +70,7 @@ function DirectionRow({ direction, onChanged }: { direction: Direction; onChange
 
 export function DirectionList({ directions, onChanged }: { directions: Direction[]; onChanged: () => void }) {
   return (
-    <ResultList title="看过的方向" count={directions.length}>
+    <ResultList label="看过的方向">
       {directions.map(direction => <DirectionRow key={direction.id} direction={direction} onChanged={onChanged} />)}
     </ResultList>
   );

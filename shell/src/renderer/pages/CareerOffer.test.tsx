@@ -5,7 +5,7 @@ vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), ap
 
 import { apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
 import { onEvent } from '@/api/eventBus';
-import CareerOffer, { decisionItems } from './CareerOffer';
+import CareerOffer from './CareerOffer';
 import type { Offer } from '@/components/career/types';
 
 const offers: Offer[] = [
@@ -35,8 +35,8 @@ describe('CareerOffer', () => {
     expect(within(table).getByRole('columnheader', { name: /丙公司/ })).toHaveTextContent('后端工程师');
     expect(within(table).getByText('375000')).toBeInTheDocument();
     expect(within(table).getAllByText('未知').length).toBeGreaterThan(0);
-    expect(screen.getByText('丁公司 · 算法工程师：薪酬拆解未知，需要你补充')).toBeInTheDocument();
-    expect(screen.getByText('丙公司 · 后端工程师：风险「业务线可能调整」是否可接受，需要你决定')).toBeInTheDocument();
+    // 表里已经看得到的东西，页面上不再用一段话重复一遍
+    expect(screen.queryByText(/需要你/)).toBeNull();
   });
 
   it('让小芽拆开比：带着手上所有 Offer 的 id 发进对话', async () => {
@@ -90,11 +90,5 @@ describe('CareerOffer', () => {
     await waitFor(() => expect(apiPutJson).toHaveBeenCalledTimes(1));
     const body = vi.mocked(apiPutJson).mock.calls[0][1] as Record<string, unknown>;
     expect(body.deadline).toBeUndefined();
-  });
-
-  it('decisionItems：多个 Offer 时提醒取舍由你决定', () => {
-    const items = decisionItems(offers);
-    expect(items.some(i => i.includes('取舍只能由你决定'))).toBe(true);
-    expect(items.some(i => i.includes('2026-10-15 前要答复'))).toBe(true);
   });
 });

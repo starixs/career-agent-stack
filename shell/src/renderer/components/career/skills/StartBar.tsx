@@ -47,13 +47,13 @@ export function StartBar({ spec, surface }: { spec: StartSpec; surface: string }
   return (
     <div className="flex flex-wrap items-center gap-2">
       {needsJob && (
-        <PickBox ariaLabel="岗位" placeholder="选一个岗位，或输入公司、岗位名" value={job} onChange={setJob} options={targets.jobs} search={searchJobs} freeText className="w-80 max-w-full" />
+        <PickBox ariaLabel="岗位" placeholder="选一个岗位" value={job} onChange={setJob} options={targets.jobs} search={searchJobs} freeText className="w-80 max-w-full" />
       )}
       {spec.inputs.includes('topic') && spec.topics && (
         <div className="w-44"><Select ariaLabel="写哪一类" value={topic} onChange={setTopic} options={[...spec.topics]} /></div>
       )}
       {spec.inputs.includes('company') && (
-        <PickBox ariaLabel="公司" placeholder="给哪家公司（可不填）" value={company} onChange={setCompany} options={targets.companies} freeText className="w-56 max-w-full" />
+        <PickBox ariaLabel="公司" placeholder="公司（可不填）" value={company} onChange={setCompany} options={targets.companies} freeText className="w-56 max-w-full" />
       )}
       <Button variant="primary" disabled={needsJob && !job} onClick={start}>{spec.label}</Button>
     </div>

@@ -54,7 +54,7 @@ function RedFlags({ flags }: { flags: Dict }) {
 function ReferenceAnswers({ answers }: { answers: Dict[] }) {
   if (answers.length === 0) return null;
   return (
-    <Block label="可以这样答（只用你亲口说过的事实）">
+    <Block label="可以这样答">
       <ul className="space-y-3">
         {answers.map((item, index) => {
           const verify = texts(item.needs_verification);

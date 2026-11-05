@@ -57,7 +57,6 @@ export function InterviewRetroBox({ interview }: { interview: Interview }) {
         <div className="space-y-2">
           <input ref={inputRef} type="file" accept="audio/*,.m4a,.mp3,.wav,.aac,.amr" className="hidden" onChange={onFile} aria-label="选择录音文件" />
           <Button size="sm" busy={upload.busy} onClick={() => inputRef.current?.click()}>选一段录音</Button>
-          <p className="text-xs text-[var(--subtle)]">手机或电脑录的都行（m4a / mp3 / wav），不超过 {MAX_RECORDING_MB}MB。录音只存在这台电脑上。</p>
           {upload.error && <ErrorRow message={upload.error} />}
         </div>
       )}

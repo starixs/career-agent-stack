@@ -1,13 +1,13 @@
 /**
- * Offer 对比：一张表（列为 Offer；行先是答复期限，再是拆开的薪酬、地点、内容匹配、风险），
- * 「需要你自己决定的项」、新建 / 编辑表单。「让小芽拆开比」把手上的 Offer 交给 Offer 对比技能：
+ * Offer 对比：一张表（列为 Offer；行先是答复期限，再是拆开的薪酬、地点、内容匹配、风险），缺数据标「未知」，
+ * 加新建 / 编辑表单。「让小芽拆开比」把手上的 Offer 交给 Offer 对比技能：
  * 薪酬换算成同一口径、房租通勤带出处、期限谁先到，结果在对话里。
  */
 import { Plus } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 
 import { careerApi, safeJson } from '@/components/career/careerApi';
-import { Button, Card, CareerPage, DueLabel, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, formatDate, textOrUnknown, useSuggestToChat } from '@/components/career/CareerPrimitives';
+import { Button, Card, CareerPage, DueLabel, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, textOrUnknown, useSuggestToChat } from '@/components/career/CareerPrimitives';
 import type { Offer } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { pageSurfaceId } from '@/features/career-shell/pageSurface';
@@ -32,21 +32,6 @@ export function deadlineInputValue(deadline: string | null | undefined): string 
 
 export function compOf(offer: Offer): Comp {
   return safeJson<Comp>(offer.comp_json, {});
-}
-
-/** 需要用户自己判断的项：缺数据标「未知」，不编造。 */
-export function decisionItems(offers: Offer[]): string[] {
-  const items: string[] = [];
-  for (const o of offers) {
-    const name = `${textOrUnknown(o.company_name)} · ${textOrUnknown(o.title)}`;
-    const comp = compOf(o);
-    if (Object.keys(comp).length === 0) items.push(`${name}：薪酬拆解未知，需要你补充`);
-    if (!o.content_match) items.push(`${name}：工作内容是否匹配，需要你判断`);
-    if (o.risk_notes) items.push(`${name}：风险「${o.risk_notes}」是否可接受，需要你决定`);
-    if (o.deadline) items.push(`${name}：${formatDate(o.deadline)} 前要答复`);
-  }
-  if (offers.length > 1) items.push('多个 Offer 之间的取舍只能由你决定，助理只负责把事实并排摆出来。');
-  return items;
 }
 
 const UNKNOWN = <span className="text-[var(--subtle)]">未知</span>;
@@ -121,16 +106,15 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
     <CareerPage
       embedded={embedded}
       title="Offer"
-      actions={(
-        <>
+    >
+      <div className="max-w-6xl space-y-6 px-6 py-5">
+        {/* 动作紧挨着表放在左上：表只占左半边，放到页面右上角就离它太远了 */}
+        <div className="flex flex-wrap items-center gap-2">
           {offers.length > 0 && (
             <Button variant="primary" onClick={() => suggest('把我手上的 Offer 拆开比一比', { surface: SURFACE, refs: { offer_ids: offers.map(o => o.id).join(',') } })}>让小芽拆开比</Button>
           )}
           <Button onClick={() => setEditing(editing === 'new' ? null : 'new')}><Plus className="h-3.5 w-3.5" />新建 Offer</Button>
-        </>
-      )}
-    >
-      <div className="max-w-6xl space-y-8 px-6 py-6">
+        </div>
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {editing && (
           <OfferForm
@@ -142,17 +126,11 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
         )}
         {query.loading && !query.data && <LoadingRow />}
         {!query.loading && offers.length === 0 && (
-          <EmptyState title="还没有 Offer" hint="拿到 Offer 后录入薪酬拆解、地点和截止日期，助理会把它们并排摆出来。" example="帮我录入一个 Offer" />
+          <p className="py-10 text-center text-sm text-[var(--muted)]">还没有 Offer</p>
         )}
         {offers.length > 0 && (
           <>
             <OfferTable offers={offers} onEdit={setEditing} />
-            <section>
-              <SectionTitle>需要你自己决定的项</SectionTitle>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--ink)]">
-                {decisionItems(offers).map((item, i) => <li key={i}>{item}</li>)}
-              </ul>
-            </section>
           </>
         )}
       </div>

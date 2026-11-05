@@ -39,8 +39,8 @@ const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
   apply: { title: '岗位库', subtitle: '持续更新的校招 / 实习岗位，挑中就能定制、投递' },
   line: { title: '投递记录', subtitle: '投了哪些，走到了哪一步' },
   assist: { title: '助力记录', subtitle: '笔试、面试、模拟面试，每一次助力都在这里' },
-  interview: { title: '面试助力', subtitle: '面试前准备，面完复盘' },
-  offer: { title: 'Offer 对比', subtitle: '把拿到的 Offer 放在一起比' },
+  interview: { title: '面试助力', subtitle: '' },
+  offer: { title: 'Offer 对比', subtitle: '' },
   'exam-search': { title: '笔试助力', subtitle: '截图或粘贴题目，先查题库再作答' },
 };
 /** 已合并进助力记录的旧视图。 */

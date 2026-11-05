@@ -36,7 +36,7 @@ function MaterialRow({ material }: { material: Material }) {
 
 export function MaterialList({ materials }: { materials: Material[] }) {
   return (
-    <ResultList title="写过的" count={materials.length}>
+    <ResultList label="写过的">
       {materials.map(material => <MaterialRow key={material.id} material={material} />)}
     </ResultList>
   );

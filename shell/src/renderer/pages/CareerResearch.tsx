@@ -32,8 +32,8 @@ function StartResearch() {
   const [company, setCompany] = useState<PickOption | null>(null);
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <PickBox ariaLabel="公司" placeholder="选一家你投过的，或输入公司名" value={company} onChange={setCompany} options={companies} freeText className="w-80 max-w-full" />
-      <Button variant="primary" disabled={!company} onClick={() => { if (company) suggest(`帮我查一下「${company.label}」这家公司靠不靠谱`, { surface: SURFACE }); }}>查这家公司</Button>
+      <PickBox ariaLabel="公司" placeholder="公司名" value={company} onChange={setCompany} options={companies} freeText className="w-80 max-w-full" />
+      <Button variant="primary" disabled={!company} onClick={() => { if (company) suggest(`帮我查一下「${company.label}」这家公司靠不靠谱`, { surface: SURFACE }); }}>查这家</Button>
     </div>
   );
 }

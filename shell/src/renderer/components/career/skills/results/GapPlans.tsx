@@ -68,7 +68,7 @@ function TaskTable({ tasks }: { tasks: unknown[] }) {
 
 export function GapPlans({ plans, targets }: { plans: GapPlan[]; targets: GapTargets }) {
   return (
-    <ResultList title="做过的计划" count={plans.length}>
+    <ResultList label="做过的计划">
       {plans.map((plan, index) => (
         <Disclosure
           key={plan.id} defaultOpen={index === 0}

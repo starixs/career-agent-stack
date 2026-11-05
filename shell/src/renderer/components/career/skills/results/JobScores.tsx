@@ -94,7 +94,7 @@ function EvaluationRow({ evaluation }: { evaluation: JobEvaluation }) {
       <Prefilter checks={dicts(dict(output.prefilter).checks)} />
       <Bullets label="投之前要确认" items={texts(output.ask_user)} />
       {review.triggered === true && pickText(review, 'note') && (
-        <Block label="分数卡在线上，又核了一遍"><p className="text-sm leading-relaxed text-[var(--ink-2)]">{pickText(review, 'note')}</p></Block>
+        <Block label="复核"><p className="text-sm leading-relaxed text-[var(--ink-2)]">{pickText(review, 'note')}</p></Block>
       )}
     </Disclosure>
   );
@@ -102,7 +102,7 @@ function EvaluationRow({ evaluation }: { evaluation: JobEvaluation }) {
 
 export function JobScores({ evaluations }: { evaluations: JobEvaluation[] }) {
   return (
-    <ResultList title="评估过的岗位" count={evaluations.length}>
+    <ResultList label="评估过的岗位">
       {evaluations.map(evaluation => <EvaluationRow key={evaluation.job_id} evaluation={evaluation} />)}
     </ResultList>
   );

@@ -35,7 +35,7 @@ export function QuestionBankPanel() {
       </div>
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       {query.loading && !query.data && <LoadingRow />}
-      {query.data && list.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有题目。让助理按岗位出题、复盘一场真实面试，或者补录你见过的题，都会存到这里。</div>}
+      {query.data && list.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有题目</div>}
       <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">{list.map(item => <QuestionRowView key={item.id} item={item} onChanged={query.reload} />)}</ul>
     </section>
   );

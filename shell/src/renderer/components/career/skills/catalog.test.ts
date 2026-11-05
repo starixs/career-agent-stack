@@ -22,10 +22,10 @@ describe('功能市场清单', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('每个技能点都说得出特别在哪、说哪句话会用上', () => {
+  it('每个技能点都有聊天时会用上的那句话；页面上那一小段字不超过十四个字', () => {
     for (const point of SKILL_POINTS) {
-      expect(point.special.length, point.id).toBeGreaterThanOrEqual(3);
       expect(point.ask.trim(), point.id).not.toBe('');
+      expect(point.gives.length, `${point.id}：${point.gives}`).toBeLessThanOrEqual(14);
     }
   });
 

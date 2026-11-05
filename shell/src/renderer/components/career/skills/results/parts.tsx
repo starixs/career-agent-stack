@@ -47,12 +47,7 @@ export function Disclosure({ summary, children, defaultOpen = false }: { summary
   );
 }
 
-/** 一组成果的外壳：小标题带条数，行与行之间一条细线。 */
-export function ResultList({ title, count, children }: { title: string; count: number; children: ReactNode }) {
-  return (
-    <section>
-      <div className="mb-1 text-xs font-medium text-[var(--muted)]">{title}<span className="ml-1 tabular-nums text-[var(--subtle)]">{count}</span></div>
-      <div className="divide-y divide-[var(--line)] border-y border-[var(--line)]">{children}</div>
-    </section>
-  );
+/** 一组成果的外壳：行与行之间一条细线。名字只给读屏用，页面上不再重复一遍标题。 */
+export function ResultList({ label, children }: { label: string; children: ReactNode }) {
+  return <section aria-label={label} className="divide-y divide-[var(--line)] border-t border-[var(--line)]">{children}</section>;
 }

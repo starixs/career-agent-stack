@@ -97,7 +97,7 @@ describe('面试助力 · 准备', () => {
     await openTab('准备');
     fireEvent.click(await screen.findByRole('button', { name: '帮我准备这一场' }));
     fireEvent.click(screen.getByRole('button', { name: '重新预测' }));
-    fireEvent.click(screen.getByRole('button', { name: '按这个岗位出题' }));
+    fireEvent.click(screen.getByRole('button', { name: '出一组题' }));
     fireEvent.click(screen.getByRole('button', { name: '开始模拟' }));
     expect(chat.said.map(event => event.text)).toEqual([
       '帮我准备甲公司的面试', '预测一下甲公司面试会深挖我简历哪里', '按甲公司 · 后端开发出一组面试题', '开始模拟甲公司一面，先从高风险的深挖点问起',

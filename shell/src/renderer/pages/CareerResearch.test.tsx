@@ -44,7 +44,7 @@ describe('CareerResearch（公司调研工作台）', () => {
     mockGet([]);
     render(<CareerResearch />);
     expect(await screen.findByRole('combobox', { name: '公司' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '查这家公司' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '查这家' })).toBeDisabled();
     expect(screen.queryByRole('list', { name: '查过的公司' })).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
   });
@@ -96,7 +96,7 @@ describe('CareerResearch（公司调研工作台）', () => {
     render(<CareerResearch />);
     fireEvent.focus(await screen.findByRole('combobox', { name: '公司' }));
     fireEvent.mouseDown(await screen.findByRole('option', { name: '乙公司' }));
-    fireEvent.click(screen.getByRole('button', { name: '查这家公司' }));
+    fireEvent.click(screen.getByRole('button', { name: '查这家' }));
     expect(said).toEqual([expect.objectContaining({ text: '帮我查一下「乙公司」这家公司靠不靠谱', mode: 'send', context: expect.objectContaining({ surface: 'page:career-review:research' }) })]);
     off();
   });
