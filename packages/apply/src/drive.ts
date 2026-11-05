@@ -1,5 +1,5 @@
 import { handoffReasonLabel, type LLM, type HandoffReason } from '@career/core'
-import { basename } from 'node:path'
+import { basename, extname } from 'node:path'
 import type { PageLike } from './page.js'
 import { extractFields, formFingerprint, type FormField } from './extract.js'
 import { chooseFromEvidence, interpretForm, normKey, type FieldPlan, type Profile, type InterpretOptions } from './interpret.js'
@@ -327,8 +327,12 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     try { screenshot = await page.screenshot() } catch { /* 截图失败不影响结果 */ }
     // 停在提交前：做一遍填后检查，给审核卡片的审阅清单与免审判断
     let review: SubmitReview | undefined
-    if (status === 'stopped_before_submit') { try { review = await buildSubmitReview(page, all) } catch { /* 检查失败时调用方按"需要人看"处理 */ } }
-    if (status === 'stopped_before_submit') progress(message, 'stop')
+    if (status === 'stopped_before_submit') {
+      try { review = await buildSubmitReview(page, all) } catch (e) { log(`填后检查失败，按需要人看处理：${e instanceof Error ? e.message : String(e)}`) }
+      // 「已填完」只在填后检查真没缺项时说；还有必填空着 / 网站报错就如实报缺什么（2026-11-05 滴滴：大半必填没填却报已填完）
+      if (review) message = stopMessage(message, review, extra.submitButton)
+      progress(message, 'stop')
+    }
     const result: DriveResult = { status, message, pages, ...all, layersUsed: [...layersUsed], fields: allFields, blockers: allBlockers, entryClicked, libraries, ...(telemetryRef ? { telemetry: telemetryRef } : {}), screenshot, finalUrl: page.url(), adapterId: adapter.id, ...(review ? { review } : {}), ...extra }
     if (all.needsUser.length) await snapshotNeedsUser(page, recorder, all.needsUser)
     recorder.trace({ stage: 'finish', result: status === 'failed' ? 'fail' : 'info', detail: `${status}：${message}` })
@@ -581,7 +585,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         const f = byId.get(p.fieldId)
         if (!f || !f.isFile || p.status !== 'fill' || !p.value) continue
         try {
-          progress(`上传简历「${basename(p.value)}」`, 'upload', f.label)
+          progress(`上传简历（${extname(p.value).slice(1).toUpperCase() || '文件'}）`, 'upload', f.label)
           let areaBefore: UploadAreaResult | undefined
           try { areaBefore = await page.evaluate(uploadAreaScript, { selector: f.selector }) } catch { areaBefore = undefined }
           const textBefore = await page.evaluate(pageSignalsScript).then(x => x.text).catch(() => '')
@@ -1067,4 +1071,16 @@ export async function checkUploadEcho(page: PageLike, f: FormField, filePath: st
     if (i < 11) await page.waitForTimeout(400)
   }
   return { fieldId: f.id, file: name, echoed: false, evidence: '页面没有出现文件名或上传成功提示，请人工确认附件' }
+}
+
+/** 引擎核对后还有缺口的状态（和服务端 GAP_REASON 同一套口径；选填留空、已核对的不算）。 */
+const STOP_GAP_STATUSES: ReadonlySet<string> = new Set(['empty', 'needs_user', 'site_error', 'mismatch', 'draft'])
+/** 停在提交前的那句话：没缺口照原话；有缺口就说还差哪几项，不说「已填完」。 */
+export function stopMessage(original: string, review: Pick<SubmitReview, 'rows'>, submitButton?: string): string {
+  const gaps = review.rows.filter(r => STOP_GAP_STATUSES.has(r.status) && (r.required || r.status === 'site_error' || r.status === 'draft'))
+  if (!gaps.length) return original
+  const names = [...new Set(gaps.filter(r => r.status !== 'site_error').map(r => r.label).filter(Boolean))]
+  const where = submitButton ? `停在「${submitButton}」前` : '停在提交前'
+  const list = names.length ? `：${names.slice(0, 5).join('、')}${names.length > 5 ? ' 等' : ''}` : '（网站提示还有格子没填对）'
+  return `还差 ${names.length || gaps.length} 项没填好${list}，${where}`
 }

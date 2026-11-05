@@ -8,6 +8,7 @@ import { diffAgainstPlan, looseName, type FilledRecord } from './drive.js'
 import { uploadAreaScript } from './widgets.js'
 import type { FormField } from './extract.js'
 import { normKey } from './interpret.js'
+import { CONSENT_RX } from './review.js'
 import { verifyBeforeContinuing, type VerificationHandler } from './verification.js'
 
 /**
@@ -72,7 +73,6 @@ async function uploadStillShown(page: PageLike, f: FormField, filled: FilledReco
  * 「我已阅读并同意《填答者协议》《隐私条款》」「本人承诺所填信息真实」：不勾就交不出去（问卷星点提交弹「请阅读并同意…」，2026-11-02 斯达半导体）。
  * 填表时从不勾——只在他点头批准提交的这一步勾，同意跟着他的批准走，并记进回执。
  */
-const CONSENT_RX = /(已阅读|阅读并同意|我同意|同意.{0,12}(协议|条款|声明|政策|须知)|承诺.{0,12}(真实|属实|准确))/
 const CONSENT_BUTTON_RX = /^(同意并继续|同意并提交|我同意|同意|确定同意)$/
 
 async function tickConsents(page: PageLike, fields: FormField[]): Promise<string[]> {

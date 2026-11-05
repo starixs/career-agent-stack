@@ -139,7 +139,11 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
     const clean = (s: string | null | undefined) => (s || '').replace(/\s+/g, ' ').trim().slice(0, 160)
     const stripStar = (s: string) => s.replace(/^[\s*＊]+|[\s*＊:：]+$/g, '').trim()
     const isGeneric = (s: string) => /^(请选择|请输入|选择|输入|搜索|search|select|choose|type|--|please select|e\.?g\.?)/i.test(s.trim())
-    const ok = (s: string | null | undefined) => { const t = (s || '').trim(); return t && !isGeneric(t) ? t : '' }
+    // 网站的校验红字（「必填项未填写」「不能为空」）不是字段名，也不是选中值（2026-11-05 滴滴 Moka：城市格子的标签和值都读成了它）
+    const isValidation = (s: string) => { const t = s.trim(); return t.length <= 24 && /(未填写|不能为空|不得为空|为必填|必填项|^必填$|is required|required field|this field)/i.test(t) }
+    const ok = (s: string | null | undefined) => { const t = (s || '').trim(); return t && !isGeneric(t) && !isValidation(t) ? t : '' }
+    /** 控件里的校验提示 / 选中值展示节点：读标签时去掉（Moka 把红字写在包着输入框的 label 里）。 */
+    const MESSAGE_SEL = '[class*="message" i], [class*="explain" i], [class*="feedback" i], [role=alert], [class*="display-value" i], [class*="error" i]:not(input):not(:has(input, select, textarea))'
     const vis = (el: Element) => {
       const h = el as HTMLElement
       if (h.offsetParent !== null) return true
@@ -149,6 +153,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       if (!node) return ''
       const c = node.cloneNode(true) as Element
       c.querySelectorAll?.('input, select, textarea, option, button, [role=option], [role=listbox]').forEach(n => n.remove())
+      c.querySelectorAll?.(MESSAGE_SEL).forEach(n => n.remove())
       return stripStar(clean(c.textContent))
     }
     const WRAP = '[class*="form-item" i], [class*="form-group" i], [class*="field" i], [class*="question" i], fieldset, li, tr'
@@ -221,13 +226,15 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
     /** 最近的"表单项"祖先（ant-form-item / mtd-form-item / el-form-item / form-group / li / tr / fieldset）。 */
     // 飞书 formily：表单项是 ud-formily-item，或带 data-form-field-id（2026-10-31 小鹏网申表：认不出表单项，标签和必填星号全找错）
     const ITEM_RX = /(^|\s)([\w]+-)?(form-item|form-group|formitem|formily-item)(\s|$)/i
+    // CSS Modules 哈希后缀的表单项（Moka：apply-field-Q2iJ7AtQGX）。后缀必须像哈希（含数字或大写），免得 ant-form-item-control 这种内层也算
+    const isHashedItem = (cls: string) => cls.split(/\s+/).some(t => { const m = t.match(/^(?:[\w]+-)?(?:form-item|form-field|apply-field)-([A-Za-z0-9_]{5,12})$/i); return !!m && /[A-Z0-9]/.test(m[1]) })
     /** 控件到它所在表单项最多隔几层：飞书 UD 的可输入下拉嵌了 9 层（小鹏「学校名称」必填星号因此没认出来）。 */
     const ITEM_DEPTH = 12
     const itemOf = (n: Element): Element | null => {
       let c: Element | null = n.parentElement
       for (let i = 0; c && c !== document.body && i < ITEM_DEPTH; i++, c = c.parentElement) {
         const cls = typeof c.className === 'string' ? c.className : ''
-        if (ITEM_RX.test(cls) || c.hasAttribute('data-form-field-id') || c.tagName === 'FIELDSET' || c.tagName === 'LI' || c.tagName === 'TR') return c
+        if (ITEM_RX.test(cls) || isHashedItem(cls) || c.hasAttribute('data-form-field-id') || c.tagName === 'FIELDSET' || c.tagName === 'LI' || c.tagName === 'TR') return c
       }
       return null
     }
@@ -277,6 +284,8 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
     function shownText(shell: Element): string {
       let t = clean((shell as HTMLElement).innerText)
       for (const h of Array.from(shell.querySelectorAll('[class*="placeholder" i]:not(input), [class*="hint" i]'))) { const x = clean((h as HTMLElement).innerText); if (x) t = t.replace(x, '') }
+      for (const h of Array.from(shell.querySelectorAll(MESSAGE_SEL)).filter(n => !/display-value/i.test(typeof n.className === 'string' ? n.className : ''))) { const x = clean((h as HTMLElement).innerText); if (x) t = t.replace(x, '') }
+      if (isValidation(t)) return ''
       t = clean(t.replace(/[\p{So}\p{Co}×✕✖⨯⌄∨˅]/gu, ''))
       return /^(请选择|请输入|选择|搜索|please select|select|--)?$/i.test(t) ? '' : t
     }
@@ -321,7 +330,9 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const id = (el as HTMLElement).id
       // 问卷星把选项文字放在 <div class="label" for="q2_1"> 里：不是 <label> 也照认（2026-11-02 实测，选项拿成了题目）
       if (id) { const l = document.querySelector(`label[for="${CSS.escape(id)}"]`) ?? document.querySelector(`[for="${CSS.escape(id)}"]`); if (l && ok(pure(l))) return pure(l) }
-      const pl = el.closest('label'); if (pl && ok(pure(pl))) return pure(pl)
+      const pl = el.closest('label')
+      // 包着控件的 label 是下拉外壳本身（Moka sd-Select）：里面的字是选中值，不是字段名
+      if (pl && !(selectShellOf(el) && pl.contains(selectShellOf(el)!) || pl === selectShellOf(el)) && ok(pure(pl))) return pure(pl)
       labelVia = 'wrapper'
       const w = wrapperOf(el)
       if (w) { const t = firstLabel(w, el); if (t) return t }
@@ -392,6 +403,10 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       if (!n) return false
       for (const s of Array.from(n.querySelectorAll('i, em, span, b, sup, [class*="required" i], [class*="star" i], [class*="asterisk" i]')).slice(0, 12)) {
         if (s.children.length === 0 && /^[*＊]$/.test((s.textContent || '').trim())) return true
+        // 空的星号节点，星号是 ::before / ::after 画的（Moka：span.required-asterisk-<hash>）
+        if (s.children.length === 0 && !(s.textContent || '').trim()) {
+          try { if (/^"[*＊]/.test(getComputedStyle(s, '::before').content) || /^"[*＊]/.test(getComputedStyle(s, '::after').content)) return true } catch (e) { console.warn('[apply-extract] 读星号伪元素失败', e) }
+        }
       }
       try { if (/^"[*＊]/.test(getComputedStyle(n, '::before').content) || /^"[*＊]/.test(getComputedStyle(n, '::after').content)) return true } catch { /* ignore */ }
       return /^[\s]*[*＊]/.test(clean(n.textContent)) || /[*＊][\s]*$/.test(clean(n.textContent))

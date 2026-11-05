@@ -9,6 +9,9 @@ import { normKey, type FieldPlan } from './interpret.js'
 import { normalizeHost } from './memory.js'
 import type { FilledRecord, Mismatch, UploadCheck } from './drive.js'
 
+/** 同意 / 承诺勾选框：填表时不勾，他批准提交时由 submit 勾上（submit.ts tickConsents）；填后检查不把它算成要他补的空格。 */
+export const CONSENT_RX = /(已阅读|阅读并同意|我同意|同意.{0,12}(协议|条款|声明|政策|须知)|承诺.{0,12}(真实|属实|准确))/
+
 /**
  * 填后检查：停在提交前时，把"值没生效 / 必填为空 / 站点报错 / 附件没回显 / 需要你补 / 草稿待确认"
  * 归一成审阅清单（必填与选填分组），给审核卡片逐项展示；attention 为 0 才可能免审。
@@ -101,6 +104,7 @@ export async function buildSubmitReview(page: PageLike, all: { filled: FilledRec
     if (upload) { add({ fieldId: f.id, label: f.label, required: f.required, status: 'ok', verified: true, value: basename(upload.file), source: 'profile' }); continue }
     const empty = f.type === 'checkbox' ? f.value !== 'true' : !(f.value ?? '').trim()
     const filled = all.filled.find(r => r.fieldId === f.id)
+    if (f.type === 'checkbox' && empty && CONSENT_RX.test(f.label)) { add({ fieldId: f.id, label: f.label, required: f.required, status: 'ok', verified: true, value: '提交时勾上', source: 'profile' }); continue }
     if (f.required && empty) add({ fieldId: f.id, label: f.label, required: true, status: 'empty', reason: '必填项还是空的', labelUncertain: f.labelUncertain })
     else if (empty) add({ fieldId: f.id, label: f.label, required: false, status: 'empty_optional', reason: '选填，留空', labelUncertain: f.labelUncertain })
     else if (filled && filled.verified === false) add({ fieldId: f.id, label: f.label, required: f.required, status: 'unverified', verified: false, value: filled.value, source: filled.source, reason: '写进去了但没能读回核验，请看一眼' })

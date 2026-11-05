@@ -279,6 +279,21 @@ describe('飞书 formily 表单结构（真实 Chrome）', () => {
   })
 })
 
+describe('Moka 申请表（真实 Chrome）', () => {
+  it('哈希后缀的必填星号认得出；控件里的校验红字不当标签、不当选中值', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/moka-apply.html')
+    const fields = await engine.extractFields(engine.fromPlaywright(page))
+    expect(fields.map(f => f.label)).toEqual(['意向工作城市', '推荐码', '是否接受地点调剂', '姓名'])
+    const by = Object.fromEntries(fields.map(f => [f.label, f]))
+    expect(by['意向工作城市']).toMatchObject({ required: true, value: undefined })
+    expect(by['推荐码'].required).toBe(false)
+    expect(by['是否接受地点调剂']).toMatchObject({ required: true, value: '是' })
+    expect(by['姓名']).toMatchObject({ required: true, value: undefined })
+    await page.context().close()
+  })
+})
+
 describe('问卷星（真实 Chrome）', () => {
   it('整页 fieldset 不当单选组容器；选项文字在 div[for] 里；点选中、读得回', async ({ skip }) => {
     if (!engine || !browser) return skip()

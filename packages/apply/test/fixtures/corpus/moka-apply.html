@@ -1,0 +1,45 @@
+<!doctype html>
+<!--
+  Moka 白标申请表（取自 2026-11-05 滴滴校招 campus.didiglobal.com 真机 DOM，类名照抄带 CSS Modules 哈希后缀）：
+  - 表单项是 div.apply-field-<hash>，标题 div.title-<hash>，必填星号是空的 span.required-asterisk-<hash>（::after 画出来）；
+  - 校验没过时，红字「必填项未填写」写在包着输入框的 label.sd-Input-container 里面（.sd-Input-message.sd-Input-error）。
+  引擎当时：一个必填都没认出（全当选填跳过），点过一次后「意向工作城市」的标签和值都读成了「必填项未填写」。
+-->
+<html><head><meta charset="utf-8"><title>滴滴 - 校园招聘</title>
+<style>
+  .required-asterisk-av7daEKsLS::after { content: '*'; color: red; margin-left: 2px; }
+  .sd-Input-message-LkDNM { color: #e53; font-size: 12px; }
+  .apply-field-Q2iJ7AtQGX { margin: 12px 0; }
+</style></head><body>
+<div class="apply-form-yCQO5hUc23">
+  <div class="apply-field-Q2iJ7AtQGX Select-oqOV0aGogs">
+    <div class="title-IWWQ0Xa4L7"><span><span>意向工作城市</span></span><span class="required-asterisk-av7daEKsLS"></span></div>
+    <div class="ctrl-CICMG4Fr4_"><div class="sd-Dropdown-container-1CigZ">
+      <label class="sd-Input-container-2S_vM sd-Select-container-1Eq4x select error-ssB9wMzEaC sd-Input-error-_Z3Qd">
+        <span class="sd-Input-display-value-RwqDy"></span>
+        <input type="text" class="sd-Input-input-10L0t" placeholder="选择意向工作城市" autocomplete="nope" value="">
+        <span class="sd-Input-addon-1Dv-z sd-Select-addon-26oV3"><span class="sd-Icon-container-1EGHG"></span></span>
+        <div class="sd-Input-message-LkDNM sd-Input-error-_Z3Qd"><span class="sd-Icon-container-1EGHG"></span>必填项未填写</div>
+      </label>
+    </div></div>
+  </div>
+  <div class="apply-field-Q2iJ7AtQGX string_info-UOJxKN5mtC">
+    <div class="title-IWWQ0Xa4L7"><span><span>推荐码</span></span></div>
+    <div class="ctrl-CICMG4Fr4_"><label class="sd-Input-container-2S_vM string_info"><input type="text" class="sd-Input-input-10L0t" placeholder="推荐码" value=""></label></div>
+  </div>
+  <div class="apply-field-Q2iJ7AtQGX Select-oqOV0aGogs">
+    <div class="title-IWWQ0Xa4L7"><span><span>是否接受地点调剂</span></span><span class="required-asterisk-av7daEKsLS"></span></div>
+    <div class="ctrl-CICMG4Fr4_"><div class="sd-Dropdown-container-1CigZ">
+      <label class="sd-Input-container-2S_vM sd-Select-container-1Eq4x select">
+        <span class="sd-Input-display-value-RwqDy">是</span>
+        <input type="text" class="sd-Input-input-10L0t" placeholder="请选择" value="">
+        <span class="sd-Input-addon-1Dv-z sd-Select-addon-26oV3"><span class="sd-Icon-container-1EGHG"></span></span>
+      </label>
+    </div></div>
+  </div>
+  <div class="apply-field-Q2iJ7AtQGX string_info-UOJxKN5mtC">
+    <div class="title-IWWQ0Xa4L7"><span><span>姓名</span></span><span class="required-asterisk-av7daEKsLS"></span></div>
+    <div class="ctrl-CICMG4Fr4_"><label class="sd-Input-container-2S_vM string_info sd-Input-error-_Z3Qd"><input type="text" class="sd-Input-input-10L0t" placeholder="姓名" value=""><div class="sd-Input-message-LkDNM sd-Input-error-_Z3Qd">必填项未填写</div></label></div>
+  </div>
+</div>
+</body></html>

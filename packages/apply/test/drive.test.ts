@@ -5,6 +5,23 @@ import { profile, noLLM, draftLLM, mem } from './helpers.js'
 const basics = [{ label: '姓名', required: true }, { label: '邮箱', type: 'email' as const }, { label: '手机号', type: 'tel' as const }]
 const quiet = { pause: [0, 0] as [number, number], settleMs: 0, sleep: async () => {} }
 
+describe('停在提交前的那句话（2026-11-05 滴滴：大半必填没填却报「已填完」）', () => {
+  it('必填还空着：不说已填完，列出缺哪几项；同意勾选框留给提交时勾，不算缺', async () => {
+    const page = new FakePage({ url: 'https://x.com/apply', fields: [
+      { label: '姓名', required: true },
+      { label: '是否接受地点调剂', type: 'select', options: ['是', '否'], required: true },
+      { label: '本人承诺所填信息真实', type: 'checkbox', required: true },
+    ], buttons: [{ text: '预览并提交', submit: true }] })
+    const progress: DriveProgress[] = []
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, onProgress: p => { progress.push(p) } })
+    expect(r.status).toBe('stopped_before_submit')
+    expect(r.message).toContain('是否接受地点调剂')
+    expect(r.message).toMatch(/^还差 \d+ 项没填好/)
+    expect(progress.at(-1)?.message).toBe(r.message)
+    expect(r.review?.rows.find(x => x.label.includes('承诺'))?.status).toBe('ok')
+  })
+})
+
 describe('driveApplication', () => {
   it('遇到提交按钮前停止，绝不点击，并截图', async () => {
     const page = new FakePage({ url: 'https://x.com/apply', fields: basics, buttons: ['保存', { text: '提交申请', submit: true }] })
