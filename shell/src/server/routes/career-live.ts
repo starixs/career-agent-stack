@@ -309,7 +309,8 @@ export async function handleCareerLiveRoute(pathname: string, request: Request, 
           case 'down': { const x = Math.round(num(body.x) * sx), y = Math.round(num(body.y) * sy); await page.mouse.move(x, y); await page.mouse.down({ clickCount: Math.min(Math.max(Math.round(num(body.clickCount)), 1), 3) }); return { x, y }; }
           case 'up': { const x = Math.round(num(body.x) * sx), y = Math.round(num(body.y) * sy); await page.mouse.move(x, y); await page.mouse.up(); return { x, y }; }
           case 'wheel': { await page.mouse.wheel(Math.round(num(body.dx) * sx), Math.round(num(body.dy) * sy)); return {}; }
-          case 'type': { const text = typeof body.text === 'string' ? body.text.slice(0, 2000) : ''; if (text) await page.keyboard.type(text); return { typed: text.length }; }
+          // 他自己打的字原样一次写进去（Playwright / 桥接页都有 insertText）；拟人逐字是助理填表用的，用在他身上就是卡
+          case 'type': { const text = typeof body.text === 'string' ? body.text.slice(0, 2000) : ''; if (text) await page.keyboard.insertText(text); return { typed: text.length }; }
           case 'press': { const key = typeof body.key === 'string' ? body.key.slice(0, 40) : ''; if (!key) throw new Error('key 不能为空'); await page.keyboard.press(key); return { key }; }
           default: throw new Error(`不支持的输入类型：${String(type)}`);
         }

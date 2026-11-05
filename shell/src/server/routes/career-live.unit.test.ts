@@ -272,7 +272,7 @@ describe('career live route', () => {
       viewportSize: () => ({ width: 1280, height: 900 }),
       evaluate: async () => null,
       mouse: { click: async (...a: unknown[]) => { calls.push(['click', a]); }, move: async (...a: unknown[]) => { calls.push(['move', a]); }, wheel: async (...a: unknown[]) => { calls.push(['wheel', a]); }, down: async () => { calls.push(['down', []]); }, up: async () => { calls.push(['up', []]); } },
-      keyboard: { type: async (...a: unknown[]) => { calls.push(['type', a]); }, press: async (...a: unknown[]) => { calls.push(['press', a]); } },
+      keyboard: { type: async (...a: unknown[]) => { calls.push(['type', a]); }, insertText: async (...a: unknown[]) => { calls.push(['insertText', a]); }, press: async (...a: unknown[]) => { calls.push(['press', a]); } },
       waitForTimeout: async () => {},
     };
     host.withProductSession = async <T,>(_id: string, fn: (ctx: never) => Promise<T>) => fn({ pages: () => [page], newPage: async () => page, on: () => {} } as never);
@@ -286,7 +286,8 @@ describe('career live route', () => {
     await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'type', text: '张三' }), d);
     await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'press', key: 'Enter' }), d);
     await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'wheel', dy: 100, frame: { width: 640, height: 450 } }), d);
-    expect(calls.slice(1).map(c => c[0])).toEqual(['type', 'press', 'wheel']);
+    // 他自己打的字原样写入，不走助理的拟人逐字（2026-11-05 现场窗打字卡顿）
+    expect(calls.slice(1).map(c => c[0])).toEqual(['insertText', 'press', 'wheel']);
     expect(calls[1][1]).toEqual(['张三']);
     expect(calls[3][1]).toEqual([0, 200]);
     const bad = await handleCareerLiveRoute('/api/career/live/input', req('/api/career/live/input', { type: 'nope' }), d);

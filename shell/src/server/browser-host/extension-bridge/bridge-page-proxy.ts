@@ -224,6 +224,10 @@ export class BridgePageProxy {
       await humanType({ cdp: this.ensureCdp(), rand: this.rand, sleep: this.sleep }, text)
       void opts
     },
+    /** 原样一次写入（他自己在现场窗里打的字）：不走拟人逐字、不加错字回删——那是助理填表用的（2026-11-05 现场窗打字卡顿）。 */
+    insertText: async (text: string) => {
+      await this.ensureCdp().send('Input.insertText', { text })
+    },
     press: async (key: string) => {
       const parts = key.split('+')
       const actual = parts.pop() || '+'

@@ -99,7 +99,15 @@ export class ExtensionBrowserHost {
 }
 
 /** Bridge viewport is asynchronous; Playwright's viewportSize() isn't. */
+/** 视口尺寸缓存多久：现场窗每个鼠标事件都要换算坐标，每次都去页面里量一次就多一个往返（2026-11-05 现场窗操作卡顿）。 */
+const VIEWPORT_CACHE_MS = 1500
+const viewportCache = new WeakMap<Page, { at: number; size: { width: number; height: number } | null }>()
+
 export async function livePageViewport(page: Page): Promise<{ width: number; height: number } | null> {
+  const hit = viewportCache.get(page)
+  if (hit && Date.now() - hit.at < VIEWPORT_CACHE_MS) return hit.size
   const bridgePage = page as unknown as Partial<BridgePageProxy>
-  return bridgePage.viewport ? bridgePage.viewport() : page.viewportSize()
+  const size = bridgePage.viewport ? await bridgePage.viewport() : page.viewportSize()
+  viewportCache.set(page, { at: Date.now(), size })
+  return size
 }

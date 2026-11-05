@@ -26,7 +26,16 @@ type HostResolver = () => Promise<ExtensionBrowserHost>;
 let hostResolver: HostResolver | null = null;
 let runnerPromise: Promise<BatchRunner> | null = null;
 
+/**
+ * 默认同时填几家（不同网站）。2 份时一家在填、一家在备材料，第三家就干等（2026-11-05「腾讯好像是单线程的，没法并行」）；
+ * 先放到 3（未在真机上压测过；机器吃不消就用 CAREER_BATCH_CONCURRENCY 调回）。每家各自一个标签页，同一网站永远串行。
+ */
+const DEFAULT_BATCH_CONCURRENCY = 3;
+/** 上限：再多托管 Chrome 的标签页互相抢前台，反而慢。 */
+const MAX_BATCH_CONCURRENCY = 4;
+
 /** index.ts 在创建 ensureBrowserHost 后注册一次。 */
+
 export function registerBatchBrowserHost(resolver: HostResolver | null): void { hostResolver = resolver; }
 
 export { careerProductSessionId };
@@ -91,7 +100,7 @@ export async function getBatchRunner(): Promise<BatchRunner> {
         sessionId,
         riskLocked,
         // 同时填几份（不同网站）；同一网站永远串行。CAREER_BATCH_CONCURRENCY=1 退回逐份执行。
-        concurrency: Math.min(4, Math.max(1, Number(process.env.CAREER_BATCH_CONCURRENCY) || 2)),
+        concurrency: Math.min(MAX_BATCH_CONCURRENCY, Math.max(1, Number(process.env.CAREER_BATCH_CONCURRENCY) || DEFAULT_BATCH_CONCURRENCY)),
         control: () => {
           // 登录之旅里你只在钉住的那一页上操作，后台其余几家照样填（用户 2026-10-30 定：后台照样并行）
           if (loginJourneyActive()) return 'agent';
