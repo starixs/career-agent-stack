@@ -1,0 +1,58 @@
+# 回给用户的话（拟人性 / 易用性，2026-11-05）：工具跑完后小芽怎么说。
+# 像靠谱学长：不说开发词、不露内部 id、最多一问、不用表格、短，不以"发我/告诉我"收尾；问进度先报投出了哪几家。
+- description: 问进度——先报投出了哪几家，再说最急的一件
+  vars:
+    task: chat_reply
+    message: 咋样了
+    tool_name: today_queue
+    tool_result: '{"items":[{"kind":"needs_user","title":"拼多多 · 证件号码","application_id":"app_pdd_01"}],"waiting":3,"sent_recent":[{"company":"美团","title":"后端开发","at":"2026-11-05T08:00:00Z"},{"company":"字节跳动","title":"基础架构","at":"2026-11-05T09:10:00Z"}]}'
+    expect_mention: [美团, 字节]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:humanToneOk
+- description: 批量投开始了——一两句，开始几家、跳过几家，不让他回话
+  vars:
+    task: chat_reply
+    message: 这 6 个都投了
+    tool_name: jobs_apply
+    tool_result: '{"started":5,"skipped":[{"job_id":"job_xhs_01","company":"小红书","reason":"已经投过"}],"resume":"后端主简历（11-04 改）","asks_posted":1}'
+    expect_mention: ['5']
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:humanToneOk
+- description: 填表卡在证件号——不让他"填完说一声"，告诉他右边有卡
+  vars:
+    task: chat_reply
+    message: 帮我投美团这个后端岗
+    tool_name: jobs_apply
+    tool_result: '{"started":1,"skipped":[],"asks_posted":1,"asks":[{"title":"证件号码","where":"右边的「等你」"}]}'
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:humanToneOk
+- description: 工具出错——用大白话说没成、接下来怎么办，不讲 HTTP 和接口
+  vars:
+    task: chat_reply
+    message: 去牛客看看字节的岗位
+    tool_name: web_fetch
+    tool_result: '{"type":"error","status":403,"code":"needs_browser","error":"HTTP 403：目标站点拒绝直接读取，需要浏览器"}'
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:humanToneOk
+- description: 连收拒信后的低落——共情一句，不说教不列清单
+  vars:
+    task: chat_reply
+    message: 又挂了 是不是我太菜了
+    state: 〔现在的进度〕经历 3 段 · 主简历 1 份 · 方向 后端/北京 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:humanToneOk
+- description: 经历删掉了——一句话说删了哪段
+  vars:
+    task: chat_reply
+    message: 那段字节的实习是我瞎填的 删了吧
+    tool_name: experience_remove
+    tool_result: '{"ok":true,"removed":"字节跳动 · 后端开发实习"}'
+    expect_mention: [字节]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:humanToneOk

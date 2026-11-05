@@ -48,11 +48,12 @@
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk
-- description: ③ 一家公司现在的招聘信息——官网最准
+- description: ③ 一家公司现在的招聘信息——先查自己的岗位库，或去官网 / 搜索
   vars:
     task: chat_first_step
     message: 美团现在校招还有哪些北京的后端岗位？
-    expect_tool: [browser_open, web_search]
+    # 工具面与产品一致后，岗位库 jobs_board 也在；库里的岗位都可投（11-01 定），先查库是对的
+    expect_tool: [jobs_board, browser_open, web_search]
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk

@@ -18,4 +18,6 @@ tests:
   - file://cases/exam-grade.yaml
   - file://cases/browse-step.yaml
   - file://cases/chat-first-step.yaml
+  - file://cases/mainline-first-step.yaml
+  - file://cases/chat-reply.yaml
 outputPath: ./results/latest.json

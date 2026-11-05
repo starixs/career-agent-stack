@@ -68,5 +68,33 @@ export function browseStepOk(output, { vars }) {
   if (tools.length && !tools.includes(tool)) return fail(`下一步应该是 ${tools.join(' / ')}，实际是 ${tool || '无'}`)
   if (vars.expect_ref != null && Number(args.ref) !== Number(vars.expect_ref)) return fail(`应该操作元素 ${vars.expect_ref}，实际 ${args.ref}`)
   if (vars.expect_observation_id && tool === 'browser_act' && args.observation_id && args.observation_id !== vars.expect_observation_id) return fail(`用了旧的观察编号 ${args.observation_id}`)
+  if (vars.expect_args) {
+    const wrong = Object.entries(vars.expect_args).filter(([k, v]) => JSON.stringify([].concat(args[k] ?? []).map(String).sort()) !== JSON.stringify([].concat(v).map(String).sort()))
+    if (wrong.length) return fail(`参数不对：${wrong.map(([k]) => `${k}=${JSON.stringify(args[k])}`).join('，')}`)
+  }
   return { pass: true, score: 1, reason: `${tool} ${JSON.stringify(args).slice(0, 80)}` }
+}
+
+/** 开发 / 控制台用语：出现在给求职学生的回复里就是没把他当人看（10-03、10-17 实例）。 */
+const DEV_WORDS = ['工具', '技能', '会话', '队列', '占位符', '数据层', '接口', '服务端', 'JSON', 'MCP', 'API', '参数', '状态码', 'pending', 'more_actions']
+/** 把活推回给他的收尾（真北第 9 条：协作本身不能成为新劳动）。 */
+const HAND_BACK = /(发我|发给我|贴给我|贴过来|告诉我|说一声|回复我|你再发|你去.{0,6}(填|找|看))[。！？!?\s]*$/
+
+/**
+ * 小芽回给用户的那段话像不像一个靠谱学长：不说开发词、不露内部 id、最多一个问题、
+ * 不用表格标题、短（≤4 段）、不以「发我 / 告诉我」收尾；vars.expect_mention 里的词都要提到。
+ */
+export function humanToneOk(output, { vars }) {
+  const text = String(parse(output)?.text ?? output ?? '')
+  const fail = reason => ({ pass: false, score: 0, reason: `${reason}｜${text.slice(0, 120)}` })
+  const dev = DEV_WORDS.filter(w => text.includes(w))
+  if (dev.length) return fail(`说了开发词：${dev.join('、')}`)
+  if (/\b[a-z]{2,5}_[A-Za-z0-9]{5,}\b/.test(text)) return fail('露出了内部 id')
+  if (/^\s*\|.*\|\s*$/m.test(text) || /^#{1,6}\s/m.test(text)) return fail('用了表格或标题')
+  if ((text.match(/[?？]/g) ?? []).length > 1) return fail('一次问了不止一个问题')
+  if (text.split(/\n\s*\n/).filter(p => p.trim()).length > 4) return fail('超过 4 段')
+  if (HAND_BACK.test(text.trim())) return fail('把活推回给他收尾')
+  const missing = [].concat(vars.expect_mention ?? []).filter(w => !text.includes(w))
+  if (missing.length) return fail(`没提到：${missing.join('、')}`)
+  return { pass: true, score: 1, reason: text.slice(0, 80) }
 }

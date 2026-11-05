@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 // @ts-expect-error 纯 JS 断言模块，没有类型声明
-import { noFabrication, respectsHardConditions, questionsGrounded, gradingCorrect, browseStepOk } from './checks.mjs'
+import { noFabrication, respectsHardConditions, questionsGrounded, gradingCorrect, browseStepOk, humanToneOk } from './checks.mjs'
 
 // 评测断言自身的单测：不需要模型 Key，随 pnpm test 跑。
 
@@ -34,6 +34,23 @@ describe('评测断言', () => {
     expect(browseStepOk({ tool: 'browser_act', args: { action: 'click', ref: 5, observation_id: 'o12' } }, { vars: { expect_tool: 'browser_act', expect_ref: 6 } }).pass).toBe(false)
     expect(browseStepOk({ tool: 'browser_act', args: { action: 'click', ref: 6, observation_id: 'o11' } }, { vars: { expect_tool: 'browser_act', expect_ref: 6, expect_observation_id: 'o12' } }).pass).toBe(false)
     expect(browseStepOk({ tool: 'browser_act', args: { action: 'click', ref: 6, observation_id: 'o12' } }, { vars: { expect_tool: 'browser_act', expect_ref: 6, expect_observation_id: 'o12' } }).pass).toBe(true)
+  })
+
+  it('browseStepOk：expect_args 要求页面勾选的 id 原样传进去（顺序不论）', () => {
+    const vars = { expect_tool: 'jobs_apply', expect_args: { job_ids: ['j1', 'j2'] } }
+    expect(browseStepOk({ tool: 'jobs_apply', args: { job_ids: ['j2', 'j1'] } }, { vars }).pass).toBe(true)
+    expect(browseStepOk({ tool: 'jobs_apply', args: { job_ids: ['j1'] } }, { vars }).pass).toBe(false)
+  })
+
+  it('humanToneOk：像学长说话，不像控制台', () => {
+    const ok = { text: '开始投了，美团和字节已经在填，有要你的事会出现在右边。' }
+    expect(humanToneOk(ok, { vars: { expect_mention: ['美团'] } }).pass).toBe(true)
+    expect(humanToneOk({ text: '服务端返回 200，工具调用成功。' }, { vars: {} }).pass).toBe(false)
+    expect(humanToneOk({ text: '动作 act_Gl7f2k 已进入待审。' }, { vars: {} }).pass).toBe(false)
+    expect(humanToneOk({ text: '你想投哪家？北京还是上海？' }, { vars: {} }).pass).toBe(false)
+    expect(humanToneOk({ text: '| 公司 | 状态 |\n|---|---|\n| 美团 | 在填 |' }, { vars: {} }).pass).toBe(false)
+    expect(humanToneOk({ text: '还差证件号，填好了跟我说一声。' }, { vars: {} }).pass).toBe(false)
+    expect(humanToneOk(ok, { vars: { expect_mention: ['拼多多'] } }).pass).toBe(false)
   })
 
   it('browseStepOk：经 more_actions 调收起来的工具，等价于直接调', () => {

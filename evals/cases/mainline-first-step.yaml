@@ -1,0 +1,88 @@
+# 主线说法（泛化性 / 自主性，2026-11-05）：学生的口语、错字、只说半句、在页面上勾了就说"这几个"，
+# 第一步要选对工具、直接动手，不反问。工具面与产品一致（常驻 + more_actions），带每轮注入的主线进度一行。
+- description: 没简历——直接开始聊经历，不让他先去找模板
+  vars:
+    task: chat_first_step
+    message: 我没简历咋整
+    state: 〔现在的进度〕经历 0 段 · 主简历 0 份 · 方向未定 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
+    expect_tool: [experience_interview]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 有经历没主简历，说"弄份简历"——直接生成，不先问两个问题
+  vars:
+    task: chat_first_step
+    message: 帮我弄份简历吧
+    state: 〔现在的进度〕经历 3 段 · 主简历 0 份 · 方向 后端/北京 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
+    expect_tool: [resume_master_create]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 问"咋样了"——查今天的进度，不反问问的是哪家
+  vars:
+    task: chat_first_step
+    message: 咋样了现在
+    state: 〔现在的进度〕经历 3 段 · 主简历 1 份 · 方向 后端/北京 · 近24小时投出 2 家（美团、字节） · 后台在填 1 家、排队 3 家 · 等他处理 1 件。只用来决定下一步，不要复述给他。
+    expect_tool: [today_queue]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 岗位库勾了两个说"这俩投了"——用勾选的 id 直接投
+  vars:
+    task: chat_first_step
+    message: 这俩投了
+    context:
+      surface: page:career-dossier:apply
+      refs:
+        selected_job_ids: [job_mt_backend, job_bd_infra]
+    state: 〔现在的进度〕经历 3 段 · 主简历 1 份 · 方向 后端/北京 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
+    expect_tool: [jobs_apply]
+    expect_args:
+      job_ids: [job_mt_backend, job_bd_infra]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 错字口语说方向——记下求职偏好，不追问细节
+  vars:
+    task: chat_first_step
+    message: 我想找北京上海的后端开发 实习也行校招也行
+    state: 〔现在的进度〕经历 3 段 · 主简历 1 份 · 方向未定 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
+    expect_tool: [job_prefs]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 随口说面试时间——直接记面试，不让他去日历页
+  vars:
+    task: chat_first_step
+    message: 美团那个二面约在下周三下午两点 线上的
+    state: 〔现在的进度〕经历 3 段 · 主简历 1 份 · 方向 后端/北京 · 近24小时投出 2 家（美团、字节） · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
+    expect_tool: [interview_book, deadline_add]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 经历写错了要删——自己删，不让他去界面上删
+  vars:
+    task: chat_first_step
+    message: 那段字节的实习是我瞎填的 删了吧
+    context:
+      surface: page:career-material
+      refs:
+        experience_id: exp_bd_intern
+    state: 〔现在的进度〕经历 4 段 · 主简历 1 份 · 方向 后端/北京 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
+    expect_tool: [experience_remove]
+    expect_args:
+      experience_id: exp_bd_intern
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
+- description: 转发来一段拒信——收进收件箱归档，不只是安慰
+  vars:
+    task: chat_first_step
+    message: |
+      收到这个了 唉
+      「感谢您对京东的关注。经过慎重评估，很遗憾您的背景与本次岗位要求暂不匹配……」
+    state: 〔现在的进度〕经历 3 段 · 主简历 1 份 · 方向 后端/北京 · 近24小时没有投出 · 后台没有在填 · 等他处理 0 件。只用来决定下一步，不要复述给他。
+    expect_tool: [inbox_capture]
+  assert:
+    - type: javascript
+      value: file://asserts/promptfoo.mjs:browseStepOk
