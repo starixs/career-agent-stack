@@ -1081,7 +1081,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ master: resumeSummary(master), master_id: master.id, drafted: !!draft, confirmed_claims: claims.length, used_claim_ids: usedClaimIds, missing, notes: draftNotes, note });
       })()),
 
-      tool('resume_get', '读取一份简历（主简历或定制版）的完整 JSON 内容。', { resume_id: z.string().optional().describe('缺省取唯一的主简历') }, async (args) => wrap(() => {
+      tool('resume_get', '读取一份简历（主简历或定制版）的完整内容。', { resume_id: z.string().optional().describe('缺省取唯一的主简历') }, async (args) => wrap(() => {
         const found = args.resume_id ? store().getResume(args.resume_id) : { kind: 'master' as const, row: resolveMaster() };
         if (!found) return err(`简历不存在：${args.resume_id}`);
         return text({ id: found.row.id, kind: found.kind, resume: parseJson(found.row.schema_json) ?? {} });
@@ -1252,7 +1252,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ prefs, rematched: n });
       })()),
 
-      tool('jobs_apply', '投这几个岗位（用户说「这些都投了」「投这 20 个」时用）：一次就开始——逐个冻结材料包、交给后台批量运行器填到提交前停下；标星的填好后先给他看，其余检查全过的合成「一键投出」。已在投、已投过、没有网申链接的跳过并给原因。没有定制版又有好几份主简历时，默认用最近改过的那份（结果里 resume 写明用了哪份）。不用你逐份 apply_run；回复一两句：开始了几家、跳过几家，要他做的事会出现在右边的「等你」里，进展也在右边。不要让他回话确认。', {
+      tool('jobs_apply', '投这几个岗位（用户说「这些都投了」「投这 20 个」时用）：一次就开始——每家用定好的那版材料，在后台填到提交前停下；标星的填好后先给他看，其余检查全过的合成「一键投出」。已在投、已投过、没有网申链接的跳过并给原因。没有定制版又有好几份主简历时，默认用最近改过的那份（结果里 resume 写明用了哪份）。不用你逐份 apply_run；回复一两句：开始了几家、跳过几家，要他做的事会出现在右边的「等你」里，进展也在右边。不要让他回话确认。', {
         job_ids: z.array(z.string()).min(1).max(50), resume_id: z.string().optional().describe('统一用这份简历（定制版仍优先）；不传则用最近改过的主简历'),
       }, async (args) => wrap(async () => {
         const { applyJobs, planJobs } = await import('../career/batch-apply');
@@ -1430,7 +1430,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ job: { id: job.id, title: job.title, company_name: job.company_name, url: job.url }, parsed_title: (parsed as { title?: string }).title ?? null, note: '已收录。接下来可以 job_evaluate；用户决定投递就 apply_prepare（会让用户批准）。' });
       })()),
 
-      tool('review_queue', '列出动作队列（默认 pending_review）。', {
+      tool('review_queue', '看等他批准的那几件事（填好待提交的网申、写好待发的招呼语等），默认只列还没批的。跟他说时只用公司和岗位名。', {
         status: z.enum(['pending_review', 'approved', 'executing', 'needs_user', 'done', 'failed', 'rejected']).optional(),
       }, async (args) => wrap(() => text(repos().listActions(args.status ?? 'pending_review')))()),
 
