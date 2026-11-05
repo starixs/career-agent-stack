@@ -190,16 +190,18 @@ describe('面试助力 · 复盘', () => {
     expect((await screen.findAllByText('无反馈（推测）')).length).toBeGreaterThan(0);
     // 结果是哪来的不占一行字：推测出来的章是虚线框，悬停看得到来源
     expect(screen.getByTitle('推测')).toBeInTheDocument();
-    expect(screen.getByText('进入下一轮')).toBeInTheDocument();
-    expect(screen.getByText('问了限流的实现')).toBeInTheDocument();
-    expect(screen.getByText('表达清晰')).toBeInTheDocument();
-    expect(screen.getByText('限流')).toBeInTheDocument();
+    // 页面上不再铺原始过程记录和标签字段
+    expect(screen.queryByText('问了限流的实现')).toBeNull();
   });
 
-  it('技能约定结构的复盘：一排点阵块分项，每道题一张追问卡（轨道标出卡在第几层、重答是卡里的便签），要补的是待办', async () => {
+  it('复盘是两栏：左边是这一轮在看什么和提问逻辑，右边一问一答；点一个考察点只看它的题，「按这些点练」带着考察点发进对话', async () => {
     const retro = {
       focus_this_round: '数字的口径',
-      questions: [{ quote: '30% 是怎么统计的？', intent: '核对数字来源', stuck_layer: 2, interviewer_doubt: { evidence: '没说统计周期', alternative: '' } }],
+      questions: [
+        { quote: '30% 是怎么统计的？', point: '数字的口径', answer: '运营反馈的', good: [], lacking: ['没有统计周期'], stuck_layer: 2, interviewer_doubt: { evidence: '没说统计周期', alternative: '' } },
+        { quote: '缓存怎么不读到旧值？', point: '缓存一致性', answer: '更新后删缓存', good: ['讲到了删缓存'], lacking: [], stuck_layer: 0 },
+      ],
+      logic: [{ point: '数字的口径', why: '简历里的百分比都会被追问', review: '写下周期和基线' }, { point: '缓存一致性', why: '顺着项目问基础', review: '缓存更新策略' }],
       retakes: [{ question: '30% 是怎么统计的？', answer: '按工单工时算', needs_verification: ['前后各四周的工时'] }],
       todo: { facts: ['把口径写下来'], delivery: [] },
     };
@@ -208,22 +210,24 @@ describe('面试助力 · 复盘', () => {
       if (path.startsWith('/api/career/interviews')) return { ok: true, interviews: [{ ...interviews[0], retro_json: JSON.stringify(retro) }] };
       return { ok: true };
     });
+    const chat = captureChat();
     render(<CareerInterview />);
     await openTab('复盘');
-    expect(await screen.findByText('数字的口径')).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '这一轮在看' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '追到第 2 层卡住' })).toBeInTheDocument();
-    expect(screen.getByText('没说统计周期')).toBeInTheDocument();
-    // 分项一次只看一项；同一道题的重答贴在这道题的卡里，不再另开一项
-    const stuck = screen.getByRole('tab', { name: '卡住：1 处' });
-    expect(stuck).toHaveAttribute('aria-selected', 'true');
-    expect(within(stuck).getByRole('img', { name: '问了 1 道，卡住 1 处' })).toBeInTheDocument();
-    expect(screen.getByRole('note', { name: '可以这样答' })).toHaveTextContent('按工单工时算');
-    expect(screen.getByLabelText('先核实：前后各四周的工时')).toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: /重答/ })).toBeNull();
-    expect(screen.queryByText('把口径写下来')).toBeNull();
-    fireEvent.click(screen.getByRole('tab', { name: /回去要补/ }));
+    expect(await screen.findByRole('img', { name: '这一轮在看' })).toBeInTheDocument();
+    const qa = screen.getByRole('list', { name: '一问一答' });
+    expect(within(qa).getByText('30% 是怎么统计的？')).toBeInTheDocument();
+    expect(within(qa).getAllByRole('note', { name: '我答' })[0]).toHaveTextContent('运营反馈的');
+    expect(within(qa).getByRole('img', { name: '追到第 2 层卡住' })).toBeInTheDocument();
+    expect(within(qa).getByRole('note', { name: '可以这样答' })).toHaveTextContent('按工单工时算');
+    expect(within(qa).getByText('讲到了删缓存')).toBeInTheDocument();
+    // 评价不挂「优点 / 不足」小标题，用勾和点区分
+    expect(screen.queryByText(/优点|不足/)).toBeNull();
+    fireEvent.click(within(screen.getByRole('list', { name: '提问逻辑' })).getByRole('button', { name: /缓存一致性/ }));
+    expect(within(qa).queryByText('30% 是怎么统计的？')).toBeNull();
     expect(screen.getByText('把口径写下来')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '按这些点练' }));
+    expect(chat.said[0]).toMatchObject({ text: '按丙公司这场面试的考察点（数字的口径、缓存一致性）出几道题考我，再找几篇相近的面经一起练', context: { refs: { interview_id: 'i1' } } });
+    chat.off();
   });
 
   it('新建记录调用 POST /api/career/interviews', async () => {
@@ -265,7 +269,9 @@ describe('面试助力 · 复盘', () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, interview: interviews[1] });
     const chat = captureChat();
     render(<CareerInterview />);
-    fireEvent.click(await screen.findByText('丁公司 · 算法工程师'));
+    fireEvent.click(await screen.findByRole('button', { name: /^丁公司/ }));
+    // 没有录音时才说几句：次要入口，点开才出输入框
+    fireEvent.click(screen.getByRole('button', { name: '没有录音，说几句' }));
     fireEvent.change(screen.getByLabelText('说几句复盘'), { target: { value: '被问了为什么转算法，答得有点虚' } });
     fireEvent.click(screen.getByRole('button', { name: '开始复盘' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/interviews/i2/retro', { words: '被问了为什么转算法，答得有点虚' }));
@@ -277,9 +283,9 @@ describe('面试助力 · 复盘', () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, recording: { id: 'r1', interview_id: 'i1', name: '一面.m4a', mime: 'audio/mp4', size: 5, status: 'awaiting_asr', uploaded_at: '2026-11-06' } });
     render(<CareerInterview />);
-    // 这场已经复盘过，输入框收着，点开再传
-    fireEvent.click(await screen.findByRole('button', { name: '再补几句' }));
-    fireEvent.click(screen.getByRole('button', { name: '传录音' }));
+    // 这场已经复盘过，输入收着；点开是一块能拖录音进来的框
+    fireEvent.click(await screen.findByRole('button', { name: '再补一段' }));
+    expect(screen.getByRole('button', { name: '把面试录音拖进来' })).toBeInTheDocument();
     const file = new File(['audio'], '一面.m4a', { type: 'audio/mp4' });
     fireEvent.change(screen.getByLabelText('选择录音文件'), { target: { files: [file] } });
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledTimes(1));

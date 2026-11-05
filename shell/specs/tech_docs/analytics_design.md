@@ -119,6 +119,11 @@ Core interaction:
 - `message_retry`
 - `message_copy`
 
+Career interview retro (what users feed the retro and whether they act on the extracted question logic; the base for personalised question / interview-experience pushes):
+
+- `career_retro_submit`: `kind` is `recording` or `words`.
+- `career_retro_practice`: `points` is how many question-logic points were sent to practice.
+
 Thinking export and copy:
 
 - `thinking_copy`
