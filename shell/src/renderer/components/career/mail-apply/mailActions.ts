@@ -33,6 +33,12 @@ export async function declineMails(ask: AskView, respond: Respond, ids: readonly
   return 'resolved';
 }
 
+/** 几封里只拒绝这一封（跟进「这家不跟了」，不 drop）：还剩别的就留着这件事。 */
+export async function declineOne(respond: Respond, id: string, remaining: number): Promise<AskOutcome> {
+  if (!(await respond([id], 'rejected'))) throw new Error('没能保存你的决定，请重试');
+  return remaining > 1 ? 'kept' : 'resolved';
+}
+
 /** 打开卡组定位到含这几封邮件的那件；还没派生出来（找不到）就从最急的开始。 */
 export async function openDeckForMail(actionIds: readonly string[]): Promise<void> {
   const { asks } = await deliveryApi.asks(localMidnightIso());

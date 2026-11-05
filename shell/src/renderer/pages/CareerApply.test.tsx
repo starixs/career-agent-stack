@@ -134,7 +134,7 @@ describe('CareerApply · 岗位库', () => {
     expect(await screen.findByText('点了提交，但没等到成功提示')).toBeInTheDocument();
     expect(screen.getByText('丙公司 · 后端工程师')).toBeInTheDocument();
     expect(screen.getByText('（自学习免确认）')).toBeInTheDocument();
-    fireEvent.click(screen.getByLabelText('检查都过了就直接交'));
+    fireEvent.click(screen.getByLabelText('检查都过了就直接投出'));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/apply/settings', { auto_mode: true }));
     fireEvent.click(screen.getByRole('button', { name: '已投递成功' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/act9/confirm-submit', { submitted: true }));

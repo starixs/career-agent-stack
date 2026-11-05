@@ -37,8 +37,9 @@ export function draft(over: Partial<MailDraftView> & Pick<MailDraftView, 'action
     body: body(over.role, POINTS, '我每周可实习 4 天，可连续实习 6 个月，最早两周内到岗。简历见附件，期待您的回复。'),
     from: { account_id: 'acc_qq', address: 'zhouzihang@qq.com' },
     accounts: [{ account_id: 'acc_qq', address: 'zhouzihang@qq.com' }],
-    attachments: [{ filename: '北京邮电大学-周子航-信息管理-2027届.pdf', resume_id: 'r_tailored', resume_label: '产品运营定制版', tailored_changes: 4 }],
+    attachments: [{ id: 'att_resume', kind: 'resume', filename: '北京邮电大学-周子航-信息管理-2027届.pdf', resume_id: 'r_tailored', resume_label: '产品运营定制版', tailored_changes: 4 }],
     resume_options: [{ id: 'r_tailored', label: '产品运营定制版' }, { id: 'r_master', label: '产品方向主简历' }],
+    file_options: [], portfolio: { url: null, included: false }, wanted: [],
     blockers: [], availability: { days_per_week: '4', months: '6', start: '两周内' }, thread: null,
     ...over,
   };
@@ -50,7 +51,38 @@ export const MULTI = [
   draft({ action_id: 'm_jd', company: '京东', role: '用户运营实习生', to: 'jdcampus@jd.example' }),
   draft({ action_id: 'm_mt', company: '美团', role: '产品运营实习生', target: true, to: 'campus-ops@meituan.example' }),
   draft({ action_id: 'm_dj', company: '大疆', role: '市场策划实习生', to: 'dji-hr@dji.example',
-    attachments: [{ filename: '北京邮电大学-周子航-信息管理-2027届.pdf', resume_id: 'r_master', resume_label: '产品方向主简历', tailored_changes: null }] }),
+    attachments: [{ id: 'att_resume', kind: 'resume', filename: '北京邮电大学-周子航-信息管理-2027届.pdf', resume_id: 'r_master', resume_label: '产品方向主简历', tailored_changes: null }] }),
+];
+
+/** 多附件：定制简历 + 存过的作品集文件，正文带着作品集链接那一行；岗位要成绩单还没带；存过的证书可点一下附上。 */
+export const WITH_FILES = draft({
+  action_id: 'm_bd', company: '字节跳动', role: '产品经理实习生', to: 'campus@bytedance.example',
+  body: body('产品经理实习生', POINTS, '作品集：https://zhouzihang.design\n我每周可实习 4 天，可连续实习 6 个月，最早两周内到岗。简历见附件，期待您的回复。'),
+  attachments: [
+    { id: 'att_resume', kind: 'resume', filename: '北京邮电大学-周子航-信息管理-2027届.pdf', resume_id: 'r_tailored', resume_label: '产品运营定制版', tailored_changes: 3 },
+    { id: 'att_pf', kind: 'file', filename: '周子航-作品集.pdf', resume_id: null, resume_label: '作品集', tailored_changes: null },
+  ],
+  file_options: [{ id: 'f_cert', label: '英语六级证书' }],
+  portfolio: { url: 'https://zhouzihang.design', included: true },
+  wanted: ['transcript'],
+});
+
+/** 跟进：投出一周没回音，三家各写好一封「再争取一下」。 */
+function followup(action_id: string, company: string, role: string, to: string, text: string) {
+  return draft({
+    action_id, company, role, to, purpose: 'followup', availability: null,
+    subject: `Re: 周子航-北京邮电大学-${role}-每周4天-实习6个月`,
+    body: `您好：\n\n${text}\n\n周子航`,
+    thread: { subject: `周子航-北京邮电大学-${role}-每周4天-实习6个月`, sent_at: '2026-10-29T02:00:00.000Z' },
+  });
+}
+export const FOLLOWUPS = [
+  followup('f_jd', '京东', '用户运营实习生', 'jdcampus@jd.example',
+    '10 月 29 日我投了用户运营实习生。补充一点上次没提的：我在社团用 SQL 搭过活动复盘看板，岗位里写的「用数据跟踪拉新效果」我能直接上手。到岗时间也可以按团队安排提前。需要补什么材料随时告诉我。'),
+  followup('f_mt', '美团', '产品运营实习生', 'campus-ops@meituan.example',
+    '10 月 29 日我投了产品运营实习生。岗位里提到「商家侧活动策划」，我在字节实习时独立跑完两次拉新活动，从方案到复盘都是我做的。方便时告诉我一下进展就好。'),
+  followup('f_dj', '大疆', '市场策划实习生', 'dji-hr@dji.example',
+    '10 月 29 日我投了市场策划实习生。岗位要求「独立撰写传播方案」，我运营学院公众号一年，单篇最高阅读 4.6 万。每周可以来 5 天。如需作品样例我可以马上发过来。'),
 ];
 
 export const BLOCKED = draft({
@@ -121,5 +153,8 @@ export const THREAD: MailThreadView = {
       at: '2026-11-05T03:12:00.000Z', action_id: null, kind: null },
     { id: 'mm_pending', direction: 'pending', purpose: 'reply', counterpart: 'wangli@jd.example', subject: REPLY.subject, body: REPLY.body,
       attachments: [], at: '2026-11-05T03:20:00.000Z', action_id: 'm_re', kind: null },
+    { id: 'mm_iv', direction: 'in', purpose: null, counterpart: 'interview@jd.example', subject: '用户运营实习生 · 一面安排',
+      body: '周同学好，邀请你参加 11 月 8 日（周六）15:00 的线上一面，会议链接稍后发你。', attachments: [],
+      at: '2026-11-05T05:00:00.000Z', action_id: null, kind: 'interview_invite' },
   ],
 };

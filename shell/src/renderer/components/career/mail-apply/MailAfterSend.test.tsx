@@ -157,7 +157,9 @@ describe('一份申请的邮件往来', () => {
     expect(within(out).queryByText(/想应聘贵司/)).toBeNull();
     fireEvent.click(within(out).getByRole('button', { name: '看正文' }));
     expect(within(out).getByText(/想应聘贵司/)).toBeInTheDocument();
-    expect(screen.getByTestId('thread-in-mm_auto')).toHaveTextContent('自动回复');
+    expect(screen.getByTestId('thread-in-mm_auto')).toHaveTextContent('确认信');
+    expect(screen.getByTestId('thread-in-mm_iv')).toHaveTextContent('面试邀请');
+    expect(screen.getByTestId('thread-in-mm_in').querySelector('.cm-th-kind')).toBeNull();
     expect(screen.getByTestId('thread-in-mm_in')).toHaveTextContent('王莉 <wangli@jd.example>');
     const opened = vi.fn();
     const off = onEvent<{ id?: string }>(OPEN_DECK_EVENT, p => opened(p?.id));
@@ -201,12 +203,13 @@ describe('收口：卡组放高、回信附件', () => {
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail-apply/drafts/m_re', { resume_id: 'r_master' }));
   });
 
-  it('没附件也没简历可附：附件这一行不出现', async () => {
+  it('没附件也没简历可附：附件那行只剩一个安静的「加附件」（R1：随时能加本地文件），没有「附上简历」', async () => {
     const none = { ...REPLY, resume_options: [] };
     serve([mailAsk([none], '京东 回信了')], [none]);
     render(<WaitingDock />);
     const card = await openDeck();
-    expect(within(card).queryByText('附件')).toBeNull();
+    const row = within(card).getByTestId('mail-attachments');
+    expect(within(row).getAllByRole('button').map(b => b.textContent)).toEqual(['加附件']);
     expect(within(card).queryByRole('button', { name: '附上简历' })).toBeNull();
   });
 });

@@ -43,6 +43,7 @@ describe('按钮字与能发出的封数', () => {
     expect(mailLabels('apply', 1, 1)).toEqual({ go: '发出', later: '不投这家' });
     expect(mailLabels('apply', 2, 3)).toEqual({ go: '发出 2 封', later: '先收起' });
     expect(mailLabels('followup', 1, 1)).toEqual({ go: '发出', later: '不跟了' });
+    expect(mailLabels('followup', 3, 3)).toEqual({ go: '发出 3 封', later: '先收起' });
     expect(mailLabels('reply', 1, 1)).toEqual({ go: '发出', later: '我自己回' });
   });
 

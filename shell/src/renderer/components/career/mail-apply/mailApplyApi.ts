@@ -6,8 +6,8 @@
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 
 import {
-  isMailDraftView, isMailThreadView, MAIL_APPLY_API,
-  type InternAvailability, type MailDraftPatch, type MailDraftView, type MailThreadView,
+  isMailDraftView, isMailFileOption, isMailThreadView, MAIL_APPLY_API,
+  type InternAvailability, type MailDraftPatch, type MailDraftView, type MailFileOption, type MailFileUpload, type MailThreadView,
 } from '../../../../shared/careerMailApply';
 
 const isDict = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -44,6 +44,16 @@ export function parseThread(raw: unknown, applicationId: string): MailThreadView
   throw new Error('没取到这份的邮件往来');
 }
 
+/** 存文件的返回：存下的那个文件 + 附上之后的那封（没带 action_id 时为 null）。 */
+export function parseUploaded(raw: unknown, name: string): { file: MailFileOption; draft: MailDraftView | null } {
+  const file = field(raw, 'file');
+  const draft = field(raw, 'draft');
+  if (isMailFileOption(file) && (draft === null || draft === undefined || isMailDraftView(draft))) return { file, draft: draft ?? null };
+  // 只记扩展名，文件名可能带他的名字
+  console.warn('[career] mail-apply: 存文件返回的形状不对 ext=', name.split('.').pop() ?? '');
+  throw new Error('没能附上，请重试');
+}
+
 export const mailApplyApi = {
   drafts: (actionIds: readonly string[]) =>
     apiGetJson<unknown>(`${MAIL_APPLY_API.drafts}?ids=${encodeURIComponent(actionIds.join(','))}`).then(r => parseDrafts(field(r, 'drafts'))),
@@ -51,6 +61,8 @@ export const mailApplyApi = {
     apiPostJson<unknown>(MAIL_APPLY_API.draft(actionId), patch).then(r => parseOne(field(r, 'draft'), actionId)),
   availability: (value: InternAvailability) =>
     apiPostJson<unknown>(MAIL_APPLY_API.availability, value).then(r => parseDrafts(field(r, 'drafts'))),
+  upload: (upload: MailFileUpload) =>
+    apiPostJson<unknown>(MAIL_APPLY_API.files, upload).then(r => parseUploaded(r, upload.name)),
   thread: (applicationId: string) =>
     apiGetJson<unknown>(MAIL_APPLY_API.thread(applicationId)).then(r => parseThread(field(r, 'thread'), applicationId)),
 };

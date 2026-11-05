@@ -17,9 +17,13 @@ import './mail-apply.css';
 
 const OUT_LABEL: Record<MailPurpose, string> = { apply: '投递邮件', followup: '跟进', reply: '回信' };
 const PENDING_LABEL: Record<MailPurpose, string> = { apply: '看写好的投递邮件', followup: '看写好的跟进', reply: '看写好的回信' };
-/** 来信的种类（服务端归类）里值得在往来上点一句的。 */
-const IN_KIND_LABEL: Partial<Record<string, string>> = {
-  application_received: '自动回复', interview_invite: '面试邀请', written_test: '笔试', assessment: '测评', rejection: '不合适', offer: 'Offer',
+/**
+ * 来信的种类（服务端归类）说成人话；其它（other / jd / 没归类）不标。
+ * 退信的种类名服务端还没定，先认 bounce / bounced（交付报告里写明）。
+ */
+export const IN_KIND_LABEL: Partial<Record<string, string>> = {
+  application_received: '确认信', interview_invite: '面试邀请', written_test: '笔试', assessment: '测评', rejection: '不合适', offer: 'Offer',
+  bounce: '被退回', bounced: '被退回',
 };
 
 function OutRow({ item }: { item: MailThreadItem }) {

@@ -50,15 +50,16 @@ const GO: Partial<Record<string, string>> = { assessment: '去做测评', writte
 
 /**
  * 发邮件前过目的两个按钮：n = 这一下能发出的封数（勾选且不差东西的）。
- * 投递：一封「发出 / 不投这家」，几封「发出 n 封 / 先收起」；跟进「发出 / 不跟了」；回 HR「发出 / 我自己回」。
+ * 一封：投递「发出 / 不投这家」，跟进「发出 / 不跟了」，回 HR「发出 / 我自己回」；几封（投递、跟进）「发出 n 封 / 先收起」。
  * 被退回的那封：「改好了，重发 / 不投这家」。
  */
 export function mailLabels(purpose: MailPurpose, n: number, total: number, bounced = false): { go: string; later: string } {
   if (bounced) return { go: '改好了，重发', later: '不投这家' };
-  const go = total > 1 ? `发出 ${n} 封` : '发出';
-  if (purpose === 'followup') return { go, later: '不跟了' };
-  if (purpose === 'reply') return { go, later: '我自己回' };
-  return { go, later: total > 1 ? '先收起' : '不投这家' };
+  // 几封合成一件（投递、跟进）：发出勾的那几封 / 先收起；跟进里某一家不跟了另有「这家不跟了」
+  if (total > 1) return { go: `发出 ${n} 封`, later: '先收起' };
+  if (purpose === 'followup') return { go: '发出', later: '不跟了' };
+  if (purpose === 'reply') return { go: '发出', later: '我自己回' };
+  return { go: '发出', later: '不投这家' };
 }
 
 /** 邮件没写成 / 没发出去：没有「我自己来」（那是去浏览器接手网申）。 */

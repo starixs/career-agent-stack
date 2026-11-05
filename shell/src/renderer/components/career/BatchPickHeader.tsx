@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { requestNavigation } from '@/features/career-shell/navModel';
 
 import { careerApi } from './careerApi';
+import { delegateDone, delegateQuestion } from './trustText';
 
 /** 「前 20」预设的家数。 */
 export const TOP_PRESET = 20;
@@ -109,14 +110,14 @@ function Notes({ rows, onePer, released }: { rows: HeaderRow[]; onePer: boolean;
 function DelegateLine({ entry }: { entry: HeaderData['propose_delegate'][number] }) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (done) return <p className="text-xs text-[var(--muted)]">好，{entry.label}这类以后直接投</p>;
+  if (done) return <p className="text-xs text-[var(--muted)]">{delegateDone(entry)}</p>;
   const stamp = () => careerApi.trust(entry.key, 'delegate').then(() => setDone(true)).catch((e: unknown) => {
     console.warn(`[career-card] batch_pick delegate ${entry.key} failed:`, e instanceof Error ? e.message : e);
     setError('没盖上章，再点一次试试');
   });
   return (
     <p className="flex items-center gap-2 text-xs text-[var(--ink-2)]">
-      {entry.label}这类你看过 {entry.successes} 份了，以后直接投？
+      {delegateQuestion(entry)}
       <button type="button" onClick={() => void stamp()} className="rounded border border-[var(--line)] px-1.5 text-xs text-[var(--ink)] hover:bg-[var(--hover)]">好</button>
       {error && <span className="text-[var(--danger)]">{error}</span>}
     </p>

@@ -49,6 +49,26 @@
 .cm-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cm-file-note { flex: none; font-size: 12px; color: var(--muted); }
 .cm-swap { flex: none; width: 116px; }
+/* 几个附件：一行放不下就换行 */
+.cm-files.is-wrap { flex-wrap: wrap; gap: 8px 10px; }
+.cm-chip { cursor: default; }
+/* 简历签和「换一份」不分开：放不下时文件名先省略，不把「换一份」挤到下一行（F2） */
+.cm-files-resume { display: inline-flex; flex: 0 1 auto; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+.cm-files-resume:empty { display: none; }
+/* 「拿掉」悬停或聚焦才出现（卡片动作悬停才出现，规范 §6.1） */
+.cm-chip-x { display: inline-flex; flex: none; align-items: center; gap: 2px; max-width: 0; overflow: hidden; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; transition: max-width 120ms; }
+.cm-chip-x svg { width: 12px; height: 12px; flex: none; }
+.cm-chip:hover .cm-chip-x, .cm-chip:focus-within .cm-chip-x, .cm-chip-x.is-shown { max-width: 64px; margin-left: 2px; }
+.cm-chip-x:hover { color: var(--ink); }
+/* 存过的文件、没带上的作品集链接：灰的，点一下附上 */
+.cm-opt { padding: 5px 10px; border: 1px dashed var(--line-2); border-radius: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.cm-opt:hover:not(:disabled) { color: var(--ink-2); border-color: var(--ink-2); }
+/* 岗位要、这封还没带：钢笔蓝小签（要你动手） */
+.cm-want { padding: 4px 10px; border: 1.5px solid var(--primary); border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--primary); cursor: pointer; }
+.cm-want:disabled { opacity: 0.4; cursor: default; }
+.cm-want-open { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cm-link { width: 220px; padding: 4px 8px; border: 1px solid var(--line-2); border-radius: 6px; background: transparent; color: var(--ink); font-size: 13px; outline: none; }
+.cm-link:focus { border-color: var(--ink-2); }
 .cm-from { font-size: 12px; color: var(--muted); }
 .cm-from-pick { display: inline-block; width: 240px; }
 

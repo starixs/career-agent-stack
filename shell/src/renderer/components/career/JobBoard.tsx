@@ -26,7 +26,7 @@ import { WaitingDock } from './delivery/WaitingDock';
 import { ApplyConfirm } from './JobBoardApply';
 import { TargetStar } from './TargetStar';
 import { useRangeSelect } from './useRangeSelect';
-import type { EmploymentType, JobBoardRow, JobPrefs } from './types';
+import type { EmploymentType, Job, JobBoardRow, JobPrefs } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
 const FACETS: Array<{ key: FacetKey; label: string }> = [
@@ -338,12 +338,7 @@ function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked
           {stageAction.error && <div role="alert" className="text-xs text-[var(--danger)]">{stageAction.error}</div>}
         </td>
         <td className="px-2 py-2">
-          {/* JD 写了投递邮箱的走邮件投递（服务端 applyChannelOf：有邮箱就是邮件），「投这 N 家」照样能选 */}
-          {job.apply_email
-            ? <Pill>邮件投递</Pill>
-            : job.url
-            ? <ExternalLink href={job.url} title={`打开网申页面：${job.url}`} className="inline-flex items-center gap-1 text-xs text-[var(--primary)] hover:underline"><ExternalLinkIcon className="h-3.5 w-3.5" strokeWidth={1.75} />网申</ExternalLink>
-            : <Dash />}
+          <ApplyChannelCell job={job} />
         </td>
       </tr>
       {open && match && (
@@ -370,6 +365,16 @@ function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked
       )}
     </>
   );
+}
+
+/**
+ * 投递方式那一格：JD 写了投递邮箱的走邮件投递（服务端 applyChannelOf：有邮箱就是邮件），「投这 N 家」照样能选；
+ * 只收邮件的岗位没有网申链接，这一格不出空链接（R5：岗位库收只有投递邮箱的岗位）。
+ */
+export function ApplyChannelCell({ job }: { job: Pick<Job, 'url' | 'apply_email'> }) {
+  if (job.apply_email) return <Pill>邮件投递</Pill>;
+  if (!job.url) return <Dash />;
+  return <ExternalLink href={job.url} title={`打开网申页面：${job.url}`} className="inline-flex items-center gap-1 text-xs text-[var(--primary)] hover:underline"><ExternalLinkIcon className="h-3.5 w-3.5" strokeWidth={1.75} />网申</ExternalLink>;
 }
 
 function Dash() {

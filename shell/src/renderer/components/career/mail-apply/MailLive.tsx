@@ -7,7 +7,6 @@
 import { useCareerQuery } from '../useCareerData';
 import { ErrorRow, LoadingRow } from '../CareerPrimitives';
 import type { Application } from '../types';
-import type { InternAvailability, MailDraftPatch } from '../../../../shared/careerMailApply';
 import { deliveryApi, localMidnightIso } from '../delivery/deliveryApi';
 import { mailLiveState, mailSteps, mailWaitingApps, pendingApplyMail } from './liveMail';
 import { openDeckForMail } from './mailActions';
@@ -50,11 +49,9 @@ function PendingSheet({ actionId }: { actionId: string }) {
   if (store.error) return <ErrorRow message={store.error} onRetry={store.reload} />;
   if (!store.drafts) return <LoadingRow text="正在取邮件…" />;
   if (!draft) return null;
-  const patch = async (p: MailDraftPatch) => { store.replace([await mailApplyApi.patch(actionId, p)]); };
-  const saveAvailability = async (v: InternAvailability) => { store.replace(await mailApplyApi.availability(v)); };
   return (
     <>
-      <MailSheet draft={draft} onPatch={patch} onAvailability={saveAvailability} />
+      <MailSheet draft={draft} onPatch={p => store.patch(actionId, p)} onAvailability={store.saveAvailability} onUpload={u => store.upload(actionId, u)} />
       <div className="cd-acts">
         <button type="button" className="cd-go-text" onClick={() => openDeckForMail([actionId]).catch((e: unknown) => {
           console.error('[career] mail-apply open deck FAILED action=', actionId, e instanceof Error ? e.message : String(e));

@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 
-import type { MailDraftView } from '../../../../shared/careerMailApply';
+import type { InternAvailability, MailDraftPatch, MailDraftView, MailFileUpload } from '../../../../shared/careerMailApply';
 import { mailApplyApi } from './mailApplyApi';
 
 interface DraftsState { drafts: MailDraftView[] | null; error: string | null }
@@ -38,5 +38,12 @@ export function useMailDrafts(actionIds: readonly string[]) {
     setState(s => (s.drafts ? { ...s, drafts: s.drafts.filter(d => !gone.has(d.action_id)) } : s));
   }, []);
   const reload = useCallback(() => setTick(t => t + 1), []);
-  return { drafts: state.drafts, error: state.error, replace, remove, reload };
+  // 改一封 / 存文件附上 / 存到岗信息：都用服务端返回的那份换掉，不在本地算
+  const patch = useCallback(async (id: string, p: MailDraftPatch) => { replace([await mailApplyApi.patch(id, p)]); }, [replace]);
+  const upload = useCallback(async (id: string, u: Omit<MailFileUpload, 'action_id'>) => {
+    const { draft } = await mailApplyApi.upload({ ...u, action_id: id });
+    if (draft) replace([draft]);
+  }, [replace]);
+  const saveAvailability = useCallback(async (v: InternAvailability) => { replace(await mailApplyApi.availability(v)); }, [replace]);
+  return { drafts: state.drafts, error: state.error, replace, remove, reload, patch, upload, saveAvailability };
 }

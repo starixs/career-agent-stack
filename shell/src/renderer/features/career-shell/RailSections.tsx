@@ -14,6 +14,7 @@ import { openBatchPick } from '@/components/career/BatchPickCard';
 import { careerApi } from '@/components/career/careerApi';
 import type { ExperienceNode } from '@/components/career/types';
 import { requestOpenDeck } from '@/components/career/delivery/WaitingDock';
+import { delegateButton } from '@/components/career/trustText';
 import type { MainlineStage, RailBlock, RailPool, RailReceipt, RailSnapshot, TrustEntry } from '../../../shared/careerRail';
 
 /** 界面上的四步（用他的话）；服务端阶段 id 不变，released 落在最后一步之后＝四步都做完。 */
@@ -243,7 +244,7 @@ export function Learned({ learned, onChanged }: { learned: ReadonlyArray<TrustEn
           {e.propose && (
             <button type="button" onClick={() => void stamp(e.key)}
               className="ml-auto shrink-0 rounded-md border-[1.5px] border-[var(--primary)] px-2 py-0.5 text-xs font-semibold text-[var(--primary)]">
-              以后同类直接投
+              {delegateButton(e)}
             </button>
           )}
         </li>

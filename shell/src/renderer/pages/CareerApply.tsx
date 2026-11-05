@@ -55,10 +55,10 @@ function AutoModeToggle({ settings, busy, onChange }: { settings: ApplySettings;
   return (
     <label
       className="flex items-center gap-1.5 text-xs text-[var(--muted)]"
-      title={`开启后：填完检查全部通过的网申直接提交，有需要你看的项仍会停下。另外，同一张表你连续 ${settings.learn_threshold} 次没改直接批准、简历和开放题答案没变时，会自动免确认。`}
+      title={`开启后：填完检查全部通过的网申直接提交、写好不差东西的投递邮件直接发出，有需要你看的项仍会停下。另外，同一张表你连续 ${settings.learn_threshold} 次没改直接批准、简历和开放题答案没变时，会自动免确认。`}
     >
-      <input type="checkbox" aria-label="检查都过了就直接交" checked={settings.auto_mode} disabled={busy} onChange={e => onChange(e.target.checked)} />
-      检查都过了就直接交
+      <input type="checkbox" aria-label="检查都过了就直接投出" checked={settings.auto_mode} disabled={busy} onChange={e => onChange(e.target.checked)} />
+      检查都过了就直接投出
     </label>
   );
 }
