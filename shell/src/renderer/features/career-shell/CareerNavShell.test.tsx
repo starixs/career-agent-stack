@@ -70,7 +70,7 @@ describe('CareerNavShell', () => {
     fireEvent.click(screen.getByRole('button', { name: '岗位库' }));
     expect(onOpen).toHaveBeenLastCalledWith({ kind: 'career-dossier', view: 'apply' });
     fireEvent.click(screen.getByRole('button', { name: /功能市场/ }));
-    expect(onOpen).toHaveBeenLastCalledWith({ kind: 'career-guide' });
+    expect(onOpen).toHaveBeenLastCalledWith({ kind: 'career-guide', view: 'home' });
   });
 
   it('opens the first L2 item when entering an area for the first time', () => {

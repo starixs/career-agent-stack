@@ -89,7 +89,8 @@ const MARKET_DOSSIER_VIEWS: ReadonlySet<string> = new Set(['interview', 'offer',
 /** Target opened when an area without L2 items is chosen. */
 export const AREA_DIRECT_TARGET: Partial<Record<NavArea, NavTarget>> = {
   chat: { kind: 'chat' },
-  market: { kind: 'career-guide' },
+  // 点功能市场总是回到首页：技能点详情是首页里点开的一层，不该把人留在上次看的那个技能点里
+  market: { kind: 'career-guide', view: 'home' },
 };
 
 export function areaDefinition(area: NavArea): NavAreaDefinition {

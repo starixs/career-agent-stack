@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn() }));
 
 import { apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
+import { onEvent } from '@/api/eventBus';
 import CareerOffer, { decisionItems } from './CareerOffer';
 import type { Offer } from '@/components/career/types';
 
@@ -25,15 +26,27 @@ describe('CareerOffer', () => {
     expect(await screen.findByText('还没有 Offer')).toBeInTheDocument();
   });
 
-  it('渲染卡片、对比表与需要你决定的项；缺数据标未知', async () => {
+  it('一张对比表：答复期限排最前，薪酬一项一行（只列有人填了的项），缺数据标未知', async () => {
     vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers });
     render(<CareerOffer />);
-    expect((await screen.findAllByText('丙公司 · 后端工程师')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/月薪 \/ 基本 25000 · 月数 15 · 年包合计 375000/).length).toBeGreaterThan(0);
-    expect(screen.getByText('对比')).toBeInTheDocument();
-    expect(screen.getAllByText('未知').length).toBeGreaterThan(0);
+    const table = within(await screen.findByRole('region', { name: '对比' })).getByRole('table');
+    const rowLabels = within(table).getAllByRole('rowheader').map(cell => cell.textContent);
+    expect(rowLabels).toEqual(['答复期限', '月薪 / 基本', '月数', '年包合计', '地点', '内容匹配', '风险']);
+    expect(within(table).getByRole('columnheader', { name: /丙公司/ })).toHaveTextContent('后端工程师');
+    expect(within(table).getByText('375000')).toBeInTheDocument();
+    expect(within(table).getAllByText('未知').length).toBeGreaterThan(0);
     expect(screen.getByText('丁公司 · 算法工程师：薪酬拆解未知，需要你补充')).toBeInTheDocument();
     expect(screen.getByText('丙公司 · 后端工程师：风险「业务线可能调整」是否可接受，需要你决定')).toBeInTheDocument();
+  });
+
+  it('让小芽拆开比：带着手上所有 Offer 的 id 发进对话', async () => {
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers });
+    const said: Array<{ text: string; context?: { refs?: Record<string, unknown> } }> = [];
+    const off = onEvent('career:chat-suggest', (event: (typeof said)[number]) => { said.push(event); });
+    render(<CareerOffer />);
+    fireEvent.click(await screen.findByRole('button', { name: '让小芽拆开比' }));
+    expect(said).toEqual([expect.objectContaining({ text: '把我手上的 Offer 拆开比一比', context: expect.objectContaining({ refs: { offer_ids: 'o1,o2' } }) })]);
+    off();
   });
 
   it('新建 Offer 调用 POST /api/career/offers，薪酬数字转为 number', async () => {

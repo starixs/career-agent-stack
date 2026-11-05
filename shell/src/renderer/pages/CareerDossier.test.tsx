@@ -179,7 +179,7 @@ describe('CareerDossier · 投递记录', () => {
     expect(screen.getByRole('heading', { name: '投递记录' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'interview'); });
     expect(await screen.findByTestId('embedded-interview')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '面试工作台' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '面试助力' })).toBeInTheDocument();
     act(() => { setCareerSubView('career-dossier', 'apply'); });
     expect(await screen.findByTestId('embedded-apply')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '岗位库' })).toBeInTheDocument();

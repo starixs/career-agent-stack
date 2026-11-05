@@ -3,6 +3,7 @@
  * 页面发出的消息带上 `page:<kind>[:<view>]` 作为隐藏上下文的 surface；
  * 对话里那一轮回复结束后，据此挂一张「回到 XX」卡片，点了回到原页面看结果。
  */
+import { WORKBENCHES, findSkillPoint } from '@/components/career/skills/catalog';
 import { surfaceToKind } from '@/features/career-shared/nav';
 import { CAREER_PAGE_KINDS, type CareerPageKind } from '@/types/tab';
 
@@ -35,7 +36,14 @@ export function returnTargetOf(surface: string | null | undefined): PageTarget |
   return kind ? { kind } : null;
 }
 
-/** 二级导航里这一页叫什么；没在导航里的页面退回通用叫法。 */
+/** 功能市场里的页：技能点详情按技能点叫，工作台按工作台叫。 */
+function marketLabel(target: PageTarget): string | null {
+  if (target.kind === 'career-guide') return findSkillPoint(target.view)?.name ?? '功能市场';
+  const bench = WORKBENCHES.find(item => item.open.kind === target.kind && 'view' in item.open && item.open.view === target.view);
+  return bench?.name ?? null;
+}
+
+/** 二级导航里这一页叫什么；功能市场里的页按清单叫；都不是就退回通用叫法。 */
 export function pageLabel(target: PageTarget): string {
   for (const area of NAV_AREAS) {
     const item = area.items.find(candidate => {
@@ -46,5 +54,5 @@ export function pageLabel(target: PageTarget): string {
     });
     if (item) return item.label;
   }
-  return '刚才那一页';
+  return marketLabel(target) ?? '刚才那一页';
 }

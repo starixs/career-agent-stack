@@ -1,7 +1,7 @@
 /**
  * 我的求职月：复盘页，只回看已经发生的事（推进任务归通知中心和日历页）。
  * 顶部五个数（本月四层 + 用我们以来替你投出）→ 花瓶漏斗与过往月份年轮（悬停才出面板）→ 每一天的投递后来怎么样了 → 页底手写一句。
- * 口径见 packages/core/src/review-board.ts。视图：我的求职月 / 调研与方向（嵌入 CareerResearch）。
+ * 口径见 packages/core/src/review-board.ts。视图：我的求职月 / 公司调研（嵌入 CareerResearch）。
  */
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -27,7 +27,7 @@ const CareerResearch = lazy(() => import('@/pages/CareerResearch'));
 type View = 'funnel' | 'research';
 const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
   funnel: { title: '我的求职月', subtitle: '这个月走了多远' },
-  research: { title: '公司调研与方向', subtitle: '投之前先看一眼，也看看还有哪些方向适合你' },
+  research: { title: '公司调研', subtitle: '投之前查一查' },
 };
 
 export default function CareerReview({ embedded = false }: CareerPageProps) {

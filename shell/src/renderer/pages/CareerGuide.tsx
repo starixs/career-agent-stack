@@ -1,43 +1,21 @@
 /**
- * 功能市场（2026-10-13 会议定）：照 Codex 插件市场的样式，一行两个工具，点了直接用，没有「添加」按钮。
- * - 大功能有自己的工作台（面试、笔试、简历），点了跳过去；
- * - 小功能跳到对话，把一句话预填进输入框，可以直接发，也可以先改；
- * - 原来的教程挪进下面的「点子」，一行一个，先统一展示，以后再按用户情况推荐。
+ * 功能市场：把小芽会的本事摆出来（清单见 components/career/skills/catalog.ts，和内置技能一一对应）。
+ *  - 工作台：能独立成事的技能各有一整页，点了过去；
+ *  - 交给小芽：聊天过程中会触发的技能点。点开原地换成详情——特别在哪、怎么用上、做出过什么（照基座展示技能的方式）；
+ *  - 点子：一句话的场景提示，一行一个。
+ * 没有「添加 / 安装」：点了就用。
  */
-import {
-  BarChart3, Building2, ChevronRight, Compass, Crosshair, FileText, History, Library, Mail, MessageSquareQuote, Mic, PenLine, Scale, Send, Target, Users,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-
 import { CareerPage, SectionTitle, suggestToChat } from '@/components/career/CareerPrimitives';
+import { SKILL_POINTS, WORKBENCHES, findSkillPoint } from '@/components/career/skills/catalog';
+import { SkillPointCard, WorkbenchCard } from '@/components/career/skills/SkillCards';
+import { SkillPointDetail } from '@/components/career/skills/SkillPointDetail';
+import { useMarketCounts } from '@/components/career/skills/useMarketCounts';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
 import { requestNavigation, type NavTarget } from '@/features/career-shell/navModel';
+import { useCareerSubView } from '@/features/career-shell/subViewStore';
 
 /** 点了做什么：去一个页面，或把一句话预填进对话输入框。 */
 type MarketAction = { open: NavTarget } | { prefill: string };
-
-export interface MarketItem { name: string; what: string; icon: LucideIcon; action: MarketAction }
-
-export const WORKBENCHES: MarketItem[] = [
-  { name: '面试助力', what: '面试记录、题库刷题、模拟面试和深挖点预测都在这里', icon: Users, action: { open: { kind: 'career-dossier', view: 'interview' } } },
-  { name: '笔试助力', what: '截图粘贴就出答案，先查同公司同岗位的往年题', icon: PenLine, action: { open: { kind: 'career-dossier', view: 'exam-search' } } },
-  { name: '简历编辑', what: '直接看成品，哪里不对说一句就改', icon: FileText, action: { open: { kind: 'career-material', view: 'resume' } } },
-  { name: '题库刷题', what: '挑一个题库练，答完给你点评', icon: Library, action: { open: { kind: 'career-dossier', view: 'interview' } } },
-  { name: 'Offer 对比', what: '薪资、城市、成长一项项比', icon: Scale, action: { open: { kind: 'career-dossier', view: 'offer' } } },
-  { name: '求职漏斗与复盘', what: '投了多少、回了多少、卡在哪一环', icon: BarChart3, action: { open: { kind: 'career-review', view: 'funnel' } } },
-  { name: '公司调研与方向', what: '投之前查查这家公司，也看看还有哪些方向', icon: Building2, action: { open: { kind: 'career-review', view: 'research' } } },
-];
-
-export const CHAT_TOOLS: MarketItem[] = [
-  { name: '网申助手', what: '查看投递进展，继续填写或处理验证', icon: Send, action: { open: { kind: 'career-live' } } },
-  { name: '岗位评估', what: '贴一段 JD，看匹配度、缺口和值不值得投', icon: Target, action: { prefill: '帮我评估这个岗位，JD 是：' } },
-  { name: '投递邮件', what: '起草邮件、附上简历，你批准了才发', icon: Mail, action: { prefill: '帮我给这个岗位写投递邮件，附上简历 PDF' } },
-  { name: '开放题答案', what: '「为什么选我们」这类题按公司写，前后口径一致', icon: MessageSquareQuote, action: { prefill: '帮我写「为什么选择我们」，300 字，给这家公司：' } },
-  { name: '自我介绍', what: '一分钟、三分钟两个版本，面试前随时取用', icon: Mic, action: { prefill: '给我一分钟和三分钟两个版本的自我介绍' } },
-  { name: '预测追问', what: '这家公司最可能深挖你简历的哪几处', icon: Crosshair, action: { prefill: '预测一下这家公司会深挖我简历哪里：' } },
-  { name: '面后复盘', what: '口述一遍刚才的面试，下一轮不再踩坑', icon: History, action: { prefill: '帮我复盘刚才的面试：' } },
-  { name: '方向探索', what: '从你的经历和反馈里找更合适的方向', icon: Compass, action: { prefill: '帮我看看还有哪些方向适合我' } },
-];
 
 export interface Idea { text: string; button: string; action: MarketAction }
 
@@ -50,6 +28,9 @@ export const IDEAS: Idea[] = [
   { text: '隔一阵看一次漏斗就够了：投了多少、卡在哪一环。', button: '看我的求职月', action: { open: { kind: 'career-review' } } },
 ];
 
+/** 功能市场首页；其余取值是正在看的技能点 id。 */
+const HOME_VIEW = 'home';
+
 export function runMarketAction(action: MarketAction, note: string): void {
   if ('prefill' in action) {
     suggestToChat(action.prefill, { surface: 'guide', note }, 'prefill');
@@ -58,64 +39,61 @@ export function runMarketAction(action: MarketAction, note: string): void {
   requestNavigation(action.open);
 }
 
-function ToolGrid({ items }: { items: MarketItem[] }) {
+function IdeaList() {
   return (
-    <ul className="grid grid-cols-1 gap-x-6 gap-y-1 md:grid-cols-2">
-      {items.map(item => {
-        const Icon = item.icon;
-        return (
-          <li key={item.name}>
-            <button
-              type="button"
-              onClick={() => runMarketAction(item.action, `功能市场 · ${item.name}`)}
-              className="group -mx-3 flex w-[calc(100%+1.5rem)] items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--line)] bg-[var(--paper)] text-[var(--ink-2)]">
-                <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-[var(--ink)]">{item.name}</span>
-                <span className="block truncate text-xs text-[var(--muted)]">{item.what}</span>
-              </span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-[var(--subtle)] transition-transform group-hover:translate-x-0.5" aria-hidden />
-            </button>
-          </li>
-        );
-      })}
+    <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
+      {IDEAS.map(idea => (
+        <li key={idea.text} className="flex items-center gap-4 py-2.5">
+          <span className="min-w-0 flex-1 text-sm text-[var(--ink-2)]">{idea.text}</span>
+          <button
+            type="button"
+            onClick={() => runMarketAction(idea.action, `点子 · ${idea.button}`)}
+            className="shrink-0 rounded-md px-2 py-1 text-sm font-medium text-[var(--primary)] hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+          >
+            {idea.button}
+          </button>
+        </li>
+      ))}
     </ul>
   );
 }
 
-export default function CareerGuide({ embedded = false }: CareerPageProps) {
+function MarketHome({ onOpenPoint }: { onOpenPoint: (id: string) => void }) {
+  const counts = useMarketCounts();
   return (
-    <CareerPage embedded={embedded} title="功能市场" subtitle="想做什么，点一下就用">
-      <div className="max-w-4xl space-y-10 px-6 py-6">
-        <section>
-          <SectionTitle>工作台</SectionTitle>
-          <ToolGrid items={WORKBENCHES} />
-        </section>
-        <section>
-          <SectionTitle>交给小芽</SectionTitle>
-          <ToolGrid items={CHAT_TOOLS} />
-        </section>
-        <section>
-          <SectionTitle>点子</SectionTitle>
-          <ul className="space-y-2">
-            {IDEAS.map(idea => (
-              <li key={idea.text} className="flex items-center gap-4 rounded-lg border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
-                <span className="min-w-0 flex-1 text-sm text-[var(--ink)]">{idea.text}</span>
-                <button
-                  type="button"
-                  onClick={() => runMarketAction(idea.action, `点子 · ${idea.button}`)}
-                  className="shrink-0 rounded-md px-2 py-1 text-sm font-medium text-[var(--primary)] hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
-                >
-                  {idea.button}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
+    <div className="max-w-5xl space-y-10 px-6 py-6">
+      <section aria-label="工作台">
+        <SectionTitle>工作台</SectionTitle>
+        <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {WORKBENCHES.map(item => (
+            <li key={item.id}><WorkbenchCard item={item} count={counts[item.id]} onOpen={() => requestNavigation(item.open)} /></li>
+          ))}
+        </ul>
+      </section>
+      <section aria-label="交给小芽">
+        <SectionTitle>交给小芽</SectionTitle>
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {SKILL_POINTS.map(item => (
+            <li key={item.id}><SkillPointCard item={item} count={counts[item.id]} onOpen={() => onOpenPoint(item.id)} /></li>
+          ))}
+        </ul>
+      </section>
+      <section aria-label="点子">
+        <SectionTitle>点子</SectionTitle>
+        <IdeaList />
+      </section>
+    </div>
+  );
+}
+
+export default function CareerGuide({ embedded = false }: CareerPageProps) {
+  const [view, setView] = useCareerSubView<string>('career-guide', HOME_VIEW);
+  const point = findSkillPoint(view);
+  return (
+    <CareerPage embedded={embedded} title="功能市场" subtitle="小芽会的，都在这里">
+      {point
+        ? <SkillPointDetail key={point.id} point={point} onBack={() => setView(HOME_VIEW)} />
+        : <MarketHome onOpenPoint={setView} />}
     </CareerPage>
   );
 }

@@ -28,6 +28,14 @@ describe('page surface ids', () => {
     expect(pageLabel({ kind: 'career-dossier', view: 'apply' })).toBe('岗位库');
   });
 
+  it('功能市场里的页按清单叫：技能点详情叫技能点的名字，工作台叫工作台的名字', () => {
+    expect(pageLabel({ kind: 'career-guide', view: 'job-evaluate' })).toBe('岗位评估');
+    expect(pageLabel({ kind: 'career-guide' })).toBe('功能市场');
+    expect(pageLabel({ kind: 'career-dossier', view: 'interview' })).toBe('面试助力');
+    expect(pageLabel({ kind: 'career-review', view: 'research' })).toBe('公司调研');
+    expect(pageLabel({ kind: 'career-inbox' })).toBe('刚才那一页');
+  });
+
   it('ignores surfaces that are not pages', () => {
     expect(parsePageSurface('today')).toBeNull();
     expect(parsePageSurface('page:not-a-page')).toBeNull();

@@ -1,7 +1,7 @@
 /**
  * 投递记录：一张表列出每条投递走到哪一步；点一行看岗位（JD 与岗位页面）。不再有单条投递的档案页——
  * 投的哪版简历、说过什么、面试准备都交给助理在对话里摊开。
- * 视图：投递记录 / 岗位库 / 助力记录（笔试、面试、模拟面试合一）；面试工作台和 Offer 对比从功能市场打开。
+ * 视图：投递记录 / 岗位库 / 助力记录（笔试、面试、模拟面试合一）；面试助力和 Offer 对比从功能市场打开。
  */
 import { ExternalLink as ExternalLinkIcon, Search, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -39,7 +39,7 @@ const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
   apply: { title: '岗位库', subtitle: '持续更新的校招 / 实习岗位，挑中就能定制、投递' },
   line: { title: '投递记录', subtitle: '投了哪些，走到了哪一步' },
   assist: { title: '助力记录', subtitle: '笔试、面试、模拟面试，每一次助力都在这里' },
-  interview: { title: '面试工作台', subtitle: '面试记录、题库、模拟面试和深挖点预测' },
+  interview: { title: '面试助力', subtitle: '面试前准备，面完复盘' },
   offer: { title: 'Offer 对比', subtitle: '把拿到的 Offer 放在一起比' },
   'exam-search': { title: '笔试助力', subtitle: '截图或粘贴题目，先查题库再作答' },
 };
@@ -99,7 +99,7 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
       {view !== 'line' && view !== 'assist' && (
         <Suspense fallback={<div className="px-4"><LoadingRow /></div>}>
           {view === 'apply' && <CareerApply embedded />}
-          {view === 'interview' && <CareerInterview embedded />}
+          {view === 'interview' && <CareerInterview />}
           {view === 'offer' && <CareerOffer embedded />}
           {view === 'exam-search' && <CareerExamSearch />}
         </Suspense>
