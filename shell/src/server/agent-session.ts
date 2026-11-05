@@ -11881,6 +11881,8 @@ async function startStreamingSession(preWarm = false): Promise<void> {
           { hooks: [async (input: HookInput) => (await import('./career/attachment-hooks')).careerAttachmentPromptHook(input)], timeout: 300 },
           // 连收拒信后他第一次说话：开头一句带他自己的基数（低谷面）
           { hooks: [async (input: HookInput) => (await import('./career/attachment-hooks')).careerLowPointPromptHook(input)], timeout: 10 },
+          // 主线进度一行：模型据此决定下一步，不用每轮先摸底（career/mainline-state.ts）
+          { hooks: [async (input: HookInput) => (await import('./career/attachment-hooks')).careerMainlineStateHook(input)], timeout: 10 },
         ],
         // Product plan/read-only and MCP boundaries apply in every SDK mode.
         // SDK 0.3.269 fixed the old plan+bypass callback omission; the hook still

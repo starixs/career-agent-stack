@@ -32,3 +32,15 @@ export async function careerLowPointPromptHook(_input: HookInput): Promise<HookJ
     return {};
   }
 }
+
+/** 主线进度一行：每轮给模型当前进度，省掉开场摸底和反问（见 mainline-state.ts）。 */
+export async function careerMainlineStateHook(_input: HookInput): Promise<HookJSONOutput> {
+  try {
+    const [{ getRepos }, { formatMainlineState, readMainlineFacts }] = await Promise.all([import('./db'), import('./mainline-state')]);
+    const context = formatMainlineState(readMainlineFacts(await getRepos(), new Date().toISOString()));
+    return { hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context } };
+  } catch (error) {
+    console.warn('[career-mainline] 进度读取失败（放行）：', error instanceof Error ? error.message : error);
+    return {};
+  }
+}
