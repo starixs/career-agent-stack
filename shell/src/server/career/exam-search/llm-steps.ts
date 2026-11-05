@@ -25,6 +25,7 @@ const REFS_PER_QUESTION = 3;
 
 const RECOGNIZE_SYSTEM = [
   '你在帮求职者读笔试、测评题。把输入（截图或文字）里的每一道题原样抄出来，只抄题，不作答。',
+  '有好几张截图时，它们是按顺序连着截的：一道题被截成两半（题干在上一张、选项在下一张）就拼成一道；同一道题在两张图里重复出现只抄一次。',
   '每道题：stem 题干（不含题号）；options 选项数组，每项保留字母前缀如「A. xxx」，没有选项给 []；',
   'qtype 题型，取值 single 单选 / multi 多选 / judge 判断 / fill 填空 / short 简答 / personality 性格或情境测评（没有对错，问你更像哪种人、会怎么做）。',
   '题目共用的材料（阅读段落、资料分析的文字和表格、情境描述）原样抄进 material，表格写成 Markdown 表格；图形题的图用一句话描述；没有材料填 null。',
@@ -47,11 +48,12 @@ const ANSWER_SYSTEM = [
   '输出 JSON：{"answers":[{"index":0,"answer":"","explanation":"","confidence":"high"}]}',
 ].join('\n');
 
-export async function recognizeQuestions(llm: LLM, input: { image?: LlmImage; text?: string }): Promise<Recognition> {
-  const content = input.text?.trim() ? `题目文字如下：\n${input.text.trim()}` : '题目在截图里。';
+export async function recognizeQuestions(llm: LLM, input: { images?: LlmImage[]; text?: string }): Promise<Recognition> {
+  const images = input.images ?? [];
+  const content = input.text?.trim() ? `题目文字如下：\n${input.text.trim()}` : images.length > 1 ? `题目在这 ${images.length} 张截图里，按顺序连着。` : '题目在截图里。';
   const response = await llm.complete({
     system: RECOGNIZE_SYSTEM,
-    messages: [{ role: 'user', content, ...(input.image ? { images: [input.image] } : {}) }],
+    messages: [{ role: 'user', content, ...(images.length > 0 ? { images } : {}) }],
     json: true, maxTokens: RECOGNIZE_MAX_TOKENS, temperature: 0,
   });
   return parseRecognition(extractJson<unknown>(response.text));

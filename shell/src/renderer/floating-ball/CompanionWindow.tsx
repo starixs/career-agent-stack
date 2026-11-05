@@ -50,6 +50,8 @@ import { useFloatingSession, type FbAttachment, type FbMsg } from './useFloating
 import { useFloatingComposerKeydown } from './useFloatingComposerKeydown';
 import { usePetName } from './usePetName';
 import { describeNativeFloatingBallError } from './nativeFloatingBall';
+import { ExamCompanion } from './ExamCompanion';
+import { useExamLive } from './useExamPet';
 
 import './fb.css';
 
@@ -289,6 +291,8 @@ export default function CompanionWindow() {
     // session hook. The ref is written ONLY inside applyMode (every mode
     // transition funnels through it) — never during render (react-hooks/refs).
     const [mode, setMode] = useState<FbMode>('hidden');
+    // 笔试助力点了「开始这场」：小面板换成截图托盘 + 答案。
+    const examLive = useExamLive();
     const modeRef = useRef<FbMode>('hidden');
 
     const session = useFloatingSession(modeRef);
@@ -1374,6 +1378,8 @@ export default function CompanionWindow() {
                 </button>
             </div>
 
+            {/* 开考时：小面板换成截图托盘 + 答案；考完回到对话 */}
+            {examLive.live.session ? <ExamCompanion live={{ ...examLive.live, session: examLive.live.session }} onChanged={examLive.reload} /> : (<>
             {/* 会话流 */}
             <AsyncQuestionContext.Provider value={questionActions}>
             <FileActionProvider
@@ -1526,6 +1532,8 @@ export default function CompanionWindow() {
                     )}
                 </div>
             </div>
+
+            </>)}
 
             {/* 高度调节柄 + 移动拖拽区（仅 pin） */}
             <div className="fbw-rz top" onPointerDown={bindResize('top')} title={t('floatingBall.resizeHandle')} />

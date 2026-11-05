@@ -119,7 +119,7 @@ describe('搜题流程', () => {
       JSON.stringify({ answers: [{ index: 0, answer: 'B', confidence: 'high' }] }),
     ]);
     const { service } = await makeService(llm);
-    const { search } = await service.recognize({ image: { mediaType: 'image/png', data: 'AAAA' } });
+    const { search } = await service.recognize({ images: [{ mediaType: 'image/png', data: 'AAAA' }] });
     expect(search).toMatchObject({ input_kind: 'image', input_text: null, material });
     await service.answer(search.id);
     expect(llm.calls[1].messages[0].content).toContain(`<材料>\n${material}\n</材料>`);

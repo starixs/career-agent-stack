@@ -33,13 +33,15 @@ export interface ExamSearchRecord {
   answers: QuestionAnswer[];
   status: SearchStatus;
   error: string | null;
+  /** 正在作答（不落库，看这个进程手上的请求）：宠物发出的题在主窗口里显示「作答中」而不是「没答完」。 */
+  answering: boolean;
   created_at: string;
   updated_at: string;
 }
 
-interface ExamSearchRow extends Omit<ExamSearchRecord, 'questions' | 'answers'> { questions_json: string; answers_json: string }
+interface ExamSearchRow extends Omit<ExamSearchRecord, 'questions' | 'answers' | 'answering'> { questions_json: string; answers_json: string }
 
-export interface RecognizeInput { sessionId?: string | null; image?: LlmImage; text?: string; companyName?: string | null; roleTitle?: string | null }
+export interface RecognizeInput { sessionId?: string | null; images?: LlmImage[]; text?: string; companyName?: string | null; roleTitle?: string | null }
 
 export function questionText(q: Pick<RecognizedQuestion, 'stem' | 'options'>): string {
   return [q.stem, ...q.options].join(' ');
@@ -65,7 +67,7 @@ export class ExamSearchService {
   async recognize(input: RecognizeInput): Promise<{ search: ExamSearchRecord; session: ExamSession }> {
     const known = input.sessionId ? this.sessions.get(input.sessionId) : undefined;
     if (input.sessionId && !known) throw new Error(`这场笔试不存在：${input.sessionId}`);
-    const recognition = await recognizeQuestions(this.llm, { image: input.image, text: input.text });
+    const recognition = await recognizeQuestions(this.llm, { images: input.images, text: input.text });
     const ctx: SearchContext = {
       companyName: input.companyName?.trim() || known?.company_name || recognition.company_hint,
       roleTitle: input.roleTitle?.trim() || known?.role_title || recognition.role_hint,
@@ -78,7 +80,7 @@ export class ExamSearchService {
     const id = this.ids.newId('exs');
     this.db.insert('exam_search', {
       id, session_id: session.id, company_name: ctx.companyName, role_title: ctx.roleTitle,
-      input_kind: input.image ? 'image' : 'text', input_text: input.text?.trim() || null, material: recognition.material,
+      input_kind: input.images?.length ? 'image' : 'text', input_text: input.text?.trim() || null, material: recognition.material,
       questions_json: JSON.stringify(questions), answers_json: JSON.stringify(answers),
       status: done ? 'answered' : 'recognized', created_at: t, updated_at: t,
     });
@@ -94,6 +96,7 @@ export class ExamSearchService {
     const pending = record.questions.filter(q => !answered.has(q.index));
     if (pending.length === 0) return record;
     const ctx: SearchContext = { companyName: record.company_name, roleTitle: record.role_title };
+    answeringNow.add(id);
     try {
       const fresh = await this.answerAll(pending, ctx, record.material);
       const answers = [...record.answers, ...fresh].sort((a, b) => a.index - b.index);
@@ -104,6 +107,8 @@ export class ExamSearchService {
       this.db.update('exam_search', id, { status: 'failed', error: message, updated_at: this.ids.now() });
       console.error(`[exam-search] FAILED answer ${id}: ${message}`);
       throw error;
+    } finally {
+      answeringNow.delete(id);
     }
     return this.get(id)!;
   }
@@ -143,9 +148,12 @@ function parseList<T>(raw: string, what: string, id: string): T[] {
   }
 }
 
+/** 这个进程里正在作答的记录；服务按请求新建，所以放在模块级。 */
+const answeringNow = new Set<string>();
+
 function toRecord(row: ExamSearchRow): ExamSearchRecord {
   const { questions_json, answers_json, ...rest } = row;
-  return { ...rest, questions: parseList<SearchQuestion>(questions_json, 'questions', row.id), answers: parseList<QuestionAnswer>(answers_json, 'answers', row.id) };
+  return { ...rest, answering: answeringNow.has(row.id), questions: parseList<SearchQuestion>(questions_json, 'questions', row.id), answers: parseList<QuestionAnswer>(answers_json, 'answers', row.id) };
 }
 
 /** 「这场笔试」的候选：最近的笔试、测评期限（几小时前开考的也算，可能正在考）。 */

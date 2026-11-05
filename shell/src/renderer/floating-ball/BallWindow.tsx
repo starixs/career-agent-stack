@@ -29,6 +29,7 @@ import { PetSprite } from './PetSprite';
 import { deriveFloatingPetPlayback } from './petPlayback';
 import { getPetAnimationDuration } from './petAtlas';
 import { derivePetAnimation, type FbBallState, type FbPendingKind, type PetDragDirection } from './petStateMapper';
+import { useExamPet } from './useExamPet';
 import './fb.css';
 
 interface FbCtx {
@@ -58,6 +59,9 @@ export default function BallWindow() {
     const [petLoadFailed, setPetLoadFailed] = useState(false);
     const [appearance, setAppearance] = useState<'pet' | 'orb'>('pet');
     const [petPack, setPetPack] = useState(MINO_DEFAULT_PET_PACK);
+    // 笔试助力点了「开始这场」：点宠物改成框选截图，角标是挂着几张。
+    const examPet = useExamPet();
+    const { isLive: examLive, capture: examCapture } = examPet;
     const summonPulseMs = useMemo(() => getPetAnimationDuration(petPack.atlas, 'jumping'), [petPack]);
     const donePulseMs = useMemo(() => getPetAnimationDuration(petPack.atlas, 'waving'), [petPack]);
 
@@ -449,9 +453,11 @@ export default function BallWindow() {
             const d = dragRef.current;
             if (!d.active) return;
             const wasDrag = endDrag(e);
-            if (!wasDrag) void summon();
+            if (wasDrag) return;
+            if (examLive) void examCapture();
+            else void summon();
         },
-        [endDrag, summon],
+        [endDrag, examCapture, examLive, summon],
     );
 
     // Mission Control / display sleep can cancel the pointer stream mid-drag —
@@ -495,6 +501,7 @@ export default function BallWindow() {
     return (
         <div className="fbw-ball-stage" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
             <div
+                title={examPet.isLive ? (examPet.error ?? '点一下框选截题，截好在小面板里一起发出去') : undefined}
                 className={`fbw-ball${usePet ? ' pet-mode' : ''} state-${state} motion-${petPlayback}${dragging ? ' dragging' : ''}${pop ? ' pop' : ''}`}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
@@ -524,7 +531,7 @@ export default function BallWindow() {
                         <span className="core" />
                     </>
                 )}
-                <span className="badge">{unread || ''}</span>
+                <span className="badge">{(examPet.isLive ? examPet.count : unread) || ''}</span>
                 {reminder && state === 'idle' && (
                     <span className="fbw-reminder" title={reminder.text ?? undefined} aria-label={reminder.text ?? undefined}>{reminder.count}</span>
                 )}

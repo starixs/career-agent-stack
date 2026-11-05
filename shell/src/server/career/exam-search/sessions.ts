@@ -13,6 +13,8 @@ export interface ExamSession {
   id: string;
   company_name: string | null;
   role_title: string | null;
+  /** 正在考的这场（点了「开始这场」还没结束）；同时最多一场。 */
+  live_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,10 +46,30 @@ export class ExamSessionStore {
       });
       return this.get(existing.id)!;
     }
-    const created = { id: this.ids.newId('exm'), company_name: who.companyName, role_title: who.roleTitle, created_at: t, updated_at: t };
+    const created = { id: this.ids.newId('exm'), company_name: who.companyName, role_title: who.roleTitle, live_at: null, created_at: t, updated_at: t };
     this.db.insert('exam_session', created);
     console.log(`[exam-search] 开了一场笔试 ${created.id}：${who.companyName ?? '公司未知'} · ${who.roleTitle ?? '岗位未知'}`);
     return created;
+  }
+
+  live(): ExamSession | undefined {
+    return this.db.get<ExamSession>('SELECT * FROM exam_session WHERE live_at IS NOT NULL ORDER BY live_at DESC LIMIT 1');
+  }
+
+  /** 开始这场：带了 id 就把那场设为正在考，没带就开新的一场；别的场一律结束。 */
+  start(id: string | null, who: Who): ExamSession {
+    const session = this.enter(id, who);
+    this.db.run('UPDATE exam_session SET live_at = NULL WHERE live_at IS NOT NULL AND id <> ?', [session.id]);
+    this.db.update('exam_session', session.id, { live_at: this.ids.now() });
+    console.log(`[exam-search] 开考 ${session.id}`);
+    return this.get(session.id)!;
+  }
+
+  end(): void {
+    const live = this.live();
+    if (!live) return;
+    this.db.run('UPDATE exam_session SET live_at = NULL WHERE live_at IS NOT NULL');
+    console.log(`[exam-search] 考完 ${live.id}`);
   }
 
   list(limit = SESSION_LIST_LIMIT): ExamSessionSummary[] {

@@ -1,20 +1,23 @@
 /**
  * 笔试助力：以一场笔试为单位。复制题目（文字或截图）按 ⌘V → 左栏是粘进来的题，右栏是答案；
  * 中间的箭头（或键盘 ← →）在这场的每次粘贴之间前后翻。考完在「记录」里按场回看，点开还能接着粘。
+ * 「开始这场」以后点一下宠物就框选截图，截图挂在宠物身上，截够了一口气发出去（宠物的小面板或这里都能发）。
  * 先查题库（同公司同岗位往年题 → 同岗位别家 → 同类题）再作答；题库的上传和管理先不露出。
  */
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { onEvent } from '@/api/eventBus';
 
-import { examSearchApi, type ExamContext } from '@/components/career/exam-search/examSearchApi';
+import { examSearchApi, type ExamContext, type LiveExam } from '@/components/career/exam-search/examSearchApi';
+import { AnswerPane, StepArrows } from '@/components/career/exam-search/ExamSteps';
+import { notifyPet } from '@/components/career/exam-search/petBridge';
 import { EXAM_SEARCH_CONTEXT_EVENT, takeExamSearchContext } from '@/components/career/exam-search/searchContext';
-import { SearchResult } from '@/components/career/exam-search/SearchResult';
 import { SessionList } from '@/components/career/exam-search/SessionList';
+import { ShotTray } from '@/components/career/exam-search/ShotTray';
 import { SourcePane, normalizeScreenshot, usePasteListener } from '@/components/career/exam-search/SourcePane';
-import { stepFromRecord, useExamSession, type ExamSessionState, type ExamStep, type Who } from '@/components/career/exam-search/useExamSession';
-import { Button, ErrorRow, LoadingRow, TextInput, relativeTime } from '@/components/career/CareerPrimitives';
+import { stepFromRecord, useExamSession, type ExamSessionState, type Who } from '@/components/career/exam-search/useExamSession';
+import { touchesExamSearch, useLiveExam, type DataChanged } from '@/components/career/exam-search/useLiveExam';
+import { Badge, Button, ErrorRow, TextInput, relativeTime } from '@/components/career/CareerPrimitives';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 
 type Tab = 'answer' | 'records';
@@ -24,7 +27,26 @@ const RESUME_WINDOW_MS = 3 * 3_600_000;
 
 const isTypingTarget = (target: EventTarget | null) => target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
 
-function WhoBar({ who, onChange, onNew }: { who: Who; onChange: (next: Who) => void; onNew: () => void }) {
+type LiveState = ReturnType<typeof useLiveExam>;
+
+function LiveActions({ isLive, onStart, onEnd, onNew }: { isLive: boolean; onStart: () => void; onEnd: () => void; onNew: () => void }) {
+  if (isLive) {
+    return (
+      <span className="ml-auto flex items-center gap-2">
+        <Badge tone="success">正在考</Badge>
+        <Button size="sm" onClick={onEnd}>结束这场</Button>
+      </span>
+    );
+  }
+  return (
+    <span className="ml-auto flex items-center gap-2">
+      <Button size="sm" variant="primary" onClick={onStart}>开始这场</Button>
+      <Button size="sm" onClick={onNew}>新的一场</Button>
+    </span>
+  );
+}
+
+function WhoBar({ who, onChange, children }: { who: Who; onChange: (next: Who) => void; children: ReactNode }) {
   const contexts = useCareerQuery(examSearchApi.contexts, ['deadline']);
   const pick = (ctx: ExamContext) => onChange({ company: ctx.company_name ?? '', role: ctx.role_title ?? '' });
   return (
@@ -40,42 +62,12 @@ function WhoBar({ who, onChange, onNew }: { who: Who; onChange: (next: Who) => v
           {[ctx.company_name ?? ctx.title, ctx.role_title].filter(Boolean).join(' · ')}<span className="text-[var(--subtle)]"> · {relativeTime(ctx.due_at)}</span>
         </button>
       ))}
-      <Button size="sm" className="ml-auto" onClick={onNew}>新的一场</Button>
+      {children}
     </div>
   );
 }
 
-function StepArrows({ index, total, onGo }: { index: number; total: number; onGo: (delta: number) => void }) {
-  const arrow = 'rounded-full border border-[var(--line)] p-2 text-[var(--ink-2)] hover:bg-[var(--hover)] disabled:opacity-30 disabled:hover:bg-transparent';
-  return (
-    <div className="flex flex-col items-center justify-center gap-2">
-      <button type="button" aria-label="上一次" className={arrow} disabled={index <= 0} onClick={() => onGo(-1)}>
-        <ChevronLeft className="h-4 w-4" aria-hidden />
-      </button>
-      <span className="text-xs tabular-nums text-[var(--muted)]">{total > 0 ? `${index + 1} / ${total}` : '0 / 0'}</span>
-      <button type="button" aria-label="下一次" className={arrow} disabled={index >= total - 1} onClick={() => onGo(1)}>
-        <ChevronRight className="h-4 w-4" aria-hidden />
-      </button>
-    </div>
-  );
-}
-
-const STATUS_TEXT: Partial<Record<ExamStep['status'], string>> = { recognizing: '正在认题、查题库…', answering: '正在作答…' };
-
-function AnswerPane({ step, onRetry }: { step: ExamStep | null; onRetry: (step: ExamStep) => void }) {
-  const record = step?.record;
-  const canRetry = step?.status === 'error' && record && record.questions.length > 0;
-  return (
-    <section aria-label="答案" className="h-full min-h-[24rem] overflow-y-auto rounded-xl border border-[var(--line)] px-5 py-2">
-      {!step && <p className="py-6 text-sm text-[var(--subtle)]">答案会出现在这里。</p>}
-      {step && STATUS_TEXT[step.status] && <LoadingRow text={STATUS_TEXT[step.status]} />}
-      {step?.error && <ErrorRow message={step.error} onRetry={canRetry ? () => onRetry(step) : undefined} />}
-      {record && record.questions.length > 0 && <SearchResult questions={record.questions} answers={record.answers} pending={step.status === 'answering'} />}
-    </section>
-  );
-}
-
-/** 打开页面时这场是谁：别的页面带过来的开新的一场；否则最近一场还在考就接着，不然取最近的笔试 / 测评。 */
+/** 打开页面时这场是谁：别的页面带过来的开新的一场；正在考的那场优先；否则最近一场还没过多久就接着，不然取最近的笔试 / 测评。 */
 function useOpening(exam: ExamSessionState, open: (id: string) => Promise<void>) {
   const { switchTo } = exam;
   const [handedOver] = useState(takeExamSearchContext);
@@ -84,6 +76,9 @@ function useOpening(exam: ExamSessionState, open: (id: string) => Promise<void>)
     if (handedOver) { switchTo({ id: null, who: handedOver, steps: [] }); return undefined; }
     let cancelled = false;
     void (async () => {
+      const { session: live } = await examSearchApi.live();
+      if (cancelled) return;
+      if (live) { await open(live.id); return; }
       const [latest] = await examSearchApi.sessions();
       if (cancelled) return;
       if (latest && Date.now() - Date.parse(latest.updated_at) < RESUME_WINDOW_MS) { await open(latest.id); return; }
@@ -107,7 +102,34 @@ function useArrowKeys(enabled: boolean, go: (delta: number) => void) {
   }, [enabled, go]);
 }
 
-function AnswerTab({ exam, onNew }: { exam: ExamSessionState; onNew: () => void }) {
+/** 侧车这场的记录变了（宠物发出去的题、作答完）：拉一次合进来。 */
+function useSessionSync(exam: ExamSessionState) {
+  const { sessionId, sync } = exam;
+  useEffect(() => onEvent<DataChanged>('career:data-changed', payload => {
+    if (!sessionId || !touchesExamSearch(payload)) return;
+    examSearchApi.session(sessionId)
+      .then(({ searches }) => sync(sessionId, searches))
+      .catch(err => console.warn(`[exam-search] 同步这场 ${sessionId} 失败`, err));
+  }), [sessionId, sync]);
+}
+
+function LivePanel({ live, exam }: { live: LiveExam; exam: ExamSessionState }) {
+  const [busy, setBusy] = useState(false);
+  const send = () => {
+    setBusy(true);
+    void exam.sendPetShots(live.shots[0]?.thumb ?? null).finally(() => { setBusy(false); notifyPet(); });
+  };
+  const remove = (id: string) => {
+    examSearchApi.removeShot(id).then(() => notifyPet()).catch(err => console.warn(`[exam-search] 去掉截图 ${id} 失败`, err));
+  };
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3">
+      <ShotTray shots={live.shots} busy={busy} onRemove={shot => remove(shot.id)} onSend={send} />
+    </div>
+  );
+}
+
+function AnswerTab({ exam, live, onNew }: { exam: ExamSessionState; live: LiveState; onNew: () => void }) {
   const [localError, setLocalError] = useState<string | null>(null);
   const { paste } = exam;
   const onImage = useCallback((blob: Blob) => {
@@ -119,9 +141,22 @@ function AnswerTab({ exam, onNew }: { exam: ExamSessionState; onNew: () => void 
   const onText = useCallback((text: string) => { setLocalError(null); paste({ text }); }, [paste]);
   usePasteListener(onImage, onText);
   useArrowKeys(true, exam.go);
+  useSessionSync(exam);
+  const isLive = live.live.session !== null && live.live.session.id === exam.sessionId;
+  const { switchTo } = exam;
+  const start = async () => {
+    const session = await live.start({ sessionId: exam.sessionId, ...exam.who });
+    if (session && session.id !== exam.sessionId) {
+      switchTo({ id: session.id, who: { company: session.company_name ?? '', role: session.role_title ?? '' }, steps: [] });
+    }
+  };
   return (
     <div className="space-y-4">
-      <WhoBar who={exam.who} onChange={exam.setWho} onNew={onNew} />
+      <WhoBar who={exam.who} onChange={exam.setWho}>
+        <LiveActions isLive={isLive} onStart={() => void start()} onEnd={() => void live.end()} onNew={onNew} />
+      </WhoBar>
+      {live.error && <ErrorRow message={live.error} />}
+      {isLive && <LivePanel live={live.live} exam={exam} />}
       {localError && <ErrorRow message={localError} />}
       <div className="grid h-[calc(100vh-14rem)] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-4">
         <SourcePane step={exam.current} onImage={onImage} onError={setLocalError} />
@@ -136,6 +171,7 @@ export default function CareerExamSearch() {
   const [tab, setTab] = useState<Tab>('answer');
   const sessions = useCareerQuery(examSearchApi.sessions, ['exam_search']);
   const exam = useExamSession(sessions.reload);
+  const live = useLiveExam();
   const removeAction = useCareerAction();
   const { switchTo } = exam;
 
@@ -158,7 +194,7 @@ export default function CareerExamSearch() {
           </button>
         ))}
       </div>
-      {tab === 'answer' ? <AnswerTab exam={exam} onNew={startNew} /> : (
+      {tab === 'answer' ? <AnswerTab exam={exam} live={live} onNew={startNew} /> : (
         <div className="max-w-2xl">
           {sessions.error && <ErrorRow message={sessions.error} onRetry={sessions.reload} />}
           {removeAction.error && <ErrorRow message={removeAction.error} />}

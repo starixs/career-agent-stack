@@ -5,15 +5,18 @@ import type { ExamSearchRecord } from '@/components/career/exam-search/examSearc
 
 const api = vi.hoisted(() => ({
   recognize: vi.fn(), answer: vi.fn(), sessions: vi.fn(), session: vi.fn(), removeSession: vi.fn(), contexts: vi.fn(),
+  live: vi.fn(), startLive: vi.fn(), endLive: vi.fn(), capture: vi.fn(), removeShot: vi.fn(), sendShots: vi.fn(),
 }));
 vi.mock('@/components/career/exam-search/examSearchApi', () => ({ examSearchApi: api }));
+const updateConfig = vi.hoisted(() => vi.fn());
+vi.mock('@/hooks/useConfig', () => ({ useConfig: () => ({ config: { floatingBallDevGate: true, floatingBallEnabled: true }, updateConfig }) }));
 
 import CareerExamSearch from './CareerExamSearch';
 
-const session = { id: 'exm_1', company_name: '网易', role_title: '交互设计师', created_at: '2026-11-05T10:00:00Z', updated_at: '2026-11-05T10:00:00Z' };
+const session = { id: 'exm_1', company_name: '网易', role_title: '交互设计师', live_at: null, created_at: '2026-11-05T10:00:00Z', updated_at: '2026-11-05T10:00:00Z' };
 const record = (id: string, stem: string, over: Partial<ExamSearchRecord> = {}): ExamSearchRecord => ({
   id, session_id: 'exm_1', company_name: '网易', role_title: '交互设计师', input_kind: 'text', input_text: stem, material: null,
-  questions: [{ index: 0, stem, options: [], qtype: 'single', matches: [] }], answers: [], status: 'recognized', error: null,
+  questions: [{ index: 0, stem, options: [], qtype: 'single', matches: [] }], answers: [], status: 'recognized', error: null, answering: false,
   created_at: '2026-11-05T10:00:00Z', updated_at: '2026-11-05T10:00:00Z', ...over,
 });
 const answered = (r: ExamSearchRecord, answer: string): ExamSearchRecord => ({
@@ -31,6 +34,7 @@ describe('笔试助力页', () => {
     vi.clearAllMocks();
     api.sessions.mockResolvedValue([]);
     api.contexts.mockResolvedValue([]);
+    api.live.mockResolvedValue({ session: null, shots: [] });
   });
 
   it('每次粘贴是这场的一步：左栏是题、右栏是答案，箭头前后翻，同一场接着记', async () => {
@@ -77,5 +81,23 @@ describe('笔试助力页', () => {
     fireEvent.click(await screen.findByText('网易 · 交互设计师'));
     await waitFor(() => expect(screen.getByText('B')).toBeInTheDocument());
     expect(screen.getByText('1 / 1')).toBeInTheDocument();
+  });
+
+  it('开始这场后显示宠物挂着的截图，一口气发出去，答案进这场', async () => {
+    const shots = [{ id: 'shot_1', thumb: 'data:image/jpeg;base64,AA', captured_at: '' }, { id: 'shot_2', thumb: 'data:image/jpeg;base64,BB', captured_at: '' }];
+    const liveSession = { ...session, live_at: '2026-11-05T10:00:00Z' };
+    api.startLive.mockResolvedValue({ session: liveSession, shots });
+    const sent = record('exs_5', '跨两张图的题', { input_kind: 'image', input_text: null });
+    api.sendShots.mockResolvedValue({ search: sent, session: liveSession });
+    api.answer.mockResolvedValue(answered(sent, 'D'));
+    render(<CareerExamSearch />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '开始这场' }));
+    expect(await screen.findByText('正在考')).toBeInTheDocument();
+    expect(screen.getAllByRole('img', { name: /截图/ })).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: /发出去 · 2 张/ }));
+    expect(await screen.findByText('D')).toBeInTheDocument();
+    expect(api.sendShots).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('粘进来的题目')).toHaveTextContent('跨两张图的题');
   });
 });

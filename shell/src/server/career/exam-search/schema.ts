@@ -40,6 +40,7 @@ export function ensureExamSearchSchema(db: Db): void {
   db.raw.exec(`CREATE TABLE IF NOT EXISTS exam_session (
     id TEXT PRIMARY KEY,
     company_name TEXT, role_title TEXT,
+    live_at TEXT,                             -- 点了「开始这场」：宠物点一下就截图，截的图记进这场；同时最多一场
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   db.raw.exec(`CREATE TABLE IF NOT EXISTS exam_search (
@@ -56,6 +57,7 @@ export function ensureExamSearchSchema(db: Db): void {
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
   )`);
   addSessionColumn(db);
+  if (!hasColumn(db, 'exam_session', 'live_at')) db.raw.exec('ALTER TABLE exam_session ADD COLUMN live_at TEXT');
   if (!hasColumn(db, 'exam_search', 'material')) db.raw.exec('ALTER TABLE exam_search ADD COLUMN material TEXT');
   db.raw.exec('CREATE INDEX IF NOT EXISTS idx_exam_search_created ON exam_search(created_at)');
   db.raw.exec('CREATE INDEX IF NOT EXISTS idx_exam_search_session ON exam_search(session_id, created_at)');
