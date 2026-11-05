@@ -49,6 +49,7 @@ import { broadcast as sseBroadcast } from '../sse';
 import { careerJson, fail, ok, str, strOrNull, type Json } from './career-http';
 import { deliveryRoutes } from './career-delivery';
 import { interviewRoutes } from './career-interview';
+import { skillRoutes } from './career-skills';
 import { phoneRoutes } from './career-phone';
 import { phoneLink } from '../career/phone';
 import type { AskSkill, PostCard } from '../career/interview-retro-run';
@@ -180,6 +181,7 @@ const ROUTES: Route[] = [
     ask: skillAsker(ctx), postCard: cardPoster(ctx),
   }))),
 
+  ...skillRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos }))),
   ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url, params: ctx.params, body: ctx.body, vault: ctx.vault, dataChanged: tables => dataChanged(ctx, tables) }))),
   // ---------- 手机连接（蓝牙读短信收验证码，见 career/phone） ----------
   ...phoneRoutes(phoneLink).map(([method, path, handler]) => route(method, path, ctx => handler({ body: ctx.body }))),

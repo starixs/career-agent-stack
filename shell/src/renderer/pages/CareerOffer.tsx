@@ -1,19 +1,25 @@
 /**
- * Offer：卡片列表（薪酬拆解 / 地点 / 截止）、对比表（列为 Offer，行为薪酬 / 内容匹配 / 地点 / 风险）、
- * 「需要你自己决定的项」、新建 / 编辑表单。
+ * Offer 对比：看板在 components/career/offer/OfferBoard（答复期限条、一年的钱、并排的事实卡），这里是页面壳和
+ * 新建 / 编辑表单。「让小芽拆开比」把手上的 Offer 交给 Offer 对比技能：
+ * 薪酬换算成同一口径、房租通勤带出处、期限谁先到，结果在对话里。
  */
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { careerApi, safeJson } from '@/components/career/careerApi';
-import { Button, Card, CareerPage, DueLabel, EmptyState, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, formatDate, textOrUnknown } from '@/components/career/CareerPrimitives';
+import { Button, Card, CareerPage, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, useSuggestToChat } from '@/components/career/CareerPrimitives';
+import { OfferBoard } from '@/components/career/offer/OfferBoard';
 import type { Offer } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
+import { pageSurfaceId } from '@/features/career-shell/pageSurface';
 
 const COMP_FIELDS: Array<{ key: string; label: string }> = [
   { key: 'base', label: '月薪 / 基本' }, { key: 'months', label: '月数' }, { key: 'bonus', label: '奖金' },
   { key: 'stock', label: '股票 / 期权' }, { key: 'signing', label: '签字费' }, { key: 'total', label: '年包合计' },
 ];
+
+/** 从这一页发出去的话，回复结束后带他回到 Offer 对比。 */
+const SURFACE = pageSurfaceId({ kind: 'career-dossier', view: 'offer' });
 
 type Comp = Record<string, unknown>;
 
@@ -29,45 +35,24 @@ export function compOf(offer: Offer): Comp {
   return safeJson<Comp>(offer.comp_json, {});
 }
 
-export function compSummary(comp: Comp): string {
-  const parts: string[] = [];
-  for (const f of COMP_FIELDS) {
-    const v = comp[f.key];
-    if (v != null && v !== '') parts.push(`${f.label} ${String(v)}`);
-  }
-  for (const [k, v] of Object.entries(comp)) {
-    if (!COMP_FIELDS.some(f => f.key === k) && v != null && v !== '' && typeof v !== 'object') parts.push(`${k} ${String(v)}`);
-  }
-  return parts.length ? parts.join(' · ') : '未知';
-}
-
-/** 需要用户自己判断的项：缺数据标「未知」，不编造。 */
-export function decisionItems(offers: Offer[]): string[] {
-  const items: string[] = [];
-  for (const o of offers) {
-    const name = `${textOrUnknown(o.company_name)} · ${textOrUnknown(o.title)}`;
-    const comp = compOf(o);
-    if (Object.keys(comp).length === 0) items.push(`${name}：薪酬拆解未知，需要你补充`);
-    if (!o.content_match) items.push(`${name}：工作内容是否匹配，需要你判断`);
-    if (o.risk_notes) items.push(`${name}：风险「${o.risk_notes}」是否可接受，需要你决定`);
-    if (o.deadline) items.push(`${name}：${formatDate(o.deadline)} 前要答复`);
-  }
-  if (offers.length > 1) items.push('多个 Offer 之间的取舍只能由你决定，助理只负责把事实并排摆出来。');
-  return items;
-}
-
 export default function CareerOffer({ embedded = false }: { embedded?: boolean } = {}) {
   const query = useCareerQuery(careerApi.offers, ['offer']);
   const offers = useMemo(() => query.data ?? [], [query.data]);
   const [editing, setEditing] = useState<Offer | 'new' | null>(null);
+  const suggest = useSuggestToChat();
 
   return (
     <CareerPage
       embedded={embedded}
       title="Offer"
-      actions={<Button onClick={() => setEditing(editing === 'new' ? null : 'new')}><Plus className="h-3.5 w-3.5" />新建 Offer</Button>}
     >
-      <div className="max-w-6xl space-y-8 px-6 py-6">
+      <div className="max-w-5xl space-y-8 px-6 py-5">
+        <div className="flex flex-wrap items-center gap-2">
+          {offers.length > 0 && (
+            <Button variant="primary" onClick={() => suggest('把我手上的 Offer 拆开比一比', { surface: SURFACE, refs: { offer_ids: offers.map(o => o.id).join(',') } })}>让小芽拆开比</Button>
+          )}
+          <Button onClick={() => setEditing(editing === 'new' ? null : 'new')}><Plus className="h-3.5 w-3.5" />新建 Offer</Button>
+        </div>
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {editing && (
           <OfferForm
@@ -79,58 +64,10 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
         )}
         {query.loading && !query.data && <LoadingRow />}
         {!query.loading && offers.length === 0 && (
-          <EmptyState title="还没有 Offer" hint="拿到 Offer 后录入薪酬拆解、地点和截止日期，助理会把它们并排摆出来。" example="帮我录入一个 Offer" />
+          <p className="py-10 text-center text-sm text-[var(--muted)]">还没有 Offer</p>
         )}
         {offers.length > 0 && (
-          <>
-            <section>
-              <SectionTitle>Offer（{offers.length}）</SectionTitle>
-              <div className="grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2 xl:grid-cols-3">
-                {offers.map(o => (
-                  <Card key={o.id} title={`${textOrUnknown(o.company_name)} · ${textOrUnknown(o.title)}`} extra={<Button variant="ghost" size="sm" onClick={() => setEditing(o)}>编辑</Button>}>
-                    <dl className="space-y-1.5 text-sm">
-                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">薪酬</dt><dd className="text-[var(--ink)]">{compSummary(compOf(o))}</dd></div>
-                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">地点</dt><dd className="text-[var(--ink)]">{textOrUnknown(o.location)}</dd></div>
-                      <div className="flex gap-2"><dt className="w-14 shrink-0 text-[var(--muted)]">截止</dt><dd className="text-[var(--ink)]"><DueLabel at={o.deadline} suffix="前答复" /></dd></div>
-                    </dl>
-                  </Card>
-                ))}
-              </div>
-            </section>
-            <section>
-              <SectionTitle>对比</SectionTitle>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-sm">
-                  <thead className="border-b border-[var(--line-2)] text-left text-[var(--muted)]">
-                    <tr>
-                      <th className="w-28 px-2 py-2 text-xs font-medium">维度</th>
-                      {offers.map(o => <th key={o.id} className="px-2 py-2 font-semibold text-[var(--ink)]">{textOrUnknown(o.company_name)}<div className="font-normal text-[var(--muted)]">{textOrUnknown(o.title)}</div></th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[
-                      { label: '薪酬', render: (o: Offer) => compSummary(compOf(o)) },
-                      { label: '内容匹配', render: (o: Offer) => textOrUnknown(o.content_match) },
-                      { label: '地点', render: (o: Offer) => textOrUnknown(o.location) },
-                      { label: '风险', render: (o: Offer) => textOrUnknown(o.risk_notes) },
-                      { label: '截止', render: (o: Offer) => formatDate(o.deadline) },
-                    ].map(row => (
-                      <tr key={row.label} className="border-b border-[var(--line)] align-top">
-                        <td className="px-2 py-2.5 text-xs font-medium text-[var(--muted)]">{row.label}</td>
-                        {offers.map(o => <td key={o.id} className="px-2 py-2.5 text-[var(--ink)]">{row.render(o)}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-            <section>
-              <SectionTitle>需要你自己决定的项</SectionTitle>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--ink)]">
-                {decisionItems(offers).map((item, i) => <li key={i}>{item}</li>)}
-              </ul>
-            </section>
-          </>
+          <OfferBoard offers={offers} onEdit={setEditing} />
         )}
       </div>
     </CareerPage>

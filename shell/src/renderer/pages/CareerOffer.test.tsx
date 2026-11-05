@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn() }));
 
 import { apiGetJson, apiPostJson, apiPutJson } from '@/api/apiFetch';
-import CareerOffer, { decisionItems } from './CareerOffer';
+import { onEvent } from '@/api/eventBus';
+import { annualOf, formatMoney, offerPoints } from '@/components/career/offer/OfferBoard';
+import CareerOffer from './CareerOffer';
 import type { Offer } from '@/components/career/types';
 
 const offers: Offer[] = [
@@ -25,15 +27,49 @@ describe('CareerOffer', () => {
     expect(await screen.findByText('还没有 Offer')).toBeInTheDocument();
   });
 
-  it('渲染卡片、对比表与需要你决定的项；缺数据标未知', async () => {
+  it('看板：答复期限和一年的钱各一组条形，同一把尺子；缺的写未知，不画条', async () => {
     vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers });
     render(<CareerOffer />);
-    expect((await screen.findAllByText('丙公司 · 后端工程师')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/月薪 \/ 基本 25000 · 月数 15 · 年包合计 375000/).length).toBeGreaterThan(0);
-    expect(screen.getByText('对比')).toBeInTheDocument();
-    expect(screen.getAllByText('未知').length).toBeGreaterThan(0);
-    expect(screen.getByText('丁公司 · 算法工程师：薪酬拆解未知，需要你补充')).toBeInTheDocument();
-    expect(screen.getByText('丙公司 · 后端工程师：风险「业务线可能调整」是否可接受，需要你决定')).toBeInTheDocument();
+    const deadlines = await screen.findByRole('region', { name: '答复期限' });
+    expect(within(deadlines).getByText(/已过 \d+ 天/)).toBeInTheDocument();
+    expect(within(deadlines).getByText('未知')).toBeInTheDocument();
+    const pay = screen.getByRole('region', { name: '一年的钱' });
+    expect(within(pay).getByText('37.5 万')).toBeInTheDocument();
+    expect(within(pay).getByText('25000 × 15')).toBeInTheDocument();
+    expect(within(pay).getByText('未知')).toBeInTheDocument();
+    // 其余事实一个 Offer 一张卡；没填的留一道虚线
+    expect(screen.getByText('方向一致')).toBeInTheDocument();
+    expect(screen.getAllByRole('img', { name: '未知' }).length).toBeGreaterThan(0);
+  });
+
+  it('要点由他填的数算出来：谁最先要答复、谁一年多多少、谁的钱还算不出；不说选哪个', () => {
+    const now = new Date('2026-11-05T08:00:00+08:00');
+    const base = offers[0];
+    const a = { ...base, id: 'a', company_name: '甲公司', comp_json: JSON.stringify({ base: 22000, months: 15, signing: 20000 }), deadline: '2026-11-07T10:00:00+08:00' };
+    const b = { ...base, id: 'b', company_name: '乙公司', comp_json: JSON.stringify({ base: 25000, months: 13 }), deadline: '2026-11-14T10:00:00+08:00' };
+    const c = { ...base, id: 'c', company_name: '丙公司', comp_json: '{}', deadline: null };
+    expect(offerPoints([b, a, c], now)).toEqual(['甲公司最先要答复：剩 2 天', '甲公司一年多 2.5 万', '丙公司的钱还算不出']);
+    expect(offerPoints([c], now)).toEqual(['丙公司的钱还算不出']);
+    expect(offerPoints([a], now)).toEqual(['甲公司最先要答复：剩 2 天']);
+  });
+
+  it('一年的钱只用他填的数：有年包合计用它，否则月薪 × 月数加签字费，不够就算不出', () => {
+    expect(annualOf({ total: 375000, base: 1, months: 1 })).toBe(375000);
+    expect(annualOf({ base: 22000, months: 15, signing: 20000 })).toBe(350000);
+    expect(annualOf({ base: 22000 })).toBeNull();
+    expect(formatMoney(350000)).toBe('35 万');
+    expect(formatMoney(325000)).toBe('32.5 万');
+    expect(formatMoney(8000)).toBe('8000');
+  });
+
+  it('让小芽拆开比：带着手上所有 Offer 的 id 发进对话', async () => {
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers });
+    const said: Array<{ text: string; context?: { refs?: Record<string, unknown> } }> = [];
+    const off = onEvent('career:chat-suggest', (event: (typeof said)[number]) => { said.push(event); });
+    render(<CareerOffer />);
+    fireEvent.click(await screen.findByRole('button', { name: '让小芽拆开比' }));
+    expect(said).toEqual([expect.objectContaining({ text: '把我手上的 Offer 拆开比一比', context: expect.objectContaining({ refs: { offer_ids: 'o1,o2' } }) })]);
+    off();
   });
 
   it('新建 Offer 调用 POST /api/career/offers，薪酬数字转为 number', async () => {
@@ -77,11 +113,5 @@ describe('CareerOffer', () => {
     await waitFor(() => expect(apiPutJson).toHaveBeenCalledTimes(1));
     const body = vi.mocked(apiPutJson).mock.calls[0][1] as Record<string, unknown>;
     expect(body.deadline).toBeUndefined();
-  });
-
-  it('decisionItems：多个 Offer 时提醒取舍由你决定', () => {
-    const items = decisionItems(offers);
-    expect(items.some(i => i.includes('取舍只能由你决定'))).toBe(true);
-    expect(items.some(i => i.includes('2026-10-15 前要答复'))).toBe(true);
   });
 });

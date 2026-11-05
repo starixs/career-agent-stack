@@ -52,6 +52,8 @@
 | POST | `/api/career/interviews` | 新建面试记录 |
 | PUT | `/api/career/interviews/:id` | 更新（transcript / tags / retro / result / result_source） |
 | GET | `/api/career/mock-interviews` | mock_interview[] |
+| GET | `/api/career/probe-predictions` | probe_prediction[]（`interview_predict` 写的追问预测，含按主简历预测的） |
+| GET | `/api/career/job-evaluations` | 评估过的岗位：`{job_id, company_name, title, url, score_json, prefilter_json, updated_at}[]`（`job_evaluate` 的整份输出，不带 JD 原文） |
 | GET | `/api/career/directions` | direction[] |
 | POST | `/api/career/directions/:id/status` | `{status}` |
 | GET | `/api/career/gap-plans` | gap_plan[] |
@@ -158,7 +160,7 @@
 | `resume_save` | resume_id?, resume \| patch | 按用户要求改简历并保存（先存快照） |
 | `resume_tailor` | master_id?, job_id, strength | 生成改动并直接写进新的定制简历（无审核），返回改动明细；master_id 缺省取唯一主简历 |
 | `resume_export` | resume_id, format | 导出并返回路径 |
-| `company_research` | company_name | intel-compass 九段报告 → company 表 |
+| `company_research` | company_name, hints?, job_id? | 公司和岗位是做什么的 + 一句话结论 + 九段报告 → company 表；带 job_id 才写得出岗位说明 |
 | `web_search` | query, count? | 唯一的外部动作 |
 | `apply_prepare` | job_id, resume_id? | 创建 application，冻结材料包（简历快照 + PDF + JD），fill_form 入队即批准（system）并在同一事务里认领，随即直接填写（填写不提交，不需要事前审批；批量运行器看不到这份）；不传 resume_id 时用该岗位定制版或唯一主简历 |
 | `apply_run` | action_id | 在托管浏览器上执行填表 run（不提交）。结果按浏览器路由的 `result.status` 处理：`stopped_before_submit` → 过提交门槛（必填全部已填并读回核验、无待补 / 没生效 / 站点报错 / 附件没回显 / 草稿）才入队 submit 并推提交卡（审阅清单，文案按实际数字），否则动作 needs_user + `missing_info` 接管 + `apply_gaps` 卡，补完 apply_continue 重新检查；`handoff` → 开接管、动作 needs_user、返回 `userAction`（该让用户做什么）；`blocked` / `failed` / 路由 `error` 行 → 动作 failed、投递 blocked |
