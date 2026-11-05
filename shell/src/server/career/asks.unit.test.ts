@@ -148,7 +148,7 @@ describe('AskView：一个动作能解决的才合并', () => {
     expect(start.sources.map(s => s.id)).toEqual(ids);
   });
 
-  it('海投填好、检查全过的提交：合成一件「N 家填好了」一键投出；标星的目标岗位和有项要看的仍一家一件', () => {
+  it('填好等投出的几家合成一件「N 家填好了」：有项要看的、标星的也在里面，点名排在最前（2026-11-05 同一批拆成两种卡）', () => {
     const repos = createMemoryRepos();
     const submit = (company: string, gaps = 0) => {
       const a = app(repos, company);
@@ -157,12 +157,13 @@ describe('AskView：一个动作能解决的才合并', () => {
     };
     const clean = ['DeepSeek', '中兴', '大疆'].map(c => submit(c));
     const target = submit('美团');
-    submit('荣耀', 1);
+    const honor = submit('荣耀', 1);
     const asks = buildAsks(repos, NOW, { isTarget: id => id === target.app.id });
-    const all = asks.find(a => a.title === '3 家填好了')!;
-    expect(all).toMatchObject({ kind: 'review', id: clean[0].action.id });
-    expect(all.sources.map(x => x.id)).toEqual(clean.map(c => c.action.id));
-    expect(asks.filter(a => a.kind === 'review').map(a => a.title).sort()).toEqual(['3 家填好了', '美团 · 投前过目', '荣耀 · 投前过目']);
+    const all = asks.find(a => a.title === '5 家填好了')!;
+    expect(all).toMatchObject({ kind: 'review', detail: '美团、荣耀有要你看一眼的项，其余必填都填好并核对过' });
+    expect(all.sources.map(x => x.id).slice(0, 2)).toEqual([target.action.id, honor.action.id]);
+    expect(all.sources.map(x => x.id).slice(2)).toEqual(clean.map(c => c.action.id));
+    expect(asks.filter(a => a.kind === 'review').map(a => a.title)).toEqual(['5 家填好了']);
   });
 
   it('网申卡在测评、同一份申请又记了测评截止：是同一件事，并进截止那件', () => {

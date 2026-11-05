@@ -141,6 +141,25 @@ describe('career live route', () => {
     resetApplicationPages();
   });
 
+  it('去看一家页面已经关了的：填好过的放回重填并马上开填，作废它的投前过目；没填好过的如实回 404（2026-11-05 去看点了没反应）', async () => {
+    resetApplicationPages();
+    const repos = createMemoryRepos();
+    const app = repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: 'mm', title: '产品', company_name: '陌陌' }).id).id;
+    const fill = repos.enqueueAction('fill_form', {}, app, true);
+    repos.setActionStatus(fill.id, 'done');
+    const submit = repos.enqueueAction('submit', { review: { rows: [], requiredFilled: 3, requiredTotal: 3 } }, app);
+    const ran: string[][] = [];
+    const d = { ...deps(repos), runner: { run: (ids: string[]) => { ran.push(ids); } } as never };
+    const res = await handleCareerLiveRoute('/api/career/live/view', req('/api/career/live/view', { application_id: app }), d);
+    expect(res!.status).toBe(200);
+    expect(await res!.json()).toMatchObject({ reopening: true });
+    expect(ran).toEqual([[fill.id]]);
+    expect(repos.getAction(fill.id)!.status).toBe('approved');
+    expect(repos.getAction(submit.id)!.status).toBe('failed');
+    const never = repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: 'x', title: '产品', company_name: '某司' }).id).id;
+    expect((await handleCareerLiveRoute('/api/career/live/view', req('/api/career/live/view', { application_id: never }), d))!.status).toBe(404);
+  });
+
   it('登录之旅钉着一家时，他点别家画面也跟过去；没人选过时按画面所在页标出当前这家（2026-11-05「切换画面不会跟着切换」）', async () => {
     resetApplicationPages();
     const repos = createMemoryRepos();

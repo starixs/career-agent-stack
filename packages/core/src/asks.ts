@@ -114,15 +114,24 @@ function startAsk(ctx: Ctx, actions: readonly ActionQueueItem[]): AskView | null
   }
 }
 
-/** 海投里填后检查全部通过、没有要你看的项的提交：一键全部投出，合成一件（用户 2026-10-30「要一个一键按钮」）。 */
+/** 填后检查全部通过、没有要你看的项、也不是标星的目标岗位。 */
 const isCleanSubmit = (ctx: Ctx, r: AskView) => !!r.review && r.review.gaps === 0 && r.review.required_total !== null && !r.application_ids.some(ctx.isTarget)
 
+/**
+ * 填好等投出的几家合成一件「N 家填好了」，交互一样：一键投出 / 去看（用户 2026-10-30「要一个一键按钮」）。
+ * 有项要看一眼的、标星的目标岗位不再拆成单独的「投前过目」——同一批是同一件事（2026-11-05「这两个其实是同一个任务，交互也不一样，还分开了」）；
+ * 它们点名写在原因行里，排在最前，「去看」先打开它们。
+ */
 function sendAllAsk(ctx: Ctx, reviews: readonly AskView[]): AskView {
-  const appIds = uniq(reviews.flatMap(r => r.application_ids))
+  const flagged = reviews.filter(r => !isCleanSubmit(ctx, r))
+  const ordered = [...flagged, ...reviews.filter(r => isCleanSubmit(ctx, r))]
+  const appIds = uniq(ordered.flatMap(r => r.application_ids))
+  const names = uniq(flagged.flatMap(r => r.application_ids)).map(id => ctx.apps.get(id)?.company.name).filter((n): n is string => !!n).map(shortName)
+  const detail = flagged.length ? `${names.slice(0, 3).join('、')}${names.length > 3 ? ` 等 ${names.length} 家` : ''}有要你看一眼的项，其余必填都填好并核对过` : '必填都填好并核对过，没有要你看的项'
   return {
-    id: reviews[0].id, kind: 'review', title: `${appIds.length} 家填好了`, detail: '必填都填好并核对过，没有要你看的项',
-    application_ids: appIds, companies: companiesOf(ctx, appIds), sources: reviews.flatMap(r => r.sources),
-    due_at: earliestJobDeadline(ctx, appIds), overdue: false, review: { required_filled: null, required_total: null, gaps: 0 },
+    id: reviews[0].id, kind: 'review', title: `${appIds.length} 家填好了`, detail,
+    application_ids: appIds, companies: companiesOf(ctx, appIds), sources: ordered.flatMap(r => r.sources),
+    due_at: earliestJobDeadline(ctx, appIds), overdue: false, review: { required_filled: null, required_total: null, gaps: flagged.reduce((n, r) => n + Math.max(1, r.review?.gaps ?? 0), 0) },
   }
 }
 
@@ -134,9 +143,9 @@ function actionAsks(repos: Repos, ctx: Ctx): AskView[] {
   const start = startAsk(ctx, pending.filter(a => NOT_STARTED_KINDS.has(a.kind)))
   // 发邮件前过目按用途分组（asks-mail.ts），不走通用的一封一件
   const reviews = pending.filter(a => !NOT_STARTED_KINDS.has(a.kind) && !isMailReviewKind(a)).map(a => reviewAsk(ctx, a))
-  const clean = reviews.filter(r => pending.find(a => a.id === r.id)?.kind === 'submit' && isCleanSubmit(ctx, r))
-  const merged = clean.length > 1 ? [sendAllAsk(ctx, clean)] : []
-  const rest = merged.length ? reviews.filter(r => !clean.includes(r)) : reviews
+  const submits = reviews.filter(r => pending.find(a => a.id === r.id)?.kind === 'submit')
+  const merged = submits.length > 1 ? [sendAllAsk(ctx, submits)] : []
+  const rest = merged.length ? reviews.filter(r => !submits.includes(r)) : reviews
   return [...(start ? [start] : []), ...merged, ...rest, ...mailReviewAsks(ctx, pending)]
 }
 

@@ -81,6 +81,9 @@ export function AskCard({ ask, busy, error, onGo, onLater, onAct }: {
 }) {
   // 开放题小芽已经写好一版：预填进去，他看一眼确认或改几个字
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((ask.fields ?? []).filter(f => f.fillable && f.draft).map(f => [f.label, f.draft!])));
+  // 「去看」的结果：页面关了在重开、没有填好的页面——点了要有回音，不能没反应（2026-11-05）
+  const [lookNote, setLookNote] = useState<string | null>(null);
+  const goLook = () => { setLookNote(null); void showApplicationPage(ask.application_ids[0]).then(setLookNote); };
   // 发邮件前过目：整封邮件的预览，不走通用布局
   if (ask.mail && onAct) return <MailAskCard ask={ask} mail={ask.mail} busy={busy} error={error} onAct={onAct} />;
   // 邮件没写成 / 没发出去：邮件自己的两个按钮（再写一次 / 再发一次 / 重新连邮箱 · 晚点）
@@ -110,10 +113,11 @@ export function AskCard({ ask, busy, error, onGo, onLater, onAct }: {
         <div className="cd-acts">
           <button type="button" className="cd-go" disabled={busy || blocked} onClick={() => void onGo(values)}>{labels.go}</button>
           {ask.kind === 'review'
-            ? <button type="button" className="cd-later" onClick={() => void showApplicationPage(ask.application_ids[0])}>去看</button>
+            ? <button type="button" className="cd-later" onClick={goLook}>去看</button>
             : <button type="button" className="cd-later" disabled={busy} onClick={() => void onLater()}>{labels.later}</button>}
-          {look && ask.kind !== 'review' && <button type="button" className="cd-later" onClick={() => void showApplicationPage(ask.application_ids[0])}>去看</button>}
+          {look && ask.kind !== 'review' && <button type="button" className="cd-later" onClick={goLook}>去看</button>}
         </div>
+        {lookNote && <p role="status" className="cd-src">{lookNote}</p>}
         {error && <p role="alert" className="cd-err">{error}</p>}
       </div>
     </article>

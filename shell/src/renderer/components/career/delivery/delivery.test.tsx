@@ -178,6 +178,17 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     off();
   });
 
+  it('去看的那家页面已经关了：卡上说一句在重新打开，不是点了没反应（2026-11-05）', async () => {
+    const two: AskView = { id: 'act_mm', kind: 'review', title: '2 家填好了', application_ids: ['a1', 'a2'], companies: [mark('陌陌'), mark('大疆')],
+      sources: [{ type: 'action', id: 'act_mm' }, { type: 'action', id: 'act_dj' }], due_at: null, overdue: false, review: { required_filled: null, required_total: null, gaps: 0 } };
+    serve([two], null);
+    vi.mocked(apiPostJson).mockImplementation(async (url: string) => (url === '/api/career/live/view' ? { ok: true, reopening: true } : { ok: true }));
+    render(<WaitingDock />);
+    fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
+    fireEvent.click(within(screen.getByTestId('ask-card-review')).getByRole('button', { name: '去看' }));
+    expect(await screen.findByRole('status', { name: '' })).toHaveTextContent('正在重新打开并填好');
+  });
+
   it('网页弹窗的选择题（阿里「请选择意向部门」）：卡上直接点选，选好交给后台接着填，不用去浏览器里点（2026-11-05）', async () => {
     const pick: AskView = { id: 'hnd_ali', kind: 'choice', title: '阿里巴巴 · 请选择意向部门', application_ids: ['a1'], companies: [mark('阿里巴巴')],
       sources: [{ type: 'handoff', id: 'hnd_ali' }], action_ids: ['act_ali'], due_at: null, overdue: false,

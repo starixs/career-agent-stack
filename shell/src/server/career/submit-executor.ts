@@ -14,6 +14,7 @@
 import { recordSuccess, systemOfSync } from './trust-ledger';
 import { normalizeHost, type ActionQueueItem, type Repos } from '@career/core';
 
+import { refillLostPage } from './page-refill';
 import { recordSubmitOutcome } from './submit-policy';
 
 export type SubmitRunner = (body: Record<string, unknown>, onEvent: (ev: Record<string, unknown>) => void) => Promise<Array<Record<string, unknown>>>;
@@ -90,11 +91,7 @@ async function submitOnce(deps: SubmitExecutorDeps, actionId: string, progress: 
     if (errorLine?.code === 'BROWSER_BUSY') { r.requeueAction(actionId); changed('action_queue'); return { actionId, status: 'busy', message }; }
     // 填好的页面已经没了（浏览器被关 / 重启过）：退回待审让用户"重新批准"只会无限循环——页面不存在。
     // 把这份投递最近一次填完的 fill_form 放回 approved 重新填写，填好后自然再出一张新的提交卡。
-    if (errorLine?.code === 'APPLICATION_PAGE_GONE' && appId && r.refillAfterPageLoss(appId)) {
-      r.setActionStatus(actionId, 'failed', { status: 'page_gone', message: '提交页已丢失，已重排重新填写' });
-      for (const h of r.openHandoffs()) if (h.action_id === actionId) { try { r.closeHandoff(h.id, 'page_gone_refill'); } catch { /* ignore */ } }
-      try { r.jumpTo(appId, 'approved', '提交页丢失，重新填写后再提交'); } catch { /* 阶段已在终态 */ }
-      note(r, appId, `提交页已丢失：网申将重新填写，填好后会再出一张提交卡（${message}）`);
+    if (errorLine?.code === 'APPLICATION_PAGE_GONE' && appId && refillLostPage(r, appId, '提交页已丢失')) {
       changed('action_queue', 'application');
       deps.broadcast('career:review', { sessionId: sid, actionIds: [actionId], kind: 'submit', summary: '提交页已丢失：已把这份网申放回重填队列，填好后会再出提交卡' });
       return { actionId, status: 'refilled', message };

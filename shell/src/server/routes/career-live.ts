@@ -20,6 +20,7 @@ import { BatchRunner as BatchRunnerClass } from '../career/batch-runner';
 import { appKeyOfHandoff, handoffsToHandBack, waitingByApp } from '../career/live-handback';
 import type { LiveHub } from '../career/live-hub';
 import { findApplicationPage, openApplicationKeys } from '../career/app-pages';
+import { refillLostPage } from '../career/page-refill';
 import { livePin, liveTarget, setViewApp, userWaitActive, viewedApp } from '../career/live-pin';
 import { JOURNEY_EVENT, journeySms, refreshJourneyImage, submitJourneyCode, type SmsState } from '../career/login-journey';
 import { createPageFollower } from '../career/page-follower';
@@ -121,7 +122,15 @@ async function handleViewRoutes(pathname: string, method: string, request: Reque
   if (pathname === `${CAREER_LIVE_PREFIX}view` && method === 'POST') {
     const body = await readBody(request);
     const app = typeof body.application_id === 'string' && body.application_id ? body.application_id : null;
-    if (app && !livePages(deps).some(p => p.application_id === app)) return fail('这一家的页面已经关了', 404);
+    // 页面已经关了：填好过的就放回重填（填好了会再出现在「等你」里），没填好过的如实说（2026-11-05 去看点了没反应）
+    if (app && !livePages(deps).some(p => p.application_id === app)) {
+      const refill = refillLostPage(deps.repos, app, '去看时页面已经关了');
+      if (!refill) return fail('这一家还没有填好的页面', 404);
+      deps.runner?.run([refill.fillActionId]);
+      const id = deps.productSessionId();
+      if (id) deps.hub.publish('career:data-changed', { sessionId: id, tables: ['action_queue', 'application', 'handoff'] });
+      return ok({ reopening: true, pages: await shownPages(deps) });
+    }
     setViewApp(app);
     const id = deps.productSessionId();
     if (id) deps.hub.publish('career:data-changed', { sessionId: id, tables: ['live_view'] });
