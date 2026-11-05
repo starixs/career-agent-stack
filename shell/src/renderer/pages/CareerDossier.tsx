@@ -1,7 +1,7 @@
 /**
  * 投递记录：一张表列出每条投递走到哪一步；点一行看岗位（JD 与岗位页面）。不再有单条投递的档案页——
  * 投的哪版简历、说过什么、面试准备都交给助理在对话里摊开。
- * 视图：投递记录 / 岗位库 / 助力记录（笔试、面试、模拟面试合一）；面试工作台和 Offer 对比从功能市场打开。
+ * 视图：投递记录 / 岗位库 / 助力记录（笔试、面试、模拟面试合一）；面试助力和 Offer 对比从功能市场打开。
  */
 import { ExternalLink as ExternalLinkIcon, Search, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -40,7 +40,7 @@ const VIEW_HEADINGS: Record<View, { title: string }> = {
   apply: { title: '岗位库' },
   line: { title: '投递记录' },
   assist: { title: '助力记录' },
-  interview: { title: '面试' },
+  interview: { title: '面试助力' },
   offer: { title: 'Offer 对比' },
   'exam-search': { title: '笔试助力' },
 };
@@ -88,19 +88,16 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
   }), [setView]);
 
   const heading = VIEW_HEADINGS[view] ?? VIEW_HEADINGS.line;
-  // 嵌入的子页把自己的页头动作放进这里（和标题同一行），不在内容区另起一行
-  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
-  const slotted = view === 'interview' || view === 'offer';
   return (
-    <CareerPage embedded={embedded} title={heading.title} actions={slotted ? <div ref={setActionsSlot} className="flex items-center gap-2" /> : undefined}>
+    <CareerPage embedded={embedded} title={heading.title}>
       {view === 'line' && <DossierLine focus={focus} onClearFilter={() => setFocus(f => (f ? { ...f, filter: null } : f))} />}
       {view === 'assist' && <AssistRecords />}
       {view === 'assist' && <PageAskBar target={{ kind: 'career-dossier', view }} placeholder="问问笔试面试安排，比如「下周有哪些笔试和面试」" />}
       {view !== 'line' && view !== 'assist' && (
         <Suspense fallback={<div className="px-4"><LoadingRow /></div>}>
           {view === 'apply' && <CareerApply embedded />}
-          {view === 'interview' && <CareerInterview embedded actionsSlot={actionsSlot} />}
-          {view === 'offer' && <CareerOffer embedded actionsSlot={actionsSlot} />}
+          {view === 'interview' && <CareerInterview />}
+          {view === 'offer' && <CareerOffer embedded />}
           {view === 'exam-search' && <CareerExamSearch />}
         </Suspense>
       )}

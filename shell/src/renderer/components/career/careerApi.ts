@@ -15,7 +15,7 @@ import type {
   CareerCard, CareerCardState, CareerSetupStatus, ProposeBatchOptions,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
   InboxItem, IntakeResult, Interview, InterviewRecording, Job, MailAccount, MailAccountDetail, MailConnectResult, MailConnector, MailConnectorId, MailMessage, MailOauthStart, SeasonId, TakeoverBriefing, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
-  ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue,
+  JobEvaluation, ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue,
   VaultAccessLogRow, VaultItemMeta, VaultOverview, VaultScope, BatchState, LiveSnapshot,
   AccountFetchState, AnswerBankEntry, AnswerStatus, ApplySettings, JobBoardFilter, JobBoardRow, JobPlan, JobPrefs, QuestionAttempt, QuestionItem, AtsReport, InterviewProgress,
 } from './types';
@@ -208,10 +208,8 @@ export const careerApi = {
   setJobTarget: (jobId: string, target: boolean) => apiPostJson<unknown>(careerPath('/targets'), { job_id: jobId, target }),
   examPractices: () => apiGetJson<unknown>(careerPath('/exam-practices')).then(r => pickList<ExamPractice>(r, 'examPractices')),
   mockInterviews: () => apiGetJson<unknown>(careerPath('/mock-interviews')).then(r => pickList<MockInterview>(r, 'mockInterviews', 'mock_interviews', 'items')),
-  /** API.md 未列出该路由；后端若未实现则按空列表处理。 */
-  probePredictions: () => apiGetJson<unknown>(careerPath('/probe-predictions'))
-    .then(r => pickList<ProbePrediction>(r, 'predictions', 'probePredictions', 'items'))
-    .catch(() => [] as ProbePrediction[]),
+  probePredictions: () => apiGetJson<unknown>(careerPath('/probe-predictions')).then(r => pickList<ProbePrediction>(r, 'predictions')),
+  jobEvaluations: () => apiGetJson<unknown>(careerPath('/job-evaluations')).then(r => pickList<JobEvaluation>(r, 'evaluations')),
 
   // ----- Offer -----
   offers: () => apiGetJson<unknown>(careerPath('/offers')).then(r => pickList<Offer>(r, 'offers', 'items')),

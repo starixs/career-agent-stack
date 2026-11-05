@@ -122,7 +122,7 @@ describe('CareerReview', () => {
     expect(screen.queryByRole('button', { name: '生成本周复盘' })).not.toBeInTheDocument();
     act(() => { setCareerSubView('career-review', 'research'); });
     expect(await screen.findByTestId('embedded-research')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: '公司调研与方向' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '公司调研' })).toBeInTheDocument();
     act(() => { emitEvent('career:focus', { surface: 'review' }); });
     expect(await screen.findByRole('heading', { name: '我的求职月' })).toBeInTheDocument();
   });

@@ -1145,4 +1145,28 @@ describe('turn-lifecycle owner', () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('[career-suggest] hook dispatch failed session=session-1'), 'boom');
     });
   });
+
+  it('meters turn usage keyed by the result uuid, including failed turns', async () => {
+    const fireUsageMeterHook = vi.fn();
+    const { deps } = makeDeps({ fireUsageMeterHook });
+    const lifecycle = createBuiltinTurnLifecycle(deps);
+    lifecycle.handleSdkResult(makeResult({
+      is_error: true,
+      subtype: 'error_during_execution',
+      errors: ['upstream 500'],
+      terminal_reason: 'error',
+      modelUsage: { 'deepseek-flash': { inputTokens: 1200, outputTokens: 300, cacheReadInputTokens: 9000, cacheCreationInputTokens: 0, webSearchRequests: 0, costUSD: 0, contextWindow: 1_000_000, maxOutputTokens: 8192 } },
+    }));
+    await lifecycle.getLastTurnEndPersist();
+
+    expect(fireUsageMeterHook).toHaveBeenCalledOnce();
+    expect(fireUsageMeterHook).toHaveBeenCalledWith(expect.objectContaining({
+      key: 'chat:session-1:00000000-0000-4000-8000-000000000001',
+      scope: 'chat:session-1',
+      origin: 'chat',
+      inputTokens: 1200,
+      outputTokens: 300,
+      cacheReadTokens: 9000,
+    }));
+  });
 });

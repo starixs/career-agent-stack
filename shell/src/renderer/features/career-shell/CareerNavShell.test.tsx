@@ -20,7 +20,7 @@ describe('navModel', () => {
     expect(NAV_AREAS.find(area => area.id === 'assets')!.items.map(item => item.label))
       .toEqual(['基本资料', '简历']);
     expect(NAV_AREAS.find(area => area.id === 'settings')!.items.map(item => item.id))
-      .toEqual(['general', 'shortcuts', 'feedback', 'about']);
+      .toEqual(['account', 'general', 'shortcuts', 'feedback', 'about']);
   });
 
   it('locates the area and item from the active tab and the page sub-view', () => {
@@ -70,7 +70,7 @@ describe('CareerNavShell', () => {
     fireEvent.click(screen.getByRole('button', { name: '岗位库' }));
     expect(onOpen).toHaveBeenLastCalledWith({ kind: 'career-dossier', view: 'apply' });
     fireEvent.click(screen.getByRole('button', { name: /功能市场/ }));
-    expect(onOpen).toHaveBeenLastCalledWith({ kind: 'career-guide' });
+    expect(onOpen).toHaveBeenLastCalledWith({ kind: 'career-guide', view: 'home' });
   });
 
   it('opens the first L2 item when entering an area for the first time', () => {

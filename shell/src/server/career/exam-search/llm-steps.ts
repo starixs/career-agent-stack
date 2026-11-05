@@ -10,7 +10,8 @@ import { QUESTION_TYPES, type BankMatch, type QuestionType } from './bank';
 import type { MatchTier, SearchContext } from './match';
 
 export interface RecognizedQuestion { index: number; stem: string; options: string[]; qtype: QuestionType | null }
-export interface Recognition { company_hint: string | null; role_hint: string | null; questions: RecognizedQuestion[] }
+/** material：几道题共用的材料（阅读段落、资料分析的表格），Markdown；记录里就存这份文字，不存截图。 */
+export interface Recognition { company_hint: string | null; role_hint: string | null; material: string | null; questions: RecognizedQuestion[] }
 
 export type AnswerConfidence = 'high' | 'medium' | 'low';
 export type AnswerSource = 'bank' | 'reference' | 'model';
@@ -24,15 +25,18 @@ const REFS_PER_QUESTION = 3;
 
 const RECOGNIZE_SYSTEM = [
   '你在帮求职者读笔试、测评题。把输入（截图或文字）里的每一道题原样抄出来，只抄题，不作答。',
+  '有好几张截图时，它们是按顺序连着截的：一道题被截成两半（题干在上一张、选项在下一张）就拼成一道；同一道题在两张图里重复出现只抄一次。',
   '每道题：stem 题干（不含题号）；options 选项数组，每项保留字母前缀如「A. xxx」，没有选项给 []；',
   'qtype 题型，取值 single 单选 / multi 多选 / judge 判断 / fill 填空 / short 简答 / personality 性格或情境测评（没有对错，问你更像哪种人、会怎么做）。',
+  '题目共用的材料（阅读段落、资料分析的文字和表格、情境描述）原样抄进 material，表格写成 Markdown 表格；图形题的图用一句话描述；没有材料填 null。',
   '看不清的字用 □ 代替，不要猜。没有题就返回空数组。',
   '如果画面里能看到公司名或岗位名（试卷标题、页眉），填 company_hint / role_hint，看不到填 null。',
-  '输出 JSON：{"company_hint":string|null,"role_hint":string|null,"questions":[{"stem":"","options":[],"qtype":""}]}',
+  '输出 JSON：{"company_hint":string|null,"role_hint":string|null,"material":string|null,"questions":[{"stem":"","options":[],"qtype":""}]}',
 ].join('\n');
 
 const ANSWER_SYSTEM = [
   '你在帮求职者现场答笔试、测评题，要又快又准。',
+  '开头可能有几道题共用的 <材料>，作答时以材料里的数据和内容为准。',
   '每道题后面可能附了题库里的参考题（带答案与解析，注明来源是同公司同岗位往年题、别家同岗位题还是通用题）。',
   '参考题和本题是同一道题时，以参考答案为准，除非它明显错了；只是类似时，借鉴其中的考点和思路。',
   '没有参考题就凭你自己的知识作答。',
@@ -44,11 +48,12 @@ const ANSWER_SYSTEM = [
   '输出 JSON：{"answers":[{"index":0,"answer":"","explanation":"","confidence":"high"}]}',
 ].join('\n');
 
-export async function recognizeQuestions(llm: LLM, input: { image?: LlmImage; text?: string }): Promise<Recognition> {
-  const content = input.text?.trim() ? `题目文字如下：\n${input.text.trim()}` : '题目在截图里。';
+export async function recognizeQuestions(llm: LLM, input: { images?: LlmImage[]; text?: string }): Promise<Recognition> {
+  const images = input.images ?? [];
+  const content = input.text?.trim() ? `题目文字如下：\n${input.text.trim()}` : images.length > 1 ? `题目在这 ${images.length} 张截图里，按顺序连着。` : '题目在截图里。';
   const response = await llm.complete({
     system: RECOGNIZE_SYSTEM,
-    messages: [{ role: 'user', content, ...(input.image ? { images: [input.image] } : {}) }],
+    messages: [{ role: 'user', content, ...(images.length > 0 ? { images } : {}) }],
     json: true, maxTokens: RECOGNIZE_MAX_TOKENS, temperature: 0,
   });
   return parseRecognition(extractJson<unknown>(response.text));
@@ -67,8 +72,8 @@ function refBlock(match: BankMatch, n: number): string {
   ].join('\n');
 }
 
-export function buildAnswerPrompt(questions: Array<RecognizedQuestion & { matches: BankMatch[] }>, ctx: SearchContext): string {
-  const head = `这场笔试：${ctx.companyName ?? '公司未知'} · ${ctx.roleTitle ?? '岗位未知'}`;
+export function buildAnswerPrompt(questions: Array<RecognizedQuestion & { matches: BankMatch[] }>, ctx: SearchContext, material: string | null = null): string {
+  const head = [`这场笔试：${ctx.companyName ?? '公司未知'} · ${ctx.roleTitle ?? '岗位未知'}`, ...(material ? [`<材料>\n${material}\n</材料>`] : [])].join('\n\n');
   const blocks = questions.map(q => [
     `<题 index="${q.index}" 题型="${q.qtype ?? '未知'}">`,
     `题干：${q.stem}`,
@@ -79,11 +84,11 @@ export function buildAnswerPrompt(questions: Array<RecognizedQuestion & { matche
   return [head, ...blocks].join('\n\n');
 }
 
-export async function answerQuestions(llm: LLM, questions: Array<RecognizedQuestion & { matches: BankMatch[] }>, ctx: SearchContext): Promise<QuestionAnswer[]> {
+export async function answerQuestions(llm: LLM, questions: Array<RecognizedQuestion & { matches: BankMatch[] }>, ctx: SearchContext, material: string | null = null): Promise<QuestionAnswer[]> {
   if (questions.length === 0) return [];
   const response = await llm.complete({
     system: ANSWER_SYSTEM,
-    messages: [{ role: 'user', content: buildAnswerPrompt(questions, ctx) }],
+    messages: [{ role: 'user', content: buildAnswerPrompt(questions, ctx, material) }],
     json: true, maxTokens: ANSWER_MAX_TOKENS, temperature: 0,
   });
   const byIndex = new Map(questions.map(q => [q.index, q]));
@@ -111,7 +116,7 @@ export function parseRecognition(raw: unknown): Recognition {
     const options = Array.isArray(q.options) ? q.options.map(text).filter((o): o is string => o !== null) : [];
     return [{ stem, options, qtype: isQuestionType(q.qtype) ? q.qtype : null }];
   });
-  return { company_hint: text(obj.company_hint), role_hint: text(obj.role_hint), questions: questions.map((q, index) => ({ index, ...q })) };
+  return { company_hint: text(obj.company_hint), role_hint: text(obj.role_hint), material: text(obj.material), questions: questions.map((q, index) => ({ index, ...q })) };
 }
 
 const CONFIDENCES: readonly AnswerConfidence[] = ['high', 'medium', 'low'];

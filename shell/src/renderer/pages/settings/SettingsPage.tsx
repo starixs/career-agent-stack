@@ -210,7 +210,7 @@ import { SkillsAgentsSection } from './sections/SkillsAgentsSection';
 import { ToolboxSection } from './sections/ToolboxSection';
 import { ExternalCliSettingsSection } from './sections/ExternalCliSettingsSection';
 import { FeedbackSection } from './sections/ShellEntriesSections';
-import { CareerModelKeyBlock } from './sections/CareerSettingsBlocks';
+import { AccountSection } from '@/components/career/account/AccountSection';
 import { setCareerSubView } from '@/features/career-shell/subViewStore';
 import codexModelSelectorOnboarding from '@/assets/onboarding/codex-model-selector.png';
 
@@ -5076,6 +5076,8 @@ export default function Settings({
 
         {activeSection === 'feedback' && <FeedbackSection />}
 
+        {activeSection === 'account' && <AccountSection />}
+
         {/* Providers section uses wider layout */}
         {activeSection === 'providers' && (
           <div className="mx-auto max-w-4xl px-8 py-8">
@@ -5486,9 +5488,6 @@ export default function Settings({
                 </p>
                 )}
               </div>
-
-              {/* 模型 Key：只在真的缺 Key 时出现（内测包预置了就整组不露）。 */}
-              <CareerModelKeyBlock />
 
               {/* 服务端地址 / 令牌是开发配置，求职壳不露。 */}
               {!careerShell && (

@@ -15,7 +15,6 @@ import { useTabStateOptional } from '@/context/TabContext';
 
 import { CareerFlowCards } from './CareerFlowCards';
 import { ReturnBriefing } from './delivery/ReturnCard';
-import { CareerKeysPanel, useCareerSetupStatus } from './CareerKeysPanel';
 import { StarterCard } from './ColdStartCards';
 import { openLiveDrawer } from './CareerLiveDrawer';
 
@@ -40,36 +39,8 @@ function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useT
   return (
     <div className="space-y-2 py-2">
       <StarterCard conversationStarted={conversationStarted} />
-      <CareerSetupCards />
       <CareerFlowCards cards={cards} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
       <ReturnBriefing messageCount={tab.messages?.length ?? 0} />
-    </div>
-  );
-}
-
-const SEARCH_SETUP_DISMISSED_KEY = 'career.searchSetupDismissed';
-function readDismissed(): boolean { try { return window.localStorage.getItem(SEARCH_SETUP_DISMISSED_KEY) === '1'; } catch { return false; } }
-
-/**
- * 依赖配置卡：没有模型 Key 时助理根本跑不起来，固定在对话底部直到配好（必需）；
- * 搜索 Key 没配时给一张可"暂不配置"的建议卡（记住选择，不再打扰）。
- */
-export function CareerSetupCards() {
-  const { status } = useCareerSetupStatus();
-  const [searchDismissed, setSearchDismissed] = useState(readDismissed);
-  if (!status) return null;
-  const needLlm = !status.llm.configured;
-  const suggestSearch = !status.search.configured && !searchDismissed;
-  if (!needLlm && !suggestSearch) return null;
-  const dismissSearch = () => { try { window.localStorage.setItem(SEARCH_SETUP_DISMISSED_KEY, '1'); } catch { /* 隐私模式 */ } setSearchDismissed(true); };
-  return (
-    <div data-testid="career-setup-cards" className="rounded-xl border border-[var(--line)] bg-[var(--paper)] p-4 shadow-sm">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-[var(--ink)]">{needLlm ? '先配置模型 Key，助理才能开始工作' : '建议配置搜索 Key'}</span>
-        {needLlm ? <Badge tone="warning">必需</Badge> : <Badge tone="info">建议</Badge>}
-        {!needLlm && <Button variant="ghost" className="ml-auto" onClick={dismissSearch}>暂不配置</Button>}
-      </div>
-      <div className="mt-3"><CareerKeysPanel show={needLlm ? (suggestSearch ? 'all' : 'llm') : 'search'} /></div>
     </div>
   );
 }

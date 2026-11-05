@@ -14,7 +14,8 @@ export interface LlmRequest {
   maxTokens?: number
   temperature?: number
 }
-export interface LlmUsage { input_tokens: number; output_tokens: number }
+/** 用量字段同 DeepSeek 接口：input_tokens 是未命中缓存的输入，命中缓存的另记 cache_read_input_tokens。 */
+export interface LlmUsage { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number; model?: string }
 export interface LlmResponse { text: string; usage: LlmUsage }
 
 export interface LLM {

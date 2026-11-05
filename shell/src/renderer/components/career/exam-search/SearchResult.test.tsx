@@ -12,10 +12,10 @@ const question = (matches: BankMatch[], over: Partial<SearchQuestion> = {}): Sea
 const answer = (over: Partial<QuestionAnswer>): QuestionAnswer => ({ index: 0, answer: 'C', explanation: '美观不是原则', confidence: 'high', source: 'bank', ref_item_id: 'i1', ...over });
 
 describe('搜题结果', () => {
-  it('出处分三种说清楚：题库原题 / 参考类似题 / 模型作答', () => {
+  it('出处只标题库给的：题库原题 / 参考类似题；模型自己答的不挂出处', () => {
     expect(sourceLabel(question([match({})]), answer({}))?.text).toBe('题库原题 · 网易 · 交互设计师 · 2024');
     expect(sourceLabel(question([match({ tier: 'same-role', similarity: 0.5, same: false })]), answer({ source: 'reference' }))?.text).toBe('参考了同岗位的类似题');
-    expect(sourceLabel(question([]), answer({ source: 'model', ref_item_id: null }))?.text).toBe('题库里没有，模型作答');
+    expect(sourceLabel(question([]), answer({ source: 'model', ref_item_id: null }))).toBeNull();
   });
 
   it('原题不算类似题；只是类似时全部列出', () => {

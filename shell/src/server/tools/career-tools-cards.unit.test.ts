@@ -197,13 +197,13 @@ describe('对话内流程卡片', () => {
     expect(toolUseIdFrom(undefined)).toBeNull();
   });
 
-  it('web_search 没有搜索提供方（模型 Key 也没配）：不再要搜索 Key、不推卡片，错误里说去配模型 Key', async () => {
+  it('web_search 搜索不可用：不推让用户配 Key 的卡片，错误里让助理提醒核实', async () => {
     setSearchProvider(null);
     try {
       const res = await call('web_search', { query: '海康威视 评价' });
       expect(res.isError).toBe(true);
-      expect(res.text).toContain('模型 Key');
-      expect(res.text).not.toMatch(/博查|Tavily|Serper/);
+      expect(res.text).toContain('联网搜索暂时不可用');
+      expect(res.text).not.toContain('Key');
       expect(cards().find(c => c.card.kind === 'search_setup')).toBeUndefined();
     } finally {
       setSearchProvider(undefined);

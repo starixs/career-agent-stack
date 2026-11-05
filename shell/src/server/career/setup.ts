@@ -1,35 +1,23 @@
 /**
- * 求职助理的外部依赖配置：一个 DeepSeek 模型 Key 同时管模型和联网搜索（零配置，2026-11-05 定）。
- * 优先级：设置页 / 对话卡片保存到 config.json 的值 > 构建期注入常量 > 环境变量。
- * 模型 Key 的实际解析在 admin-config.resolveProviderEnv（已是"配置优先、常量兜底"），这里只做状态汇总；
- * 搜索在这里解析，供 search.ts 使用：明确配过的博查 / Tavily / Serper Key 仍然优先（老用户兼容），
- * 没配就用模型 Key 走 DeepSeek 搜索（{模型地址的 origin}/v1/tools/search，CAREER_SEARCH_BASE_URL 可覆盖）。
+ * 求职助理的外部依赖：内置模型 Key 与联网搜索。
+ * 用户不能自己配 Key（2026-11-05 定）：只认构建期注入的常量，开发态读同名环境变量；以后改为账号认证后由我们的服务下发。
+ * 一个 DeepSeek 模型 Key 同时管模型和搜索（2026-11-05 定）：明确内置过博查 / Tavily / Serper Key 的仍然优先，
+ * 没有就用模型 Key 走 DeepSeek 搜索（{模型地址的 origin}/v1/tools/search，CAREER_SEARCH_BASE_URL 可覆盖）。
+ * 模型 Key 的实际解析在 admin-config.resolveProviderEnv，这里只做状态汇总；搜索在这里解析，供 search.ts 使用。
  * 只回状态，永远不把 Key 回给渲染层或模型。
  */
-import {
-  CAREER_LLM_PROVIDER_ID, CAREER_SEARCH_KEY_ID, CAREER_SEARCH_PROVIDERS, getCareerBuildConstants,
-  type CareerSearchProviderName,
-} from '../../shared/career-build-constants';
-import { loadConfig } from '../utils/admin-config';
+import { CAREER_SEARCH_PROVIDERS, getCareerBuildConstants, type CareerSearchProviderName } from '../../shared/career-build-constants';
 
-export type KeySource = 'settings' | 'build' | 'none';
-
-export interface CareerKeyConfigSlice { providerApiKeys?: Record<string, string>; careerSearchProvider?: string }
-
-function readConfig(): CareerKeyConfigSlice {
-  try { return loadConfig() as unknown as CareerKeyConfigSlice; } catch { return {}; }
-}
+export type KeySource = 'build' | 'none';
 
 const isProvider = (v: unknown): v is CareerSearchProviderName => typeof v === 'string' && (CAREER_SEARCH_PROVIDERS as readonly string[]).includes(v);
 
-/** 搜索实际用哪家：明确配过的三家之一，或用模型 Key 的 DeepSeek。 */
+/** 搜索实际用哪家：明确内置的三家之一，或用模型 Key 的 DeepSeek。 */
 export type CareerSearchProvider = CareerSearchProviderName | 'deepseek';
 export interface CareerSearchConfig { provider: CareerSearchProvider | null; apiKey: string; source: KeySource; /** 只有 DeepSeek 兜底时给：搜索接口的地址（不含 /v1/tools/search） */ baseUrl?: string }
 
-/** 内置模型 Key：设置页保存的优先，其次构建常量（和 admin-config.resolveProviderEnv 同一口径）。 */
-export function resolveCareerLlmKey(config: CareerKeyConfigSlice = readConfig()): { apiKey: string; source: KeySource } {
-  const saved = config.providerApiKeys?.[CAREER_LLM_PROVIDER_ID]?.trim();
-  if (saved) return { apiKey: saved, source: 'settings' };
+/** 内置模型 Key（构建常量 / 开发态同名环境变量；和 admin-config.resolveProviderEnv 同一口径）。 */
+export function resolveCareerLlmKey(): { apiKey: string; source: KeySource } {
   const build = getCareerBuildConstants().llmApiKey;
   return build ? { apiKey: build, source: 'build' } : { apiKey: '', source: 'none' };
 }
@@ -47,19 +35,17 @@ export function deepSeekSearchBaseUrl(llmBaseUrl: string, override = ''): string
   }
 }
 
-/** 明确配过的三家（设置页 > 构建常量）；没有返回 null。 */
-function explicitSearchConfig(config: CareerKeyConfigSlice): CareerSearchConfig | null {
-  const saved = config.providerApiKeys?.[CAREER_SEARCH_KEY_ID]?.trim();
-  if (saved) return { provider: isProvider(config.careerSearchProvider) ? config.careerSearchProvider : 'bocha', apiKey: saved, source: 'settings' };
+/** 明确内置过的三家之一；没有返回 null。 */
+function explicitSearchConfig(): CareerSearchConfig | null {
   const c = getCareerBuildConstants();
   if (c.searchApiKey) return { provider: isProvider(c.searchProvider) ? c.searchProvider : null, apiKey: c.searchApiKey, source: 'build' };
   return null;
 }
 
-export function resolveCareerSearchConfig(config: CareerKeyConfigSlice = readConfig()): CareerSearchConfig {
-  const explicit = explicitSearchConfig(config);
+export function resolveCareerSearchConfig(): CareerSearchConfig {
+  const explicit = explicitSearchConfig();
   if (explicit) return explicit;
-  const llm = resolveCareerLlmKey(config);
+  const llm = resolveCareerLlmKey();
   if (!llm.apiKey) return { provider: null, apiKey: '', source: 'none' };
   const c = getCareerBuildConstants();
   const baseUrl = deepSeekSearchBaseUrl(c.llmBaseUrl, c.searchBaseUrl);
@@ -74,10 +60,10 @@ export interface CareerSetupStatus {
 /** bridges 自己认的搜索环境变量（BOCHA_API_KEY 等）：开发机上设了也算配过。 */
 const hasEnvSearchKey = (env: NodeJS.ProcessEnv) => !!(env.SEARCH_API_KEY || env.BOCHA_API_KEY || env.TAVILY_API_KEY || env.SERPER_API_KEY || env.DEEPSEEK_API_KEY);
 
-/** 模型 Key 在，搜索就算配好了（DeepSeek 同一个 Key）；产品不再单独要搜索 Key。 */
-export function careerSetupStatus(config: CareerKeyConfigSlice = readConfig(), env: NodeJS.ProcessEnv = process.env): CareerSetupStatus {
-  const llm = resolveCareerLlmKey(config);
-  const search = resolveCareerSearchConfig(config);
+/** 模型 Key 在，搜索就算配好了（DeepSeek 同一个 Key）。 */
+export function careerSetupStatus(env: NodeJS.ProcessEnv = process.env): CareerSetupStatus {
+  const llm = resolveCareerLlmKey();
+  const search = resolveCareerSearchConfig();
   const envSearch = search.source === 'none' && hasEnvSearchKey(env);
   return {
     llm: { configured: llm.source !== 'none', source: llm.source },
@@ -85,4 +71,4 @@ export function careerSetupStatus(config: CareerKeyConfigSlice = readConfig(), e
   };
 }
 
-export const SEARCH_NOT_CONFIGURED_MESSAGE = '联网搜索暂时用不了：模型 Key 还没配好（搜索和模型共用一个 Key）。请用户在「设置 → 通用 → 求职助理」里填好模型 Key；在那之前公司调研只能靠模型已有知识。';
+export const SEARCH_NOT_CONFIGURED_MESSAGE = '联网搜索暂时不可用，这次只能靠模型已有的知识回答；请提醒用户结果需要核实。';

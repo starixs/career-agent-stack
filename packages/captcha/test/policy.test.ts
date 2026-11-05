@@ -15,7 +15,7 @@ describe('CaptchaPolicy 预算与冷却', () => {
   })
   it('连败冷却期过了放行，但预算仍按当天计', () => {
     let t = T0
-    const p = new CaptchaPolicy({ siteDailyBudget: 3, siteCooldownMs: 1000, now: () => t })
+    const p = new CaptchaPolicy({ siteDailyBudget: 3, siteCooldownMs: 1000, minIntervalMs: 0, now: () => t })
     p.record('a.com', 'slider', 'failed')
     expect(p.canAttempt('a.com').reason).toBe('cooldown')
     t += 1001
@@ -29,7 +29,7 @@ describe('CaptchaPolicy 预算与冷却', () => {
   })
   it('通过会清掉连败段', () => {
     let t = T0
-    const p = new CaptchaPolicy({ siteCooldownMs: 1000, now: () => t })
+    const p = new CaptchaPolicy({ siteCooldownMs: 1000, minIntervalMs: 0, now: () => t })
     p.record('a.com', 'slider', 'failed')
     p.record('a.com', 'slider', 'passed')
     expect(p.canAttempt('a.com').ok).toBe(true)
@@ -57,5 +57,16 @@ describe('siteKeyOf', () => {
   it('取 hostname；坏 URL 原样返回', () => {
     expect(siteKeyOf('https://www.zhipin.com/apply?x=1')).toBe('www.zhipin.com')
     expect(siteKeyOf('not a url')).toBe('not a url')
+  })
+})
+
+describe('CaptchaPolicy 最短间隔', () => {
+  it('同站刚结束一次验证，立即重复会被 rate_limit；间隔后恢复', () => {
+    let t = T0
+    const p = new CaptchaPolicy({ minIntervalMs: 1500, siteCooldownMs: 0, now: () => t })
+    p.record('a.com', 'slider', 'passed')
+    expect(p.canAttempt('a.com')).toEqual({ ok: false, reason: 'rate_limit' })
+    t += 1501
+    expect(p.canAttempt('a.com').ok).toBe(true)
   })
 })

@@ -1,6 +1,7 @@
 import { extractJson } from '@career/core'
 import { capturePngBase64, toLlmImage } from '../capture.js'
 import { humanClick } from '../human-input.js'
+import { waitForVerification } from '../verification.js'
 import type { SolveResult, SolverDeps } from '../types.js'
 
 /**
@@ -123,8 +124,7 @@ export async function solveImageClick(deps: SolverDeps): Promise<SolveResult> {
       await humanClick({ cdp, rand, sleep }, p.x, p.y)
       await sleep(320 + rand() * 380)
     }
-    await sleep(900 + rand() * 700)
-    if (await verifyPassed(deps)) {
+    if (await waitForVerification(() => verifyPassed(deps), sleep, 1600)) {
       const how = useGrid ? `格子 ${JSON.stringify(answer.cells)}` : `${targets.length} 个归一化坐标`
       return { outcome: 'passed', detail: `按${how}点了 ${targets.length} 个目标后通过`, attempts: attempt }
     }

@@ -54,6 +54,7 @@ import { broadcast as sseBroadcast } from '../sse';
 import { careerJson, fail, ok, str, strOrNull, type Json } from './career-http';
 import { deliveryRoutes } from './career-delivery';
 import { interviewRoutes } from './career-interview';
+import { skillRoutes } from './career-skills';
 import { phoneRoutes } from './career-phone';
 import { phoneLink } from '../career/phone';
 import type { AskSkill, PostCard } from '../career/interview-retro-run';
@@ -185,6 +186,7 @@ const ROUTES: Route[] = [
     ask: skillAsker(ctx), postCard: cardPoster(ctx),
   }))),
 
+  ...skillRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos }))),
   ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url, params: ctx.params, body: ctx.body, vault: ctx.vault, dataChanged: tables => dataChanged(ctx, tables) }))),
   // ---------- 手机连接（蓝牙读短信收验证码，见 career/phone） ----------
   ...phoneRoutes(phoneLink).map(([method, path, handler]) => route(method, path, ctx => handler({ body: ctx.body }))),
@@ -683,7 +685,7 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 外部依赖配置状态（模型 Key 必需 / 搜索 Key 建议）：只回状态，不回 Key ----------
-  route('GET', '/api/career/setup', () => ok({ setup: careerSetupStatus() })),
+  route('GET', '/api/career/setup', () => ok({ setup: careerSetupStatus(process.env) })),
 
   // ---------- 对话内流程卡片（持久化；锚定在产生它的工具调用下面） ----------
   route('GET', '/api/career/cards', ({ repos, url }) => {
@@ -1096,6 +1098,10 @@ export async function handleCareerRoute(pathname: string, request: Request, deps
   if (pathname.startsWith('/api/career/exam-search/')) {
     const { handleExamSearchRoute } = await import('./career-exam-search');
     return handleExamSearchRoute(pathname, request, { repos: deps.repos, llm: deps.llm ?? undefined, broadcast: deps.broadcast });
+  }
+  if (pathname.startsWith('/api/career/billing/')) {
+    const { handleBillingRoute } = await import('./career-billing');
+    return handleBillingRoute(pathname, request, { repos: deps.repos });
   }
   const method = request.method.toUpperCase();
   for (const r of ROUTES) {

@@ -18,6 +18,8 @@ export interface CaptchaPolicyOptions {
   siteDailyBudget?: number
   /** 连续失败后同站点冷却毫秒（默认 10 分钟）。 */
   siteCooldownMs?: number
+  /** 同站两次验证尝试的最短间隔（默认 1.2 秒），防止高频重复。 */
+  minIntervalMs?: number
   now?: () => number
 }
 
@@ -27,17 +29,21 @@ export class CaptchaPolicy {
   private readonly records: AttemptRecord[] = []
   private readonly dailyBudget: number
   private readonly cooldownMs: number
+  private readonly minIntervalMs: number
+  private readonly lastAttemptAt = new Map<string, number>()
   private readonly now: () => number
 
   constructor(opts: CaptchaPolicyOptions = {}) {
     this.dailyBudget = opts.siteDailyBudget ?? 6
     this.cooldownMs = opts.siteCooldownMs ?? 10 * 60 * 1000
+    this.minIntervalMs = opts.minIntervalMs ?? 1200
     this.now = opts.now ?? Date.now
   }
 
   /** 记录一条尝试（进审计日志，并参与预算计算）。 */
   record(site: string, kind: CaptchaKind, outcome: AttemptRecord['outcome']): void {
     this.records.push({ site, kind, at: this.now(), outcome })
+    if (outcome !== 'gave_up') this.lastAttemptAt.set(site, this.now())
   }
 
   /** 当天该站点已用掉的尝试次数。 */
@@ -57,10 +63,12 @@ export class CaptchaPolicy {
     return at
   }
 
-  canAttempt(site: string): { ok: boolean; reason?: 'daily_budget' | 'cooldown' } {
+  canAttempt(site: string): { ok: boolean; reason?: 'daily_budget' | 'cooldown' | 'rate_limit' } {
     const failedAt = this.lastFailureAt(site)
     if (failedAt !== null && this.now() - failedAt < this.cooldownMs) return { ok: false, reason: 'cooldown' }
     if (this.dailyCount(site) >= this.dailyBudget) return { ok: false, reason: 'daily_budget' }
+    const last = this.lastAttemptAt.get(site)
+    if (last !== undefined && this.now() - last < this.minIntervalMs) return { ok: false, reason: 'rate_limit' }
     return { ok: true }
   }
 

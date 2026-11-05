@@ -145,7 +145,7 @@ import type { OfficialToolId } from '../shared/official-tools';
 import { prepareSessionTranscriptMutation, activateSessionTranscript, claimPreparedSessionForTurnAdmission, commitPreparedSessionForFirstUserTurn, migratePendingSessionIdentity, resolvePendingConversationMutation, saveSessionMetadata, publishForkSession, assertCompleteSessionForkSource, updateSessionTitleFromMessage, updateSessionMetadata, updateSessionMetadataForBinding, getSessionMetadata, loadSessionTranscript } from './SessionStore';
 import { TranscriptPresentation } from './session-transcript/presentation';
 import { projectTranscriptToolInput, type TranscriptObject } from '../shared/sessionTranscript';
-import { firePostTurnTitleHook } from './turn-hooks';
+import { firePostTurnTitleHook, fireUsageMeterHook } from './turn-hooks';
 import { createSessionMetadata, type SessionMetadata, type SessionMessage, type MessageAttachment, type SessionSource, type TurnAnalyticsSource } from './types/session';
 import { originFromTurnAttribution } from '../shared/session-origin';
 import type { SessionOrigin } from '../shared/session-origin';
@@ -7350,6 +7350,7 @@ const builtinTurnLifecycle = createBuiltinTurnLifecycle({
   trackServer,
   firePostTurnTitleHook,
   firePostTurnSuggestHook: (ctx, isSuperseded) => { void import('./career/suggest-hook').then(m => m.onCareerTurnComplete(ctx, isSuperseded)).catch((e: unknown) => console.warn('[career-suggest] hook import failed:', e instanceof Error ? e.message : e)); },
+  fireUsageMeterHook,
   appendTextChunk,
   stageAssistantChannelBlock: stageSessionBoundAssistantBlock,
   localizeImError,

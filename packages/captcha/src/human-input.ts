@@ -17,6 +17,15 @@ export interface HumanDeps {
 }
 
 const defaultRand = Math.random
+const warmedSessions = new WeakSet<object>()
+
+async function ensureWarmUp(d: HumanDeps): Promise<void> {
+  if ((typeof d.cdp !== 'object' && typeof d.cdp !== 'function') || d.cdp === null) return
+  const key = d.cdp as object
+  if (warmedSessions.has(key)) return
+  warmedSessions.add(key)
+  await warmUpInput(d)
+}
 
 /** attach 后坐标系预热（无害移动一次，等 infobar 推挤完成）。 */
 export async function warmUpInput(d: HumanDeps): Promise<void> {
@@ -81,6 +90,7 @@ export async function humanMove(d: HumanDeps, to: { x: number; y: number }, from
 export async function humanClick(d: HumanDeps, x: number, y: number, opts: { double?: boolean } = {}): Promise<void> {
   const rand = d.rand ?? defaultRand
   const sleep = d.sleep ?? ((ms: number) => new Promise(r => setTimeout(r, ms)))
+  await ensureWarmUp(d)
   const tx = x + (rand() - 0.5) * 3
   const ty = y + (rand() - 0.5) * 3
   await humanMove(d, { x: tx, y: ty })
@@ -97,17 +107,26 @@ const VK: Record<string, number> = {
 }
 const vkOf = (ch: string): number => VK[ch] ?? ch.charCodeAt(0)
 
-/** 人类键入：逐字符 keyDown/text → keyUp，40–140ms 间隔（CDP printable 用 text 字段）。 */
+/** 人类键入：逐字符 keyDown/text → keyUp，随机间隔；偶尔误输入后删除重来。 */
 export async function humanType(d: HumanDeps, text: string, target?: { focusFirst?: () => Promise<void> }): Promise<void> {
   const rand = d.rand ?? defaultRand
   const sleep = d.sleep ?? ((ms: number) => new Promise(r => setTimeout(r, ms)))
-  if (target?.focusFirst) await target.focusFirst()
-  for (const ch of text) {
+  const stroke = async (ch: string, printable = true) => {
     const code = vkOf(ch)
-    await d.cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: ch, text: ch, code: `Key${ch.toUpperCase()}`, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code })
+    await d.cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: ch, ...(printable ? { text: ch } : {}), code: `Key${ch.toUpperCase()}`, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code })
     await sleep(20 + rand() * 30)
     await d.cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch, code: `Key${ch.toUpperCase()}`, windowsVirtualKeyCode: code, nativeVirtualKeyCode: code })
-    await sleep(40 + rand() * 100)
+  }
+  if (target?.focusFirst) await target.focusFirst()
+  for (const [index, ch] of [...text].entries()) {
+    if (index > 0 && /^[A-Za-z0-9]$/.test(ch) && rand() < 0.05) {
+      await stroke(ch === 'x' ? 'z' : 'x')
+      await sleep(90 + rand() * 120)
+      await stroke('Backspace', false)
+      await sleep(60 + rand() * 100)
+    }
+    await stroke(ch)
+    await sleep(40 + rand() * 100 + (rand() < 0.04 ? 180 + rand() * 270 : 0))
   }
 }
 
@@ -128,10 +147,11 @@ export async function humanDrag(
   const duration = opts.durationMs ?? 700 + rand() * 500
   const steps = 26 + Math.floor(rand() * 14)
 
+  await ensureWarmUp(d)
   await dispatchMouse(d.cdp, 'mousePressed', from.x, from.y, { clickCount: 1 })
   await sleep(100 + rand() * 100)
 
-  const overshoot = 4 + rand() * 6
+  const overshoot = (4 + rand() * 6) * Math.sign(distance || 1)
   const target = { x: from.x + distance, y: from.y }
   // 中途过冲点 → 最终目标；两段贝塞尔拼出“冲过头再修正”
   const via = { x: target.x + overshoot, y: from.y + (rand() - 0.5) * 3 }
@@ -148,5 +168,5 @@ export async function humanDrag(
     await sleep((duration / all.length) * (1.6 - easeOutCubic(t)))
   }
   await sleep(80 + rand() * 80)
-  await dispatchMouse(d.cdp, 'mouseReleased', target.x, target.y, { buttons: 1, clickCount: 1 })
+  await dispatchMouse(d.cdp, 'mouseReleased', target.x, target.y, { buttons: 0, clickCount: 1 })
 }

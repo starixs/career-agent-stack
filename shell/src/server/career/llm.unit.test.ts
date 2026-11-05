@@ -31,7 +31,7 @@ describe('ShellLLM (Anthropic Messages API)', () => {
     });
     const llm = new ShellLLM({ providerId: 'career-llm', resolveEnv: () => env, fetchImpl });
     const res = await llm.complete({ system: 'sys', messages: [{ role: 'user', content: 'hi' }], json: true, temperature: 0.2, maxTokens: 99 });
-    expect(res).toEqual({ text: '{"a":1}', usage: { input_tokens: 12, output_tokens: 3 } });
+    expect(res).toEqual({ text: '{"a":1}', usage: { input_tokens: 12, output_tokens: 3, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, model: 'deepseek-chat' } });
 
     const { url, init, headers, body } = lastCall(fetchImpl);
     expect(url).toBe('https://api.deepseek.com/anthropic/v1/messages');
@@ -82,7 +82,7 @@ describe('ShellLLM (Anthropic Messages API)', () => {
     const llm = new ShellLLM({ resolveEnv: () => env, fetchImpl, providerId: 'career-llm' });
     const res = await llm.complete({ messages: [{ role: 'user', content: 'x' }] });
     expect(res.text).toBe('hello');
-    expect(res.usage).toEqual({ input_tokens: 0, output_tokens: 0 });
+    expect(res.usage).toEqual({ input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, model: 'deepseek-chat' });
   });
 
   it('第三方混合推理模型显式关闭 thinking，默认输出上限 8192；Claude 模型不发 thinking 字段', async () => {

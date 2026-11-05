@@ -177,7 +177,7 @@ describe("求职壳里的设置页（beta-polish ⑥）", () => {
     expect(container.textContent ?? "").not.toContain("都可以找小助理");
   });
 
-  it("通用设置不露服务端、工作区、队列模式和通用「一直不睡」；预置了模型 Key 就不露 Key 面板", async () => {
+  it("通用设置不露服务端、工作区、队列模式、模型 Key 和通用「一直不睡」", async () => {
     renderSettings("general");
     expect(await screen.findByRole("switch", { name: "投递时保持屏幕常亮" })).toBeInTheDocument();
     expect(screen.queryByText(zh("general.forceWakeTitle"))).not.toBeInTheDocument();
@@ -190,14 +190,6 @@ describe("求职壳里的设置页（beta-polish ⑥）", () => {
       expect(screen.queryByText(zh(key))).not.toBeInTheDocument();
     }
     expect(screen.getByText(zh("general.autostartTitle"))).toBeInTheDocument();
-  });
-
-  it("缺模型 Key 时才露出 Key 面板，而且只要模型 Key", async () => {
-    settingsMocks.llmConfigured = false;
-    renderSettings("general");
-    expect(await screen.findByTestId("settings-career-keys")).toBeInTheDocument();
-    expect(screen.getByLabelText("模型 API Key")).toBeInTheDocument();
-    expect(screen.queryByLabelText("搜索 API Key")).not.toBeInTheDocument();
   });
 
   it("快捷键只留发送键；桌面宠物分区落到关于", async () => {

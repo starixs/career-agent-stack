@@ -20,10 +20,12 @@ import { exportResumeFile, isExportFormat, EXPORT_FORMATS } from '../career/expo
 import { CORRECTABLE_KINDS, correctIntake } from '../career/intake-fix';
 import { captureIntake, focus as focusPanel, parseAndStoreJd as parseAndStoreJdShared, type IntakeDeps, type IntakeResult } from '../career/intake';
 import { carryoverFor, carryoverPrompt, lastTranscript } from '../career/interview-carry';
+import { companyResearchInput } from '../career/company-research-input';
 import { buildInterviewPrep } from '../career/interview-prep';
 import { applicationForInterview, bookInterview, interviewResume } from '../career/interview-link';
 import { runInterviewRetro } from '../career/interview-retro-run';
 import { getShellLLM } from '../career/llm';
+import { recordToolEvent } from '../career/billing-service';
 import { MAIL_PRESETS } from '../career/mail/providers';
 import { syncAllMailAccounts, syncMailAccount } from '../career/mail/sync';
 import { draftMaterial } from '../career/materials';
@@ -290,8 +292,15 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
    * 放进 AsyncLocalStorage，card() 据此把卡片锚定到产生它的那次工具调用（渲染在那条回复下面）。
    */
   const tool = ((name: string, description: string, schema: unknown, handler: (args: never, extra: unknown) => Promise<CallToolResult>) =>
-    (sdkTool as (...a: unknown[]) => unknown)(name, description, schema, (args: never, extra: unknown) =>
-      toolCallContext.run({ toolUseId: toolUseIdFrom(extra) }, () => handler(args, extra)))) as unknown as typeof sdkTool;
+    (sdkTool as (...a: unknown[]) => unknown)(name, description, schema, (args: never, extra: unknown) => {
+      const toolUseId = toolUseIdFrom(extra);
+      return toolCallContext.run({ toolUseId }, async () => {
+        const res = await handler(args, extra);
+        // 场景卖点埋点（定制简历、公司调研、面试准备……）：工具成功才算做成一件
+        recordToolEvent(name, toolUseId, res.isError, sharedRepos.db);
+        return res;
+      });
+    })) as unknown as typeof sdkTool;
   const { z } = await import('zod/v4');
   // 数据层：core 惰性加载；Repos 在 server 构建时打开一次（Session 内共享）。
   const core = await loadCore();
@@ -1146,12 +1155,13 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       // ---------- 调研 / 搜索 ----------
       tool('company_research', '求职视角的公司研究：结合 Web Search 产出九段报告、红绿灯与人工核实清单，写入 company 表。', {
         company_name: z.string(), hints: z.string().optional().describe('城市 / 地址 / 岗位等消歧信息'),
+        job_id: z.string().optional().describe('他是为哪个岗位查的；带上才能说清这个岗位来了做什么'),
       }, async (args) => wrap(async () => {
         const hits: unknown[] = [];
         try {
           const provider = await search();
-          // 搜索和模型共用 DeepSeek Key：没有提供方只可能是模型 Key 也没配，不再单独要搜索 Key
-          if (!provider) console.warn('[career] company_research: 没有可用的搜索提供方（模型 Key 未配置）');
+          // 搜索和模型共用 DeepSeek Key：没有提供方只可能是内置模型 Key 也没有
+          if (!provider) console.warn('[career] company_research: 没有可用的搜索提供方（内置模型 Key 缺失）');
           if (provider) {
             progress('company_research', `正在搜索 ${args.company_name}`);
             const queries = [`${args.company_name} 公司 招聘 评价`, `${args.company_name} 工商 信息 风险`, `${args.company_name} 面试 经验`];
@@ -1161,9 +1171,11 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
           console.warn('[career] company_research 搜索失败，继续用模型已有知识:', error instanceof Error ? error.message : error);
         }
         // TODO(intel-compass)：接入 @career/bridges 的 IntelCompassClient（本地 HTTP），有服务时优先使用其九段报告。
-        const out = await askSkill<Record<string, unknown>>('company-research', `公司名：${args.company_name}\n消歧信息：${args.hints ?? '无'}\n\nWeb Search 结果（${hits.length} 条）：\n${JSON.stringify(hits).slice(0, 20_000)}`, { refs: ['红线与风险信号'], temperature: 0.2 });
+        const job = args.job_id ? repos().getJob(args.job_id) : undefined;
+        const out = await askSkill<Record<string, unknown>>('company-research', companyResearchInput({ companyName: args.company_name, hints: args.hints, job, hits }), { refs: ['红线与风险信号'], temperature: 0.2 });
         const trafficLight = typeof out.traffic_light === 'string' ? out.traffic_light : null;
-        const company = store().upsertCompany(args.company_name, { dd_report_json: out, traffic_light: trafficLight, manual_checks: out.manual_checks ?? [] });
+        // 技能输出里人工核实清单叫 manual_required（旧报告里是 manual_checks）；读错名字会让清单永远是空的
+        const company = store().upsertCompany(args.company_name, { dd_report_json: out, traffic_light: trafficLight, manual_checks: out.manual_required ?? out.manual_checks ?? [] });
         changed('company');
         return text({ company, report: out, search_hits: hits.length, ...(hits.length ? {} : { note: '这次没有联网搜索结果，报告只基于模型已有知识，请提醒用户核实。' }) });
       })()),

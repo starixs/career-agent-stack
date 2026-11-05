@@ -134,9 +134,12 @@ import { handleCareerRoute } from './routes/career';
 import { handleCareerSessionRoute } from './routes/career-session';
 import { registerCareerBrowserLlmResolver } from './routes/career-browser';
 import { getShellLLM } from './career/llm';
+import { installBillingMeter } from './career/billing-service';
 
 // 求职浏览器路由的 `op:'drive'` 需要模型：注册壳自身的 ShellLLM（内置 career-llm / 用户默认 provider）。
 registerCareerBrowserLlmResolver(async () => getShellLLM());
+// 计费：主对话每轮、标题生成、后台模型调用的用量都落进本机积分账本（career/billing-service.ts）。
+installBillingMeter();
 import { shouldLogHttpRequest } from './http-log-policy';
 
 type SpaceSkillExportPackage = {

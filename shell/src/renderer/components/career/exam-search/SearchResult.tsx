@@ -20,7 +20,8 @@ export function sourceLabel(question: SearchQuestion, answer: QuestionAnswer | u
   const top = question.matches[0];
   if (answer.source === 'bank' && top) return { text: `题库原题${whereOf(top) ? ` · ${whereOf(top)}` : ''}`, tone: 'success' };
   if (answer.source === 'reference' && top) return { text: `参考了${TIER_LABEL[top.tier]}的类似题`, tone: 'info' };
-  return { text: '题库里没有，模型作答', tone: 'neutral' };
+  // 题库还没上线：没查到参考题时不标出处，免得每题都挂一句「题库里没有」。
+  return null;
 }
 
 /** 第一条候选如果就是本题（题库原题），类似题从第二条起算。 */
