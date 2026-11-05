@@ -287,23 +287,20 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
     const root = overlayRootRef.current;
     if (!root) return;
 
-    let rafId = 0;
+    // 同步上报：窗口不在前台时 WebKit 暂停 requestAnimationFrame，走 rAF 会让建议条盖住最后一条消息。
+    // 高度没变就不重复上报。
+    let lastHeight = -1;
     const emitHeight = () => {
-      rafId = 0;
-      onOverlayHeightChange(root.getBoundingClientRect().height);
-    };
-    const schedule = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(emitHeight);
+      const height = root.getBoundingClientRect().height;
+      if (height === lastHeight) return;
+      lastHeight = height;
+      onOverlayHeightChange(height);
     };
 
-    schedule();
-    const observer = new ResizeObserver(schedule);
+    emitHeight();
+    const observer = new ResizeObserver(emitHeight);
     observer.observe(root);
-    return () => {
-      observer.disconnect();
-      if (rafId) cancelAnimationFrame(rafId);
-    };
+    return () => observer.disconnect();
   }, [isLauncherMode, onOverlayHeightChange]);
 
   // PERFORMANCE FIX: Use internal state to avoid parent re-renders on every keystroke

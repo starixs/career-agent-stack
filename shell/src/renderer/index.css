@@ -1034,13 +1034,14 @@ code {
   transform: translateX(-22%);
 }
 
-/* 小芽一段一段地说（主线体验 §6.2）：新出现的短对话块轻轻浮上来；后台在干活时三个点轻轻跳。 */
+/* 小芽一段一段地说（主线体验 §6.2）：新出现的短对话块轻轻浮上来；后台在干活时三个点轻轻跳。
+   起始帧必须可见：窗口不在前台时 WebKit 会暂停 CSS 动画，停在 opacity:0 就整段字看不见。只动位移。 */
 .speech-block {
   animation: speech-in var(--motion-slow) ease-out both;
 }
 @keyframes speech-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: none; }
+  from { transform: translateY(4px); }
+  to { transform: none; }
 }
 .speech-dot {
   width: 4px;

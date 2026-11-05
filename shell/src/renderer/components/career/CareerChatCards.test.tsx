@@ -147,6 +147,15 @@ describe('CareerChatCards', () => {
     } finally { onboarding.mockRestore(); setupStatus.current = null; }
   });
 
+  it('对话开始后（有用户消息）开场两扇门不再留在对话底部', async () => {
+    const onboarding = vi.spyOn(careerApi, 'onboarding').mockResolvedValue({ has_master_resume: false, has_experience: false } as Awaited<ReturnType<typeof careerApi.onboarding>>);
+    try {
+      renderWithTab({ messages: [{ id: 'u1', role: 'user', content: '我是 27 届', timestamp: new Date() }] });
+      await waitFor(() => expect(onboarding).toHaveBeenCalled());
+      expect(screen.queryByTestId('career-starter-card')).toBeNull();
+    } finally { onboarding.mockRestore(); }
+  });
+
   it('upsertReviewCard：后台事件按动作合并成卡片，保留锚点与审阅清单，不覆盖别的动作', () => {
     const anchored: CareerCard = { id: 'review:s1', kind: 'review', title: '旧', createdAt: 't0', toolUseId: 'toolu_a', state: 'completed', data: { action_ids: ['s1'], kind: 'submit', review: { rows: [], attention: 0, requiredTotal: 3, requiredFilled: 3 } } };
     let cards = upsertReviewCard([anchored], { sessionId: 'g', actionIds: ['s1'], kind: 'submit', summary: '提交没成功：网站提示手机号格式不对' });

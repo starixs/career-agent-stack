@@ -36,9 +36,10 @@ function CareerChatCardsInner({ tab }: { tab: NonNullable<ReturnType<typeof useT
   // 有锚点的卡片渲染在对应回复下面（Message.tsx），处理完折叠，不在底部堆叠。
   const anchoredIds = useMemo(() => collectToolUseIds(tab.messages ?? []), [tab.messages]);
   const cards = useMemo(() => (tab.careerCards ?? []).filter(c => (c.state ?? 'pending') === 'pending' && (!c.toolUseId || !anchoredIds.has(c.toolUseId))), [tab.careerCards, anchoredIds]);
+  const conversationStarted = useMemo(() => (tab.messages ?? []).some(m => m.role === 'user'), [tab.messages]);
   return (
     <div className="space-y-2 py-2">
-      <StarterCard />
+      <StarterCard conversationStarted={conversationStarted} />
       <CareerSetupCards />
       <CareerFlowCards cards={cards} onStateChange={(id, state) => tab.setCareerCardState?.(id, state)} />
       <ReturnBriefing messageCount={tab.messages?.length ?? 0} />

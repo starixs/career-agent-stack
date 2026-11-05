@@ -60,8 +60,8 @@ describe('冷启动的对话卡片', () => {
     const picks: unknown[] = [];
     const offSend = onEvent('career:chat-suggest', p => sent.push(p));
     const offPick = onEvent('career:pick-resume', p => picks.push(p));
-    fireEvent.click(within(section).getByRole('button', { name: '还没有，先聊聊' }));
     fireEvent.click(within(section).getByRole('button', { name: '有，选个文件给我' }));
+    fireEvent.click(within(section).getByRole('button', { name: '还没有，先聊聊' }));
     offSend(); offPick();
     expect(sent).toEqual([{ text: '我没有简历，先聊聊我做过的事', context: undefined, mode: 'send' }]);
     expect(picks).toHaveLength(1);
@@ -69,6 +69,21 @@ describe('冷启动的对话卡片', () => {
 
     vi.mocked(apiGetJson).mockResolvedValue({ ok: true, checklist: { has_master_resume: true, has_experience: false } });
     render(<StarterCard />);
+    await waitFor(() => expect(apiGetJson).toHaveBeenCalled());
+    expect(screen.queryByRole('region', { name: '起步卡' })).not.toBeInTheDocument();
+  });
+
+  it('起步卡：点「先聊聊」后收起；对话已经开始（有用户消息）时不再钉在底部', async () => {
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, checklist: { has_master_resume: false, has_experience: false } });
+    const { unmount } = render(<StarterCard />);
+    const section = await screen.findByRole('region', { name: '起步卡' });
+    const off = onEvent('career:chat-suggest', () => {});
+    fireEvent.click(within(section).getByRole('button', { name: '还没有，先聊聊' }));
+    off();
+    expect(screen.queryByRole('region', { name: '起步卡' })).not.toBeInTheDocument();
+    unmount();
+
+    render(<StarterCard conversationStarted />);
     await waitFor(() => expect(apiGetJson).toHaveBeenCalled());
     expect(screen.queryByRole('region', { name: '起步卡' })).not.toBeInTheDocument();
   });
