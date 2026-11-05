@@ -67,11 +67,12 @@
   assert:
     - type: javascript
       value: file://asserts/promptfoo.mjs:browseStepOk
-- description: 登录墙——不在对话里要密码，请用户扫码帮一下，做完接着办
+- description: 登录墙——不在对话里要密码：存了账号就用占位符代填，否则请用户帮一下，做完接着办
   vars:
     task: browse_next_step
     goal: 去牛客网看看校招岗位
-    expect_tool: browser_wait_user
+    # 11-03 你定：短信码由 AI 自己收、尽量不让用户操作，所以代填存好的手机号也对
+    expect_tool: [browser_wait_user, browser_act]
     observation: |
       观察 o2 · 登录 - 牛客网
       https://www.nowcoder.com/login

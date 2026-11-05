@@ -1,7 +1,7 @@
 /**
  * promptfoo 自定义 provider：直接调用产品里的真实流水线（提示词 + 后处理），而不是另写一份提示词。
  * 只在开发 / CI 用，不进产品。模型走 OpenAI 兼容接口（缺省 DeepSeek）：
- *   CAREER_LLM_API_KEY（必需）、CAREER_EVAL_BASE_URL（缺省 https://api.deepseek.com）、CAREER_EVAL_MODEL（缺省 deepseek-chat）
+ *   CAREER_LLM_API_KEY（必需）、CAREER_EVAL_BASE_URL（缺省 https://api.deepseek.com）、CAREER_EVAL_MODEL（缺省 deepseek-flash，与产品一致）
  * 先 `pnpm -r build`（用各包的 dist）。
  *
  * vars.task：
@@ -24,7 +24,7 @@ export function evalLlm(env = process.env, fetchImpl = fetch) {
   const key = env.CAREER_LLM_API_KEY
   if (!key) throw new Error('需要 CAREER_LLM_API_KEY 才能跑评测')
   const base = (env.CAREER_EVAL_BASE_URL ?? 'https://api.deepseek.com').replace(/\/+$/, '')
-  const model = env.CAREER_EVAL_MODEL ?? 'deepseek-chat'
+  const model = env.CAREER_EVAL_MODEL ?? 'deepseek-flash' // 与产品默认模型一致（shared/career-build-constants.ts）
   return {
     async complete({ system, messages, json, temperature }) {
       const res = await fetchImpl(`${base}/chat/completions`, {

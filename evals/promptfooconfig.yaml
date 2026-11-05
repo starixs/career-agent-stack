@@ -7,6 +7,10 @@ providers:
     label: 产品流水线（DeepSeek）
 prompts:
   - '{{task}}'
+# 用例里的数组变量（forbidden / expect_tool 等）是一个整体，不能被 promptfoo 展开成多条用例
+defaultTest:
+  options:
+    disableVarExpansion: true
 tests:
   - file://cases/tailor.yaml
   - file://cases/job-evaluate.yaml

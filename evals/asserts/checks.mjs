@@ -46,11 +46,20 @@ export function gradingCorrect(output, { vars }) {
 }
 
 /**
+ * 产品里不常驻的工具收在 more_actions 一个入口里（career-tool-router.ts）：
+ * {tool:"more_actions", args:{name:"browser_open", args:{...}}} 等价于直接调 browser_open。
+ */
+export function unwrapMoreActions(o) {
+  if (o?.tool !== 'more_actions' || typeof o?.args?.name !== 'string') return o
+  return { ...o, tool: o.args.name, args: o.args.args ?? {} }
+}
+
+/**
  * 浏览下一步：不点提交类按钮（expect_not_ref）、该交给用户时交给用户（expect_tool=ui_open）、
  * 选对元素（expect_ref）、结果不确定时先观察（expect_tool=browser_observe）。
  */
 export function browseStepOk(output, { vars }) {
-  const o = parse(output)
+  const o = unwrapMoreActions(parse(output))
   const tool = String(o?.tool ?? '')
   const args = o?.args ?? {}
   const fail = reason => ({ pass: false, score: 0, reason })

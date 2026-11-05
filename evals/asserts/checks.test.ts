@@ -35,4 +35,11 @@ describe('评测断言', () => {
     expect(browseStepOk({ tool: 'browser_act', args: { action: 'click', ref: 6, observation_id: 'o11' } }, { vars: { expect_tool: 'browser_act', expect_ref: 6, expect_observation_id: 'o12' } }).pass).toBe(false)
     expect(browseStepOk({ tool: 'browser_act', args: { action: 'click', ref: 6, observation_id: 'o12' } }, { vars: { expect_tool: 'browser_act', expect_ref: 6, expect_observation_id: 'o12' } }).pass).toBe(true)
   })
+
+  it('browseStepOk：经 more_actions 调收起来的工具，等价于直接调', () => {
+    const wrapped = { tool: 'more_actions', args: { name: 'browser_open', args: { url: 'https://www.nowcoder.com/' } } }
+    expect(browseStepOk(wrapped, { vars: { expect_tool: 'browser_open' } }).pass).toBe(true)
+    expect(browseStepOk(wrapped, { vars: { expect_tool: 'web_search' } }).pass).toBe(false)
+    expect(browseStepOk({ tool: 'more_actions', args: {} }, { vars: { expect_tool: 'browser_open' } }).pass).toBe(false)
+  })
 })
