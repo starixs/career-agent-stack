@@ -169,7 +169,7 @@ export interface VaultAccessLogRow { id: string; item_id: string | null; actor: 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
 export interface BatchState {
   status: BatchStatus; startedAt?: string; updatedAt: string; currentActionId?: string; currentTitle?: string;
-  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked';
+  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked' | 'browser_down';
   message?: string; done: number; failed: number; handoffs: number; queued: number; todayCount: number; lastError?: string;
   /** 正在并行填写的网申（不同网站各一份）。 */
   running?: Array<{ actionId: string; title: string; host: string }>; concurrency?: number;
@@ -208,6 +208,8 @@ export interface CareerSetupStatus {
   search: { configured: boolean; source: 'settings' | 'build' | 'none'; provider: 'bocha' | 'tavily' | 'serper' | 'deepseek' | null };
 }
 export type CareerCardState = 'pending' | 'completed' | 'dismissed';
+/** 让小芽在对话里放一张勾选表：job_ids = 只列这几家（建议条点名的）；pick = all 时默认全勾（一家一个岗）。 */
+export interface ProposeBatchOptions { job_ids?: string[]; pick?: 'default' | 'all' }
 export interface CareerCard {
   id: string; kind: CareerCardKind; title: string; data: Record<string, unknown>; createdAt: string; sessionId?: string | null;
   /** 锚点：产生它的工具调用；渲染在那条回复下面。为空（后台批量等）时挂在对话底部。 */

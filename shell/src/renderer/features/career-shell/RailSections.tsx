@@ -177,6 +177,12 @@ function receiptTime(iso: string): string {
   return Number.isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** 回执上的简历：定制版说改了几处，主简历说名字（定制版不再写成主简历名）。 */
+export function receiptResume(r: Pick<RailReceipt, 'resume' | 'resume_kind' | 'changes'>): string | null {
+  if (r.resume_kind === 'tailored') return r.changes ? `用定制版 · 改 ${r.changes} 处` : '用定制版';
+  return r.resume ? `用「${r.resume}」` : null;
+}
+
 const openReceipt = (id: string) => emitEvent('career:focus', { surface: 'dossier', application_id: id });
 
 /** 此刻里的「刚投出」：最近三张，一行一家（公司 · 岗位 · 时间）；没投过就不出这块。 */
@@ -213,7 +219,7 @@ export function Receipts({ receipts }: { receipts: readonly RailReceipt[] }) {
             <span className="min-w-0 flex-1">
               <span className="block truncate font-human text-sm text-[var(--ink)]">{r.company} · {r.title}</span>
               <span className="block truncate text-xs text-[var(--muted)]">
-                {[receiptTime(r.at), r.resume ? `用的「${r.resume}」` : null, r.filled !== null ? `填了 ${r.filled} 格` : null].filter(Boolean).join(' · ')}
+                {[receiptTime(r.at), receiptResume(r), r.filled !== null ? `填了 ${r.filled} 格` : null].filter(Boolean).join(' · ')}
               </span>
             </span>
           </button>

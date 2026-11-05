@@ -23,6 +23,13 @@ export function livePageOfRun(pages: readonly LivePage[], run: Pick<ProgressRun,
   return pages.find(p => !!run.jobTitle && p.title === run.jobTitle && (!run.company || p.company === run.company));
 }
 
+/** 面板上那一行：接管的话 > 浏览器第一次在准备（服务端 phase browser_down，说清要等多久，盖过旧进展）> 这份最新进展 > 批量状态。 */
+export function progressMessage(takeoverMessage: string | undefined, latestMessage: string | undefined, batch?: Pick<BatchState, 'phase' | 'message'> | null): string {
+  const phase: string | undefined = batch?.phase;
+  const preparing = phase === 'browser_down' ? batch?.message : undefined;
+  return takeoverMessage ?? preparing ?? latestMessage ?? batch?.message ?? '等待任务开始';
+}
+
 /** 单个岗位的事件流；多个 run 时先选岗位，再只看它的事件，避免 50 份进度混在一起。 */
 export function TaskProgressPanel({ title, batch, takeover }: { title?: string | null; batch?: BatchState | null; takeover?: CareerTakeoverEvent | null }) {
   const { runs } = useWorkSurfaces();
@@ -41,7 +48,7 @@ export function TaskProgressPanel({ title, batch, takeover }: { title?: string |
   const human = takeoverHere && takeover?.state === 'human_active';
   const status = waiting ? '等你处理' : human ? '你在操作' : batch?.status === 'paused' ? '已暂停' : batch?.status === 'stopped' ? '已停止' : run?.finished ? '已完成' : run || batch?.status === 'running' ? '进行中' : '等待开始';
   const tone = waiting ? 'warning' : run?.finished || batch?.status === 'stopped' ? 'neutral' : 'success';
-  const message = (takeoverHere ? takeover?.message : undefined) ?? latest?.message ?? batch?.message ?? '等待任务开始';
+  const message = progressMessage(takeoverHere ? takeover?.message : undefined, latest?.message, batch);
   const total = batch ? batch.done + batch.failed + batch.handoffs + batch.queued + (batch.running?.length ?? 0) : 0;
   const ratio = run?.progress ?? (total > 0 && batch ? Math.min(1, (batch.done + batch.failed) / total) : null);
   const events = run?.steps.slice(-5).reverse() ?? [];

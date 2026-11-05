@@ -36,4 +36,15 @@ describe('career chat copy', () => {
     expect(careerTerminalReasonDetail('background_requested')).toBeNull();
     expect(careerTerminalReasonDetail('api_error')).toContain('terminal_reason=api_error');
   });
+
+  it('额度用完、连不上服务各说一句准确的话，不提充值', async () => {
+    const { careerErrorCopy, CAREER_QUOTA_COPY, CAREER_GATEWAY_DOWN_COPY } = await import('../../../shared/careerErrorCopy');
+    expect(careerErrorCopy('API Error: 402 {"error":{"message":"Insufficient Balance"}}')).toBe(CAREER_QUOTA_COPY);
+    expect(careerErrorCopy('TypeError: fetch failed (ECONNREFUSED)')).toBe(CAREER_GATEWAY_DOWN_COPY);
+    expect(careerErrorCopy('something else')).toBeNull();
+    expect(careerErrorCopy('rate limit: requests per minute quota reached')).toBeNull();
+    expect(careerErrorCopy('monthly quota exceeded')).toBe(CAREER_QUOTA_COPY);
+    expect(CAREER_QUOTA_COPY).not.toMatch(/充值/);
+  });
 });
+

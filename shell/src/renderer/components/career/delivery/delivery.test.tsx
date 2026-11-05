@@ -285,6 +285,14 @@ describe('情景 C · 两天没开，回来', () => {
     expect(screen.queryByTestId('waiting-deck')).toBeNull();
   });
 
+  it('批量还在接着投上次批准的：多一句「上次没跑完的 N 份接着投」；没有就不说（风险 E#20）', () => {
+    const { unmount } = render(<ReturnCard away={AWAY} resuming={4} />);
+    expect(screen.getByTestId('return-resuming')).toHaveTextContent('上次没跑完的 4 份接着投');
+    unmount();
+    render(<ReturnCard away={AWAY} />);
+    expect(screen.queryByTestId('return-resuming')).toBeNull();
+  });
+
   it('没有要你的事：只说一句', () => {
     render(<ReturnCard away={{ ...AWAY, asks: [], sent: [], replies: [], quiet: 5 }} />);
     expect(screen.getByText('没有要你做的事')).toBeInTheDocument();
@@ -333,5 +341,11 @@ describe('「N 家没填成」（自动重试过一次还没成）', () => {
     const { actionLabels } = await import('./askText');
     const failed: AskView = { id: 'failed', kind: 'failed', title: '2 家没填成', detail: '页面一直没打开', application_ids: ['a1', 'a2'], companies: [mark('平安'), mark('美的')], sources: [{ type: 'action', id: 'f1' }, { type: 'action', id: 'f2' }], due_at: null, overdue: false };
     expect(actionLabels(failed)).toEqual({ go: '再试一次', later: '我自己来' });
+  });
+
+  it('链接打开了没找到表单：次按钮是「打开看看」（风险 E#6）', async () => {
+    const { actionLabels } = await import('./askText');
+    const noForm: AskView = { id: 'nf', kind: 'failed', title: '1 家没填成', detail: '这家的网申页没找到表单（可能换了链接）', application_ids: ['a1'], companies: [mark('平安')], sources: [{ type: 'action', id: 'f1' }], due_at: null, overdue: false, url: 'https://x.com' };
+    expect(actionLabels(noForm)).toEqual({ go: '再试一次', later: '打开看看' });
   });
 });

@@ -9,6 +9,8 @@ import { useEffect, useState } from 'react';
 
 import { emitEvent } from '@/api/eventBus';
 
+import { careerApi } from '../careerApi';
+
 import { dueText } from './askText';
 import { CompanyPoster } from './CompanyPoster';
 import { deliveryApi, type AwayView } from './deliveryApi';
@@ -55,7 +57,8 @@ export function spanText(sinceIso: string, now = Date.now()): string {
   return days < 14 ? `${days} 天` : `${Math.round(days / 7)} 周`;
 }
 
-export function ReturnCard({ away, onStart, onClose }: { away: AwayView; onStart?: (askId: string) => void; onClose?: () => void }) {
+/** resuming：后台还在接着投的、上次批准了还没填的份数（批量仍在跑才给）。 */
+export function ReturnCard({ away, resuming = 0, onStart, onClose }: { away: AwayView; resuming?: number; onStart?: (askId: string) => void; onClose?: () => void }) {
   const first = away.asks[0];
   return (
     <article className="cd-return cd-root" data-testid="return-card">
@@ -83,6 +86,7 @@ export function ReturnCard({ away, onStart, onClose }: { away: AwayView; onStart
           ))}
         </div>
       )}
+      {resuming > 0 && <p className="cd-return-quiet" data-testid="return-resuming">上次没跑完的 {resuming} 份接着投</p>}
       {away.held > 0 && <p className="cd-return-quiet" data-testid="return-held">{away.held} 份填好了，等你投出</p>}
       {away.quiet > 0 && <p className="cd-return-quiet">其余 {away.quiet} 家还没回音。</p>}
     </article>
@@ -95,10 +99,13 @@ export function ReturnBriefing({ messageCount }: { messageCount: number }) {
   const [away, setAway] = useState<AwayView | null>(null);
   const [closedAt, setClosedAt] = useState<number | null>(null);
   const [baseCount] = useState(messageCount);
+  const [resuming, setResuming] = useState(0);
   useEffect(() => {
     if (!since) return;
     deliveryApi.away(since).then(setAway, (e: unknown) => console.error('[career] away FAILED', since, e));
+    // 批量还在跑（侧车重启后自己续上）且队列里有批准了没填的：如实说一句在接着投；没在跑就不说
+    careerApi.batchState().then(b => setResuming(b?.status === 'running' ? b.queued : 0), (e: unknown) => console.error('[career] batch state FAILED', e));
   }, [since]);
   if (!away || closedAt !== null || messageCount > baseCount) return null;
-  return <ReturnCard away={away} onStart={id => emitEvent(OPEN_DECK_EVENT, { id })} onClose={() => setClosedAt(Date.now())} />;
+  return <ReturnCard away={away} resuming={resuming} onStart={id => emitEvent(OPEN_DECK_EVENT, { id })} onClose={() => setClosedAt(Date.now())} />;
 }

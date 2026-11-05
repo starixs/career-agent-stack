@@ -12,7 +12,7 @@ import { parsePairedPhones, parsePhoneStatus, type PairedPhone } from '../../../
 import type {
   ActivityEntry,
   ExamPractice,
-  CareerCard, CareerCardState, CareerSetupStatus,
+  CareerCard, CareerCardState, CareerSetupStatus, ProposeBatchOptions,
   ActionQueueItem, Application, Board, Company, Deadline, Direction, Dossier, DossierNote, DossierSummary, ExperienceNode, Funnel, GapPlan,
   InboxItem, IntakeResult, Interview, InterviewRecording, Job, MailAccount, MailAccountDetail, MailConnectResult, MailConnector, MailConnectorId, MailMessage, MailOauthStart, SeasonId, TakeoverBriefing, MailPreset, Material, MaterialUse, MockInterview, Offer, OnboardingChecklist,
   ProbePrediction, ResumeMaster, ResumeTailored, MonthBoard, TodayQueue,
@@ -89,6 +89,8 @@ export const careerApi = {
   /** 对话内卡片（持久化）：按会话读回；完成 / 忽略 / 重新打开。 */
   listCards: (sessionId: string) => apiGetJson<unknown>(careerPath(`/cards?session_id=${encodeURIComponent(sessionId)}`)).then(r => pickList<CareerCard>(r, 'cards')),
   setCardState: (id: string, state: CareerCardState) => apiPostJson<unknown>(careerPath(`/cards/${encodeURIComponent(id)}/state`), { state }).then(r => asDict(r)),
+  /** 收起一张卡（"先不投"、建议条的退出口）：等同把状态设成 dismissed。 */
+  dismissCard: (id: string) => apiPostJson<unknown>(careerPath(`/cards/${encodeURIComponent(id)}/state`), { state: 'dismissed' }).then(r => asDict(r)),
   /** 答案库：网申里需要用户回答 / 确认过的草稿；question_key 用表单标签，下次填表按标签命中。 */
   saveAnswer: (body: { question_key: string; question_text: string; answer: string; high_impact?: boolean; confirmed?: boolean }) =>
     apiPostJson<unknown>(careerPath('/answer-bank'), body).then(r => asDict(r)),
@@ -134,7 +136,9 @@ export const careerApi = {
   applyJobs: (jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/apply'), { job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
     .then(r => ({ started: strings(asDict(r).started), skipped: parseSkipped(asDict(r).skipped) })),
   /** 在对话里放一张"先投这几家？"的勾选表（右栏、功能市场、网申进展这些不在对话里的入口用）。 */
-  proposeBatch: () => apiPostJson<unknown>(careerPath('/jobs/propose'), {}).then(r => ({ posted: asDict(r).posted === true })),
+  proposeBatch: (opts: ProposeBatchOptions = {}) => apiPostJson<unknown>(careerPath('/jobs/propose'), {
+    ...(opts.job_ids?.length ? { job_ids: opts.job_ids } : {}), ...(opts.pick ? { pick: opts.pick } : {}),
+  }).then(r => { const d = asDict(r); return { posted: d.posted === true, card_id: typeof d.card_id === 'string' ? d.card_id : null }; }),
   /** 勾选表点了「投这 N 家」：开始投，并把这张卡收成"已开始投 N 家"。 */
   startBatchPick: (cardId: string, jobIds: string[], resumeId?: string) => apiPostJson<unknown>(careerPath('/jobs/propose/start'), { card_id: cardId, job_ids: jobIds, ...(resumeId ? { resume_id: resumeId } : {}) })
     .then(r => ({ started: strings(asDict(r).started), skipped: parseSkipped(asDict(r).skipped) })),

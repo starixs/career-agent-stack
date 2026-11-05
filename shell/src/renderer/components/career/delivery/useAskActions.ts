@@ -13,7 +13,7 @@ import { useRespondReview } from '../CareerReviewCard';
 import { deliveryApi, type AskView } from './deliveryApi';
 
 export type AskOutcome = 'resolved' | 'snoozed' | 'kept';
-type Respond = ReturnType<typeof useRespondReview>;
+export type Respond = ReturnType<typeof useRespondReview>;
 
 const sourceIds = (ask: AskView, type: AskView['sources'][number]['type']) => ask.sources.filter(s => s.type === type).map(s => s.id);
 const firstDeadline = (ask: AskView) => sourceIds(ask, 'deadline')[0];
@@ -48,7 +48,8 @@ async function goDeadline(ask: AskView): Promise<AskOutcome> {
   return 'kept';
 }
 
-async function go(ask: AskView, respond: Respond, values: Record<string, string>): Promise<AskOutcome> {
+/** 卡组主按钮做的事；建议条「都投出 / 再试一次」也走这里（askPrimary.ts），两处同一套落库。 */
+export async function goAsk(ask: AskView, respond: Respond, values: Record<string, string>): Promise<AskOutcome> {
   switch (ask.kind) {
     case 'start': case 'review': return decideReview(respond, ask);
     case 'info': return fillFields(ask, values);
@@ -93,7 +94,7 @@ export function useAskActions() {
   };
   return {
     busy, error,
-    go: (ask: AskView, values: Record<string, string> = {}) => run(() => go(ask, respond, values)),
+    go: (ask: AskView, values: Record<string, string> = {}) => run(() => goAsk(ask, respond, values)),
     later: (ask: AskView) => run(() => later(ask)),
   };
 }

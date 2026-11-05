@@ -1,86 +1,114 @@
 /**
- * 建议条（face-beta-polish 2026-11-05 你定）：输入框正上方一行，最多四个小框。
+ * 建议条（face-beta-polish 2026-11-05 你定；版式 plan-r2 §B.5）：输入框正上方，最多四格。
  *
- * 点一下 = 直接发出；输入框空着时按 Tab = 把第一条填进输入框可改（Tab 由输入框转给这里，见 fillFirstSuggestion）。
- * 他一打字、小芽在说话时都不出现；放不下的不折行，直接不显示。
+ * 3–4 条排成两列、1–2 条一行；每格单行，放不下截断（悬停看全文）。
+ * 点一下或 Enter = 执行（say 发出、fill 填入、do 直接办，见 suggestActions.ts）；
+ * 输入框空着：Tab 把第一条填进输入框，↑ 进条，方向键在格间走，Esc 回输入框。
+ * 他一打字、小芽在说话时都不出现。
  */
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { Eye, LogIn, Send, type LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react';
 
-import { track } from '@/analytics';
 import { useCareerCards } from '@/context/CareerCardsContext';
 import { useTabStateOptional } from '@/context/TabContext';
-import type { Message } from '@/types/chat';
 
-import { careerApi } from './careerApi';
 import { suggestToChat } from './CareerPrimitives';
-import type { SuggestChip, SuggestRequest } from '../../../shared/careerSuggest';
+import { runSuggestion } from './suggestActions';
+import { lastOf, useCareerSuggestions, visibleText } from './useCareerSuggestions';
+import type { SuggestAction, SuggestChip } from '../../../shared/careerSuggest';
 
-export function SuggestChips({ chips, onSend }: { chips: SuggestChip[]; onSend: (chip: SuggestChip) => void }) {
+export { visibleText } from './useCareerSuggestions';
+
+/** 几条起排成两列（plan-r2 §B.5）。 */
+const GRID_FROM = 3;
+const GRID_COLS = 2;
+
+const ICONS: Partial<Record<SuggestAction['type'], LucideIcon>> = {
+  propose_batch: Send, start_card: Send, ask_primary: Send, open_deck: LogIn, open: Eye,
+};
+
+const CELL = 'flex min-w-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)]';
+const BOXED = 'border border-[var(--line-2)] bg-[var(--paper)] text-[var(--ink-2)] hover:border-[var(--ink)] hover:text-[var(--ink)]';
+const BARE = 'border border-transparent text-[var(--muted)] hover:text-[var(--ink)]';
+
+/** 方向键在格间走：两列时上下跨一行，一行时只左右。 */
+function nextIndex(key: string, i: number, n: number): number | null {
+  const cols = n >= GRID_FROM ? GRID_COLS : n;
+  const step = key === 'ArrowLeft' ? -1 : key === 'ArrowRight' ? 1 : key === 'ArrowUp' ? -cols : key === 'ArrowDown' ? cols : 0;
+  if (!step) return null;
+  const to = i + step;
+  return to >= 0 && to < n ? to : i;
+}
+
+export function SuggestChips({ chips, onSend, onEscape, barRef }: {
+  chips: SuggestChip[];
+  onSend: (chip: SuggestChip, how: 'click' | 'key') => void;
+  onEscape?: () => void;
+  barRef?: RefObject<HTMLDivElement | null>;
+}) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
   if (!chips.length) return null;
+  const grid = chips.length >= GRID_FROM;
+  const onKey = (e: ReactKeyboardEvent<HTMLButtonElement>, i: number) => {
+    if (e.key === 'Escape') { e.preventDefault(); onEscape?.(); return; }
+    if (e.key === 'Enter') { e.preventDefault(); onSend(chips[i], 'key'); return; }
+    const to = nextIndex(e.key, i, chips.length);
+    if (to === null) return;
+    e.preventDefault();
+    refs.current[to]?.focus();
+  };
   return (
-    <div data-testid="career-suggest-chips" role="group" aria-label="可以这样回" className="flex flex-nowrap items-center gap-2 overflow-hidden px-1 pb-2">
-      {chips.map((c, i) => (
-        <button
-          key={`${c.slot}:${c.text}`} type="button" onClick={() => onSend(c)}
-          className="shrink-0 whitespace-nowrap rounded-full border border-[var(--line-2)] bg-[var(--paper)] px-3 py-1 text-sm text-[var(--ink-2)] transition-colors hover:border-[var(--ink)] hover:text-[var(--ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)]"
-        >
-          {c.text}
-          {i === 0 && <kbd className="ml-1.5 align-middle font-sans text-xs text-[var(--subtle)]" aria-label="按 Tab 填入">Tab</kbd>}
-        </button>
-      ))}
+    <div
+      ref={barRef} data-testid="career-suggest-chips" role="group" aria-label="可以这样回"
+      className={`w-full pb-2 ${grid ? 'grid grid-cols-2 gap-1.5' : 'flex flex-nowrap gap-1.5 overflow-hidden'}`}
+    >
+      {chips.map((c, i) => {
+        const Icon = c.kind === 'do' && c.action ? ICONS[c.action.type] : undefined;
+        return (
+          <button
+            key={`${c.slot}:${c.text}`} ref={el => { refs.current[i] = el; }} type="button" title={c.text}
+            data-slot={c.slot} data-kind={c.kind}
+            onClick={() => onSend(c, 'click')} onKeyDown={e => onKey(e, i)}
+            className={`${CELL} ${c.slot === 'exit' ? BARE : BOXED} ${grid ? '' : 'max-w-full shrink'}`}
+          >
+            {Icon && <Icon size={12} aria-hidden className="shrink-0" />}
+            <span className="min-w-0 truncate">{c.text}</span>
+            {i === 0 && <kbd className="ml-auto shrink-0 pl-1 font-sans text-xs text-[var(--subtle)]" aria-label="按 Tab 填入">Tab</kbd>}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-/** 一轮说完后去取建议。`turnKey` 变了（新的一轮说完）才重新取；在说话时、或结果不属于这一轮时不显示。 */
-export function useCareerSuggestions({ enabled, streaming, turnKey, request }: {
-  enabled: boolean;
-  streaming: boolean;
-  /** 最后一条消息的 id：变了说明有新的一轮。 */
-  turnKey: string | null;
-  request: () => SuggestRequest;
-}) {
-  const [got, setGot] = useState<{ key: string | null; chips: SuggestChip[] }>({ key: null, chips: [] });
-  const requestRef = useRef(request);
-  // 只要最新的取法，不让它驱动重取：重取只跟着新的一轮（turnKey）走
-  useEffect(() => { requestRef.current = request; });
+/** 输入框的键：空着时 Tab 填第一条、↑ 进条。 */
+function useInputKeys(inputRef: RefObject<HTMLTextAreaElement | null>, barRef: RefObject<HTMLDivElement | null>, chips: SuggestChip[], onTab: (chip: SuggestChip) => void, onTyped: (typed: boolean) => void) {
+  const chipsRef = useRef(chips);
+  const onTabRef = useRef(onTab);
+  const onTypedRef = useRef(onTyped);
+  useEffect(() => { chipsRef.current = chips; onTabRef.current = onTab; onTypedRef.current = onTyped; });
   useEffect(() => {
-    if (!enabled || streaming) return;
-    let alive = true;
-    careerApi.suggest(requestRef.current())
-      .then(next => {
-        if (!alive) return;
-        setGot({ key: turnKey, chips: next });
-        if (next.length) track('career_suggest_shown', { slots: next.map(c => c.slot).join(',') });
-      })
-      .catch((error: unknown) => console.warn('[career-suggest] fetch failed:', error instanceof Error ? error.message : error));
-    return () => { alive = false; };
-  }, [enabled, streaming, turnKey]);
-  const used = useCallback((chip: SuggestChip, how: 'click' | 'tab') => {
-    track('career_suggest_used', { slot: chip.slot, seed_id: chip.seed_id ?? '', how });
-    setGot({ key: null, chips: [] });
-  }, []);
-  const chips = enabled && !streaming && got.key === turnKey ? got.chips : [];
-  return { chips, used };
+    const el = inputRef.current;
+    if (!el) return;
+    const onInput = () => onTypedRef.current(!!el.value.trim());
+    const onKey = (e: KeyboardEvent) => {
+      const first = chipsRef.current[0];
+      if (e.shiftKey || el.value.trim() || !first) return;
+      if (e.key === 'Tab') { e.preventDefault(); onTabRef.current(first); return; }
+      if (e.key !== 'ArrowUp') return;
+      const cell = barRef.current?.querySelector('button');
+      if (!cell) return;
+      e.preventDefault();
+      cell.focus();
+    };
+    el.addEventListener('input', onInput);
+    el.addEventListener('keydown', onKey);
+    return () => { el.removeEventListener('input', onInput); el.removeEventListener('keydown', onKey); };
+  }, [inputRef, barRef]);
 }
-
-/** 隐藏上下文（system-reminder）不算他说的话。 */
-const HIDDEN_CONTEXT = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
-
-/** 一条消息里给人看的文字。 */
-export function visibleText(message: Message | undefined): string {
-  if (!message) return '';
-  const raw = typeof message.content === 'string'
-    ? message.content
-    : message.content.map(b => (b.type === 'text' && typeof b.text === 'string' ? b.text : '')).join('\n');
-  return raw.replace(HIDDEN_CONTEXT, '').trim();
-}
-
-const lastOf = (messages: readonly Message[], role: Message['role']): Message | undefined => [...messages].reverse().find(m => m.role === role);
 
 /**
  * 放在输入框上沿（等你条下面）的建议条：自取 TabState，和等你条一样 slot 恒定，不打穿输入框的 memo。
- * 点一下 = 直接发出（career:chat-suggest send）；输入框空着按 Tab = 第一条填进输入框（prefill）。
  * 他在这一轮打了字就收起；发出去以后有了新消息，就是新的一轮，再出来。
  */
 export function CareerSuggestBar({ inputRef }: { inputRef: RefObject<HTMLTextAreaElement | null> }) {
@@ -90,8 +118,6 @@ export function CareerSuggestBar({ inputRef }: { inputRef: RefObject<HTMLTextAre
   const streaming = !!tab && (tab.isLoading || tab.sessionState === 'running' || tab.sessionState === 'starting');
   const turnKey = messages.at(-1)?.id ?? 'empty';
   const [typedAt, setTypedAt] = useState<string | null>(null);
-  const keyRef = useRef(turnKey);
-  useEffect(() => { keyRef.current = turnKey; });
   const pending = cards.filter(c => (c.state ?? 'pending') === 'pending').map(c => c.kind);
   const { chips, used } = useCareerSuggestions({
     enabled: !!tab,
@@ -100,22 +126,14 @@ export function CareerSuggestBar({ inputRef }: { inputRef: RefObject<HTMLTextAre
     request: () => ({ last_user: visibleText(lastOf(messages, 'user')), last_assistant: visibleText(lastOf(messages, 'assistant')), pending_cards: pending }),
   });
   const visible = typedAt === turnKey ? [] : chips;
-  const chipsRef = useRef(visible);
-  useEffect(() => { chipsRef.current = visible; });
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    const onInput = () => setTypedAt(el.value.trim() ? keyRef.current : null);
-    const onKey = (e: KeyboardEvent) => {
-      const first = chipsRef.current[0];
-      if (e.key !== 'Tab' || e.shiftKey || el.value.trim() || !first) return;
-      e.preventDefault();
-      suggestToChat(first.text, undefined, 'prefill');
-      used(first, 'tab');
-    };
-    el.addEventListener('input', onInput);
-    el.addEventListener('keydown', onKey);
-    return () => { el.removeEventListener('input', onInput); el.removeEventListener('keydown', onKey); };
-  }, [inputRef, used]);
-  return <SuggestChips chips={visible} onSend={chip => { used(chip, 'click'); suggestToChat(chip.text); }} />;
+  const barRef = useRef<HTMLDivElement>(null);
+  useInputKeys(inputRef, barRef, visible, first => {
+    suggestToChat(first.text, undefined, 'prefill');
+    used(first, 'tab');
+  }, typed => setTypedAt(typed ? turnKey : null));
+  const send = (chip: SuggestChip, how: 'click' | 'key') => {
+    used(chip, how);
+    void runSuggestion(chip);
+  };
+  return <SuggestChips chips={visible} onSend={send} onEscape={() => inputRef.current?.focus()} barRef={barRef} />;
 }
