@@ -1351,12 +1351,15 @@ pub fn run() {
                 app_handle_for_tray.exit(0);
             });
 
-            // Open DevTools in debug builds
+            // Open DevTools in debug builds; KEYSTONE_NO_DEVTOOLS=1 keeps them closed so
+            // automated window captures show the whole page without stealing focus to close them.
             #[cfg(debug_assertions)]
             {
                 use tauri::Manager;
-                if let Some(window) = app.get_webview_window("main") {
-                    window.open_devtools();
+                if std::env::var_os("KEYSTONE_NO_DEVTOOLS").is_none() {
+                    if let Some(window) = app.get_webview_window("main") {
+                        window.open_devtools();
+                    }
                 }
             }
 
