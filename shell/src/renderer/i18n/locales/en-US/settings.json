@@ -209,7 +209,6 @@
         "cycle-tab": "Cycle tabs (Shift reverses)",
         "jump-to-tab": "Jump to tab 1-9 (9 means last)",
         "new-tab": "New tab",
-        "open-task-center": "Open Task Center",
         "open-settings": "Open Settings",
         "close-tab": "Close current tab / close overlay",
         "switch-tab-bracket": "Previous / next tab"

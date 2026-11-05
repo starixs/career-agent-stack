@@ -63,8 +63,8 @@ describe('matchAppShortcut — characterization of every existing binding', () =
     expect(id(ev({ metaKey: true, shiftKey: true, key: 'T' }), MAC)).toBeNull();
   });
 
-  it('task-center ⌘/Ctrl+Y, settings ⌘/Ctrl+U', () => {
-    expect(id(ev({ metaKey: true, key: 'y' }), MAC)).toBe('open-task-center');
+  it('⌘/Ctrl+Y no longer opens the generic Task Center; settings ⌘/Ctrl+U', () => {
+    expect(id(ev({ metaKey: true, key: 'y' }), MAC)).toBeNull();
     expect(id(ev({ ctrlKey: true, key: 'u' }), WIN)).toBe('open-settings');
   });
 
@@ -102,7 +102,6 @@ function mkCtx(over: Partial<AppShortcutContext> = {}): AppShortcutContext {
     closeCurrentTab: vi.fn(),
     dismissTopmost: vi.fn(() => false),
     hasBlockingBackdrop: vi.fn(() => false),
-    openTaskCenter: vi.fn(),
     openSettings: vi.fn(),
     ...over,
   };
@@ -165,13 +164,11 @@ describe('shortcut run() side effects', () => {
     expect(ctx.setActiveTabId).not.toHaveBeenCalled();
   });
 
-  it('new-tab / task-center / settings delegate to ctx', () => {
+  it('new-tab / settings delegate to ctx', () => {
     const ctx = mkCtx();
     dispatchAppShortcut(ev({ metaKey: true, key: 't' }), MAC, ctx);
-    dispatchAppShortcut(ev({ metaKey: true, key: 'y' }), MAC, ctx);
     dispatchAppShortcut(ev({ metaKey: true, key: 'u' }), MAC, ctx);
     expect(ctx.newTab).toHaveBeenCalledTimes(1);
-    expect(ctx.openTaskCenter).toHaveBeenCalledTimes(1);
     expect(ctx.openSettings).toHaveBeenCalledTimes(1);
   });
 });

@@ -148,6 +148,12 @@ function getFileSearchParentPath(path: string, name: string, workspaceRootLabel:
  */
 const MODEL_CONTROLS_VISIBLE = false;
 
+/**
+ * 求职助理收口（face-slim，11-01 定「技能与工具收起」）：工具 / MCP / 插件由产品内置管理，
+ * 用户端不开关，输入框上的工具下拉整块不渲染（也就不再从这里跳进通用的 MCP / 插件设置）。
+ */
+const TOOL_CONTROLS_VISIBLE = false;
+
 const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputProps>(function SimpleChatInput({
   value: externalValue,
   onChange: _externalOnChange,
@@ -1978,7 +1984,8 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                 />
               </Popover>
 
-              {/* Tool/MCP Dropdown */}
+              {/* Tool/MCP Dropdown — 求职助理不渲染（见 TOOL_CONTROLS_VISIBLE）。 */}
+              {TOOL_CONTROLS_VISIBLE && (
               <>
               <button
                 ref={toolBtnRef}
@@ -2261,6 +2268,7 @@ const SimpleChatInput = memo(forwardRef<SimpleChatInputHandle, SimpleChatInputPr
                     )}
               </Popover>
               </>
+              )}
 
             </div>
 

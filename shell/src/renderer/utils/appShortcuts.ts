@@ -40,7 +40,6 @@ export interface AppShortcutContext {
   dismissTopmost: () => boolean;
   /** True when a full-screen blocking backdrop (modal) is mounted. */
   hasBlockingBackdrop: () => boolean;
-  openTaskCenter: () => void;
   openSettings: () => void;
 }
 
@@ -114,13 +113,7 @@ export const APP_SHORTCUTS: AppShortcut[] = [
     match: (e, isMac) => modHeld(e, isMac) && !e.shiftKey && !e.altKey && (e.key === 't' || e.key === 'T'),
     run: (ctx) => ctx.newTab(),
   },
-  {
-    // ⌘/Ctrl+Y — open Task Center (singleton tab).
-    id: 'open-task-center',
-    keys: (isMac) => `${modLabel(isMac)} + Y`,
-    match: (e, isMac) => modHeld(e, isMac) && !e.shiftKey && !e.altKey && (e.key === 'y' || e.key === 'Y'),
-    run: (ctx) => ctx.openTaskCenter(),
-  },
+  // ⌘/Ctrl+Y（打开任务中心）已撤：求职壳没有任务中心入口（face-slim 收口）。
   {
     // ⌘/Ctrl+U — open Settings.
     id: 'open-settings',

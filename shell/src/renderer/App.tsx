@@ -1853,10 +1853,6 @@ export default function App() {
           dismissTopmost,
           hasBlockingBackdrop: () =>
             !!document.querySelector('.fixed.inset-0[class*="backdrop-blur"]'),
-          openTaskCenter: () =>
-            window.dispatchEvent(
-              new CustomEvent(CUSTOM_EVENTS.OPEN_TASK_CENTER),
-            ),
           openSettings: () =>
             window.dispatchEvent(new CustomEvent(CUSTOM_EVENTS.OPEN_SETTINGS)),
         })
