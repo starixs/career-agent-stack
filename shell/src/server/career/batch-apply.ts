@@ -10,6 +10,7 @@
  *    几家先定制、填到提交前停住；他回来看到「备好了 N 家」，点一下就交。提交前一律停，没他点头不交（放过权的那一类除外）。
  */
 import type { ActionQueueItem, Repos } from '@career/core';
+import { buildAsks } from '@career/core';
 
 import { BatchRunner } from './batch-runner';
 import { getJobPrefs, jobBoard, prepareJobs } from './job-board';
@@ -107,3 +108,18 @@ export async function prepareAhead(deps: Deps, limit = PREPARE_AHEAD_LIMIT): Pro
   console.log(`[career] prepare-ahead started=${actions.length} candidates=${picks.length}`);
   return startApprovedFills(deps.repos, actions, 'prepare');
 }
+
+/** 回执里最多列几件等他的事的标题，多了只报数。 */
+const WAITING_TITLES_MAX = 3;
+
+/**
+ * 这批刚开始的网申里，现在就已经在等他的事（缺的证件号、要他登录的站…）：给助理一个准数，
+ * 让它说「有 N 件在右边等你」，而不是「填完跟我说一声」（10-17 实例：同一缺项让他回话六次）。
+ */
+export function waitingOnYou(repos: Repos, actionIds: readonly string[], nowIso: string): { count: number; titles: string[] } {
+  const apps = new Set(actionIds.map(id => repos.getAction(id)?.application_id).filter((id): id is string => !!id));
+  if (!apps.size) return { count: 0, titles: [] };
+  const asks = buildAsks(repos, nowIso).filter(a => a.application_ids.some(id => apps.has(id)));
+  return { count: asks.length, titles: asks.slice(0, WAITING_TITLES_MAX).map(a => a.title) };
+}
+
