@@ -32,6 +32,13 @@ describe('小芽只背主线工具', () => {
     expect(bad.content[0].text).toContain('记一场面试');
   });
 
+  it('name 不再是 enum（目录已列名字），不认识的名字由入口拒绝并指回目录', async () => {
+    const more = routed[1];
+    const unknown = await more.handler({ name: 'no_such_tool', args: {} } as never, {});
+    expect(unknown.isError).toBe(true);
+    expect(unknown.content[0].text).toContain('没有这个能力：no_such_tool');
+  });
+
   it('在对话里直接填表的老入口不给小芽：投递一律交后台', () => {
     const withLegacy = routeCareerTools([...all, def('apply_prepare', '在这一轮里开浏览器填表。', {}, echo('apply_prepare'))], def as never, z);
     expect(withLegacy.map(t => t.name)).toEqual(['jobs_apply', MORE_ACTIONS_TOOL]);

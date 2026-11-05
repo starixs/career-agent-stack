@@ -54,10 +54,11 @@ export function routeCareerTools<T extends ToolDef>(all: T[], tool: (name: strin
   const more = tool(
     MORE_ACTIONS_TOOL,
     `主线之外的能力（面试、笔试、Offer、邮件、截止、卷宗、调研、浏览器等）。用户要这些时调用：name 选下面一个，args 按那个能力要的参数传；参数不对会返回它要的字段。\n${catalog}`,
-    { name: z.enum([...others.keys()] as [string, ...string[]]), args: z.record(z.string(), z.unknown()).optional() },
+    // name 不用 z.enum：目录里已经列过全部名字，再在 schema 里重复一份约 1k 字每次调用都要重发；不认识的名字由下面的处理函数拒绝。
+    { name: z.string().describe('上面目录里的一个名字'), args: z.record(z.string(), z.unknown()).optional() },
     async ({ name, args }, extra) => {
       const target = others.get(name);
-      if (!target) return errorResult(`没有这个能力：${name}`);
+      if (!target) return errorResult(`没有这个能力：${name}。可用的名字见 ${MORE_ACTIONS_TOOL} 说明里的目录。`);
       const parsed = z.object(target.inputSchema as Parameters<ZodModule['object']>[0]).safeParse(args ?? {});
       if (!parsed.success) return errorResult(`${name} 的参数不对：${parsed.error.message}\n它要的说明：${target.description}`);
       return target.handler(parsed.data as never, extra);

@@ -11,7 +11,7 @@ import { join, resolve } from 'path';
 import { createRequire } from 'module';
 import { query, getSessionMessages as sdkGetSessionMessages, forkSession as sdkForkSession, deleteSession as sdkDeleteSession, type Query, type SDKUserMessage, type AgentDefinition, type HookInput, type HookJSONOutput, type PreToolUseHookInput, type PostToolUseHookInput, type PermissionRequestHookInput, type SlashCommand as SdkSlashCommand } from '@anthropic-ai/claude-agent-sdk';
 import { isRetiredBundledMcpServer } from '../shared/mcpConfig';
-import { SDK_BUILTIN_TOOLS } from './sdk-builtin-tools';
+import { CAREER_SDK_TOOLS } from './sdk-builtin-tools';
 import type { CanUseTool, McpServerProvenance } from '@anthropic-ai/claude-agent-sdk';
 import type { ToolPermissionHints } from '../shared/types/toolPermission';
 import { isContextInjectedSdkTool, toolPermissionGrantKey } from './utils/sdk-tool-permission';
@@ -282,6 +282,7 @@ export type {
 } from './builtin-session/types';
 import type { ProviderEnv } from './provider-types';
 import { CAREER_LLM_PROVIDER_ID, getCareerBuildConstants } from '../shared/career-build-constants';
+import { chatVisibleSkills } from './career/chat-skill-scope';
 export { stripPlaywrightResults } from './builtin-session/transcript-persistence';
 import {
   clearQueryMcpPrewarmOwner,
@@ -11391,7 +11392,8 @@ async function startStreamingSession(preWarm = false): Promise<void> {
       settingSources: buildSettingSources(),
       // SDK-level allowlist is the execution gate for both project and global
       // Skills. Disk projection remains the compatibility bridge for Commands.
-      skills: [...new Set(enabledSkillAllowlist)].sort(),
+      // 工具内部才用的求职技能不列给对话模型（见 career/chat-skill-scope.ts）。
+      skills: chatVisibleSkills([...new Set(enabledSkillAllowlist)].sort()),
       settings: {
         cleanupPeriodDays: claudeTranscriptCleanupPeriodDays,
         // 产品工作区不读上级目录的 CLAUDE.md（会翻到用户给开发工具写的 ~/.claude/CLAUDE.md）
@@ -11400,6 +11402,10 @@ async function startStreamingSession(preWarm = false): Promise<void> {
         // upstream draft feature off explicitly instead of inheriting a CLI
         // default that may change in a patch release.
         feedbackDrafts: 'off' as const,
+        // 求职助理不写代码、不提交：预设提示词里的 commit / PR 工作流说明每次调用都白发。
+        includeGitInstructions: false,
+        // 求职记忆走自己的 memory 表 + 钩子注入；Claude Code 的自动记忆段与目录读写不属于本产品。
+        autoMemoryEnabled: false,
         plansDirectory: getSessionPlansDirectorySetting(sessionId),
         // keystone owns provider routing and outbound-network policy. Without
         // this, Claude Code's WebFetch tool sends the target hostname to
@@ -11493,7 +11499,8 @@ async function startStreamingSession(preWarm = false): Promise<void> {
       mcpServers: sdkMcpServersInitial,
       // Product visibility boundary. Permission policy remains separately
       // owned by allowedTools/disallowedTools/canUseTool/Hooks below.
-      tools: [...SDK_BUILTIN_TOOLS],
+      // 求职产品只暴露读附件、提问卡片、技能与计划模式退出（见 CAREER_SDK_TOOLS）。
+      tools: [...CAREER_SDK_TOOLS],
       // PRD 0.2.17 — Claude plugin injection. SDK accepts
       // `plugins: [{ type: 'local', path }]`; it then scans each path for
       // .claude-plugin/plugin.json and wires up the contained

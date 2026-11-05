@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { SDK_BUILTIN_TOOLS, SDK_EXCLUDED_BUILTIN_TOOLS } from './sdk-builtin-tools';
+import { CAREER_SDK_TOOLS, SDK_BUILTIN_TOOLS, SDK_EXCLUDED_BUILTIN_TOOLS } from './sdk-builtin-tools';
 
 describe('Claude Agent SDK builtin catalog', () => {
   it('keeps the product-owned 29-tool catalog exact and duplicate-free', () => {
@@ -62,6 +62,14 @@ describe('Claude Agent SDK builtin catalog', () => {
     }
 
     const sessionSource = readFileSync(new URL('agent-session.ts', import.meta.url), 'utf8');
-    expect(sessionSource).toContain('tools: [...SDK_BUILTIN_TOOLS]');
+    expect(sessionSource).toContain('tools: [...CAREER_SDK_TOOLS]');
+  });
+
+  it('career sessions only see the read / ask / skill subset of the catalog', () => {
+    expect(CAREER_SDK_TOOLS).toEqual(['Read', 'Glob', 'Grep', 'AskUserQuestion', 'Skill', 'ExitPlanMode']);
+    for (const tool of CAREER_SDK_TOOLS) expect(SDK_BUILTIN_TOOLS).toContain(tool);
+    for (const tool of ['Bash', 'Agent', 'Task', 'TaskCreate', 'Workflow', 'EnterWorktree', 'Monitor']) {
+      expect(CAREER_SDK_TOOLS).not.toContain(tool);
+    }
   });
 });

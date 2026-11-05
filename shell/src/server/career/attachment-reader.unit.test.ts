@@ -141,7 +141,7 @@ describe('buildAttachmentContext', () => {
       ocr: failingOcr,
     });
     expect(context).toContain('via="AnyDoc"');
-    expect(context).toContain('后面还有约 10000 字');
+    expect(context).toContain('后面还有约 22000 字');
     expect(context).toMatch(/用 Read 读 keystone_files\/\.converted\/long\.docx\.[0-9a-f]{10}\.md/);
   });
 });
@@ -160,5 +160,24 @@ describe('图片附件：模型能看图时直接看原图（2026-11-04 DeepSeek
   });
   it('不能看图：照旧只给 OCR 文字', () => {
     expect(renderAttachmentContext([img])!).not.toContain('看原图');
+  });
+});
+
+describe('附件注入预算：Claude Code 把超过约 1 万字的钩子输出截成 2KB 预览，注入要留在阈值内', () => {
+  const big = (name: string, ch: string) => ({
+    path: name, name, ok: true, text: ch.repeat(20_000), method: 'AnyDoc', convertedPath: `.career/converted/${name}.md`, attempts: [],
+  });
+
+  it('两个 2 万字的附件，渲染结果总长低于 1 万字，并指向 text_path 读剩下的', () => {
+    const context = renderAttachmentContext([big('a.pdf', '甲'), big('b.pdf', '乙')])!;
+    expect(context.length).toBeLessThan(10_000);
+    expect(context).toContain('Read 读 .career/converted/a.pdf.md');
+    expect(context).toContain('Read 读 .career/converted/b.pdf.md');
+  });
+
+  it('短附件原样全文注入', () => {
+    const context = renderAttachmentContext([{ ...big('c.docx', '丙'), text: '一段简历正文' }])!;
+    expect(context).toContain('一段简历正文');
+    expect(context).not.toContain('没放进来');
   });
 });

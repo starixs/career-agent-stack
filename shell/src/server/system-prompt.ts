@@ -60,6 +60,7 @@ const TMPL_BASE_IDENTITY = `<keystone-identity>
 
 <career-tools>
 你有一组常驻的 career 工具（今日队列、收件箱归档、卷宗、素材、复盘、邮箱，以及经历库、简历、岗位、调研、面试、方向、差距、Offer）。
+- 下面提到、但你的工具列表里没有的名字（browser_*、deadline_*、inbox_*、interview_*、offer_* 等）都收在 more_actions 里：调 more_actions(name="那个名字", args={…})。
 - 面板按钮发来的消息会带 <CAREER_CONTEXT> 隐藏块，里面的对象 id 直接用于工具调用，不要再向用户确认是哪一个。
 - 读写用户数据一律通过这些工具，不要猜测或编造数据库内容。
 - submit / send_greeting / answer_open_q 只能进入待审核队列，由用户在产品内批准后执行；你不能替用户提交或发送。send_greeting / answer_open_q 批准后只是定稿（动作状态 needs_user），要用户本人去平台发送，不要说"已发送"。

@@ -37,9 +37,14 @@ export function needsConversion(path: string): boolean {
   return [PDF_EXT, IMAGE_EXT, WORD_EXT, SLIDE_EXT, SHEET_EXT, TEXTUTIL_EXT, OTHER_EXT].some(set => set.has(ext));
 }
 
-/** 单文件注入上限；超出部分让模型按需 Read 缓存文件。 */
-const INLINE_CHARS_PER_FILE = 20_000;
-const INLINE_CHARS_TOTAL = 40_000;
+/**
+ * 注入正文的总预算（字符）。Claude Code 把超过约 1 万字的钩子输出落盘、只给模型 2KB 预览
+ * （实测 10-13 会话：20,391 字的附件注入被替换成 "Output too large (19.9KB)… Preview"），
+ * 超了等于白注入。正文控制在 8,000 字，加上标签和说明仍在阈值内；放不下的部分让模型按需 Read text_path。
+ */
+const INLINE_CHARS_TOTAL = 8_000;
+/** 预算快用完时，每个文件至少给的开头字数（够认出是什么文件）；预算耗尽后只给路径。 */
+const INLINE_CHARS_MIN_PER_FILE = 600;
 const ANYDOC_DEADLINE_MS = 120_000;
 const OCR_MAX_PAGES = 30;
 /** 每页平均少于这么多可见字符，就当作扫描件去 OCR。 */
@@ -467,7 +472,7 @@ export function renderAttachmentContext(files: AttachmentText[], opts: { vision?
         '</attached-file>',
       ].join('\n');
     }
-    const limit = Math.min(INLINE_CHARS_PER_FILE, Math.max(budget, 2_000));
+    const limit = budget >= INLINE_CHARS_MIN_PER_FILE ? budget : 0;
     const clipped = f.text.length > limit;
     const shown = clipped ? f.text.slice(0, limit) : f.text;
     budget -= shown.length;
@@ -475,7 +480,7 @@ export function renderAttachmentContext(files: AttachmentText[], opts: { vision?
     return [
       `<attached-file ${attrs}>`,
       shown,
-      clipped ? `\n…（后面还有约 ${f.text.length - limit} 字没放进来；需要时用 Read 读 ${f.convertedPath}，用 offset/limit 分段）` : '',
+      clipped ? `\n…（后面还有约 ${f.text.length - limit} 字没放进来；需要时用 Read 读 ${f.convertedPath ?? f.path}，用 offset/limit 分段）` : '',
       isImage && opts.vision ? imageHint(f) : '',
       '</attached-file>',
       looksLikeResume(f.name, f.text) ? `这份看起来是用户自己的简历：调用 resume_import(path="${f.path}") 一次收进来（基本信息进私密库、经历进经历库、出一张卡点一下生成主简历）。不要在对话里复述简历内容，也不要追问简历上已有的信息。` : '',
