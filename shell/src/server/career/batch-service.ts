@@ -11,6 +11,7 @@ import { BatchRunner } from './batch-runner';
 import { careerExportsDir, getRepos } from './db';
 import { FileChooserBroker } from './file-chooser';
 import { liveHub } from './live-hub';
+import { KeepAwake } from './keep-awake';
 import { careerProductSessionId } from './product-session';
 import { loginJourneyActive } from './live-pin';
 import { packetResumeFile } from './packets';
@@ -21,6 +22,8 @@ import { openApplicationKeys } from './app-pages';
 type HostResolver = () => Promise<ExtensionBrowserHost>;
 let hostResolver: HostResolver | null = null;
 let runnerPromise: Promise<BatchRunner> | null = null;
+/** 批量投递进行时保持屏幕常亮（整个侧车一份）。 */
+const keepAwake = new KeepAwake();
 
 /** index.ts 在创建 ensureBrowserHost 后注册一次。 */
 export function registerBatchBrowserHost(resolver: HostResolver | null): void { hostResolver = resolver; }
@@ -80,7 +83,10 @@ export async function getBatchRunner(): Promise<BatchRunner> {
       };
       return new BatchRunner({
         repos,
-        broadcast: (event, data) => { liveHub.publish(event, data as Record<string, unknown>); },
+        broadcast: (event, data) => {
+          if (event === 'career:batch') keepAwake.follow((data as { status?: unknown }).status === 'running');
+          liveHub.publish(event, data as Record<string, unknown>);
+        },
         sessionId,
         riskLocked,
         // 同时填几份（不同网站）；同一网站永远串行。CAREER_BATCH_CONCURRENCY=1 退回逐份执行。
@@ -193,7 +199,10 @@ export async function getSubmitExecutor(): Promise<SubmitExecutor> {
       return new SubmitExecutor({
         repos,
         run: runOnProductBrowser,
-        broadcast: (event, data) => { liveHub.publish(event, data as Record<string, unknown>); },
+        broadcast: (event, data) => {
+          if (event === 'career:batch') keepAwake.follow((data as { status?: unknown }).status === 'running');
+          liveHub.publish(event, data as Record<string, unknown>);
+        },
         sessionId: () => careerProductSessionId() ?? 'global',
         log: msg => console.log(`[career] ${msg}`),
       });
