@@ -158,6 +158,8 @@ export interface DriveResult {
   learned: Array<{ label: string; value: string }>
   /** 本次写进站点记忆的映射数。 */
   memorized: number
+  /** 没找到网申表时页面的正文（≤ PAGE_TEXT_MAX 字）：调用方据此判断岗位是不是已经结束招聘。 */
+  pageText?: string
   screenshot?: Uint8Array
   finalUrl: string
   adapterId: string
@@ -166,7 +168,13 @@ export interface DriveResult {
 }
 
 /** 给界面的人话进度（不含内部调试信息、不含明文敏感值）。 */
-export interface DriveProgress { message: string; kind: 'page' | 'field' | 'blocker' | 'upload' | 'entry' | 'section' | 'stop'; label?: string }
+export interface DriveProgress {
+  message: string
+  kind: 'page' | 'field' | 'blocker' | 'upload' | 'entry' | 'section' | 'stop' | 'jd'
+  label?: string
+  /** kind='jd'：岗位详情页的正文（≤ JD_TEXT_MAX 字），每次运行至多一次；调用方拿去存岗位描述，不要原样展示。 */
+  text?: string
+}
 
 export interface DriveOptions extends PacingOptions {
   /** 最多走几页。 */
@@ -234,6 +242,10 @@ const PAGE_STEP_MS = 25_000
 /** 从首页走到岗位详情最多跳几次：首页 → 列表 → 详情，再多就是在乱逛。 */
 const MAX_NAV_HOPS = 2
 const TEXTLIKE = new Set<FieldType>(['text', 'email', 'tel', 'number', 'textarea'])
+/** 详情页正文最多交出去多少字：一份 JD 通常两三千字，8k 足够，又不会把整页导航、页脚都带上。 */
+export const JD_TEXT_MAX = 8000
+/** 没找到表单时带回的页面正文：只用来认「已结束 / 已截止」这类字样，2k 足够。 */
+export const PAGE_TEXT_MAX = 2000
 
 const isRecorder = (t: DriveOptions['telemetry']): t is Recorder => !!t && typeof (t as Recorder).trace === 'function'
 
@@ -245,6 +257,13 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   const recorder: Recorder = isRecorder(opts.telemetry) ? opts.telemetry : opts.telemetry ? new RunRecorder(opts.telemetry, host) : noopRecorder
   const log = (msg: string) => { opts.log?.(msg); recorder.trace({ stage: 'log', result: 'info', detail: msg }) }
   const progress = (message: string, kind: DriveProgress['kind'] = 'field', label?: string) => { opts.onProgress?.({ message, kind, label }); recorder.trace({ stage: 'progress', result: 'info', detail: message }) }
+  let jdSent = false
+  /** 落到岗位详情页（要点申请入口之前）时把正文交给调用方一次：存成岗位描述，供下一次按岗位定制简历。尽力而为，出错只记日志。 */
+  const captureJd = (text: string) => {
+    if (jdSent || !opts.onProgress || !text.trim()) return
+    jdSent = true
+    try { opts.onProgress({ message: '读到岗位介绍', kind: 'jd', text: text.slice(0, JD_TEXT_MAX) }) } catch (e) { log(`岗位介绍回传失败：${e instanceof Error ? e.message : String(e)}`) }
+  }
   const widgetLlm = opts.widgetLlm === null ? undefined : opts.widgetLlm ?? llm
   const pages: PageRecord[] = []
   const all = { filled: [] as FilledRecord[], needsUser: [] as FieldPlan[], drafts: [] as FieldPlan[], mismatches: [] as Mismatch[], uploads: [] as UploadCheck[], escalations: [] as Escalation[], learned: [] as Array<{ label: string; value: string }>, memorized: 0 }
@@ -431,6 +450,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         const entry = sig.buttons.find(b => !b.disabled && isEntryText(b.text, adapter))
         // 「立即投递 / 投递简历」这类按钮可能是一键投递，永远不点；但它若只是个链接（<a href> 去网申表），跟着链接走只是打开页面（2026-11-02 真实站点）
         const entryLink = entry ? undefined : sig.buttons.find(b => !b.disabled && !!b.href && isDetailEntryText(b.text, adapter))
+        if (entry || entryLink) captureJd(sig.text)
         if (entryLink?.href && untouched()) {
           entryClicks++
           progress(`打开「${entryLink.text}」指向的网申页`, 'entry', entryLink.text)
@@ -503,7 +523,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
           if (await seek('没有表单')) { index--; continue }
           pages.push(rec); all.escalations.push(...rec.escalations)
           const entry = sig.buttons.find(b => isDetailEntryText(b.text, adapter)) ?? findFinalSubmit(sig.buttons, adapter)
-          return entry ? entryHandoff(entry.text) : finish('blocked', lastSeekNote ?? '页面上没有可填写的表单字段')
+          return entry ? entryHandoff(entry.text) : finish('blocked', lastSeekNote ?? '页面上没有可填写的表单字段', { pageText: sig.text.slice(0, PAGE_TEXT_MAX) })
         }
         break // 后续页没字段：可能到了确认页
       }
@@ -836,10 +856,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       }
       if (!next) {
         pushPage()
-        if (untouched()) return submit ? entryHandoff(submit.text) : finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
+        if (untouched()) return submit ? entryHandoff(submit.text) : finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮', { pageText: sig.text.slice(0, PAGE_TEXT_MAX) })
         // 一格都没填成、要补的全是截图识字层点不进去的「格子」、也没有提交按钮：这不是网申表（多是岗位列表），
         // 如实报找路的结论，不说「表单已填完」（2026-10-31 阿斯麦：岗位卡片上的字被当成输入框）
-        if (!submit && visionOnlyMisses()) return finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮')
+        if (!submit && visionOnlyMisses()) return finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮', { pageText: sig.text.slice(0, PAGE_TEXT_MAX) })
         const msg = submit ? `已填完，停在「${submit.text}」前，等你确认后再提交` : '表单已填完，页面上没有找到下一步或提交按钮，请人工检查'
         return finish('stopped_before_submit', msg, { submitButton: submit?.text, reason: submit ? 'submit_confirm' : undefined })
       }

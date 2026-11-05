@@ -459,7 +459,13 @@ const ROUTES: Route[] = [
     }
   }),
   // 批量勾选表（face-beta-polish）：不在对话里的入口（右栏、功能市场、网申进展）让小芽在对话里放一张
-  route('POST', '/api/career/jobs/propose', (ctx) => ok(postProposal(ctx.repos, ctx.store, ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos)))),
+  // body: job_ids = 只列这几家（建议条点名的）；pick = all 时默认勾满。返回 { posted, picked, card_id }
+  route('POST', '/api/career/jobs/propose', (ctx) => {
+    const ids = Array.isArray(ctx.body.job_ids) ? ctx.body.job_ids.filter((x): x is string => typeof x === 'string') : undefined;
+    const pick = ctx.body.pick === 'all' ? 'all' : ctx.body.pick === 'default' || ctx.body.pick === undefined ? 'default' : null;
+    if (!pick) return fail(`pick 只能是 default 或 all，收到 ${String(ctx.body.pick)}`);
+    return ok(postProposal(ctx.repos, ctx.store, ctx.deps.postChatCard ?? productChatCardPoster(ctx.repos), { job_ids: ids, pick }));
+  }),
   // 勾选表点了「投这 N 家」：开始投，并把那张卡收成"已开始投 N 家"
   route('POST', '/api/career/jobs/propose/start', async (ctx) => {
     const cardId = str(ctx.body.card_id);

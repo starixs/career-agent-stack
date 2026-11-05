@@ -49,7 +49,7 @@ describe('岗位汇总表与匹配', () => {
     expect(jobBoard(repos, { progress: 'none' }).map(r => r.job.job_key)).toEqual(['srv:2']);
   });
 
-  it('勾选加入待投清单：冻结材料包、fill_form 待审；已在投的跳过；没有链接的说明原因', async () => {
+  it('勾选开始投：建投递、fill_form 待审（不冻结，开跑前才备材料包）；已在投的跳过；没有链接的说明原因', async () => {
     const { repos, store } = await setup();
     store.createResumeMaster({ name: '通用版', schema_json: { basics: {} } });
     upsertListings(repos, [listing({ url: 'https://a.com/1' }), listing({ job_key: 'srv:2', remote_id: 'r2', url: null })], core);
@@ -60,12 +60,47 @@ describe('岗位汇总表与匹配', () => {
     expect(first).toEqual([expect.objectContaining({ job_id: a.id, ok: true }), expect.objectContaining({ job_id: b.id, ok: false, reason: '没有网申链接' })]);
     const action = repos.getAction(first[0].action_id!)!;
     expect(action.status).toBe('pending_review');
-    expect(action.packet_id).toBeTruthy();
+    expect(action.packet_id).toBeNull();
+    expect(JSON.parse(action.payload_json)).toMatchObject({ resume_plan: { kind: 'no_jd', changes: null } });
     expect((await prepareJobs(deps, [a.id]))[0]).toMatchObject({ ok: false, reason: '已在投' });
     // 投出去以后再勾上同一行：不再投第二次
     repos.setActionStatus(action.id, 'done', {});
     repos.jumpTo(action.application_id!, 'applied', '已投递');
     expect((await prepareJobs(deps, [a.id]))[0]).toMatchObject({ ok: false, reason: '已经投过' });
+  });
+});
+
+describe('「投这 N 家」当场就回（G6）', () => {
+  const REAL_JD = '岗位职责：负责经营数据分析，搭建指标体系。任职要求：熟练 SQL，有 AB 实验经验。';
+  it('prepareJobs 不定制不导 PDF，payload 带 resume_plan', async () => {
+    const { repos, store } = await setup();
+    const master = store.createResumeMaster({ name: '通用版', schema_json: { basics: { name: '小林' }, skills: ['SQL'] } });
+    const real = repos.upsertJob({ source_platform: 'manual', title: '数据分析', company_name: '京东', url: 'https://jd.com/1', jd_raw: REAL_JD });
+    const campus = repos.upsertJob({ source_platform: 'campus', title: '管培', company_name: '招行', url: 'https://cmb.com/1', jd_raw: '公司：招商银行\n批次：正式批\n网申链接：https://cmb.com/1' });
+    let calls = 0;
+    const exportPdf = async () => { calls++; throw new Error('不该导 PDF'); };
+    const out = await prepareJobs({ repos, store, exportPdf, exportsDir: dir }, [real.id, campus.id]);
+    expect(out.map(r => r.ok)).toEqual([true, true]);
+    expect(calls).toBe(0);
+    expect(store.listResumeTailored()).toHaveLength(0);
+    expect(repos.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM application_packet')?.n).toBe(0);
+    const payloadOf = (i: number) => JSON.parse(repos.getAction(out[i].action_id!)!.payload_json);
+    expect(payloadOf(0)).toMatchObject({ resume_id: master.id, resume_plan: { kind: 'will_tailor', changes: null } });
+    expect(payloadOf(0)).not.toHaveProperty('packet_id');
+    expect(payloadOf(1)).toMatchObject({ resume_id: master.id, resume_plan: { kind: 'no_jd', changes: null } });
+    expect(out[0].resume_plan).toEqual({ kind: 'will_tailor', changes: null });
+  });
+
+  it('已经有定制版的直接用它，resume_plan 记 tailored 和改了几处', async () => {
+    const { repos, store } = await setup();
+    const master = store.createResumeMaster({ name: '通用版', schema_json: { skills: ['SQL'] } });
+    const job = repos.upsertJob({ source_platform: 'manual', title: '数据分析', company_name: '京东', url: 'https://jd.com/1', jd_raw: REAL_JD });
+    const t = store.createTailored({ master_id: master.id, job_id: job.id, schema_json: master.schema_json });
+    store.confirmTailored(t.id, { skills: ['SQL', 'Hive'] });
+    const exportPdf = async () => { throw new Error('不该导 PDF'); };
+    const [r] = await prepareJobs({ repos, store, exportPdf, exportsDir: dir }, [job.id]);
+    expect(r).toMatchObject({ ok: true, resume_plan: { kind: 'tailored', changes: 1 } });
+    expect(JSON.parse(repos.getAction(r.action_id!)!.payload_json)).toMatchObject({ resume_id: t.id });
   });
 });
 

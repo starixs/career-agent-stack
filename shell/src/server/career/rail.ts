@@ -5,7 +5,7 @@
  * 信任账本里「学会了」的几类、今天的三个数。只读现有的权威数据（经历、简历、投递、动作队列、
  * 批量运行器状态、邮箱、信任账本），不另存一份；前端按表变化重新拉。
  */
-import { isFillRetrying, type Repos } from '@career/core';
+import { isFillRetrying, type ApplicationPacket, type Repos } from '@career/core';
 
 import type { CoreModule } from './core-module';
 
@@ -13,7 +13,7 @@ import type { CareerStore } from './store';
 import { BATCH_STATE_KEY, type BatchState } from './batch-runner';
 import { asksFor } from './delivery';
 import { getJobPrefs, jobBoard } from './job-board';
-import { resumeMasterOf } from './packets';
+import { packetResumePlan, resumeMasterOf, tailoredChangeCount } from './packets';
 import { readLedger, shouldProposeDelegate } from './trust-ledger';
 import { SUBMITTED_STAGES } from '../../shared/careerStages';
 import type { MainlineStage, RailBlock, RailPool, RailReceipt, RailSnapshot, RailWaiting, TrustEntry } from '../../shared/careerRail';
@@ -48,11 +48,13 @@ function resumeBlock(repos: Repos, store: CareerStore, core: CoreModule): RailBl
   return { id: 'resume', label: '写简历', status: 'idle', line: '等你把简历给我，或者聊聊你做过的事' };
 }
 
-function tailorBlock(repos: Repos): RailBlock {
+function tailorBlock(repos: Repos, since: string): RailBlock {
   const running = repos.listTasks('running').filter(t => t.kind === 'tailor');
   if (running.length) return { id: 'tailor', label: '定制', status: 'working', line: `在按岗位改简历：${running[0].title}` };
-  const n = repos.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM resume_tailored')?.n ?? 0;
-  return { id: 'tailor', label: '定制', status: n ? 'done' : 'idle', line: n ? `已经按岗位改了 ${n} 份` : '定好方向后，按每个岗位改一版' };
+  const count = repos.db.get<{ n: number; today: number }>('SELECT COUNT(*) AS n, COALESCE(SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END), 0) AS today FROM resume_tailored', [since]);
+  const n = count?.n ?? 0;
+  const today = count?.today ?? 0;
+  return { id: 'tailor', label: '定制', status: n ? 'done' : 'idle', line: n ? `按岗位改了 ${n} 份 · 今天 ${today}` : '定好方向后，按每个岗位改一版' };
 }
 
 function applyBlock(repos: Repos, sent: number): RailBlock {
@@ -66,6 +68,8 @@ function applyBlock(repos: Repos, sent: number): RailBlock {
   const base = { id: 'apply' as const, label: '网申', done: sent, total };
   // 没填成的先自动再试一次：如实说在再试（2026-11-02 实例 A：失败曾显示成「投出 0 份」）；再试也没成的进「等你」，这里不再说
   const retryLine = retrying ? `${retrying} 份没填成，正在再试一次` : '';
+  // 第一次要先准备浏览器（下载约 1–2 分钟）：直接说要等多久，不然像卡死（风险 E#2）
+  if (batch?.status === 'running' && batch.phase === 'browser_down' && batch.message) return { ...base, status: 'working', line: batch.message };
   if (running.length) return { ...base, status: 'working', line: [`在填：${running.map(r => r.title).join('、')}`, retryLine].filter(Boolean).join('；') };
   if (retrying) return { ...base, status: 'working', line: retryLine };
   if (waiting) return { ...base, status: 'waiting', line: `${waiting} 份等你一下` };
@@ -93,17 +97,31 @@ export function receipts(repos: Repos): RailReceipt[] {
   return rows.map(r => ({ application_id: r.application_id, company: r.company ?? '未知公司', title: r.title, at: r.at, ...submitSummary(repos, r.payload_json) }));
 }
 
-/** 回执里的两样：这份交出去用的是哪版简历（材料包），填了几格（提交那一步记下的填表摘要）。 */
-function submitSummary(repos: Repos, payloadJson: string | null): { resume: string | null; filled: number | null } {
-  if (!payloadJson) return { resume: null, filled: null };
+type ReceiptResume = Pick<RailReceipt, 'resume' | 'resume_kind' | 'changes' | 'filled'>;
+const NO_RESUME: ReceiptResume = { resume: null, resume_kind: null, changes: null, filled: null };
+
+/** 材料包里记下的定制改动数（answers_json.resume_plan.changes）；老材料包没有就现算。 */
+function packetChanges(repos: Repos, packet: ApplicationPacket): number | null {
+  return packetResumePlan(repos, packet.id)?.changes ?? (packet.resume_id ? tailoredChangeCount(repos, packet.resume_id) : null);
+}
+
+/**
+ * 回执里的几样：这份交出去用的是哪版简历（材料包：定制版还是主简历、定制版改了几处），填了几格（提交那一步记下的填表摘要）。
+ * 定制版不写成主简历名（此前 resumeMasterOf 对定制版也返回主简历名，回执就成了「用的「主简历」」）。
+ */
+function submitSummary(repos: Repos, payloadJson: string | null): ReceiptResume {
+  if (!payloadJson) return NO_RESUME;
   try {
     const payload = JSON.parse(payloadJson) as { packet_id?: unknown; summary?: { filled?: unknown } };
     const packet = typeof payload.packet_id === 'string' ? repos.getPacket(payload.packet_id) : undefined;
-    const resume = packet?.resume_id ? resumeMasterOf(repos, packet.resume_id)?.name ?? null : null;
-    return { resume, filled: typeof payload.summary?.filled === 'number' ? payload.summary.filled : null };
+    const filled = typeof payload.summary?.filled === 'number' ? payload.summary.filled : null;
+    if (!packet?.resume_id) return { ...NO_RESUME, filled };
+    const resume = resumeMasterOf(repos, packet.resume_id)?.name ?? null;
+    const tailored = packet.resume_kind === 'tailored';
+    return { resume, resume_kind: tailored ? 'tailored' : 'master', changes: tailored ? packetChanges(repos, packet) : null, filled };
   } catch (error) {
     console.warn('[career] rail: 提交记录解析失败', error instanceof Error ? error.message : error);
-    return { resume: null, filled: null };
+    return NO_RESUME;
   }
 }
 
@@ -137,7 +155,7 @@ export function railSnapshot(repos: Repos, store: CareerStore, core: CoreModule)
   const prepared = repos.listActions('pending_review').filter(a => a.kind === 'submit').length;
   return {
     stage: mainlineStage(repos, store, list.length, ledger),
-    blocks: [resumeBlock(repos, store, core), tailorBlock(repos), applyBlock(repos, list.length), mailBlock(repos)],
+    blocks: [resumeBlock(repos, store, core), tailorBlock(repos, since), applyBlock(repos, list.length), mailBlock(repos)],
     waiting: wait,
     receipts: list,
     learned: ledger.map(e => ({ ...e, propose: shouldProposeDelegate(e) })),

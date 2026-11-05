@@ -101,3 +101,39 @@ describe('信任账本', () => {
     expect(delegate(createMemoryRepos(), 'system:moka')).toBeNull();
   });
 });
+
+describe('回执里的简历', () => {
+  it('回执里定制版不写成主简历名', async () => {
+    const core = await loadCore();
+    const repos = createMemoryRepos();
+    const store = new CareerStore(repos, core);
+    const master = store.createResumeMaster({ name: '小林的简历', schema_json: { skills: ['SQL'] } });
+    const submitWith = (company: string, resumeId: string, kind: 'master' | 'tailored', answers?: unknown) => {
+      const app = applied(repos, company, '数据分析');
+      const packet = repos.createPacket({ application_id: app.id, job_id: repos.getApplication(app.id)!.job_id, resume_id: resumeId, resume_kind: kind, answers });
+      const action = repos.enqueueAction('submit', { packet_id: packet.id, summary: { filled: 20 } }, app.id);
+      repos.setActionStatus(action.id, 'done', {});
+    };
+    submitWith('京东', master.id, 'master');
+    const t = store.createTailored({ master_id: master.id, job_id: null, schema_json: master.schema_json });
+    store.confirmTailored(t.id, { skills: ['SQL', 'Hive', 'AB 实验'] });
+    submitWith('美团', t.id, 'tailored', { resume_plan: { kind: 'tailored', changes: 6 } });
+    submitWith('滴滴', t.id, 'tailored');
+    const byCompany = Object.fromEntries(railSnapshot(repos, store, core).receipts.map(r => [r.company, r]));
+    expect(byCompany['京东']).toMatchObject({ resume: '小林的简历', resume_kind: 'master', changes: null, filled: 20 });
+    expect(byCompany['美团']).toMatchObject({ resume_kind: 'tailored', changes: 6 });
+    // 老材料包没记改动数：现算（相对生成时的主简历加了两项）
+    expect(byCompany['滴滴']).toMatchObject({ resume_kind: 'tailored', changes: 2 });
+  });
+
+  it('定制块：按岗位改了几份、今天几份', async () => {
+    const core = await loadCore();
+    const repos = createMemoryRepos();
+    const store = new CareerStore(repos, core);
+    const master = store.createResumeMaster({ name: '小林的简历' });
+    store.createTailored({ master_id: master.id, schema_json: {} });
+    store.createTailored({ master_id: master.id, schema_json: {} });
+    repos.db.run("UPDATE resume_tailored SET created_at='2020-01-01T00:00:00.000Z' WHERE rowid=1");
+    expect(railSnapshot(repos, store, core).blocks.find(b => b.id === 'tailor')?.line).toBe('按岗位改了 2 份 · 今天 1');
+  });
+});

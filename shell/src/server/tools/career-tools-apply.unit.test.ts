@@ -1,3 +1,8 @@
+import { createHash } from 'crypto';
+import { mkdtempSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // apply_run / apply_continue：按浏览器路由的 NDJSON 结果（progress / page / result / error）更新动作、任务、接管、阶段。
@@ -16,6 +21,7 @@ vi.mock('../sse', () => ({ broadcast: vi.fn() }));
 import { FakeLLM, StaticKeyProvider, Vault } from '@career/core';
 
 import { createMemoryRepos } from '../career/test-db';
+import { packetKvKey } from '../career/packet-prepare';
 import { RunRegistry } from '../career/runs';
 import { createCareerServer } from './career-tools';
 
@@ -104,6 +110,23 @@ describe('apply_run / apply_continue', () => {
     expect(repos.openHandoffs()).toHaveLength(0);
     expect(repos.getAction(actionId)!.status).toBe('done');
     expect(repos.listTasks().filter(t => t.kind === 'apply')).toHaveLength(1); // 复用同一个任务
+  });
+
+  it('交还后接着填：用运行器冻结的材料包，提交绑同一份', async () => {
+    const pdf = join(mkdtempSync(join(tmpdir(), 'career-apply-continue-')), 'frozen.pdf');
+    writeFileSync(pdf, '%PDF frozen');
+    const sha = createHash('sha256').update('%PDF frozen').digest('hex');
+    const packet = repos.createPacket({ application_id: applicationId, job_id: jobId, resume_id: null, resume_kind: 'tailored', resume_schema_json: null, resume_pdf_path: pdf, resume_pdf_sha256: sha, answers: {} });
+    // 运行器开跑前冻结：记在 kv，不进 payload（改 payload 会让批准失效）
+    repos.kvSet(packetKvKey(actionId), packet.id);
+    script = [{ type: 'result', op: 'drive', result: { status: 'handoff', reason: 'captcha', captchaKind: 'slider', message: '需要你本人处理：验证码', userAction: '请拖动滑块完成验证', finalUrl: 'https://x.com/apply', adapterId: 'generic', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], escalations: [], layersUsed: ['dom'] } }];
+    await call('apply_run', { action_id: actionId });
+    script = [{ type: 'result', op: 'drive', result: { status: 'stopped_before_submit', message: 'ok', finalUrl: 'https://x.com/apply/2', adapterId: 'generic', submitButton: '提交', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], escalations: [], layersUsed: ['dom'], review: PASSING_REVIEW } }];
+    const cont = await call('apply_continue', { action_id: actionId });
+    expect(cont.isError).toBeUndefined();
+    expect(String(bodies[1].resumePath)).toContain(packet.id);
+    const submit = repos.listActions().find(a => a.kind === 'submit')!;
+    expect(JSON.parse(submit.payload_json)).toMatchObject({ packet_id: packet.id, resumeSha: sha });
   });
 
   it('还在等他登录：apply_continue 不继续，也不让小芽说「登录好了」；他交还 / 登录被认出来之后才继续', async () => {

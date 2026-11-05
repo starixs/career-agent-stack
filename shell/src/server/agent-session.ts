@@ -282,6 +282,7 @@ export type {
 } from './builtin-session/types';
 import type { ProviderEnv } from './provider-types';
 import { CAREER_LLM_PROVIDER_ID, getCareerBuildConstants } from '../shared/career-build-constants';
+import { quotaCopy } from './career/model-error-copy';
 export { stripPlaywrightResults } from './builtin-session/transcript-persistence';
 import {
   clearQueryMcpPrewarmOwner,
@@ -5923,7 +5924,7 @@ function localizeImError(rawError: string): string {
   if (rawError.includes('billing') || rawError.includes('insufficient_quota')
     || rawError.includes('quota_exceeded') || rawError.includes('quota exceeded')
     || rawError.includes('exceeded your current quota') || rawError.includes('payment required')) {
-    return 'API 余额不足，请充值后重试';
+    return quotaCopy(); // 求职壳（内置额度）不让学生去充值，见 career/model-error-copy.ts
   }
   // Rate limiting (transient — safe to retry)
   if (rawError.includes('rate_limit') || rawError.includes('429')) {

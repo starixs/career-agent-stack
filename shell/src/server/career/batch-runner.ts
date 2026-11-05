@@ -3,15 +3,16 @@
  *
  *  - 命令通过 kv `apply:batch:command` 下发（Session 工具 / 渲染层路由都只写 kv），运行器轮询执行：start / pause / stop。
  *  - 状态持久化在 kv `apply:batch:state`，侧车重启后若仍是 running 则自动续跑。
- *  - 每个动作：drive → persistDriveOutcome 落库；遇接管（登录 / 验证码 / 测评）就等用户在浏览器里处理并点"交回"
+ *  - 每个动作：认领 → 开跑前备材料包（deps.preparePacket：定制 + 冻结，见 packet-prepare.ts）→ drive → persistDriveOutcome 落库；遇接管（登录 / 验证码 / 测评）就等用户在浏览器里处理并点"交回"
  *    （handoff.resumed_at 被写上）再从当前页继续，不需要模型再调工具。
  *  - 并行（p-queue）：不同网站同时填（默认 2 份，每份网申在自己的页面上），同一网站严格串行；
  *    同一网站两份之间拟人停顿；平台有风险锁就先跳过该平台；用户正在接管浏览器时不再开新的。没有每日上限（用户 2026-10-30「不要做上限」）。
  *  - 每次状态变化 broadcast `career:batch`；接管状态同时广播 `career:takeover`，前端接管条 / 现场窗复用。
  */
 import PQueue from 'p-queue';
-import { aggregatorHostOf, autoRetryFailedFill, type ActionQueueItem, type Repos, type Task } from '@career/core';
-import { applyTaskTitle, isBrowserDown, isTransientDriveError, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
+import { aggregatorHostOf, autoRetryFailedFill, closeIfJobEnded, PACKET_FAILED_CODE, type ActionQueueItem, type Repos, type Task } from '@career/core';
+import { applyTaskTitle, isBrowserDown, isTransientDriveError, needsUserLabels, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
+import { frozenPacketId, type PreparedPacket } from './packet-prepare';
 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
 export interface BatchState {
@@ -23,7 +24,8 @@ export interface BatchState {
   /** 正在并行填写的网申（每个网站至多一份）。 */
   running?: Array<{ actionId: string; title: string; host: string }>;
   concurrency?: number;
-  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked';
+  /** browser_down：托管浏览器还没起来（第一次要下载准备），message 写明要等多久。 */
+  phase?: 'picking' | 'driving' | 'waiting_user' | 'waiting_control' | 'pacing' | 'rate_locked' | 'browser_down';
   message?: string;
   done: number;
   failed: number;
@@ -46,6 +48,10 @@ const DAILY_KEY = (day: string) => `apply:batch:count:${day}`;
 const MAX_SITE_RETRIES = 3;
 /** 托管浏览器起不来：整批歇这么久再试（扩展连接本身要等 45 秒，太密只会一直撞）。 */
 const BROWSER_DOWN_BACKOFF_MS = 60_000;
+/** 托管浏览器在这台电脑上起来过一次（填表收到过第一条事件）：之后不再说「第一次要准备」。 */
+export const BROWSER_READY_KEY = 'apply:browser:ready_once';
+/** 第一次用：浏览器要先下载准备（resource-client waitForBrowserResource），实测约 1–2 分钟（风险 E#2）。 */
+export const BROWSER_FIRST_RUN_MESSAGE = '第一次要准备浏览器，约 1–2 分钟，之后不用等';
 
 export interface DriveRequest { action: ActionQueueItem; payload: Record<string, unknown>; mode: 'start' | 'continue'; resumePath?: string; /** 续跑时上次 needs_user 的标签：用户自己填好的值学进答案库 */ learnFrom?: string[] }
 export interface BatchRunnerDeps {
@@ -54,15 +60,9 @@ export interface BatchRunnerDeps {
   drive: (req: DriveRequest, onEvent: (ev: DriveEvent) => void) => Promise<DriveEvent[]>;
   /** 浏览器当前控制权；human 时等待。 */
   control: () => 'agent' | 'human';
-  /**
-   * 托管浏览器当前是否开着。等用户处理的接管只有在浏览器还开着时才有意义；
-   * 浏览器没了（App 重启 / 被回收）就重新排队、从头打开那一份，不再干等。缺省视为开着。
-   */
+  /** 托管浏览器当前是否开着：接管只有浏览器还开着时才有意义；没了（App 重启 / 被回收）就重新排队、从头打开那一份。缺省视为开着。 */
   hasBrowser?: () => boolean;
-  /**
-   * 这份网申的页面还在不在（浏览器开着、但学生把那个窗口 / 标签关了）。缺省视为在。
-   * 2026-10-31 实例测试：学生下意识关掉外面那个「一模一样的浏览器」，产品里没画面、也一直干等。
-   */
+  /** 这份网申的页面还在不在（浏览器开着、学生关了那个窗口 / 标签；2026-10-31 实测他下意识关掉外面那个浏览器）。缺省视为在。 */
   pageGone?: (action: Pick<ActionQueueItem, 'id' | 'application_id'>) => boolean;
   broadcast: (event: string, data: unknown) => void;
   sessionId?: () => string;
@@ -70,6 +70,8 @@ export interface BatchRunnerDeps {
   riskLocked?: (platform: string) => boolean;
   /** 这份投递要上传的简历文件：优先材料包（核对哈希），旧动作按 resume_id 现导。 */
   resumeFileFor?: (payload: Record<string, unknown>) => Promise<{ path?: string; error?: string }>;
+  /** 开跑前备材料包（start，认领之后 drive 之前；定制 + 导 PDF + 冻结）。failed → 按 PACKET_FAILED 失败落库，不算瞬时、不自动再试。 */
+  preparePacket?: (action: ActionQueueItem, payload: Record<string, unknown>, onEvent: (ev: DriveEvent) => void) => Promise<PreparedPacket>;
   pacingMs?: [number, number];
   /** 同时填几份（不同网站）；同一网站永远串行。缺省 2。 */
   concurrency?: number;
@@ -78,6 +80,12 @@ export interface BatchRunnerDeps {
   rng?: () => number;
   now?: () => Date;
   log?: (msg: string) => void;
+}
+
+/** 一份网申这一次跑的上下文（prepareRun 建，driveOnce / settleOutcome 用）。 */
+interface Run {
+  action: ActionQueueItem; mode: 'start' | 'continue'; payload: Record<string, unknown>; job: ReturnType<Repos['getJob']>; title: string; task: Task; runId: string; aggregator: string | null;
+  changed: (...tables: string[]) => void; takeover: (state: string, extra?: Record<string, unknown>) => void; /** 开跑前备下的材料包 */ packetId?: string;
 }
 
 const realSleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
@@ -195,6 +203,17 @@ export class BatchRunner {
     await new Promise<void>(resolve => setImmediate(resolve));
   }
 
+  /** 浏览器在这台电脑上起来过没有：记过标记，或者以前填表走到过页面上（老用户没有标记）。 */
+  private browserReadyOnce(): boolean {
+    if (this.repos.kvGet<boolean>(BROWSER_READY_KEY)) return true;
+    return !!this.repos.db.get<{ id: string }>(`SELECT id FROM action_queue WHERE kind='fill_form' AND status IN ('done','needs_user') LIMIT 1`);
+  }
+  private markBrowserReady(): void { if (!this.repos.kvGet<boolean>(BROWSER_READY_KEY)) this.repos.kvSet(BROWSER_READY_KEY, true); }
+  /** 浏览器没起来时的状态：第一次如实说要等多久，以后照常说稍后重试。 */
+  private browserWaitPatch(fallback: string): Partial<BatchState> {
+    return this.browserReadyOnce() ? { phase: 'waiting_control', message: fallback } : { phase: 'browser_down', message: BROWSER_FIRST_RUN_MESSAGE };
+  }
+
   private platformOf(action: ActionQueueItem, payload: Record<string, unknown>): string {
     const url = typeof payload.url === 'string' ? payload.url : '';
     try { return new URL(url).hostname.replace(/^www\./, '') || 'generic'; } catch { return typeof payload.platform === 'string' ? payload.platform : 'generic'; }
@@ -234,7 +253,7 @@ export class BatchRunner {
       }
       if (this.deps.control() === 'human') { this.setState({ phase: 'waiting_control', running: running(), message: '你正在接管浏览器，等待交回' }); await this.idle(poll); continue; }
       const nowMs = this.now().getTime();
-      if (nowMs < this.browserDownUntil) { this.setState({ phase: 'waiting_control', running: running(), message: '浏览器没起来，稍后自动重试' }); await this.idle(poll); continue; }
+      if (nowMs < this.browserDownUntil) { this.setState({ ...this.browserWaitPatch('浏览器没起来，稍后自动重试'), running: running() }); await this.idle(poll); continue; }
       const blocked = busyHosts();
       const ready = (a: ActionQueueItem) => { const h = this.platformOf(a, this.payloadOf(a)); return !inFlight.has(a.id) && !blocked.has(h) && (nextAt.get(h) ?? 0) <= nowMs && (this.transientCooldown.get(h) ?? 0) <= nowMs; };
       const only = this.only();
@@ -258,7 +277,8 @@ export class BatchRunner {
         launch(a, 'start');
       }
       if (inFlight.size) {
-        this.setState({ status: 'running', phase: 'driving', running: running(), concurrency, currentActionId: running()[0]?.actionId, currentTitle: running()[0]?.title, message: `正在填写 ${inFlight.size} 份：${running().map(r => r.title).join('、')}` });
+        const filling = { phase: 'driving' as const, message: `正在填写 ${inFlight.size} 份：${running().map(r => r.title).join('、')}` };
+        this.setState({ status: 'running', running: running(), concurrency, currentActionId: running()[0]?.actionId, currentTitle: running()[0]?.title, ...(this.browserReadyOnce() ? filling : this.browserWaitPatch(filling.message)) });
         await this.idle(poll);
         continue;
       }
@@ -351,7 +371,14 @@ export class BatchRunner {
   }
 
   async runOne(action: ActionQueueItem, mode: 'start' | 'continue', running?: () => BatchState['running']): Promise<DriveOutcome> {
+    const run = this.prepareRun(action, mode, running);
+    return 'kind' in run ? run : this.settleOutcome(run, await this.driveOnce(run));
+  }
+
+  /** 认领（start）+ 任务 + 投递阶段 + 状态广播；认领不到返回失败结果。 */
+  private prepareRun(action: ActionQueueItem, mode: 'start' | 'continue', running?: () => BatchState['running']): Run | DriveOutcome {
     const r = this.repos;
+    const sessionId = this.deps.sessionId?.() ?? 'global';
     const payload = this.payloadOf(action);
     const job = typeof payload.job_id === 'string' ? r.getJob(payload.job_id) : undefined;
     const title = job ? `${job.company_name ?? ''} ${job.title}`.trim() : String(payload.url ?? action.id);
@@ -360,7 +387,7 @@ export class BatchRunner {
       const claim = r.claimAction(action.id);
       if (!claim.ok) {
         this.log(`skip ${action.id}: ${claim.reason}`);
-        this.deps.broadcast('career:data-changed', { sessionId: this.deps.sessionId?.() ?? 'global', tables: ['action_queue'] });
+        this.deps.broadcast('career:data-changed', { sessionId, tables: ['action_queue'] });
         return { kind: 'failed', blocked: false, message: claim.reason === 'content_changed' ? '批准后内容有变化，已退回待审' : '已被其他执行者认领' };
       }
     }
@@ -368,72 +395,104 @@ export class BatchRunner {
     r.updateTask(task.id, { status: 'running' });
     if (mode === 'continue') r.setActionStatus(action.id, 'executing');
     if (action.application_id) { try { r.transition(action.application_id, 'pending', mode === 'start' ? '批量投递开始' : '批量投递续跑'); } catch { /* 已在执行态 */ } }
-    const changed = (...tables: string[]) => this.deps.broadcast('career:data-changed', { sessionId: this.deps.sessionId?.() ?? 'global', tables });
+    const changed = (...tables: string[]) => this.deps.broadcast('career:data-changed', { sessionId, tables });
     changed('task', 'action_queue', 'application');
     this.setState({ status: this.state().status === 'stopped' ? 'stopped' : 'running', phase: 'driving', currentActionId: action.id, currentTitle: title, ...(running ? { running: running() } : {}), message: `${mode === 'start' ? '正在填写' : '继续填写'}：${title}` });
     const runId = `run_${action.id}`;
-    const takeover = (state: string, extra: Record<string, unknown> = {}) => this.deps.broadcast('career:takeover', { sessionId: this.deps.sessionId?.() ?? 'global', runId, state, taskId: task.id, ...extra });
+    const takeover = (state: string, extra: Record<string, unknown> = {}) => this.deps.broadcast('career:takeover', { sessionId, runId, state, taskId: task.id, ...extra });
     takeover('running', { url: payload.url });
-    const events: DriveEvent[] = [];
     // 链接是聚合站的岗位页（不是官网）：不在那上面「填表」，如实记失败，不把站点标语当缺项推给他；重试也没用，不自动再试
     const aggregator = mode === 'start' ? aggregatorHostOf(typeof payload.url === 'string' ? payload.url : null) : null;
+    return { action, mode, payload, job, title, task, runId, changed, takeover, aggregator };
+  }
+
+  /** 进展事件转发给前端（按岗位分组要带公司、岗位）；fromDrive：填表引擎发的（浏览器起来了的证据）。 */
+  private progressSink(run: Run, events: DriveEvent[], fromDrive: boolean): (ev: DriveEvent) => void {
+    return ev => {
+      events.push(ev);
+      // 浏览器起来了才会有填表事件（准备浏览器在 withProductSession 里，那时没有事件）
+      if (fromDrive && ev.type !== 'error') this.markBrowserReady();
+      if (ev.type === 'progress') this.deps.broadcast('career:progress', { sessionId: this.deps.sessionId?.() ?? 'global', runId: run.runId, taskId: run.task.id, phase: 'apply_batch', message: String(ev.message ?? ''), company: run.job?.company_name ?? undefined, job_title: run.job?.title ?? undefined, ...(run.action.application_id ? { application_id: run.action.application_id } : {}), ...(typeof ev.progress === 'number' ? { progress: ev.progress } : {}) });
+    };
+  }
+
+  /** 这一份用的材料包：start 开跑前备（定制 + 冻结），continue 用开跑时备下的那份。 */
+  private async packetFor(run: Run, events: DriveEvent[]): Promise<string | undefined> {
+    if (run.mode === 'continue' || !this.deps.preparePacket) return frozenPacketId(this.repos, run.action.id, run.payload);
+    const prepared = await this.deps.preparePacket(run.action, run.payload, this.progressSink(run, events, false));
+    if (prepared && 'failed' in prepared) throw Object.assign(new Error(prepared.failed), { name: PACKET_FAILED_CODE });
+    return prepared?.packetId;
+  }
+
+  /** 备材料包 → 取简历文件 → drive；任何一步出错都记成一条 error 事件（不抛）。 */
+  private async driveOnce(run: Run): Promise<DriveEvent[]> {
+    const { action, mode } = run;
+    const events: DriveEvent[] = [];
     try {
-      if (aggregator) { this.log(`aggregator-link ${action.id}: ${aggregator}`); throw new Error(`岗位链接是招聘聚合站 ${aggregator} 的页面，不是公司官网的投递入口`); }
-      const file = await this.deps.resumeFileFor?.(payload);
+      if (run.aggregator) { this.log(`aggregator-link ${action.id}: ${run.aggregator}`); throw new Error(`岗位链接是招聘聚合站 ${run.aggregator} 的页面，不是公司官网的投递入口`); }
+      run.packetId = await this.packetFor(run, events);
+      const file = await this.deps.resumeFileFor?.(run.packetId ? { ...run.payload, packet_id: run.packetId } : run.payload);
       if (file?.error) throw new Error(file.error);
-      const resumePath = file?.path;
-      let learnFrom: string[] | undefined;
-      if (mode === 'continue') {
-        try { const prev = JSON.parse(action.result_json ?? 'null') as { needsUser?: Array<{ label?: string }> } | null; learnFrom = (prev?.needsUser ?? []).map(p => p.label).filter((l): l is string => typeof l === 'string' && !!l); } catch { /* ignore */ }
-      }
-      await this.deps.drive({ action, payload, mode, resumePath, ...(learnFrom?.length ? { learnFrom } : {}) }, ev => {
-        events.push(ev);
-        if (ev.type === 'progress') this.deps.broadcast('career:progress', { sessionId: this.deps.sessionId?.() ?? 'global', runId, taskId: task.id, phase: 'apply_batch', message: String(ev.message ?? ''), company: job?.company_name ?? undefined, job_title: job?.title ?? undefined, ...(action.application_id ? { application_id: action.application_id } : {}), ...(typeof ev.progress === 'number' ? { progress: ev.progress } : {}) });
-      });
+      const learnFrom = mode === 'continue' ? needsUserLabels(action) : undefined;
+      await this.deps.drive({ action, payload: run.payload, mode, resumePath: file?.path, ...(learnFrom?.length ? { learnFrom } : {}) }, this.progressSink(run, events, true));
     } catch (e) {
       // 保留错误名（code）：接管冲突 / 宿主停机 / 会话消失要靠它分诊成"暂时不可用"，而不是判死这份网申
       events.push({ type: 'error', status: 500, error: e instanceof Error ? e.message : String(e), ...(e instanceof Error && e.name !== 'Error' ? { code: e.name } : {}) });
     }
-    // 瞬时 / 可抢占（浏览器被对话占用、用户接管、宿主停机、会话消失、501/503）：放回队列，不算失败、不占当天名额
-    const transientLine = events.find(e => e.type === 'error') as { code?: unknown; status?: unknown; error?: unknown } | undefined;
-    if (transientLine && this.siteKeepsFailing(action.id, transientLine)) {
-      // 站点这边连着打不开：不再当瞬时重排，交给下面按失败落库（如实告诉用户这一家打不开）
-      transientLine.code = undefined;
-      transientLine.status = 502;
-      transientLine.error = `连续 ${MAX_SITE_RETRIES} 次打不开这家网申页面：${String(transientLine.error ?? '')}`;
-    }
-    if (events.some(e => e.type === 'error') && isTransientDriveError(transientLine)) {
-      if (mode === 'start') r.requeueAction(action.id); else r.setActionStatus(action.id, 'needs_user');
-      r.updateTask(task.id, { status: 'queued' });
-      takeover('idle');
-      changed('task', 'action_queue');
-      // 同站冷却：被占用 / 暂不可用时立刻重试只会每 3 秒空转一轮（resumable 队列不看 nextAt），压一压再试
-      this.transientCooldown.set(this.platformOf(action, payload), this.now().getTime() + 15_000);
-      if (isBrowserDown(transientLine)) { this.browserDownUntil = this.now().getTime() + BROWSER_DOWN_BACKOFF_MS; this.log(`browser-down ${action.id}: ${String(transientLine?.error ?? '')}`); }
-      this.setState({ phase: 'waiting_control', message: '浏览器暂时不可用 / 被占用，稍后自动继续' });
-      return { kind: 'transient', code: typeof transientLine?.code === 'string' ? transientLine.code : undefined, message: String((transientLine as { error?: unknown } | undefined)?.error ?? '暂时不可用') };
-    }
+    return events;
+  }
+
+  /** 瞬时 / 可抢占（浏览器被对话占用、用户接管、宿主停机、会话消失、501/503）：放回队列，不算失败、不占当天名额。 */
+  private settleTransient(run: Run, line: { code?: unknown; status?: unknown; error?: unknown } | undefined): DriveOutcome {
+    const r = this.repos;
+    if (run.mode === 'start') r.requeueAction(run.action.id); else r.setActionStatus(run.action.id, 'needs_user');
+    r.updateTask(run.task.id, { status: 'queued' });
+    run.takeover('idle');
+    run.changed('task', 'action_queue');
+    // 同站冷却：被占用 / 暂不可用时立刻重试只会每 3 秒空转一轮（resumable 队列不看 nextAt），压一压再试
+    this.transientCooldown.set(this.platformOf(run.action, run.payload), this.now().getTime() + 15_000);
+    if (isBrowserDown(line)) { this.browserDownUntil = this.now().getTime() + BROWSER_DOWN_BACKOFF_MS; this.log(`browser-down ${run.action.id}: ${String(line?.error ?? '')}`); }
+    this.setState(isBrowserDown(line) ? this.browserWaitPatch('浏览器暂时不可用，稍后自动继续') : { phase: 'waiting_control', message: '浏览器暂时不可用 / 被占用，稍后自动继续' });
+    return { kind: 'transient', code: typeof line?.code === 'string' ? line.code : undefined, message: String(line?.error ?? '暂时不可用') };
+  }
+
+  /** drive 结束：瞬时的放回队列；其余落库（submit 绑开跑前备的材料包），再按结果更新状态。 */
+  private settleOutcome(run: Run, events: DriveEvent[]): DriveOutcome {
+    const { action, mode } = run;
+    const line = events.find(e => e.type === 'error') as { code?: unknown; status?: unknown; error?: unknown } | undefined;
+    // 站点这边连着打不开：不再当瞬时重排，交给下面按失败落库（如实告诉用户这一家打不开）
+    if (line && this.siteKeepsFailing(action.id, line)) Object.assign(line, { code: undefined, status: 502, error: `连续 ${MAX_SITE_RETRIES} 次打不开这家网申页面：${String(line.error ?? '')}` });
+    if (line && isTransientDriveError(line)) return this.settleTransient(run, line);
     const outcome = persistDriveOutcome({
-      repos: r, action, taskId: task.id, events, changed, mode,
+      repos: this.repos, action, taskId: run.task.id, events, changed: run.changed, mode, ...(run.packetId ? { packetId: run.packetId } : {}),
       review: (ids, kind, summary, data) => this.deps.broadcast('career:review', { sessionId: this.deps.sessionId?.() ?? 'global', actionIds: ids, kind, summary, ...(data ? { data } : {}) }),
     });
     if (mode === 'start') this.bumpToday();
+    this.reportOutcome(run, outcome);
+    return outcome;
+  }
+
+  private reportOutcome(run: Run, outcome: DriveOutcome): void {
+    const { action, title } = run;
     const s = this.state();
     if (outcome.kind === 'handoff') {
-      takeover('paused', { reason: outcome.reason, handoffId: outcome.handoffId, url: outcome.finalUrl, message: outcome.userAction ?? outcome.message });
+      run.takeover('paused', { reason: outcome.reason, handoffId: outcome.handoffId, url: outcome.finalUrl, message: outcome.userAction ?? outcome.message });
       this.setState({ handoffs: s.handoffs + 1, phase: 'waiting_user', message: `「${title}」需要你处理：${outcome.userAction ?? outcome.message}` });
       this.log(`handoff ${action.id}: ${outcome.reason}`);
-    } else if (outcome.kind === 'done') {
-      takeover('idle');
-      this.setState({ done: s.done + 1, message: `「${title}」${outcome.headline}，${outcome.autoApproved ? '正在提交' : '等你批准提交'}` });
+      return;
+    }
+    run.takeover('idle');
+    if (outcome.kind === 'done') this.setState({ done: s.done + 1, message: `「${title}」${outcome.headline}，${outcome.autoApproved ? '正在提交' : '等你批准提交'}` });
+    else if (outcome.kind === 'failed' && closeIfJobEnded(this.repos, action.id)) {
+      // 岗位已结束招聘：不是没填成，不再试、不计失败（风险 E#1）
+      run.changed('action_queue', 'application', 'job');
+      this.setState({ message: `${run.job?.company_name ?? title} 已结束招聘，换一家` });
     } else if (outcome.kind === 'failed') {
-      takeover('idle');
-      // 失败一次先自动再试一次（放回队列，循环还在跑会接着拿到它）；再失败交给等你「N 家没填成」
-      const retry = aggregator ? 'not_retryable' : autoRetryFailedFill(r, action.id);
+      // 失败一次先自动再试一次（放回队列，循环还在跑会接着拿到它）；再失败交给等你「N 家没填成」；材料包备不出来的不自动再试（fill-retry）
+      const retry = run.aggregator ? 'not_retryable' : autoRetryFailedFill(this.repos, action.id);
       this.log(`fill failed ${action.id}: retry=${retry}`);
-      if (retry === 'retrying') changed('action_queue', 'application');
+      if (retry === 'retrying') run.changed('action_queue', 'application');
       this.setState({ failed: s.failed + 1, lastError: outcome.message, message: `「${title}」${outcome.blocked ? '被阻塞' : '失败'}：${outcome.message}${retry === 'retrying' ? '，稍后再试一次' : ''}` });
     }
-    return outcome;
   }
 }

@@ -6,15 +6,18 @@ import { homedir } from 'os';
 import { join } from 'path';
 
 
+import type { Repos } from '@career/core';
+
 import type { ExtensionBrowserHost } from '../browser-host/extension-bridge/extension-browser-host';
-import { BatchRunner } from './batch-runner';
+import { BatchRunner, type DriveRequest } from './batch-runner';
 import { careerExportsDir, getRepos } from './db';
 import { FileChooserBroker } from './file-chooser';
 import { liveHub } from './live-hub';
 import { followBatch } from './keep-awake';
 import { careerProductSessionId } from './product-session';
 import { loginJourneyActive } from './live-pin';
-import { packetResumeFile } from './packets';
+import { preparePacketForAction } from './packet-prepare';
+import { packetResumeFile, saveCapturedJd, type PacketDeps } from './packets';
 import { SubmitExecutor } from './submit-executor';
 import type { CareerBrowserHost, RunEmitter } from '../routes/career-browser';
 import { openApplicationKeys } from './app-pages';
@@ -111,33 +114,8 @@ export async function getBatchRunner(): Promise<BatchRunner> {
           const vault = await import('./vault').then(m => m.getVault()).catch(() => null);
           return packetResumeFile(repos, payload, legacyResumeFile, vault ? { resolveText: text => vault.resolve(text, { actor: 'resume_export', purpose: '简历附件文件名' }) } : {});
         },
-        drive: async (req, onEvent) => {
-          if (!hostResolver) throw new Error('浏览器宿主尚未就绪（批量运行器只能在 Global 侧车运行）');
-          const host = await hostResolver();
-          hostCache = host;
-          const id = careerProductSessionId();
-          if (!id) throw new Error('还没有个人助理会话：请先打开一次对话');
-          const { runOperation } = await import('../routes/career-browser');
-          const events: Record<string, unknown>[] = [];
-          const out: RunEmitter = { emit: line => { events.push(line); onEvent(line); }, aborted: () => false };
-          const body: Record<string, unknown> = {
-            op: 'drive',
-            // 执行者标记：页面锁 owner 的前缀。对话（chat:）和批量（batch:）撞上同一份时，后到的一方
-            // 会收到 BROWSER_BUSY——此前两边 owner 相同、锁可重入，会出现双引擎同时填一份表、各排一个提交。
-            caller: 'batch',
-            actionId: req.action.id, applicationId: req.action.application_id, payload: req.payload,
-            ...(req.mode === 'start' && typeof req.payload.url === 'string' ? { url: req.payload.url } : {}),
-            // 续跑不重开链接，但要带上网申所在网站：交还后页面不在这个网站上就停下问用户（app-pages 核对）
-            ...(req.mode === 'continue' && typeof req.payload.url === 'string' ? { siteUrl: req.payload.url } : {}),
-            ...(req.resumePath ? { resumePath: req.resumePath } : {}),
-            ...(req.learnFrom?.length ? { learnFrom: req.learnFrom } : {}),
-          };
-          // 并行时：有等用户处理的接管就不把画面切到新开的网申上（接管那一页由 force 切过去）
-          // 登录之旅进行中：画面钉在带你过的那一家，后台新开的网申一律不切过去
-          const focusPage = (page: Parameters<typeof host.focusPage>[1], force?: boolean) => { if (!loginJourneyActive() && (force || repos.openHandoffs().length === 0)) host.focusPage(id, page); };
-          await host.withProductSession(id, context => runOperation('drive', body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost, productSessionId: id, focusPage }), { create: { workspacePath: careerWorkspacePath() } });
-          return events;
-        },
+        preparePacket: async (action, payload, onEvent) => preparePacketForAction(await globalPacketDeps(), action, payload, onEvent), // 定制 + 冻结；进展第一步也由它发
+        drive: (req, onEvent) => driveForBatch(repos, req, onEvent),
         log: msg => console.log(`[career] ${msg}`),
       });
     })();
@@ -145,6 +123,36 @@ export async function getBatchRunner(): Promise<BatchRunner> {
   return runnerPromise;
 }
 let hostCache: ExtensionBrowserHost | null = null;
+
+/** 批量运行器的一次填表：在产品会话的浏览器上跑 drive，收集 NDJSON 事件（岗位描述事件只存不转发）。 */
+async function driveForBatch(repos: Repos, req: DriveRequest, onEvent: (ev: Record<string, unknown>) => void): Promise<Array<Record<string, unknown>>> {
+  if (!hostResolver) throw new Error('浏览器宿主尚未就绪（批量运行器只能在 Global 侧车运行）');
+  const host = await hostResolver();
+  hostCache = host;
+  const id = careerProductSessionId();
+  if (!id) throw new Error('还没有个人助理会话：请先打开一次对话');
+  const { runOperation } = await import('../routes/career-browser');
+  const events: Record<string, unknown>[] = [];
+  // 填表引擎在岗位详情页读到的正文（kind=jd）只用来存岗位描述，不进进展、不进事件记录
+  const out: RunEmitter = { emit: line => { if (!keepJdLine(repos, req.payload, line)) { events.push(line); onEvent(line); } }, aborted: () => false };
+  const body: Record<string, unknown> = {
+    op: 'drive',
+    // 执行者标记：页面锁 owner 的前缀。对话（chat:）和批量（batch:）撞上同一份时，后到的一方
+    // 会收到 BROWSER_BUSY——此前两边 owner 相同、锁可重入，会出现双引擎同时填一份表、各排一个提交。
+    caller: 'batch',
+    actionId: req.action.id, applicationId: req.action.application_id, payload: req.payload,
+    ...(req.mode === 'start' && typeof req.payload.url === 'string' ? { url: req.payload.url } : {}),
+    // 续跑不重开链接，但要带上网申所在网站：交还后页面不在这个网站上就停下问用户（app-pages 核对）
+    ...(req.mode === 'continue' && typeof req.payload.url === 'string' ? { siteUrl: req.payload.url } : {}),
+    ...(req.resumePath ? { resumePath: req.resumePath } : {}),
+    ...(req.learnFrom?.length ? { learnFrom: req.learnFrom } : {}),
+  };
+  // 并行时：有等用户处理的接管就不把画面切到新开的网申上（接管那一页由 force 切过去）
+  // 登录之旅进行中：画面钉在带你过的那一家，后台新开的网申一律不切过去
+  const focusPage = (page: Parameters<typeof host.focusPage>[1], force?: boolean) => { if (!loginJourneyActive() && (force || repos.openHandoffs().length === 0)) host.focusPage(id, page); };
+  await host.withProductSession(id, context => runOperation('drive', body, context, out, new AbortController().signal, { host: host as unknown as CareerBrowserHost, productSessionId: id, focusPage }), { create: { workspacePath: careerWorkspacePath() } });
+  return events;
+}
 
 /** 产品会话的浏览器宿主（Global 侧车）：登录之旅用。没就绪时显式报错。 */
 export async function careerBrowserHost(): Promise<{ host: ExtensionBrowserHost; productSessionId: string }> {
@@ -156,16 +164,34 @@ export async function careerBrowserHost(): Promise<{ host: ExtensionBrowserHost;
   return { host, productSessionId };
 }
 
-/** 没有材料包的旧动作：按 resume_id 现导（主简历与定制简历都导，渲染前解私密库占位符）。 */
+/** 是岗位描述事件就存（尽力而为，出错只记日志、不影响填表）并返回 true，调用方不再转发。 */
+export function keepJdLine(repos: Repos, payload: Record<string, unknown>, line: Record<string, unknown>): boolean {
+  if (line.type !== 'progress' || line.kind !== 'jd') return false;
+  if (typeof line.text !== 'string' || typeof payload.job_id !== 'string') return true;
+  try {
+    saveCapturedJd(repos, payload.job_id, line.text);
+  } catch (error) {
+    console.warn(`[career] jd capture FAILED job=${payload.job_id} reason=${error instanceof Error ? error.message : String(error)}`);
+  }
+  return true;
+}
+
+/** Global 侧车里导 PDF / 建材料包用的依赖：导出前解私密库占位符（明文只进渲染，不落库）。动态加载：导出链路会拉起渲染模板，不能拖慢侧车冷启动。 */
+async function globalPacketDeps(): Promise<PacketDeps> {
+  const [{ loadCore }, { getVault }, { CareerStore }, { exportResumeFile }] = await Promise.all([import('./core-module'), import('./vault'), import('./store'), import('./export')]);
+  const [core, repos, vault] = await Promise.all([loadCore(), getRepos(), getVault()]);
+  const store = new CareerStore(repos, core);
+  const exportPdf = (resumeId: string) => exportResumeFile(store, resumeId, 'pdf', careerExportsDir(), undefined, schema => vault.resolveDeep(schema, { actor: 'resume_export', purpose: `批量投递导出简历 ${resumeId}` }), { repos });
+  return { repos, store, exportPdf, exportsDir: careerExportsDir() };
+}
+
+/** 没有材料包的旧动作：按 resume_id 现导（主简历与定制简历都导）。 */
 async function legacyResumeFile(resumeId: unknown): Promise<string | undefined> {
   if (typeof resumeId !== 'string' || !resumeId) return undefined;
   try {
-    // 动态加载：导出链路会拉起 react-pdf 模板，不能拖慢侧车冷启动
-    const [{ loadCore }, { getVault }, { CareerStore }, { exportResumeFile }] = await Promise.all([import('./core-module'), import('./vault'), import('./store'), import('./export')]);
-    const [core, repos, vault] = await Promise.all([loadCore(), getRepos(), getVault()]);
-    const store = new CareerStore(repos, core);
-    if (!store.getResume(resumeId)) return undefined;
-    return await exportResumeFile(store, resumeId, 'pdf', careerExportsDir(), undefined, schema => vault.resolveDeep(schema, { actor: 'resume_export', purpose: `批量投递导出简历 ${resumeId}` }), { repos });
+    const deps = await globalPacketDeps();
+    if (!deps.store.getResume(resumeId)) return undefined;
+    return await deps.exportPdf(resumeId);
   } catch (error) {
     console.warn('[career] 批量投递导出简历失败：', error instanceof Error ? error.message : error);
     return undefined;

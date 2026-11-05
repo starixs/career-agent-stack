@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { FakePage, driveApplication, RiskGuard } from '../src/index.js'
+import { FakePage, driveApplication, RiskGuard, type DriveProgress } from '../src/index.js'
 import { profile, noLLM, draftLLM, mem } from './helpers.js'
 
 const basics = [{ label: '姓名', required: true }, { label: '邮箱', type: 'email' as const }, { label: '手机号', type: 'tel' as const }]
@@ -94,6 +94,28 @@ describe('driveApplication', () => {
     expect(page.actions.filter(a => a.kind === 'click' && a.target?.startsWith('button:')).map(a => a.target)).toEqual(['button:立即申请'])
     expect(page.fieldValues()).toMatchObject({ 姓名: '张三' })
   })
+  it('落到岗位详情页时把正文交出去一次（kind=jd，存岗位描述用）；进度文字不带正文', async () => {
+    const page = new FakePage([
+      { url: 'https://zhaopin.meituan.com/web/position/detail', text: '岗位职责：负责后端开发 任职要求：熟悉 Java', buttons: [{ text: '立即申请', goto: 'https://zhaopin.meituan.com/web/delivery' }] },
+      { url: 'https://zhaopin.meituan.com/web/delivery', fields: basics, buttons: [{ text: '投递', submit: true }] },
+    ])
+    const events: DriveProgress[] = []
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, onProgress: p => events.push(p) })
+    expect(r.status).toBe('stopped_before_submit')
+    const jd = events.filter(e => e.kind === 'jd')
+    expect(jd).toHaveLength(1)
+    expect(jd[0].text).toContain('岗位职责：负责后端开发')
+    expect(jd[0].message).not.toContain('岗位职责')
+    expect(events.filter(e => e.kind !== 'jd').every(e => e.text === undefined)).toBe(true)
+  })
+  it('交出正文的回调出错不影响填表', async () => {
+    const page = new FakePage([
+      { url: 'https://x.com/job/1', text: '岗位职责', buttons: [{ text: '立即申请', goto: 'https://x.com/apply/1' }] },
+      { url: 'https://x.com/apply/1', fields: basics, buttons: [{ text: '提交申请', submit: true }] },
+    ])
+    const r = await driveApplication(page, noLLM(), profile, { ...quiet, onProgress: p => { if (p.kind === 'jd') throw new Error('写库失败') } })
+    expect(r.status).toBe('stopped_before_submit')
+  })
   it('详情页上的「立即投递」可能是一键投递：不点，交给用户', async () => {
     const page = new FakePage({ url: 'https://x.com/job/1', text: '岗位职责', buttons: [{ text: '立即投递', submit: true }] })
     const r = await driveApplication(page, noLLM(), profile, quiet)
@@ -124,7 +146,10 @@ describe('driveApplication', () => {
     expect(r.status).toBe('handoff'); expect(r.reason).toBe('login')
   })
   it('没有字段 → blocked；风险锁 → blocked', async () => {
-    expect((await driveApplication(new FakePage({ url: 'https://x.com/jd', text: '岗位介绍' }), noLLM(), profile, quiet)).status).toBe('blocked')
+    const none = await driveApplication(new FakePage({ url: 'https://x.com/jd', text: '岗位介绍 本岗位已结束招聘' }), noLLM(), profile, quiet)
+    expect(none.status).toBe('blocked')
+    // 没找到表单：带回页面正文，调用方据此认出「已结束招聘」
+    expect(none.pageText).toContain('已结束招聘')
     const repos = mem(); const guard = new RiskGuard(repos, { platform: 'generic' }); guard.trip('captcha', '上次')
     const r = await driveApplication(new FakePage({ url: 'https://x.com/apply', fields: basics }), noLLM(), profile, { ...quiet, riskGuard: guard })
     expect(r.status).toBe('blocked'); expect(r.message).toContain('captcha')

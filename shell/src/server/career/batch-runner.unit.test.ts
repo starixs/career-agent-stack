@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Repos } from '@career/core';
+import { buildAsks, type Repos } from '@career/core';
 
-import { BatchRunner, BATCH_COMMAND_KEY, type DriveRequest } from './batch-runner';
+import { BatchRunner, BATCH_COMMAND_KEY, BROWSER_FIRST_RUN_MESSAGE, type DriveRequest } from './batch-runner';
 import { createMemoryRepos } from './test-db';
 
 // 批量运行器：队列顺序、落库、接管等待交回后续跑、暂停 / 停止、每日上限、风控跳过。drive 用桩。
@@ -73,6 +73,35 @@ describe('BatchRunner', () => {
     const out = await runner.runOne(repos.getAction(id)!, 'start');
     expect(out.kind).toBe('transient');
     expect(repos.getAction(id)?.status).toBe('approved');
+  });
+
+  it('浏览器还没准备好：状态写明第一次要等；浏览器起来过一次以后照常说稍后重试（风险 E#2）', async () => {
+    const repos = createMemoryRepos();
+    const [a, b] = seed(repos, 2);
+    let up = false;
+    const { runner } = makeRunner(repos, () => (up ? [result('stopped_before_submit')] : [{ type: 'error', status: 500, error: 'BROWSER_PREPARATION_FAILED（HTTP 500）' }]));
+    await runner.runOne(repos.getAction(a)!, 'start');
+    expect(runner.state()).toMatchObject({ phase: 'browser_down', message: BROWSER_FIRST_RUN_MESSAGE });
+    up = true;
+    await runner.runOne(repos.getAction(b)!, 'start');
+    up = false;
+    await runner.runOne(repos.getAction(a)!, 'start');
+    expect(runner.state().phase).toBe('waiting_control');
+    expect(runner.state().message).not.toContain('第一次');
+  });
+
+  it('岗位已结束招聘：不算没填成、不再自动试，投递关掉、岗位标关闭（风险 E#1）', async () => {
+    const repos = createMemoryRepos();
+    const [id] = seed(repos, 1);
+    const { runner, calls } = makeRunner(repos, () => [result('blocked', { message: '该职位已停止招聘，页面上没有可填写的表单字段' })]);
+    await runner.runOne(repos.getAction(id)!, 'start');
+    const action = repos.getAction(id)!;
+    expect(action.status).toBe('failed');
+    expect(repos.getApplication(action.application_id!)?.stage).toBe('skip');
+    expect(repos.getJob(String(JSON.parse(action.payload_json).job_id))?.source_status).toBe('closed');
+    expect(runner.state()).toMatchObject({ failed: 0, message: '公司 0 已结束招聘，换一家' });
+    expect(buildAsks(repos, new Date().toISOString()).some(x => x.kind === 'failed')).toBe(false);
+    expect(calls).toHaveLength(1);
   });
 
   it('接管：停下等用户，交回（handoff 被关闭）后以 continue 模式从当前页续跑', async () => {
@@ -345,5 +374,37 @@ describe('BatchRunner 多任务展示数据', () => {
     const progress = events.find(e => e.event === 'career:progress')?.data as Record<string, unknown>;
     expect(progress).toMatchObject({ company: '公司 0', job_title: '岗位 0', progress: 0.4, message: '正在填写教育经历' });
     expect(String(progress.runId)).toMatch(/^run_act_/);
+  });
+  it('开跑前先备材料包，进展第一步说用的哪份；备不出算失败不算瞬时', async () => {
+    const repos = createMemoryRepos();
+    const [ok, bad] = seed(repos, 2);
+    const okApp = repos.getAction(ok)!.application_id!;
+    const packet = repos.createPacket({ application_id: okApp, resume_pdf_path: '/tmp/x.pdf', resume_pdf_sha256: 'sha-1', answers: {} });
+    const order: string[] = [];
+    const files: Array<Record<string, unknown>> = [];
+    const { runner, events, calls } = makeRunner(repos, req => { order.push(`drive:${req.action.id}`); return [result('stopped_before_submit', { submitButton: '提交' })]; }, {
+      preparePacket: async (action, _payload, onEvent) => {
+        order.push(`packet:${action.id}`);
+        if (action.id === bad) return { failed: '简历 PDF 没导出来' };
+        onEvent({ type: 'progress', phase: 'drive', kind: 'resume', message: '定制简历 ✓ 改 3 处' });
+        return { packetId: packet.id };
+      },
+      resumeFileFor: async payload => { files.push(payload); return { path: '/tmp/x.pdf' }; },
+    });
+    const first = await runner.runOne(repos.getAction(ok)!, 'start');
+    expect(first.kind).toBe('done');
+    expect(order).toEqual([`packet:${ok}`, `drive:${ok}`]);
+    expect(files[0]).toMatchObject({ packet_id: packet.id });
+    const progress = events.filter(e => e.event === 'career:progress').map(e => (e.data as { message?: string }).message);
+    expect(progress[0]).toBe('定制简历 ✓ 改 3 处');
+    const submit = repos.listActions().find(a => a.kind === 'submit')!;
+    expect(JSON.parse(submit.payload_json)).toMatchObject({ packet_id: packet.id, resumeSha: 'sha-1' });
+
+    const second = await runner.runOne(repos.getAction(bad)!, 'start');
+    expect(second).toMatchObject({ kind: 'failed', message: '简历 PDF 没导出来' });
+    expect(calls).toHaveLength(1);
+    expect(repos.getAction(bad)!.status).toBe('failed');
+    const failed = buildAsks(repos, new Date().toISOString()).filter(a => a.kind === 'failed');
+    expect(failed).toEqual([expect.objectContaining({ title: '1 家没填成', detail: '简历 PDF 没导出来', action_ids: [bad] })]);
   });
 });

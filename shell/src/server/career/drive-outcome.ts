@@ -9,7 +9,7 @@
  * 必填全部已填并读回核验、没有待补 / 没生效 / 站点报错 / 附件没回显 / 草稿，才把 submit 入队等用户批准；
  * 否则填表动作停在 needs_user 并开 missing_info 接管，用户补完后从当前页继续、重新检查。
  */
-import type { ActionQueueItem, Repos } from '@career/core';
+import { PACKET_FAILED_CODE, type ActionQueueItem, type Repos } from '@career/core';
 
 import { recordApplyability } from './applyability';
 import { explainApproval } from './learned-rules';
@@ -160,6 +160,15 @@ export interface PersistDeps {
   changed: (...tables: string[]) => void;
   /** 有 submit 进待审时通知对话内审核卡片（data：卡片里的审阅清单等）。 */
   review?: (actionIds: string[], kind: string, summary: string, data?: Record<string, unknown>) => void;
+  /** 运行器开跑前冻结的材料包（packet-prepare）：submit 绑定它；缺省读 fill_form payload.packet_id（老动作）。 */
+  packetId?: string;
+}
+
+/** 续跑时上次停下要他填的那几格（result_json.needsUser 的标签）：他自己填好的值学进答案库。 */
+export function needsUserLabels(action: Pick<ActionQueueItem, 'result_json'>): string[] | undefined {
+  const prev = asList(parseObj(action.result_json).needsUser);
+  const labels = prev.map(p => p.label).filter((l): l is string => typeof l === 'string' && !!l);
+  return labels.length ? labels : undefined;
 }
 
 export function pickDriveResult(events: DriveEvent[]): { result?: Record<string, unknown>; errorLine?: { status?: number; error?: string } } {
@@ -174,6 +183,8 @@ export function summarizeDriveResult(result: Record<string, unknown>): Record<st
     filled: result.filled, needsUser: result.needsUser, drafts: result.drafts, mismatches: result.mismatches, uploads: result.uploads,
     escalations: result.escalations, layersUsed: result.layersUsed, submitButton: result.submitButton, loginFilled: result.loginFilled, loginMethods: result.loginMethods,
     review: result.review, dialog: result.dialog,
+    // 没找到表单时的页面正文（≤2k）：fill-retry 据此认出「已结束招聘」，不当成没填成
+    ...(typeof result.pageText === 'string' && result.pageText ? { pageText: result.pageText } : {}),
     sections: Array.isArray(result.pages) ? (result.pages as Array<{ sections?: unknown }>).flatMap(p => (Array.isArray(p.sections) ? p.sections : [])) : undefined,
   };
 }
@@ -182,8 +193,8 @@ export function summarizeDriveResult(result: Record<string, unknown>): Record<st
 export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
   const { repos: r, action, taskId, events } = deps;
   const { result, errorLine } = pickDriveResult(events);
-  const fail = (message: string, summary?: Record<string, unknown>, blocked = false): DriveOutcome => {
-    r.setActionStatus(action.id, 'failed', { error: message, ...(summary ? { summary } : {}) });
+  const fail = (message: string, summary?: Record<string, unknown>, blocked = false, failCode?: string): DriveOutcome => {
+    r.setActionStatus(action.id, 'failed', { error: message, ...(failCode ? { code: failCode } : {}), ...(summary ? { summary } : {}) });
     r.updateTask(taskId, { status: 'failed' });
     if (action.application_id) { try { r.transition(action.application_id, 'blocked', message, { blocker_reason: message, next_action: '查看阻塞原因后重试' }); } catch { /* ignore */ } }
     deps.changed('task', 'action_queue', 'application');
@@ -217,6 +228,8 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     deps.changed('task', 'action_queue');
     return { kind: 'transient', code, message };
   }
+  // 材料包没备出来：原因是给他看的人话，原样记下并带上错误码（fill-retry 据此不自动再试、等你里原样说）
+  if (!result && code === PACKET_FAILED_CODE) return fail(errorLine?.error ?? '这份简历没备好', undefined, false, PACKET_FAILED_CODE);
   if (!result) return fail(errorLine ? `${errorLine.error ?? '浏览器路由报错'}（HTTP ${errorLine.status ?? '?'}）` : '浏览器没有返回填表结果');
   const summary = summarizeDriveResult(result);
   // 记下这个岗位能不能直接投（有表 / 合集 / 要登录），下次框选时就知道，不用再撞一次
@@ -266,7 +279,8 @@ export function persistDriveOutcome(deps: PersistDeps): DriveOutcome {
     }
     r.setActionStatus(action.id, 'done', summary);
     const review = result.review as SubmitReviewLike;
-    const packet = typeof fillPayload.packet_id === 'string' ? r.getPacket(fillPayload.packet_id) : undefined;
+    const packetId = deps.packetId ?? (typeof fillPayload.packet_id === 'string' ? fillPayload.packet_id : undefined);
+    const packet = packetId ? r.getPacket(packetId) : undefined;
     const resumeSha = packet ? packet.resume_pdf_sha256 ?? packet.resume_sha256 : null;
     const filled = Array.isArray(result.filled) ? (result.filled as Array<{ fieldId?: string; label?: string; value?: string; source?: string }>).map(f => ({ fieldId: f.fieldId, label: f.label, value: f.value, source: f.source })) : [];
     const reviewSummary = { rows: review.rows, attention: review.attention, requiredTotal: review.requiredTotal, requiredFilled: review.requiredFilled };

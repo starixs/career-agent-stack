@@ -11,8 +11,9 @@ import type { z as Zod } from 'zod/v4';
 
 import { importResume, INTAKE_CORE_FIELDS, parseResumeParse } from '../career/resume-intake';
 import type { CareerStore } from '../career/store';
-import { applyJsonPatch, describeTailorChanges, parseTailorProposal, placeOf, sanitizeTailorOps } from '../career/tailor';
-import { guardTailorOps, type BlockedOp } from '../career/tailor-guard';
+import type { TailorChange } from '../career/tailor';
+import type { BlockedOp } from '../career/tailor-guard';
+import { tailorForJob } from '../career/tailor-for-job';
 
 type ToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 type ProfileFieldDef = { field: string; label: string; sensitive: boolean; hint?: string };
@@ -43,9 +44,11 @@ export interface ResumeChainToolDeps {
   fileExists: (absPath: string) => boolean;
   resolveMaster: (masterId?: string) => ResumeMaster;
   requireJob: (jobId: string) => Job;
-  jdOf: (job: Job) => JdParsed | undefined;
+  /** 已不用：定制管线（career/tailor-for-job.ts）自己读 jd_parsed_json 和已确认主张；留着是为了调用方不用同步改。 */
+  jdOf?: (job: Job) => JdParsed | undefined;
   parseJd: (jobId: string) => Promise<JdParsed>;
-  confirmedClaims: () => Claim[];
+  /** 已不用，同 jdOf。 */
+  confirmedClaims?: () => Claim[];
 }
 
 const label = (defs: readonly ProfileFieldDef[], field: string) => defs.find(f => f.field === field)?.label ?? field;
@@ -75,7 +78,7 @@ export function createResumeChainTools(d: ResumeChainToolDeps) {
     });
   };
 
-  const tailorCard = (args: { tailoredId: string; masterId: string; job: Job; changes: ReturnType<typeof describeTailorChanges>; unresolved: unknown[]; blocked: Array<BlockedOp & { place: string }> }) => {
+  const tailorCard = (args: { tailoredId: string; masterId: string; job: Job; changes: TailorChange[]; unresolved: unknown[]; blocked: Array<BlockedOp & { place: string }> }) => {
     const needs = args.unresolved.map(u => (typeof u === 'string' ? u : u && typeof u === 'object' && typeof (u as { need?: unknown }).need === 'string' ? (u as { need: string }).need : '')).filter(Boolean);
     d.card(`tailor:${args.tailoredId}`, 'tailor_diff', `为「${[args.job.company_name, args.job.title].filter(Boolean).join(' · ')}」定制好了`, {
       tailored_id: args.tailoredId, master_id: args.masterId, job_id: args.job.id, company: args.job.company_name, title: args.job.title,
@@ -114,34 +117,20 @@ export function createResumeChainTools(d: ResumeChainToolDeps) {
     }, async (args) => d.wrap(async () => {
       const masterRow = d.resolveMaster(args.master_id);
       const job = d.requireJob(args.job_id);
-      let jd = d.jdOf(job);
-      if (!jd && job.jd_raw?.trim()) jd = await d.parseJd(job.id);
-      if (!jd) {
+      const strength = args.strength ?? 'keywords';
+      const out = await tailorForJob({ repos: d.repos(), store: d.store(), askSkill: d.askSkill, parseJd: d.parseJd }, { master: masterRow, job, strength });
+      if (!out.ok) {
         return d.err(job.url
           ? `这个岗位还没有 JD 正文。用 browser_open 打开 ${job.url} 读；要登录就 browser_wait_user 请用户登录一下（这是一步，不是失败），读到后 browser_capture_job 收录，再调 resume_tailor。不要让用户复制粘贴 JD。`
           : '这个岗位既没有链接也没有 JD 正文：用 web_search 按公司 + 岗位名找到招聘页，再 browser_open / browser_capture_job 收录。不要让用户复制粘贴 JD。');
       }
-      const strength = args.strength ?? 'keywords';
-      const claims = d.confirmedClaims().map(c => `- [${c.id}] ${c.text}${c.result_metric ? `（${c.result_metric}）` : ''}`).join('\n') || '（无）';
-      const raw = await d.askSkill<Record<string, unknown>>('resume-tailor', `母版简历 schema：\n${masterRow.schema_json}\n\nJdParsed：\n${JSON.stringify(jd)}\n\n可用主张（仅 user_confirmed / verified）：\n${claims}\n\n强度：${strength}`, { refs: ['风格库', '岗位速查'], temperature: 0.2 });
-      const proposal = parseTailorProposal(raw);
-      const sane = sanitizeTailorOps(proposal.ops, proposal.reasons);
-      if (sane.dropped.length) console.warn(`[resume-tailor] dropped ${sane.dropped.length} ops outside resume schema: ${sane.dropped.slice(0, 5).join(', ')}`);
-      const before: unknown = JSON.parse(masterRow.schema_json);
-      const { ops, blocked } = guardTailorOps(before, sane.ops, sane.reasons, d.repos().listClaims());
-      if (blocked.length) console.warn(`[resume-tailor] blocked ${blocked.length} unsupported ops: ${blocked.slice(0, 5).map(b => `${b.path}(${b.why})`).join(', ')}`);
-      const reasons = sane.reasons;
-      const s = d.store();
-      const tailored = s.createTailored({ master_id: masterRow.id, job_id: job.id, schema_json: masterRow.schema_json, strength });
-      s.confirmTailored(tailored.id, applyJsonPatch(before, ops));
+      const { tailored, changes, blocked, unresolved } = out;
       d.changed('resume_tailored', 'resume_snapshot');
-      const changes = describeTailorChanges(before, ops, reasons);
-      const blockedOnCard = blocked.map(b => ({ ...b, place: placeOf(before, b.path.split('/').slice(1)) }));
-      tailorCard({ tailoredId: tailored.id, masterId: masterRow.id, job, changes, unresolved: proposal.unresolved, blocked: blockedOnCard });
+      tailorCard({ tailoredId: tailored.id, masterId: masterRow.id, job, changes, unresolved, blocked });
       return d.text({
-        tailored_id: tailored.id, job_title: job.title ?? null, company: job.company_name ?? null, applied_ops: ops.length,
+        tailored_id: tailored.id, job_title: job.title ?? null, company: job.company_name ?? null, applied_ops: changes.length,
         changes: changes.slice(0, MAX_CHANGES_ON_CARD).map(c => ({ place: c.place, reason: c.reason })),
-        unresolved: proposal.unresolved, blocked: blocked.length,
+        unresolved, blocked: blocked.length,
         note: '定制版已写好，对话里已出一张「改了什么」卡（逐处原文 → 新文、对上哪条 JD；unresolved 和被拦下的没依据改动也列在卡上，已经不在简历里，不用你再自查回退）。回复一句话说改动方向即可，不要逐条复述，不要以让用户发东西收尾。用户想改回某处时用 resume_save 改。',
       });
     })()),

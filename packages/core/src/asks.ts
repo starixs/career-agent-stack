@@ -17,7 +17,7 @@
  * 「考了吗」的放最后（和 today() 的 OVERDUE_PRIORITY 同一个判断）。
  */
 import { companyMarkOf, type CompanyMark } from './company-mark.js'
-import { fillFailReason } from './fill-retry.js'
+import { fillFailReason, isJobClosedFailure } from './fill-retry.js'
 import type { Repos } from './repos.js'
 import { deadlineToToday, type TodayItem } from './surfaces.js'
 import type { ActionQueueItem, Deadline, Handoff, InboxItem } from './types.js'
@@ -282,6 +282,14 @@ export function askFieldText(label: string): string {
 
 interface HandoffRow { h: Handoff; appId: string | null; action?: ActionQueueItem }
 
+/** 缺信息那件的标题。全是小芽写好草稿的开放题时说「写好了，看一眼」（E#12），不像又让他从头填。 */
+function infoTitle(fields: readonly AskField[], names: readonly string[], unreadable: number, one: string | undefined): string {
+  const drafts = fields.filter(f => f.draft).length
+  if (drafts && drafts === fields.length) return `${drafts} 道开放题写好了，看一眼`
+  if (names.length) return names.length > 1 ? `${names[0]}等 ${names.length} 项` : names[0]
+  return unreadable ? `${one ? `${shortName(one)} · ` : ''}页面上有 ${unreadable} 处要你看` : '还差几项要你补'
+}
+
 function infoAsks(ctx: Ctx, rows: readonly HandoffRow[]): AskView[] {
   const groups = new Map<string, { rows: HandoffRow[]; fields: AskField[] }>()
   for (const r of rows) {
@@ -298,7 +306,7 @@ function infoAsks(ctx: Ctx, rows: readonly HandoffRow[]): AskView[] {
     const one = appIds.length === 1 ? ctx.apps.get(appIds[0])?.company.name : undefined
     return {
       id: rs[0].h.id, kind: 'info' as const,
-      title: names.length ? (names.length > 1 ? `${names[0]}等 ${names.length} 项` : names[0]) : unreadable ? `${one ? `${shortName(one)} · ` : ''}页面上有 ${unreadable} 处要你看` : '还差几项要你补',
+      title: infoTitle(fields, names, unreadable, one),
       detail: names.length || unreadable ? undefined : rs[0].h.message ?? undefined,
       application_ids: appIds, companies: companiesOf(ctx, appIds), sources: rs.map(r => ({ type: 'handoff' as const, id: r.h.id })),
       action_ids: uniq(rs.map(r => r.h.action_id)), due_at: earliestJobDeadline(ctx, appIds), overdue: false, fields,
@@ -393,7 +401,8 @@ function failedFills(repos: Repos): ActionQueueItem[] {
     const prev = latest.get(a.application_id)
     if (!prev || prev.updated_at < a.updated_at) latest.set(a.application_id, a)
   }
-  return [...latest].filter(([appId, a]) => a.status === 'failed' && repos.getApplication(appId)?.stage === 'blocked').map(([, a]) => a)
+  // 岗位已结束招聘的不算没填成（E#1）：运行器会把它关掉，对话里跑的那一份还没关时这里也不出
+  return [...latest].filter(([appId, a]) => a.status === 'failed' && repos.getApplication(appId)?.stage === 'blocked' && !isJobClosedFailure(a)).map(([, a]) => a)
     .sort((x, y) => x.created_at.localeCompare(y.created_at))
 }
 

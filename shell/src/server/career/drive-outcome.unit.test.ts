@@ -94,3 +94,31 @@ describe('浏览器没接下这次填表（HTTP 拒绝）', () => {
     expect(browserRefusalLine(502, '<html>bad gateway</html>')).toEqual({ type: 'error', status: 502, error: '浏览器没有接下这次填表（HTTP 502）' });
   });
 });
+
+describe('persistDriveOutcome：submit 绑定开跑前冻结的材料包（G6）', () => {
+  const REVIEW = { rows: [{ label: '姓名', required: true, status: 'ok' }], attention: 0, requiredTotal: 1, requiredFilled: 1 };
+  it('submit 用运行器给的 packet_id', () => {
+    const repos = createMemoryRepos();
+    const job = repos.upsertJob({ source_platform: 'campus', source_job_id: 'jd1', title: '数据分析', company_name: '京东', url: 'https://jd.com/1' });
+    const app = repos.createApplication(job.id);
+    const action = repos.enqueueAction('fill_form', { job_id: job.id, url: job.url, application_id: app.id }, app.id);
+    repos.reviewActions([action.id], 'approved');
+    const packet = repos.createPacket({ application_id: app.id, job_id: job.id, resume_id: null, resume_kind: null, resume_schema_json: null, resume_pdf_path: '/tmp/x.pdf', resume_pdf_sha256: 'sha-frozen', answers: {} });
+    const task = repos.createTask({ title: 't', kind: 'apply' });
+    const result = { status: 'stopped_before_submit', message: 'ok', finalUrl: 'https://jd.com/1/form', filled: [], needsUser: [], drafts: [], mismatches: [], uploads: [], review: REVIEW };
+    const out = persistDriveOutcome({ repos, action: repos.getAction(action.id)!, taskId: task.id, mode: 'start', packetId: packet.id, events: [{ type: 'result', op: 'drive', result }], changed: () => {} });
+    expect(out.kind).toBe('done');
+    const submit = repos.listActions().find(a => a.kind === 'submit')!;
+    expect(JSON.parse(submit.payload_json)).toMatchObject({ packet_id: packet.id, resumeSha: 'sha-frozen' });
+  });
+
+  it('材料包没备出来（PACKET_FAILED）：判失败、原因原样、带错误码', () => {
+    const repos = createMemoryRepos();
+    const action = repos.enqueueAction('fill_form', { url: 'https://x' });
+    repos.reviewActions([action.id], 'approved');
+    const task = repos.createTask({ title: 't', kind: 'apply' });
+    const out = persistDriveOutcome({ repos, action: repos.getAction(action.id)!, taskId: task.id, mode: 'start', events: [{ type: 'error', status: 500, code: 'PACKET_FAILED', error: '简历 PDF 没导出来' }], changed: () => {} });
+    expect(out).toMatchObject({ kind: 'failed', message: '简历 PDF 没导出来' });
+    expect(JSON.parse(repos.getAction(action.id)!.result_json!)).toMatchObject({ error: '简历 PDF 没导出来', code: 'PACKET_FAILED' });
+  });
+});

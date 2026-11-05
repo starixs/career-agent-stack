@@ -4,7 +4,8 @@
  *  - 求职条件 kv `profile.job_prefs`（届别 / 学历 / 城市 / 类型 / 方向词），推荐不得违反。
  *  - 匹配证据：已确认的经历主张 + 主简历（及定制版）里的条目文字；`matchJob` 逐条要求对证据，结果存 job.match_json / match_score。
  *  - 汇总表：岗位 + 我的进度（投递阶段）+ 匹配，按筛选条件与排序给出。
- *  - prepareJobs：给一批岗位逐个建投递、冻结材料包、排 fill_form（只由 batch-apply.applyJobs 调，排完立刻批准开始；没有「待投清单」这一步）。
+ *  - prepareJobs：给一批岗位逐个建投递、排 fill_form（payload 带 resume_plan；只由 batch-apply 调，排完立刻批准开始；没有「待投清单」这一步）。
+ *    不定制、不导 PDF：那两步在后台运行器开跑前做（packet-prepare.ts），「投这 N 家」当场就回。
  *
  * 汇总表维度（批次 / 行业 / 类型标签）的存放约定——所有导入路径与读取方都按这个来：
  *  - 权威位置是 job.board_json（迁移 v7），形如 `{"batch":"正式批"|null,"industry":"互联网"|null,"type_tags":["央国企"]}`，
@@ -15,10 +16,10 @@
  *  - 岗位评估（job_evaluate）只写 prefilter_json.evaluate / score_json，永远不碰 board_json。
  *  - 兼容：老数据没有 board_json 时回退读 prefilter_json.campus（campus-radar 早期写法；评估合并时保留该键）。
  */
-import { JOB_PREFS_KEY, matchJob, normalizeBoardMeta, parseBoardJson, type Job, type JobBoardMeta, type JobMatch, type JobPrefs, type MatchEvidence, type Repos } from '@career/core';
+import { JOB_PREFS_KEY, matchJob, normalizeBoardMeta, parseBoardJson, type Application, type Job, type JobBoardMeta, type JobMatch, type JobPrefs, type MatchEvidence, type Repos } from '@career/core';
 
 import { isSubmittedStage } from '../../shared/careerStages';
-import { freezePacket, pickResumeForJob, type PacketDeps } from './packets';
+import { missingVaultFields, pickResumeForJob, resumePlanForJob, tailoredChangeCount, type PacketDeps, type PacketResumePlan } from './packets';
 import type { CareerStore } from './store';
 import { markedTargetJobs, targetSourceOf, type TargetSource } from './targets';
 
@@ -179,25 +180,70 @@ export function jobBoard(repos: Repos, f: BoardFilter = {}, today = new Date().t
 
 function parseMatch(raw: string | null | undefined): JobMatch | null { try { return raw ? JSON.parse(raw) as JobMatch : null; } catch { return null; } }
 
-/** 逐个创建投递 + 冻结材料包 + 排 fill_form（待审，由 applyJobs 当场批准）。已在投、已投过的跳过。 */
-export async function prepareJobs(deps: PacketDeps & { store: CareerStore }, jobIds: string[], resumeId?: string | null, opts: { fallbackResumeId?: string | null } = {}): Promise<Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }>> {
-  const out: Array<{ job_id: string; ok: boolean; action_id?: string; reason?: string }> = [];
+/** PacketDeps 里的 exportPdf / exportsDir 这里不用（开跑前才导），留着是为了调用方（applyJobs / prepareAhead）同一份 deps。 */
+export type PrepareDeps = PacketDeps & {
+  store: CareerStore;
+  /** 私密库里没有的占位符（Vault.unresolved）；缺省在简历里真有占位符时才去开私密库。 */
+  vaultUnresolved?: (text: string) => string[];
+};
+export interface PrepareResult { job_id: string; ok: boolean; action_id?: string; reason?: string; resume_plan?: PacketResumePlan }
+export type { PacketResumePlan } from './packets';
+
+type Candidate = { job: Job; existing: Application | undefined; resumeId: string; plan: PacketResumePlan };
+
+/** 一个岗位能不能开始投：不能就给原因；能就给出要用的简历（定制版优先，没有就主简历，并标出要不要先定制）。 */
+function candidateOf(deps: PrepareDeps, jobId: string, resumeId: string | null | undefined, fallbackResumeId: string | null | undefined): Candidate | string {
+  const job = deps.repos.getJob(jobId);
+  if (!job) return '岗位不存在';
+  const apps = deps.repos.listApplications().filter(a => a.job_id === jobId);
+  // 已经投出去的岗位不再投第二次（框选时常会连带勾上已投的那几行）
+  if (apps.some(a => isSubmittedStage(a.stage))) return '已经投过';
+  const existing = apps.find(a => !DONE.has(a.stage));
+  if (existing && deps.repos.listActions().some(a => a.application_id === existing.id && ['pending_review', 'approved', 'executing', 'needs_user'].includes(a.status))) return '已在投';
+  if (!job.url) return '没有网申链接';
+  if (resumeId) {
+    const picked = pickResumeForJob(deps.store, jobId, resumeId);
+    return picked ? { job, existing, resumeId: picked.id, plan: { kind: picked.kind, changes: picked.kind === 'tailored' ? tailoredChangeCount(deps.repos, picked.id) : null, reason: 'explicit' } } : '你指定的简历不存在';
+  }
+  // 定制版优先；没有定制版又有好几份主简历时，用确认时选好的那份（fallbackResumeId），不再逐个问
+  const plan = resumePlanForJob(deps.store, deps.repos, jobId, fallbackResumeId);
+  if (!plan.resume_id) return '有多份主简历，请先选这次投哪一份';
+  return { job, existing, resumeId: plan.resume_id, plan: { kind: plan.kind, changes: plan.changes } };
+}
+
+/** 简历里还有私密库解不开的占位符（缺的资料项）：导出来会把 {{vault:…}} 印在简历上，这家先不开始。 */
+async function missingFieldsOf(deps: PrepareDeps, resumeId: string): Promise<string[]> {
+  const schema = deps.store.getResume(resumeId)?.row.schema_json ?? '';
+  if (!schema.includes('{{')) return [];
+  let unresolved = deps.vaultUnresolved;
+  if (!unresolved) {
+    const vault = await (await import('./vault')).getVault();
+    unresolved = text => vault.unresolved(text);
+  }
+  return missingVaultFields(schema, unresolved);
+}
+
+/** 建投递并排 fill_form（payload 带 resume_plan，开跑前由运行器按它定制、冻结）；缺资料的不开始。 */
+async function enqueueCandidate(deps: PrepareDeps, c: Candidate): Promise<PrepareResult> {
+  const missing = await missingFieldsOf(deps, c.resumeId);
+  if (missing.length) {
+    console.warn(`[career] prepare FAILED job=${c.job.id} reason=vault_missing fields=${missing.join(',')}`);
+    return { job_id: c.job.id, ok: false, reason: `简历里缺 ${missing.join('、')}`, resume_plan: c.plan };
+  }
+  const app = c.existing ?? deps.repos.createApplication(c.job.id, c.plan.kind === 'tailored' ? c.resumeId : null);
+  const action = deps.repos.enqueueAction('fill_form', { job_id: c.job.id, resume_id: c.resumeId, resume_plan: c.plan, application_id: app.id, url: c.job.url }, app.id);
+  return { job_id: c.job.id, ok: true, action_id: action.id, resume_plan: c.plan };
+}
+
+/**
+ * 逐个创建投递 + 排 fill_form（待审，由 applyJobs 当场批准）。已在投、已投过的跳过。毫秒级：不调模型、不导 PDF。
+ * 有真 JD 的岗位记 resume_plan.kind=will_tailor，后台开跑前先按 JD 定制一版再冻结（packet-prepare.ts）。
+ */
+export async function prepareJobs(deps: PrepareDeps, jobIds: string[], resumeId?: string | null, opts: { fallbackResumeId?: string | null } = {}): Promise<PrepareResult[]> {
+  const out: PrepareResult[] = [];
   for (const jobId of jobIds) {
-    const job = deps.repos.getJob(jobId);
-    if (!job) { out.push({ job_id: jobId, ok: false, reason: '岗位不存在' }); continue; }
-    const apps = deps.repos.listApplications().filter(a => a.job_id === jobId);
-    // 已经投出去的岗位不再投第二次（框选时常会连带勾上已投的那几行）
-    if (apps.some(a => isSubmittedStage(a.stage))) { out.push({ job_id: jobId, ok: false, reason: '已经投过' }); continue; }
-    const existing = apps.find(a => !DONE.has(a.stage));
-    if (existing && deps.repos.listActions().some(a => a.application_id === existing.id && ['pending_review', 'approved', 'executing', 'needs_user'].includes(a.status))) { out.push({ job_id: jobId, ok: false, reason: '已在投' }); continue; }
-    if (!job.url) { out.push({ job_id: jobId, ok: false, reason: '没有网申链接' }); continue; }
-    // 定制版优先；没有定制版又有好几份主简历时，用确认时选好的那份（fallbackResumeId），不再逐个问
-    const picked = pickResumeForJob(deps.store, jobId, resumeId) ?? (opts.fallbackResumeId ? pickResumeForJob(deps.store, null, opts.fallbackResumeId) : undefined);
-    if (!picked) { out.push({ job_id: jobId, ok: false, reason: '有多份主简历，请先选这次投哪一份' }); continue; }
-    const app = existing ?? deps.repos.createApplication(jobId, picked.kind === 'tailored' ? picked.id : null);
-    const { packet, warning } = await freezePacket(deps, { applicationId: app.id, jobId, resumeId: picked.id });
-    const action = deps.repos.enqueueAction('fill_form', { job_id: jobId, resume_id: picked.id, packet_id: packet.id, application_id: app.id, url: job.url }, app.id);
-    out.push({ job_id: jobId, ok: true, action_id: action.id, ...(warning ? { reason: warning } : {}) });
+    const c = candidateOf(deps, jobId, resumeId, opts.fallbackResumeId);
+    out.push(typeof c === 'string' ? { job_id: jobId, ok: false, reason: c } : await enqueueCandidate(deps, c));
   }
   return out;
 }

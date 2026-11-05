@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { Db, Repos, FILL_AUTO_RETRIED, autoRetryFailedFill, buildAsks, fillFailReason, isFillRetrying } from '../src/index.js'
+import { Db, Repos, FILL_AUTO_RETRIED, NO_FORM_REASON, PACKET_FAILED_CODE, autoRetryFailedFill, buildAsks, closeIfJobEnded, fillFailReason, isFillRetrying, jobClosedEvidence } from '../src/index.js'
 
 function mem() { const db = new Db(':memory:'); db.migrate(); return new Repos(db) }
 const NOW = '2026-11-05T08:00:00.000Z'
@@ -67,8 +67,68 @@ describe('填表失败：自动再试一次，再失败进等你', () => {
     expect(of({ error: '连续 3 次打不开这家网申页面：net::ERR_TIMED_OUT' })).toBe('页面一直没打开')
     expect(of({ error: 'Field 学历 could not be filled' })).toBe('有一格我填不上')
     expect(of({ error: '浏览器没有返回填表结果' })).toBe('浏览器中途断了')
-    expect(of({ error: '该职位已停止招聘', summary: { status: 'blocked' } })).toBe('网站把这一步拦下了')
+    expect(of({ error: '该职位已停止招聘', summary: { status: 'blocked' } })).toBe('岗位已结束招聘')
+    expect(of({ error: '页面上没有找到可填写的网申表单，也没有下一步或提交按钮', summary: { status: 'blocked' } })).toBe(NO_FORM_REASON)
+    expect(of({ error: '页面上没有可填写的表单字段' })).toBe(NO_FORM_REASON)
+    expect(of({ error: 'blocked', summary: { status: 'blocked' } })).toBe('网站把这一步拦下了')
     expect(of({ error: '奇怪的错误' })).toBe('网站那边出了点问题')
     expect(fillFailReason({ result_json: null })).toBe('网站那边出了点问题')
+  })
+
+  it('已结束的岗位不算没填成：投递关掉、不进「N 家没填成」；引擎亲口说的才把岗位标关闭（风险 E#1）', () => {
+    const r = mem()
+    const ended = failedFill(r, '甲', '页面上没有可填写的表单字段')
+    r.setActionStatus(ended.action.id, 'failed', { error: '页面上没有可填写的表单字段', summary: { status: 'blocked', pageText: '很抱歉，该岗位招聘已结束' } })
+    const said = failedFill(r, '丙', '该职位已停止招聘')
+    const other = failedFill(r, '乙', 'Timeout 30000ms exceeded')
+    // 对话里跑的那份还没被关掉时，等你里也不出它
+    expect(buildAsks(r, NOW).find(a => a.kind === 'failed')?.application_ids).toEqual([other.app.id])
+    expect(closeIfJobEnded(r, ended.action.id)).toBe(true)
+    expect(r.getApplication(ended.app.id)!.stage).toBe('skip')
+    // 只凭页面正文认出的：投递跳过，岗位库不动
+    expect(r.getJob(ended.app.job_id)!.source_status).not.toBe('closed')
+    expect(closeIfJobEnded(r, said.action.id)).toBe(true)
+    expect(r.getJob(said.app.job_id)!.source_status).toBe('closed')
+    expect(closeIfJobEnded(r, other.action.id)).toBe(false)
+    expect(r.getApplication(other.app.id)!.stage).toBe('blocked')
+  })
+
+  it('门户页里有"往期已结束"不算岗位关闭', () => {
+    const page = (pageText: string) => jobClosedEvidence({ result_json: JSON.stringify({ error: '页面上没有可填写的表单字段', summary: { status: 'blocked', pageText } }) })
+    expect(page('校园招聘 | 往期已结束 | 已截止岗位不显示')).toBeNull()
+    expect(page('2027 届校园招聘，招聘截止时间：2026-12-01')).toBeNull()
+    expect(page('很抱歉，该岗位已结束')).toBe('page')
+    expect(page('本次报名已截止')).toBe('page')
+    expect(page('职位关闭')).toBe('page')
+    const r = mem()
+    const portal = failedFill(r, '丁', '页面上没有可填写的表单字段')
+    r.setActionStatus(portal.action.id, 'failed', { error: '页面上没有可填写的表单字段', summary: { status: 'blocked', pageText: '校园招聘 往期已结束' } })
+    expect(closeIfJobEnded(r, portal.action.id)).toBe(false)
+    expect(r.getApplication(portal.app.id)!.stage).toBe('blocked')
+    expect(buildAsks(r, NOW).find(a => a.kind === 'failed')?.application_ids).toEqual([portal.app.id])
+  })
+
+  it('材料包没备出来：不自动再试，「N 家没填成」里原样说原因', () => {
+    const r = mem()
+    const { action } = failedFill(r, '戊', '简历 PDF 没导出来')
+    r.setActionStatus(action.id, 'failed', { error: '简历 PDF 没导出来', code: PACKET_FAILED_CODE })
+    expect(autoRetryFailedFill(r, action.id)).toBe('not_retryable')
+    expect(r.getAction(action.id)!.status).toBe('failed')
+    expect(buildAsks(r, NOW).find(a => a.kind === 'failed')?.detail).toBe('简历 PDF 没导出来')
+  })
+
+  it('开放题全是写好的草稿：标题说「N 道开放题写好了，看一眼」（风险 E#12）', () => {
+    const r = mem()
+    const job = r.upsertJob({ source_platform: 'campus', source_job_id: 'q', title: '产品实习', company_name: '丙', url: 'https://q.com/apply' })
+    const app = r.createApplication(job.id)
+    const a = r.enqueueAction('fill_form', { job_id: job.id }, app.id, true)
+    r.openHandoff('missing_info', { actionId: a.id, message: '还差 2 项' })
+    const labels = ['你为什么选择我们？', '说说你最有成就感的一件事']
+    r.setActionStatus(a.id, 'needs_user', {
+      needsUser: labels.map(label => ({ label })),
+      drafts: labels.map(label => ({ label, value: '草稿一版' })),
+      gate: { gaps: labels.map(label => ({ label, status: 'needs_user', required: true })) },
+    })
+    expect(buildAsks(r, NOW).find(x => x.kind === 'info')?.title).toBe('2 道开放题写好了，看一眼')
   })
 })

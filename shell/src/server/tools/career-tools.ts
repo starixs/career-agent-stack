@@ -39,6 +39,7 @@ import { INTAKE_CORE_FIELDS } from '../career/resume-intake';
 import { ACCOUNT_FIELDS, reportAccountFetch } from '../career/accounts';
 import { applyTaskTitle, gapsHeadline, jobLabel, persistDriveOutcome, type SubmitGate } from '../career/drive-outcome';
 import { freezePacket, packetResumeFile, pickResumeForJob } from '../career/packets';
+import { frozenPacketId } from '../career/packet-prepare';
 import { formatBrowse, formatSolveCaptcha, formatWaitUser } from '../career/browse-format';
 import { BROWSE_SOP } from '../career/browse-sop';
 import { acquireBrowserCapability } from '../browser-host/capability-client';
@@ -600,10 +601,12 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       return err(`填表${kind === 'blocked' ? '被阻塞' : '执行失败'}：${message}`);
     };
     const events: Array<Record<string, unknown>> = [];
+    // 后台运行器开跑前冻结的那份材料包（kv，不进 payload）：续填上传同一份，提交也绑同一份
+    const packetId = frozenPacketId(r, action.id, payload);
     try {
       // 填表资料（姓名 / 手机 / 邮箱 / 证件号…）由浏览器路由在 Node 侧从私密库组装，这里不传、也看不到明文；
       // 返回的事件已脱敏（明文 → {{vault:...}} 占位符）。continue 不传 url：从当前页继续。
-      const file = await packetResumeFile(r, payload, resumeFileFor, { resolveText: t => vault().resolve(t, { actor: 'resume_export', purpose: '简历附件文件名' }) });
+      const file = await packetResumeFile(r, packetId ? { ...payload, packet_id: packetId } : payload, resumeFileFor, { resolveText: t => vault().resolve(t, { actor: 'resume_export', purpose: '简历附件文件名' }) });
       if (file.error) return failRun(file.error);
       const resumePath = file.path;
       // 续跑：上次 needs_user 的标签交给引擎，用户在接管期间自己填好的值会被学进答案库
@@ -617,7 +620,7 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
       // 和批量执行器同一套分诊：保留错误名（code），浏览器被占用 / 接管 / 宿主停机不算这份网申失败
       events.push({ type: 'error', status: 500, error: error instanceof Error ? error.message : String(error), ...(error instanceof Error && error.name !== 'Error' ? { code: error.name } : {}) });
     }
-    const outcome = persistDriveOutcome({ repos: r, action, taskId, events, changed, review, mode });
+    const outcome = persistDriveOutcome({ repos: r, action, taskId, events, changed, review, mode, ...(packetId ? { packetId } : {}) });
     if (outcome.kind === 'transient') {
       // 不是这份网申的失败：放回队列（start）或保持 needs_user（continue），给模型可执行的下一步，绝不判死
       registry.finish(runId);
@@ -1283,11 +1286,13 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         return text({ started: res.started.length, skipped: res.skipped, ...(resume ? { resume: masters.find(m => m.id === resume)?.name ?? resume } : {}) });
       })()),
 
-      tool('jobs_propose', '在对话里放一张「先投这几家？」的勾选表（他说「再投一批」「再投几家」「批量投」而没指定是哪几家时用）：按他的方向挑现在就能投的岗位，默认勾前几家、一家公司只勾一个岗，他在表上点「投这 N 家」才开始。不要再用文字列一遍岗位；回复一句「挑好了，在下面，看看要不要改」就停。他已经点名具体哪几家时直接用 jobs_apply。', {}, async () => wrap(async () => {
+      tool('jobs_propose', '在对话里放一张「今天这批」勾选表（他说「再投一批」「再投几家」「批量投」而没指定是哪几家时用）：按他的方向列出现在就能投的全部岗位（届别不符的不列），按截止或方向分组；投出不到 5 份时默认勾 5 家，之后默认勾满、一家公司只勾一个岗；上次没勾的收在最后一组。他在表上点「投这 N 家」才开始。不要再用文字列一遍岗位；回复一句「挑好了，在下面，看看要不要改」就停。他已经点名具体哪几家时直接用 jobs_apply。', {
+        pick: z.enum(['default', 'all']).optional().describe('all = 他说「都投」「全投」时默认勾满；不传按投出份数定'),
+      }, async (args) => wrap(async () => {
         const { proposeBatch, proposalTitle, BATCH_PICK_CARD_KIND } = await import('../career/batch-propose');
-        const p = proposeBatch(repos(), store());
+        const p = proposeBatch(repos(), store(), { pick: args.pick });
         card(`batch-pick:${Date.now()}`, BATCH_PICK_CARD_KIND, proposalTitle(p), { ...p });
-        return text({ rows: p.rows.length, picked: p.rows.filter(r => r.picked).length, more: p.more });
+        return text({ rows: p.rows.length, picked: p.rows.filter(r => r.picked).length, groups: p.groups.map(g => g.title) });
       })()),
 
       tool('apply_run', '在托管浏览器上执行一份已经排进队列的填表动作（不提交）。新开一份网申用 apply_prepare（准备好会直接开始填）；apply_run 用于队列里已批准的（如浏览器忙时放回队列的），也可以直接重试之前因暂时性问题失败的那份。遇验证码 / 登录 / 测评等自动暂停并交给用户接管，用户处理完后调用 apply_continue 从当前页继续。', { action_id: z.string() }, async (args) => wrap(async () => {
