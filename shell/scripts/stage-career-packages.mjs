@@ -7,9 +7,8 @@
 //  - 先 `pnpm -r build`（dist 是 .gitignore 的，必须现编）；
 //  - node-linker=hoisted：副本里是真实目录，没有指向 pnpm store 的符号链接（打包器不一定保留链接）；
 //  - 删掉 node_modules/.bin（只有指向脚本的链接，运行时用不到）；
-//  - 领域库运行时要读的仓库 modules/ 数据（目前只有 campus-radar/jobs.json）拷到 career-modules/modules/<name>，
-//    tauri.conf 映射到 Resources/modules/<name>：@career/bridges 在 Resources/node_modules/@career/bridges/dist 里
-//    按 stackRoot（上溯四级 = Resources）找 modules/，与开发时的仓库布局一致（见 bridges/src/campusRadar.ts）。
+//  - 领域库随包数据（如 @career/bridges 的 data/campus-radar/jobs.json）放在包自己的 data/ 里，
+//    package.json "files" 带上，pnpm deploy 自然拷进副本；不再依赖仓库根的 modules/ 归档。
 // 用法：node scripts/stage-career-packages.mjs   （build:assets 会调用）
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
@@ -19,10 +18,8 @@ import { fileURLToPath } from 'node:url';
 const shellRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const appRoot = resolve(shellRoot, '..');
 const stageRoot = join(shellRoot, 'src-tauri', 'resources', 'career-modules', '@career');
-const modulesStageRoot = join(shellRoot, 'src-tauri', 'resources', 'career-modules', 'modules');
-const stackRoot = resolve(appRoot, '..');
-/** 随包发布的 modules 数据文件（相对仓库根 modules/）。 */
-const MODULE_FILES = ['campus-radar/jobs.json'];
+// 旧版把 modules/ 数据拷到这里；保留路径只为清掉旧构建残留。
+const legacyModulesStageRoot = join(shellRoot, 'src-tauri', 'resources', 'career-modules', 'modules');
 const PACKAGES = ['core', 'resume', 'resume-studio', 'apply', 'bridges', 'captcha'];
 
 const run = (cmd, args, cwd = appRoot) => execFileSync(cmd, args, { cwd, stdio: 'inherit' });
@@ -76,16 +73,9 @@ walk(stageRoot);
 if (links.length) {
   console.warn(`[stage-career-packages] 仍有 ${links.length} 个符号链接，示例：${links.slice(0, 3).join(', ')}`);
 }
-// 领域库运行时读取的 modules 数据
-rmSync(modulesStageRoot, { recursive: true, force: true });
-for (const rel of MODULE_FILES) {
-  const src = join(stackRoot, 'modules', rel);
-  if (!existsSync(src)) throw new Error(`缺少 modules/${rel}（校招数据随包发布，找不到会让岗位汇总表空着）`);
-  const out = join(modulesStageRoot, rel);
-  mkdirSync(dirname(out), { recursive: true });
-  copyFileSync(src, out);
-  console.log(`[stage-career-packages] 拷贝 modules/${rel} → ${out}`);
-}
+rmSync(legacyModulesStageRoot, { recursive: true, force: true });
+const campusJobs = join(stageRoot, 'bridges', 'data', 'campus-radar', 'jobs.json');
+if (!existsSync(campusJobs)) throw new Error(`副本缺少 ${campusJobs}（校招数据随包发布，找不到会让岗位汇总表空着）`);
 
 // @career/core 需要 dist/db/schema.sql（tsc 不拷贝 .sql，build 脚本会补；这里再确认一次）
 if (!existsSync(join(stageRoot, 'core', 'dist', 'db', 'schema.sql'))) throw new Error('@career/core 缺少 dist/db/schema.sql');

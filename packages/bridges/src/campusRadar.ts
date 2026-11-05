@@ -1,15 +1,15 @@
 /**
- * campus-radar 桥接：读取 modules/campus-radar/jobs.json（校招/实习信息，静态数据）。
+ * campus-radar 桥接：读取包内 data/campus-radar/jobs.json（校招/实习信息，静态数据）。
  * 字段：company 公司 / cohort 届别 / batch 批次 / program 项目名 / industry 行业 / positions 岗位 /
  *       locations 地点 / apply_url 网申链接 / official_wechat 官方公众号 / qr_image 二维码 /
  *       deadline 截止日期 / campus_only 是否仅限校招 / first_seen、last_seen 首次/最后收录 / confirmed_by 确认人数
  */
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { inferEmploymentType, normalizeCohort, serializeBoardMeta, type EmploymentType, type Repos, type Job } from '@career/core'
-import { moduleDir } from './common.js'
 
 export const CampusJobSchema = z.object({
   company: z.string(),
@@ -31,22 +31,17 @@ export const CampusJobSchema = z.object({
 export type CampusJob = z.infer<typeof CampusJobSchema>
 
 /**
- * jobs.json 的位置，按顺序取第一个存在的：
- *  1. 环境变量 CAMPUS_RADAR_JOBS（文件）/ CAMPUS_RADAR_DIR（目录）——显式指定时直接用，不再回退；
- *  2. <stackRoot>/modules/campus-radar/jobs.json——开发时是仓库根；发布包里 @career/bridges 部署在
- *     Resources/node_modules/@career/bridges/dist，stackRoot 正好落在 Resources，tauri.conf 把 jobs.json 映射到
- *     Resources/modules/campus-radar/jobs.json（scripts/stage-career-packages.mjs 负责拷过去）；
- *  3. 侧车入口（server-dist.js）同级的 modules/campus-radar/jobs.json——万一领域库不在 Resources 下也能找到。
- * 都不存在时返回第 2 个（报错信息里的路径最有指向性）。
+ * jobs.json 的位置：
+ *  1. 环境变量 CAMPUS_RADAR_JOBS（文件）/ CAMPUS_RADAR_DIR（目录）——显式指定时直接用；
+ *  2. 包内 data/campus-radar/jobs.json——src/ 与 dist/ 同深度，开发时和 pnpm deploy 后的发布包里都在包根下
+ *     （package.json "files" 带上了 data）。不再依赖仓库根的 modules/ 归档。
  */
-export function defaultCampusJobsPath(env: NodeJS.ProcessEnv = process.env, entry: string | undefined = process.argv[1]): string {
+export function defaultCampusJobsPath(env: NodeJS.ProcessEnv = process.env): string {
   const file = env.CAMPUS_RADAR_JOBS?.trim()
   if (file) return file
   const dir = env.CAMPUS_RADAR_DIR?.trim()
   if (dir) return join(dir, 'jobs.json')
-  const primary = join(moduleDir('campus-radar'), 'jobs.json')
-  const candidates = [primary, ...(entry ? [join(dirname(entry), 'modules', 'campus-radar', 'jobs.json')] : [])]
-  return candidates.find(p => existsSync(p)) ?? primary
+  return fileURLToPath(new URL('../data/campus-radar/jobs.json', import.meta.url))
 }
 
 /** 读取并校验 jobs.json；坏条目跳过而不是整体失败。 */

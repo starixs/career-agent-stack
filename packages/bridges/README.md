@@ -9,7 +9,7 @@
 | `repoMiner.ts` | 纯 TS：`mineRepo(repoPath, {author, llm, jd})` 用 git log/shortlog/numstat/blame 统计本人贡献、识别技术栈、让 LLM 产出 `Claim[]` 并在代码里强制真实性规则；`importMineResult(repos, experienceId, result)` 写 claim/evidence（status 一律 pending） | 只需要 `git` | 无 |
 | `intelCompass.ts` | `IntelCompassClient.research(name)` → 九段 `DdReport`；`IntelCompassProcess` 起 Flask；`saveReport(repos, name, report)` 写 `company` 表（dd_report_json / traffic_light / manual_checks）并关联同名岗位 | `cd modules/intel-compass && DD_BRAND_MAP=$PWD/brand_map.json python3 -m web.app --port 8765`（需 `pip install -r scripts/requirements.txt flask`） | `INTEL_COMPASS_BASE_URL`（默认 `http://127.0.0.1:8765`）、`INTEL_COMPASS_DIR`、`DD_BRAND_MAP`（Process 会自动设成模块根目录的 brand_map.json）、`PYTHON_BIN` |
 | `webSearch.ts` | `SearchProvider` 接口；`BochaSearch` / `TavilySearch` / `SerperSearch`；`createSearchProvider()` 按环境变量选 | 无 | `SEARCH_PROVIDER=bocha\|tavily\|serper` + `SEARCH_API_KEY`（或 `BOCHA_API_KEY` / `TAVILY_API_KEY` / `SERPER_API_KEY`） |
-| `campusRadar.ts` | `loadCampusJobs()` 读 jobs.json；`filterCampusJobs(items, {industry, keyword, deadlineWithinDays})`；`importCampusJobs(repos, items)`（`source_platform='campus'`，`deadline_verified_at` 为 null） | 静态文件 | `CAMPUS_RADAR_JOBS` / `CAMPUS_RADAR_DIR`（默认 `modules/campus-radar/jobs.json`） |
+| `campusRadar.ts` | `loadCampusJobs()` 读 jobs.json；`filterCampusJobs(items, {industry, keyword, deadlineWithinDays})`；`importCampusJobs(repos, items)`（`source_platform='campus'`，`deadline_verified_at` 为 null） | 静态文件 | `CAMPUS_RADAR_JOBS` / `CAMPUS_RADAR_DIR`（默认包内 `data/campus-radar/jobs.json`） |
 
 ## 用法
 

@@ -7,18 +7,16 @@ import { memRepos } from './helpers.js'
 const jobs = loadCampusJobs()
 
 describe('campusRadar 加载（真实 jobs.json）', () => {
-  it('默认路径指向 modules/campus-radar/jobs.json，读到 443 条', () => {
-    expect(defaultCampusJobsPath()).toMatch(/modules\/campus-radar\/jobs\.json$/)
+  it('默认路径指向包内 data/campus-radar/jobs.json，读到 443 条', () => {
+    expect(defaultCampusJobsPath({})).toMatch(/bridges\/data\/campus-radar\/jobs\.json$/)
     expect(jobs.length).toBe(443)
     expect(jobs[0]).toMatchObject({ company: '高盛', cohort: '2027届' })
     expect(Array.isArray(jobs[0].positions)).toBe(true)
   })
 
-  it('环境变量优先；没有环境变量时取第一个存在的候选路径', () => {
+  it('环境变量优先', () => {
     expect(defaultCampusJobsPath({ CAMPUS_RADAR_JOBS: '/x/jobs.json' })).toBe('/x/jobs.json')
     expect(defaultCampusJobsPath({ CAMPUS_RADAR_DIR: '/y' })).toBe(join('/y', 'jobs.json'))
-    // 开发布局下仓库里的 jobs.json 存在，优先它
-    expect(defaultCampusJobsPath({}, '/nowhere/server-dist.js')).toMatch(/modules\/campus-radar\/jobs\.json$/)
   })
 })
 
