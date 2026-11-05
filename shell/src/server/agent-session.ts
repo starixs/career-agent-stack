@@ -283,6 +283,7 @@ export type {
 import type { ProviderEnv } from './provider-types';
 import { CAREER_LLM_PROVIDER_ID, getCareerBuildConstants } from '../shared/career-build-constants';
 import { chatVisibleSkills } from './career/chat-skill-scope';
+import { askShapeDenial, readScopeDenial } from './career/tool-guards';
 export { stripPlaywrightResults } from './builtin-session/transcript-persistence';
 import {
   clearQueryMcpPrewarmOwner,
@@ -11888,6 +11889,16 @@ async function startStreamingSession(preWarm = false): Promise<void> {
           hooks: [
             async (input: HookInput): Promise<HookJSONOutput> => {
               const pre = input as PreToolUseHookInput;
+              // 求职对话守卫：Read 只读工作区；提问卡一问三选（career/tool-guards.ts）。
+              const careerDenial = readScopeDenial(pre.tool_name, pre.tool_input, pre.cwd)
+                ?? askShapeDenial(pre.tool_name, pre.tool_input);
+              if (careerDenial) {
+                console.log(`[career-guard] denied ${pre.tool_name}`);
+                return {
+                  hookSpecificOutput: { hookEventName: 'PreToolUse' as const,
+                    permissionDecision: 'deny' as const, permissionDecisionReason: careerDenial },
+                };
+              }
               const mcpCheck = checkMcpToolPermission(pre.tool_name, pre.mcp_server);
               if (!mcpCheck.allowed) return {
                 hookSpecificOutput: { hookEventName: 'PreToolUse' as const,

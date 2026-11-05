@@ -66,9 +66,9 @@ describe('Claude Agent SDK builtin catalog', () => {
   });
 
   it('career sessions only see the read / ask / skill subset of the catalog', () => {
-    expect(CAREER_SDK_TOOLS).toEqual(['Read', 'Glob', 'Grep', 'AskUserQuestion', 'Skill', 'ExitPlanMode']);
+    expect(CAREER_SDK_TOOLS).toEqual(['Read', 'AskUserQuestion', 'Skill', 'ExitPlanMode']);
     for (const tool of CAREER_SDK_TOOLS) expect(SDK_BUILTIN_TOOLS).toContain(tool);
-    for (const tool of ['Bash', 'Agent', 'Task', 'TaskCreate', 'Workflow', 'EnterWorktree', 'Monitor']) {
+    for (const tool of ['Bash', 'Agent', 'Task', 'TaskCreate', 'Workflow', 'EnterWorktree', 'Monitor', 'Grep', 'Glob']) {
       expect(CAREER_SDK_TOOLS).not.toContain(tool);
     }
   });
