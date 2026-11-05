@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import { applicationTrack } from '../delivery/applicationTrack';
 import type { Application, Dossier, Job, MailMessage } from '../types';
-import { isMailApplication, mailApplicationsOf, mailSteps, mailTrackNodes, pendingApplyMail } from './liveMail';
-import { bouncedAsk, BOUNCED, mailAsk, REPLY, SINGLE, THREAD } from './testFixtures';
+import { isMailApplication, mailApplicationsOf, mailLiveState, mailSteps, mailTrackNodes, mailWaitingApps, pendingApplyMail } from './liveMail';
+import { bouncedAsk, BOUNCED, failedMailAsk, mailAsk, REPLY, SINGLE, THREAD } from './testFixtures';
 
 const app = (over: Partial<Application>): Application => ({
   id: 'a1', job_id: 'j1', resume_tailored_id: null, stage: 'pending', next_action: null, next_action_due: null, blocker_reason: null,
@@ -35,6 +35,16 @@ describe('哪些申请走邮件', () => {
       app({ id: 'skip', apply_email: 'c@x.cn', stage: 'skip' }),
     ]);
     expect(list.map(a => a.id)).toEqual(['new', 'old']);
+  });
+});
+
+describe('列表上的状态字', () => {
+  it('等你条上有邮件等他过目的那份写「等你过目」（钢笔蓝），其余按阶段；邮件失败那件不算', () => {
+    const waiting = mailWaitingApps([mailAsk([SINGLE]), bouncedAsk(BOUNCED), failedMailAsk({ stage: 'send', reauth: false }, ['m_x'])]);
+    expect([...waiting].sort()).toEqual(['app_m_bo', 'app_m_mt']);
+    expect(mailLiveState('pending', waiting.has('app_m_mt'))).toEqual({ text: '等你过目', ask: true });
+    expect(mailLiveState('applied', false)).toEqual({ text: '已发出', ask: false });
+    expect(mailLiveState('pending', false)).toEqual({ text: '在办', ask: false });
   });
 });
 

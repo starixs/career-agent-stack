@@ -4,7 +4,7 @@
  * 不写规则说明（规范 §6.0）；还不能发的原因只体现在主按钮和标红的那一格上。
  */
 import { Paperclip } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import type { InternAvailability, MailDraftPatch, MailDraftView } from '../../../../shared/careerMailApply';
 import { Select } from '../CareerPrimitives';
@@ -27,7 +27,26 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   return <div className="cm-row"><span className="cm-label">{label}</span><div className="cm-val">{children}</div></div>;
 }
 
-function AttachmentRow({ draft, onPatch }: { draft: MailDraftView; onPatch: (p: MailDraftPatch) => Promise<unknown> }) {
+type Patch = (p: MailDraftPatch) => Promise<unknown>;
+
+/** 回信默认不带附件：一个安静的「附上简历」；只有一份可选就直接附上，几份就展开选哪份。 */
+function AttachResume({ options, onPatch }: { options: MailDraftView['resume_options']; onPatch: Patch }) {
+  const save = useFieldSave('resume');
+  const [choosing, setChoosing] = useState(false);
+  const attach = (id: string) => void save.run(() => onPatch({ resume_id: id }));
+  return (
+    <Row label="附件">
+      {choosing
+        ? <span className="cm-swap"><Select ariaLabel="附上哪份简历" value="" placeholder="选一份" disabled={save.saving}
+            options={options.map(o => ({ value: o.id, label: o.label }))} onChange={attach} /></span>
+        : <button type="button" className="cm-attach" disabled={save.saving}
+            onClick={() => (options.length === 1 ? attach(options[0].id) : setChoosing(true))}>附上简历</button>}
+      {save.error && <p role="alert" className="cd-err">{save.error}</p>}
+    </Row>
+  );
+}
+
+function AttachedFiles({ draft, onPatch }: { draft: MailDraftView; onPatch: Patch }) {
   const save = useFieldSave('resume');
   const others = draft.resume_options.filter(o => !draft.attachments.some(a => a.resume_id === o.id));
   return (
@@ -51,6 +70,12 @@ function AttachmentRow({ draft, onPatch }: { draft: MailDraftView; onPatch: (p: 
       {save.error && <p role="alert" className="cd-err">{save.error}</p>}
     </Row>
   );
+}
+
+/** 有附件：文件签 + 换一份；没附件但有简历可附：「附上简历」；都没有：这一行不出现。 */
+function AttachmentRow({ draft, onPatch }: { draft: MailDraftView; onPatch: Patch }) {
+  if (draft.attachments.length) return <AttachedFiles draft={draft} onPatch={onPatch} />;
+  return draft.resume_options.length ? <AttachResume options={draft.resume_options} onPatch={onPatch} /> : null;
 }
 
 function FromRow({ draft, onPatch }: { draft: MailDraftView; onPatch: (p: MailDraftPatch) => Promise<unknown> }) {

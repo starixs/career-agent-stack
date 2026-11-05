@@ -80,7 +80,7 @@ function Deck({ asks, index, setIndex, onClose, onResolved, onSnoozed }: {
     else if (outcome === 'snoozed') onSnoozed(ask.id);
   };
   return (
-    <section className="cd-deck" role="dialog" aria-label="等你的事" data-testid="waiting-deck">
+    <section className={`cd-deck${ask.mail ? ' cd-deck-mail' : ''}`} role="dialog" aria-label="等你的事" data-testid="waiting-deck">
       <header className="cd-deck-head">
         <span className="cd-deck-count">等你 <b>{index + 1}</b> / {asks.length}</span>
         <span className="cd-deck-dots" aria-hidden>{asks.map((a, i) => <i key={a.id} className={i === index ? 'on' : ''} />)}</span>

@@ -12,6 +12,7 @@ import { onEvent } from '@/api/eventBus';
 
 import type { MailDraftView } from '../../../../shared/careerMailApply';
 import type { AskView } from '../delivery/deliveryApi';
+import { clearPendingDeck } from '../delivery/openDeck';
 import { OPEN_DECK_EVENT } from '../delivery/ReturnCard';
 import { WaitingDock } from '../delivery/WaitingDock';
 import { MailThread } from './MailThread';
@@ -41,6 +42,8 @@ const actsOf = (card: HTMLElement) => card.querySelector<HTMLElement>('.cd-acts'
 const buttonsOf = (card: HTMLElement) => within(actsOf(card)).getAllByRole('button').map(b => b.textContent);
 
 beforeEach(() => {
+  // 别的用例在等你条没挂上时要求过打开卡组（往来里点了待发那封）：模块里记着的那次清掉，各用例从收起开始
+  clearPendingDeck();
   vi.mocked(apiGetJson).mockReset();
   vi.mocked(apiPostJson).mockReset().mockResolvedValue({ ok: true });
 });
@@ -115,7 +118,7 @@ describe('邮件没写成 / 没发出去（F5）', () => {
     off();
     expect(apiPostJson).toHaveBeenCalledWith(`/api/career/asks/${ask.id}/retry`, {});
     expect(apiPostJson).not.toHaveBeenCalledWith(REVIEW, expect.anything());
-    expect(await screen.findByTestId('ask-card-mail')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('ask-card-mail')).toBeInTheDocument());
   });
 
   it('邮箱授权失效：主按钮「重新连邮箱」打开连接，不先重试', async () => {
@@ -162,5 +165,48 @@ describe('一份申请的邮件往来', () => {
     await waitFor(() => expect(opened).toHaveBeenCalledWith(mailAsk([REPLY], '京东 回信了').id));
     off();
     expect(apiPostJson).not.toHaveBeenCalled();
+  });
+});
+
+describe('收口：卡组放高、回信附件', () => {
+  const patchEcho = () => vi.mocked(apiPostJson).mockImplementation(async (url: string, body: unknown) => (url.endsWith('/m_re')
+    ? { ok: true, draft: { ...REPLY, ...(body && typeof body === 'object' ? body : {}) } }
+    : { ok: true }));
+
+  it('邮件那几张卡组带邮件态（放高上限）', async () => {
+    serve([mailAsk([REPLY], '京东 回信了')], [REPLY]);
+    render(<WaitingDock />);
+    await openDeck();
+    expect(screen.getByTestId('waiting-deck')).toHaveClass('cd-deck-mail');
+  });
+
+  it('回信没附件、几份可选：附件那行是「附上简历」，点了展开选哪份，不是「换一份」', async () => {
+    serve([mailAsk([REPLY], '京东 回信了')], [REPLY]);
+    patchEcho();
+    render(<WaitingDock />);
+    const card = await openDeck();
+    expect(within(card).queryByLabelText('换一份简历')).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: '附上简历' }));
+    expect(within(card).getByLabelText('附上哪份简历')).toBeInTheDocument();
+    expect(apiPostJson).not.toHaveBeenCalled();
+  });
+
+  it('只有一份可选：点「附上简历」直接附上那份', async () => {
+    const one = { ...REPLY, resume_options: [{ id: 'r_master', label: '产品方向主简历' }] };
+    serve([mailAsk([one], '京东 回信了')], [one]);
+    patchEcho();
+    render(<WaitingDock />);
+    const card = await openDeck();
+    fireEvent.click(within(card).getByRole('button', { name: '附上简历' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/mail-apply/drafts/m_re', { resume_id: 'r_master' }));
+  });
+
+  it('没附件也没简历可附：附件这一行不出现', async () => {
+    const none = { ...REPLY, resume_options: [] };
+    serve([mailAsk([none], '京东 回信了')], [none]);
+    render(<WaitingDock />);
+    const card = await openDeck();
+    expect(within(card).queryByText('附件')).toBeNull();
+    expect(within(card).queryByRole('button', { name: '附上简历' })).toBeNull();
   });
 });

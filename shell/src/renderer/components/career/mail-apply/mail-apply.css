@@ -1,6 +1,12 @@
 /* 发邮件前过目（face-mail-apply §3.1–3.2）：和 delivery.css 同一套变量与规则。
    没有卡片外壳；钢笔蓝只给主按钮和要你点的点选；字段标签是灰小字；红只在收件人不对 / 资料没填上时。 */
 
+/* ---------- 发邮件前过目：卡组放高 ----------
+   发前要整封看得见：一封约 200 字的投递邮件 + 收件人 / 标题 / 附件 / 发件四行约 700px，上限取 760；
+   视口里再留出底下的输入框和顶部标题栏约 200px。其它要你的事仍是 delivery.css 里通用的 520。
+   useAutoGrow 读的就是这里算出来的 max-height，正文框跟着长，超过才在框里滚。 */
+.cd-deck.cd-deck-mail { max-height: min(760px, calc(100vh - 200px)); }
+
 /* ---------- 几封一起：左边一列 ---------- */
 .cm-ask-multi .cd-ask-img { flex: 0 0 216px; }
 .cm-picks { display: flex; flex-direction: column; width: 216px; max-height: 420px; margin: 0; padding: 0; overflow: auto; list-style: none; }
@@ -8,6 +14,8 @@
 .cm-pick.is-current { background: var(--inset); }
 .cm-pick-box { display: flex; align-items: center; padding: 10px 4px 10px 8px; cursor: pointer; user-select: none; }
 /* 和今天这批 / 岗位库的勾选同一个钢笔蓝（不用浏览器默认的系统蓝） */
+.cm-attach { font-size: 13px; color: var(--muted); cursor: pointer; }
+.cm-attach:hover { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
 .cm-pick-box input[type='checkbox'] { width: 15px; height: 15px; margin: 0; accent-color: var(--primary); cursor: pointer; }
 .cm-pick-name { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: 0 6px; min-width: 0; padding: 7px 8px 7px 2px; text-align: left; cursor: pointer; }
 .cm-pick-co { font-size: 14px; color: var(--ink); }
@@ -97,3 +105,4 @@
 .cm-live-row[aria-pressed='true'] { background: var(--inset); color: var(--ink); }
 .cm-live-name { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .cm-live-state { flex: none; font-size: 12px; color: var(--muted); }
+.cm-live-state.is-ask { font-weight: 600; color: var(--primary); }

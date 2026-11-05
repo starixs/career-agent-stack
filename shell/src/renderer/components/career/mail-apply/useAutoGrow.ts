@@ -1,6 +1,7 @@
 /**
- * 正文框按内容长高（F1）：整段尽量都露出来，直到整张卡碰到卡组的上限（delivery.css .cd-deck 的 max-height，
- * 规范 §6.3 的 520px），再在正文框里滚。不在卡组里（网申进展页）时按一个固定上限。
+ * 正文框按内容长高（F1）：整封都露出来，直到整张卡碰到卡组的上限（读卡组算出来的 max-height：
+ * 邮件那几张是 mail-apply.css .cd-deck-mail 的 min(760px, 100vh - 200px)，其它是 delivery.css 的 520），
+ * 再在正文框里滚。不在卡组里（网申进展页）时按一个固定上限。
  */
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 

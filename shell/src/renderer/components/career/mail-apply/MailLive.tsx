@@ -8,7 +8,8 @@ import { useCareerQuery } from '../useCareerData';
 import { ErrorRow, LoadingRow } from '../CareerPrimitives';
 import type { Application } from '../types';
 import type { InternAvailability, MailDraftPatch } from '../../../../shared/careerMailApply';
-import { mailLiveState, mailSteps, pendingApplyMail } from './liveMail';
+import { deliveryApi, localMidnightIso } from '../delivery/deliveryApi';
+import { mailLiveState, mailSteps, mailWaitingApps, pendingApplyMail } from './liveMail';
 import { openDeckForMail } from './mailActions';
 import { mailApplyApi } from './mailApplyApi';
 import { MailSheet } from './MailSheet';
@@ -21,17 +22,23 @@ import './mail-apply.css';
 const appName = (app: Application) => [app.company_name, app.title].filter(Boolean).join(' · ') || '这份申请';
 
 export function MailLiveList({ apps, selected, onSelect }: { apps: readonly Application[]; selected: string | null; onSelect: (id: string) => void }) {
+  // 哪份有邮件等他：和等你条同一份数据（一次请求），不逐份取往来
+  const asks = useCareerQuery(() => deliveryApi.asks(localMidnightIso()).then(r => r.asks));
+  const waiting = mailWaitingApps(asks.data ?? []);
   return (
     <ul className="cm-live-list" aria-label="邮件投递">
-      {apps.map(app => (
-        <li key={app.id}>
-          <button type="button" className="cm-live-row" aria-pressed={app.id === selected} onClick={() => onSelect(app.id)}>
-            <span className="cm-tag">邮件</span>
-            <span className="cm-live-name" title={appName(app)}>{appName(app)}</span>
-            <span className="cm-live-state">{mailLiveState(app.stage)}</span>
-          </button>
-        </li>
-      ))}
+      {apps.map(app => {
+        const state = mailLiveState(app.stage, waiting.has(app.id));
+        return (
+          <li key={app.id}>
+            <button type="button" className="cm-live-row" aria-pressed={app.id === selected} onClick={() => onSelect(app.id)}>
+              <span className="cm-tag">邮件</span>
+              <span className="cm-live-name" title={appName(app)}>{appName(app)}</span>
+              <span className={`cm-live-state${state.ask ? ' is-ask' : ''}`}>{state.text}</span>
+            </button>
+          </li>
+        );
+      })}
     </ul>
   );
 }

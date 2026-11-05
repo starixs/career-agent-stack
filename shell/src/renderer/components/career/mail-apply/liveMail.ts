@@ -34,8 +34,16 @@ export function mailApplicationsOf(apps: readonly Application[]): Application[] 
 /** 已经投出去过（和网申进展页统计同口径）。 */
 export const isSentStage = (stage: ApplicationStage): boolean => SENT.has(stage);
 
-/** 列表上那一行右边的两三个字（按阶段，阶段是唯一来源）。 */
-export const mailLiveState = (stage: ApplicationStage): string => (SENT.has(stage) ? '已发出' : '在办');
+/** 等你条上有邮件等他过目（写好了待发 / 回信 / 跟进 / 退回重发）的申请：用同一份要你的事，不逐份去取往来。 */
+export function mailWaitingApps(asks: readonly AskView[]): Set<string> {
+  return new Set(asks.filter(a => !!a.mail).flatMap(a => a.application_ids));
+}
+
+/** 列表上那一行右边的几个字：有邮件等他过目最要紧（钢笔蓝），其余按阶段。 */
+export function mailLiveState(stage: ApplicationStage, waiting: boolean): { text: string; ask: boolean } {
+  if (waiting) return { text: '等你过目', ask: true };
+  return { text: SENT.has(stage) ? '已发出' : '在办', ask: false };
+}
 
 /** 定制简历 → 写邮件 → 等你过目 → 已发出。发生过的墨色，等你的钢笔蓝，没到的灰。 */
 export function mailSteps(app: Pick<Application, 'stage' | 'resume_tailored_id'>, thread: MailThreadView | null): TrackNode[] {
