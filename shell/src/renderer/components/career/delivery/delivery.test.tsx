@@ -133,7 +133,6 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     serve([all], null);
     render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
-    expect(screen.getByText('投出后撤不回')).toBeInTheDocument();
     const sent: unknown[] = [];
     const off = onEvent('career:chat-suggest', p => { sent.push(p); });
     fireEvent.click(screen.getByRole('button', { name: '一键投出' }));
@@ -158,20 +157,20 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     off();
   });
 
-  it('单家投前过目点「先不投」：展开「在页面上改 / 这家不投了 / 晚点再说」，不预填对话让你打字', async () => {
+  it('单家投前过目只有两个动作：「投出」和「去看」；去看把画面切到这一家并打开浏览器栏（2026-11-05 途游：过目却找不到页面）', async () => {
     const one: AskView = { id: 'act_mt', kind: 'review', title: '美团 · 投前过目', application_ids: ['a1'], companies: [mark('美团')],
-      sources: [{ type: 'action', id: 'act_mt' }], due_at: null, overdue: false, review: { required_filled: 12, required_total: 12, gaps: 0 } };
+      sources: [{ type: 'action', id: 'act_mt' }], due_at: null, overdue: false, review: { required_filled: 0, required_total: 0, gaps: 1 } };
     serve([one], null);
-    const sent: unknown[] = [];
-    const off = onEvent('career:chat-suggest', p => { sent.push(p); });
+    const opened: unknown[] = [];
+    const off = onEvent('career:live-drawer', p => { opened.push(p); });
     render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
-    fireEvent.click(screen.getByRole('button', { name: '先不投' }));
-    const options = screen.getByRole('group', { name: '先不投，那就' });
-    serve([], null);
-    fireEvent.click(within(options).getByRole('button', { name: '这家不投了' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/review', { ids: ['act_mt'], decision: 'rejected', drop: true }));
-    expect(sent).toEqual([]);
+    const card = screen.getByTestId('ask-card-review');
+    expect(within(card).getAllByRole('button').map(b => b.textContent)).toEqual(['投出', '去看']);
+    expect(within(card).queryByText(/必填|撤不回/)).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: '去看' }));
+    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/view', { application_id: 'a1' }));
+    await waitFor(() => expect(opened.length).toBe(1));
     off();
   });
 
@@ -181,7 +180,7 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     serve([confirm], null);
     const first = render(<WaitingDock />);
     fireEvent.click(await screen.findByRole('button', { name: /等你\s*1/ }));
-    expect(screen.getByRole('button', { name: '去页面上看' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '去看' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '投出了' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/actions/act_sub/confirm-submit', { submitted: true }));
     first.unmount();

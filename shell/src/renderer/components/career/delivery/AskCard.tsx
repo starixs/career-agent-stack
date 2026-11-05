@@ -7,8 +7,7 @@ import { useState } from 'react';
 import { actionLabels, dueText, sourceText, subText } from './askText';
 import { CompanyPoster } from './CompanyPoster';
 import type { AskField, AskView } from './deliveryApi';
-import { HOLD_OPTIONS, type HoldChoice } from './holdSubmit';
-import { openLiveDrawer } from '../CareerLiveDrawer';
+import { showApplicationPage } from './showPage';
 
 /** 缺信息那一片最多铺几张小签：再多就看不清了，数字在原因行里。 */
 const MOSAIC_MAX = 20;
@@ -69,24 +68,23 @@ function FieldInputs({ ask, values, onChange }: { ask: AskView; values: Record<s
   );
 }
 
-export function AskCard({ ask, busy, error, onGo, onLater, onHold }: {
+/** 这几类卡都要能「去看」那一家的页面：过目、补信息（他得知道问的是页面上哪一格）、投出了吗。 */
+const LOOKABLE = new Set(['review', 'info', 'confirm']);
+
+export function AskCard({ ask, busy, error, onGo, onLater }: {
   ask: AskView; busy: boolean; error: string | null;
   onGo: (values: Record<string, string>) => Promise<unknown> | void; onLater: () => Promise<unknown> | void;
-  /** 单家投前过目点「先不投」后的选项；不给就照旧走 onLater。 */
-  onHold?: (choice: HoldChoice) => Promise<unknown> | void;
 }) {
   // 开放题小芽已经写好一版：预填进去，他看一眼确认或改几个字
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries((ask.fields ?? []).filter(f => f.fillable && f.draft).map(f => [f.label, f.draft!])));
-  const [holding, setHolding] = useState(false);
-  const holdable = ask.kind === 'review' && ask.application_ids.length <= 1 && !!onHold;
   const labels = actionLabels(ask);
   const due = dueText(ask);
   const src = sourceText(ask);
   const sub = subText(ask);
   const fillable = (ask.fields ?? []).filter(f => f.fillable);
   const blocked = ask.kind === 'info' && fillable.length > 0 && !fillable.some(f => values[f.label]?.trim());
-  // 缺的项只能在页面上弄（上传、核对）/ 投出了没要到页面上看一眼：多一个直达现场的按钮
-  const pageOnly = (ask.kind === 'info' && (ask.fields ?? []).some(f => !f.fillable)) || ask.kind === 'confirm';
+  // 投前过目只要两个动作：投出、去看（2026-11-05 用户：必填 0/0、先不投、撤不回这些字太多，过目却没地方看）
+  const look = LOOKABLE.has(ask.kind);
   return (
     <article className={`cd-ask cd-ask-${ask.kind}`} data-testid={`ask-card-${ask.kind}`}>
       <div className="cd-ask-img"><AskImage ask={ask} /></div>
@@ -98,15 +96,11 @@ export function AskCard({ ask, busy, error, onGo, onLater, onHold }: {
         {ask.kind === 'info' && <FieldInputs ask={ask} values={values} onChange={(l, v) => setValues(s => ({ ...s, [l]: v }))} />}
         <div className="cd-acts">
           <button type="button" className="cd-go" disabled={busy || blocked} onClick={() => void onGo(values)}>{labels.go}</button>
-          <button type="button" className="cd-later" disabled={busy} aria-expanded={holdable ? holding : undefined} onClick={() => (holdable ? setHolding(h => !h) : void onLater())}>{labels.later}</button>
-          {pageOnly && <button type="button" className="cd-later" onClick={() => openLiveDrawer()}>去页面上看</button>}
+          {ask.kind === 'review'
+            ? <button type="button" className="cd-later" onClick={() => void showApplicationPage(ask.application_ids[0])}>去看</button>
+            : <button type="button" className="cd-later" disabled={busy} onClick={() => void onLater()}>{labels.later}</button>}
+          {look && ask.kind !== 'review' && <button type="button" className="cd-later" onClick={() => void showApplicationPage(ask.application_ids[0])}>去看</button>}
         </div>
-        {holdable && holding && (
-          <div className="cd-acts" role="group" aria-label="先不投，那就">
-            {HOLD_OPTIONS.map(o => <button key={o.choice} type="button" className="cd-later" disabled={busy} onClick={() => void onHold?.(o.choice)}>{o.label}</button>)}
-          </div>
-        )}
-        {ask.kind === 'review' && <p className="cd-warn">投出后撤不回</p>}
         {ask.kind === 'info' && fillable.some(f => f.vault_field) && <p className="cd-warn">只存在本机私密库，填表时在本地替换，助理看不到原文</p>}
         {error && <p role="alert" className="cd-err">{error}</p>}
       </div>

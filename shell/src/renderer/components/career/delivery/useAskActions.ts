@@ -11,7 +11,6 @@ import { openLiveDrawer } from '../CareerLiveDrawer';
 import { suggestToChat } from '../CareerPrimitives';
 import { useRespondReview } from '../CareerReviewCard';
 import { deliveryApi, type AskView } from './deliveryApi';
-import { holdSubmit, type HoldChoice } from './holdSubmit';
 
 export type AskOutcome = 'resolved' | 'snoozed' | 'kept';
 type Respond = ReturnType<typeof useRespondReview>;
@@ -92,6 +91,5 @@ export function useAskActions() {
     busy, error,
     go: (ask: AskView, values: Record<string, string> = {}) => run(() => go(ask, respond, values)),
     later: (ask: AskView) => run(() => later(ask)),
-    hold: (ask: AskView, choice: HoldChoice) => run(() => holdSubmit(sourceIds(ask, 'action'), choice)),
   };
 }
