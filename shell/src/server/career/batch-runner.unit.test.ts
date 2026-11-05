@@ -66,6 +66,15 @@ describe('BatchRunner', () => {
     expect(repos.openHandoffs()).toHaveLength(0);
   });
 
+  it('托管浏览器起不来（扩展没连上）：不判这家失败，放回队列，整批歇一会再试（2026-11-05 实测 30 份因此判失败）', async () => {
+    const repos = createMemoryRepos();
+    const [id] = seed(repos, 1);
+    const { runner } = makeRunner(repos, () => [{ type: 'error', status: 500, error: 'BROWSER_PREPARATION_FAILED（HTTP 500）' }]);
+    const out = await runner.runOne(repos.getAction(id)!, 'start');
+    expect(out.kind).toBe('transient');
+    expect(repos.getAction(id)?.status).toBe('approved');
+  });
+
   it('接管：停下等用户，交回（handoff 被关闭）后以 continue 模式从当前页续跑', async () => {
     const repos = createMemoryRepos();
     const [id] = seed(repos, 1);

@@ -128,8 +128,13 @@ export type DriveOutcome =
  * 引擎未就绪（501）/ 启动失败（503）都不算这份网申的失败——此前一律判 failed 会把动作打进
  * 没有任何工具能救活的死状态（apply_run 只收 approved、apply_continue 只收 needs_user/executing）。
  */
-export function isTransientDriveError(line: { code?: unknown; status?: unknown } | undefined): boolean {
+/** 托管浏览器自己没起来 / 扩展没连上：是浏览器的事，不是这家网申的事（2026-11-05 实测 30 份因此判失败）。 */
+export const BROWSER_DOWN_RX = /BROWSER_(PREPARATION_FAILED|PREPARATION_UNAVAILABLE|STOPPING|CONNECT_CANCELLED)/;
+export const isBrowserDown = (line: { error?: unknown } | undefined) => typeof line?.error === 'string' && BROWSER_DOWN_RX.test(line.error);
+
+export function isTransientDriveError(line: { code?: unknown; status?: unknown; error?: unknown } | undefined): boolean {
   if (!line) return false;
+  if (isBrowserDown(line)) return true;
   const code = typeof line.code === 'string' ? line.code : '';
   if ([
     'BROWSER_BUSY',

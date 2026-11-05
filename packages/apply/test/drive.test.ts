@@ -155,3 +155,14 @@ describe('extractFields', () => {
     expect(await extractFields(page)).toEqual([])
   })
 })
+
+describe('expectValue', () => {
+  it('读页面信号拿回空值：按导航中断报错，让读页面的重试接住，不往下崩成「填写时出错了」（2026-11-05 快手）', async () => {
+    const { expectValue } = await import('../src/page.js')
+    const { pageSignalsScript, extractFieldsScript } = await import('../src/scripts.js')
+    expect(() => expectValue(pageSignalsScript, 'undefined' as never)).toThrow(/Execution context was destroyed/)
+    expect(() => expectValue(pageSignalsScript, undefined as never)).toThrow(/Execution context was destroyed/)
+    expect(expectValue(pageSignalsScript, { buttons: [] } as never)).toEqual({ buttons: [] })
+    expect(expectValue(extractFieldsScript, undefined as never)).toBeUndefined()
+  })
+})

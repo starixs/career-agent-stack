@@ -11,7 +11,7 @@
  */
 import PQueue from 'p-queue';
 import { aggregatorHostOf, type ActionQueueItem, type Repos, type Task } from '@career/core';
-import { applyTaskTitle, isTransientDriveError, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
+import { applyTaskTitle, isBrowserDown, isTransientDriveError, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
 
 export type BatchStatus = 'idle' | 'running' | 'paused' | 'stopped';
 export interface BatchState {
@@ -44,6 +44,8 @@ export const BATCH_COMMAND_KEY = 'apply:batch:command';
 const DAILY_KEY = (day: string) => `apply:batch:count:${day}`;
 /** 同一份网申页面连着打不开几次就判失败：站点慢偶尔一两次常见，三次多半是链接失效或站点挂了。 */
 const MAX_SITE_RETRIES = 3;
+/** 托管浏览器起不来：整批歇这么久再试（扩展连接本身要等 45 秒，太密只会一直撞）。 */
+const BROWSER_DOWN_BACKOFF_MS = 60_000;
 
 export interface DriveRequest { action: ActionQueueItem; payload: Record<string, unknown>; mode: 'start' | 'continue'; resumePath?: string; /** 续跑时上次 needs_user 的标签：用户自己填好的值学进答案库 */ learnFrom?: string[] }
 export interface BatchRunnerDeps {
@@ -88,6 +90,8 @@ export class BatchRunner {
   private wake: (() => void) | null = null;
   /** 每个网站因"暂时不可用 / 被占用"退避到的最早重试时间（毫秒时间戳）。 */
   private transientCooldown = new Map<string, number>();
+  /** 托管浏览器起不来时，到这个时间点之前整批不开新的。 */
+  private browserDownUntil = 0;
   private siteFailures = new Map<string, number>();
   constructor(private readonly deps: BatchRunnerDeps) {}
 
@@ -230,6 +234,7 @@ export class BatchRunner {
       }
       if (this.deps.control() === 'human') { this.setState({ phase: 'waiting_control', running: running(), message: '你正在接管浏览器，等待交回' }); await this.idle(poll); continue; }
       const nowMs = this.now().getTime();
+      if (nowMs < this.browserDownUntil) { this.setState({ phase: 'waiting_control', running: running(), message: '浏览器没起来，稍后自动重试' }); await this.idle(poll); continue; }
       const blocked = busyHosts();
       const ready = (a: ActionQueueItem) => { const h = this.platformOf(a, this.payloadOf(a)); return !inFlight.has(a.id) && !blocked.has(h) && (nextAt.get(h) ?? 0) <= nowMs && (this.transientCooldown.get(h) ?? 0) <= nowMs; };
       const only = this.only();
@@ -404,6 +409,7 @@ export class BatchRunner {
       changed('task', 'action_queue');
       // 同站冷却：被占用 / 暂不可用时立刻重试只会每 3 秒空转一轮（resumable 队列不看 nextAt），压一压再试
       this.transientCooldown.set(this.platformOf(action, payload), this.now().getTime() + 15_000);
+      if (isBrowserDown(transientLine)) { this.browserDownUntil = this.now().getTime() + BROWSER_DOWN_BACKOFF_MS; this.log(`browser-down ${action.id}: ${String(transientLine?.error ?? '')}`); }
       this.setState({ phase: 'waiting_control', message: '浏览器暂时不可用 / 被占用，稍后自动继续' });
       return { kind: 'transient', code: typeof transientLine?.code === 'string' ? transientLine.code : undefined, message: String((transientLine as { error?: unknown } | undefined)?.error ?? '暂时不可用') };
     }
