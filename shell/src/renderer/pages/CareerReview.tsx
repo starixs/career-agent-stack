@@ -14,7 +14,8 @@ import { LayerPanel } from '@/components/career/review/LayerPanel';
 import { MonthDays } from '@/components/career/review/MonthDays';
 import { MonthFunnel } from '@/components/career/review/MonthFunnel';
 import { monthQuoteScene } from '@/components/career/review/monthQuoteScene';
-import { LAYER_COLORS, LAYER_NAMES } from '@/components/career/review/monthFunnelGeometry';
+import { FitWidth } from '@/components/career/review/FitWidth';
+import { GEO, LAYER_COLORS, LAYER_NAMES } from '@/components/career/review/monthFunnelGeometry';
 import type { CareerFocusEvent, MonthBoard } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import type { CareerPageProps } from '@/features/career-shared/pageContract';
@@ -68,6 +69,13 @@ export default function CareerReview({ embedded = false }: CareerPageProps) {
 
 // ─── 我的求职月 ───
 
+/** 漏斗那块的原始宽度：SVG 宽 + 右侧给标签留的 64px（与 MonthFunnel 的 svgW 一致）。 */
+const FUNNEL_BOX_W = GEO.WIDTH + 64;
+/** 漏斗最多放大到这么多倍：再大就一屏放不下整月（CAREER_DESIGN 7.7「24 寸屏一屏放下」）。 */
+const FUNNEL_MAX_SCALE = 1.3;
+/** 定稿预览里漏斗和面板之间的间距。 */
+const FUNNEL_GAP = 52;
+
 function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (month: string | null) => void }) {
   // 面板平时留白：悬停某一层才出现，点击钉住；离开漏斗和面板所在的区域回到钉住的那层（没钉就留白）
   const [hovered, setHovered] = useState<number | null>(null);
@@ -98,9 +106,12 @@ function MonthSection({ board, onMonth }: { board: MonthBoard | null; onMonth: (
         </div>
       </dl>
 
-      <section aria-label="本月漏斗" className="flex items-stretch gap-10" onMouseLeave={() => setHovered(null)}>
-        <MonthFunnel board={board} layer={layer} onHover={setHovered} onPin={(k) => setPinned((p) => (p === k ? null : k))} />
-        <div className="min-h-[330px] min-w-0 flex-1 pl-8">
+      {/* 横向按定稿预览（求职漏斗 · 融合一）的比例：漏斗列 620 : 面板列 692，中间 52px；漏斗随列宽等比缩放 */}
+      <section aria-label="本月漏斗" className="grid items-start" style={{ gridTemplateColumns: 'minmax(0,620fr) minmax(0,692fr)', columnGap: FUNNEL_GAP }} onMouseLeave={() => setHovered(null)}>
+        <FitWidth width={FUNNEL_BOX_W} height={GEO.HEIGHT} maxScale={FUNNEL_MAX_SCALE}>
+          <MonthFunnel board={board} layer={layer} onHover={setHovered} onPin={(k) => setPinned((p) => (p === k ? null : k))} />
+        </FitWidth>
+        <div className="min-h-[330px] min-w-0 pl-11">
           {layer !== null && <LayerPanel board={board} layer={layer} />}
         </div>
       </section>
