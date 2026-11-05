@@ -2,7 +2,7 @@
  * 下一步条要的状态（plan-r2 §B.2）：全部本地查询，一个函数 `suggestStateOf` 读出（suggest-context.ts）。
  * 规则层（suggest-seeds.ts）只读这一份，模型看到的是它去掉 id 的精简版。
  */
-import type { AskKind } from '@career/core';
+import type { AskKind, InterviewRound } from '@career/core';
 
 import type { MainlineStage } from '../../shared/careerRail';
 import type { BatchStatus } from './batch-runner';
@@ -28,6 +28,8 @@ export interface SuggestCard {
   allIds: string[];
   /** 表外还能投的家数。 */
   more: number;
+  /** 面试准备卡等带公司的卡：公司名。 */
+  company: string | null;
 }
 
 export interface SuggestBatch {
@@ -85,9 +87,27 @@ export interface SuggestState {
   awayHours: number | null;
   /** 本地钟点（0–23）。 */
   hour: number;
+  interview: SuggestInterview | null;
+  dueSoon: SuggestDue[];
+  /** 近 7 天拒信数。 */
+  rejections7d: number;
+  /** choice / unsure / confirm 等你事的选项原文（askId → 选项）。 */
+  askOptions: Record<string, string[]>;
   /** 猜他是哪一届（下半年按明年届，上半年按今年届；只用在可改的填空里）。 */
   cohortGuess: number;
 }
+
+/** 经历访谈进度（kv `experience:interview`）。只有 rounds[current_round] 是 in_progress 才算在访谈里（旧 kv 可能残留）。 */
+export interface SuggestInterview {
+  round: InterviewRound | null;
+  inProgress: boolean;
+  experienceTitle: string | null;
+  followUps: string[];
+  roundsTodo: InterviewRound[];
+}
+
+/** 3 天内的截止（笔试 / 测评 / 面试 …）。 */
+export interface SuggestDue { kind: string; company: string; at: string }
 
 /** 旧名：路由里按这个名字传进 buildSuggestions。 */
 export type SuggestContext = SuggestState;

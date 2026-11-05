@@ -29,7 +29,9 @@ describe('话术护栏：不让用户打字、不拿缺口挡路', () => {
 
   it('career 工具和领域代码返回给模型的话里没有', () => {
     const dirs = [HERE, join(HERE, '..', 'career')];
-    const found = dirs.flatMap(dir => readdirSync(dir).filter(f => f.endsWith('.ts') && !f.includes('.test.')).flatMap(f => hits(f, readFileSync(join(dir, f), 'utf8'))));
+    // suggest-lint.ts 里的 SEND_ME 正则是拦这类话的 lint，本身就是禁令，不算
+    const isGuard = (f: string) => f === 'suggest-lint.ts';
+    const found = dirs.flatMap(dir => readdirSync(dir).filter(f => f.endsWith('.ts') && !f.includes('.test.') && !isGuard(f)).flatMap(f => hits(f, readFileSync(join(dir, f), 'utf8'))));
     expect(found).toEqual([]);
   });
 });

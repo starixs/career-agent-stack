@@ -6,15 +6,14 @@
  * 输入框空着：Tab 把第一条填进输入框，↑ 进条，方向键在格间走，Esc 回输入框。
  * 他一打字、小芽在说话时都不出现。
  */
-import { Eye, LogIn, Send, type LucideIcon } from 'lucide-react';
+import { ArrowUpRight, Eye, LogIn, Send, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react';
 
 import { useCareerCards } from '@/context/CareerCardsContext';
 import { useTabStateOptional } from '@/context/TabContext';
 
-import { suggestToChat } from './CareerPrimitives';
-import { runSuggestion } from './suggestActions';
-import { lastOf, useCareerSuggestions, visibleText } from './useCareerSuggestions';
+import { BLANK, FILL_BLANK, fillText, prefillChip, runSuggestion } from './suggestActions';
+import { buildSuggestRequest, useCareerSuggestions } from './useCareerSuggestions';
 import type { SuggestAction, SuggestChip } from '../../../shared/careerSuggest';
 
 export { visibleText } from './useCareerSuggestions';
@@ -24,8 +23,14 @@ const GRID_FROM = 3;
 const GRID_COLS = 2;
 
 const ICONS: Partial<Record<SuggestAction['type'], LucideIcon>> = {
-  propose_batch: Send, start_card: Send, ask_primary: Send, open_deck: LogIn, open: Eye,
+  propose_batch: Send, start_card: Send, ask_primary: Send, open_deck: LogIn, open: Eye, start_feature: ArrowUpRight,
 };
+
+/** 一格的小图标：点了直接办的按动作标（起头用斜箭头）；替他说的话（answer / option / 发话）不加。 */
+function iconOf(chip: SuggestChip): LucideIcon | undefined {
+  if (chip.kind === 'do' && chip.action) return ICONS[chip.action.type];
+  return chip.mode === 'start' ? ArrowUpRight : undefined;
+}
 
 const CELL = 'flex min-w-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary)]';
 const BOXED = 'border border-[var(--line-2)] bg-[var(--paper)] text-[var(--ink-2)] hover:border-[var(--ink)] hover:text-[var(--ink)]';
@@ -38,6 +43,19 @@ function nextIndex(key: string, i: number, n: number): number | null {
   if (!step) return null;
   const to = i + step;
   return to >= 0 && to < n ? to : i;
+}
+
+/** 格里的字；填空格的空画成一段看得见的空（"大概 ＿＿ 人参加："）。 */
+function ChipText({ chip }: { chip: SuggestChip }) {
+  const m = chip.kind === 'fill' ? FILL_BLANK.exec(chip.text) : null;
+  if (!m) return <span className="min-w-0 truncate">{chip.text}</span>;
+  return (
+    <span className="min-w-0 truncate">
+      {chip.text.slice(0, m.index)}
+      <span data-blank className="text-[var(--subtle)]">{BLANK}</span>
+      {chip.text.slice(m.index + m[0].length)}
+    </span>
+  );
 }
 
 export function SuggestChips({ chips, onSend, onEscape, barRef }: {
@@ -63,16 +81,16 @@ export function SuggestChips({ chips, onSend, onEscape, barRef }: {
       className={`w-full pb-2 ${grid ? 'grid grid-cols-2 gap-1.5' : 'flex flex-nowrap gap-1.5 overflow-hidden'}`}
     >
       {chips.map((c, i) => {
-        const Icon = c.kind === 'do' && c.action ? ICONS[c.action.type] : undefined;
+        const Icon = iconOf(c);
         return (
           <button
-            key={`${c.slot}:${c.text}`} ref={el => { refs.current[i] = el; }} type="button" title={c.text}
-            data-slot={c.slot} data-kind={c.kind}
+            key={`${c.slot}:${c.text}`} ref={el => { refs.current[i] = el; }} type="button" title={c.kind === 'fill' ? fillText(c.text) : c.text}
+            data-slot={c.slot} data-kind={c.kind} data-mode={c.mode}
             onClick={() => onSend(c, 'click')} onKeyDown={e => onKey(e, i)}
-            className={`${CELL} ${c.slot === 'exit' ? BARE : BOXED} ${grid ? '' : 'max-w-full shrink'}`}
+            className={`${CELL} ${c.mode === 'exit' || c.slot === 'exit' ? BARE : BOXED} ${grid ? '' : 'max-w-full shrink'}`}
           >
             {Icon && <Icon size={12} aria-hidden className="shrink-0" />}
-            <span className="min-w-0 truncate">{c.text}</span>
+            <ChipText chip={c} />
             {i === 0 && <kbd className="ml-auto shrink-0 pl-1 font-sans text-xs text-[var(--subtle)]" aria-label="按 Tab 填入">Tab</kbd>}
           </button>
         );
@@ -123,17 +141,18 @@ export function CareerSuggestBar({ inputRef }: { inputRef: RefObject<HTMLTextAre
     enabled: !!tab,
     streaming,
     turnKey,
-    request: () => ({ last_user: visibleText(lastOf(messages, 'user')), last_assistant: visibleText(lastOf(messages, 'assistant')), pending_cards: pending }),
+    request: () => buildSuggestRequest(messages, pending),
   });
   const visible = typedAt === turnKey ? [] : chips;
   const barRef = useRef<HTMLDivElement>(null);
+  const getInput = () => inputRef.current;
   useInputKeys(inputRef, barRef, visible, first => {
-    suggestToChat(first.text, undefined, 'prefill');
+    prefillChip(first, getInput);
     used(first, 'tab');
   }, typed => setTypedAt(typed ? turnKey : null));
   const send = (chip: SuggestChip, how: 'click' | 'key') => {
     used(chip, how);
-    void runSuggestion(chip);
+    void runSuggestion(chip, getInput);
   };
   return <SuggestChips chips={visible} onSend={send} onEscape={() => inputRef.current?.focus()} barRef={barRef} />;
 }

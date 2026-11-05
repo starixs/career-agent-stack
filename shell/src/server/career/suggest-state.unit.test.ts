@@ -81,8 +81,24 @@ describe('下一步条的状态', () => {
     expect(s.held).toMatchObject({ count: 1, companies: ['平安'] });
     resetSuggestMemory();
     const chips = await buildSuggestions(s, {}, null);
-    expect(chips.find(c => c.slot === 'shape' && c.action?.type === 'open')?.text).toBe('把招商银行那份给我看看');
+    expect(chips.find(c => c.action?.type === 'open' && c.action.surface === 'live')?.text).toBe('把招商银行那份给我看看');
     expect(chips.find(c => c.slot === 'exit')?.text).toBe('我先去忙，你接着投');
+  });
+
+  it('访谈进度：只有当前轮 in_progress 才算在访谈里；三天内截止点名公司', () => {
+    const { repos, store, job } = setup();
+    const exp = repos.createExperience({ title: '数据库课设', type: 'course_project' });
+    repos.kvSet(core.INTERVIEW_STATE_KEY, { rounds: { education: 'done', course_project: 'in_progress' }, current_round: 'course_project', current_experience_id: exp.id, follow_up_questions: ['几个人一组？'] });
+    const app = repos.createApplication(job('字节跳动', '运营').id);
+    repos.createDeadline({ kind: 'written_test', title: '字节笔试', due_at: new Date(NOW.getTime() + 86_400_000).toISOString(), application_id: app.id });
+    repos.createDeadline({ kind: 'interview', title: '远的面试', due_at: new Date(NOW.getTime() + 10 * 86_400_000).toISOString() });
+    const s = suggestStateOf(repos, store, { sessionId: null, now: NOW });
+    expect(s.interview).toMatchObject({ round: 'course_project', inProgress: true, experienceTitle: '数据库课设', followUps: ['几个人一组？'] });
+    expect(s.interview?.roundsTodo).not.toContain('course_project');
+    expect(s.dueSoon).toEqual([expect.objectContaining({ kind: 'written_test', company: '字节跳动' })]);
+    expect(s.rejections7d).toBe(0);
+    repos.kvSet(core.INTERVIEW_STATE_KEY, { rounds: { course_project: 'done' }, current_round: 'course_project', follow_up_questions: ['旧的'] });
+    expect(suggestStateOf(repos, store, { sessionId: null, now: NOW }).interview).toMatchObject({ inProgress: false, followUps: [] });
   });
 
   it('手机绑定与离开几小时', () => {

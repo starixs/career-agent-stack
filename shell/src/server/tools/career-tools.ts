@@ -1597,7 +1597,10 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
         const cur = r.kvGet<import('@career/core').InterviewState>(core.INTERVIEW_STATE_KEY) ?? { rounds: {} };
         if (args.round || args.status || args.experience_id !== undefined || args.follow_up_questions) {
           const merged = { ...cur, rounds: { ...cur.rounds, ...(args.round && args.status ? { [args.round]: args.status } : {}) }, ...(args.round ? { current_round: args.round } : {}), ...(args.experience_id !== undefined ? { current_experience_id: args.experience_id } : {}), ...(args.follow_up_questions ? { follow_up_questions: args.follow_up_questions } : {}), updated_at: new Date().toISOString() };
-          const next = args.experience_id && args.follow_up_questions ? core.withOpenExperience(merged, args.experience_id, args.follow_up_questions) : merged;
+          const opened = args.experience_id && args.follow_up_questions ? core.withOpenExperience(merged, args.experience_id, args.follow_up_questions) : merged;
+          // 这一轮聊完 / 确实没有：清掉"正在问哪一轮"和旧的追问，免得建议条一直以为还在访谈里
+          const closesCurrent = (args.status === 'done' || args.status === 'none') && (args.round ?? cur.current_round) === (opened.current_round ?? cur.current_round);
+          const next = closesCurrent ? { ...opened, current_round: null, follow_up_questions: [] } : opened;
           r.kvSet(core.INTERVIEW_STATE_KEY, next);
           changed('kv');
           return text(core.interviewProgress(r.experienceTree(), next));

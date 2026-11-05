@@ -90,6 +90,15 @@ describe('准备期 · 三周后回来接着补经历', () => {
     expect((progress.open_experiences ?? []).map(o => o.id)).toEqual([courseId]);
   });
 
+  it('这一轮聊完：清掉正在问的轮次和旧追问，建议条不会还以为在访谈里', async () => {
+    const { mtId } = await firstVisit();
+    await call('experience_interview', { round: 'course_project', status: 'done' });
+    await call('experience_interview', { round: 'internship', status: 'done', experience_id: mtId });
+    const state = repos.kvGet<{ current_round?: string | null; follow_up_questions?: string[] }>('experience:interview');
+    expect(state?.current_round ?? null).toBeNull();
+    expect(state?.follow_up_questions ?? []).toEqual([]);
+  });
+
   it('练项目讲述时冒出的新事实写进经历库待确认，不会丢', async () => {
     const { mtId } = await firstVisit();
     llm.push(JSON.stringify({ score: { structure: 3 }, improved: '……', new_claims: [{ text: '看板上线后周报人工从 4 小时降到 20 分钟', attribution: 'self', status: 'pending' }] }));
