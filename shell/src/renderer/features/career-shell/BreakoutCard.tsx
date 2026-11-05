@@ -51,13 +51,13 @@ export function BreakoutCard({ testId, anchor, title, aside, overline, children,
             {title}
             {aside && <span className="ml-2 font-sans text-sm font-normal text-[var(--subtle)]">{aside}</span>}
           </div>
-          {overline && <div className="mt-1.5 text-xs tracking-[0.12em] text-[var(--muted)]">{overline}</div>}
+          {overline && <div className="mt-1.5 text-xs text-[var(--muted)]">{overline}</div>}
           {children && <div className="mt-2.5 text-sm leading-relaxed text-[var(--ink-2)]">{children}</div>}
           {visibleRows.length > 0 && (
             <dl className="mt-3 grid grid-cols-[4rem_minmax(0,1fr)] gap-y-1 border-t border-[var(--line)] pt-2.5 text-sm text-[var(--ink)]">
               {visibleRows.map(row => (
                 <div key={row.label} className="contents">
-                  <dt className="pt-px text-xs tracking-[0.14em] text-[var(--subtle)]">{row.label}</dt>
+                  <dt className="pt-px text-xs text-[var(--subtle)]">{row.label}</dt>
                   <dd className="min-w-0 truncate">{row.value}</dd>
                 </div>
               ))}
@@ -109,7 +109,7 @@ export function InitialAnchor({ text, solid = false }: { text: string; solid?: b
   return (
     <span
       aria-hidden="true"
-      className={`grid place-items-center font-human font-bold ${solid
+      className={`grid place-items-center font-human font-semibold ${solid
         ? 'h-[70px] w-[70px] rounded-md bg-[var(--ink)] text-3xl text-[var(--bg)]'
         : 'h-[92px] w-[78px] rounded-[4px] bg-[var(--selected)] text-4xl text-[var(--ink-2)]'}`}
     >
@@ -125,7 +125,7 @@ export function DateAnchor({ value }: { value: string | null }) {
   return (
     <div className="w-[70px] overflow-hidden rounded-md border-[1.5px] border-[var(--hard)] text-center" aria-label={valid ? date.toLocaleDateString('zh-CN') : '日期未定'}>
       <div className="bg-[var(--seal)] py-0.5 text-xs font-semibold text-white">{valid ? `${date.getMonth() + 1} 月` : '待定'}</div>
-      <div className="font-human text-3xl font-bold leading-tight text-[var(--ink)]">{valid ? date.getDate() : '—'}</div>
+      <div className="font-human text-3xl font-semibold leading-tight text-[var(--ink)]">{valid ? date.getDate() : '—'}</div>
       <div className="pb-1 text-xs text-[var(--muted)]">{valid ? `周${'日一二三四五六'[date.getDay()]}` : ''}</div>
     </div>
   );
@@ -173,8 +173,8 @@ export function StepBar({ steps }: { steps: ReadonlyArray<{ label: string; state
 export function CountAnchor({ value, unit }: { value: number; unit: string }) {
   return (
     <div className="w-[70px]">
-      <div className="font-human text-6xl font-bold leading-none text-[var(--primary)] tabular-nums">{value}</div>
-      <div className="mt-1.5 text-xs tracking-[0.12em] text-[var(--muted)]">{unit}</div>
+      <div className="font-human text-6xl font-semibold leading-none text-[var(--primary)] tabular-nums">{value}</div>
+      <div className="mt-1.5 text-xs text-[var(--muted)]">{unit}</div>
     </div>
   );
 }
@@ -184,7 +184,7 @@ export function ProgressAnchor({ done, total }: { done: number; total: number })
   const cells = Math.min(Math.max(total, 0), 20);
   return (
     <div className="w-[90px]" aria-label={`已答 ${done} / ${total}`}>
-      <div className="font-human text-5xl font-bold leading-none text-[var(--ink)] tabular-nums">
+      <div className="font-human text-5xl font-semibold leading-none text-[var(--ink)] tabular-nums">
         {done}<span className="text-2xl text-[var(--subtle)]">/{total}</span>
       </div>
       {cells > 0 && (

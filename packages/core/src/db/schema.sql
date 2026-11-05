@@ -439,3 +439,67 @@ CREATE TABLE IF NOT EXISTS exam_practice (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- ===== 计费（积分账本，口径照 Star AI；见 packages/core/src/billing/）=====
+-- 本机单账户（id='local'）。云端账户上线后它变成云端余额的镜像，流水仍按同一幂等键对账。
+CREATE TABLE IF NOT EXISTS credit_account (
+  id TEXT PRIMARY KEY,
+  tier TEXT NOT NULL DEFAULT 'free',          -- free|sprint|season
+  credits INTEGER NOT NULL DEFAULT 0 CHECK (credits >= 0),                           -- 永久积分
+  subscription_credits INTEGER NOT NULL DEFAULT 0 CHECK (subscription_credits >= 0), -- 套餐限时积分，先扣它
+  subscription_expires_at TEXT,
+  total_earned INTEGER NOT NULL DEFAULT 0,
+  total_spent INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+-- 积分流水：每一笔增减一行。amount 带符号；idempotency_key 唯一，重放不重复记。
+CREATE TABLE IF NOT EXISTS credit_transaction (
+  id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('earn','spend','refund','admin_adjust')),
+  amount INTEGER NOT NULL,
+  balance_after INTEGER NOT NULL,             -- 永久 + 限时 合计
+  source_type TEXT,                           -- llm_usage|tool_usage|asr_usage|signup|checkin|topup|subscription|admin
+  source_id TEXT,
+  idempotency_key TEXT,
+  description TEXT,
+  extra_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_credit_txn_idem ON credit_transaction(account_id, idempotency_key) WHERE idempotency_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_credit_txn_time ON credit_transaction(account_id, created_at);
+-- 用量明细：每次模型调用 / 工具调用一行，0 积分的也记（看得见调了几次）。
+-- 同一 scope（会话或「后台某天」）内累计精确成本，取整后的差额才落一笔 spend。
+CREATE TABLE IF NOT EXISTS billing_usage (
+  id TEXT PRIMARY KEY,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  scope TEXT NOT NULL,
+  origin TEXT NOT NULL,                       -- chat|background|tool
+  kind TEXT NOT NULL CHECK (kind IN ('llm','tool','asr')),
+  name TEXT NOT NULL,                         -- 规范模型 id / 工具名
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+  quantity INTEGER NOT NULL DEFAULT 1,        -- 工具次数 / 语音毫秒
+  raw_credits REAL NOT NULL DEFAULT 0,        -- 精确成本（已含毛利）
+  credits_charged INTEGER NOT NULL DEFAULT 0, -- 这一行实际触发的扣减
+  cogs_micro_usd INTEGER NOT NULL DEFAULT 0,
+  priced INTEGER NOT NULL DEFAULT 1,          -- 0 = 走了兜底价 / 工具没定价
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_billing_usage_scope ON billing_usage(scope);
+CREATE INDEX IF NOT EXISTS idx_billing_usage_time ON billing_usage(created_at);
+-- 场景事件（候选卖点）：投出、定制简历、公司调研…… 一件事一行，只记数不扣积分，定价后再精简。
+CREATE TABLE IF NOT EXISTS billing_event (
+  id TEXT PRIMARY KEY,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  event TEXT NOT NULL,                        -- 见 packages/core/src/billing/events.ts BILLABLE_EVENTS
+  quantity INTEGER NOT NULL DEFAULT 1,
+  ref_type TEXT,                              -- application|action|job|company|resume|exam_search|mail_message…
+  ref_id TEXT,
+  meta_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_billing_event_time ON billing_event(event, created_at);

@@ -390,7 +390,7 @@ describe('career live route', () => {
     const until = async (pred: () => boolean) => { for (let i = 0; i < 100 && !pred(); i++) { const r = await Promise.race([reader.read(), new Promise<{ value?: Uint8Array; done: boolean }>(ok => setTimeout(() => ok({ done: false }), 20))]); if (r.value) buf += decoder.decode(r.value); } };
     await until(() => buf.includes('frame-status'));
     expect(buf).toContain('"state":"waiting"');
-    expect(buf).toContain('正在自动准备浏览器');
+    expect(buf).toContain('正在打开浏览器');
     expect(buf).not.toContain('启用 career-bridge');
     expect(borrowed).not.toHaveBeenCalled();
     open = true;

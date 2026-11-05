@@ -39,14 +39,13 @@ export default function CareerTakeover({ embedded = false, onOpenChat }: CareerP
   }, [b]);
 
   return (
-    <CareerPage embedded={embedded} title="接管简报" subtitle={b ? `${b.report.address} · ${day(b.report.updated_at)}` : undefined}
-      actions={<Button variant="ghost" size="sm" onClick={() => requestNavigation({ kind: 'career-today' })}>去招聘概览</Button>}>
+    <CareerPage embedded={embedded} title="接管简报">
       <div className="mx-auto grid max-w-[880px] gap-8 px-6 py-6">
         {q.loading && !q.data && <LoadingRow />}
         {q.error && <ErrorRow message={q.error} onRetry={q.reload} />}
         {!q.loading && !b && !q.error && (
           <section className="grid gap-3">
-            <p className="text-sm text-[var(--muted)]">还没有接管简报，连上邮箱后生成。</p>
+            <p className="text-sm text-[var(--ink)]">连上邮箱，替你整理近半年的求职邮件</p>
             <MailConnectCenter />
           </section>
         )}
@@ -64,7 +63,7 @@ function Briefing({ b }: { b: TakeoverBriefing }) {
       <header className="grid gap-1">
         <h2 className="font-human text-2xl font-semibold text-[var(--ink)]">替你接管了 {b.applications} 家公司的申请</h2>
         <p className="text-sm text-[var(--muted)]">
-          来自 {report.address}{report.span.from ? ` ${day(report.span.from)}～${day(report.span.to)}` : ''} 的 {report.mails} 封求职邮件。
+          来自 {report.address}{report.span.from ? ` ${day(report.span.from)}～${day(report.span.to)}` : ''} 的 {report.mails} 封求职邮件
         </p>
       </header>
       <NeedsYou b={b} />
@@ -90,7 +89,7 @@ function NeedsYou({ b }: { b: TakeoverBriefing }) {
         {rest.map(n => (
           <li key={n.deadline_id}>
             <button type="button" onClick={() => openApplication(n.application_id)}
-              className="flex w-full items-center gap-3 rounded-[10px] border border-[var(--line)] px-3 py-2 text-left hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]">
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]">
               <CompanyTag name={companyOf(b, n.application_id) ?? '—'} />
               <span className="min-w-0 flex-1 text-sm text-[var(--ink)]">{n.title}</span>
               {n.due_at ? <DueLabel at={n.due_at} suffix="" /> : <span className="text-xs text-[var(--muted)]">时间待确认</span>}

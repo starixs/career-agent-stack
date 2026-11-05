@@ -28,7 +28,7 @@ describe('CareerResume', () => {
     const offChat = onEvent('career:chat-suggest', p => chat.push(p));
     const offPick = onEvent(PICK_RESUME_EVENT, p => picks.push(p));
     render(<CareerResume embedded />);
-    expect(await screen.findByText('还没有简历。')).toBeInTheDocument();
+    expect(await screen.findByText('还没有简历')).toBeInTheDocument();
     expect(screen.queryByText(/「经历」/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '跟小芽聊聊做过的事' }));
     fireEvent.click(screen.getByRole('button', { name: '上传一份' }));

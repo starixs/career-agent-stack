@@ -11,12 +11,6 @@ import { CareerChatCards, reviewDecisionMessage } from './CareerChatCards';
 import { ReviewCard, upsertReviewCard } from './CareerReviewCard';
 import type { CareerCard } from './types';
 
-const setupStatus = vi.hoisted(() => ({ current: null as null | { llm: { configured: boolean }; search: { configured: boolean } } }));
-vi.mock('./CareerKeysPanel', () => ({
-  useCareerSetupStatus: () => ({ status: setupStatus.current, reload: () => {} }),
-  CareerKeysPanel: () => null,
-}));
-
 function renderWithTab(partial: Partial<TabContextValue>) {
   const value = { tabId: 'tab1', agentDir: '/tmp', careerTakeover: null, careerProgress: null, careerCards: [], messages: [], ...partial } as TabContextValue;
   return render(
@@ -136,15 +130,13 @@ describe('CareerChatCards', () => {
     expect(screen.queryByText('正在填写第 2 页')).not.toBeInTheDocument();
   });
 
-  it('开场两扇门排在配 Key 卡之前：小芽先开口', async () => {
-    setupStatus.current = { llm: { configured: false }, search: { configured: false } };
+  it('对话开始后（有用户消息）开场两扇门不再留在对话底部', async () => {
     const onboarding = vi.spyOn(careerApi, 'onboarding').mockResolvedValue({ has_master_resume: false, has_experience: false } as Awaited<ReturnType<typeof careerApi.onboarding>>);
     try {
-      renderWithTab({});
-      const starter = await screen.findByTestId('career-starter-card');
-      const setupCards = screen.getByTestId('career-setup-cards');
-      expect(starter.compareDocumentPosition(setupCards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    } finally { onboarding.mockRestore(); setupStatus.current = null; }
+      renderWithTab({ messages: [{ id: 'u1', role: 'user', content: '我是 27 届', timestamp: new Date() }] });
+      await waitFor(() => expect(onboarding).toHaveBeenCalled());
+      expect(screen.queryByTestId('career-starter-card')).toBeNull();
+    } finally { onboarding.mockRestore(); }
   });
 
   it('upsertReviewCard：后台事件按动作合并成卡片，保留锚点与审阅清单，不覆盖别的动作', () => {

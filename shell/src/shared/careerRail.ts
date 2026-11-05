@@ -12,7 +12,7 @@ export const MAINLINE_STAGE_ORDER: readonly MainlineStage[] = ['profile', 'direc
 
 export type BlockId = 'resume' | 'tailor' | 'apply' | 'mail';
 export type BlockStatus = 'working' | 'waiting' | 'done' | 'idle';
-export interface RailBlock { id: BlockId; label: string; status: BlockStatus; line: string; done?: number; total?: number }
+export interface RailBlock { id: BlockId; label: string; status: BlockStatus; line: string }
 /**
  * 回执里这份交出去用的简历：resume 是主简历名（定制版也记它出自哪份主简历），resume_kind 说是不是按岗位改过的，
  * changes 是定制版相对主简历改了几处（主简历为 null）。

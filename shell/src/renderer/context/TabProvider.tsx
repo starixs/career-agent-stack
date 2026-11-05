@@ -42,6 +42,7 @@ import type { PermissionRequest } from '@/components/PermissionPrompt';
 import type { AskUserQuestionRequest, AskUserQuestion } from '../../shared/types/askUserQuestion';
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
+import { CAREER_SUGGEST_EVENT, parseSuggestPush } from '../../shared/careerSuggest';
 import { CareerCardsContext } from '@/context/CareerCardsContext';
 import { useSupersededInfoCardsOf } from '@/features/career-shell/supersede';
 import { upsertReviewCard } from '@/components/career/CareerReviewCard';
@@ -3666,6 +3667,13 @@ export default function TabProvider({
                 if (!isActiveRef.current || shouldNotifyUser()) {
                     onUnreadChangeRef.current?.(true);
                 }
+                break;
+            }
+            case CAREER_SUGGEST_EVENT: {
+                // 轮末钩子算好的下一步四格：只认本会话；状态归建议条自己（suggestStore），不进 TabContext
+                const push = parseSuggestPush(data);
+                if (!push || !shouldAcceptInteractiveEvent(push.sessionId)) break;
+                emitEvent(CAREER_SUGGEST_EVENT, push);
                 break;
             }
             case 'career:focus': {

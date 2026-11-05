@@ -251,7 +251,10 @@ export type EventName =
   | 'ai_turn_complete'
   // 求职：建议条（输入框上方四个小框）出现 / 被用（点发出或 Tab 填入），按槽位看哪类引导有人用
   | 'career_suggest_shown'
-  | 'career_suggest_used';
+  | 'career_suggest_used'
+  // 求职 · 面试复盘：用户拿什么来复盘、看完会不会按提问逻辑去练（以后个性化推题 / 面经的依据）
+  | 'career_retro_submit'
+  | 'career_retro_practice';
 
 /**
  * session_new 事件参数

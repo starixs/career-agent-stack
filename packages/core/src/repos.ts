@@ -10,6 +10,7 @@ import { canReachStage, canTransition, CLOSED_STAGES, STAGE_TRANSITIONS, ACTIONS
 import type { Experience, Claim, Evidence, Job, Application, ActionQueueItem, ApplicationPacket, Handoff, Task, Session, Message, InboxItem, Deadline, DossierNote, Material, MaterialUse, MailAccount, MailAudit, MailMessage, Interview, Offer } from './types.js'
 import { classifyJobTitle, collectedToToday, COLLECTABLE_STAGES, deadlineToToday, funnelBy, latestIso, OVERDUE_PRIORITY, silenceOf, SILENT_COLLECT_NOTE, sortToday, stageLabel, staleToToday, weekStartOf, type TodayItem, type FunnelRow } from './surfaces.js'
 import { buildMonthBoard, REOPEN_NOTE_PREFIX, type MonthBoard, type StageHistoryRow } from './review-board.js'
+import { ACTION_DONE_EVENTS, recordBusinessEvent } from './billing/events.js'
 
 /** 领域仓储：薄封装，保证状态流转规则只在一处实现。 */
 export interface AnswerRow { id: string; question_key: string; question_text: string; answer: string; high_impact: number; confirmed: number; status: AnswerStatus; sensitivity: AnswerSensitivity; source: string; use_count: number; last_used_at: string | null; updated_at: string }
@@ -275,6 +276,14 @@ export class Repos {
   listPackets(applicationId: string): ApplicationPacket[] { return this.db.all<ApplicationPacket>('SELECT * FROM application_packet WHERE application_id=? ORDER BY created_at DESC', [applicationId]) }
   setActionStatus(id: string, status: ActionQueueItem['status'], result?: unknown): void {
     this.db.update('action_queue', id, { status, result_json: result === undefined ? undefined : JSON.stringify(result), updated_at: now() })
+    if (status === 'done') this.recordActionDone(id)
+  }
+  /** 卖点埋点：投出 / 填好表 / 发出招呼，按动作 id 幂等（重新执行同一个动作不重复记）。 */
+  private recordActionDone(id: string): void {
+    const action = this.db.get<{ kind: string; application_id: string | null }>('SELECT kind, application_id FROM action_queue WHERE id=?', [id])
+    const event = action ? ACTION_DONE_EVENTS[action.kind] : undefined
+    if (!action || !event) return
+    recordBusinessEvent(this.db, { event, key: `action:${id}`, refType: 'application', refId: action.application_id, meta: { action_kind: action.kind } })
   }
 
   // ---------- 接管 ----------
@@ -684,7 +693,14 @@ export class Repos {
       if (a.kind === 'fill_form') items.push({ kind: 'review', priority: 2, title: `还没开始填${where}`, detail: '开始后会填到提交前停下，等你确认再提交', ref: { type: 'action', id: a.id } })
       else items.push({ kind: 'review', priority: 2, title: `待你批准：${actionLabel(a.kind)}${where}`, detail: '助理已准备好，批准后才会执行', ref: { type: 'action', id: a.id } })
     }
-    for (const h of this.openHandoffs()) items.push({ kind: 'handoff', priority: 3, title: `需要你本人处理：${handoffReasonLabel(h.reason)}`, detail: h.message ?? undefined, ref: { type: 'handoff', id: h.id } })
+    for (const h of this.openHandoffs()) {
+      // 带上是哪一家：同时有两家要登录时，光写原因分不清
+      const act = h.action_id ? this.getAction(h.action_id) : undefined
+      const app = act?.application_id ? this.getApplication(act.application_id) : undefined
+      const job = app ? this.getJob(app.job_id) : undefined
+      const where = job ? ` · ${[job.company_name, job.title].filter(Boolean).join(' ')}` : ''
+      items.push({ kind: 'handoff', priority: 3, title: `需要你本人处理：${handoffReasonLabel(h.reason)}${where}`, detail: h.message ?? undefined, ref: { type: 'handoff', id: h.id } })
+    }
     const apps = this.applicationsWithJob()
     const activity = this.lastActivityByApp()
     for (const a of apps) { const it = staleToToday({ ...a, updated_at: latestIso(a.updated_at, activity.get(a.id)), title: a.job.title, company_name: a.job.company_name }, nowIso); if (it) items.push(it) }

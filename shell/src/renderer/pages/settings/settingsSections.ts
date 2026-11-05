@@ -1,4 +1,5 @@
 export type SettingsSection =
+  | 'account'
   | 'general'
   | 'proxy'
   | 'external-cli'
@@ -15,6 +16,7 @@ export type SettingsSection =
   | 'about';
 
 export const VALID_SECTIONS: SettingsSection[] = [
+  'account',
   'general',
   'proxy',
   'external-cli',

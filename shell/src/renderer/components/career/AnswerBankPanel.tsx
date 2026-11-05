@@ -22,16 +22,12 @@ export function AnswerBankPanel() {
   const data = query.data ? { ...query.data, answers: query.data.answers.filter(a => showArchived || a.status !== 'archived') } : undefined;
   return (
     <section>
-      <SectionTitle extra={<Button variant="ghost" onClick={() => setShowArchived(v => !v)}>{showArchived ? '只看在用的' : '含已停用'}</Button>}>
-        网申答案库（{data?.answers.length ?? 0}）
+      <SectionTitle count={data?.answers.length} extra={<Button variant="ghost" onClick={() => setShowArchived(v => !v)}>{showArchived ? '只看在用的' : '含已停用'}</Button>}>
+        网申答案库
       </SectionTitle>
-      <div className="mb-2 text-xs text-[var(--muted)]">
-        填网申时按问题自动命中；你在页面上改过的答案会以你为准更新这里。证件号、密码、「是否使用 AI 作答」这类问题不会存，每次请本人如实填写。
-        {data && data.pendingUpload > 0 && <span className="ml-1 text-[var(--subtle)]">（{data.pendingUpload} 条改动待同步到服务端，用于改进答案质量；个人信息只同步「有改动」，不带内容）</span>}
-      </div>
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       {query.loading && !data && <LoadingRow />}
-      {data && data.answers.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有答案。填网申时需要你回答的问题，答过一次就会记在这里。</div>}
+      {data && data.answers.length === 0 && <div className="text-xs text-[var(--subtle)]">还没有答案</div>}
       <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
         {data?.answers.map(a => <AnswerRow key={a.id} answer={a} onChanged={query.reload} />)}
       </ul>
@@ -47,7 +43,7 @@ function AnswerRow({ answer, onChanged }: { answer: AnswerBankEntry; onChanged: 
   const remove = () => act.run(async () => { await careerApi.deleteAnswer(answer.id); onChanged(); });
   const archived = answer.status === 'archived';
   return (
-    <li className={`py-3 ${archived ? 'text-[var(--subtle)]' : ''}`}>
+    <li className={`group py-3 ${archived ? 'text-[var(--subtle)]' : ''}`}>
       <div className="flex flex-wrap items-center gap-1.5 text-xs">
         <span className="font-medium text-[var(--ink)]">{answer.question_text}</span>
         {answer.status === 'pinned' && <Badge tone="accent">总是用这条</Badge>}
@@ -60,12 +56,12 @@ function AnswerRow({ answer, onChanged }: { answer: AnswerBankEntry; onChanged: 
           <Button size="sm" variant="ghost" aria-label={reveal ? '隐藏' : '显示'} onClick={() => setReveal(v => !v)}>{reveal ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}{reveal ? '隐藏' : '显示'}</Button>
         )}
         {!archived && (answer.status === 'pinned'
-          ? <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void setStatus('active')}><PinOff className="h-3.5 w-3.5" />取消固定</Button>
-          : <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void setStatus('pinned')}><Pin className="h-3.5 w-3.5" />总是用这条</Button>)}
+          ? <Button size="sm" variant="ghost" reveal busy={act.busy} onClick={() => void setStatus('active')}><PinOff className="h-3.5 w-3.5" />取消固定</Button>
+          : <Button size="sm" variant="ghost" reveal busy={act.busy} onClick={() => void setStatus('pinned')}><Pin className="h-3.5 w-3.5" />总是用这条</Button>)}
         {archived
-          ? <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void setStatus('active')}><ArchiveRestore className="h-3.5 w-3.5" />恢复</Button>
-          : <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void setStatus('archived')}><Archive className="h-3.5 w-3.5" />停用</Button>}
-        <Button size="sm" variant="ghost" busy={act.busy} aria-label="删除" onClick={() => void remove()}><Trash2 className="h-3.5 w-3.5" /></Button>
+          ? <Button size="sm" variant="ghost" reveal busy={act.busy} onClick={() => void setStatus('active')}><ArchiveRestore className="h-3.5 w-3.5" />恢复</Button>
+          : <Button size="sm" variant="ghost" reveal busy={act.busy} onClick={() => void setStatus('archived')}><Archive className="h-3.5 w-3.5" />停用</Button>}
+        <Button size="sm" variant="ghost" reveal busy={act.busy} aria-label="删除" onClick={() => void remove()}><Trash2 className="h-3.5 w-3.5" /></Button>
       </div>
       <div className="mt-0.5 whitespace-pre-wrap break-words text-sm text-[var(--ink)]">{masked ? '••••••' : answer.answer}</div>
       {act.error && <ErrorRow message={act.error} />}

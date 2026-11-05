@@ -30,6 +30,9 @@ function jsonOrEmpty(v: unknown, fallback = '{}'): string {
   return typeof v === 'string' ? v : JSON.stringify(v);
 }
 
+/** 面试页一次列多少条深挖点预测：几份定制简历的量，够看，不拖慢页面。 */
+export const PROBE_PREDICTION_LIST_LIMIT = 100;
+
 export class CareerStore {
   private readonly newId: CoreIds['newId'];
   private readonly now: CoreIds['now'];
@@ -127,6 +130,8 @@ export class CareerStore {
 
   // ---------- 面试 ----------
   listInterviews(): Interview[] { return this.db.all<Interview>('SELECT * FROM interview ORDER BY COALESCE(date, created_at) DESC'); }
+  /** 面试页「深挖点预测」：最近的预测（按定制简历产出），新的在前。 */
+  listProbePredictions(limit = PROBE_PREDICTION_LIST_LIMIT): ProbePrediction[] { return this.db.all<ProbePrediction>('SELECT * FROM probe_prediction ORDER BY created_at DESC LIMIT ?', [limit]); }
   getInterview(id: string): Interview | undefined { return this.db.get<Interview>('SELECT * FROM interview WHERE id=?', [id]); }
   createInterview(input: Partial<Interview> & { round?: string }): Interview {
     const t = this.now(); const id = this.newId('itv');

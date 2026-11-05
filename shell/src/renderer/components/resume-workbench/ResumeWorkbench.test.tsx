@@ -105,9 +105,9 @@ describe('简历工作台', () => {
       return { ok: true };
     });
     render(<CareerResume />);
-    expect(await screen.findByText(/2 份简历/)).toBeInTheDocument();
+    expect(await screen.findByText('主简历 1 份 · 岗位版 1 份')).toBeInTheDocument();
     expect(screen.getByText('字节跳动 · 后端开发工程师')).toBeInTheDocument();
-    expect(screen.getByText('待确认改动')).toBeInTheDocument();
+    expect(screen.getByText(/待确认改动/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '打开简历：后端方向' }));
     expect(await screen.findByTestId('resume-workbench')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '全部简历' }));

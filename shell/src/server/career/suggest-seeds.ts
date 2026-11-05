@@ -6,7 +6,7 @@
  *  - cardActs：底下有卡在等他时，接话那一格给卡的次动作（不叫模型）。
  * 已经有的数据不再收（连了邮箱就不出"手投过"，说过城市就不问城市）。
  */
-import type { SuggestAction, SuggestChip, SuggestSlot } from '../../shared/careerSuggest';
+import { modeOfSlot, type SuggestAction, type SuggestChip, type SuggestSlot } from '../../shared/careerSuggest';
 import { BATCH_PICK_CARD_KIND } from './batch-propose';
 import { fitText, namesPhrase, shortCompany } from './suggest-text';
 import type { SuggestAsk, SuggestState } from './suggest-types';
@@ -23,10 +23,12 @@ export const AWAY_HOURS = 12;
 /** 三句退出口轮换（同一句不连着出）。 */
 export const EXIT_LINES: readonly string[] = ['我先去忙', '今天先到这，明天接着', '有事再叫我'];
 export const EXIT_WHILE_RUNNING = '我先去忙，你接着投';
-export const EXIT_CARD = '先不投，我去忙';
+/** 勾选表在等时的退出口：不能和卡上「先不投」撞（plan-r3 L5）。 */
+export const EXIT_CARD = '这批先放着，我去忙';
 
-const say = (text: string, slot: SuggestSlot, seed: string | null = null): SuggestChip => ({ text, slot, kind: 'say', seed_id: seed });
-const act = (text: string, slot: SuggestSlot, action: SuggestAction, seed: string | null = null): SuggestChip => ({ text, slot, kind: 'do', action, seed_id: seed });
+// 积木格都是规则写的模板：seed_id 用 `rule_<slot>`，过 L4 时算白名单。
+const say = (text: string, slot: SuggestSlot, seed: string | null = null): SuggestChip => ({ text, slot, kind: 'say', mode: modeOfSlot(slot), seed_id: seed ?? `rule_${slot}` });
+const act = (text: string, slot: SuggestSlot, action: SuggestAction, seed: string | null = null): SuggestChip => ({ text, slot, kind: 'do', mode: modeOfSlot(slot), action, seed_id: seed ?? `rule_${slot}` });
 
 // ---------- ② 下一步 ----------
 
@@ -34,6 +36,9 @@ const act = (text: string, slot: SuggestSlot, action: SuggestAction, seed: strin
  * 邮件那几件：发前一定要看过预览（用户明确要求），建议条只打开卡组定位到这件，不从这里直接发（不用 ask_primary）。
  * 没发出去的也一样打开卡组（授权失效要重新连邮箱，其余放回待发后还要他再点发出）；没写成的「再写一次」不发信，可以直接做。
  */
+/** 这件是要发邮件的（写好的 / 回信 / 跟进 / 退信改收件人 / 没发出去）：任何建议格都只能开卡组，不能直接办。 */
+export const mailNeedsPreview = (a: SuggestAsk): boolean => !!a.mail || a.mail_failed?.stage === 'send';
+
 function mailNext(a: SuggestAsk): SuggestChip | null {
   const open = (text: string) => act(text, 'next', { type: 'open_deck', ask_id: a.id });
   if (a.mail_failed) return a.mail_failed.stage === 'draft' ? act(`再写一次这 ${a.count} 封`, 'next', { type: 'ask_primary', ask_id: a.id }) : open(`看没发出去的 ${a.count} 封`);
@@ -45,7 +50,7 @@ function mailNext(a: SuggestAsk): SuggestChip | null {
   return open(a.mail.count > 1 ? `看写好的 ${a.mail.count} 封邮件` : fitText(`看写好的${who}那封邮件`, '看写好的那封邮件') ?? '看写好的那封邮件');
 }
 
-function askNext(a: SuggestAsk): SuggestChip | null {
+export function askNext(a: SuggestAsk): SuggestChip | null {
   const mail = mailNext(a);
   if (mail) return mail;
   const who = namesPhrase(a.companies, a.count);
@@ -78,7 +83,7 @@ function cardNext(s: SuggestState): SuggestChip | null {
   return null;
 }
 
-function jobsNext(s: SuggestState): SuggestChip {
+export function jobsNext(s: SuggestState): SuggestChip {
   const jobs = s.nextJobs;
   if (!jobs.length) return say('我自己贴几个岗位链接', 'next');
   if (s.stage === 'first') {
@@ -153,5 +158,3 @@ export function exitChip(s: SuggestState): SuggestChip | null {
 export function resetExitRotation(): void {
   exitTurn = 0;
 }
-
-export { shapeCandidates } from './suggest-shapes';

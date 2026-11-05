@@ -70,7 +70,7 @@ describe('情景 B · 关键期的周二：等你条与卡组', () => {
     serve([ASK_JFY, ASK_INFO, ASK_LOGIN], run(3));
     render(<WaitingDock />);
     const open = await screen.findByRole('button', { name: /等你\s*3/ });
-    expect(open).toHaveTextContent(dueText(ASK_JFY)!);
+    expect(open).toHaveTextContent(`九方云 ${dueText(ASK_JFY)!}`);
     fireEvent.click(open);
     const deck = screen.getByTestId('waiting-deck');
     expect(within(deck).getByText('九方云 · 在线测评')).toBeInTheDocument();

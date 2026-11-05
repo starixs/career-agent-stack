@@ -7,8 +7,10 @@
  * `json: true` 时在 system 末尾追加"只输出 JSON"的指令（不依赖 response_format），
  * 调用方仍应用 `extractJson` 容错解析。
  */
-import type { LLM, LlmRequest, LlmResponse } from '@career/core';
+import { randomUUID } from 'crypto';
+import type { LLM, LlmRequest, LlmResponse, LlmUsage } from '@career/core';
 import { CAREER_LLM_PROVIDER_ID } from '../../shared/career-build-constants';
+import { fireUsageMeterHook } from '../turn-hooks';
 import { resolveProviderEnv, loadConfig, type ResolvedProviderEnv } from '../utils/admin-config';
 
 export const ANTHROPIC_VERSION = '2023-06-01';
@@ -32,7 +34,8 @@ export interface ShellLlmOptions {
 /** Anthropic Messages API 响应中本实现用到的字段。 */
 interface MessagesResponse {
   content?: Array<{ type?: string; text?: string }>;
-  usage?: { input_tokens?: number; output_tokens?: number };
+  model?: string;
+  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
   stop_reason?: string;
   error?: { type?: string; message?: string } | string;
 }
@@ -64,7 +67,7 @@ export class ShellLLM implements LLM {
     let env = this.resolveEnv(providerId);
     if (!env && providerId !== CAREER_LLM_PROVIDER_ID) env = this.resolveEnv(CAREER_LLM_PROVIDER_ID);
     if (!env) {
-      throw new LlmUnavailableError('内置模型还没有 API Key：请在「设置 → 通用 → 求职助理：模型与搜索」或对话里的「配置模型 Key」卡片填写');
+      throw new LlmUnavailableError('内置模型暂时不可用（安装包里没有模型凭证），请联系我们');
     }
     if (env.apiProtocol && env.apiProtocol !== 'anthropic') {
       throw new LlmUnavailableError(`求职助理只支持 Anthropic Messages 协议，当前 provider（${env.providerId ?? providerId}）协议为 ${env.apiProtocol}`);
@@ -74,7 +77,7 @@ export class ShellLLM implements LLM {
     }
     const baseUrl = (env.baseUrl ?? '').replace(/\/+$/, '');
     if (!baseUrl) throw new LlmUnavailableError('模型 baseUrl 为空');
-    if (!env.apiKey?.trim()) throw new LlmUnavailableError('模型 API Key 为空：请在「设置 → 通用 → 求职助理：模型与搜索」填写');
+    if (!env.apiKey?.trim()) throw new LlmUnavailableError('内置模型暂时不可用（模型凭证为空），请联系我们');
     const model = this.options.model ?? env.modelAliases?.sonnet ?? env.modelAliases?.opus ?? env.modelAliases?.haiku;
     if (!model) throw new LlmUnavailableError('无法确定模型名');
     return { env, model, baseUrl };
@@ -150,13 +153,29 @@ export class ShellLLM implements LLM {
         ? `模型输出被截断（只返回了 ${kinds}，没有正文）：请重试或换用更大输出上限的模型`
         : `模型没有返回正文（stop_reason=${parsed.stop_reason ?? '未知'}，内容块：${kinds}）`);
     }
-    return {
-      text: outText,
-      usage: {
-        input_tokens: parsed.usage?.input_tokens ?? 0,
-        output_tokens: parsed.usage?.output_tokens ?? 0,
-      },
+    const usage = {
+      input_tokens: parsed.usage?.input_tokens ?? 0,
+      output_tokens: parsed.usage?.output_tokens ?? 0,
+      cache_read_input_tokens: parsed.usage?.cache_read_input_tokens ?? 0,
+      cache_creation_input_tokens: parsed.usage?.cache_creation_input_tokens ?? 0,
+      model: parsed.model ?? model,
     };
+    this.meter(usage, env.providerId);
+    return { text: outText, usage };
+  }
+
+  /** 后台模型调用（定制简历、填表、搜题、邮件归档……）不进主对话的轮次用量，在这里单独记账。 */
+  private meter(usage: Required<LlmUsage>, providerId: string | undefined): void {
+    fireUsageMeterHook({
+      key: `llm:${randomUUID()}`,
+      origin: 'background',
+      model: usage.model,
+      providerId,
+      inputTokens: usage.input_tokens,
+      outputTokens: usage.output_tokens,
+      cacheReadTokens: usage.cache_read_input_tokens,
+      cacheCreationTokens: usage.cache_creation_input_tokens,
+    });
   }
 }
 

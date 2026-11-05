@@ -6,6 +6,7 @@
  * 开始后不用再去通知中心或对话里点「开始」：后台批量运行器接着填，要你的事出现在下面的等你条里。
  */
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { careerApi } from './careerApi';
 import { requestNavigation } from '@/features/career-shell/navModel';
@@ -37,7 +38,8 @@ function planLine(plan: JobPlan): string | null {
   return plan.ready.length ? null : '这一批都不能投';
 }
 
-export function ApplyConfirm({ jobIds, onStarted, onCancel }: { jobIds: string[]; onStarted: (msg: string) => void; onCancel: () => void }) {
+/** `extra`：提交前才需要决定的开关（如「检查都过了就直接交」），只在这里出现。 */
+export function ApplyConfirm({ jobIds, extra, onStarted, onCancel }: { jobIds: string[]; extra?: ReactNode; onStarted: (msg: string) => void; onCancel: () => void }) {
   const [plan, setPlan] = useState<JobPlan | null>(null);
   const [resumeId, setResumeId] = useState('');
   const load = useCareerAction();
@@ -77,6 +79,7 @@ export function ApplyConfirm({ jobIds, onStarted, onCancel }: { jobIds: string[]
           <span className="w-44"><Select ariaLabel="这批用哪份简历" value={resumeId} onChange={setResumeId} options={plan.resumes.map(r => ({ value: r.id, label: r.name }))} /></span>
         </span>
       )}
+      {extra}
       <span className="flex items-center gap-1">
         <Button size="sm" variant="primary" busy={start.busy} disabled={!plan?.ready.length} onClick={() => void go()}>开始投 {plan?.ready.length ?? ''} 家</Button>
         <Button size="sm" variant="ghost" onClick={onCancel}>取消</Button>

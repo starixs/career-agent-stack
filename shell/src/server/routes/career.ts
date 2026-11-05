@@ -43,7 +43,8 @@ import { clearAccountFetch, isAccountField, listAccountFetch, requestAccountFetc
 import { applyJobs, planJobs, prepareAhead, startApprovedDrafts, startApprovedFills } from '../career/batch-apply';
 import type { PacketDeps } from '../career/packets';
 import { postProposal, proposeAfterSubmit, startFromCard } from '../career/batch-propose';
-import { buildSuggestions } from '../career/suggest';
+import { suggestFor } from '../career/suggest';
+import { parseSuggestRequest } from '../career/suggest-request';
 import { suggestContextOf } from '../career/suggest-context';
 import { CAMPUS_SEEDED_KEY, campusLibraryFilter, computeMatches, getJobPrefs, jobBoard, seedCampusJobsIfEmpty, setJobPrefs } from '../career/job-board';
 import { RemoteJobSource, SERVER_CONFIG_KEY, serverConfig, syncJobSource, type FetchLike } from '../career/server-api';
@@ -55,6 +56,7 @@ import { careerJson, fail, ok, str, strOrNull, type Json } from './career-http';
 import { deliveryRoutes } from './career-delivery';
 import { mailApplyRoutes } from './career-mail-apply';
 import { interviewRoutes } from './career-interview';
+import { skillRoutes } from './career-skills';
 import { phoneRoutes } from './career-phone';
 import { phoneLink } from '../career/phone';
 import type { AskSkill, PostCard } from '../career/interview-retro-run';
@@ -203,6 +205,7 @@ const ROUTES: Route[] = [
     ask: skillAsker(ctx), postCard: cardPoster(ctx),
   }))),
 
+  ...skillRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos }))),
   ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url, params: ctx.params, body: ctx.body, vault: ctx.vault, dataChanged: tables => dataChanged(ctx, tables) }))),
   ...mailApplyRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, store: ctx.store, vault: ctx.vault, url: ctx.url, params: ctx.params, body: ctx.body, packetDeps: () => packetDepsOf(ctx), dataChanged: tables => dataChanged(ctx, tables) }))),
   // ---------- 手机连接（蓝牙读短信收验证码，见 career/phone） ----------
@@ -503,9 +506,8 @@ const ROUTES: Route[] = [
   }),
   // 建议条：一轮说完后输入框上方的几个小框（规则 + 一次小模型调用，超时只出规则那两格）
   route('POST', '/api/career/suggest', async (ctx) => {
-    const pending = Array.isArray(ctx.body.pending_cards) ? ctx.body.pending_cards.filter((x): x is string => typeof x === 'string') : [];
-    const req = { last_user: str(ctx.body.last_user) ?? null, last_assistant: str(ctx.body.last_assistant) ?? null, pending_cards: pending };
-    return ok({ chips: await buildSuggestions(suggestContextOf(ctx.repos, ctx.store), req, getShellLLM()) });
+    const res = await suggestFor(suggestContextOf(ctx.repos, ctx.store), { ...parseSuggestRequest(ctx.body), source: 'poll' }, getShellLLM());
+    return ok({ chips: res.chips, scene: res.scene });
   }),
   route('POST', '/api/career/export/workbook', async (ctx) => {
     const res = await exportCareerWorkbook(ctx.repos, ctx.deps.exportsDir);
@@ -657,6 +659,7 @@ const ROUTES: Route[] = [
 
   // ---------- 面试 ----------
   route('GET', '/api/career/interviews', ({ store }) => ok({ interviews: store.listInterviews() })),
+  route('GET', '/api/career/probe-predictions', ({ store }) => ok({ predictions: store.listProbePredictions() })),
   route('POST', '/api/career/interviews', (ctx) => {
     const interview = ctx.store.createInterview(ctx.body as never);
     dataChanged(ctx, ['interview']);
@@ -706,7 +709,7 @@ const ROUTES: Route[] = [
   }),
 
   // ---------- 外部依赖配置状态（模型 Key 必需 / 搜索 Key 建议）：只回状态，不回 Key ----------
-  route('GET', '/api/career/setup', () => ok({ setup: careerSetupStatus() })),
+  route('GET', '/api/career/setup', () => ok({ setup: careerSetupStatus(process.env) })),
 
   // ---------- 对话内流程卡片（持久化；锚定在产生它的工具调用下面） ----------
   route('GET', '/api/career/cards', ({ repos, url }) => {
@@ -1119,6 +1122,10 @@ export async function handleCareerRoute(pathname: string, request: Request, deps
   if (pathname.startsWith('/api/career/exam-search/')) {
     const { handleExamSearchRoute } = await import('./career-exam-search');
     return handleExamSearchRoute(pathname, request, { repos: deps.repos, llm: deps.llm ?? undefined, broadcast: deps.broadcast });
+  }
+  if (pathname.startsWith('/api/career/billing/')) {
+    const { handleBillingRoute } = await import('./career-billing');
+    return handleBillingRoute(pathname, request, { repos: deps.repos });
   }
   const method = request.method.toUpperCase();
   for (const r of ROUTES) {

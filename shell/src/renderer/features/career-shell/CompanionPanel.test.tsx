@@ -24,9 +24,9 @@ vi.mock('@/components/career/careerApi', () => ({
 
 const blocks = [
   { id: 'resume', label: '写简历', status: 'working', line: '边聊边写，已经有 1 段经历' },
-  { id: 'tailor', label: '定制', status: 'idle', line: '定好方向后，按每个岗位改一版' },
-  { id: 'apply', label: '网申', status: 'idle', line: '简历和方向好了就开始' },
-  { id: 'mail', label: '盯邮箱', status: 'idle', line: '投出去之后，连上邮箱我替你盯回音' },
+  { id: 'tailor', label: '定制', status: 'idle', line: '还没改过' },
+  { id: 'apply', label: '网申', status: 'idle', line: '还没开始' },
+  { id: 'mail', label: '盯邮箱', status: 'idle', line: '还没连邮箱' },
 ];
 let railSnapshot: Record<string, unknown> = {
   stage: 'profile', blocks, waiting: { count: 0, first: null }, receipts: [], learned: [], today: { prepared: 0, sent: 0, waiting: 0 }, pool: { total: 6, fits: 3, conditions: ['运营'] },
@@ -40,7 +40,7 @@ vi.mock('@/components/career/delivery/useWaitingAsks', () => ({ useWaitingAsks: 
 vi.mock('@/config/useConfigData', () => ({ useConfigData: () => ({ config: { floatingBallPetId: null } }) }));
 vi.mock('@/floating-ball/petPackLibrary', () => ({ resolveSelectedPetPack: async () => (await import('@/floating-ball/defaultPetPack')).MINO_DEFAULT_PET_PACK }));
 
-import { CompanionPanel, companionDay, deadlineLabel, openTodoItem } from './CompanionPanel';
+import { CompanionPanel, deadlineLabel, openTodoItem } from './CompanionPanel';
 import { OPEN_DECK_EVENT } from '@/components/career/delivery/ReturnCard';
 import { CAREER_NAVIGATE_EVENT } from './navModel';
 import { stashCareerFocus, takeCareerFocus } from './pendingFocus';
@@ -120,28 +120,33 @@ describe('CompanionPanel', () => {
     // 名字固定「小芽」，不跟形象包（Mino）走
     expect(screen.getByTestId('companion-name')).toHaveTextContent('小芽');
     expect(screen.queryByText('Mino')).not.toBeInTheDocument();
-    expect(screen.getByText(/陪你第 1 天/)).toBeInTheDocument();
+    expect(screen.queryByText(/陪你第/)).not.toBeInTheDocument();
     expect(screen.getAllByText('在填教育经历').length).toBeGreaterThan(0);
     const mainline = await screen.findByTestId('rail-mainline');
     expect(within(mainline).getAllByRole('listitem').map(li => li.textContent)).toEqual(['说说你', '定方向', '先投一家', '再投一批']);
     expect(mainline).toHaveTextContent('还剩 3 步');
     expect(screen.getByTestId('rail-block-resume')).toHaveTextContent('边聊边写，已经有 1 段经历');
     expect(await screen.findByTestId('rail-resume-draft')).toHaveTextContent('问卷回收 200 多份来自你说的');
-    expect(screen.getByTestId('rail-today')).toHaveTextContent('备好');
+    expect(screen.getByTestId('rail-today')).toHaveTextContent('备好 0 · 今天投出 0');
+    expect(screen.getByTestId('rail-today')).not.toHaveTextContent('等你');
+    // 邮箱没连：一句事实 + 行尾「连上」，去通知中心的连接中心
+    const focus: unknown[] = [];
+    const off = onEvent('career:focus', p => focus.push(p));
+    fireEvent.click(within(screen.getByTestId('rail-block-mail')).getByRole('button', { name: '连上' }));
+    off();
+    expect(focus).toEqual([{ surface: 'inbox' }]);
     fireEvent.click(screen.getByRole('tab', { name: /待办/ }));
     expect(await screen.findByText('确认两道开放题')).toBeInTheDocument();
     expect(screen.getByText(/剩 \d+ 小时/)).toBeInTheDocument();
   });
 
-  it('头部只数要你的事，和等你条同一个数；没有就说没有', async () => {
+  it('头部只有头像、名字、状态一行：「等你」只在等你条上说，右栏不再数', async () => {
     waitingAsks = [{ id: 'a1', title: '东北证券 · 要登录' }, { id: 'a2', title: '杭州城投 · 开放题' }];
-    const { unmount } = render(<CompanionPanel />);
-    expect(screen.getByTestId('companion-summary')).toHaveTextContent('有 2 件等你');
-    expect(screen.queryByText(/今天 \d+ 件事/)).not.toBeInTheDocument();
-    unmount();
-    waitingAsks = [];
     render(<CompanionPanel />);
-    expect(screen.getByTestId('companion-summary')).toHaveTextContent('没有要你的事');
+    await screen.findByTestId('rail-mainline');
+    expect(screen.queryByTestId('companion-summary')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('伙伴面板')).not.toHaveTextContent('等你');
+    waitingAsks = [];
   });
 
   it('右栏此刻不再列「等你」那一块（唯一落点是等你条）；待办里也不列交接和待审', async () => {
@@ -172,7 +177,7 @@ describe('CompanionPanel', () => {
   });
 
   it('网申那一行在等你时给「去处理」：要你本人来 → 浏览器现场；其余 → 等你卡组；从不跳岗位库', async () => {
-    railSnapshot = { ...railSnapshot, blocks: blocks.map(b => (b.id === 'apply' ? { ...b, status: 'waiting', line: '2 份等你一下' } : b)) };
+    railSnapshot = { ...railSnapshot, blocks: blocks.map(b => (b.id === 'apply' ? { ...b, status: 'waiting', line: '2 份要你补一下' } : b)) };
     const focus: unknown[] = [];
     const decks: unknown[] = [];
     const nav: unknown[] = [];
@@ -191,13 +196,6 @@ describe('CompanionPanel', () => {
     railSnapshot = { ...railSnapshot, blocks };
   });
 
-  it('陪你第几天按本地日历日算，同一天是第 1 天', () => {
-    const first = new Date(2026, 10, 3, 23, 50).getTime();
-    expect(companionDay(first, new Date(2026, 10, 3, 23, 59).getTime())).toBe(1);
-    expect(companionDay(first, new Date(2026, 10, 5, 0, 10).getTime())).toBe(3);
-    expect(companionDay(null)).toBeNull();
-  });
-
   it('定方向时岗位池是主角：符合的数和条件小签', async () => {
     railSnapshot = { ...railSnapshot, stage: 'direction' };
     render(<CompanionPanel />);
@@ -211,7 +209,8 @@ describe('CompanionPanel', () => {
       receipts: [{ application_id: 'a1', company: '招商银行', title: '财务管培', at: '2026-11-02T03:00:00.000Z', resume: '小林的简历', filled: 43 }],
       learned: [{ key: 'system:beisen', kind: 'system', label: '北森', state: 'shown', successes: 2, updated_at: '', propose: true }] };
     render(<CompanionPanel />);
-    expect(await screen.findByTestId('rail-resume-chip')).toHaveTextContent('简历 · 1 段 ✓');
+    expect(await screen.findByTestId('rail-resume-chip')).toHaveTextContent('简历好了');
+    expect(screen.getByTestId('rail-mainline')).not.toHaveTextContent(/最后一步|交给我/);
     expect(screen.queryByTestId('rail-pool')).not.toBeInTheDocument();
     expect(screen.queryByTestId('rail-resume-draft')).not.toBeInTheDocument();
     // 最近的回执提到此刻「刚投出」，完整的在足迹
@@ -253,7 +252,7 @@ describe('CompanionPanel', () => {
   it('switches to the waiting state on a browser handoff and filters tabs', async () => {
     act(() => recordTakeover({ runId: 'r1', state: 'paused', reason: 'captcha' }));
     render(<CompanionPanel />);
-    expect(screen.getByText('等你处理一下')).toBeInTheDocument();
+    expect(screen.getByText('浏览器停在要你本人来的一步')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: /足迹/ }));
     await waitFor(() => expect(screen.getByText('填写星河科技网申')).toBeInTheDocument());
     expect(screen.queryByText('确认两道开放题')).not.toBeInTheDocument();

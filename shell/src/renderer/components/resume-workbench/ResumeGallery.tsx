@@ -3,13 +3,13 @@
  * 点开一份再进入编辑页（内容 / 版式）。
  */
 import { MessageSquareText, Plus, Upload } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { ResumeData } from '@career/resume-studio/schema';
 
 import { emitEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
-import { Badge, Button, ErrorRow, LoadingRow, formatDate, suggestToChat } from '@/components/career/CareerPrimitives';
+import { Button, ErrorRow, LoadingRow, formatDate, suggestToChat } from '@/components/career/CareerPrimitives';
 import { NO_RESUME_OPENER } from '@/components/career/ColdStartCards';
 import type { Job, ResumeMaster, ResumeTailored } from '@/components/career/types';
 import { PICK_RESUME_EVENT } from '@/components/chat-input/hooks/useResumePickSend';
@@ -77,10 +77,10 @@ export function ResumeGallery({ onOpen }: { onOpen: (id: string) => void }) {
   return (
     <div data-testid="resume-gallery" className="h-full overflow-auto px-6 py-6">
       <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <p className="font-human text-2xl font-semibold text-[var(--ink)]">
-          {entries.length > 0 ? `${entries.length} 份简历` : '还没有简历。'}
-          {entries.length > 0 && <span className="text-[var(--muted)]">{`，主简历 ${masters} 份 · 岗位版 ${tailored} 份`}</span>}
-        </p>
+        <h1 className="font-human text-lg font-semibold text-[var(--ink)]">简历</h1>
+        <span className="text-xs tabular-nums text-[var(--muted)]">
+          {entries.length > 0 ? `主简历 ${masters} 份 · 岗位版 ${tailored} 份` : '还没有简历'}
+        </span>
         <div className="ml-auto flex items-center gap-2">
           {masters > 0 && (
             <Button variant="ghost" onClick={() => suggestToChat('帮我对着一个岗位改一版简历', { surface: 'material' }, 'prefill')}>
@@ -108,9 +108,9 @@ export function ResumeGallery({ onOpen }: { onOpen: (id: string) => void }) {
               className="group block w-full text-left focus-visible:outline-none"
             >
               <ResumeThumb id={entry.id} load={loadStudio} />
-              <div className="mt-3 flex items-center gap-2">
-                <Badge tone={entry.kind === 'master' ? 'accent' : 'neutral'}>{entry.kind === 'master' ? '主简历' : '岗位版'}</Badge>
-                {entry.kind === 'tailored' && !entry.confirmed && <Badge>待确认改动</Badge>}
+              <div className="mt-3 text-xs text-[var(--muted)]">
+                {entry.kind === 'master' ? '主简历' : '岗位版'}
+                {entry.kind === 'tailored' && !entry.confirmed && <span className="text-[var(--warning)]"> · 待确认改动</span>}
               </div>
               <div className="mt-1 truncate text-sm font-semibold text-[var(--ink)] group-hover:text-[var(--primary)]" title={entry.title}>{entry.title}</div>
               <div className="mt-0.5 truncate text-xs text-[var(--muted)]">
@@ -153,11 +153,31 @@ function useStudioSnapshot(id: string, load: StudioLoader) {
 
 function ResumeThumb({ id, load }: { id: string; load: StudioLoader }) {
   const snap = useStudioSnapshot(id, load);
+  const preview = useMemo(() => (snap ? withPlaceholderFallback(snap.data, snap.preview) : {}), [snap]);
   return (
     <div className="aspect-[1/1.414] w-full overflow-hidden rounded-lg border-[1.5px] border-[var(--line-2)] bg-white transition-shadow group-hover:border-[var(--hard)] group-hover:shadow-hard-lg group-focus-visible:ring-2 group-focus-visible:ring-[var(--primary)]">
-      {snap ? <StudioPreview data={snap.data} preview={snap.preview} zoom={1} thumbnail /> : <div className="h-full w-full animate-pulse bg-[var(--inset)]" />}
+      {snap ? <StudioPreview data={snap.data} preview={preview} zoom={1} thumbnail /> : <div className="h-full w-full animate-pulse bg-[var(--inset)]" />}
     </div>
   );
+}
+
+const VAULT_PLACEHOLDER_RX = /\{\{vault:[^}]+\}\}/g;
+const FIELD_FALLBACK: Record<string, string> = { name: '姓名', phone: '手机', email: '邮箱', wechat: '微信', idNumber: '证件号', address: '地址' };
+
+/**
+ * 缩略图里不露占位符：私密库里还没填（或写法不对、解不出来）的 {{vault:…}}，用字段的中文名顶上，
+ * 解出来的明文仍以服务端给的 preview 为准。
+ */
+export function withPlaceholderFallback(data: unknown, preview: Record<string, string>): Record<string, string> {
+  const found = JSON.stringify(data).match(VAULT_PLACEHOLDER_RX) ?? [];
+  const missing = found.filter(k => !(k in preview));
+  if (!missing.length) return preview;
+  const out = { ...preview };
+  for (const k of missing) {
+    const field = /^\{\{vault:profile[.:]([A-Za-z]+)\}\}$/.exec(k)?.[1];
+    out[k] = field ? (FIELD_FALLBACK[field] ?? '') : '';
+  }
+  return out;
 }
 
 function TemplateName({ id, load }: { id: string; load: StudioLoader }) {

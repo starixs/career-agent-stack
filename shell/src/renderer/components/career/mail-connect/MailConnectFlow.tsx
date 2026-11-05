@@ -3,7 +3,7 @@
  * 引导、字段、官方页面都来自服务端的连接器目录（mail/connectors.ts），这里只负责按数据渲染和在页之间走。
  * 授权码只在内存里，关窗即丢，不进任何本地存储。
  */
-import { ArrowLeft, ExternalLink, ShieldCheck, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 
 import OverlayBackdrop from '@/components/OverlayBackdrop';
@@ -13,7 +13,7 @@ import { openExternal } from '@/utils/openExternal';
 import { Button } from '../CareerPrimitives';
 import type { MailAccount, MailConnector } from '../types';
 import { ConnectionManage } from './ConnectionManage';
-import { CAPABILITY_LABEL, ConnectorIcon } from './connectorUi';
+import { ConnectorIcon } from './connectorUi';
 import { CredentialStep } from './CredentialStep';
 import { OauthConnect } from './OauthConnect';
 
@@ -80,26 +80,14 @@ export function MailConnectFlow({ start, from, onClose, onConnected }: {
   );
 }
 
-/** P1：这家邮箱能做什么、授权码怎么保存、接下来三步。 */
+/** P1：授权码怎么保存、接下来三步。 */
 function ProviderIntro({ connector, onStart, onOauthConnected }: { connector: MailConnector; onStart: () => void; onOauthConnected: (account: MailAccount) => void }) {
   const oauthOn = !!connector.oauth?.enabled;
   return (
     <div className="grid gap-5">
+      <p className="text-sm text-[var(--ink-2)]">授权码只存在这台电脑上，随时可以解绑。</p>
       <section>
-        <h3 className="text-xs font-medium text-[var(--muted)]">连上后能做什么</h3>
-        <ul className="mt-2 grid gap-1 text-sm text-[var(--ink)]">
-          {connector.capabilities.map(c => <li key={c}>{CAPABILITY_LABEL[c]}</li>)}
-        </ul>
-      </section>
-      <section className="flex gap-3 rounded-[10px] bg-[var(--inset)] px-4 py-3">
-        <ShieldCheck aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-[var(--success)]" />
-        <div className="text-sm text-[var(--ink-2)]">
-          <div className="font-medium text-[var(--ink)]">授权码怎么保存</div>
-          <p className="mt-1">只存在这台电脑上，不上传、不发给对话。只用来读求职相关的邮件，和在你批准后代发投递邮件。随时可以解绑，解绑后立刻删除。</p>
-        </div>
-      </section>
-      <section>
-        <h3 className="text-xs font-medium text-[var(--muted)]">接下来</h3>
+        <h3 className="text-xs font-medium text-[var(--muted)]">接下来，大约 1 分钟</h3>
         <ol className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[var(--ink)]">
           {['去邮箱设置拿授权码', '填回来', '完成'].map((s, i) => (
             <li key={s} className="flex items-center gap-2">

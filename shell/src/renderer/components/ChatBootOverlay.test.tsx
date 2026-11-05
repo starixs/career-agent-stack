@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import ChatBootOverlay from './ChatBootOverlay';
+import ChatBootOverlay, { BOOT_OVERLAY_FADE_MS } from './ChatBootOverlay';
 
 describe('ChatBootOverlay', () => {
   it('uses the same elevated paper background as the loaded chat page', () => {
@@ -28,6 +28,22 @@ describe('ChatBootOverlay', () => {
     expect(overlay).not.toHaveClass('transition-opacity');
     expect(overlay).toHaveAttribute('aria-hidden', 'false');
     expect(overlay?.querySelector('svg')).toHaveClass('animate-spin');
+  });
+
+  it('hides for good after the fade time even when the fade never runs (background window)', () => {
+    vi.useFakeTimers();
+    try {
+      const { rerender } = render(<ChatBootOverlay show />);
+      const overlay = screen.getByText('小芽在准备，第一次大约要半分钟').closest('div')?.parentElement;
+      rerender(<ChatBootOverlay show={false} />);
+      expect(overlay).not.toHaveClass('invisible');
+      act(() => { vi.advanceTimersByTime(BOOT_OVERLAY_FADE_MS); });
+      expect(overlay).toHaveClass('invisible');
+      rerender(<ChatBootOverlay show />);
+      expect(overlay).not.toHaveClass('invisible');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps restore failures inside the same shell without a hidden spinner', () => {

@@ -8,7 +8,7 @@ describe('MarkdownReadingSizeControl', () => {
     const onChange = vi.fn();
     render(<MarkdownReadingSizeControl value="large" onChange={onChange} />);
 
-    expect(screen.getByText('Markdown 阅读字号')).toBeInTheDocument();
+    expect(screen.getByText('回复字号')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '大字号' })).toHaveAttribute('aria-pressed', 'true');
     const standard = screen.getByRole('button', { name: '标准字号' });
     expect(standard).toHaveAttribute('aria-pressed', 'false');

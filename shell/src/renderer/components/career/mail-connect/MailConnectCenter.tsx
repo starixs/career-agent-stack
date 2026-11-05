@@ -1,5 +1,5 @@
 /**
- * 邮箱连接中心（P0）：每家邮箱一张卡，带连接状态。点卡片按状态进不同的页：
+ * 邮箱连接中心（P0）：每家邮箱一行（图标 + 名字 + 状态），不画卡片。点一行按状态进不同的页：
  * 没连 → 说明页；失效 → 直接进拿授权码的引导（跳过说明）；已连接 → 连接管理。
  * 通知中心、助力记录、基本资料、对话里的绑定卡片共用这一个入口。
  */
@@ -43,10 +43,7 @@ export function MailConnectCenter({ from, onConnected }: MailConnectCenterProps)
     <div>
       {q.loading && !q.data && <LoadingRow />}
       {q.error && <ErrorRow message={q.error} onRetry={q.reload} />}
-      {q.data && !accounts.length && (
-        <p className="mb-3 text-sm text-[var(--muted)]">还没有连接邮箱。连上后，近半年的网申、笔试、面试邮件会自动收进来，以后的新邮件也会自动识别。</p>
-      )}
-      <ul aria-label="邮箱连接" className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <ul aria-label="邮箱连接" className="divide-y divide-[var(--line)]">
         {connectors.map(c => {
           const mine = accountsOf(c);
           const status = connectorStatus(mine);
@@ -55,17 +52,13 @@ export function MailConnectCenter({ from, onConnected }: MailConnectCenterProps)
               <button
                 type="button"
                 onClick={() => openCard(c)}
-                className="group flex w-full items-center gap-3 rounded-[10px] border border-[var(--line)] bg-[var(--paper)] px-3 py-3 text-left transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+                className="group flex min-h-11 w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
               >
-                <ConnectorIcon id={c.id} />
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-[var(--ink)]">{c.name}</span>
-                    <StatusBadge status={status} />
-                  </span>
-                  <span className="block truncate text-xs text-[var(--muted)]">
-                    {mine.length ? mine.map(a => a.address).join('、') : apply?.connector_id === c.id ? `网申填的是 ${apply.address}` : '用授权码连接，大约 1 分钟'}
-                  </span>
+                <ConnectorIcon id={c.id} size={24} framed={false} />
+                <span className="shrink-0 text-sm text-[var(--ink)]">{c.name}</span>
+                <StatusBadge status={status} />
+                <span className="min-w-0 flex-1 truncate text-xs text-[var(--muted)]">
+                  {mine.length ? mine.map(a => a.address).join('、') : apply?.connector_id === c.id ? `网申填的是 ${apply.address}` : ''}
                 </span>
                 <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-[var(--subtle)] group-hover:text-[var(--ink)]" />
               </button>

@@ -32,7 +32,6 @@ export function VaultExperienceFields({ experienceId, items, onChanged }: { expe
         <div key={i.id} className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-[var(--ink)]">{i.label || i.field}</span>
           <span className="text-[var(--muted)]">{i.preview || '已设置'}</span>
-          <code className="rounded bg-[var(--inset)] px-1 text-[var(--muted)]">{experiencePlaceholder(experienceId, i.field)}</code>
           <Button variant="ghost" busy={action.busy} onClick={() => void remove(i.id)} aria-label={`删除 ${i.label || i.field}`}><Trash2 className="h-3.5 w-3.5" /></Button>
         </div>
       ))}

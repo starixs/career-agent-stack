@@ -14,7 +14,7 @@ import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { onEvent } from '@/api/eventBus';
 import { CAREER_NAVIGATE_EVENT } from '@/features/career-shell/navModel';
 import CareerLive from './CareerLive';
-import { applicationStats, hasBatchWork } from './CareerLiveModel';
+import { applicationStats, hasBatchWork, statsMeta } from './CareerLiveModel';
 
 const push = (ev: unknown) => { live.handler?.(ev); };
 const snapshot = { type: 'snapshot', ts: 1, productSessionId: 's', browser: { hasBrowser: true, control: 'agent', reason: null, url: 'https://x.com/apply', title: '网申', channel: 'chrome' }, batch: { status: 'running', updatedAt: '', done: 2, failed: 0, handoffs: 1, queued: 3, todayCount: 2, phase: 'driving', message: '正在填写：B 公司 算法实习生', currentTitle: 'B 公司 算法实习生' }, openHandoffs: 1 };
@@ -84,7 +84,7 @@ describe('CareerLive', () => {
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());
     push({ ...snapshot, batch: { ...snapshot.batch, status: 'idle', queued: 0, lastError: 'Error: driver timeout' } });
-    expect(await screen.findByText('现在没有在投的。')).toBeInTheDocument();
+    expect(await screen.findByText('现在没有在投的')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '开始 / 继续' })).toBeNull();
     expect(screen.queryByText(/driver timeout/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '去挑一批' }));
@@ -139,11 +139,42 @@ describe('CareerLive', () => {
     expect(screen.queryByTestId('mail-live-pane')).toBeNull();
   });
 
-  it('没有浏览器时给出引导文案，不显示批量噪声', async () => {
+  it('批量空着、没有浏览器、只有邮件在办：不说「现在没有在投的」，画面位置直接是那封邮件，不出「回到画面」', async () => {
+    const mailApp = { id: 'app_jd', job_id: 'j1', resume_tailored_id: 'r1', stage: 'responded', next_action: null, next_action_due: null, blocker_reason: null,
+      retry_strategy: null, submission_evidence: 'mail:mm_out', answers_used_json: '[]', page_url: null, created_at: '', updated_at: '2026-11-05T00:00:00.000Z',
+      title: '用户运营实习生', company_name: '京东', apply_email: 'jdcampus@jd.example' };
+    vi.mocked(apiGetJson).mockImplementation(async (url: string) => {
+      if (url === '/api/career/applications') return { ok: true, applications: [mailApp] };
+      if (url.startsWith('/api/career/asks')) return { ok: true, asks: [], run: null };
+      if (url.startsWith('/api/career/mail-apply/thread')) return { ok: true, thread: { application_id: 'app_jd', company: '京东', role: '用户运营实习生', items: [] } };
+      return { ok: true, openHandoffs: 0 };
+    });
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());
     push({ ...snapshot, browser: { ...snapshot.browser, hasBrowser: false, control: 'none' }, batch: null });
-    expect(await screen.findByText(/浏览器还没有打开/)).toBeInTheDocument();
+    expect(await screen.findByRole('list', { name: '邮件投递' })).toBeInTheDocument();
+    expect(await screen.findByTestId('mail-live-pane')).toBeInTheDocument();
+    expect(screen.queryByText('现在没有在投的')).toBeNull();
+    expect(screen.queryByTestId('career-live-empty')).toBeNull();
+    expect(screen.queryByRole('button', { name: '回到画面' })).toBeNull();
+    expect(screen.queryByAltText('浏览器实时画面')).toBeNull();
+  });
+
+  it('没有在投、也没有浏览器：整页一句话 + 去挑一批，不摆画面框、没有接管和导航按钮', async () => {
+    render(<CareerLive />);
+    await waitFor(() => expect(live.handler).not.toBeNull());
+    push({ ...snapshot, browser: { ...snapshot.browser, hasBrowser: false, control: 'none' }, batch: null });
+    expect(await screen.findByText('现在没有在投的')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '去挑一批' })).toBeInTheDocument();
+    expect(screen.queryByAltText('浏览器实时画面')).toBeNull();
+    expect(screen.queryByText('浏览器未打开')).toBeNull();
+    expect(screen.queryByRole('button', { name: '接管' })).toBeNull();
+    expect(screen.queryByRole('button', { name: '招聘概览' })).toBeNull();
     expect(screen.queryByText(/批量：/)).not.toBeInTheDocument();
+  });
+
+  it('页头数字：0 的项不写', () => {
+    expect(statsMeta({ total: 28, active: 3, waiting: 5, submitted: 20, closed: 0 })).toBe('28 条 · 进行中 3 · 等你 5 · 已投出 20');
+    expect(statsMeta({ total: 0, active: 0, waiting: 0, submitted: 0, closed: 0 })).toBe('');
   });
 });

@@ -2,17 +2,17 @@
  * 右栏的几块（主线体验 §6.1a / §6.5，11-02 定）：后台在做什么全在右栏，不进对话。
  *  - 主线进度：说说你 → 定方向 → 先投一家 → 再投一批，告诉他走到哪、还剩几步；先投一家之后下面常驻「再投一批」按钮。
  *    服务端还有第五个阶段 released（放手），界面上算「再投一批」也做完了。
- *  - 要他的事不在右栏：唯一落点是输入框上沿的等你条（规范 §5.2），右栏只在头部写一句「有 N 件等你」。
+ *  - 要他的事不在右栏：唯一落点是输入框上沿的等你条（规范 §5.2），右栏不数「等你」。
  *  - 刚投出：最近三张回执提到此刻；全部回执在足迹。
- *  - 正在做：几个预设岗位（写简历、定制、网申、盯邮箱），每个一行人话。
- *  - 今天：备好 · 投出 · 等你 三个真数。
+ *  - 正在做：几个预设岗位（写简历、定制、网申、盯邮箱），每个一行人话；邮箱没连时行尾「连上」。
+ *  - 今天：一行「备好 N · 今天投出 N」。
  *  - 简历草稿：建档时边聊边长，每行标来源（来自你说的）。
  *  - 回执、学会了：一份份攒下来；学会了的那一类，做通够数时他可以盖章「以后同类直接投」。
  */
 import { emitEvent } from '@/api/eventBus';
 import { openBatchPick } from '@/components/career/BatchPickCard';
 import { careerApi } from '@/components/career/careerApi';
-import type { ExperienceNode } from '@/components/career/types';
+import type { CareerFocusEvent, ExperienceNode } from '@/components/career/types';
 import { requestOpenDeck } from '@/components/career/delivery/WaitingDock';
 import { delegateButton } from '@/components/career/trustText';
 import type { MainlineStage, RailBlock, RailPool, RailReceipt, RailSnapshot, TrustEntry } from '../../../shared/careerRail';
@@ -44,14 +44,15 @@ export function mainlineStepIndex(stage: MainlineStage): number {
   return at >= 0 ? at : MAINLINE_STEPS.length;
 }
 
-function stepsLeftText(at: number): string {
+/** 还剩几步；到了最后一步或已走完不再说（「最后一步」「交给我」是装饰句，r3 C2）。 */
+function stepsLeftText(at: number): string | null {
   const left = MAINLINE_STEPS.length - 1 - at;
-  if (left > 0) return `还剩 ${left} 步`;
-  return left === 0 ? '最后一步' : '后面的交给我，有动静叫你';
+  return left > 0 ? `还剩 ${left} 步` : null;
 }
 
 export function MainlineProgress({ stage }: { stage: MainlineStage }) {
   const at = mainlineStepIndex(stage);
+  const left = stepsLeftText(at);
   return (
     <section aria-label="主线进度" data-testid="rail-mainline" className="mx-1 mt-3">
       <ol className="flex items-center gap-1">
@@ -62,7 +63,7 @@ export function MainlineProgress({ stage }: { stage: MainlineStage }) {
           </li>
         ))}
       </ol>
-      <p className="mt-1 text-center text-xs text-[var(--subtle)]">{stepsLeftText(at)}</p>
+      {left && <p className="mt-1 text-center text-xs text-[var(--subtle)]">{left}</p>}
       {at >= BATCH_STEP && (
         <button
           type="button" data-testid="rail-batch-pick" onClick={() => void openBatchPick()}
@@ -75,6 +76,16 @@ export function MainlineProgress({ stage }: { stage: MainlineStage }) {
 
 /** 打开浏览器现场（看一眼在填的那家，或者那一步要他本人来）。 */
 const openLive = () => emitEvent('career:focus', { surface: 'live_drawer' });
+/** 连邮箱：去通知中心的连接中心（和工作台「连上邮箱」同一个入口）。 */
+const openMailConnect = () => emitEvent('career:focus', { surface: 'inbox' } satisfies CareerFocusEvent);
+
+/** 行尾那个字链：网申在做/在等时看一眼或去处理；邮箱没连时连上；其余不出。 */
+function blockAction(block: RailBlock, handoff: boolean): { label: string; run: () => void } | null {
+  if (block.id === 'mail' && block.status === 'idle') return { label: '连上', run: openMailConnect };
+  if (block.id !== 'apply') return null;
+  if (block.status === 'waiting') return { label: '去处理', run: () => handleWaiting(handoff) };
+  return block.status === 'working' ? { label: '看一眼', run: openLive } : null;
+}
 
 /**
  * 网申那一行在等你时的「去处理」：浏览器停在要他本人来的一步 → 打开浏览器现场；
@@ -86,20 +97,17 @@ export function handleWaiting(handoff: boolean): void {
 }
 
 function BlockRow({ block, handoff }: { block: RailBlock; handoff: boolean }) {
-  const look = () => (block.status === 'waiting' ? handleWaiting(handoff) : openLive());
+  const action = blockAction(block, handoff);
   return (
     <li className="flex items-start gap-2.5 px-1 py-1.5" data-testid={`rail-block-${block.id}`}>
       <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${DOT[block.status]}`} aria-hidden="true" />
       <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-1.5">
-          <span className="font-human text-sm font-semibold text-[var(--ink)]">{block.label}</span>
-          {typeof block.total === 'number' && block.total > 0 && <span className="text-xs tabular-nums text-[var(--muted)]">{block.done ?? 0}/{block.total}</span>}
-        </span>
+        <span className="block font-human text-sm font-semibold text-[var(--ink)]">{block.label}</span>
         <span className="block text-xs text-[var(--muted)]">{block.line}</span>
       </span>
-      {block.id === 'apply' && (block.status === 'working' || block.status === 'waiting') && (
-        <button type="button" onClick={look} className="shrink-0 text-xs text-[var(--primary)] underline-offset-2 hover:underline">
-          {block.status === 'waiting' ? '去处理' : '看一眼'}
+      {action && (
+        <button type="button" onClick={action.run} className="shrink-0 text-xs text-[var(--primary)] underline-offset-2 hover:underline">
+          {action.label}
         </button>
       )}
     </li>
@@ -111,13 +119,11 @@ export function BlockRows({ blocks, handoff = false }: { blocks: readonly RailBl
 }
 
 export function TodayStrip({ today }: { today: RailSnapshot['today'] }) {
-  const cell = (n: number, label: string) => (
-    <span className="flex flex-col items-center"><b className="text-lg tabular-nums text-[var(--ink)]">{n}</b><span className="text-xs text-[var(--muted)]">{label}</span></span>
-  );
+  // 「等你」只在等你条上说（r3 C1）：这里一行两个数，不画格
   return (
-    <div className="mx-1 mt-3 grid grid-cols-3 rounded-lg bg-[var(--paper)] py-2" data-testid="rail-today">
-      {cell(today.prepared, '备好')}{cell(today.sent, '今天投出')}{cell(today.waiting, '等你')}
-    </div>
+    <p className="mx-1 mt-3 text-xs text-[var(--muted)]" data-testid="rail-today">
+      备好 <b className="font-semibold tabular-nums text-[var(--ink)]">{today.prepared}</b> · 今天投出 <b className="font-semibold tabular-nums text-[var(--ink)]">{today.sent}</b>
+    </p>
   );
 }
 
@@ -141,7 +147,7 @@ export function PoolPanel({ pool }: { pool: RailPool }) {
 /** 建档时的主角：简历一行行长出来，每行标来源；被追问出数字的那行当场变具体（数据是同一条主张）。 */
 export function ResumeDraft({ experiences }: { experiences: readonly ExperienceNode[] }) {
   if (!experiences.length) {
-    return <p className="mx-1 text-xs text-[var(--subtle)]">你说一句，这里就长一行。</p>;
+    return <p className="mx-1 text-xs text-[var(--subtle)]">还没有经历。</p>;
   }
   return (
     <ol className="flex flex-col gap-2" data-testid="rail-resume-draft">
@@ -163,12 +169,12 @@ export function ResumeDraft({ experiences }: { experiences: readonly ExperienceN
   );
 }
 
-/** 建档完成后简历草稿收成顶上一枚小块，点一下临时展开看一眼。 */
-export function ResumeChip({ count, open, onToggle }: { count: number; open: boolean; onToggle: () => void }) {
+/** 建档完成后简历草稿收成一行字，点一下临时展开看一眼（不说「段」，r3 C2）。 */
+export function ResumeChip({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
     <button type="button" onClick={onToggle} aria-expanded={open} data-testid="rail-resume-chip"
-      className="mx-1 mt-3 inline-flex items-center gap-1.5 rounded-full border border-[var(--line-2)] bg-[var(--paper)] px-3 py-1 text-xs text-[var(--ink-2)]">
-      简历 · {count} 段 ✓
+      className="mx-1 mt-3 text-xs text-[var(--muted)] underline-offset-2 hover:text-[var(--ink)] hover:underline">
+      简历好了
     </button>
   );
 }
@@ -209,7 +215,7 @@ export function RecentReceipts({ receipts }: { receipts: readonly RailReceipt[] 
 }
 
 export function Receipts({ receipts }: { receipts: readonly RailReceipt[] }) {
-  if (!receipts.length) return <p className="mx-1 text-xs text-[var(--subtle)]">投出去的每一份都会在这里留一张回执。</p>;
+  if (!receipts.length) return <p className="mx-1 text-xs text-[var(--subtle)]">还没投出过。</p>;
   return (
     <ul className="flex flex-col" data-testid="rail-receipts">
       {receipts.map(r => (
@@ -233,7 +239,7 @@ export function Receipts({ receipts }: { receipts: readonly RailReceipt[] }) {
 const TRUST_TEXT: Record<TrustEntry['state'], string> = { new: '还没投过', shown: '当面做过', delegated: '已交给我' };
 
 export function Learned({ learned, onChanged }: { learned: ReadonlyArray<TrustEntry & { propose: boolean }>; onChanged: () => void }) {
-  if (!learned.length) return <p className="mx-1 text-xs text-[var(--subtle)]">每学会一种网申系统，这里多一枚。</p>;
+  if (!learned.length) return <p className="mx-1 text-xs text-[var(--subtle)]">还没有。</p>;
   const stamp = async (key: string) => { await careerApi.trust(key, 'delegate'); onChanged(); };
   return (
     <ul className="flex flex-col gap-1" data-testid="rail-learned">

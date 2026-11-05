@@ -37,6 +37,8 @@ export const STRUCTURED_KEY_LABELS: Record<string, string> = {
   typical_titles: '典型岗位', fit_reasons: '适合的理由', how_to_validate: '怎么验证', capabilities: '能力', hard: '硬技能', soft: '软技能',
   directions: '方向', questions_for_user: '想问你的', excluded: '排除的', requirement: '要求', what_to_collect: '要补的材料',
   text: '内容', deliverable: '产出', acceptance: '验收标准', est_hours: '预计小时', priority: '优先级', steps: '步骤',
+  // Offer 薪酬拆解（offer.comp_json）
+  base_monthly: '月薪', months: '月数', bonus: '奖金', stock: '股票 / 期权', signing: '签字费', sign_on: '签字费', notes: '备注',
   budget: '时间预算', weekly_hours: '每周小时', total_hours: '总小时', deadline: '截止', fits: '来得及',
 };
 

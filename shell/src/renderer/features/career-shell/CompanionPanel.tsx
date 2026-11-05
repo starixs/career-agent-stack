@@ -1,16 +1,15 @@
 /**
- * 对话页右侧的伙伴面板（specs/CAREER_DESIGN.md §5.4）：上半是陪伴宠物（形象可换，名字固定「小芽」、状态、陪你第几天），
+ * 对话页右侧的伙伴面板（specs/CAREER_DESIGN.md §5.4）：上半是陪伴宠物（形象可换，名字固定「小芽」）和一行状态，
  * 下半披露它在做什么（主线体验 §6.1a，11-02）：后台在做什么全在这里，不进对话——此刻 = 主线进度、
  * 简历草稿（建档时是主角）、几个后台岗位、今天三个数、刚投出；足迹 = 回执、学会了、今天做过。
- * 要他的事只在输入框上沿的等你条（规范 §5.2）：这里头部只写一句「有 N 件等你」，和等你条读同一份数据。
- * 全部来自真实数据：/api/career/rail、/api/career/experiences、/api/career/today、/api/career/activity、/api/career/asks。
+ * 要他的事只在输入框上沿的等你条（规范 §5.2）：右栏不再数「等你」，同一个数不在一屏里说三遍（r3 C1）。
+ * 全部来自真实数据：/api/career/rail、/api/career/experiences、/api/career/today、/api/career/activity。
  */
 import { CheckCircle2, Clock, Globe, ListTodo, Loader2, Sparkles } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { emitEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
-import { useWaitingAsks } from '@/components/career/delivery/useWaitingAsks';
 import { requestOpenDeck } from '@/components/career/delivery/WaitingDock';
 import type { ActivityEntry, CareerFocusEvent, TodayItem } from '@/components/career/types';
 import { useCareerQuery } from '@/components/career/useCareerData';
@@ -35,36 +34,8 @@ type CompanionTab = 'now' | 'todo' | 'trail';
 
 /** 伙伴的名字：形象包可以换，名字不跟形象包走。 */
 export const COMPANION_NAME = '小芽';
-/** 这台电脑第一次打开伙伴面板的时间，用来算「陪你第 N 天」；只存本机。 */
-const FIRST_SEEN_KEY = 'career.companionFirstSeenAt';
-const DAY_MS = 86_400_000;
 /** 待办里不再列的：要他处理的事只在等你条（规范 §5.2）。 */
 const ASK_KINDS: ReadonlySet<TodayItem['kind']> = new Set(['handoff', 'review']);
-
-/** 第一次见面的时间：读不到就记下现在；本机存储不可用时返回 null（不显示天数）。 */
-function firstSeenAt(now: number): number | null {
-  try {
-    const stored = Number(window.localStorage.getItem(FIRST_SEEN_KEY));
-    if (Number.isFinite(stored) && stored > 0) return stored;
-    window.localStorage.setItem(FIRST_SEEN_KEY, String(now));
-    return now;
-  } catch (error) {
-    console.warn('[career] companion: 本机存储不可用，不显示陪伴天数', error);
-    return null;
-  }
-}
-
-/** 按本地日历日算第几天（同一天是第 1 天）。 */
-export function companionDay(firstAt: number | null, now = Date.now()): number | null {
-  if (firstAt === null) return null;
-  const day = (t: number) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
-  return Math.max(1, Math.round((day(now) - day(firstAt)) / DAY_MS) + 1);
-}
-
-/** 头部那一句：只数要他的事，和等你条同一个数。 */
-export function waitingSummary(count: number): string {
-  return count > 0 ? `有 ${count} 件等你` : '没有要你的事';
-}
 
 function localMidnightIso(now = new Date()): string {
   const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -120,20 +91,17 @@ export function CompanionPanel() {
   const rail = useCareerQuery(careerApi.rail, RAIL_TABLES);
   const experiences = useCareerQuery(careerApi.experiences, EXPERIENCE_TABLES);
   const [draftOpen, setDraftOpen] = useState(false);
-  const waiting = useWaitingAsks();
-  const [day] = useState(() => companionDay(firstSeenAt(Date.now())));
 
   const [tab, setTab] = useState<CompanionTab>('now');
 
   const status = handoff
-    ? { dot: 'bg-[var(--warning)]', text: '等你处理一下' }
+    ? { dot: 'bg-[var(--warning)]', text: '浏览器停在要你本人来的一步' }
     : activeRun
       ? { dot: 'bg-[var(--success)]', text: activeRun.steps[activeRun.steps.length - 1]?.message ?? '正在工作' }
       : { dot: 'bg-[var(--success)]', text: '在你身边' };
   const animation = handoff ? 'waiting' : activeRun ? 'running' : 'idle';
 
   const todos = items.filter(item => !ASK_KINDS.has(item.kind));
-  const summary = waitingSummary(waiting.asks.length);
 
   return (
     <aside
@@ -150,9 +118,7 @@ export function CompanionPanel() {
         <div className="flex max-w-full items-center gap-1.5 text-sm text-[var(--muted)]">
           <span className={`h-2 w-2 shrink-0 rounded-full ${status.dot}`} aria-hidden="true" />
           <span className="truncate">{status.text}</span>
-          {day !== null && <span className="shrink-0">· 陪你第 {day} 天</span>}
         </div>
-        <div className="mt-1.5 rounded-sm bg-[var(--mint)] px-3 py-1.5 font-human text-sm text-[var(--ink-2)]" data-testid="companion-summary">{summary}</div>
       </div>
 
       <div role="tablist" aria-label="伙伴面板视图" className="mx-4 grid shrink-0 grid-cols-3 rounded-[10px] bg-[var(--inset)] p-[3px]">
@@ -186,7 +152,7 @@ export function CompanionPanel() {
             {/* 右栏随阶段换主角（§6.7）：建档时简历草稿是主角；建档完收成一枚小块，点一下临时展开 */}
             {rail.data.stage === 'profile'
               ? (<><RailHeading>你的简历，正在长</RailHeading><ResumeDraft experiences={experiences.data ?? []} /></>)
-              : (<><ResumeChip count={(experiences.data ?? []).length} open={draftOpen} onToggle={() => setDraftOpen(v => !v)} />{draftOpen && <div className="mt-2"><ResumeDraft experiences={experiences.data ?? []} /></div>}</>)}
+              : (<><ResumeChip open={draftOpen} onToggle={() => setDraftOpen(v => !v)} />{draftOpen && <div className="mt-2"><ResumeDraft experiences={experiences.data ?? []} /></div>}</>)}
             {rail.data.stage === 'direction' && (<><RailHeading>按你的方向，岗位库里</RailHeading><PoolPanel pool={rail.data.pool} /></>)}
             <RailHeading>正在做</RailHeading>
             {activeRun && <NowSection run={activeRun} handoff={handoff} />}

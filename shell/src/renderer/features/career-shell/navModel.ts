@@ -27,7 +27,7 @@ export interface NavItem {
 export type NavIconName =
   | 'dashboard' | 'chat' | 'briefcase' | 'grid' | 'folder' | 'settings'
   | 'sun' | 'list' | 'inbox' | 'star' | 'library' | 'send' | 'pencil' | 'users' | 'user' | 'file' | 'quote' | 'award'
-  | 'sliders' | 'pet' | 'keyboard' | 'wrench' | 'help' | 'info';
+  | 'sliders' | 'pet' | 'keyboard' | 'wrench' | 'help' | 'info' | 'wallet';
 
 export interface NavAreaDefinition {
   id: NavArea;
@@ -67,10 +67,11 @@ export const NAV_AREAS: readonly NavAreaDefinition[] = [
   {
     // 小助理暂时停放在设置里；网络代理与通知已移除（2026-10-13）；技能与工具收起（2026-11-01，收口面）。
     id: 'settings', label: '设置', icon: 'settings', footer: true, items: [
+      { id: 'account', label: '账号与用量', icon: 'wallet', target: { kind: 'settings', section: 'account' } },
       { id: 'general', label: '通用设置', icon: 'sliders', target: { kind: 'settings', section: 'general' } },
       // 桌面宠物内测先隐藏（face-slim 里还等产品定）；设置页的宠物分区代码保留。
       { id: 'shortcuts', label: '快捷键', icon: 'keyboard', target: { kind: 'settings', section: 'shortcuts' } },
-      { id: 'feedback', label: '小助理与反馈', icon: 'help', target: { kind: 'settings', section: 'feedback' } },
+      { id: 'feedback', label: '帮助与反馈', icon: 'help', target: { kind: 'settings', section: 'feedback' } },
       { id: 'about', label: '关于', icon: 'info', target: { kind: 'settings', section: 'about' } },
     ],
   },
@@ -89,7 +90,8 @@ const MARKET_DOSSIER_VIEWS: ReadonlySet<string> = new Set(['interview', 'offer',
 /** Target opened when an area without L2 items is chosen. */
 export const AREA_DIRECT_TARGET: Partial<Record<NavArea, NavTarget>> = {
   chat: { kind: 'chat' },
-  market: { kind: 'career-guide' },
+  // 点功能市场总是回到首页：技能点详情是首页里点开的一层，不该把人留在上次看的那个技能点里
+  market: { kind: 'career-guide', view: 'home' },
 };
 
 export function areaDefinition(area: NavArea): NavAreaDefinition {

@@ -1,6 +1,6 @@
 /**
  * 我的求职 › 助力记录：笔试、测评、面试、模拟面试、笔试练习一张表（行的合并规则见 assistRecords.ts）。
- * 最后一列「助力」把这一条交给助理；整行点开对应的投递档案。
+ * 行尾动作按类型写动词（搜题 / 准备面试 / 接着模拟 / 接着练），鼠标移到行上才出现；整行点开对应的投递档案。
  *
  * 右上角「新建」三种入口（2026-10-13 会议定）：手动填表、粘贴招聘平台的分享链接、从邮箱同步。
  * 邮箱没绑定时引导绑定，绑定了就给一个同步按钮（低频，用户自己点）。
@@ -17,13 +17,17 @@ import { useCloseLayer } from '@/hooks/useCloseLayer';
 import { ASSIST_TYPE_LABELS, assistRecords, filterAssists, type AssistFilter, type AssistRow } from './assistModel';
 import { careerApi } from './careerApi';
 import { INTERVIEW_ROUND_LABELS } from './careerConstants';
-import { Badge, Button, EmptyState, ErrorRow, Field, LoadingRow, Select, TextArea, TextInput, formatDate, textOrUnknown, useSuggestToChat } from './CareerPrimitives';
+import { Button, EmptyState, ErrorRow, Field, LoadingRow, Select, TextArea, TextInput, formatDate, textOrUnknown, useSuggestToChat } from './CareerPrimitives';
 import type { CareerFocusEvent, IntakeResult, MailAccount, MailPreset } from './types';
 import { openExamSearch } from './exam-search/searchContext';
 import { MailConnectCenter } from './mail-connect/MailConnectCenter';
 import { useCareerAction, useCareerQuery } from './useCareerData';
 
 const ASSIST_TABLES = ['deadline', 'application', 'job', 'interview', 'mock_interview', 'exam_practice', 'mail_account'] as const;
+/** 行尾动作：按这一条的类型说清楚点了做什么。 */
+const ASSIST_VERBS: Record<AssistRow['type'], string> = {
+  written_test: '搜题', assessment: '搜题', interview: '准备面试', mock_interview: '接着模拟', exam_practice: '接着练',
+};
 const FILTERS: Array<{ id: AssistFilter; label: string }> = [
   { id: 'all', label: '全部' }, { id: 'exam', label: '笔试' }, { id: 'interview', label: '面试' }, { id: 'mock', label: '模拟面试' },
 ];
@@ -117,7 +121,7 @@ export function AssistRecords() {
         {query.data && (accounts.length > 0
           ? <Button variant="ghost" busy={sync.busy} onClick={() => void syncMail()}><RefreshCw className="h-4 w-4" strokeWidth={1.75} />同步邮箱</Button>
           : <Button variant="ghost" onClick={() => setDialog('mail')}><Mail className="h-4 w-4" strokeWidth={1.75} />绑定邮箱</Button>)}
-        <Button variant="primary" onClick={() => setDialog('manual')}><Plus className="h-4 w-4" strokeWidth={1.75} />新建</Button>
+        <Button variant="secondary" onClick={() => setDialog('manual')}><Plus className="h-4 w-4" strokeWidth={1.75} />新建</Button>
       </div>
       {(syncNote || sync.error) && (
         <div role="status" className="px-6 pb-2 text-xs text-[var(--muted)]">{sync.error ?? syncNote}</div>
@@ -126,7 +130,7 @@ export function AssistRecords() {
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !query.data && <LoadingRow />}
         {query.data && allRows.length === 0 && (
-          <EmptyState title="还没有助力记录" hint="收到笔试、面试通知就点右上角「新建」：可以手填、粘贴招聘平台的分享链接，或者从邮箱同步。" />
+          <EmptyState title="还没有助力记录" action={<Button variant="secondary" onClick={() => setDialog('manual')}>记一场笔试或面试</Button>} />
         )}
         {allRows.length > 0 && rows.length === 0 && <div className="py-8 text-center text-xs text-[var(--subtle)]">这一类还没有记录</div>}
         {rows.length > 0 && (
@@ -149,17 +153,16 @@ export function AssistRecords() {
                     tabIndex={clickable ? 0 : undefined}
                     onClick={clickable ? () => openDossier(r) : undefined}
                     onKeyDown={clickable ? e => { if (e.key === 'Enter' && e.target === e.currentTarget) openDossier(r); } : undefined}
-                    className={`border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${clickable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]' : ''} ${r.detail === '已过' || r.cancelled ? 'text-[var(--muted)]' : ''}`}
+                    className={`group border-b border-[var(--line)] transition-colors hover:bg-[var(--hover)] ${clickable ? 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]' : ''} ${r.detail === '已过' || r.cancelled ? 'text-[var(--muted)]' : ''}`}
                   >
                     <td className="truncate px-2 py-2 font-medium text-[var(--ink)]" title={r.company_name ?? undefined}>{textOrUnknown(r.company_name)}</td>
                     <td className="truncate px-2 py-2 text-[var(--ink-2)]" title={r.title ?? undefined}>{r.title ?? '—'}</td>
                     <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-[var(--muted)]">{formatLocalDateTime(r.at)}</td>
-                    <td className="whitespace-nowrap px-2 py-2">
-                      <Badge tone={r.upcoming ? 'accent' : 'neutral'}>{ASSIST_TYPE_LABELS[r.type]}</Badge>
-                      {r.detail && <span className="ml-2 text-xs text-[var(--muted)]">{r.detail}</span>}
+                    <td className={`truncate px-2 py-2 ${r.upcoming ? 'font-medium text-[var(--ink)]' : 'text-[var(--ink-2)]'}`}>
+                      {ASSIST_TYPE_LABELS[r.type]}{r.detail && ` · ${r.detail}`}
                     </td>
                     <td className="px-2 py-1.5 text-right">
-                      <Button size="sm" variant="secondary" onClick={e => { e.stopPropagation(); assist(r); }} onKeyDown={e => e.stopPropagation()}>助力</Button>
+                      <Button size="sm" variant="ghost" reveal onClick={e => { e.stopPropagation(); assist(r); }} onKeyDown={e => e.stopPropagation()}>{ASSIST_VERBS[r.type]}</Button>
                     </td>
                   </tr>
                 );
@@ -182,10 +185,10 @@ export function AssistRecords() {
 // ─── 新建 ───
 
 type NewMethod = 'manual' | 'link' | 'mail';
-const METHODS: Array<{ id: NewMethod; label: string; hint: string }> = [
-  { id: 'manual', label: '手动填写', hint: '自己填公司、岗位和时间' },
-  { id: 'link', label: '粘贴分享链接', hint: 'Boss、猎聘转发的通知' },
-  { id: 'mail', label: '从邮箱同步', hint: '笔试、面试邮件自动识别' },
+const METHODS: Array<{ id: NewMethod; label: string }> = [
+  { id: 'manual', label: '手动填写' },
+  { id: 'link', label: '粘贴分享链接' },
+  { id: 'mail', label: '从邮箱同步' },
 ];
 
 function NewAssistDialog({ initial, onClose, onChanged }: {
@@ -219,7 +222,6 @@ function NewAssistDialog({ initial, onClose, onChanged }: {
               className={`rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] ${method === m.id ? 'border-[var(--primary)] bg-[var(--primary-soft)]' : 'border-[var(--line)] hover:bg-[var(--hover)]'}`}
             >
               <div className="text-sm font-medium text-[var(--ink)]">{m.label}</div>
-              <div className="mt-0.5 text-xs text-[var(--muted)]">{m.hint}</div>
             </button>
           ))}
         </div>
@@ -307,11 +309,11 @@ function LinkForm({ onDone }: { onDone: () => void }) {
   });
   return (
     <div className="space-y-3">
-      <Field label="分享链接" hint="在 Boss、猎聘等 App 里点「分享 › 复制链接」，粘到这里">
+      <Field label="分享链接">
         <TextInput aria-label="分享链接" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://" />
       </Field>
-      <Field label="分享文字（可选）" hint="复制出来的整段分享内容也可以直接粘进来，链接会自动取出来">
-        <TextArea aria-label="分享文字" value={text} onChange={e => setText(e.target.value)} className="min-h-[72px]" />
+      <Field label="分享文字（可选）">
+        <TextArea aria-label="分享文字" value={text} onChange={e => setText(e.target.value)} placeholder="整段分享内容，里面的链接会自动取出" className="min-h-[72px]" />
       </Field>
       {action.error && <ErrorRow message={action.error} />}
       {result && <div role="status" className="border-l-2 border-[var(--primary)] pl-3 text-sm text-[var(--ink)]">{result}</div>}
@@ -324,9 +326,6 @@ function LinkForm({ onDone }: { onDone: () => void }) {
 
 function MailPanel() {
   return (
-    <div className="space-y-2">
-      <p className="text-sm text-[var(--muted)]">连上邮箱后，笔试、面试通知会自动识别进来，你只需要偶尔点一下「同步邮箱」。</p>
-      <MailConnectCenter />
-    </div>
+    <MailConnectCenter />
   );
 }

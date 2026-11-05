@@ -61,7 +61,8 @@ function PendingSheet({ actionId }: { actionId: string }) {
   );
 }
 
-export function MailLivePane({ app, onBack }: { app: Application; onBack: () => void }) {
+/** onBack 不给 = 没有浏览器画面可回（只有邮件在办），不出「回到画面」。 */
+export function MailLivePane({ app, onBack }: { app: Application; onBack?: () => void }) {
   const thread = useCareerQuery(() => mailApplyApi.thread(app.id), ['mail_message', 'action_queue', 'application']);
   const pending = pendingApplyMail(thread.data);
   return (
@@ -69,7 +70,7 @@ export function MailLivePane({ app, onBack }: { app: Application; onBack: () => 
       <header className="cm-live-head">
         <span className="cm-tag">邮件</span>
         <h3 className="font-human" title={appName(app)}>{appName(app)}</h3>
-        <button type="button" className="cd-later" onClick={onBack}>回到画面</button>
+        {onBack && <button type="button" className="cd-later" onClick={onBack}>回到画面</button>}
       </header>
       <ol className="cd-track" aria-label="走到哪一步">
         {mailSteps(app, thread.data).map(n => (

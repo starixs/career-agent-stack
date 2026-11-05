@@ -5,6 +5,7 @@
  * 做完的实心、当前的用状态色、没到的空心 + 虚线、跳过的虚线空心、停下的一步画 ✗（中性色，被拒不用红，见 6.1）。
  */
 import { Check, X } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 import type { StepperModel, StepState, StepTone } from './applicationSteps';
 
@@ -60,8 +61,14 @@ function Connector({ reached, size }: { reached: boolean; size: 'sm' | 'md' }) {
     : <span className={`${len} h-0 shrink-0 border-t border-dashed border-[var(--line-2)]`} aria-hidden />;
 }
 
-/** 行内：小圆点 + 当前步骤文字。 */
-export function CompactStepper({ model }: { model: StepperModel }) {
+/** 行内文字：停在第一步（网申）时圆点已经说明在哪一步，只写后缀（「投递中」而不是「网申 · 投递中」）。 */
+function compactLabel(model: StepperModel): string {
+  const [step, suffix] = model.label.split(' · ');
+  return model.currentIndex === 0 && suffix ? suffix : model.label || step;
+}
+
+/** 行内：小圆点 + 当前步骤文字；`labelOverride` 替代文字（一行只放一个状态词）。 */
+export function CompactStepper({ model, labelOverride }: { model: StepperModel; labelOverride?: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-2 whitespace-nowrap" aria-label={describe(model)} role="img">
       <span className="inline-flex items-center gap-0.5" aria-hidden>
@@ -72,7 +79,9 @@ export function CompactStepper({ model }: { model: StepperModel }) {
           </span>
         ))}
       </span>
-      <span className="text-xs font-medium" style={{ color: TONE_VAR[model.tone] }} aria-hidden>{model.label}</span>
+      {labelOverride
+        ? <span className="text-xs" aria-hidden>{labelOverride}</span>
+        : <span className="text-xs font-medium" style={{ color: TONE_VAR[model.tone] }} aria-hidden>{compactLabel(model)}</span>}
     </span>
   );
 }

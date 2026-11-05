@@ -113,6 +113,11 @@ export interface ExamPractice {
   questions_json: string; answers_json: string; review_json: string; summary: string | null;
   status: 'answering' | 'reviewed'; created_at: string; updated_at: string;
 }
+/** 评估过的岗位（GET /api/career/job-evaluations）：认得出是哪个岗位，加上 job-evaluate 的整份输出。 */
+export interface JobEvaluation {
+  job_id: string; company_name: string | null; title: string; url: string | null;
+  score_json: string; prefilter_json: string | null; updated_at: string;
+}
 export interface ProbePrediction {
   id: string; resume_tailored_id: string | null; claim_id: string | null; statement: string;
   target_type: string; expected_chain_json: string; risk: string; created_at: string;

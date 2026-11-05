@@ -5,6 +5,8 @@
  *    和简报页是同一个对象；结构照回来卡：最急的一件放最大，下面几行事实，已结束只写数字。
  * 规范 6.1：对话里的卡片没有底色、描边、投影的外壳，靠标题和留白组织。
  */
+import { useState } from 'react';
+
 import { emitEvent } from '@/api/eventBus';
 import { SpeechBlocks } from '@/components/chat/AssistantSpeech';
 
@@ -93,7 +95,7 @@ export function TakeoverCard({ card, onDone }: { card: CareerCard; onDone: () =>
       <h4 className="font-human text-lg font-semibold text-[var(--ink)]">
         {b.applications ? `替你接管了 ${b.applications} 家公司的申请` : '邮箱连好了，还没有求职邮件'}
       </h4>
-      {b.applications === 0 && <p className="text-sm text-[var(--ink-2)]">你现在大概在{b.season.label}。以后一有网申、笔试、面试邮件就会自动收进来。</p>}
+      {b.applications === 0 && <p className="text-sm text-[var(--ink-2)]">你现在大概在{b.season.label}。</p>}
       <UrgentNeed b={b} action={<Button variant="primary" className="mt-1.5 justify-self-start" onClick={() => openApplication(b.needs[0]?.application_id ?? null)}>从最急的开始</Button>} />
       <div className="grid gap-2">
         <FactRow n={bucket('interview').length} label="场面试" tags={names(bucket('interview'))} />
@@ -116,16 +118,21 @@ export function TakeoverCard({ card, onDone }: { card: CareerCard; onDone: () =>
  * 和招聘概览上的起步块读同一份数据（onboarding），有了简历或经历两处一起消失。
  * 开场是小芽在说话，不是一张卡：三条短话和对话里她的话同一个样式，下面两扇门。
  */
-export function StarterCard() {
+export function StarterCard({ conversationStarted = false }: { conversationStarted?: boolean }) {
   const q = useCareerQuery(careerApi.onboarding, ONBOARDING_TABLES);
+  // 开场只在对话开始前出现：他说过一句话、或点了「先聊聊」，门就用过了，不再钉在对话底部。
+  // 「选个文件」不立即收起：文件选择框可能被取消，选完发出去时会有用户消息。
+  const [chatOpened, setChatOpened] = useState(false);
   const d = q.data;
+  if (conversationStarted || chatOpened) return null;
   if (!d || d.has_master_resume !== false || d.has_experience !== false) return null;
+  const startChat = () => { setChatOpened(true); suggestToChat(NO_RESUME_OPENER); };
   return (
     <section data-testid="career-starter-card" aria-label="起步卡" className="grid gap-3 py-1">
       <SpeechBlocks text={STARTER_OPENER} streaming={false} />
       <div className="flex flex-wrap gap-2 px-1">
         <Button variant="primary" onClick={() => emitEvent(PICK_RESUME_EVENT, null)}>有，选个文件给我</Button>
-        <Button variant="secondary" onClick={() => suggestToChat(NO_RESUME_OPENER)}>还没有，先聊聊</Button>
+        <Button variant="secondary" onClick={startChat}>还没有，先聊聊</Button>
       </div>
       <p className="px-1 text-xs text-[var(--subtle)]">也可以直接把文件拖进来。</p>
     </section>

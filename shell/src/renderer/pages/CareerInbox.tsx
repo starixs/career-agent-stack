@@ -10,7 +10,7 @@ import { ACTION_KIND_LABELS } from '@/components/career/careerConstants';
 import { AttendanceButtons } from '@/components/career/AttendanceButtons';
 import { BatchProgressCard, useBatchState } from '@/components/career/CareerFlowCards';
 import {
-  Badge, Button, CareerPage, Card, ChatActionButton, DueLabel, ErrorRow, LoadingRow, Select, TextArea, formatDate,
+  Badge, Button, CareerPage, ChatActionButton, DueLabel, ErrorRow, LoadingRow, SectionTitle, Select, TextArea, formatDate,
 } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import { briefText } from '@/components/career/structuredLabels';
@@ -47,14 +47,13 @@ const SOURCE_LABELS: Record<InboxItem['source'], string> = { paste: '粘贴', ma
 const KIND_LABELS: Record<string, string> = {
   jd: '岗位 JD', application_received: '投递确认', interview_invite: '面试邀请', assessment: '测评', written_test: '笔试', rejection: '拒信', offer: 'Offer', referral: '内推', deadline: '截止提醒', other: '未识别',
 };
-const LINKED_TYPE_LABELS: Record<string, string> = { application: '投递', interview: '面试', offer: 'Offer', job: '岗位', deadline: '截止', inbox_item: '收件' };
 const PREVIEW_LIMIT = 160;
 
 
 /** 待批准动作的一句话摘要（与投递页同一套取字段顺序）。 */
 export function actionSummary(action: ActionQueueItem): string {
   const payload = safeJson<Record<string, unknown>>(action.payload_json, {});
-  if (action.kind === 'submit') return `停在「${typeof payload.submitButton === 'string' ? payload.submitButton : '提交'}」前，你点头后，小芽替你点提交`;
+  if (action.kind === 'submit') return `填好了，停在「${typeof payload.submitButton === 'string' ? payload.submitButton : '提交'}」前`;
   if (typeof payload.summary === 'string') return payload.summary;
   if (typeof payload.subject === 'string') return `${payload.subject}${typeof payload.to === 'string' ? ` → ${payload.to}` : ''}`;
   if (typeof payload.text === 'string') return payload.text;
@@ -143,7 +142,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
   const error = inbox.error ?? pending.error ?? deadlines.error;
 
   return (
-    <CareerPage embedded={embedded} title="通知中心" subtitle="邮件、待批准、投递进度和截止提醒都在这里，新的在前">
+    <CareerPage embedded={embedded} title="通知中心">
       <div className="max-w-5xl space-y-8 px-6 py-6">
         <section aria-label="通知">
           <div role="group" aria-label="按类型筛选" className="mb-3 inline-flex flex-wrap rounded-full border border-[var(--line-2)] p-0.5">
@@ -169,7 +168,7 @@ export default function CareerInbox({ embedded = false }: CareerPageProps) {
           )}
           {!loading && visible.length === 0 && !(showBatch && (filter === 'all' || filter === 'batch')) && (
             <div className="py-8 text-sm text-[var(--muted)]">
-              {filter === 'all' ? '暂时没有新通知。邮箱里的面试邀请和拒信、等你批准的投递、快到的截止都会出现在这里。' : `没有${TYPE_LABELS[filter]}类的通知。`}
+              {filter === 'all' ? '暂时没有新通知' : `没有${TYPE_LABELS[filter]}类的通知`}
             </div>
           )}
           <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)]">
@@ -209,6 +208,15 @@ function TypeLabel({ type }: { type: FeedType }) {
   return <Badge tone={TYPE_TONES[type]}>{TYPE_LABELS[type]}</Badge>;
 }
 
+/** 通知时间：今天 / 11 月 4 日（跨年带年份）。 */
+export function feedDate(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return formatDate(iso);
+  if (d.toDateString() === now.toDateString()) return '今天';
+  const md = `${d.getMonth() + 1} 月 ${d.getDate()} 日`;
+  return d.getFullYear() === now.getFullYear() ? md : `${d.getFullYear()} 年 ${md}`;
+}
+
 function hhmm(iso: string): string {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -228,7 +236,7 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
       <TypeLabel type="review" />
       <span className="text-xs text-[var(--muted)]">{confirm ? '等你确认' : manual ? '等你发出去' : ACTION_KIND_LABELS[action.kind] ?? action.kind}</span>
       <span className="min-w-0 truncate text-sm font-medium text-[var(--ink)]">{label}</span>
-      <span className="ml-auto text-xs tabular-nums text-[var(--muted)]">{formatDate(entry.at)}</span>
+      <span className="ml-auto text-xs tabular-nums text-[var(--muted)]">{feedDate(entry.at)}</span>
     </div>
   );
   if (resolved) {
@@ -245,9 +253,6 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
     return (
       <div className="border-l-[3px] border-[var(--warning)] pl-3">
         {head}
-        <div className="mt-1 text-sm text-[var(--ink-2)]">
-          {`${ACTION_KIND_LABELS[action.kind] ?? action.kind}已批准，产品不替你在平台上发，复制下面的文字自己发出去`}
-        </div>
         {text ? <ManualSendText text={text} actionId={action.id} onSent={onResolved} /> : <div className="mt-1 text-sm text-[var(--muted)]">{actionSummary(action)}</div>}
       </div>
     );
@@ -257,13 +262,13 @@ function ReviewRow({ entry, label, resolved, onResolved }: {
       <div className="border-l-[3px] border-[var(--warning)] pl-3">
         {head}
         <div className="mt-1 text-sm text-[var(--ink-2)]">
-          {typeof result.message === 'string' ? result.message : '提交结果不确定，请到页面上看一下'}
+          {typeof result.message === 'string' ? result.message : '页面上没看到提交成功'}
           {approvalLabel(action.approved_by) && <span className="text-[var(--subtle)]">（{approvalLabel(action.approved_by)}）</span>}
         </div>
         {act.error && <ErrorRow message={act.error} />}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Button size="sm" variant="primary" busy={act.busy} onClick={() => void run(() => careerApi.confirmSubmit(action.id, true), '已确认投递')}>已投递成功</Button>
-          <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void run(() => careerApi.confirmSubmit(action.id, false), '已退回重新审核')}>没投出去，重新审核</Button>
+          <Button size="sm" variant="ghost" busy={act.busy} onClick={() => void run(() => careerApi.confirmSubmit(action.id, false), '已退回重新审核')}>没投出去</Button>
         </div>
       </div>
     );
@@ -289,7 +294,7 @@ function RemindRow({ deadline, past, label, resolved, onResolved }: { deadline: 
   // 过了时间的笔试 / 测评：问「考了吗」，不标红「已过期」（面试过了时间走复盘，不问）
   const question = deadline.attendance_question ?? null;
   return (
-    <div>
+    <div className="group">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <TypeLabel type="remind" />
         {label && <span className="text-xs text-[var(--muted)]">{label}</span>}
@@ -308,7 +313,7 @@ function RemindRow({ deadline, past, label, resolved, onResolved }: { deadline: 
                 ? <ChatActionButton size="sm" variant="secondary" text="帮我准备这场面试" context={{ surface: 'inbox', refs: deadline.application_id ? { application_id: deadline.application_id } : { deadline_id: deadline.id } }} />
                 : <Button size="sm" variant="secondary" busy={act.busy} onClick={() => void act.run(async () => { await careerApi.setDeadlineStatus(deadline.id, 'done'); onResolved('已完成'); })}>完成</Button>}
           {deadline.application_id && (
-            <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: deadline.application_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
+            <Button variant="ghost" size="sm" reveal onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: deadline.application_id } satisfies CareerFocusEvent)}>看投递</Button>
           )}
         </div>
       )}
@@ -342,13 +347,11 @@ function CaptureBox({ onCaptured }: { onCaptured: () => void }) {
         {text.trim() && (
           <ChatActionButton text={`帮我处理这个，我刚收到的：\n${text.trim()}`} context={{ surface: 'inbox', note: '用户从通知中心手动交给助理的原文' }} variant="secondary">交给助理处理</ChatActionButton>
         )}
-        <span className="text-xs text-[var(--subtle)]">助理识别后会自动建岗位 / 面试 / 截止，并归到对应卷宗。</span>
       </div>
       {capture.error && <ErrorRow message={capture.error} />}
       {result && (
         <div role="status" className="mt-3 border-l-2 border-[var(--primary)] pl-3 text-sm">
           <div className="text-[var(--ink)]">{result.summary}</div>
-          {result.item?.status === 'new' && <div className="mt-0.5 text-[var(--muted)]">助理没完全看懂，可以在下面指定归属或交给对话。</div>}
         </div>
       )}
     </section>
@@ -358,9 +361,10 @@ function CaptureBox({ onCaptured }: { onCaptured: () => void }) {
 /** 邮箱连接：连接中心（mail-connect/）统一负责连接、状态、管理。 */
 function MailSection() {
   return (
-    <Card title="邮箱连接">
+    <section aria-label="邮箱连接">
+      <SectionTitle>邮箱连接</SectionTitle>
       <MailConnectCenter />
-    </Card>
+    </section>
   );
 }
 
@@ -403,18 +407,32 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
   const preview = expanded || raw.length <= PREVIEW_LIMIT ? raw : `${raw.slice(0, PREVIEW_LIMIT)}…`;
   const run = (fn: () => Promise<unknown>) => act.run(async () => { await fn(); onChanged(); });
   const dossierOptions = dossiers.map(d => ({ value: d.application_id, label: `${d.company_name ?? '未知公司'} · ${d.title}` }));
+  // 已归到投递的信：整条可点进那条投递（hover 出「打开」），不再写「已归入：投递」
+  const linkedApp = item.status === 'processed' && item.linked_type === 'application' ? item.linked_id : null;
+  const openLinked = () => { if (linkedApp) emitEvent('career:focus', { surface: 'dossier', application_id: linkedApp } satisfies CareerFocusEvent); };
+  const assign = (applicationId: string) => {
+    setAssignTo(applicationId);
+    void run(() => careerApi.retryInbox(item.id, applicationId || undefined));
+  };
 
   return (
-    <div ref={ref} data-inbox-id={item.id} className={highlighted ? '-mx-3 -my-1 rounded-md bg-[var(--primary-soft)] px-3 py-1' : ''}>
+    <div ref={ref} data-inbox-id={item.id} className={`group ${highlighted ? '-mx-3 -my-1 rounded-md bg-[var(--primary-soft)] px-3 py-1' : ''}`}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <TypeLabel type="mail" />
         <span className={`text-xs font-medium ${item.kind && item.kind !== 'other' ? 'text-[var(--ink-2)]' : 'text-[var(--warning)]'}`}>{item.kind ? KIND_LABELS[item.kind] ?? item.kind : '未识别'}</span>
-        <span className="text-xs text-[var(--muted)]">{SOURCE_LABELS[item.source] ?? item.source}</span>
+        {/* 来源和类型标签同为「邮件」时不重复 */}
+        {item.source !== 'mail' && <span className="text-xs text-[var(--muted)]">{SOURCE_LABELS[item.source] ?? item.source}</span>}
         {item.note && <span className="text-xs text-[var(--muted)]">{item.note}</span>}
-        <span className="ml-auto text-xs tabular-nums text-[var(--muted)]">{formatDate(item.created_at)}</span>
+        <span className="ml-auto flex items-center gap-2 text-xs tabular-nums text-[var(--muted)]">
+          {linkedApp && <Button variant="ghost" size="sm" reveal onClick={openLinked}>打开</Button>}
+          {feedDate(item.created_at)}
+        </span>
       </div>
       {raw && (
-        <div className="mt-1.5 whitespace-pre-wrap break-words text-sm text-[var(--ink)]">
+        <div
+          className={`mt-1.5 whitespace-pre-wrap break-words text-sm text-[var(--ink)] ${linkedApp ? 'cursor-pointer hover:text-[var(--primary)]' : ''}`}
+          onClick={linkedApp ? openLinked : undefined}
+        >
           {preview}
           {raw.length > PREVIEW_LIMIT && (
             <button type="button" onClick={() => setExpanded(e => !e)} className="ml-1 text-[var(--primary)] underline underline-offset-2">{expanded ? '收起' : '展开'}</button>
@@ -425,21 +443,13 @@ function InboxRow({ item, dossiers, highlighted, onChanged }: { item: InboxItem;
       {item.status === 'new' && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <ChatActionButton size="sm" text="帮我处理这条" context={{ surface: 'inbox', refs: { inbox_id: item.id } }} />
+          {/* 选了归属就带着它重新识别：「归到…」和「重新识别」是一件事 */}
           {dossierOptions.length > 0 && (
             <div className="w-56">
-              <Select ariaLabel={`归属投递 ${item.id}`} value={assignTo} placeholder="归到某条投递（可选）" options={dossierOptions} onChange={setAssignTo} disabled={act.busy} />
+              <Select ariaLabel={`归属投递 ${item.id}`} value={assignTo} placeholder="归到哪条投递" options={dossierOptions} onChange={assign} disabled={act.busy} />
             </div>
           )}
-          <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void run(() => careerApi.retryInbox(item.id, assignTo || undefined))}>重新识别</Button>
           <Button variant="ghost" size="sm" busy={act.busy} onClick={() => void run(() => careerApi.dismissInbox(item.id))}>忽略</Button>
-        </div>
-      )}
-      {item.status === 'processed' && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
-          <span>已归入{item.linked_type ? `：${LINKED_TYPE_LABELS[item.linked_type] ?? item.linked_type}` : ''}</span>
-          {item.linked_type === 'application' && item.linked_id && (
-            <Button variant="ghost" size="sm" onClick={() => emitEvent('career:focus', { surface: 'dossier', application_id: item.linked_id } satisfies CareerFocusEvent)}>在投递记录里看</Button>
-          )}
         </div>
       )}
     </div>

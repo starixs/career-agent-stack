@@ -1,0 +1,219 @@
+/**
+ * 下一步条 · 自动质量线（plan-r3-suggest §3）：每格都要"接得上、具体、顺手种下、点了也不坏"。
+ * 不过的丢弃并留日志 `[career-suggest] lint drop <rule> kind=<kind> mode=<mode>`（不记正文）；条上不够时由配方兜底补（suggest.ts）。
+ * L10（回应性）不是丢弃规则，是补格规则，在 suggest.ts 里做；L13（类型多样）同。
+ * r4（plan-r4-suggest §3.4）：L11 模型格要点到这一轮或状态里的真东西（历史词不算）；L12 不和上一轮出过的重样；
+ * L14 不复述他刚说的那句（真机 r2：条上出现他原话）。
+ */
+import { SUGGEST_MAX_CHARS, type SuggestChip } from '../../shared/careerSuggest';
+import { isFeatureStart } from './suggest-chip';
+import type { SceneId } from './suggest-scene';
+import { shortCompany } from './suggest-text';
+import type { SuggestState } from './suggest-types';
+
+export type LintRule = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6' | 'L7' | 'L8' | 'L9' | 'L11' | 'L12' | 'L14';
+
+/** L12：和上一轮某格二字组重合到这个比例就算重样。 */
+export const REPEAT_OVERLAP = 0.7;
+
+/** L8：同一条里两格整句二字组重合到这个比例就算一回事（真机 r6「看我这个月的数 / 先看我这月的数」0.67；访谈几种说法约 0.5）。 */
+export const NEAR_DUP_OVERLAP = 0.6;
+
+/** 一格最少几个字：一个字点不出对象。 */
+const MIN_CHARS = 2;
+/** 从对话里抽的词最短几个字。 */
+const ENTITY_MIN = 2;
+const DEV_WORDS = /技能|工具|模型|会话|agent|任务|经历库|私密库|占位符|json|提示词|系统提示|调用/i;
+const PUNCT = '，。、；：！？,.;:!?';
+const LEADING_PUNCT = new RegExp(`^[${PUNCT}…]`);
+const DOUBLE_PUNCT = new RegExp(`[${PUNCT}]{2}`);
+const RESIDUE = /[{}<>[\]]|\.\.|。。/;
+const PROMISES = /保证|放心|肯定能|一定会|没问题的|躺/;
+const SEND_ME = /发给我|告诉我|粘贴|复制给/;
+
+/** 底下那张卡自己的按钮（plan-r3 L5；renderer 组同步核对）。建议条不再重复这些话。 */
+export const CARD_BUTTONS: Readonly<Record<string, readonly string[]>> = {
+  batch_pick: ['先不投', '投这'],
+  tailor_diff: ['打开整份'],
+  claims_confirm: ['全部通过'],
+  resume_intake: ['全部通过，生成主简历', '只用所选'],
+};
+
+/**
+ * 开场两扇门（ColdStartCards StarterCard）的按钮，连同条上常见的同义说法：门还在时条上不再出"有 / 没有简历"。
+ * 门在 = 冷启动幕、他还一句话没说（门在第一句用户消息后收起）。
+ */
+export const STARTER_BUTTONS: readonly string[] = ['有，选个文件给我', '还没有，先聊聊', '有简历', '没有简历', '还没有简历', '我有简历'];
+
+/** 常见虚词二字组：不算"对象"。 */
+const STOP = new Set(('我们 你们 他们 可以 什么 这个 那个 一个 没有 就是 还是 怎么 一下 现在 已经 如果 因为 所以 但是 然后 知道 觉得 时候 不是 这样 那样 '
+  + '好的 可能 需要 帮我 给我 我想 我的 你的 一些 有点 这些 那些 比较 自己 其实 而且 或者 还有 一点 不过 先聊 接着 我先 是不 不是 有没 没什 么样 这次 '
+  + '的话 了吗 一起 看看 看一 一眼 直接 下一 然后 东西 事情 不用 好吗 行吗 对吧 吧我 你看 是什 么时 我也 也不 不太 不知 道怎 清楚').split(' '));
+/** 经历类型、求职里的固定对象：算"这一类的名字"。 */
+const DOMAIN = ['实习', '课程', '项目', '比赛', '竞赛', '社团', '学生会', '班委', '家教', '兼职', '证书', '奖学金', '简历', '方向', '岗位', '笔试', '测评', '面试', '开放题', '城市', 'Offer', 'offer', '邮箱', '验证码', '外包'];
+
+export interface LintCtx {
+  scene: SceneId;
+  /** 状态与最近几轮里出现过的对象（entitiesOf）。 */
+  entities: readonly string[];
+  /** 底下在等的卡种类。 */
+  cardKind: string | null;
+  /** 冷却中的 seed（功能起头）。 */
+  recent: ReadonlySet<string>;
+  /** L11：这一轮 + 状态里的对象（anchorsOf）；缺省不查。 */
+  anchors?: readonly string[];
+  /** L12：上一轮出过的四格；缺省不查。 */
+  lastShown?: readonly SuggestChip[];
+  /** L5：卡之外此刻屏幕上还在的按钮（开场两扇门）。 */
+  buttons?: readonly string[];
+  /** L14：他刚说的那句；缺省不查。 */
+  lastUser?: string;
+}
+
+function stateEntities(s: SuggestState): string[] {
+  const companies = [
+    ...s.asks.flatMap(a => a.companies), ...s.nextJobs.map(j => j.company), ...s.held.companies, ...(s.batch?.running ?? []),
+    ...(s.openCard?.picked ?? []), ...(s.lastTailor ? [s.lastTailor.company] : []), ...s.dueSoon.map(d => d.company),
+  ];
+  return [
+    ...companies.map(shortCompany), ...s.prefs.cities, ...s.prefs.keywords, ...s.asks.map(a => a.title),
+    ...(s.resume.name ? [s.resume.name] : []), ...(s.interview?.experienceTitle ? [s.interview.experienceTitle] : []),
+    ...Object.values(s.askOptions).flat(),
+  ];
+}
+
+/** 对话里的数字、英文词、中文二字组（去虚词）。 */
+function talkEntities(texts: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const t of texts) {
+    out.push(...(t.match(/\d+(?:\.\d+)?/g) ?? []), ...(t.match(/[A-Za-z]{2,}/g) ?? []));
+    for (const run of t.match(/[一-龥]{2,}/g) ?? []) {
+      for (let i = 0; i + ENTITY_MIN <= run.length; i += 1) {
+        const gram = run.slice(i, i + ENTITY_MIN);
+        if (!STOP.has(gram)) out.push(gram);
+      }
+    }
+  }
+  return out;
+}
+
+/** L4 用的对象表：状态里的名字 + 最近几轮对话里的词 + 领域词。 */
+export function entitiesOf(s: SuggestState, texts: readonly string[]): string[] {
+  const thread = [s.interview?.experienceTitle ?? '', ...(s.interview?.followUps ?? [])];
+  const all = [...stateEntities(s), ...talkEntities([...texts, ...thread]), ...DOMAIN].map(e => e.trim()).filter(e => e.length >= ENTITY_MIN);
+  return [...new Set(all)];
+}
+
+/** L11 用的锚：状态里的名字 + 这一轮（他说的、小芽说的、放的卡）里的词；不含更早的历史与领域泛词。 */
+export function anchorsOf(s: SuggestState, thisTurn: readonly string[]): string[] {
+  const thread = [s.interview?.experienceTitle ?? '', ...(s.interview?.followUps ?? [])];
+  const all = [...stateEntities(s), ...talkEntities([...thisTurn, ...thread])].map(e => e.trim()).filter(e => e.length >= ENTITY_MIN);
+  return [...new Set(all)];
+}
+
+const bigrams = (t: string): Set<string> => {
+  const out = new Set<string>();
+  const clean = t.replace(/\s/g, '');
+  for (let i = 0; i + 2 <= clean.length; i += 1) out.add(clean.slice(i, i + 2));
+  return out;
+};
+
+/** 两句话二字组重合比例（按较短一句算）。 */
+export function overlapRatio(a: string, b: string): number {
+  const x = bigrams(a);
+  const y = bigrams(b);
+  const small = Math.min(x.size, y.size);
+  if (!small) return a === b ? 1 : 0;
+  let hit = 0;
+  for (const g of x) if (y.has(g)) hit += 1;
+  return hit / small;
+}
+
+/** 卡的主动作（就这 N 家 / 先放着）：卡还在就该一直在，不算重样。 */
+const isCardMain = (c: SuggestChip) => c.action?.type === 'start_card' || c.action?.type === 'dismiss_card';
+
+/** L12：与上一轮同字或很像（≥70% 二字组重合）。 */
+export function repeatsLast(chip: SuggestChip, last: readonly SuggestChip[]): boolean {
+  if (isCardMain(chip)) return false;
+  return last.some(l => l.text === chip.text || overlapRatio(l.text, chip.text) >= REPEAT_OVERLAP);
+}
+
+/** 两句话二字组重合占较长一句的比例：整句复述才高，引半句接着说不算。 */
+function wholeOverlap(a: string, b: string): number {
+  const x = bigrams(a);
+  const y = bigrams(b);
+  const big = Math.max(x.size, y.size);
+  if (!big) return 0;
+  return [...x].filter(g => y.has(g)).length / big;
+}
+
+/** L14：把他刚说的整句又放回条上——他已经说过了，再点一次等于复读；引他半句接着回应（"外包不要，其余都投"）不算。 */
+export function echoesUser(chip: SuggestChip, lastUser: string): boolean {
+  const said = lastUser.trim();
+  if (!said || isCardMain(chip)) return false;
+  return said === chip.text.trim() || wholeOverlap(said, chip.text) >= REPEAT_OVERLAP;
+}
+
+const collides = (text: string, button: string) => text === button || text.startsWith(button) || button.startsWith(text);
+
+/** 单格规则（L1–L7、L9、L11、L12、L14）：返回第一条不过的规则，过了返回 null。 */
+export function lintChip(chip: SuggestChip, ctx: LintCtx): LintRule | null {
+  const t = chip.text.trim();
+  if (t.length < MIN_CHARS || t.length > SUGGEST_MAX_CHARS) return 'L1';
+  if (DEV_WORDS.test(t)) return 'L2';
+  if (RESIDUE.test(t) || LEADING_PUNCT.test(t) || DOUBLE_PUNCT.test(t)) return 'L3';
+  // 能直接办的格对象在动作里（「接着投，别管了」= 下一批），文字不必再点名。
+  if (chip.seed_id === null && chip.kind !== 'do' && !ctx.entities.some(e => t.includes(e))) return 'L4';
+  if ([...(CARD_BUTTONS[ctx.cardKind ?? ''] ?? []), ...(ctx.buttons ?? [])].some(b => collides(t, b))) return 'L5';
+  if (PROMISES.test(t)) return 'L6';
+  if (SEND_ME.test(t)) return 'L7';
+  if (ctx.scene !== 'S26' && chip.seed_id !== null && ctx.recent.has(chip.seed_id)) return 'L9';
+  if (ctx.anchors && ctx.scene !== 'S26' && chip.seed_id === null && chip.kind !== 'do' && !ctx.anchors.some(e => t.includes(e))) return 'L11';
+  if (ctx.lastShown && repeatsLast(chip, ctx.lastShown)) return 'L12';
+  if (ctx.lastUser && echoesUser(chip, ctx.lastUser)) return 'L14';
+  return null;
+}
+
+/**
+ * 落点相同的不同动作：开现场抽屉 = 起头「网申进展」；出勾选表 = 起头「批量投递」。
+ * 同一条上两格点下去到同一处就是重复（verify-r3 P1-2）。
+ */
+const DEST_OF_FEATURE: Readonly<Partial<Record<string, string>>> = { live: 'dest:live', batch: 'dest:batch' };
+
+const actionKey = (c: SuggestChip): string | null => {
+  const a = c.action;
+  if (!a) return null;
+  if (a.type === 'start_feature') return DEST_OF_FEATURE[a.feature_id] ?? `start_feature:${a.feature_id}`;
+  if (a.type === 'open' && a.surface === 'live') return 'dest:live';
+  if (a.type === 'propose_batch') return 'dest:batch';
+  if (a.type === 'ask_choose') return `ask_choose:${a.ask_id}:${a.choice}`;
+  if (a.type === 'start_card') return `${a.type}:${(a.job_ids ?? []).join(',')}`;
+  if (a.type === 'open') return `open:${a.surface}:${a.id ?? ''}`;
+  return `${a.type}:${'ask_id' in a ? a.ask_id ?? '' : ''}${'card_id' in a ? a.card_id : ''}`;
+};
+
+/** L8 同轮去重：同字或整句很像（真机 r3「先出一版简历看看 / 直接出一版简历看看」）、同动作、两个退出口、两个起头（S26 除外）只留先来的。 */
+function duplicateOf(chip: SuggestChip, kept: readonly SuggestChip[], scene: SceneId): boolean {
+  const key = actionKey(chip);
+  if (kept.some(k => k.text === chip.text || wholeOverlap(k.text, chip.text) >= NEAR_DUP_OVERLAP || (key !== null && actionKey(k) === key))) return true;
+  if (chip.mode === 'exit' && kept.some(k => k.mode === 'exit')) return true;
+  return scene !== 'S26' && isFeatureStart(chip) && kept.some(isFeatureStart);
+}
+
+export interface LintResult { kept: SuggestChip[]; dropped: Array<{ chip: SuggestChip; rule: LintRule }> }
+
+/**
+ * 整条过线：按传入顺序（规则格 → 模型格 → 兜底格）保留，不过的丢弃并记日志。
+ * already：已经在条上的格（补位时传），新格和它们重复也算 L8；返回的 kept 不含它们。
+ */
+export function lintChips(chips: readonly SuggestChip[], ctx: LintCtx, already: readonly SuggestChip[] = []): LintResult {
+  const kept: SuggestChip[] = [];
+  const dropped: LintResult['dropped'] = [];
+  for (const chip of chips) {
+    const rule = lintChip(chip, ctx) ?? (duplicateOf(chip, [...already, ...kept], ctx.scene) ? 'L8' : null);
+    if (!rule) { kept.push(chip); continue; }
+    dropped.push({ chip, rule });
+    if (rule !== 'L8') console.log(`[career-suggest] lint drop ${rule} kind=${chip.kind} mode=${chip.mode}`);
+  }
+  return { kept, dropped };
+}

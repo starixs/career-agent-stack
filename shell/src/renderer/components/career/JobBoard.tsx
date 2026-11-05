@@ -50,7 +50,8 @@ const COLUMNS: Array<{ key: string; label: string; className?: string }> = [
   { key: 'link', label: '链接', className: 'w-[80px]' },
 ];
 
-export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bulkExtra?: ReactNode }) {
+/** `confirmExtra`：放进「投这 N 家」确认区的控件（比如「检查都过了就直接投出」），浏览时不出现。 */
+export function JobBoard({ onChanged, confirmExtra }: { onChanged?: () => void; confirmExtra?: ReactNode }) {
   const [filter, setFilter] = useState<BoardFilterState>(DEFAULT_BOARD_FILTER);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
@@ -79,6 +80,9 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
 
   const started = (msg: string) => { setNotice(msg); setSelected(new Set()); setPanel(null); refresh(); };
   const pick = useRangeSelect(ids, selected, setSelected);
+  // 匹配分整列一样时没有区分度：不占一列，展开详情仍可从岗位行进
+  const showMatch = useMemo(() => new Set(rows.map(r => (r.match ? `${r.match.hard_ok}:${r.match.score}` : 'none'))).size > 1, [rows]);
+  const columns = showMatch ? COLUMNS : COLUMNS.filter(c => c.key !== 'match');
 
   return (
     <section className="flex min-h-0 flex-1 flex-col">
@@ -109,15 +113,18 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
 
       {panel === 'import' && <ImportRow onImported={() => { setPanel(null); refresh(); }} />}
 
-      {/* 状态行：勾选与批量动作在左，我的条件在右 */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-6 pb-2 text-xs text-[var(--muted)]">
+      {/* 状态行：岗位数 + 我的条件；勾了才出现「投这 N 家」 */}
+      <div className="flex min-h-[30px] flex-wrap items-center gap-x-3 gap-y-1 px-6 pb-2 text-xs text-[var(--muted)]">
         <span className="tabular-nums">{query.data ? `${rows.length} 个岗位${rows.length !== allRows.length ? `（共 ${allRows.length}）` : ''}` : ''}</span>
-        {picked.length > 0 && <span className="tabular-nums">已选 {picked.length}{hiddenPicked > 0 ? `（${hiddenPicked} 个在别的搜索里）` : ''}</span>}
-        <Button size="sm" variant={picked.length > 0 ? 'primary' : 'ghost'} disabled={picked.length === 0} aria-pressed={panel === 'apply'} onClick={() => setPanel(p => (p === 'apply' ? null : 'apply'))}>{picked.length > 0 ? `投这 ${picked.length} 家` : '点行勾选，Shift 可连选'}</Button>
-        {bulkExtra}
+        {picked.length > 0 && (
+          <>
+            {hiddenPicked > 0 && <span className="tabular-nums">另有 {hiddenPicked} 个在别的搜索里</span>}
+            <Button size="sm" variant="primary" aria-pressed={panel === 'apply'} onClick={() => setPanel(p => (p === 'apply' ? null : 'apply'))}>投这 {picked.length} 家</Button>
+          </>
+        )}
         {query.data && <PrefsSummary prefs={query.data.prefs} editing={panel === 'prefs'} onEdit={() => setPanel(p => (p === 'prefs' ? null : 'prefs'))} />}
       </div>
-      {panel === 'apply' && picked.length > 0 && <ApplyConfirm jobIds={picked} onStarted={started} onCancel={() => setPanel(null)} />}
+      {panel === 'apply' && picked.length > 0 && <ApplyConfirm jobIds={picked} extra={confirmExtra} onStarted={started} onCancel={() => setPanel(null)} />}
       {panel === 'prefs' && query.data && <PrefsEditor prefs={query.data.prefs} onDone={() => setPanel(null)} onSaved={() => { setPanel(null); refresh(); }} />}
 
       <div className="px-6">
@@ -127,7 +134,7 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
         {query.loading && !query.data && <LoadingRow />}
         {query.data && rows.length === 0 && (allRows.length === 0
           ? <EmptyState title="岗位正在更新" />
-          : <EmptyState title="没有符合筛选的岗位" hint="放宽筛选，或点右上角的同步拉取新的校招 / 实习网申信息。" example="帮我找符合我条件的实习" />)}
+          : <EmptyState title="没有符合筛选的岗位" action={<Button variant="secondary" onClick={() => setFilter(DEFAULT_BOARD_FILTER)}>清除筛选</Button>} />)}
       </div>
 
       {rows.length > 0 && (
@@ -138,11 +145,11 @@ export function JobBoard({ onChanged, bulkExtra }: { onChanged?: () => void; bul
                 <th className="w-9 px-2 py-2 font-medium">
                   <input type="checkbox" aria-label="全选岗位" checked={allChecked} ref={el => { if (el) el.indeterminate = visiblePicked > 0 && !allChecked; }} onChange={toggleAllVisible} />
                 </th>
-                {COLUMNS.map(c => <th key={c.key} className={`whitespace-nowrap px-2 py-2 font-medium ${c.className ?? ''}`}>{c.label}</th>)}
+                {columns.map(c => <th key={c.key} className={`whitespace-nowrap px-2 py-2 font-medium ${c.className ?? ''}`}>{c.label}</th>)}
               </tr>
             </thead>
             <tbody>
-              {rows.map(row => <BoardRow key={row.job.id} row={row} checked={selected.has(row.job.id)} pick={pick} onChanged={refresh} />)}
+              {rows.map(row => <BoardRow key={row.job.id} row={row} showMatch={showMatch} checked={selected.has(row.job.id)} pick={pick} onChanged={refresh} />)}
             </tbody>
           </table>
         </div>
@@ -278,13 +285,9 @@ function ImportRow({ onImported }: { onImported: () => void }) {
   );
 }
 
-function Pill({ children }: { children: ReactNode }) {
-  return <span className="inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--inset)] px-2 text-xs text-[var(--ink-2)]">{children}</span>;
-}
-
 const CELL = 'truncate px-2 py-2';
 
-function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked: boolean; pick: ReturnType<typeof useRangeSelect>; onChanged: () => void }) {
+function BoardRow({ row, showMatch, checked, pick, onChanged }: { row: JobBoardRow; showMatch: boolean; checked: boolean; pick: ReturnType<typeof useRangeSelect>; onChanged: () => void }) {
   const { job, match, application } = row;
   const [open, setOpen] = useState(false);
   const stageAction = useCareerAction();
@@ -304,26 +307,25 @@ function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked
           <span className="flex min-w-0 items-center gap-1"><TargetStar jobId={job.id} source={row.target} label={`${company} ${job.title}`} onChanged={onChanged} /><span className="truncate">{company}</span></span>
         </td>
         <td className={`${CELL} text-[var(--ink-2)]`} title={job.title}>
-          {job.title}{job.source_status === 'closed' && <span className="ml-1 text-[var(--subtle)]">（已下架）</span>}
+          {match && !showMatch
+            ? <button type="button" className="truncate text-left hover:underline" onClick={() => setOpen(v => !v)} aria-expanded={open} aria-label={`匹配详情 ${job.title}`}>{job.title}</button>
+            : job.title}
+          {job.source_status === 'closed' && <span className="ml-1 text-[var(--subtle)]">（已下架）</span>}
         </td>
         <td className={`${CELL} text-[var(--muted)]`} title={batch}>{batch || <Dash />}</td>
         <td className={`${CELL} text-[var(--muted)]`} title={row.meta?.industry ?? undefined}>{row.meta?.industry ?? <Dash />}</td>
-        <td className="px-2 py-2">
-          {tags.length ? <span className="flex gap-1 overflow-hidden" title={tags.join('、')}>{tags.map(t => <Pill key={t}>{t}</Pill>)}</span> : <Dash />}
-        </td>
+        <td className={`${CELL} text-[var(--muted)]`} title={tags.join('、') || undefined}>{tags.length ? tags.join(' · ') : <Dash />}</td>
         <td className={`${CELL} text-[var(--muted)]`} title={job.location ?? undefined}>{job.location ?? <Dash />}</td>
-        <td className="whitespace-nowrap px-2 py-2 text-xs">
+        <td className="whitespace-nowrap px-2 py-2 text-xs" title={job.deadline && !job.deadline_verified_at ? '截止日期来自汇总数据，还没到官网核实' : undefined}>
           <DueLabel at={job.deadline} suffix="" />
-          {job.deadline && !job.deadline_verified_at && <span className="ml-1 text-[var(--subtle)]" title="截止日期来自汇总数据，还没到官网核实">未核实</span>}
         </td>
-        <td className="px-2 py-2">
+        {showMatch && <td className="px-2 py-2">
           {match ? (
-            <button type="button" className="flex items-center gap-1 text-left" onClick={() => setOpen(v => !v)} aria-expanded={open} aria-label={`匹配详情 ${job.title}`}>
+            <button type="button" className="flex items-center gap-1 text-left" title={`要求覆盖 ${match.covered}/${match.total}`} onClick={() => setOpen(v => !v)} aria-expanded={open} aria-label={`匹配详情 ${job.title}`}>
               <span className={`tabular-nums ${!match.hard_ok ? 'text-[var(--muted)]' : match.score >= 70 ? 'font-semibold text-[var(--ink)]' : 'text-[var(--ink-2)]'}`}>{match.hard_ok ? match.score : '不符合'}</span>
-              <span className="text-xs tabular-nums text-[var(--muted)]">{match.covered}/{match.total}</span>
             </button>
-          ) : <span className="text-xs text-[var(--subtle)]">未计算</span>}
-        </td>
+          ) : <Dash />}
+        </td>}
         <td className="px-2 py-1.5">
           {application ? (
             <div className="flex items-center gap-1">
@@ -344,7 +346,7 @@ function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked
       {open && match && (
         <tr className="border-b border-[var(--line)] bg-[var(--inset)]">
           <td />
-          <td colSpan={COLUMNS.length} className="px-2 py-2 text-xs">
+          <td colSpan={showMatch ? COLUMNS.length : COLUMNS.length - 1} className="px-2 py-2 text-xs">
             <div className="mb-1 text-[var(--ink)]">{match.summary}</div>
             {match.hard.length > 0 && (
               <div className="mb-1 flex flex-wrap gap-2">
@@ -372,7 +374,8 @@ function BoardRow({ row, checked, pick, onChanged }: { row: JobBoardRow; checked
  * 只收邮件的岗位没有网申链接，这一格不出空链接（R5：岗位库收只有投递邮箱的岗位）。
  */
 export function ApplyChannelCell({ job }: { job: Pick<Job, 'url' | 'apply_email'> }) {
-  if (job.apply_email) return <Pill>邮件投递</Pill>;
+  // 逐页 UX 收口后岗位库不用小胶囊（标签一格也是纯字），这里同样只写字
+  if (job.apply_email) return <span className="text-xs text-[var(--muted)]">邮件投递</span>;
   if (!job.url) return <Dash />;
   return <ExternalLink href={job.url} title={`打开网申页面：${job.url}`} className="inline-flex items-center gap-1 text-xs text-[var(--primary)] hover:underline"><ExternalLinkIcon className="h-3.5 w-3.5" strokeWidth={1.75} />网申</ExternalLink>;
 }

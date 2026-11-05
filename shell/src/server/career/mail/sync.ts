@@ -8,6 +8,7 @@ import type { Repos, MailAccount, MailMessage } from '@career/core';
 
 import { captureIntake, captureTriaged, dataChanged, type IntakeDeps, type IntakeInput, type IntakeResult } from '../intake';
 import type { PostChatCard } from '../chat-card-push';
+import { recordBusinessEventInBackground } from '../billing-service';
 import { getMailPassword } from './credentials';
 import { isExpired, recordMailFailure, recordMailSuccess } from './health';
 import { afterLinkedReply, handleBounceMail } from '../mail-apply/after-send';
@@ -260,6 +261,8 @@ function recordArchived(deps: MailSyncDeps, m: FetchedMail, row: MailMessage, in
     result.job_related++;
     const kind = intake.item.kind ?? 'other';
     result.kinds = { ...result.kinds, [kind]: (result.kinds?.[kind] ?? 0) + 1 };
+    // 卖点埋点：一封求职邮件认出来并归档算一件（按邮件行幂等）
+    recordBusinessEventInBackground({ event: 'mail_triaged', key: `mail:${row.id}`, refType: 'mail_message', refId: row.id, meta: { kind: intake.item.kind, history: !!input.history } }, r.db);
     if (!input.history) result.archived.push({ mail_id: row.id, inbox_item_id: intake.item.id, kind: intake.item.kind, summary: intake.summary });
     if (appId) r.addDossierNote({ application_id: appId, kind: 'mail', content: `收到邮件《${m.subject ?? '(无主题)'}》：${intake.summary}` });
   } else {

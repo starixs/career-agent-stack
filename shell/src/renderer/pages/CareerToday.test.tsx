@@ -83,12 +83,12 @@ describe('CareerToday · 招聘概览', () => {
     mockGet();
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
     expect(screen.getByRole('heading', { name: '招聘概览' })).toBeInTheDocument();
-    expect(await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司')).toBeInTheDocument();
+    expect(await within(sidebar()).findByText('发送投递邮件 · 甲公司')).toBeInTheDocument();
 
     const todayCell = screen.getByRole('button', { name: cellName(now) });
     const lines = todayCell.querySelectorAll('[data-category]');
     expect([...lines].map(l => l.getAttribute('data-category'))).toEqual(['review', 'handoff', 'remind']);
-    expect(lines[0]).toHaveTextContent('待你批准：发送投递邮件 · 甲公司');
+    expect(lines[0]).toHaveTextContent('发送投递邮件 · 甲公司');
     expect(lines[0]).toHaveTextContent('+1');
     expect(lines[0]).toHaveAttribute('data-lit', 'true');
 
@@ -99,6 +99,11 @@ describe('CareerToday · 招聘概览', () => {
     expect(within(side).getByRole('region', { name: '提醒' })).toBeInTheDocument();
     expect(within(side).getByRole('button', { name: '批准并发送' })).toBeInTheDocument();
     expect(within(side).getByText(/收件人：hr@jia.com/)).toBeInTheDocument();
+    // 组头已写类别：行里不再带「待你批准：」前缀；同组两条待审 → 组头一个「全部批准」
+    expect(within(side).queryByText(/待你批准：|需要你本人处理：/)).not.toBeInTheDocument();
+    expect(within(side).getByRole('button', { name: '全部批准' })).toBeInTheDocument();
+    // 交接按钮按原因写动词
+    expect(within(side).getByRole('button', { name: '去过验证码' })).toBeInTheDocument();
 
     // 截止放在到期那天；点那一格，侧栏切过去
     const tomorrowCell = screen.getByRole('button', { name: cellName(tomorrow) });
@@ -112,7 +117,7 @@ describe('CareerToday · 招聘概览', () => {
   it('不再有起步清单、等待中与三卡片；底部是页面输入框', async () => {
     mockGet({ checklist: checklistPartial });
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
-    await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司');
+    await within(sidebar()).findByText('发送投递邮件 · 甲公司');
     expect(screen.queryByText('起步：五步跑通第一条投递')).not.toBeInTheDocument();
     expect(screen.queryByText(/等待中（/)).not.toBeInTheDocument();
     expect(screen.getByTestId('page-ask-bar')).toBeInTheDocument();
@@ -144,7 +149,7 @@ describe('CareerToday · 招聘概览', () => {
     mockGet();
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, deadline: { id: 'd1' } });
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
-    await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司');
+    await within(sidebar()).findByText('发送投递邮件 · 甲公司');
     const tomorrowCell = screen.getByRole('button', { name: cellName(tomorrow) });
     fireEvent.click(tomorrowCell);
     expect(tomorrowCell.querySelector('[data-category="remind"]')).toHaveAttribute('data-lit', 'true');
@@ -188,7 +193,7 @@ describe('CareerToday · 招聘概览', () => {
   it('data-changed 后重新拉取', async () => {
     mockGet();
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
-    await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司');
+    await within(sidebar()).findByText('发送投递邮件 · 甲公司');
     const before = vi.mocked(apiGetJson).mock.calls.filter(c => String(c[0]).startsWith('/api/career/deadlines')).length;
     act(() => { emitEvent('career:data-changed', { tables: ['deadline'] }); });
     await waitFor(() => expect(vi.mocked(apiGetJson).mock.calls.filter(c => String(c[0]).startsWith('/api/career/deadlines')).length).toBe(before + 1));
@@ -233,7 +238,7 @@ describe('CareerToday · 从你手里有的开始', () => {
   it('页面输入框带上选中那一天（refs.date）', async () => {
     mockGet();
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
-    await within(sidebar()).findByText('待你批准：发送投递邮件 · 甲公司');
+    await within(sidebar()).findByText('发送投递邮件 · 甲公司');
     fireEvent.click(screen.getByRole('button', { name: cellName(tomorrow) }));
     const seen: Array<{ context?: { surface?: string; refs?: Record<string, unknown> } }> = [];
     const off = onEvent<{ context?: { surface?: string; refs?: Record<string, unknown> } }>('career:chat-suggest', p => { seen.push(p); });
@@ -255,7 +260,7 @@ describe('CareerToday · 从你手里有的开始', () => {
     render(<CareerToday isActive onOpenChat={vi.fn()} />);
     const row = (await within(sidebar()).findByText('等你发出去：招呼语')).closest('li')!;
     expect(within(row).getByText('您好，我是张三，想了解一下贵司的后端岗位')).toBeInTheDocument();
-    expect(within(row).queryByRole('button', { name: '打开对话接手' })).not.toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: '去处理' })).not.toBeInTheDocument();
     expect(writeText).not.toHaveBeenCalled();
     fireEvent.click(within(row).getByRole('button', { name: '复制' }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith('您好，我是张三，想了解一下贵司的后端岗位'));

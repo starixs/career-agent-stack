@@ -75,9 +75,10 @@ describe('右栏的网申块说真话', () => {
     repos.transition(app.id, 'blocked');
     const apply = () => railSnapshot(repos, store, core).blocks.find(b => b.id === 'apply')!;
     expect(core.autoRetryFailedFill(repos, fill.id)).toBe('retrying');
-    expect(apply()).toMatchObject({ status: 'working', line: '1 份没填成，正在再试一次', done: 0 });
+    expect(apply()).toMatchObject({ status: 'working', line: '1 份没填成，正在再试一次' });
     repos.setActionStatus(fill.id, 'failed', { error: '浏览器没有返回填表结果' });
-    expect(apply()).toMatchObject({ status: 'idle', line: '还没投出', done: 0 });
+    expect(apply()).toMatchObject({ status: 'idle', line: '还没投出' });
+    expect(apply()).not.toHaveProperty('total');
   });
 });
 

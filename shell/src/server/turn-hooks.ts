@@ -24,6 +24,39 @@
 import type { RuntimeType } from '../shared/types/runtime';
 import type { ProviderEnv } from './provider-types';
 
+/**
+ * 求职下一步条的轮末钩子上下文（plan-r4 §2.1）：在挂点处同步取齐，钩子异步跑时
+ * 不再碰 turn 状态。只放类型；实现由 agent-session 动态导入 career/suggest-hook。
+ * 消息形状是 builtin-session MessageWire 的结构等价子集（不引 builtin-session 类型）。
+ */
+export interface PostTurnSuggestBlock {
+  type: string;
+  text?: string;
+  tool?: { name: string };
+}
+
+export interface PostTurnSuggestMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  timestamp: string;
+  content: string | ReadonlyArray<PostTurnSuggestBlock>;
+}
+
+export interface PostTurnSuggestContext {
+  sessionId: string;
+  turnId: string | null;
+  assistantMessageId: string | null;
+  rootUserMessageId: string | null;
+  /** 这一轮小芽的最终回复文本（composedAssistantText）。 */
+  assistantText: string;
+  /** getCurrentTurnStartTime()；取不到为 null。 */
+  startedAt: number | null;
+  /** 最近 ≤14 条消息（投影 messages 的 values 或旧路径 getMessages()）。 */
+  messages: ReadonlyArray<PostTurnSuggestMessage>;
+}
+
+export type PostTurnSuggestHook = (ctx: PostTurnSuggestContext) => void;
+
 export type PostTurnTitleHook = (
   sessionId: string,
   runtime: RuntimeType,
@@ -55,5 +88,48 @@ export function firePostTurnTitleHook(
     titleHook(sessionId, runtime, model, providerEnv);
   } catch {
     /* best-effort: swallow so the turn is never affected */
+  }
+}
+
+/**
+ * Sibling slot #2 — usage metering (billing). Same dependency-inversion reason
+ * as the title slot: runtime paths fire it, the career billing service
+ * (`career/billing-service.ts`) installs the implementation at boot. Fired for
+ * every model call that spent tokens (chat turns, title generation, …) so the
+ * credit ledger sees all spend. Best-effort: a billing failure must not break
+ * the turn that already happened.
+ */
+export interface MeteredModelUsage {
+  /** Idempotency key; the ledger records each key once (e.g. `chat:<session>:<result uuid>`). */
+  key: string;
+  /** Accumulation window: chat turns use the session id; omitted = the background window of the day. */
+  scope?: string;
+  origin: 'chat' | 'background';
+  model?: string;
+  providerId?: string;
+  /** Uncached input tokens (DeepSeek reports cache hits separately). */
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+}
+
+export type UsageMeterHook = (usage: MeteredModelUsage) => void;
+
+let usageMeterHook: UsageMeterHook | null = null;
+
+/** Install the billing implementation (last writer wins); null uninstalls. */
+export function setUsageMeterHook(hook: UsageMeterHook | null): void {
+  usageMeterHook = hook;
+}
+
+/** Fire the usage meter; no-op until installed or when nothing was spent. Never throws. */
+export function fireUsageMeterHook(usage: MeteredModelUsage): void {
+  if (!usageMeterHook) return;
+  if (!usage.inputTokens && !usage.outputTokens && !usage.cacheReadTokens && !usage.cacheCreationTokens) return;
+  try {
+    usageMeterHook(usage);
+  } catch (error) {
+    console.error(`[billing] FAILED hook key=${usage.key} err=${String(error)}`);
   }
 }

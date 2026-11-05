@@ -1,10 +1,11 @@
 /**
  * 投递记录：一张表列出每条投递走到哪一步；点一行看岗位（JD 与岗位页面）。不再有单条投递的档案页——
  * 投的哪版简历、说过什么、面试准备都交给助理在对话里摊开。
- * 视图：投递记录 / 岗位库 / 助力记录（笔试、面试、模拟面试合一）；面试工作台和 Offer 对比从功能市场打开。
+ * 视图：投递记录 / 岗位库 / 助力记录（笔试、面试、模拟面试合一）；面试助力和 Offer 对比从功能市场打开。
  */
 import { ExternalLink as ExternalLinkIcon, Search, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import { onEvent } from '@/api/eventBus';
 import { ExternalLink } from '@/components/ExternalLink';
@@ -15,7 +16,7 @@ import { AssistRecords } from '@/components/career/AssistRecords';
 import { applicationStepper } from '@/components/career/applicationSteps';
 import { careerApi } from '@/components/career/careerApi';
 import { STAGE_LABELS, STAGE_TONES } from '@/components/career/careerConstants';
-import { Badge, Button, CareerPage, EmptyState, ErrorRow, LoadingRow, TextInput, formatDate } from '@/components/career/CareerPrimitives';
+import { Badge, Button, CareerPage, EMPTY_VALUE, EmptyState, ErrorRow, LoadingRow, TextInput, formatDay } from '@/components/career/CareerPrimitives';
 import type { BadgeTone } from '@/components/career/CareerPrimitives';
 import { QuoteNote } from '@/components/career/handwriting/QuoteNote';
 import { TargetStar } from '@/components/career/TargetStar';
@@ -35,13 +36,13 @@ const CareerExamSearch = lazy(() => import('@/pages/CareerExamSearch'));
 
 // 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
 type View = 'line' | 'apply' | 'assist' | 'interview' | 'offer' | 'exam-search';
-const VIEW_HEADINGS: Record<View, { title: string; subtitle: string }> = {
-  apply: { title: '岗位库', subtitle: '持续更新的校招 / 实习岗位，挑中就能定制、投递' },
-  line: { title: '投递记录', subtitle: '投了哪些，走到了哪一步' },
-  assist: { title: '助力记录', subtitle: '笔试、面试、模拟面试，每一次助力都在这里' },
-  interview: { title: '面试工作台', subtitle: '面试记录、题库、模拟面试和深挖点预测' },
-  offer: { title: 'Offer 对比', subtitle: '把拿到的 Offer 放在一起比' },
-  'exam-search': { title: '笔试助力', subtitle: '截图或粘贴题目，先查题库再作答' },
+const VIEW_HEADINGS: Record<View, { title: string }> = {
+  apply: { title: '岗位库' },
+  line: { title: '投递记录' },
+  assist: { title: '助力记录' },
+  interview: { title: '面试助力' },
+  offer: { title: 'Offer 对比' },
+  'exam-search': { title: '笔试助力' },
 };
 /** 已合并进助力记录的旧视图。 */
 const RENAMED_VIEWS: Record<string, View> = { exam: 'assist' };
@@ -88,18 +89,14 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
 
   const heading = VIEW_HEADINGS[view] ?? VIEW_HEADINGS.line;
   return (
-    <CareerPage
-      embedded={embedded}
-      title={heading.title}
-      subtitle={heading.subtitle}
-    >
+    <CareerPage embedded={embedded} title={heading.title}>
       {view === 'line' && <DossierLine focus={focus} onClearFilter={() => setFocus(f => (f ? { ...f, filter: null } : f))} />}
       {view === 'assist' && <AssistRecords />}
       {view === 'assist' && <PageAskBar target={{ kind: 'career-dossier', view }} placeholder="问问笔试面试安排，比如「下周有哪些笔试和面试」" />}
       {view !== 'line' && view !== 'assist' && (
         <Suspense fallback={<div className="px-4"><LoadingRow /></div>}>
           {view === 'apply' && <CareerApply embedded />}
-          {view === 'interview' && <CareerInterview embedded />}
+          {view === 'interview' && <CareerInterview />}
           {view === 'offer' && <CareerOffer embedded />}
           {view === 'exam-search' && <CareerExamSearch />}
         </Suspense>
@@ -215,18 +212,18 @@ function LineRow({ summary, focused, onShowJd, onChanged }: { summary: DossierSu
       </td>
       <td className="truncate px-2 py-2 text-[var(--ink-2)]" title={summary.title}>{summary.title}</td>
       <td className="whitespace-nowrap px-2 py-2 text-xs tabular-nums text-[var(--muted)]" title={summary.applied_at ? undefined : '还没投出去'}>
-        {summary.applied_at ? formatDate(summary.applied_at) : <span className="text-[var(--subtle)]">未投出</span>}
+        {summary.applied_at ? formatDay(summary.applied_at) : <span className="text-[var(--subtle)]">{EMPTY_VALUE}</span>}
       </td>
       <td className="whitespace-nowrap px-2 py-1.5">
-        <StatusCell summary={summary} />
-        {quiet && <span className={`ml-2 text-xs ${days >= 14 ? 'text-[var(--warning)]' : 'text-[var(--subtle)]'}`}>{days} 天无动静</span>}
+        {/* 一行只一个状态词：久没动静时「N 天无动静」替代状态文字 */}
+        <StatusCell summary={summary} quietLabel={quiet ? <span className={days >= 14 ? 'text-[var(--warning)]' : 'text-[var(--subtle)]'}>{days} 天无动静</span> : undefined} />
       </td>
     </tr>
   );
 }
 
 /** 行内紧凑步骤条；鼠标移上 / 键盘聚焦 / 点击时浮出完整的带文字步骤条。 */
-function StatusCell({ summary }: { summary: DossierSummary }) {
+function StatusCell({ summary, quietLabel }: { summary: DossierSummary; quietLabel?: ReactNode }) {
   const model = useMemo(() => applicationStepper(summary), [summary]);
   const [hover, setHover] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -247,7 +244,7 @@ function StatusCell({ summary }: { summary: DossierSummary }) {
         onKeyDown={e => e.stopPropagation()}
         className="inline-flex rounded-sm py-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
       >
-        <CompactStepper model={model} />
+        <CompactStepper model={model} labelOverride={quietLabel} />
       </button>
       <Popover open={open} onClose={() => { setPinned(false); setHover(false); }} anchorRef={anchor} placement="bottom-start" zIndex={50} className="w-[360px] p-3">
         <div className="space-y-2">

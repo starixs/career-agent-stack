@@ -4,6 +4,7 @@ import { FakeLLM } from '@career/core'
 import { solveCaptcha } from '../src/solvers/index.js'
 import { detectCaptcha } from '../src/detect.js'
 import { FakeCaptchaPage } from './helpers.js'
+import sharp from 'sharp'
 
 const noSleep = async () => {}
 const midRand = () => 0.5
@@ -55,7 +56,7 @@ describe('滑块求解（FakeLLM 路径）', () => {
     expect(r.outcome).toBe('passed')
     expect(r.attempts).toBe(1)
     const drag = page.cdpInstance.mouseEvents()
-    expect(drag[0].params.type).toBe('mousePressed')
+    expect(drag.some(e => e.params.type === 'mousePressed')).toBe(true)
     const release = drag.find(e => e.params.type === 'mouseReleased')!
     expect(release.params.x).toBeCloseTo(20 + 40 / 2 + 150, 1) // 把手中心 x=40 + 距离 150 = 190
   })
@@ -132,5 +133,46 @@ describe('detectCaptcha（探针结果归一化）', () => {
   it('未知厂商 + 未知种类 → null', async () => {
     const page = new FakeCaptchaPage({ evals: [{ match: 'document.body', result: { kind: 'unknown', vendor: 'unknown' } }] })
     expect(await detectCaptcha(page)).toBeNull()
+  })
+})
+
+describe('滑块图像兜底', () => {
+  it('视觉低置信度时用真实像素边缘估距，仍须拖动后核验', async () => {
+    const raw = Buffer.alloc(320 * 160, 150)
+    for (let y = 20; y < 120; y++) for (let x = 120; x < 155; x++) raw[y * 320 + x] = 20
+    const png = await sharp(raw, { raw: { width: 320, height: 160, channels: 1 } }).png().toBuffer()
+    const page = new FakeCaptchaPage({ evals: [
+      { match: 'geetest_slider_button', result: { handle: { x: 20, y: 300, width: 40, height: 40 }, track: { x: 20, y: 300, width: 320, height: 60 }, hasSuccess: false } },
+      { match: 'geetest_success', result: true },
+    ] })
+    page.cdpInstance.reply('Page.captureScreenshot', () => ({ data: png.toString('base64') }))
+    const llm = new FakeLLM([JSON.stringify({ distance: 120, confidence: 0.1 })])
+    const r = await solveCaptcha({ page, llm, sleep: noSleep, rand: midRand, maxAttempts: 1 }, { kind: 'slider', vendor: 'geetest' })
+    expect(r.outcome).toBe('passed')
+    expect(r.attempts).toBe(1)
+    expect(llm.calls).toHaveLength(0)
+  })
+})
+
+describe('旋转求解', () => {
+  const rotationPage = () => new FakeCaptchaPage({ evals: [
+    { match: 'geetest_slider_button', result: { handle: { x: 40, y: 400, width: 40, height: 40 }, track: { x: 40, width: 360 }, region: { x: 40, y: 100, width: 360, height: 280 } } },
+    { match: '使图片为正', result: true },
+  ] })
+  it('估角后按方向拖动，核验通过才算成功', async () => {
+    const page = rotationPage()
+    const llm = new FakeLLM([JSON.stringify({ angle: 90, confidence: 0.9 })])
+    const r = await solveCaptcha({ page, llm, sleep: noSleep, rand: midRand, maxAttempts: 1 }, { kind: 'rotation', vendor: 'geetest' })
+    expect(r.outcome).toBe('passed')
+    expect(page.cdpInstance.commands.filter(c => c.method === 'Page.captureScreenshot')).toHaveLength(1)
+    const release = page.cdpInstance.mouseEvents().find(e => e.params.type === 'mouseReleased')!
+    expect(release.params.x).toBeGreaterThan(60)
+  })
+  it('估角低置信度时不拖动', async () => {
+    const page = rotationPage()
+    const llm = new FakeLLM([JSON.stringify({ angle: 90, confidence: 0.1 })])
+    const r = await solveCaptcha({ page, llm, sleep: noSleep, rand: midRand, maxAttempts: 1 }, { kind: 'rotation', vendor: 'geetest' })
+    expect(r.outcome).toBe('failed')
+    expect(page.cdpInstance.mouseEvents()).toHaveLength(0)
   })
 })

@@ -49,10 +49,12 @@ describe('手机连接', () => {
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/phone/pair/cancel', {}));
   });
 
-  it('这台电脑配对过的手机：一键「用 Mi 10」', async () => {
+  it('这台电脑配对过的手机：页面上只有一个「连接手机」，点开再选「用 Mi 10」', async () => {
     serve({}, [MI10]);
     render(<PhoneConnectCenter />);
-    fireEvent.click(await screen.findByRole('button', { name: '用 Mi 10' }));
+    fireEvent.click(await screen.findByRole('button', { name: '连接手机' }));
+    expect(screen.queryAllByRole('button', { name: '用 Mi 10' })).toHaveLength(1);
+    fireEvent.click(within(await screen.findByRole('dialog', { name: '连接手机' })).getByRole('button', { name: '用 Mi 10' }));
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/phone/bind', { address: MI10.address, name: 'Mi 10' }));
   });
 
@@ -92,7 +94,7 @@ describe('手机连接', () => {
     const binding = { address: MI10.address, name: 'Mi 10', bound_at: '', last_connected_at: '2026-11-03T04:26:00Z' };
     serve({ binding, state: 'lost' }); const ui = render(<PhoneConnectCenter />);
     expect(await screen.findByText('暂时离线')).toBeTruthy();
-    expect(screen.getByText(/已记住此手机/)).toBeTruthy();
+    expect(screen.getByText('Mi 10')).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
     ui.unmount(); serve({ binding, state: 'unpaired' }); render(<PhoneConnectCenter />);
     fireEvent.click(await screen.findByRole('button', { name: '修复配对' }));

@@ -18,6 +18,7 @@ import {
 } from '../session-core/turn-result-policy';
 import { decideInFlightActionOnResult } from '../utils/inflight-terminal';
 import type { ProviderEnv } from '../provider-types';
+import type { MeteredModelUsage } from '../turn-hooks';
 import type { InFlightMetadata, TurnProviderAnalytics } from './types';
 import {
   getCurrentTurnText,
@@ -68,6 +69,7 @@ import {
   buildImErrorPayload,
 } from '../utils/im-terminal-payload';
 import { formatTextPreviewForLog } from '../utils/log-summary';
+import { dispatchSuggestHook, snapshotSuggestContext, type FirePostTurnSuggestHook } from './suggest-hook-context';
 
 export type BuiltinTurnTraceSnapshot = {
   turnId: string;
@@ -160,6 +162,13 @@ export type BuiltinTurnLifecycleDeps = {
     model: string | undefined,
     providerEnv: ProviderEnv | undefined,
   ) => Promise<void> | void;
+  /**
+   * 求职下一步条的轮末钩子（plan-r4 §2.1）：成功轮在落盘前触发，上下文在挂点同步取齐；
+   * isSuperseded 回答"这之后他是否又说了一句"（新一轮已开始）。实现必须不阻塞、不抛出。
+   */
+  firePostTurnSuggestHook?: FirePostTurnSuggestHook;
+  /** Billing meter (turn-hooks.ts slot). Optional so lifecycle tests can omit it. */
+  fireUsageMeterHook?: (usage: MeteredModelUsage) => void;
   appendTextChunk: (chunk: string) => boolean;
   stageAssistantChannelBlock: (text: string) => void;
   localizeImError: (rawError: string) => string;
@@ -635,6 +644,20 @@ export function createBuiltinTurnLifecycle(deps: BuiltinTurnLifecycleDeps): Buil
       durationMs: durationMs || undefined,
       providerId: providerAnalytics.provider_id ?? undefined,
     });
+    // Billing: tokens were spent whether the turn completed, failed or was stopped,
+    // so meter every terminal result (unlike ai_turn_complete analytics below).
+    // Keyed by the SDK result uuid so a replayed result is never charged twice.
+    deps.fireUsageMeterHook?.({
+      key: `chat:${deps.getSessionId()}:${resultMessage.uuid}`,
+      scope: `chat:${deps.getSessionId()}`,
+      origin: 'chat',
+      model: currentTurnUsage.model,
+      providerId: providerAnalytics.provider_id ?? undefined,
+      inputTokens: currentTurnUsage.inputTokens,
+      outputTokens: currentTurnUsage.outputTokens,
+      cacheReadTokens: currentTurnUsage.cacheReadTokens,
+      cacheCreationTokens: currentTurnUsage.cacheCreationTokens,
+    });
 
     const hasResultText = resultText.trim().length > 0;
     const resultErrorText = (hasResultText ? resultText : '')
@@ -821,6 +844,12 @@ export function createBuiltinTurnLifecycle(deps: BuiltinTurnLifecycleDeps): Buil
       const capturedCompletionTerminal = product
         ? recordCompletionTerminal(isAbortResult ? 'stopped' : terminalError ? 'error' : 'complete')
         : null;
+      const wantsSuggest = !!deps.firePostTurnSuggestHook && terminalDisposition === 'complete'
+        && !isAbortResult && !terminalError && scenario.type === 'desktop'
+        && finalTurnHasOutput && !successfulCompactControlTurn;
+      const suggestCtx = wantsSuggest
+        ? snapshotSuggestContext(deps.getSessionId(), composedAssistantText, lastAssistant?.id ?? null)
+        : null;
       forceSurfaced = completeTurn(
         durationMs,
         terminalError,
@@ -852,6 +881,9 @@ export function createBuiltinTurnLifecycle(deps: BuiltinTurnLifecycleDeps): Buil
         },
         isAbortResult ? 'cancelled' : 'complete',
       );
+
+      // 不等落盘（plan-r4 §8-1），但排到下一拍：handleSdkResult 先返回，前端按 assistant_message_id 存着等收尾。
+      if (suggestCtx && deps.firePostTurnSuggestHook) dispatchSuggestHook(deps.firePostTurnSuggestHook, suggestCtx);
 
       if (terminalDisposition === 'complete' && !isAbortResult
         && shouldTitleCompletedTurn(resultMessage.is_error === true, resultMessage.terminal_reason)) {

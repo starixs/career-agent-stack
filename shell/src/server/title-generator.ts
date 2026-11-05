@@ -19,6 +19,7 @@ import { join } from 'path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import { resolveClaudeCodeCli, buildClaudeSessionEnv, startOneShotBridge } from './agent-session';
 import type { ProviderEnv } from './provider-types';
+import { fireUsageMeterHook } from './turn-hooks';
 import { applyContextWindowSuffixForContextLength } from './utils/model-capabilities';
 import { SUBSCRIPTION_PROVIDER_ID } from '../shared/config-types';
 import { isLikelyErrorTitle } from '../shared/titleFilters';
@@ -183,6 +184,34 @@ export function extractTitleTextFromSdkMessage(message: unknown): string | null 
   return null;
 }
 
+const field = (obj: unknown, key: string): unknown =>
+  obj && typeof obj === 'object' && key in obj ? Reflect.get(obj, key) : undefined;
+const tokenCount = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0);
+
+/**
+ * Title generation is a one-shot model call on the session's provider (the
+ * built-in DeepSeek model for the career product), so its tokens go to the
+ * credit ledger as background spend. Reads usage off SDK assistant frames.
+ */
+function meterTitleUsage(sessionId: string, message: unknown): void {
+  if (field(message, 'type') !== 'assistant') return;
+  const inner = field(message, 'message');
+  const usage = field(inner, 'usage');
+  const uuid = field(message, 'uuid');
+  if (!usage || typeof uuid !== 'string') return;
+  const model = field(inner, 'model');
+  fireUsageMeterHook({
+    key: `title:${sessionId}:${uuid}`,
+    scope: `title:${sessionId}`,
+    origin: 'background',
+    model: typeof model === 'string' ? model : undefined,
+    inputTokens: tokenCount(field(usage, 'input_tokens')),
+    outputTokens: tokenCount(field(usage, 'output_tokens')),
+    cacheReadTokens: tokenCount(field(usage, 'cache_read_input_tokens')),
+    cacheCreationTokens: tokenCount(field(usage, 'cache_creation_input_tokens')),
+  });
+}
+
 /**
  * Generate a short session title using the SDK query() path.
  * Accepts multiple QA rounds (typically 3) for richer context.
@@ -307,6 +336,7 @@ async function generateTitleInner(
 
     const queryPromise = (async (): Promise<string | null> => {
       for await (const message of titleQuery!) {
+        meterTitleUsage(sessionId, message);
         const text = extractTitleTextFromSdkMessage(message);
         if (!providerEnv?.endpointSource) { if (text) return text; continue; }
         if (text) titleText = text;

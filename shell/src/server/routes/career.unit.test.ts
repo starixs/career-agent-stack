@@ -232,6 +232,11 @@ describe('handleCareerRoute', () => {
 
     const dirs = await call(deps, 'GET', '/api/career/directions');
     expect(dirs.json.directions).toEqual([]);
+
+    // 面试页的深挖点预测：路由要在，空的时候是空列表而不是 404（面试页会把 404 当成出错）
+    const preds = await call(deps, 'GET', '/api/career/probe-predictions');
+    expect(preds.status).toBe(200);
+    expect(preds.json.predictions).toEqual([]);
     const badStatus = await call(deps, 'POST', '/api/career/directions/dir_x/status', { status: 'nope' });
     expect(badStatus.status).toBe(400);
 
