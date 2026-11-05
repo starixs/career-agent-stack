@@ -458,6 +458,7 @@ pub fn cmd_initialize_bundled_workspace<R: Runtime>(
     // and graceful error → not crashing in production, so left as TODO
     // to avoid scope creep on the v0.2.6 hotfix.
     if mino_dest.exists() {
+        sync_existing_workspace_skills(&app_handle, &mino_dest);
         return Ok(InitBundledWorkspaceResult {
             path: mino_dest.to_string_lossy().to_string(),
             is_new: false,
@@ -484,6 +485,26 @@ pub fn cmd_initialize_bundled_workspace<R: Runtime>(
         path: mino_dest.to_string_lossy().to_string(),
         is_new: true,
     })
+}
+
+/// The workspace itself stays user-owned, but its `.claude/skills/` are product
+/// instructions: re-sync them from the template when the template changed
+/// (see `workspace_skill_sync`). Failure never blocks opening the workspace.
+fn sync_existing_workspace_skills<R: Runtime>(app_handle: &AppHandle<R>, workspace: &Path) {
+    let template = match resolve_bundled_workspace_template(app_handle, DEFAULT_BUNDLED_WORKSPACE_TEMPLATE_ID) {
+        Ok(template) => template,
+        Err(e) => {
+            ulog_warn!("[workspace] skill sync skipped: template unavailable: {}", e);
+            return;
+        }
+    };
+    let skills = Path::new(".claude").join("skills");
+    if let Err(e) = crate::workspace_skill_sync::sync_bundled_workspace_skills(
+        &template.join(&skills),
+        &workspace.join(&skills),
+    ) {
+        ulog_warn!("[workspace] skill sync failed for {}: {}", workspace.display(), e);
+    }
 }
 
 /// Command: Create a dedicated workspace for an IM Bot by copying the bundled mino template.

@@ -38,7 +38,7 @@ Avoid unnecessary secondary labels and descriptions. Let the layout do the expla
 | `src-tauri/document-worker/` | 独立 Rust 文档转换 Worker；单 job 计算，不拥有队列或持久化 |
 | `src-tauri/media-worker/`、`src-tauri/media-worker-protocol/` | 独立 Rust 音频推理 Worker 与共享 wire protocol；单 workload / generation 计算，不拥有队列或持久化 |
 | `bundled-agents/keystone_helper/` | 内置 MA 小助理 |
-| `bundled-workspaces/` | 随 App 发布的只读工作区模板源码；复制出的用户工作区不由此目录升级覆盖 |
+| `bundled-workspaces/` | 随 App 发布的只读工作区模板源码；复制出的用户工作区归用户，只有 `.claude/skills/` 按模板内容指纹同步（`workspace_skill_sync.rs`） |
 | `specs/` | 当前架构、设计规范、模块技术文档与构建指南 |
 
 Sidecar、Plugin Bridge、MCP Server 与 CLI 共用应用内置的单一 Node.js v24，不依赖用户系统安装的 Node。

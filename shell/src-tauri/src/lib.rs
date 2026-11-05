@@ -2,6 +2,7 @@
 // Main entry point with sidecar lifecycle management
 
 pub mod app_dirs;
+pub mod workspace_skill_sync;
 pub mod app_route;
 pub mod attachment_protocol;
 pub mod browser;
