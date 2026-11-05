@@ -49,7 +49,26 @@ let store: typeof import('../SessionStore');
 let releaseWrite: (() => void) | undefined;
 let notificationReceipts = false;
 
-function fakeQuery(args: { prompt: AsyncIterable<unknown>; options: { sessionId?: string; resume?: string; resumeSessionAt?: string } }) {
+/**
+ * In-process SDK MCP servers (the always-on `career` toolset) connect as soon as
+ * the real CLI starts. Report every installed server as connected so dispatch
+ * does not sit out the full MCP pre-warm grace waiting for a server the fake
+ * transport would otherwise never acknowledge.
+ */
+function connectedSdkMcpTransport(initial: Record<string, unknown> | undefined) {
+  let names = Object.keys(initial ?? {});
+  return {
+    mcpServerStatus: async () => names.map(name => ({ name, status: 'connected' as const, tools: [] })),
+    setMcpServers: async (servers: Record<string, unknown>) => {
+      const next = Object.keys(servers);
+      const result = { added: next.filter(name => !names.includes(name)), removed: names.filter(name => !next.includes(name)), errors: {} };
+      names = next;
+      return result;
+    },
+  };
+}
+
+function fakeQuery(args: { prompt: AsyncIterable<unknown>; options: { sessionId?: string; resume?: string; resumeSessionAt?: string; mcpServers?: Record<string, unknown> } }) {
   const prompt = args.prompt[Symbol.asyncIterator]();
   const pullInput = () => prompt.next().then(next => {
     if (!next.done) state.sdkInputs.push(next.value);
@@ -215,10 +234,9 @@ function fakeQuery(args: { prompt: AsyncIterable<unknown>; options: { sessionId?
     interrupt: async () => { if (state.interruptCloses) close(); },
     close,
     rewindFiles: state.rewindFiles,
-    mcpServerStatus: async () => [],
+    ...connectedSdkMcpTransport(args.options.mcpServers),
     setModel: async () => undefined,
     setPermissionMode: async () => undefined,
-    setMcpServers: async () => undefined,
   };
   return iterator;
 }
@@ -281,8 +299,10 @@ describe('builtin V2 execution independent of product storage', () => {
     const workspace = join(state.home, 'workspace');
     await mkdir(workspace, { recursive: true });
     await agent.initializeAgent(workspace, null, undefined, { preWarmDisabled: true });
-    agent.setSessionModel('configured-model');
+    // Career pins the model only for the built-in career-llm provider (or no
+    // provider yet), so route to the third-party provider before choosing its model.
     agent.setSessionProviderEnv({ providerId: 'configured-provider', baseUrl: 'http://127.0.0.1:1', apiKey: 'synthetic-not-a-secret' });
+    await agent.setSessionModel('configured-model');
     const { createBuiltinSessionEngine } = await import('../session-engine/builtin-adapter');
     if (mode === 'failed') state.failProductIo = true;
     if (mode === 'delayed') state.publicationGate = new Promise<void>(resolve => { releaseWrite = resolve; });
@@ -372,7 +392,10 @@ describe('builtin V2 execution independent of product storage', () => {
     expect(agent.getMessages().map(row => row.id)).toEqual(rows.map(row => row.id));
   });
 
-  it('does not treat absence from the SDK single-chain projection as an invalid rewind boundary', async () => {
+  // e8b5da94: a rewind anchor that a successful native chain read does not
+  // contain (e.g. compacted away) is refused before anything is aborted or
+  // truncated, instead of being committed as an unresumable boundary.
+  it('refuses a rewind anchor absent from the SDK chain without touching history', async () => {
     const workspace = join(state.home, 'workspace');
     await mkdir(workspace);
     const metadata = await store.createSession(workspace, { runtime: 'builtin' });
@@ -392,10 +415,12 @@ describe('builtin V2 execution independent of product storage', () => {
 
     const result = await agent.rewindSession('u2');
 
-    expect(result).toMatchObject({ success: true });
+    expect(result).toMatchObject({ success: false, error: expect.stringContaining('压缩') });
     expect(state.rewindFiles).not.toHaveBeenCalled();
-    expect(agent.getMessages().map(row => row.id)).toEqual(['u1', 'a1']);
-    expect(store.getSessionMetadata(metadata.id)?.sdkResumeSessionAt).toBe('native-orphan-a1');
+    expect(agent.getMessages().map(row => row.id)).toEqual(['u1', 'a1', 'u2', 'a2']);
+    expect(store.getSessionMetadata(metadata.id)?.sdkResumeSessionAt).toBeUndefined();
+    const reopened = await store.loadSessionTranscript(metadata.id);
+    expect(reopened.messages.map(row => row.id)).toEqual(['u1', 'a1', 'u2', 'a2']);
   });
 
   it('lets native Query adjudicate a persisted boundary absent from the SDK projection', async () => {
@@ -1411,7 +1436,7 @@ it.each(['stop', 'success', 'error'] as const)('keeps successor %s independent o
   const close = vi.fn(() => { closed = true; resolveClosed(); wake?.(); });
   releaseWrite = () => { releaseReceipt({ still_queued: [] }); close(); };
   const emit = (...messages: unknown[]) => { frames.push(...messages); wake?.(); };
-  state.query.mockImplementation((args: { prompt: AsyncIterable<unknown>; options: { sessionId: string } }) => {
+  state.query.mockImplementation((args: { prompt: AsyncIterable<unknown>; options: { sessionId: string; mcpServers?: Record<string, unknown> } }) => {
     const prompt = args.prompt[Symbol.asyncIterator]();
     // Transport consumes input independently of delivering result/control frames,
     // like the SDK streaming protocol. No external provider or credentials.
@@ -1431,8 +1456,8 @@ it.each(['stop', 'success', 'error'] as const)('keeps successor %s independent o
       },
       [Symbol.asyncIterator]() { return this; },
       initializationResult: async () => ({ commands: [] }), interrupt, close,
-      mcpServerStatus: async () => [], setModel: async () => undefined,
-      setPermissionMode: async () => undefined, setMcpServers: async () => undefined,
+      ...connectedSdkMcpTransport(args.options.mcpServers), setModel: async () => undefined,
+      setPermissionMode: async () => undefined,
     };
   });
   const workspace = join(state.home, 'workspace');
