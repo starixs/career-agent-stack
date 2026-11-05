@@ -153,6 +153,14 @@ describe('图片附件：模型能看图时直接看原图（2026-11-04 DeepSeek
     expect(context).toContain('薪资 25k');
     expect(context).toContain('用 Read 打开 keystone_files/offer.png 看原图');
   });
+  it('图在工作区外（手打的绝对路径）：不叫模型去 Read（守卫会拒），按识别的文字答或请他拖进来', () => {
+    const outside = { ...img, path: '../../Desktop/a.png' };
+    expect(renderAttachmentContext([outside], { vision: true })!).not.toContain('用 Read 打开');
+    expect(renderAttachmentContext([outside], { vision: true })!).toContain('按这些文字回答');
+    const unread = { ...outside, ok: false, text: '', attempts: ['系统 OCR：没有文字'] };
+    expect(renderAttachmentContext([unread], { vision: true })!).toContain('拖进对话框');
+  });
+
   it('能看图但 OCR 什么都没认出来：不说读不了，直接看原图', () => {
     const context = renderAttachmentContext([{ ...img, ok: false, text: '', attempts: ['系统 OCR：没有文字'] }], { vision: true })!;
     expect(context).not.toContain('没能转出文字');

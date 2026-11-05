@@ -38,6 +38,15 @@ describe('mainline state line', () => {
     expect(formatMainlineState(facts)).toContain('后台在填 2 家、排队 4 家');
   });
 
+  it('ignores a batch left over from before a restart (not running, or stale)', () => {
+    const repos = createMemoryRepos();
+    const running = [{ actionId: 'a', title: 't', host: 'h' }];
+    repos.kvSet(BATCH_STATE_KEY, { status: 'paused', updatedAt: NOW, done: 0, failed: 0, handoffs: 0, queued: 2, todayCount: 0, running });
+    expect(readMainlineFacts(repos, NOW)).toMatchObject({ filling: 0, queued: 0 });
+    repos.kvSet(BATCH_STATE_KEY, { status: 'running', updatedAt: '2026-11-05T08:00:00.000Z', done: 0, failed: 0, handoffs: 0, queued: 2, todayCount: 0, running });
+    expect(readMainlineFacts(repos, NOW)).toMatchObject({ filling: 0, queued: 0 });
+  });
+
   it('stays one short line even with many companies', () => {
     const line = formatMainlineState({ experiences: 5, masterResumes: 2, direction: '产品/上海/杭州', sentCompanies: ['甲', '乙', '丙', '丁', '戊'], filling: 3, queued: 12, asks: 2 });
     expect(line).toContain('近24小时投出 5 家（甲、乙、丙等）');

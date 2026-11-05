@@ -7,6 +7,7 @@
  * 2. 提问卡（AskUserQuestion）一次一个问题、最多三个选项：人群前提是没耐心、不想做选择题；
  *    一次三问的诊断问卷（10-10 实例）就是新的劳动。超了退回给模型重组，不打扰用户。
  */
+import { realpathSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 /** 一张提问卡最多几个问题 / 几个选项（人群：没耐心，选项多了就不选）。 */
@@ -17,13 +18,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** 路径存在就取真实路径，不存在（或无权限）就按字面解析；Read 读不存在的文件会自己报错。 */
+function realOrResolved(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
 /** Read 的目标在工作区外时返回拒绝原因；其余（含不是 Read、没有路径）返回 null。 */
 export function readScopeDenial(toolName: string, toolInput: unknown, workspace: string | undefined): string | null {
   if (toolName !== 'Read' || !workspace || !isRecord(toolInput)) return null;
   const target = toolInput.file_path;
   if (typeof target !== 'string' || target.trim() === '') return null;
-  const abs = resolve(workspace, target);
-  const rel = relative(resolve(workspace), abs);
+  // 两边都取真实路径：工作区可能经软链（iCloud、外接盘、自定目录）进来，CLI 给的 cwd 是物理路径
+  const rel = relative(realOrResolved(workspace), realOrResolved(resolve(workspace, target)));
   if (rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))) return null;
   return '只能读这次对话工作区里的文件（附件转出的文字、图片原图都在这里）。工作区外的本机文件不要读，也不要向用户提日志、接口这类内部细节。';
 }

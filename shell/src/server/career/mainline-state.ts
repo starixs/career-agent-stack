@@ -17,6 +17,8 @@ import { receipts } from './rail';
 const SENT_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** 投出公司名最多列几家，多了只报数。 */
 const SENT_NAMES_MAX = 3;
+/** 批量状态超过这么久没更新，就当是上次运行（崩溃 / 重启前）留下的，不算「在填」。 */
+const BATCH_STALE_MS = 10 * 60 * 1000;
 
 export interface MainlineFacts {
   experiences: number;
@@ -54,7 +56,10 @@ function directionOf(repos: Repos): string | null {
 /** 从库里读事实。 */
 export function readMainlineFacts(repos: Repos, nowIso: string): MainlineFacts {
   const since = new Date(Date.parse(nowIso) - SENT_WINDOW_MS).toISOString();
-  const batch = repos.kvGet<BatchState>(BATCH_STATE_KEY);
+  const stored = repos.kvGet<BatchState>(BATCH_STATE_KEY);
+  // 只有正在跑、且最近更新过的批量才算数：重启后残留的 running 列表会让模型说「在填 2 家」的假话
+  const live = stored?.status === 'running' && Date.parse(nowIso) - Date.parse(stored.updatedAt) < BATCH_STALE_MS;
+  const batch = live ? stored : null;
   const masters = repos.db.get<{ n: number }>('SELECT count(*) AS n FROM resume_master')?.n ?? 0;
   return {
     experiences: repos.listExperiences().length,

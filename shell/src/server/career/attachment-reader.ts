@@ -452,7 +452,17 @@ export function looksLikeResume(name: string, text: string): boolean {
 
 /** 拼给模型看的上下文；没有需要转换的附件时返回 null。 */
 /** 模型能看图时，图片附件让它直接打开原图看（2026-11-04 用户：DeepSeek V4 Flash 支持视觉）；OCR 文字只作参考。 */
+/** 附件在工作区外（手打的 @/Users/…/Desktop/a.png）：Read 只许读工作区（career/tool-guards.ts），不能叫模型去读。 */
+function outsideWorkspace(path: string): boolean {
+  return isAbsolute(path) || path === '..' || path.startsWith('../') || path.startsWith('..\\');
+}
+
 function imageHint(f: AttachmentText): string {
+  if (outsideWorkspace(f.path)) {
+    return f.ok
+      ? '这是一张图片，上面的文字是本地识别出来的；原图不在这次对话的工作区里，按这些文字回答。'
+      : '这张图片不在这次对话的工作区里，看不到原图：请他把图直接拖进对话框再发一次（拖进来就能看）。';
+  }
   return `这是一张图片，你能直接看图：用 Read 打开 ${f.path} 看原图。${f.ok ? '上面的文字是本地识别出来的，只作参考；图里的表格、版式、照片和非文字信息以原图为准。' : ''}`;
 }
 

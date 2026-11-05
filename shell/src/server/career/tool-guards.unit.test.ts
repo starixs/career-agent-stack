@@ -16,6 +16,18 @@ describe('readScopeDenial', () => {
     expect(readScopeDenial('Read', { file_path: '/Users/x/.keystone/projects/career-other/a.md' }, ws)).toContain('工作区');
   });
 
+  it('compares real paths, so a workspace reached through a symlink still allows its own files', async () => {
+    const { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const base = mkdtempSync(join(tmpdir(), 'read-scope-'));
+    mkdirSync(join(base, 'real', 'keystone_files'), { recursive: true });
+    writeFileSync(join(base, 'real', 'keystone_files', 'a.md'), 'x');
+    symlinkSync(join(base, 'real'), join(base, 'link'));
+    expect(readScopeDenial('Read', { file_path: join(base, 'link', 'keystone_files', 'a.md') }, join(base, 'real'))).toBeNull();
+    expect(readScopeDenial('Read', { file_path: join(base, 'real', 'keystone_files', 'a.md') }, join(base, 'link'))).toBeNull();
+  });
+
   it('ignores other tools and malformed input', () => {
     expect(readScopeDenial('Skill', { file_path: '/etc/passwd' }, ws)).toBeNull();
     expect(readScopeDenial('Read', {}, ws)).toBeNull();
