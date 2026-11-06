@@ -104,12 +104,6 @@ export class BridgePageProxy {
     await this.deps.bridge.sendCommand({ cmd: 'tabs', method: 'close', tabId: this.tab.id }).catch(() => {})
   }
 
-  /** 把工作标签页拉到前台（"到外面看"：真实 Chrome 窗口切到这一页）。 */
-  /** 只在它自己的窗口里切成当前标签，不激活窗口、不抢别的应用的焦点。 */
-  private async activateInWindow(): Promise<void> {
-    await this.deps.bridge.sendCommand({ cmd: 'tabs', method: 'activate', tabId: this.tab.id })
-  }
-
   async bringToFront(): Promise<void> {
     await this.deps.bridge.sendCommand({ cmd: 'tabs', method: 'switch', tabId: this.tab.id })
   }
@@ -258,16 +252,15 @@ export class BridgePageProxy {
   }
 
   async click(selector: string): Promise<void> {
-    // Background tabs throttle trusted input; debugger attach can shift layout.
-    // Activate before measuring, not after obtaining coordinates. Only switch the tab inside its window:
-    // CDP Page.bringToFront also raises Chrome over whatever the user is doing (2026-11-04: the browser
-    // kept jumping to the front during background applying). Focus emulation keeps the page "focused".
+    // 不再把这一页切成当前标签：几家并行时每点一下都切，标签互相抢前台，后台那几家停画、像在排队；他接管的那一页也会被切走
+    // （2026-11-05「腾讯没法并行」）。焦点模拟让后台标签照常渲染、收输入——2026-11-06 纯 CDP 实测：后台标签开了焦点模拟后
+    // visibilityState=visible、rAF 和 screencast 照常，点击 / 打字都收到；不开就 hidden、不出帧。
+    // 先 attach（调试黄条会挪版面）再量坐标。也不用 CDP Page.bringToFront：那会把 Chrome 顶到别的应用前面（2026-11-04）。
     // 分步计时：一次点击偶尔要 77 秒（2026-11-05 登录准备阶段），超过 5 秒就把各步耗时记下来
     const marks: Array<[string, number]> = []
     const t0 = Date.now()
     const mark = (name: string) => marks.push([name, Date.now()])
     try {
-      await this.activateInWindow(); mark('activate')
       await this.ensureCdp().send('Emulation.setFocusEmulationEnabled', { enabled: true }); mark('focus')
       const rect = await this.rectOf(selector); mark('rect')
       if (!rect) throw new Error(`找不到要点的元素: ${selector}`)

@@ -129,17 +129,18 @@ describe('可信输入（CDP 三事件）', () => {
 })
 
 describe('DOM 操作面（apply PageLike 底层）', () => {
-  it('activates the working tab inside its window before measuring, without raising Chrome over other apps (2026-11-04)', async () => {
+  it('clicks a background tab without switching to it: focus emulation keeps it rendering (2026-11-06, tabs no longer fight for the foreground)', async () => {
     const { page, bridge, execCalls, cdpCalls } = proxyHarness()
     const send = bridge.sendCommand
     const tabCmds: string[] = []
     bridge.sendCommand = async <T,>(cmd: Record<string, unknown>, timeout?: number): Promise<T> => {
-      if (cmd.cmd === 'tabs') { tabCmds.push(String(cmd.method)); if (cmd.method === 'activate') { expect(execCalls).toHaveLength(0); return { ok: true } as T } }
+      if (cmd.cmd === 'tabs') tabCmds.push(String(cmd.method));
       return send<T>(cmd, timeout)
     }
     await page.click('#send')
-    expect(tabCmds).toContain('activate')
+    expect(tabCmds).not.toContain('activate')
     expect(tabCmds).not.toContain('switch')
+    void execCalls
     expect(cdpCalls.some(c => c.method === 'Page.bringToFront')).toBe(false)
     expect(cdpCalls.some(c => c.method === 'Emulation.setFocusEmulationEnabled')).toBe(true)
   })
