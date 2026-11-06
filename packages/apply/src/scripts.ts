@@ -149,12 +149,18 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       if (h.offsetParent !== null) return true
       try { return getComputedStyle(h).position === 'fixed' } catch { return false }
     }
+    const QUESTION_INDEX_RX = /^\s*[Qq]?\d{1,3}[.、．:：]?\s*$/
     const pure = (node: Element | null): string => {
       if (!node) return ''
       const c = node.cloneNode(true) as Element
       c.querySelectorAll?.('input, select, textarea, option, button, [role=option], [role=listbox]').forEach(n => n.remove())
       c.querySelectorAll?.(MESSAGE_SEL).forEach(n => n.remove())
-      return stripStar(clean(c.textContent))
+      const whole = stripStar(clean(c.textContent))
+      // 单独一块的题号（头条问卷 <p class="number">01</p> 你的姓名）不是标签的一部分：去掉后还有字才去
+      const index = Array.from(c.querySelectorAll?.('*') ?? []).filter(n => n.children.length === 0 && QUESTION_INDEX_RX.test(n.textContent || ''))
+      if (!index.length) return whole
+      index.forEach(n => n.remove())
+      return stripStar(clean(c.textContent)) || whole
     }
     const WRAP = '[class*="form-item" i], [class*="form-group" i], [class*="field" i], [class*="question" i], fieldset, li, tr'
     const LABEL = 'label, legend, [class*="form-item__label" i], [class*="form-item-label" i], [class*="label" i], [class*="title" i], h3, h4, h5'
@@ -338,6 +344,10 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       if (w) { const t = firstLabel(w, el); if (t) return t }
       let c: Element | null = el.parentElement
       for (let i = 0; i < 4 && c; i++, c = c.parentElement) { const t = firstLabel(c, el); if (t) return t }
+      // 控件嵌得深（antd：textarea 外面套了 5 层才到 ant-form-item）：往上 4 层够不着标签，按所在的表单项整体再找一次
+      // （2026-11-06 头条问卷：够不着就落到几何兜底，拿到的是题号「01」）
+      const item = itemOf(el)
+      if (item) { const t = firstLabel(item, el); if (t) return t }
       labelVia = 'pseudo'
       const ps = pseudoLabel(el); if (ps) return ps
       labelVia = 'geometry'
@@ -392,11 +402,14 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
         const lg = rg.querySelector('legend'); if (lg?.textContent?.trim()) return stripStar(clean(lg.textContent))
       }
       const set = new Set(options.map(o => o.toLowerCase()))
-      const cont = wrapperOf(rg || first) || first.parentElement?.parentElement || first.parentElement
-      if (cont) for (const c of Array.from(cont.querySelectorAll(LABEL))) {
-        const t = pure(c); if (t && t.length > 1 && t.length < 160 && !set.has(t.toLowerCase())) return t
+      const titleIn = (box: Element | null | undefined): string => {
+        if (box) for (const c of Array.from(box.querySelectorAll(LABEL))) {
+          const t = pure(c); if (t && t.length > 1 && t.length < 160 && !set.has(t.toLowerCase())) return t
+        }
+        return ''
       }
-      return ''
+      // 近处的容器只装着选项（antd 的 ant-form-item-children）：再到所在的表单项里找题目（2026-11-06 头条问卷单选题没有题目）
+      return titleIn(wrapperOf(rg || first) || first.parentElement?.parentElement || first.parentElement) || titleIn(itemOf(rg || first))
     }
     const REQ_CLASS_RX = /(^|\s)([\w-]*-)?(is-)?required(\s|$)|(^|\s)[\w-]*-required[\w-]*(\s|$)|(^|\s)([\w-]*-)?(star|asterisk)(\s|$)/i
     const starIn = (n: Element | null): boolean => {

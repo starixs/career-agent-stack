@@ -1,0 +1,29 @@
+<!doctype html>
+<!--
+  头条问卷（wj.toutiao.com，2026-11-06 字节跳动校招报名问卷真机 DOM）：antd 表单项，<label> 里先是题号 <p class="number">01</p>，
+  再是红色必填标记，最后才是题目「你的姓名」。引擎当时把五道题都认成了「01」「02」…（标签是纯数字 → 不填），
+  停下时报「还差 5 项没填好：01、02、03、04、05」，他看不懂缺的是什么。
+-->
+<html><head><meta charset="utf-8"><title>字节跳动校园招聘</title></head><body>
+<form>
+  <section id="$question-id-2-" type="short"><div class="ant-row ant-form-item">
+    <div class="ant-col ant-form-item-label"><label class="ant-form-item-required" title=""><div style="display:inline-flex"><p class="number flexNone flex alignCenter">01</p><div class="redColor flex alignCenter justifyCenter"><i class="anticon"><svg width="6" height="6"><path d="M0 0h6v6H0z"/></svg></i></div><p class="q-title" data-text="你的姓名"></p></div></label></div>
+    <div class="ant-col ant-form-item-control-wrapper"><div class="ant-form-item-control"><span class="ant-form-item-children"><div><textarea placeholder="" class="ant-input"></textarea></div></span></div></div>
+  </div></section>
+  <section id="$question-id-4-" type="short"><div class="ant-row ant-form-item">
+    <div class="ant-col ant-form-item-label"><label class="ant-form-item-required" title=""><div style="display:inline-flex"><p class="number flexNone flex alignCenter">02</p><div class="redColor flex alignCenter justifyCenter"><i class="anticon"><svg width="6" height="6"><path d="M0 0h6v6H0z"/></svg></i></div><p class="q-title" data-text="你的手机号"></p></div></label></div>
+    <div class="ant-col ant-form-item-control-wrapper"><div class="ant-form-item-control"><span class="ant-form-item-children"><div><textarea placeholder="请输入十一位手机号" class="ant-input"></textarea></div></span></div></div>
+  </div></section>
+  <section id="$question-id-6-" type="single"><div class="ant-row ant-form-item">
+    <div class="ant-col ant-form-item-label"><label class="ant-form-item-required" title=""><div style="display:inline-flex"><p class="number flexNone flex alignCenter">03</p><div class="redColor flex alignCenter justifyCenter"><i class="anticon"><svg width="6" height="6"><path d="M0 0h6v6H0z"/></svg></i></div><p class="q-title" data-text="你的在读最高学历"></p></div></label></div>
+    <div class="ant-col ant-form-item-control-wrapper"><div class="ant-form-item-control"><span class="ant-form-item-children"><div class="ant-radio-group">
+      <label class="ant-radio-wrapper"><span class="ant-radio"><input type="radio" class="ant-radio-input" value="本科"></span><span>本科</span></label>
+      <label class="ant-radio-wrapper"><span class="ant-radio"><input type="radio" class="ant-radio-input" value="硕士"></span><span>硕士</span></label>
+    </div></span></div></div>
+  </div></section>
+</form>
+<script>
+// 真机是 React 建的 DOM：题目是 <p> 套 <p>（HTML 解析器会把它拆开，所以这里用脚本建）
+for (const outer of document.querySelectorAll('p.q-title')) { const inner = document.createElement('p'); inner.textContent = outer.dataset.text; outer.removeAttribute('class'); outer.removeAttribute('data-text'); outer.appendChild(inner) }
+</script>
+</body></html>

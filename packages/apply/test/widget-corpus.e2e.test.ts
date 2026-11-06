@@ -294,6 +294,18 @@ describe('Moka 申请表（真实 Chrome）', () => {
   })
 })
 
+describe('头条问卷（真实 Chrome）', () => {
+  it('控件嵌得深也按表单项认题目；单独一块的题号不进标签；单选组也有题目（2026-11-06 五道题都认成了 01…05）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/toutiao-survey.html')
+    const fields = await engine.extractFields(engine.fromPlaywright(page))
+    expect(fields.map(f => f.label)).toEqual(['你的姓名', '你的手机号', '你的在读最高学历'])
+    expect(fields.every(f => f.required && !f.labelUncertain)).toBe(true)
+    expect(fields[2]).toMatchObject({ type: 'radio', options: ['本科', '硕士'] })
+    await page.context().close()
+  })
+})
+
 describe('问卷星（真实 Chrome）', () => {
   it('整页 fieldset 不当单选组容器；选项文字在 div[for] 里；点选中、读得回', async ({ skip }) => {
     if (!engine || !browser) return skip()
