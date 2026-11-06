@@ -73,7 +73,7 @@ function ApplyChain({ position, caption, label }: { position: StagePosition; cap
             <span className={`mt-1 whitespace-nowrap text-xs ${here ? 'font-semibold text-[var(--ink)]' : state === 'done' ? 'text-[var(--ink-2)]' : 'text-[var(--subtle)]'}`}>{APPLY_STAGE_NAMES[stage]}</span>
             {/* 每一环都留出这一行的高度：小字出现、消失时链路不跳 */}
             <span className="h-4 whitespace-nowrap text-xs">
-              {here && caption && <span key={caption} data-testid="live-stage-caption" className={`live-verb-in inline-block ${tint}`}>{caption}</span>}
+              {here && caption && <span key={caption} data-testid="live-stage-caption" className={tint}>{caption}</span>}
             </span>
           </li>
         );
