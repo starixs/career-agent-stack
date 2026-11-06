@@ -18,7 +18,11 @@ const sampleRun = (applicationId: string, extra: Partial<ProgressRun>): Progress
   key: `run_${applicationId}`, steps: [{ message: '正在填', phase: 'apply_batch', at: 0 }], progress: null, finished: false, updatedAt: 0, applicationId, ...extra,
 });
 const SAMPLE_RUNS: readonly ProgressRun[] = [
-  sampleRun('sample-1', { stage: 'fill', kind: 'field', cells: { total: 24, done: 13, you: 0 } }),
+  // 枝上摆出这一环里做过的几类事：示例要让他看得出「到了一环往下分一枝」是什么样子
+  sampleRun('sample-1', {
+    stage: 'fill', kind: 'field', cells: { total: 24, done: 13, you: 0 },
+    trail: [{ stage: 'fill', kind: 'page', count: 1 }, { stage: 'fill', kind: 'upload', count: 1 }, { stage: 'fill', kind: 'field', count: 13 }],
+  }),
   sampleRun('sample-3', { finished: true, ready: true, stage: 'review' }),
 ];
 /** 示意的申请表有几行；前几行填好了，下一行正在填。 */
