@@ -160,6 +160,19 @@ describe('career live route', () => {
     expect((await handleCareerLiveRoute('/api/career/live/view', req('/api/career/live/view', { application_id: never }), d))!.status).toBe(404);
   });
 
+  it('只开着一家：画面在它那一页，它就是当前这一家（2026-11-06 一页也有标签，原来少于两页不标，标签不是选中的样子）', async () => {
+    resetApplicationPages();
+    const repos = createMemoryRepos();
+    const app = repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: 'sd', title: '产品经理', company_name: '闪电智联' }).id).id;
+    const frame = {};
+    const proxy = () => ({ url: () => 'https://v.wjx.cn/vm/m.aspx', title: async () => '校招', isClosed: () => false, mainFrame: () => frame, once: () => {} });
+    const host = { ...fakeHost(), withProductSession: async <T,>(_id: string, fn: (c: never) => Promise<T>) => fn({ pages: () => [proxy()] } as never) };
+    adoptApplicationPage('sess-career', app, proxy() as never);
+    const res = await handleCareerLiveRoute('/api/career/live/pages', req('/api/career/live/pages'), deps(repos, host as never));
+    expect(((await res!.json()) as { pages: Array<{ company: string; current: boolean }> }).pages).toEqual([expect.objectContaining({ company: '闪电智联', current: true })]);
+    resetApplicationPages();
+  });
+
   it('登录之旅钉着一家时，他点别家画面也跟过去；没人选过时按画面所在页标出当前这家（2026-11-05「切换画面不会跟着切换」）', async () => {
     resetApplicationPages();
     const repos = createMemoryRepos();

@@ -49,7 +49,9 @@ export function stagePosition(status: LiveStatus, waiting: string | null, stage?
 
 /** 等他的那一环下面的小字：说清等他做哪一下（四五个字，不是句子）。 */
 const WAITING_CAPTION: Record<string, string> = {
-  login: '等你登录', '2fa': '等你验证', captcha: '等你过验证', missing_info: '等你补几项', assessment: '等你作答', submit_confirm: '等你确认', user_request: '你在操作',
+  login: '等你登录', '2fa': '等你验证', captcha: '等你过验证', missing_info: '等你补几项', assessment: '等你作答', submit_confirm: '等你确认',
+  // user_request 这个原因码引擎也用在「页面弹了个对话框，拿不准点哪个」上：对他来说是要他看一眼，不是他在操作
+  user_request: '等你看一眼',
 };
 /** 小芽在做的那一环下面滚动的小字：这一步是哪类动作（固定几个词，不复述做了什么）。 */
 const WORKING_CAPTION: Record<string, string> = {
