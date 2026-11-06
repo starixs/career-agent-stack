@@ -19,7 +19,8 @@ const PRESET_BODY = [
 
 export const PRESET_DRAFT: MailDraftView = {
   action_id: 'preset_mail', application_id: 'preset_app', job_id: 'preset_job', purpose: 'apply',
-  company: PRESET_COMPANY.name, role: '产品运营实习生', target: true,
+  // 预设那封不带目标星：星说的是「这是你的目标岗位」，不是关于他的事实就不标
+  company: PRESET_COMPANY.name, role: '产品运营实习生', target: false,
   to: 'campus@example.com', cc: null, subject: '林小满-江南理工大学-产品运营实习生-每周4天-实习6个月', body: PRESET_BODY,
   from: { account_id: 'preset_account', address: 'linxiaoman@example.com' }, accounts: [{ account_id: 'preset_account', address: 'linxiaoman@example.com' }],
   attachments: [{ id: 'preset_resume', kind: 'resume', filename: '江南理工大学-林小满-信息管理-2027届.pdf', resume_id: null, resume_label: '产品运营定制版', tailored_changes: 4 }],
