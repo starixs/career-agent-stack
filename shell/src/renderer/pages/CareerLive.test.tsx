@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
@@ -53,7 +53,9 @@ describe('CareerLive', () => {
     await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/batch/command', { cmd: 'pause' }));
     expect(await screen.findByRole('button', { name: '开始 / 继续' })).toBeInTheDocument();
     push({ type: 'career:takeover', ts: 3, runId: 'run_1', state: 'paused', reason: 'captcha', message: '请拖动滑块完成验证，然后点"交还"继续' });
-    expect(await screen.findByRole('status')).toHaveTextContent('请拖动滑块');
+    // 进度面板自己也有一个给读屏的 status，这里要的是画面下面看得见的那条接管提示
+    const hints = await screen.findAllByText(/请拖动滑块/);
+    expect(hints.some(el => el.getAttribute('role') === 'status' && !el.classList.contains('sr-only'))).toBe(true);
     expect(screen.getByText(/等你处理：/)).toBeInTheDocument();
   });
 
@@ -101,17 +103,45 @@ describe('CareerLive', () => {
     expect(screen.queryByText(/TypeError/)).toBeNull();
   });
 
-  it('没有在投、也没有浏览器：整页一句话 + 去挑一批，不摆画面框、没有接管和导航按钮', async () => {
+  it('没有在投、也没有浏览器：一句话 + 去挑一批，下面摆网申现场示例；不摆真画面框、没有接管和导航按钮', async () => {
+    const nav: unknown[] = [];
+    const off = onEvent(CAREER_NAVIGATE_EVENT, p => nav.push(p));
     render(<CareerLive />);
     await waitFor(() => expect(live.handler).not.toBeNull());
     push({ ...snapshot, browser: { ...snapshot.browser, hasBrowser: false, control: 'none' }, batch: null });
     expect(await screen.findByText('现在没有在投的')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '去挑一批' })).toBeInTheDocument();
+    const sample = screen.getByTestId('live-sample');
+    expect(sample).toHaveTextContent('示例');
+    // 示例整块不可点、不进键盘顺序：里面没有一个能拿到的按钮
+    expect(within(sample).queryAllByRole('button')).toHaveLength(0);
+    expect(sample.querySelector('[inert]')).not.toBeNull();
+    expect(screen.queryByTestId('live-viewport')).toBeNull();
+    // 真入口照常：去挑一批回对话放勾选表
+    fireEvent.click(screen.getByRole('button', { name: '去挑一批' }));
+    expect(nav).toEqual([{ kind: 'chat' }]);
+    off();
     expect(screen.queryByAltText('浏览器实时画面')).toBeNull();
     expect(screen.queryByText('浏览器未打开')).toBeNull();
     expect(screen.queryByRole('button', { name: '接管' })).toBeNull();
     expect(screen.queryByRole('button', { name: '招聘概览' })).toBeNull();
     expect(screen.queryByText(/批量：/)).not.toBeInTheDocument();
+  });
+
+  it('有在投的或浏览器开着：照常是真画面框，不出现示例', async () => {
+    render(<CareerLive />);
+    await waitFor(() => expect(live.handler).not.toBeNull());
+    push(snapshot);
+    expect(await screen.findByTestId('live-viewport')).toBeInTheDocument();
+    expect(screen.queryByTestId('live-sample')).toBeNull();
+  });
+
+  it('浏览器开着但没有在投的：照常是真画面框 + 右栏一句话，不出现示例', async () => {
+    render(<CareerLive />);
+    await waitFor(() => expect(live.handler).not.toBeNull());
+    push({ ...snapshot, batch: { ...snapshot.batch, status: 'idle', queued: 0 } });
+    expect(await screen.findByText('现在没有在投的')).toBeInTheDocument();
+    expect(screen.getByTestId('live-viewport')).toBeInTheDocument();
+    expect(screen.queryByTestId('live-sample')).toBeNull();
   });
 
   it('页头数字：0 的项不写', () => {

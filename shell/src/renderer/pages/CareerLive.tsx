@@ -15,7 +15,14 @@ import { liveStatusText } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { useLiveStream } from '@/components/career/useGlobalLive';
 import { CareerLiveViewport, liveHumanActive } from '@/components/career/CareerLiveViewport';
+import { LiveSample } from '@/components/career/LiveSample';
 import { applicationStats, BATCH_ERROR_TEXT, hasBatchWork, statsMeta } from './CareerLiveModel';
+
+/**
+ * 首开示例 LiveSample 是按对话右边网申现场那一列设计的，这里不让它被拉成整屏宽；外框画成那一列的样子。
+ * 480px：三个标签和六个步骤名都摆得开的最小宽度（360px 下「定制简历」「打开网页」会连成一串，第三个标签被「示例」盖住）。
+ */
+const SAMPLE_COLUMN_CLASS = 'flex w-[480px] max-w-full flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--paper)]';
 
 export default function CareerLive() {
   const [frame, setFrame] = useState<LiveFrame | null>(null);
@@ -51,7 +58,7 @@ export default function CareerLive() {
   const connLabel = stream.status === 'open' ? null : stream.status === 'connecting' ? '连接中…' : '连接断开，自动重连';
   const hasBrowser = !!snapshot?.browser.hasBrowser;
   const working = hasBatchWork(batch);
-  // 没有在投、也没有浏览器：整页就是一句事实 + 一个动作，不摆空的画面框
+  // 没有在投、也没有浏览器：一句事实 + 一个动作，下面摆网申现场那一列的示例，不摆空的画面框
   const showStage = working || hasBrowser || !!frame || humanActive;
   // 第一份快照到之前不下结论，免得空状态一闪
   const showEmpty = !!snapshot && !showStage;
@@ -69,9 +76,13 @@ export default function CareerLive() {
       )}
     >
       {showEmpty && (
-        <div data-testid="career-live-empty" className="flex items-center gap-4 px-6 py-8">
-          <p className="text-sm text-[var(--ink)]">现在没有在投的</p>
-          <Button variant="primary" onClick={() => void openBatchPick()}>去挑一批</Button>
+        <div className="space-y-4 px-6 py-8">
+          <div data-testid="career-live-empty" className="flex items-center gap-4">
+            <p className="text-sm text-[var(--ink)]">现在没有在投的</p>
+            <Button variant="primary" onClick={() => void openBatchPick()}>去挑一批</Button>
+          </div>
+          {/* 投起来以后网申现场那一列长什么样：原样摆示例，宽度同那一列（见 SAMPLE_COLUMN_CLASS） */}
+          <div className={SAMPLE_COLUMN_CLASS}><LiveSample /></div>
         </div>
       )}
       {showStage && (

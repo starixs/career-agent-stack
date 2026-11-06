@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExamSearchRecord } from '@/components/career/exam-search/examSearchApi';
@@ -57,6 +57,42 @@ describe('笔试助力页', () => {
     expect(screen.getByText('C')).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(screen.getByText('2 / 2')).toBeInTheDocument();
+  });
+
+  it('这场还没有题：右栏摆一道示例题和答案（标一次「示例」），左栏粘贴入口照旧，不计数、不进记录', async () => {
+    render(<CareerExamSearch />);
+    const answerPane = screen.getByLabelText('答案');
+    const sample = within(answerPane).getByTestId('sample');
+    expect(sample).toHaveTextContent('示例');
+    expect(sample).toHaveTextContent('找规律填数');
+    expect(within(sample).getByText('A')).toBeInTheDocument();
+    expect(answerPane).not.toHaveTextContent('答案会出现在这里');
+    // 示例里只有翻看用的「解析」，没有重试、发出这类动作
+    expect(within(sample).getAllByRole('button').map(b => b.textContent)).toEqual(['解析']);
+    fireEvent.click(within(sample).getByRole('button', { name: '解析' }));
+    expect(sample).toHaveTextContent('30 + 12 = 42');
+    expect(screen.getByLabelText('粘进来的题目')).toHaveTextContent('复制题目，按');
+    expect(screen.getByText('0 / 0')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '开始这场' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '新的一场' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('tab', { name: '记录' }));
+    expect(screen.queryByText(/找规律填数/)).toBeNull();
+    await waitFor(() => expect(api.sessions).toHaveBeenCalled());
+    expect(api.recognize).not.toHaveBeenCalled();
+    expect(api.answer).not.toHaveBeenCalled();
+  });
+
+  it('第一道真题一进来，示例整块消失', async () => {
+    const first = record('exs_1', '尼尔森原则不包括哪项');
+    api.recognize.mockResolvedValueOnce({ search: first, session });
+    api.answer.mockResolvedValue(answered(first, 'C'));
+    render(<CareerExamSearch />);
+    expect(screen.getByTestId('sample')).toBeInTheDocument();
+    pasteText('尼尔森原则不包括哪项');
+    expect(screen.queryByTestId('sample')).toBeNull();
+    expect(await screen.findByText('C')).toBeInTheDocument();
+    expect(screen.queryByText(/找规律填数/)).toBeNull();
+    expect(screen.getByText('1 / 1')).toBeInTheDocument();
   });
 
   it('截图那一步：认完题后左栏按认出的材料、题干、选项统一排版', async () => {

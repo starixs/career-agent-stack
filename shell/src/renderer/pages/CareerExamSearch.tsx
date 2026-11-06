@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { onEvent } from '@/api/eventBus';
 
 import { examSearchApi, type ExamContext, type LiveExam } from '@/components/career/exam-search/examSearchApi';
-import { AnswerPane, StepArrows } from '@/components/career/exam-search/ExamSteps';
+import { AnswerPane, ExamSample, StepArrows } from '@/components/career/exam-search/ExamSteps';
 import { notifyPet } from '@/components/career/exam-search/petBridge';
 import { EXAM_SEARCH_CONTEXT_EVENT, takeExamSearchContext } from '@/components/career/exam-search/searchContext';
 import { SessionList } from '@/components/career/exam-search/SessionList';
@@ -161,7 +161,7 @@ function AnswerTab({ exam, live, onNew }: { exam: ExamSessionState; live: LiveSt
       <div className="grid h-[calc(100vh-14rem)] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-4">
         <SourcePane step={exam.current} onImage={onImage} onError={setLocalError} />
         <StepArrows index={exam.index} total={exam.steps.length} onGo={exam.go} />
-        <AnswerPane step={exam.current} onRetry={exam.retry} />
+        <AnswerPane step={exam.current} onRetry={exam.retry} empty={<ExamSample />} />
       </div>
     </div>
   );
