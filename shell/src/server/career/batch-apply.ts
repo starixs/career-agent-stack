@@ -33,14 +33,17 @@ export interface JobPlan {
   resumes: Array<{ id: string; name: string }>;
 }
 
-function skipReason(repos: Repos, store: CareerStore, jobId: string, busyApps: ReadonlySet<string>): string | null {
+/** 跳过的原因是哪一类（给调用方判别用，不比文案）：工作台据 no_resume 仍把邮件岗位列进「可以投」。 */
+export type SkipCode = 'no_job' | 'applied' | 'busy' | 'no_route' | 'no_resume';
+
+function skipOf(repos: Repos, store: CareerStore, jobId: string, busyApps: ReadonlySet<string>): { code: SkipCode; reason: string } | null {
   const job = repos.getJob(jobId);
-  if (!job) return '岗位不存在';
+  if (!job) return { code: 'no_job', reason: '岗位不存在' };
   const apps = repos.listApplications().filter(a => a.job_id === jobId);
-  if (apps.some(a => isSubmittedStage(a.stage))) return '已经投过';
-  if (apps.some(a => busyApps.has(a.id))) return '已在投';
-  if (!applyChannelOf(job)) return NO_APPLY_ROUTE_REASON;
-  if (!store.listResumeMasters().length && !pickResumeForJob(store, jobId)) return '还没有简历';
+  if (apps.some(a => isSubmittedStage(a.stage))) return { code: 'applied', reason: '已经投过' };
+  if (apps.some(a => busyApps.has(a.id))) return { code: 'busy', reason: '已在投' };
+  if (!applyChannelOf(job)) return { code: 'no_route', reason: NO_APPLY_ROUTE_REASON };
+  if (!store.listResumeMasters().length && !pickResumeForJob(store, jobId)) return { code: 'no_resume', reason: '还没有简历' };
   return null;
 }
 
@@ -62,21 +65,27 @@ export function backfillApplyEmails(repos: Repos, jobIds: readonly string[]): nu
   return n;
 }
 
-export function planJobs(repos: Repos, store: CareerStore, jobIds: readonly string[]): JobPlan {
+/** planJobs 的同一份判断，跳过的每项另带一个可判别的 code（工作台用）。 */
+export function planJobsDetailed(repos: Repos, store: CareerStore, jobIds: readonly string[]): Omit<JobPlan, 'skipped'> & { skipped: Array<{ job_id: string; reason: string; code: SkipCode }> } {
   backfillApplyEmails(repos, jobIds);
   // 「已在投」按投递上所有在办的动作看（填表、提交、写邮件、发邮件都算），不按种类过滤
   const busyApps = new Set(repos.listActions().filter(a => ACTIVE_ACTION_STATUSES.has(a.status) && a.application_id).map(a => a.application_id!));
   const marked = markedTargetJobs(repos);
-  const plan: JobPlan = { ready: [], targets: 0, skipped: [], needs_resume: [], resumes: [] };
+  const plan: ReturnType<typeof planJobsDetailed> = { ready: [], targets: 0, skipped: [], needs_resume: [], resumes: [] };
   for (const id of new Set(jobIds)) {
-    const reason = skipReason(repos, store, id, busyApps);
-    if (reason) { plan.skipped.push({ job_id: id, reason }); continue; }
+    const skip = skipOf(repos, store, id, busyApps);
+    if (skip) { plan.skipped.push({ job_id: id, ...skip }); continue; }
     plan.ready.push(id);
     if (marked.has(id)) plan.targets++;
     if (!pickResumeForJob(store, id)) plan.needs_resume.push(id);
   }
   if (plan.needs_resume.length) plan.resumes = store.listResumeMasters().map(r => ({ id: r.id, name: r.name }));
   return plan;
+}
+
+export function planJobs(repos: Repos, store: CareerStore, jobIds: readonly string[]): JobPlan {
+  const plan = planJobsDetailed(repos, store, jobIds);
+  return { ...plan, skipped: plan.skipped.map(({ job_id, reason }) => ({ job_id, reason })) };
 }
 
 /** 批准了的填表交给后台批量运行器（命令写 kv，Global 侧车几秒内接走）；返回交出去的动作 id。 */

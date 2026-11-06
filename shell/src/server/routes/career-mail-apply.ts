@@ -5,13 +5,22 @@
  *  - POST /api/career/mail-apply/availability     ← InternAvailability → { drafts }（存资料并重排所有待发邮件）。
  *  - POST /api/career/mail-apply/files            ← MailFileUpload → { file, draft }：存一个文件（作品集、成绩单…），带 action_id 时顺手附到那封上；
  *  - GET  /api/career/mail-apply/thread?application_id= → { thread }：一份申请的邮件往来（阶段二）；申请不存在 404。
+ *  工作台（第四轮，邮件投递做成功能市场的一级功能）：
+ *  - GET  /api/career/mail-apply/board               → { board }：一条路五站，每份邮件申请一行（不带邮件内容）；
+ *  - POST /api/career/mail-apply/setup               ← MailSetupPatch → { setup }：作品集链接、写好直接发（盖章 / 收回）；
+ *  - POST /api/career/mail-apply/jobs                ← MailJobPaste → { row }：贴一段写着投递邮箱的岗位；没明写邮箱回 422。
  * 发出 / 不投沿用 POST /api/career/actions/review。整封明文只经这里给渲染层，不进日志。
  */
 import { join } from 'path';
 import type { Repos, Vault } from '@career/core';
 import { z } from 'zod';
 
-import type { InternAvailability, MailDraftPatch, MailFileUpload } from '../../shared/careerMailApply';
+import type { InternAvailability, MailDraftPatch, MailFileUpload, MailJobPaste, MailSetupPatch } from '../../shared/careerMailApply';
+import type { IntakeDeps } from '../career/intake';
+import { MailAttachmentError } from '../career/mail-apply/attachments-edit';
+import { mailBoard, readyRowOf } from '../career/mail-apply/board';
+import { MailJobPasteError, pasteMailJob } from '../career/mail-apply/paste';
+import { saveMailSetup } from '../career/mail-apply/setup';
 import { careerDataDir } from '../career/db';
 import { fileOption, MailFileError, saveMailFile } from '../career/mail-apply/files';
 import { saveAvailability } from '../career/mail-apply/availability';
@@ -28,6 +37,8 @@ export interface MailApplyRouteCtx {
   /** 换简历时重新导 PDF、冻结材料包用。 */
   packetDeps: () => PacketDeps;
   dataChanged: (tables: string[]) => void;
+  /** 贴进来的岗位走 JD 解析（模型可能不可用：解析不出就用兜底名字）。 */
+  intakeDeps: () => IntakeDeps;
 }
 type Handler = (ctx: MailApplyRouteCtx) => Response | Promise<Response>;
 
@@ -51,10 +62,45 @@ const UploadSchema = z.object({
 const nullableText = z.string().nullable().transform(v => (v && v.trim() ? v.trim() : null));
 const AvailabilitySchema = z.object({ days_per_week: nullableText, months: nullableText, start: nullableText }) satisfies z.ZodType<InternAvailability, unknown>;
 
+const SetupSchema = z.object({ portfolio_url: z.string().optional(), direct_send: z.boolean().optional() }).strict() satisfies z.ZodType<MailSetupPatch>;
+const PasteSchema = z.object({ text: z.string() }).strict() satisfies z.ZodType<MailJobPaste>;
+
 const issues = (e: z.ZodError) => e.issues.map(i => i.path.join('.') || i.message).join('、');
+
+/** 工作台三个接口（见文件头）。 */
+function workbenchRoutes(): Array<[string, string, Handler]> {
+  return [
+    ['GET', '/api/career/mail-apply/board', ({ repos, store, vault }) => ok({ board: mailBoard({ repos, store, vault }) })],
+    ['POST', '/api/career/mail-apply/setup', ({ repos, store, vault, body, dataChanged }) => {
+      const parsed = SetupSchema.safeParse(body);
+      if (!parsed.success) return fail(`设置的格式不对：${issues(parsed.error)}`);
+      try {
+        const setup = saveMailSetup({ repos, store, vault }, parsed.data);
+        dataChanged(['vault', 'kv']);
+        return ok({ setup });
+      } catch (error) {
+        if (error instanceof MailAttachmentError) return fail(error.message, 400);
+        throw error;
+      }
+    }],
+    ['POST', '/api/career/mail-apply/jobs', async ({ repos, body, intakeDeps, dataChanged }) => {
+      const parsed = PasteSchema.safeParse(body);
+      if (!parsed.success) return fail(`内容的格式不对：${issues(parsed.error)}`);
+      try {
+        const { job, created } = await pasteMailJob(intakeDeps(), parsed.data);
+        if (created) dataChanged(['job']);
+        return ok({ row: readyRowOf(repos, job) });
+      } catch (error) {
+        if (error instanceof MailJobPasteError) return fail(error.message, 422);
+        throw error;
+      }
+    }],
+  ];
+}
 
 export function mailApplyRoutes(): Array<[string, string, Handler]> {
   return [
+    ...workbenchRoutes(),
     ['GET', '/api/career/mail-apply/drafts', ({ repos, store, vault, url }) => {
       const ids = (url.searchParams.get('ids') ?? '').split(',').map(s => s.trim()).filter(Boolean).slice(0, MAX_DRAFT_IDS);
       if (!ids.length) return fail('需要 ids');

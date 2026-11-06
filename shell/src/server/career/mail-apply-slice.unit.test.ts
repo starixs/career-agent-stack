@@ -11,7 +11,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { isMailDraftView, isMailFileOption, isMailThreadView, MAIL_TRUST_KEY, type MailDraftView } from '../../shared/careerMailApply';
+import { isMailBoardView, isMailDraftView, isMailFileOption, isMailThreadView, MAIL_TRUST_KEY, type MailDraftView } from '../../shared/careerMailApply';
 import { handleCareerRoute } from '../routes/career';
 import { applyJobs } from './batch-apply';
 import { loadCore } from './core-module';
@@ -175,6 +175,10 @@ describe('链路 · 邮件投递（投出之前）', () => {
       expect(app.stage).toBe('applied');
       expect(app.submission_evidence).toMatch(/^mail:/);
     }
+    // 工作台（第四轮）：3 行都在「已发出」，网申那 2 个不在这条路上
+    const board = (await route('GET', '/api/career/mail-apply/board')).board;
+    expect(isMailBoardView(board) && board.rows.map(r => [r.company.name, r.station]).sort()).toEqual(MAIL_COMPANIES.map(c => [c, 'sent']).sort());
+    expect(isMailBoardView(board) && board.rows.some(r => WEB_COMPANIES.includes(r.company.name))).toBe(false);
 
     // 9. 再投同样 5 个：邮件那 3 个已经投过，网申两个还在投
     const again = await applyJobs(f.deps, ids);

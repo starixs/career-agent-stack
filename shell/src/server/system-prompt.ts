@@ -80,6 +80,7 @@ const TMPL_BASE_IDENTITY = `<keystone-identity>
 | page:career-dossier:line | 投递记录 | application_id = 正在看的那条投递（在详情里时） | dossier_get / dossier_list / application_set_stage / dossier_note_add |
 | page:career-dossier:assist | 助力记录（笔试 / 面试 / 模拟面试） | — | deadline_list(kind=written_test / assessment / interview) / interview_* / exam_practice / question_bank |
 | page:career-dossier:interview / :offer | 面试记录 / Offer 记录 | application_id（如有） | dossier_get / interview_* / offer_list / offer_save / offer_compare |
+| page:career-dossier:mail-apply | 邮件投递（工作台：顶上选岗位开始写，写好的整封邮件在这页过目再发，右边一列是每份邮件申请和它的回音） | application_id（如有） | 只收邮箱的岗位用 jobs_apply / mail_compose（后台写，写好在这页过目再发）；回对方的信用 mail_reply；看往来用 mail_list。用户问邮件投递、想看邮件发出去后谁回了时，告诉他在功能市场的「邮件投递」工作台里看 |
 - 回答围绕用户在这一页看到的东西：先用 ref 和对应工具取同一批数据，不要再问"哪一个 / 哪一天 / 哪些岗位"。
 - 回复要收拢、直接给结论：这一轮结束后对话里会出现「回到 XX」卡片带用户回到原页面看结果，不要展开与这一页无关的话题。
 </career-pages>`;

@@ -197,14 +197,96 @@ export interface MailFileUpload {
   action_id?: string;
 }
 
+// ---------- 邮件投递工作台（功能市场的一级功能，2026-11-06 用户定） ----------
+
+/**
+ * 一份邮件申请现在在这条路的哪一站。一份只在一站，按「最需要他的」优先：
+ * waiting（等他点头：待发的投递 / 回信 / 跟进 / 退信重发，以及没写成、没发出去的）
+ * > writing（在写）> replied（对方有回音）> sent（已发出、还没回音）> ready（库里写了投递邮箱、还没投）。
+ */
+export type MailStation = 'ready' | 'writing' | 'waiting' | 'sent' | 'replied';
+export const MAIL_STATIONS: readonly MailStation[] = ['ready', 'writing', 'waiting', 'sent', 'replied'];
+
+/** 公司小签要的东西（同 core 的 CompanyMark）。 */
+export interface MailCompanyMark { company_id: string | null; name: string; logo?: string; fill?: string }
+
+/** 等他的那一封是哪一种：决定行上的记号和两个按钮。 */
+export type MailWaitingKind = 'apply' | 'reply' | 'followup' | 'bounced' | 'failed_draft' | 'failed_send';
+export const MAIL_WAITING_KINDS: readonly MailWaitingKind[] = ['apply', 'reply', 'followup', 'bounced', 'failed_draft', 'failed_send'];
+
+/** 工作台上的一行 = 一个岗位 / 一份申请。不带邮件内容（内容走 drafts / thread 接口）。 */
+export interface MailBoardRow {
+  /** 稳定的行标识：有申请用申请 id，否则用岗位 id。 */
+  key: string;
+  job_id: string;
+  application_id: string | null;
+  company: MailCompanyMark;
+  role: string;
+  city: string | null;
+  /** 岗位截止日（YYYY-MM-DD）；没有为 null。 */
+  deadline: string | null;
+  /** 标了星的目标岗位。 */
+  target: boolean;
+  station: MailStation;
+  /** waiting：是哪一种在等他；其余站为 null。 */
+  waiting: MailWaitingKind | null;
+  /** waiting 且有一封待发邮件时：那封的 send_mail 动作 id（取预览、发出都用它）。没写成的为 null。 */
+  action_id: string | null;
+  /** waiting：对应等你条上那件事的 id（重试、打开卡组定位用）。 */
+  ask_id: string | null;
+  /** 投出那天（ISO）；还没投出为 null。 */
+  sent_at: string | null;
+  /** replied：最近一封来信的种类（interview_invite / written_test / assessment / offer / rejection / application_received；真人回信为 'reply'）。 */
+  reply_kind: string | null;
+  reply_at: string | null;
+}
+
+/** 只设一次的发信设置。 */
+export interface MailSetupView {
+  /** 发件邮箱；null = 还没连。 */
+  mailbox: { account_id: string; address: string } | null;
+  availability: InternAvailability;
+  /** 他存过的常用附件（作品集、成绩单…）。 */
+  files: MailFileOption[];
+  portfolio_url: string | null;
+  /** 写好直接发：off = 每封先给他看；delegated = 他给「邮件投递」盖过章；auto = 自动投递总开关开着。 */
+  direct_send: 'off' | 'delegated' | 'auto';
+  /** 有没有至少一份简历。没有时「可以投」的岗位照样列出，主按钮变成「先放一份简历」（缺省当有）。 */
+  has_resume?: boolean;
+}
+
+export interface MailBoardView {
+  rows: MailBoardRow[];
+  setup: MailSetupView;
+}
+
+/** 改发信设置：只传要改的。 */
+export interface MailSetupPatch {
+  portfolio_url?: string;
+  /** true = 给「邮件投递」这一类盖章（以后写好直接发）；false = 收回。总开关不在这里改。 */
+  direct_send?: boolean;
+}
+
+/** 贴一段岗位描述进来：里面得明写投递邮箱。→ { row }（落在 ready 那一站） */
+export interface MailJobPaste {
+  text: string;
+}
+
 /**
  * 接口（都在 Global 与 Session 路由上）：
+ *  GET  /api/career/mail-apply/board                  → { board: MailBoardView }
+ *  POST /api/career/mail-apply/setup                  ← MailSetupPatch → { setup: MailSetupView }
+ *  POST /api/career/mail-apply/jobs                   ← MailJobPaste → { row: MailBoardRow }
+ *  开始写：沿用 POST /api/career/jobs/apply（job_ids）。到岗信息、存文件沿用下面两个接口。
  *  GET  /api/career/mail-apply/drafts?ids=a,b        → { drafts: MailDraftView[] }
  *  POST /api/career/mail-apply/drafts/:actionId       ← MailDraftPatch → { draft: MailDraftView }
  *  POST /api/career/mail-apply/availability           ← InternAvailability → { drafts: MailDraftView[] }（存资料，并把所有待发邮件的标题和到岗那句重排）
  * 发出 / 不投：沿用 POST /api/career/actions/review（approved = 立即发；rejected + drop = 这家不投了）。
  */
 export const MAIL_APPLY_API = {
+  board: '/api/career/mail-apply/board',
+  setup: '/api/career/mail-apply/setup',
+  jobs: '/api/career/mail-apply/jobs',
   drafts: '/api/career/mail-apply/drafts',
   draft: (actionId: string) => `/api/career/mail-apply/drafts/${encodeURIComponent(actionId)}`,
   availability: '/api/career/mail-apply/availability',
@@ -260,4 +342,27 @@ export function isMailDraftView(v: unknown): v is MailDraftView {
     && (v.availability === null || isAvailability(v.availability))
     && (v.thread === null || (isDict(v.thread) && isStr(v.thread.subject) && isStr(v.thread.sent_at)))
     && (v.incoming === undefined || v.incoming === null || isIncoming(v.incoming));
+}
+
+const isCompanyMark = (v: unknown): v is MailCompanyMark =>
+  isDict(v) && strOrNull(v.company_id) && isStr(v.name) && (v.logo === undefined || isStr(v.logo)) && (v.fill === undefined || isStr(v.fill));
+const inList = (list: readonly string[], v: unknown): boolean => isStr(v) && list.includes(v);
+
+export function isMailBoardRow(v: unknown): v is MailBoardRow {
+  return isDict(v) && isStr(v.key) && isStr(v.job_id) && strOrNull(v.application_id) && isCompanyMark(v.company) && isStr(v.role)
+    && strOrNull(v.city) && strOrNull(v.deadline) && typeof v.target === 'boolean' && inList(MAIL_STATIONS, v.station)
+    && (v.waiting === null || inList(MAIL_WAITING_KINDS, v.waiting)) && strOrNull(v.action_id) && strOrNull(v.ask_id)
+    && strOrNull(v.sent_at) && strOrNull(v.reply_kind) && strOrNull(v.reply_at);
+}
+
+const DIRECT_SEND: readonly string[] = ['off', 'delegated', 'auto'];
+
+export function isMailSetupView(v: unknown): v is MailSetupView {
+  return isDict(v) && (v.mailbox === null || isAccount(v.mailbox)) && isAvailability(v.availability)
+    && Array.isArray(v.files) && v.files.every(isMailFileOption) && strOrNull(v.portfolio_url) && inList(DIRECT_SEND, v.direct_send)
+    && (v.has_resume === undefined || typeof v.has_resume === 'boolean');
+}
+
+export function isMailBoardView(v: unknown): v is MailBoardView {
+  return isDict(v) && Array.isArray(v.rows) && v.rows.every(isMailBoardRow) && isMailSetupView(v.setup);
 }

@@ -207,7 +207,7 @@ const ROUTES: Route[] = [
 
   ...skillRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos }))),
   ...deliveryRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, url: ctx.url, params: ctx.params, body: ctx.body, vault: ctx.vault, dataChanged: tables => dataChanged(ctx, tables) }))),
-  ...mailApplyRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, store: ctx.store, vault: ctx.vault, url: ctx.url, params: ctx.params, body: ctx.body, packetDeps: () => packetDepsOf(ctx), dataChanged: tables => dataChanged(ctx, tables) }))),
+  ...mailApplyRoutes().map(([method, path, handler]) => route(method, path, ctx => handler({ repos: ctx.repos, store: ctx.store, vault: ctx.vault, url: ctx.url, params: ctx.params, body: ctx.body, packetDeps: () => packetDepsOf(ctx), dataChanged: tables => dataChanged(ctx, tables), intakeDeps: () => intakeDeps(ctx) }))),
   // ---------- 手机连接（蓝牙读短信收验证码，见 career/phone） ----------
   ...phoneRoutes(phoneLink).map(([method, path, handler]) => route(method, path, ctx => handler({ body: ctx.body }))),
 
