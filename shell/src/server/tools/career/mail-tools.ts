@@ -88,7 +88,7 @@ export function createMailTools(d: MailToolDeps) {
     tool('mail_list', '列出与求职相关的邮件（可按投递过滤）；发出去的投递邮件也在这里（只给收件域名，内容在卷宗和邮件预览里看）。', { application_id: z.string().optional(), direction: z.enum(['in', 'out']).optional(), limit: z.number().int().min(1).max(MAIL_LIST_MAX).optional() }, async (args) => d.wrap(() =>
       d.text({ messages: d.repos().listMailMessages({ application_id: args.application_id, direction: args.direction, relevance: args.application_id ? undefined : 'job', limit: args.limit ?? MAIL_LIST_DEFAULT }).map(messageRow) }))()),
 
-    tool('mail_compose', '投递邮件（JD 写「简历发到 xx@xx.com」、或他说「把简历发到 hr@x.com 应聘 XX 公司产品实习」时用）：和网申同一条路——记下投递邮箱、建投递，邮件在后台写（按岗位定制简历作附件，标题、正文、附件名按规范），写好出现在右边「等你」里给他过目，他点发出才发。不在这一轮里起草，立刻返回；回复一句短话（如「在后台写了，写好会出现在等你里」），不要复述邮件内容。已在 job 库里的给 job_id；没有就给 company + title（有 JD 原文一并给 jd）。notes 是他对这封的要求。没连邮箱也照样写，过目时会请他连。', {
+    tool('mail_compose', '投递邮件（JD 写「简历发到 xx@xx.com」、或他说「把简历发到 hr@x.com 应聘 XX 公司产品实习」时用）：和网申同一条路——记下投递邮箱、建投递，邮件在后台写（按岗位定制简历作附件，标题、正文、附件名按规范），写好出现在「等你」里给他过目，他点发出才发。不在这一轮里起草，立刻返回；回复一句短话（如「在后台写了，写好会出现在等你里」），不要复述邮件内容。已在 job 库里的给 job_id；没有就给 company + title（有 JD 原文一并给 jd）。notes 是他对这封的要求。没连邮箱也照样写，过目时会请他连。', {
       to: z.string().optional().describe('收件邮箱；岗位已记下投递邮箱时可不给'),
       job_id: z.string().optional(), application_id: z.string().optional(),
       company: z.string().optional(), title: z.string().optional(), jd: z.string().optional().describe('JD 原文（建新岗位时）'),
@@ -109,10 +109,10 @@ export function createMailTools(d: MailToolDeps) {
       if (!actionId) return d.text({ ...base, started: false, reason: res.skipped[0]?.reason ?? '没能开始', note: '把原因用一句话告诉他；不要复述邮件。' });
       // 他提了专门要求（notes）的这封放权了也先给他看（send-policy.ts）
       const autoSend = !args.notes?.trim() && mailAutoSendOn(d.repos());
-      return d.text({ ...base, started: true, action_id: actionId, note: autoSend ? '邮件在后台写，写好且不差东西会直接发出；回复一句短话，不要复述邮件。' : '邮件在后台写，写好会出现在右边「等你」里给他过目；回复一句短话，不要复述邮件。' });
+      return d.text({ ...base, started: true, action_id: actionId, note: autoSend ? '邮件在后台写，写好且不差东西会直接发出；回复一句短话，不要复述邮件。' : '邮件在后台写，写好会出现在「等你」里给他过目；回复一句短话，不要复述邮件。' });
     })()),
 
-    tool('mail_reply', '回对方的邮件（他说「帮我回一下 X」「跟 X 说我下周一能到岗」时用）：找这份投递最近一封对方来信，回信在后台写（只用已确认的资料，缺的会标出来让他补），写好出现在右边「等你」里给他过目，他点发出才发。不在这一轮里写，立刻返回；回一句短话，不要复述邮件。notes 是他想说的话。', {
+    tool('mail_reply', '回对方的邮件（他说「帮我回一下 X」「跟 X 说我下周一能到岗」时用）：找这份投递最近一封对方来信，回信在后台写（只用已确认的资料，缺的会标出来让他补），写好出现在「等你」里给他过目，他点发出才发。不在这一轮里写，立刻返回；回一句短话，不要复述邮件。notes 是他想说的话。', {
       application_id: z.string(),
       notes: z.string().optional().describe('他想在回信里说的话'),
     }, async (args) => d.wrap(async () => replyTool(d, args))()),
@@ -134,5 +134,5 @@ async function replyTool(d: MailToolDeps, args: { application_id: string; notes?
   d.changed('action_queue');
   const base = { company: job?.company_name ?? null, title: job?.title ?? null, to_domain: emailDomain(bareAddress(latest.from_addr) ?? '') || null };
   if (typeof queued === 'string') return d.text({ ...base, started: false, reason: queued, note: '把原因用一句话告诉他。' });
-  return d.text({ ...base, started: true, action_id: queued.id, note: '回信在后台写，写好会出现在右边「等你」里给他过目；回复一句短话，不要复述邮件。' });
+  return d.text({ ...base, started: true, action_id: queued.id, note: '回信在后台写，写好会出现在「等你」里给他过目；回复一句短话，不要复述邮件。' });
 }

@@ -22,6 +22,15 @@ describe('停在提交前的那句话（2026-11-05 滴滴：大半必填没填�
   })
 })
 
+describe('不是网申表的页面（2026-11-06 司南导航校招列表页：报「表单已填完」，还让他补「请输入邮箱地址」）', () => {
+  it('一格都没填上、也没有提交按钮：如实说没找到网申表，不说已填完、不把页面上的框推给他补', async () => {
+    const page = new FakePage({ url: 'https://x.com/join/job_campus', fields: [{ label: '职位订阅期数', required: true }], buttons: ['查看更多'] })
+    const r = await driveApplication(page, noLLM(), profile, quiet)
+    expect(r.status, r.message).toBe('blocked')
+    expect(r.message).toContain('没有找到可填写的网申表单')
+  })
+})
+
 describe('接管交回后续跑（2026-11-05 滴滴：他点到了「确认提交」页，交还后没人看）', () => {
   it('没有格子只剩「确认提交」：续跑时是确认页，停在提交前等他；不续跑时照旧当成详情页的入口', async () => {
     const confirm = () => new FakePage({ url: 'https://x.com/apply/confirm', fields: [], buttons: ['返回修改', { text: '确认提交', submit: true }] })

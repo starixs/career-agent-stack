@@ -1,0 +1,30 @@
+<!doctype html>
+<!--
+  问卷星多选题（取自 2026-11-06 同趣科技校招报名表 v.wjx.cn 真机 DOM）：一道题 div.field[type=4]，
+  选项是同一个 name 的几个 input[type=checkbox]，文字在 div.label[for] 里。
+  引擎当时把 32 个选项当成 32 个必填格子，停下时报「还差 35 项没填好：…AI应用研发工程师、游戏研发工程师…」。
+  下面那个单独的勾选框（我已阅读并同意）不是多选题，照旧自己算一格。
+-->
+<html><head><meta charset="utf-8"><title>同趣科技 2027 届秋季校园招聘</title></head><body>
+<div id="divQuestion"><fieldset class="fieldset" id="fieldset1">
+<div class="field ui-field-contain" topic="1" id="div1" req="1" type="1"><div class="field-label"><span class="req">*</span><div class="topicnumber">1.</div><div class="topichtml">姓名</div></div><div class="ui-input-text"><input type="text" id="q1" name="q1" value=""></div></div>
+<div class="field ui-field-contain" topic="7" id="div7" req="1" data-role="fieldcontain" type="4"><div class="field-label"><span class="req">*</span><div class="topicnumber">7.</div><div class="topichtml">应聘岗位<span class="qtypetip">【多选题】</span></div></div><div class="ui-controlgroup column1">
+  <div class="ui-checkbox"><span class="jqcheckwrapper"><input type="checkbox" value="1" id="q7_1" name="q7" style="display:none"><a class="jqcheck" href="javascript:;"></a></span><div class="label" for="q7_1">游戏运营</div></div>
+  <div class="ui-checkbox"><span class="jqcheckwrapper"><input type="checkbox" value="2" id="q7_2" name="q7" style="display:none"><a class="jqcheck" href="javascript:;"></a></span><div class="label" for="q7_2">海外市场运营</div></div>
+  <div class="ui-checkbox"><span class="jqcheckwrapper"><input type="checkbox" value="3" id="q7_3" name="q7" style="display:none"><a class="jqcheck" href="javascript:;"></a></span><div class="label" for="q7_3">运营实习生</div></div>
+</div></div>
+</fieldset>
+<div id="sensitiveInfoWrap"><input type="checkbox" id="checkxiexi" name="checkxiexi"><label for="checkxiexi">我已阅读并同意</label></div>
+</div>
+<script>
+window.__model = {}
+// 站点脚本：点文字就是点勾选框
+for (const label of document.querySelectorAll('.ui-checkbox .label')) {
+  label.addEventListener('click', () => {
+    const input = document.getElementById(label.getAttribute('for'))
+    input.checked = !input.checked
+    window.__model.q7 = Array.from(document.querySelectorAll('input[name=q7]:checked')).map(c => document.querySelector(`[for=${c.id}]`).textContent)
+  })
+}
+</script>
+</body></html>

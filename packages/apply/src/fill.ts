@@ -338,7 +338,9 @@ async function fillOnce(d: FillDeps, f: FormField, value: string, sig: string): 
       const proxy = radioProxySelector(f, opt)
       await page.click((await page.evaluate(probeTargetScript, { selector: proxy })).exists ? proxy : radioOptionSelector(f, opt))
       const cur = (await extractFields(page)).find(x => x.id === f.id)
-      return displayMatches(cur?.value, opt, f) ? { verified: true, strategy: 'radio', display: cur?.value, chosen: opt } : fail('radio', 'option_not_selected', cur?.value)
+      // 多选题读回是「甲、乙」：里面有这一项就算选上了
+      const shown = displayMatches(cur?.value, opt, f) || (cur?.value ?? '').split('、').some(v => displayMatches(v, opt, f))
+      return shown ? { verified: true, strategy: 'radio', display: cur?.value, chosen: opt } : fail('radio', 'option_not_selected', cur?.value)
     }
     case 'checkbox': {
       const want = /^(true|1|yes|是)$/i.test(value)

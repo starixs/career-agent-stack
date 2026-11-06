@@ -872,7 +872,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
         if (untouched() && !confirmPage) return submit ? entryHandoff(submit.text) : finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮', { pageText: sig.text.slice(0, PAGE_TEXT_MAX) })
         // 一格都没填成、要补的全是截图识字层点不进去的「格子」、也没有提交按钮：这不是网申表（多是岗位列表），
         // 如实报找路的结论，不说「表单已填完」（2026-10-31 阿斯麦：岗位卡片上的字被当成输入框）
-        if (!submit && visionOnlyMisses()) return finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮', { pageText: sig.text.slice(0, PAGE_TEXT_MAX) })
+        // 同理：一格都没填上、也没传文件、又没有提交按钮——多半是岗位列表 / 介绍页上的搜索框、订阅邮箱框被当成了格子
+        // （2026-11-06 司南导航校招列表页：报「表单已填完」，还让他补「请输入邮箱地址」）
+        const nothingDone = !all.filled.length && !all.uploads.length && !all.drafts.length
+        if (!submit && (visionOnlyMisses() || nothingDone)) return finish('blocked', lastSeekNote ?? '页面上没有找到可填写的网申表单，也没有下一步或提交按钮', { pageText: sig.text.slice(0, PAGE_TEXT_MAX) })
         const msg = submit ? `已填完，停在「${submit.text}」前，等你确认后再提交` : '表单已填完，页面上没有找到下一步或提交按钮，请人工检查'
         return finish('stopped_before_submit', msg, { submitButton: submit?.text, reason: submit ? 'submit_confirm' : undefined })
       }
@@ -1082,14 +1085,15 @@ export async function checkUploadEcho(page: PageLike, f: FormField, filePath: st
   return { fieldId: f.id, file: name, echoed: false, evidence: '页面没有出现文件名或上传成功提示，请人工确认附件' }
 }
 
-/** 引擎核对后还有缺口的状态（和服务端 GAP_REASON 同一套口径；选填留空、已核对的不算）。 */
-const STOP_GAP_STATUSES: ReadonlySet<string> = new Set(['empty', 'needs_user', 'site_error', 'mismatch', 'draft'])
+/**
+ * 要他补的缺口：和服务端 studentGaps 同一套口径（needs_user / empty / draft），两处报的数才对得上
+ * （2026-11-06 畅游：这里说「还差 8 项」，等你卡说「还差 16 项」）。读不回、没生效、网站报错是我们自己的问题，不算在要他补的里面。
+ */
+const STOP_GAP_STATUSES: ReadonlySet<string> = new Set(['empty', 'needs_user', 'draft'])
 /** 停在提交前的那句话：没缺口照原话；有缺口就说还差哪几项，不说「已填完」。 */
 export function stopMessage(original: string, review: Pick<SubmitReview, 'rows'>, submitButton?: string): string {
-  const gaps = review.rows.filter(r => STOP_GAP_STATUSES.has(r.status) && (r.required || r.status === 'site_error' || r.status === 'draft'))
-  if (!gaps.length) return original
-  const names = [...new Set(gaps.filter(r => r.status !== 'site_error').map(r => r.label).filter(Boolean))]
+  const names = [...new Set(review.rows.filter(r => STOP_GAP_STATUSES.has(r.status)).map(r => r.label || '没认出名字的字段'))]
+  if (!names.length) return original
   const where = submitButton ? `停在「${submitButton}」前` : '停在提交前'
-  const list = names.length ? `：${names.slice(0, 5).join('、')}${names.length > 5 ? ' 等' : ''}` : '（网站提示还有格子没填对）'
-  return `还差 ${names.length || gaps.length} 项没填好${list}，${where}`
+  return `还差 ${names.length} 项没填好：${names.slice(0, 5).join('、')}${names.length > 5 ? ' 等' : ''}，${where}`
 }

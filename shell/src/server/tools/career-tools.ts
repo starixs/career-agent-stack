@@ -649,10 +649,10 @@ export async function createCareerServer(deps: CareerToolDeps = {}) {
     }
     if (outcome.kind === 'failed') {
       registry.finish(runId);
-      // 失败一次先自动再试一次（后台接着填）；再失败会出现在右边「等你」的「N 家没填成」里
+      // 失败一次先自动再试一次（后台接着填）；再失败会出现在「等你」的「N 家没填成」里
       const { scheduleFillRetry } = await import('../career/fill-failures');
       const retry = scheduleFillRetry(r, action.id);
-      return err(`填表${outcome.blocked ? '被阻塞' : '执行失败'}：${outcome.message}。${retry === 'retrying' ? '已自动放回后台再试一次，不用你再调工具。' : '已经自动重试过；这份会出现在右边「等你」里，让用户选再试一次或自己来。'}`);
+      return err(`填表${outcome.blocked ? '被阻塞' : '执行失败'}：${outcome.message}。${retry === 'retrying' ? '已自动放回后台再试一次，不用你再调工具。' : '已经自动重试过；这份会出现在「等你」里，让用户选再试一次或自己来。'}`);
     }
     if (outcome.kind === 'handoff') {
       try { registry.pause(runId, outcome.reason, { handoffId: outcome.handoffId, url: outcome.finalUrl, message: outcome.userAction ?? outcome.message }); } catch { /* 已是暂停态 */ }

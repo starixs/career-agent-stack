@@ -327,6 +327,24 @@ describe('问卷星（真实 Chrome）', () => {
   }, 90_000)
 })
 
+describe('问卷星多选题（真实 Chrome）', () => {
+  it('同一个 name 的几个勾选框是一道题：合成一个带选项的字段，选一项能点上、读得回；单独的勾选框照旧（2026-11-06 32 个选项报成 35 项没填）', async ({ skip }) => {
+    if (!engine || !browser) return skip()
+    const page = await open('corpus/wjx-multichoice.html')
+    const fields = await engine.extractFields(engine.fromPlaywright(page))
+    expect(fields.map(f => [f.label, f.type])).toEqual([['姓名', 'text'], ['应聘岗位【多选题】', 'radio'], ['我已阅读并同意', 'checkbox']])
+    expect(fields[1]).toMatchObject({ options: ['游戏运营', '海外市场运营', '运营实习生'], required: true, value: undefined })
+    const r = await fill(page, fields[1].label, '海外市场运营')
+    expect(r.att).toMatchObject({ verified: true })
+    expect(r.model.q7).toEqual(['海外市场运营'])
+    // 再选一项：两项都在，不会把前一项当成没选上
+    const again = await fill(page, fields[1].label, '运营实习生')
+    expect(again.att).toMatchObject({ verified: true })
+    expect((await engine.extractFields(engine.fromPlaywright(page)))[1].value).toBe('海外市场运营、运营实习生')
+    await page.context().close()
+  }, 60_000)
+})
+
 describe('问卷星地区浮层（真实 Chrome）', () => {
   it('select2 省 / 市：结果项真点击被遮罩挡、派发 click 又不算——在它包着的原生下拉里选上，点完成后读回（2026-11-02 斯达半导体）', async ({ skip }) => {
     if (!engine || !browser) return skip()

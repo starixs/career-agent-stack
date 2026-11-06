@@ -388,7 +388,7 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       if (forEl && vis(forEl)) return forEl
       const lb = r.closest('label'); if (lb && vis(lb)) return lb
       for (let a = r.parentElement, i = 0; a && i < 4; a = a.parentElement, i++) {
-        if (a.querySelectorAll('input[type=radio]').length > 1) return null
+        if (a.querySelectorAll('input[type=radio], input[type=checkbox]').length > 1) return null
         if (vis(a)) return a
       }
       return null
@@ -479,24 +479,31 @@ export const extractFieldsScript: PageScript<void, RawField[]> = {
       const name = (el as HTMLInputElement).name || (el as HTMLElement).id || undefined
       const req = requiredOf(el)
       const required = req.required
-      if (itype === 'radio') {
+      // 多选题：几个勾选框同一个 name 就是一道题的几个选项，合成一个字段，不是一人一个必填项
+      // （2026-11-06 问卷星「应聘岗位【多选题】」32 个选项被当成 32 个必填格子，报「还差 35 项」）。
+      // 单个的勾选框（同意协议、至今）照旧各算各的。
+      const kind: 'radio' | 'checkbox' = itype === 'radio' ? 'radio' : 'checkbox'
+      const sameName = (el as HTMLInputElement).name
+      const isGroup = itype === 'radio' || (itype === 'checkbox' && !!sameName && document.querySelectorAll(`input[type=checkbox][name="${CSS.escape(sameName)}"]`).length > 1)
+      if (isGroup) {
         if (seenRadio.has(el)) continue
         const rn = (el as HTMLInputElement).name
         // 没有 name 的单选（飞书 UD）：按共同容器成组（radiogroup / fieldset / *radio-group* / 网站标的字段项），不然一组被拆成几个字段
         const box = rn ? null : el.closest('[role=radiogroup], fieldset, [class*="radio-group" i], [data-form-field-id]')
-        const group = rn ? Array.from(document.querySelectorAll(`input[type=radio][name="${CSS.escape(rn)}"]`)) : box ? Array.from(box.querySelectorAll('input[type=radio]')).filter(r => !(r as HTMLInputElement).name) : [el]
+        const group = rn ? Array.from(document.querySelectorAll(`input[type=${kind}][name="${CSS.escape(rn)}"]`)) : box ? Array.from(box.querySelectorAll('input[type=radio]')).filter(r => !(r as HTMLInputElement).name) : [el]
         group.forEach(r => seenRadio.add(r))
         const id = idFor(el)
         meta[id] = { xpath: xpathOf(el), framework: frameworkOf(el) }
         const options = group.map(r => clean(labelFor(r) || (r as HTMLInputElement).value)).filter(Boolean)
-        let value: string | undefined
+        // 多选可以勾几个：勾上的用顿号连起来
+        const picked: string[] = []
         group.forEach((r, i) => {
           r.setAttribute('data-career-field', id); r.setAttribute('data-career-option', options[i] ?? String(i))
-          if ((r as HTMLInputElement).checked || r.getAttribute('aria-checked') === 'true') value = options[i]
+          if (((r as HTMLInputElement).checked || r.getAttribute('aria-checked') === 'true') && options[i]) picked.push(options[i])
           const px = vis(r) ? null : choiceProxy(r)
           if (px) { px.setAttribute('data-career-proxy', id); px.setAttribute('data-career-proxy-option', options[i] ?? String(i)) }
         })
-        out.push({ id, label: clean(groupLabel(el, options)) || rn || '', name: rn, type: 'radio', options, required, value, requiredVia: req.via })
+        out.push({ id, label: clean(groupLabel(el, options)) || rn || '', name: rn, type: 'radio', options, required, value: picked.length ? picked.join('、') : undefined, requiredVia: req.via })
         continue
       }
       const id = idFor(el)
