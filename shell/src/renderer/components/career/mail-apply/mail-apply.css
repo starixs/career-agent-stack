@@ -111,18 +111,58 @@
 .cm-th-kind { margin: 0 0 2px; font-size: 12px; color: var(--muted); }
 .cm-th.is-in .cm-quote { margin: 0; }
 
-/* ---------- 网申进展页里的邮件申请 ---------- */
-.cm-tag { display: inline-block; flex: none; padding: 0 5px; border: 1px solid var(--line-2); border-radius: 4px; font-size: 11.5px; line-height: 18px; color: var(--muted); }
-.cm-live { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-.cm-live-head { display: flex; align-items: baseline; gap: 10px; }
-.cm-live-head h3 { margin: 0; min-width: 0; overflow: hidden; font-size: 20px; font-weight: 400; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; }
-.cm-live-head .cd-later { margin-left: auto; }
-.cm-live .cd-track { margin-top: 0; }
-.cm-live .cm-sheet { margin-top: 0; }
-.cm-live-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
-.cm-live-row { display: flex; width: 100%; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; color: var(--ink-2); text-align: left; cursor: pointer; }
-.cm-live-row:hover { background: var(--hover); }
-.cm-live-row[aria-pressed='true'] { background: var(--inset); color: var(--ink); }
-.cm-live-name { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.cm-live-state { flex: none; font-size: 12px; color: var(--muted); }
-.cm-live-state.is-ask { font-weight: 600; color: var(--primary); }
+/* ---------- 邮件投递工作台（2026-11-06）：顶上开始条；主区是选中那份，右边一列邮件申请（同 live.png 的版式） ---------- */
+.cm-wb { display: flex; flex-direction: column; gap: 24px; padding: 20px 24px 32px; }
+.cm-wb-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 32px; align-items: start; }
+.cm-wb-main { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.cm-wb-card { padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.cm-wb-card .cm-sheet { margin-top: 10px; }
+.cm-wb-side { position: sticky; top: 12px; min-width: 0; }
+.cm-sample-mark { margin: 0 0 8px 10px; }
+.cm-sample-body { min-width: 0; margin: 0; padding: 0; border: 0; }
+
+/* 开始条：选岗位（收着时是勾上那几家的小签）· 写这 N 封 · 贴进来 */
+.cm-start-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.cm-pick-toggle { display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 3px 8px 3px 4px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--paper); font-size: 14px; color: var(--ink); cursor: pointer; }
+.cm-pick-toggle > span:first-child:not(.cd-poster) { padding-left: 6px; }
+.cm-pick-toggle:hover { border-color: var(--ink-2); }
+.cm-pick-toggle[aria-expanded='true'] { border-color: var(--hard); box-shadow: var(--shadow-hard); }
+.cm-pile-more { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 0 6px; border-radius: 4px; background: var(--inset); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.cm-start-list { max-width: 460px; margin-top: 10px; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.cm-paste { display: flex; flex: 1 1 320px; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 560px; }
+.cm-paste-box { flex: 1; min-width: 0; height: 36px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--paper); color: var(--ink); font-size: 14px; outline: none; }
+.cm-paste-box:focus { border-color: var(--ink-2); }
+.cm-paste-err { flex-basis: 100%; margin: 0; }
+
+/* 一列申请：公司小签 + 公司名（主字）+ 岗位（第二行小字），记号在行尾；等他过目的公司名钢笔蓝 */
+.cm-chip-wrap { position: relative; display: inline-flex; flex: none; }
+.cm-red-dot { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border: 1.5px solid var(--paper); border-radius: 50%; background: var(--danger); }
+.cm-lines { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.cm-line { position: relative; display: flex; align-items: center; border-radius: 8px; }
+.cm-line.is-current { background: var(--selected); }
+.cm-line.is-current::before { content: ''; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--primary); }
+.cm-line:not(.is-current):hover { background: var(--hover); }
+.cm-line-box { display: flex; flex: none; align-items: center; justify-content: center; width: 30px; align-self: stretch; cursor: pointer; }
+.cm-line-box input { width: 15px; height: 15px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+.cm-line-main { display: flex; flex: 1; min-width: 0; align-items: center; gap: 10px; padding: 8px 10px; text-align: left; cursor: pointer; }
+.cm-line-box + .cm-line-main { padding-left: 0; }
+.cm-line-name { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+.cm-line-co { overflow: hidden; font-size: 14px; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; }
+.cm-line.is-waiting .cm-line-co { font-weight: 600; color: var(--primary); }
+.cm-line-role { overflow: hidden; font-size: 12px; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; }
+.cm-line-mark { display: flex; flex: none; align-items: center; }
+
+/* 行尾的截止日 */
+.cm-date { display: inline-flex; flex-direction: column; align-items: center; min-width: 30px; padding: 1px 4px 2px; border: 1.5px solid var(--line-2); border-top: 3px solid var(--hard); border-radius: 4px; line-height: 1.15; }
+.cm-date b { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.cm-date span { font-size: 12px; color: var(--muted); }
+
+/* 主区：公司名 + 岗位，四步路，整封邮件或往来 */
+.cm-pane { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.cm-pane-head { display: flex; flex-direction: column; gap: 2px; }
+.cm-pane-head h3 { margin: 0; font-size: 20px; font-weight: 400; color: var(--ink); }
+.cm-pane-head span { font-size: 13px; color: var(--muted); }
+.cm-pane .cm-sheet { margin-top: 0; }
+.cm-steps { margin: 0; }
+.cm-steps li.run { color: var(--ink); font-weight: 600; }
+.cm-step-spin { position: absolute; top: -1px; left: -1px; width: 14px; height: 14px; color: var(--ink); }

@@ -40,12 +40,18 @@ function mockGet(list: unknown[] = companies, dossiers: unknown[] = []) {
 describe('CareerResearch（公司调研工作台）', () => {
   beforeEach(() => { vi.mocked(apiGetJson).mockReset(); });
 
-  it('还没查过任何公司：只有「选一家、查这家」，不报错', async () => {
+  it('还没查过任何公司：「选一家、查这家」照常能用，下面用示例的三家把查出来的样子摆出来，不报错', async () => {
     mockGet([]);
     render(<CareerResearch />);
     expect(await screen.findByRole('combobox', { name: '公司' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '查这家' })).toBeDisabled();
-    expect(screen.queryByRole('list', { name: '查过的公司' })).toBeNull();
+    const sample = await screen.findByTestId('sample');
+    expect(within(sample).getByText('示例')).toBeInTheDocument();
+    const list = within(sample).getByRole('list', { name: '查过的公司' });
+    expect(within(list).getAllByRole('button')).toHaveLength(3);
+    // 示例里能点着换一家看
+    fireEvent.click(within(list).getByRole('button', { name: /上海云图智能/ }));
+    expect(within(sample).getByRole('heading', { name: '上海云图智能科技有限公司' })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
@@ -53,6 +59,7 @@ describe('CareerResearch（公司调研工作台）', () => {
     mockGet();
     render(<CareerResearch />);
     const list = await screen.findByRole('list', { name: '查过的公司' });
+    expect(screen.queryByTestId('sample')).toBeNull();
     expect(within(list).getByText('红灯')).toBeInTheDocument();
     expect(within(list).getByText('黄灯')).toBeInTheDocument();
     expect(screen.getByText(/成立于 2014 年 · 存续/)).toBeInTheDocument();

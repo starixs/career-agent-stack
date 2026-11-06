@@ -15,8 +15,6 @@ import { liveStatusText } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { useLiveStream } from '@/components/career/useGlobalLive';
 import { CareerLiveViewport, liveHumanActive } from '@/components/career/CareerLiveViewport';
-import { mailApplicationsOf } from '@/components/career/mail-apply/liveMail';
-import { MailLiveList, MailLivePane } from '@/components/career/mail-apply/MailLive';
 import { applicationStats, BATCH_ERROR_TEXT, hasBatchWork, statsMeta } from './CareerLiveModel';
 
 export default function CareerLive() {
@@ -45,9 +43,6 @@ export default function CareerLive() {
   const control = snapshot?.browser.control ?? 'none';
   const humanActive = liveHumanActive(snapshot?.browser.control, takeover?.state);
   const stats = useMemo(() => applicationStats(applications.data ?? [], handoffs.data ?? 0), [applications.data, handoffs.data]);
-  // 邮件投递的申请也在这页：选中一份时画面的位置换成它的邮件（不占浏览器）
-  const mailApps = useMemo(() => mailApplicationsOf(applications.data ?? []), [applications.data]);
-  const [mailAppId, setMailAppId] = useState<string | null>(null);
   const take = () => action.run(async () => { await careerApi.liveControl('human', 'user_request'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'human' } } : s)); });
   const handback = () => action.run(async () => { await careerApi.liveControl('agent'); setSnapshot(s => (s ? { ...s, browser: { ...s.browser, control: 'agent' } } : s)); setTakeover(null); handoffs.reload(); });
   const batchCmd = (cmd: 'start' | 'pause' | 'stop') => action.run(async () => { const b = await careerApi.batchCommand(cmd); if (b) setBatch(b); });
@@ -56,11 +51,8 @@ export default function CareerLive() {
   const connLabel = stream.status === 'open' ? null : stream.status === 'connecting' ? '连接中…' : '连接断开，自动重连';
   const hasBrowser = !!snapshot?.browser.hasBrowser;
   const working = hasBatchWork(batch);
-  const browserStage = working || hasBrowser || !!frame || humanActive;
-  // 没有在投、也没有浏览器、也没有邮件投递在办：整页就是一句事实 + 一个动作，不摆空的画面框
-  const showStage = browserStage || mailApps.length > 0;
-  // 画面的位置：选中的那封邮件；确认只有邮件在办（快照到了、没有浏览器画面）时直接摆第一封，不摆空的画面框
-  const mailApp = mailApps.find(a => a.id === mailAppId) ?? (browserStage || !snapshot ? null : mailApps[0] ?? null);
+  // 没有在投、也没有浏览器：整页就是一句事实 + 一个动作，不摆空的画面框
+  const showStage = working || hasBrowser || !!frame || humanActive;
   // 第一份快照到之前不下结论，免得空状态一闪
   const showEmpty = !!snapshot && !showStage;
 
@@ -84,7 +76,6 @@ export default function CareerLive() {
       )}
       {showStage && (
       <div className="grid grid-cols-1 gap-4 px-6 py-4 lg:grid-cols-[1fr_340px]">
-        {mailApp ? <MailLivePane key={mailApp.id} app={mailApp} onBack={browserStage ? () => setMailAppId(null) : undefined} /> : (
         <div>
           <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
             <Eye className="h-3.5 w-3.5" />
@@ -105,10 +96,8 @@ export default function CareerLive() {
           )}
           {action.error && <div role="alert" className="mt-2 text-xs text-[var(--danger)]">{action.error}</div>}
         </div>
-        )}
         <div className="space-y-3">
-          {/* 只有邮件在办、批量空着时，不再说「现在没有在投的」 */}
-          {(working || mailApps.length === 0) && <Card>
+          <Card>
             {working ? (
               <>
                 <TaskProgressPanel batch={batch} takeover={takeover} />
@@ -125,8 +114,7 @@ export default function CareerLive() {
                 <Button variant="primary" onClick={() => void openBatchPick()}>去挑一批</Button>
               </div>
             )}
-          </Card>}
-          {mailApps.length > 0 && <Card><MailLiveList apps={mailApps} selected={mailApp?.id ?? null} onSelect={setMailAppId} /></Card>}
+          </Card>
         </div>
       </div>
       )}

@@ -15,11 +15,12 @@ const KIND_LABELS: Record<MaterialKind, string> = {
 };
 const LENGTH_LABELS: Record<string, string> = { short: '短', medium: '中', long: '长' };
 
-function MaterialRow({ material }: { material: Material }) {
+function MaterialRow({ material, open = false }: { material: Material; open?: boolean }) {
   const length = material.length_variant ? LENGTH_LABELS[material.length_variant] : null;
   const meta = [KIND_LABELS[material.kind] ?? material.kind, length && `${length}版`, material.company_scope && `只给${material.company_scope}`].filter(Boolean).join(' · ');
   return (
     <Disclosure
+      defaultOpen={open}
       summary={(
         <span className="flex items-center gap-3">
           <span className="min-w-0 flex-1">
@@ -36,10 +37,11 @@ function MaterialRow({ material }: { material: Material }) {
   );
 }
 
-export function MaterialList({ materials }: { materials: Material[] }) {
+/** openFirst：第一篇先展开（示例里一打开就看到全文）。 */
+export function MaterialList({ materials, openFirst = false }: { materials: Material[]; openFirst?: boolean }) {
   return (
     <ResultList label="写过的">
-      {materials.map(material => <MaterialRow key={material.id} material={material} />)}
+      {materials.map((material, index) => <MaterialRow key={material.id} material={material} open={openFirst && index === 0} />)}
     </ResultList>
   );
 }

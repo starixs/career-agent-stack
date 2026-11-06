@@ -107,7 +107,7 @@ function Prefilter({ checks }: { checks: Dict[] }) {
   );
 }
 
-function EvaluationRow({ evaluation }: { evaluation: JobEvaluation }) {
+function EvaluationRow({ evaluation, open = false }: { evaluation: JobEvaluation; open?: boolean }) {
   const output = dict(parseJson(evaluation.score_json, `job ${evaluation.job_id}.score_json`));
   const verdict = VERDICTS[pickText(output, 'verdict') ?? ''];
   const score = dict(output.score);
@@ -115,6 +115,7 @@ function EvaluationRow({ evaluation }: { evaluation: JobEvaluation }) {
   const scored = values.some(value => value !== null);
   return (
     <Disclosure
+      defaultOpen={open}
       summary={(
         <span className="flex items-center gap-3">
           <span className="min-w-0 flex-1 truncate font-human text-base font-semibold text-[var(--ink)]">{[evaluation.company_name, evaluation.title].filter(Boolean).join(' · ')}</span>
@@ -134,10 +135,11 @@ function EvaluationRow({ evaluation }: { evaluation: JobEvaluation }) {
   );
 }
 
-export function JobScores({ evaluations }: { evaluations: JobEvaluation[] }) {
+/** openFirst：第一条先展开（示例里一打开就看到雷达图）。 */
+export function JobScores({ evaluations, openFirst = false }: { evaluations: JobEvaluation[]; openFirst?: boolean }) {
   return (
     <ResultList label="评估过的岗位">
-      {evaluations.map(evaluation => <EvaluationRow key={evaluation.job_id} evaluation={evaluation} />)}
+      {evaluations.map((evaluation, index) => <EvaluationRow key={evaluation.job_id} evaluation={evaluation} open={openFirst && index === 0} />)}
     </ResultList>
   );
 }

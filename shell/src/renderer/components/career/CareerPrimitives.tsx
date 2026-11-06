@@ -10,6 +10,7 @@ import { emitEvent } from '@/api/eventBus';
 import CustomSelect from '@/components/CustomSelect';
 import { useToastOptional } from '@/components/Toast';
 
+import { useSampleMode } from './skills/samples/sampleMode';
 import { isHiddenKey, structuredKeyLabel, structuredValueText } from './structuredLabels';
 
 // ─── 由对话指挥 ───
@@ -218,10 +219,12 @@ export function Button({ variant = 'secondary', size = 'md', busy, reveal = fals
   /** 行内动作 hover 才出现：父行加 `group`，按钮传 `reveal`。 */
   reveal?: boolean;
 }) {
+  // 示例里的动作一律不可点（skills/samples/sampleMode.ts）
+  const sample = useSampleMode();
   return (
     <button
       type="button"
-      disabled={disabled || busy}
+      disabled={disabled || busy || sample}
       className={`inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg)] disabled:cursor-not-allowed disabled:text-[var(--subtle)] ${BUTTON_SIZES[size]} ${BUTTON_VARIANTS[variant]} ${reveal ? REVEAL_CLASS : ''} ${className}`}
       {...rest}
     >

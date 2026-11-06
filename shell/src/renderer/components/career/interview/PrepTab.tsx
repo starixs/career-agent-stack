@@ -17,6 +17,8 @@ import { Button, Select, StructuredJson, formatDate, useSuggestToChat } from '..
 import { TileTabs, type TileTab } from '../skills/layers';
 import { MockReport, isMockReport, mockVerdict } from '../skills/results/MockReport';
 import { PredictionList, riskOf, sortByRisk } from '../skills/results/PredictionList';
+import { SAMPLE_PREP } from '../skills/samples/interview';
+import { SampleFrame } from '../skills/samples/SampleFrame';
 import { DateBlock, Marks, PASS_SCORE, ScoreRing, Stamp, daysUntil, type Tone } from '../skills/visual';
 import type { DossierSummary, Interview, MockInterview, ProbePrediction, QuestionItem } from '../types';
 
@@ -186,14 +188,11 @@ const practiceTone = (question: QuestionItem): Tone | null => {
 /** 这一步还什么都没有：一颗空的。 */
 const EMPTY_MARK: Array<Tone | null> = [null];
 
-export function PrepTab({ data, onOpenBank }: { data: PrepData; onOpenBank: () => void }) {
-  const suggest = useSuggestToChat();
-  const targets = buildPrepTargets(data.interviews, data.dossiers);
-  const [key, setKey] = useState<string | null>(null);
-  const target = targets.find(t => t.key === key) ?? targets[0] ?? null;
-  const company = target?.company ?? '';
-  const send = (text: string, extra: Record<string, string | undefined> = {}) => suggest(text, { surface: SURFACE, refs: { ...target?.refs, ...extra } });
+type Send = (text: string, extra?: Record<string, string | undefined>) => void;
 
+/** 准备的三步：块上各一个小图形，点哪块下面摊开哪一步。 */
+function PrepSteps({ data, target, send, onOpenBank }: { data: PrepData; target: PrepTarget | null; send: Send; onOpenBank: () => void }) {
+  const company = target?.company ?? '';
   const risks = sortByRisk(data.predictions).map(riskOf);
   const highRisk = risks.filter(risk => risk.order === 0).length;
   const questions = pickQuestions(data.questions, target);
@@ -202,7 +201,6 @@ export function PrepTab({ data, onOpenBank }: { data: PrepData; onOpenBank: () =
   const jobId = target?.refs.job_id;
   const mocks = jobId ? data.mocks.filter(mock => mock.job_id === jobId || mock.job_id === null) : data.mocks;
   const lastVerdict = mocks[0] ? verdictOf(mocks[0]) : null;
-  // 每一步的块上是一个小图形：一条预测一颗按风险上色的方块、一道题一颗圆点、上次模拟的那枚章
   const steps: TileTab[] = [
     {
       id: 'predict', label: '会被问什么', summary: risks.length ? `高风险 ${highRisk} 条` : '还没预测',
@@ -238,11 +236,42 @@ export function PrepTab({ data, onOpenBank }: { data: PrepData; onOpenBank: () =
       ),
     },
   ];
+  return <TileTabs label="准备的三步" tabs={steps} numbered />;
+}
+
+const noop = (): void => undefined;
+
+/**
+ * 还没准备过任何一场（没有预测、题、模拟）时的示例：三步按示例那一场摆满；
+ * 他还没有可以准备的那一场时，连面试票也用示例的摆出来（上面那个「帮我准备面试」照常能点）。
+ */
+function SamplePrep({ withTicket, onOpenBank }: { withTicket: boolean; onOpenBank: () => void }) {
+  const targets = buildPrepTargets(SAMPLE_PREP.interviews, SAMPLE_PREP.dossiers);
+  const target = targets[0] ?? null;
+  return (
+    <SampleFrame>
+      {withTicket && <Ticket targets={targets} target={target} onChange={noop} onPrepare={noop} />}
+      <PrepSteps data={SAMPLE_PREP} target={target} send={noop} onOpenBank={onOpenBank} />
+    </SampleFrame>
+  );
+}
+
+const hasPrep = (data: PrepData): boolean => data.predictions.length > 0 || data.questions.length > 0 || data.mocks.length > 0;
+
+export function PrepTab({ data, onOpenBank }: { data: PrepData; onOpenBank: () => void }) {
+  const suggest = useSuggestToChat();
+  const targets = buildPrepTargets(data.interviews, data.dossiers);
+  const [key, setKey] = useState<string | null>(null);
+  const target = targets.find(t => t.key === key) ?? targets[0] ?? null;
+  const company = target?.company ?? '';
+  const send: Send = (text, extra = {}) => suggest(text, { surface: SURFACE, refs: { ...target?.refs, ...extra } });
 
   return (
     <div className="max-w-5xl space-y-6">
       <Ticket targets={targets} target={target} onChange={setKey} onPrepare={() => send(`帮我准备${company ? `${company}的` : ''}面试`)} />
-      <TileTabs label="准备的三步" tabs={steps} numbered />
+      {hasPrep(data)
+        ? <PrepSteps data={data} target={target} send={send} onOpenBank={onOpenBank} />
+        : <SamplePrep withTicket={!target} onOpenBank={onOpenBank} />}
     </div>
   );
 }

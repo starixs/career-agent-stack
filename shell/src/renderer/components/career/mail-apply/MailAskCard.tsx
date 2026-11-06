@@ -42,8 +42,8 @@ function DropOne({ shown, total, busy, onAct, onGone }: {
   return <button type="button" className="cd-later" disabled={busy} onClick={() => void drop()}>这家不跟了</button>;
 }
 
-function MailActions({ ask, mail, drafts, picked, shown, busy, onAct, onSent, onConnect }: {
-  ask: AskView; mail: AskMail; drafts: readonly MailDraftView[]; picked: ReadonlySet<string>; shown: MailDraftView | null; busy: boolean;
+function MailActions({ mail, drafts, picked, shown, busy, onAct, onSent, onConnect }: {
+  mail: AskMail; drafts: readonly MailDraftView[]; picked: ReadonlySet<string>; shown: MailDraftView | null; busy: boolean;
   onAct: MailAct; onSent: (ids: string[]) => void; onConnect: () => void;
 }) {
   const ready = sendableIds(drafts, picked);
@@ -53,7 +53,7 @@ function MailActions({ ask, mail, drafts, picked, shown, busy, onAct, onSent, on
     const outcome = await onAct(respond => sendMails(respond, ready, drafts.length));
     if (outcome === 'kept') onSent(ready);
   };
-  const decline = () => onAct(snooze ? async () => 'snoozed' : respond => declineMails(ask, respond, drafts.map(d => d.action_id)));
+  const decline = () => onAct(snooze ? async () => 'snoozed' : respond => declineMails(mail.purpose, respond, drafts.map(d => d.action_id)));
   return (
     <div className="cd-acts">
       {needsMailbox(drafts)
@@ -85,7 +85,7 @@ function MailAskBody({ ask, mail, drafts, busy, error, onAct, store }: {
         <h3 className="cd-ask-title font-human">{ask.title}</h3>
         {shown && <MailSheet key={shown.action_id} draft={shown} onPatch={p => store.patch(shown.action_id, p)}
           onAvailability={store.saveAvailability} onUpload={u => store.upload(shown.action_id, u)} />}
-        <MailActions ask={ask} mail={mail} drafts={drafts} picked={sel.picked} shown={shown} busy={busy} onAct={onAct}
+        <MailActions mail={mail} drafts={drafts} picked={sel.picked} shown={shown} busy={busy} onAct={onAct}
           onSent={store.remove} onConnect={() => setConnecting(true)} />
         {error && <p role="alert" className="cd-err">{error}</p>}
       </div>

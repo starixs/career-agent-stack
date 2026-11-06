@@ -11,6 +11,8 @@ import { emitEvent } from '@/api/eventBus';
 import { careerApi } from '@/components/career/careerApi';
 import { Button, ErrorRow, LoadingRow, formatDate, suggestToChat } from '@/components/career/CareerPrimitives';
 import { NO_RESUME_OPENER } from '@/components/career/ColdStartCards';
+import { SAMPLE_RESUME } from '@/components/career/skills/samples/resume';
+import { SampleFrame } from '@/components/career/skills/samples/SampleFrame';
 import type { Job, ResumeMaster, ResumeTailored } from '@/components/career/types';
 import { PICK_RESUME_EVENT } from '@/components/chat-input/hooks/useResumePickSend';
 
@@ -97,6 +99,7 @@ export function ResumeGallery({ onOpen }: { onOpen: (id: string) => void }) {
           <Button variant="secondary" onClick={() => emitEvent(PICK_RESUME_EVENT, null)}><Upload className="h-4 w-4" />上传一份</Button>
         </div>
       )}
+      {entries.length === 0 && <SampleGallery />}
 
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-x-8 gap-y-10">
         {entries.map(entry => (
@@ -120,6 +123,23 @@ export function ResumeGallery({ onOpen }: { onOpen: (id: string) => void }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/** 一份都还没有：用示例的一份主简历把做好之后的样子摆出来（缩略图用同一套模板渲染，点不开）。 */
+function SampleGallery() {
+  return (
+    <div className="mt-8">
+      <SampleFrame>
+        <div className="w-[240px]">
+          <div className="aspect-[1/1.414] w-full overflow-hidden rounded-lg border-[1.5px] border-[var(--line-2)] bg-white">
+            <StudioPreview data={SAMPLE_RESUME} preview={{}} zoom={1} thumbnail />
+          </div>
+          <div className="mt-3 truncate text-sm font-semibold text-[var(--ink)]">主简历</div>
+          <div className="mt-0.5 truncate text-xs text-[var(--muted)]">{templateLabel(SAMPLE_RESUME.metadata.template).split(' · ')[0]}</div>
+        </div>
+      </SampleFrame>
     </div>
   );
 }

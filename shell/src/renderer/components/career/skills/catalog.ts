@@ -8,7 +8,7 @@
 import type { NavTarget } from '@/features/career-shell/navModel';
 
 /** 落了库、点开就能看的成果。 */
-export type ResultKind = 'evaluations' | 'directions' | 'gapPlans' | 'materials';
+export type ResultKind = 'evaluations' | 'directions' | 'gapPlans' | 'materials' | 'triage';
 
 /** 开始前要他选的东西：从已有数据里选，不让他打字。 */
 export type StartInput = 'job' | 'company' | 'topic';
@@ -24,7 +24,7 @@ export interface StartSpec {
   say: (pick: StartPick) => string;
 }
 
-export type WorkbenchId = 'interview' | 'exam' | 'resume' | 'apply' | 'company' | 'offer' | 'month';
+export type WorkbenchId = 'interview' | 'exam' | 'resume' | 'apply' | 'mail' | 'company' | 'offer' | 'month';
 
 export interface Workbench {
   id: WorkbenchId;
@@ -42,7 +42,7 @@ export interface Workbench {
  */
 export type SkillPointId =
   | 'resume-import' | 'experience-interview' | 'resume-tailor' | 'job-evaluate' | 'direction-explore' | 'gap-plan'
-  | 'material-draft' | 'derivatives' | 'greeting' | 'inbox-triage';
+  | 'material-draft' | 'greeting' | 'inbox-triage';
 
 export interface SkillPoint {
   id: SkillPointId;
@@ -62,6 +62,8 @@ export const WORKBENCHES: readonly Workbench[] = [
   { id: 'exam', name: '笔试助力', skills: [], open: { kind: 'career-dossier', view: 'exam-search' } },
   { id: 'resume', name: '简历', skills: ['resume-draft'], open: { kind: 'career-material', view: 'resume' } },
   { id: 'apply', name: '网申进展', skills: ['apply-playbook'], open: { kind: 'career-live' } },
+  // 两条投递通道挨着（2026-11-06 用户：邮件投递是一级功能，在工作台里）
+  { id: 'mail', name: '邮件投递', skills: ['derivatives', 'mail-reply'], open: { kind: 'career-dossier', view: 'mail-apply' } },
   { id: 'company', name: '公司调研', skills: ['company-research'], open: { kind: 'career-review', view: 'research' } },
   { id: 'offer', name: 'Offer 对比', skills: ['offer-compare'], open: { kind: 'career-dossier', view: 'offer' } },
   { id: 'month', name: '我的求职月', skills: [], open: { kind: 'career-review', view: 'funnel' } },
@@ -110,22 +112,18 @@ export const SKILL_POINTS: readonly SkillPoint[] = [
     results: 'materials',
   },
   {
-    id: 'derivatives', name: '投递邮件', gives: '标题、正文、附件', skills: ['derivatives'], ask: '帮我给这个岗位写投递邮件，附上简历 PDF',
-    start: { label: '写邮件', inputs: ['job'], say: pick => withJob(pick, '帮我给', '写投递邮件，附上简历 PDF') },
-  },
-  {
     id: 'greeting', name: '招呼语', gives: '120 字以内的第一句话', skills: ['greeting'], ask: '帮我给这个岗位写一句招呼语',
     start: { label: '写一句', inputs: ['job'], say: pick => withJob(pick, '帮我给', '写一句招呼语') },
   },
-  { id: 'inbox-triage', name: '回音归类', gives: '邀请、笔试、拒信自动认出来', skills: ['inbox-triage'], ask: '帮我看看这封邮件是什么：', open: { kind: 'career-inbox' } },
+  { id: 'inbox-triage', name: '回音归类', gives: '邀请、笔试、拒信自动认出来', skills: ['inbox-triage'], ask: '帮我看看这封邮件是什么：', results: 'triage' },
 ];
 
 /**
  * 不单独摆出来的技能：总控 assistant-core，决定小芽怎么说话、什么时候用哪个技能；
- * 校招节奏 campus-timeline 用不上（2026-11-05 用户定），照常可被调用，只是不占功能市场的位置；
- * mail-reply 是邮件投递发出之后后台自动写回信 / 跟进用的，不是用户主动点的本事。
+ * 校招节奏 campus-timeline 用不上（2026-11-05 用户定），照常可被调用，只是不占功能市场的位置。
+ * （mail-reply 和 derivatives 一起归「邮件投递」工作台，2026-11-06。）
  */
-export const INTERNAL_SKILLS: readonly string[] = ['assistant-core', 'campus-timeline', 'mail-reply'];
+export const INTERNAL_SKILLS: readonly string[] = ['assistant-core', 'campus-timeline'];
 
 export function findSkillPoint(id: string | undefined): SkillPoint | undefined {
   return SKILL_POINTS.find(point => point.id === id);

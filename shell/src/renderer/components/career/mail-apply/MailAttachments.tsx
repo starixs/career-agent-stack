@@ -33,7 +33,7 @@ export function checkMailFile(file: { name: string; size: number }): string | nu
 }
 
 /** 选一个本地文件：一个看得见的按钮 + 藏起来的文件框。 */
-function PickFile({ className, children, disabled, onFile }: { className: string; children: ReactNode; disabled: boolean; onFile: (f: File) => void }) {
+export function PickFile({ className, children, disabled, onFile }: { className: string; children: ReactNode; disabled: boolean; onFile: (f: File) => void }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <>

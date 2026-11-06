@@ -34,7 +34,7 @@ export function SkillPointDetail({ point, onBack }: { point: SkillPoint; onBack:
         </div>
       </header>
 
-      {point.results && <SkillResults kind={point.results} />}
+      <SkillResults id={point.id} />
     </div>
   );
 }

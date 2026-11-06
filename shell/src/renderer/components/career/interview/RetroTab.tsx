@@ -14,6 +14,8 @@ import { INTERVIEW_RESULT_LABELS, INTERVIEW_RESULT_SOURCE_LABELS, INTERVIEW_ROUN
 import { Button, Card, Field, Select, StructuredJson, TextArea, TextInput, textOrUnknown, useSuggestToChat } from '../CareerPrimitives';
 import { InterviewRetroBox } from '../InterviewRetroBox';
 import { RetroView, isRetro } from '../skills/results/RetroView';
+import { SAMPLE_RETRO_INTERVIEW } from '../skills/samples/interview';
+import { SampleFrame } from '../skills/samples/SampleFrame';
 import { DateBlock, Stamp, toneColor, type Tone } from '../skills/visual';
 import type { Interview } from '../types';
 import { useCareerAction } from '../useCareerData';
@@ -126,6 +128,16 @@ function InterviewForm({ onDone, onCancel }: { onDone: () => void; onCancel: () 
   );
 }
 
+/** 还没有任何一场面试时：用示例那一场把复盘出来的样子摆出来。 */
+function SampleRetro() {
+  return (
+    <SampleFrame>
+      <InterviewStrip interviews={[SAMPLE_RETRO_INTERVIEW]} activeId={SAMPLE_RETRO_INTERVIEW.id} onSelect={() => undefined} />
+      <InterviewDetail interview={SAMPLE_RETRO_INTERVIEW} />
+    </SampleFrame>
+  );
+}
+
 export function RetroTab({ interviews, onChanged }: { interviews: Interview[]; onChanged: () => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<'book' | 'record' | null>(null);
@@ -139,7 +151,7 @@ export function RetroTab({ interviews, onChanged }: { interviews: Interview[]; o
       </div>
       {form === 'book' && <BookInterviewForm onDone={done} onCancel={() => setForm(null)} />}
       {form === 'record' && <InterviewForm onDone={done} onCancel={() => setForm(null)} />}
-      {interviews.length === 0 && <p className="py-10 text-center text-sm text-[var(--muted)]">还没有面试记录</p>}
+      {interviews.length === 0 && <SampleRetro />}
       {selected && (
         <>
           <InterviewStrip interviews={interviews} activeId={selected.id} onSelect={setSelectedId} />

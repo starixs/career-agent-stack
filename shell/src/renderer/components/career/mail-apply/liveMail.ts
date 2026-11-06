@@ -1,11 +1,7 @@
 /**
- * 网申进展页与申请对象卡上的邮件申请：哪些申请走邮件、走到哪一步、对象卡上那条路多出的几节。
- *
- * 数据来源（服务端没有专门字段之前的最小假设，见交付报告）：
- *  - 「这份申请走邮件」：申请列表里 join 的岗位投递邮箱（apply_email），或投递凭据以 `mail:` 开头（已发出的）；
- *  - 「走到哪一步」：这份的邮件往来（/api/career/mail-apply/thread）——有待发的投递邮件 = 等你过目，有发出的 = 已发出。
+ * 邮件申请在申请对象卡那条路上多出的几节。
+ * 「这份申请走邮件」：岗位有投递邮箱（apply_email），或投递凭据以 `mail:` 开头（已发出的）。
  */
-import type { MailThreadView } from '../../../../shared/careerMailApply';
 import type { AskView } from '../delivery/deliveryApi';
 import type { Application, ApplicationStage, MailMessage } from '../types';
 
@@ -13,9 +9,6 @@ import type { Application, ApplicationStage, MailMessage } from '../types';
 export interface MailTrackNode { key: string; label: string; date?: string; on?: boolean; ask?: boolean }
 type TrackNode = MailTrackNode;
 
-/** 进展页上最多列几份邮件申请（新的在前；再多去卷宗看）。 */
-export const MAIL_LIVE_MAX = 30;
-const CLOSED = new Set<ApplicationStage>(['discarded', 'skip']);
 const SENT = new Set<ApplicationStage>(['applied', 'responded', 'interview', 'offer', 'rejected', 'hired']);
 const MAIL_EVIDENCE = 'mail:';
 
@@ -23,45 +16,8 @@ export function isMailApplication(app: Pick<Application, 'submission_evidence'> 
   return !!app.apply_email || (app.submission_evidence ?? '').startsWith(MAIL_EVIDENCE);
 }
 
-/** 进展页列表：走邮件、没关掉的，最近动过的在前。 */
-export function mailApplicationsOf(apps: readonly Application[]): Application[] {
-  return apps
-    .filter(a => isMailApplication(a) && !CLOSED.has(a.stage))
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-    .slice(0, MAIL_LIVE_MAX);
-}
-
 /** 已经投出去过（和网申进展页统计同口径）。 */
 export const isSentStage = (stage: ApplicationStage): boolean => SENT.has(stage);
-
-/** 等你条上有邮件等他过目（写好了待发 / 回信 / 跟进 / 退回重发）的申请：用同一份要你的事，不逐份去取往来。 */
-export function mailWaitingApps(asks: readonly AskView[]): Set<string> {
-  return new Set(asks.filter(a => !!a.mail).flatMap(a => a.application_ids));
-}
-
-/** 列表上那一行右边的几个字：有邮件等他过目最要紧（钢笔蓝），其余按阶段。 */
-export function mailLiveState(stage: ApplicationStage, waiting: boolean): { text: string; ask: boolean } {
-  if (waiting) return { text: '等你过目', ask: true };
-  return { text: SENT.has(stage) ? '已发出' : '在办', ask: false };
-}
-
-/** 定制简历 → 写邮件 → 等你过目 → 已发出。发生过的墨色，等你的钢笔蓝，没到的灰。 */
-export function mailSteps(app: Pick<Application, 'stage' | 'resume_tailored_id'>, thread: MailThreadView | null): TrackNode[] {
-  const items = thread?.items ?? [];
-  const sent = SENT.has(app.stage) || items.some(i => i.direction === 'out' && i.purpose === 'apply');
-  const pending = !sent && items.some(i => i.direction === 'pending' && i.purpose === 'apply');
-  const written = sent || pending;
-  return [
-    { key: 'tailor', label: '定制简历', on: written || !!app.resume_tailored_id },
-    { key: 'write', label: '写邮件', on: written },
-    { key: 'review', label: '等你过目', on: sent, ask: pending },
-    { key: 'sent', label: '已发出', on: sent },
-  ];
-}
-
-/** 待发的那封投递邮件（进展页右侧就是它的整张预览）。 */
-export const pendingApplyMail = (thread: MailThreadView | null): string | null =>
-  thread?.items.find(i => i.direction === 'pending' && i.purpose === 'apply')?.action_id ?? null;
 
 const dateOnly = (iso: string) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? undefined : `${d.getMonth() + 1}月${d.getDate()}日`; };
 

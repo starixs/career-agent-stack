@@ -37,6 +37,8 @@ describe('navModel', () => {
     expect(locateNav('career-dossier', { 'career-dossier': 'interview' })).toEqual({ area: 'market', itemId: null });
     expect(locateNav('career-material', { 'career-material': 'resume' })).toEqual({ area: 'assets', itemId: 'resumes' });
     expect(locateNav('career-dossier', { 'career-dossier': 'offer' })).toEqual({ area: 'market', itemId: null });
+    // 邮件投递工作台（2026-11-06）也只从功能市场打开
+    expect(locateNav('career-dossier', { 'career-dossier': 'mail-apply' })).toEqual({ area: 'market', itemId: null });
     expect(locateNav('career-review', {})).toEqual({ area: 'market', itemId: null });
     expect(locateNav('settings', {})).toEqual({ area: 'settings', itemId: 'general' });
     expect(locateNav('settings', { settings: 'feedback' })).toEqual({ area: 'settings', itemId: 'feedback' });

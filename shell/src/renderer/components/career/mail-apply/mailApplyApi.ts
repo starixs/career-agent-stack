@@ -6,8 +6,9 @@
 import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 
 import {
-  isMailDraftView, isMailFileOption, isMailThreadView, MAIL_APPLY_API,
-  type InternAvailability, type MailDraftPatch, type MailDraftView, type MailFileOption, type MailFileUpload, type MailThreadView,
+  isMailBoardRow, isMailBoardView, isMailDraftView, isMailFileOption, isMailThreadView, MAIL_APPLY_API,
+  type InternAvailability, type MailBoardRow, type MailBoardView, type MailDraftPatch, type MailDraftView, type MailFileOption,
+  type MailFileUpload, type MailThreadView,
 } from '../../../../shared/careerMailApply';
 
 const isDict = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -54,7 +55,17 @@ export function parseUploaded(raw: unknown, name: string): { file: MailFileOptio
   throw new Error('没能附上，请重试');
 }
 
+/** 工作台、贴进来的岗位：形状不对整份丢掉（日志不带内容），由调用方显示「没取到」。 */
+function parseOr<T>(raw: unknown, ok: (v: unknown) => v is T, what: string): T {
+  if (ok(raw)) return raw;
+  console.warn(`[career] mail-apply: 丢弃形状不对的${what}`);
+  throw new Error(`没取到${what}，请重试`);
+}
+
 export const mailApplyApi = {
+  board: () => apiGetJson<unknown>(MAIL_APPLY_API.board).then(r => parseOr<MailBoardView>(field(r, 'board'), isMailBoardView, '邮件投递')),
+  /** 贴一段岗位：没有明写投递邮箱时服务端回 4xx，错误字原样给人看。 */
+  pasteJob: (text: string) => apiPostJson<unknown>(MAIL_APPLY_API.jobs, { text }).then(r => parseOr<MailBoardRow>(field(r, 'row'), isMailBoardRow, '这个岗位')),
   drafts: (actionIds: readonly string[]) =>
     apiGetJson<unknown>(`${MAIL_APPLY_API.drafts}?ids=${encodeURIComponent(actionIds.join(','))}`).then(r => parseDrafts(field(r, 'drafts'))),
   patch: (actionId: string, patch: MailDraftPatch) =>

@@ -13,6 +13,9 @@ import { pageSurfaceId } from '@/features/career-shell/pageSurface';
 
 import { careerApi } from './careerApi';
 import { Button, ErrorRow, LoadingRow, Select, TextArea, TextInput, formatDate, useSuggestToChat } from './CareerPrimitives';
+import { SAMPLE_QUESTIONS } from './skills/samples/interview';
+import { SampleFrame } from './skills/samples/SampleFrame';
+import { useSampleMode } from './skills/samples/sampleMode';
 import { PASS_SCORE, ScoreRing, SegmentBar, Tag } from './skills/visual';
 import type { QuestionItem } from './types';
 import { useCareerAction, useCareerQuery } from './useCareerData';
@@ -62,9 +65,10 @@ export function QuestionBankPanel() {
     && (!keyword || [item.content, item.company_name, item.category, KIND[item.kind]].some(field => field?.toLowerCase().includes(keyword))));
   const scope = SOURCES.find(option => option.value === source)?.scope ?? '题库里';
   const start = () => suggest(`从${scope}挑${keyword ? `和「${search.trim()}」有关的` : ''}题考我，先考没练过的和分数低的`, { surface: SURFACE });
+  const empty = query.data?.length === 0;
   return (
     <section className="max-w-5xl space-y-5">
-      <PracticeDeck items={shown} onStart={start} />
+      {!empty && <PracticeDeck items={shown} onStart={start} />}
       <div className="flex flex-wrap items-center gap-2">
         <div role="group" aria-label="题目来源" className="flex gap-1 rounded-lg bg-[var(--inset)] p-1">
           {SOURCES.map(option => (
@@ -83,7 +87,8 @@ export function QuestionBankPanel() {
       {adding && <AddQuestion onDone={() => { setAdding(false); query.reload(); }} />}
       {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
       {query.loading && !query.data && <LoadingRow />}
-      {query.data && shown.length === 0 && <div className="text-sm text-[var(--muted)]">还没有题目</div>}
+      {empty && <SampleBank />}
+      {!empty && query.data && shown.length === 0 && <div className="text-sm text-[var(--muted)]">还没有题目</div>}
       <ul aria-label="题目" className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
         {shown.slice(0, limit).map(item => <QuestionCard key={item.id} item={item} onChanged={query.reload} />)}
       </ul>
@@ -92,10 +97,24 @@ export function QuestionBankPanel() {
   );
 }
 
+/** 题库里一道题都还没有：用示例的几道把「练到哪了」和题目卡摆出来。 */
+function SampleBank() {
+  return (
+    <SampleFrame>
+      <PracticeDeck items={SAMPLE_QUESTIONS} onStart={() => undefined} />
+      <ul aria-label="示例题目" className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+        {SAMPLE_QUESTIONS.map(item => <QuestionCard key={item.id} item={item} onChanged={() => undefined} />)}
+      </ul>
+    </SampleFrame>
+  );
+}
+
 /** 看：一道题一张卡，题干加分数环；点开是考察点、参考答案、每次作答的分数。 */
 function QuestionCard({ item, onChanged }: { item: QuestionItem; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
-  const attempts = useCareerQuery(() => (open ? careerApi.questionAttempts(item.id) : Promise.resolve([])), ['question']);
+  // 示例题不在库里，不去读作答记录
+  const sample = useSampleMode();
+  const attempts = useCareerQuery(() => (open && !sample ? careerApi.questionAttempts(item.id) : Promise.resolve([])), ['question']);
   const act = useCareerAction();
   const tags = [KIND[item.kind], item.company_name, ...safeList(item.probe_points_json)].filter((tag): tag is string => !!tag);
   return (

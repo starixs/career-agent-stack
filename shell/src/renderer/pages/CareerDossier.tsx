@@ -1,7 +1,7 @@
 /**
  * 投递记录：一张表列出每条投递走到哪一步；点一行看岗位（JD 与岗位页面）。不再有单条投递的档案页——
  * 投的哪版简历、说过什么、面试准备都交给助理在对话里摊开。
- * 视图：投递记录 / 岗位库 / 助力记录（笔试、面试、模拟面试合一）；面试助力和 Offer 对比从功能市场打开。
+ * 视图：投递记录 / 岗位库 / 助力记录（笔试、面试、模拟面试合一）；面试助力、Offer 对比、邮件投递从功能市场打开。
  */
 import { ExternalLink as ExternalLinkIcon, Search, X } from 'lucide-react';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,9 +33,10 @@ const CareerApply = lazy(() => import('@/pages/CareerApply'));
 const CareerInterview = lazy(() => import('@/pages/CareerInterview'));
 const CareerOffer = lazy(() => import('@/pages/CareerOffer'));
 const CareerExamSearch = lazy(() => import('@/pages/CareerExamSearch'));
+const CareerMailApply = lazy(() => import('@/pages/CareerMailApply'));
 
 // 子视图由二级导航选择（features/career-shell/navModel.ts），页面本身不再放切换控件。
-type View = 'line' | 'apply' | 'assist' | 'interview' | 'offer' | 'exam-search';
+type View = 'line' | 'apply' | 'assist' | 'interview' | 'offer' | 'exam-search' | 'mail-apply';
 const VIEW_HEADINGS: Record<View, { title: string }> = {
   apply: { title: '岗位库' },
   line: { title: '投递记录' },
@@ -43,6 +44,7 @@ const VIEW_HEADINGS: Record<View, { title: string }> = {
   interview: { title: '面试助力' },
   offer: { title: 'Offer 对比' },
   'exam-search': { title: '笔试助力' },
+  'mail-apply': { title: '邮件投递' },
 };
 /** 已合并进助力记录的旧视图。 */
 const RENAMED_VIEWS: Record<string, View> = { exam: 'assist' };
@@ -99,6 +101,7 @@ export default function CareerDossier({ embedded = false }: CareerPageProps) {
           {view === 'interview' && <CareerInterview />}
           {view === 'offer' && <CareerOffer embedded />}
           {view === 'exam-search' && <CareerExamSearch />}
+          {view === 'mail-apply' && <CareerMailApply />}
         </Suspense>
       )}
     </CareerPage>

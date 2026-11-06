@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { defaultResumeData } from '@career/resume-studio/schema';
@@ -37,6 +37,16 @@ describe('CareerResume', () => {
     offChat(); offPick();
   });
 
+  it('还没有简历：下面用一份示例主简历的缩略图把做好之后的样子摆出来，点不开', async () => {
+    vi.mocked(apiGetJson).mockImplementation(async (path: string) => (path.endsWith('/resumes') ? { ok: true, masters: [], tailored: [] } : { ok: true, jobs: [] }));
+    render(<CareerResume embedded />);
+    const sample = await screen.findByTestId('sample');
+    expect(within(sample).getByText('示例')).toBeInTheDocument();
+    expect(within(sample).getByTestId('preview-stub')).toBeInTheDocument();
+    expect(within(sample).queryByRole('button')).toBeNull();
+    expect(apiGetJson).not.toHaveBeenCalledWith(expect.stringContaining('/studio'));
+  });
+
   it('有简历：先看到汇总，点开进入编辑页', async () => {
     vi.mocked(apiGetJson).mockImplementation(async (path: string) => {
       if (path.endsWith('/resumes')) return { ok: true, masters: [{ id: 'rm_1', name: '主简历' }], tailored: [] };
@@ -45,6 +55,7 @@ describe('CareerResume', () => {
     });
     render(<CareerResume embedded />);
     fireEvent.click(await screen.findByRole('button', { name: '打开简历：主简历' }));
+    expect(screen.queryByTestId('sample')).toBeNull();
     expect(await screen.findByTestId('resume-workbench')).toBeInTheDocument();
     expect(apiGetJson).toHaveBeenCalledWith('/api/career/resumes/rm_1/studio');
   });

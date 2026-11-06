@@ -1,12 +1,12 @@
 /**
- * 邮件申请在进展页与申请对象卡上的样子（P2.8）：哪些申请走邮件、走到哪一步、对象卡那条路多出的几节。
+ * 邮件申请在申请对象卡上的样子（P2.8）：哪些申请走邮件、对象卡那条路多出的几节。
  */
 import { describe, expect, it } from 'vitest';
 
 import { applicationTrack } from '../delivery/applicationTrack';
 import type { Application, Dossier, Job, MailMessage } from '../types';
-import { isMailApplication, mailApplicationsOf, mailLiveState, mailSteps, mailTrackNodes, mailWaitingApps, pendingApplyMail } from './liveMail';
-import { bouncedAsk, BOUNCED, failedMailAsk, mailAsk, REPLY, SINGLE, THREAD } from './testFixtures';
+import { isMailApplication, mailTrackNodes } from './liveMail';
+import { bouncedAsk, BOUNCED, mailAsk, REPLY, SINGLE } from './testFixtures';
 
 const app = (over: Partial<Application>): Application => ({
   id: 'a1', job_id: 'j1', resume_tailored_id: null, stage: 'pending', next_action: null, next_action_due: null, blocker_reason: null,
@@ -27,44 +27,6 @@ describe('哪些申请走邮件', () => {
     expect(isMailApplication({ submission_evidence: 'https://x.cn/done' })).toBe(false);
   });
 
-  it('列表：只留邮件的、没关掉的，最近动过的在前', () => {
-    const list = mailApplicationsOf([
-      app({ id: 'web', submission_evidence: 'https://x' }),
-      app({ id: 'old', apply_email: 'a@x.cn', updated_at: '2026-11-01T00:00:00.000Z' }),
-      app({ id: 'new', apply_email: 'b@x.cn', updated_at: '2026-11-04T00:00:00.000Z' }),
-      app({ id: 'skip', apply_email: 'c@x.cn', stage: 'skip' }),
-    ]);
-    expect(list.map(a => a.id)).toEqual(['new', 'old']);
-  });
-});
-
-describe('列表上的状态字', () => {
-  it('等你条上有邮件等他过目的那份写「等你过目」（钢笔蓝），其余按阶段；邮件失败那件不算', () => {
-    const waiting = mailWaitingApps([mailAsk([SINGLE]), bouncedAsk(BOUNCED), failedMailAsk({ stage: 'send', reauth: false }, ['m_x'])]);
-    expect([...waiting].sort()).toEqual(['app_m_bo', 'app_m_mt']);
-    expect(mailLiveState('pending', waiting.has('app_m_mt'))).toEqual({ text: '等你过目', ask: true });
-    expect(mailLiveState('applied', false)).toEqual({ text: '已发出', ask: false });
-    expect(mailLiveState('pending', false)).toEqual({ text: '在办', ask: false });
-  });
-});
-
-describe('走到哪一步：定制简历 → 写邮件 → 等你过目 → 已发出', () => {
-  const state = (nodes: ReturnType<typeof mailSteps>) => nodes.map(n => (n.ask ? 'ask' : n.on ? 'on' : '-')).join(' ');
-
-  it('还在写：定制过的那一节是墨色，其余灰', () => {
-    expect(state(mailSteps(app({ resume_tailored_id: 'r1' }), { ...THREAD, items: [] }))).toBe('on - - -');
-  });
-
-  it('写好了等你：等你过目那节钢笔蓝，右侧给的是那封待发的', () => {
-    const pending = { ...THREAD, items: [{ ...THREAD.items[3], purpose: 'apply' as const, action_id: 'm_new' }] };
-    expect(state(mailSteps(app({}), pending))).toBe('on on ask -');
-    expect(pendingApplyMail(pending)).toBe('m_new');
-  });
-
-  it('发出去了：四节都是墨色；回信待发不算投递邮件待发', () => {
-    expect(state(mailSteps(app({ stage: 'applied' }), THREAD))).toBe('on on on on');
-    expect(pendingApplyMail(THREAD)).toBeNull();
-  });
 });
 
 describe('申请对象卡那条路', () => {

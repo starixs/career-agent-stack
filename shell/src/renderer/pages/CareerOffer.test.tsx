@@ -21,10 +21,22 @@ describe('CareerOffer', () => {
     vi.mocked(apiPutJson).mockReset();
   });
 
-  it('空状态', async () => {
+  it('还没有 Offer：新建照常能点，下面用示例的两个 Offer 把对比摆出来，示例上的「编辑」点不了', async () => {
     vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers: [] });
     render(<CareerOffer />);
-    expect(await screen.findByText('还没有 Offer')).toBeInTheDocument();
+    const sample = await screen.findByTestId('sample');
+    expect(within(sample).getByText('示例')).toBeInTheDocument();
+    expect(within(sample).getByRole('region', { name: '答复期限' })).toBeInTheDocument();
+    for (const edit of within(sample).getAllByRole('button', { name: '编辑' })) expect(edit).toBeDisabled();
+    expect(screen.getByRole('button', { name: /新建 Offer/ })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: '让小芽拆开比' })).toBeNull();
+  });
+
+  it('有自己的 Offer 时不出示例', async () => {
+    vi.mocked(apiGetJson).mockResolvedValue({ ok: true, offers });
+    render(<CareerOffer />);
+    await screen.findByRole('region', { name: '答复期限' });
+    expect(screen.queryByTestId('sample')).toBeNull();
   });
 
   it('看板：答复期限和一年的钱各一组条形，同一把尺子；缺的写未知，不画条', async () => {

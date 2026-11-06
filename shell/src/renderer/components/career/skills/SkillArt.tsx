@@ -96,6 +96,22 @@ const ART: Record<ArtId, ReactNode> = {
       <circle cx={88} cy={53} r={6} fill={PAPER} {...PEN} strokeDasharray="3 3" />
     </>
   ),
+  // 一只开着口的信封，里面插着一页简历（头像方块 + 几行字），右上一架钢笔蓝的纸飞机正飞出去
+  mail: (
+    <>
+      <rect x={21} y={41} width={64} height={31} rx={3} fill={INK} transform={`translate(${DROP} ${DROP})`} />
+      <Stroke d="M18 41 50 21 82 41z" fill={NOTE} />
+      <rect x={18} y={41} width={64} height={31} rx={3} fill={NOTE} {...PEN} />
+      <rect x={30} y={14} width={40} height={42} rx={2} fill={PAPER} {...PEN} />
+      <rect x={35} y={19} width={10} height={10} rx={1.5} fill={MINT} {...PEN} strokeWidth={1.25} />
+      <Rule x={49} y={22} w={16} /><Rule x={49} y={27} w={10} faint /><Rule x={35} y={35} w={30} faint /><Rule x={35} y={41} w={24} faint />
+      <Stroke d="M18 44 50 60 82 44V69a3 3 0 0 1-3 3H21a3 3 0 0 1-3-3z" fill={PAPER} />
+      <path d="M74 30q8-8 18-10" fill="none" stroke={FAINT} strokeWidth={1.75} strokeLinecap="round" strokeDasharray="3 4" />
+      <path d="M93 22 113 8 106 30 101 23z" fill={INK} transform={`translate(${DROP} ${DROP})`} />
+      <Stroke d="M93 22 113 8 106 30 101 23z" fill={BLUE} />
+      <Stroke d="M101 23 113 8" />
+    </>
+  ),
   // 一栋楼，放大镜里是红黄绿灯
   company: (
     <>
@@ -197,15 +213,6 @@ const ART: Record<ArtId, ReactNode> = {
       <path d="M27 33a6 6 0 1 1 6 6l-2 6h-5zM43 33a6 6 0 1 1 6 6l-2 6h-5z" fill={BLUE} />
       <Rule x={62} y={28} w={32} /><Rule x={62} y={37} w={24} faint />
       <Rule x={26} y={52} w={66} faint /><Rule x={26} y={60} w={44} faint />
-    </>
-  ),
-  // 一个信封，里面露出一页纸
-  derivatives: (
-    <>
-      <rect x={36} y={8} width={48} height={30} rx={3} fill={NOTE} {...PEN} />
-      <Rule x={44} y={17} w={24} /><Rule x={44} y={24} w={16} faint />
-      <Slab x={20} y={26} w={80} h={44} r={4} />
-      <Stroke d="M20 28l40 24 40-24" />
     </>
   ),
   // 一个打招呼的气泡，旁边闪一下

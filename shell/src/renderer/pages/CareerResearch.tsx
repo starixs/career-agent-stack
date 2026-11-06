@@ -10,6 +10,8 @@ import { TRAFFIC_LIGHT_LABELS } from '@/components/career/careerConstants';
 import { Button, CareerPage, ErrorRow, LoadingRow, formatDate, useSuggestToChat } from '@/components/career/CareerPrimitives';
 import { PickBox, type PickOption } from '@/components/career/skills/PickBox';
 import { CompanyReport, companyBasics } from '@/components/career/skills/results/CompanyReport';
+import { SAMPLE_COMPANIES } from '@/components/career/skills/samples/company';
+import { SampleFrame } from '@/components/career/skills/samples/SampleFrame';
 import { useMyTargets } from '@/components/career/skills/StartBar';
 import { Lamps, Stamp, type Tone } from '@/components/career/skills/visual';
 import type { Company } from '@/components/career/types';
@@ -23,7 +25,6 @@ const SURFACE = pageSurfaceId({ kind: 'career-review', view: 'research' });
 function companyName(company: Company): string {
   return company.legal_name ?? safeJson<string[]>(company.brand_names, [])[0] ?? '未知公司';
 }
-
 
 function StartResearch() {
   const suggest = useSuggestToChat();
@@ -74,6 +75,23 @@ function CompanyDetail({ company }: { company: Company }) {
   );
 }
 
+/** 左边查过的公司和灯，右边这家的报告。 */
+function CompanyBoard({ companies, selected, onSelect }: { companies: Company[]; selected: Company; onSelect: (id: string) => void }) {
+  return (
+    <div className="grid grid-cols-1 gap-8 md:grid-cols-[280px_minmax(0,1fr)]">
+      <CompanyList companies={companies} activeId={selected.id} onSelect={onSelect} />
+      <CompanyDetail key={selected.id} company={selected} />
+    </div>
+  );
+}
+
+/** 一家都还没查过：用示例的三家把查出来的样子摆出来，左边照样能点着换。 */
+function SampleBoard() {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = SAMPLE_COMPANIES.find(company => company.id === selectedId) ?? SAMPLE_COMPANIES[0];
+  return <SampleFrame><CompanyBoard companies={SAMPLE_COMPANIES} selected={selected} onSelect={setSelectedId} /></SampleFrame>;
+}
+
 export default function CareerResearch({ embedded = false }: { embedded?: boolean } = {}) {
   const query = useCareerQuery(careerApi.companies, ['company']);
   const companies = query.data ?? [];
@@ -85,12 +103,8 @@ export default function CareerResearch({ embedded = false }: { embedded?: boolea
         <StartResearch />
         {query.error && <ErrorRow message={query.error} onRetry={query.reload} />}
         {query.loading && !query.data && <LoadingRow />}
-        {selected && (
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-[280px_minmax(0,1fr)]">
-            <CompanyList companies={companies} activeId={selected.id} onSelect={setSelectedId} />
-            <CompanyDetail key={selected.id} company={selected} />
-          </div>
-        )}
+        {selected && <CompanyBoard companies={companies} selected={selected} onSelect={setSelectedId} />}
+        {query.data?.length === 0 && <SampleBoard />}
       </div>
     </CareerPage>
   );

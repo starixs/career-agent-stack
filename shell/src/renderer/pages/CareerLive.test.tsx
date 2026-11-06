@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
@@ -99,65 +99,6 @@ describe('CareerLive', () => {
     push({ ...snapshot, batch: { ...snapshot.batch, lastError: 'TypeError: cannot read x' } });
     expect(await screen.findByText('上一批有一家没填成，我会再试')).toBeInTheDocument();
     expect(screen.queryByText(/TypeError/)).toBeNull();
-  });
-
-  it('邮件申请也在这页：带「邮件」小签；选中时画面的位置换成它的邮件往来，回到画面再换回来', async () => {
-    const mailApp = { id: 'app_jd', job_id: 'j1', resume_tailored_id: 'r1', stage: 'responded', next_action: null, next_action_due: null, blocker_reason: null,
-      retry_strategy: null, submission_evidence: 'mail:mm_out', answers_used_json: '[]', page_url: null, created_at: '', updated_at: '2026-11-05T00:00:00.000Z',
-      title: '用户运营实习生', company_name: '京东', apply_email: 'jdcampus@jd.example' };
-    const webApp = { ...mailApp, id: 'app_web', submission_evidence: null, apply_email: null, company_name: '小鹏' };
-    const waitingApp = { ...mailApp, id: 'app_mt', stage: 'pending', submission_evidence: null, company_name: '美团', title: '产品运营实习生' };
-    const ask = { id: 'mail_m_mt', kind: 'review', title: '美团 · 邮件写好了', application_ids: ['app_mt'], companies: [{ company_id: null, name: '美团' }],
-      sources: [{ type: 'action', id: 'm_mt' }], due_at: null, overdue: false, mail: { purpose: 'apply', action_ids: ['m_mt'] } };
-    const thread = { application_id: 'app_jd', company: '京东', role: '用户运营实习生', items: [
-      { id: 'o1', direction: 'out', purpose: 'apply', counterpart: 'jdcampus@jd.example', subject: '周子航-北邮-用户运营', body: '您好', attachments: [], at: '2026-10-29T02:00:00.000Z', action_id: null, kind: null },
-      { id: 'i1', direction: 'in', purpose: null, counterpart: '王莉 <wangli@jd.example>', subject: 'Re', body: '想确认到岗时间', attachments: [], at: '2026-11-05T02:00:00.000Z', action_id: null, kind: null },
-    ] };
-    vi.mocked(apiGetJson).mockImplementation(async (url: string) => {
-      if (url === '/api/career/applications') return { ok: true, applications: [mailApp, webApp, waitingApp] };
-      if (url.startsWith('/api/career/asks')) return { ok: true, asks: [ask], run: null };
-      if (url.startsWith('/api/career/mail-apply/thread')) return { ok: true, thread };
-      return { ok: true, openHandoffs: 0 };
-    });
-    render(<CareerLive />);
-    await waitFor(() => expect(live.handler).not.toBeNull());
-    push(snapshot);
-    const list = await screen.findByRole('list', { name: '邮件投递' });
-    expect(list).toHaveTextContent('邮件');
-    expect(list).not.toHaveTextContent('小鹏');
-    // 等你条上有邮件等他的那份：状态字「等你过目」，钢笔蓝；只请求一次 asks，不逐份取往来
-    const waitingState = await within(screen.getByRole('button', { name: /美团 · 产品运营实习生/ })).findByText('等你过目');
-    expect(waitingState).toHaveClass('is-ask');
-    expect(within(screen.getByRole('button', { name: /京东 · 用户运营实习生/ })).getByText('已发出')).not.toHaveClass('is-ask');
-    expect(vi.mocked(apiGetJson).mock.calls.filter(([u]) => String(u).startsWith('/api/career/mail-apply/thread'))).toHaveLength(0);
-    fireEvent.click(screen.getByRole('button', { name: /京东 · 用户运营实习生/ }));
-    const pane = await screen.findByTestId('mail-live-pane');
-    expect(await screen.findByTestId('mail-thread')).toHaveTextContent('想确认到岗时间');
-    expect(pane).toHaveTextContent('已发出');
-    expect(apiGetJson).toHaveBeenCalledWith('/api/career/mail-apply/thread?application_id=app_jd');
-    fireEvent.click(screen.getByRole('button', { name: '回到画面' }));
-    expect(screen.queryByTestId('mail-live-pane')).toBeNull();
-  });
-
-  it('批量空着、没有浏览器、只有邮件在办：不说「现在没有在投的」，画面位置直接是那封邮件，不出「回到画面」', async () => {
-    const mailApp = { id: 'app_jd', job_id: 'j1', resume_tailored_id: 'r1', stage: 'responded', next_action: null, next_action_due: null, blocker_reason: null,
-      retry_strategy: null, submission_evidence: 'mail:mm_out', answers_used_json: '[]', page_url: null, created_at: '', updated_at: '2026-11-05T00:00:00.000Z',
-      title: '用户运营实习生', company_name: '京东', apply_email: 'jdcampus@jd.example' };
-    vi.mocked(apiGetJson).mockImplementation(async (url: string) => {
-      if (url === '/api/career/applications') return { ok: true, applications: [mailApp] };
-      if (url.startsWith('/api/career/asks')) return { ok: true, asks: [], run: null };
-      if (url.startsWith('/api/career/mail-apply/thread')) return { ok: true, thread: { application_id: 'app_jd', company: '京东', role: '用户运营实习生', items: [] } };
-      return { ok: true, openHandoffs: 0 };
-    });
-    render(<CareerLive />);
-    await waitFor(() => expect(live.handler).not.toBeNull());
-    push({ ...snapshot, browser: { ...snapshot.browser, hasBrowser: false, control: 'none' }, batch: null });
-    expect(await screen.findByRole('list', { name: '邮件投递' })).toBeInTheDocument();
-    expect(await screen.findByTestId('mail-live-pane')).toBeInTheDocument();
-    expect(screen.queryByText('现在没有在投的')).toBeNull();
-    expect(screen.queryByTestId('career-live-empty')).toBeNull();
-    expect(screen.queryByRole('button', { name: '回到画面' })).toBeNull();
-    expect(screen.queryByAltText('浏览器实时画面')).toBeNull();
   });
 
   it('没有在投、也没有浏览器：整页一句话 + 去挑一批，不摆画面框、没有接管和导航按钮', async () => {

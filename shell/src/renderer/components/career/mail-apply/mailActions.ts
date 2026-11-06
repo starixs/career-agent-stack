@@ -5,7 +5,7 @@
  * 发信只在卡组里、看过整封预览之后（2026-11-05 用户：发前要预览确认）：卡组外的入口（建议条、下一步条、
  * 邮件往来里那封待发的）一律只打开卡组定位到它，这里没有「不看就发」的函数。
  */
-import type { MailDraftView } from '../../../../shared/careerMailApply';
+import type { MailDraftView, MailPurpose } from '../../../../shared/careerMailApply';
 import { careerApi } from '../careerApi';
 import { deliveryApi, localMidnightIso, type AskView } from '../delivery/deliveryApi';
 import { requestOpenDeck } from '../delivery/openDeck';
@@ -27,8 +27,8 @@ export async function sendMails(respond: Respond, ids: readonly string[], remain
 }
 
 /** 副按钮：投递邮件「不投这家」带 drop（申请标成跳过）；跟进、回信只是不发这封。 */
-export async function declineMails(ask: AskView, respond: Respond, ids: readonly string[]): Promise<AskOutcome> {
-  if (ask.mail?.purpose === 'apply') await careerApi.reviewActions([...ids], 'rejected', { drop: true });
+export async function declineMails(purpose: MailPurpose, respond: Respond, ids: readonly string[]): Promise<AskOutcome> {
+  if (purpose === 'apply') await careerApi.reviewActions([...ids], 'rejected', { drop: true });
   else if (!(await respond([...ids], 'rejected'))) throw new Error('没能保存你的决定，请重试');
   return 'resolved';
 }

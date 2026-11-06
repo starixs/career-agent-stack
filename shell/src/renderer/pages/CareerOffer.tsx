@@ -9,6 +9,8 @@ import { useMemo, useState } from 'react';
 import { careerApi, safeJson } from '@/components/career/careerApi';
 import { Button, Card, CareerPage, ErrorRow, Field, LoadingRow, SectionTitle, TextArea, TextInput, useSuggestToChat } from '@/components/career/CareerPrimitives';
 import { OfferBoard } from '@/components/career/offer/OfferBoard';
+import { SAMPLE_OFFERS } from '@/components/career/skills/samples/offer';
+import { SampleFrame } from '@/components/career/skills/samples/SampleFrame';
 import type { Offer } from '@/components/career/types';
 import { useCareerAction, useCareerQuery } from '@/components/career/useCareerData';
 import { pageSurfaceId } from '@/features/career-shell/pageSurface';
@@ -63,9 +65,7 @@ export default function CareerOffer({ embedded = false }: { embedded?: boolean }
           />
         )}
         {query.loading && !query.data && <LoadingRow />}
-        {!query.loading && offers.length === 0 && (
-          <p className="py-10 text-center text-sm text-[var(--muted)]">还没有 Offer</p>
-        )}
+        {query.data?.length === 0 && <SampleFrame><OfferBoard offers={SAMPLE_OFFERS} onEdit={() => undefined} /></SampleFrame>}
         {offers.length > 0 && (
           <OfferBoard offers={offers} onEdit={setEditing} />
         )}

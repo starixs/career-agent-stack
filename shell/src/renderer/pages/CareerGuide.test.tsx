@@ -51,14 +51,16 @@ describe('CareerGuide（功能市场）', () => {
     expect(screen.queryByText('点子')).toBeNull();
   });
 
-  it('工作台卡片点了去它那一页：面试助力、笔试助力、网申进展', () => {
+  it('工作台卡片点了去它那一页：面试助力、笔试助力、网申进展、邮件投递', () => {
     const nav = capture(CAREER_NAVIGATE_EVENT);
     renderGuide();
     fireEvent.click(bench('面试助力'));
     fireEvent.click(bench('笔试助力'));
     fireEvent.click(bench('网申进展'));
+    fireEvent.click(bench('邮件投递'));
     expect(nav.seen).toEqual([
       { kind: 'career-dossier', view: 'interview' }, { kind: 'career-dossier', view: 'exam-search' }, { kind: 'career-live' },
+      { kind: 'career-dossier', view: 'mail-apply' },
     ]);
     nav.off();
   });
@@ -71,16 +73,38 @@ describe('CareerGuide（功能市场）', () => {
     expect(apiGetJson).not.toHaveBeenCalled();
   });
 
-  it('技能点：不用选东西的点了把那句话预填进对话；自己在做的点了去看结果；用不上的校招节奏不上市场', () => {
+  it('技能点：不用选东西的点了把那句话预填进对话；用不上的校招节奏不上市场', () => {
     const chat = capture('career:chat-suggest');
     const nav = capture(CAREER_NAVIGATE_EVENT);
     renderGuide();
     fireEvent.click(point('聊经历'));
-    fireEvent.click(point('回音归类'));
     expect(chat.seen).toEqual([expect.objectContaining({ text: '我先口述一段实习，帮我整理进简历', mode: 'prefill' })]);
-    expect(nav.seen).toEqual([{ kind: 'career-inbox' }]);
+    expect(nav.seen).toEqual([]);
     expect(screen.queryByRole('button', { name: /^校招节奏/ })).toBeNull();
     chat.off(); nav.off();
+  });
+
+  it('回音归类点开原地展开，不再跳到已下线的通知中心；成果是认出来的回音：来信 → 认成什么 → 挂到哪家', async () => {
+    const nav = capture(CAREER_NAVIGATE_EVENT);
+    mockData({
+      '/api/career/mail/messages': { messages: [
+        { id: 'm1', direction: 'in', subject: '甲公司二面邀请', from_addr: '甲公司招聘组', kind: 'interview_invite', application_id: 'a1', received_at: '2026-11-05', relevance: 'job' },
+        { id: 'm2', direction: 'in', subject: '投递成功', from_addr: '乙公司', kind: 'application_received', application_id: null, received_at: '2026-11-04', relevance: 'job' },
+      ] },
+      '/api/career/dossiers': { dossiers: [{ application_id: 'a1', job_id: 'j1', company_name: '甲公司', title: '后端开发', stage: 'interview' }] },
+    });
+    renderGuide();
+    fireEvent.click(point('回音归类'));
+    expect(nav.seen).toEqual([]);
+    expect(screen.getByRole('heading', { name: '回音归类' })).toBeInTheDocument();
+    const list = await screen.findByRole('region', { name: '认出来的回音' });
+    expect(within(list).getByText('甲公司二面邀请')).toBeInTheDocument();
+    expect(within(list).getByText('面试邀请')).toBeInTheDocument();
+    expect(within(list).getByTitle('甲公司')).toBeInTheDocument();
+    // 确认信不算回音
+    expect(within(list).queryByText('投递成功')).toBeNull();
+    expect(screen.queryByTestId('sample')).toBeNull();
+    nav.off();
   });
 
   it('要选东西或有成果的技能点点开原地换成详情，左上角返回', () => {
@@ -122,6 +146,46 @@ describe('CareerGuide（功能市场）', () => {
     expect(screen.getByText('后端技术栈有实证')).toBeInTheDocument();
     expect(screen.getByRole('listitem', { name: '地点：JD 没写' })).toBeInTheDocument();
     expect(screen.getByText('问一下每周到岗天数')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['job-evaluate', '云图智能 · AI 应用开发工程师'],
+    ['direction-explore', 'AI 应用开发 / Agent 工程'],
+    ['gap-plan', '星河科技 · Java 后端开发工程师'],
+    ['material-draft', '为什么选星河科技'],
+    ['resume-tailor', '为「云图智能 · AI 应用开发工程师」定制好了'],
+    ['greeting', '云图智能'],
+    ['inbox-triage', '星河科技 Java 后端开发工程师 二面邀请'],
+  ])('第一次打开 %s：还没有自己的成果，用示例把成果摆出来，左上角一枚「示例」', async (id, text) => {
+    setCareerSubView('career-guide', id);
+    renderGuide();
+    const sample = await screen.findByTestId('sample');
+    expect(within(sample).getByText('示例')).toBeInTheDocument();
+    expect(within(sample).getAllByText(text).length).toBeGreaterThan(0);
+    // 示例上的动作一律点不了；开始条照常能用
+    for (const button of within(sample).queryAllByRole('button')) {
+      if (button.getAttribute('role') === 'tab' || button.hasAttribute('aria-expanded') || button.hasAttribute('aria-pressed')) continue;
+      expect(button).toBeDisabled();
+    }
+  });
+
+  it('示例上可以翻看：方向路牌能切换，但「设为已选」点不了、不会发请求', async () => {
+    setCareerSubView('career-guide', 'direction-explore');
+    renderGuide();
+    const sample = await screen.findByTestId('sample');
+    fireEvent.click(within(sample).getByRole('tab', { name: /Java 后端开发/ }));
+    expect(within(sample).getByText('刷一套同类岗位的往年笔试题')).toBeInTheDocument();
+    expect(within(sample).getByRole('button', { name: '设为已选' })).toBeDisabled();
+    expect(apiPostJson).not.toHaveBeenCalled();
+  });
+
+  it('有自己的评估时示例整块不出现', async () => {
+    mockData({ '/api/career/job-evaluations': { evaluations: [{ job_id: 'j1', company_name: '甲公司', title: '后端开发', url: null, score_json: scoreJson, prefilter_json: null, updated_at: '2026-11-01' }] } });
+    setCareerSubView('career-guide', 'job-evaluate');
+    renderGuide();
+    await screen.findByRole('button', { name: /甲公司 · 后端开发/ });
+    expect(screen.queryByTestId('sample')).toBeNull();
+    expect(screen.queryByText('云图智能 · AI 应用开发工程师')).toBeNull();
   });
 
   it('方向探索的成果：依据和拿不准的地方分开列，状态可以自己标', async () => {

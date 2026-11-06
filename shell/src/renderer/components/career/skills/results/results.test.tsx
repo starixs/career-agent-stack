@@ -7,9 +7,10 @@ import { apiGetJson } from '@/api/apiFetch';
 import { onEvent } from '@/api/eventBus';
 
 import { QuestionBankPanel } from '../../QuestionBankPanel';
-import type { GapPlan, QuestionItem } from '../../types';
+import type { ActionQueueItem, DossierSummary, GapPlan, QuestionItem } from '../../types';
 
 import { GapPlans } from './GapPlans';
+import { greetingRows } from './GreetingList';
 import { MockReport } from './MockReport';
 
 describe('模拟面试报告', () => {
@@ -85,5 +86,28 @@ describe('题库', () => {
     fireEvent.click(screen.getByRole('button', { name: '开始练' }));
     expect(said.map(event => event.text)).toEqual(['从我见过的题里挑题考我，先考没练过的和分数低的']);
     off();
+  });
+});
+
+describe('招呼语的成果', () => {
+  const action = (id: string, kind: ActionQueueItem['kind'], status: ActionQueueItem['status'], payload: object, result: object | null = null): ActionQueueItem => ({
+    id, application_id: 'a1', kind, payload_json: JSON.stringify(payload), status, result_json: result ? JSON.stringify(result) : null,
+    reviewed_at: null, created_at: '2026-11-01', updated_at: '2026-11-01',
+  });
+  const dossiers: DossierSummary[] = [{
+    application_id: 'a1', job_id: 'j1', company_name: '甲公司', title: '后端开发', stage: 'applied', updated_at: '2026-11-01',
+    days_since_update: 0, next_deadline: null, interview_count: 0, resume_tailored_id: null, closed: false,
+  }];
+
+  it('只取招呼语；原文先看批准后的结果，再看待审的草稿；挂上那份申请的公司和岗位', () => {
+    const rows = greetingRows([
+      action('g1', 'send_greeting', 'needs_user', { text: '草稿' }, { text: '您好，我做过权限模块' }),
+      action('g2', 'send_greeting', 'pending_review', { greeting: '您好，想投后端' }),
+      action('s1', 'submit', 'pending_review', { text: '不是招呼语' }),
+    ], dossiers);
+    expect(rows).toEqual([
+      { id: 'g1', company: '甲公司', title: '后端开发', text: '您好，我做过权限模块', manual: true },
+      { id: 'g2', company: '甲公司', title: '后端开发', text: '您好，想投后端', manual: false },
+    ]);
   });
 });

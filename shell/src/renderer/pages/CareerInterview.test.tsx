@@ -77,6 +77,41 @@ describe('面试助力 · 准备', () => {
     chat.off();
   });
 
+  it('第一次打开（什么都还没有）：准备、复盘、题库三页都用示例把做出来的样子摆出来，示例上的动作点不了', async () => {
+    mockGet(true);
+    render(<CareerInterview />);
+    // 准备：真的「帮我准备面试」能点；下面是示例那一场的面试票和三步
+    expect(await screen.findByRole('button', { name: '帮我准备面试' })).toBeEnabled();
+    let sample = screen.getByTestId('sample');
+    expect(within(sample).getByText('示例')).toBeInTheDocument();
+    expect(within(sample).getByRole('button', { name: '帮我准备这一场' })).toBeDisabled();
+    expect(within(sample).getAllByRole('button', { name: '练这一句' })[0]).toBeDisabled();
+    fireEvent.click(within(sample).getByRole('tab', { name: /模拟一场/ }));
+    expect(within(sample).getByRole('button', { name: '开始模拟' })).toBeDisabled();
+    // 复盘：示例那一场的复盘，「按这些点练」点不了
+    await openTab('复盘');
+    sample = screen.getByTestId('sample');
+    expect(within(sample).getByRole('heading', { name: /星河科技/ })).toBeInTheDocument();
+    expect(within(sample).getByRole('button', { name: '按这些点练' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '补记一场' })).toBeEnabled();
+    // 题库：示例的几道题，开始练和删除点不了，也不去读作答记录
+    await openTab('题库');
+    sample = await screen.findByTestId('sample');
+    expect(within(sample).getByRole('button', { name: '开始练' })).toBeDisabled();
+    fireEvent.click(within(sample).getByRole('button', { name: /Redis 分布式锁/ }));
+    expect(within(sample).getByRole('button', { name: '删除题目' })).toBeDisabled();
+    expect(vi.mocked(apiGetJson).mock.calls.some(([path]) => String(path).includes('/attempts'))).toBe(false);
+    expect(apiPostJson).not.toHaveBeenCalled();
+  });
+
+  it('有自己的预测和题时不出示例', async () => {
+    mockGet();
+    render(<CareerInterview />);
+    await openTab('准备');
+    await screen.findByRole('tablist', { name: '准备的三步' });
+    expect(screen.queryByTestId('sample')).toBeNull();
+  });
+
   it('面试票：公司和轮次、岗位；没约时间的投递不显示日期和倒计时', async () => {
     mockGet();
     render(<CareerInterview />);
@@ -235,7 +270,7 @@ describe('面试助力 · 复盘', () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, interview: { id: 'i9' } });
     render(<CareerInterview />);
     await openTab('复盘');
-    expect(screen.getByText('还没有面试记录')).toBeInTheDocument();
+    expect(within(screen.getByTestId('sample')).getByText('示例')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '补记一场' }));
     fireEvent.change(screen.getByLabelText('公司'), { target: { value: '戊公司' } });
     fireEvent.click(screen.getByRole('button', { name: '轮次' }));
