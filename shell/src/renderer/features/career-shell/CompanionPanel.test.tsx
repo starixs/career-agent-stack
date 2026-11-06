@@ -214,7 +214,9 @@ describe('CompanionPanel', () => {
     expect(screen.queryByTestId('rail-pool')).not.toBeInTheDocument();
     expect(screen.queryByTestId('rail-resume-draft')).not.toBeInTheDocument();
     // 最近的回执提到此刻「刚投出」，完整的在足迹
-    expect(await screen.findByTestId('rail-recent-receipts')).toHaveTextContent('招商银行 · 财务管培');
+    // 公司和岗位是两个级别：分开两个元素，不用「·」连成一串
+    expect(await screen.findByTestId('rail-recent-receipts')).toHaveTextContent('招商银行财务管培');
+    expect(screen.getByTestId('rail-recent-receipts').textContent).not.toContain('·');
     fireEvent.click(screen.getByRole('tab', { name: /足迹/ }));
     expect(await screen.findByTestId('rail-receipts')).toHaveTextContent('填了 43 格');
     fireEvent.click(screen.getByRole('button', { name: '以后同类直接投' }));

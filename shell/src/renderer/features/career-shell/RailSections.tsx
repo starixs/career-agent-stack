@@ -186,13 +186,23 @@ function receiptTime(iso: string): string {
 
 /** 回执上的简历：定制版说改了几处，主简历说名字（定制版不再写成主简历名）。 */
 export function receiptResume(r: Pick<RailReceipt, 'resume' | 'resume_kind' | 'changes'>): string | null {
-  if (r.resume_kind === 'tailored') return r.changes ? `用定制版 · 改 ${r.changes} 处` : '用定制版';
+  if (r.resume_kind === 'tailored') return r.changes ? `用定制版，改 ${r.changes} 处` : '用定制版';
   return r.resume ? `用「${r.resume}」` : null;
 }
 
 const openReceipt = (id: string) => emitEvent('career:focus', { surface: 'dossier', application_id: id });
 
-/** 此刻里的「刚投出」：最近三张，一行一家（公司 · 岗位 · 时间）；没投过就不出这块。 */
+/** 公司是主字、岗位是跟在后面的弱色小字：两个级别靠字重和颜色分开，不用「·」连成一串（2026-11-06 用户）。 */
+function ReceiptName({ company, title }: { company: string; title: string }) {
+  return (
+    <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+      <span className="shrink-0 font-human text-sm text-[var(--ink)]">{company}</span>
+      <span className="min-w-0 truncate text-xs text-[var(--muted)]">{title}</span>
+    </span>
+  );
+}
+
+/** 此刻里的「刚投出」：最近三张，一行一家（公司、岗位小字、时间靠右）；没投过就不出这块。 */
 export function RecentReceipts({ receipts }: { receipts: readonly RailReceipt[] }) {
   if (!receipts.length) return null;
   return (
@@ -204,7 +214,7 @@ export function RecentReceipts({ receipts }: { receipts: readonly RailReceipt[] 
             <button type="button" onClick={() => openReceipt(r.application_id)}
               className="flex w-full items-baseline gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-[var(--hover)]">
               <span className="shrink-0 text-xs text-[var(--success)]" aria-hidden="true">✓</span>
-              <span className="min-w-0 flex-1 truncate font-human text-sm text-[var(--ink)]">{r.company} · {r.title}</span>
+              <ReceiptName company={r.company} title={r.title} />
               <span className="shrink-0 text-xs tabular-nums text-[var(--muted)]">{receiptTime(r.at)}</span>
             </button>
           </li>
@@ -224,9 +234,11 @@ export function Receipts({ receipts }: { receipts: readonly RailReceipt[] }) {
             className="speech-block flex w-full items-start gap-2 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-[var(--hover)]">
             <span className="mt-0.5 shrink-0 text-xs text-[var(--success)]">✓</span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-human text-sm text-[var(--ink)]">{r.company} · {r.title}</span>
-              <span className="block truncate text-xs text-[var(--muted)]">
-                {[receiptTime(r.at), receiptResume(r), r.filled !== null ? `填了 ${r.filled} 格` : null].filter(Boolean).join(' · ')}
+              <span className="flex"><ReceiptName company={r.company} title={r.title} /></span>
+              <span className="flex min-w-0 gap-3 text-xs text-[var(--muted)]">
+                <span className="shrink-0 tabular-nums">{receiptTime(r.at)}</span>
+                {receiptResume(r) && <span className="min-w-0 truncate">{receiptResume(r)}</span>}
+                {r.filled !== null && <span className="shrink-0">填了 {r.filled} 格</span>}
               </span>
             </span>
           </button>

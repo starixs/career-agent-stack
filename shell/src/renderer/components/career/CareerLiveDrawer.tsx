@@ -28,6 +28,7 @@ import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport, liveHumanActive } from './CareerLiveViewport';
 import { LivePageTabs, parseLivePages } from './LivePageTabs';
+import { LiveSample } from './LiveSample';
 import { TaskProgressPanel } from './TaskProgressPanel';
 import { SmsCodeBar } from './SmsCodeBar';
 import { useCareerQuery } from './useCareerData';
@@ -110,8 +111,7 @@ function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDon
   };
   return (
     <div data-testid="live-file-chooser" role="dialog" aria-label="页面请求上传文件" className="mt-2 rounded-md border border-[var(--primary)]/50 bg-[var(--inset)] px-3 py-2 text-xs text-[var(--ink)]">
-      <div className="flex items-center gap-1.5 font-medium"><Paperclip className="h-3.5 w-3.5" />页面请求上传文件{chooser.accept ? `（${chooser.accept}）` : ''}</div>
-      <p className="mt-1 text-[var(--muted)]">在这里选文件，会直接交给网页里的上传框，不会弹出别的窗口。</p>
+      {/* 画面下面不放文案（2026-11-06 用户）：这一条只有回形针和两个按钮，按钮自己说得清 */}
       <input
         ref={inputRef}
         type="file"
@@ -121,7 +121,8 @@ function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDon
         accept={chooser.accept ?? undefined}
         onChange={ev => void onPick(ev)}
       />
-      <div className="mt-2 flex items-center gap-2">
+      <div className="flex items-center gap-2">
+        <Paperclip className="h-4 w-4 shrink-0 text-[var(--muted)]" aria-hidden />
         <Button variant="primary" busy={busy} onClick={() => inputRef.current?.click()}>选择文件</Button>
         <Button variant="ghost" disabled={busy} onClick={() => void cancel()}>取消</Button>
         {error && <span role="alert" className="text-[var(--danger)]">{error}</span>}
@@ -296,6 +297,9 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     onStop?.();
   };
 
+  // 第一次打开、还没有任何网申在跑、浏览器也没开：把这一栏投的时候的样子用示例摆出来，不摆一个黑框加一句话
+  const sample = !!snapshot && !snapshot.browser.hasBrowser && !pages.length && !runs.length && !takeover && !chooser && batch?.status !== 'running';
+
   return (
     <section
       data-testid="career-live-drawer"
@@ -309,8 +313,11 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <div className="min-w-0 flex-1">
           <div className="font-human text-lg font-semibold text-[var(--ink)]">网申现场</div>
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
-            <span className="shrink-0">{statusText}</span>
+            {/* 选中了一份网申时，它等不等他、等什么由标签上的图形和下面的流程说；这里只在他自己操作、或没有网申页面时说浏览器的状态（一个状态只说一次） */}
+            {(!shownPage || humanActive) && <>
+              <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
+              <span className="shrink-0">{statusText}</span>
+            </>}
             {journeyText(snapshot?.journey) && <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-px text-[var(--ink-2)]">{journeyText(snapshot?.journey)}</span>}
             {host && <span className="truncate text-[var(--subtle)]">{host}</span>}
             {stream.status !== 'open' && <span className="ml-2 shrink-0 text-[var(--subtle)]">{stream.status === 'connecting' ? '连接中…' : '重连中'}</span>}
@@ -333,6 +340,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <Button variant="ghost" onClick={() => collapseWorkSurface('browser')} aria-label="收起浏览器"><X className="h-3.5 w-3.5" /></Button>
       </header>
 
+      {sample ? <LiveSample /> : <>
       <LivePageTabs pages={pages} runs={runs} onShow={showPage} />
       {/* 登录之旅走完后也留着：「X 已登录」要让他看到 */}
       {snapshot?.sms && <SmsCodeBar sms={snapshot.sms} />}
@@ -361,6 +369,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
           {(snapshot?.browser.hasBrowser || handoff || shownPage) && <TaskProgressPanel page={shownPage} run={shownRun} title={snapshot?.browser.title} batch={batch} takeover={takeover} />}
         </div>
       </div>
+      </>}
     </section>
   );
 }

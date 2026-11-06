@@ -9,6 +9,7 @@
  *    同一网站两份之间拟人停顿；平台有风险锁就先跳过该平台；用户正在接管浏览器时不再开新的。没有每日上限（用户 2026-10-30「不要做上限」）。
  *  - 每次状态变化 broadcast `career:batch`；接管状态同时广播 `career:takeover`，前端接管条 / 现场窗复用。
  */
+import { ApplyProgressTracker } from './apply-stage';
 import PQueue from 'p-queue';
 import { aggregatorHostOf, autoRetryFailedFill, closeIfJobEnded, PACKET_FAILED_CODE, type ActionQueueItem, type Repos, type Task } from '@career/core';
 import { applyTaskTitle, isBrowserDown, isTransientDriveError, needsUserLabels, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
@@ -86,6 +87,8 @@ export interface BatchRunnerDeps {
 interface Run {
   action: ActionQueueItem; mode: 'start' | 'continue'; payload: Record<string, unknown>; job: ReturnType<Repos['getJob']>; title: string; task: Task; runId: string; aggregator: string | null;
   changed: (...tables: string[]) => void; takeover: (state: string, extra?: Record<string, unknown>) => void; /** 开跑前备下的材料包 */ packetId?: string;
+  /** 走到链路哪一环、格子填了多少（界面画图用，apply-stage.ts）。 */
+  track: ApplyProgressTracker;
 }
 
 const realSleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
@@ -404,7 +407,8 @@ export class BatchRunner {
     takeover('running', { url: payload.url });
     // 链接是聚合站的岗位页（不是官网）：不在那上面「填表」，如实记失败，不把站点标语当缺项推给他；重试也没用，不自动再试
     const aggregator = mode === 'start' ? aggregatorHostOf(typeof payload.url === 'string' ? payload.url : null) : null;
-    return { action, mode, payload, job, title, task, runId, changed, takeover, aggregator };
+    // 续跑的是填到一半停下的那份：从「填写」接着算；新开的从「选中」起
+    return { action, mode, payload, job, title, task, runId, changed, takeover, aggregator, track: new ApplyProgressTracker(mode === 'continue' ? 'fill' : 'picked') };
   }
 
   /** 进展事件转发给前端（按岗位分组要带公司、岗位）；fromDrive：填表引擎发的（浏览器起来了的证据）。 */
@@ -413,7 +417,9 @@ export class BatchRunner {
       events.push(ev);
       // 浏览器起来了才会有填表事件（准备浏览器在 withProductSession 里，那时没有事件）
       if (fromDrive && ev.type !== 'error') this.markBrowserReady();
-      if (ev.type === 'progress') this.broadcastProgress(run, String(ev.message ?? ''), 'apply_batch', typeof ev.progress === 'number' ? ev.progress : undefined);
+      if (ev.type !== 'progress') return;
+      run.track.add(ev);
+      this.broadcastProgress(run, String(ev.message ?? ''), 'apply_batch', { ...(typeof ev.progress === 'number' ? { progress: ev.progress } : {}), ...(typeof ev.kind === 'string' ? { kind: ev.kind } : {}) });
     };
   }
 
@@ -427,11 +433,19 @@ export class BatchRunner {
     const message = outcome.kind === 'done' ? `${outcome.headline}，${outcome.autoApproved ? '正在提交' : '等你过目后投出'}`
       : outcome.kind === 'handoff' ? (outcome.userAction ?? outcome.message)
         : outcome.kind === 'transient' ? '浏览器被占用，排队稍后继续' : outcome.message;
+    // 填好了：走到「你过目」；已经放权直接投的走到「投出」
+    if (outcome.kind === 'done') run.track.stage = outcome.autoApproved ? 'send' : 'review';
     this.broadcastProgress(run, message, phase);
   }
 
-  private broadcastProgress(run: Run, message: string, phase: string, progress?: number): void {
-    this.deps.broadcast('career:progress', { sessionId: this.deps.sessionId?.() ?? 'global', runId: run.runId, taskId: run.task.id, phase, message, company: run.job?.company_name ?? undefined, job_title: run.job?.title ?? undefined, ...(run.action.application_id ? { application_id: run.action.application_id } : {}), ...(progress !== undefined ? { progress } : {}) });
+  private broadcastProgress(run: Run, message: string, phase: string, extra: { progress?: number; kind?: string } = {}): void {
+    const cells = run.track.cells();
+    this.deps.broadcast('career:progress', {
+      sessionId: this.deps.sessionId?.() ?? 'global', runId: run.runId, taskId: run.task.id, phase, message,
+      company: run.job?.company_name ?? undefined, job_title: run.job?.title ?? undefined,
+      ...(run.action.application_id ? { application_id: run.action.application_id } : {}),
+      ...(run.track.stage ? { stage: run.track.stage } : {}), ...(cells ? { cells } : {}), ...extra,
+    });
   }
 
   /** 这一份用的材料包：start 开跑前备（定制 + 冻结），continue 用开跑时备下的那份。 */
@@ -486,6 +500,8 @@ export class BatchRunner {
       review: (ids, kind, summary, data) => this.deps.broadcast('career:review', { sessionId: this.deps.sessionId?.() ?? 'global', actionIds: ids, kind, summary, ...(data ? { data } : {}) }),
     });
     if (mode === 'start') this.bumpToday();
+    // 收尾时用引擎的逐格结果把格子数校准（边填边数的只是大概）
+    run.track.settle([...events].reverse().find(e => e.type === 'result')?.result as Record<string, unknown> | undefined);
     this.reportOutcome(run, outcome);
     return outcome;
   }

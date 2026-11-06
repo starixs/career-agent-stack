@@ -24,7 +24,9 @@ describe('网申现场顶上的标签页（2026-11-02「只能看到美团这一
     expect(within(tab).getByText('【2027届秋招】数据分析与用研')).toBeInTheDocument();
     expect(tab.textContent).not.toMatch(/·|等你/);
     expect(tab).toHaveAttribute('data-status', 'waiting');
-    expect(tab).toHaveAttribute('title', '等你：需要登录');
+    // 等他做什么在读屏名字里说；悬停看到的是公司和岗位全名（收窄的标签看不全）
+    expect(tab).toHaveAttribute('aria-label', '畅游，【2027届秋招】数据分析与用研，等你：需要登录');
+    expect(tab).toHaveAttribute('title', '畅游 【2027届秋招】数据分析与用研');
   });
 
   it('状态跟着这一家自己走：等他的、小芽在填的、填好等他投出的、投出了的、还在排队的', () => {

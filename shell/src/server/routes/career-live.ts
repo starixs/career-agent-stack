@@ -64,7 +64,8 @@ function livePages(deps: CareerLiveDeps, shown: string | null = liveTarget()?.ap
 async function shownPages(deps: CareerLiveDeps): Promise<LivePage[]> {
   const pages = livePages(deps);
   const id = deps.productSessionId();
-  if (!id || pages.length < 2 || pages.some(p => p.current)) return pages;
+  // 只开着一家也要认：顶上一页也有标签，下面的链路按「当前这一页」讲（2026-11-06：只有一家时没标当前页，标签不是选中的样子）
+  if (!id || !pages.length || pages.some(p => p.current)) return pages;
   const shown = await viewedAppKey(deps, id);
   return shown ? livePages(deps, shown) : pages;
 }

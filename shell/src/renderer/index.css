@@ -425,6 +425,34 @@ button:disabled {
 }
 
 /* Shimmer animation for thinking state */
+/* 网申现场的链路（TaskProgressPanel）：通向正在办的那一环的一段，有一小段实色不断往前移。 */
+/* 不用渐变：渐变里的透明色在 macOS WebKit 上会渲染出灰带（#333）。 */
+@keyframes live-chain-flow {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); }
+}
+.live-chain-flow {
+  position: relative;
+  overflow: hidden;
+  background-color: color-mix(in srgb, var(--primary) 22%, var(--inset));
+}
+.live-chain-flow::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  border-radius: inherit;
+  background-color: var(--primary);
+  animation: live-chain-flow 1.2s linear infinite;
+}
+/* 后半段晚半拍：看上去是一段接一段往前传 */
+.live-chain-flow-late::after { animation-delay: 0.6s; }
+/* 当前一环下面的小字不做进场动画：窗口在后台时动画会被系统停在第一帧，字要么看不见、要么错位（2026-11-06 真机）。 */
+@media (prefers-reduced-motion: reduce) {
+  .live-chain-flow { background-color: var(--primary); }
+  .live-chain-flow::after { animation: none; display: none; }
+}
+
 @keyframes shimmer {
   0% {
     opacity: 1;

@@ -172,6 +172,8 @@ export interface DriveProgress {
   message: string
   kind: 'page' | 'field' | 'blocker' | 'upload' | 'entry' | 'section' | 'stop' | 'jd'
   label?: string
+  /** kind='page'：这一页找到几个要看的格子（界面画填表进度用）。 */
+  total?: number
   /** kind='jd'：岗位详情页的正文（≤ JD_TEXT_MAX 字），每次运行至多一次；调用方拿去存岗位描述，不要原样展示。 */
   text?: string
 }
@@ -261,7 +263,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
   const host = normalizeHost(page.url())
   const recorder: Recorder = isRecorder(opts.telemetry) ? opts.telemetry : opts.telemetry ? new RunRecorder(opts.telemetry, host) : noopRecorder
   const log = (msg: string) => { opts.log?.(msg); recorder.trace({ stage: 'log', result: 'info', detail: msg }) }
-  const progress = (message: string, kind: DriveProgress['kind'] = 'field', label?: string) => { opts.onProgress?.({ message, kind, label }); recorder.trace({ stage: 'progress', result: 'info', detail: message }) }
+  const progress = (message: string, kind: DriveProgress['kind'] = 'field', label?: string, total?: number) => { opts.onProgress?.({ message, kind, label, ...(total !== undefined ? { total } : {}) }); recorder.trace({ stage: 'progress', result: 'info', detail: message }) }
   let jdSent = false
   /** 落到岗位详情页（要点申请入口之前）时把正文交给调用方一次：存成岗位描述，供下一次按岗位定制简历。尽力而为，出错只记日志。 */
   const captureJd = (text: string) => {
@@ -335,8 +337,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     if (status === 'stopped_before_submit') {
       try { review = await buildSubmitReview(page, all) } catch (e) { log(`填后检查失败，按需要人看处理：${e instanceof Error ? e.message : String(e)}`) }
       // 「已填完」只在填后检查真没缺项时说；还有必填空着 / 网站报错就如实报缺什么（2026-11-05 滴滴：大半必填没填却报已填完）
+      const asFilled = message
       if (review) message = stopMessage(message, review, extra.submitButton)
-      progress(message, 'stop')
+      // 有缺项时这句不再当进展发：调用方会用自己的口径说「还差 N 项要你补」，两句挨着说就是同一件事说两遍（2026-11-06 实测）
+      if (message === asFilled) progress(message, 'stop')
     }
     const result: DriveResult = { status, message, pages, ...all, layersUsed: [...layersUsed], fields: allFields, blockers: allBlockers, entryClicked, libraries, ...(telemetryRef ? { telemetry: telemetryRef } : {}), screenshot, finalUrl: page.url(), adapterId: adapter.id, ...(review ? { review } : {}), ...extra }
     if (all.needsUser.length) await snapshotNeedsUser(page, recorder, all.needsUser)
@@ -544,7 +548,7 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
       sensitive = fields.filter(f => isSensitiveLabel(f.label) && f.layer !== 'vision').map(f => f.selector)
       // 组件库指纹按页累积（详情页和表单页往往不一样）
       try { libraries = [...new Set([...libraries, ...libraryList(await page.evaluate(libraryFingerprintScript)), ...fields.map(f => f.framework).filter((x): x is string => !!x && x !== 'native')])] } catch { /* ignore */ }
-      progress(`第 ${index} 页：找到 ${fields.length} 个要看的格子`, 'page')
+      progress(`第 ${index} 页：找到 ${fields.length} 个要看的格子`, 'page', undefined, fields.length)
       log(`第 ${index} 页：${fields.length} 个字段（${layer}）`)
       recorder.trace({ stage: 'page', result: 'info', detail: `第 ${index} 页 ${page.url()}：${fields.map(f => `${f.id}:${f.label}${f.required ? '*' : ''}${f.labelUncertain ? '?' : ''}`).join(' | ')}` })
       await capture(`page${index}`)
