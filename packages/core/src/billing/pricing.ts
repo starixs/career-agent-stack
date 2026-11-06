@@ -12,7 +12,7 @@
  */
 
 /** 可 grep 的价目版本锚点：价目任何一项变了就 +1，云端价目表上线后两边按它对表。 */
-export const PRICING_TABLE_ANCHOR = '[pricing] version=1 aligned=star_ai/apps/backend/app/core/pricing.py@2026-10-08'
+export const PRICING_TABLE_ANCHOR = '[pricing] version=2 aligned=star_ai/apps/backend/app/core/pricing.py@2026-10-08'
 
 /** 一百万：价目单位是「每百万 token」。 */
 const TOKENS_PER_PRICE_UNIT = 1_000_000
@@ -134,6 +134,9 @@ const rmbToMicroUsd = (rmb: number): number => Math.round((rmb / 7) * 1_000_000)
  * 表示「看过、定的是 0」，和「没人想过这件事」分开。新加会花钱的外部服务时在这里加一行。
  */
 export const TOOL_PRICING: Readonly<Record<string, ToolPrice>> = {
+  // 内置模型 Key 走的 DeepSeek 搜索（没单独配搜索 Key 时的默认）。官方价：每 1,000 次成功请求 ¥5
+  // （api-docs.deepseek.com 定价页，2026-11-06 核对），即 ¥0.005 / 次；失败的搜索我们不计量，口径一致。
+  'search:deepseek': { credits: 1, cogsMicroUsd: rmbToMicroUsd(0.005), label: '联网搜索（DeepSeek）', note: '成本 ¥0.005 / 次' },
   'search:bocha': { credits: 1, cogsMicroUsd: rmbToMicroUsd(0.032), label: '联网搜索（博查）', note: '成本 ¥0.032 / 次' },
   'search:tavily': { credits: 1, cogsMicroUsd: 7500, label: '联网搜索（Tavily）', note: '成本 $0.0075 / 次' },
   'search:serper': { credits: 1, cogsMicroUsd: 5000, label: '联网搜索（Serper）', note: '成本 $0.005 / 次' },

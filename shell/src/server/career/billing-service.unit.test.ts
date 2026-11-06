@@ -70,6 +70,16 @@ describe('计费埋点', () => {
     expect(usageRows()).toEqual([expect.objectContaining({ kind: 'tool', name: 'search:bocha' })]);
   });
 
+  it('默认的 DeepSeek 搜索（内置模型 Key）有价目：记 1 积分和官方成本，不落成「未定价」', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const deepseek = meteredSearch({ name: 'deepseek', search: async () => [{ title: 't', url: 'u', snippet: 's' }] });
+    await deepseek.search('字节跳动 校招');
+    await flushBillingWrites();
+    expect(usageRows()).toEqual([expect.objectContaining({ kind: 'tool', name: 'search:deepseek', priced: 1, cogs_micro_usd: 714 })]);
+    expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('[billing] UNPRICED'));
+    warn.mockRestore();
+  });
+
   it('账本写失败只留日志，不往外抛', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     repos.db.raw.exec('DROP TABLE billing_usage');

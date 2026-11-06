@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   Db, PRICING_TEMPLATE, Repos, asrCredits, countBusinessEvents, recordBusinessEvent, backgroundScope, billingSummary, buildPriceList, canonicalizeModelName, ceilCredits,
   checkin, creditsFromCents, deductCredits, ensureAccount, grantCredits, isFallbackPriced, listTransactions, rawLlmCredits,
-  recordLlmUsage, recordToolUsage, toolCredits, type PricingTemplate,
+  recordLlmUsage, recordToolUsage, toolCogsMicroUsd, toolCredits, type PricingTemplate,
 } from '../src/index.js'
 
 function mem(): Db { const db = new Db(':memory:'); db.migrate(); return db }
@@ -34,6 +34,9 @@ describe('价目：与 Star AI 同口径', () => {
 
   it('搜索按次 1 积分；没登记的工具返回 undefined 而不是 0', () => {
     expect(toolCredits('search:bocha')).toBe(1)
+    // 内置模型 Key 走的 DeepSeek 搜索是默认路径：必须有价目，不能落成「未定价」；成本按官方 ¥5 / 千次
+    expect(toolCredits('search:deepseek')).toBe(1)
+    expect(toolCogsMicroUsd('search:deepseek')).toBe(714)
     expect(toolCredits('web_fetch')).toBe(0)
     expect(toolCredits('brand_new_tool')).toBeUndefined()
     expect(toolCredits('toString')).toBeUndefined()
