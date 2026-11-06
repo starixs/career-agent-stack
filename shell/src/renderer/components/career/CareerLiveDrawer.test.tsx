@@ -32,6 +32,7 @@ const snapshot = (over: Record<string, unknown> = {}) => ({
 describe('CareerLiveDrawer', () => {
   beforeEach(() => {
     vi.mocked(apiPostJson).mockReset();
+    vi.mocked(apiGetJson).mockReset();
     live.handler = null;
     resetWorkSurfaces();
   });
@@ -99,7 +100,7 @@ describe('CareerLiveDrawer', () => {
   });
 
   it('登录之旅：状态行写「登录第几 / 共几家」，只有一家时不写', () => {
-    expect(journeyText({ index: 1, total: 3 })).toBe(' · 登录第 2 / 3 家');
+    expect(journeyText({ index: 1, total: 3 })).toBe('登录第 2 / 3 家');
     expect(journeyText({ index: 0, total: 1 })).toBe('');
     expect(journeyText(null)).toBe('');
   });
@@ -128,24 +129,36 @@ describe('CareerLiveDrawer', () => {
     act(() => { emitEvent('career:progress', { runId: 'run1', phase: 'driving', message: '正在填写教育经历', progress: 0.4 }); });
     expect(screen.queryByRole('button', { name: '显示真实窗口' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '收回真实窗口' })).not.toBeInTheDocument();
-    expect(await screen.findByText('牛客 Agent 开发')).toBeInTheDocument();
-    expect(screen.getAllByText('正在填写教育经历').length).toBeGreaterThan(0);
+    // 在做什么只在画面下面说一处，不重复
+    expect(await screen.findByRole('status')).toHaveTextContent('正在填写教育经历');
+    expect(screen.getAllByText('正在填写教育经历')).toHaveLength(1);
     expect(screen.queryByText(/批量：/)).not.toBeInTheDocument();
   });
 
-  it('多份并行时按岗位分开，选择一份只看这一份的事件', async () => {
+  it('几份一起投：顶上一份一个标签，下面只讲选中那一家；点另一个标签，画面和下面一起换（2026-11-06 上下两处重复、切了不跟）', async () => {
+    let current = 'a';
+    vi.mocked(apiGetJson).mockImplementation(async (url: string) => (url === '/api/career/live/pages'
+      ? { ok: true, pages: [{ application_id: 'a', company: '甲公司', title: 'Agent 开发', current: current === 'a' }, { application_id: 'b', company: '乙公司', title: '大模型开发', current: current === 'b', waiting: 'login' }] }
+      : { ok: true }));
+    vi.mocked(apiPostJson).mockImplementation(async (url: string, body: unknown) => {
+      if (url === '/api/career/live/view') current = (body as { application_id: string }).application_id;
+      return { ok: true };
+    });
     render(<Harness />);
     act(() => openLiveDrawer());
     await waitFor(() => expect(live.handler).not.toBeNull());
     push(snapshot());
     act(() => {
-      emitEvent('career:progress', { runId: 'run_a', phase: 'apply_batch', message: '正在填写 A 的教育经历', company: '甲公司', job_title: 'Agent 开发' });
-      emitEvent('career:progress', { runId: 'run_b', phase: 'apply_batch', message: '正在等待 B 的登录验证', company: '乙公司', job_title: '大模型开发' });
+      emitEvent('career:progress', { runId: 'run_a', phase: 'apply_batch', message: '正在填写 A 的教育经历', company: '甲公司', job_title: 'Agent 开发', application_id: 'a' });
+      emitEvent('career:progress', { runId: 'run_b', phase: 'apply_batch', message: '请在浏览器里登录 B', company: '乙公司', job_title: '大模型开发', application_id: 'b' });
     });
-    expect((await screen.findAllByText('正在等待 B 的登录验证')).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole('button', { name: /甲公司/ }));
-    expect(screen.getAllByText('正在填写 A 的教育经历').length).toBeGreaterThan(0);
-    expect(screen.queryByText('正在等待 B 的登录验证')).not.toBeInTheDocument();
+    expect(await screen.findAllByRole('tab')).toHaveLength(2);
+    expect(screen.getByRole('status')).toHaveTextContent('正在填写 A 的教育经历');
+    expect(screen.queryByText('请在浏览器里登录 B')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /乙公司/ }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('请在浏览器里登录 B'));
+    expect(screen.getByRole('tab', { name: /乙公司/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('正在填写 A 的教育经历')).not.toBeInTheDocument();
   });
 
   it('交接时只说这一家具体要他做什么，不复述按钮含义；主按钮是我来操作', async () => {

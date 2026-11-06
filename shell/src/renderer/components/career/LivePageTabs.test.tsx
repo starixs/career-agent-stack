@@ -1,53 +1,49 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 
-const pages = vi.hoisted(() => ({ list: [] as unknown[] }));
-vi.mock('@/api/apiFetch', () => ({
-  apiGetJson: vi.fn(async () => ({ ok: true, pages: pages.list })),
-  apiPostJson: vi.fn(async () => ({ ok: true })),
-}));
+import type { ProgressRun } from '@/features/career-shell/workSurfaceStore';
 
-import { apiPostJson } from '@/api/apiFetch';
+import { LivePageTabs, parseLivePages, type LivePage } from './LivePageTabs';
 
-import { LivePageTabs, parseLivePages } from './LivePageTabs';
+const page = (id: string, company: string, title: string, extra: Partial<LivePage> = {}): LivePage => ({ application_id: id, company, title, current: false, waiting: null, ...extra });
+const run = (applicationId: string, extra: Partial<ProgressRun> = {}): ProgressRun => ({ key: `run_${applicationId}`, steps: [{ message: '正在填', phase: 'apply_batch', at: 1 }], progress: null, finished: false, updatedAt: 1, applicationId, ...extra });
 
-describe('浏览器会话里切换正在投的几家（用户 2026-11-02「只能看到美团这一家」）', () => {
-  beforeEach(() => { vi.mocked(apiPostJson).mockClear(); });
-
-  it('只有一家开着页面：不出这一排', async () => {
-    pages.list = [{ application_id: 'a1', company: '美团', title: '商业分析', current: true }];
-    render(<LivePageTabs />);
-    await waitFor(() => expect(screen.queryByTestId('live-page-tabs')).not.toBeInTheDocument());
+describe('网申现场顶上的标签页（2026-11-02「只能看到美团这一家」；2026-11-06 像浏览器标签、三样东西不平铺）', () => {
+  it('一份网申一个标签：点哪个切到哪一家；选中的那个有标记', () => {
+    const onShow = vi.fn();
+    render(<LivePageTabs pages={[page('a1', '美团', '商业分析', { current: true }), page('a2', '斯达半导体', '数据分析')]} runs={[]} onShow={onShow} />);
+    fireEvent.click(screen.getByRole('tab', { name: /斯达半导体/ }));
+    expect(onShow).toHaveBeenCalledWith('a2');
+    expect(screen.getByRole('tab', { name: /美团/ })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('几家都开着：点一家，画面切到那一家', async () => {
-    pages.list = [{ application_id: 'a1', company: '美团', title: '商业分析', current: true }, { application_id: 'a2', company: '斯达半导体', title: '数据分析', current: false }];
-    render(<LivePageTabs />);
-    fireEvent.click(await screen.findByRole('tab', { name: '斯达半导体' }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/view', { application_id: 'a2' }));
-    expect(screen.getByRole('tab', { name: '美团' })).toHaveAttribute('aria-selected', 'true');
+  it('公司、岗位、状态是三样东西：公司和岗位各占一行，状态是图形，标签里没有「·」连成的一串', () => {
+    render(<LivePageTabs pages={[page('a1', '畅游', '【2027届秋招】数据分析与用研', { current: true, waiting: 'login' })]} runs={[]} onShow={() => {}} />);
+    const tab = screen.getByRole('tab');
+    expect(within(tab).getByText('畅游')).toBeInTheDocument();
+    expect(within(tab).getByText('【2027届秋招】数据分析与用研')).toBeInTheDocument();
+    expect(tab.textContent).not.toMatch(/·|等你/);
+    expect(tab).toHaveAttribute('data-status', 'waiting');
+    expect(tab).toHaveAttribute('title', '等你：需要登录');
+  });
+
+  it('状态跟着这一家自己走：等他的、小芽在填的、填好等他投出的、投出了的、还在排队的', () => {
+    const pages = [page('w', '甲', '岗', { waiting: 'captcha' }), page('f', '乙', '岗'), page('r', '丙', '岗'), page('d', '丁', '岗'), page('q', '戊', '岗')];
+    const runs = [run('w'), run('f'), run('r', { finished: true, ready: true }), run('d', { finished: true })];
+    render(<LivePageTabs pages={pages} runs={runs} onShow={() => {}} />);
+    expect(screen.getAllByRole('tab').map(t => t.getAttribute('data-status'))).toEqual(['waiting', 'filling', 'ready', 'done', 'queued']);
+  });
+
+  it('只开着一家也有标签（它是这一页是谁的标识）；一家都没开就不出这一排', () => {
+    const { rerender } = render(<LivePageTabs pages={[page('a1', '美团', '商业分析', { current: true })]} runs={[]} onShow={() => {}} />);
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+    rerender(<LivePageTabs pages={[]} runs={[]} onShow={() => {}} />);
+    expect(screen.queryByTestId('live-page-tabs')).not.toBeInTheDocument();
   });
 
   it('返回的数据不全就不认', () => {
-    expect(parseLivePages({ pages: [{ application_id: 'a1' }, null, { application_id: 'a2', company: '美团' }] })).toEqual([{ application_id: 'a2', company: '美团', title: '', current: false, waiting: null }]);
+    expect(parseLivePages({ pages: [{ application_id: 'a1', company: '美团', title: '商业分析', current: true }, { company: '缺 id' }, null] }))
+      .toEqual([{ application_id: 'a1', company: '美团', title: '商业分析', current: true, waiting: null }]);
     expect(parseLivePages(null)).toEqual([]);
-  });
-
-  it('在等你的那家带「等你」，点过去就在那家处理（2026-11-03 哪家要接手就在那家接手）', async () => {
-    pages.list = [{ application_id: 'a3', company: '中国中车', title: '数据分析工程师', current: false, waiting: 'login' }, { application_id: 'a1', company: '美团', title: '商业分析', current: true, waiting: null }];
-    render(<LivePageTabs />);
-    const tab = await screen.findByRole('tab', { name: /中国中车/ });
-    expect(tab).toHaveTextContent('等你');
-    expect(screen.getByRole('tab', { name: '美团' })).not.toHaveTextContent('等你');
-  });
-  it('50 家用任务选择器而不是 50 个横向标签；等你处理的岗位仍可识别和切换', async () => {
-    pages.list = Array.from({ length: 50 }, (_, i) => ({ application_id: `a${i}`, company: `公司 ${i}`, title: `岗位 ${i}`, current: i === 0, waiting: i === 49 ? 'login' : null }));
-    render(<LivePageTabs />);
-    const select = await screen.findByRole('button', { name: '选择网申任务' });
-    expect(screen.queryAllByRole('tab')).toHaveLength(0);
-    expect(screen.getByText('正在投 50 份')).toBeInTheDocument();
-    fireEvent.click(select);
-    fireEvent.click(await screen.findByRole('button', { name: /公司 49/ }));
-    await waitFor(() => expect(apiPostJson).toHaveBeenCalledWith('/api/career/live/view', { application_id: 'a49' }));
   });
 });

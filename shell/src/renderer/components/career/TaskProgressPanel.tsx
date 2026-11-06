@@ -1,28 +1,21 @@
-import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+/**
+ * 网申现场画面下面的那一块：只讲顶上选中的这一份网申——走到流程的哪一步、现在在做什么 / 要他做什么、刚做过哪几步。
+ *
+ * 切换哪一家在顶上的标签（LivePageTabs），这里不再列一遍全部任务，也不再重复公司和岗位（2026-11-06 用户：「这块你重叠了」）。
+ * 走到哪一步用一条四个节点的流程线画出来（liveStage.ts），不用一个「进行中」字样的标签。
+ */
+import { AlertTriangle, Check, Loader2 } from 'lucide-react';
 
-import { apiGetJson, apiPostJson } from '@/api/apiFetch';
-import { useWorkSurfaces, type ProgressRun } from '@/features/career-shell/workSurfaceStore';
-import { Badge } from './CareerPrimitives';
-import { parseLivePages, type LivePage } from './LivePageTabs';
-import { useCareerQuery } from './useCareerData';
+import type { ProgressRun } from '@/features/career-shell/workSurfaceStore';
+
+import { HANDOFF_REASON_LABELS } from './careerConstants';
+import type { LivePage } from './LivePageTabs';
+import { LIVE_STAGES, LIVE_STATUS_TEXT, liveStatusOf, stagePosition, type StagePosition } from './liveStage';
 import type { BatchState, CareerTakeoverEvent } from './types';
 
 const timeOf = new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-
-function runTitle(run: ProgressRun | undefined, batch?: BatchState | null): string {
-  const named = [run?.company, run?.jobTitle].filter(Boolean).join(' · ');
-  if (named) return named;
-  if (run && batch?.currentActionId && run.key === `run_${batch.currentActionId}` && batch.currentTitle) return batch.currentTitle;
-  // 批量停着（暂停 / 停止）时「当前这份」的标题是上一家留下的，不能拿来顶替：会把这条说成滴滴（2026-11-05）
-  return batch?.status === 'running' && batch.currentTitle ? batch.currentTitle : '网申任务';
-}
-
-/** 任务对应开着的哪一页：按网申 id 认；旧事件没带 id 时退回岗位名 + 公司都对上才算（同一家公司投几份不能认错）。 */
-export function livePageOfRun(pages: readonly LivePage[], run: Pick<ProgressRun, 'applicationId' | 'company' | 'jobTitle'>): LivePage | undefined {
-  if (run.applicationId) return pages.find(p => p.application_id === run.applicationId);
-  return pages.find(p => !!run.jobTitle && p.title === run.jobTitle && (!run.company || p.company === run.company));
-}
+/** 下面最多列几条刚做过的步骤：再多就把画面挤小了。 */
+const RECENT_STEPS = 5;
 
 /** 面板上那一行：接管的话 > 浏览器第一次在准备（服务端 phase browser_down，说清要等多久，盖过旧进展）> 这份最新进展 > 批量状态。 */
 export function progressMessage(takeoverMessage: string | undefined, latestMessage: string | undefined, batch?: Pick<BatchState, 'phase' | 'message'> | null): string {
@@ -31,79 +24,85 @@ export function progressMessage(takeoverMessage: string | undefined, latestMessa
   return takeoverMessage ?? preparing ?? latestMessage ?? batch?.message ?? '等待任务开始';
 }
 
-/** 单个岗位的事件流；多个 run 时先选岗位，再只看它的事件，避免 50 份进度混在一起。 */
-export function TaskProgressPanel({ title, batch, takeover }: { title?: string | null; batch?: BatchState | null; takeover?: CareerTakeoverEvent | null }) {
-  const { runs } = useWorkSurfaces();
-  // 列表里点的那条：只在画面还停在点的时候那一家时算数；顶上小签切了别家，面板就跟着画面走（2026-11-05 切到腾讯下面还是滴滴）
-  const [picked, setPicked] = useState<{ key: string; view: string | undefined } | null>(null);
-  // 和顶上的下拉框 / 小签共用「画面正看着哪一家」：哪边切，两边和画面都跟着（2026-11-05）
-  const { data: pages, reload: reloadPages } = useCareerQuery(async () => parseLivePages(await apiGetJson<unknown>('/api/career/live/pages')), ['action_queue', 'handoff', 'live_view']);
-  const shownPage = pages?.find(p => p.current);
-  const shownApp = shownPage?.application_id;
-  const selected = picked && picked.view === shownApp ? runs.find(item => item.key === picked.key) : undefined;
-  const shown = shownApp ? runs.find(item => item.applicationId === shownApp) : undefined;
-  // 画面正看着某一家：只显示这一家的进展；它还没有进展就如实说在排队，不拿别家的顶上
-  const run = selected ?? shown ?? (shownApp ? undefined : runs.find(item => !item.finished) ?? runs[0]);
-  const latest = run?.steps.at(-1);
-  const takeoverHere = !!takeover && (!run || takeover.runId === run.key);
-  const waiting = takeoverHere && takeover?.state === 'paused';
-  const human = takeoverHere && takeover?.state === 'human_active';
-  // 状态说的是这一家，不是整批：批量「已暂停」只是不再开新的一家，正在填的这家照样在跑
-  const status = waiting ? '等你处理' : human ? '你在操作' : run?.finished ? (run.failed ? '没填成' : run.ready ? '等你投出' : '已完成') : run ? (batch?.status === 'stopped' ? '已停止' : '进行中') : shownApp ? '排队中' : batch?.status === 'running' ? '进行中' : '等待开始';
-  const tone = waiting || run?.failed || run?.ready ? 'warning' : run?.finished || batch?.status === 'stopped' || (!run && shownApp) ? 'neutral' : 'success';
-  const message = !run && shownApp && !takeoverHere ? '这一家还在排队，轮到它就开始填' : progressMessage(takeoverHere ? takeover?.message : undefined, latest?.message, batch);
-  const total = batch ? batch.done + batch.failed + batch.handoffs + batch.queued + (batch.running?.length ?? 0) : 0;
-  const ratio = run ? run.progress : shownApp ? null : total > 0 && batch ? Math.min(1, (batch.done + batch.failed) / total) : null;
-  const events = run?.steps.slice(-5).reverse() ?? [];
-  const select = (next: ProgressRun) => {
-    const page = livePageOfRun(pages ?? [], next);
-    setPicked({ key: next.key, view: page ? page.application_id : shownApp });
-    if (!page) return;
-    void apiPostJson<unknown>('/api/career/live/view', { application_id: page.application_id })
-      .then(reloadPages, (error: unknown) => { console.error('[career-live] 切换任务现场 FAILED', error instanceof Error ? error.message : error); reloadPages(); });
-  };
+/** 这条接管说的是不是眼前这一家：有这家的进展就按任务号认；这家还没有进展、又有页面开着时不认（免得把别家的话安在它头上）。 */
+function takeoverIsHere(takeover: CareerTakeoverEvent | null | undefined, run: ProgressRun | undefined, page: LivePage | undefined): takeover is CareerTakeoverEvent {
+  if (!takeover) return false;
+  return run ? takeover.runId === run.key : !page;
+}
+
+type NodeState = 'done' | 'todo' | StagePosition['tone'];
+
+function StageNode({ state, last }: { state: NodeState; last: boolean }) {
+  const box = 'flex h-5 w-5 shrink-0 items-center justify-center';
+  if (state === 'working') return <span className={box}><Loader2 className="h-4 w-4 animate-spin text-[var(--primary)]" aria-hidden /></span>;
+  if (state === 'you') return <span className={box}><span className="h-3 w-3 rounded-full bg-[var(--warning)] ring-4 ring-[var(--warning-bg)]" aria-hidden /></span>;
+  if (state === 'failed') return <span className={box}><AlertTriangle className="h-4 w-4 text-[var(--warning)]" aria-hidden /></span>;
+  // 做完的一步：实心小点；最后一步做完打钩（整份投出了）
+  if (state === 'done') return <span className={box}>{last ? <Check className="h-4 w-4 text-[var(--success)]" strokeWidth={3} aria-hidden /> : <span className="h-2 w-2 rounded-full bg-[var(--ink-2)]" aria-hidden />}</span>;
+  return <span className={box}><span className="h-2 w-2 rounded-full border border-[var(--subtle)]" aria-hidden /></span>;
+}
+
+/** 流程线：四个节点，走过的连成实线，当前这一步的图形和颜色说清是小芽在做、等他、还是没做成。 */
+function StageTrack({ position, label }: { position: StagePosition; label: string }) {
+  const lastIndex = LIVE_STAGES.length - 1;
+  const line = (reached: boolean, hidden: boolean) => `h-px flex-1 ${hidden ? 'opacity-0' : reached ? 'bg-[var(--ink-2)]' : 'bg-[var(--line-2)]'}`;
   return (
-    <section aria-label="当前任务" aria-live="polite" className="mt-3 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-4 py-3">
-      <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]" title={runTitle(run, batch)}>{run ? runTitle(run, batch) : shownPage ? [shownPage.company, shownPage.title].filter(Boolean).join(' · ') || '网申任务' : title ?? batch?.currentTitle ?? '网申任务'}</span>
-        <Badge tone={tone}>{status}</Badge>
-      </div>
-      {!human && <div className="mt-1 text-sm text-[var(--ink-2)]">{message}</div>}
-      {ratio !== null && (
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--line)]" role="progressbar" aria-label="任务进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}>
-          <div className="h-full rounded-full bg-[var(--primary)] transition-[width] duration-200" style={{ width: `${Math.round(Math.max(0, Math.min(1, ratio)) * 100)}%` }} />
-        </div>
-      )}
-      {runs.length > 1 && (
-        <div className="mt-3 border-t border-[var(--line)] pt-2">
-                    <div role="list" aria-label="并行网申任务" className="max-h-36 space-y-1 overflow-y-auto">
-            {runs.map(item => (
-              <button key={item.key} type="button" aria-pressed={item.key === run?.key} onClick={() => select(item)}
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs ${item.key === run?.key ? 'bg-[var(--paper)] text-[var(--ink)]' : 'text-[var(--muted)] hover:bg-[var(--hover)]'}`}>
-                <span className={`h-2 w-2 shrink-0 rounded-full ${item.failed ? 'bg-[var(--warning)]' : item.finished ? 'bg-[var(--success)]' : 'bg-[var(--primary)]'}`} aria-hidden />
-                <span className="min-w-0 flex-1 truncate">{runTitle(item, null)}</span>
-                <span className="shrink-0">{item.failed ? '没填成' : item.ready ? '等你投出' : item.finished ? '已完成' : '进行中'}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {events.length > 0 && (
-        <div className="mt-3 border-t border-[var(--line)] pt-2">
-                    <ol className="space-y-1.5">
-            {events.map((event, index) => (
-              <li key={`${event.at}-${event.phase}-${index}`} className="flex items-start gap-2 text-xs">
-                {index === 0 && !run?.finished
-                  ? <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin text-[var(--primary)]" aria-hidden />
-                  : index === 0 && run?.finished
-                    ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--success)]" aria-hidden />
-                    : <Circle className="mt-0.5 h-3 w-3 shrink-0 text-[var(--subtle)]" aria-hidden />}
-                <span className="min-w-0 flex-1 text-[var(--ink-2)]">{event.message}</span>
-                <time className="shrink-0 text-[var(--subtle)]" dateTime={new Date(event.at).toISOString()}>{timeOf.format(event.at)}</time>
-              </li>
-            ))}
-          </ol>
-        </div>
+    <ol aria-label={`流程：${label}`} data-testid="live-stage-track" className="flex items-start">
+      {LIVE_STAGES.map((name, i) => {
+        const state: NodeState = i < position.current ? 'done' : i === position.current ? position.tone : 'todo';
+        const here = i === position.current;
+        return (
+          <li key={name} aria-current={here ? 'step' : undefined} data-state={state} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+            <div className="flex w-full items-center">
+              <span className={line(i <= position.current, i === 0)} />
+              <StageNode state={state} last={i === lastIndex} />
+              <span className={line(i < position.current, i === lastIndex)} />
+            </div>
+            <span className={`text-xs ${here ? `font-semibold ${state === 'you' || state === 'failed' ? 'text-[var(--warning)]' : 'text-[var(--ink)]'}` : state === 'done' ? 'text-[var(--ink-2)]' : 'text-[var(--subtle)]'}`}>{name}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export function TaskProgressPanel({ page, run, title, batch, takeover }: {
+  /** 画面正看着的那一家（顶上选中的标签）；没有网申页面开着时没有。 */
+  page?: LivePage;
+  /** 这一家的进展。 */
+  run?: ProgressRun;
+  /** 没有网申页面开着时（对话里随手浏览）用页面标题说一下在看什么。 */
+  title?: string | null;
+  batch?: BatchState | null;
+  takeover?: CareerTakeoverEvent | null;
+}) {
+  const here = takeoverIsHere(takeover, run, page);
+  const asked = here && takeover.state !== 'running' && takeover.state !== 'resuming' && takeover.runId !== 'live';
+  const waiting = page?.waiting ?? (here && takeover.state === 'paused' ? takeover.reason ?? 'user_request' : null);
+  const status = liveStatusOf({ waiting }, run);
+  const latest = run?.steps.at(-1);
+  // 流程线只给网申用；对话里随手打开网页看一眼不是一份网申，不画
+  const isApplication = !!page || !!run?.applicationId || !!waiting;
+  const fallback = status === 'queued' && page ? '这一家还在排队，轮到它就开始填'
+    : status === 'waiting' && !latest && waiting ? `等你：${HANDOFF_REASON_LABELS[waiting] ?? waiting}` : undefined;
+  const message = progressMessage(asked ? takeover.message : undefined, fallback ?? latest?.message, batch);
+  // 最新一步已经写在上面那一行了，下面只列它之前的几步
+  const steps = run?.steps ?? [];
+  const earlier = (latest && message === latest.message ? steps.slice(0, -1) : steps).slice(-RECENT_STEPS).reverse();
+  return (
+    <section aria-label="这一家的进展" className="mt-3 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-4 py-3">
+      {!page && title && <div className="mb-2 truncate text-sm font-semibold text-[var(--ink)]" title={title}>{title}</div>}
+      {isApplication && <StageTrack position={stagePosition(status, waiting)} label={LIVE_STATUS_TEXT[status]} />}
+      <p role="status" className={`${isApplication ? 'mt-3 ' : ''}text-sm text-[var(--ink)]`}>{message}</p>
+      {earlier.length > 0 && (
+        <ol aria-label="刚做过的几步" className="mt-2 space-y-1 border-t border-[var(--line)] pt-2">
+          {earlier.map((event, index) => (
+            <li key={`${event.at}-${index}`} className="flex items-baseline gap-3 text-xs">
+              <span className="min-w-0 flex-1 truncate text-[var(--muted)]" title={event.message}>{event.message}</span>
+              <time className="shrink-0 tabular-nums text-[var(--subtle)]" dateTime={new Date(event.at).toISOString()}>{timeOf.format(event.at)}</time>
+            </li>
+          ))}
+        </ol>
       )}
     </section>
   );

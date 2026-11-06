@@ -6,10 +6,10 @@
  *    选文件、当前任务与分组进度。关闭只是收起，后台填表 / 批量不受影响。
  * 浏览器只在产品里出现，不弹真实 Chrome 窗口。
  */
-import { Lock, Maximize2, Minimize2, Paperclip, Square, X } from 'lucide-react';
+import { Maximize2, Minimize2, Paperclip, Square, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 
-import { apiPostJson } from '@/api/apiFetch';
+import { apiGetJson, apiPostJson } from '@/api/apiFetch';
 import { emitEvent, onEvent } from '@/api/eventBus';
 import { requestNavigation } from '@/features/career-shell/navModel';
 import {
@@ -27,9 +27,10 @@ import { careerApi } from './careerApi';
 import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport, liveHumanActive } from './CareerLiveViewport';
-import { LivePageTabs } from './LivePageTabs';
+import { LivePageTabs, parseLivePages } from './LivePageTabs';
 import { TaskProgressPanel } from './TaskProgressPanel';
 import { SmsCodeBar } from './SmsCodeBar';
+import { useCareerQuery } from './useCareerData';
 import { readAsBase64 } from './fileBase64';
 import { Button, suggestToChat } from './CareerPrimitives';
 import type { BatchState, CareerProgressEvent, CareerTakeoverEvent, LiveFileChooser, LiveFileChooserEvent, LiveFrame, LiveSnapshot, LiveStreamEvent, LiveFrameStatus } from './types';
@@ -196,12 +197,22 @@ const TAKEOVER_REFRESH_MS = 3000;
 
 /** 状态行：登录之旅里带上「第几家 / 共几家」，一家家过时知道还剩多少。 */
 export function journeyText(journey: LiveSnapshot['journey']): string {
-  return journey && journey.total > 1 ? ` · 登录第 ${journey.index + 1} / ${journey.total} 家` : '';
+  return journey && journey.total > 1 ? `登录第 ${journey.index + 1} / ${journey.total} 家` : '';
 }
 
 /** 展开态：对话页右侧的网申现场栏。 */
 export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
-  const { takeover, fullscreen } = useWorkSurfaces();
+  const { takeover, fullscreen, runs } = useWorkSurfaces();
+  // 开着页面的几份网申：顶上的标签和下面的流程共用这一份（哪边切，画面和两处都跟着）
+  const { data: pageData, reload: reloadPages } = useCareerQuery(async () => parseLivePages(await apiGetJson<unknown>('/api/career/live/pages')), ['action_queue', 'handoff', 'live_view']);
+  const pages = pageData ?? [];
+  const shownPage = pages.find(p => p.current);
+  // 画面正看着某一家：只讲这一家；没有网申页面开着时讲最近在做的那件事
+  const shownRun = shownPage ? runs.find(r => r.applicationId === shownPage.application_id) : runs.find(r => !r.finished) ?? runs[0];
+  const showPage = (applicationId: string) => {
+    void apiPostJson<unknown>('/api/career/live/view', { application_id: applicationId })
+      .then(reloadPages, (e: unknown) => { console.error('[career-live] 切换现场 FAILED', applicationId, e instanceof Error ? e.message : e); reloadPages(); });
+  };
   const [frame, setFrame] = useState<LiveFrame | null>(null);
   const [snapshot, setSnapshot] = useState<LiveSnapshot | null>(null);
   const [batch, setBatch] = useState<BatchState | null>(null);
@@ -272,8 +283,6 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     return () => window.clearInterval(t);
   }, [attending]);
   const host = hostOf(snapshot?.browser.url);
-  // 只说这一家具体要他做什么；按钮自己说得清的（控制、交还）不再复述（规范 §6.0）
-  const handoffHint = revealed ? '页面在真实浏览器窗口里' : takeover?.message ?? null;
   const statusTone = handoff || humanActive ? 'bg-[var(--warning)]' : control === 'agent' ? 'bg-[var(--success)]' : 'bg-[var(--subtle)]';
   const statusText = handoff
     ? `等你处理${reason ? `：${reason}` : ''}`
@@ -301,7 +310,9 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
           <div className="font-human text-lg font-semibold text-[var(--ink)]">网申现场</div>
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
             <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
-            <span className="truncate">{statusText}{journeyText(snapshot?.journey)}{host ? ` · ${host}` : ''}</span>
+            <span className="shrink-0">{statusText}</span>
+            {journeyText(snapshot?.journey) && <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-px text-[var(--ink-2)]">{journeyText(snapshot?.journey)}</span>}
+            {host && <span className="truncate text-[var(--subtle)]">{host}</span>}
             {stream.status !== 'open' && <span className="ml-2 shrink-0 text-[var(--subtle)]">{stream.status === 'connecting' ? '连接中…' : '重连中'}</span>}
           </div>
         </div>
@@ -322,7 +333,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <Button variant="ghost" onClick={() => collapseWorkSurface('browser')} aria-label="收起浏览器"><X className="h-3.5 w-3.5" /></Button>
       </header>
 
-      <LivePageTabs />
+      <LivePageTabs pages={pages} runs={runs} onShow={showPage} />
       {/* 登录之旅走完后也留着：「X 已登录」要让他看到 */}
       {snapshot?.sms && <SmsCodeBar sms={snapshot.sms} />}
 
@@ -342,16 +353,12 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
           </div>
           {chooser && <FileChooserPanel key={chooser.id} chooser={chooser} onDone={msg => { setChooser(null); setInfo(msg); }} />}
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-            {(handoff || humanActive) && handoffHint && (
-              <span role="status" className="flex min-w-0 flex-1 items-center gap-1.5 text-[var(--ink)]" title={handoffHint}>
-                <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="truncate">{handoffHint}</span>
-              </span>
-            )}
+            {revealed && <span className="text-[var(--muted)]">页面在真实浏览器窗口里</span>}
             {notice && <span role="alert" className="text-[var(--danger)]">{notice}</span>}
             {!notice && info && <span role="status" className="text-[var(--success)]">{info}</span>}
           </div>
-          {snapshot?.browser.hasBrowser && <TaskProgressPanel title={snapshot.browser.title} batch={batch} takeover={takeover} />}
+          {/* 要他做什么、走到哪一步只在这一处说（原来画面下一行、面板里各说一遍，还会把别家的话安在这一家头上） */}
+          {(snapshot?.browser.hasBrowser || handoff || shownPage) && <TaskProgressPanel page={shownPage} run={shownRun} title={snapshot?.browser.title} batch={batch} takeover={takeover} />}
         </div>
       </div>
     </section>
