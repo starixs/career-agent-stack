@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/api/apiFetch', () => ({ apiGetJson: vi.fn(), apiPostJson: vi.fn(), apiPutJson: vi.fn(), apiDelete: vi.fn() }));
@@ -161,6 +161,21 @@ describe('CareerLiveDrawer', () => {
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('请在浏览器里登录 B'));
     expect(screen.getByRole('tab', { name: /乙公司/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByText('正在填写 A 的教育经历')).not.toBeInTheDocument();
+  });
+
+  it('第一次打开、还没有网申在跑：摆示例（标一次「示例」、不可点、不进读屏），不是黑框加一句话；浏览器一开就整块换掉', async () => {
+    render(<Harness />);
+    act(() => openLiveDrawer());
+    await waitFor(() => expect(live.handler).not.toBeNull());
+    push(snapshot({ browser: { hasBrowser: false, control: 'none', reason: null, channel: 'chrome', embedded: true, windowRevealed: false } }));
+    const sample = await screen.findByTestId('live-sample');
+    expect(within(sample).getAllByText('示例')).toHaveLength(1);
+    expect(sample.querySelector('[inert]')).not.toBeNull();
+    expect(sample.querySelector('[data-testid=live-stage-track]')).not.toBeNull();
+    expect(screen.queryAllByRole('tab')).toHaveLength(0);
+    expect(screen.queryByText('浏览器还没有打开')).not.toBeInTheDocument();
+    push(snapshot());
+    await waitFor(() => expect(screen.queryByTestId('live-sample')).not.toBeInTheDocument());
   });
 
   it('交接时只说这一家具体要他做什么，不复述按钮含义；主按钮是我来操作', async () => {

@@ -28,6 +28,7 @@ import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport, liveHumanActive } from './CareerLiveViewport';
 import { LivePageTabs, parseLivePages } from './LivePageTabs';
+import { LiveSample } from './LiveSample';
 import { TaskProgressPanel } from './TaskProgressPanel';
 import { SmsCodeBar } from './SmsCodeBar';
 import { useCareerQuery } from './useCareerData';
@@ -296,6 +297,9 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     onStop?.();
   };
 
+  // 第一次打开、还没有任何网申在跑、浏览器也没开：把这一栏投的时候的样子用示例摆出来，不摆一个黑框加一句话
+  const sample = !!snapshot && !snapshot.browser.hasBrowser && !pages.length && !runs.length && !takeover && !chooser && batch?.status !== 'running';
+
   return (
     <section
       data-testid="career-live-drawer"
@@ -336,6 +340,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <Button variant="ghost" onClick={() => collapseWorkSurface('browser')} aria-label="收起浏览器"><X className="h-3.5 w-3.5" /></Button>
       </header>
 
+      {sample ? <LiveSample /> : <>
       <LivePageTabs pages={pages} runs={runs} onShow={showPage} />
       {/* 登录之旅走完后也留着：「X 已登录」要让他看到 */}
       {snapshot?.sms && <SmsCodeBar sms={snapshot.sms} />}
@@ -364,6 +369,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
           {(snapshot?.browser.hasBrowser || handoff || shownPage) && <TaskProgressPanel page={shownPage} run={shownRun} title={snapshot?.browser.title} batch={batch} takeover={takeover} />}
         </div>
       </div>
+      </>}
     </section>
   );
 }
