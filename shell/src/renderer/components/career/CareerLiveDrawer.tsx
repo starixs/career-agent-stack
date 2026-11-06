@@ -309,8 +309,11 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <div className="min-w-0 flex-1">
           <div className="font-human text-lg font-semibold text-[var(--ink)]">网申现场</div>
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
-            <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
-            <span className="shrink-0">{statusText}</span>
+            {/* 选中了一份网申时，它等不等他、等什么由标签上的图形和下面的流程说；这里只在他自己操作、或没有网申页面时说浏览器的状态（一个状态只说一次） */}
+            {(!shownPage || humanActive) && <>
+              <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
+              <span className="shrink-0">{statusText}</span>
+            </>}
             {journeyText(snapshot?.journey) && <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-px text-[var(--ink-2)]">{journeyText(snapshot?.journey)}</span>}
             {host && <span className="truncate text-[var(--subtle)]">{host}</span>}
             {stream.status !== 'open' && <span className="ml-2 shrink-0 text-[var(--subtle)]">{stream.status === 'connecting' ? '连接中…' : '重连中'}</span>}
