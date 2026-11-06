@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type WheelEvent, type ClipboardEvent } from 'react';
 
 import { careerApi } from './careerApi';
+import { createLiveInputQueue, type LiveInput } from './liveInputQueue';
 import { useLivePointer } from './useLivePointer';
 import type { LiveFrame } from './types';
 
@@ -121,6 +122,17 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
       onInputError?.(message);
     }
   }, [onInputError, onRequestControl]);
+  // 所有操作排成一条按顺序发，没发出去的同类操作合并（连打的字、滚轮位移、拖动位置）——见 liveInputQueue.ts
+  const sendRef = useRef(send);
+  useEffect(() => { sendRef.current = send; }, [send]);
+  const queueRef = useRef<((input: LiveInput) => Promise<void>) | null>(null);
+  const enqueue = (input: LiveInput) => (queueRef.current ??= createLiveInputQueue(i => sendRef.current(i)))(input);
+  // 打字走一个看不见的输入框：中文输入法要有可编辑的焦点才会出候选、上屏（原来焦点在画面 div 上，只能打出拼音字母）
+  const imeRef = useRef<HTMLTextAreaElement | null>(null);
+  const composing = useRef(false);
+  const flushTyped = (el: HTMLTextAreaElement) => { const text = el.value; el.value = ''; if (text) void enqueue({ type: 'type', text }); };
+  // 刚接管时焦点还在画面上：挪到输入框，接着就能打字
+  useEffect(() => { if (interactive && document.activeElement === boxRef.current) imeRef.current?.focus(); }, [interactive]);
 
   const frameCoords = (ev: MouseEvent<HTMLElement>) => {
     const el = boxRef.current; if (!el || !frame) return null;
@@ -137,13 +149,13 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
 
   // 接管期间按下 / 移动 / 松开实时转发（useLivePointer）：拖滑块时画面跟着手走
   const pointer = useLivePointer(
-    input => send(input),
+    input => enqueue(input),
     frameCoords,
     () => (frame ? { width: frame.width, height: frame.height } : null),
   );
 
   const onClick = (ev: MouseEvent<HTMLDivElement>) => {
-    boxRef.current?.focus();
+    if (interactive && imeRef.current) imeRef.current.focus(); else boxRef.current?.focus();
     if (interactive && pointer.consumeClick()) return; // 按下 + 松开已经在网页里点过了
     const c = frameCoords(ev);
     if (!interactive) {
@@ -151,31 +163,35 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
       const size = { width: frame.width, height: frame.height };
       setClaiming(true);
       void onRequestControl().then(granted => {
-        if (granted && c) void send({ type: 'click', ...c, frame: size });
+        if (granted && c) void enqueue({ type: 'click', ...c, frame: size });
       }).finally(() => setClaiming(false));
       return;
     }
     if (!c) return;
-    void send({ type: 'click', ...c, double: ev.detail >= 2, frame: { width: frame!.width, height: frame!.height } });
+    void enqueue({ type: 'click', ...c, double: ev.detail >= 2, frame: { width: frame!.width, height: frame!.height } });
   };
   const onWheel = (ev: WheelEvent<HTMLDivElement>) => {
     if (!interactive || !frame) return;
     ev.preventDefault();
-    void send({ type: 'wheel', dx: Math.round(ev.deltaX), dy: Math.round(ev.deltaY), frame: { width: frame.width, height: frame.height } });
+    void enqueue({ type: 'wheel', dx: Math.round(ev.deltaX), dy: Math.round(ev.deltaY), frame: { width: frame.width, height: frame.height } });
   };
   const onKeyDown = (ev: KeyboardEvent<HTMLDivElement>) => {
     if (!interactive) return;
+    // 输入法正在拼字：键交给输入法，上屏时由 compositionend 发
+    if (composing.current || ev.nativeEvent.isComposing || ev.key === 'Process') return;
     const t = translateKey(ev);
     if (!t) return;
+    // 普通字符在输入框里由 input 事件发（和输入法、粘贴同一条路）；焦点不在输入框时照旧直接发
+    if (t.type === 'type' && ev.target === imeRef.current) return;
     ev.preventDefault();
-    void send(t.type === 'type' ? { type: 'type', text: t.text } : { type: 'press', key: t.key });
+    void enqueue(t.type === 'type' ? { type: 'type', text: t.text } : { type: 'press', key: t.key });
   };
   const onPaste = (ev: ClipboardEvent<HTMLDivElement>) => {
     if (!interactive) return;
     const text = ev.clipboardData.getData('text');
     if (!text) return;
     ev.preventDefault();
-    void send({ type: 'type', text });
+    void enqueue({ type: 'type', text });
   };
 
   return (
@@ -201,6 +217,19 @@ export function CareerLiveViewport({ frame: incoming, interactive, placeholder, 
       {frame
         ? <img alt="浏览器实时画面" src={`data:image/jpeg;base64,${frame.data}`} className="h-full w-full select-none object-contain" draggable={false} />
         : <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-white/70">{placeholder ?? '等待画面…'}</div>}
+      {interactive && (
+        <textarea
+          ref={imeRef}
+          aria-label="在画面里打字"
+          data-testid="live-ime"
+          autoComplete="off"
+          spellCheck={false}
+          className="pointer-events-none absolute left-0 top-0 h-px w-px resize-none border-0 p-0 opacity-0"
+          onCompositionStart={() => { composing.current = true; }}
+          onCompositionEnd={ev => { composing.current = false; flushTyped(ev.currentTarget); }}
+          onInput={ev => { if (!composing.current) flushTyped(ev.currentTarget); }}
+        />
+      )}
       {claiming && <div className="pointer-events-none absolute left-2 top-2 rounded bg-black/55 px-1.5 py-0.5 text-xs text-white/85">正在接管…</div>}
     </div>
   );
