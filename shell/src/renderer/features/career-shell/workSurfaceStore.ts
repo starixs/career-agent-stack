@@ -11,7 +11,7 @@ import { useSyncExternalStore } from 'react';
 
 import type { CareerProgressEvent, CareerTakeoverEvent } from '@/components/career/types';
 
-import { isApplyStage, parseApplyCells, type ApplyCells, type ApplyStage } from '../../../shared/careerApplyStage';
+import { APPLY_STAGES, isApplyStage, parseApplyCells, type ApplyCells, type ApplyStage } from '../../../shared/careerApplyStage';
 
 export type WorkSurface = 'browser' | 'resume' | 'mock-interview' | 'exam';
 
@@ -42,6 +42,19 @@ export interface ProgressRun {
   kind?: string;
   /** 这张表的格子：一共几格、填好几格、几格等他。 */
   cells?: ApplyCells;
+  /** 每一环里做过哪几类事、各做了几次（按第一次出现的先后）：链路上每一环往下分的那一小枝。 */
+  trail?: readonly TrailStep[];
+}
+
+export interface TrailStep { stage: ApplyStage; kind: string; count: number }
+
+/** 记一笔这一环做的这类事；链路往回走了（同一份重头再来）就从头记。 */
+function nextTrail(trail: readonly TrailStep[] | undefined, before: ApplyStage | undefined, stage: ApplyStage | undefined, kind: string | undefined): readonly TrailStep[] | undefined {
+  const restarted = !!before && !!stage && APPLY_STAGES.indexOf(stage) < APPLY_STAGES.indexOf(before);
+  const kept = restarted ? [] : trail ?? [];
+  if (!stage || !kind) return restarted ? kept : trail;
+  const hit = kept.find(t => t.stage === stage && t.kind === kind);
+  return hit ? kept.map(t => (t === hit ? { ...t, count: t.count + 1 } : t)) : [...kept, { stage, kind, count: 1 }];
 }
 
 interface WorkSurfaceState {
@@ -133,6 +146,7 @@ export function recordProgress(event: CareerProgressEvent, now = Date.now()): vo
     stage: isApplyStage(event.stage) ? event.stage : base.stage,
     kind: event.kind ?? base.kind,
     cells: parseApplyCells(event.cells) ?? base.cells,
+    trail: nextTrail(base.trail, base.stage, isApplyStage(event.stage) ? event.stage : base.stage, event.kind ?? ((event.phase ?? '').startsWith('submit') ? 'submit' : undefined)),
     updatedAt: now,
     ...identity,
   };

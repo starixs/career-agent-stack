@@ -1,19 +1,21 @@
 /**
- * 网申现场画面下面的那一块：只讲顶上选中的这一份网申，用图形讲——
- *  - 一条链路：从他选中开投到投出的六环，走过的连成实线，正在办的那一段有东西在往前传；
- *  - 一排格子：这张表要填的格子，填好一格亮一格，等他的是琥珀色。
- * 画面上不放句子（2026-11-06 用户：「正下面不要有任何产品文案」「更多是图形结构，而不是文字」；
- * 他要的是反馈感——小芽在干嘛，不是把做过的每一步念给他听）。要他做什么写在「等你」卡上；这里只在当前一环下面有四五个字的小字。
+ * 网申现场画面下面的那一块：只讲顶上选中的这一份网申，用图形讲，像一张往下长的导图——
+ *  - 主干：从他选中开投到投出的六环，走过的连成实线，正在办的那一段有东西在往前传；
+ *  - 枝：走到的那一环往下分出一小枝，是这一环里的几类事（打开网址、进申请表、等你看一眼…），最后一片是现在的状态；
+ *    别的走过的环点一下也能展开，看它做过什么（2026-11-06 用户：「到了每一块，它可以再往下，跟树枝一样」）；
+ *  - 格子：这张表要填的格子，填好一格亮一格，等他的是琥珀色。
+ * 画面上不放句子（用户：「正下面不要有任何产品文案」）。他要的是反馈感——小芽在干嘛、干到哪了——停下等他时也看得出之前做过什么。
  * 给读屏的那句话照样有（sr-only）。
  */
 import { AlertTriangle, Check } from 'lucide-react';
+import { useState } from 'react';
 
 import type { ProgressRun } from '@/features/career-shell/workSurfaceStore';
 
 import { APPLY_STAGE_NAMES, APPLY_STAGES, type ApplyCells } from '../../../shared/careerApplyStage';
 import { HANDOFF_REASON_LABELS } from './careerConstants';
 import type { LivePage } from './LivePageTabs';
-import { LIVE_STATUS_TEXT, liveStatusOf, stageCaption, stagePosition, type StagePosition } from './liveStage';
+import { LIVE_STATUS_TEXT, liveStatusOf, openStageIndex, stageCaption, stageLeaves, stagePosition, type StageLeaf, type StagePosition } from './liveStage';
 import type { BatchState, CareerTakeoverEvent } from './types';
 
 /** 格子最多画这么多个：再多一排排下去比画面还高；超过就按比例缩。 */
@@ -53,15 +55,16 @@ function segmentClass(index: number, position: StagePosition, hidden: boolean, l
   return 'h-0.5 flex-1 rounded-full bg-[var(--line-2)]';
 }
 
-/** 链路：六环；当前一环下面一行小字说它在办哪类事 / 等他做哪一下。 */
-function ApplyChain({ position, caption, label }: { position: StagePosition; caption: string | null; label: string }) {
+/** 主干：六环。走到过的环可以点，点了它的枝在下面展开。 */
+function ChainTrunk({ position, open, onOpen, label }: { position: StagePosition; open: number; onOpen: (index: number) => void; label: string }) {
   const lastIndex = APPLY_STAGES.length - 1;
+  const reachedUpTo = openStageIndex(position);
   return (
     <ol aria-label={`链路：${label}`} data-testid="live-stage-track" className="flex items-start">
       {APPLY_STAGES.map((stage, i) => {
         const state: NodeState = i < position.current ? 'done' : i === position.current ? position.tone : 'todo';
         const here = i === position.current && position.tone !== 'idle';
-        const tint = state === 'you' || state === 'failed' ? 'text-[var(--warning)]' : 'text-[var(--primary)]';
+        const reached = i <= reachedUpTo;
         return (
           <li key={stage} aria-current={here ? 'step' : undefined} data-state={state === 'idle' ? 'todo' : state} className="flex min-w-0 flex-1 flex-col items-center">
             <div className="flex w-full items-center">
@@ -70,15 +73,53 @@ function ApplyChain({ position, caption, label }: { position: StagePosition; cap
               {/* 右半段属于下一环：下一环走到了才亮 */}
               <span className={segmentClass(i + 1, position, i === lastIndex)} />
             </div>
-            <span className={`mt-1 whitespace-nowrap text-xs ${here ? 'font-semibold text-[var(--ink)]' : state === 'done' ? 'text-[var(--ink-2)]' : 'text-[var(--subtle)]'}`}>{APPLY_STAGE_NAMES[stage]}</span>
-            {/* 每一环都留出这一行的高度：小字出现、消失时链路不跳 */}
-            <span className="h-4 whitespace-nowrap text-xs">
-              {here && caption && <span key={caption} data-testid="live-stage-caption" className={tint}>{caption}</span>}
-            </span>
+            <button type="button" disabled={!reached} aria-expanded={reached ? open === i : undefined} onClick={() => onOpen(i)}
+              className={`mt-1 whitespace-nowrap rounded px-1 text-xs ${reached ? 'cursor-pointer hover:bg-[var(--hover)]' : 'cursor-default'} ${open === i ? 'font-semibold text-[var(--ink)]' : state === 'done' ? 'text-[var(--ink-2)]' : 'text-[var(--subtle)]'}`}>
+              {APPLY_STAGE_NAMES[stage]}
+            </button>
           </li>
         );
       })}
     </ol>
+  );
+}
+
+const LEAF_DOT: Record<StageLeaf['tone'], string> = {
+  done: 'bg-[var(--ink-2)]', working: 'bg-[var(--primary)] motion-safe:animate-pulse', you: 'bg-[var(--warning)]', failed: 'bg-[var(--warning)]',
+};
+const LEAF_TEXT: Record<StageLeaf['tone'], string> = {
+  done: 'text-[var(--ink-2)]', working: 'font-semibold text-[var(--primary)]', you: 'font-semibold text-[var(--warning)]', failed: 'font-semibold text-[var(--warning)]',
+};
+
+/**
+ * 枝：从展开的那一环正下方垂下来，叶子一片片挂在枝上。枝放在一张半透明的小卡里（毛玻璃，live-branch-glass），
+ * 展开时有一道光从左到右扫过去——光是盖在上面的一层，卡在后台停住时内容照样看得见。
+ * 位置跟着那一环走：六等分的格子里从这一环起占两格，枝干正对这一环的圆点。
+ */
+function StageBranch({ index, leaves }: { index: number; leaves: readonly StageLeaf[] }) {
+  // 最后一环右边没有地方了：小卡贴着右边放（往左长），别的环从枝干往右长
+  const last = index === APPLY_STAGES.length - 1;
+  const column = last ? `${index} / span 2` : `${index + 1} / span 2`;
+  const stem = last ? '75%' : '25%';
+  return (
+    <div className="grid grid-cols-6">
+      <div data-testid="live-branch" style={{ gridColumn: column }} className="flex flex-col">
+        {/* 枝干上半截：从环的名字下面接到小卡 */}
+        <span className="h-2 w-px bg-[var(--line-2)]" style={{ marginLeft: stem }} aria-hidden />
+        <ul key={index} className={`live-branch-glass relative w-max min-w-20 rounded-lg border border-[var(--line)] py-1.5 pl-2 pr-3 ${last ? 'ml-auto' : ''}`} style={last ? undefined : { marginLeft: `calc(${stem} - 0.75rem)` }}>
+          {leaves.map((leaf, i) => (
+            <li key={`${leaf.label}-${i}`} data-leaf={leaf.tone} className="relative flex items-center gap-2 py-0.5 pl-3 text-xs">
+              {/* 竖的是枝干，横的一小截是叶柄；最后一片下面不再有枝干 */}
+              <span className={`absolute left-[3px] top-0 w-px bg-[var(--line-2)] ${i === leaves.length - 1 ? 'h-1/2' : 'h-full'}`} aria-hidden />
+              <span className="absolute left-[3px] top-1/2 h-px w-2 bg-[var(--line-2)]" aria-hidden />
+              <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${LEAF_DOT[leaf.tone]}`} aria-hidden />
+              <span className={`whitespace-nowrap ${LEAF_TEXT[leaf.tone]}`}>{leaf.label}</span>
+              {leaf.count && <span className="tabular-nums text-[var(--subtle)]">{leaf.count}</span>}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
 
@@ -89,7 +130,7 @@ function CellGrid({ cells, working }: { cells: ApplyCells; working: boolean }) {
   const done = Math.min(total, Math.round(cells.done * scale));
   const you = Math.min(total - done, Math.max(cells.you > 0 ? 1 : 0, Math.round(cells.you * scale)));
   return (
-    <div data-testid="live-cells" role="img" aria-label={`填好 ${cells.done} 格，共 ${cells.total} 格${cells.you ? `，${cells.you} 格等你` : ''}`} className="mt-2 flex items-center gap-3">
+    <div data-testid="live-cells" role="img" aria-label={`填好 ${cells.done} 格，共 ${cells.total} 格${cells.you ? `，${cells.you} 格等你` : ''}`} className="mt-3 flex items-center gap-3">
       <div className="flex min-w-0 flex-1 flex-wrap gap-[3px]">
         {Array.from({ length: total }, (_, i) => {
           const kind = i < done ? 'done' : i < done + you ? 'you' : 'todo';
@@ -112,6 +153,8 @@ export function TaskProgressPanel({ page, run, title, batch, takeover }: {
   batch?: BatchState | null;
   takeover?: CareerTakeoverEvent | null;
 }) {
+  // 他点开看的那一环：只在链路还停在他点的时候那一环时算数；链路往前走了，枝就跟着走到新的那一环
+  const [picked, setPicked] = useState<{ index: number; at: number } | null>(null);
   const here = takeoverIsHere(takeover, run, page);
   const asked = here && takeover.state !== 'running' && takeover.state !== 'resuming' && takeover.runId !== 'live';
   const waiting = page?.waiting ?? (here && takeover.state === 'paused' ? takeover.reason ?? 'user_request' : null);
@@ -131,10 +174,12 @@ export function TaskProgressPanel({ page, run, title, batch, takeover }: {
     );
   }
   const position = stagePosition(status, waiting, run?.stage);
+  const open = picked && picked.at === position.current ? picked.index : openStageIndex(position);
   return (
-    <section aria-label="这一家的进展" className="mt-3 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-4 pb-2 pt-3">
+    <section aria-label="这一家的进展" className="mt-3 rounded-lg border border-[var(--line)] bg-[var(--inset)] px-4 pb-3 pt-3">
       <p role="status" className="sr-only">{message}</p>
-      <ApplyChain position={position} caption={stageCaption(status, waiting, run?.kind)} label={LIVE_STATUS_TEXT[status]} />
+      <ChainTrunk position={position} open={open} onOpen={index => setPicked({ index, at: position.current })} label={LIVE_STATUS_TEXT[status]} />
+      <StageBranch index={open} leaves={stageLeaves(APPLY_STAGES[open], position, run, stageCaption(status, waiting))} />
       {run?.cells && <CellGrid cells={run.cells} working={position.tone === 'working'} />}
     </section>
   );

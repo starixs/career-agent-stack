@@ -419,7 +419,7 @@ export class BatchRunner {
       if (fromDrive && ev.type !== 'error') this.markBrowserReady();
       if (ev.type !== 'progress') return;
       run.track.add(ev);
-      this.broadcastProgress(run, String(ev.message ?? ''), 'apply_batch', { ...(typeof ev.progress === 'number' ? { progress: ev.progress } : {}), ...(typeof ev.kind === 'string' ? { kind: ev.kind } : {}) });
+      this.broadcastProgress(run, String(ev.message ?? ''), 'apply_batch', { ...(typeof ev.progress === 'number' ? { progress: ev.progress } : {}), ...(typeof ev.kind === 'string' ? { kind: ev.kind } : ev.phase === 'navigate' ? { kind: 'navigate' } : {}) });
     };
   }
 

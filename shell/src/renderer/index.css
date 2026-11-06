@@ -447,10 +447,35 @@ button:disabled {
 }
 /* 后半段晚半拍：看上去是一段接一段往前传 */
 .live-chain-flow-late::after { animation-delay: 0.6s; }
+/* 链路上往下分的那一小枝（StageBranch）：半透明的小卡，后面的底色透出来一点（毛玻璃）。 */
+/* 展开时一道光从左到右扫过去：光是盖在上面的一层，动画在后台停住时它停在卡外面，内容照样看得见。 */
+/* 光的两头用同色零透明度，不用 transparent（#333：WebKit 渐变过黑会出灰带）。 */
+@keyframes live-branch-sheen {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(320%); }
+}
+.live-branch-glass {
+  overflow: hidden;
+  background-color: color-mix(in srgb, var(--paper) 62%, var(--inset));
+  backdrop-filter: blur(8px) saturate(1.2);
+  -webkit-backdrop-filter: blur(8px) saturate(1.2);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 6px 16px -8px rgb(0 0 0 / 0.12);
+}
+.live-branch-glass::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 40%;
+  pointer-events: none;
+  background-image: linear-gradient(100deg, rgb(255 255 255 / 0) 0%, rgb(255 255 255 / 0.55) 50%, rgb(255 255 255 / 0) 100%);
+  transform: translateX(-120%);
+  animation: live-branch-sheen 0.9s ease-out 1;
+}
 /* 当前一环下面的小字不做进场动画：窗口在后台时动画会被系统停在第一帧，字要么看不见、要么错位（2026-11-06 真机）。 */
 @media (prefers-reduced-motion: reduce) {
   .live-chain-flow { background-color: var(--primary); }
   .live-chain-flow::after { animation: none; display: none; }
+  .live-branch-glass::after { animation: none; display: none; }
 }
 
 @keyframes shimmer {

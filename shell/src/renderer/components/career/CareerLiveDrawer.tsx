@@ -24,7 +24,6 @@ import {
 
 import { dispatchTakeoverAction } from './BrowserStatusBar';
 import { careerApi } from './careerApi';
-import { HANDOFF_REASON_LABELS } from './careerConstants';
 import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport, liveHumanActive } from './CareerLiveViewport';
 import { LivePageTabs, parseLivePages } from './LivePageTabs';
@@ -269,7 +268,6 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     if (action === 'handback' && handbackNeedsAssistant({ viaRun, batch, snapshot: await freshSnapshot(snapshot) })) suggestToChat(HANDBACK_TEXT, { surface: 'apply', note: HANDBACK_NOTE });
     return true;
   };
-  const reason = takeover?.reason ? (HANDOFF_REASON_LABELS[takeover.reason] ?? takeover.reason) : null;
   const canTake = !!snapshot?.browser.hasBrowser && busy === null;
   const viewportStyle = fullscreen && frame?.width && frame.height
     ? { maxWidth: `calc((100vh - 170px) * ${frame.width / frame.height})`, marginInline: 'auto' }
@@ -284,10 +282,6 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     return () => window.clearInterval(t);
   }, [attending]);
   const host = hostOf(snapshot?.browser.url);
-  const statusTone = handoff || humanActive ? 'bg-[var(--warning)]' : control === 'agent' ? 'bg-[var(--success)]' : 'bg-[var(--subtle)]';
-  const statusText = handoff
-    ? `等你处理${reason ? `：${reason}` : ''}`
-    : humanActive ? '你在控制中' : control === 'agent' ? '正在工作' : '浏览器未打开';
   const stop = async () => {
     setNotice(null);
     if (batch?.status === 'running' || batch?.status === 'paused') {
@@ -313,11 +307,8 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <div className="min-w-0 flex-1">
           <div className="font-human text-lg font-semibold text-[var(--ink)]">网申现场</div>
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
-            {/* 选中了一份网申时，它等不等他、等什么由标签上的图形和下面的流程说；这里只在他自己操作、或没有网申页面时说浏览器的状态（一个状态只说一次） */}
-            {(!shownPage || humanActive) && <>
-              <span className={`h-2 w-2 shrink-0 rounded-full ${statusTone}`} aria-hidden="true" />
-              <span className="shrink-0">{statusText}</span>
-            </>}
+            {/* 这里不再写「等你处理：…」「正在工作」这类状态（2026-11-06 用户：这个字段没有意义，删掉）：
+                等不等他、等什么由标签上的图形和下面的链路说；他在不在操作看右边的按钮 */}
             {journeyText(snapshot?.journey) && <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-px text-[var(--ink-2)]">{journeyText(snapshot?.journey)}</span>}
             {host && <span className="truncate text-[var(--subtle)]">{host}</span>}
             {stream.status !== 'open' && <span className="ml-2 shrink-0 text-[var(--subtle)]">{stream.status === 'connecting' ? '连接中…' : '重连中'}</span>}
