@@ -58,6 +58,8 @@ export interface ApplyEngineModule {
   findImageCode?: (page: ApplyPageLike) => Promise<{ input: string; image: string } | null>;
   refreshImageCode?: (page: ApplyPageLike) => Promise<string | null | undefined>;
   imageCodeGone?: (page: ApplyPageLike) => Promise<boolean>;
+  /** 等他过验证码时看验证码还在不在（没了就自动交还，captcha-watch）。 */
+  captchaStillThere?: (page: ApplyPageLike) => Promise<boolean>;
   answerImageCode?: (page: ApplyPageLike, text: string) => Promise<{ status: 'sent' } | { status: 'captcha'; evidence: string } | { status: 'image_code' } | { status: 'unseen' }>;
   submitRegisterCode?: (page: ApplyPageLike, code: string) => Promise<{ ok: boolean; reason?: string }>;
   /** 收码登录后网站要「首次登录 · 设置密码」：填上生成的密码点确定（没有这个框返回 false）。 */

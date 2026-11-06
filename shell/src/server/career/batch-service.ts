@@ -21,6 +21,8 @@ import { packetResumeFile, saveCapturedJd, type PacketDeps } from './packets';
 import { SubmitExecutor } from './submit-executor';
 import type { CareerBrowserHost, RunEmitter } from '../routes/career-browser';
 import { openApplicationKeys } from './app-pages';
+import { releaseClearedCaptchas } from './captcha-watch';
+import { loadApplyModule } from '../routes/career-browser';
 
 type HostResolver = () => Promise<ExtensionBrowserHost>;
 let hostResolver: HostResolver | null = null;
@@ -305,8 +307,32 @@ export function startBatchCommandPoll(intervalMs = 2000): void {
 let keeperTimer: ReturnType<typeof setInterval> | null = null;
 export function startHandoffKeeper(intervalMs = 3000): void {
   if (keeperTimer) return;
-  keeperTimer = setInterval(() => { void syncHandoffHold().catch(() => { /* 下一轮再试 */ }); }, intervalMs);
+  keeperTimer = setInterval(() => {
+    void syncHandoffHold().catch(() => { /* 下一轮再试 */ });
+    void watchCaptchas().catch(error => console.warn('[career] captcha-watch FAILED', error instanceof Error ? error.message : error));
+  }, intervalMs);
   keeperTimer.unref?.();
+}
+
+/** 等他过验证码的那几家：验证码没了就自动交还、接着填（captcha-watch.ts）。 */
+async function watchCaptchas(): Promise<void> {
+  const id = careerProductSessionId();
+  const host = hostCache;
+  if (!id || !host || !host.hasContext(id)) return;
+  const repos = await getRepos();
+  if (!repos.openHandoffs().some(h => h.reason === 'captcha')) return;
+  const apply = await loadApplyModule();
+  const stillThere = apply?.captchaStillThere;
+  if (!apply || !stillThere) return;
+  const cleared = await releaseClearedCaptchas({
+    repos, sessionId: id,
+    withContext: fn => host.withProductSession(id, fn, { allowHumanControl: true }),
+    probe: { stillThere: page => stillThere(apply.fromPlaywright(page)) },
+  });
+  if (!cleared.length) return;
+  if (host.getControl(id).control === 'human') host.setControl(id, 'agent', 'captcha_cleared');
+  liveHub.publish('career:takeover', { sessionId: id, runId: 'live', state: 'resuming', message: '验证码过了，接着填' });
+  liveHub.publish('career:data-changed', { sessionId: id, tables: ['handoff', 'action_queue', 'task'] });
 }
 
 export async function syncHandoffHold(deps: { repos?: { openHandoffs(): unknown[]; listActions?(status?: string): Array<{ kind: string }> }; host?: Pick<ExtensionBrowserHost, 'hasContext' | 'setHandoffHold'> | null; sessionId?: string } = {}): Promise<boolean> {

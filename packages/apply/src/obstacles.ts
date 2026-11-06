@@ -1,5 +1,7 @@
 import type { HandoffReason } from '@career/core'
-import type { PageSignals } from './scripts.js'
+import type { PageLike } from './page.js'
+import { pageSignalsScript, type PageSignals } from './scripts.js'
+import { detectObstacle } from './guards.js'
 
 /**
  * 阻碍分层：同一个 handoff 原因下再细分"是哪一种"，给用户说清楚该做什么，并决定风控退避。
@@ -56,3 +58,12 @@ export function riskBackoffMinutes(tripIndex: number): number {
 /** 风控类 URL：被重定向到验证 / 风险页也算触发。 */
 export const RISK_URL_RX = /\/(verify|verification|captcha|risk|security-check|challenge|blocked|abuse|antibot)(\/|$|\?|#|-)/i
 export function looksLikeRiskUrl(url: string): boolean { return RISK_URL_RX.test(url) }
+
+/**
+ * 这一页上的验证码还在不在（DOM 里的验证码控件，或页面文字里的验证提示）。
+ * 等他过验证码时用：没了就当他过完了，自动交还接着填（shell captcha-watch，2026-11-06）。
+ */
+export async function captchaStillThere(page: PageLike): Promise<boolean> {
+  const sig = await page.evaluate(pageSignalsScript)
+  return sig.captchaDom || detectObstacle(sig)?.reason === 'captcha'
+}
