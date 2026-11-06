@@ -143,6 +143,12 @@ export interface CareerProgressEvent {
   company?: string; job_title?: string;
   /** 批量网申：这条进度属于哪份网申（现场窗按它切到那一家的页面）。 */
   application_id?: string;
+  /** 走到整条链路的哪一环（shared/careerApplyStage.ts）；界面画链路用。 */
+  stage?: string;
+  /** 这一步是哪类动作（填格子 / 传简历 / 翻页…）；界面上那个滚动的小字用。 */
+  kind?: string;
+  /** 这张表的格子：一共几格、填好几格、几格等他。 */
+  cells?: unknown;
 }
 export interface CareerTakeoverEvent {
   sessionId?: string | null; runId: string;

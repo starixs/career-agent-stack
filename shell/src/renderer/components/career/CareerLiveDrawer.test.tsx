@@ -112,9 +112,9 @@ describe('CareerLiveDrawer', () => {
     await screen.findByTestId('career-live-drawer');
     await waitFor(() => expect(live.handler).not.toBeNull());
     push(snapshot({ fileChooser: { id: 'fc1', sessionId: 's', multiple: false, accept: '.pdf', url: 'https://x.com/apply', ts: 1 } }));
-    // 只说要他做什么：不把网页给的格式代码贴出来
-    expect(await screen.findByText('这一页要你传一个文件')).toBeInTheDocument();
-    expect(screen.queryByText(/\.pdf/)).not.toBeInTheDocument();
+    // 画面下面不放文案：只有两个按钮，不把网页给的格式代码贴出来
+    expect(await screen.findByRole('button', { name: '选择文件' })).toBeInTheDocument();
+    expect(screen.queryByText(/\.pdf|传一个文件/)).not.toBeInTheDocument();
     const input = screen.getByTestId('live-file-input') as HTMLInputElement;
     expect(input.accept).toBe('.pdf');
     fireEvent.change(input, { target: { files: [new File(['abc'], '简历.pdf', { type: 'application/pdf' })] } });

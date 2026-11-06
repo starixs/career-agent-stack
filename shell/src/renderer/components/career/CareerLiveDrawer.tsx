@@ -110,8 +110,7 @@ function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDon
   };
   return (
     <div data-testid="live-file-chooser" role="dialog" aria-label="页面请求上传文件" className="mt-2 rounded-md border border-[var(--primary)]/50 bg-[var(--inset)] px-3 py-2 text-xs text-[var(--ink)]">
-      {/* 只说这一步要他做什么；网页给的格式代码（一长串 MIME）和「不会弹窗」的解释不上页面，格式由选文件框自己限制 */}
-      <div className="flex items-center gap-1.5 font-medium"><Paperclip className="h-3.5 w-3.5" />这一页要你传一个文件</div>
+      {/* 画面下面不放文案（2026-11-06 用户）：这一条只有回形针和两个按钮，按钮自己说得清 */}
       <input
         ref={inputRef}
         type="file"
@@ -121,7 +120,8 @@ function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDon
         accept={chooser.accept ?? undefined}
         onChange={ev => void onPick(ev)}
       />
-      <div className="mt-2 flex items-center gap-2">
+      <div className="flex items-center gap-2">
+        <Paperclip className="h-4 w-4 shrink-0 text-[var(--muted)]" aria-hidden />
         <Button variant="primary" busy={busy} onClick={() => inputRef.current?.click()}>选择文件</Button>
         <Button variant="ghost" disabled={busy} onClick={() => void cancel()}>取消</Button>
         {error && <span role="alert" className="text-[var(--danger)]">{error}</span>}

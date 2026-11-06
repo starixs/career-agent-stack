@@ -828,7 +828,8 @@ export async function runOperation(
       ...(typeof body.siteUrl === 'string' && !(typeof body.url === 'string' && body.url.trim()) ? { resumed: true } : {}),
       // 内部调试日志只进运行记录（引擎写 trace.jsonl），不广播给界面；界面只收人话进度
       // kind='jd' 时带上岗位介绍正文（脱敏），批量服务据此把 JD 存回岗位，给下一次定制用；不进界面进度
-      onProgress: (p: { message: string; kind?: string; label?: string; text?: string }) => out.emit({ type: 'progress', phase: 'drive', message: redact(p.message), ...(p.kind ? { kind: p.kind } : {}), ...(p.text ? { text: redact(p.text) } : {}) }),
+      // label / total：界面画「格子填了多少」用（apply-stage.ts）；格子名是表单上的字，照样过一遍脱敏
+      onProgress: (p: { message: string; kind?: string; label?: string; text?: string; total?: number }) => out.emit({ type: 'progress', phase: 'drive', message: redact(p.message), ...(p.kind ? { kind: p.kind } : {}), ...(p.label ? { label: redact(p.label) } : {}), ...(typeof p.total === 'number' ? { total: p.total } : {}), ...(p.text ? { text: redact(p.text) } : {}) }),
       onPage: (record: unknown) => out.emit({ type: 'page', record: redact(record) }),
       ...(telemetry ? { telemetry } : {}),
     });

@@ -11,6 +11,8 @@ import { useSyncExternalStore } from 'react';
 
 import type { CareerProgressEvent, CareerTakeoverEvent } from '@/components/career/types';
 
+import { isApplyStage, parseApplyCells, type ApplyCells, type ApplyStage } from '../../../shared/careerApplyStage';
+
 export type WorkSurface = 'browser' | 'resume' | 'mock-interview' | 'exam';
 
 export interface ProgressStep {
@@ -34,6 +36,12 @@ export interface ProgressRun {
   company?: string;
   jobTitle?: string;
   applicationId?: string;
+  /** 走到整条链路的哪一环（只往前走）。 */
+  stage?: ApplyStage;
+  /** 最近一步是哪类动作（填格子 / 传简历…）。 */
+  kind?: string;
+  /** 这张表的格子：一共几格、填好几格、几格等他。 */
+  cells?: ApplyCells;
 }
 
 interface WorkSurfaceState {
@@ -121,6 +129,10 @@ export function recordProgress(event: CareerProgressEvent, now = Date.now()): vo
     finished,
     failed: FAILED_PHASES.test(event.phase ?? ''),
     ready: READY_PHASE.test(event.phase ?? ''),
+    // 服务端一趟之内只往前报；重头再来的一趟会从头报起，这里照收
+    stage: isApplyStage(event.stage) ? event.stage : base.stage,
+    kind: event.kind ?? base.kind,
+    cells: parseApplyCells(event.cells) ?? base.cells,
     updatedAt: now,
     ...identity,
   };
