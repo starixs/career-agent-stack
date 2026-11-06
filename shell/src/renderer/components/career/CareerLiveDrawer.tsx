@@ -110,8 +110,8 @@ function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDon
   };
   return (
     <div data-testid="live-file-chooser" role="dialog" aria-label="页面请求上传文件" className="mt-2 rounded-md border border-[var(--primary)]/50 bg-[var(--inset)] px-3 py-2 text-xs text-[var(--ink)]">
-      <div className="flex items-center gap-1.5 font-medium"><Paperclip className="h-3.5 w-3.5" />页面请求上传文件{chooser.accept ? `（${chooser.accept}）` : ''}</div>
-      <p className="mt-1 text-[var(--muted)]">在这里选文件，会直接交给网页里的上传框，不会弹出别的窗口。</p>
+      {/* 只说这一步要他做什么；网页给的格式代码（一长串 MIME）和「不会弹窗」的解释不上页面，格式由选文件框自己限制 */}
+      <div className="flex items-center gap-1.5 font-medium"><Paperclip className="h-3.5 w-3.5" />这一页要你传一个文件</div>
       <input
         ref={inputRef}
         type="file"

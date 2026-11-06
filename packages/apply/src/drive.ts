@@ -335,8 +335,10 @@ export async function driveApplication(page: PageLike, llm: LLM, profile: Profil
     if (status === 'stopped_before_submit') {
       try { review = await buildSubmitReview(page, all) } catch (e) { log(`填后检查失败，按需要人看处理：${e instanceof Error ? e.message : String(e)}`) }
       // 「已填完」只在填后检查真没缺项时说；还有必填空着 / 网站报错就如实报缺什么（2026-11-05 滴滴：大半必填没填却报已填完）
+      const asFilled = message
       if (review) message = stopMessage(message, review, extra.submitButton)
-      progress(message, 'stop')
+      // 有缺项时这句不再当进展发：调用方会用自己的口径说「还差 N 项要你补」，两句挨着说就是同一件事说两遍（2026-11-06 实测）
+      if (message === asFilled) progress(message, 'stop')
     }
     const result: DriveResult = { status, message, pages, ...all, layersUsed: [...layersUsed], fields: allFields, blockers: allBlockers, entryClicked, libraries, ...(telemetryRef ? { telemetry: telemetryRef } : {}), screenshot, finalUrl: page.url(), adapterId: adapter.id, ...(review ? { review } : {}), ...extra }
     if (all.needsUser.length) await snapshotNeedsUser(page, recorder, all.needsUser)

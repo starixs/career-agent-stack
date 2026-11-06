@@ -17,7 +17,8 @@ describe('停在提交前的那句话（2026-11-05 滴滴：大半必填没填�
     expect(r.status).toBe('stopped_before_submit')
     expect(r.message).toContain('是否接受地点调剂')
     expect(r.message).toMatch(/^还差 \d+ 项没填好/)
-    expect(progress.at(-1)?.message).toBe(r.message)
+    // 缺项这句只在结果里，不再当进展发一遍（调用方自己会说「还差 N 项要你补」）
+    expect(progress.some(p => p.message === r.message)).toBe(false)
     expect(r.review?.rows.find(x => x.label.includes('承诺'))?.status).toBe('ok')
   })
 })
