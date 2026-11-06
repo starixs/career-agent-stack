@@ -28,6 +28,7 @@ import { DRAWER_OPENED_EVENT } from './careerDrawers';
 import { CareerLiveViewport, liveHumanActive } from './CareerLiveViewport';
 import { LivePageTabs, parseLivePages } from './LivePageTabs';
 import { LiveSample } from './LiveSample';
+import { runForPage } from './liveStage';
 import { TaskProgressPanel } from './TaskProgressPanel';
 import { SmsCodeBar } from './SmsCodeBar';
 import { useCareerQuery } from './useCareerData';
@@ -78,10 +79,6 @@ export function CareerLiveDrawer({ autoOpenOnHandoff = true }: { autoOpenOnHando
   return null;
 }
 
-function hostOf(url: string | null | undefined): string | null {
-  if (!url) return null;
-  try { return new URL(url).host; } catch { return null; }
-}
 
 function FileChooserPanel({ chooser, onDone }: { chooser: LiveFileChooser; onDone: (message: string | null) => void }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -208,7 +205,7 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
   const pages = pageData ?? [];
   const shownPage = pages.find(p => p.current);
   // 画面正看着某一家：只讲这一家；没有网申页面开着时讲最近在做的那件事
-  const shownRun = shownPage ? runs.find(r => r.applicationId === shownPage.application_id) : runs.find(r => !r.finished) ?? runs[0];
+  const shownRun = shownPage ? runForPage(shownPage, runs) : runs.find(r => !r.finished) ?? runs[0];
   const showPage = (applicationId: string) => {
     void apiPostJson<unknown>('/api/career/live/view', { application_id: applicationId })
       .then(reloadPages, (e: unknown) => { console.error('[career-live] 切换现场 FAILED', applicationId, e instanceof Error ? e.message : e); reloadPages(); });
@@ -281,7 +278,6 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
     const t = window.setInterval(() => { void careerApi.liveState().then(setSnapshot).catch(error => console.debug('[career-live] takeover state refresh failed; retry next tick', error)); }, TAKEOVER_REFRESH_MS);
     return () => window.clearInterval(t);
   }, [attending]);
-  const host = hostOf(snapshot?.browser.url);
   const stop = async () => {
     setNotice(null);
     if (batch?.status === 'running' || batch?.status === 'paused') {
@@ -307,10 +303,9 @@ export function BrowserSessionPanel({ onStop }: BrowserSessionPanelProps) {
         <div className="min-w-0 flex-1">
           <div className="font-human text-lg font-semibold text-[var(--ink)]">网申现场</div>
           <div className="flex min-w-0 items-center gap-1.5 text-xs text-[var(--muted)]">
-            {/* 这里不再写「等你处理：…」「正在工作」这类状态（2026-11-06 用户：这个字段没有意义，删掉）：
-                等不等他、等什么由标签上的图形和下面的链路说；他在不在操作看右边的按钮 */}
+            {/* 标题下面不写状态、也不写网址（2026-11-06 用户：这一行没有意义，删掉）：
+                是哪一家看标签，等不等他、等什么看标签上的图形和下面的链路，他在不在操作看右边的按钮 */}
             {journeyText(snapshot?.journey) && <span className="shrink-0 rounded bg-[var(--inset)] px-1.5 py-px text-[var(--ink-2)]">{journeyText(snapshot?.journey)}</span>}
-            {host && <span className="truncate text-[var(--subtle)]">{host}</span>}
             {stream.status !== 'open' && <span className="ml-2 shrink-0 text-[var(--subtle)]">{stream.status === 'connecting' ? '连接中…' : '重连中'}</span>}
           </div>
         </div>

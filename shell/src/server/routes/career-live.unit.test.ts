@@ -1,3 +1,4 @@
+import { noteApplyProgress, resetApplyProgress } from '../career/apply-progress';
 import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import type { Repos } from '@career/core';
@@ -158,6 +159,26 @@ describe('career live route', () => {
     expect(repos.getAction(submit.id)!.status).toBe('failed');
     const never = repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: 'x', title: '产品', company_name: '某司' }).id).id;
     expect((await handleCareerLiveRoute('/api/career/live/view', req('/api/career/live/view', { application_id: never }), d))!.status).toBe(404);
+  });
+
+  it('标签列表带上每一家存着的进度：界面上它那棵树画的是这个（2026-11-06「要有对应和持久化」）', async () => {
+    resetApplicationPages();
+    resetApplyProgress();
+    const repos = createMemoryRepos();
+    const app = repos.createApplication(repos.upsertJob({ source_platform: 'campus', source_job_id: 'jl', title: '数据分析岗', company_name: '吉利汽车' }).id).id;
+    noteApplyProgress(repos, app, { stage: 'open', kind: 'navigate' });
+    noteApplyProgress(repos, app, { stage: 'fill', kind: 'field', cells: { total: 20, done: 9, you: 0 } });
+    const frame = {};
+    const proxy = () => ({ url: () => 'https://app.mokahr.com/x', title: async () => 't', isClosed: () => false, mainFrame: () => frame, once: () => {} });
+    const host = { ...fakeHost(), withProductSession: async <T,>(_id: string, fn: (c: never) => Promise<T>) => fn({ pages: () => [proxy()] } as never) };
+    adoptApplicationPage('sess-career', app, proxy() as never);
+    const res = await handleCareerLiveRoute('/api/career/live/pages', req('/api/career/live/pages'), deps(repos, host as never));
+    const [page] = ((await res!.json()) as { pages: Array<{ progress?: unknown }> }).pages;
+    expect(page.progress).toEqual({
+      stage: 'fill', state: 'working', kind: 'field', cells: { total: 20, done: 9, you: 0 },
+      trail: [{ stage: 'open', kind: 'navigate', count: 1 }, { stage: 'fill', kind: 'field', count: 1 }],
+    });
+    resetApplicationPages();
   });
 
   it('只开着一家：画面在它那一页，它就是当前这一家（2026-11-06 一页也有标签，原来少于两页不标，标签不是选中的样子）', async () => {

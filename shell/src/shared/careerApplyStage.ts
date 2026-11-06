@@ -34,3 +34,48 @@ export function parseApplyCells(v: unknown): ApplyCells | undefined {
   if (t === null || d === null || t === 0) return undefined;
   return { total: t, done: Math.min(d, t), you: Math.min(n(you) ?? 0, t) };
 }
+
+/** 某一环里做过的一类事和次数（链路往下分的那一小枝上的一片叶子）。 */
+export interface TrailStep { stage: ApplyStage; kind: string; count: number }
+
+/** 记一笔这一环做的这类事；链路往回走了（同一份重头再来）就从头记。服务端存的和界面边收边记的用同一套算法。 */
+export function nextTrail(trail: readonly TrailStep[] | undefined, before: ApplyStage | undefined, stage: ApplyStage | undefined, kind: string | undefined): readonly TrailStep[] | undefined {
+  const restarted = !!before && !!stage && APPLY_STAGES.indexOf(stage) < APPLY_STAGES.indexOf(before);
+  const kept = restarted ? [] : trail ?? [];
+  if (!stage || !kind) return restarted ? kept : trail;
+  const hit = kept.find(t => t.stage === stage && t.kind === kind);
+  return hit ? kept.map(t => (t === hit ? { ...t, count: t.count + 1 } : t)) : [...kept, { stage, kind, count: 1 }];
+}
+
+/**
+ * 一份网申走到哪了：服务端按申请存下来（重启、界面重新加载都还在），随现场的标签列表一起给界面；
+ * 每个标签下面的那棵树画的是它自己这一份（2026-11-06 用户：「树没有跟着标签走…要有对应和持久化」）。
+ * state：working 小芽在办 / ready 填好等他投出 / done 投出了 / failed 没办成。
+ */
+export interface ApplyProgress {
+  stage?: ApplyStage;
+  state: 'working' | 'ready' | 'done' | 'failed';
+  kind?: string;
+  trail: readonly TrailStep[];
+  cells?: ApplyCells;
+}
+
+const PROGRESS_STATES: ReadonlyArray<ApplyProgress['state']> = ['working', 'ready', 'done', 'failed'];
+
+/** 跨边界（接口返回 / 存储读出）来的进度先过一遍：认不出的字段丢掉，整个不像就不要。 */
+export function parseApplyProgress(v: unknown): ApplyProgress | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const raw = v as Record<string, unknown>;
+  const state = PROGRESS_STATES.find(s => s === raw.state);
+  if (!state) return undefined;
+  const trail = (Array.isArray(raw.trail) ? raw.trail : []).flatMap((t): TrailStep[] => {
+    if (!t || typeof t !== 'object') return [];
+    const { stage, kind, count } = t as Record<string, unknown>;
+    return isApplyStage(stage) && typeof kind === 'string' && typeof count === 'number' && count > 0 ? [{ stage, kind, count }] : [];
+  });
+  const cells = parseApplyCells(raw.cells);
+  return {
+    state, trail,
+    ...(isApplyStage(raw.stage) ? { stage: raw.stage } : {}), ...(typeof raw.kind === 'string' ? { kind: raw.kind } : {}), ...(cells ? { cells } : {}),
+  };
+}
