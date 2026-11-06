@@ -77,13 +77,13 @@ describe('面试助力 · 准备', () => {
     chat.off();
   });
 
-  it('第一次打开（什么都还没有）：准备、复盘、题库三页都用示例把做出来的样子摆出来，示例上的动作点不了', async () => {
+  it('第一次打开（什么都还没有）：准备、复盘、题库三页都用预设内容把做出来的样子摆出来（不写「示例」），上面的动作点不了', async () => {
     mockGet(true);
     render(<CareerInterview />);
     // 准备：真的「帮我准备面试」能点；下面是示例那一场的面试票和三步
     expect(await screen.findByRole('button', { name: '帮我准备面试' })).toBeEnabled();
     let sample = screen.getByTestId('sample');
-    expect(within(sample).getByText('示例')).toBeInTheDocument();
+    expect(screen.queryByText(/示例/)).toBeNull();
     expect(within(sample).getByRole('button', { name: '帮我准备这一场' })).toBeDisabled();
     expect(within(sample).getAllByRole('button', { name: '练这一句' })[0]).toBeDisabled();
     fireEvent.click(within(sample).getByRole('tab', { name: /模拟一场/ }));
@@ -270,7 +270,7 @@ describe('面试助力 · 复盘', () => {
     vi.mocked(apiPostJson).mockResolvedValue({ ok: true, interview: { id: 'i9' } });
     render(<CareerInterview />);
     await openTab('复盘');
-    expect(within(screen.getByTestId('sample')).getByText('示例')).toBeInTheDocument();
+    expect(within(screen.getByTestId('sample')).getByRole('button', { name: '按这些点练' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: '补记一场' }));
     fireEvent.change(screen.getByLabelText('公司'), { target: { value: '戊公司' } });
     fireEvent.click(screen.getByRole('button', { name: '轮次' }));

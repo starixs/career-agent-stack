@@ -6,14 +6,15 @@
  * 几封跟进时多一个安静的「这家不跟了」，只拒绝选中的那一封；
  * 被退回的那封：改好了，重发 · 不投这家（收件人那格标红，改掉才可点）。
  * 还没连邮箱时主按钮是「连邮箱」，打开现有的邮箱连接，连上后重取，按钮变回「发出」。
+ * 版式壳（MailCardShell）另由工作台第一次打开的预设那一张共用。
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import type { AskMail, MailDraftView } from '../../../../shared/careerMailApply';
 import { ErrorRow, LoadingRow } from '../CareerPrimitives';
 import { mailLabels } from '../delivery/askText';
 import { CompanyPoster } from '../delivery/CompanyPoster';
-import type { AskView } from '../delivery/deliveryApi';
+import type { AskView, CompanyMark } from '../delivery/deliveryApi';
 import type { AskOutcome, Respond } from '../delivery/useAskActions';
 import { ConnectMailbox } from './ConnectMailbox';
 import { declineMails, declineOne, needsMailbox, sendableIds, sendMails } from './mailActions';
@@ -65,6 +66,29 @@ function MailActions({ mail, drafts, picked, shown, busy, onAct, onSent, onConne
   );
 }
 
+/**
+ * 「邮件写好了」这一张的版式壳：左边一格（单封是公司大海报，几封是勾选表）、右边标题 + 整封邮件 + 动作。
+ * 卡组里的真卡和工作台第一次打开的预设那一张（MailPresetCard）共用这一个壳，版式只有一份。
+ */
+export function MailCardShell({ multi, side, title, children, testId = 'ask-card-mail' }: {
+  multi: boolean; side: ReactNode; title: string; children: ReactNode; testId?: string;
+}) {
+  return (
+    <article className={`cd-ask cd-ask-review cm-ask${multi ? ' cm-ask-multi' : ''}`} data-testid={testId}>
+      <div className="cd-ask-img">{side}</div>
+      <div className="cd-ask-text">
+        <h3 className="cd-ask-title font-human">{title}</h3>
+        {children}
+      </div>
+    </article>
+  );
+}
+
+/** 单封时左边那张公司大海报：和等你条同一个状态色（等你）。 */
+export function MailPoster({ company, role, star }: { company: CompanyMark; role?: string; star?: boolean }) {
+  return <CompanyPoster company={company} size="lg" state="ask" role={role} star={star} />;
+}
+
 function MailAskBody({ ask, mail, drafts, busy, error, onAct, store }: {
   ask: AskView; mail: AskMail; drafts: MailDraftView[]; busy: boolean; error: string | null; onAct: MailAct;
   store: ReturnType<typeof useMailDrafts>;
@@ -74,23 +98,18 @@ function MailAskBody({ ask, mail, drafts, busy, error, onAct, store }: {
   const shown = sel.shown;
   const multi = drafts.length > 1;
   const poster = ask.companies[0];
+  const side = multi
+    ? <MailPickList drafts={drafts} picked={sel.picked} setPicked={sel.setPicked} current={shown?.action_id ?? null} onShow={sel.show} />
+    : poster && <MailPoster company={poster} role={shown?.role ?? ask.role} star={shown?.target} />;
   return (
-    <article className={`cd-ask cd-ask-review cm-ask${multi ? ' cm-ask-multi' : ''}`} data-testid="ask-card-mail">
-      <div className="cd-ask-img">
-        {multi
-          ? <MailPickList drafts={drafts} picked={sel.picked} setPicked={sel.setPicked} current={shown?.action_id ?? null} onShow={sel.show} />
-          : poster && <CompanyPoster company={poster} size="lg" state="ask" role={shown?.role ?? ask.role} star={shown?.target} />}
-      </div>
-      <div className="cd-ask-text">
-        <h3 className="cd-ask-title font-human">{ask.title}</h3>
-        {shown && <MailSheet key={shown.action_id} draft={shown} onPatch={p => store.patch(shown.action_id, p)}
-          onAvailability={store.saveAvailability} onUpload={u => store.upload(shown.action_id, u)} />}
-        <MailActions mail={mail} drafts={drafts} picked={sel.picked} shown={shown} busy={busy} onAct={onAct}
-          onSent={store.remove} onConnect={() => setConnecting(true)} />
-        {error && <p role="alert" className="cd-err">{error}</p>}
-      </div>
+    <MailCardShell multi={multi} side={side} title={ask.title}>
+      {shown && <MailSheet key={shown.action_id} draft={shown} onPatch={p => store.patch(shown.action_id, p)}
+        onAvailability={store.saveAvailability} onUpload={u => store.upload(shown.action_id, u)} />}
+      <MailActions mail={mail} drafts={drafts} picked={sel.picked} shown={shown} busy={busy} onAct={onAct}
+        onSent={store.remove} onConnect={() => setConnecting(true)} />
+      {error && <p role="alert" className="cd-err">{error}</p>}
       {connecting && <ConnectMailbox onClose={() => setConnecting(false)} onConnected={() => { setConnecting(false); store.reload(); }} />}
-    </article>
+    </MailCardShell>
   );
 }
 

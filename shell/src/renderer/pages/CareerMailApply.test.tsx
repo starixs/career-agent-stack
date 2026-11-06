@@ -1,6 +1,6 @@
 /**
  * 邮件投递工作台（2026-11-06）：已确认的几样搬到自己的一页——开始条、「N 封邮件写好了」、选中那份的四步路 + 整封邮件 / 往来、右边一列。
- * 还没有自己的邮件申请时摆示例（标「示例」、按钮不可点）。数据按合同造（boardFixtures.ts），接口用 apiFetch 替身。
+ * 还没有自己的邮件申请时主区只摆一张预设的「邮件写好了」（同卡组单封的版式，按钮不可点，不写「示例」）。数据按合同造（boardFixtures.ts），接口用 apiFetch 替身。
  */
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -45,23 +45,30 @@ beforeEach(() => {
   vi.mocked(apiPostJson).mockReset().mockResolvedValue({ ok: true });
 });
 
-describe('第一次打开：摆示例，不给空白页', () => {
-  it('右边是几份示例申请，主区是其中一份的四步路和整封示例邮件；标一枚「示例」，没有能点的发出', async () => {
+describe('第一次打开：只摆一张预设的「邮件写好了」，不给空白页', () => {
+  it('主区是卡组单封那一张：公司海报 + 标题 + 整封邮件 + 发出 / 不投这家（都点不了）；没有右边一列、没有四步路、没有「示例」', async () => {
     serve(EMPTY_BOARD, []);
     render(<CareerMailApply />);
-    expect(await screen.findByText('示例')).toBeInTheDocument();
-    expect(within(side()).getByText('星河科技')).toBeInTheDocument();
-    expect(within(pane()).getByRole('list', { name: '走到哪一步' })).toBeInTheDocument();
-    expect(within(pane()).getByLabelText('正文')).toBeDisabled();
-    expect(within(pane()).queryByRole('button', { name: '发出' })).toBeNull();
+    const card = await screen.findByTestId('mail-preset');
+    expect(within(card).getByRole('heading')).toHaveTextContent('星河科技 · 邮件写好了');
+    expect(within(card).getByTestId('company-poster')).toBeInTheDocument();
+    expect(within(card).getByLabelText('正文')).toBeDisabled();
+    expect(within(card).getByRole('button', { name: '发出' })).toBeDisabled();
+    expect(within(card).getByRole('button', { name: '不投这家' })).toBeDisabled();
+    expect(screen.queryByRole('list', { name: '邮件申请' })).toBeNull();
+    expect(screen.queryByRole('list', { name: '走到哪一步' })).toBeNull();
+    expect(screen.queryByText(/示例/)).toBeNull();
+    // 开始条照常能用
     expect(screen.getByLabelText('贴一段写着投递邮箱的岗位')).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole('button', { name: '发出' }));
+    expect(apiPostJson).not.toHaveBeenCalled();
   });
 
-  it('有了第一份真的，示例全部消失', async () => {
+  it('有了第一份真的，预设那一张整块消失', async () => {
     serve({ ...FULL_BOARD, rows: SENT_ROWS }, []);
     render(<CareerMailApply />);
     expect(await within(await screen.findByRole('list', { name: '邮件申请' })).findByText('字节跳动')).toBeInTheDocument();
-    expect(screen.queryByText('示例')).toBeNull();
+    expect(screen.queryByTestId('mail-preset')).toBeNull();
     expect(screen.queryByText('星河科技')).toBeNull();
   });
 });

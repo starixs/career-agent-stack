@@ -102,7 +102,7 @@ function SampleBank() {
   return (
     <SampleFrame>
       <PracticeDeck items={SAMPLE_QUESTIONS} onStart={() => undefined} />
-      <ul aria-label="示例题目" className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+      <ul aria-label="题目" className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
         {SAMPLE_QUESTIONS.map(item => <QuestionCard key={item.id} item={item} onChanged={() => undefined} />)}
       </ul>
     </SampleFrame>

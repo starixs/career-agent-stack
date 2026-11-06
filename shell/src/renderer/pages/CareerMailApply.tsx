@@ -4,7 +4,8 @@
  *  - 顶上一条开始条：选几家可以投的、写这 N 封；旁边一格把库里没有的岗位贴进来；
  *  - 有几封在等他：主区顶上是和卡组里同一张「N 封邮件写好了」（MailAskCard）；
  *  - 主区：选中那份申请的四步路 + 整封邮件（当场改、当场发）或邮件往来；右边一列是邮件申请，等他过目的钢笔蓝、排最前。
- * 还没有自己的邮件申请时，摆几份示例（标一枚「示例」章、按钮不可点），不给一页空白；有了第一份真的，示例全部消失。
+ * 还没有自己的邮件申请时，主区只摆一张预设的「邮件写好了」（MailPresetCard，和卡组单封同一个版式、按钮不可点），
+ * 不给一页空白，也不把各个阶段都摆出来；有了第一份真的，整块消失。
  * 挂在投递记录（career-dossier）的 mail-apply 子视图下，标题由那一页给。
  */
 import { useState } from 'react';
@@ -19,10 +20,8 @@ import { mailApplyApi } from '@/components/career/mail-apply/mailApplyApi';
 import { applicationRows } from '@/components/career/mail-apply/mailBoard';
 import { MailPane } from '@/components/career/mail-apply/MailPane';
 import { MailRowList } from '@/components/career/mail-apply/MailRowList';
-import { MailSamplePane } from '@/components/career/mail-apply/MailSamplePane';
+import { MailPresetCard } from '@/components/career/mail-apply/MailPresetCard';
 import { MailStartBar } from '@/components/career/mail-apply/MailStartBar';
-import { SAMPLE_ROWS } from '@/components/career/mail-apply/sampleBoard';
-import { Stamp } from '@/components/career/skills/visual';
 import { useCareerQuery } from '@/components/career/useCareerData';
 import type { MailBoardRow } from '../../shared/careerMailApply';
 
@@ -49,7 +48,7 @@ function ReadyCards({ asks }: { asks: AskView[] }) {
   );
 }
 
-function Workspace({ rows, sample, cards, onConnect }: { rows: MailBoardRow[]; sample: boolean; cards: AskView[]; onConnect: () => void }) {
+function Workspace({ rows, cards, onConnect }: { rows: MailBoardRow[]; cards: AskView[]; onConnect: () => void }) {
   const [current, setCurrent] = useState<string | null>(null);
   const inCards = new Set(cards.flatMap(a => a.mail?.action_ids ?? []));
   // 默认看的那份：表里没有的第一份（表里的已经在顶上摊开了）
@@ -57,11 +56,10 @@ function Workspace({ rows, sample, cards, onConnect }: { rows: MailBoardRow[]; s
   return (
     <div className="cm-wb-grid">
       <div className="cm-wb-main">
-        {!sample && <ReadyCards asks={cards} />}
-        {shown && (sample ? <MailSamplePane key={shown.key} row={shown} /> : <MailPane key={shown.key} row={shown} onConnect={onConnect} />)}
+        <ReadyCards asks={cards} />
+        {shown && <MailPane key={shown.key} row={shown} onConnect={onConnect} />}
       </div>
       <aside className="cm-wb-side">
-        {sample && <div className="cm-sample-mark"><Stamp tone="neutral" dashed>示例</Stamp></div>}
         <MailRowList rows={rows} label="邮件申请" current={shown?.key ?? null} onShow={setCurrent} />
       </aside>
     </div>
@@ -75,13 +73,14 @@ export default function CareerMailApply() {
   if (board.error && !board.data) return <div className="px-6 py-5"><ErrorRow message={board.error} onRetry={board.reload} /></div>;
   if (!board.data) return <div className="px-6 py-5"><LoadingRow /></div>;
   const live = applicationRows(board.data.rows);
-  const sample = live.length === 0;
   const ready = board.data.rows.filter(r => r.station === 'ready');
   return (
     <div className="cm-wb cd-root" data-testid="mail-workbench">
       <MailStartBar rows={ready} hasResume={board.data.setup.has_resume !== false}
         onWritten={board.reload} onChanged={board.reload} />
-      <Workspace rows={sample ? [...SAMPLE_ROWS] : live} sample={sample} cards={(asks.data ?? []).filter(isApplyGroup)} onConnect={() => setConnecting(true)} />
+      {live.length === 0
+        ? <div className="cm-wb-main cm-wb-first"><MailPresetCard /></div>
+        : <Workspace rows={live} cards={(asks.data ?? []).filter(isApplyGroup)} onConnect={() => setConnecting(true)} />}
       {connecting && <ConnectMailbox onClose={() => setConnecting(false)} onConnected={() => { setConnecting(false); board.reload(); }} />}
     </div>
   );

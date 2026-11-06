@@ -156,11 +156,11 @@ describe('CareerGuide（功能市场）', () => {
     ['resume-tailor', '为「云图智能 · AI 应用开发工程师」定制好了'],
     ['greeting', '云图智能'],
     ['inbox-triage', '星河科技 Java 后端开发工程师 二面邀请'],
-  ])('第一次打开 %s：还没有自己的成果，用示例把成果摆出来，左上角一枚「示例」', async (id, text) => {
+  ])('第一次打开 %s：还没有自己的成果，用预设的一份把成果摆出来，不写「示例」', async (id, text) => {
     setCareerSubView('career-guide', id);
     renderGuide();
     const sample = await screen.findByTestId('sample');
-    expect(within(sample).getByText('示例')).toBeInTheDocument();
+    expect(screen.queryByText(/示例/)).toBeNull();
     expect(within(sample).getAllByText(text).length).toBeGreaterThan(0);
     // 示例上的动作一律点不了；开始条照常能用
     for (const button of within(sample).queryAllByRole('button')) {

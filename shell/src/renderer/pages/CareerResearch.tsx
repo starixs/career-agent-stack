@@ -85,11 +85,9 @@ function CompanyBoard({ companies, selected, onSelect }: { companies: Company[];
   );
 }
 
-/** 一家都还没查过：用示例的三家把查出来的样子摆出来，左边照样能点着换。 */
+/** 一家都还没查过：用预设的一家把查出来的样子摆出来（只摆初始效果，不摆红黄绿各一家）。 */
 function SampleBoard() {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = SAMPLE_COMPANIES.find(company => company.id === selectedId) ?? SAMPLE_COMPANIES[0];
-  return <SampleFrame><CompanyBoard companies={SAMPLE_COMPANIES} selected={selected} onSelect={setSelectedId} /></SampleFrame>;
+  return <SampleFrame><CompanyBoard companies={SAMPLE_COMPANIES} selected={SAMPLE_COMPANIES[0]} onSelect={() => undefined} /></SampleFrame>;
 }
 
 export default function CareerResearch({ embedded = false }: { embedded?: boolean } = {}) {

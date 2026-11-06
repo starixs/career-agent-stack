@@ -1,5 +1,5 @@
 /**
- * 公司调研的示例：查过的三家（黄、绿、红灯各一），报告按公司调研技能的输出结构写。公司和主体名都是虚构的；
+ * 公司调研第一次打开时预设的一家（只摆一个对象的初始效果，不把红黄绿三种都摆出来），报告按公司调研技能的输出结构写。公司和主体名都是虚构的；
  * 来源链接用 example.com，只有「要你自己核实」那条指向真实的官方公示系统入口。
  */
 import type { Company } from '../../types';
@@ -20,7 +20,7 @@ function report(light: string, legal: string, brand: string) {
       { id: 1, name: '当前被执行人 / 失信被执行人', status: 'clean', evidence: [] },
       { id: 2, name: '经营异常名录 / 吊销 / 注销中', status: 'clean', evidence: [] },
       { id: 3, name: '重大劳动保障违法 / 欠薪黑名单', status: 'unverified', evidence: [] },
-      { id: 4, name: '近 1 年劳动仲裁频繁（≥5 起）', status: light === 'red' ? 'hit' : 'unverified', evidence: light === 'red' ? [{ title: '裁判文书网公开记录', url: 'https://example.com/case', source_level: 'official' }] : [] },
+      { id: 4, name: '近 1 年劳动仲裁频繁（≥5 起）', status: 'unverified', evidence: [] },
       { id: 5, name: '法定代表人 / 主要股东近 1 年频繁变更', status: 'clean', evidence: [] },
       { id: 6, name: '近 1 年诉讼频繁且多为被告', status: 'unverified', evidence: [] },
       { id: 7, name: '社保欠缴被公示', status: 'unverified', evidence: [] },
@@ -41,8 +41,4 @@ const company = (id: string, light: string, legal: string, brand: string, days: 
   traffic_light: light, manual_checks: '[]', updated_at: daysFromNow(days),
 });
 
-export const SAMPLE_COMPANIES: Company[] = [
-  company('sample_co_1', 'yellow', '星河科技（杭州）股份有限公司', '星河科技', -1),
-  company('sample_co_2', 'green', '上海云图智能科技有限公司', '云图智能', -3),
-  company('sample_co_3', 'red', '海岳数据服务有限公司', '海岳数据', -6),
-];
+export const SAMPLE_COMPANIES: Company[] = [company('sample_co_1', 'yellow', '星河科技（杭州）股份有限公司', '星河科技', -1)];

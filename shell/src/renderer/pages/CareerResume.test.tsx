@@ -37,11 +37,11 @@ describe('CareerResume', () => {
     offChat(); offPick();
   });
 
-  it('还没有简历：下面用一份示例主简历的缩略图把做好之后的样子摆出来，点不开', async () => {
+  it('还没有简历：下面用一份预设主简历的缩略图把做好之后的样子摆出来（不写「示例」），点不开', async () => {
     vi.mocked(apiGetJson).mockImplementation(async (path: string) => (path.endsWith('/resumes') ? { ok: true, masters: [], tailored: [] } : { ok: true, jobs: [] }));
     render(<CareerResume embedded />);
     const sample = await screen.findByTestId('sample');
-    expect(within(sample).getByText('示例')).toBeInTheDocument();
+    expect(screen.queryByText(/示例/)).toBeNull();
     expect(within(sample).getByTestId('preview-stub')).toBeInTheDocument();
     expect(within(sample).queryByRole('button')).toBeNull();
     expect(apiGetJson).not.toHaveBeenCalledWith(expect.stringContaining('/studio'));

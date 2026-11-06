@@ -1,4 +1,4 @@
-/** 岗位评估的示例：一个很值得投的岗位（雷达图、硬门槛、投前确认都有）和一个硬门槛没过的。公司是虚构的。 */
+/** 岗位评估第一次打开时预设的一条：一个很值得投的岗位（雷达图、硬门槛、投前确认都有），展开着；只摆这一条，不把硬门槛没过的另摆一条。公司是虚构的。 */
 import type { JobEvaluation } from '../../types';
 
 import { daysFromNow } from './sampleMode';
@@ -24,13 +24,6 @@ const strong = {
   ask_user: ['JD 没写每周到岗天数，投之前问一下', '要不要先查一下这家公司'],
 };
 
-const failed = {
-  verdict: 'prefilter_fail',
-  prefilter: { pass: false, checks: [{ item: '届别', status: 'fail', evidence: '只招 2026 届' }] },
-  score: {}, reasons: [], ask_user: [],
-};
-
 export const SAMPLE_EVALUATIONS: JobEvaluation[] = [
   { job_id: 'sample_job_1', company_name: '云图智能', title: 'AI 应用开发工程师', url: null, score_json: JSON.stringify(strong), prefilter_json: null, updated_at: daysFromNow(-2) },
-  { job_id: 'sample_job_2', company_name: '青禾出行', title: '服务端开发（校招）', url: null, score_json: JSON.stringify(failed), prefilter_json: null, updated_at: daysFromNow(-5) },
 ];

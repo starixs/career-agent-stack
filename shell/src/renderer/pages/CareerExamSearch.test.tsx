@@ -59,11 +59,11 @@ describe('笔试助力页', () => {
     expect(screen.getByText('2 / 2')).toBeInTheDocument();
   });
 
-  it('这场还没有题：右栏摆一道示例题和答案（标一次「示例」），左栏粘贴入口照旧，不计数、不进记录', async () => {
+  it('这场还没有题：右栏摆一道预设的题和答案（不写「示例」），左栏粘贴入口照旧，不计数、不进记录', async () => {
     render(<CareerExamSearch />);
     const answerPane = screen.getByLabelText('答案');
     const sample = within(answerPane).getByTestId('sample');
-    expect(sample).toHaveTextContent('示例');
+    expect(sample).not.toHaveTextContent('示例');
     expect(sample).toHaveTextContent('找规律填数');
     expect(within(sample).getByText('A')).toBeInTheDocument();
     expect(answerPane).not.toHaveTextContent('答案会出现在这里');

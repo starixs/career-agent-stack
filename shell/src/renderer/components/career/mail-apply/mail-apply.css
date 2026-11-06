@@ -118,8 +118,12 @@
 .cm-wb-card { padding-bottom: 24px; border-bottom: 1px solid var(--line); }
 .cm-wb-card .cm-sheet { margin-top: 10px; }
 .cm-wb-side { position: sticky; top: 12px; min-width: 0; }
-.cm-sample-mark { margin: 0 0 8px 10px; }
-.cm-sample-body { min-width: 0; margin: 0; padding: 0; border: 0; }
+/* 第一次打开：主区只有预设那一张「邮件写好了」，宽度同有右列时的主区 */
+.cm-wb-first { max-width: 880px; }
+.cm-preset-body { min-width: 0; margin: 0; padding: 0; border: 0; }
+/* 预设那封：邮件内容照常清楚（它是给他看的），「发出」「不投这家」保持不可点的样子——点了没反应的按钮不能长得像能点 */
+.cm-preset-body :disabled:not(.cd-go):not(.cd-later) { opacity: 1; cursor: default; }
+.cm-preset-body .cd-later:hover { text-decoration: none; }
 
 /* 开始条：选岗位（收着时是勾上那几家的小签）· 写这 N 封 · 贴进来 */
 .cm-start-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }

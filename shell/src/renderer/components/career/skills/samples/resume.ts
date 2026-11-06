@@ -1,5 +1,5 @@
 /**
- * 简历汇总页的示例：一份做好的主简历缩略图。姓名用「示例同学」，不放电话、邮箱、照片；学校、公司都是虚构的。
+ * 简历汇总页的示例：一份做好的主简历缩略图。姓名用编造的「陈思远」，不放电话、邮箱、照片；学校、公司都是虚构的。
  * 用简历工作台同一套模板渲染（resume-studio 的默认文档 + 中文内容）。
  */
 import { defaultResumeData, type ResumeData } from '@career/resume-studio/schema';
@@ -9,7 +9,7 @@ const link = { url: '', label: '', inlineLink: false };
 export const SAMPLE_RESUME: ResumeData = {
   ...defaultResumeData,
   picture: { ...defaultResumeData.picture, hidden: true },
-  basics: { ...defaultResumeData.basics, name: '示例同学', headline: '后端开发 · 2027 届硕士', location: '杭州' },
+  basics: { ...defaultResumeData.basics, name: '陈思远', headline: '后端开发 · 2027 届硕士', location: '杭州' },
   summary: { ...defaultResumeData.summary, content: '<p>两段后端实习，做过运营平台的配置与权限模块、积分兑换的高并发优化；课程项目里用 Function Calling 搭过 Agent 工具。</p>' },
   sections: {
     ...defaultResumeData.sections,
