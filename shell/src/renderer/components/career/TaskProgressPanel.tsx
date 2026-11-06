@@ -98,7 +98,7 @@ export function TaskProgressPanel({ page, run, title, batch, takeover }: {
         <ol aria-label="刚做过的几步" className="mt-2 space-y-1 border-t border-[var(--line)] pt-2">
           {earlier.map((event, index) => (
             // 几点几分几秒不上页面：顺序已经说明先后，要查时间悬停看
-            <li key={`${event.at}-${index}`} className="truncate text-xs text-[var(--muted)]" title={`${timeOf.format(event.at)}　${event.message}`}>{event.message}</li>
+            <li key={`${event.at}-${index}`} className="truncate text-xs text-[var(--muted)]" title={`${timeOf.format(event.at)} ${event.message}`}>{event.message}</li>
           ))}
         </ol>
       )}
