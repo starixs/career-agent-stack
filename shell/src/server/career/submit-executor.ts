@@ -14,6 +14,7 @@
 import { recordSuccess, systemOfSync } from './trust-ledger';
 import { normalizeHost, type ActionQueueItem, type Repos } from '@career/core';
 
+import { noteApplyProgress } from './apply-progress';
 import { refillLostPage } from './page-refill';
 import { recordSubmitOutcome } from './submit-policy';
 
@@ -40,7 +41,14 @@ function submitProgress(deps: SubmitExecutorDeps, actionId: string): (message: s
   const job = app ? r.getJob(app.job_id) : undefined;
   const fill = str(payload.fill_action_id);
   const ident = { runId: fill ? `run_${fill}` : `submit_${actionId}`, actionId, ...(appId ? { application_id: appId } : {}), ...(job?.company_name ? { company: job.company_name } : {}), ...(job?.title ? { job_title: job.title } : {}) };
-  return (message, phase) => deps.broadcast('career:progress', { sessionId: deps.sessionId?.() ?? 'global', ...ident, phase, message, stage: 'send', kind: 'submit', ...(SUBMIT_FINAL.test(phase) ? { progress: 1 } : {}) });
+  return (message, phase) => {
+    if (appId) {
+      // 投出了：done；没投成 / 要他处理：回到等他投出；其余是正在提交
+      const state = phase === 'submit_done' ? 'done' as const : phase === 'submit_failed' ? 'ready' as const : 'working' as const;
+      noteApplyProgress(r, appId, { stage: 'send', kind: 'submit', state, settle: state !== 'working' });
+    }
+    deps.broadcast('career:progress', { sessionId: deps.sessionId?.() ?? 'global', ...ident, phase, message, stage: 'send', kind: 'submit', ...(SUBMIT_FINAL.test(phase) ? { progress: 1 } : {}) });
+  };
 }
 const SUBMIT_FINAL = /_(done|failed)$/;
 /** 提交结果 → 面板最后一条：投出了 / 没投成收尾；等你确认的不收尾（接管条说话）。 */

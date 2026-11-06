@@ -10,6 +10,7 @@
  *  - 每次状态变化 broadcast `career:batch`；接管状态同时广播 `career:takeover`，前端接管条 / 现场窗复用。
  */
 import { ApplyProgressTracker } from './apply-stage';
+import { noteApplyProgress } from './apply-progress';
 import PQueue from 'p-queue';
 import { aggregatorHostOf, autoRetryFailedFill, closeIfJobEnded, PACKET_FAILED_CODE, type ActionQueueItem, type Repos, type Task } from '@career/core';
 import { applyTaskTitle, isBrowserDown, isTransientDriveError, needsUserLabels, persistDriveOutcome, type DriveEvent, type DriveOutcome } from './drive-outcome';
@@ -90,6 +91,9 @@ interface Run {
   /** 走到链路哪一环、格子填了多少（界面画图用，apply-stage.ts）。 */
   track: ApplyProgressTracker;
 }
+
+/** 一趟收尾时这份网申停在什么状态：填好等他投出 / 已放权去提交（还在办）/ 没填成。 */
+const PROGRESS_CLOSING: Partial<Record<string, 'ready' | 'working' | 'failed'>> = { apply_batch_ready: 'ready', apply_batch_done: 'working', apply_batch_failed: 'failed' };
 
 const realSleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 const dayOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -407,6 +411,8 @@ export class BatchRunner {
     takeover('running', { url: payload.url });
     // 链接是聚合站的岗位页（不是官网）：不在那上面「填表」，如实记失败，不把站点标语当缺项推给他；重试也没用，不自动再试
     const aggregator = mode === 'start' ? aggregatorHostOf(typeof payload.url === 'string' ? payload.url : null) : null;
+    // 新开的一趟：这份网申存着的进度从头记（上一趟枝上的叶子不留）
+    if (mode === 'start' && action.application_id) noteApplyProgress(r, action.application_id, { stage: 'picked', restart: true });
     // 续跑的是填到一半停下的那份：从「填写」接着算；新开的从「选中」起
     return { action, mode, payload, job, title, task, runId, changed, takeover, aggregator, track: new ApplyProgressTracker(mode === 'continue' ? 'fill' : 'picked') };
   }
@@ -440,6 +446,11 @@ export class BatchRunner {
 
   private broadcastProgress(run: Run, message: string, phase: string, extra: { progress?: number; kind?: string } = {}): void {
     const cells = run.track.cells();
+    // 按申请记下来（apply-progress.ts）：界面上这一家标签下面的树读的是它，不靠界面自己记
+    if (run.action.application_id) {
+      const closing = PROGRESS_CLOSING[phase];
+      noteApplyProgress(this.repos, run.action.application_id, { stage: run.track.stage, kind: extra.kind, cells, ...(closing ? { state: closing, settle: true } : {}) });
+    }
     this.deps.broadcast('career:progress', {
       sessionId: this.deps.sessionId?.() ?? 'global', runId: run.runId, taskId: run.task.id, phase, message,
       company: run.job?.company_name ?? undefined, job_title: run.job?.title ?? undefined,

@@ -14,18 +14,21 @@ import { useEffect, useRef } from 'react';
 import type { ProgressRun } from '@/features/career-shell/workSurfaceStore';
 
 import { HANDOFF_REASON_LABELS } from './careerConstants';
-import { LIVE_STATUS_TEXT, liveStatusOf, type LiveStatus } from './liveStage';
+import { parseApplyProgress, type ApplyProgress } from '../../../shared/careerApplyStage';
+import { LIVE_STATUS_TEXT, liveStatusOf, runForPage, type LiveStatus } from './liveStage';
 
-export interface LivePage { application_id: string; company: string; title: string; current: boolean; waiting: string | null }
+/** progress：服务端按申请存着的进度（走到哪一环、做过哪几类事、格子数）；这一家的状态和下面那棵树都从它来。 */
+export interface LivePage { application_id: string; company: string; title: string; current: boolean; waiting: string | null; progress?: ApplyProgress }
 
 /** 跨边界数据先过一遍：只认字段齐全的那几项。 */
 export function parseLivePages(raw: unknown): LivePage[] {
   const list = raw && typeof raw === 'object' && Array.isArray((raw as { pages?: unknown }).pages) ? (raw as { pages: unknown[] }).pages : [];
   return list.flatMap(p => {
     if (!p || typeof p !== 'object') return [];
-    const { application_id: id, company, title, current, waiting } = p as Record<string, unknown>;
+    const { application_id: id, company, title, current, waiting, progress: rawProgress } = p as Record<string, unknown>;
+    const progress = parseApplyProgress(rawProgress);
     return typeof id === 'string' && typeof company === 'string'
-      ? [{ application_id: id, company, title: typeof title === 'string' ? title : '', current: current === true, waiting: typeof waiting === 'string' && waiting ? waiting : null }]
+      ? [{ application_id: id, company, title: typeof title === 'string' ? title : '', current: current === true, waiting: typeof waiting === 'string' && waiting ? waiting : null, ...(progress ? { progress } : {}) }]
       : [];
   });
 }
@@ -89,7 +92,7 @@ export function LivePageTabs({ pages, runs, onShow }: { pages: readonly LivePage
         onWheel={ev => { if (Math.abs(ev.deltaY) > Math.abs(ev.deltaX)) ev.currentTarget.scrollLeft += ev.deltaY; }}
         className="relative -mb-px flex snap-x snap-proximity items-stretch gap-0.5 overflow-x-auto overflow-y-hidden overscroll-x-contain px-3 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {pages.map(p => {
-          const status = liveStatusOf(p, runs.find(r => r.applicationId === p.application_id));
+          const status = liveStatusOf(p, runForPage(p, runs));
           const hint = statusHint(p, status);
           return (
             <button key={p.application_id} ref={p.current ? currentRef : undefined} type="button" role="tab" aria-selected={p.current}

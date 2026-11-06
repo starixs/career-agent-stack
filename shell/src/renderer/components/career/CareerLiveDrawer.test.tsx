@@ -163,6 +163,33 @@ describe('CareerLiveDrawer', () => {
     expect(screen.queryByText('正在填写 A 的教育经历')).not.toBeInTheDocument();
   });
 
+  it('每个标签下面是它自己那棵树：界面没收到过事件，也按服务端存着的进度画；切标签树跟着换（2026-11-06「树没有跟着标签走」）', async () => {
+    let current = 'a';
+    const progressA = { stage: 'open', state: 'working', trail: [{ stage: 'open', kind: 'navigate', count: 1 }, { stage: 'open', kind: 'entry', count: 1 }] };
+    const progressB = { stage: 'fill', state: 'working', trail: [{ stage: 'fill', kind: 'page', count: 1 }, { stage: 'fill', kind: 'field', count: 9 }], cells: { total: 20, done: 9, you: 0 } };
+    vi.mocked(apiGetJson).mockImplementation(async (url: string) => (url === '/api/career/live/pages'
+      ? { ok: true, pages: [
+        { application_id: 'a', company: '闪电智联', title: '产品经理', current: current === 'a', waiting: 'user_request', progress: progressA },
+        { application_id: 'b', company: '吉利汽车', title: '数据分析岗', current: current === 'b', waiting: null, progress: progressB },
+      ] }
+      : { ok: true }));
+    vi.mocked(apiPostJson).mockImplementation(async (url: string, body: unknown) => {
+      if (url === '/api/career/live/view') current = (body as { application_id: string }).application_id;
+      return { ok: true };
+    });
+    render(<Harness />);
+    act(() => openLiveDrawer());
+    await waitFor(() => expect(live.handler).not.toBeNull());
+    push(snapshot());
+    const leaves = () => Array.from(screen.getByTestId('live-branch').querySelectorAll('li')).map(li => li.textContent);
+    await waitFor(() => expect(leaves()).toEqual(['打开网址', '进申请表', '等你看一眼']));
+    fireEvent.click(screen.getByRole('tab', { name: /吉利汽车/ }));
+    await waitFor(() => expect(leaves()).toEqual(['看这一页', '填格子9']));
+    expect(screen.getByRole('img', { name: '填好 9 格，共 20 格' })).toBeInTheDocument();
+    // 标题下面不再有状态、网址那一行
+    expect(screen.queryByText(/x\.com|等你处理|正在工作/)).not.toBeInTheDocument();
+  });
+
   it('第一次打开、还没有网申在跑：摆示例（标一次「示例」、不可点、不进读屏），不是黑框加一句话；浏览器一开就整块换掉', async () => {
     render(<Harness />);
     act(() => openLiveDrawer());

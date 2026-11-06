@@ -7,7 +7,7 @@
  */
 import type { ProgressRun } from '@/features/career-shell/workSurfaceStore';
 
-import { APPLY_STAGES, type ApplyStage } from '../../../shared/careerApplyStage';
+import { APPLY_STAGES, type ApplyProgress, type ApplyStage, type TrailStep } from '../../../shared/careerApplyStage';
 
 /** waiting：停下等他（登录 / 验证码 / 补信息）；ready：填好了等他过目投出；sending：正在提交。 */
 export type LiveStatus = 'queued' | 'filling' | 'waiting' | 'ready' | 'sending' | 'done' | 'failed';
@@ -19,6 +19,29 @@ export function liveStatusOf(page: { waiting: string | null } | undefined, run: 
   if (run.ready) return 'ready';
   if (run.finished) return 'done';
   return run.steps.at(-1)?.phase.startsWith('submit') ? 'sending' : 'filling';
+}
+
+const trailWeight = (trail: readonly TrailStep[] | undefined) => (trail ?? []).reduce((n, t) => n + t.count, 0);
+
+/**
+ * 这一家的进展：服务端按申请存着的那份（重新加载、重启、事件来的时候界面还没连上，都还在）
+ * 和界面刚收到的事件拼起来——刚收到的更新鲜，存着的更全，取记得多的那份枝。
+ * 每个标签用它自己这一份（2026-11-06：几个标签下面的树一样，因为界面没记到的那几家只能按默认猜）。
+ */
+export function runForPage(page: { application_id: string; progress?: ApplyProgress }, runs: readonly ProgressRun[]): ProgressRun | undefined {
+  const live = runs.find(r => r.applicationId === page.application_id);
+  const saved = page.progress;
+  if (!saved) return live;
+  if (live) {
+    return { ...live, stage: live.stage ?? saved.stage, kind: live.kind ?? saved.kind, cells: live.cells ?? saved.cells, trail: trailWeight(live.trail) >= trailWeight(saved.trail) ? live.trail : saved.trail };
+  }
+  return {
+    key: `app:${page.application_id}`, applicationId: page.application_id, progress: null, updatedAt: 0,
+    // 存着的是「正在提交」：让状态判断认得出（它看最后一步是不是提交）
+    steps: saved.stage === 'send' && saved.state === 'working' ? [{ message: '', phase: 'submit', at: 0 }] : [],
+    finished: saved.state !== 'working', failed: saved.state === 'failed', ready: saved.state === 'ready',
+    stage: saved.stage, kind: saved.kind, trail: saved.trail, cells: saved.cells,
+  };
 }
 
 const at = (stage: ApplyStage) => APPLY_STAGES.indexOf(stage);

@@ -21,6 +21,8 @@ import { appKeyOfHandoff, handoffsToHandBack, recheckAfterHandback, waitingByApp
 import type { LiveHub } from '../career/live-hub';
 import { findApplicationPage, openApplicationKeys } from '../career/app-pages';
 import { refillLostPage } from '../career/page-refill';
+import { applyProgressOf } from '../career/apply-progress';
+import type { ApplyProgress } from '../../shared/careerApplyStage';
 import { livePin, liveTarget, setViewApp, userWaitActive, viewedApp } from '../career/live-pin';
 import { JOURNEY_EVENT, journeySms, refreshJourneyImage, submitJourneyCode, type SmsState } from '../career/login-journey';
 import { createPageFollower } from '../career/page-follower';
@@ -45,7 +47,8 @@ async function pinnedOrActive(context: BrowserContext, productSessionId: string)
 
 /** 几家一起投时现场窗能切的那几家：有页面开着的网申（对话里浏览用的那一页不算）。 */
 /** waiting：这一家在等他处理什么（接管原因）；没在等是 null。 */
-export interface LivePage { application_id: string; company: string; title: string; current: boolean; waiting: string | null }
+/** progress：这一家存着的进度（走到哪一环、做过哪几类事、格子数）——界面上它那棵树画的是这个。 */
+export interface LivePage { application_id: string; company: string; title: string; current: boolean; waiting: string | null; progress?: ApplyProgress }
 function livePages(deps: CareerLiveDeps, shown: string | null = liveTarget()?.appKey ?? null): LivePage[] {
   const id = deps.productSessionId();
   if (!id) return [];
@@ -54,7 +57,8 @@ function livePages(deps: CareerLiveDeps, shown: string | null = liveTarget()?.ap
   const pages = openApplicationKeys(id).flatMap(key => {
     const app = deps.repos.getApplication(key);
     const job = app ? deps.repos.getJob(app.job_id) : undefined;
-    return job ? [{ application_id: key, company: job.company_name ?? '未知公司', title: job.title, current: key === current, waiting: waiting.get(key) ?? null }] : [];
+    const progress = applyProgressOf(deps.repos, key);
+    return job ? [{ application_id: key, company: job.company_name ?? '未知公司', title: job.title, current: key === current, waiting: waiting.get(key) ?? null, ...(progress ? { progress } : {}) }] : [];
   });
   // 等他的几家排在前面：哪家要他接手，一眼看到、点过去就在那家处理
   return [...pages.filter(p => p.waiting), ...pages.filter(p => !p.waiting)];
@@ -468,7 +472,16 @@ function liveStream(request: Request, deps: CareerLiveDeps): Response {
             };
             context.on('page', onPage);
             // 多份网申各有页面：选中页切换（focusPage）时画面跟过去
-            const follow = setInterval(() => { void hub.refresh(); }, 1500);
+            // 画面自己换到了别家（后台新开了一家、焦点跟过去了）：告诉界面，选中的标签和下面的树跟着换
+            // （2026-11-06：画面已经是吉利的页面，选中的标签还是闪电智联）
+            let shownKey: string | null | undefined;
+            const follow = setInterval(() => {
+              void hub.refresh();
+              void viewedAppKey(deps, id).then(key => {
+                if (shownKey !== undefined && key !== shownKey) deps.hub.publish('career:data-changed', { sessionId: id, tables: ['live_view'] });
+                shownKey = key;
+              }).catch((e: unknown) => console.warn('[career-live] 认画面是哪一家 FAILED', e instanceof Error ? e.message : e));
+            }, 1500);
             let contextClosed = false;
             await new Promise<void>(resolve => {
               const finish = () => {
