@@ -148,7 +148,7 @@ describe('AskView：一个动作能解决的才合并', () => {
     expect(start.sources.map(s => s.id)).toEqual(ids);
   });
 
-  it('填好等投出的几家合成一件「N 家填好了」：有项要看的、标星的也在里面，点名排在最前（2026-11-05 同一批拆成两种卡）', () => {
+  it('填好等投出的几家合成一件：还没填完的也在卡上点名、排最前，但一键投出只投填好的（2026-11-05 拆成两种卡；2026-11-06 没填完的不能跟着投）', () => {
     const repos = createMemoryRepos();
     const submit = (company: string, gaps = 0) => {
       const a = app(repos, company);
@@ -159,11 +159,17 @@ describe('AskView：一个动作能解决的才合并', () => {
     const target = submit('美团');
     const honor = submit('荣耀', 1);
     const asks = buildAsks(repos, NOW, { isTarget: id => id === target.app.id });
-    const all = asks.find(a => a.title === '5 家填好了')!;
-    expect(all).toMatchObject({ kind: 'review', detail: '美团、荣耀有要你看一眼的项，其余必填都填好并核对过' });
-    expect(all.sources.map(x => x.id).slice(0, 2)).toEqual([target.action.id, honor.action.id]);
-    expect(all.sources.map(x => x.id).slice(2)).toEqual(clean.map(c => c.action.id));
-    expect(asks.filter(a => a.kind === 'review').map(a => a.title)).toEqual(['5 家填好了']);
+    expect(asks.filter(a => a.kind === 'review').map(a => a.title)).toEqual(['4 家填好了']);
+    const all = asks.find(a => a.title === '4 家填好了')!;
+    expect(all.detail).toBe('荣耀还没填完，先去看；其余必填都填好并核对过');
+    expect(all.application_ids[0]).toBe(honor.app.id);
+    expect(all.sources.map(x => x.id)).toEqual([...clean.map(c => c.action.id), target.action.id]);
+  });
+
+  it('一家都没填好：不合卡，各自投前过目', () => {
+    const repos = createMemoryRepos();
+    for (const c of ['荣耀', '小米']) { const a = app(repos, c); repos.enqueueAction('submit', { review: { rows: [{ label: '作品集', status: 'upload_unconfirmed' }], requiredFilled: 3, requiredTotal: 3 } }, a.id); }
+    expect(buildAsks(repos, NOW).filter(a => a.kind === 'review').map(a => a.title).sort()).toEqual(['小米 · 投前过目', '荣耀 · 投前过目']);
   });
 
   it('网申卡在测评、同一份申请又记了测评截止：是同一件事，并进截止那件', () => {

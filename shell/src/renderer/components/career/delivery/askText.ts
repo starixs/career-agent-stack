@@ -77,7 +77,12 @@ export function actionLabels(ask: AskView): { go: string; later: string } {
     case 'choice': return { go: '选好', later: '晚点' };
     case 'login': return { go: '去登录', later: '晚点' };
     case 'start': return { go: '都开始投', later: '晚点' };
-    case 'review': return { go: ask.application_ids.length > 1 ? '一键投出' : '投出', later: '去看' };
+    // 合卡里有还没填完的几家：按钮说清只投填好的那几家（2026-11-06）
+    case 'review': {
+      const ready = ask.sources.filter(s => s.type === 'action').length;
+      if (ask.application_ids.length > ready && ready > 0) return { go: `投出填好的 ${ready} 家`, later: '去看' };
+      return { go: ask.application_ids.length > 1 ? '一键投出' : '投出', later: '去看' };
+    }
     case 'confirm': return { go: '投出了', later: '没投出去' };
     case 'attendance': return ask.deadline_kind === 'assessment' ? { go: '做了', later: '没做' } : { go: '考了', later: '没去' };
     case 'retro': return { go: '说几句复盘', later: '不复盘了' };

@@ -347,6 +347,14 @@ describe('等你条小签', () => {
   });
 });
 
+describe('合卡里有还没填完的几家（2026-11-06）', () => {
+  it('主按钮说清只投填好的那几家', async () => {
+    const { actionLabels } = await import('./askText');
+    const mixed: AskView = { id: 'act_a', kind: 'review', title: '2 家填好了', detail: '荣耀还没填完，先去看；其余必填都填好并核对过', application_ids: ['a_honor', 'a1', 'a2'], companies: [mark('荣耀'), mark('中兴'), mark('大疆')], sources: [{ type: 'action', id: 's1' }, { type: 'action', id: 's2' }], due_at: null, overdue: false };
+    expect(actionLabels(mixed)).toEqual({ go: '投出填好的 2 家', later: '去看' });
+  });
+});
+
 describe('「N 家没填成」（自动重试过一次还没成）', () => {
   it('两个按钮：再试一次 / 我自己来', async () => {
     const { actionLabels } = await import('./askText');
